@@ -31,19 +31,21 @@ from nemo.lightning.pytorch.callbacks.jit_transform import (
 def test_extract_module_attr_name_with_module():
     mock_pl_module = MagicMock(spec=[])
     mock_pl_module.module = MagicMock()
-    assert extract_module_attr_name(mock_pl_module) == 'module', mock_pl_module
+    assert extract_module_attr_name(mock_pl_module) == "module", mock_pl_module
 
 
 def test_extract_module_attr_name_with_model():
     mock_pl_module = MagicMock(spec=[])
     mock_pl_module.model = MagicMock()
-    assert extract_module_attr_name(mock_pl_module) == 'model', mock_pl_module
+    assert extract_module_attr_name(mock_pl_module) == "model", mock_pl_module
 
 
 def test_extract_module_attr_name_raises():
     mock_pl_module = MagicMock(spec=[])
     # no 'module' or 'model'
-    with pytest.raises(ValueError, match="Expected lightning_module to have a .model or .module"):
+    with pytest.raises(
+        ValueError, match="Expected lightning_module to have a .model or .module"
+    ):
         extract_module_attr_name(mock_pl_module)
 
 
@@ -143,7 +145,7 @@ def test_jit_transform_no_config():
     trainer_mock = MagicMock()
     pl_module = MagicMock(spec=[])
     transform.on_train_epoch_start(trainer_mock, pl_module)
-    assert not getattr(pl_module, '_compiled', False)
+    assert not getattr(pl_module, "_compiled", False)
 
 
 def test_jit_transform_already_compiled():

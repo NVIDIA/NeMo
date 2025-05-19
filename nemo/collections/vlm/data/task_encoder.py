@@ -52,10 +52,18 @@ class DataSample(Sample):
     """
 
     images: torch.Tensor = field(default_factory=lambda: torch.empty(0))
-    tokens: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.long))
-    labels: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.long))
-    loss_mask: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.float))
-    position_ids: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.float))
+    tokens: torch.Tensor = field(
+        default_factory=lambda: torch.empty(0, dtype=torch.long)
+    )
+    labels: torch.Tensor = field(
+        default_factory=lambda: torch.empty(0, dtype=torch.long)
+    )
+    loss_mask: torch.Tensor = field(
+        default_factory=lambda: torch.empty(0, dtype=torch.float)
+    )
+    position_ids: torch.Tensor = field(
+        default_factory=lambda: torch.empty(0, dtype=torch.float)
+    )
     packed_seq_params: Optional[PackedSeqParams] = None
     seqlen: int = field(default_factory=lambda: 0)
 
@@ -78,10 +86,18 @@ class DataBatch(Batch):
     """
 
     images: torch.Tensor = field(default_factory=lambda: torch.empty(0))
-    tokens: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.long))
-    labels: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.long))
-    loss_mask: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.float))
-    position_ids: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.float))
+    tokens: torch.Tensor = field(
+        default_factory=lambda: torch.empty(0, dtype=torch.long)
+    )
+    labels: torch.Tensor = field(
+        default_factory=lambda: torch.empty(0, dtype=torch.long)
+    )
+    loss_mask: torch.Tensor = field(
+        default_factory=lambda: torch.empty(0, dtype=torch.float)
+    )
+    position_ids: torch.Tensor = field(
+        default_factory=lambda: torch.empty(0, dtype=torch.float)
+    )
     packed_seq_params: Optional[PackedSeqParams] = None
 
 
@@ -113,7 +129,7 @@ class TaskEncoderConfig:
     stop_string: Optional[str] = "</s>"
 
     # Chat configuration
-    roles: List[str] = field(default_factory=lambda: ['user', 'assistant'])
+    roles: List[str] = field(default_factory=lambda: ["user", "assistant"])
     chat_template: Optional[str] = None
     image_following_text: bool = True  # For similarity interleaved samples
 
@@ -132,7 +148,9 @@ class TaskEncoderConfig:
             ValueError: If neither hf_path nor both tokenizer and image_processor are provided.
         """
         if not self.hf_path and (not self.tokenizer or not self.image_processor):
-            raise ValueError("Either hf_path or both tokenizer and image_processor must be provided")
+            raise ValueError(
+                "Either hf_path or both tokenizer and image_processor must be provided"
+            )
 
         if self.hf_path:
             self.hf_processor = AutoProcessor.from_pretrained(self.hf_path)
@@ -151,7 +169,7 @@ class TaskEncoderConfig:
             for attr in dir(self.hf_processor):
                 if (
                     not callable(getattr(self.hf_processor, attr))
-                    and not attr.startswith('_')
+                    and not attr.startswith("_")
                     and not hasattr(self, attr)
                 ):
                     setattr(self, attr, getattr(self.hf_processor, attr))
@@ -160,12 +178,16 @@ class TaskEncoderConfig:
             self.stop_string = ""
 
         if self.packed_sequence and self.pad_to_multiple_of is None:
-            raise ValueError("pad_to_multiple_of must be provided when using packed sequence. We recommend 64.")
+            raise ValueError(
+                "pad_to_multiple_of must be provided when using packed sequence. We recommend 64."
+            )
 
 
 class TaskEncoder(
     DefaultTaskEncoder[
-        Union[VQASample, CaptioningSample, InterleavedSample, SimilarityInterleavedSample],
+        Union[
+            VQASample, CaptioningSample, InterleavedSample, SimilarityInterleavedSample
+        ],
         DataSample,
         DataBatch,
         dict,
@@ -275,19 +297,19 @@ class TaskEncoder(
         """
         batch_dict = batch_data.__dict__
         # TODO: Change media to images in the model code and remove this
-        if 'images' in batch_dict:
-            batch_dict['media'] = batch_dict['images']
-            del batch_dict['images']
-        micro_batch_size, seq_length = batch_dict['tokens'].size()
+        if "images" in batch_dict:
+            batch_dict["media"] = batch_dict["images"]
+            del batch_dict["images"]
+        micro_batch_size, seq_length = batch_dict["tokens"].size()
         # Position ids.
         position_ids = torch.arange(seq_length, dtype=torch.long)
         position_ids = position_ids.unsqueeze(0).repeat(micro_batch_size, 1)
-        batch_dict['position_ids'] = position_ids
-        if 'attention_mask' not in batch_dict:
-            batch_dict['attention_mask'] = None
+        batch_dict["position_ids"] = position_ids
+        if "attention_mask" not in batch_dict:
+            batch_dict["attention_mask"] = None
         # If all the packed_seq_params are None, then we need to set it to an empty tuple
-        if all(param is None for param in batch_dict['packed_seq_params']):
-            batch_dict['packed_seq_params'] = None
+        if all(param is None for param in batch_dict["packed_seq_params"]):
+            batch_dict["packed_seq_params"] = None
         return batch_dict
 
     def select_samples_to_pack(self, samples):
@@ -331,7 +353,13 @@ class TaskEncoder(
         """
 
         packed_images = torch.stack([sample.images for sample in samples])
-        packed_tokens, packed_labels, packed_position_ids, packed_loss_mask, packed_seq_params = convert_to_packed(
+        (
+            packed_tokens,
+            packed_labels,
+            packed_position_ids,
+            packed_loss_mask,
+            packed_seq_params,
+        ) = convert_to_packed(
             tokens=[sample.tokens for sample in samples],
             labels=[sample.labels for sample in samples],
             seqlens=[sample.seqlen for sample in samples],
@@ -362,18 +390,30 @@ class TaskEncoder(
         # Apply conversation template
         messages = []
         if self.config.system_prompt:
-            messages.append({'role': 'system', 'content': self.config.system_prompt})
+            messages.append({"role": "system", "content": self.config.system_prompt})
 
         # Ensure context and answers are lists for consistent processing
-        contexts = input_sample.context if isinstance(input_sample.context, list) else [input_sample.context]
-        answers = input_sample.answers if isinstance(input_sample.answers, list) else [input_sample.answers]
+        contexts = (
+            input_sample.context
+            if isinstance(input_sample.context, list)
+            else [input_sample.context]
+        )
+        answers = (
+            input_sample.answers
+            if isinstance(input_sample.answers, list)
+            else [input_sample.answers]
+        )
 
         # Build the conversation messages, replacing image placeholder
         min_length = min(len(contexts), len(answers))
         for i in range(min_length):
-            context_with_placeholder = contexts[i].replace("<image>", self.config.image_token)
-            messages.append({'role': self.config.roles[0], 'content': context_with_placeholder})
-            messages.append({'role': self.config.roles[1], 'content': answers[i]})
+            context_with_placeholder = contexts[i].replace(
+                "<image>", self.config.image_token
+            )
+            messages.append(
+                {"role": self.config.roles[0], "content": context_with_placeholder}
+            )
+            messages.append({"role": self.config.roles[1], "content": answers[i]})
 
         # Generate templated prompt
         conversation_prompt = self.config.tokenizer.apply_chat_template(
@@ -381,7 +421,7 @@ class TaskEncoder(
         )
 
         # Tokenize prompt
-        regex_pattern = f'({re.escape(self.config.image_token_str)})'
+        regex_pattern = f"({re.escape(self.config.image_token_str)})"
         chunks = re.split(regex_pattern, conversation_prompt)
 
         tokenized_chunks = []
@@ -390,23 +430,35 @@ class TaskEncoder(
                 # Todo (abhi): Expand this with number of image_id_tokens
                 tokenized_chunks.append(self.config.image_token_id)
             elif len(chunk) > 0:
-                tokenized_chunks.extend(self.config.tokenizer(chunk, add_special_tokens=False).input_ids)
+                tokenized_chunks.extend(
+                    self.config.tokenizer(chunk, add_special_tokens=False).input_ids
+                )
 
         tokens = torch.tensor(tokenized_chunks, dtype=torch.long)
 
         # Compute labels
         labels = torch.ones_like(tokens) * self.config.ignore_place_holder
-        answers = input_sample.answers if isinstance(input_sample.answers, list) else [input_sample.answers]
+        answers = (
+            input_sample.answers
+            if isinstance(input_sample.answers, list)
+            else [input_sample.answers]
+        )
 
         search_start_index = 0
         for answer in answers:
             # Tokenize the answer, including the stop string if provided
             answer_with_stop = answer + (self.config.stop_string or "")
-            answer_tokens = self.tokenizer.tokenizer(answer_with_stop, add_special_tokens=False)["input_ids"]
-            answer_tokens_tensor = torch.tensor(answer_tokens, device=tokens.device)  # Ensure same device
+            answer_tokens = self.tokenizer.tokenizer(
+                answer_with_stop, add_special_tokens=False
+            )["input_ids"]
+            answer_tokens_tensor = torch.tensor(
+                answer_tokens, device=tokens.device
+            )  # Ensure same device
 
             # Find answer pattern in tokens
-            answer_start, answer_end = _find_pattern_indices(tokens, answer_tokens_tensor, search_start_index)
+            answer_start, answer_end = _find_pattern_indices(
+                tokens, answer_tokens_tensor, search_start_index
+            )
 
             if answer_start >= 0:
                 labels[answer_start:answer_end] = tokens[answer_start:answer_end]
@@ -430,7 +482,11 @@ class TaskEncoder(
         tokens = tokens[:-1].contiguous()
         labels = labels[1:].contiguous()
 
-        seqlen = predict_seq_len(tokens, self.config.num_image_embeddings_per_tile, self.config.image_token_id)
+        seqlen = predict_seq_len(
+            tokens,
+            self.config.num_image_embeddings_per_tile,
+            self.config.image_token_id,
+        )
         # Pad tokens
         if self.config.pad_to_multiple_of:
             seqlen_padded = (
@@ -441,17 +497,19 @@ class TaskEncoder(
             pad_len = seqlen_padded - seqlen
 
             if pad_len > 0:
-                tokens = F.pad(tokens, (0, pad_len), 'constant', 0)
-                labels = F.pad(labels, (0, pad_len), 'constant', self.config.ignore_place_holder)
+                tokens = F.pad(tokens, (0, pad_len), "constant", 0)
+                labels = F.pad(
+                    labels, (0, pad_len), "constant", self.config.ignore_place_holder
+                )
 
         # Compute loss mask
         loss_mask = torch.ones_like(labels, dtype=torch.float)
         loss_mask[labels == self.config.ignore_place_holder] = 0.0
 
         # Process image
-        image = self.config.image_processor.preprocess(input_sample.image, return_tensors='pt', do_rescale=False)[
-            'pixel_values'
-        ][0]
+        image = self.config.image_processor.preprocess(
+            input_sample.image, return_tensors="pt", do_rescale=False
+        )["pixel_values"][0]
         processed_image = image.unsqueeze(0).unsqueeze(0)  # Add T, F dimensions
 
         return DataSample(

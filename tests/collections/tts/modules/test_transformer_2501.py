@@ -137,7 +137,12 @@ class TestPositionwiseConvFF:
     def test_causal_forward(self):
         set_seed(0)
         layer = PositionwiseConvFF(
-            self.d_model, self.d_ffn, self.p_dropout, self.kernel_size, bias=self.bias, is_causal=True
+            self.d_model,
+            self.d_ffn,
+            self.p_dropout,
+            self.kernel_size,
+            bias=self.bias,
+            is_causal=True,
         )
 
         with torch.no_grad():
@@ -163,7 +168,12 @@ class TestPositionwiseConvFF:
     def test_non_causal_forward(self):
         set_seed(0)
         layer = PositionwiseConvFF(
-            self.d_model, self.d_ffn, self.p_dropout, self.kernel_size, bias=self.bias, is_causal=False
+            self.d_model,
+            self.d_ffn,
+            self.p_dropout,
+            self.kernel_size,
+            bias=self.bias,
+            is_causal=False,
         )
 
         with torch.no_grad():
@@ -352,17 +362,24 @@ class TestCrossAttention:
         # shape = (1, cls.query_tensor.shape[1], cls.memory_tensor.shape[1])
         cls.attn_prior = torch.from_numpy(
             beta_binomial_prior_distribution(
-                phoneme_count=cls.memory_tensor.shape[1], mel_count=cls.query_tensor.shape[1]
+                phoneme_count=cls.memory_tensor.shape[1],
+                mel_count=cls.query_tensor.shape[1],
             )
         ).unsqueeze(0)
 
     def test_forward(self):
         set_seed(0)
-        layer = CrossAttention(self.n_heads, self.d_model, self.d_memory, self.p_dropout)
+        layer = CrossAttention(
+            self.n_heads, self.d_model, self.d_memory, self.p_dropout
+        )
 
         with torch.no_grad():
             output_tensor, attn_output = layer(
-                self.query_tensor, self.query_mask, self.memory_tensor, self.memory_mask, self.attn_prior
+                self.query_tensor,
+                self.query_mask,
+                self.memory_tensor,
+                self.memory_mask,
+                self.attn_prior,
             )
 
         # fmt:off
@@ -440,7 +457,9 @@ class TestTransformerLayer:
         cls.cond_mask = torch.ones(1, cls.cond.shape[1]).bool()
         # shape = (1, cls.x.shape[1], cls.cond.shape[1])
         cls.attn_prior = torch.from_numpy(
-            beta_binomial_prior_distribution(phoneme_count=cls.cond.shape[1], mel_count=cls.x.shape[1])
+            beta_binomial_prior_distribution(
+                phoneme_count=cls.cond.shape[1], mel_count=cls.x.shape[1]
+            )
         ).unsqueeze(0)
 
     def test_forward_causal_self_attn_and_has_xattn(self):
@@ -459,7 +478,9 @@ class TestTransformerLayer:
         )
 
         with torch.no_grad():
-            output_dict = layer(self.x, self.x_mask, self.cond, self.cond_mask, self.attn_prior)
+            output_dict = layer(
+                self.x, self.x_mask, self.cond, self.cond_mask, self.attn_prior
+            )
 
         # fmt:off
         expected_output = {
@@ -527,7 +548,9 @@ class TestTransformerLayer:
         }
         # fmt:on
 
-        assert torch.allclose(output_dict["output"], expected_output["output"], atol=1e-4)
+        assert torch.allclose(
+            output_dict["output"], expected_output["output"], atol=1e-4
+        )
         for i in range(2):
             assert torch.allclose(
                 output_dict["attn_probabilities"]["self_attn_probabilities"][i],
@@ -582,11 +605,25 @@ class TestTransformer:
         )
 
         # Check model init
-        assert torch.isclose(torch.mean(model.layers[0].pos_ff.proj.conv.weight), torch.tensor(0.0), atol=1e-2)
-        assert torch.isclose(torch.std(model.layers[0].pos_ff.proj.conv.weight), torch.tensor(0.02), atol=1e-2)
-        assert torch.isclose(torch.mean(model.layers[0].pos_ff.o_net.conv.weight), torch.tensor(0.0), atol=1e-2)
         assert torch.isclose(
-            torch.std(model.layers[0].pos_ff.o_net.conv.weight), torch.tensor(0.02 / math.sqrt(2.0)), atol=1e-3
+            torch.mean(model.layers[0].pos_ff.proj.conv.weight),
+            torch.tensor(0.0),
+            atol=1e-2,
+        )
+        assert torch.isclose(
+            torch.std(model.layers[0].pos_ff.proj.conv.weight),
+            torch.tensor(0.02),
+            atol=1e-2,
+        )
+        assert torch.isclose(
+            torch.mean(model.layers[0].pos_ff.o_net.conv.weight),
+            torch.tensor(0.0),
+            atol=1e-2,
+        )
+        assert torch.isclose(
+            torch.std(model.layers[0].pos_ff.o_net.conv.weight),
+            torch.tensor(0.02 / math.sqrt(2.0)),
+            atol=1e-3,
         )
 
         mask_tensor = torch.ones(1, self.max_length_causal_mask).bool()
@@ -642,11 +679,15 @@ class TestTransformer:
         # fmt:on
 
         assert output_dict["output"].shape == expected_output_tensor["output"].shape
-        assert torch.allclose(output_dict["output"], expected_output_tensor["output"], atol=1e-4)
+        assert torch.allclose(
+            output_dict["output"], expected_output_tensor["output"], atol=1e-4
+        )
         for i in range(2):
             assert torch.allclose(
                 output_dict["attn_probabilities"][0]["self_attn_probabilities"][i],
-                expected_output_tensor["attn_probabilities"][0]["self_attn_probabilities"][i],
+                expected_output_tensor["attn_probabilities"][0][
+                    "self_attn_probabilities"
+                ][i],
                 atol=1e-4,
             )
         assert output_dict["attn_probabilities"][0]["cross_attn_probabilities"] is None
@@ -687,7 +728,10 @@ class TestTransformer:
         ]
         # fmt:on
 
-        cond_mask = [torch.ones(1, cond[0].shape[1]).bool(), torch.ones(1, cond[1].shape[1]).bool()]
+        cond_mask = [
+            torch.ones(1, cond[0].shape[1]).bool(),
+            torch.ones(1, cond[1].shape[1]).bool(),
+        ]
         mask_tensor = torch.ones(1, self.max_length_causal_mask).bool()
         multi_encoder_mapping = [0, 1]
         with torch.no_grad():
@@ -782,7 +826,9 @@ class TestTransformer:
         }
         # fmt:on
 
-        assert torch.allclose(output_dict["output"], expected_output["output"], atol=1e-4)
+        assert torch.allclose(
+            output_dict["output"], expected_output["output"], atol=1e-4
+        )
         for i in range(2):
             assert torch.allclose(
                 output_dict["attn_probabilities"][i]["self_attn_probabilities"][0],

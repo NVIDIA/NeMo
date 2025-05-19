@@ -54,13 +54,15 @@ class AugmentationCfg:
 class ResizeMaxSize(nn.Module):
     """Resize module"""
 
-    def __init__(self, max_size, interpolation=InterpolationMode.BICUBIC, fn='max', fill=0):
+    def __init__(
+        self, max_size, interpolation=InterpolationMode.BICUBIC, fn="max", fill=0
+    ):
         super().__init__()
         if not isinstance(max_size, int):
             raise TypeError(f"Size should be int. Got {type(max_size)}")
         self.max_size = max_size
         self.interpolation = interpolation
-        self.fn = min if fn == 'min' else min
+        self.fn = min if fn == "min" else min
         self.fill = fill
 
     def forward(self, img):
@@ -71,18 +73,29 @@ class ResizeMaxSize(nn.Module):
             width, height = img.size
         scale = self.max_size / float(max(height, width))
         if scale != 1.0:
-            assert TORCHVISION_AVAILABLE, "Torchvision imports failed but they are required."
+            assert (
+                TORCHVISION_AVAILABLE
+            ), "Torchvision imports failed but they are required."
             new_size = tuple(round(dim * scale) for dim in (height, width))
             img = F.resize(img, new_size, self.interpolation)
             pad_h = self.max_size - new_size[0]
             pad_w = self.max_size - new_size[1]
-            img = F.pad(img, padding=[pad_w // 2, pad_h // 2, pad_w - pad_w // 2, pad_h - pad_h // 2], fill=self.fill)
+            img = F.pad(
+                img,
+                padding=[
+                    pad_w // 2,
+                    pad_h // 2,
+                    pad_w - pad_w // 2,
+                    pad_h - pad_h // 2,
+                ],
+                fill=self.fill,
+            )
         return img
 
 
 def _convert_to_rgb(image):
     # pylint: disable=C0116
-    return image.convert('RGB')
+    return image.convert("RGB")
 
 
 def image_transform(
@@ -116,7 +129,7 @@ def image_transform(
     normalize = Normalize(mean=mean, std=std)
     if is_train:
         aug_cfg_dict = {k: v for k, v in asdict(aug_cfg).items() if v is not None}
-        use_timm = aug_cfg_dict.pop('use_timm', False)
+        use_timm = aug_cfg_dict.pop("use_timm", False)
         if use_timm:
             from timm.data import \
                 create_transform  # timm can still be optional
@@ -127,15 +140,15 @@ def image_transform(
             else:
                 input_size = (3, image_size, image_size)
             # by default, timm aug randomly alternates bicubic & bilinear for better robustness at inference time
-            aug_cfg_dict.setdefault('interpolation', 'random')
-            aug_cfg_dict.setdefault('color_jitter', None)  # disable by default
+            aug_cfg_dict.setdefault("interpolation", "random")
+            aug_cfg_dict.setdefault("color_jitter", None)  # disable by default
             train_transform = create_transform(
                 input_size=input_size,
                 is_training=True,
                 hflip=0.0,
                 mean=mean,
                 std=std,
-                re_mode='pixel',
+                re_mode="pixel",
                 **aug_cfg_dict,
             )
         else:
@@ -143,7 +156,7 @@ def image_transform(
                 [
                     RandomResizedCrop(
                         image_size,
-                        scale=aug_cfg_dict.pop('scale'),
+                        scale=aug_cfg_dict.pop("scale"),
                         interpolation=InterpolationMode.BICUBIC,
                     ),
                     _convert_to_rgb,
@@ -153,7 +166,7 @@ def image_transform(
             )
             if aug_cfg_dict:
                 logging.warning(
-                    f'Unused augmentation cfg items, specify `use_timm` to use ({list(aug_cfg_dict.keys())}).'
+                    f"Unused augmentation cfg items, specify `use_timm` to use ({list(aug_cfg_dict.keys())})."
                 )
         return train_transform
     else:

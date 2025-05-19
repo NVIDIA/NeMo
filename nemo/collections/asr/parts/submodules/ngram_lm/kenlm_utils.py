@@ -41,13 +41,13 @@ from nemo.utils import logging
 
 # List of the supported models to be used with N-gram LM and beam search decoding
 SUPPORTED_MODELS = {
-    'EncDecCTCModelBPE': 'subword',
-    'EncDecCTCModel': 'char',
-    'EncDecRNNTBPEModel': 'subword',
-    'EncDecRNNTModel': 'char',
-    'EncDecHybridRNNTCTCBPEModel': 'subword',
-    'EncDecHybridRNNTCTCModel': 'char',
-    'EncDecMultiTaskModel': 'subword',
+    "EncDecCTCModelBPE": "subword",
+    "EncDecCTCModel": "char",
+    "EncDecRNNTBPEModel": "subword",
+    "EncDecRNNTModel": "char",
+    "EncDecHybridRNNTCTCBPEModel": "subword",
+    "EncDecHybridRNNTCTCModel": "char",
+    "EncDecMultiTaskModel": "subword",
 }
 
 
@@ -74,13 +74,17 @@ def setup_tokenizer(nemo_model_file):
     nemo_model_file (str): The path to the NeMo model file (.nemo).
     """
     logging.info(f"Loading nemo model '{nemo_model_file}' ...")
-    if nemo_model_file.endswith('.nemo'):
-        model = nemo_asr.models.ASRModel.restore_from(nemo_model_file, map_location=torch.device('cpu'))
+    if nemo_model_file.endswith(".nemo"):
+        model = nemo_asr.models.ASRModel.restore_from(
+            nemo_model_file, map_location=torch.device("cpu")
+        )
     else:
         logging.warning(
             "tokenizer_model_file does not end with .model or .nemo, therefore trying to load a pretrained model with this name."
         )
-        model = nemo_asr.models.ASRModel.from_pretrained(nemo_model_file, map_location=torch.device('cpu'))
+        model = nemo_asr.models.ASRModel.from_pretrained(
+            nemo_model_file, map_location=torch.device("cpu")
+        )
 
     is_aggregate_tokenizer = False
     tokenizer_nemo = None
@@ -90,9 +94,9 @@ def setup_tokenizer(nemo_model_file):
         logging.warning(
             f"Model type '{type(model).__name__}' may not be supported. Would try to train a char-level LM."
         )
-        encoding_level = 'char'
+        encoding_level = "char"
 
-    if encoding_level == 'subword':
+    if encoding_level == "subword":
         is_aggregate_tokenizer = isinstance(model.tokenizer, AggregateTokenizer)
         tokenizer_nemo = model.tokenizer
 
@@ -120,14 +124,18 @@ def setup_tokenizer(nemo_model_file):
     return tokenizer_nemo, encoding_level, is_aggregate_tokenizer, full_vocab_size
 
 
-def iter_files(source_path, dest_path, tokenizer, encoding_level, is_aggregate_tokenizer, verbose):
+def iter_files(
+    source_path, dest_path, tokenizer, encoding_level, is_aggregate_tokenizer, verbose
+):
     if isinstance(dest_path, list):
         paths = zip(dest_path, source_path)
     else:  # dest_path is stdin of KenLM
         paths = [(dest_path, path) for path in source_path]
 
     for dest_path, input_path in paths:
-        dataset = read_train_file(input_path, is_aggregate_tokenizer=is_aggregate_tokenizer, verbose=verbose)
+        dataset = read_train_file(
+            input_path, is_aggregate_tokenizer=is_aggregate_tokenizer, verbose=verbose
+        )
         if encoding_level == "subword":
             tokenize_text(
                 data=dataset,
@@ -138,12 +146,12 @@ def iter_files(source_path, dest_path, tokenizer, encoding_level, is_aggregate_t
             )
         else:  # encoding_level == "char"
             if isinstance(dest_path, str):
-                with open(dest_path, 'w', encoding='utf-8') as f:
+                with open(dest_path, "w", encoding="utf-8") as f:
                     for line in dataset:
                         f.write(line[0] + "\n")
             else:  # write to stdin of KenLM
                 for line in dataset:
-                    dest_path.write((line[0] + '\n').encode())
+                    dest_path.write((line[0] + "\n").encode())
 
 
 def read_train_file(
@@ -153,26 +161,28 @@ def read_train_file(
 ):
     lines_read = 0
     text_dataset, lang_dataset = [], []
-    if path[-8:] == '.json.gz':  # for Common Crawl dataset
-        fin = gzip.open(path, 'r')
+    if path[-8:] == ".json.gz":  # for Common Crawl dataset
+        fin = gzip.open(path, "r")
     else:
-        fin = open(path, 'r', encoding='utf-8')
+        fin = open(path, "r", encoding="utf-8")
 
     if verbose > 0:
-        reader = tqdm(iter(lambda: fin.readline(), ''), desc="Read 0 lines", unit=' lines')
+        reader = tqdm(
+            iter(lambda: fin.readline(), ""), desc="Read 0 lines", unit=" lines"
+        )
     else:
         reader = fin
 
     for line in reader:
         lang = None
         if line:
-            if path[-8:] == '.json.gz':  # for Common Crawl dataset
-                line = json.loads(line.decode('utf-8'))['text']
-            elif path.endswith('.json') or path.endswith(".jsonl"):
+            if path[-8:] == ".json.gz":  # for Common Crawl dataset
+                line = json.loads(line.decode("utf-8"))["text"]
+            elif path.endswith(".json") or path.endswith(".jsonl"):
                 jline = json.loads(line)
-                line = jline['text']
+                line = jline["text"]
                 if is_aggregate_tokenizer:
-                    lang = jline['lang']
+                    lang = jline["lang"]
 
             line_list = line.split("\n")
 
@@ -234,13 +244,15 @@ def tokenize_text(data, tokenizer, path, chunk_size=8192, buffer_size=32):
 
 def write_dataset(chunks, path):
     if isinstance(path, str):
-        with open(path, 'a+', encoding='utf-8') as f:
-            for chunk_idx in tqdm(range(len(chunks)), desc='Chunk ', total=len(chunks), unit=' chunks'):
+        with open(path, "a+", encoding="utf-8") as f:
+            for chunk_idx in tqdm(
+                range(len(chunks)), desc="Chunk ", total=len(chunks), unit=" chunks"
+            ):
                 for text in chunks[chunk_idx]:
-                    line = ' '.join(text)
+                    line = " ".join(text)
                     f.write(f"{line}\n")
     else:  # write to stdin of KenLM
         for chunk_idx in range(len(chunks)):
             for text in chunks[chunk_idx]:
-                line = ' '.join(text)
-                path.write((line + '\n').encode())
+                line = " ".join(text)
+                path.write((line + "\n").encode())

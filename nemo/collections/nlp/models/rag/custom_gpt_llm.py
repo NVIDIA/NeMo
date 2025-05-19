@@ -76,12 +76,14 @@ class NeMoGPTLLM(CustomLLM):
         # trainer required for restoring model parallel models
         trainer = Trainer(strategy=NLPDDPStrategy(), **trainer_config)
         assert (
-            trainer_config["devices"] * trainer_config['num_nodes']
+            trainer_config["devices"] * trainer_config["num_nodes"]
             == tensor_model_parallel_size * pipeline_model_parallel_size
         ), "devices * num_nodes should equal tensor_model_parallel_size * pipeline_model_parallel_size"
 
         # setup/override model config
-        model_cfg = MegatronGPTModel.restore_from(restore_path=model_path, trainer=trainer, return_config=True)
+        model_cfg = MegatronGPTModel.restore_from(
+            restore_path=model_path, trainer=trainer, return_config=True
+        )
         model_cfg.micro_batch_size = 1
         model_cfg.global_batch_size = cfg.trainer.devices
         self._model_cfg = model_cfg
@@ -89,7 +91,10 @@ class NeMoGPTLLM(CustomLLM):
 
         # restore model
         model = MegatronGPTModel.restore_from(
-            restore_path=model_path, trainer=trainer, override_config_path=model_cfg, strict=True
+            restore_path=model_path,
+            trainer=trainer,
+            override_config_path=model_cfg,
+            strict=True,
         )
         model.freeze()
         self._model = model
@@ -128,18 +133,22 @@ class NeMoGPTLLM(CustomLLM):
     @llm_completion_callback()
     def complete(self, prompt: str, **kwargs: Any) -> CompletionResponse:
         llm_response = self._model.generate(
-            inputs=[prompt], length_params=self.length_params, sampling_params=self.sampling_params
+            inputs=[prompt],
+            length_params=self.length_params,
+            sampling_params=self.sampling_params,
         )
-        text_response = llm_response['sentences'][0]
+        text_response = llm_response["sentences"][0]
 
         return CompletionResponse(text=text_response)
 
     @llm_completion_callback()
     def stream_complete(self, prompt: str, **kwargs: Any) -> CompletionResponseGen:
         llm_response = self._model.generate(
-            inputs=[prompt], length_params=self.length_params, sampling_params=self.sampling_params
+            inputs=[prompt],
+            length_params=self.length_params,
+            sampling_params=self.sampling_params,
         )
-        text_response = llm_response['sentences'][0]
+        text_response = llm_response["sentences"][0]
 
         response = ""
         for token in text_response:

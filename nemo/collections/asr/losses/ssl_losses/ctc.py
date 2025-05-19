@@ -23,14 +23,13 @@ __all__ = ["CTCLossForSSL"]
 class CTCLossForSSL(Loss):
     @property
     def input_types(self):
-        """Input types definitions for Contrastive.
-        """
+        """Input types definitions for Contrastive."""
         return {
             "spec_masks": NeuralType(("B", "D", "T"), SpectrogramType()),
             "decoder_outputs": NeuralType(("B", "T", "D"), VoidType()),
-            "targets": NeuralType(('B', 'T'), LabelsType()),
-            "decoder_lengths": NeuralType(tuple('B'), LengthsType(), optional=True),
-            "target_lengths": NeuralType(tuple('B'), LengthsType(), optional=True),
+            "targets": NeuralType(("B", "T"), LabelsType()),
+            "decoder_lengths": NeuralType(tuple("B"), LengthsType(), optional=True),
+            "target_lengths": NeuralType(tuple("B"), LengthsType(), optional=True),
         }
 
     @property
@@ -45,14 +44,26 @@ class CTCLossForSSL(Loss):
     def needs_labels(self):
         return True
 
-    def __init__(self, num_classes, zero_infinity=True, reduction='mean_batch'):
+    def __init__(self, num_classes, zero_infinity=True, reduction="mean_batch"):
         super().__init__()
-        self.loss = CTCLoss(num_classes=num_classes, reduction=reduction, zero_infinity=zero_infinity)
+        self.loss = CTCLoss(
+            num_classes=num_classes, reduction=reduction, zero_infinity=zero_infinity
+        )
 
     @typecheck()
-    def forward(self, spec_masks, decoder_outputs, targets, decoder_lengths=None, target_lengths=None):
+    def forward(
+        self,
+        spec_masks,
+        decoder_outputs,
+        targets,
+        decoder_lengths=None,
+        target_lengths=None,
+    ):
         loss = self.loss(
-            log_probs=decoder_outputs, targets=targets, input_lengths=decoder_lengths, target_lengths=target_lengths
+            log_probs=decoder_outputs,
+            targets=targets,
+            input_lengths=decoder_lengths,
+            target_lengths=target_lengths,
         )
 
         return loss

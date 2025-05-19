@@ -106,7 +106,9 @@ def main(cfg) -> None:
         parallel_state.is_pipeline_first_stage(ignore_virtual=True)
         and parallel_state.get_tensor_model_parallel_rank() == 0
     ):
-        server = MegatronServer(model.cuda(), inference_strategy=model.inference_strategy)
+        server = MegatronServer(
+            model.cuda(), inference_strategy=model.inference_strategy
+        )
         server.run("0.0.0.0", port=cfg.port)
 
     while True:
@@ -116,5 +118,5 @@ def main(cfg) -> None:
             generate(model.cuda(), strategy=model.inference_strategy)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

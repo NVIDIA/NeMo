@@ -42,8 +42,8 @@ class ModelCallback(LambdaCallback):
         ... )
     """
 
-    TRAINER_PARAMS = {'trainer', 'pl_trainer'}
-    MODEL_PARAMS = {'model', 'pl_model', 'pl_module', 'module'}
+    TRAINER_PARAMS = {"trainer", "pl_trainer"}
+    MODEL_PARAMS = {"model", "pl_model", "pl_module", "module"}
 
     def __init__(
         self,
@@ -89,7 +89,7 @@ class ModelCallback(LambdaCallback):
         callbacks = {
             name: self._wrap_func(func)
             for name, func in locals().items()
-            if name != 'self' and name != '__class__' and func is not None
+            if name != "self" and name != "__class__" and func is not None
         }
 
         super().__init__(**callbacks)
@@ -98,9 +98,9 @@ class ModelCallback(LambdaCallback):
         """Determine if a parameter name refers to trainer or model."""
         param_name = param_name.lower()
         if param_name in self.TRAINER_PARAMS:
-            return 'trainer'
+            return "trainer"
         if param_name in self.MODEL_PARAMS:
-            return 'model'
+            return "model"
         return None
 
     def _wrap_func(self, func: Callable) -> Callable:
@@ -114,9 +114,9 @@ class ModelCallback(LambdaCallback):
             for param_name, param in params.items():
                 param_type = self._get_param_type(param_name)
 
-                if param_type == 'trainer':
+                if param_type == "trainer":
                     call_args[param_name] = trainer
-                elif param_type == 'model':
+                elif param_type == "model":
                     call_args[param_name] = pl_module
                 else:
                     # If parameter name is not recognized, use position to determine

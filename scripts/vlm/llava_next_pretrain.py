@@ -78,7 +78,7 @@ def main(args):
             ignore_place_holder=-100,
         )
         # Setting system prompt to empty string
-        multimodal_sample_config.conversation_template_config.system = ''
+        multimodal_sample_config.conversation_template_config.system = ""
 
         task_encoder = LlavaNextTaskEncoder(
             tokenizer=tokenizer.tokenizer,
@@ -117,7 +117,9 @@ def main(args):
 
     # Submodules configurations
     language_transformer_config = llm.Llama2Config7B(seq_length=decoder_seq_length)
-    vision_transformer_config = vlm.HFCLIPVisionConfig(pretrained_model_name_or_path=args.vision_encoder_model_path)
+    vision_transformer_config = vlm.HFCLIPVisionConfig(
+        pretrained_model_name_or_path=args.vision_encoder_model_path
+    )
     vision_projection_config = vlm.MultimodalProjectorConfig(
         projector_type=args.projector_type,
         input_size=vision_transformer_config.hidden_size,
@@ -179,7 +181,11 @@ def main(args):
     nemo_logger = nl.NeMoLogger(
         log_dir=args.log_dir,
         name=args.name,
-        wandb=WandbLogger(project=args.wandb_project, name=args.name) if args.wandb_project is not None else None,
+        wandb=(
+            WandbLogger(project=args.wandb_project, name=args.name)
+            if args.wandb_project is not None
+            else None
+        ),
     )
 
     # Auto resume setup
@@ -187,12 +193,16 @@ def main(args):
         resume_if_exists=True,
         resume_ignore_no_checkpoint=True,
         resume_from_directory=args.log_dir,
-        restore_config=nl.RestoreConfig(path=args.restore_path) if args.restore_path is not None else None,
+        restore_config=(
+            nl.RestoreConfig(path=args.restore_path)
+            if args.restore_path is not None
+            else None
+        ),
     )
 
     # Optimizer and scheduler setup
     opt_config = OptimizerConfig(
-        optimizer='adam',
+        optimizer="adam",
         lr=args.lr,
         adam_beta1=0.9,
         adam_beta2=0.95,
@@ -221,13 +231,29 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Llava Next Pretraining Script")
 
     # Argument parsing
-    parser.add_argument("--data_type", type=str, required=False, default="mock", help="mock | energon")
-    parser.add_argument("--data_path", type=str, required=False, default=None, help="Path to the dataset JSON file")
     parser.add_argument(
-        "--log_dir", type=str, required=False, default="/results", help="Directory for logging and checkpoints"
+        "--data_type", type=str, required=False, default="mock", help="mock | energon"
     )
     parser.add_argument(
-        "--language_model_path", type=str, required=False, default=None, help="Path to the pretrained language model"
+        "--data_path",
+        type=str,
+        required=False,
+        default=None,
+        help="Path to the dataset JSON file",
+    )
+    parser.add_argument(
+        "--log_dir",
+        type=str,
+        required=False,
+        default="/results",
+        help="Directory for logging and checkpoints",
+    )
+    parser.add_argument(
+        "--language_model_path",
+        type=str,
+        required=False,
+        default=None,
+        help="Path to the pretrained language model",
     )
     parser.add_argument(
         "--vision_encoder_model_path",
@@ -237,7 +263,11 @@ if __name__ == "__main__":
         help="Path to the pretrained vision encoder model",
     )
     parser.add_argument(
-        "--restore_path", type=str, required=False, default=None, help="Path to restore model from checkpoint"
+        "--restore_path",
+        type=str,
+        required=False,
+        default=None,
+        help="Path to restore model from checkpoint",
     )
     parser.add_argument("--devices", type=int, required=False, default=1)
     parser.add_argument("--num_nodes", type=int, required=False, default=1)
@@ -246,12 +276,22 @@ if __name__ == "__main__":
     parser.add_argument("--pp_size", type=int, required=False, default=1)
     parser.add_argument("--cp_size", type=int, required=False, default=1)
     parser.add_argument("--encoder_pp_size", type=int, required=False, default=0)
-    parser.add_argument("--projector_type", type=str, required=False, default="mlp2x_gelu")
-    parser.add_argument("--name", type=str, required=False, default="llava_next_pretrain")
+    parser.add_argument(
+        "--projector_type", type=str, required=False, default="mlp2x_gelu"
+    )
+    parser.add_argument(
+        "--name", type=str, required=False, default="llava_next_pretrain"
+    )
     parser.add_argument("--wandb_project", type=str, required=False, default=None)
-    parser.add_argument("--gbs", type=int, required=False, default=32, help="Global batch size")
-    parser.add_argument("--mbs", type=int, required=False, default=4, help="Micro batch size")
-    parser.add_argument("--lr", type=float, required=False, default=0.001, help="Learning rate")
+    parser.add_argument(
+        "--gbs", type=int, required=False, default=32, help="Global batch size"
+    )
+    parser.add_argument(
+        "--mbs", type=int, required=False, default=4, help="Micro batch size"
+    )
+    parser.add_argument(
+        "--lr", type=float, required=False, default=0.001, help="Learning rate"
+    )
     parser.add_argument(
         "--num_workers",
         type=int,

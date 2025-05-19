@@ -70,7 +70,9 @@ class SquadDataModule(FineTuningDataModule, IOMixin):
         self.delete_raw = delete_raw
 
         super().__init__(
-            dataset_root=dataset_root if dataset_root is not None else get_dataset_root("squad"),
+            dataset_root=(
+                dataset_root if dataset_root is not None else get_dataset_root("squad")
+            ),
             seq_length=seq_length,
             tokenizer=tokenizer,
             micro_batch_size=micro_batch_size,
@@ -101,7 +103,10 @@ class SquadDataModule(FineTuningDataModule, IOMixin):
         )
 
     def _preprocess_and_split_data(
-        self, dset: DatasetDict, split_val_from_train: bool = True, val_proportion: float = 0.05
+        self,
+        dset: DatasetDict,
+        split_val_from_train: bool = True,
+        val_proportion: float = 0.05,
     ):
         """Preprocesses and splits the downloaded dataset into training, validation, and test sets.
 
@@ -112,21 +117,27 @@ class SquadDataModule(FineTuningDataModule, IOMixin):
             val_proportion (float, optional): The proportion of the training or test set to be used
                 for the validation split. Defaults to 0.05.
         """
-        logging.info(f"Preprocessing {self.__class__.__name__} to jsonl format and splitting...")
+        logging.info(
+            f"Preprocessing {self.__class__.__name__} to jsonl format and splitting..."
+        )
         save_splits = {}
-        train_set = dset.get('train')
-        val_set = dset.get('validation')
+        train_set = dset.get("train")
+        val_set = dset.get("validation")
 
         if split_val_from_train:
-            split_dataset = train_set.train_test_split(test_size=val_proportion, seed=self.seed)
-            save_splits['training'] = split_dataset['train']
-            save_splits['validation'] = split_dataset['test']
-            save_splits['test'] = val_set
+            split_dataset = train_set.train_test_split(
+                test_size=val_proportion, seed=self.seed
+            )
+            save_splits["training"] = split_dataset["train"]
+            save_splits["validation"] = split_dataset["test"]
+            save_splits["test"] = val_set
         else:
-            split_dataset = val_set.train_test_split(test_size=val_proportion, seed=self.seed)
-            save_splits['training'] = train_set
-            save_splits['validation'] = split_dataset['test']
-            save_splits['test'] = split_dataset['train']
+            split_dataset = val_set.train_test_split(
+                test_size=val_proportion, seed=self.seed
+            )
+            save_splits["training"] = train_set
+            save_splits["validation"] = split_dataset["test"]
+            save_splits["test"] = split_dataset["train"]
 
         for split_name, dataset in save_splits.items():
             output_file = self.dataset_root / f"{split_name}.jsonl"
@@ -136,7 +147,11 @@ class SquadDataModule(FineTuningDataModule, IOMixin):
                     json_line = {}
                     # Write each example as a JSON line in the output file
                     json_line["input"] = (
-                        "Context: " + example["context"] + " Question: " + example['question'] + " Answer:"
+                        "Context: "
+                        + example["context"]
+                        + " Question: "
+                        + example["question"]
+                        + " Answer:"
                     )
                     json_line["output"] = example["answers"]["text"][0]
                     if split_name == "test":
@@ -149,7 +164,7 @@ class SquadDataModule(FineTuningDataModule, IOMixin):
             for p in self.dataset_root.iterdir():
                 if p.is_dir():
                     shutil.rmtree(p)
-                elif '.jsonl' not in str(p.name):
+                elif ".jsonl" not in str(p.name):
                     p.unlink()
 
     def reconfigure_limit_batches(self):

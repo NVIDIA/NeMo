@@ -21,7 +21,11 @@ from nemo.collections.diffusion.data.diffusion_taskencoder import \
 class TestTaskEncoder:
     @pytest.mark.unit
     def test_cook_raw_images(self):
-        sample = {"jpg": "original_image_data", "png": "control_image_data", "txt": "raw_text_data"}
+        sample = {
+            "jpg": "original_image_data",
+            "png": "control_image_data",
+            "txt": "raw_text_data",
+        }
 
         processed_sample = cook_raw_images(sample)
 

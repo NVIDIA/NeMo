@@ -98,45 +98,62 @@ Set `do_training` to `false` and `do_testing` to `true` to perform evaluation wi
 """
 
 
-@hydra_runner(config_path="conf", config_name="punctuation_capitalization_lexical_audio_config")
+@hydra_runner(
+    config_path="conf", config_name="punctuation_capitalization_lexical_audio_config"
+)
 def main(cfg: DictConfig) -> None:
     # PTL 2.0 has find_unused_parameters as False by default, so its required to set it to True
     # when there are unused parameters like here
-    if cfg.trainer.strategy == 'ddp':
+    if cfg.trainer.strategy == "ddp":
         cfg.trainer.strategy = "ddp_find_unused_parameters_true"
     torch.manual_seed(42)
-    cfg = OmegaConf.merge(OmegaConf.structured(PunctuationCapitalizationLexicalAudioConfig()), cfg)
+    cfg = OmegaConf.merge(
+        OmegaConf.structured(PunctuationCapitalizationLexicalAudioConfig()), cfg
+    )
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
     if not cfg.do_training and not cfg.do_testing:
-        raise ValueError("At least one of config parameters `do_training` and `do_testing` has to be `true`.")
+        raise ValueError(
+            "At least one of config parameters `do_training` and `do_testing` has to be `true`."
+        )
     if cfg.do_training:
-        if cfg.model.get('train_ds') is None:
-            raise ValueError('`model.train_ds` config section is required if `do_training` config item is `True`.')
+        if cfg.model.get("train_ds") is None:
+            raise ValueError(
+                "`model.train_ds` config section is required if `do_training` config item is `True`."
+            )
     if cfg.do_testing:
-        if cfg.model.get('test_ds') is None:
-            raise ValueError('`model.test_ds` config section is required if `do_testing` config item is `True`.')
+        if cfg.model.get("test_ds") is None:
+            raise ValueError(
+                "`model.test_ds` config section is required if `do_testing` config item is `True`."
+            )
 
     if not cfg.pretrained_model:
-        logging.info(f'Config: {OmegaConf.to_yaml(cfg)}')
+        logging.info(f"Config: {OmegaConf.to_yaml(cfg)}")
         model = PunctuationCapitalizationLexicalAudioModel(cfg.model, trainer=trainer)
     else:
         if os.path.exists(cfg.pretrained_model):
-            model = PunctuationCapitalizationLexicalAudioModel.restore_from(cfg.pretrained_model)
-        elif cfg.pretrained_model in PunctuationCapitalizationLexicalAudioModel.get_available_model_names():
-            model = PunctuationCapitalizationLexicalAudioModel.from_pretrained(cfg.pretrained_model)
+            model = PunctuationCapitalizationLexicalAudioModel.restore_from(
+                cfg.pretrained_model
+            )
+        elif (
+            cfg.pretrained_model
+            in PunctuationCapitalizationLexicalAudioModel.get_available_model_names()
+        ):
+            model = PunctuationCapitalizationLexicalAudioModel.from_pretrained(
+                cfg.pretrained_model
+            )
         else:
             raise ValueError(
-                f'Provide path to the pre-trained .nemo file or choose from '
-                f'{PunctuationCapitalizationLexicalAudioModel.list_available_models()}'
+                f"Provide path to the pre-trained .nemo file or choose from "
+                f"{PunctuationCapitalizationLexicalAudioModel.list_available_models()}"
             )
         model.update_config_after_restoring_from_checkpoint(
             class_labels=cfg.model.class_labels,
             common_dataset_parameters=cfg.model.common_dataset_parameters,
-            train_ds=cfg.model.get('train_ds') if cfg.do_training else None,
-            validation_ds=cfg.model.get('validation_ds') if cfg.do_training else None,
-            test_ds=cfg.model.get('test_ds') if cfg.do_testing else None,
-            optim=cfg.model.get('optim') if cfg.do_training else None,
+            train_ds=cfg.model.get("train_ds") if cfg.do_training else None,
+            validation_ds=cfg.model.get("validation_ds") if cfg.do_training else None,
+            test_ds=cfg.model.get("test_ds") if cfg.do_testing else None,
+            optim=cfg.model.get("optim") if cfg.do_training else None,
         )
         model.set_trainer(trainer)
         if cfg.do_training:
@@ -151,5 +168,5 @@ def main(cfg: DictConfig) -> None:
         trainer.test(model)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

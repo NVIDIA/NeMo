@@ -46,13 +46,15 @@ class QAProcessor(DataProcessor):
         self.doc_id_to_context_text = {}
 
     def get_examples(self):
-        """ Get examples from raw json file """
+        """Get examples from raw json file"""
 
         if self.data_file is None:
             raise ValueError(f"{self.mode} data file is None.")
 
         # remove this line and the replace cache line below - which is a temp fix
-        with open(self.data_file.replace('_cache', ''), "r", encoding="utf-8") as reader:
+        with open(
+            self.data_file.replace("_cache", ""), "r", encoding="utf-8"
+        ) as reader:
             input_data = ijson.items(reader, "data.item")
 
             examples = []
@@ -70,7 +72,9 @@ class QAProcessor(DataProcessor):
                         answer_text = None
                         answers = []
                         if "is_impossible" in qa:
-                            is_impossible = qa["is_impossible"] or len(qa["answers"]) < 1
+                            is_impossible = (
+                                qa["is_impossible"] or len(qa["answers"]) < 1
+                            )
                         else:
                             is_impossible = False
 
@@ -104,7 +108,7 @@ class QAProcessor(DataProcessor):
 
                         examples.append(example)
 
-                logging.info('mean no. of chars in doc: {}'.format(np.mean(len_docs)))
-                logging.info('max no. of chars in doc: {}'.format(np.max(len_docs)))
+                logging.info("mean no. of chars in doc: {}".format(np.mean(len_docs)))
+                logging.info("max no. of chars in doc: {}".format(np.max(len_docs)))
 
         return examples

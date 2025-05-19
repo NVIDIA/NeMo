@@ -43,10 +43,10 @@ See more details about postprocesing in function binarization and filtering in N
 """
 postprocessing_params = {"onset": 0.5, "offset": 0.5}
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     parser = ArgumentParser()
-    parser.add_argument("--gen_overlap_seq", default=False, action='store_true')
-    parser.add_argument("--gen_seg_table", default=False, action='store_true')
+    parser.add_argument("--gen_overlap_seq", default=False, action="store_true")
+    parser.add_argument("--gen_seg_table", default=False, action="store_true")
     parser.add_argument("--frame_folder", type=str, required=True)
     parser.add_argument(
         "--method",
@@ -56,7 +56,12 @@ if __name__ == '__main__':
     )
     parser.add_argument("--overlap_out_dir", type=str)
     parser.add_argument("--table_out_dir", type=str)
-    parser.add_argument("--overlap", type=float, default=0.875, help="Overlap percentatge. Default is 0.875")
+    parser.add_argument(
+        "--overlap",
+        type=float,
+        default=0.875,
+        help="Overlap percentatge. Default is 0.875",
+    )
     parser.add_argument("--window_length_in_sec", type=float, default=0.63)
     parser.add_argument("--shift_length_in_sec", type=float, default=0.01)
     parser.add_argument("--num_workers", type=int, default=4)
@@ -78,15 +83,21 @@ if __name__ == '__main__':
             f"Finish generating predictions with overlapping input segments with smoothing_method={args.method} and overlap={args.overlap}"
         )
         end = time.time()
-        logging.info(f"Generate overlapped prediction takes {end-start:.2f} seconds!\n Save to {overlap_out_dir}")
+        logging.info(
+            f"Generate overlapped prediction takes {end-start:.2f} seconds!\n Save to {overlap_out_dir}"
+        )
 
     if args.gen_seg_table:
         start = time.time()
-        logging.info("Converting frame level prediction to speech/no-speech segment in start and end times format.")
+        logging.info(
+            "Converting frame level prediction to speech/no-speech segment in start and end times format."
+        )
 
         frame_length_in_sec = args.shift_length_in_sec
         if args.gen_overlap_seq:
-            logging.info("Use overlap prediction. Change if you want to use basic frame level prediction")
+            logging.info(
+                "Use overlap prediction. Change if you want to use basic frame level prediction"
+            )
             vad_pred_dir = overlap_out_dir
             frame_length_in_sec = 0.01
         else:
@@ -100,7 +111,9 @@ if __name__ == '__main__':
             num_workers=args.num_workers,
             out_dir=args.table_out_dir,
         )
-        logging.info(f"Finish generating speech semgents table with postprocessing_params: {postprocessing_params}")
+        logging.info(
+            f"Finish generating speech semgents table with postprocessing_params: {postprocessing_params}"
+        )
         end = time.time()
         logging.info(
             f"Generating rttm-like tables for {vad_pred_dir} takes {end-start:.2f} seconds!\n Save to {table_out_dir}"

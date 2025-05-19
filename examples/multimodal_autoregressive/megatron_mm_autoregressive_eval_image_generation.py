@@ -95,12 +95,16 @@ def to_img(tokens_string, image_tokenizer):
     Given input visual tokens, we extract the indices, pass it to the decoder to get the image
     """
     visual_token_pattern = r"<\|visual token (\d+)\|>"
-    visual_tokens = [int(match) for match in re.findall(visual_token_pattern, tokens_string)]
+    visual_tokens = [
+        int(match) for match in re.findall(visual_token_pattern, tokens_string)
+    ]
     # We assume image is square. So if 64 tokensa are present, we reshape it to 8x8 and then pass it to decoder
     dim = int(math.sqrt(len(visual_tokens)))
     visual_tokens_tensor = torch.tensor(visual_tokens[: dim * dim])
     # Decoder accepts input of the following format [bs, channel_dim, h, w]
-    visual_tokens_tensor_reshaped = visual_tokens_tensor.reshape((dim, dim)).unsqueeze(0).unsqueeze(0)
+    visual_tokens_tensor_reshaped = (
+        visual_tokens_tensor.reshape((dim, dim)).unsqueeze(0).unsqueeze(0)
+    )
     visual_tokens_final = visual_tokens_tensor_reshaped.to(image_tokenizer._device)
     img = image_tokenizer.decode(visual_tokens_final)
 
@@ -113,7 +117,7 @@ def load_prompts(cfg):
     """Function to return the prompts passed into the model"""
     prompts = []
     for caption in cfg.captions:
-        prompt = f'You are a helpful assistant. Draw a picture for the caption given by the user. USER: {caption}. ASSISTANT: '
+        prompt = f"You are a helpful assistant. Draw a picture for the caption given by the user. USER: {caption}. ASSISTANT: "
         prompts.append(prompt)
     return prompts
 
@@ -122,13 +126,15 @@ if not torch.cuda.is_available():
     raise EnvironmentError("GPU is needed for the inference")
 
 
-@hydra_runner(config_path="conf", config_name="megatron_mm_ar_inference_image_generation")
+@hydra_runner(
+    config_path="conf", config_name="megatron_mm_ar_inference_image_generation"
+)
 def main(cfg) -> None:
     """Main function"""
 
     callbacks = []
     # enable_progress_bar is True by default. If cfg.trainer.enable_progress_bar=False, CustomProgressBar is not appended to callbacks
-    if 'enable_progress_bar' not in cfg.trainer or cfg.trainer.enable_progress_bar:
+    if "enable_progress_bar" not in cfg.trainer or cfg.trainer.enable_progress_bar:
         callbacks.append(CustomProgressBar())
     # trainer required for restoring model parallel models
     trainer = Trainer(
@@ -138,7 +144,10 @@ def main(cfg) -> None:
     )
 
     image_tokenizer = CausalVideoTokenizer.from_pretrained(
-        tokenizer_type=cfg.image_encoder, load_encoder=False, load_decoder=True, load_full_model=False
+        tokenizer_type=cfg.image_encoder,
+        load_encoder=False,
+        load_decoder=True,
+        load_full_model=False,
     )
 
     model = load_model_from_config(trainer, cfg)
@@ -176,21 +185,23 @@ def main(cfg) -> None:
         padded_len = round_to_mult(len(prompts), 8)
         nb_paddings = padded_len - len(prompts)
         if nb_paddings > 0:
-            nb_paddings += [''] * nb_paddings
+            nb_paddings += [""] * nb_paddings
 
     # First method of running text generation, call model.generate method
-    response = model.generate(inputs=prompts, length_params=length_params, sampling_params=sampling_params)
+    response = model.generate(
+        inputs=prompts, length_params=length_params, sampling_params=sampling_params
+    )
 
     if fp8_enabled:
         response = remove_padded_prompts(response, nb_paddings)
 
-    output_tokens_strings = response['sentences']
+    output_tokens_strings = response["sentences"]
     for idx, output_token_string in enumerate(output_tokens_strings):
         image = to_img(output_token_string, image_tokenizer)
-        image.save(os.path.join(cfg.images_output_path, f'{idx}.jpg'))
+        image.save(os.path.join(cfg.images_output_path, f"{idx}.jpg"))
 
-    print(f'Images saved to {cfg.images_output_path}')
+    print(f"Images saved to {cfg.images_output_path}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()  # noqa pylint: disable=no-value-for-parameter

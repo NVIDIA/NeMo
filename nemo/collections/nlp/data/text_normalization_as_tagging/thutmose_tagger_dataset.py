@@ -38,16 +38,15 @@ class ThutmoseTaggerDataset(Dataset):
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        """Returns definitions of module output ports.
-               """
+        """Returns definitions of module output ports."""
         return {
-            "input_ids": NeuralType(('B', 'T'), ChannelType()),
-            "input_mask": NeuralType(('B', 'T'), MaskType()),
-            "segment_ids": NeuralType(('B', 'T'), ChannelType()),
-            "labels_mask": NeuralType(('B', 'T'), MaskType()),
-            "tag_labels": NeuralType(('B', 'T'), LabelsType()),
-            "semiotic_labels": NeuralType(('B', 'T'), LabelsType()),
-            "semiotic_spans": NeuralType(('B', 'T', 'C'), IntType()),
+            "input_ids": NeuralType(("B", "T"), ChannelType()),
+            "input_mask": NeuralType(("B", "T"), MaskType()),
+            "segment_ids": NeuralType(("B", "T"), ChannelType()),
+            "labels_mask": NeuralType(("B", "T"), MaskType()),
+            "tag_labels": NeuralType(("B", "T"), LabelsType()),
+            "semiotic_labels": NeuralType(("B", "T"), LabelsType()),
+            "semiotic_spans": NeuralType(("B", "T", "C"), IntType()),
         }
 
     def __init__(self, input_file: str, example_builder: BertExampleBuilder) -> None:
@@ -64,7 +63,15 @@ class ThutmoseTaggerDataset(Dataset):
         tag_labels = np.array(self.examples[idx].features["tag_labels"])
         semiotic_labels = np.array(self.examples[idx].features["semiotic_labels"])
         semiotic_spans = np.array(self.examples[idx].features["semiotic_spans"])
-        return input_ids, input_mask, segment_ids, labels_mask, tag_labels, semiotic_labels, semiotic_spans
+        return (
+            input_ids,
+            input_mask,
+            segment_ids,
+            labels_mask,
+            tag_labels,
+            semiotic_labels,
+            semiotic_spans,
+        )
 
 
 class ThutmoseTaggerTestDataset(Dataset):
@@ -78,12 +85,11 @@ class ThutmoseTaggerTestDataset(Dataset):
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        """Returns definitions of module output ports.
-               """
+        """Returns definitions of module output ports."""
         return {
-            "input_ids": NeuralType(('B', 'T'), ChannelType()),
-            "input_mask": NeuralType(('B', 'T'), MaskType()),
-            "segment_ids": NeuralType(('B', 'T'), ChannelType()),
+            "input_ids": NeuralType(("B", "T"), ChannelType()),
+            "input_mask": NeuralType(("B", "T"), MaskType()),
+            "segment_ids": NeuralType(("B", "T"), ChannelType()),
         }
 
     def __init__(self, sents: List[str], example_builder: BertExampleBuilder) -> None:

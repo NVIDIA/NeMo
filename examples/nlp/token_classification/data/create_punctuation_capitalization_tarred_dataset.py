@@ -144,7 +144,7 @@ def get_args() -> argparse.Namespace:
     parser.add_argument(
         "--lines_per_dataset_fragment",
         type=int,
-        default=10 ** 6,
+        default=10**6,
         help="A number of lines processed by one worker during creation of tarred dataset. A worker tokenizes "
         "`--lines_per_dataset_fragment` lines and keeps in RAM tokenized text labels before packing them into "
         "batches. Reducing `--lines_per_dataset_fragment` leads to reducing of the amount of memory required by this "
@@ -169,7 +169,10 @@ def get_args() -> argparse.Namespace:
         "`pad_id`, `sep_id`, `unk_id`.",
     )
     parser.add_argument(
-        "--tokenizer_model", "-m", type=Path, help="Path to tokenizer model required for 'sentencepiece' tokenizer."
+        "--tokenizer_model",
+        "-m",
+        type=Path,
+        help="Path to tokenizer model required for 'sentencepiece' tokenizer.",
     )
     parser.add_argument(
         "--vocab_file",
@@ -178,7 +181,10 @@ def get_args() -> argparse.Namespace:
         help="Path to vocabulary file which can be used in 'word', 'char', and HuggingFace tokenizers.",
     )
     parser.add_argument(
-        "--merges_file", "-M", type=Path, help="Path to merges file which can be used in HuggingFace tokenizers."
+        "--merges_file",
+        "-M",
+        type=Path,
+        help="Path to merges file which can be used in HuggingFace tokenizers.",
     )
     parser.add_argument(
         "--special_token_names",
@@ -195,12 +201,15 @@ def get_args() -> argparse.Namespace:
         "HuggingFace tokenizers.",
     )
     parser.add_argument(
-        "--use_fast_tokenizer", "-f", action="store_true", help="Whether to use fast HuggingFace tokenizer."
+        "--use_fast_tokenizer",
+        "-f",
+        action="store_true",
+        help="Whether to use fast HuggingFace tokenizer.",
     )
     parser.add_argument(
         "--pad_label",
         "-P",
-        default='O',
+        default="O",
         help="Pad label both for punctuation and capitalization. This label is also is used for marking words which "
         "do not need punctuation and capitalization. It is also a neutral label used for marking words which do "
         "not require punctuation and capitalization.",
@@ -294,12 +303,20 @@ def get_args() -> argparse.Namespace:
                     )
     if args.punct_labels is not None:
         check_labels_for_being_unique_before_building_label_ids(
-            args.pad_label, args.punct_labels, '--pad_label', '--punct_labels', parser.error
+            args.pad_label,
+            args.punct_labels,
+            "--pad_label",
+            "--punct_labels",
+            parser.error,
         )
         check_labels_for_being_unique_before_building_label_ids(
-            args.pad_label, args.capit_labels, '--pad_label', '--capit_labels', parser.error
+            args.pad_label,
+            args.capit_labels,
+            "--pad_label",
+            "--capit_labels",
+            parser.error,
         )
-    check_tar_file_prefix(args.tar_file_prefix, parser.error, '--tar_file_prefix')
+    check_tar_file_prefix(args.tar_file_prefix, parser.error, "--tar_file_prefix")
     return args
 
 
@@ -311,12 +328,16 @@ def main() -> None:
         special_tokens = dict(zip(args.special_token_names, args.special_token_values))
 
     if args.punct_labels is not None:
-        punct_label_ids = build_label_ids_from_list_of_labels(args.pad_label, args.punct_labels)
+        punct_label_ids = build_label_ids_from_list_of_labels(
+            args.pad_label, args.punct_labels
+        )
     else:
         punct_label_ids = None
 
     if args.capit_labels is not None:
-        capit_label_ids = build_label_ids_from_list_of_labels(args.pad_label, args.capit_labels)
+        capit_label_ids = build_label_ids_from_list_of_labels(
+            args.pad_label, args.capit_labels
+        )
     else:
         capit_label_ids = None
 

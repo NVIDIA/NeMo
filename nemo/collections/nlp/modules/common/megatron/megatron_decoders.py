@@ -95,7 +95,7 @@ def get_decoder_model(
     moe_dropout=0.0,
     turn_off_rop=False,  # turn off the RoP positional embedding
     version=1,
-    position_embedding_type='learned_absolute',
+    position_embedding_type="learned_absolute",
     use_flash_attention=False,
 ):
     """Build language model and return along with the key to save."""
@@ -103,7 +103,7 @@ def get_decoder_model(
     if kv_channels is None:
         assert (
             hidden_size % num_attention_heads == 0
-        ), 'hidden_size must be divisible by num_attention_heads if kv_channels is None'
+        ), "hidden_size must be divisible by num_attention_heads if kv_channels is None"
         kv_channels = hidden_size // num_attention_heads
 
     if init_method is None:
@@ -198,6 +198,8 @@ def get_decoder_model(
             version=version,
         )
     else:
-        raise ValueError(f"Unknown decoder arch = {arch}. Available decoder arch = {AVAILABLE_DECODERS}")
+        raise ValueError(
+            f"Unknown decoder arch = {arch}. Available decoder arch = {AVAILABLE_DECODERS}"
+        )
 
     return decoder

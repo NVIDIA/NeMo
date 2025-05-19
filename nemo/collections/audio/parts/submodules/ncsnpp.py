@@ -44,7 +44,7 @@ class SpectrogramNoiseConditionalScoreNetworkPlusPlus(NeuralModule):
         # Number of input signals for this estimator
         if in_channels < 1:
             raise ValueError(
-                f'Number of input channels needs to be larger or equal to one, current value {in_channels}'
+                f"Number of input channels needs to be larger or equal to one, current value {in_channels}"
             )
 
         self.in_channels = in_channels
@@ -52,40 +52,44 @@ class SpectrogramNoiseConditionalScoreNetworkPlusPlus(NeuralModule):
         # Number of output signals for this estimator
         if out_channels < 1:
             raise ValueError(
-                f'Number of output channels needs to be larger or equal to one, current value {out_channels}'
+                f"Number of output channels needs to be larger or equal to one, current value {out_channels}"
             )
 
         self.out_channels = out_channels
 
         # Instantiate noise conditional score network NCSN++
         ncsnpp_params = kwargs.copy()
-        ncsnpp_params['in_channels'] = ncsnpp_params['out_channels'] = 2 * self.in_channels  # stack real and imag
+        ncsnpp_params["in_channels"] = ncsnpp_params["out_channels"] = (
+            2 * self.in_channels
+        )  # stack real and imag
         self.ncsnpp = NoiseConditionalScoreNetworkPlusPlus(**ncsnpp_params)
 
         # Output projection to generate real and imaginary components of the output channels
         self.output_projection = torch.nn.Conv2d(
-            in_channels=2 * self.in_channels, out_channels=2 * self.out_channels, kernel_size=1
+            in_channels=2 * self.in_channels,
+            out_channels=2 * self.out_channels,
+            kernel_size=1,
         )
 
-        logging.debug('Initialized %s with', self.__class__.__name__)
-        logging.debug('\tin_channels:  %s', self.in_channels)
-        logging.debug('\tout_channels: %s', self.out_channels)
+        logging.debug("Initialized %s with", self.__class__.__name__)
+        logging.debug("\tin_channels:  %s", self.in_channels)
+        logging.debug("\tout_channels: %s", self.out_channels)
 
     @property
     def input_types(self) -> Dict[str, NeuralType]:
         """Returns definitions of module output ports."""
         return {
-            "input": NeuralType(('B', 'C', 'D', 'T'), SpectrogramType()),
-            "input_length": NeuralType(('B',), LengthsType(), optional=True),
-            "condition": NeuralType(('B',), FloatType(), optional=True),
+            "input": NeuralType(("B", "C", "D", "T"), SpectrogramType()),
+            "input_length": NeuralType(("B",), LengthsType(), optional=True),
+            "condition": NeuralType(("B",), FloatType(), optional=True),
         }
 
     @property
     def output_types(self) -> Dict[str, NeuralType]:
         """Returns definitions of module output ports."""
         return {
-            "output": NeuralType(('B', 'C', 'D', 'T'), SpectrogramType()),
-            "output_length": NeuralType(('B',), LengthsType(), optional=True),
+            "output": NeuralType(("B", "C", "D", "T"), SpectrogramType()),
+            "output_length": NeuralType(("B",), LengthsType(), optional=True),
         }
 
     @typecheck()
@@ -94,14 +98,18 @@ class SpectrogramNoiseConditionalScoreNetworkPlusPlus(NeuralModule):
         B, C_in, D, T = input.shape
 
         if C_in != self.in_channels:
-            raise RuntimeError(f'Unexpected input channel size {C_in}, expected {self.in_channels}')
+            raise RuntimeError(
+                f"Unexpected input channel size {C_in}, expected {self.in_channels}"
+            )
 
         # Stack real and imaginary parts
         input_real_imag = torch.stack([input.real, input.imag], dim=2)
-        input = einops.rearrange(input_real_imag, 'B C RI F T -> B (C RI) F T')
+        input = einops.rearrange(input_real_imag, "B C RI F T -> B (C RI) F T")
 
         # Process using NCSN++
-        output, output_length = self.ncsnpp(input=input, input_length=input_length, condition=condition)
+        output, output_length = self.ncsnpp(
+            input=input, input_length=input_length, condition=condition
+        )
 
         # Output projection
         output = self.output_projection(output)
@@ -128,7 +136,13 @@ class NoiseConditionalScoreNetworkPlusPlus(NeuralModule):
         nonlinearity: str = "swish",
         in_channels: int = 2,  # number of channels in the input image
         out_channels: int = 2,  # number of channels in the output image
-        channels: Sequence[int] = (128, 128, 256, 256, 256),  # number of channels at start + at every resolution
+        channels: Sequence[int] = (
+            128,
+            128,
+            256,
+            256,
+            256,
+        ),  # number of channels at start + at every resolution
         num_res_blocks: int = 2,
         num_resolutions: int = 4,
         init_scale: float = 1e-5,
@@ -181,7 +195,9 @@ class NoiseConditionalScoreNetworkPlusPlus(NeuralModule):
 
         if self.conditioned_on_time:
             self.time_embedding = torch.nn.Sequential(
-                GaussianFourierProjection(embedding_size=self.channels[0], scale=fourier_embedding_scale),
+                GaussianFourierProjection(
+                    embedding_size=self.channels[0], scale=fourier_embedding_scale
+                ),
                 torch.nn.Linear(self.channels[0] * 2, self.channels[0] * 4),
                 self.activation,
                 torch.nn.Linear(self.channels[0] * 4, self.channels[0] * 4),
@@ -189,7 +205,11 @@ class NoiseConditionalScoreNetworkPlusPlus(NeuralModule):
 
         self.input_pyramid = torch.nn.ModuleList()
         for ch in self.channels[:-1]:
-            self.input_pyramid.append(torch.nn.Conv2d(in_channels=self.in_channels, out_channels=ch, kernel_size=1))
+            self.input_pyramid.append(
+                torch.nn.Conv2d(
+                    in_channels=self.in_channels, out_channels=ch, kernel_size=1
+                )
+            )
 
         # each block takes an image and outputs an image
         # possibly changes number of channels
@@ -200,23 +220,33 @@ class NoiseConditionalScoreNetworkPlusPlus(NeuralModule):
             "activation": self.activation,
             "dropout_rate": dropout_rate,
             "init_scale": self.init_scale,
-            "diffusion_step_embedding_dim": channels[0] * 4 if self.conditioned_on_time else None,
+            "diffusion_step_embedding_dim": (
+                channels[0] * 4 if self.conditioned_on_time else None
+            ),
         }
         self.input_blocks = torch.nn.ModuleList()
         for in_ch, out_ch in zip(self.channels[:-1], self.channels[1:]):
             for n in range(num_res_blocks):
-                block = ResnetBlockBigGANPlusPlus(in_ch=in_ch if n == 0 else out_ch, out_ch=out_ch, **block_params)
+                block = ResnetBlockBigGANPlusPlus(
+                    in_ch=in_ch if n == 0 else out_ch, out_ch=out_ch, **block_params
+                )
                 self.input_blocks.append(block)
 
         self.output_blocks = torch.nn.ModuleList()
-        for in_ch, out_ch in zip(reversed(self.channels[1:]), reversed(self.channels[:-1])):
+        for in_ch, out_ch in zip(
+            reversed(self.channels[1:]), reversed(self.channels[:-1])
+        ):
             for n in reversed(range(num_res_blocks)):
-                block = ResnetBlockBigGANPlusPlus(in_ch=in_ch, out_ch=out_ch if n == 0 else in_ch, **block_params)
+                block = ResnetBlockBigGANPlusPlus(
+                    in_ch=in_ch, out_ch=out_ch if n == 0 else in_ch, **block_params
+                )
                 self.output_blocks.append(block)
 
         self.projection_blocks = torch.nn.ModuleList()
         for ch in self.channels[:-1]:
-            self.projection_blocks.append(torch.nn.Conv2d(ch, out_channels, kernel_size=1))
+            self.projection_blocks.append(
+                torch.nn.Conv2d(ch, out_channels, kernel_size=1)
+            )
 
         assert len(self.input_pyramid) == self.num_resolutions
         assert len(self.input_blocks) == self.num_resolutions * self.num_res_blocks
@@ -225,15 +255,15 @@ class NoiseConditionalScoreNetworkPlusPlus(NeuralModule):
 
         self.init_weights_()
 
-        logging.debug('Initialized %s with', self.__class__.__name__)
-        logging.debug('\tin_channels:         %s', self.in_channels)
-        logging.debug('\tout_channels:        %s', self.out_channels)
-        logging.debug('\tchannels:            %s', self.channels)
-        logging.debug('\tnum_res_blocks:      %s', self.num_res_blocks)
-        logging.debug('\tnum_resolutions:     %s', self.num_resolutions)
-        logging.debug('\tconditioned_on_time: %s', self.conditioned_on_time)
-        logging.debug('\tpad_time_to:         %s', self.pad_time_to)
-        logging.debug('\tpad_dimension_to:    %s', self.pad_dimension_to)
+        logging.debug("Initialized %s with", self.__class__.__name__)
+        logging.debug("\tin_channels:         %s", self.in_channels)
+        logging.debug("\tout_channels:        %s", self.out_channels)
+        logging.debug("\tchannels:            %s", self.channels)
+        logging.debug("\tnum_res_blocks:      %s", self.num_res_blocks)
+        logging.debug("\tnum_resolutions:     %s", self.num_resolutions)
+        logging.debug("\tconditioned_on_time: %s", self.conditioned_on_time)
+        logging.debug("\tpad_time_to:         %s", self.pad_time_to)
+        logging.debug("\tpad_dimension_to:    %s", self.pad_dimension_to)
 
     def init_weights_(self):
         for module in self.modules():
@@ -256,10 +286,10 @@ class NoiseConditionalScoreNetworkPlusPlus(NeuralModule):
 
     @typecheck(
         input_types={
-            "input": NeuralType(('B', 'C', 'D', 'T')),
+            "input": NeuralType(("B", "C", "D", "T")),
         },
         output_types={
-            "output": NeuralType(('B', 'C', 'D', 'T')),
+            "output": NeuralType(("B", "C", "D", "T")),
         },
     )
     def pad_input(self, input: torch.Tensor) -> torch.Tensor:
@@ -273,7 +303,9 @@ class NoiseConditionalScoreNetworkPlusPlus(NeuralModule):
 
         # padding across dimension
         if D % self.pad_dimension_to != 0:
-            output = F.pad(output, (0, 0, 0, self.pad_dimension_to - D % self.pad_dimension_to))
+            output = F.pad(
+                output, (0, 0, 0, self.pad_dimension_to - D % self.pad_dimension_to)
+            )
 
         return output
 
@@ -281,22 +313,26 @@ class NoiseConditionalScoreNetworkPlusPlus(NeuralModule):
     def input_types(self) -> Dict[str, NeuralType]:
         """Returns definitions of module output ports."""
         return {
-            "input": NeuralType(('B', 'C', 'D', 'T'), VoidType()),
-            "input_length": NeuralType(('B',), LengthsType(), optional=True),
-            "condition": NeuralType(('B',), FloatType(), optional=True),
+            "input": NeuralType(("B", "C", "D", "T"), VoidType()),
+            "input_length": NeuralType(("B",), LengthsType(), optional=True),
+            "condition": NeuralType(("B",), FloatType(), optional=True),
         }
 
     @property
     def output_types(self) -> Dict[str, NeuralType]:
         """Returns definitions of module output ports."""
         return {
-            "output": NeuralType(('B', 'C', 'D', 'T'), VoidType()),
-            "output_length": NeuralType(('B',), LengthsType(), optional=True),
+            "output": NeuralType(("B", "C", "D", "T"), VoidType()),
+            "output_length": NeuralType(("B",), LengthsType(), optional=True),
         }
 
     @typecheck()
     def forward(
-        self, *, input: torch.Tensor, input_length: Optional[torch.Tensor], condition: Optional[torch.Tensor] = None
+        self,
+        *,
+        input: torch.Tensor,
+        input_length: Optional[torch.Tensor],
+        condition: Optional[torch.Tensor] = None,
     ):
         """Forward pass of the model.
 
@@ -313,7 +349,9 @@ class NoiseConditionalScoreNetworkPlusPlus(NeuralModule):
 
         if input_length is None:
             # assume all time frames are valid
-            input_length = torch.LongTensor([input.shape[-1]] * input.shape[0]).to(input.device)
+            input_length = torch.LongTensor([input.shape[-1]] * input.shape[0]).to(
+                input.device
+            )
 
         lengths = input_length
 
@@ -371,7 +409,9 @@ class NoiseConditionalScoreNetworkPlusPlus(NeuralModule):
         images = []
         for tensor, projection in zip(to_project, reversed(self.projection_blocks)):
             image = projection(tensor)
-            images.append(F.interpolate(image, size=input.shape[-2:]))  # TODO write this loop using self.upsample
+            images.append(
+                F.interpolate(image, size=input.shape[-2:])
+            )  # TODO write this loop using self.upsample
 
         result = sum(images)
 
@@ -390,20 +430,22 @@ class GaussianFourierProjection(NeuralModule):
 
     def __init__(self, embedding_size: int = 256, scale: float = 1.0):
         super().__init__()
-        self.W = torch.nn.Parameter(torch.randn(embedding_size) * scale, requires_grad=False)
+        self.W = torch.nn.Parameter(
+            torch.randn(embedding_size) * scale, requires_grad=False
+        )
 
     @property
     def input_types(self) -> Dict[str, NeuralType]:
         """Returns definitions of module output ports."""
         return {
-            "input": NeuralType(('B',), FloatType()),
+            "input": NeuralType(("B",), FloatType()),
         }
 
     @property
     def output_types(self) -> Dict[str, NeuralType]:
         """Returns definitions of module output ports."""
         return {
-            "output": NeuralType(('B', 'D'), VoidType()),
+            "output": NeuralType(("B", "D"), VoidType()),
         }
 
     def forward(self, input):
@@ -454,7 +496,9 @@ class ResnetBlockBigGANPlusPlus(torch.nn.Module):
             activation,
         )
 
-        self.middle_conv = torch.nn.Conv2d(in_channels=in_ch, out_channels=out_ch, kernel_size=3, padding=1)
+        self.middle_conv = torch.nn.Conv2d(
+            in_channels=in_ch, out_channels=out_ch, kernel_size=3, padding=1
+        )
         if diffusion_step_embedding_dim is not None:
             self.diffusion_step_projection = torch.nn.Sequential(
                 activation,
@@ -466,11 +510,15 @@ class ResnetBlockBigGANPlusPlus(torch.nn.Module):
             torch.nn.GroupNorm(num_groups=out_num_groups, num_channels=out_ch, eps=eps),
             activation,
             torch.nn.Dropout(dropout_rate),
-            torch.nn.Conv2d(in_channels=out_ch, out_channels=out_ch, kernel_size=3, padding=1),
+            torch.nn.Conv2d(
+                in_channels=out_ch, out_channels=out_ch, kernel_size=3, padding=1
+            ),
         )
 
         if in_ch != out_ch:
-            self.residual_projection = torch.nn.Conv2d(in_channels=in_ch, out_channels=out_ch, kernel_size=1)
+            self.residual_projection = torch.nn.Conv2d(
+                in_channels=in_ch, out_channels=out_ch, kernel_size=1
+            )
 
         self.act = activation
         self.in_ch = in_ch
@@ -487,9 +535,13 @@ class ResnetBlockBigGANPlusPlus(torch.nn.Module):
                     torch.nn.init.zeros_(module.bias)
 
         # a single Conv2d is initialized with gain
-        torch.nn.init.xavier_uniform_(self.output_block[-1].weight, gain=self.init_scale)
+        torch.nn.init.xavier_uniform_(
+            self.output_block[-1].weight, gain=self.init_scale
+        )
 
-    def forward(self, x: torch.Tensor, diffusion_time_embedding: Optional[torch.Tensor] = None):
+    def forward(
+        self, x: torch.Tensor, diffusion_time_embedding: Optional[torch.Tensor] = None
+    ):
         """Forward pass of the model.
 
         Args:

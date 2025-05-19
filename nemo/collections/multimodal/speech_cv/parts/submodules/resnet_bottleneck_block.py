@@ -21,8 +21,7 @@ from nemo.collections.multimodal.speech_cv.parts.submodules.conv2d import \
 
 
 class ResNetBottleneckBlock(nn.Module):
-
-    """ ResNet Bottleneck Residual Block used by ResNet50, ResNet101 and ResNet152 networks.
+    """ResNet Bottleneck Residual Block used by ResNet50, ResNet101 and ResNet152 networks.
     References: "Deep Residual Learning for Image Recognition", He et al.
     https://arxiv.org/abs/1512.03385
     """

@@ -61,7 +61,8 @@ KALDIFST_INSTALLATION_MESSAGE = (
 
 
 GRAPHVIZ_INSTALLATION_MESSAGE = (
-    "graphviz is not installed.\n" "please run `bash scripts/installers/install_graphviz.sh` to install."
+    "graphviz is not installed.\n"
+    "please run `bash scripts/installers/install_graphviz.sh` to install."
 )
 
 
@@ -140,15 +141,25 @@ class Lexicon:
             Pattern for disambiguation symbols.
         """
         is_id2token_str = not isinstance(list(id2token.values())[0], LexiconUnit)
-        self.id2token = {k: LexiconUnit(v) for k, v in id2token.items()} if is_id2token_str else id2token
+        self.id2token = (
+            {k: LexiconUnit(v) for k, v in id2token.items()}
+            if is_id2token_str
+            else id2token
+        )
         self.token2id = {v.name: k for k, v in self.id2token.items()}
         is_id2word_str = not isinstance(list(id2word.values())[0], LexiconUnit)
-        self.id2word = {k: LexiconUnit(v) for k, v in id2word.items()} if is_id2word_str else id2word
+        self.id2word = (
+            {k: LexiconUnit(v) for k, v in id2word.items()}
+            if is_id2word_str
+            else id2word
+        )
         self.word2id = {v.name: k for k, v in self.id2word.items()}
         self.wordid2tokenid = wordid2tokenid
         word2tokens = defaultdict(list)
         for k, v in self.wordid2tokenid.items():
-            word2tokens[self.id2word[k].name] += [[self.id2token[i].name for i in vp] for vp in v]
+            word2tokens[self.id2word[k].name] += [
+                [self.id2token[i].name for i in vp] for vp in v
+            ]
         self.word2tokens = word2tokens
         self.disambig_pattern = disambig_pattern
 
@@ -160,12 +171,17 @@ class Lexicon:
         self._default_epsilon_name = "<eps>"
         for i, s in self.id2token.items():
             if self.disambig_pattern.match(s.name):
-                if is_id2token_str or not s.mark.startswith(self._default_disambig_mark):
+                if is_id2token_str or not s.mark.startswith(
+                    self._default_disambig_mark
+                ):
                     s.mark = self._default_disambig_mark
                 if i > max_disambig_id:
                     max_disambig_id = i
                     num_disambigs += 1
-            if s.name == self._default_epsilon_name or s.mark == self._default_epsilon_mark:
+            if (
+                s.name == self._default_epsilon_name
+                or s.mark == self._default_epsilon_mark
+            ):
                 assert i == 0
                 self.has_epsilon = True
         self.max_disambig_id = max_disambig_id
@@ -193,13 +209,15 @@ class Lexicon:
         """
         ans = []
         for i, s in self.id2token.items():
-            if not s.mark.startswith(self._default_epsilon_mark) and (not self.has_epsilon or i != 0):
+            if not s.mark.startswith(self._default_epsilon_mark) and (
+                not self.has_epsilon or i != 0
+            ):
                 ans.append(i)
         ans.sort()
         return ans
 
 
-def arpa2fst(lm_path: str, attach_symbol_table: bool = True) -> 'kaldifst.StdVectorFst':
+def arpa2fst(lm_path: str, attach_symbol_table: bool = True) -> "kaldifst.StdVectorFst":
     """
     Compiles an ARPA LM file into a grammar WFST (G.fst).
 
@@ -242,7 +260,7 @@ def arpa2fst(lm_path: str, attach_symbol_table: bool = True) -> 'kaldifst.StdVec
 
 
 def add_tokenwords_(
-    g_fst: 'kaldifst.StdVectorFst',
+    g_fst: "kaldifst.StdVectorFst",
     tokens: List[str],
     word_weight: float = 2.0,
     token_unigram_weight: float = 4.0,
@@ -276,7 +294,10 @@ def add_tokenwords_(
 
     unigram_state = 0
     # check if 0 is the unigram state (has no outgoing epsilon arcs)
-    assert kaldifst.ArcIterator(g_fst, unigram_state).value.ilabel not in (0, g_fst.output_symbols.find("#0"))
+    assert kaldifst.ArcIterator(g_fst, unigram_state).value.ilabel not in (
+        0,
+        g_fst.output_symbols.find("#0"),
+    )
 
     # we put tokenword self-loops in a separate state wrapped with a tokenword_disambig token
     tokenword_disambig_id = g_fst.output_symbols.available_key()
@@ -321,7 +342,7 @@ def add_tokenwords_(
 
 
 def generate_lexicon_sentencepiece(
-    tokenizer: 'TokenizerSpec',
+    tokenizer: "TokenizerSpec",
     id2word: Dict[int, str],
     oov: str = "<unk>",
     add_epsilon: bool = False,
@@ -358,7 +379,9 @@ def generate_lexicon_sentencepiece(
                 continue
             words.append(v) if k < first_tokenword_id else tokenwords.append(v)
     else:
-        words, tokenwords = [v for v in id2word.values() if not disambig_pattern.match(v)], []
+        words, tokenwords = [
+            v for v in id2word.values() if not disambig_pattern.match(v)
+        ], []
 
     # Use encode to avoid OOV tokens
     words_piece_ids = tokenizer.encode(words, out_type=int)
@@ -368,7 +391,10 @@ def generate_lexicon_sentencepiece(
     maybe_subtract_one = int(not add_epsilon)
     vocab = tokenizer.get_vocab()
     id2token = {
-        v - maybe_subtract_one: LexiconUnit(k, "begin" if k.startswith(word_begin_mark) else "")
+        v
+        - maybe_subtract_one: LexiconUnit(
+            k, "begin" if k.startswith(word_begin_mark) else ""
+        )
         for k, v in vocab.items()
     }
 
@@ -380,7 +406,9 @@ def generate_lexicon_sentencepiece(
     id2token[max_token_id + 1] = LexiconUnit("<blk>", "blank")
     id2token[max_token_id + 2] = LexiconUnit(backoff_disambig, "disambig_backoff")
     if tokenword_mode:
-        id2token[max_token_id + 3] = LexiconUnit(tokenword_disambig, "disambig_tokenword")
+        id2token[max_token_id + 3] = LexiconUnit(
+            tokenword_disambig, "disambig_tokenword"
+        )
     if add_epsilon:
         # insert first
         id2token[0] = LexiconUnit("<eps>", "epsilon")
@@ -388,12 +416,17 @@ def generate_lexicon_sentencepiece(
 
     if tokenword_mode:
         words += tokenwords
-        words_piece_ids += [[vocab[tw.rstrip(f"{TW_BREAK}{tokenword_disambig}")] - maybe_add_one] for tw in tokenwords]
+        words_piece_ids += [
+            [vocab[tw.rstrip(f"{TW_BREAK}{tokenword_disambig}")] - maybe_add_one]
+            for tw in tokenwords
+        ]
 
     wordid2tokenid = defaultdict(list)
 
     for word, piece_ids in zip(words, words_piece_ids):
-        if word.startswith("<") and word != "<eps>":  # not a real word, probably some tag
+        if (
+            word.startswith("<") and word != "<eps>"
+        ):  # not a real word, probably some tag
             continue
         elif word == "<eps>":  # we do not need to tokelize <eps>
             continue
@@ -466,7 +499,12 @@ def add_disambig_symbols(lexicon: Lexicon) -> Lexicon:
     for word_id, token_ids in lexicon:
         token_key = tuple(token_ids)
         assert len(token_key) > 0
-        if issubseq[token_key] == 0 and count[token_key] == 1 or tokenword_mode and word_id >= first_tokenword_id:
+        if (
+            issubseq[token_key] == 0
+            and count[token_key] == 1
+            or tokenword_mode
+            and word_id >= first_tokenword_id
+        ):
             wordid2tokenid[word_id].append(token_ids)
             continue
 
@@ -480,7 +518,9 @@ def add_disambig_symbols(lexicon: Lexicon) -> Lexicon:
         if cur_disambig > max_disambig:
             max_disambig = cur_disambig
             cur_disambig_id = max(id2token.keys()) + 1
-            id2token[cur_disambig_id] = LexiconUnit(f"#{max_disambig}", "disambig_subsequence")
+            id2token[cur_disambig_id] = LexiconUnit(
+                f"#{max_disambig}", "disambig_subsequence"
+            )
         last_used_disambig_id_of[token_key] = cur_disambig_id
         wordid2tokenid[word_id].append(token_ids + [cur_disambig_id])
     return Lexicon(wordid2tokenid, lexicon.id2word, id2token)
@@ -489,7 +529,7 @@ def add_disambig_symbols(lexicon: Lexicon) -> Lexicon:
 def make_lexicon_fst_no_silence(
     lexicon: Lexicon,
     attach_symbol_table: bool = True,
-) -> 'kaldifst.StdVectorFst':
+) -> "kaldifst.StdVectorFst":
     """
     Compiles a Lexicon into a lexicon WFST (L.fst).
 
@@ -564,14 +604,18 @@ def make_lexicon_fst_no_silence(
     if tokenword_mode:
         tokenword_begin, tokenword_other = [], []
         for word_id in range(first_tokenword_id, max(lexicon.id2word) + 1):
-            token_id = lexicon.token2id[lexicon.id2word[word_id].name.rstrip(f"{TW_BREAK}{tokenword_disambig}")]
+            token_id = lexicon.token2id[
+                lexicon.id2word[word_id].name.rstrip(f"{TW_BREAK}{tokenword_disambig}")
+            ]
             token_unit = lexicon.id2token[token_id]
             if token_unit.mark.startswith("begin"):
                 tokenword_begin.append((token_id, word_id))
             elif token_unit.mark == "":
                 tokenword_other.append((token_id, word_id))
             else:
-                raise RuntimeError(f"Unexpected mark `{token_unit.mark}` for tokenword `{token_unit.name}`")
+                raise RuntimeError(
+                    f"Unexpected mark `{token_unit.mark}` for tokenword `{token_unit.name}`"
+                )
 
         tokenword_state_main = fst.add_state()
         for token_id, word_id in tokenword_begin:
@@ -630,8 +674,11 @@ def make_lexicon_fst_no_silence(
 
 
 def build_topo(
-    name: str, token2id: Dict[str, int], with_self_loops: bool = True, attach_symbol_table: bool = True
-) -> 'kaldifst.StdVectorFst':
+    name: str,
+    token2id: Dict[str, int],
+    with_self_loops: bool = True,
+    attach_symbol_table: bool = True,
+) -> "kaldifst.StdVectorFst":
     """Helper function to build a topology WFST (T.fst).
 
     Args:
@@ -671,7 +718,9 @@ def build_topo(
     return fst
 
 
-def build_default_topo(token2id: Dict[str, int], with_self_loops: bool = True) -> 'kaldifst.StdVectorFst':
+def build_default_topo(
+    token2id: Dict[str, int], with_self_loops: bool = True
+) -> "kaldifst.StdVectorFst":
     """Build the default (correct) CTC topology."""
     _kaldifst_maybe_raise()
 
@@ -759,7 +808,9 @@ def build_default_topo(token2id: Dict[str, int], with_self_loops: bool = True) -
     return fst
 
 
-def build_compact_topo(token2id: Dict[str, int], with_self_loops: bool = True) -> 'kaldifst.StdVectorFst':
+def build_compact_topo(
+    token2id: Dict[str, int], with_self_loops: bool = True
+) -> "kaldifst.StdVectorFst":
     """Build the Compact CTC topology."""
     _kaldifst_maybe_raise()
 
@@ -826,7 +877,7 @@ def build_compact_topo(token2id: Dict[str, int], with_self_loops: bool = True) -
     return fst
 
 
-def build_minimal_topo(token2id: Dict[str, int]) -> 'kaldifst.StdVectorFst':
+def build_minimal_topo(token2id: Dict[str, int]) -> "kaldifst.StdVectorFst":
     """Build the Minimal CTC topology."""
     _kaldifst_maybe_raise()
 
@@ -874,14 +925,14 @@ def build_minimal_topo(token2id: Dict[str, int]) -> 'kaldifst.StdVectorFst':
 
 
 def mkgraph_ctc_ov(
-    tokenizer: 'TokenizerSpec',
+    tokenizer: "TokenizerSpec",
     lm_path: Union[Path, str],
     topology_name: str = "default",
     write_tlg_path: Optional[Union[Path, str]] = None,
     open_vocabulary: bool = False,
     open_vocabulary_weights: Tuple[float, float] = (2.0, 4.0),
     target: str = "kaldi",  # "kaldi", "k2"
-) -> Tuple[Union['kaldifst.StdVectorFst', 'k2.Fsa'], int]:
+) -> Tuple[Union["kaldifst.StdVectorFst", "k2.Fsa"], int]:
     """
     Builds a decoding WFST (TLG.fst or TLG.pt).
 
@@ -928,9 +979,15 @@ def mkgraph_ctc_ov(
         tokenword_disambig_id = -1
 
     logging.info("Building L.fst ...")
-    id2word = {int(line.split("\t")[1]): line.split("\t")[0] for line in str(G.output_symbols).strip().split("\n")}
+    id2word = {
+        int(line.split("\t")[1]): line.split("\t")[0]
+        for line in str(G.output_symbols).strip().split("\n")
+    }
     lexicon = generate_lexicon_sentencepiece(
-        tokenizer.tokenizer, id2word, add_epsilon=True, first_tokenword_id=tokenword_disambig_id
+        tokenizer.tokenizer,
+        id2word,
+        add_epsilon=True,
+        first_tokenword_id=tokenword_disambig_id,
     )
     lexicon_disambig = add_disambig_symbols(lexicon)
 
@@ -958,12 +1015,24 @@ def mkgraph_ctc_ov(
 
         from nemo.core.utils.k2_guard import k2
 
-        blank_id = [i for i, t in lexicon_disambig.id2token.items() if t.mark == "blank"][0]
-        first_token_disambig_id = [i for i, t in lexicon_disambig.id2token.items() if t.mark == "disambig_backoff"][0]
-        word_disambig_id = lexicon_disambig.word2id[lexicon_disambig.id2token[first_token_disambig_id].name]
+        blank_id = [
+            i for i, t in lexicon_disambig.id2token.items() if t.mark == "blank"
+        ][0]
+        first_token_disambig_id = [
+            i
+            for i, t in lexicon_disambig.id2token.items()
+            if t.mark == "disambig_backoff"
+        ][0]
+        word_disambig_id = lexicon_disambig.word2id[
+            lexicon_disambig.id2token[first_token_disambig_id].name
+        ]
         assert lexicon_disambig.id2word[word_disambig_id].mark == "disambig_backoff"
         input_symbols = "\n".join(
-            [f"{k} {v - 1}" for k, v in lexicon_disambig.token2id.items() if 0 < v < first_token_disambig_id]
+            [
+                f"{k} {v - 1}"
+                for k, v in lexicon_disambig.token2id.items()
+                if 0 < v < first_token_disambig_id
+            ]
         )
         output_symbols = str(TLG.output_symbols)
         TLG.input_symbols = None
@@ -1027,7 +1096,7 @@ class AbstractLattice(ABC):
         self._properties = None
 
     @abstractmethod
-    def as_tensor(self) -> 'torch.Tensor':
+    def as_tensor(self) -> "torch.Tensor":
         """Represents the lattice as a tensor.
 
         Returns:
@@ -1037,8 +1106,11 @@ class AbstractLattice(ABC):
 
     @abstractmethod
     def draw(
-        self, filename: Optional[Union[Path, str]] = None, title: Optional[Union[Path, str]] = None, zoom: float = 1.0
-    ) -> Union['graphviz.Digraph', 'IPython.display.HTML']:
+        self,
+        filename: Optional[Union[Path, str]] = None,
+        title: Optional[Union[Path, str]] = None,
+        zoom: float = 1.0,
+    ) -> Union["graphviz.Digraph", "IPython.display.HTML"]:
         """Render FSA as an image via graphviz, and return the Digraph object; and optionally save to file filename.
         filename must have a suffix that graphviz understands, such as pdf, svg or png.
 
@@ -1097,7 +1169,7 @@ class KaldiWordLattice(AbstractLattice):
 
     def __init__(
         self,
-        lattice: 'kaldifst.Lattice',
+        lattice: "kaldifst.Lattice",
         symbol_table: Optional[Dict[int, str]] = None,
         auxiliary_tables: Optional[Dict[str, Any]] = None,
     ):
@@ -1108,7 +1180,8 @@ class KaldiWordLattice(AbstractLattice):
         super().__init__(lattice)
 
         kaldi_symbols2dict = lambda symbols: {
-            int(line.split("\t")[1]): line.split("\t")[0] for line in str(symbols).strip().split("\n")
+            int(line.split("\t")[1]): line.split("\t")[0]
+            for line in str(symbols).strip().split("\n")
         }
         self._symbol_table = None
         # most likely lattice will have empty input_symbols
@@ -1120,46 +1193,76 @@ class KaldiWordLattice(AbstractLattice):
 
         self._auxiliary_tables = None
         if auxiliary_tables is not None:
-            attributes, values = list(auxiliary_tables.keys()), list(auxiliary_tables.values())
-            if "input_symbols" not in attributes and self._lattice.input_symbols is not None:
+            attributes, values = list(auxiliary_tables.keys()), list(
+                auxiliary_tables.values()
+            )
+            if (
+                "input_symbols" not in attributes
+                and self._lattice.input_symbols is not None
+            ):
                 # rare but possible case
                 attributes.append("input_symbols")
                 values.append(kaldi_symbols2dict(self._lattice.input_symbols))
-            self._auxiliary_tables = namedtuple("KaldiAuxiliaryTables", attributes)(*values)
-        elif self._lattice.input_symbols is not None:
-            self._auxiliary_tables = namedtuple("KaldiAuxiliaryTables", "input_symbols")(
-                kaldi_symbols2dict(self._lattice.input_symbols)
+            self._auxiliary_tables = namedtuple("KaldiAuxiliaryTables", attributes)(
+                *values
             )
+        elif self._lattice.input_symbols is not None:
+            self._auxiliary_tables = namedtuple(
+                "KaldiAuxiliaryTables", "input_symbols"
+            )(kaldi_symbols2dict(self._lattice.input_symbols))
 
     @property
     def properties(self) -> LatticeProperties:
         if self._properties is None:
-            acceptor = self._lattice.properties(KaldiFstMask.Acceptor.value, True) == KaldiFstMask.Acceptor.value
-            valid = self._lattice.properties(KaldiFstMask.Error.value, True) != KaldiFstMask.Error.value
+            acceptor = (
+                self._lattice.properties(KaldiFstMask.Acceptor.value, True)
+                == KaldiFstMask.Acceptor.value
+            )
+            valid = (
+                self._lattice.properties(KaldiFstMask.Error.value, True)
+                != KaldiFstMask.Error.value
+            )
             nonempty = self._lattice.num_states > 0
-            top_sorted = self._lattice.properties(KaldiFstMask.TopSorted.value, True) == KaldiFstMask.TopSorted.value
-            acyclic = self._lattice.properties(KaldiFstMask.Acyclic.value, True) == KaldiFstMask.Acyclic.value
+            top_sorted = (
+                self._lattice.properties(KaldiFstMask.TopSorted.value, True)
+                == KaldiFstMask.TopSorted.value
+            )
+            acyclic = (
+                self._lattice.properties(KaldiFstMask.Acyclic.value, True)
+                == KaldiFstMask.Acyclic.value
+            )
             arc_sorted = (
-                self._lattice.properties(KaldiFstMask.IlabelSorted.value, True) == KaldiFstMask.IlabelSorted.value
-                and self._lattice.properties(KaldiFstMask.OlabelSorted.value, True) == KaldiFstMask.OlabelSorted.value
+                self._lattice.properties(KaldiFstMask.IlabelSorted.value, True)
+                == KaldiFstMask.IlabelSorted.value
+                and self._lattice.properties(KaldiFstMask.OlabelSorted.value, True)
+                == KaldiFstMask.OlabelSorted.value
             )
             deterministic = (
                 self._lattice.properties(KaldiFstMask.IlabelDeterministic.value, True)
                 == KaldiFstMask.IlabelDeterministic.value
-                and self._lattice.properties(KaldiFstMask.OlabelDeterministic.value, True)
+                and self._lattice.properties(
+                    KaldiFstMask.OlabelDeterministic.value, True
+                )
                 == KaldiFstMask.OlabelDeterministic.value
             )
             epsilon_free = (
-                self._lattice.properties(KaldiFstMask.HasEpsilons.value, True) != KaldiFstMask.HasEpsilons.value
+                self._lattice.properties(KaldiFstMask.HasEpsilons.value, True)
+                != KaldiFstMask.HasEpsilons.value
             )
             input_epsilon_free = (
-                self._lattice.properties(KaldiFstMask.HasIEpsilons.value, True) != KaldiFstMask.HasIEpsilons.value
+                self._lattice.properties(KaldiFstMask.HasIEpsilons.value, True)
+                != KaldiFstMask.HasIEpsilons.value
             )
             connected = (
-                self._lattice.properties(KaldiFstMask.Accessible.value, True) == KaldiFstMask.Accessible.value
-                and self._lattice.properties(KaldiFstMask.Coaccessible.value, True) == KaldiFstMask.Coaccessible.value
+                self._lattice.properties(KaldiFstMask.Accessible.value, True)
+                == KaldiFstMask.Accessible.value
+                and self._lattice.properties(KaldiFstMask.Coaccessible.value, True)
+                == KaldiFstMask.Coaccessible.value
             )
-            weighted = self._lattice.properties(KaldiFstMask.Weighted.value, True) == KaldiFstMask.Weighted.value
+            weighted = (
+                self._lattice.properties(KaldiFstMask.Weighted.value, True)
+                == KaldiFstMask.Weighted.value
+            )
             self._properties = LatticeProperties(
                 Acceptor=acceptor,
                 Valid=valid,
@@ -1183,7 +1286,7 @@ class KaldiWordLattice(AbstractLattice):
     def auxiliary_tables(self) -> Optional[Tuple[Any]]:
         return self._auxiliary_tables
 
-    def as_tensor(self) -> 'torch.Tensor':
+    def as_tensor(self) -> "torch.Tensor":
         """Represents the lattice as a tensor.
 
         Returns:
@@ -1204,21 +1307,32 @@ class KaldiWordLattice(AbstractLattice):
         _kaldifst_maybe_raise()
 
         if not self.properties.InputEpsilonFree:
-            logging.warning(f"Lattice contains input epsilons. Edit distance calculations may not be accurate.")
+            logging.warning(
+                f"Lattice contains input epsilons. Edit distance calculations may not be accurate."
+            )
         if not all(reference_sequence):
-            raise ValueError(f"reference_sequence contains zeros, which is not allowed.")
+            raise ValueError(
+                f"reference_sequence contains zeros, which is not allowed."
+            )
         ref = levenshtein_graph_kaldi(kaldifst.make_linear_acceptor(reference_sequence))
         hyp = levenshtein_graph_kaldi(self._lattice)
         kaldifst.invert(hyp)
         ali_fst = kaldifst.compose(hyp, ref)
-        succeeded, _, _, total_weight = kaldifst.get_linear_symbol_sequence(kaldifst.shortest_path(ali_fst))
+        succeeded, _, _, total_weight = kaldifst.get_linear_symbol_sequence(
+            kaldifst.shortest_path(ali_fst)
+        )
         if not succeeded:
-            raise RuntimeError("Something went wrong while calculating edit_distance. Please check input manually.")
+            raise RuntimeError(
+                "Something went wrong while calculating edit_distance. Please check input manually."
+            )
         return round(total_weight.value)
 
     def draw(
-        self, filename: Optional[Union[Path, str]] = None, title: Optional[Union[Path, str]] = None, zoom: float = 1.0
-    ) -> Union['graphviz.Digraph', 'IPython.display.HTML']:
+        self,
+        filename: Optional[Union[Path, str]] = None,
+        title: Optional[Union[Path, str]] = None,
+        zoom: float = 1.0,
+    ) -> Union["graphviz.Digraph", "IPython.display.HTML"]:
         """Render FSA as an image via graphviz, and return the Digraph object; and optionally save to file filename.
         filename must have a suffix that graphviz understands, such as pdf, svg or png.
 
@@ -1259,7 +1373,12 @@ class KaldiWordLattice(AbstractLattice):
                 isym.add_symbol(symbol=t, key=i)
 
         fst_dot = kaldifst.draw(
-            self._lattice, acceptor=False, portrait=True, isymbols=isym, osymbols=osym, show_weight_one=True
+            self._lattice,
+            acceptor=False,
+            portrait=True,
+            isymbols=isym,
+            osymbols=osym,
+            show_weight_one=True,
         )
         source = graphviz.Source(fst_dot)
         source_lines = str(source).splitlines()
@@ -1268,24 +1387,31 @@ class KaldiWordLattice(AbstractLattice):
         # Remove the closing brackets '}'
         source_lines.pop(-1)
         graph_attr = {
-            'rankdir': 'LR',
-            'size': '8.5,11',
-            'center': '1',
-            'orientation': 'Portrait',
-            'ranksep': '0.4',
-            'nodesep': '0.25',
-            'margin': '0.0',
+            "rankdir": "LR",
+            "size": "8.5,11",
+            "center": "1",
+            "orientation": "Portrait",
+            "ranksep": "0.4",
+            "nodesep": "0.25",
+            "margin": "0.0",
         }
         if title is not None:
-            graph_attr['label'] = title
+            graph_attr["label"] = title
         digraph = graphviz.Digraph(graph_attr=graph_attr)
         digraph.body += source_lines
         if filename:
             _, extension = os.path.splitext(filename)
-            if extension == '' or extension[0] != '.':
-                raise ValueError(f"Filename needs to have a suffix like .png, .pdf, .svg, or .gv: `{filename}`")
+            if extension == "" or extension[0] != ".":
+                raise ValueError(
+                    f"Filename needs to have a suffix like .png, .pdf, .svg, or .gv: `{filename}`"
+                )
             with tempfile.TemporaryDirectory() as tmp_dir:
-                temp_fn = digraph.render(filename='temp', directory=tmp_dir, format=extension[1:], cleanup=True)
+                temp_fn = digraph.render(
+                    filename="temp",
+                    directory=tmp_dir,
+                    format=extension[1:],
+                    cleanup=True,
+                )
 
                 shutil.move(temp_fn, filename)
         if _is_notebook():
@@ -1294,7 +1420,9 @@ class KaldiWordLattice(AbstractLattice):
             from IPython.display import HTML
 
             with tempfile.TemporaryDirectory() as tmp_dir:
-                temp_fn = digraph.render(filename='temp', directory=tmp_dir, format="svg", cleanup=True)
+                temp_fn = digraph.render(
+                    filename="temp", directory=tmp_dir, format="svg", cleanup=True
+                )
                 svg, (width, height) = _svg_srcdoc_resize(temp_fn, zoom)
             # IFrame requires src file to be present when rendering
             # so we use HTML with iframe srcdoc instead
@@ -1309,9 +1437,9 @@ class KaldiWordLattice(AbstractLattice):
 def _is_notebook() -> bool:
     try:
         shell = get_ipython().__class__.__name__
-        if shell == 'ZMQInteractiveShell' or 'Shell':
+        if shell == "ZMQInteractiveShell" or "Shell":
             return True  # Jupyter notebook, Google Colab notebook, or qtconsole
-        elif shell == 'TerminalInteractiveShell':
+        elif shell == "TerminalInteractiveShell":
             return False  # Terminal running IPython
         else:
             return False  # Other type
@@ -1319,19 +1447,25 @@ def _is_notebook() -> bool:
         return False  # Probably standard Python interpreter
 
 
-def _svg_srcdoc_resize(filename: Union[Path, str], zoom: float) -> Tuple[str, Tuple[int, int]]:
+def _svg_srcdoc_resize(
+    filename: Union[Path, str], zoom: float
+) -> Tuple[str, Tuple[int, int]]:
     with open(filename, "rt", encoding="utf-8") as f:
         line = f.readline()
         while not line.startswith("<svg"):
             line = f.readline()
-        width, height = re.findall(r'\d+', line)
+        width, height = re.findall(r"\d+", line)
         width, height = int(width), int(height)
-        return f'<svg width="{round(width * zoom)}pt" height="{round(height * zoom)}pt"\n' + f.read(), (width, height)
+        return (
+            f'<svg width="{round(width * zoom)}pt" height="{round(height * zoom)}pt"\n'
+            + f.read(),
+            (width, height),
+        )
 
 
 def levenshtein_graph_kaldi(
-    fst: Union['kaldifst.StdFst', 'kaldifst.Lattice'], ins_del_score: float = 0.501
-) -> 'kaldifst.StdFst':
+    fst: Union["kaldifst.StdFst", "kaldifst.Lattice"], ins_del_score: float = 0.501
+) -> "kaldifst.StdFst":
     """Construct the levenshtein graph from a kaldi-type WFST or a lattice.
 
     See also levenshtein_graph from k2.
@@ -1359,9 +1493,13 @@ def levenshtein_graph_kaldi(
         lfst = fst.copy(safe=True)
     elif isinstance(fst, kaldifst.Lattice):
         # dropping lattice weights
-        lfst = kaldifst.compile(re.sub(r"[-\d.]+,[-\d.]+", "0", fst.to_str(show_weight_one=True)))
+        lfst = kaldifst.compile(
+            re.sub(r"[-\d.]+,[-\d.]+", "0", fst.to_str(show_weight_one=True))
+        )
     else:
-        raise ValueError(f"Levenshtein graph building is not supported for the type `{type(fst)}`.")
+        raise ValueError(
+            f"Levenshtein graph building is not supported for the type `{type(fst)}`."
+        )
     sub_score = 0.5
     eps = 0
     for state in kaldifst.StateIterator(lfst):
@@ -1393,7 +1531,9 @@ def levenshtein_graph_kaldi(
 
 
 def load_word_lattice(
-    lat_filename: Union[Path, str], id2word: Optional[Dict[int, str]] = None, id2token: Optional[Dict[int, str]] = None
+    lat_filename: Union[Path, str],
+    id2word: Optional[Dict[int, str]] = None,
+    id2token: Optional[Dict[int, str]] = None,
 ) -> Dict[str, KaldiWordLattice]:
     """Helper function to load riva-decoder recognition lattices.
 
@@ -1435,7 +1575,10 @@ def load_word_lattice(
                 lattice_dict[lat_id] = KaldiWordLattice(
                     lattice=lattice,
                     symbol_table=id2word,
-                    auxiliary_tables={"token_seq_list": token_seq_list, "input_symbols": id2token},
+                    auxiliary_tables={
+                        "token_seq_list": token_seq_list,
+                        "input_symbols": id2token,
+                    },
                 )
                 start = lattice.add_state()
                 lattice.start = start
@@ -1443,7 +1586,7 @@ def load_word_lattice(
             elif line_len in (3, 4):  # arc
                 if line_len == 4:  # regular arc
                     state, next_state, label = [int(i) for i in line_items[:-1]]
-                    trunk = line_items[-1].split(',')
+                    trunk = line_items[-1].split(",")
                     graph_cost, acoustic_cost = [float(i) for i in trunk[:-1]]
                 else:  # arc without weight
                     logging.warning(
@@ -1460,17 +1603,31 @@ def load_word_lattice(
                 ark = kaldifst.LatticeArc(
                     ilabel=label,
                     olabel=label,
-                    weight=kaldifst.LatticeWeight(graph_cost=graph_cost, acoustic_cost=acoustic_cost),
+                    weight=kaldifst.LatticeWeight(
+                        graph_cost=graph_cost, acoustic_cost=acoustic_cost
+                    ),
                     nextstate=next_state,
                 )
                 lattice.add_arc(state=state, arc=ark)
-                token_seq_list.append((ark, [int(i) for i in trunk[-1].split(TW_BREAK)] if trunk[-1] != "" else []))
+                token_seq_list.append(
+                    (
+                        ark,
+                        (
+                            [int(i) for i in trunk[-1].split(TW_BREAK)]
+                            if trunk[-1] != ""
+                            else []
+                        ),
+                    )
+                )
             elif line_len == 2:  # final state
                 state = int(line_items[0])
-                trunk = line_items[-1].split(',')
+                trunk = line_items[-1].split(",")
                 graph_cost, acoustic_cost = [float(i) for i in trunk[:-1]]
                 lattice.set_final(
-                    state=state, weight=kaldifst.LatticeWeight(graph_cost=graph_cost, acoustic_cost=acoustic_cost)
+                    state=state,
+                    weight=kaldifst.LatticeWeight(
+                        graph_cost=graph_cost, acoustic_cost=acoustic_cost
+                    ),
                 )
             else:
                 raise RuntimeError(f"Broken line: `{line}`")

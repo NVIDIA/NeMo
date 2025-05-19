@@ -46,41 +46,41 @@ from nemo.collections.nlp.modules.common.megatron.retrieval_services.util import
     text_generation
 
 langs = [
-    'ar',
-    'bg',
-    'bn',
-    'ca',
-    'cs',
-    'da',
-    'de',
-    'el',
-    'en',
-    'eo',
-    'es',
-    'eu',
-    'fa',
-    'fi',
-    'fr',
-    'gl',
-    'he',
-    'hu',
-    'id',
-    'it',
-    'ja',
-    'ko',
-    'nb',
-    'nl',
-    'pl',
-    'pt',
-    'ro',
-    'ru',
-    'sk',
-    'sv',
-    'th',
-    'tr',
-    'uk',
-    'vi',
-    'zh',
+    "ar",
+    "bg",
+    "bn",
+    "ca",
+    "cs",
+    "da",
+    "de",
+    "el",
+    "en",
+    "eo",
+    "es",
+    "eu",
+    "fa",
+    "fi",
+    "fr",
+    "gl",
+    "he",
+    "hu",
+    "id",
+    "it",
+    "ja",
+    "ko",
+    "nb",
+    "nl",
+    "pl",
+    "pt",
+    "ro",
+    "ru",
+    "sk",
+    "sv",
+    "th",
+    "tr",
+    "uk",
+    "vi",
+    "zh",
 ]
 
 SFT_PREFIX = """<extra_id_0>System
@@ -103,61 +103,87 @@ EXAMPLE_PROMPT_WITHOUT_VAL = PromptTemplate(
 )
 
 selected_keys = [
-    'quality',
-    'toxicity',
-    'humor',
-    'creativity',
-    'violence',
-    'helpfulness',
-    'not_appropriate',
-    'hate_speech',
-    'sexual_content',
-    'fails_task',
-    'political_content',
-    'moral_judgement',
-    'lang',
+    "quality",
+    "toxicity",
+    "humor",
+    "creativity",
+    "violence",
+    "helpfulness",
+    "not_appropriate",
+    "hate_speech",
+    "sexual_content",
+    "fails_task",
+    "political_content",
+    "moral_judgement",
+    "lang",
 ]
 
 
 def calculate_key(obj):
-    return ":".join([item['value'] for item in obj['conversations']])
+    return ":".join([item["value"] for item in obj["conversations"]])
 
 
 def load_data(path):
-    with open(path, 'r', encoding='utf-8') as fin:
+    with open(path, "r", encoding="utf-8") as fin:
         for line in fin:
             yield json.loads(line)
 
 
 def get_prompt(data_obj, turn, current_label="", label_id=0):
-    if len(data_obj['conversations']) < turn + 1:
+    if len(data_obj["conversations"]) < turn + 1:
         return None
 
     examples = []
     for i in range(0, turn):
-        d = data_obj['conversations'][i]
-        if 'label' in d:
+        d = data_obj["conversations"][i]
+        if "label" in d:
             examples.append(
                 EXAMPLE_PROMPT_WITH_VAL.format(
-                    **{'user_name': d['from'], 'user_message': d['value'], 'label': d['label']}
+                    **{
+                        "user_name": d["from"],
+                        "user_message": d["value"],
+                        "label": d["label"],
+                    }
                 )
             )
         else:
-            examples.append(EXAMPLE_PROMPT_WITHOUT_VAL.format(**{'user_name': d['from'], 'user_message': d['value']}))
+            examples.append(
+                EXAMPLE_PROMPT_WITHOUT_VAL.format(
+                    **{"user_name": d["from"], "user_message": d["value"]}
+                )
+            )
 
     example_text = "".join(examples)
-    d = data_obj['conversations'][turn]
-    predict_message = EXAMPLE_PROMPT_WITHOUT_VAL.format(**{'user_name': d['from'], 'user_message': d['value']})
+    d = data_obj["conversations"][turn]
+    predict_message = EXAMPLE_PROMPT_WITHOUT_VAL.format(
+        **{"user_name": d["from"], "user_message": d["value"]}
+    )
 
     if label_id != 0:
-        current_label = current_label + ',' + selected_keys[label_id] + ':'
+        current_label = current_label + "," + selected_keys[label_id] + ":"
     else:
-        current_label = '<extra_id_2>' + selected_keys[label_id] + ':'
-    return SYSTEM.format(**{'system_message': data_obj['system']}) + example_text + predict_message + current_label
+        current_label = "<extra_id_2>" + selected_keys[label_id] + ":"
+    return (
+        SYSTEM.format(**{"system_message": data_obj["system"]})
+        + example_text
+        + predict_message
+        + current_label
+    )
 
 
-def create_gen_function(host='localhost', port=5555):
-    def request(prompts, greedy, add_BOS, token_to_gen, min_tokens, temp, top_p, top_k, repetition, end_strings):
+def create_gen_function(host="localhost", port=5555):
+    def request(
+        prompts,
+        greedy,
+        add_BOS,
+        token_to_gen,
+        min_tokens,
+        temp,
+        top_p,
+        top_k,
+        repetition,
+        end_strings,
+    ):
         data = {
             "sentences": prompts,
             "tokens_to_generate": int(token_to_gen),
@@ -172,25 +198,32 @@ def create_gen_function(host='localhost', port=5555):
             "end_strings": end_strings,
         }
         response = text_generation(data, ip=host, port=port)
-        sentences = response['sentences']
+        sentences = response["sentences"]
         return sentences
 
     return request
 
 
 class Worker(object):
-    def __init__(self, host='localhost', port=5555, progress_bar=None, output_file=None, process_lang=False):
+    def __init__(
+        self,
+        host="localhost",
+        port=5555,
+        progress_bar=None,
+        output_file=None,
+        process_lang=False,
+    ):
         self.req = create_gen_function(host=host, port=port)
-        self.fout = open(output_file, "a", encoding='utf-8')
+        self.fout = open(output_file, "a", encoding="utf-8")
         self.progress_bar = progress_bar
         self.process_lang = process_lang
 
     def process_result(self, batch):
         while True:
             try:
-                items = [i['item'] for i in batch]
-                turns = [i['turn'] for i in batch]
-                prompts = [i['prompt'] for i in batch]
+                items = [i["item"] for i in batch]
+                turns = [i["turn"] for i in batch]
+                prompts = [i["prompt"] for i in batch]
 
                 for label_id in range(1, len(selected_keys)):
                     results = self.req(
@@ -210,19 +243,19 @@ class Worker(object):
                     nums = []
                     for result in results:
                         # promblem result[-1] is '\n'
-                        current_val = result.split('quality')[-1]
-                        current_val = 'quality' + current_val
+                        current_val = result.split("quality")[-1]
+                        current_val = "quality" + current_val
                         # remove whatever after new line
-                        current_val = current_val.split('\n')[0].strip()
+                        current_val = current_val.split("\n")[0].strip()
                         # remove everything that is >= selected_keys[label_id]
-                        splits = current_val.split(',')
+                        splits = current_val.split(",")
                         filtered = []
                         for item in splits:
                             filtered.append(item)
-                            if item.split(':')[0] == selected_keys[label_id - 1]:
-                                nums.append(item.split(':')[1])
+                            if item.split(":")[0] == selected_keys[label_id - 1]:
+                                nums.append(item.split(":")[1])
                                 break
-                        current_val = '<extra_id_2>' + ','.join(filtered)
+                        current_val = "<extra_id_2>" + ",".join(filtered)
                         current_values.append(current_val)
 
                     filtered_items = []
@@ -230,17 +263,24 @@ class Worker(object):
                     filtered_prompts = []
                     filtered_current_values = []
 
-                    for result, item, turn, num, current_value in zip(results, items, turns, nums, current_values):
+                    for result, item, turn, num, current_value in zip(
+                        results, items, turns, nums, current_values
+                    ):
                         try:
                             value = int(num)
                         except Exception as e:
-                            print(f'error {e} when convert {num} to int')
+                            print(f"error {e} when convert {num} to int")
                             continue
                         filtered_current_values.append(current_value)
                         filtered_items.append(item)
                         filtered_turns.append(turn)
                         if label_id < len(selected_keys):
-                            prompt = get_prompt(item, turn, current_label=current_value, label_id=label_id)
+                            prompt = get_prompt(
+                                item,
+                                turn,
+                                current_label=current_value,
+                                label_id=label_id,
+                            )
                             filtered_prompts.append(prompt)
                     items = filtered_items
                     turns = filtered_turns
@@ -264,26 +304,26 @@ class Worker(object):
                     current_values = []
                     for result in results:
                         # promblem result[-1] is '\n'
-                        if result.endswith('\n'):
-                            result = result[:-1] + '@'
-                        current_values.append(result.split('\n')[-1])
+                        if result.endswith("\n"):
+                            result = result[:-1] + "@"
+                        current_values.append(result.split("\n")[-1])
 
                     nums = []
                     for result in results:
                         # promblem result[-1] is '\n'
-                        current_val = result.split('quality')[-1]
-                        current_val = 'quality' + current_val
+                        current_val = result.split("quality")[-1]
+                        current_val = "quality" + current_val
                         # remove whatever after new line
-                        current_val = current_val.split('\n')[0].strip()
+                        current_val = current_val.split("\n")[0].strip()
                         # remove everything that is >= selected_keys[label_id]
-                        splits = current_val.split(',')
+                        splits = current_val.split(",")
                         filtered = []
                         for item in splits:
                             filtered.append(item)
-                            if item.split(':')[0] == selected_keys[label_id]:
-                                nums.append(item.split(':')[1])
+                            if item.split(":")[0] == selected_keys[label_id]:
+                                nums.append(item.split(":")[1])
                                 break
-                        current_val = '<extra_id_2>' + ','.join(filtered)
+                        current_val = "<extra_id_2>" + ",".join(filtered)
                         current_values.append(current_val)
 
                     filtered_items = []
@@ -291,9 +331,11 @@ class Worker(object):
                     filtered_prompts = []
                     filtered_current_values = []
 
-                    for result, item, turn, num, current_value in zip(results, items, turns, nums, current_values):
+                    for result, item, turn, num, current_value in zip(
+                        results, items, turns, nums, current_values
+                    ):
                         if num not in langs:
-                            print(f'error {num} not in langs')
+                            print(f"error {num} not in langs")
                             continue
                         filtered_current_values.append(current_value)
                         filtered_items.append(item)
@@ -305,12 +347,14 @@ class Worker(object):
                 batch = []
                 for item, turn, current_value in zip(items, turns, current_values):
                     response_text = current_value[12:]
-                    if 'label' in item['conversations'][turn]:
-                        item['conversations'][turn]['gt_label'] = item['conversations'][turn]['label']
-                    item['conversations'][turn]['label'] = response_text
-                    prompt = get_prompt(item, turn + 1, current_label='', label_id=0)
+                    if "label" in item["conversations"][turn]:
+                        item["conversations"][turn]["gt_label"] = item["conversations"][
+                            turn
+                        ]["label"]
+                    item["conversations"][turn]["label"] = response_text
+                    prompt = get_prompt(item, turn + 1, current_label="", label_id=0)
                     if prompt is not None:
-                        batch.append({'prompt': prompt, 'item': item, 'turn': turn + 1})
+                        batch.append({"prompt": prompt, "item": item, "turn": turn + 1})
                     else:
                         self.progress_bar.update(1)
                         self.fout.write(json.dumps(item, ensure_ascii=False) + "\n")
@@ -320,7 +364,7 @@ class Worker(object):
                 if len(batch) == 0:
                     break
             except Exception as e:
-                print(f'error {e} when processing {batch}')
+                print(f"error {e} when processing {batch}")
                 # ignore the error and continue
                 self.progress_bar.update(1)
                 if self.progress_bar.n >= self.progress_bar.total:
@@ -329,17 +373,17 @@ class Worker(object):
 
 def main(
     batch_size=1,
-    host='localhost',
-    input_file_name='input.jsonl',
-    output_file_name='output.jsonl',
+    host="localhost",
+    input_file_name="input.jsonl",
+    output_file_name="output.jsonl",
     port_num=1424,
     process_lang=True,
 ):
-    input_data = load_data(f'{input_file_name}')
-    output_path = f'{output_file_name}'
+    input_data = load_data(f"{input_file_name}")
+    output_path = f"{output_file_name}"
     existing_requests = set()
     if os.path.exists(output_path):
-        with open(output_path, 'r', encoding='utf-8') as fin:
+        with open(output_path, "r", encoding="utf-8") as fin:
             for line in fin:
                 line = json.loads(line)
                 existing_requests.add(calculate_key(line))
@@ -350,18 +394,30 @@ def main(
     progress_bar = tqdm.tqdm(total=len(filter_data))
 
     worker = Worker(
-        host=host, port=port_num, progress_bar=progress_bar, output_file=output_path, process_lang=process_lang
+        host=host,
+        port=port_num,
+        progress_bar=progress_bar,
+        output_file=output_path,
+        process_lang=process_lang,
     )
     for batch_idx in range(0, len(filter_data), batch_size):
         batch = [line for line in filter_data[batch_idx : batch_idx + batch_size]]
         turns = [
-            0 if 'mask' not in d['conversations'][0]['from'] or d['conversations'][0]['from'] == d['mask'] else 1
+            (
+                0
+                if "mask" not in d["conversations"][0]["from"]
+                or d["conversations"][0]["from"] == d["mask"]
+                else 1
+            )
             for d in batch
         ]
-        task = [{'prompt': get_prompt(d, turn, "", 0), 'item': d, 'turn': turn} for d, turn in zip(batch, turns)]
+        task = [
+            {"prompt": get_prompt(d, turn, "", 0), "item": d, "turn": turn}
+            for d, turn in zip(batch, turns)
+        ]
         worker.process_result(task)
     worker.fout.close()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     fire.Fire(main)

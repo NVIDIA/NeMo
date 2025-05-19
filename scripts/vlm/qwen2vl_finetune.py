@@ -61,8 +61,14 @@ def main(args):
     max_steps = args.max_steps
 
     SIZE_INFO_MAP = {
-        "2B": {"hf_model_name": "Qwen/Qwen2-VL-2B-Instruct", "llmconfig_class": llm.Qwen2Config1P5B},
-        "7B": {"hf_model_name": "Qwen/Qwen2-VL-7B-Instruct", "llmconfig_class": llm.Qwen2Config7B},
+        "2B": {
+            "hf_model_name": "Qwen/Qwen2-VL-2B-Instruct",
+            "llmconfig_class": llm.Qwen2Config1P5B,
+        },
+        "7B": {
+            "hf_model_name": "Qwen/Qwen2-VL-7B-Instruct",
+            "llmconfig_class": llm.Qwen2Config7B,
+        },
     }
     model_size = "2B"
     hf_model_name, llm_config_class = (
@@ -199,7 +205,11 @@ def main(args):
     nemo_logger = nl.NeMoLogger(
         log_dir=args.log_dir,
         name=args.name,
-        wandb=WandbLogger(project=args.wandb_project, name=args.name) if args.wandb_project is not None else None,
+        wandb=(
+            WandbLogger(project=args.wandb_project, name=args.name)
+            if args.wandb_project is not None
+            else None
+        ),
     )
 
     # Auto resume setup
@@ -207,12 +217,16 @@ def main(args):
         resume_if_exists=True,
         resume_ignore_no_checkpoint=True,
         resume_from_directory=args.log_dir,
-        restore_config=nl.RestoreConfig(path=args.restore_path) if args.restore_path is not None else None,
+        restore_config=(
+            nl.RestoreConfig(path=args.restore_path)
+            if args.restore_path is not None
+            else None
+        ),
     )
 
     # Optimizer and scheduler setup
     opt_config = OptimizerConfig(
-        optimizer='adam',
+        optimizer="adam",
         lr=args.lr,
         adam_beta1=0.9,
         adam_beta2=0.95,
@@ -228,7 +242,7 @@ def main(args):
     opt = MegatronOptimizerModule(opt_config, sched)
 
     # PEFT setup
-    if args.peft == 'lora':
+    if args.peft == "lora":
         peft = vlm.peft.LoRA(
             target_modules=[
                 "linear_qkv",
@@ -255,9 +269,27 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="QWEN2VL Model Training Script")
 
     # Argument parsing
-    parser.add_argument("--data_type", type=str, required=False, default="mock", help="mock | qwen2vl | energon")
-    parser.add_argument("--data_path", type=str, required=False, default=None, help="Path to the dataset JSON file")
-    parser.add_argument("--image_folder", type=str, required=False, default=None, help="Path to the image folder")
+    parser.add_argument(
+        "--data_type",
+        type=str,
+        required=False,
+        default="mock",
+        help="mock | qwen2vl | energon",
+    )
+    parser.add_argument(
+        "--data_path",
+        type=str,
+        required=False,
+        default=None,
+        help="Path to the dataset JSON file",
+    )
+    parser.add_argument(
+        "--image_folder",
+        type=str,
+        required=False,
+        default=None,
+        help="Path to the image folder",
+    )
     parser.add_argument(
         "--video_folder",
         type=str,
@@ -266,13 +298,25 @@ if __name__ == "__main__":
         help="Path to the video folder, if not provided, use image_folder",
     )
     parser.add_argument(
-        "--log_dir", type=str, required=False, default="/results", help="Directory for logging and checkpoints"
+        "--log_dir",
+        type=str,
+        required=False,
+        default="/results",
+        help="Directory for logging and checkpoints",
     )
     parser.add_argument(
-        "--language_model_path", type=str, required=False, default=None, help="Path to the pretrained language model"
+        "--language_model_path",
+        type=str,
+        required=False,
+        default=None,
+        help="Path to the pretrained language model",
     )
     parser.add_argument(
-        "--restore_path", type=str, required=False, default=None, help="Path to restore model from checkpoint"
+        "--restore_path",
+        type=str,
+        required=False,
+        default=None,
+        help="Path to restore model from checkpoint",
     )
     parser.add_argument("--devices", type=int, required=False, default=1)
     parser.add_argument("--num_nodes", type=int, required=False, default=1)
@@ -280,16 +324,30 @@ if __name__ == "__main__":
     parser.add_argument("--tp_size", type=int, required=False, default=1)
     parser.add_argument("--pp_size", type=int, required=False, default=1)
     parser.add_argument("--encoder_pp_size", type=int, required=False, default=0)
-    parser.add_argument("--projector_type", type=str, required=False, default="mcore_mlp")
-    parser.add_argument("--name", type=str, required=False, default="qwen2vl_finetune")
-    parser.add_argument("--peft", type=str, default='none', help="none | lora")
-    parser.add_argument("--wandb_project", type=str, required=False, default=None)
-    parser.add_argument("--gbs", type=int, required=False, default=64, help="Global batch size")
-    parser.add_argument("--mbs", type=int, required=False, default=2, help="Micro batch size")
-    parser.add_argument("--lr", type=float, required=False, default=2.0e-06, help="Learning rate")
-    parser.add_argument('--enable_sp', action='store_true', help="enable sequence parallel")
     parser.add_argument(
-        "--max_sequence_length", type=int, required=False, default=4096, help="Maximum sequence length"
+        "--projector_type", type=str, required=False, default="mcore_mlp"
+    )
+    parser.add_argument("--name", type=str, required=False, default="qwen2vl_finetune")
+    parser.add_argument("--peft", type=str, default="none", help="none | lora")
+    parser.add_argument("--wandb_project", type=str, required=False, default=None)
+    parser.add_argument(
+        "--gbs", type=int, required=False, default=64, help="Global batch size"
+    )
+    parser.add_argument(
+        "--mbs", type=int, required=False, default=2, help="Micro batch size"
+    )
+    parser.add_argument(
+        "--lr", type=float, required=False, default=2.0e-06, help="Learning rate"
+    )
+    parser.add_argument(
+        "--enable_sp", action="store_true", help="enable sequence parallel"
+    )
+    parser.add_argument(
+        "--max_sequence_length",
+        type=int,
+        required=False,
+        default=4096,
+        help="Maximum sequence length",
     )
 
     args = parser.parse_args()

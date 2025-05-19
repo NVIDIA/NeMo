@@ -38,7 +38,9 @@ def get_auto_configs(configs):
 class TestGenerateConfgis:
     def test_llama_model(self):
         # Llama3 70B
-        recipe = partial(llm.llama3_70b.pretrain_recipe, num_nodes=128, num_gpus_per_node=8)()
+        recipe = partial(
+            llm.llama3_70b.pretrain_recipe, num_nodes=128, num_gpus_per_node=8
+        )()
         recipe.data.global_batch_size = 2048
         runner = AutoConfigurator(
             recipe=recipe,
@@ -60,7 +62,9 @@ class TestGenerateConfgis:
             assert config.data.seq_length == 8192
             assert config.data.global_batch_size == 2048
 
-        assert len(configs) == 3, f"{len(configs)} configurations were generated but 3 were expected."
+        assert (
+            len(configs) == 3
+        ), f"{len(configs)} configurations were generated but 3 were expected."
 
         auto_configs = get_auto_configs(configs)
         assert auto_configs[0] == [
@@ -89,7 +93,9 @@ class TestGenerateConfgis:
 
     def test_mistral_model(self):
         # Mistral 7B
-        recipe = partial(llm.mistral_7b.pretrain_recipe, num_nodes=16, num_gpus_per_node=8)()
+        recipe = partial(
+            llm.mistral_7b.pretrain_recipe, num_nodes=16, num_gpus_per_node=8
+        )()
         recipe.data.seq_length = 4096
         recipe.data.global_batch_size = 2048
         recipe.model.config.seq_length = recipe.data.seq_length
@@ -114,7 +120,9 @@ class TestGenerateConfgis:
             assert config.data.seq_length == 4096
             assert config.data.global_batch_size == 2048
 
-        assert len(configs) == 2, f"{len(configs)} configurations were generated but 3 were expected."
+        assert (
+            len(configs) == 2
+        ), f"{len(configs)} configurations were generated but 3 were expected."
 
         auto_configs = get_auto_configs(configs)
         assert auto_configs[0] == [
@@ -135,7 +143,9 @@ class TestGenerateConfgis:
 
     def test_mixtral_model(self):
         # Mixtral 8x22B
-        recipe = partial(llm.mixtral_8x22b.pretrain_recipe, num_nodes=16, num_gpus_per_node=8)()
+        recipe = partial(
+            llm.mixtral_8x22b.pretrain_recipe, num_nodes=16, num_gpus_per_node=8
+        )()
         recipe.data.seq_length = 4096
         recipe.data.global_batch_size = 2048
         recipe.model.config.seq_length = recipe.data.seq_length
@@ -160,7 +170,9 @@ class TestGenerateConfgis:
             assert config.data.seq_length == 4096
             assert config.data.global_batch_size == 2048
 
-        assert len(configs) == 2, f"{len(configs)} configurations were generated but 3 were expected."
+        assert (
+            len(configs) == 2
+        ), f"{len(configs)} configurations were generated but 3 were expected."
 
         auto_configs = get_auto_configs(configs)
         assert auto_configs[0] == [
@@ -181,7 +193,9 @@ class TestGenerateConfgis:
 
     def test_gemma_model(self):
         # Gemma 7B
-        recipe = partial(llm.gemma_7b.pretrain_recipe, num_nodes=16, num_gpus_per_node=8)()
+        recipe = partial(
+            llm.gemma_7b.pretrain_recipe, num_nodes=16, num_gpus_per_node=8
+        )()
         recipe.data.seq_length = 8192
         recipe.data.global_batch_size = 2048
         recipe.model.config.seq_length = recipe.data.seq_length
@@ -206,7 +220,9 @@ class TestGenerateConfgis:
             assert config.data.seq_length == 8192
             assert config.data.global_batch_size == 2048
 
-        assert len(configs) == 2, f"{len(configs)} configurations were generated but 3 were expected."
+        assert (
+            len(configs) == 2
+        ), f"{len(configs)} configurations were generated but 3 were expected."
 
         auto_configs = get_auto_configs(configs)
         assert auto_configs[0] == [
@@ -227,7 +243,9 @@ class TestGenerateConfgis:
 
     def test_nemotron_model(self):
         # Nemotron3 8B
-        recipe = partial(llm.nemotron3_8b.pretrain_recipe, num_nodes=16, num_gpus_per_node=8)()
+        recipe = partial(
+            llm.nemotron3_8b.pretrain_recipe, num_nodes=16, num_gpus_per_node=8
+        )()
         recipe.data.seq_length = 4096
         recipe.data.global_batch_size = 2048
         recipe.model.config.seq_length = recipe.data.seq_length
@@ -252,7 +270,9 @@ class TestGenerateConfgis:
             assert config.data.seq_length == 4096
             assert config.data.global_batch_size == 2048
 
-        assert len(configs) == 2, f"{len(configs)} configurations were generated but 3 were expected."
+        assert (
+            len(configs) == 2
+        ), f"{len(configs)} configurations were generated but 3 were expected."
 
         auto_configs = get_auto_configs(configs)
         assert auto_configs[0] == [
@@ -304,7 +324,9 @@ class TestGenerateConfgis:
             assert config.data.seq_length == 8192
             assert config.data.global_batch_size == 512
 
-        assert len(configs) == 9, f"{len(configs)} configurations were generated but 9 were expected."
+        assert (
+            len(configs) == 9
+        ), f"{len(configs)} configurations were generated but 9 were expected."
 
         auto_configs = get_auto_configs(configs)
         assert auto_configs[0] == [
@@ -347,7 +369,9 @@ class TestGenerateConfgis:
             assert config.data.seq_length == 4096
             assert config.data.global_batch_size == 128
 
-        assert len(configs) == 6, f"{len(configs)} configurations were generated but 6 were expected."
+        assert (
+            len(configs) == 6
+        ), f"{len(configs)} configurations were generated but 6 were expected."
 
         auto_configs = get_auto_configs(configs)
         assert auto_configs[0] == [
@@ -388,7 +412,9 @@ class TestGenerateConfgis:
             assert config.data.seq_length == 4096
             assert config.data.global_batch_size == 128
 
-        assert len(configs) == 12, f"{len(configs)} configurations were generated but 12 were expected."
+        assert (
+            len(configs) == 12
+        ), f"{len(configs)} configurations were generated but 12 were expected."
 
         auto_configs = get_auto_configs(configs)
         assert auto_configs[4] == [

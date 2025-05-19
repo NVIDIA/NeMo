@@ -44,24 +44,42 @@ class CausalVideoTokenizer(ModelPT):
             tokenizer_config = get_tokenizer_config(cfg.tokenizer_type)
             tokenizer_config["dtype"] = self._dtype
             self._full_model = (
-                load_pytorch_model(self._full_model_path, tokenizer_config, "full", self._device)
+                load_pytorch_model(
+                    self._full_model_path, tokenizer_config, "full", self._device
+                )
                 if cfg.load_full_model
                 else None
             )
             self._enc_model = (
-                load_pytorch_model(self._enc_model_path, tokenizer_config, "enc", self._device)
+                load_pytorch_model(
+                    self._enc_model_path, tokenizer_config, "enc", self._device
+                )
                 if cfg.load_enc_model
                 else None
             )
             self._dec_model = (
-                load_pytorch_model(self._dec_model_path, tokenizer_config, "dec", self._device)
+                load_pytorch_model(
+                    self._dec_model_path, tokenizer_config, "dec", self._device
+                )
                 if cfg.load_dec_model
                 else None
             )
         else:
-            self._full_model = load_jit_model(self._full_model_path, self._device) if cfg.load_full_model else None
-            self._enc_model = load_jit_model(self._enc_model_path, self._device) if cfg.load_enc_model else None
-            self._dec_model = load_jit_model(self._dec_model_path, self._device) if cfg.load_dec_model else None
+            self._full_model = (
+                load_jit_model(self._full_model_path, self._device)
+                if cfg.load_full_model
+                else None
+            )
+            self._enc_model = (
+                load_jit_model(self._enc_model_path, self._device)
+                if cfg.load_enc_model
+                else None
+            )
+            self._dec_model = (
+                load_jit_model(self._dec_model_path, self._device)
+                if cfg.load_dec_model
+                else None
+            )
 
     @classmethod
     def from_pretrained(
@@ -105,13 +123,13 @@ class CausalVideoTokenizer(ModelPT):
         ckpt_dir = str(Path(full_model_path).parent)
         cfg = DictConfig(
             {
-                'checkpoint_dir': ckpt_dir,
-                'dtype': dtype,
-                'load_enc_model': load_encoder,
-                'load_dec_model': load_decoder,
-                'load_full_model': load_full_model,
-                'tokenizer_type': tokenizer_type,
-                'use_pytorch': use_pytorch,
+                "checkpoint_dir": ckpt_dir,
+                "dtype": dtype,
+                "load_enc_model": load_encoder,
+                "load_dec_model": load_decoder,
+                "load_full_model": load_full_model,
+                "tokenizer_type": tokenizer_type,
+                "use_pytorch": use_pytorch,
             }
         )
 
@@ -128,7 +146,9 @@ class CausalVideoTokenizer(ModelPT):
         """
         if self._full_model is not None:
             output_tensor = self._full_model(input_tensor)
-            output_tensor = output_tensor[0] if isinstance(output_tensor, tuple) else output_tensor
+            output_tensor = (
+                output_tensor[0] if isinstance(output_tensor, tuple) else output_tensor
+            )
         else:
             output_latent = self.encode(input_tensor)[0]
             output_tensor = self.decode(output_latent)
@@ -167,7 +187,9 @@ class CausalVideoTokenizer(ModelPT):
         Returns:
             The reconstructed tensor, layout [B,3,1+(T-1)*8,H*16,W*16] in range [-1..1].
         """
-        assert input_latent.ndim >= 4, "input latent should be of 5D for continuous and 4D for discrete."
+        assert (
+            input_latent.ndim >= 4
+        ), "input latent should be of 5D for continuous and 4D for discrete."
         return self._dec_model(input_latent)
 
     def forward(
@@ -195,7 +217,9 @@ class CausalVideoTokenizer(ModelPT):
 
             # Spatio-temporally pad input_video so it's evenly divisible.
             padded_input_video, crop_region = pad_video_batch(input_video)
-            input_tensor = numpy2tensor(padded_input_video, dtype=self._dtype, device=self._device)
+            input_tensor = numpy2tensor(
+                padded_input_video, dtype=self._dtype, device=self._device
+            )
             output_tensor = self.autoencode(input_tensor)
             padded_output_video = tensor2numpy(output_tensor)
             output_video = unpad_video_batch(padded_output_video, crop_region)

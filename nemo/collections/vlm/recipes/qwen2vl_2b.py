@@ -65,7 +65,7 @@ def finetune_recipe(
     name: str = "default",
     num_nodes: int = 1,
     num_gpus_per_node: int = 8,
-    peft_scheme: Optional[str] = 'none',
+    peft_scheme: Optional[str] = "none",
 ) -> run.Partial:
     """
     Create a fine-tuning recipe for Qwen2VL 2B model.
@@ -134,7 +134,9 @@ def finetune_recipe(
 
     max_sequence_length = 4096
 
-    language_transformer_config = run.Config(llm.Qwen2Config1P5B, seq_length=max_sequence_length)
+    language_transformer_config = run.Config(
+        llm.Qwen2Config1P5B, seq_length=max_sequence_length
+    )
 
     vision_transformer_config = run.Config(vlm.Qwen2VLVisionConfig)
 
@@ -165,7 +167,7 @@ def finetune_recipe(
 
     opt_config = run.Config(
         OptimizerConfig,
-        optimizer='adam',
+        optimizer="adam",
         lr=2.0e-06,
         adam_beta1=0.9,
         adam_beta2=0.95,
@@ -173,7 +175,11 @@ def finetune_recipe(
         bf16=True,
     )
     sched = run.Config(
-        CosineAnnealingScheduler, max_steps=trainer.max_steps, warmup_steps=0, constant_steps=1000, min_lr=1.0e-07
+        CosineAnnealingScheduler,
+        max_steps=trainer.max_steps,
+        warmup_steps=0,
+        constant_steps=1000,
+        min_lr=1.0e-07,
     )
     opt = run.Config(MegatronOptimizerModule, opt_config, sched)
 
@@ -190,15 +196,17 @@ def finetune_recipe(
             image_processor=image_processor,
             num_workers=4,
         ),
-        log=llm.default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
+        log=llm.default_log(
+            dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)
+        ),
         optim=opt,
         resume=nemo_resume,
     )
 
-    if peft_scheme is None or peft_scheme.lower() == 'none':
+    if peft_scheme is None or peft_scheme.lower() == "none":
         recipe.trainer.strategy.tensor_model_parallel_size = 1
         recipe.optim.config.lr = 2e-05
-    elif peft_scheme.lower() == 'lora':
+    elif peft_scheme.lower() == "lora":
         recipe.peft = run.Config(
             vlm.LoRA,
             target_modules=[
@@ -226,6 +234,8 @@ if __name__ == "__main__":
     recipe.data.global_batch_size = 8
     recipe.trainer.strategy.tensor_model_parallel_size = 1
 
-    executor = run.LocalExecutor(ntasks_per_node=2, launcher="torchrun", env_vars=env_vars)
+    executor = run.LocalExecutor(
+        ntasks_per_node=2, launcher="torchrun", env_vars=env_vars
+    )
 
     run.run(recipe, executor=executor, name="qwen2vl_2b_finetune")

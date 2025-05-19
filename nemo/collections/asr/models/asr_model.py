@@ -29,7 +29,7 @@ from nemo.core.utils.neural_type_utils import get_io_names
 from nemo.utils import logging, model_utils
 from nemo.utils.cast_utils import cast_all
 
-__all__ = ['ASRModel']
+__all__ = ["ASRModel"]
 
 
 class ASRModel(ModelPT, ABC):
@@ -37,60 +37,76 @@ class ASRModel(ModelPT, ABC):
         val_loss = {}
         tensorboard_logs = {}
 
-        if 'val_loss' in outputs[0]:
-            val_loss_mean = torch.stack([x['val_loss'] for x in outputs]).mean()
-            val_loss = {'val_loss': val_loss_mean}
+        if "val_loss" in outputs[0]:
+            val_loss_mean = torch.stack([x["val_loss"] for x in outputs]).mean()
+            val_loss = {"val_loss": val_loss_mean}
 
             tensorboard_logs.update(val_loss)
 
         if "val_wer_num" in outputs[0]:
-            wer_num = torch.stack([x['val_wer_num'] for x in outputs]).sum()
-            wer_denom = torch.stack([x['val_wer_denom'] for x in outputs]).sum()
-            val_wer = {'val_wer': wer_num / wer_denom}
+            wer_num = torch.stack([x["val_wer_num"] for x in outputs]).sum()
+            wer_denom = torch.stack([x["val_wer_denom"] for x in outputs]).sum()
+            val_wer = {"val_wer": wer_num / wer_denom}
 
             tensorboard_logs.update(val_wer)
 
         if "val_bleu_num" in outputs[0]:
-            bleu_pred_len = torch.stack([x[f"val_bleu_pred_len"] for x in outputs]).sum()
-            bleu_target_len = torch.stack([x[f"val_bleu_target_len"] for x in outputs]).sum()
+            bleu_pred_len = torch.stack(
+                [x[f"val_bleu_pred_len"] for x in outputs]
+            ).sum()
+            bleu_target_len = torch.stack(
+                [x[f"val_bleu_target_len"] for x in outputs]
+            ).sum()
             bleu_num = torch.stack([x[f"val_bleu_num"] for x in outputs]).sum(dim=0)
             bleu_denom = torch.stack([x[f"val_bleu_denom"] for x in outputs]).sum(dim=0)
-            val_bleu = {"val_bleu": self.bleu._compute_bleu(bleu_pred_len, bleu_target_len, bleu_num, bleu_denom)}
+            val_bleu = {
+                "val_bleu": self.bleu._compute_bleu(
+                    bleu_pred_len, bleu_target_len, bleu_num, bleu_denom
+                )
+            }
 
             tensorboard_logs.update(val_bleu)
 
-        return {**val_loss, 'log': tensorboard_logs}
+        return {**val_loss, "log": tensorboard_logs}
 
     def multi_test_epoch_end(self, outputs, dataloader_idx: int = 0):
         val_loss = {}
         tensorboard_logs = {}
 
-        if 'test_loss' in outputs[0]:
-            val_loss_mean = torch.stack([x['test_loss'] for x in outputs]).mean()
-            val_loss = {'test_loss': val_loss_mean}
+        if "test_loss" in outputs[0]:
+            val_loss_mean = torch.stack([x["test_loss"] for x in outputs]).mean()
+            val_loss = {"test_loss": val_loss_mean}
 
             tensorboard_logs.update(val_loss)
 
         if "test_wer_num" in outputs[0]:
-            wer_num = torch.stack([x['test_wer_num'] for x in outputs]).sum()
-            wer_denom = torch.stack([x['test_wer_denom'] for x in outputs]).sum()
-            val_wer = {'test_wer': wer_num / wer_denom}
+            wer_num = torch.stack([x["test_wer_num"] for x in outputs]).sum()
+            wer_denom = torch.stack([x["test_wer_denom"] for x in outputs]).sum()
+            val_wer = {"test_wer": wer_num / wer_denom}
 
             tensorboard_logs.update(val_wer)
 
         if "test_bleu_num" in outputs[0]:
-            bleu_pred_len = torch.stack([x[f"test_bleu_pred_len"] for x in outputs]).sum()
-            bleu_target_len = torch.stack([x[f"test_bleu_target_len"] for x in outputs]).sum()
+            bleu_pred_len = torch.stack(
+                [x[f"test_bleu_pred_len"] for x in outputs]
+            ).sum()
+            bleu_target_len = torch.stack(
+                [x[f"test_bleu_target_len"] for x in outputs]
+            ).sum()
             bleu_num = torch.stack([x[f"test_bleu_num"] for x in outputs]).sum()
             bleu_denom = torch.stack([x[f"test_bleu_denom"] for x in outputs]).sum()
-            val_bleu = {"test_bleu": self.wer._compute_bleu(bleu_pred_len, bleu_target_len, bleu_num, bleu_denom)}
+            val_bleu = {
+                "test_bleu": self.wer._compute_bleu(
+                    bleu_pred_len, bleu_target_len, bleu_num, bleu_denom
+                )
+            }
 
             tensorboard_logs.update(val_bleu)
 
-        return {**val_loss, 'log': tensorboard_logs}
+        return {**val_loss, "log": tensorboard_logs}
 
     @classmethod
-    def list_available_models(cls) -> 'List[PretrainedModelInfo]':
+    def list_available_models(cls) -> "List[PretrainedModelInfo]":
         """
         This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
         Returns:
@@ -100,7 +116,9 @@ class ASRModel(ModelPT, ABC):
         list_of_models = model_utils.resolve_subclass_pretrained_model_info(cls)
         return list_of_models
 
-    def add_auxiliary_losses(self, loss: torch.Tensor, reset_registry: bool = False) -> torch.Tensor:
+    def add_auxiliary_losses(
+        self, loss: torch.Tensor, reset_registry: bool = False
+    ) -> torch.Tensor:
         """
         Utility method to enable calculation of auxiliary losses for ASR training.
 
@@ -118,8 +136,8 @@ class ASRModel(ModelPT, ABC):
 
             for loss_key, loss_registry in registry.items():
                 # Add auxiliary loss to total loss
-                if 'adapter_loss' in loss_registry:
-                    loss_list = loss_registry['adapter_loss']
+                if "adapter_loss" in loss_registry:
+                    loss_list = loss_registry["adapter_loss"]
                     loss_value = sum(loss_list)
                     loss += loss_value
 
@@ -156,23 +174,29 @@ class ASRModel(ModelPT, ABC):
         """
         super().on_after_backward()
 
-        if hasattr(self, '_skip_nan_grad') and self._skip_nan_grad:
+        if hasattr(self, "_skip_nan_grad") and self._skip_nan_grad:
             device = next(self.parameters()).device
             valid_gradients = torch.tensor([1], device=device, dtype=torch.float32)
 
             # valid_gradients = True
             for param_name, param in self.named_parameters():
                 if param.grad is not None:
-                    is_not_nan_or_inf = not (torch.isnan(param.grad).any() or torch.isinf(param.grad).any())
+                    is_not_nan_or_inf = not (
+                        torch.isnan(param.grad).any() or torch.isinf(param.grad).any()
+                    )
                     if not is_not_nan_or_inf:
                         valid_gradients = valid_gradients * 0
                         break
 
             if torch.distributed.is_initialized():
-                torch.distributed.all_reduce(valid_gradients, op=torch.distributed.ReduceOp.MIN)
+                torch.distributed.all_reduce(
+                    valid_gradients, op=torch.distributed.ReduceOp.MIN
+                )
 
             if valid_gradients < 1:
-                logging.warning(f'detected inf or nan values in gradients! Setting gradients to zero.')
+                logging.warning(
+                    f"detected inf or nan values in gradients! Setting gradients to zero."
+                )
                 self.zero_grad()
 
     def on_train_epoch_start(self) -> None:
@@ -180,21 +204,27 @@ class ASRModel(ModelPT, ABC):
         Decoder with CUDA graphs does not release memory, thus we disable it for training epoch.
         EncDecRNNTModel.decoding.decoding is the inference class with CUDA graphs
         """
-        WithOptionalCudaGraphs.disable_cuda_graphs_recursive(self, attribute_path="decoding.decoding")
+        WithOptionalCudaGraphs.disable_cuda_graphs_recursive(
+            self, attribute_path="decoding.decoding"
+        )
 
     def on_train_epoch_end(self) -> None:
         """
         After training, we can enable the decoder with CUDA graphs.
         EncDecRNNTModel.decoding.decoding is the inference class with CUDA graphs
         """
-        WithOptionalCudaGraphs.enable_cuda_graphs_recursive(self, attribute_path="decoding.decoding")
+        WithOptionalCudaGraphs.enable_cuda_graphs_recursive(
+            self, attribute_path="decoding.decoding"
+        )
 
     def on_validation_epoch_start(self) -> None:
         """
         For validation, we enable CUDA graphs to speedup validation.
         EncDecRNNTModel.decoding.decoding is the inference class with CUDA graphs.
         """
-        WithOptionalCudaGraphs.enable_cuda_graphs_recursive(self, attribute_path="decoding.decoding")
+        WithOptionalCudaGraphs.enable_cuda_graphs_recursive(
+            self, attribute_path="decoding.decoding"
+        )
 
     def on_validation_epoch_end(self) -> Optional[dict[str, dict[str, torch.Tensor]]]:
         """
@@ -202,7 +232,9 @@ class ASRModel(ModelPT, ABC):
         training will continue after validation
         EncDecRNNTModel.decoding.decoding is the inference class with CUDA graphs.
         """
-        WithOptionalCudaGraphs.disable_cuda_graphs_recursive(self, attribute_path="decoding.decoding")
+        WithOptionalCudaGraphs.disable_cuda_graphs_recursive(
+            self, attribute_path="decoding.decoding"
+        )
         return super().on_validation_epoch_end(sync_metrics=True)
 
     def on_test_epoch_start(self) -> None:
@@ -211,7 +243,9 @@ class ASRModel(ModelPT, ABC):
         We do not need to disable CUDA graphs after testing, since `test` cannot be called in training loop.
         EncDecRNNTModel.decoding.decoding is the inference class with CUDA graphs.
         """
-        WithOptionalCudaGraphs.enable_cuda_graphs_recursive(self, attribute_path="decoding.decoding")
+        WithOptionalCudaGraphs.enable_cuda_graphs_recursive(
+            self, attribute_path="decoding.decoding"
+        )
 
     def on_predict_epoch_start(self) -> None:
         """
@@ -219,7 +253,9 @@ class ASRModel(ModelPT, ABC):
         We do not need to disable CUDA graphs after predicting, since `predict` cannot be called in training loop.
         EncDecRNNTModel.decoding.decoding is the inference class with CUDA graphs
         """
-        WithOptionalCudaGraphs.enable_cuda_graphs_recursive(self, attribute_path="decoding.decoding")
+        WithOptionalCudaGraphs.enable_cuda_graphs_recursive(
+            self, attribute_path="decoding.decoding"
+        )
 
     @property
     def oomptimizer_schema(self) -> dict:
@@ -260,7 +296,7 @@ class ExportableEncDecModel(Exportable):
     @property
     def output_names(self):
         otypes = self.output_module.output_types
-        if getattr(self.input_module, 'export_cache_support', False):
+        if getattr(self.input_module, "export_cache_support", False):
             in_types = self.input_module.output_types
             otypes = {n: t for (n, t) in list(otypes.items())[:1]}
             for n, t in list(in_types.items())[1:]:
@@ -268,7 +304,12 @@ class ExportableEncDecModel(Exportable):
         return get_io_names(otypes, self.disabled_deployment_output_names)
 
     def forward_for_export(
-        self, audio_signal, length=None, cache_last_channel=None, cache_last_time=None, cache_last_channel_len=None
+        self,
+        audio_signal,
+        length=None,
+        cache_last_channel=None,
+        cache_last_time=None,
+        cache_last_channel_len=None,
     ):
         """
         This forward is used when we need to export the model to ONNX format.
@@ -285,13 +326,21 @@ class ExportableEncDecModel(Exportable):
         Returns:
             the output of the model
         """
-        enc_fun = getattr(self.input_module, 'forward_for_export', self.input_module.forward)
+        enc_fun = getattr(
+            self.input_module, "forward_for_export", self.input_module.forward
+        )
         if cache_last_channel is None:
             encoder_output = enc_fun(audio_signal=audio_signal, length=length)
             if isinstance(encoder_output, tuple):
                 encoder_output = encoder_output[0]
         else:
-            encoder_output, length, cache_last_channel, cache_last_time, cache_last_channel_len = enc_fun(
+            (
+                encoder_output,
+                length,
+                cache_last_channel,
+                cache_last_time,
+                cache_last_channel_len,
+            ) = enc_fun(
                 audio_signal=audio_signal,
                 length=length,
                 cache_last_channel=cache_last_channel,
@@ -299,12 +348,20 @@ class ExportableEncDecModel(Exportable):
                 cache_last_channel_len=cache_last_channel_len,
             )
 
-        dec_fun = getattr(self.output_module, 'forward_for_export', self.output_module.forward)
+        dec_fun = getattr(
+            self.output_module, "forward_for_export", self.output_module.forward
+        )
         ret = dec_fun(encoder_output=encoder_output)
         if isinstance(ret, tuple):
             ret = ret[0]
         if cache_last_channel is not None:
-            ret = (ret, length, cache_last_channel, cache_last_time, cache_last_channel_len)
+            ret = (
+                ret,
+                length,
+                cache_last_channel,
+                cache_last_time,
+                cache_last_channel_len,
+            )
         return cast_all(ret, from_dtype=torch.float16, to_dtype=torch.float32)
 
     @property
@@ -316,8 +373,8 @@ class ExportableEncDecModel(Exportable):
         return self.encoder.disabled_deployment_output_names
 
     def set_export_config(self, args):
-        if 'cache_support' in args:
-            enable = bool(args['cache_support'])
+        if "cache_support" in args:
+            enable = bool(args["cache_support"])
             self.encoder.export_cache_support = enable
             logging.info(f"Caching support enabled: {enable}")
             self.encoder.setup_streaming_params()

@@ -60,7 +60,9 @@ except (ImportError, ModuleNotFoundError):
 
 def get_args():
     parser = ArgumentParser()
-    parser.add_argument("--input_name_or_path", type=str, default="openai/clip-vit-base-patch32")
+    parser.add_argument(
+        "--input_name_or_path", type=str, default="openai/clip-vit-base-patch32"
+    )
 
     parser.add_argument(
         "--hparams_file",
@@ -69,11 +71,21 @@ def get_args():
         required=True,
         help="Path config for restoring. It's created during training and may need to be modified during restore if restore environment is different than training. Ex: /opt/NeMo/examples/multimodal/vision_language_foundation/clip/conf/megatron_clip_VIT-L-14.yaml",
     )
-    parser.add_argument("--output_path", type=str, default=None, required=True, help="Path to output .nemo file.")
+    parser.add_argument(
+        "--output_path",
+        type=str,
+        default=None,
+        required=True,
+        help="Path to output .nemo file.",
+    )
 
     parser.add_argument("--gpus_per_node", type=int, required=False, default=1)
-    parser.add_argument("--tensor_model_parallel_size", type=int, required=False, default=1)
-    parser.add_argument("--pipeline_model_parallel_size", type=int, required=False, default=1)
+    parser.add_argument(
+        "--tensor_model_parallel_size", type=int, required=False, default=1
+    )
+    parser.add_argument(
+        "--pipeline_model_parallel_size", type=int, required=False, default=1
+    )
     parser.add_argument(
         "--pipeline_model_parallel_split_rank",
         type=int,
@@ -81,7 +93,9 @@ def get_args():
         default=None,
         help="If pipeline parallel size > 1, this is the rank at which the encoder ends and the decoder begins.",
     )
-    parser.add_argument("--local_rank", type=int, required=False, default=os.getenv('LOCAL_RANK', -1))
+    parser.add_argument(
+        "--local_rank", type=int, required=False, default=os.getenv("LOCAL_RANK", -1)
+    )
 
     args = parser.parse_args()
     return args
@@ -122,13 +136,17 @@ def mapping_hf_state_dict(hf_model):
     nemo_state_dict = {}
     for key in hf_state_dict.keys():
         if key.startswith("text_model.encoder.layers"):
-            key_ = key.replace("text_model.encoder.layers", "text_encoder.decoder.layers")
+            key_ = key.replace(
+                "text_model.encoder.layers", "text_encoder.decoder.layers"
+            )
         elif key.startswith("vision_model.encoder.layers"):
-            key_ = key.replace("vision_model.encoder.layers", "vision_encoder.decoder.layers")
-        elif key.startswith('vision_model.'):
+            key_ = key.replace(
+                "vision_model.encoder.layers", "vision_encoder.decoder.layers"
+            )
+        elif key.startswith("vision_model."):
             key_ = key.replace("vision_model.", "vision_encoder.")
-        elif key.startswith('text_model.'):
-            key_ = key.replace('text_model.', 'text_encoder.')
+        elif key.startswith("text_model."):
+            key_ = key.replace("text_model.", "text_encoder.")
         else:
             key_ = key
         for pat in key_mapping:
@@ -147,43 +165,67 @@ def mapping_hf_state_dict(hf_model):
         head_size = hidden_size // head_num
         heads_per_group = head_num // num_query_groups
 
-        if 'q_proj.weight' in key_:
-            key_k = key.replace('q_proj', 'k_proj')
-            key_v = key.replace('q_proj', 'v_proj')
-            key_new = key_.replace('self_attn.q_proj', 'self_attention.linear_qkv')
-            q_weight, k_weight, v_weight = hf_state_dict[key], hf_state_dict[key_k], hf_state_dict[key_v]
+        if "q_proj.weight" in key_:
+            key_k = key.replace("q_proj", "k_proj")
+            key_v = key.replace("q_proj", "v_proj")
+            key_new = key_.replace("self_attn.q_proj", "self_attention.linear_qkv")
+            q_weight, k_weight, v_weight = (
+                hf_state_dict[key],
+                hf_state_dict[key_k],
+                hf_state_dict[key_v],
+            )
 
             q_weight = q_weight.reshape(head_num, head_size, hidden_size)
             k_weight = k_weight.reshape(num_query_groups, head_size, hidden_size)
             v_weight = v_weight.reshape(num_query_groups, head_size, hidden_size)
-            qkv_weight = torch.empty((0, head_size, hidden_size), device=q_weight.device)
+            qkv_weight = torch.empty(
+                (0, head_size, hidden_size), device=q_weight.device
+            )
             for i in range(num_query_groups):
-                qkv_weight = torch.cat((qkv_weight, q_weight[i * heads_per_group : (i + 1) * heads_per_group, :, :]))
+                qkv_weight = torch.cat(
+                    (
+                        qkv_weight,
+                        q_weight[i * heads_per_group : (i + 1) * heads_per_group, :, :],
+                    )
+                )
                 qkv_weight = torch.cat((qkv_weight, k_weight[i : i + 1, :, :]))
                 qkv_weight = torch.cat((qkv_weight, v_weight[i : i + 1, :, :]))
-            qkv_weight = qkv_weight.reshape([head_size * (head_num + 2 * num_query_groups), hidden_size])
+            qkv_weight = qkv_weight.reshape(
+                [head_size * (head_num + 2 * num_query_groups), hidden_size]
+            )
             nemo_state_dict[key_new] = qkv_weight
 
-        elif 'q_proj.bias' in key_:
-            key_k = key.replace('q_proj', 'k_proj')
-            key_v = key.replace('q_proj', 'v_proj')
-            key_new = key_.replace('self_attn.q_proj', 'self_attention.linear_qkv')
-            q_bias, k_bias, v_bias = hf_state_dict[key], hf_state_dict[key_k], hf_state_dict[key_v]
+        elif "q_proj.bias" in key_:
+            key_k = key.replace("q_proj", "k_proj")
+            key_v = key.replace("q_proj", "v_proj")
+            key_new = key_.replace("self_attn.q_proj", "self_attention.linear_qkv")
+            q_bias, k_bias, v_bias = (
+                hf_state_dict[key],
+                hf_state_dict[key_k],
+                hf_state_dict[key_v],
+            )
 
             q_bias = q_bias.reshape(head_num, head_size)
             k_bias = k_bias.reshape(num_query_groups, head_size)
             v_bias = v_bias.reshape(num_query_groups, head_size)
             qkv_bias = torch.empty((0, head_size), device=q_bias.device)
             for i in range(num_query_groups):
-                qkv_bias = torch.cat((qkv_bias, q_bias[i * heads_per_group : (i + 1) * heads_per_group, :]))
+                qkv_bias = torch.cat(
+                    (
+                        qkv_bias,
+                        q_bias[i * heads_per_group : (i + 1) * heads_per_group, :],
+                    )
+                )
                 qkv_bias = torch.cat((qkv_bias, k_bias[i : i + 1, :]))
                 qkv_bias = torch.cat((qkv_bias, v_bias[i : i + 1, :]))
             qkv_bias = qkv_bias.reshape([head_size * (head_num + 2 * num_query_groups)])
             nemo_state_dict[key_new] = qkv_bias
-        elif not ('k_proj' in key_ or 'v_proj' in key_ or 'position_ids' in key_):
+        elif not ("k_proj" in key_ or "v_proj" in key_ or "position_ids" in key_):
             nemo_state_dict[key_] = hf_state_dict[key]
 
-    nemo_state_dict["vision_encoder.class_token"] = nemo_state_dict["vision_encoder.class_token"].reshape(1, 1, -1)
+    nemo_state_dict["vision_encoder.class_token"] = nemo_state_dict[
+        "vision_encoder.class_token"
+    ].reshape(1, 1, -1)
 
     return nemo_state_dict
 
@@ -193,7 +235,10 @@ def convert(local_rank, rank, world_size, args):
     app_state.data_parallel_rank = 0
     num_nodes = world_size // args.gpus_per_node
     trainer = Trainer(
-        devices=args.gpus_per_node, num_nodes=num_nodes, accelerator='gpu', plugins=[TorchElasticEnvironment()]
+        devices=args.gpus_per_node,
+        num_nodes=num_nodes,
+        accelerator="gpu",
+        plugins=[TorchElasticEnvironment()],
     )
 
     app_state.pipeline_model_parallel_size = args.pipeline_model_parallel_size
@@ -202,7 +247,9 @@ def convert(local_rank, rank, world_size, args):
     # no use atm, use to split ranks in encoder/decoder models.
     if args.pipeline_model_parallel_size > 1 and args.model_type in []:
         if args.pipeline_model_parallel_split_rank is not None:
-            app_state.pipeline_model_parallel_split_rank = args.pipeline_model_parallel_split_rank
+            app_state.pipeline_model_parallel_split_rank = (
+                args.pipeline_model_parallel_split_rank
+            )
         else:
             if args.pipeline_model_parallel_size % 2 != 0:
                 raise ValueError(
@@ -210,11 +257,15 @@ def convert(local_rank, rank, world_size, args):
                 )
             else:
                 # If split rank is not set, then we set it to be pipeline_model_parallel_size // 2 - this is because in most cases we have the same number of enc/dec layers.
-                app_state.pipeline_model_parallel_split_rank = args.pipeline_model_parallel_size // 2
+                app_state.pipeline_model_parallel_split_rank = (
+                    args.pipeline_model_parallel_size // 2
+                )
     else:
         app_state.pipeline_model_parallel_split_rank = None
 
-    app_state.model_parallel_size = app_state.tensor_model_parallel_size * app_state.pipeline_model_parallel_size
+    app_state.model_parallel_size = (
+        app_state.tensor_model_parallel_size * app_state.pipeline_model_parallel_size
+    )
 
     parallel_state.initialize_model_parallel(
         tensor_model_parallel_size=app_state.tensor_model_parallel_size,
@@ -222,8 +273,12 @@ def convert(local_rank, rank, world_size, args):
         pipeline_model_parallel_split_rank=app_state.pipeline_model_parallel_split_rank,
     )
 
-    app_state.pipeline_model_parallel_rank = parallel_state.get_pipeline_model_parallel_rank()
-    app_state.tensor_model_parallel_rank = parallel_state.get_tensor_model_parallel_rank()
+    app_state.pipeline_model_parallel_rank = (
+        parallel_state.get_pipeline_model_parallel_rank()
+    )
+    app_state.tensor_model_parallel_rank = (
+        parallel_state.get_tensor_model_parallel_rank()
+    )
 
     cfg = OmegaConf.load(args.hparams_file)
     cfg.model.mcore_gpt = True
@@ -240,10 +295,10 @@ def convert(local_rank, rank, world_size, args):
 
     model.save_to(args.output_path)
 
-    logging.info(f'NeMo model saved to: {args.output_path}')
+    logging.info(f"NeMo model saved to: {args.output_path}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     args = get_args()
     local_rank, rank, world_size = initialize_distributed(args)
     convert(local_rank, rank, world_size, args)

@@ -107,7 +107,12 @@ class GemmaModel(GPTModel):
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
         """ """
-        super().__init__(config or GemmaConfig(), optim=optim, tokenizer=tokenizer, model_transform=model_transform)
+        super().__init__(
+            config or GemmaConfig(),
+            optim=optim,
+            tokenizer=tokenizer,
+            model_transform=model_transform,
+        )
 
     def configure_model(self):
         """ """
@@ -131,7 +136,7 @@ class HFGemmaImporter(io.ModelConnector["GemmaForCausalLM", GemmaModel]):
         """ """
         from transformers import GemmaForCausalLM
 
-        source = GemmaForCausalLM.from_pretrained(str(self), torch_dtype='auto')
+        source = GemmaForCausalLM.from_pretrained(str(self), torch_dtype="auto")
         target = self.init()
         trainer = self.nemo_setup(target)
         self.convert_state(source, target)
@@ -166,12 +171,17 @@ class HFGemmaImporter(io.ModelConnector["GemmaForCausalLM", GemmaModel]):
                 fn=TransformFns.merge_qkv,
             ),
             io.state_transform(
-                source_key=("model.layers.*.mlp.gate_proj.weight", "model.layers.*.mlp.up_proj.weight"),
+                source_key=(
+                    "model.layers.*.mlp.gate_proj.weight",
+                    "model.layers.*.mlp.up_proj.weight",
+                ),
                 target_key="decoder.layers.*.mlp.linear_fc1.weight",
                 fn=TransformFns.merge_fc1,
             ),
         ]
-        return io.apply_transforms(source, target, mapping=mapping, transforms=transforms)
+        return io.apply_transforms(
+            source, target, mapping=mapping, transforms=transforms
+        )
 
     @property
     def tokenizer(self) -> "AutoTokenizer":
@@ -206,7 +216,9 @@ class HFGemmaImporter(io.ModelConnector["GemmaForCausalLM", GemmaModel]):
             num_query_groups=source.num_key_value_heads,
             rotary_base=source.rope_theta,
             gated_linear_unit=True,
-            make_vocab_size_divisible_by=make_vocab_size_divisible_by(source.vocab_size),
+            make_vocab_size_divisible_by=make_vocab_size_divisible_by(
+                source.vocab_size
+            ),
             share_embeddings_and_output_weights=True,
             fp16=(dtype_from_hf(source) == torch.float16),
             bf16=(dtype_from_hf(source) == torch.bfloat16),
@@ -263,11 +275,16 @@ class HFGemmaExporter(io.ModelConnector[GemmaModel, "GemmaForCausalLM"]):
             ),
             io.state_transform(
                 source_key="decoder.layers.*.mlp.linear_fc1.weight",
-                target_key=("model.layers.*.mlp.gate_proj.weight", "model.layers.*.mlp.up_proj.weight"),
+                target_key=(
+                    "model.layers.*.mlp.gate_proj.weight",
+                    "model.layers.*.mlp.up_proj.weight",
+                ),
                 fn=TransformFns.split_fc1,
             ),
         ]
-        return io.apply_transforms(source, target, mapping=mapping, transforms=transforms)
+        return io.apply_transforms(
+            source, target, mapping=mapping, transforms=transforms
+        )
 
     @property
     def tokenizer(self):

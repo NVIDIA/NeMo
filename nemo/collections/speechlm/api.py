@@ -177,7 +177,9 @@ def finetune(
         PosixPath('/path/to/log_dir')
     """
 
-    _validate_config(model, data, trainer, log=log, resume=resume, optim=optim, model_transform=peft)
+    _validate_config(
+        model, data, trainer, log=log, resume=resume, optim=optim, model_transform=peft
+    )
     return train(
         model=model,
         data=data,
@@ -260,7 +262,9 @@ def generate():
     raise NotImplementedError("This function will be implemented later")
 
 
-def _use_tokenizer(model: pl.LightningModule, data: pl.LightningDataModule, tokenizer: TokenizerType) -> None:
+def _use_tokenizer(
+    model: pl.LightningModule, data: pl.LightningDataModule, tokenizer: TokenizerType
+) -> None:
     if tokenizer == "data":
         _set_with_io(model, "tokenizer", data.tokenizer)
     elif tokenizer == "model":
@@ -274,7 +278,9 @@ def _use_tokenizer(model: pl.LightningModule, data: pl.LightningDataModule, toke
                 _set_with_io(model, "tokenizer", tokenizer)
                 _set_with_io(data, "tokenizer", tokenizer)
             else:
-                raise ValueError(f"Expected TokenizerSpec or 'data' or 'model', got: {tokenizer}")
+                raise ValueError(
+                    f"Expected TokenizerSpec or 'data' or 'model', got: {tokenizer}"
+                )
         except ImportError:
             raise ValueError("TokenizerSpec is not available")
 
@@ -352,17 +358,19 @@ def _validate_config(
             if getattr(model.config, "max_position_embeddings", None) is not None:
                 assert model.config.seq_length <= model.config.max_position_embeddings
     else:
-        assert not isinstance(trainer.strategy, nl.MegatronStrategy), "Expected model.config to exist"
+        assert not isinstance(
+            trainer.strategy, nl.MegatronStrategy
+        ), "Expected model.config to exist"
 
     ## Data validation
-    if hasattr(data, 'micro_batch_size'):
+    if hasattr(data, "micro_batch_size"):
         assert data.micro_batch_size > 0
-    if hasattr(data, 'global_batch_size'):
+    if hasattr(data, "global_batch_size"):
         assert data.global_batch_size > 0
-    if hasattr(data, 'seq_length'):
+    if hasattr(data, "seq_length"):
         assert data.seq_length > 0
 
-    if hasattr(data, 'micro_batch_size') and hasattr(data, 'global_batch_size'):
+    if hasattr(data, "micro_batch_size") and hasattr(data, "global_batch_size"):
         assert (
             data.global_batch_size % data.micro_batch_size == 0
         ), "Global batch size must be divisible by micro batch size in data module."
@@ -402,7 +410,9 @@ def _validate_config(
         # TP/SP validation
         if trainer.strategy.tensor_model_parallel_size == 1:
             if trainer.strategy.sequence_parallel == True:
-                warnings.warn("Disabling sequence parallelism because tensor model parallelism is disabled")
+                warnings.warn(
+                    "Disabling sequence parallelism because tensor model parallelism is disabled"
+                )
                 trainer.strategy.sequence_parallel = False
 
         # PP/VP validation
@@ -412,10 +422,14 @@ def _validate_config(
             ), "pipeline_dtype must be set if pipeline model parallelism is enabled"
         else:
             if trainer.strategy.virtual_pipeline_model_parallel_size is not None:
-                warnings.warn("Disabling virtual pipeline parallelism because pipeline model parallelism is disabled")
+                warnings.warn(
+                    "Disabling virtual pipeline parallelism because pipeline model parallelism is disabled"
+                )
                 trainer.strategy.virtual_pipeline_model_parallel_size = None
             if trainer.strategy.pipeline_dtype is not None:
-                warnings.warn("Setting pipeline dtype to None because pipeline model parallelism is disabled")
+                warnings.warn(
+                    "Setting pipeline dtype to None because pipeline model parallelism is disabled"
+                )
                 trainer.strategy.pipeline_dtype = None
 
         # CP validation
@@ -423,8 +437,10 @@ def _validate_config(
             if hasattr(model, "config"):
                 if model.config.seq_length is not None:
                     assert (
-                        model.config.seq_length % (trainer.strategy.context_parallel_size * 2) == 0
-                    ), 'Sequence length must be divisible by 2 * context parallel size if context parallel is used.'
+                        model.config.seq_length
+                        % (trainer.strategy.context_parallel_size * 2)
+                        == 0
+                    ), "Sequence length must be divisible by 2 * context parallel size if context parallel is used."
 
         # EP validation
         if trainer.strategy.expert_model_parallel_size > 1:
@@ -433,5 +449,7 @@ def _validate_config(
                     model.config.num_moe_experts is not None
                 ), "num_experts must be non None to use expert model parallelism"
                 assert (
-                    model.config.num_moe_experts % trainer.strategy.expert_model_parallel_size == 0
+                    model.config.num_moe_experts
+                    % trainer.strategy.expert_model_parallel_size
+                    == 0
                 ), "Number of experts should be a multiple of expert model parallel_size."

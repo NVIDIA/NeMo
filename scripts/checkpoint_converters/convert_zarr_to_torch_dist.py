@@ -70,15 +70,25 @@ def get_args():
         required=False,
         help="Path config for restoring. It's created during training and may need to be modified during restore if restore environment is different than training. Ex: /raid/nemo_experiments/megatron_gpt/hparams.yaml",
     )
-    parser.add_argument("--path_to_save", type=str, default=None, required=True, help="Path to output ckpt files.")
+    parser.add_argument(
+        "--path_to_save",
+        type=str,
+        default=None,
+        required=True,
+        help="Path to output ckpt files.",
+    )
     parser.add_argument(
         "--save_to_nemo",
         action="store_true",
         help="If passed, output will be written as .nemo file.",
     )
     parser.add_argument("--gpus_per_node", type=int, required=True, default=None)
-    parser.add_argument("--tensor_model_parallel_size", type=int, required=True, default=None)
-    parser.add_argument("--pipeline_model_parallel_size", type=int, required=True, default=None)
+    parser.add_argument(
+        "--tensor_model_parallel_size", type=int, required=True, default=None
+    )
+    parser.add_argument(
+        "--pipeline_model_parallel_size", type=int, required=True, default=None
+    )
     parser.add_argument(
         "--pipeline_model_parallel_split_rank",
         type=int,
@@ -86,14 +96,18 @@ def get_args():
         default=None,
         help="If pipeline parallel size > 1, this is the rank at which the encoder ends and the decoder begins.",
     )
-    parser.add_argument("--local-rank", type=int, required=False, default=os.getenv('LOCAL_RANK', -1))
-    parser.add_argument("--cluster_type", required=False, default=None, help="Whether on BCP platform")
+    parser.add_argument(
+        "--local-rank", type=int, required=False, default=os.getenv("LOCAL_RANK", -1)
+    )
+    parser.add_argument(
+        "--cluster_type", required=False, default=None, help="Whether on BCP platform"
+    )
     parser.add_argument(
         "--precision",
         type=str,
         required=False,
-        default='bf16-mixed',
-        choices=['32-true', '16-mixed', 'bf16-mixed'],
+        default="bf16-mixed",
+        choices=["32-true", "16-mixed", "bf16-mixed"],
         help="Precision value for the trainer that matches with precision of the ckpt",
     )
 
@@ -123,19 +137,19 @@ def convert(local_rank, rank, world_size, args):
     num_nodes = world_size // args.gpus_per_node
 
     cfg = {
-        'trainer': {
-            'devices': args.gpus_per_node,
-            'num_nodes': num_nodes,
-            'accelerator': 'gpu',
-            'precision': args.precision,
+        "trainer": {
+            "devices": args.gpus_per_node,
+            "num_nodes": num_nodes,
+            "accelerator": "gpu",
+            "precision": args.precision,
         },
-        'model': {
-            'native_amp_init_scale': 2**32,
-            'native_amp_growth_interval': 1000,
-            'hysteresis': 2,
-            'gradient_as_bucket_view': True,
+        "model": {
+            "native_amp_init_scale": 2**32,
+            "native_amp_growth_interval": 1000,
+            "hysteresis": 2,
+            "gradient_as_bucket_view": True,
         },
-        'cluster_type': args.cluster_type,
+        "cluster_type": args.cluster_type,
     }
     cfg = OmegaConf.create(cfg)
 
@@ -149,7 +163,9 @@ def convert(local_rank, rank, world_size, args):
     app_state.tensor_model_parallel_size = args.tensor_model_parallel_size
     app_state.pipeline_model_parallel_split_rank = None
 
-    app_state.model_parallel_size = app_state.tensor_model_parallel_size * app_state.pipeline_model_parallel_size
+    app_state.model_parallel_size = (
+        app_state.tensor_model_parallel_size * app_state.pipeline_model_parallel_size
+    )
 
     parallel_state.initialize_model_parallel(
         tensor_model_parallel_size=app_state.tensor_model_parallel_size,
@@ -157,18 +173,24 @@ def convert(local_rank, rank, world_size, args):
         pipeline_model_parallel_split_rank=app_state.pipeline_model_parallel_split_rank,
     )
 
-    app_state.pipeline_model_parallel_rank = parallel_state.get_pipeline_model_parallel_rank()
-    app_state.tensor_model_parallel_rank = parallel_state.get_tensor_model_parallel_rank()
+    app_state.pipeline_model_parallel_rank = (
+        parallel_state.get_pipeline_model_parallel_rank()
+    )
+    app_state.tensor_model_parallel_rank = (
+        parallel_state.get_tensor_model_parallel_rank()
+    )
 
     # check for distributed checkpoint
     checkpoint_path = os.path.join(args.checkpoint_folder, args.checkpoint_name)
 
     logging.info(
-        f'rank: {rank}, local_rank: {local_rank}, is loading checkpoint: {checkpoint_path} for tp_rank: {app_state.tensor_model_parallel_rank} and pp_rank: {app_state.pipeline_model_parallel_rank}'
+        f"rank: {rank}, local_rank: {local_rank}, is loading checkpoint: {checkpoint_path} for tp_rank: {app_state.tensor_model_parallel_rank} and pp_rank: {app_state.pipeline_model_parallel_rank}"
     )
 
     if args.model_type == "gpt":
-        model = MegatronGPTModel.load_from_checkpoint(checkpoint_path, hparams_file=args.hparams_file, trainer=trainer)
+        model = MegatronGPTModel.load_from_checkpoint(
+            checkpoint_path, hparams_file=args.hparams_file, trainer=trainer
+        )
     elif args.model_type == "sft":
         model = MegatronGPTSFTModel.load_from_checkpoint(
             checkpoint_path, hparams_file=args.hparams_file, trainer=trainer
@@ -176,8 +198,10 @@ def convert(local_rank, rank, world_size, args):
         # we force the target for the loaded model to have the correct target
         # because the hparams.yaml sometimes contains MegatronGPTModel as the target.
         with open_dict(model.cfg):
-            model.cfg.target = f"{MegatronGPTSFTModel.__module__}.{MegatronGPTSFTModel.__name__}"
-    elif args.model_type == 'bert':
+            model.cfg.target = (
+                f"{MegatronGPTSFTModel.__module__}.{MegatronGPTSFTModel.__name__}"
+            )
+    elif args.model_type == "bert":
         model = MegatronBertModel.load_from_checkpoint(
             checkpoint_path, hparams_file=args.hparams_file, trainer=trainer
         )
@@ -191,17 +215,17 @@ def convert(local_rank, rank, world_size, args):
         # With --save_to_nemo, save_to_path is expected to be a directory.
         # Adding a dummy model filename here conforms with SaveRestoreConnector's convention.
         model._save_restore_connector.pack_nemo_file = False
-        save_file_path = os.path.join(save_file_path, 'model.nemo')
+        save_file_path = os.path.join(save_file_path, "model.nemo")
 
     if torch.distributed.is_initialized():
         torch.distributed.barrier()
 
     model.save_to(save_file_path)
 
-    logging.info(f'NeMo model saved to: {args.path_to_save}')
+    logging.info(f"NeMo model saved to: {args.path_to_save}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     args = get_args()
 
     local_rank, rank, world_size = initialize_distributed(args)

@@ -33,9 +33,9 @@ from nemo.core.neural_types import (AudioSignal, EncodedRepresentation,
 from nemo.utils import logging
 
 __all__ = [
-    'AudioToTargetDataset',
-    'AudioToTargetWithReferenceDataset',
-    'AudioToTargetWithEmbeddingDataset',
+    "AudioToTargetDataset",
+    "AudioToTargetWithReferenceDataset",
+    "AudioToTargetWithEmbeddingDataset",
 ]
 
 
@@ -88,13 +88,16 @@ def _audio_collate_fn(batch: List[dict]) -> Tuple[torch.Tensor]:
                     pad = (0, batch_length - s_len, 0, 0)
                 else:
                     raise RuntimeError(
-                        f'Signal {signal} has unsuported dimensions {signal.shape}. Currently, only 1D and 2D arrays are supported.'
+                        f"Signal {signal} has unsuported dimensions {signal.shape}. Currently, only 1D and 2D arrays are supported."
                     )
                 b[signal] = torch.nn.functional.pad(b[signal], pad)
             # append the current padded signal
             b_signal.append(b[signal])
         # (signal_batched, signal_length)
-        batched += (torch.stack(b_signal), torch.tensor(signal_length, dtype=torch.int32))
+        batched += (
+            torch.stack(b_signal),
+            torch.tensor(signal_length, dtype=torch.int32),
+        )
 
     # Currently, outputs are expected to be in a tuple, where each element must correspond
     # to the output type in the OrderedDict returned by output_types.
@@ -108,7 +111,9 @@ def _audio_collate_fn(batch: List[dict]) -> Tuple[torch.Tensor]:
 class SignalSetup:
     signals: List[str]  # signal names
     duration: Optional[Union[float, list]] = None  # duration for each signal
-    channel_selectors: Optional[List[ChannelSelectorType]] = None  # channel selector for loading each signal
+    channel_selectors: Optional[List[ChannelSelectorType]] = (
+        None  # channel selector for loading each signal
+    )
 
 
 class ASRAudioProcessor:
@@ -160,7 +165,7 @@ class ASRAudioProcessor:
     @sample_rate.setter
     def sample_rate(self, value: float):
         if value <= 0:
-            raise ValueError(f'Sample rate must be positive, received {value}')
+            raise ValueError(f"Sample rate must be positive, received {value}")
 
         self._sample_rate = value
 
@@ -198,7 +203,7 @@ class ASRAudioProcessor:
         if value is None or isinstance(value, SignalSetup):
             self._sync_setup = value
         else:
-            raise ValueError(f'Unexpected type {type(value)} for value {value}.')
+            raise ValueError(f"Unexpected type {type(value)} for value {value}.")
 
     @property
     def async_setup(self) -> SignalSetup:
@@ -227,7 +232,7 @@ class ASRAudioProcessor:
         if value is None or isinstance(value, SignalSetup):
             self._async_setup = value
         else:
-            raise ValueError(f'Unexpected type {type(value)} for value {value}.')
+            raise ValueError(f"Unexpected type {type(value)} for value {value}.")
 
     @property
     def embedding_setup(self) -> SignalSetup:
@@ -246,9 +251,11 @@ class ASRAudioProcessor:
         if value is None or isinstance(value, SignalSetup):
             self._embedding_setup = value
         else:
-            raise ValueError(f'Unexpected type {type(value)} for value {value}.')
+            raise ValueError(f"Unexpected type {type(value)} for value {value}.")
 
-    def process(self, example: collections.Audio.OUTPUT_TYPE) -> Dict[str, torch.Tensor]:
+    def process(
+        self, example: collections.Audio.OUTPUT_TYPE
+    ) -> Dict[str, torch.Tensor]:
         """Process an example from a collection of audio examples.
 
         Args:
@@ -272,7 +279,9 @@ class ASRAudioProcessor:
         audio = self.process_audio(audio=audio)
         return audio
 
-    def load_audio(self, example: collections.Audio.OUTPUT_TYPE) -> Dict[str, torch.Tensor]:
+    def load_audio(
+        self, example: collections.Audio.OUTPUT_TYPE
+    ) -> Dict[str, torch.Tensor]:
         """Given an example, load audio from `example.audio_files` and prepare
         the output dictionary.
 
@@ -311,7 +320,9 @@ class ASRAudioProcessor:
             output.update(embedding)
 
         if not output:
-            raise RuntimeError('Output dictionary is empty. Please use `_setup` methods to setup signals to be loaded')
+            raise RuntimeError(
+                "Output dictionary is empty. Please use `_setup` methods to setup signals to be loaded"
+            )
 
         return output
 
@@ -329,7 +340,9 @@ class ASRAudioProcessor:
             norm_scale = audio[self.normalization_signal].abs().max()
 
             # Do not normalize embeddings
-            skip_signals = self.embedding_setup.signals if self.embedding_setup is not None else []
+            skip_signals = (
+                self.embedding_setup.signals if self.embedding_setup is not None else []
+            )
 
             # Normalize audio signals
             for signal in audio:
@@ -340,7 +353,9 @@ class ASRAudioProcessor:
 
         return audio
 
-    def load_sync_signals(self, example: collections.Audio.OUTPUT_TYPE) -> Dict[str, torch.Tensor]:
+    def load_sync_signals(
+        self, example: collections.Audio.OUTPUT_TYPE
+    ) -> Dict[str, torch.Tensor]:
         """Load signals with the same start and duration.
 
         Args:
@@ -366,7 +381,9 @@ class ASRAudioProcessor:
 
         return output
 
-    def load_async_signals(self, example: collections.Audio.OUTPUT_TYPE) -> Dict[str, torch.Tensor]:
+    def load_async_signals(
+        self, example: collections.Audio.OUTPUT_TYPE
+    ) -> Dict[str, torch.Tensor]:
         """Load each async signal independently, no constraints on starting
         from the same time.
 
@@ -481,12 +498,14 @@ class ASRAudioProcessor:
             available_duration = min_audio_duration - fixed_offset
 
             if available_duration <= 0:
-                raise ValueError(f'Fixed offset {fixed_offset}s is larger than shortest file {min_audio_duration}s.')
+                raise ValueError(
+                    f"Fixed offset {fixed_offset}s is larger than shortest file {min_audio_duration}s."
+                )
 
             if duration + fixed_offset > min_audio_duration:
                 # The shortest file is shorter than the requested duration
                 logging.debug(
-                    f'Shortest file ({min_audio_duration}s) is less than the desired duration {duration}s + fixed offset {fixed_offset}s. Returned signals will be shortened to {available_duration} seconds.'
+                    f"Shortest file ({min_audio_duration}s) is less than the desired duration {duration}s + fixed offset {fixed_offset}s. Returned signals will be shortened to {available_duration} seconds."
                 )
                 offset = fixed_offset
                 duration = available_duration
@@ -566,7 +585,7 @@ class ASRAudioProcessor:
             # Support for inference, when the target signal is `None`
             segment_samples = []
         else:
-            raise RuntimeError(f'Unexpected audio_file type {type(audio_file)}')
+            raise RuntimeError(f"Unexpected audio_file type {type(audio_file)}")
         return segment_samples
 
     @staticmethod
@@ -614,7 +633,7 @@ class ASRAudioProcessor:
             # Use multi-channel format as (channels, samples)
             return segment.samples.T
         else:
-            raise RuntimeError(f'Unexpected samples shape: {segment.samples.shape}')
+            raise RuntimeError(f"Unexpected samples shape: {segment.samples.shape}")
 
     @staticmethod
     def list_to_multichannel(signal: Union[np.ndarray, List[np.ndarray]]) -> np.ndarray:
@@ -648,7 +667,7 @@ class ASRAudioProcessor:
             # Multi-channel individual files
             mc_signal = np.concatenate(signal, axis=0)
         else:
-            raise RuntimeError(f'Unexpected target with {signal[0].ndim} dimensions.')
+            raise RuntimeError(f"Unexpected target with {signal[0].ndim} dimensions.")
 
         return mc_signal
 
@@ -665,7 +684,9 @@ class ASRAudioProcessor:
         duration = [librosa.get_duration(path=f) for f in flatten(audio_files)]
         return duration
 
-    def load_embedding(self, example: collections.Audio.OUTPUT_TYPE) -> Dict[str, torch.Tensor]:
+    def load_embedding(
+        self, example: collections.Audio.OUTPUT_TYPE
+    ) -> Dict[str, torch.Tensor]:
         """Given an example, load embedding from `example.audio_files[embedding]`
         and return it in a dictionary.
 
@@ -693,11 +714,11 @@ class ASRAudioProcessor:
         Returns:
             Array loaded from filepath.
         """
-        if filepath.endswith('.npy'):
-            with open(filepath, 'rb') as f:
+        if filepath.endswith(".npy"):
+            with open(filepath, "rb") as f:
                 embedding = np.load(f)
         else:
-            raise RuntimeError(f'Unknown embedding file format in file: {filepath}')
+            raise RuntimeError(f"Unknown embedding file format in file: {filepath}")
 
         return embedding
 
@@ -718,7 +739,12 @@ class BaseAudioDataset(Dataset):
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         """Returns definitions of module output ports."""
 
-    def __init__(self, collection: collections.Audio, audio_processor: Callable, output_type: Type[namedtuple]):
+    def __init__(
+        self,
+        collection: collections.Audio,
+        audio_processor: Callable,
+        output_type: Type[namedtuple],
+    ):
         """Instantiates an audio dataset."""
         super().__init__()
 
@@ -754,7 +780,7 @@ class BaseAudioDataset(Dataset):
             return item[signal_key].shape[0]
         else:
             raise RuntimeError(
-                f'Unexpected number of dimension for signal {signal_key} with shape {item[signal_key].shape}'
+                f"Unexpected number of dimension for signal {signal_key} with shape {item[signal_key].shape}"
             )
 
     def __getitem__(self, index: int) -> Dict[str, torch.Tensor]:
@@ -788,7 +814,8 @@ class BaseAudioDataset(Dataset):
 
 
 AudioToTargetExample = namedtuple(
-    typename='AudioToTargetExample', field_names='input_signal input_length target_signal target_length'
+    typename="AudioToTargetExample",
+    field_names="input_signal input_length target_signal target_length",
 )
 
 
@@ -849,8 +876,8 @@ class AudioToTargetDataset(BaseAudioDataset):
         normalization_signal: Optional[str] = None,
     ):
         audio_to_manifest_key = {
-            'input_signal': input_key,
-            'target_signal': target_key,
+            "input_signal": input_key,
+            "target_signal": target_key,
         }
 
         collection = collections.AudioCollection(
@@ -867,12 +894,16 @@ class AudioToTargetDataset(BaseAudioDataset):
             normalization_signal=normalization_signal,
         )
         audio_processor.sync_setup = SignalSetup(
-            signals=['input_signal', 'target_signal'],
+            signals=["input_signal", "target_signal"],
             duration=audio_duration,
             channel_selectors=[input_channel_selector, target_channel_selector],
         )
 
-        super().__init__(collection=collection, audio_processor=audio_processor, output_type=AudioToTargetExample)
+        super().__init__(
+            collection=collection,
+            audio_processor=audio_processor,
+            output_type=AudioToTargetExample,
+        )
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
@@ -889,20 +920,28 @@ class AudioToTargetDataset(BaseAudioDataset):
                 target_length:
                     Batched original length of each target signal
         """
-        sc_audio_type = NeuralType(('B', 'T'), AudioSignal())
-        mc_audio_type = NeuralType(('B', 'C', 'T'), AudioSignal())
+        sc_audio_type = NeuralType(("B", "T"), AudioSignal())
+        mc_audio_type = NeuralType(("B", "C", "T"), AudioSignal())
 
         return OrderedDict(
-            input_signal=sc_audio_type if self.num_channels('input_signal') == 1 else mc_audio_type,
-            input_length=NeuralType(('B',), LengthsType()),
-            target_signal=sc_audio_type if self.num_channels('target_signal') == 1 else mc_audio_type,
-            target_length=NeuralType(('B',), LengthsType()),
+            input_signal=(
+                sc_audio_type
+                if self.num_channels("input_signal") == 1
+                else mc_audio_type
+            ),
+            input_length=NeuralType(("B",), LengthsType()),
+            target_signal=(
+                sc_audio_type
+                if self.num_channels("target_signal") == 1
+                else mc_audio_type
+            ),
+            target_length=NeuralType(("B",), LengthsType()),
         )
 
 
 AudioToTargetWithReferenceExample = namedtuple(
-    typename='AudioToTargetWithReferenceExample',
-    field_names='input_signal input_length target_signal target_length reference_signal reference_length',
+    typename="AudioToTargetWithReferenceExample",
+    field_names="input_signal input_length target_signal target_length reference_signal reference_length",
 )
 
 
@@ -977,9 +1016,9 @@ class AudioToTargetWithReferenceDataset(BaseAudioDataset):
         normalization_signal: Optional[str] = None,
     ):
         audio_to_manifest_key = {
-            'input_signal': input_key,
-            'target_signal': target_key,
-            'reference_signal': reference_key,
+            "input_signal": input_key,
+            "target_signal": target_key,
+            "reference_signal": reference_key,
         }
 
         collection = collections.AudioCollection(
@@ -998,24 +1037,30 @@ class AudioToTargetWithReferenceDataset(BaseAudioDataset):
 
         if reference_is_synchronized:
             audio_processor.sync_setup = SignalSetup(
-                signals=['input_signal', 'target_signal', 'reference_signal'],
+                signals=["input_signal", "target_signal", "reference_signal"],
                 duration=audio_duration,
-                channel_selectors=[input_channel_selector, target_channel_selector, reference_channel_selector],
+                channel_selectors=[
+                    input_channel_selector,
+                    target_channel_selector,
+                    reference_channel_selector,
+                ],
             )
         else:
             audio_processor.sync_setup = SignalSetup(
-                signals=['input_signal', 'target_signal'],
+                signals=["input_signal", "target_signal"],
                 duration=audio_duration,
                 channel_selectors=[input_channel_selector, target_channel_selector],
             )
             audio_processor.async_setup = SignalSetup(
-                signals=['reference_signal'],
+                signals=["reference_signal"],
                 duration=[reference_duration],
                 channel_selectors=[reference_channel_selector],
             )
 
         super().__init__(
-            collection=collection, audio_processor=audio_processor, output_type=AudioToTargetWithReferenceExample
+            collection=collection,
+            audio_processor=audio_processor,
+            output_type=AudioToTargetWithReferenceExample,
         )
 
     @property
@@ -1037,22 +1082,34 @@ class AudioToTargetWithReferenceDataset(BaseAudioDataset):
                 reference_length:
                     Batched original length of each reference signal
         """
-        sc_audio_type = NeuralType(('B', 'T'), AudioSignal())
-        mc_audio_type = NeuralType(('B', 'C', 'T'), AudioSignal())
+        sc_audio_type = NeuralType(("B", "T"), AudioSignal())
+        mc_audio_type = NeuralType(("B", "C", "T"), AudioSignal())
 
         return OrderedDict(
-            input_signal=sc_audio_type if self.num_channels('input_signal') == 1 else mc_audio_type,
-            input_length=NeuralType(('B',), LengthsType()),
-            target_signal=sc_audio_type if self.num_channels('target_signal') == 1 else mc_audio_type,
-            target_length=NeuralType(('B',), LengthsType()),
-            reference_signal=sc_audio_type if self.num_channels('reference_signal') == 1 else mc_audio_type,
-            reference_length=NeuralType(('B',), LengthsType()),
+            input_signal=(
+                sc_audio_type
+                if self.num_channels("input_signal") == 1
+                else mc_audio_type
+            ),
+            input_length=NeuralType(("B",), LengthsType()),
+            target_signal=(
+                sc_audio_type
+                if self.num_channels("target_signal") == 1
+                else mc_audio_type
+            ),
+            target_length=NeuralType(("B",), LengthsType()),
+            reference_signal=(
+                sc_audio_type
+                if self.num_channels("reference_signal") == 1
+                else mc_audio_type
+            ),
+            reference_length=NeuralType(("B",), LengthsType()),
         )
 
 
 AudioToTargetWithEmbeddingExample = namedtuple(
-    typename='AudioToTargetWithEmbeddingExample',
-    field_names='input_signal input_length target_signal target_length embedding_vector embedding_length',
+    typename="AudioToTargetWithEmbeddingExample",
+    field_names="input_signal input_length target_signal target_length embedding_vector embedding_length",
 )
 
 
@@ -1111,9 +1168,9 @@ class AudioToTargetWithEmbeddingDataset(BaseAudioDataset):
         normalization_signal: Optional[str] = None,
     ):
         audio_to_manifest_key = {
-            'input_signal': input_key,
-            'target_signal': target_key,
-            'embedding_vector': embedding_key,
+            "input_signal": input_key,
+            "target_signal": target_key,
+            "embedding_vector": embedding_key,
         }
 
         collection = collections.AudioCollection(
@@ -1130,14 +1187,16 @@ class AudioToTargetWithEmbeddingDataset(BaseAudioDataset):
             normalization_signal=normalization_signal,
         )
         audio_processor.sync_setup = SignalSetup(
-            signals=['input_signal', 'target_signal'],
+            signals=["input_signal", "target_signal"],
             duration=audio_duration,
             channel_selectors=[input_channel_selector, target_channel_selector],
         )
-        audio_processor.embedding_setup = SignalSetup(signals=['embedding_vector'])
+        audio_processor.embedding_setup = SignalSetup(signals=["embedding_vector"])
 
         super().__init__(
-            collection=collection, audio_processor=audio_processor, output_type=AudioToTargetWithEmbeddingExample
+            collection=collection,
+            audio_processor=audio_processor,
+            output_type=AudioToTargetWithEmbeddingExample,
         )
 
     @property
@@ -1159,14 +1218,22 @@ class AudioToTargetWithEmbeddingDataset(BaseAudioDataset):
                 embedding_length:
                     Batched original length of each embedding vector
         """
-        sc_audio_type = NeuralType(('B', 'T'), AudioSignal())
-        mc_audio_type = NeuralType(('B', 'C', 'T'), AudioSignal())
+        sc_audio_type = NeuralType(("B", "T"), AudioSignal())
+        mc_audio_type = NeuralType(("B", "C", "T"), AudioSignal())
 
         return OrderedDict(
-            input_signal=sc_audio_type if self.num_channels('input_signal') == 1 else mc_audio_type,
-            input_length=NeuralType(('B',), LengthsType()),
-            target_signal=sc_audio_type if self.num_channels('target_signal') == 1 else mc_audio_type,
-            target_length=NeuralType(('B',), LengthsType()),
-            embedding_vector=NeuralType(('B', 'D'), EncodedRepresentation()),
-            embedding_length=NeuralType(('B',), LengthsType()),
+            input_signal=(
+                sc_audio_type
+                if self.num_channels("input_signal") == 1
+                else mc_audio_type
+            ),
+            input_length=NeuralType(("B",), LengthsType()),
+            target_signal=(
+                sc_audio_type
+                if self.num_channels("target_signal") == 1
+                else mc_audio_type
+            ),
+            target_length=NeuralType(("B",), LengthsType()),
+            embedding_vector=NeuralType(("B", "D"), EncodedRepresentation()),
+            embedding_length=NeuralType(("B",), LengthsType()),
         )

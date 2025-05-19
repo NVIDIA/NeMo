@@ -38,7 +38,7 @@ from nemo.collections.vlm.neva.data.conversation import (Conversation,
 @pytest.fixture
 def sample_image():
     # Create a simple test image
-    img = Image.new('RGB', (100, 100), color='red')
+    img = Image.new("RGB", (100, 100), color="red")
     return img
 
 
@@ -55,7 +55,9 @@ def basic_conversation():
 
 
 def test_conversation_initialization():
-    conv = Conversation(system="Test system", roles=("User", "Assistant"), messages=[], offset=0)
+    conv = Conversation(
+        system="Test system", roles=("User", "Assistant"), messages=[], offset=0
+    )
     assert conv.system == "Test system"
     assert conv.roles == ("User", "Assistant")
     assert conv.messages == []
@@ -234,27 +236,35 @@ def test_get_prompt_nv_dpo():
 
 
 def test_process_image_pad(sample_image):
-    conv = Conversation(system="Test", roles=("User", "Assistant"), messages=[], offset=0)
+    conv = Conversation(
+        system="Test", roles=("User", "Assistant"), messages=[], offset=0
+    )
     processed = conv.process_image(sample_image, "Pad", return_pil=True)
     assert isinstance(processed, Image.Image)
     assert processed.size[0] == processed.size[1]  # Should be square
 
 
 def test_process_image_resize(sample_image):
-    conv = Conversation(system="Test", roles=("User", "Assistant"), messages=[], offset=0)
+    conv = Conversation(
+        system="Test", roles=("User", "Assistant"), messages=[], offset=0
+    )
     processed = conv.process_image(sample_image, "Resize", return_pil=True)
     assert isinstance(processed, Image.Image)
     assert processed.size == (336, 336)
 
 
 def test_process_image_default(sample_image):
-    conv = Conversation(system="Test", roles=("User", "Assistant"), messages=[], offset=0)
+    conv = Conversation(
+        system="Test", roles=("User", "Assistant"), messages=[], offset=0
+    )
     processed = conv.process_image(sample_image, "Default", return_pil=True)
     assert isinstance(processed, Image.Image)
 
 
 def test_process_image_base64(sample_image):
-    conv = Conversation(system="Test", roles=("User", "Assistant"), messages=[], offset=0)
+    conv = Conversation(
+        system="Test", roles=("User", "Assistant"), messages=[], offset=0
+    )
     processed = conv.process_image(sample_image, "Default", return_pil=False)
     assert isinstance(processed, str)
     # Verify it's a valid base64 string
@@ -290,7 +300,12 @@ def test_to_gradio_chatbot(basic_conversation, sample_image):
 
 
 def test_copy():
-    conv = Conversation(system="Test", roles=("User", "Assistant"), messages=[["User", "Hello"]], offset=0)
+    conv = Conversation(
+        system="Test",
+        roles=("User", "Assistant"),
+        messages=[["User", "Hello"]],
+        offset=0,
+    )
     copied = conv.copy()
     assert copied.system == conv.system
     assert copied.roles == conv.roles
@@ -302,7 +317,12 @@ def test_copy():
 
 
 def test_dict():
-    conv = Conversation(system="Test", roles=("User", "Assistant"), messages=[["User", "Hello"]], offset=0)
+    conv = Conversation(
+        system="Test",
+        roles=("User", "Assistant"),
+        messages=[["User", "Hello"]],
+        offset=0,
+    )
     conv_dict = conv.dict()
     assert conv_dict["system"] == "Test"
     assert conv_dict["roles"] == ("User", "Assistant")
@@ -319,10 +339,14 @@ def test_dict_with_images(basic_conversation, sample_image):
 
 def test_process_chat_template():
     conv = Conversation(
-        system="Test system", roles=("user", "assistant"), messages=[], offset=0, sep_style=SeparatorStyle.LLAMA_2
+        system="Test system",
+        roles=("user", "assistant"),
+        messages=[],
+        offset=0,
+        sep_style=SeparatorStyle.LLAMA_2,
     )
     messages = [("user", "Hello"), ("assistant", "Hi there")]
-    with patch('transformers.AutoTokenizer.from_pretrained') as mock_tokenizer:
+    with patch("transformers.AutoTokenizer.from_pretrained") as mock_tokenizer:
         mock_tokenizer.return_value.apply_chat_template.return_value = "Test template"
         result = conv.process_chat_template("test-tokenizer", messages)
         assert result == "Test template"
@@ -338,6 +362,8 @@ def test_invalid_sep_style():
 
 
 def test_invalid_image_process_mode():
-    conv = Conversation(system="Test", roles=("User", "Assistant"), messages=[], offset=0)
+    conv = Conversation(
+        system="Test", roles=("User", "Assistant"), messages=[], offset=0
+    )
     with pytest.raises(ValueError):
         conv.process_image(None, "InvalidMode")

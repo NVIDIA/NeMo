@@ -19,7 +19,9 @@ from nemo.collections.asr.parts.submodules.ctc_decoding import \
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 
 
-def process_aed_timestamp_outputs(outputs, subsampling_factor: int = 1, window_stride: float = 0.01):
+def process_aed_timestamp_outputs(
+    outputs, subsampling_factor: int = 1, window_stride: float = 0.01
+):
     """
     Processes AED timestamp outputs and extracts word-level timestamps.
     Args:
@@ -30,14 +32,18 @@ def process_aed_timestamp_outputs(outputs, subsampling_factor: int = 1, window_s
         list of list of Hypotesis: The processed hypothesis outputs with word-level timestamps added.
     """
 
-    def extract_words_with_timestamps(text, subsampling_factor: int = 1, window_stride: float = 0.01):
-        text = text.strip()  # remove leading and trailing whitespaces - training data artifact
+    def extract_words_with_timestamps(
+        text, subsampling_factor: int = 1, window_stride: float = 0.01
+    ):
+        text = (
+            text.strip()
+        )  # remove leading and trailing whitespaces - training data artifact
 
-        if not re.search(r'<\|\d+\|>.*?<\|\d+\|>', text):
+        if not re.search(r"<\|\d+\|>.*?<\|\d+\|>", text):
             return None, text
 
         # Find words that directly have start and end timestamps
-        pattern = r'<\|(\d+)\|>(.*?)<\|(\d+)\|>'
+        pattern = r"<\|(\d+)\|>(.*?)<\|(\d+)\|>"
 
         matches = []
         text_without_timestamps = []
@@ -51,29 +57,33 @@ def process_aed_timestamp_outputs(outputs, subsampling_factor: int = 1, window_s
             # Only include if there's actual content
             if content.strip():
                 sample = {
-                    'word': content.strip(),
-                    'start_offset': start_offset,
-                    'end_offset': end_offset,
-                    'start': start_time,
-                    'end': end_time,
+                    "word": content.strip(),
+                    "start_offset": start_offset,
+                    "end_offset": end_offset,
+                    "start": start_time,
+                    "end": end_time,
                 }
                 matches.append(sample)
                 text_without_timestamps.append(content.strip())
 
-        text_without_timestamps = ' '.join(text_without_timestamps)
+        text_without_timestamps = " ".join(text_without_timestamps)
         return matches, text_without_timestamps
 
     def segments_offset_to_time(segments, window_stride, subsampling_factor):
         for segment in segments:
-            segment['start'] = segment['start_offset'] * window_stride * subsampling_factor
-            segment['end'] = segment['end_offset'] * window_stride * subsampling_factor
+            segment["start"] = (
+                segment["start_offset"] * window_stride * subsampling_factor
+            )
+            segment["end"] = segment["end_offset"] * window_stride * subsampling_factor
         return segments
 
     def process_hypothesis(hyp, subsampling_factor: int, window_stride: float):
         """
         Processes a single Hypothesis object to extract timestamps.
         """
-        timestamp, text = extract_words_with_timestamps(hyp.text, subsampling_factor, window_stride)
+        timestamp, text = extract_words_with_timestamps(
+            hyp.text, subsampling_factor, window_stride
+        )
         hyp.text = text
         if timestamp is not None:
             if len(hyp.timestamp) == 0:
@@ -81,19 +91,23 @@ def process_aed_timestamp_outputs(outputs, subsampling_factor: int = 1, window_s
 
             hyp.timestamp.update(
                 {
-                    'word': timestamp,
-                    'segment': [],
-                    'char': [],  # not supported for AED
+                    "word": timestamp,
+                    "segment": [],
+                    "char": [],  # not supported for AED
                 }
             )
 
-            segments = AbstractCTCDecoding._get_segment_offsets(timestamp, segment_delimiter_tokens=['.', '?', '!'])
-            hyp.timestamp['segment'] = segments_offset_to_time(segments, window_stride, subsampling_factor)
+            segments = AbstractCTCDecoding._get_segment_offsets(
+                timestamp, segment_delimiter_tokens=[".", "?", "!"]
+            )
+            hyp.timestamp["segment"] = segments_offset_to_time(
+                segments, window_stride, subsampling_factor
+            )
         else:
             hyp.timestamp = {
-                'word': [],
-                'segment': [],
-                'char': [],
+                "word": [],
+                "segment": [],
+                "char": [],
             }
 
         return hyp
@@ -105,11 +119,22 @@ def process_aed_timestamp_outputs(outputs, subsampling_factor: int = 1, window_s
         return [process_hypothesis(outputs, subsampling_factor, window_stride)]
     elif isinstance(outputs, list) and isinstance(outputs[0], Hypothesis):
         # list of Hypothesis
-        return [process_hypothesis(hyp, subsampling_factor, window_stride) for hyp in outputs]
-    elif isinstance(outputs, list) and isinstance(outputs[0], list) and isinstance(outputs[0][0], Hypothesis):
+        return [
+            process_hypothesis(hyp, subsampling_factor, window_stride)
+            for hyp in outputs
+        ]
+    elif (
+        isinstance(outputs, list)
+        and isinstance(outputs[0], list)
+        and isinstance(outputs[0][0], Hypothesis)
+    ):
         # list of list of Hypothesis (for beam decoding)
         return [
-            [process_hypothesis(hyp, subsampling_factor, window_stride) for hyp in hyps_list] for hyps_list in outputs
+            [
+                process_hypothesis(hyp, subsampling_factor, window_stride)
+                for hyp in hyps_list
+            ]
+            for hyps_list in outputs
         ]
     else:
         raise ValueError(
@@ -117,7 +142,9 @@ def process_aed_timestamp_outputs(outputs, subsampling_factor: int = 1, window_s
         )
 
 
-def process_timestamp_outputs(outputs, subsampling_factor: int = 1, window_stride: float = 0.01):
+def process_timestamp_outputs(
+    outputs, subsampling_factor: int = 1, window_stride: float = 0.01
+):
     """
     Process the timestamps from list of hypothesis to user friendly format.
     Converts the start and end duration from frames to seconds.
@@ -144,28 +171,32 @@ def process_timestamp_outputs(outputs, subsampling_factor: int = 1, window_strid
         return the start and end duration in seconds.
         """
         for idx, val in enumerate(timestamp):
-            start_offset = val['start_offset']
-            end_offset = val['end_offset']
+            start_offset = val["start_offset"]
+            end_offset = val["end_offset"]
             start = start_offset * window_stride * subsampling_factor
             end = end_offset * window_stride * subsampling_factor
-            val['start'] = start
-            val['end'] = end
+            val["start"] = start
+            val["end"] = end
 
         return timestamp
 
     for idx, hyp in enumerate(outputs):
-        if not hasattr(hyp, 'timestamp'):
+        if not hasattr(hyp, "timestamp"):
             raise ValueError(
                 f"Expected Hypothesis object to have 'timestamp' attribute, when compute_timestamps is \
                     enabled but got {hyp}"
             )
         timestamp = hyp.timestamp
-        if 'word' in timestamp:
-            outputs[idx].timestamp['word'] = process_timestamp(timestamp['word'], subsampling_factor, window_stride)
-        if 'char' in timestamp:
-            outputs[idx].timestamp['char'] = process_timestamp(timestamp['char'], subsampling_factor, window_stride)
-        if 'segment' in timestamp:
-            outputs[idx].timestamp['segment'] = process_timestamp(
-                timestamp['segment'], subsampling_factor, window_stride
+        if "word" in timestamp:
+            outputs[idx].timestamp["word"] = process_timestamp(
+                timestamp["word"], subsampling_factor, window_stride
+            )
+        if "char" in timestamp:
+            outputs[idx].timestamp["char"] = process_timestamp(
+                timestamp["char"], subsampling_factor, window_stride
+            )
+        if "segment" in timestamp:
+            outputs[idx].timestamp["segment"] = process_timestamp(
+                timestamp["segment"], subsampling_factor, window_stride
             )
     return outputs

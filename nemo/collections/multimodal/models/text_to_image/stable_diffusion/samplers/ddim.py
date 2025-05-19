@@ -51,7 +51,13 @@ class DDIMSampler(AbstractBaseSampler):
     ):
         b, *_, device = *x.shape, x.device
         e_t, model_output = self._get_model_output(
-            x, t, unconditional_conditioning, unconditional_guidance_scale, score_corrector, c, corrector_kwargs
+            x,
+            t,
+            unconditional_conditioning,
+            unconditional_guidance_scale,
+            score_corrector,
+            c,
+            corrector_kwargs,
         )
         x_prev, pred_x0 = self._get_x_prev_and_pred_x0(
             use_original_steps,
@@ -89,7 +95,13 @@ class DDIMSampler(AbstractBaseSampler):
     ):
         b, *_, device = *x.shape, x.device
         e_t, model_output = self._get_model_output(
-            x, t, unconditional_conditioning, unconditional_guidance_scale, score_corrector, c, corrector_kwargs
+            x,
+            t,
+            unconditional_conditioning,
+            unconditional_guidance_scale,
+            score_corrector,
+            c,
+            corrector_kwargs,
         )
         outs = self._get_x_prev_and_pred_x0(
             use_original_steps,
@@ -136,18 +148,24 @@ class DDIMSampler(AbstractBaseSampler):
         use_original_steps=False,
     ):
 
-        timesteps = np.arange(self.ddpm_num_timesteps) if use_original_steps else self.ddim_timesteps
+        timesteps = (
+            np.arange(self.ddpm_num_timesteps)
+            if use_original_steps
+            else self.ddim_timesteps
+        )
         timesteps = timesteps[:t_start]
 
         time_range = np.flip(timesteps)
         total_steps = timesteps.shape[0]
         print(f"Running DDIM Sampling with {total_steps} timesteps")
 
-        iterator = tqdm(time_range, desc='Decoding image', total=total_steps)
+        iterator = tqdm(time_range, desc="Decoding image", total=total_steps)
         x_dec = x_latent
         for i, step in enumerate(iterator):
             index = total_steps - i - 1
-            ts = torch.full((x_latent.shape[0],), step, device=x_latent.device, dtype=torch.long)
+            ts = torch.full(
+                (x_latent.shape[0],), step, device=x_latent.device, dtype=torch.long
+            )
             x_dec, _ = self.p_sample_ddim(
                 x_dec,
                 cond,

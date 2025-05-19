@@ -67,7 +67,10 @@ class MCoreTokenizerWrappper:
         Returns:
             str: The detokenized string.
         """
-        if 'remove_special_tokens' in inspect.signature(self.tokenizer.ids_to_text).parameters:
+        if (
+            "remove_special_tokens"
+            in inspect.signature(self.tokenizer.ids_to_text).parameters
+        ):
             return self.tokenizer.ids_to_text(tokens, remove_special_tokens)
         else:
             return self.tokenizer.ids_to_text(tokens)
@@ -136,8 +139,12 @@ def _setup_trainer_and_restore_model(
     Returns:
         None
     """
-    assert isinstance(trainer.strategy, MegatronStrategy), "Only MegatronStrategy is supported for trainer.strategy."
-    assert trainer.strategy.context_parallel_size <= 1, "Context parallelism is not supported for inference."
+    assert isinstance(
+        trainer.strategy, MegatronStrategy
+    ), "Only MegatronStrategy is supported for trainer.strategy."
+    assert (
+        trainer.strategy.context_parallel_size <= 1
+    ), "Context parallelism is not supported for inference."
 
     # [ModelOpt]: If modelopt_state exists, overwrite transformer_layer_spec to modelopt spec
     from nemo.collections.llm.modelopt import \
@@ -145,7 +152,10 @@ def _setup_trainer_and_restore_model(
 
     set_modelopt_spec_if_exists_in_ckpt(model, path)
 
-    if (adapter_meta_path := ckpt_to_weights_subdir(path, is_saving=False) / ADAPTER_META_FILENAME).exists():
+    if (
+        adapter_meta_path := ckpt_to_weights_subdir(path, is_saving=False)
+        / ADAPTER_META_FILENAME
+    ).exists():
         with open(adapter_meta_path, "r") as f:
             metadata = json.load(f)
         restore_config = RestoreConfig(
@@ -185,9 +195,12 @@ def _setup_trainer_and_restore_model(
     if isinstance(peft, PEFT):
         model = peft(model)
         sharded_state_dict = MegatronModule.sharded_state_dict(model)
-        adapter_sharded_state_dict = {k: v for k, v in sharded_state_dict.items() if ".adapter." in k}
+        adapter_sharded_state_dict = {
+            k: v for k, v in sharded_state_dict.items() if ".adapter." in k
+        }
         adapter_state = trainer.strategy.checkpoint_io.load_checkpoint(
-            ckpt_to_weights_subdir(path, is_saving=False), sharded_state_dict=adapter_sharded_state_dict
+            ckpt_to_weights_subdir(path, is_saving=False),
+            sharded_state_dict=adapter_sharded_state_dict,
         )
         trainer.strategy.load_model_state_dict(adapter_state, strict=False)
 
@@ -220,7 +233,9 @@ def setup_model_and_tokenizer(
         tuple[AbstractModelInferenceWrapper, MCoreTokenizerWrappper]:
             A tuple containing the inference-wrapped model and Mcore wrapped tokenizer.
     """
-    model: GPTModel | T5Model = io.load_context(path=ckpt_to_context_subdir(path), subpath="model")
+    model: GPTModel | T5Model = io.load_context(
+        path=ckpt_to_context_subdir(path), subpath="model"
+    )
 
     if enable_flash_decode:
         if params_dtype == torch.bfloat16 or params_dtype == torch.float16:
@@ -240,7 +255,9 @@ def setup_model_and_tokenizer(
     )
     return (
         inference_wrapped_model,
-        MCoreTokenizerWrappper(model.tokenizer, getattr(model.config, "vocab_size", None)),
+        MCoreTokenizerWrappper(
+            model.tokenizer, getattr(model.config, "vocab_size", None)
+        ),
     )
 
 
@@ -282,12 +299,18 @@ def generate(
             inference_wrapped_model=model, tokenizer=tokenizer
         )
     else:
-        text_generation_controller = TextGenerationController(inference_wrapped_model=model, tokenizer=tokenizer)
+        text_generation_controller = TextGenerationController(
+            inference_wrapped_model=model, tokenizer=tokenizer
+        )
     mcore_engine = MCoreEngine(
-        text_generation_controller=text_generation_controller, max_batch_size=max_batch_size, random_seed=random_seed
+        text_generation_controller=text_generation_controller,
+        max_batch_size=max_batch_size,
+        random_seed=random_seed,
     )
 
-    common_inference_params = inference_params or CommonInferenceParams(num_tokens_to_generate=512, top_k=1)
+    common_inference_params = inference_params or CommonInferenceParams(
+        num_tokens_to_generate=512, top_k=1
+    )
 
     results = mcore_engine.generate(
         prompts=prompts,
@@ -337,8 +360,12 @@ def setup_mcore_engine(
         inference_max_seq_length=inference_max_seq_length,
         enable_flash_decode=enable_flash_decode,
     )
-    text_generation_controller = TextGenerationController(inference_wrapped_model=model, tokenizer=tokenizer)
+    text_generation_controller = TextGenerationController(
+        inference_wrapped_model=model, tokenizer=tokenizer
+    )
     mcore_engine = MCoreEngine(
-        text_generation_controller=text_generation_controller, max_batch_size=max_batch_size, random_seed=random_seed
+        text_generation_controller=text_generation_controller,
+        max_batch_size=max_batch_size,
+        random_seed=random_seed,
     )
     return mcore_engine, model, tokenizer

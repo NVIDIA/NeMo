@@ -48,26 +48,38 @@ class VLMTextGenerationController(SimpleTextGenerationController):
         if image is None:
             image_dict = dict(
                 pixel_values=torch.zeros(
-                    1, 4, 3, self.image_processor.size['height'], self.image_processor.size['width']
+                    1,
+                    4,
+                    3,
+                    self.image_processor.size["height"],
+                    self.image_processor.size["width"],
                 ),
                 aspect_ratio_ids=torch.tensor([0], dtype=torch.long),
                 num_tiles=[0],
             )
         else:
-            image_dict = self.image_processor.preprocess(image, return_tensors='pt')
+            image_dict = self.image_processor.preprocess(image, return_tensors="pt")
             image_dict = {
-                k: v[0] for k, v in image_dict.items() if k in ["pixel_values", "aspect_ratio_ids", "num_tiles"]
+                k: v[0]
+                for k, v in image_dict.items()
+                if k in ["pixel_values", "aspect_ratio_ids", "num_tiles"]
             }
         return tokens, image_dict
 
-    def prep_inference_input(self, prompts_tokens: torch.Tensor, active_requests: OrderedDict[str, InferenceRequest]):
+    def prep_inference_input(
+        self,
+        prompts_tokens: torch.Tensor,
+        active_requests: OrderedDict[str, InferenceRequest],
+    ):
         """Preparing input data for inference, using respective wrapper's prep_inference_input method
 
         Args:
             prompts_tokens (torch.Tensor): A tensor of shape [batch_size, max_sequence_length]
             active_requests (OrderedDict[int, InferenceRequest]): The input active requests
         """
-        images = list(map(lambda request: request.encoder_prompt, active_requests.values()))
+        images = list(
+            map(lambda request: request.encoder_prompt, active_requests.values())
+        )
 
         return self.inference_wrapped_model.prep_inference_input(
             prompts_tokens=prompts_tokens,

@@ -24,13 +24,42 @@ from nemo.utils import logging
 
 
 def get_args():
-    parser = argparse.ArgumentParser(description='Test ONNX and TensorRT export for LLM embedding models.')
-    parser.add_argument('--hf_model_path', type=str, required=True, help="Hugging Face model id or path.")
-    parser.add_argument('--pooling_strategy', type=str, default="avg", help="Pooling strategy for the model.")
-    parser.add_argument("--normalize", default=False, action="store_true", help="Normalize the embeddings or not.")
-    parser.add_argument('--onnx_export_path', type=str, default="/tmp/onnx_model/", help="Path to store ONNX model.")
-    parser.add_argument('--onnx_opset', type=int, default=17, help="ONNX version to use for export.")
-    parser.add_argument('--trt_model_path', type=str, default="/tmp/trt_model/", help="Path to store TensorRT model.")
+    parser = argparse.ArgumentParser(
+        description="Test ONNX and TensorRT export for LLM embedding models."
+    )
+    parser.add_argument(
+        "--hf_model_path",
+        type=str,
+        required=True,
+        help="Hugging Face model id or path.",
+    )
+    parser.add_argument(
+        "--pooling_strategy",
+        type=str,
+        default="avg",
+        help="Pooling strategy for the model.",
+    )
+    parser.add_argument(
+        "--normalize",
+        default=False,
+        action="store_true",
+        help="Normalize the embeddings or not.",
+    )
+    parser.add_argument(
+        "--onnx_export_path",
+        type=str,
+        default="/tmp/onnx_model/",
+        help="Path to store ONNX model.",
+    )
+    parser.add_argument(
+        "--onnx_opset", type=int, default=17, help="ONNX version to use for export."
+    )
+    parser.add_argument(
+        "--trt_model_path",
+        type=str,
+        default="/tmp/trt_model/",
+        help="Path to store TensorRT model.",
+    )
     parser.add_argument(
         "--trt_version_compatible",
         default=False,
@@ -50,7 +79,11 @@ def export_onnx_trt(args):
         trust_remote_code=True,
     )
 
-    input_names = ["input_ids", "attention_mask", "dimensions"]  # ONNX specific arguments, input names in this case.
+    input_names = [
+        "input_ids",
+        "attention_mask",
+        "dimensions",
+    ]  # ONNX specific arguments, input names in this case.
     dynamic_axes_input = {
         "input_ids": {0: "batch_size", 1: "seq_length"},
         "attention_mask": {0: "batch_size", 1: "seq_length"},
@@ -125,5 +158,5 @@ def export_onnx_trt(args):
         logging.warning(f"Output is None because ONNX runtime is not installed.")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     export_onnx_trt(get_args())

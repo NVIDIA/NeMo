@@ -67,7 +67,9 @@ class TestTypedict2Tensor:
 
     def test_typedict2tensor_with_overwrite(self):
         overwrite_kwargs = {"optional": True}
-        tensors = typedict2tensor(self.SampleTypedict, overwrite_kwargs=overwrite_kwargs)
+        tensors = typedict2tensor(
+            self.SampleTypedict, overwrite_kwargs=overwrite_kwargs
+        )
         assert all(t.optional for t in tensors)
 
     def test_typedict2tensor_list_types(self):
@@ -195,7 +197,9 @@ class TestCastOutput:
 
 class TestBroadcastList:
     def test_broadcast_list_no_distributed(self):
-        with pytest.raises(RuntimeError, match="Distributed environment is not initialized"):
+        with pytest.raises(
+            RuntimeError, match="Distributed environment is not initialized"
+        ):
             broadcast_list(["test"])
 
     def test_broadcast_list_distributed(self, monkeypatch):
@@ -208,7 +212,9 @@ class TestBroadcastList:
             if src == 0:
                 object_list[0] = ["test"]
 
-        monkeypatch.setattr(torch.distributed, "broadcast_object_list", mock_broadcast_object_list)
+        monkeypatch.setattr(
+            torch.distributed, "broadcast_object_list", mock_broadcast_object_list
+        )
 
         result = broadcast_list(["test"])
         assert result == ["test"]

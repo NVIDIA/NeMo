@@ -28,10 +28,10 @@ from nemo.collections.tts.parts.utils.tts_dataset_utils import get_base_dir
 
 class TestTTSDataset:
     @pytest.mark.unit
-    @pytest.mark.run_only_on('CPU')
+    @pytest.mark.run_only_on("CPU")
     def test_dataset(self, test_data_dir):
-        manifest_path = os.path.join(test_data_dir, 'tts/mini_ljspeech/manifest.json')
-        sup_path = os.path.join(test_data_dir, 'tts/mini_ljspeech/sup')
+        manifest_path = os.path.join(test_data_dir, "tts/mini_ljspeech/manifest.json")
+        sup_path = os.path.join(test_data_dir, "tts/mini_ljspeech/sup")
 
         dataset = TTSDataset(
             manifest_filepath=manifest_path,
@@ -42,21 +42,23 @@ class TestTTSDataset:
                 punct=True,
                 stresses=True,
                 chars=True,
-                space=' ',
+                space=" ",
                 apostrophe=True,
                 pad_with_space=True,
                 g2p=EnglishG2p(),
             ),
         )
 
-        dataloader = torch.utils.data.DataLoader(dataset, 2, collate_fn=dataset._collate_fn)
+        dataloader = torch.utils.data.DataLoader(
+            dataset, 2, collate_fn=dataset._collate_fn
+        )
         data, _, _, _, _, _ = next(iter(dataloader))
 
     @pytest.mark.unit
-    @pytest.mark.run_only_on('CPU')
+    @pytest.mark.run_only_on("CPU")
     def test_raise_exception_on_not_supported_sup_data_types(self, test_data_dir):
-        manifest_path = os.path.join(test_data_dir, 'tts/mini_ljspeech/manifest.json')
-        sup_path = os.path.join(test_data_dir, 'tts/mini_ljspeech/sup')
+        manifest_path = os.path.join(test_data_dir, "tts/mini_ljspeech/manifest.json")
+        sup_path = os.path.join(test_data_dir, "tts/mini_ljspeech/sup")
         with pytest.raises(NotImplementedError):
             dataset = TTSDataset(
                 manifest_filepath=manifest_path,
@@ -67,7 +69,7 @@ class TestTTSDataset:
                     punct=True,
                     stresses=True,
                     chars=True,
-                    space=' ',
+                    space=" ",
                     apostrophe=True,
                     pad_with_space=True,
                     g2p=EnglishG2p(),
@@ -75,10 +77,10 @@ class TestTTSDataset:
             )
 
     @pytest.mark.unit
-    @pytest.mark.run_only_on('CPU')
+    @pytest.mark.run_only_on("CPU")
     def test_raise_exception_on_not_supported_window(self, test_data_dir):
-        manifest_path = os.path.join(test_data_dir, 'tts/mini_ljspeech/manifest.json')
-        sup_path = os.path.join(test_data_dir, 'tts/mini_ljspeech/sup')
+        manifest_path = os.path.join(test_data_dir, "tts/mini_ljspeech/manifest.json")
+        sup_path = os.path.join(test_data_dir, "tts/mini_ljspeech/sup")
         with pytest.raises(NotImplementedError):
             dataset = TTSDataset(
                 manifest_filepath=manifest_path,
@@ -90,7 +92,7 @@ class TestTTSDataset:
                     punct=True,
                     stresses=True,
                     chars=True,
-                    space=' ',
+                    space=" ",
                     apostrophe=True,
                     pad_with_space=True,
                     g2p=EnglishG2p(),
@@ -98,11 +100,13 @@ class TestTTSDataset:
             )
 
     @pytest.mark.unit
-    @pytest.mark.run_only_on('CPU')
+    @pytest.mark.run_only_on("CPU")
     @pytest.mark.parametrize("sup_data_type", ["voiced_mask", "p_voiced"])
-    def test_raise_exception_on_missing_pitch_sup_data_type_if_use_voiced(self, test_data_dir, sup_data_type):
-        manifest_path = os.path.join(test_data_dir, 'tts/mini_ljspeech/manifest.json')
-        sup_path = os.path.join(test_data_dir, 'tts/mini_ljspeech/sup')
+    def test_raise_exception_on_missing_pitch_sup_data_type_if_use_voiced(
+        self, test_data_dir, sup_data_type
+    ):
+        manifest_path = os.path.join(test_data_dir, "tts/mini_ljspeech/manifest.json")
+        sup_path = os.path.join(test_data_dir, "tts/mini_ljspeech/sup")
         with pytest.raises(ValueError):
             dataset = TTSDataset(
                 manifest_filepath=manifest_path,
@@ -114,7 +118,7 @@ class TestTTSDataset:
                     punct=True,
                     stresses=True,
                     chars=True,
-                    space=' ',
+                    space=" ",
                     apostrophe=True,
                     pad_with_space=True,
                     g2p=EnglishG2p(),
@@ -122,7 +126,7 @@ class TestTTSDataset:
             )
 
     @pytest.mark.unit
-    @pytest.mark.run_only_on('CPU')
+    @pytest.mark.run_only_on("CPU")
     @pytest.mark.parametrize(
         "sup_data_types, output_indices",
         [
@@ -132,8 +136,10 @@ class TestTTSDataset:
             (["pitch"], [-2]),
         ],
     )
-    def test_save_voiced_items_if_pt_file_not_exist(self, test_data_dir, sup_data_types, output_indices, tmp_path):
-        manifest_path = os.path.join(test_data_dir, 'tts/mini_ljspeech/manifest.json')
+    def test_save_voiced_items_if_pt_file_not_exist(
+        self, test_data_dir, sup_data_types, output_indices, tmp_path
+    ):
+        manifest_path = os.path.join(test_data_dir, "tts/mini_ljspeech/manifest.json")
         sup_path = tmp_path / "sup_data"
         print(f"sup_path={sup_path}")
         dataset = TTSDataset(
@@ -145,7 +151,7 @@ class TestTTSDataset:
                 punct=True,
                 stresses=True,
                 chars=True,
-                space=' ',
+                space=" ",
                 apostrophe=True,
                 pad_with_space=True,
                 g2p=EnglishG2p(),
@@ -154,21 +160,30 @@ class TestTTSDataset:
 
         # load manifest
         audio_filepaths = []
-        with open(manifest_path, 'r', encoding="utf-8") as fjson:
+        with open(manifest_path, "r", encoding="utf-8") as fjson:
             for line in fjson:
                 audio_filepaths.append(json.loads(line)["audio_filepath"])
         base_data_dir = get_base_dir(audio_filepaths)
 
-        dataloader = torch.utils.data.DataLoader(dataset=dataset, batch_size=1, collate_fn=dataset._collate_fn)
+        dataloader = torch.utils.data.DataLoader(
+            dataset=dataset, batch_size=1, collate_fn=dataset._collate_fn
+        )
         for batch, audio_filepath in zip(dataloader, audio_filepaths):
-            rel_audio_path = Path(audio_filepath).relative_to(base_data_dir).with_suffix("")
+            rel_audio_path = (
+                Path(audio_filepath).relative_to(base_data_dir).with_suffix("")
+            )
             rel_audio_path_as_text_id = str(rel_audio_path).replace("/", "_")
 
             for sup_data_type, output_index in zip(sup_data_types, output_indices):
                 sup_data = batch[output_index]
                 sup_data = sup_data.squeeze(0)
                 assert sup_data is not None
-                assert torch.equal(sup_data, torch.load(f"{sup_path}/{sup_data_type}/{rel_audio_path_as_text_id}.pt"))
+                assert torch.equal(
+                    sup_data,
+                    torch.load(
+                        f"{sup_path}/{sup_data_type}/{rel_audio_path_as_text_id}.pt"
+                    ),
+                )
 
                 if sup_data_type == "pitch":
                     pitch_lengths = batch[output_index + 1]
@@ -177,8 +192,14 @@ class TestTTSDataset:
 
             # test pitch, voiced_mask, and p_voiced do not have the same values.
             if len(sup_data_types) == 3:
-                x = torch.load(f"{sup_path}/{sup_data_types[0]}/{rel_audio_path_as_text_id}.pt")
-                y = torch.load(f"{sup_path}/{sup_data_types[1]}/{rel_audio_path_as_text_id}.pt")
-                z = torch.load(f"{sup_path}/{sup_data_types[2]}/{rel_audio_path_as_text_id}.pt")
+                x = torch.load(
+                    f"{sup_path}/{sup_data_types[0]}/{rel_audio_path_as_text_id}.pt"
+                )
+                y = torch.load(
+                    f"{sup_path}/{sup_data_types[1]}/{rel_audio_path_as_text_id}.pt"
+                )
+                z = torch.load(
+                    f"{sup_path}/{sup_data_types[2]}/{rel_audio_path_as_text_id}.pt"
+                )
                 assert not torch.equal(x, y)
                 assert not torch.equal(x, z)

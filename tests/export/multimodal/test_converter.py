@@ -26,25 +26,34 @@ class TestMultimodalConverter:
     def model_config(self):
         # Create a simple test config
         config = type(
-            'TestConfig',
+            "TestConfig",
             (),
-            {'hidden_size': 128, 'num_attention_heads': 4, 'num_query_groups': 2, 'kv_channels': None},
+            {
+                "hidden_size": 128,
+                "num_attention_heads": 4,
+                "num_query_groups": 2,
+                "kv_channels": None,
+            },
         )()
         return config
 
     def test_split_qkv_weight(self, model_config):
         # Create a test QKV weight tensor
-        batch_size = model_config.num_attention_heads + 2 * model_config.num_query_groups
+        batch_size = (
+            model_config.num_attention_heads + 2 * model_config.num_query_groups
+        )
         qkv_weight = torch.randn(
-            batch_size, model_config.hidden_size // model_config.num_attention_heads, model_config.hidden_size
+            batch_size,
+            model_config.hidden_size // model_config.num_attention_heads,
+            model_config.hidden_size,
         )
 
         result = split_qkv_weight(qkv_weight, model_config)
 
         assert len(result) == 3
-        assert result[0][0] == 'q_proj'
-        assert result[1][0] == 'k_proj'
-        assert result[2][0] == 'v_proj'
+        assert result[0][0] == "q_proj"
+        assert result[1][0] == "k_proj"
+        assert result[2][0] == "v_proj"
 
         # Check shapes
         assert result[0][1].shape == (
@@ -67,14 +76,16 @@ class TestMultimodalConverter:
         # Create a test KV weight tensor
         batch_size = 2 * model_config.num_query_groups
         kv_weight = torch.randn(
-            batch_size, model_config.hidden_size // model_config.num_attention_heads, model_config.hidden_size
+            batch_size,
+            model_config.hidden_size // model_config.num_attention_heads,
+            model_config.hidden_size,
         )
 
         result = split_kv_weight(kv_weight, model_config)
 
         assert len(result) == 2
-        assert result[0][0] == 'k_proj'
-        assert result[1][0] == 'v_proj'
+        assert result[0][0] == "k_proj"
+        assert result[1][0] == "v_proj"
 
         # Check shapes
         assert result[0][1].shape == (
@@ -95,8 +106,8 @@ class TestMultimodalConverter:
         result = split_gate_weight(gate_weight)
 
         assert len(result) == 2
-        assert result[0][0] == 'gate_proj'
-        assert result[1][0] == 'up_proj'
+        assert result[0][0] == "gate_proj"
+        assert result[1][0] == "up_proj"
 
         # Check shapes
         assert result[0][1].shape == (100, 100)

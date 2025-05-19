@@ -48,7 +48,9 @@ def build_engine(
 
     config_kwargs = {}
     if workspace_size > 0:
-        config_kwargs["memory_pool_limits"] = {trt.MemoryPoolType.WORKSPACE: workspace_size}
+        config_kwargs["memory_pool_limits"] = {
+            trt.MemoryPoolType.WORKSPACE: workspace_size
+        }
     engine = engine_from_network(
         network_from_onnx_path(onnx_path),
         config=CreateConfig(

@@ -44,40 +44,44 @@ class MegatronStableDiffusionTrainerBuilder(MegatronTrainerBuilder):
         # check interactive environment
         _IS_INTERACTIVE = hasattr(sys, "ps1") or bool(sys.flags.interactive)
         if _IS_INTERACTIVE and self.cfg.trainer.devices == 1:
-            logging.info("Detected interactive environment, using NLPDDPStrategyNotebook")
+            logging.info(
+                "Detected interactive environment, using NLPDDPStrategyNotebook"
+            )
             return NLPDDPStrategyNotebook(
                 no_ddp_communication_hook=True,
                 find_unused_parameters=False,
             )
 
-        if self.cfg.model.get('fsdp', False):
+        if self.cfg.model.get("fsdp", False):
             assert (
-                not self.cfg.model.optim.get('name') == 'distributed_fused_adam'
-            ), 'Distributed optimizer cannot be used with FSDP.'
-            if self.cfg.model.get('megatron_amp_O2', False):
-                logging.info('Torch FSDP is not compatible with O2 precision recipe. Setting O2 `False`.')
+                not self.cfg.model.optim.get("name") == "distributed_fused_adam"
+            ), "Distributed optimizer cannot be used with FSDP."
+            if self.cfg.model.get("megatron_amp_O2", False):
+                logging.info(
+                    "Torch FSDP is not compatible with O2 precision recipe. Setting O2 `False`."
+                )
                 self.cfg.model.megatron_amp_O2 = False
             return NLPFSDPStrategy(
-                limit_all_gathers=self.cfg.model.get('fsdp_limit_all_gathers', True),
-                sharding_strategy=self.cfg.model.get('fsdp_sharding_strategy', 'full'),
-                cpu_offload=self.cfg.model.get('fsdp_cpu_offload', False),
-                grad_reduce_dtype=self.cfg.model.get('fsdp_grad_reduce_dtype', 32),
+                limit_all_gathers=self.cfg.model.get("fsdp_limit_all_gathers", True),
+                sharding_strategy=self.cfg.model.get("fsdp_sharding_strategy", "full"),
+                cpu_offload=self.cfg.model.get("fsdp_cpu_offload", False),
+                grad_reduce_dtype=self.cfg.model.get("fsdp_grad_reduce_dtype", 32),
                 precision=self.cfg.trainer.precision,
                 use_orig_params=self.cfg.model.inductor,
-                set_buffer_dtype=self.cfg.get('fsdp_set_buffer_dtype', None),
+                set_buffer_dtype=self.cfg.get("fsdp_set_buffer_dtype", None),
             )
 
         return NLPDDPStrategy(
-            no_ddp_communication_hook=(not self.cfg.model.get('ddp_overlap')),
+            no_ddp_communication_hook=(not self.cfg.model.get("ddp_overlap")),
             gradient_as_bucket_view=self.cfg.model.gradient_as_bucket_view,
             find_unused_parameters=False,
         )
 
 
-@hydra_runner(config_path='conf', config_name='sd_xl_base_train')
+@hydra_runner(config_path="conf", config_name="sd_xl_base_train")
 def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
-    logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
+    logging.info(f"\n{OmegaConf.to_yaml(cfg)}")
 
     torch.backends.cuda.matmul.allow_tf32 = True
 
@@ -87,13 +91,17 @@ def main(cfg) -> None:
 
     model = MegatronDiffusionEngine(cfg.model, trainer)
 
-    if cfg.model.get('peft', None):
+    if cfg.model.get("peft", None):
         peft_cfg_cls = PEFT_CONFIG_MAP[cfg.model.peft.peft_scheme]
         if cfg.model.peft.restore_from_path is not None:
             # initialize peft weights from a checkpoint instead of randomly
             # This is not the same as resume training because optimizer states are not restored.
-            logging.info("PEFT Weights will be loaded from", cfg.model.peft.restore_from_path)
-            model.load_adapters(cfg.model.peft.restore_from_path, peft_cfg_cls(model_cfg))
+            logging.info(
+                "PEFT Weights will be loaded from", cfg.model.peft.restore_from_path
+            )
+            model.load_adapters(
+                cfg.model.peft.restore_from_path, peft_cfg_cls(model_cfg)
+            )
         elif peft_cfg_cls is not None:
             logging.info("Adding adapter weights to the model for PEFT")
             model.add_adapter(peft_cfg_cls(cfg.model))
@@ -103,5 +111,5 @@ def main(cfg) -> None:
     trainer.fit(model)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

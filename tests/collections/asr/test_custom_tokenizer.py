@@ -39,7 +39,13 @@ def lang_tokenizer_path(tmp_path_factory) -> str:
     tmpdir = tmp_path_factory.mktemp("klingon_tokens")
     text_path = tmpdir / "text.txt"
     text_path.write_text("a\nb\nc\nd\n")
-    create_spt_model(text_path, vocab_size=8, sample_size=-1, do_lower_case=False, output_dir=str(tmpdir))
+    create_spt_model(
+        text_path,
+        vocab_size=8,
+        sample_size=-1,
+        do_lower_case=False,
+        output_dir=str(tmpdir),
+    )
     return str(tmpdir)
 
 
@@ -87,7 +93,9 @@ def test_canary_tokenizer_init_from_cfg(special_tokenizer_path, lang_tokenizer_p
     assert isinstance(tokenizer.tokenizers_dict["en"], SentencePieceTokenizer)
     assert tokenizer.tokenizers_dict["en"].vocab_size == 6
 
-    assert tokenizer.text_to_ids("<|startoftranscript|><|en|><|asr|><|en|><|pnc|>", lang_id="spl_tokens") == [
+    assert tokenizer.text_to_ids(
+        "<|startoftranscript|><|en|><|asr|><|en|><|pnc|>", lang_id="spl_tokens"
+    ) == [
         4,
         9,
         7,

@@ -42,16 +42,16 @@ def encode_prompt(cond_stage_model, prompts, unconditional_guidance_scale):
 
 
 def initialize_sampler(model, sampler_type):
-    if sampler_type == 'DDIM':
+    if sampler_type == "DDIM":
         sampler = DDIMSampler(model)
-    elif sampler_type == 'PLMS':
+    elif sampler_type == "PLMS":
         sampler = PLMSSampler(model)
-    elif sampler_type == 'DPM':
+    elif sampler_type == "DPM":
         sampler = DPMSolverSampler(model)
-    elif sampler_type == 'PARA_DDIM':
+    elif sampler_type == "PARA_DDIM":
         sampler = ParaDDIMSampler(model)
     else:
-        raise ValueError(f'Sampler {sampler_type} is not supported.')
+        raise ValueError(f"Sampler {sampler_type} is not supported.")
     return sampler
 
 
@@ -89,25 +89,25 @@ def pad_with_zeros(cond, u_cond, batch_size):
 def pipeline(model, cfg, verbose=True, rng=None):
     # setup default values for inference configs
     unconditional_guidance_scale = cfg.infer.get("unconditional_guidance_scale", 7.5)
-    num_images_per_prompt = cfg.infer.get('num_images_per_prompt', 1)
-    batch_size = cfg.infer.get('batch_size', 1)
-    prompts = cfg.infer.get('prompts', [])
-    height = cfg.infer.get('height', 512)
-    width = cfg.infer.get('width', 512)
-    downsampling_factor = cfg.infer.get('down_factor', 8)
-    sampler_type = cfg.infer.get('sampler_type', 'DDIM')
-    sampler_parallelism = cfg.infer.get('sampler_parallelism', 1)
-    sampler_tolerance = cfg.infer.get('sampler_tolerance', 0.1)
-    inference_steps = cfg.infer.get('inference_steps', 50)
-    output_type = cfg.infer.get('output_type', 'pil')
-    save_to_file = cfg.infer.get('save_to_file', True)
-    out_path = cfg.infer.get('out_path', '')
-    eta = cfg.infer.get('eta', 0)
-    num_devices = cfg.infer.get('devices', 1)
+    num_images_per_prompt = cfg.infer.get("num_images_per_prompt", 1)
+    batch_size = cfg.infer.get("batch_size", 1)
+    prompts = cfg.infer.get("prompts", [])
+    height = cfg.infer.get("height", 512)
+    width = cfg.infer.get("width", 512)
+    downsampling_factor = cfg.infer.get("down_factor", 8)
+    sampler_type = cfg.infer.get("sampler_type", "DDIM")
+    sampler_parallelism = cfg.infer.get("sampler_parallelism", 1)
+    sampler_tolerance = cfg.infer.get("sampler_tolerance", 0.1)
+    inference_steps = cfg.infer.get("inference_steps", 50)
+    output_type = cfg.infer.get("output_type", "pil")
+    save_to_file = cfg.infer.get("save_to_file", True)
+    out_path = cfg.infer.get("out_path", "")
+    eta = cfg.infer.get("eta", 0)
+    num_devices = cfg.infer.get("devices", 1)
 
     if sampler_parallelism > 1:
-        if not sampler_type.startswith('PARA'):
-            raise ValueError('Parallel sampler is required when parallelism > 1')
+        if not sampler_type.startswith("PARA"):
+            raise ValueError("Parallel sampler is required when parallelism > 1")
         if not num_devices > 1:
             print("It is recommended to run parallel sampler with multiple GPUs")
 
@@ -118,17 +118,21 @@ def pipeline(model, cfg, verbose=True, rng=None):
         )
 
     # get autocast_dtype
-    if cfg.trainer.precision in ['bf16', 'bf16-mixed']:
+    if cfg.trainer.precision in ["bf16", "bf16-mixed"]:
         autocast_dtype = torch.bfloat16
-    elif cfg.trainer.precision in [32, '32', '32-true']:
+    elif cfg.trainer.precision in [32, "32", "32-true"]:
         autocast_dtype = torch.float
-    elif cfg.trainer.precision in [16, '16', '16-mixed']:
+    elif cfg.trainer.precision in [16, "16", "16-mixed"]:
         autocast_dtype = torch.half
     else:
         raise ValueError('precision must be in [32, 16, "bf16"]')
 
-    with torch.no_grad(), torch.cuda.amp.autocast(
-        enabled=autocast_dtype in (torch.half, torch.bfloat16), dtype=autocast_dtype,
+    with (
+        torch.no_grad(),
+        torch.cuda.amp.autocast(
+            enabled=autocast_dtype in (torch.half, torch.bfloat16),
+            dtype=autocast_dtype,
+        ),
     ):
 
         in_channels = model.model.diffusion_model.in_channels
@@ -142,21 +146,38 @@ def pipeline(model, cfg, verbose=True, rng=None):
             prompts = [prompts]
 
         multi_prompts = [p for p in prompts for _ in range(num_images_per_prompt)]
-        batched_prompts = [multi_prompts[i : i + batch_size] for i in range(0, len(multi_prompts), batch_size)]
+        batched_prompts = [
+            multi_prompts[i : i + batch_size]
+            for i in range(0, len(multi_prompts), batch_size)
+        ]
         # decrease batch_size if the number of imputs is lower than bs in the config
         batch_size = min(len(batched_prompts[0]), batch_size)
 
         for batch in batched_prompts:
             tic = time.perf_counter()
             tic_total = tic
-            cond, u_cond = encode_prompt(model.cond_stage_model, batch, unconditional_guidance_scale,)
+            cond, u_cond = encode_prompt(
+                model.cond_stage_model,
+                batch,
+                unconditional_guidance_scale,
+            )
             cond, u_cond = pad_with_zeros(cond, u_cond, batch_size)
             toc = time.perf_counter()
             conditioning_time = toc - tic
 
-            latent_shape = [in_channels, height // downsampling_factor, width // downsampling_factor]
+            latent_shape = [
+                in_channels,
+                height // downsampling_factor,
+                width // downsampling_factor,
+            ]
             latents = torch.randn(
-                [batch_size, in_channels, height // downsampling_factor, width // downsampling_factor], generator=rng
+                [
+                    batch_size,
+                    in_channels,
+                    height // downsampling_factor,
+                    width // downsampling_factor,
+                ],
+                generator=rng,
             ).to(torch.cuda.current_device())
             assert len(cond) == len(latents), (len(cond), len(latents))
 
@@ -190,40 +211,42 @@ def pipeline(model, cfg, verbose=True, rng=None):
 
             throughput.append(
                 {
-                    'text-conditioning-time': conditioning_time,
-                    'sampling-time': sampling_time,
-                    'decode-time': decode_time,
-                    'total-time': total_time,
-                    'sampling-steps': inference_steps,
+                    "text-conditioning-time": conditioning_time,
+                    "sampling-time": sampling_time,
+                    "decode-time": decode_time,
+                    "total-time": total_time,
+                    "sampling-steps": inference_steps,
                 }
             )
 
         # Convert output type and save to disk
-        if output_type == 'torch':
+        if output_type == "torch":
             output = torch.cat(output, dim=0)
         else:
             output = torch_to_numpy(output)
-            if output_type == 'pil':
+            if output_type == "pil":
                 output = [numpy_to_pil(x) for x in output]
 
         if save_to_file:
             os.makedirs(out_path, exist_ok=True)
-            if output_type == 'pil':
+            if output_type == "pil":
                 prompts = chain.from_iterable(batched_prompts)
                 pils = chain.from_iterable(output)
                 counts = defaultdict(int)
                 for text_prompt, image in zip(prompts, pils):
                     idx = counts[text_prompt]
                     counts[text_prompt] += 1
-                    image.save(os.path.join(out_path, f'{text_prompt[:50]}_{idx}.png'))
+                    image.save(os.path.join(out_path, f"{text_prompt[:50]}_{idx}.png"))
             else:
-                with open(os.path.join(out_path, 'output.pkl'), 'wb') as f:
+                with open(os.path.join(out_path, "output.pkl"), "wb") as f:
                     pickle.dump(output, f)
         else:
             return output
 
         ave_metrics = {}
         for key in throughput[0].keys():
-            ave_metrics[f'avg-{key}'] = sum([dicts[key] for dicts in throughput]) / len(throughput)
+            ave_metrics[f"avg-{key}"] = sum([dicts[key] for dicts in throughput]) / len(
+                throughput
+            )
         if verbose:
             print(ave_metrics)

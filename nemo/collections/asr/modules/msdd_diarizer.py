@@ -25,14 +25,21 @@ from nemo.core.neural_types import (EncodedRepresentation, LengthsType,
                                     NeuralType, SpectrogramType)
 from nemo.core.neural_types.elements import ProbsType
 
-__all__ = ['MSDD_module']
+__all__ = ["MSDD_module"]
 
 
 class ConvLayer(nn.Module):
-    def __init__(self, in_channels=1, out_channels=1, kernel_size=(3, 1), stride=(1, 1)):
+    def __init__(
+        self, in_channels=1, out_channels=1, kernel_size=(3, 1), stride=(1, 1)
+    ):
         super(ConvLayer, self).__init__()
         self.cnn = nn.Sequential(
-            nn.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size, stride=stride),
+            nn.Conv2d(
+                in_channels=in_channels,
+                out_channels=out_channels,
+                kernel_size=kernel_size,
+                stride=stride,
+            ),
             nn.ReLU(),
             nn.BatchNorm2d(out_channels, eps=0.001, momentum=0.99),
         )
@@ -81,8 +88,8 @@ class MSDD_module(NeuralModule, Exportable):
         """
         return OrderedDict(
             {
-                "probs": NeuralType(('B', 'T', 'C'), ProbsType()),
-                "scale_weights": NeuralType(('B', 'T', 'C', 'D'), ProbsType()),
+                "probs": NeuralType(("B", "T", "C"), ProbsType()),
+                "scale_weights": NeuralType(("B", "T", "C", "D"), ProbsType()),
             }
         )
 
@@ -93,10 +100,12 @@ class MSDD_module(NeuralModule, Exportable):
         """
         return OrderedDict(
             {
-                "ms_emb_seq": NeuralType(('B', 'T', 'C', 'D'), SpectrogramType()),
-                "length": NeuralType(tuple('B'), LengthsType()),
-                "ms_avg_embs": NeuralType(('B', 'C', 'D', 'C'), EncodedRepresentation()),
-                "targets": NeuralType(('B', 'T', 'C'), ProbsType()),
+                "ms_emb_seq": NeuralType(("B", "T", "C", "D"), SpectrogramType()),
+                "length": NeuralType(tuple("B"), LengthsType()),
+                "ms_avg_embs": NeuralType(
+                    ("B", "C", "D", "C"), EncodedRepresentation()
+                ),
+                "targets": NeuralType(("B", "T", "C"), ProbsType()),
             }
         )
 
@@ -106,11 +115,11 @@ class MSDD_module(NeuralModule, Exportable):
             m.bias.data.fill_(0.01)
         elif type(m) in [nn.GRU, nn.LSTM, nn.RNN]:
             for name, param in m.named_parameters():
-                if 'weight_ih' in name:
+                if "weight_ih" in name:
                     torch.nn.init.xavier_uniform_(param.data)
-                elif 'weight_hh' in name:
+                elif "weight_hh" in name:
                     torch.nn.init.orthogonal_(param.data)
-                elif 'bias' in name:
+                elif "bias" in name:
                     param.data.fill_(0.01)
 
     def __init__(
@@ -124,8 +133,8 @@ class MSDD_module(NeuralModule, Exportable):
         scale_n: int = 5,
         clamp_max: float = 1.0,
         conv_repeat: int = 1,
-        weighting_scheme: str = 'conv_scale_weight',
-        context_vector_type: str = 'cos_sim',
+        weighting_scheme: str = "conv_scale_weight",
+        context_vector_type: str = "cos_sim",
     ):
         super().__init__()
         self._speaker_model = None
@@ -153,7 +162,7 @@ class MSDD_module(NeuralModule, Exportable):
             dropout=dropout_rate,
         )
 
-        if self.weighting_scheme == 'conv_scale_weight':
+        if self.weighting_scheme == "conv_scale_weight":
             self.conv = nn.ModuleList(
                 [
                     ConvLayer(
@@ -167,7 +176,10 @@ class MSDD_module(NeuralModule, Exportable):
             for conv_idx in range(1, conv_repeat + 1):
                 self.conv.append(
                     ConvLayer(
-                        in_channels=1, out_channels=cnn_output_ch, kernel_size=(self.cnn_output_ch, 1), stride=(1, 1)
+                        in_channels=1,
+                        out_channels=cnn_output_ch,
+                        kernel_size=(self.cnn_output_ch, 1),
+                        stride=(1, 1),
                     )
                 )
             self.conv_bn = nn.ModuleList()
@@ -176,7 +188,7 @@ class MSDD_module(NeuralModule, Exportable):
             self.conv_to_linear = nn.Linear(emb_dim * cnn_output_ch, hidden_size)
             self.linear_to_weights = nn.Linear(hidden_size, self.scale_n)
 
-        elif self.weighting_scheme == 'attn_scale_weight':
+        elif self.weighting_scheme == "attn_scale_weight":
             self.W_a = nn.Linear(emb_dim, emb_dim, bias=False)
             nn.init.eye_(self.W_a.weight)
         else:
@@ -189,7 +201,9 @@ class MSDD_module(NeuralModule, Exportable):
         elif self.context_vector_type == "elem_prod":
             self.product_to_emb = nn.Linear(self.emb_dim * self.num_spks, hidden_size)
         else:
-            raise ValueError(f"No such context vector type as {self.context_vector_type}")
+            raise ValueError(
+                f"No such context vector type as {self.context_vector_type}"
+            )
 
         self.dropout = nn.Dropout(dropout_rate)
         self.hidden_to_spks.apply(self.init_weights)
@@ -231,22 +245,32 @@ class MSDD_module(NeuralModule, Exportable):
         ms_emb_seq_single = ms_emb_seq
         ms_avg_embs = ms_avg_embs.unsqueeze(1).expand(-1, self.length, -1, -1, -1)
 
-        ms_avg_embs_perm = ms_avg_embs.permute(0, 1, 2, 4, 3).reshape(self.batch_size, self.length, -1, self.emb_dim)
+        ms_avg_embs_perm = ms_avg_embs.permute(0, 1, 2, 4, 3).reshape(
+            self.batch_size, self.length, -1, self.emb_dim
+        )
 
         if self.weighting_scheme == "conv_scale_weight":
             scale_weights = self.conv_scale_weights(ms_avg_embs_perm, ms_emb_seq_single)
         elif self.weighting_scheme == "attn_scale_weight":
-            scale_weights = self.attention_scale_weights(ms_avg_embs_perm, ms_emb_seq_single)
+            scale_weights = self.attention_scale_weights(
+                ms_avg_embs_perm, ms_emb_seq_single
+            )
         else:
             raise ValueError(f"No such weighting scheme as {self.weighting_scheme}")
         scale_weights = scale_weights.to(ms_emb_seq.device)
 
         if self.context_vector_type == "cos_sim":
-            context_emb = self.cosine_similarity(scale_weights, ms_avg_embs, _ms_emb_seq)
+            context_emb = self.cosine_similarity(
+                scale_weights, ms_avg_embs, _ms_emb_seq
+            )
         elif self.context_vector_type == "elem_prod":
-            context_emb = self.element_wise_product(scale_weights, ms_avg_embs, _ms_emb_seq)
+            context_emb = self.element_wise_product(
+                scale_weights, ms_avg_embs, _ms_emb_seq
+            )
         else:
-            raise ValueError(f"No such context vector type as {self.context_vector_type}")
+            raise ValueError(
+                f"No such context vector type as {self.context_vector_type}"
+            )
 
         context_emb = self.dropout(F.relu(context_emb))
         lstm_output = self.lstm(context_emb)
@@ -277,18 +301,30 @@ class MSDD_module(NeuralModule, Exportable):
             context_emb (Tensor):
                 Output of `dist_to_emb` linear layer containing context for speaker label estimation.
         """
-        scale_weight_flatten = scale_weights.reshape(self.batch_size * self.length, self.num_spks, self.scale_n)
+        scale_weight_flatten = scale_weights.reshape(
+            self.batch_size * self.length, self.num_spks, self.scale_n
+        )
         ms_avg_embs_flatten = ms_avg_embs.reshape(
             self.batch_size * self.length, self.scale_n, self.emb_dim, self.num_spks
         )
         ms_emb_seq_flatten = ms_emb_seq.reshape(-1, self.scale_n, self.emb_dim)
-        ms_emb_seq_flatten_rep = ms_emb_seq_flatten.unsqueeze(3).reshape(-1, self.scale_n, self.emb_dim, self.num_spks)
+        ms_emb_seq_flatten_rep = ms_emb_seq_flatten.unsqueeze(3).reshape(
+            -1, self.scale_n, self.emb_dim, self.num_spks
+        )
         elemwise_product = ms_avg_embs_flatten * ms_emb_seq_flatten_rep
         context_vectors = torch.bmm(
-            scale_weight_flatten.reshape(self.batch_size * self.num_spks * self.length, 1, self.scale_n),
-            elemwise_product.reshape(self.batch_size * self.num_spks * self.length, self.scale_n, self.emb_dim),
+            scale_weight_flatten.reshape(
+                self.batch_size * self.num_spks * self.length, 1, self.scale_n
+            ),
+            elemwise_product.reshape(
+                self.batch_size * self.num_spks * self.length,
+                self.scale_n,
+                self.emb_dim,
+            ),
         )
-        context_vectors = context_vectors.reshape(self.batch_size, self.length, self.emb_dim * self.num_spks)
+        context_vectors = context_vectors.reshape(
+            self.batch_size, self.length, self.emb_dim * self.num_spks
+        )
         context_emb = self.product_to_emb(context_vectors)
         return context_emb
 
@@ -343,9 +379,13 @@ class MSDD_module(NeuralModule, Exportable):
         mat_a = self.W_a(ms_emb_seq.flatten(0, 1))
         mat_b = ms_avg_embs_perm.flatten(0, 1).permute(0, 2, 1)
 
-        weighted_corr = torch.matmul(mat_a, mat_b).reshape(-1, self.scale_n, self.scale_n, self.num_spks)
+        weighted_corr = torch.matmul(mat_a, mat_b).reshape(
+            -1, self.scale_n, self.scale_n, self.num_spks
+        )
         scale_weights = torch.sigmoid(torch.diagonal(weighted_corr, dim1=1, dim2=2))
-        scale_weights = scale_weights.reshape(self.batch_size, self.length, self.scale_n, self.num_spks)
+        scale_weights = scale_weights.reshape(
+            self.batch_size, self.length, self.scale_n, self.num_spks
+        )
         scale_weights = self.softmax(scale_weights)
         return scale_weights
 
@@ -372,7 +412,10 @@ class MSDD_module(NeuralModule, Exportable):
         ms_cnn_input_seq = ms_cnn_input_seq.unsqueeze(2).flatten(0, 1)
 
         conv_out = self.conv_forward(
-            ms_cnn_input_seq, conv_module=self.conv[0], bn_module=self.conv_bn[0], first_layer=True
+            ms_cnn_input_seq,
+            conv_module=self.conv[0],
+            bn_module=self.conv_bn[0],
+            first_layer=True,
         )
         for conv_idx in range(1, self.conv_repeat + 1):
             conv_out = self.conv_forward(
@@ -382,7 +425,9 @@ class MSDD_module(NeuralModule, Exportable):
                 first_layer=False,
             )
 
-        lin_input_seq = conv_out.view(self.batch_size, self.length, self.cnn_output_ch * self.emb_dim)
+        lin_input_seq = conv_out.view(
+            self.batch_size, self.length, self.cnn_output_ch * self.emb_dim
+        )
         hidden_seq = self.conv_to_linear(lin_input_seq)
         hidden_seq = self.dropout(F.leaky_relu(hidden_seq))
         scale_weights = self.softmax(self.linear_to_weights(hidden_seq))
@@ -417,7 +462,9 @@ class MSDD_module(NeuralModule, Exportable):
         """
         conv_out = conv_module(conv_input)
         conv_out = conv_out.permute(0, 2, 1, 3) if not first_layer else conv_out
-        conv_out = conv_out.reshape(self.batch_size, self.length, self.cnn_output_ch, self.emb_dim)
+        conv_out = conv_out.reshape(
+            self.batch_size, self.length, self.cnn_output_ch, self.emb_dim
+        )
         conv_out = conv_out.unsqueeze(2).flatten(0, 1)
         conv_out = bn_module(conv_out.permute(0, 3, 2, 1)).permute(0, 3, 2, 1)
         conv_out = self.dropout(F.leaky_relu(conv_out))
@@ -438,6 +485,8 @@ class MSDD_module(NeuralModule, Exportable):
         device = next(self.parameters()).device
         lens = torch.full(size=(input_example.shape[0],), fill_value=123, device=device)
         input_example = torch.randn(1, lens, self.scale_n, self.emb_dim, device=device)
-        avg_embs = torch.randn(1, self.scale_n, self.emb_dim, self.num_spks, device=device)
+        avg_embs = torch.randn(
+            1, self.scale_n, self.emb_dim, self.num_spks, device=device
+        )
         targets = torch.randn(1, lens, self.num_spks).round().float()
         return tuple([input_example, lens, avg_embs, targets])

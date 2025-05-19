@@ -30,7 +30,7 @@ from nemo.collections.asr.parts.utils.speaker_utils import (
     get_embs_and_timestamps)
 from nemo.utils import logging, model_utils
 
-__all__ = ['OnlineClusteringDiarizer']
+__all__ = ["OnlineClusteringDiarizer"]
 
 
 def timeit(method):
@@ -48,11 +48,11 @@ def timeit(method):
         ts = time.time()
         result = method(*args, **kwargs)
         te = time.time()
-        if 'log_time' in kwargs:
-            name = kwargs.get('log_name', method.__name__.upper())
-            kwargs['log_time'][name] = int((te - ts) * 1000)
+        if "log_time" in kwargs:
+            name = kwargs.get("log_name", method.__name__.upper())
+            kwargs["log_time"][name] = int((te - ts) * 1000)
         else:
-            logging.info('%2.2fms %r' % ((te - ts) * 1000, method.__name__))
+            logging.info("%2.2fms %r" % ((te - ts) * 1000, method.__name__))
         return result
 
     return timed
@@ -82,10 +82,10 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
         super().__init__(cfg)
         self.cfg = model_utils.convert_model_config_to_dict_config(cfg)
         self._cfg_diarizer = self.cfg.diarizer
-        self.base_scale_index = max(self.multiscale_args_dict['scale_dict'].keys())
+        self.base_scale_index = max(self.multiscale_args_dict["scale_dict"].keys())
 
-        self.uniq_id = self._cfg_diarizer.get('uniq_id', None)
-        self.decimals = self._cfg_diarizer.get('decimals', 2)
+        self.uniq_id = self._cfg_diarizer.get("uniq_id", None)
+        self.decimals = self._cfg_diarizer.get("decimals", 2)
         self.AUDIO_RTTM_MAP = audio_rttm_map(self.cfg.diarizer.manifest_filepath)
         self.sample_rate = self.cfg.sample_rate
         torch.manual_seed(0)
@@ -160,8 +160,12 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
                 The cluster labels inferred in the previous diarization steps
         """
         self.memory_margin = 0
-        self.memory_segment_ranges = {key: [] for key in self.multiscale_args_dict['scale_dict'].keys()}
-        self.memory_segment_indexes = {key: [] for key in self.multiscale_args_dict['scale_dict'].keys()}
+        self.memory_segment_ranges = {
+            key: [] for key in self.multiscale_args_dict["scale_dict"].keys()
+        }
+        self.memory_segment_indexes = {
+            key: [] for key in self.multiscale_args_dict["scale_dict"].keys()
+        }
         self.memory_cluster_labels = torch.tensor([])
 
     def _init_temporal_major_voting_module(self, clustering_params):
@@ -177,8 +181,12 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
                 Dictionary containing multiple speaker labels for major voting
                 Speaker labels from multiple steps are saved for each segment index.
         """
-        self.use_temporal_label_major_vote = clustering_params.get('use_temporal_label_major_vote', False)
-        self.temporal_label_major_vote_buffer_size = clustering_params.get('temporal_label_major_vote_buffer_size', 1)
+        self.use_temporal_label_major_vote = clustering_params.get(
+            "use_temporal_label_major_vote", False
+        )
+        self.temporal_label_major_vote_buffer_size = clustering_params.get(
+            "temporal_label_major_vote_buffer_size", 1
+        )
         self.base_scale_label_dict = {}
 
     def _init_segment_variables(self):
@@ -192,7 +200,7 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
         self.segment_raw_audio = {}
         self.segment_indexes = {}
 
-        for scale_idx in self.multiscale_args_dict['scale_dict'].keys():
+        for scale_idx in self.multiscale_args_dict["scale_dict"].keys():
             self.multiscale_embeddings_and_timestamps[scale_idx] = [None, None]
             self.emb_vectors[scale_idx] = torch.tensor([])
             self.time_stamps[scale_idx] = []
@@ -255,13 +263,16 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
                 Number of segments needed for 1 second of input time-series signal
         """
         self.n_embed_seg_len = int(
-            self.sample_rate * self.multiscale_args_dict['scale_dict'][self.base_scale_index][0]
+            self.sample_rate
+            * self.multiscale_args_dict["scale_dict"][self.base_scale_index][0]
         )
         self._init_segment_variables()
         self._init_online_clustering_module(self._cfg_diarizer.clustering.parameters)
         self._init_online_segmentor_module(self.cfg.sample_rate)
         self._init_memory_buffer()
-        self._init_temporal_major_voting_module(self._cfg_diarizer.clustering.parameters)
+        self._init_temporal_major_voting_module(
+            self._cfg_diarizer.clustering.parameters
+        )
         self._init_buffer_frame_timestamps()
 
     def _clear_memory(self, scale_idx: int):
@@ -275,8 +286,12 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
             scale_idx (int):
                 Scale index in integer type
         """
-        base_scale_shift = self.multiscale_args_dict['scale_dict'][self.base_scale_index][1]
-        self.memory_margin = int((self.buffer_end - self.buffer_start) / base_scale_shift)
+        base_scale_shift = self.multiscale_args_dict["scale_dict"][
+            self.base_scale_index
+        ][1]
+        self.memory_margin = int(
+            (self.buffer_end - self.buffer_start) / base_scale_shift
+        )
 
         scale_buffer_size = int(
             len(set(self.scale_mapping_dict[scale_idx].tolist()))
@@ -285,8 +300,12 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
         )
         keep_range = scale_buffer_size + self.memory_margin
         self.emb_vectors[scale_idx] = self.emb_vectors[scale_idx][-keep_range:]
-        self.segment_raw_audio[scale_idx] = self.segment_raw_audio[scale_idx][-keep_range:]
-        self.segment_range_ts[scale_idx] = self.segment_range_ts[scale_idx][-keep_range:]
+        self.segment_raw_audio[scale_idx] = self.segment_raw_audio[scale_idx][
+            -keep_range:
+        ]
+        self.segment_range_ts[scale_idx] = self.segment_range_ts[scale_idx][
+            -keep_range:
+        ]
         self.segment_indexes[scale_idx] = self.segment_indexes[scale_idx][-keep_range:]
 
     @timeit
@@ -302,16 +321,27 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
         maj_vote_labels = []
         for seg_idx in self.memory_segment_indexes[self.base_scale_index]:
             if seg_idx not in self.base_scale_label_dict:
-                self.base_scale_label_dict[seg_idx] = [self.memory_cluster_labels[seg_idx]]
+                self.base_scale_label_dict[seg_idx] = [
+                    self.memory_cluster_labels[seg_idx]
+                ]
             else:
-                while len(self.base_scale_label_dict[seg_idx]) > self.temporal_label_major_vote_buffer_size:
+                while (
+                    len(self.base_scale_label_dict[seg_idx])
+                    > self.temporal_label_major_vote_buffer_size
+                ):
                     self.base_scale_label_dict[seg_idx].pop(0)
-                self.base_scale_label_dict[seg_idx].append(self.memory_cluster_labels[seg_idx])
+                self.base_scale_label_dict[seg_idx].append(
+                    self.memory_cluster_labels[seg_idx]
+                )
 
-            maj_vote_labels.append(torch.mode(torch.tensor(self.base_scale_label_dict[seg_idx]))[0].item())
+            maj_vote_labels.append(
+                torch.mode(torch.tensor(self.base_scale_label_dict[seg_idx]))[0].item()
+            )
         return maj_vote_labels
 
-    def save_history_data(self, scale_idx: int, total_cluster_labels: torch.Tensor, is_online: bool) -> torch.Tensor:
+    def save_history_data(
+        self, scale_idx: int, total_cluster_labels: torch.Tensor, is_online: bool
+    ) -> torch.Tensor:
         """
         Save the temporary input to the class memory buffer.
 
@@ -336,15 +366,24 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
         total_cluster_labels = total_cluster_labels.tolist()
 
         if not is_online:
-            self.memory_segment_ranges[scale_idx] = deepcopy(self.segment_range_ts[scale_idx])
-            self.memory_segment_indexes[scale_idx] = deepcopy(self.segment_indexes[scale_idx])
+            self.memory_segment_ranges[scale_idx] = deepcopy(
+                self.segment_range_ts[scale_idx]
+            )
+            self.memory_segment_indexes[scale_idx] = deepcopy(
+                self.segment_indexes[scale_idx]
+            )
             if scale_idx == self.base_scale_index:
                 self.memory_cluster_labels = deepcopy(total_cluster_labels)
 
         # Only if there are newly obtained embeddings, update ranges and embeddings.
-        elif self.segment_indexes[scale_idx][-1] > self.memory_segment_indexes[scale_idx][-1]:
+        elif (
+            self.segment_indexes[scale_idx][-1]
+            > self.memory_segment_indexes[scale_idx][-1]
+        ):
             # Get the global index of the first segment we want to keep in the buffer
-            global_stt_idx = max(max(self.memory_segment_indexes[scale_idx]) - self.memory_margin, 0)
+            global_stt_idx = max(
+                max(self.memory_segment_indexes[scale_idx]) - self.memory_margin, 0
+            )
 
             # Convert global index global_stt_idx to buffer index buffer_stt_idx
             segment_indexes_mat = torch.tensor(self.segment_indexes[scale_idx])
@@ -356,8 +395,12 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
                 self.segment_indexes[scale_idx][buffer_stt_idx:]
             )
             if scale_idx == self.base_scale_index:
-                self.memory_cluster_labels[global_stt_idx:] = deepcopy(total_cluster_labels[global_stt_idx:])
-                if len(self.memory_cluster_labels) != len(self.memory_segment_ranges[scale_idx]):
+                self.memory_cluster_labels[global_stt_idx:] = deepcopy(
+                    total_cluster_labels[global_stt_idx:]
+                )
+                if len(self.memory_cluster_labels) != len(
+                    self.memory_segment_ranges[scale_idx]
+                ):
                     raise ValueError(
                         "self.memory_cluster_labels and self.memory_segment_ranges should always have the same length, "
                         f"but they have {len(self.memory_cluster_labels)} and {len(self.memory_segment_ranges[scale_idx])}."
@@ -399,8 +442,12 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
             Speaker embedding vectors for the given time-series input `audio_signal`.
         """
         audio_signal = torch.stack(audio_signal).float().to(self.device)
-        audio_signal_lens = torch.tensor([self.n_embed_seg_len for k in range(audio_signal.shape[0])]).to(self.device)
-        _, torch_embs = self._speaker_model.forward(input_signal=audio_signal, input_signal_length=audio_signal_lens)
+        audio_signal_lens = torch.tensor(
+            [self.n_embed_seg_len for k in range(audio_signal.shape[0])]
+        ).to(self.device)
+        _, torch_embs = self._speaker_model.forward(
+            input_signal=audio_signal, input_signal_length=audio_signal_lens
+        )
         return torch_embs
 
     @timeit
@@ -444,7 +491,9 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
 
     @timeit
     def _perform_online_clustering(
-        self, uniq_embs_and_timestamps: Dict[str, torch.Tensor], cuda=False,
+        self,
+        uniq_embs_and_timestamps: Dict[str, torch.Tensor],
+        cuda=False,
     ) -> torch.Tensor:
         """
         Launch online clustering for `uniq_embs_and_timestamps` input variable.
@@ -461,25 +510,36 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
 
         # Get base-scale (the highest index) information from uniq_embs_and_timestamps.
         embeddings_in_scales, timestamps_in_scales = split_input_data(
-            embeddings_in_scales=uniq_embs_and_timestamps['embeddings'],
-            timestamps_in_scales=uniq_embs_and_timestamps['timestamps'],
-            multiscale_segment_counts=uniq_embs_and_timestamps['multiscale_segment_counts'],
+            embeddings_in_scales=uniq_embs_and_timestamps["embeddings"],
+            timestamps_in_scales=uniq_embs_and_timestamps["timestamps"],
+            multiscale_segment_counts=uniq_embs_and_timestamps[
+                "multiscale_segment_counts"
+            ],
         )
 
         curr_emb, self.scale_mapping_dict = get_scale_interpolated_embs(
-            multiscale_weights=uniq_embs_and_timestamps['multiscale_weights'],
+            multiscale_weights=uniq_embs_and_timestamps["multiscale_weights"],
             embeddings_in_scales=embeddings_in_scales,
             timestamps_in_scales=timestamps_in_scales,
             device=device,
         )
 
-        base_segment_indexes = torch.tensor(self.segment_indexes[self.base_scale_index]).to(curr_emb.device)
+        base_segment_indexes = torch.tensor(
+            self.segment_indexes[self.base_scale_index]
+        ).to(curr_emb.device)
         merged_clus_labels = self.online_clus.forward_infer(
-            curr_emb=curr_emb, base_segment_indexes=base_segment_indexes, frame_index=self.frame_index, cuda=cuda,
+            curr_emb=curr_emb,
+            base_segment_indexes=base_segment_indexes,
+            frame_index=self.frame_index,
+            cuda=cuda,
         )
         # Update history data
-        for scale_idx, (window, shift) in self.multiscale_args_dict['scale_dict'].items():
-            cluster_label_hyp = self.save_history_data(scale_idx, merged_clus_labels, self.online_clus.is_online)
+        for scale_idx, (window, shift) in self.multiscale_args_dict[
+            "scale_dict"
+        ].items():
+            cluster_label_hyp = self.save_history_data(
+                scale_idx, merged_clus_labels, self.online_clus.is_online
+            )
 
         return cluster_label_hyp
 
@@ -491,15 +551,20 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
             diar_hyp (Tensor): Speaker labels based on the previously saved segments and speaker labels
         """
         if len(self.memory_cluster_labels) == 0 or self.buffer_start < 0:
-            diar_hyp, _ = generate_cluster_labels([[0.0, self.total_buffer_in_secs]], [0])
+            diar_hyp, _ = generate_cluster_labels(
+                [[0.0, self.total_buffer_in_secs]], [0]
+            )
         else:
             diar_hyp, _ = generate_cluster_labels(
-                self.memory_segment_ranges[self.base_scale_index], self.memory_cluster_labels
+                self.memory_segment_ranges[self.base_scale_index],
+                self.memory_cluster_labels,
             )
         return diar_hyp
 
     @timeit
-    def diarize_step(self, audio_buffer: torch.Tensor, vad_timestamps: torch.Tensor) -> torch.Tensor:
+    def diarize_step(
+        self, audio_buffer: torch.Tensor, vad_timestamps: torch.Tensor
+    ) -> torch.Tensor:
         """
         A function for a unit diarization step. Each diarization step goes through the following steps:
 
@@ -535,17 +600,21 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
             return self._get_interim_output()
 
         # Segmentation: (c.f. see `diarize` function in ClusteringDiarizer class)
-        for scale_idx, (window, shift) in self.multiscale_args_dict['scale_dict'].items():
+        for scale_idx, (window, shift) in self.multiscale_args_dict[
+            "scale_dict"
+        ].items():
 
             # Step 1: Get subsegments for embedding extraction.
-            audio_sigs, segment_ranges, range_inds = self.online_segmentor.run_online_segmentation(
-                audio_buffer=audio_buffer,
-                vad_timestamps=vad_timestamps,
-                segment_raw_audio=self.segment_raw_audio[scale_idx],
-                segment_range_ts=self.segment_range_ts[scale_idx],
-                segment_indexes=self.segment_indexes[scale_idx],
-                window=window,
-                shift=shift,
+            audio_sigs, segment_ranges, range_inds = (
+                self.online_segmentor.run_online_segmentation(
+                    audio_buffer=audio_buffer,
+                    vad_timestamps=vad_timestamps,
+                    segment_raw_audio=self.segment_raw_audio[scale_idx],
+                    segment_range_ts=self.segment_range_ts[scale_idx],
+                    segment_indexes=self.segment_indexes[scale_idx],
+                    window=window,
+                    shift=shift,
+                )
             )
             self.segment_raw_audio[scale_idx] = audio_sigs
             self.segment_range_ts[scale_idx] = segment_ranges
@@ -571,8 +640,13 @@ class OnlineClusteringDiarizer(ClusteringDiarizer):
         )
 
         # Step 3 - Clustering: Perform an online version of clustering algorithm
-        cluster_label_hyp = self._perform_online_clustering(embs_and_timestamps[self.uniq_id], cuda=self.cuda,)
+        cluster_label_hyp = self._perform_online_clustering(
+            embs_and_timestamps[self.uniq_id],
+            cuda=self.cuda,
+        )
 
         # Step 4: Generate RTTM style diarization labels from segment ranges and cluster labels
-        diar_hyp, _ = generate_cluster_labels(self.memory_segment_ranges[self.base_scale_index], cluster_label_hyp)
+        diar_hyp, _ = generate_cluster_labels(
+            self.memory_segment_ranges[self.base_scale_index], cluster_label_hyp
+        )
         return diar_hyp

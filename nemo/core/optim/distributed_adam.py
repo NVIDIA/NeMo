@@ -60,7 +60,9 @@ if te_version() >= (2, 0):
         )
         quantizer.update_quantized(input_, out)
 
-    def _get_fp8_scale_and_amax_impl(tensor: Float8Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+    def _get_fp8_scale_and_amax_impl(
+        tensor: Float8Tensor,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         quantizer = tensor._quantizer
         return quantizer.scale, quantizer.amax
 
@@ -94,10 +96,14 @@ else:
 
     # Fallback impl if TE version is invalid
     def _quantize_param_fragment_impl(*args, **kwargs) -> None:
-        raise RuntimeError("Invalid Transformer Engine version for FP8 distributed optimizer")
+        raise RuntimeError(
+            "Invalid Transformer Engine version for FP8 distributed optimizer"
+        )
 
     def _get_fp8_scale_and_amax_impl(*args, **kwargs):
-        raise RuntimeError("Invalid Transformer Engine version for FP8 distributed optimizer")
+        raise RuntimeError(
+            "Invalid Transformer Engine version for FP8 distributed optimizer"
+        )
 
 
 def quantize_param_fragment(
@@ -143,7 +149,9 @@ def create_distribute_within_nodes_pgs():
     nodes = world_size // devices
 
     if nodes * devices != world_size:
-        logging.warning("Expected all nodes have the same amout of devices, disable distribute_within_nodes.")
+        logging.warning(
+            "Expected all nodes have the same amout of devices, disable distribute_within_nodes."
+        )
         return {}
 
     node_id = rank // devices
@@ -166,14 +174,14 @@ def create_distribute_within_nodes_pgs():
     # User has too invoke allreduce through redundant_process_group
     # before all other communicators to lock SHArP tree.
     _distribute_within_nodes_pgs = {
-        'world_size': world_size,
-        'rank': rank,
-        'devices': devices,
-        'nodes': nodes,
-        'node_id': node_id,
-        'device_id': device_id,
-        'distributed_process_group': distributed_pgs[node_id],
-        'redundant_process_group': redundant_pgs[device_id],
+        "world_size": world_size,
+        "rank": rank,
+        "devices": devices,
+        "nodes": nodes,
+        "node_id": node_id,
+        "device_id": device_id,
+        "distributed_process_group": distributed_pgs[node_id],
+        "redundant_process_group": redundant_pgs[device_id],
     }
     return _distribute_within_nodes_pgs
 
@@ -212,24 +220,32 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
     ):
 
         # Initialize process groups
-        if 'process_group' not in kwargs and parallel_state.is_initialized():
-            kwargs['process_group'] = parallel_state.get_data_parallel_group(with_context_parallel=True)
+        if "process_group" not in kwargs and parallel_state.is_initialized():
+            kwargs["process_group"] = parallel_state.get_data_parallel_group(
+                with_context_parallel=True
+            )
         if disable_distributed_parameters:
             world_size = torch.distributed.get_world_size()
             rank = torch.distributed.get_rank()
-            self_groups = [torch.distributed.new_group(ranks=[i]) for i in range(world_size)]
-            kwargs['distributed_process_group'] = self_groups[rank]
-            kwargs['redundant_process_group'] = kwargs['process_group']
+            self_groups = [
+                torch.distributed.new_group(ranks=[i]) for i in range(world_size)
+            ]
+            kwargs["distributed_process_group"] = self_groups[rank]
+            kwargs["redundant_process_group"] = kwargs["process_group"]
         elif distribute_within_nodes:
             dist_pg_infos = create_distribute_within_nodes_pgs()
             if dist_pg_infos:
-                kwargs['distributed_process_group'] = dist_pg_infos['distributed_process_group']
-                kwargs['redundant_process_group'] = dist_pg_infos['redundant_process_group']
+                kwargs["distributed_process_group"] = dist_pg_infos[
+                    "distributed_process_group"
+                ]
+                kwargs["redundant_process_group"] = dist_pg_infos[
+                    "redundant_process_group"
+                ]
                 global _distribute_within_nodes_pgs
                 _distribute_within_nodes_pgs = {}
 
         # Make sure dtypes are in right type
-        for keyword in ('dtype', 'grad_sync_dtype', 'param_sync_dtype'):
+        for keyword in ("dtype", "grad_sync_dtype", "param_sync_dtype"):
             if keyword in kwargs:
                 kwargs[keyword] = str_to_dtype(kwargs[keyword])
 
@@ -237,7 +253,7 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
         param_groups = list(params)
         assert param_groups
         if not isinstance(param_groups[0], dict):
-            param_groups = [{'params': param_groups}]
+            param_groups = [{"params": param_groups}]
 
         # Construct distributed optimizer
         super().__init__(param_groups, **kwargs)
@@ -257,38 +273,48 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
                         self._lock.release()
                     else:
                         # Failed to acquire lock before timeout
-                        print(f'MegatronDistributedFusedAdam: Failed to acquire lock within {lock_timeout} seconds.')
+                        print(
+                            f"MegatronDistributedFusedAdam: Failed to acquire lock within {lock_timeout} seconds."
+                        )
 
             self._lock_with_timeout = lock_with_timeout
 
         # Check for MXFP8 parameters
         if any(is_mxfp8tensor(param) for param in self.parameters()):
-            raise ValueError("Distributed optimizer currently does not support MXFP8 parameters")
+            raise ValueError(
+                "Distributed optimizer currently does not support MXFP8 parameters"
+            )
 
     def _broadcast_params(self) -> None:
         # Assume params have already been synchronized
         pass
 
-    def _make_post_backward_hook(self, param: torch.nn.Parameter, param_group_id: int, param_id: int) -> Callable:
+    def _make_post_backward_hook(
+        self, param: torch.nn.Parameter, param_group_id: int, param_id: int
+    ) -> Callable:
         def hook(*unused):
-            if getattr(param, '_pre_forward_hook_is_enabled', False):
+            if getattr(param, "_pre_forward_hook_is_enabled", False):
                 raise RuntimeError(
-                    'A parameter called its post-backward hook '
-                    'before its pre-forward hook. '
-                    'Please manually interact with the parameter '
-                    'before the forward pass (e.g. by calling data_ptr) '
-                    'or run DistributedFusedAdam with overlap_param_sync=False.'
+                    "A parameter called its post-backward hook "
+                    "before its pre-forward hook. "
+                    "Please manually interact with the parameter "
+                    "before the forward pass (e.g. by calling data_ptr) "
+                    "or run DistributedFusedAdam with overlap_param_sync=False."
                 )
             lock = self._lock
             if self._lock_with_timeout is not None:
                 lock = self._lock_with_timeout()
             with lock:
-                need_to_initialize = 'fragments' not in self.state[param]
+                need_to_initialize = "fragments" not in self.state[param]
                 if need_to_initialize:
                     self._init_param_state(param, param_group_id, param_id)
-                if self.greedy_grad_copy and not getattr(param, '_disable_greedy_grad_copy', False):
+                if self.greedy_grad_copy and not getattr(
+                    param, "_disable_greedy_grad_copy", False
+                ):
                     self._grad_copy(param)
-                    if self.overlap_grad_sync and not getattr(param, '_disable_overlap_grad_sync', False):
+                    if self.overlap_grad_sync and not getattr(
+                        param, "_disable_overlap_grad_sync", False
+                    ):
                         self._try_start_bucket_grad_sync(
                             params=[param],
                             ignore_last_bucket=need_to_initialize,
@@ -352,7 +378,7 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
         fp32_params = []
         remaining_params = []
         for param in params:
-            if getattr(param, '_with_fp32_optimizer', False):
+            if getattr(param, "_with_fp32_optimizer", False):
                 fp32_params.append(param)
             else:
                 remaining_params.append(param)
@@ -494,18 +520,25 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
         buffer_sizes = collections.defaultdict(lambda: 0)
         for bucket in self.state["buckets"]:
             dtypes = bucket.dtypes()
-            buffer_sizes[dtypes] = max(bucket.contiguous_buffer_offset + bucket.bucket_size, buffer_sizes[dtypes])
+            buffer_sizes[dtypes] = max(
+                bucket.contiguous_buffer_offset + bucket.bucket_size,
+                buffer_sizes[dtypes],
+            )
         for dtypes, buffer_size in buffer_sizes.items():
             _, _, param_sync_dtype = dtypes
             if getattr(self, "nccl_ub", False):
                 if not nccl_allocator:
-                    raise RuntimeError("NCCL allocator importing failed but nccl ub is still requested")
+                    raise RuntimeError(
+                        "NCCL allocator importing failed but nccl ub is still requested"
+                    )
                 with nccl_allocator.nccl_mem():
                     self._param_buffers[dtypes] = torch.zeros(
                         [buffer_size], dtype=param_sync_dtype, device=self.device
                     )
             else:
-                self._param_buffers[dtypes] = torch.zeros([buffer_size], dtype=param_sync_dtype, device=self.device)
+                self._param_buffers[dtypes] = torch.zeros(
+                    [buffer_size], dtype=param_sync_dtype, device=self.device
+                )
         # Figure out corresponding positions in params and param buffer
         params = list(self.parameters())
         param_flat_views = []
@@ -565,9 +598,9 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
         """Attempt to launch gradient synchronization"""
 
         def is_grad_copy_enabled(param: torch.nn.Parameter) -> bool:
-            return not getattr(param, '_disable_greedy_grad_copy', False) and not getattr(
-                param, '_disable_overlap_grad_sync', False
-            )
+            return not getattr(
+                param, "_disable_greedy_grad_copy", False
+            ) and not getattr(param, "_disable_overlap_grad_sync", False)
 
         params = list(filter(is_grad_copy_enabled, params))
         for p in params:
@@ -601,7 +634,9 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
         if force or self._grad_norm is None:
 
             # Compute norm of local gradients for distributed optimizer
-            grad_norm_sq = self._local_grad_norm(parameters=parameters, norm_type=norm_type)
+            grad_norm_sq = self._local_grad_norm(
+                parameters=parameters, norm_type=norm_type
+            )
             if self.redundant_size > 1:
                 grad_norm_sq /= self.redundant_size
 
@@ -616,7 +651,9 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
         return super().grad_norm()
 
     @torch.no_grad()
-    def _param_copy_fragments(self, fragments: Iterable[DistributedFusedAdam.ParameterFragment]) -> None:
+    def _param_copy_fragments(
+        self, fragments: Iterable[DistributedFusedAdam.ParameterFragment]
+    ) -> None:
         """Update parameter fragments with values from parameter buckets
 
         For FP8 params, values are copied directly into the FP8 data
@@ -688,7 +725,9 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
                 param._reset_caches()
 
     @torch.no_grad()
-    def _check_params_shard_dtypes(self, params_buckets: Dict[int, DistributedFusedAdam.ParameterBucket]) -> None:
+    def _check_params_shard_dtypes(
+        self, params_buckets: Dict[int, DistributedFusedAdam.ParameterBucket]
+    ) -> None:
         """Make sure local shards of parameters are in expected datatypes
 
         For FP8 params, FP32 values are cast into FP8 using per-param
@@ -744,7 +783,9 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
             self._check_params_shard_dtypes_progress = []
         self._check_params_shard_dtypes_progress.extend(params_buckets.keys())
         if len(self._check_params_shard_dtypes_progress) == len(self.state["buckets"]):
-            assert len(set(self._check_params_shard_dtypes_progress)) == len(self.state["buckets"])
+            assert len(set(self._check_params_shard_dtypes_progress)) == len(
+                self.state["buckets"]
+            )
 
             # FP8 scaling factors
             amaxes = []
@@ -761,8 +802,12 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
                 scale_invs.append(param._scale_inv.view(1))
 
             # Update cached scale-inverses
-            packed_scales = torch.empty(num_fp8_params, dtype=torch.float32, device=self.device)
-            packed_scale_views = [packed_scales[i].view(1) for i in range(num_fp8_params)]
+            packed_scales = torch.empty(
+                num_fp8_params, dtype=torch.float32, device=self.device
+            )
+            packed_scale_views = [
+                packed_scales[i].view(1) for i in range(num_fp8_params)
+            ]
             _multi_tensor_copy(
                 scales,
                 packed_scale_views,
@@ -777,8 +822,12 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
 
             # Reduce amaxes
             # Note: Assume each param has a separate amax
-            packed_amaxes = torch.empty(num_fp8_params, dtype=torch.float32, device=self.device)
-            packed_amax_views = [packed_amaxes[i].view(1) for i in range(num_fp8_params)]
+            packed_amaxes = torch.empty(
+                num_fp8_params, dtype=torch.float32, device=self.device
+            )
+            packed_amax_views = [
+                packed_amaxes[i].view(1) for i in range(num_fp8_params)
+            ]
             _multi_tensor_copy(
                 amaxes,
                 packed_amax_views,
@@ -811,16 +860,20 @@ class MegatronDistributedFusedAdam(DistributedFusedAdam):
             optim_params_iter=self.parameters(),
         )
         # Convert state
-        step = optimizer_state_dict['state'].pop('step')
-        state_dict_format = optimizer_state_dict.pop('format', None)
+        step = optimizer_state_dict["state"].pop("step")
+        state_dict_format = optimizer_state_dict.pop("format", None)
         optim_state_to_sharding_state(optimizer_state_dict, id_to_sharded_param_map)
-        optimizer_state_dict['state']['step'] = step
+        optimizer_state_dict["state"]["step"] = step
         if state_dict_format is not None:
-            optimizer_state_dict['format'] = state_dict_format
+            optimizer_state_dict["format"] = state_dict_format
 
         def rename_fp32_params(x):
-            if isinstance(x, ShardedTensor) and x.key.startswith('optimizer.state.param'):
-                x.key = x.key.replace('optimizer.state.param', 'optimizer.state.fp32_param')
+            if isinstance(x, ShardedTensor) and x.key.startswith(
+                "optimizer.state.param"
+            ):
+                x.key = x.key.replace(
+                    "optimizer.state.param", "optimizer.state.fp32_param"
+                )
             return x
 
         dict_list_map_inplace(rename_fp32_params, optimizer_state_dict)

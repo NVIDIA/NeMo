@@ -67,14 +67,23 @@ class UNetModel(nn.Module):
         channels=3,  # Input channel number
         text_embed_dim=512,  # Dimension of conditioned text embedding. Different text encoders and different model versions have different values
         num_res_blocks=3,  # Number of ResBlock in each level of UNet
-        channel_mult=[1, 2, 3, 4],  # Used with embed_dim to calculate the number of channels for each level of UNet
+        channel_mult=[
+            1,
+            2,
+            3,
+            4,
+        ],  # Used with embed_dim to calculate the number of channels for each level of UNet
         num_attn_heads=4,  # The number of heads in the attention layer
         per_head_channels=64,  # The number of channels per attention head
         cond_dim=512,  # Dimension of Conditioning projections
-        attention_type='fused',  # Type of attention layer
-        feature_pooling_type='attention',  # Type of pooling
+        attention_type="fused",  # Type of attention layer
+        feature_pooling_type="attention",  # Type of pooling
         learned_sinu_pos_emb_dim=16,  # Dimension of learned time positional embedding. 0 for unlearned timestep embeddings.
-        attention_resolutions=[8, 16, 32],  # List of resolutions to inject attention layers
+        attention_resolutions=[
+            8,
+            16,
+            32,
+        ],  # List of resolutions to inject attention layers
         dropout=False,  # The rate of dropout
         use_null_token=False,  # Whether to create a learned null token for attention
         init_conv_kernel_size=3,  # Initial Conv kernel size. imagen_pytorch uses 7
@@ -90,12 +99,12 @@ class UNetModel(nn.Module):
         super().__init__()
 
         # Attention Class
-        if attention_type == 'stacked':
+        if attention_type == "stacked":
             attention_fn = StackedCrossAttentionBlock
-        elif attention_type == 'fused':
+        elif attention_type == "fused":
             attention_fn = FusedCrossAttentionBlock
         else:
-            raise ValueError('Attention {} not defined'.format(attention_type))
+            raise ValueError("Attention {} not defined".format(attention_type))
 
         # Time embedding for log(snr) noise from continous version
         time_embed_dim = embed_dim * 4
@@ -113,13 +122,16 @@ class UNetModel(nn.Module):
             # Unlearned Time Embedding
             sinu_pos_emb = UnLearnedSinusoidalPosEmb(embed_dim)
             self.time_embed = nn.Sequential(
-                sinu_pos_emb, linear(embed_dim, time_embed_dim), nn.SiLU(), linear(time_embed_dim, time_embed_dim)
+                sinu_pos_emb,
+                linear(embed_dim, time_embed_dim),
+                nn.SiLU(),
+                linear(time_embed_dim, time_embed_dim),
             )
 
         # Pooling
-        assert feature_pooling_type == 'attention' or feature_pooling_type == 'mean'
+        assert feature_pooling_type == "attention" or feature_pooling_type == "mean"
         self.feature_pooling_type = feature_pooling_type
-        if feature_pooling_type == 'attention':
+        if feature_pooling_type == "attention":
             self.attention_pooling = nn.Sequential(
                 SelfAttentionPooling(input_dim=text_embed_dim),
                 nn.LayerNorm(text_embed_dim),
@@ -137,7 +149,9 @@ class UNetModel(nn.Module):
 
         # Register for Null Token
         if use_null_token:
-            self.null_text_embedding = nn.Parameter(torch.randn(1, 1, cond_dim, dtype=self.text_to_cond.weight.dtype))
+            self.null_text_embedding = nn.Parameter(
+                torch.randn(1, 1, cond_dim, dtype=self.text_to_cond.weight.dtype)
+            )
         self.use_null_token = use_null_token
 
         # Converting attention resolutions to downsampling factor
@@ -153,7 +167,7 @@ class UNetModel(nn.Module):
         if self.noise_cond_aug:
             assert (
                 self.low_res_cond
-            ), 'noise conditioning augmentation should only be enabled when training with low-res cond'
+            ), "noise conditioning augmentation should only be enabled when training with low-res cond"
             if learned_sinu_pos_emb_dim > 0:
                 lowres_sinu_pos_emb = LearnedSinusoidalPosEmb(learned_sinu_pos_emb_dim)
                 lowres_sinu_pos_emb_dim = learned_sinu_pos_emb_dim + 1
@@ -171,7 +185,12 @@ class UNetModel(nn.Module):
         in_channels = 2 * channels if low_res_cond else channels
         init_dim = embed_dim * channel_mult[0]
         self.init_conv = ConditionalSequential(
-            nn.Conv2d(in_channels, init_dim, init_conv_kernel_size, padding=init_conv_kernel_size // 2)
+            nn.Conv2d(
+                in_channels,
+                init_dim,
+                init_conv_kernel_size,
+                padding=init_conv_kernel_size // 2,
+            )
         )
 
         if isinstance(num_res_blocks, int):
@@ -234,7 +253,12 @@ class UNetModel(nn.Module):
                             learnable_upsampling=True,
                         )
                         if resblock_updown
-                        else Downsample(channels=ch, use_conv=resample_with_conv, dims=CONV_DIM, out_channels=ch,)
+                        else Downsample(
+                            channels=ch,
+                            use_conv=resample_with_conv,
+                            dims=CONV_DIM,
+                            out_channels=ch,
+                        )
                     )
                 )
                 num_input_block_channels.append(ch)
@@ -322,7 +346,12 @@ class UNetModel(nn.Module):
                             learnable_upsampling=True,
                         )
                         if resblock_updown
-                        else Upsample(channels=ch, use_conv=resample_with_conv, dims=CONV_DIM, out_channels=ch)
+                        else Upsample(
+                            channels=ch,
+                            use_conv=resample_with_conv,
+                            dims=CONV_DIM,
+                            out_channels=ch,
+                        )
                     )
                     ds //= 2
                 self.output_blocks.append(ConditionalSequential(*layers))
@@ -330,26 +359,43 @@ class UNetModel(nn.Module):
         self.out = nn.Sequential(
             normalization(ch),
             nn.SiLU(),
-            zero_module(nn.Conv2d(init_dim, channels, init_conv_kernel_size, padding=init_conv_kernel_size // 2)),
+            zero_module(
+                nn.Conv2d(
+                    init_dim,
+                    channels,
+                    init_conv_kernel_size,
+                    padding=init_conv_kernel_size // 2,
+                )
+            ),
         )
 
     def forward(
-        self, x, time, text_embed=None, text_mask=None, x_low_res=None, time_low_res=None,
+        self,
+        x,
+        time,
+        text_embed=None,
+        text_mask=None,
+        x_low_res=None,
+        time_low_res=None,
     ):
         if self.low_res_cond:
-            assert x_low_res is not None, 'x_low_res cannot be None'
+            assert x_low_res is not None, "x_low_res cannot be None"
         else:
-            assert x_low_res is None, 'x_low_res cannot be presented'
+            assert x_low_res is None, "x_low_res cannot be presented"
         if self.noise_cond_aug:
-            assert time_low_res is not None, 'time_low_res cannot be None when training with noise conditioning aug'
+            assert (
+                time_low_res is not None
+            ), "time_low_res cannot be None when training with noise conditioning aug"
         else:
-            assert time_low_res is None, 'time_low_res cannot be presented'
+            assert time_low_res is None, "time_low_res cannot be presented"
         # Concatenating low resolution images
         if x_low_res is not None:
             if x_low_res.shape != x.shape:
                 # Upscale if not done in the trainer
                 _, _, new_height, new_width = x.shape
-                x_low_res = F.interpolate(x_low_res, (new_height, new_width), mode="bicubic")
+                x_low_res = F.interpolate(
+                    x_low_res, (new_height, new_width), mode="bicubic"
+                )
             x = torch.cat([x, x_low_res], dim=1)
         batch_size, device = x.shape[0], x.device
 
@@ -376,16 +422,18 @@ class UNetModel(nn.Module):
             # Null Context (Helpful when text_embed is drop)
             null_context = self.null_text_embedding.repeat(batch_size, 1, 1)
             context_emb = torch.cat([text_cond, null_context], dim=1)
-            context_mask = torch.cat([text_mask, torch.ones(batch_size, 1).to(device)], dim=1)
+            context_mask = torch.cat(
+                [text_mask, torch.ones(batch_size, 1).to(device)], dim=1
+            )
         else:
             context_emb = text_cond
             context_mask = text_mask
 
         # Add pooled text embeddings to the diffusion timestep
         # TODO We may only want to calculated the pooled feature based on text token length
-        if self.feature_pooling_type == 'mean':
+        if self.feature_pooling_type == "mean":
             pooled_text_cond = text_cond.mean(dim=-2)
-        elif self.feature_pooling_type == 'attention':
+        elif self.feature_pooling_type == "attention":
             pooled_text_cond = self.attention_pooling(text_embed)
         text_hiddens = self.to_text_non_attn_cond(pooled_text_cond)
         t += text_hiddens
@@ -407,7 +455,9 @@ class UNetModel(nn.Module):
         logits = self.forward(*args, text_embed=text_embed, **kwargs)
         if cond_scale == 1.0:
             return logits
-        null_logits = self.forward(*args, text_embed=torch.zeros_like(text_embed), **kwargs)
+        null_logits = self.forward(
+            *args, text_embed=torch.zeros_like(text_embed), **kwargs
+        )
         return null_logits + (logits - null_logits) * cond_scale
 
 
@@ -453,9 +503,9 @@ class EfficientUNetModel(nn.Module):
         ],  # Used with embed_dim to calculate the number of channels for each level of Efficient-UNet
         num_attn_heads=8,  # The number of heads in the attention layer
         per_head_channels=64,  # The number of channels per attention head
-        attention_type='fused',  # Type of attention layer
+        attention_type="fused",  # Type of attention layer
         atnn_enabled_at=[0, 0, 0, 0, 1],  # Whether to enable attention at each level
-        feature_pooling_type='attention',  # Type of pooling
+        feature_pooling_type="attention",  # Type of pooling
         stride=2,  # Stride in ResBlock
         num_resblocks=[
             1,
@@ -495,7 +545,10 @@ class EfficientUNetModel(nn.Module):
             # Unlearned Time Embedding
             sinu_pos_emb = UnLearnedSinusoidalPosEmb(embed_dim)
             self.time_embed = nn.Sequential(
-                sinu_pos_emb, linear(embed_dim, time_embed_dim), nn.SiLU(), linear(time_embed_dim, time_embed_dim)
+                sinu_pos_emb,
+                linear(embed_dim, time_embed_dim),
+                nn.SiLU(),
+                linear(time_embed_dim, time_embed_dim),
             )
 
         self.noise_cond_aug = noise_cond_aug
@@ -514,9 +567,9 @@ class EfficientUNetModel(nn.Module):
             )
         cond_dim = text_embed_dim  # time_embed_dim
         # Pooling
-        assert feature_pooling_type == 'attention' or feature_pooling_type == 'mean'
+        assert feature_pooling_type == "attention" or feature_pooling_type == "mean"
         self.feature_pooling_type = feature_pooling_type
-        if feature_pooling_type == 'attention':
+        if feature_pooling_type == "attention":
             self.attention_pooling = nn.Sequential(
                 SelfAttentionPooling(input_dim=text_embed_dim),
                 nn.LayerNorm(text_embed_dim),
@@ -533,14 +586,21 @@ class EfficientUNetModel(nn.Module):
         )
         # Register for Null Token
         if use_null_token:
-            self.null_text_embedding = nn.Parameter(torch.randn(1, 1, cond_dim, dtype=self.text_to_cond.weight.dtype))
+            self.null_text_embedding = nn.Parameter(
+                torch.randn(1, 1, cond_dim, dtype=self.text_to_cond.weight.dtype)
+            )
         self.use_null_token = use_null_token
 
         # Initial Convolution
         # Multiply in_channels by 2 because we concatenate with low res inputs.
         in_channels = channels * 2
         init_dim = embed_dim * channel_mult[0]
-        self.init_conv = nn.Conv2d(in_channels, init_dim, init_conv_kernel_size, padding=init_conv_kernel_size // 2)
+        self.init_conv = nn.Conv2d(
+            in_channels,
+            init_dim,
+            init_conv_kernel_size,
+            padding=init_conv_kernel_size // 2,
+        )
         # Efficient-UNet Init
         self.DBlocks = nn.ModuleDict()
         self.UBlocks = nn.ModuleDict()
@@ -591,12 +651,20 @@ class EfficientUNetModel(nn.Module):
         self.out = nn.Conv2d(channel_mult[0] * embed_dim, channels, 1)
 
     def forward(
-        self, x, time, text_embed, text_mask, x_low_res, time_low_res=None,
+        self,
+        x,
+        time,
+        text_embed,
+        text_mask,
+        x_low_res,
+        time_low_res=None,
     ):
         if self.noise_cond_aug:
-            assert time_low_res is not None, 'time_low_res cannot be None when training with noise conditioning aug'
+            assert (
+                time_low_res is not None
+            ), "time_low_res cannot be None when training with noise conditioning aug"
         else:
-            assert time_low_res is None, 'time_low_res cannot be presented'
+            assert time_low_res is None, "time_low_res cannot be presented"
 
         if x.dtype != time.dtype or time.dtype != text_embed.dtype:
             dtype = text_embed.dtype
@@ -616,7 +684,9 @@ class EfficientUNetModel(nn.Module):
         if x_low_res.shape != x.shape:
             # Upscale if not done in the trainer
             _, _, new_height, new_width = x.shape
-            x_low_res = F.interpolate(x_low_res, (new_height, new_width), mode="bicubic")
+            x_low_res = F.interpolate(
+                x_low_res, (new_height, new_width), mode="bicubic"
+            )
         x = torch.cat([x, x_low_res], dim=1)
 
         # Add lowres time conditioning
@@ -629,16 +699,18 @@ class EfficientUNetModel(nn.Module):
             # Null Context (Helpful when text_embed is drop)
             null_context = self.null_text_embedding.repeat(batch_size, 1, 1)
             context_emb = torch.cat([text_cond, null_context], dim=1)
-            context_mask = torch.cat([text_mask, torch.ones(batch_size, 1).to(device)], dim=1)
+            context_mask = torch.cat(
+                [text_mask, torch.ones(batch_size, 1).to(device)], dim=1
+            )
         else:
             context_emb = text_cond
             context_mask = text_mask
 
         # Add pooled text embeddings to the diffusion timestep
         # TODO We may only want to calculated the pooled feature based on text token length
-        if self.feature_pooling_type == 'mean':
+        if self.feature_pooling_type == "mean":
             pooled_text_cond = text_cond.mean(dim=-2)
-        elif self.feature_pooling_type == 'attention':
+        elif self.feature_pooling_type == "attention":
             pooled_text_cond = self.attention_pooling(text_embed)
         text_hiddens = self.to_text_non_attn_cond(pooled_text_cond)
         t += text_hiddens
@@ -663,12 +735,17 @@ class EfficientUNetModel(nn.Module):
         logits = self.forward(*args, text_embed=text_embed, **kwargs)
         if cond_scale == 1.0:
             return logits
-        null_logits = self.forward(*args, text_embed=torch.zeros_like(text_embed), **kwargs)
+        null_logits = self.forward(
+            *args, text_embed=torch.zeros_like(text_embed), **kwargs
+        )
         return null_logits + (logits - null_logits) * cond_scale
 
 
-if __name__ == '__main__':
-    model = UNetModel(embed_dim=512, image_size=64,)
+if __name__ == "__main__":
+    model = UNetModel(
+        embed_dim=512,
+        image_size=64,
+    )
 
     pytorch_total_params = sum(p.numel() for p in model.parameters())
     print(pytorch_total_params)
@@ -678,7 +755,12 @@ if __name__ == '__main__':
     text_mask = torch.ones(4, 88)
     time = torch.ones(4)
 
-    output = model(image_batch, time, text_cond, text_mask,)
+    output = model(
+        image_batch,
+        time,
+        text_cond,
+        text_mask,
+    )
 
     print(output.shape)
 

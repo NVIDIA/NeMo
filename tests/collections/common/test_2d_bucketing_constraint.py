@@ -26,7 +26,9 @@ from nemo.collections.common.data.lhotse.dataloader import (
 
 
 def make_cut(id_: int = 0, duration: Seconds = 1.0, num_tokens: int = 10):
-    supervision = SupervisionSegment(f"blah-{id_}", f"blah-{id_}", 0.0, duration, text="a" * num_tokens)
+    supervision = SupervisionSegment(
+        f"blah-{id_}", f"blah-{id_}", 0.0, duration, text="a" * num_tokens
+    )
     supervision.tokens = np.zeros((num_tokens,), dtype=np.int32).tolist()
     return dummy_cut(id_, duration=duration, supervisions=[supervision])
 
@@ -96,13 +98,17 @@ def test_2d_bucketing_expected_bucket_allocation(cuts):
             # for max_num_tokens empty.
             if bin_index > 0:
                 # Check for smaller duration buckets (1st dim)
-                candidates = [dur for dur, tok in duration_bins[:bin_index] if dur < max_duration]
+                candidates = [
+                    dur for dur, tok in duration_bins[:bin_index] if dur < max_duration
+                ]
                 if candidates:  # Otherwise, it's already using the smallest bucket.
                     prev_max_duration = max(candidates)
                     assert cut.duration > prev_max_duration
                 # Check for smaller token buckets (2nd dim)
                 candidates = [
-                    tok for dur, tok in duration_bins[:bin_index] if dur == max_duration and tok < max_num_tokens
+                    tok
+                    for dur, tok in duration_bins[:bin_index]
+                    if dur == max_duration and tok < max_num_tokens
                 ]
                 if candidates:  # Otherwise, it's already using the smallest bucket
                     prev_max_num_tokens = max(candidates)
@@ -224,7 +230,9 @@ def test_2d_bucketing_filter_strict_max_ratio():
     assert constraint.select_bucket(constraint.max_seq_len_buckets, cut) == 1
 
     # With max_ratio it's filtered out because 20 / 2.0 = 10.0 but max_ratio is 4.0
-    constraint = FixedBucketBatchSizeConstraint2D(buckets, batch_sizes, strict_2d=True, max_ratio=max_ratio)
+    constraint = FixedBucketBatchSizeConstraint2D(
+        buckets, batch_sizes, strict_2d=True, max_ratio=max_ratio
+    )
     filter_2d = BucketingFilter(constraint)
     cut = make_cut(duration=2.0, num_tokens=20)
     assert filter_2d(cut) == False
@@ -238,7 +246,12 @@ class _Identity(torch.utils.data.Dataset):
 
 def test_2d_bucketing_strict_mode_flag_works(deterministic_rng, tmp_path):
     cuts_path = tmp_path / "cuts.jsonl"
-    CutSet([make_cut(0, duration=1.0, num_tokens=10), make_cut(0, duration=1.0, num_tokens=100)]).to_file(cuts_path)
+    CutSet(
+        [
+            make_cut(0, duration=1.0, num_tokens=10),
+            make_cut(0, duration=1.0, num_tokens=100),
+        ]
+    ).to_file(cuts_path)
 
     # Strict mode enabled
     dloader = get_lhotse_dataloader_from_config(

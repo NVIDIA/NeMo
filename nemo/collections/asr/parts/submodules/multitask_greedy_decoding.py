@@ -58,7 +58,7 @@ def pack_hypotheses(
     return hypotheses
 
 
-def _states_to_device(dec_state, device='cpu'):
+def _states_to_device(dec_state, device="cpu"):
     if torch.is_tensor(dec_state):
         dec_state = dec_state.to(device)
 
@@ -74,7 +74,7 @@ class AEDGreedyInfer(ABC):
         transformer_decoder: torch.nn.Module,
         log_softmax_module: torch.nn.Module,
         tokenizer: TokenizerSpec,
-        search_type: str = 'default',
+        search_type: str = "default",
         preserve_alignments: bool = False,
     ):
         super().__init__()
@@ -115,9 +115,9 @@ class TransformerAEDGreedyInfer(AEDGreedyInfer, Typing):
         # ('B', 'T', 'D') [Log probs] or ('B', 'T') [Labels]
 
         return {
-            "encoder_hidden_states": NeuralType(tuple(('B', 'T', 'D')), ChannelType()),
-            "encoder_input_mask": NeuralType(tuple(('B', 'T')), MaskType()),
-            "decoder_input_ids": NeuralType(('B', 'T'), LabelsType()),
+            "encoder_hidden_states": NeuralType(tuple(("B", "T", "D")), ChannelType()),
+            "encoder_input_mask": NeuralType(tuple(("B", "T")), MaskType()),
+            "decoder_input_ids": NeuralType(("B", "T"), LabelsType()),
             "partial_hypotheses": NeuralType(optional=True),
         }
 
@@ -199,31 +199,48 @@ class TransformerAEDGreedyInfer(AEDGreedyInfer, Typing):
             )
 
             if topk_hypotheses is not None:
-                topk_hypotheses = [x.detach().cpu() for x in topk_hypotheses]  # each item is [beam, seq_len]
-                beam_scores = [[None] * self.n_samples for _ in topk_hypotheses]  # each item is [beam,]
+                topk_hypotheses = [
+                    x.detach().cpu() for x in topk_hypotheses
+                ]  # each item is [beam, seq_len]
+                beam_scores = [
+                    [None] * self.n_samples for _ in topk_hypotheses
+                ]  # each item is [beam,]
                 packed_result = []
                 for i in range(len(topk_hypotheses)):
                     # Pack results into Hypotheses
-                    hypotheses = [Hypothesis(score=0.0, y_sequence=[], timestamp=[]) for _ in range(self.n_samples)]
+                    hypotheses = [
+                        Hypothesis(score=0.0, y_sequence=[], timestamp=[])
+                        for _ in range(self.n_samples)
+                    ]
                     self.format_hypotheses(hypotheses, decoder_input_ids)
                     packed_result.append(
                         NBestHypotheses(
-                            pack_hypotheses(hypotheses, topk_hypotheses[i], beam_scores[i]), step_confidence
+                            pack_hypotheses(
+                                hypotheses, topk_hypotheses[i], beam_scores[i]
+                            ),
+                            step_confidence,
                         )
                     )
             else:
                 beam_scores = [None for _ in range(len(best_hypo))]
                 best_hypo = best_hypo.cpu()
                 hypotheses = [
-                    Hypothesis(score=0.0, y_sequence=[], timestamp=[]) for _ in range(encoder_hidden_states.shape[0])
+                    Hypothesis(score=0.0, y_sequence=[], timestamp=[])
+                    for _ in range(encoder_hidden_states.shape[0])
                 ]
                 # Pack results into Hypotheses
-                packed_result = pack_hypotheses(hypotheses, best_hypo, beam_scores, step_confidence)
+                packed_result = pack_hypotheses(
+                    hypotheses, best_hypo, beam_scores, step_confidence
+                )
                 self.format_hypotheses(packed_result, decoder_input_ids)
 
         return (packed_result,)
 
-    def format_hypotheses(self, packed_result: List[Hypothesis], decoder_input_ids: Union[torch.Tensor, None]) -> None:
+    def format_hypotheses(
+        self,
+        packed_result: List[Hypothesis],
+        decoder_input_ids: Union[torch.Tensor, None],
+    ) -> None:
         """
         For each hypothesis in the mini-batch:
         * Remove the decoder input ids (prompt) from the predictions
@@ -241,7 +258,9 @@ class TransformerAEDGreedyInfer(AEDGreedyInfer, Typing):
                 ).all(), f"The decoder input IDs were not found at the beginning of prediction: {hyp.y_sequence=} {prefix=})"
                 hyp.y_sequence = hyp.y_sequence[prefix.shape[0] :]
                 hyp.token_confidence = (
-                    hyp.token_confidence[prefix.shape[0] :] if hyp.token_confidence is not None else None
+                    hyp.token_confidence[prefix.shape[0] :]
+                    if hyp.token_confidence is not None
+                    else None
                 )
         for hyp in packed_result:
             ids = hyp.y_sequence
@@ -253,7 +272,11 @@ class TransformerAEDGreedyInfer(AEDGreedyInfer, Typing):
                     break  # empty sequence
             if pos < -1:
                 hyp.y_sequence = ids[: pos + 1]
-                hyp.token_confidence = hyp.token_confidence[: pos + 1] if hyp.token_confidence is not None else None
+                hyp.token_confidence = (
+                    hyp.token_confidence[: pos + 1]
+                    if hyp.token_confidence is not None
+                    else None
+                )
 
 
 @dataclass
@@ -262,7 +285,9 @@ class AEDGreedyInferConfig:
     max_generation_delta: int = -1  # -1 means up to the max length of the decoder
     preserve_alignments: bool = False
     preserve_token_confidence: bool = False
-    confidence_method_cfg: Optional[ConfidenceMethodConfig] = field(default_factory=lambda: ConfidenceMethodConfig())
+    confidence_method_cfg: Optional[ConfidenceMethodConfig] = field(
+        default_factory=lambda: ConfidenceMethodConfig()
+    )
     n_samples: int = 1
 
     def __post_init__(self):

@@ -36,7 +36,7 @@ from nemo.lightning.pytorch.callbacks.flops_callback import \
     FLOPsMeasurementCallback
 from nemo.utils import logging
 
-DEFAULT_NEMO_HOME = os.getenv('NEMO_HOME', DEFAULT_NEMO_CACHE_HOME)
+DEFAULT_NEMO_HOME = os.getenv("NEMO_HOME", DEFAULT_NEMO_CACHE_HOME)
 
 
 def slurm_executor(
@@ -60,7 +60,9 @@ def slurm_executor(
     """
     err_msgs = []
     if log_dir != get_nemorun_home():
-        err_msgs.append(f"\nRun `export NEMORUN_HOME={log_dir}` in your shell environment and rerun this script.")
+        err_msgs.append(
+            f"\nRun `export NEMORUN_HOME={log_dir}` in your shell environment and rerun this script."
+        )
     if len(err_msgs) > 0:
         logging.error("\n".join(err_msgs))
         sys.exit(1)
@@ -83,7 +85,9 @@ def slurm_executor(
         "numactl --cpunodebind=$((SLURM_LOCALID/4)) --membind=$((SLURM_LOCALID/4))",
     ]
 
-    if nemo_home != DEFAULT_NEMO_CACHE_HOME:  # DO NOT change this to 'DEFAULT_NEMO_HOME'/'NEMO_HOME'
+    if (
+        nemo_home != DEFAULT_NEMO_CACHE_HOME
+    ):  # DO NOT change this to 'DEFAULT_NEMO_HOME'/'NEMO_HOME'
         env_vars.update({"NEMO_HOME": nemo_home})
         mounts.extend([f"{nemo_home}:{nemo_home}"])
     if hf_token is not None:
@@ -148,7 +152,9 @@ def hf_tokenizer(model_name: str) -> run.Config[AutoTokenizer]:
     )
 
 
-def get_user_configs(gpu: str, task: str, model_name: str, model_size: str, args) -> List[int]:
+def get_user_configs(
+    gpu: str, task: str, model_name: str, model_size: str, args
+) -> List[int]:
     """
     Choose recommended configs tuned for performance from a csv file if available.
     User (command line) provided args override the recommended configs.
@@ -162,8 +168,12 @@ def get_user_configs(gpu: str, task: str, model_name: str, model_size: str, args
         model_size (str): size of target model. E.g.: '8b' (for llama3)
     """
     script_dir = str(Path(__file__).parent.absolute())
-    recommended_configs_csv = os.path.join(script_dir, "recommended_model_configs", f"model_configs_{gpu}.csv")
-    logging.info(f"Using {recommended_configs_csv} for loading default recommended model configs")
+    recommended_configs_csv = os.path.join(
+        script_dir, "recommended_model_configs", f"model_configs_{gpu}.csv"
+    )
+    logging.info(
+        f"Using {recommended_configs_csv} for loading default recommended model configs"
+    )
 
     config_df = pd.DataFrame()
     if os.path.isfile(recommended_configs_csv):
@@ -173,48 +183,84 @@ def get_user_configs(gpu: str, task: str, model_name: str, model_size: str, args
             & (df["model"] == model_name)
             & (df["size"] == model_size)
             & (df["dtype"] == args.compute_dtype)
-            & (args.num_gpus is None or df['num_gpus'] == args.num_gpus)
+            & (args.num_gpus is None or df["num_gpus"] == args.num_gpus)
         ]
         config_df = config_df.replace({nan: None})
         if len(config_df) == 0:
-            logging.warning(f"Missing performance configs for {task}-{model_name}-{model_size}-{args.compute_dtype}")
-            logging.warning("Make sure you provide all necessary arguments in the command line")
+            logging.warning(
+                f"Missing performance configs for {task}-{model_name}-{model_size}-{args.compute_dtype}"
+            )
+            logging.warning(
+                "Make sure you provide all necessary arguments in the command line"
+            )
 
-    config = config_df.to_dict(orient='records')[0] if len(config_df) > 0 else {}
+    config = config_df.to_dict(orient="records")[0] if len(config_df) > 0 else {}
 
     num_gpus = config.get("num_gpus") if args.num_gpus is None else args.num_gpus
     num_nodes = -(num_gpus // -args.gpus_per_node)  # ceil division
     mbs = config.get("mbs") if args.micro_batch_size is None else args.micro_batch_size
-    gbs = config.get("gbs") if args.global_batch_size is None else args.global_batch_size
-    tp_size = config.get("tp_size") if args.tensor_parallel_size is None else args.tensor_parallel_size
-    pp_size = config.get("pp_size") if args.pipeline_parallel_size is None else args.pipeline_parallel_size
-    cp_size = config.get("cp_size") if args.context_parallel_size is None else args.context_parallel_size
-    ep_size = config.get("ep_size") if args.expert_parallel_size is None else args.expert_parallel_size
+    gbs = (
+        config.get("gbs") if args.global_batch_size is None else args.global_batch_size
+    )
+    tp_size = (
+        config.get("tp_size")
+        if args.tensor_parallel_size is None
+        else args.tensor_parallel_size
+    )
+    pp_size = (
+        config.get("pp_size")
+        if args.pipeline_parallel_size is None
+        else args.pipeline_parallel_size
+    )
+    cp_size = (
+        config.get("cp_size")
+        if args.context_parallel_size is None
+        else args.context_parallel_size
+    )
+    ep_size = (
+        config.get("ep_size")
+        if args.expert_parallel_size is None
+        else args.expert_parallel_size
+    )
     vp_size = args.virtual_pipeline_parallel_size
     vp_size = config.get("vp_size") if vp_size is None else vp_size
     etp_size = args.expert_tensor_parallel_size
     etp_size = config.get("etp_size") if etp_size is None else etp_size
 
-    enable_cuda_graphs = config.get("cuda_graphs") if args.cuda_graphs is None else args.cuda_graphs
-    enable_cuda_graphs = False if enable_cuda_graphs is None else bool(int(enable_cuda_graphs))
+    enable_cuda_graphs = (
+        config.get("cuda_graphs") if args.cuda_graphs is None else args.cuda_graphs
+    )
+    enable_cuda_graphs = (
+        False if enable_cuda_graphs is None else bool(int(enable_cuda_graphs))
+    )
 
-    use_mcore_fsdp = config.get("use_mcore_fsdp") if args.use_mcore_fsdp is None else args.use_mcore_fsdp
+    use_mcore_fsdp = (
+        config.get("use_mcore_fsdp")
+        if args.use_mcore_fsdp is None
+        else args.use_mcore_fsdp
+    )
     use_mcore_fsdp = False if use_mcore_fsdp is None else bool(int(use_mcore_fsdp))
 
-    recompute_layers = config.get("recompute_layers") if args.recompute_layers is None else args.recompute_layers
+    recompute_layers = (
+        config.get("recompute_layers")
+        if args.recompute_layers is None
+        else args.recompute_layers
+    )
     recompute_layers = 0 if recompute_layers is None else int(recompute_layers)
     activation_offload_layers = (
         config.get("activation_offload_layers")
         if args.activation_offload_layers is None
         else args.activation_offload_layers
     )
-    activation_offload_layers = 0 if activation_offload_layers is None else int(activation_offload_layers)
+    activation_offload_layers = (
+        0 if activation_offload_layers is None else int(activation_offload_layers)
+    )
 
     if args.recompute_modules is not None:
         recompute_modules = args.recompute_modules
         assert isinstance(recompute_modules, list), "recompute_modules must be a list"
     elif config.get("recompute_modules") is not None:
-        recompute_modules = config.get("recompute_modules").split('/')
+        recompute_modules = config.get("recompute_modules").split("/")
     else:
         recompute_modules = None
 
@@ -287,26 +333,34 @@ def set_primary_perf_configs(
     recipe.data.micro_batch_size = mbs
     recipe.data.global_batch_size = gbs
     if recipe.data.__fn_or_cls__ == MockDataModule:
-        recipe.data.num_train_samples = max_steps * gbs  # ensure only 1 epoch for whole run
+        recipe.data.num_train_samples = (
+            max_steps * gbs
+        )  # ensure only 1 epoch for whole run
 
     # parallelism configs
     recipe.trainer.strategy.tensor_model_parallel_size = tp_size
     recipe.trainer.strategy.pipeline_model_parallel_size = pp_size
     recipe.trainer.strategy.context_parallel_size = cp_size
-    recipe.trainer.strategy.virtual_pipeline_model_parallel_size = None if vp_size == 1 else vp_size
+    recipe.trainer.strategy.virtual_pipeline_model_parallel_size = (
+        None if vp_size == 1 else vp_size
+    )
     recipe.trainer.strategy.expert_model_parallel_size = ep_size
     recipe.trainer.strategy.expert_tensor_parallel_size = etp_size
 
     recipe.trainer.strategy.sequence_parallel = bool(tp_size > 1)
     if nccl_communicator_config_path is not None:
-        recipe.trainer.strategy.nccl_communicator_config_path = nccl_communicator_config_path
+        recipe.trainer.strategy.nccl_communicator_config_path = (
+            nccl_communicator_config_path
+        )
 
     # callback configs
     comm_overlap_callback_idx = get_comm_overlap_callback_idx(recipe.trainer.callbacks)
     dp_size = (num_nodes * num_gpus_per_node) / (tp_size * pp_size * cp_size)
     if comm_overlap_callback_idx is not None:
         # WARNING: If True, checkpointing (if enabled) might not work
-        recipe.trainer.callbacks[comm_overlap_callback_idx].overlap_param_gather_with_optimizer_step = bool(
+        recipe.trainer.callbacks[
+            comm_overlap_callback_idx
+        ].overlap_param_gather_with_optimizer_step = bool(
             dp_size > 1 and pp_size > 1 and vp_size and vp_size > 1
         )
 
@@ -315,7 +369,9 @@ def set_primary_perf_configs(
 
     # Cuda graph configs
     if use_mcore_fsdp and enable_cuda_graphs:
-        logging.warning("Currently, cuda graphs are not supported with FSDP. Disabling cuda graphs.")
+        logging.warning(
+            "Currently, cuda graphs are not supported with FSDP. Disabling cuda graphs."
+        )
         enable_cuda_graphs = False
     recipe.model.config.enable_cuda_graph = enable_cuda_graphs
     recipe.trainer.strategy.use_te_rng_tracker = enable_cuda_graphs
@@ -330,22 +386,34 @@ def set_primary_perf_configs(
     if use_mcore_fsdp:
         recipe.model.config.init_model_with_meta_device = True
         recipe.trainer.strategy.fsdp = "megatron"
-        recipe.trainer.strategy.ddp.data_parallel_sharding_strategy = "optim_grads_params"
+        recipe.trainer.strategy.ddp.data_parallel_sharding_strategy = (
+            "optim_grads_params"
+        )
         recipe.trainer.strategy.ddp.average_in_collective = False
-        recipe.trainer.strategy.ddp.keep_fp8_transpose_cache_when_using_custom_fsdp = False
+        recipe.trainer.strategy.ddp.keep_fp8_transpose_cache_when_using_custom_fsdp = (
+            False
+        )
         recipe.model.config.gradient_accumulation_fusion = False
         if (
             comm_overlap_callback_idx is not None
-            and recipe.trainer.callbacks[comm_overlap_callback_idx].defer_embedding_wgrad_compute
+            and recipe.trainer.callbacks[
+                comm_overlap_callback_idx
+            ].defer_embedding_wgrad_compute
         ):
-            logging.warning("Disabling deferring embedding wgrad compute because it cannot work with FSDP together.")
-            recipe.trainer.callbacks[comm_overlap_callback_idx].defer_embedding_wgrad_compute = False
+            logging.warning(
+                "Disabling deferring embedding wgrad compute because it cannot work with FSDP together."
+            )
+            recipe.trainer.callbacks[
+                comm_overlap_callback_idx
+            ].defer_embedding_wgrad_compute = False
             if tp_size is not None and tp_size > 1:
                 logging.warning(
                     "Currently, TP overlap performance is poor when FSDP is used because of jitters. "
                     "A fix is in progress. Disabling TP overlap."
                 )
-                recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap = False
+                recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap = (
+                    False
+                )
 
     # Recompute configs
     if recompute_layers > 0:
@@ -429,7 +497,9 @@ def set_exp_logging_configs(
     return recipe
 
 
-def import_ckpt_experiment(executor: run.SlurmExecutor, model: run.Config[GPTModel], source: str):
+def import_ckpt_experiment(
+    executor: run.SlurmExecutor, model: run.Config[GPTModel], source: str
+):
     """
     Downloads/Acceses checkpoint to be used for fine-tuning. `import_ckpt` first tries find the nemo checkpoint in
     <NEMO_HOME>/models/. For eg: for llama3 8b, the path will look like- <NEMO_HOME>/models/meta-llama/Meta-Llama-3-8B
@@ -446,22 +516,34 @@ def import_ckpt_experiment(executor: run.SlurmExecutor, model: run.Config[GPTMod
     import_executor.ntasks_per_node = 1
     import_executor.nodes = 1
 
-    return run.Partial(import_ckpt, model=model, source=source, overwrite=False), import_executor, "import_ckpt_exp"
+    return (
+        run.Partial(import_ckpt, model=model, source=source, overwrite=False),
+        import_executor,
+        "import_ckpt_exp",
+    )
 
 
-def isfile_train_pack_metadata(hf_model_uri: str, data_config: run.Config[SquadDataModule]) -> bool:
+def isfile_train_pack_metadata(
+    hf_model_uri: str, data_config: run.Config[SquadDataModule]
+) -> bool:
     """
     This method is used for fine-tuning. It checks if packed train data for a partiular
     sequence length exists locally. This is needed to set data flag (force_redownload=True)
     which avoids experiment crash in case files are missing.
     """
-    datasets_dir = os.getenv("NEMO_DATASETS_CACHE", os.path.join(DEFAULT_NEMO_HOME, "datasets"))
+    datasets_dir = os.getenv(
+        "NEMO_DATASETS_CACHE", os.path.join(DEFAULT_NEMO_HOME, "datasets")
+    )
     model_dir = hf_model_uri.replace("/", "--")
     metadata_filename = f"{data_config.seq_length}_metadata.jsonl"
 
-    train_pack_metadata_filepath = os.path.join(datasets_dir, "squad", "packed", model_dir, metadata_filename)
+    train_pack_metadata_filepath = os.path.join(
+        datasets_dir, "squad", "packed", model_dir, metadata_filename
+    )
 
-    return os.path.exists(train_pack_metadata_filepath) and os.path.isfile(train_pack_metadata_filepath)
+    return os.path.exists(train_pack_metadata_filepath) and os.path.isfile(
+        train_pack_metadata_filepath
+    )
 
 
 def get_comm_overlap_callback_idx(callbacks: List[Callback]) -> int | None:
@@ -482,6 +564,6 @@ def args_sanity_check(args: dict) -> None:
     Check the sanity of argument settings
     """
     if args.wandb:
-        assert args.wandb_key is not None, "wandb logger needs \"wandb_key\""
-        assert args.wandb_prj_name is not None, "wandb logger needs \"wandb_prj_name\""
-        assert args.wandb_job_name is not None, "wandb logger needs \"wandb_job_name\""
+        assert args.wandb_key is not None, 'wandb logger needs "wandb_key"'
+        assert args.wandb_prj_name is not None, 'wandb logger needs "wandb_prj_name"'
+        assert args.wandb_job_name is not None, 'wandb logger needs "wandb_job_name"'

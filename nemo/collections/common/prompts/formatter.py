@@ -59,7 +59,9 @@ class TextLiteral(BaseModalityType):
         return isinstance(value, str) and value in self.allowed_values
 
     def __repr__(self):
-        return f"Modality.{self.__class__.__name__}(allowed_values={self.allowed_values})"
+        return (
+            f"Modality.{self.__class__.__name__}(allowed_values={self.allowed_values})"
+        )
 
 
 class Modality:
@@ -168,7 +170,9 @@ class PromptFormatter(ABC):
     # Internal reserved field.
     _REGISTERED_FORMATTERS = {}
 
-    def __init__(self, tokenizer: TokenizerSpec, defaults: list[dict] | None = None) -> None:
+    def __init__(
+        self, tokenizer: TokenizerSpec, defaults: list[dict] | None = None
+    ) -> None:
         self.tokenizer = tokenizer
         self._defaults = defaults if defaults is not None else []
         self._validate_defaults()
@@ -236,7 +240,8 @@ class PromptFormatter(ABC):
             {
                 "role": role,
                 "slots": {
-                    slot: _get_default_for_role(role).get("slots", {}).get(slot) for slot in self.get_slots(role)
+                    slot: _get_default_for_role(role).get("slots", {}).get(slot)
+                    for slot in self.get_slots(role)
                 },
             }
             for role in self.get_roles()
@@ -244,7 +249,10 @@ class PromptFormatter(ABC):
         ]
 
     def encode_turn(
-        self, prompt_template: str, expected_slots: dict[str, Modality], slot_values: dict[str, Any]
+        self,
+        prompt_template: str,
+        expected_slots: dict[str, Modality],
+        slot_values: dict[str, Any],
     ) -> list[int]:
         prompt = prompt_template
         for slot in expected_slots:
@@ -252,9 +260,13 @@ class PromptFormatter(ABC):
             # but 'slot' form enables to use valid python identifiers as **kwargs
             # for passing slots around in user functions.
             value = slot_values.get(slot)
-            assert value is not None, f"Missing required {slot=} in {slot_values=} for {prompt_template=}"
+            assert (
+                value is not None
+            ), f"Missing required {slot=} in {slot_values=} for {prompt_template=}"
             prompt = prompt.replace(_mangled(slot), value)
-        return self._apply_tokenizer(prompt, lang=slot_values.get(self.PROMPT_LANGUAGE_SLOT))
+        return self._apply_tokenizer(
+            prompt, lang=slot_values.get(self.PROMPT_LANGUAGE_SLOT)
+        )
 
     def encode_dialog(self, turns: list[dict]) -> dict[str, torch.Tensor]:
         assert len(turns) > 0, "Empty dialog is not supported."
@@ -270,7 +282,9 @@ class PromptFormatter(ABC):
             turn_mask_values.append(False)
 
         if "preamble" in self.TEMPLATE:
-            preamble_turns = [idx for idx, t in enumerate(turns) if t["role"] == "preamble"]
+            preamble_turns = [
+                idx for idx, t in enumerate(turns) if t["role"] == "preamble"
+            ]
             if not preamble_turns:
                 turns = [{"role": "preamble", **self.TEMPLATE["preamble"]}] + turns
             else:
@@ -279,9 +293,13 @@ class PromptFormatter(ABC):
                 ), f"Preamble can only be presented at turn 0, but we found preamble turns at indexes {preamble_turns}."
 
         for turn in turns:
-            assert "role" in turn, f"A turn must have have a 'role' key. We received {turn=}"
+            assert (
+                "role" in turn
+            ), f"A turn must have have a 'role' key. We received {turn=}"
             role = turn["role"]
-            assert role in roles, f"Found turn with {role=}, but availables roles are {roles}"
+            assert (
+                role in roles
+            ), f"Found turn with {role=}, but availables roles are {roles}"
             expected_slots = self.get_slots(role)
             slot_values = turn.get("slots", {})
             if expected_slots:
@@ -353,7 +371,9 @@ class PromptFormatter(ABC):
 
         return tokens
 
-    def _validate_slot_values(self, expected: dict[str, Modality], received: dict[str, Any]) -> None:
+    def _validate_slot_values(
+        self, expected: dict[str, Modality], received: dict[str, Any]
+    ) -> None:
         missing = set(expected) - set(received)
         assert not missing, f"The following slot values were not provided: {missing}"
         for slot in expected:
@@ -371,10 +391,13 @@ class PromptFormatter(ABC):
         assert isinstance(self._defaults, list)
         for turn in self._defaults:
             assert isinstance(turn, dict)
-            assert "role" in turn, f"{err} Missing required 'role' key. We received {turn=}"
+            assert (
+                "role" in turn
+            ), f"{err} Missing required 'role' key. We received {turn=}"
             role = turn["role"]
             assert role in self.get_roles(), (
-                f"{err} Invalid {role=} in {turn=} - " f"supported roles are: {self.get_roles()}."
+                f"{err} Invalid {role=} in {turn=} - "
+                f"supported roles are: {self.get_roles()}."
             )
             if expected_slots := self.get_slots(role):
                 assert "slots" in turn, (

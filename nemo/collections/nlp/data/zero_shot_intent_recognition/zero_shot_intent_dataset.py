@@ -30,7 +30,11 @@ from nemo.core.neural_types import (CategoricalValuesType, ChannelType,
                                     MaskType, NeuralType)
 from nemo.utils import logging
 
-__all__ = ['ZeroShotIntentProcessor', 'ZeroShotIntentDataset', 'ZeroShotIntentInferenceDataset']
+__all__ = [
+    "ZeroShotIntentProcessor",
+    "ZeroShotIntentDataset",
+    "ZeroShotIntentInferenceDataset",
+]
 
 
 class ZeroShotIntentProcessor(DataProcessor):
@@ -38,7 +42,9 @@ class ZeroShotIntentProcessor(DataProcessor):
     Processor for entailment data sets used to train NLI models for zero shot intent classification.
     """
 
-    def __init__(self, sent1_col: int, sent2_col: int, label_col: int, num_classes: int):
+    def __init__(
+        self, sent1_col: int, sent2_col: int, label_col: int, num_classes: int
+    ):
         """
         Args:
             sent1_col: the index of the column containing the premise (or sentence 1)
@@ -63,7 +69,7 @@ class ZeroShotIntentProcessor(DataProcessor):
     def get_labels(self):
         """Gets the list of labels for this data set."""
         if self.num_classes == 2:
-            return ['not_entailment', 'entailment']
+            return ["not_entailment", "entailment"]
         elif self.num_classes == 3:
             return ["contradiction", "entailment", "neutral"]
         else:
@@ -72,7 +78,7 @@ class ZeroShotIntentProcessor(DataProcessor):
     def _create_examples(self, lines: List[str], set_type: str):
         """Creates examples for the training and dev sets."""
         examples = []
-        for (i, line) in enumerate(lines):
+        for i, line in enumerate(lines):
             if i == 0:
                 continue
             guid = "%s-%s" % (set_type, line[0])
@@ -81,7 +87,9 @@ class ZeroShotIntentProcessor(DataProcessor):
             label = line[self.label_col]
             if label == "-":
                 continue
-            examples.append(InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))
+            examples.append(
+                InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label)
+            )
         return examples
 
 
@@ -94,13 +102,12 @@ class ZeroShotIntentDataset(GLUEDataset):
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        """Returns definitions of module output ports.
-               """
+        """Returns definitions of module output ports."""
         return {
-            'input_ids': NeuralType(('B', 'T'), ChannelType()),
-            'segment_ids': NeuralType(('B', 'T'), ChannelType()),
-            'input_mask': NeuralType(('B', 'T'), MaskType()),
-            'labels': NeuralType(tuple('B'), CategoricalValuesType()),
+            "input_ids": NeuralType(("B", "T"), ChannelType()),
+            "segment_ids": NeuralType(("B", "T"), ChannelType()),
+            "input_mask": NeuralType(("B", "T"), MaskType()),
+            "labels": NeuralType(tuple("B"), CategoricalValuesType()),
         }
 
     def __init__(
@@ -128,10 +135,12 @@ class ZeroShotIntentDataset(GLUEDataset):
         """
         self.task_name = "mnli"  # for compatibility with parent class
         data_dir, file_name = os.path.split(file_path)
-        logging.info(f'Processing {file_name}')
+        logging.info(f"Processing {file_name}")
         self.tokenizer = tokenizer
-        evaluate = False if 'train' in file_name else True
-        processor = ZeroShotIntentProcessor(sent1_col, sent2_col, label_col, num_classes)
+        evaluate = False if "train" in file_name else True
+        processor = ZeroShotIntentProcessor(
+            sent1_col, sent2_col, label_col, num_classes
+        )
         self.label_list = processor.get_labels()
         if not evaluate:
             self.examples = processor.get_train_examples(file_path)
@@ -157,9 +166,9 @@ class ZeroShotIntentDataset(GLUEDataset):
             # save the label map for reference
             label_file = os.path.join(data_dir, "label_ids.csv")
             with open(label_file, "w") as out:
-                out.write('\n'.join(self.label_list))
-            logging.info(f'Labels: {self.label_list}')
-            logging.info(f'Label mapping saved to : {label_file}')
+                out.write("\n".join(self.label_list))
+            logging.info(f"Labels: {self.label_list}")
+            logging.info(f"Label mapping saved to : {label_file}")
 
         else:
             self.examples = processor.get_dev_examples(file_path)
@@ -169,7 +178,11 @@ class ZeroShotIntentDataset(GLUEDataset):
         cached_features_file = os.path.join(
             data_dir,
             "cached_{}_{}_{}_{}_{}".format(
-                processor_name, file_name, tokenizer.name, str(max_seq_length), str(vocab_size)
+                processor_name,
+                file_name,
+                tokenizer.name,
+                str(max_seq_length),
+                str(vocab_size),
             ),
         )
 
@@ -179,19 +192,29 @@ class ZeroShotIntentDataset(GLUEDataset):
                 self.features = pickle.load(reader)
         else:
             token_params = {
-                'bos_token': None,
-                'eos_token': tokenizer.eos_token,
-                'pad_token': tokenizer.pad_token,
-                'cls_token': tokenizer.cls_token,
-                'sep_token_extra': tokenizer.eos_token if 'roberta' in tokenizer.name.lower() else None,
+                "bos_token": None,
+                "eos_token": tokenizer.eos_token,
+                "pad_token": tokenizer.pad_token,
+                "cls_token": tokenizer.cls_token,
+                "sep_token_extra": (
+                    tokenizer.eos_token if "roberta" in tokenizer.name.lower() else None
+                ),
             }
 
             self.features = self.convert_examples_to_features(
-                self.examples, self.label_list, max_seq_length, tokenizer, output_mode="classification", **token_params
+                self.examples,
+                self.label_list,
+                max_seq_length,
+                tokenizer,
+                output_mode="classification",
+                **token_params,
             )
-            master_device = not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0
+            master_device = (
+                not torch.distributed.is_initialized()
+                or torch.distributed.get_rank() == 0
+            )
             if master_device:
-                logging.info(f'Saving train features into {cached_features_file}')
+                logging.info(f"Saving train features into {cached_features_file}")
                 with open(cached_features_file, "wb") as writer:
                     pickle.dump(self.features, writer)
 
@@ -204,13 +227,12 @@ class ZeroShotIntentInferenceDataset(GLUEDataset):
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        """Returns definitions of module output ports.
-               """
+        """Returns definitions of module output ports."""
         return {
-            'input_ids': NeuralType(('B', 'T'), ChannelType()),
-            'segment_ids': NeuralType(('B', 'T'), ChannelType()),
-            'input_mask': NeuralType(('B', 'T'), MaskType()),
-            'labels': NeuralType(tuple('B'), CategoricalValuesType()),
+            "input_ids": NeuralType(("B", "T"), ChannelType()),
+            "segment_ids": NeuralType(("B", "T"), ChannelType()),
+            "input_mask": NeuralType(("B", "T"), MaskType()),
+            "labels": NeuralType(tuple("B"), CategoricalValuesType()),
         }
 
     def __init__(
@@ -230,14 +252,16 @@ class ZeroShotIntentInferenceDataset(GLUEDataset):
             hypothesis_template: template used to turn each candidate label into a NLI-style hypothesis
         """
 
-        logging.info(f'Processing queries for inference')
+        logging.info(f"Processing queries for inference")
         self.tokenizer = tokenizer
         token_params = {
-            'bos_token': None,
-            'eos_token': tokenizer.eos_token,
-            'pad_token': tokenizer.pad_token,
-            'cls_token': tokenizer.cls_token,
-            'sep_token_extra': tokenizer.eos_token if 'roberta' in tokenizer.name.lower() else None,
+            "bos_token": None,
+            "eos_token": tokenizer.eos_token,
+            "pad_token": tokenizer.pad_token,
+            "cls_token": tokenizer.cls_token,
+            "sep_token_extra": (
+                tokenizer.eos_token if "roberta" in tokenizer.name.lower() else None
+            ),
         }
         self.examples = []
         for i, query in enumerate(queries):
@@ -245,16 +269,25 @@ class ZeroShotIntentInferenceDataset(GLUEDataset):
                 guid = "query-%s-label-%s" % (i, j)
                 text_a = query
                 text_b = hypothesis_template.format(candidate_label)
-                label = 3  # dummy label for inference; training labels are 0, 1, 2 or 0, 1
-                self.examples.append(InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))
+                label = (
+                    3  # dummy label for inference; training labels are 0, 1, 2 or 0, 1
+                )
+                self.examples.append(
+                    InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label)
+                )
 
         self.features = self.convert_examples_to_features(
-            self.examples, [0, 1, 2, 3], max_seq_length, tokenizer, output_mode="classification", **token_params
+            self.examples,
+            [0, 1, 2, 3],
+            max_seq_length,
+            tokenizer,
+            output_mode="classification",
+            **token_params,
         )
 
 
 def calc_class_weights_from_dataloader(
-    dataloader: 'torch.utils.data.DataLoader', num_classes: int, data_dir: str
+    dataloader: "torch.utils.data.DataLoader", num_classes: int, data_dir: str
 ) -> List[float]:
     """
     Calculate the weights of each class to be used for weighted loss. This is similar to the function calc_class_weights
@@ -266,17 +299,21 @@ def calc_class_weights_from_dataloader(
     labels = []
     for batch in dataloader:
         labels.extend(tensor2list(batch[-1]))
-    logging.info(f'Calculating label frequency stats...')
+    logging.info(f"Calculating label frequency stats...")
     total_sents, sent_label_freq, max_id = get_label_stats(
-        labels, os.path.join(data_dir, 'sentence_stats.tsv'), verbose=False
+        labels, os.path.join(data_dir, "sentence_stats.tsv"), verbose=False
     )
     if max_id >= num_classes:
-        raise ValueError(f'Found an invalid label! Labels should be from [0, num_classes-1].')
+        raise ValueError(
+            f"Found an invalid label! Labels should be from [0, num_classes-1]."
+        )
 
     class_weights_dict = get_freq_weights(sent_label_freq)
 
-    logging.info(f'Total Sentence Pairs: {total_sents}')
-    logging.info(f'Class Frequencies: {sent_label_freq}')
-    logging.info(f'Class Weights: {class_weights_dict}')
-    class_weights = fill_class_weights(weights=class_weights_dict, max_id=num_classes - 1)
+    logging.info(f"Total Sentence Pairs: {total_sents}")
+    logging.info(f"Class Frequencies: {sent_label_freq}")
+    logging.info(f"Class Weights: {class_weights_dict}")
+    class_weights = fill_class_weights(
+        weights=class_weights_dict, max_id=num_classes - 1
+    )
     return class_weights

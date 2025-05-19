@@ -22,7 +22,9 @@ from nemo.collections.asr.parts.utils.asr_multispeaker_utils import (
     get_hidden_length_from_sample_length, get_pil_targets, reconstruct_labels)
 
 
-def reconstruct_labels_forloop(labels: torch.Tensor, batch_perm_inds: torch.Tensor) -> torch.Tensor:
+def reconstruct_labels_forloop(
+    labels: torch.Tensor, batch_perm_inds: torch.Tensor
+) -> torch.Tensor:
     """
     This is a for-loop implementation of reconstruct_labels built for testing purposes.
     """
@@ -41,13 +43,23 @@ class TestSortingUtils:
         "mat, max_cap_val, thres, expected",
         [
             # Test 1: Basic case with clear first nonzero values
-            (torch.tensor([[0.1, 0.6, 0.0], [0.0, 0.0, 0.9]]), -1, 0.5, torch.tensor([1, 2])),
+            (
+                torch.tensor([[0.1, 0.6, 0.0], [0.0, 0.0, 0.9]]),
+                -1,
+                0.5,
+                torch.tensor([1, 2]),
+            ),
             # Test 2: All elements are below threshold
             (torch.tensor([[0.1, 0.2], [0.3, 0.4]]), -1, 0.5, torch.tensor([-1, -1])),
             # Test 3: No nonzero elements, should return max_cap_val (-1)
             (torch.tensor([[0.0, 0.0], [0.0, 0.0]]), -1, 0.5, torch.tensor([-1, -1])),
             # Test 4: Large matrix with mixed values, some rows with all values below threshold
-            (torch.tensor([[0.1, 0.7, 0.3], [0.0, 0.0, 0.9], [0.5, 0.6, 0.7]]), -1, 0.5, torch.tensor([1, 2, 0])),
+            (
+                torch.tensor([[0.1, 0.7, 0.3], [0.0, 0.0, 0.9], [0.5, 0.6, 0.7]]),
+                -1,
+                0.5,
+                torch.tensor([1, 2, 0]),
+            ),
             # Test 5: Single row matrix
             (torch.tensor([[0.0, 0.0, 0.6]]), -1, 0.5, torch.tensor([2])),
             # Test 6: Single column matrix
@@ -61,10 +73,18 @@ class TestSortingUtils:
             # Test 10: Custom max_cap_val different from default
             (torch.tensor([[0.0, 0.0], [0.0, 0.0]]), 99, 0.5, torch.tensor([99, 99])),
             # Test 11: Matrix with 101 columns, first nonzero value is towards the end
-            (torch.cat([torch.zeros(1, 100), torch.ones(1, 1)], dim=1), -1, 0.5, torch.tensor([100])),
+            (
+                torch.cat([torch.zeros(1, 100), torch.ones(1, 1)], dim=1),
+                -1,
+                0.5,
+                torch.tensor([100]),
+            ),
             # Test 12: Matrix with 1000 columns, all below threshold except one near the middle
             (
-                torch.cat([torch.zeros(1, 499), torch.tensor([[0.6]]), torch.zeros(1, 500)], dim=1),
+                torch.cat(
+                    [torch.zeros(1, 499), torch.tensor([[0.6]]), torch.zeros(1, 500)],
+                    dim=1,
+                ),
                 -1,
                 0.5,
                 torch.tensor([499]),
@@ -81,13 +101,19 @@ class TestSortingUtils:
         [
             # Test 1: Simple case with batch size 1, clear best match
             (
-                torch.tensor([[0.1, 0.9, 0.2]]),  # match_score (batch_size=1, num_permutations=3)
-                torch.tensor([[0, 1], [1, 0], [0, 1]]),  # speaker_permutations (num_permutations=3, num_speakers=2)
+                torch.tensor(
+                    [[0.1, 0.9, 0.2]]
+                ),  # match_score (batch_size=1, num_permutations=3)
+                torch.tensor(
+                    [[0, 1], [1, 0], [0, 1]]
+                ),  # speaker_permutations (num_permutations=3, num_speakers=2)
                 torch.tensor([[1, 0]]),  # expected best permutation for the batch
             ),
             # Test 2: Batch size 2, different best matches for each batch
             (
-                torch.tensor([[0.5, 0.3, 0.7], [0.2, 0.6, 0.4]]),  # match_score (batch_size=2, num_permutations=3)
+                torch.tensor(
+                    [[0.5, 0.3, 0.7], [0.2, 0.6, 0.4]]
+                ),  # match_score (batch_size=2, num_permutations=3)
                 torch.tensor([[0, 1], [1, 0], [0, 1]]),  # speaker_permutations
                 torch.tensor([[0, 1], [1, 0]]),  # expected best permutations
             ),
@@ -103,21 +129,33 @@ class TestSortingUtils:
             ),
             # Test 4: All match scores are the same, should pick the first permutation (argmax behavior)
             (
-                torch.tensor([[0.5, 0.5, 0.5], [0.5, 0.5, 0.5]]),  # equal match_score across permutations
+                torch.tensor(
+                    [[0.5, 0.5, 0.5], [0.5, 0.5, 0.5]]
+                ),  # equal match_score across permutations
                 torch.tensor([[0, 1], [1, 0], [0, 1]]),  # speaker_permutations
-                torch.tensor([[0, 1], [0, 1]]),  # first permutation is chosen as tie-breaker
+                torch.tensor(
+                    [[0, 1], [0, 1]]
+                ),  # first permutation is chosen as tie-breaker
             ),
             # Test 5: Single speaker case (num_speakers = 1)
             (
-                torch.tensor([[0.8, 0.2]]),  # match_score (batch_size=1, num_permutations=2)
-                torch.tensor([[0], [0]]),  # speaker_permutations (num_permutations=2, num_speakers=1)
+                torch.tensor(
+                    [[0.8, 0.2]]
+                ),  # match_score (batch_size=1, num_permutations=2)
+                torch.tensor(
+                    [[0], [0]]
+                ),  # speaker_permutations (num_permutations=2, num_speakers=1)
                 torch.tensor([[0]]),  # expected best permutation
             ),
             # Test 6: Batch size 3, varying permutations
             (
-                torch.tensor([[0.3, 0.6], [0.4, 0.1], [0.2, 0.7]]),  # match_score (batch_size=3, num_permutations=2)
+                torch.tensor(
+                    [[0.3, 0.6], [0.4, 0.1], [0.2, 0.7]]
+                ),  # match_score (batch_size=3, num_permutations=2)
                 torch.tensor([[0, 1], [1, 0]]),  # speaker_permutations
-                torch.tensor([[1, 0], [0, 1], [1, 0]]),  # expected best permutations for each batch
+                torch.tensor(
+                    [[1, 0], [0, 1], [1, 0]]
+                ),  # expected best permutations for each batch
             ),
         ],
     )
@@ -134,17 +172,23 @@ class TestSortingUtils:
             (5, 3, 5),  # More batch size with equal frames and speakers
         ],
     )
-    def test_reconstruct_labels_with_forloop_ver(self, batch_size, num_frames, num_speakers):
+    def test_reconstruct_labels_with_forloop_ver(
+        self, batch_size, num_frames, num_speakers
+    ):
         # Generate random labels and batch_perm_inds tensor for testing
         labels = torch.rand(batch_size, num_frames, num_speakers)
-        batch_perm_inds = torch.stack([torch.randperm(num_speakers) for _ in range(batch_size)])
+        batch_perm_inds = torch.stack(
+            [torch.randperm(num_speakers) for _ in range(batch_size)]
+        )
 
         # Call both functions
         result_matrix = reconstruct_labels(labels, batch_perm_inds)
         result_forloop = reconstruct_labels_forloop(labels, batch_perm_inds)
 
         # Assert that both methods return the same result
-        assert torch.allclose(result_matrix, result_forloop), "The results are not equal!"
+        assert torch.allclose(
+            result_matrix, result_forloop
+        ), "The results are not equal!"
 
     @pytest.mark.parametrize(
         "labels, batch_perm_inds, expected_output",
@@ -153,26 +197,56 @@ class TestSortingUtils:
             (
                 torch.tensor(
                     [
-                        [[0.1, 0.2, 0.3], [0.4, 0.5, 0.6], [0.7, 0.8, 0.9]],  # First batch
-                        [[0.9, 0.8, 0.7], [0.6, 0.5, 0.4], [0.3, 0.2, 0.1]],  # Second batch
+                        [
+                            [0.1, 0.2, 0.3],
+                            [0.4, 0.5, 0.6],
+                            [0.7, 0.8, 0.9],
+                        ],  # First batch
+                        [
+                            [0.9, 0.8, 0.7],
+                            [0.6, 0.5, 0.4],
+                            [0.3, 0.2, 0.1],
+                        ],  # Second batch
                     ]
                 ),
                 torch.tensor([[2, 0, 1], [1, 2, 0]]),
                 torch.tensor(
                     [
-                        [[0.3, 0.1, 0.2], [0.6, 0.4, 0.5], [0.9, 0.7, 0.8]],  # First batch reconstructed
-                        [[0.8, 0.7, 0.9], [0.5, 0.4, 0.6], [0.2, 0.1, 0.3]],  # Second batch reconstructed
+                        [
+                            [0.3, 0.1, 0.2],
+                            [0.6, 0.4, 0.5],
+                            [0.9, 0.7, 0.8],
+                        ],  # First batch reconstructed
+                        [
+                            [0.8, 0.7, 0.9],
+                            [0.5, 0.4, 0.6],
+                            [0.2, 0.1, 0.3],
+                        ],  # Second batch reconstructed
                     ]
                 ),
             ),
             # Example 2: batch_size = 1 with more frames and speakers
             (
                 torch.tensor(
-                    [[[0.1, 0.2, 0.3, 0.4], [0.5, 0.6, 0.7, 0.8], [0.9, 1.0, 1.1, 1.2], [1.3, 1.4, 1.5, 1.6]]]
+                    [
+                        [
+                            [0.1, 0.2, 0.3, 0.4],
+                            [0.5, 0.6, 0.7, 0.8],
+                            [0.9, 1.0, 1.1, 1.2],
+                            [1.3, 1.4, 1.5, 1.6],
+                        ]
+                    ]
                 ),
                 torch.tensor([[3, 0, 1, 2]]),
                 torch.tensor(
-                    [[[0.4, 0.1, 0.2, 0.3], [0.8, 0.5, 0.6, 0.7], [1.2, 0.9, 1.0, 1.1], [1.6, 1.3, 1.4, 1.5]]]
+                    [
+                        [
+                            [0.4, 0.1, 0.2, 0.3],
+                            [0.8, 0.5, 0.6, 0.7],
+                            [1.2, 0.9, 1.0, 1.1],
+                            [1.6, 1.3, 1.4, 1.5],
+                        ]
+                    ]
                 ),
             ),
             # Example 3: Larger batch size with fewer frames and speakers
@@ -188,9 +262,17 @@ class TestSortingUtils:
                 torch.tensor([[1, 0], [0, 1], [1, 0], [0, 1]]),
                 torch.tensor(
                     [
-                        [[0.2, 0.1], [0.4, 0.3], [0.6, 0.5]],  # First batch reconstructed
+                        [
+                            [0.2, 0.1],
+                            [0.4, 0.3],
+                            [0.6, 0.5],
+                        ],  # First batch reconstructed
                         [[0.7, 0.8], [0.9, 1.0], [1.1, 1.2]],  # Second batch unchanged
-                        [[1.4, 1.3], [1.6, 1.5], [1.8, 1.7]],  # Third batch reconstructed
+                        [
+                            [1.4, 1.3],
+                            [1.6, 1.5],
+                            [1.8, 1.7],
+                        ],  # Third batch reconstructed
                         [[1.9, 2.0], [2.1, 2.2], [2.3, 2.4]],  # Fourth batch unchanged
                     ]
                 ),
@@ -201,7 +283,9 @@ class TestSortingUtils:
         # Call the reconstruct_labels function
         result = reconstruct_labels(labels, batch_perm_inds)
         # Assert that the result matches the expected output
-        assert torch.allclose(result, expected_output), f"Expected {expected_output}, but got {result}"
+        assert torch.allclose(
+            result, expected_output
+        ), f"Expected {expected_output}, but got {result}"
 
 
 class TestTargetGenerators:
@@ -226,26 +310,51 @@ class TestTargetGenerators:
                 3,  # Number of speakers
                 torch.tensor(
                     [
-                        [[0.9, 0.1, 0.0], [0.1, 0.8, 0.0], [0.0, 0.1, 0.9]],  # Expected labels for Batch 1
-                        [[0.9, 0.0, 0.0], [0.1, 0.9, 0.0], [0.0, 0.1, 0.9]],  # Expected labels for Batch 2
+                        [
+                            [0.9, 0.1, 0.0],
+                            [0.1, 0.8, 0.0],
+                            [0.0, 0.1, 0.9],
+                        ],  # Expected labels for Batch 1
+                        [
+                            [0.9, 0.0, 0.0],
+                            [0.1, 0.9, 0.0],
+                            [0.0, 0.1, 0.9],
+                        ],  # Expected labels for Batch 2
                     ]
                 ),
             ),
             # Test 2: Ambiguous case
             (
-                torch.tensor([[[0.9, 0.8, 0.7], [0.2, 0.8, 0.7], [0.2, 0.3, 0.9]]]),  # Labels
-                torch.tensor([[[0.6, 0.7, 0.2], [0.9, 0.4, 0.0], [0.1, 0.7, 0.1]]]),  # Preds
+                torch.tensor(
+                    [[[0.9, 0.8, 0.7], [0.2, 0.8, 0.7], [0.2, 0.3, 0.9]]]
+                ),  # Labels
+                torch.tensor(
+                    [[[0.6, 0.7, 0.2], [0.9, 0.4, 0.0], [0.1, 0.7, 0.1]]]
+                ),  # Preds
                 3,  # Number of speakers
-                torch.tensor([[[0.8, 0.7, 0.9], [0.8, 0.7, 0.2], [0.3, 0.9, 0.2]]]),  # Expected output
+                torch.tensor(
+                    [[[0.8, 0.7, 0.9], [0.8, 0.7, 0.2], [0.3, 0.9, 0.2]]]
+                ),  # Expected output
             ),
             # Test 3: Ambiguous case
             (
-                torch.tensor([[[0, 0, 1, 1], [0, 0, 1, 1], [0, 0, 0, 1], [0, 0, 0, 0]]]),  # Labels
                 torch.tensor(
-                    [[[0.6, 0.6, 0.1, 0.9], [0.7, 0.7, 0.2, 0.8], [0.4, 0.6, 0.2, 0.7], [0.1, 0.1, 0.1, 0.7]]]
+                    [[[0, 0, 1, 1], [0, 0, 1, 1], [0, 0, 0, 1], [0, 0, 0, 0]]]
+                ),  # Labels
+                torch.tensor(
+                    [
+                        [
+                            [0.6, 0.6, 0.1, 0.9],
+                            [0.7, 0.7, 0.2, 0.8],
+                            [0.4, 0.6, 0.2, 0.7],
+                            [0.1, 0.1, 0.1, 0.7],
+                        ]
+                    ]
                 ),  # Preds
                 4,  # Number of speakers
-                torch.tensor([[[1, 1, 0, 0], [1, 1, 0, 0], [0, 1, 0, 0], [0, 0, 0, 0]]]),  # Expected output
+                torch.tensor(
+                    [[[1, 1, 0, 0], [1, 1, 0, 0], [0, 1, 0, 0], [0, 0, 0, 0]]]
+                ),  # Expected output
             ),
         ],
     )
@@ -257,7 +366,9 @@ class TestTargetGenerators:
         # Call the function under test
         result = get_ats_targets(labels, preds, speaker_permutations)
         # Assert that the result matches the expected output
-        assert torch.allclose(result, expected_output), f"Expected {expected_output}, but got {result}"
+        assert torch.allclose(
+            result, expected_output
+        ), f"Expected {expected_output}, but got {result}"
 
     @pytest.mark.unit
     @pytest.mark.parametrize(
@@ -272,7 +383,9 @@ class TestTargetGenerators:
                     [[[1, 0], [0, 1]], [[0, 1], [1, 0]]]
                 ),  # Preds (batch_size=2, num_speakers=2, num_classes=2)
                 2,  # Number of speakers
-                torch.tensor([[[1, 0], [0, 1]], [[0, 1], [1, 0]]]),  # expected max_score_permed_labels
+                torch.tensor(
+                    [[[1, 0], [0, 1]], [[0, 1], [1, 0]]]
+                ),  # expected max_score_permed_labels
             ),
             # Test 2: Batch size 1 with more complex permutations
             (
@@ -285,12 +398,23 @@ class TestTargetGenerators:
             ),
             # Test 3: Ambiguous case
             (
-                torch.tensor([[[0, 0, 1, 1], [0, 0, 1, 1], [0, 0, 0, 1], [0, 0, 0, 0]]]),  # Labels
                 torch.tensor(
-                    [[[0.61, 0.6, 0.1, 0.9], [0.7, 0.7, 0.2, 0.8], [0.4, 0.6, 0.2, 0.7], [0.1, 0.1, 0.1, 0.7]]]
+                    [[[0, 0, 1, 1], [0, 0, 1, 1], [0, 0, 0, 1], [0, 0, 0, 0]]]
+                ),  # Labels
+                torch.tensor(
+                    [
+                        [
+                            [0.61, 0.6, 0.1, 0.9],
+                            [0.7, 0.7, 0.2, 0.8],
+                            [0.4, 0.6, 0.2, 0.7],
+                            [0.1, 0.1, 0.1, 0.7],
+                        ]
+                    ]
                 ),  # Preds
                 4,  # Number of speakers
-                torch.tensor([[[1, 0, 0, 1], [1, 0, 0, 1], [0, 0, 0, 1], [0, 0, 0, 0]]]),  # Expected output
+                torch.tensor(
+                    [[[1, 0, 0, 1], [1, 0, 0, 1], [0, 0, 0, 1], [0, 0, 0, 0]]]
+                ),  # Expected output
             ),
         ],
     )
@@ -300,7 +424,9 @@ class TestTargetGenerators:
         speaker_permutations = torch.tensor(list(itertools.permutations(speaker_inds)))
 
         result = get_pil_targets(labels, preds, speaker_permutations)
-        assert torch.equal(result, expected_output), f"Expected {expected_output} but got {result}"
+        assert torch.equal(
+            result, expected_output
+        ), f"Expected {expected_output} but got {result}"
 
 
 class TestGetHiddenLengthFromSampleLength:
@@ -316,7 +442,11 @@ class TestGetHiddenLengthFromSampleLength:
         ],
     )
     def test_various_cases(
-        self, num_samples, num_sample_per_mel_frame, num_mel_frame_per_asr_frame, expected_hidden_length
+        self,
+        num_samples,
+        num_sample_per_mel_frame,
+        num_mel_frame_per_asr_frame,
+        expected_hidden_length,
     ):
         result = get_hidden_length_from_sample_length(
             num_samples, num_sample_per_mel_frame, num_mel_frame_per_asr_frame

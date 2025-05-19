@@ -31,8 +31,12 @@ def split_qkv_weight(qkv_weight, model_config):
     heads_per_group = head_num // num_query_groups
     qkv_weight = qkv_weight.reshape(-1, head_size, hidden_size)
     q_weight = torch.empty((head_num, head_size, hidden_size), device=qkv_weight.device)
-    k_weight = torch.empty((num_query_groups, head_size, hidden_size), device=qkv_weight.device)
-    v_weight = torch.empty((num_query_groups, head_size, hidden_size), device=qkv_weight.device)
+    k_weight = torch.empty(
+        (num_query_groups, head_size, hidden_size), device=qkv_weight.device
+    )
+    v_weight = torch.empty(
+        (num_query_groups, head_size, hidden_size), device=qkv_weight.device
+    )
 
     qkv_index = 0
     for i in range(num_query_groups):
@@ -45,7 +49,7 @@ def split_qkv_weight(qkv_weight, model_config):
         v_weight[i, :, :] = qkv_weight[qkv_index, :, :]
         qkv_index += 1
 
-    return [('q_proj', q_weight), ('k_proj', k_weight), ('v_proj', v_weight)]
+    return [("q_proj", q_weight), ("k_proj", k_weight), ("v_proj", v_weight)]
 
 
 def split_kv_weight(kv_weight, model_config):
@@ -55,8 +59,12 @@ def split_kv_weight(kv_weight, model_config):
     num_query_groups = model_config.num_query_groups or head_num
     head_size = model_config.kv_channels or (hidden_size // head_num)
     kv_weight = kv_weight.reshape(-1, head_size, hidden_size)
-    k_weight = torch.empty((num_query_groups, head_size, hidden_size), device=kv_weight.device)
-    v_weight = torch.empty((num_query_groups, head_size, hidden_size), device=kv_weight.device)
+    k_weight = torch.empty(
+        (num_query_groups, head_size, hidden_size), device=kv_weight.device
+    )
+    v_weight = torch.empty(
+        (num_query_groups, head_size, hidden_size), device=kv_weight.device
+    )
 
     kv_index = 0
     for i in range(num_query_groups):
@@ -65,14 +73,14 @@ def split_kv_weight(kv_weight, model_config):
         v_weight[i, :, :] = kv_weight[kv_index, :, :]
         kv_index += 1
 
-    return [('k_proj', k_weight), ('v_proj', v_weight)]
+    return [("k_proj", k_weight), ("v_proj", v_weight)]
 
 
 def split_gate_weight(gate_weight):
     """Split linear fc to gate"""
     gate_weight = torch.chunk(gate_weight, 2, axis=0)
 
-    return [('gate_proj', gate_weight[0]), ('up_proj', gate_weight[1])]
+    return [("gate_proj", gate_weight[0]), ("up_proj", gate_weight[1])]
 
 
 def convert_mllama_config(source_vision, source_text):
@@ -87,11 +95,15 @@ def convert_mllama_config(source_vision, source_text):
     )
 
     cross_attention_layers = [
-        x + i for i, x in enumerate(source_text._init_fusion_schedule(source_text.num_cross_attention_layers))
+        x + i
+        for i, x in enumerate(
+            source_text._init_fusion_schedule(source_text.num_cross_attention_layers)
+        )
     ]
     text_config = MllamaTextConfig(
         rope_theta=source_text.rotary_base,
-        num_hidden_layers=source_text.num_layers + source_text.num_cross_attention_layers,
+        num_hidden_layers=source_text.num_layers
+        + source_text.num_cross_attention_layers,
         cross_attention_layers=cross_attention_layers,
         hidden_size=source_text.hidden_size,
         intermediate_size=source_text.ffn_hidden_size,
@@ -147,23 +159,47 @@ def convert_mllama_nemo_to_hf(checkpoint_path, processor_name):
     v = "vision_model.vision_encoder"
     key_map = [
         ("vision_model.class_embedding", f"{v}.class_embedding"),
-        ("vision_model.gated_positional_embedding.embedding", f"{v}.positional_embedding"),
+        (
+            "vision_model.gated_positional_embedding.embedding",
+            f"{v}.positional_embedding",
+        ),
         (
             "vision_model.gated_positional_embedding.tile_embedding.weight",
             f"{v}.gated_tile_positional_embedding.weight",
         ),
-        ("vision_model.gated_positional_embedding.gate", f"{v}.gated_positional_embedding_gate"),
+        (
+            "vision_model.gated_positional_embedding.gate",
+            f"{v}.gated_positional_embedding_gate",
+        ),
         ("vision_model.layernorm_post.bias", f"{v}.ln_post.bias"),
         ("vision_model.layernorm_post.weight", f"{v}.ln_post.weight"),
         ("vision_model.layernorm_pre.bias", f"{v}.ln_pre.bias"),
         ("vision_model.layernorm_pre.weight", f"{v}.ln_pre.weight"),
-        ("vision_model.post_tile_positional_embedding.embedding.weight", f"{v}.post_tile_pos_embed.embedding.weight"),
-        ("vision_model.post_tile_positional_embedding.gate", f"{v}.post_tile_pos_embed.gate"),
-        ("vision_model.pre_tile_positional_embedding.embedding.weight", f"{v}.pre_tile_pos_embed.embedding.weight"),
-        ("vision_model.pre_tile_positional_embedding.gate", f"{v}.pre_tile_pos_embed.gate"),
+        (
+            "vision_model.post_tile_positional_embedding.embedding.weight",
+            f"{v}.post_tile_pos_embed.embedding.weight",
+        ),
+        (
+            "vision_model.post_tile_positional_embedding.gate",
+            f"{v}.post_tile_pos_embed.gate",
+        ),
+        (
+            "vision_model.pre_tile_positional_embedding.embedding.weight",
+            f"{v}.pre_tile_pos_embed.embedding.weight",
+        ),
+        (
+            "vision_model.pre_tile_positional_embedding.gate",
+            f"{v}.pre_tile_pos_embed.gate",
+        ),
         ("multi_modal_projector.bias", "vision_model.vision_projection.encoder.bias"),
-        ("multi_modal_projector.weight", "vision_model.vision_projection.encoder.weight"),
-        ("language_model.model.norm.weight", "language_model.decoder.final_layernorm.weight"),
+        (
+            "multi_modal_projector.weight",
+            "vision_model.vision_projection.encoder.weight",
+        ),
+        (
+            "language_model.model.norm.weight",
+            "language_model.decoder.final_layernorm.weight",
+        ),
         ("language_model.lm_head.weight", "language_model.output_layer.weight"),
     ]
 
@@ -259,8 +295,14 @@ def convert_mllama_nemo_to_hf(checkpoint_path, processor_name):
             ]
         )
 
-    cross_attention_frequency = language_model_config.num_layers // language_model_config.num_cross_attention_layers
-    toal_num_layer = language_model_config.num_layers + language_model_config.num_cross_attention_layers
+    cross_attention_frequency = (
+        language_model_config.num_layers
+        // language_model_config.num_cross_attention_layers
+    )
+    toal_num_layer = (
+        language_model_config.num_layers
+        + language_model_config.num_cross_attention_layers
+    )
     prefix = "language_model.decoder"
     for i in range(toal_num_layer):
         cross_num = (i - 3) // (cross_attention_frequency + 1)
@@ -343,7 +385,7 @@ def convert_mllama_nemo_to_hf(checkpoint_path, processor_name):
             ]
 
             for name, weight in split_qkv_weight(qkv_weights, vision_model_config):
-                new_key = f'vision_model.transformer.layers.{i}.self_attn.{name}.weight'
+                new_key = f"vision_model.transformer.layers.{i}.self_attn.{name}.weight"
                 new_state_dict[new_key] = weight.reshape(-1, hidden_size)
 
         for i in range(vision_model_config.num_global_layers):
@@ -352,14 +394,18 @@ def convert_mllama_nemo_to_hf(checkpoint_path, processor_name):
             ]
 
             for name, weight in split_qkv_weight(qkv_weights, vision_model_config):
-                new_key = f'vision_model.global_transformer.layers.{i}.self_attn.{name}.weight'
+                new_key = f"vision_model.global_transformer.layers.{i}.self_attn.{name}.weight"
                 new_state_dict[new_key] = weight.reshape(-1, hidden_size)
 
         return new_state_dict
 
     def convert_patch_embeding(state_dict):
         conv1_weight = state_dict["vision_model.vision_encoder.conv1._linear.weight"]
-        return {"vision_model.patch_embedding.weight": conv1_weight.reshape(conv1_weight.shape[0], 3, 14, 14)}
+        return {
+            "vision_model.patch_embedding.weight": conv1_weight.reshape(
+                conv1_weight.shape[0], 3, 14, 14
+            )
+        }
 
     def convert_language_qkv_weight(state_dict, language_model_config):
         hidden_size = language_model_config.hidden_size
@@ -368,14 +414,22 @@ def convert_mllama_nemo_to_hf(checkpoint_path, processor_name):
             cross_num = (i - 3) // (cross_attention_frequency + 1)
             if (i - 3) % (cross_attention_frequency + 1) == 0:
                 xattn_index = cross_num * cross_attention_frequency + 3
-                kv_weights = state_dict[f"{prefix}.xattn_layers.{xattn_index}.cross_attention.linear_kv.weight"]
+                kv_weights = state_dict[
+                    f"{prefix}.xattn_layers.{xattn_index}.cross_attention.linear_kv.weight"
+                ]
                 for name, weight in split_kv_weight(kv_weights, language_model_config):
-                    new_key = f"language_model.model.layers.{i}.cross_attn.{name}.weight"
+                    new_key = (
+                        f"language_model.model.layers.{i}.cross_attn.{name}.weight"
+                    )
                     new_state_dict[new_key] = weight.reshape(-1, hidden_size)
             else:
                 attn_index = i - cross_num - 1
-                qkv_weights = state_dict[f"{prefix}.layers.{attn_index}.self_attention.linear_qkv.weight"]
-                for name, weight in split_qkv_weight(qkv_weights, language_model_config):
+                qkv_weights = state_dict[
+                    f"{prefix}.layers.{attn_index}.self_attention.linear_qkv.weight"
+                ]
+                for name, weight in split_qkv_weight(
+                    qkv_weights, language_model_config
+                ):
                     new_key = f"language_model.model.layers.{i}.self_attn.{name}.weight"
                     new_state_dict[new_key] = weight.reshape(-1, hidden_size)
 
@@ -387,10 +441,14 @@ def convert_mllama_nemo_to_hf(checkpoint_path, processor_name):
             cross_num = (i - 3) // (cross_attention_frequency + 1)
             if (i - 3) % (cross_attention_frequency + 1) == 0:
                 xattn_index = cross_num * cross_attention_frequency + 3
-                gate_weight = state_dict[f"{prefix}.xattn_layers.{xattn_index}.mlp.linear_fc1.weight"]
+                gate_weight = state_dict[
+                    f"{prefix}.xattn_layers.{xattn_index}.mlp.linear_fc1.weight"
+                ]
             else:
                 attn_index = i - cross_num - 1
-                gate_weight = state_dict[f"{prefix}.layers.{attn_index}.mlp.linear_fc1.weight"]
+                gate_weight = state_dict[
+                    f"{prefix}.layers.{attn_index}.mlp.linear_fc1.weight"
+                ]
 
             for name, weight in split_gate_weight(gate_weight):
                 new_key = f"language_model.model.layers.{i}.mlp.{name}.weight"
@@ -402,12 +460,20 @@ def convert_mllama_nemo_to_hf(checkpoint_path, processor_name):
         word_embeddings = state_dict["language_model.embedding.word_embeddings.weight"]
         learnable_embedding = state_dict["language_model.learnable_embedding.weight"]
 
-        return {"language_model.model.embed_tokens.weight": torch.cat((word_embeddings, learnable_embedding), dim=0)}
+        return {
+            "language_model.model.embed_tokens.weight": torch.cat(
+                (word_embeddings, learnable_embedding), dim=0
+            )
+        }
 
     new_state_dict.update(convert_vision_qkv_weight(state_dict, vision_model_config))
     new_state_dict.update(convert_patch_embeding(state_dict))
-    new_state_dict.update(convert_language_qkv_weight(state_dict, language_model_config))
+    new_state_dict.update(
+        convert_language_qkv_weight(state_dict, language_model_config)
+    )
     new_state_dict.update(convert_gate(state_dict))
     new_state_dict.update(convert_embedding(state_dict))
 
-    return new_state_dict, convert_mllama_config(vision_model_config, language_model_config)
+    return new_state_dict, convert_mllama_config(
+        vision_model_config, language_model_config
+    )

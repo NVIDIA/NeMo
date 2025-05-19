@@ -51,7 +51,11 @@ class S2SQADataset(QADataset):
         deprecated_warning("S2SQADataset")
 
         super().__init__(
-            data_file=data_file, processor=processor, tokenizer=tokenizer, mode=mode, num_samples=num_samples
+            data_file=data_file,
+            processor=processor,
+            tokenizer=tokenizer,
+            mode=mode,
+            num_samples=num_samples,
         )
 
         self.keep_doc_spans = keep_doc_spans
@@ -71,11 +75,15 @@ class S2SQADataset(QADataset):
             if self.mode == TRAINING_MODE:
                 del self.examples
                 del self.processor
-            self.features = QADataset.load_features_from_cache(self.cached_features_file)
+            self.features = QADataset.load_features_from_cache(
+                self.cached_features_file
+            )
         else:
             self._convert_examples_to_features()
             if use_cache:
-                QADataset.dump_features_to_cache(self.cached_features_file, self.features)
+                QADataset.dump_features_to_cache(
+                    self.cached_features_file, self.features
+                )
 
         logging.info("Converting dict features into object features")
         for i in trange(len(self.features)):
@@ -87,8 +95,8 @@ class S2SQADataset(QADataset):
         vocab_size = getattr(self.tokenizer, "vocab_size", 0)
         self.cached_features_file = (
             self.data_file
-            + '_cache'
-            + '_{}_{}_{}_{}_{}_{}_{}'.format(
+            + "_cache"
+            + "_{}_{}_{}_{}_{}_{}_{}".format(
                 self.mode,
                 self.tokenizer.name,
                 str(vocab_size),
@@ -121,7 +129,9 @@ class S2SQADataset(QADataset):
             example = self.examples[example_index]
 
             query_tokens, formatted_query = self._prep_query(example)
-            context_tokens, context_spans = self._prep_context(example, query_tokens, context_prefix_tokens)
+            context_tokens, context_spans = self._prep_context(
+                example, query_tokens, context_prefix_tokens
+            )
 
             unique_id = self._encode_all_context_spans(
                 unique_id,
@@ -143,7 +153,9 @@ class S2SQADataset(QADataset):
         The space at the start allows concatention with the context for input
         """
         formatted_query = f" question: {example.question_text}"
-        query_tokens = self.tokenizer.tokenizer.tokenize(formatted_query)[: self.max_query_length]
+        query_tokens = self.tokenizer.tokenizer.tokenize(formatted_query)[
+            : self.max_query_length
+        ]
 
         return query_tokens, formatted_query
 
@@ -161,7 +173,9 @@ class S2SQADataset(QADataset):
             - len(context_prefix_tokens)
             - 1  # -1 accounts for </s> token in T5/BART
         )
-        context_spans = S2SQADataset.get_docspans(context_tokens, max_context_length, self.doc_stride)
+        context_spans = S2SQADataset.get_docspans(
+            context_tokens, max_context_length, self.doc_stride
+        )
         context_spans = tuple(context_spans)
 
         return context_tokens, context_spans
@@ -185,8 +199,12 @@ class S2SQADataset(QADataset):
         for context_span_idx, context_span in enumerate(context_spans):
 
             # format query and context span text
-            context_span_tokens = context_tokens[context_span.start : context_span.start + context_span.length]
-            context_span_text = self.tokenizer.tokenizer.convert_tokens_to_string(context_span_tokens)
+            context_span_tokens = context_tokens[
+                context_span.start : context_span.start + context_span.length
+            ]
+            context_span_text = self.tokenizer.tokenizer.convert_tokens_to_string(
+                context_span_tokens
+            )
             source = f"context: {context_span_text}{formatted_query}"
 
             # encode input
@@ -232,7 +250,8 @@ class S2SQADataset(QADataset):
         is_answer_in_context_check = (
             self.check_if_answer_in_context  # checks if the flag for this check is set
             and example.answer_text  # checks if answer text is valid, i.e. question is not unanswerable
-            and example.answer_text not in context_span_text  # checks if answer text is a substring of context
+            and example.answer_text
+            not in context_span_text  # checks if answer text is a substring of context
         )
 
         if (

@@ -114,18 +114,24 @@ class DistillationMegatronGPTModel(MegatronGPTModel):
             trainer: Nemo trainer instance.
         """
         logging.info("Distillation: Enabled.")
-        assert cfg.kd_teacher_restore_from_path is not None, "Path to teacher weights must be provided."
-        assert cfg.pipeline_model_parallel_size == 1, "Distillation mode does not yet support Pipeline Parallel."
+        assert (
+            cfg.kd_teacher_restore_from_path is not None
+        ), "Path to teacher weights must be provided."
+        assert (
+            cfg.pipeline_model_parallel_size == 1
+        ), "Distillation mode does not yet support Pipeline Parallel."
 
         super().__init__(cfg, trainer)
 
         logging.info("\n\n************** Final model configuration ***********")
-        logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
+        logging.info(f"\n{OmegaConf.to_yaml(cfg)}")
 
     def model_provider_func(self, pre_process, post_process):
         """Model depends on pipeline paralellism."""
         if not self.mcore_gpt:
-            raise AssertionError("ModelOpt Distillation only supports MCore model edition.")
+            raise AssertionError(
+                "ModelOpt Distillation only supports MCore model edition."
+            )
 
         model = MCoreGPTModel(
             config=self.transformer_config,
@@ -133,29 +139,39 @@ class DistillationMegatronGPTModel(MegatronGPTModel):
                 self.spec_name,
                 self.transformer_config,
                 self.transformer_engine,
-                self.cfg.get('hyena', None),
+                self.cfg.get("hyena", None),
             ),
-            vocab_size=self.cfg.get('override_vocab_size', self.padded_vocab_size),
-            max_sequence_length=self.cfg.get('encoder_seq_length', 512),
+            vocab_size=self.cfg.get("override_vocab_size", self.padded_vocab_size),
+            max_sequence_length=self.cfg.get("encoder_seq_length", 512),
             pre_process=pre_process,
             post_process=post_process,
             parallel_output=True,
-            share_embeddings_and_output_weights=self.cfg.get('share_embeddings_and_output_weights', True),
-            position_embedding_type=self.cfg.get('position_embedding_type', 'learned_absolute'),
-            rotary_percent=self.cfg.get('rotary_percentage', 1.0),
-            seq_len_interpolation_factor=self.cfg.get('seq_len_interpolation_factor', None),
-            rotary_base=self.cfg.get('rotary_base', 10000),
+            share_embeddings_and_output_weights=self.cfg.get(
+                "share_embeddings_and_output_weights", True
+            ),
+            position_embedding_type=self.cfg.get(
+                "position_embedding_type", "learned_absolute"
+            ),
+            rotary_percent=self.cfg.get("rotary_percentage", 1.0),
+            seq_len_interpolation_factor=self.cfg.get(
+                "seq_len_interpolation_factor", None
+            ),
+            rotary_base=self.cfg.get("rotary_base", 10000),
         )
-        if self.cfg.get("apply_embedding_scaling", False) and parallel_state.is_pipeline_first_stage(
-            ignore_virtual=False
-        ):
+        if self.cfg.get(
+            "apply_embedding_scaling", False
+        ) and parallel_state.is_pipeline_first_stage(ignore_virtual=False):
             extend_instance(model.embedding, EmbeddingScalingMixin)
 
         # [ModelOpt] Distillation mode.
         distill_cfg = load_distillation_config(self.transformer_config)
         # Intialize DistillationModel.
         kd_config = {
-            "teacher_model": (_teacher_provider, [self.cfg, copy.deepcopy(self.trainer)], {}),
+            "teacher_model": (
+                _teacher_provider,
+                [self.cfg, copy.deepcopy(self.trainer)],
+                {},
+            ),
             "criterion": distill_cfg["criterion"],
             "loss_balancer": distill_cfg["loss_balancer"],
         }
@@ -167,29 +183,42 @@ class DistillationMegatronGPTModel(MegatronGPTModel):
         return model
 
     def get_forward_output_and_loss_func(self, validation_step=False, tuning=False):
-        def fwd_output_and_loss_func(dataloader_iter, model, checkpoint_activations_all_layers=None):
+        def fwd_output_and_loss_func(
+            dataloader_iter, model, checkpoint_activations_all_layers=None
+        ):
 
             # Get data batch
             batch = self.get_batch(dataloader_iter, tuning)
 
             # Transfer needed data to GPU
             required_keys = set()
-            max_seqlen = batch['max_seqlen'].squeeze() if 'max_seqlen' in batch else None
-            cu_seqlens_argmin = batch['cu_seqlens_argmin'] if 'cu_seqlens_argmin' in batch else None
+            max_seqlen = (
+                batch["max_seqlen"].squeeze() if "max_seqlen" in batch else None
+            )
+            cu_seqlens_argmin = (
+                batch["cu_seqlens_argmin"] if "cu_seqlens_argmin" in batch else None
+            )
             if parallel_state.get_pipeline_model_parallel_world_size() == 1:
                 required_keys.update(batch.keys())
             else:
-                required_keys.add('attention_mask')
-                if 'cu_seqlens' in batch:
-                    required_keys.add('cu_seqlens')
+                required_keys.add("attention_mask")
+                if "cu_seqlens" in batch:
+                    required_keys.add("cu_seqlens")
                 if parallel_state.is_pipeline_first_stage(ignore_virtual=False):
-                    required_keys.update(('tokens', 'position_ids'))
+                    required_keys.update(("tokens", "position_ids"))
                 if parallel_state.is_pipeline_last_stage(ignore_virtual=False):
-                    required_keys.update(('labels', 'loss_mask'))
-            if self.get_attention_mask_from_fusion and 'attention_mask' in required_keys:
-                required_keys.remove('attention_mask')
+                    required_keys.update(("labels", "loss_mask"))
+            if (
+                self.get_attention_mask_from_fusion
+                and "attention_mask" in required_keys
+            ):
+                required_keys.remove("attention_mask")
             batch = {
-                key: val.cuda(non_blocking=True) if key in required_keys and isinstance(val, torch.Tensor) else None
+                key: (
+                    val.cuda(non_blocking=True)
+                    if key in required_keys and isinstance(val, torch.Tensor)
+                    else None
+                )
                 for key, val in batch.items()
             }
 
@@ -198,19 +227,25 @@ class DistillationMegatronGPTModel(MegatronGPTModel):
 
             # Model forward pass
             forward_args = {
-                'input_ids': batch['tokens'],
-                'position_ids': batch['position_ids'],
-                'attention_mask': None if self.get_attention_mask_from_fusion else batch['attention_mask'],
-                'labels': batch['labels'] if 'labels' in batch else None,
-                'loss_mask': batch['loss_mask'],
+                "input_ids": batch["tokens"],
+                "position_ids": batch["position_ids"],
+                "attention_mask": (
+                    None
+                    if self.get_attention_mask_from_fusion
+                    else batch["attention_mask"]
+                ),
+                "labels": batch["labels"] if "labels" in batch else None,
+                "loss_mask": batch["loss_mask"],
             }
 
             # TODO: @eharper can we add this to mcore?
-            forward_args.pop('loss_mask')
+            forward_args.pop("loss_mask")
 
-            if 'cu_seqlens' in batch:  # packed sequence from GPTSFTPackedDataset
+            if "cu_seqlens" in batch:  # packed sequence from GPTSFTPackedDataset
                 # these args are passed eventually into TEDotProductAttention.forward()
-                cu_seqlens = batch['cu_seqlens'].squeeze()  # remove batch size dimension (mbs=1)
+                cu_seqlens = batch[
+                    "cu_seqlens"
+                ].squeeze()  # remove batch size dimension (mbs=1)
                 # remove -1 "paddings" added in collate_fn
                 if cu_seqlens_argmin is not None:
                     cu_seqlens = cu_seqlens[: cu_seqlens_argmin.item()]
@@ -220,19 +255,19 @@ class DistillationMegatronGPTModel(MegatronGPTModel):
                 try:
                     from megatron.core.packed_seq_params import PackedSeqParams
                 except (ImportError, ModuleNotFoundError) as e:
-                    mcore_version = packaging.version.Version(version('megatron-core'))
+                    mcore_version = packaging.version.Version(version("megatron-core"))
                     logging.error(
                         f"megatron-core v{mcore_version} does not support training with packed sequence. "
                         "Please use megatron-core >= 0.5.0, or set model.data.train_ds.packed_sequence=False"
                     )
                     raise e
 
-                forward_args['packed_seq_params'] = PackedSeqParams(
+                forward_args["packed_seq_params"] = PackedSeqParams(
                     cu_seqlens_q=cu_seqlens,
                     cu_seqlens_kv=cu_seqlens,
                     max_seqlen_q=max_seqlen,
                     max_seqlen_kv=max_seqlen,
-                    qkv_format='thd',
+                    qkv_format="thd",
                 )
 
             output_tensor = model(**forward_args)
@@ -240,52 +275,73 @@ class DistillationMegatronGPTModel(MegatronGPTModel):
             def loss_func(output_tensor):
                 if validation_step:
                     loss_for_ub = self.loss_func(
-                        batch['loss_mask'], batch['num_valid_tokens_in_ub'], output_tensor, validation_step=True
+                        batch["loss_mask"],
+                        batch["num_valid_tokens_in_ub"],
+                        output_tensor,
+                        validation_step=True,
                     )
                 else:
                     # [ModelOpt] KD Loss for a micro-batch (ub)
-                    unwrapped_model = unwrap_model(model, (Float16Module, MCoreFloat16Module))
+                    unwrapped_model = unwrap_model(
+                        model, (Float16Module, MCoreFloat16Module)
+                    )
                     loss_for_ub = unwrapped_model.compute_kd_loss(
                         loss_reduction_fn=lambda x: self.loss_func(
-                            batch['loss_mask'], batch['num_valid_tokens_in_ub'], x
+                            batch["loss_mask"], batch["num_valid_tokens_in_ub"], x
                         )
                     )
                 cp_size = parallel_state.get_context_parallel_world_size()
                 if validation_step and not self.validation_drop_last:
-                    num_valid_tokens_in_ub = batch['num_valid_tokens_in_ub']
+                    num_valid_tokens_in_ub = batch["num_valid_tokens_in_ub"]
                     if loss_for_ub.isnan():
-                        assert batch['loss_mask'].count_nonzero() == 0, 'Got NaN loss with non-empty input'
+                        assert (
+                            batch["loss_mask"].count_nonzero() == 0
+                        ), "Got NaN loss with non-empty input"
                         loss_sum_for_ub = torch.zeros_like(loss_for_ub)
                         num_valid_tokens_in_ub = 0
                     else:
-                        if self.sample_weight == 'constant':
+                        if self.sample_weight == "constant":
                             num_valid_tokens_in_ub = 1
                         loss_sum_for_ub = num_valid_tokens_in_ub * loss_for_ub
 
                     loss_sum_and_ub_size_all_gpu = torch.cat(
                         [
                             loss_sum_for_ub.clone().detach().view(1),
-                            torch.tensor([num_valid_tokens_in_ub]).cuda().clone().detach(),
+                            torch.tensor([num_valid_tokens_in_ub])
+                            .cuda()
+                            .clone()
+                            .detach(),
                         ]
                     )
                     # Could potentially reduce num_valid_samples_in_microbatch and use that to aggregate instead of len(self._validation_ds)
                     torch.distributed.all_reduce(
-                        loss_sum_and_ub_size_all_gpu, group=parallel_state.get_data_parallel_group()
+                        loss_sum_and_ub_size_all_gpu,
+                        group=parallel_state.get_data_parallel_group(),
                     )
-                    return loss_for_ub * cp_size, {'loss_sum_and_ub_size': loss_sum_and_ub_size_all_gpu}
+                    return loss_for_ub * cp_size, {
+                        "loss_sum_and_ub_size": loss_sum_and_ub_size_all_gpu
+                    }
                 else:
-                    reduced_loss = average_losses_across_data_parallel_group([loss_for_ub])
-                    return loss_for_ub * cp_size, {'avg': reduced_loss}
+                    reduced_loss = average_losses_across_data_parallel_group(
+                        [loss_for_ub]
+                    )
+                    return loss_for_ub * cp_size, {"avg": reduced_loss}
 
             return output_tensor, loss_func
 
         return fwd_output_and_loss_func
 
-    def loss_func(self, loss_mask, num_valid_tokens_in_ub, output_tensor, validation_step=False):
+    def loss_func(
+        self, loss_mask, num_valid_tokens_in_ub, output_tensor, validation_step=False
+    ):
         loss = super().loss_func(loss_mask, num_valid_tokens_in_ub, output_tensor)
         if not validation_step and self.cfg.tensor_model_parallel_size > 1:
             # [ModelOpt] KD loss requires extra all-reduce to ensure same values across MP-TP partitions.
-            loss = torch.sum(tensor_parallel.gather_from_tensor_model_parallel_region(loss.reshape(1)))
+            loss = torch.sum(
+                tensor_parallel.gather_from_tensor_model_parallel_region(
+                    loss.reshape(1)
+                )
+            )
         return loss
 
     def configure_optimizers(self):
@@ -302,7 +358,10 @@ def load_distillation_config(student_cfg: TransformerConfig) -> Dict[str, Any]:
     Args:
         student_cfg: Model config for student model.
     """
-    logit_pair = ("output_layer", "output_layer")  # logit module names for MCoreGPTModel
+    logit_pair = (
+        "output_layer",
+        "output_layer",
+    )  # logit module names for MCoreGPTModel
     tp_enabled = student_cfg.tensor_model_parallel_size > 1
 
     cfg = {
@@ -325,7 +384,9 @@ class BaseLoss(_Loss, metaclass=ABCMeta):
         super().__init__()
         self._tensor_parallel = tensor_parallel
 
-    def pre_forward(self, predictions: Tensor, targets: Tensor) -> Tuple[Tensor, Tensor]:
+    def pre_forward(
+        self, predictions: Tensor, targets: Tensor
+    ) -> Tuple[Tensor, Tensor]:
         """Performs projection of student tensor to match teacher's size if necessary."""
         if isinstance(predictions, tuple):
             # `ColumnParallelLinear` returns bias too
@@ -395,7 +456,9 @@ class LogitsKLLoss(BaseLoss):
             denom_teacher = torch.sum(torch.exp(output_teacher), dim=-1)
             # We can't use `gather_from_tensor_model_parallel_region` here since it discards
             # gradients from other ranks - we need to all_reduce the gradients as well.
-            denom_teacher = all_reduce_autograd(denom_teacher, group=get_tensor_model_parallel_group())
+            denom_teacher = all_reduce_autograd(
+                denom_teacher, group=get_tensor_model_parallel_group()
+            )
 
             # Maximum value along vocab dimension across all GPUs.
             student_logits_max, _ = torch.max(output_student, dim=-1)
@@ -404,27 +467,41 @@ class LogitsKLLoss(BaseLoss):
                 op=torch.distributed.ReduceOp.MAX,
                 group=get_tensor_model_parallel_group(),
             )
-            output_student = output_student - student_logits_max.unsqueeze(dim=-1).detach()
+            output_student = (
+                output_student - student_logits_max.unsqueeze(dim=-1).detach()
+            )
 
             denom_student = torch.sum(torch.exp(output_student), dim=-1)
-            denom_student = all_reduce_autograd(denom_student, group=get_tensor_model_parallel_group())
+            denom_student = all_reduce_autograd(
+                denom_student, group=get_tensor_model_parallel_group()
+            )
 
             slen, bsz, sharded_vocab_size = output_student.shape
-            student_log_prob = output_student - torch.log(denom_student).view(slen, bsz, 1).expand(
-                slen, bsz, sharded_vocab_size
-            )
-            teacher_log_prob = output_teacher - torch.log(denom_teacher).view(slen, bsz, 1).expand(
-                slen, bsz, sharded_vocab_size
-            )
+            student_log_prob = output_student - torch.log(denom_student).view(
+                slen, bsz, 1
+            ).expand(slen, bsz, sharded_vocab_size)
+            teacher_log_prob = output_teacher - torch.log(denom_teacher).view(
+                slen, bsz, 1
+            ).expand(slen, bsz, sharded_vocab_size)
 
             if self._reverse:
                 loss = torch.sum(
-                    F.kl_div(teacher_log_prob, student_log_prob, reduction="none", log_target=True),
+                    F.kl_div(
+                        teacher_log_prob,
+                        student_log_prob,
+                        reduction="none",
+                        log_target=True,
+                    ),
                     dim=-1,
                 )
             else:
                 loss = torch.sum(
-                    F.kl_div(student_log_prob, teacher_log_prob, reduction="none", log_target=True),
+                    F.kl_div(
+                        student_log_prob,
+                        teacher_log_prob,
+                        reduction="none",
+                        log_target=True,
+                    ),
                     dim=-1,
                 )
 
@@ -432,14 +509,18 @@ class LogitsKLLoss(BaseLoss):
             if self._reverse:
                 loss = torch.sum(
                     F.kl_div(
-                        F.log_softmax(output_teacher, dim=-1), F.softmax(output_student, dim=-1), reduction="none"
+                        F.log_softmax(output_teacher, dim=-1),
+                        F.softmax(output_student, dim=-1),
+                        reduction="none",
                     ),
                     dim=-1,
                 )
             else:
                 loss = torch.sum(
                     F.kl_div(
-                        F.log_softmax(output_student, dim=-1), F.softmax(output_teacher, dim=-1), reduction="none"
+                        F.log_softmax(output_student, dim=-1),
+                        F.softmax(output_teacher, dim=-1),
+                        reduction="none",
                     ),
                     dim=-1,
                 )
@@ -462,11 +543,15 @@ class _AllReduce(torch.autograd.Function):
         return (None, None, _AllReduce.apply(ctx.op, ctx.group, grad_output))
 
 
-def all_reduce_autograd(tensor, op=torch.distributed.ReduceOp.SUM, group=torch.distributed.group.WORLD):
+def all_reduce_autograd(
+    tensor, op=torch.distributed.ReduceOp.SUM, group=torch.distributed.group.WORLD
+):
     return _AllReduce.apply(op, group, tensor)
 
 
-def adjust_distillation_model_for_mcore(model: mtd.DistillationModel, distill_cfg: Dict[str, Any]):
+def adjust_distillation_model_for_mcore(
+    model: mtd.DistillationModel, distill_cfg: Dict[str, Any]
+):
     """Extra modifcations to ``mtd.DistillationModel`` requried for Megatron-Core."""
 
     # HACK: Get rid of ModelOpt Distillation state
@@ -492,7 +577,9 @@ def adjust_distillation_model_for_mcore(model: mtd.DistillationModel, distill_cf
 
     if distill_cfg["skip_lm_loss"]:
         model._compute_language_model_loss = model.compute_language_model_loss
-        model.compute_language_model_loss = types.MethodType(_compute_language_model_loss, model)
+        model.compute_language_model_loss = types.MethodType(
+            _compute_language_model_loss, model
+        )
 
 
 ########################################################
@@ -532,7 +619,7 @@ def _merge_model_arch_fields(cfg: DictConfig, model_load_path: str) -> DictConfi
 @hydra_runner(config_path="conf", config_name="megatron_llama_distill")
 def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
-    logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
+    logging.info(f"\n{OmegaConf.to_yaml(cfg)}")
 
     trainer = MegatronTrainerBuilder(cfg).create_trainer()
     exp_manager(trainer, cfg.exp_manager)
@@ -545,7 +632,9 @@ def main(cfg) -> None:
     # Continual training
     if cfg.model.get("restore_from_path") is not None:
         # Option 1: Restore only the model weights from a .nemo file
-        logging.info(f"Continual training: loading weights from {cfg.model.restore_from_path}")
+        logging.info(
+            f"Continual training: loading weights from {cfg.model.restore_from_path}"
+        )
 
         # Merge model config's architecture fields with the one from the checkpoint
         cfg.model = _merge_model_arch_fields(cfg.model, cfg.model.restore_from_path)
@@ -559,7 +648,9 @@ def main(cfg) -> None:
         logging.info("... weights loaded.")
     elif cfg.model.get("restore_from_ckpt") is not None:
         # Option 2: Restore both model weights and optimizer states from a PTL checkpoint
-        logging.info(f"Continual training: loading weights and optimizer states from {cfg.model.restore_from_ckpt}")
+        logging.info(
+            f"Continual training: loading weights and optimizer states from {cfg.model.restore_from_ckpt}"
+        )
         trainer.ckpt_path = Path(cfg.model.restore_from_ckpt)
         model = DistillationMegatronGPTModel(cfg.model, trainer)
         logging.info("... weights and optimizer states loaded.")
@@ -578,5 +669,5 @@ def main(cfg) -> None:
         logging.warning("Skipping saving final model as no `model.nemo_path` provided.")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

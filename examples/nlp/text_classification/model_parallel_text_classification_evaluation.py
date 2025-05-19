@@ -28,15 +28,17 @@ from nemo.utils.exp_manager import exp_manager
 
 @hydra_runner(config_path="conf", config_name="text_classification_config")
 def main(cfg: DictConfig) -> None:
-    logging.info(f'\nConfig Params:\n{OmegaConf.to_yaml(cfg)}')
+    logging.info(f"\nConfig Params:\n{OmegaConf.to_yaml(cfg)}")
     trainer = pl.Trainer(strategy=NLPDDPStrategy(), **cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
     # TODO: can we drop strict=False
-    model = TextClassificationModel.restore_from(cfg.model.nemo_path, trainer=trainer, strict=False)
+    model = TextClassificationModel.restore_from(
+        cfg.model.nemo_path, trainer=trainer, strict=False
+    )
     model.setup_test_data(test_data_config=cfg.model.test_ds)
 
     trainer.test(model=model, ckpt_path=None)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

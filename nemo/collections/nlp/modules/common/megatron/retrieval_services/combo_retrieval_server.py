@@ -49,43 +49,45 @@ class ComboRetrievalResource(Resource):
 
     def put(self):
         data = request.get_json()
-        if 'neighbors' in data:
-            sentences = data['sentences']
+        if "neighbors" in data:
+            sentences = data["sentences"]
             # do knn query
-            num_neighbors = data['neighbors']
+            num_neighbors = data["neighbors"]
             with lock:  # Need to get lock to keep multiple threads from hitting code
                 neighbors = self.get_knn(sentences, num_neighbors)
             return jsonify(neighbors.tolist())
-        elif 'reset' in data:
+        elif "reset" in data:
             with lock:  # Need to get lock to keep multiple threads from hitting code
                 self.reset()
             return "success"
-        elif 'update_weight' in data:
+        elif "update_weight" in data:
             with lock:
-                self.update_weights(data['update_weight'])
+                self.update_weights(data["update_weight"])
             return "success"
-        elif 'index_name' in data:
+        elif "index_name" in data:
             with lock:
                 # serialize the index
                 index = self.index
-                if hasattr(faiss, 'index_gpu_to_cpu'):
+                if hasattr(faiss, "index_gpu_to_cpu"):
                     index = faiss.index_gpu_to_cpu(index)
-                faiss.write_index(index, data['index_name'] + '_' + self.output_filename + '.index')
+                faiss.write_index(
+                    index, data["index_name"] + "_" + self.output_filename + ".index"
+                )
                 # save the data
-                with open(self.output_filename + '.pkl', 'bw') as f:
+                with open(self.output_filename + ".pkl", "bw") as f:
                     pickle.dump(self.ds, f)
         else:
-            sentences = data['sentences']
-            add_eos = data['add_eos']
+            sentences = data["sentences"]
+            add_eos = data["add_eos"]
             # update the index
             with lock:  # Need to get lock to keep multiple threads from hitting code
                 self.add_docs_to_index(sentences, add_eos)
             return "success"
 
     def reset(self):
-        output = 'success'
+        output = "success"
         if not self.updatable:
-            return 'no dynamic service, no action is performed'
+            return "no dynamic service, no action is performed"
         for i, service in enumerate(self.retrieval_services):
             if service.updatable:
                 service.reset()
@@ -122,10 +124,10 @@ class ComboRetrievalResource(Resource):
             docs: List[str], list of documents that is going to be added to the index
             add_eos: bool, whether add the eos in the end
         """
-        output = 'success'
+        output = "success"
         if not self.updatable:
             if not self.updatable:
-                return 'no dynamic service, no action is performed'
+                return "no dynamic service, no action is performed"
         for i, service in enumerate(self.retrieval_services):
             if service.updatable:
                 service.add_docs_to_index(query, add_eos)
@@ -137,10 +139,10 @@ class ComboRetrievalResource(Resource):
         Args:
             index_name: str, index name
         """
-        output = 'success'
+        output = "success"
         if not self.updatable:
             if not self.updatable:
-                return 'no dynamic service, no action is performed'
+                return "no dynamic service, no action is performed"
         for i, service in enumerate(self.retrieval_services):
             if service.updatable:
                 service.write_index(index_name)
@@ -153,31 +155,44 @@ class ComboRetrievalServer(object):
     """
 
     def __init__(
-        self, tokenizer: TokenizerSpec, services_cfg: list,
+        self,
+        tokenizer: TokenizerSpec,
+        services_cfg: list,
     ):
-        self.app = Flask(__name__, static_url_path='')
+        self.app = Flask(__name__, static_url_path="")
         services = []
         weights = []
         for service_cfg in services_cfg:
             weights.append(service_cfg.weight)
-            if service_cfg.type == 'FaissRetrievalService':
+            if service_cfg.type == "FaissRetrievalService":
                 service = FaissRetrievalService(
-                    tokenizer=tokenizer, service_ip=service_cfg.service_ip, service_port=service_cfg.service_port
+                    tokenizer=tokenizer,
+                    service_ip=service_cfg.service_ip,
+                    service_port=service_cfg.service_port,
                 )
-            elif service_cfg.type == 'DynamicFaissRetrievalService':
+            elif service_cfg.type == "DynamicFaissRetrievalService":
                 service = DynamicFaissRetrievalService(
-                    tokenizer=tokenizer, service_ip=service_cfg.service_ip, service_port=service_cfg.service_port
+                    tokenizer=tokenizer,
+                    service_ip=service_cfg.service_ip,
+                    service_port=service_cfg.service_port,
                 )
             else:
-                raise ValueError(f'Unsupported retrieval service {service_cfg.type}')
+                raise ValueError(f"Unsupported retrieval service {service_cfg.type}")
             services.append(service)
         self.weight_container = [weights]
         self.tokenizer = tokenizer
 
         api = Api(self.app)
         api.add_resource(
-            ComboRetrievalResource, '/knn', resource_class_args=[services, self.weight_container,],
+            ComboRetrievalResource,
+            "/knn",
+            resource_class_args=[
+                services,
+                self.weight_container,
+            ],
         )
 
     def run(self, url, port=None):
-        threading.Thread(target=lambda: self.app.run(host=url, threaded=True, port=port)).start()
+        threading.Thread(
+            target=lambda: self.app.run(host=url, threaded=True, port=port)
+        ).start()

@@ -63,7 +63,7 @@ class HyenaModel(LanguageModule):
         parallel_output: bool = True,
         post_layer_norm: bool = True,
         share_embeddings_and_output_weights: bool = True,
-        position_embedding_type: Literal['learned_absolute', 'rope', 'none'] = 'rope',
+        position_embedding_type: Literal["learned_absolute", "rope", "none"] = "rope",
         rotary_percent: float = 1.0,
         rotary_base: int = 10000,
         seq_len_interpolation_factor: Optional[float] = None,
@@ -83,11 +83,15 @@ class HyenaModel(LanguageModule):
         self.hyena_config.num_groups_hyena_short = num_groups_hyena_short
         if hyena_init_method:
             self.transformer_config.init_method = get_init_method(
-                hyena_init_method, self.transformer_config.num_layers, self.transformer_config.hidden_size
+                hyena_init_method,
+                self.transformer_config.num_layers,
+                self.transformer_config.hidden_size,
             )
         if hyena_output_layer_init_method:
             self.transformer_config.output_layer_init_method = get_init_method(
-                hyena_output_layer_init_method, self.transformer_config.num_layers, self.transformer_config.hidden_size
+                hyena_output_layer_init_method,
+                self.transformer_config.num_layers,
+                self.transformer_config.hidden_size,
             )
 
         if has_config_logger_enabled(transformer_config):
@@ -116,7 +120,7 @@ class HyenaModel(LanguageModule):
                 position_embedding_type=position_embedding_type,
             )
 
-        if self.position_embedding_type == 'rope':
+        if self.position_embedding_type == "rope":
             self.rotary_pos_emb = RotaryEmbedding(
                 kv_channels=self.transformer_config.kv_channels,
                 rotary_percent=rotary_percent,
@@ -161,17 +165,23 @@ class HyenaModel(LanguageModule):
                     output_size = linear_proj.weight.shape[0]
                     linear_proj.bias = Parameter(
                         torch.empty(
-                            output_size, dtype=linear_proj.config.params_dtype, device=linear_proj.weight.device
+                            output_size,
+                            dtype=linear_proj.config.params_dtype,
+                            device=linear_proj.weight.device,
                         )
                     )
                     # Always initialize bias to zero.
                     with torch.no_grad():
                         linear_proj.bias.zero_()
-                    setattr(linear_proj.bias, 'allreduce', True)
-                    setattr(linear_proj, 'te_return_bias', True)
-                    setattr(linear_proj, 'return_bias', True)
-                    setattr(linear_proj, 'use_bias', True)
-                    setattr(linear_proj.bias, 'sequence_parallel', linear_proj.config.sequence_parallel)
+                    setattr(linear_proj.bias, "allreduce", True)
+                    setattr(linear_proj, "te_return_bias", True)
+                    setattr(linear_proj, "return_bias", True)
+                    setattr(linear_proj, "use_bias", True)
+                    setattr(
+                        linear_proj.bias,
+                        "sequence_parallel",
+                        linear_proj.config.sequence_parallel,
+                    )
 
         # Output
         if post_process:
@@ -197,7 +207,8 @@ class HyenaModel(LanguageModule):
                 bias=self.config.add_bias_output,
                 skip_bias_add=False,
                 gather_output=not self.parallel_output,
-                skip_weight_param_allocation=self.pre_process and self.share_embeddings_and_output_weights,
+                skip_weight_param_allocation=self.pre_process
+                and self.share_embeddings_and_output_weights,
             )
             if self.config.add_bias_output:
                 self.output_layer.bias.data.zero_()
@@ -218,7 +229,9 @@ class HyenaModel(LanguageModule):
         if not isinstance(input_tensor, list):
             input_tensor = [input_tensor]
 
-        assert len(input_tensor) == 1, 'input_tensor should only be length 1 for gpt/bert'
+        assert (
+            len(input_tensor) == 1
+        ), "input_tensor should only be length 1 for gpt/bert"
         self.decoder.set_input_tensor(input_tensor[0])
 
     def forward(
@@ -240,16 +253,22 @@ class HyenaModel(LanguageModule):
         if decoder_input is not None:
             pass
         elif self.pre_process:
-            decoder_input = self.embedding(input_ids=input_ids, position_ids=position_ids)
+            decoder_input = self.embedding(
+                input_ids=input_ids, position_ids=position_ids
+            )
         else:
             # intermediate stage of pipeline
             # decoder will get hidden_states from encoder.input_tensor
             decoder_input = None
 
         rotary_pos_emb = None
-        if self.position_embedding_type == 'rope':
+        if self.position_embedding_type == "rope":
             rotary_seq_len = self.rotary_pos_emb.get_rotary_seq_len(
-                inference_context, self.decoder, decoder_input, self.transformer_config, None
+                inference_context,
+                self.decoder,
+                decoder_input,
+                self.transformer_config,
+                None,
             )
             rotary_pos_emb = self.rotary_pos_emb(rotary_seq_len)
 
@@ -286,7 +305,9 @@ class HyenaModel(LanguageModule):
 
         labels, lowercase_mask = make_upper_case(labels)
         loss = self.compute_language_model_loss(labels, logits)
-        normalize_per_batch = True if self.config.to_upper == "normalized_weighted" else False
+        normalize_per_batch = (
+            True if self.config.to_upper == "normalized_weighted" else False
+        )
         loss = reweighted_cross_entropy(
             loss,
             (labels, loss_mask, lowercase_mask),

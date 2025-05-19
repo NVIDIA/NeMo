@@ -93,7 +93,7 @@ class DiffusionDataModule(EnergonMultiModalDataModule):
         self.packing_buffer_size = packing_buffer_size
         self.max_samples_per_sequence = max_samples_per_sequence
 
-    def datasets_provider(self, worker_config, split: Literal['train', 'val'] = 'val'):
+    def datasets_provider(self, worker_config, split: Literal["train", "val"] = "val"):
         """
         Provide the dataset for training or validation.
 
@@ -107,10 +107,12 @@ class DiffusionDataModule(EnergonMultiModalDataModule):
         Returns:
         Dataset: The dataset configured for the specified split.
         """
-        if split not in {'train', 'val'}:
-            raise ValueError("Invalid value for split. Allowed values are 'train' or 'val'.")
+        if split not in {"train", "val"}:
+            raise ValueError(
+                "Invalid value for split. Allowed values are 'train' or 'val'."
+            )
         if self.use_train_split_for_val:
-            split = 'train'
+            split = "train"
         _dataset = get_train_dataset(
             self.path,
             batch_size=self.micro_batch_size,
@@ -152,7 +154,9 @@ class DiffusionDataModule(EnergonMultiModalDataModule):
             world_size = parallel_state.get_data_parallel_world_size()
             data_parallel_group = parallel_state.get_data_parallel_group()
 
-            logging.info(f"rank {rank} world_size {world_size} data_parallel_group {data_parallel_group}")
+            logging.info(
+                f"rank {rank} world_size {world_size} data_parallel_group {data_parallel_group}"
+            )
             worker_config = WorkerConfig(
                 rank=rank,
                 world_size=world_size,
@@ -161,7 +165,7 @@ class DiffusionDataModule(EnergonMultiModalDataModule):
                 worker_debug_path=None,
                 worker_log_level=0,
             )
-        val_dataset = self.datasets_provider(worker_config, split='val')
+        val_dataset = self.datasets_provider(worker_config, split="val")
         energon_loader = get_savable_loader(val_dataset, worker_config=worker_config)
         self.val_dataloader_object = energon_loader
         return self.val_dataloader_object

@@ -53,7 +53,9 @@ class MoviegGenLayer(TransformerLayer):
         submodules: TransformerLayerSubmodules,
         layer_number: int = 1,
         hidden_dropout: float = None,
-        position_embedding_type: Literal["learned_absolute", "rope"] = "learned_absolute",
+        position_embedding_type: Literal[
+            "learned_absolute", "rope"
+        ] = "learned_absolute",
     ):
         def _replace_no_cp_submodules(submodules):
             modified_submods = copy.deepcopy(submodules)
@@ -64,7 +66,10 @@ class MoviegGenLayer(TransformerLayer):
         # Replace any submodules that will have CP disabled and build them manually later after TransformerLayer init.
         modified_submods = _replace_no_cp_submodules(submodules)
         super().__init__(
-            config=config, submodules=modified_submods, layer_number=layer_number, hidden_dropout=hidden_dropout
+            config=config,
+            submodules=modified_submods,
+            layer_number=layer_number,
+            hidden_dropout=hidden_dropout,
         )
 
         # Override Cross Attention to disable CP.
@@ -96,7 +101,9 @@ class MoviegGenLayer(TransformerLayer):
         hidden_states = hidden_states + factorized_pos_emb
 
         # ******************************************** full self attention ******************************************************
-        shift_full, scale_full, gate_full, shift_mlp, scale_mlp, gate_mlp = self.adaLN(timestep_emb)
+        shift_full, scale_full, gate_full, shift_mlp, scale_mlp, gate_mlp = self.adaLN(
+            timestep_emb
+        )
 
         # adaLN with scale + shift
         pre_full_attn_layernorm_output_ada = self.adaLN.modulated_layernorm(
@@ -106,17 +113,27 @@ class MoviegGenLayer(TransformerLayer):
         attention_output, _ = self.self_attention(
             pre_full_attn_layernorm_output_ada,
             attention_mask=None,
-            packed_seq_params=None if packed_seq_params is None else packed_seq_params['self_attention'],
+            packed_seq_params=(
+                None
+                if packed_seq_params is None
+                else packed_seq_params["self_attention"]
+            ),
         )
 
-        hidden_states = self.adaLN.scale_add(residual=hidden_states, x=attention_output, gate=gate_full)
+        hidden_states = self.adaLN.scale_add(
+            residual=hidden_states, x=attention_output, gate=gate_full
+        )
 
         # ******************************************** cross attention ******************************************************
         attention_output, _ = self.cross_attention(
             hidden_states,
             attention_mask=context_mask,
             key_value_states=context,
-            packed_seq_params=None if packed_seq_params is None else packed_seq_params['cross_attention'],
+            packed_seq_params=(
+                None
+                if packed_seq_params is None
+                else packed_seq_params["cross_attention"]
+            ),
         )
 
         # ******************************************** mlp ******************************************************
@@ -125,7 +142,9 @@ class MoviegGenLayer(TransformerLayer):
         )
 
         mlp_output, _ = self.mlp(pre_mlp_layernorm_output_ada)
-        hidden_states = self.adaLN.scale_add(residual=hidden_states, x=mlp_output, gate=gate_mlp)
+        hidden_states = self.adaLN.scale_add(
+            residual=hidden_states, x=mlp_output, gate=gate_mlp
+        )
 
         # Jit compiled function creates 'view' tensor. This tensor
         # potentially gets saved in the MPU checkpoint function context,
@@ -133,7 +152,11 @@ class MoviegGenLayer(TransformerLayer):
         # won't result in memory savings (like the data loader, or
         # p2p_communication), it serves to document the origin of this
         # 'view' tensor.
-        output = make_viewless_tensor(inp=hidden_states, requires_grad=hidden_states.requires_grad, keep_graph=True)
+        output = make_viewless_tensor(
+            inp=hidden_states,
+            requires_grad=hidden_states.requires_grad,
+            keep_graph=True,
+        )
 
         return output, context
 
@@ -187,7 +210,9 @@ def _get_mlp_module_spec(
         )
 
 
-def get_dit_llama_spec(num_experts=None, attn_mask_type=AttnMaskType.padding) -> ModuleSpec:
+def get_dit_llama_spec(
+    num_experts=None, attn_mask_type=AttnMaskType.padding
+) -> ModuleSpec:
     params = {"attn_mask_type": attn_mask_type}
     return ModuleSpec(
         module=MoviegGenLayer,
@@ -211,6 +236,8 @@ def get_dit_llama_spec(num_experts=None, attn_mask_type=AttnMaskType.padding) ->
                     linear_proj=TERowParallelLinear,
                 ),
             ),
-            mlp=_get_mlp_module_spec(use_te=True, num_experts=num_experts, moe_grouped_gemm=True, fp8=None),
+            mlp=_get_mlp_module_spec(
+                use_te=True, num_experts=num_experts, moe_grouped_gemm=True, fp8=None
+            ),
         ),
     )

@@ -77,13 +77,25 @@ class MockDataModule(pl.LightningDataModule):
     def setup(self, stage: str = "") -> None:
         """Setup the datasets"""
         self._train_ds = _MockT5Dataset(
-            self.tokenizer, "train", self.num_train_samples, self.seq_length, self.seq_length_dec
+            self.tokenizer,
+            "train",
+            self.num_train_samples,
+            self.seq_length,
+            self.seq_length_dec,
         )
         self._validation_ds = _MockT5Dataset(
-            self.tokenizer, "valid", self.num_val_samples, self.seq_length, self.seq_length_dec
+            self.tokenizer,
+            "valid",
+            self.num_val_samples,
+            self.seq_length,
+            self.seq_length_dec,
         )
         self._test_ds = _MockT5Dataset(
-            self.tokenizer, "test", self.num_test_samples, self.seq_length, self.seq_length_dec
+            self.tokenizer,
+            "test",
+            self.num_test_samples,
+            self.seq_length,
+            self.seq_length_dec,
         )
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
@@ -122,7 +134,9 @@ class MockDataModule(pl.LightningDataModule):
             _reconfigure_limit_batches
 
         # Override limit_train_batches in terms of num of microbatches
-        self.trainer.limit_train_batches = _reconfigure_limit_batches(self.trainer.limit_train_batches, self._train_ds)
+        self.trainer.limit_train_batches = _reconfigure_limit_batches(
+            self.trainer.limit_train_batches, self._train_ds
+        )
         # Override limit_val_batches to be a multiple of num microbatches to prevent val_step from exiting
         #   in between a step
         self.trainer.limit_val_batches = _reconfigure_limit_batches(
@@ -162,8 +176,8 @@ class _MockT5Dataset(Dataset):
         self.create_attention_mask = create_attention_mask
 
         # update for T5 now use FlashFused attention (b11s)
-        self.mask_encoder = torch.ones(self.seq_length, device='cpu')
-        self.mask_decoder = torch.ones(self.seq_length_dec, device='cpu')
+        self.mask_encoder = torch.ones(self.seq_length, device="cpu")
+        self.mask_decoder = torch.ones(self.seq_length_dec, device="cpu")
         self.mask_encoder = ~(self.mask_encoder < 0.5)
         self.mask_decoder = ~(self.mask_decoder < 0.5)
         self.loss_mask = torch.ones(self.seq_length_dec, dtype=torch.float)
@@ -178,9 +192,15 @@ class _MockT5Dataset(Dataset):
     def __getitem__(self, idx) -> Dict[str, torch.Tensor]:
         # Generate data of the expected size and datatype (based on GPTDataset).
         np_gen = np.random.default_rng(seed=(self.seed + idx))
-        encoder_input = torch.from_numpy(np_gen.integers(self.vocab_size, size=[self.seq_length], dtype=np.int64))
-        decoder_input = torch.from_numpy(np_gen.integers(self.vocab_size, size=[self.seq_length_dec], dtype=np.int64))
-        labels = torch.from_numpy(np_gen.integers(self.vocab_size, size=[self.seq_length_dec], dtype=np.int64))
+        encoder_input = torch.from_numpy(
+            np_gen.integers(self.vocab_size, size=[self.seq_length], dtype=np.int64)
+        )
+        decoder_input = torch.from_numpy(
+            np_gen.integers(self.vocab_size, size=[self.seq_length_dec], dtype=np.int64)
+        )
+        labels = torch.from_numpy(
+            np_gen.integers(self.vocab_size, size=[self.seq_length_dec], dtype=np.int64)
+        )
 
         batch = {
             "text_enc": encoder_input,

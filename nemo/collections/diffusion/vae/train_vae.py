@@ -93,14 +93,22 @@ class VAE(MegatronModule):
             # Below line is commented out due to an undefined 'generator' variable in original code snippet.
             # self.vae = generator.search_for_target_vae(parameters_budget=895.178707, cuda_max_mem=0)
         else:
-            self.vae = AutoencoderKL.from_config(pretrained_model_name_or_path, weight_dtype=torch.bfloat16)
+            self.vae = AutoencoderKL.from_config(
+                pretrained_model_name_or_path, weight_dtype=torch.bfloat16
+            )
 
         sdxl_vae = AutoencoderKL.from_pretrained(
-            'stabilityai/stable-diffusion-xl-base-1.0', subfolder="vae", weight_dtype=torch.bfloat16
+            "stabilityai/stable-diffusion-xl-base-1.0",
+            subfolder="vae",
+            weight_dtype=torch.bfloat16,
         )
         sd_dict = sdxl_vae.state_dict()
         vae_dict = self.vae.state_dict()
-        pre_dict = {k: v for k, v in sd_dict.items() if (k in vae_dict) and (vae_dict[k].numel() == v.numel())}
+        pre_dict = {
+            k: v
+            for k, v in sd_dict.items()
+            if (k in vae_dict) and (vae_dict[k].numel() == v.numel())
+        }
         self.vae.load_state_dict(pre_dict, strict=False)
         del sdxl_vae
 
@@ -191,7 +199,11 @@ class VAEModel(GPTModel):
             A dictionary with 'pixel_values' ready for the model.
         """
         batch = next(dataloader_iter)[0]
-        return {'pixel_values': batch.image.to(device='cuda', dtype=torch.bfloat16, non_blocking=True)}
+        return {
+            "pixel_values": batch.image.to(
+                device="cuda", dtype=torch.bfloat16, non_blocking=True
+            )
+        }
 
     def forward(self, *args, **kwargs):
         """
@@ -245,18 +257,24 @@ class VAEModel(GPTModel):
 
         if parallel_state.get_data_parallel_src_rank() == wandb_rank:
             if torch.distributed.get_rank() == wandb_rank:
-                gather_list = [None for _ in range(parallel_state.get_data_parallel_world_size())]
+                gather_list = [
+                    None for _ in range(parallel_state.get_data_parallel_world_size())
+                ]
             else:
                 gather_list = None
             torch.distributed.gather_object(
-                image, gather_list, wandb_rank, group=parallel_state.get_data_parallel_group()
+                image,
+                gather_list,
+                wandb_rank,
+                group=parallel_state.get_data_parallel_group(),
             )
             if gather_list is not None:
                 self.log_dict(log_dict_ae)
                 wandb.log(
                     {
                         "Original (left), Reconstruction (right)": [
-                            wandb.Image(torchvision.utils.make_grid(image)) for _, image in enumerate(gather_list)
+                            wandb.Image(torchvision.utils.make_grid(image))
+                            for _, image in enumerate(gather_list)
                         ]
                     },
                 )
@@ -283,7 +301,9 @@ class VAEModel(GPTModel):
         Used here to skip first validation on resume.
         """
         super().on_validation_model_zero_grad()
-        if self.trainer.ckpt_path is not None and getattr(self, '_restarting_skip_val_flag', True):
+        if self.trainer.ckpt_path is not None and getattr(
+            self, "_restarting_skip_val_flag", True
+        ):
             self.trainer.sanity_checking = True
             self._restarting_skip_val_flag = False
 
@@ -310,7 +330,9 @@ def crop_image(img, divisor=16):
     delta_w_left = delta_w // 2
     delta_w_right = delta_w - delta_w_left
 
-    img_cropped = img[..., delta_h_top : h - delta_h_bottom, delta_w_left : w - delta_w_right]
+    img_cropped = img[
+        ..., delta_h_top : h - delta_h_bottom, delta_w_left : w - delta_w_right
+    ]
 
     return img_cropped
 
@@ -345,7 +367,7 @@ def train_vae() -> run.Partial:
     recipe = pretrain()
     recipe.model = run.Config(
         VAEModel,
-        pretrained_model_name_or_path='nemo/collections/diffusion/vae/vae16x/config.json',
+        pretrained_model_name_or_path="nemo/collections/diffusion/vae/vae16x/config.json",
     )
     recipe.data = run.Config(
         DiffusionDataModule,
@@ -353,10 +375,12 @@ def train_vae() -> run.Partial:
         global_batch_size=24,
         num_workers=10,
     )
-    recipe.optim.lr_scheduler = run.Config(nl.lr_scheduler.WarmupHoldPolicyScheduler, warmup_steps=100, hold_steps=1e9)
+    recipe.optim.lr_scheduler = run.Config(
+        nl.lr_scheduler.WarmupHoldPolicyScheduler, warmup_steps=100, hold_steps=1e9
+    )
     recipe.optim.config.lr = 5e-6
     recipe.optim.config.weight_decay = 1e-2
-    recipe.log.log_dir = 'nemo_experiments/train_vae'
+    recipe.log.log_dir = "nemo_experiments/train_vae"
     recipe.trainer.val_check_interval = 1000
     recipe.trainer.callbacks[0].every_n_train_steps = 1000
 

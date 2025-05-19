@@ -63,7 +63,9 @@ def convert_state_dict(state_dict: Dict[str, torch.Tensor], amp: bool = False):
         else:
             key = key.replace("input_layernorm", "input_layernorm")
             if not falcon_config.parallel_attn:
-                key = key.replace("post_attention_layernorm", "post_self_attn_layernorm")
+                key = key.replace(
+                    "post_attention_layernorm", "post_self_attn_layernorm"
+                )
 
         key = key.replace("self_attention.dense", "self_attention.linear_proj")
         key = key.replace("self_attention.query_key_value", "self_attention.linear_qkv")
@@ -91,14 +93,14 @@ def load_falcon_config(args) -> FalconConfig:
     and force to `falcon` model type.
     """
     config = FalconConfig.from_pretrained(args.input_name_or_path)
-    if config.model_type == 'RefinedWeb':
+    if config.model_type == "RefinedWeb":
         mappings = {
             "num_hidden_layers": config.n_layer,
             "num_attention_heads": config.n_head,
             "num_kv_heads": config.n_head_kv,
             "new_decoder_architecture": True,
         }
-    elif config.model_type == 'RefinedWebModel':
+    elif config.model_type == "RefinedWebModel":
         mappings = {
             "num_hidden_layers": config.n_layer,
             "num_attention_heads": config.n_head,
@@ -111,7 +113,7 @@ def load_falcon_config(args) -> FalconConfig:
     for key, value in mappings.items():
         setattr(config, key, value)
 
-    config.model_type = 'falcon'
+    config.model_type = "falcon"
     return config
 
 
@@ -123,20 +125,32 @@ if __name__ == "__main__":
         required=True,
         help="Path to Falcon variants checkpoint from HuggingFace hub or local dir",
     )
-    parser.add_argument("--output_path", type=str, required=True, help="Path to dir where to store output .nemo file")
+    parser.add_argument(
+        "--output_path",
+        type=str,
+        required=True,
+        help="Path to dir where to store output .nemo file",
+    )
     parser.add_argument(
         "--hparams_file",
         type=str,
         default=os.path.join(
-            os.path.dirname(__file__), '../../examples/nlp/language_modeling/conf/megatron_falcon_config.yaml'
+            os.path.dirname(__file__),
+            "../../examples/nlp/language_modeling/conf/megatron_falcon_config.yaml",
         ),
         required=False,
         help="Path config for restoring. It's created during training and may need to be modified during restore if restore environment is different than training. Ex: /raid/nemo_experiments/megatron_gpt/hparams.yaml",
     )
     parser.add_argument(
-        "--precision", type=str, default="bf16", choices=["bf16", "32"], help="Precision for checkpoint weights saved"
+        "--precision",
+        type=str,
+        default="bf16",
+        choices=["bf16", "32"],
+        help="Precision for checkpoint weights saved",
     )
-    parser.add_argument("--cuda", action="store_true", help="Put Nemo model onto GPU prior to saving")
+    parser.add_argument(
+        "--cuda", action="store_true", help="Put Nemo model onto GPU prior to saving"
+    )
 
     args = parser.parse_args()
 
@@ -240,14 +254,16 @@ if __name__ == "__main__":
 
     # Addtional logic for rope scaling
     if falcon_config.rope_scaling is not None:
-        if falcon_config.rope_scaling.type == 'linear':
-            override_model_dict['seq_len_interpolation_factor'] = falcon_config.rope_scaling.factor
+        if falcon_config.rope_scaling.type == "linear":
+            override_model_dict["seq_len_interpolation_factor"] = (
+                falcon_config.rope_scaling.factor
+            )
         else:
             raise ValueError("Only linear rope scaling type is supported now")
 
     model_dict.update(override_model_dict)
     model_dict["tokenizer"] = tokenizer_dict
-    model_dict["name"] = 'megatron_falcon_gpt'
+    model_dict["name"] = "megatron_falcon_gpt"
     model_dict["mcore_customization_config"] = mcore_customization_config_dict
 
     omega_cfg = OmegaConf.create(model_dict)
@@ -269,13 +285,19 @@ if __name__ == "__main__":
 
     if missing_keys:
         # Keys ending with '_extra_state' are related to Transformer Engine internals
-        missing_keys_non_extra = [key for key in missing_keys if not key.endswith("_extra_state")]
+        missing_keys_non_extra = [
+            key for key in missing_keys if not key.endswith("_extra_state")
+        ]
         if missing_keys_non_extra:
-            logging.critical("Missing keys were detected during the load, something has gone wrong. Aborting.")
+            logging.critical(
+                "Missing keys were detected during the load, something has gone wrong. Aborting."
+            )
             raise RuntimeError(f"Missing keys: \n{missing_keys_non_extra}")
 
     if unexpected_keys:
-        logging.critical("Unexpected keys were detected which should not happen. Aborting.")
+        logging.critical(
+            "Unexpected keys were detected which should not happen. Aborting."
+        )
         raise RuntimeError(f"Unexpected keys: \n{unexpected_keys}")
 
     logging.info("Saving model...")
@@ -294,7 +316,7 @@ if __name__ == "__main__":
     model = model.to(dtype=dtype)
     model.cfg.update(use_cpu_initialization=False)
     model.save_to(args.output_path)
-    logging.info(f'Done. NeMo model saved to: {args.output_path}')
+    logging.info(f"Done. NeMo model saved to: {args.output_path}")
     tok = time.time()
-    t = time.strftime('%H:%M:%S', time.gmtime(tok - tik))
-    logging.info(f'nemo model created and saved. Total time: {t}')
+    t = time.strftime("%H:%M:%S", time.gmtime(tok - tik))
+    logging.info(f"nemo model created and saved. Total time: {t}")

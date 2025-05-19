@@ -19,7 +19,9 @@ from nemo.collections import llm
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Export NeMo checkpoint to Hugging Face format.")
+    parser = argparse.ArgumentParser(
+        description="Export NeMo checkpoint to Hugging Face format."
+    )
     parser.add_argument(
         "--path",
         type=str,
@@ -37,10 +39,10 @@ def main():
 
     llm.export_ckpt(
         path=Path(args.path),
-        target='hf',
+        target="hf",
         output_path=Path(args.output_path),
     )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

@@ -194,7 +194,8 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
         if isinstance(paths, dict):
             if split is not None:
                 warnings.warn(
-                    f"{split=} will be ignored since datasets are being created " f"from 3 separate distributions."
+                    f"{split=} will be ignored since datasets are being created "
+                    f"from 3 separate distributions."
                 )
             build_kwargs["blend_per_split"] = [
                 get_blend_from_list(paths["train"]),
@@ -264,14 +265,18 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
             num_train_samples = self.num_train_samples
             train_iters = int(num_train_samples / self.data_sampler.global_batch_size)
 
-        eval_iters = (train_iters // trainer_val_check_interval + 1) * trainer_limit_val_batches
+        eval_iters = (
+            train_iters // trainer_val_check_interval + 1
+        ) * trainer_limit_val_batches
         num_val_samples = int(eval_iters * self.data_sampler.global_batch_size)
 
         test_iters = trainer_limit_test_batches
         num_test_samples = int(test_iters * self.data_sampler.global_batch_size)
 
         if self.num_val_samples is not None:
-            assert self.num_val_samples > num_val_samples, f"num_val_samples must be greater than {num_val_samples}."
+            assert (
+                self.num_val_samples > num_val_samples
+            ), f"num_val_samples must be greater than {num_val_samples}."
             num_val_samples = self.num_val_samples
         if self.num_test_samples is not None:
             assert (
@@ -298,13 +303,19 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
             # This is to make sure we only have one epoch on every validation iteration
             num_val_samples = None
 
-        train_valid_test_num_samples = [num_train_samples, num_val_samples, num_test_samples]
-        self._train_ds, self._validation_ds, self._test_ds = BlendedMegatronDatasetBuilder(
-            self.dataset_cls,
-            train_valid_test_num_samples,
-            is_built_on_rank=lambda: True,
-            config=self.gpt_dataset_config,
-        ).build()
+        train_valid_test_num_samples = [
+            num_train_samples,
+            num_val_samples,
+            num_test_samples,
+        ]
+        self._train_ds, self._validation_ds, self._test_ds = (
+            BlendedMegatronDatasetBuilder(
+                self.dataset_cls,
+                train_valid_test_num_samples,
+                is_built_on_rank=lambda: True,
+                config=self.gpt_dataset_config,
+            ).build()
+        )
 
     def setup(self, stage: str = "") -> None:
         """
@@ -397,7 +408,9 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
             A dictionary containing datamodule state.
 
         """
-        consumed_samples = self.data_sampler.compute_consumed_samples(self.trainer.global_step - self.init_global_step)
+        consumed_samples = self.data_sampler.compute_consumed_samples(
+            self.trainer.global_step - self.init_global_step
+        )
         return {"consumed_samples": consumed_samples}
 
     def load_state_dict(self, state_dict: Dict[str, Any]) -> None:
@@ -412,7 +425,9 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
                 update_num_microbatches
 
         except (ImportError, ModuleNotFoundError):
-            logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
+            logging.warning(
+                "Megatron num_microbatches_calculator not found, using Apex version."
+            )
             from apex.transformer.pipeline_parallel.utils import \
                 update_num_microbatches
 
@@ -440,7 +455,9 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
             _reconfigure_limit_batches
 
         # Override limit_train_batches in terms of num of microbatches
-        self.trainer.limit_train_batches = _reconfigure_limit_batches(self.trainer.limit_train_batches, self._train_ds)
+        self.trainer.limit_train_batches = _reconfigure_limit_batches(
+            self.trainer.limit_train_batches, self._train_ds
+        )
         # Override limit_val_batches to be a multiple of num microbatches to prevent val_step from exiting
         #   in between a step
         self.trainer.limit_val_batches = _reconfigure_limit_batches(
@@ -452,7 +469,9 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
                 get_num_microbatches
 
         except (ImportError, ModuleNotFoundError):
-            logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
+            logging.warning(
+                "Megatron num_microbatches_calculator not found, using Apex version."
+            )
             from apex.transformer.pipeline_parallel.utils import \
                 get_num_microbatches
 
@@ -482,7 +501,9 @@ def build_pretraining_datamodule(
     """
     import torch.distributed as dist
 
-    assert not dist.is_initialized(), "This function cannot be called inside an existing torch.distributed job."
+    assert (
+        not dist.is_initialized()
+    ), "This function cannot be called inside an existing torch.distributed job."
     # The indices in Megatron are built on rank 0, so we set the world size to 1 here.
     dist.init_process_group(world_size=1, rank=0)
 

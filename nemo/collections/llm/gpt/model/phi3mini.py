@@ -66,7 +66,12 @@ class Phi3Model(GPTModel):
         tokenizer: Optional["TokenizerSpec"] = None,
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
-        super().__init__(config or Phi3Config(), optim=optim, tokenizer=tokenizer, model_transform=model_transform)
+        super().__init__(
+            config or Phi3Config(),
+            optim=optim,
+            tokenizer=tokenizer,
+            model_transform=model_transform,
+        )
 
 
 @io.model_importer(Phi3Model, "hf")
@@ -80,7 +85,7 @@ class HFPhi3Importer(io.ModelConnector["Phi3ForCausalLM", Phi3Model]):
 
         # Check if the source is valid model identifier or path
         try:
-            source = Phi3ForCausalLM.from_pretrained(str(self), torch_dtype='auto')
+            source = Phi3ForCausalLM.from_pretrained(str(self), torch_dtype="auto")
         except Exception as e:
             raise ValueError(f"Failed to load the model from source '{self}': {e}")
 
@@ -89,7 +94,9 @@ class HFPhi3Importer(io.ModelConnector["Phi3ForCausalLM", Phi3Model]):
         self.convert_state(source, target)
         self.nemo_save(output_path, trainer)
 
-        print(f"Converted Phi3 model to Nemo, model saved to {output_path} in {source.dtype}.")
+        print(
+            f"Converted Phi3 model to Nemo, model saved to {output_path} in {source.dtype}."
+        )
 
         teardown(trainer, target)
         del trainer, target
@@ -111,7 +118,9 @@ class HFPhi3Importer(io.ModelConnector["Phi3ForCausalLM", Phi3Model]):
             "lm_head.weight": "output_layer.weight",
         }
 
-        return io.apply_transforms(source, target, mapping=mapping, transforms=[_import_qkv])
+        return io.apply_transforms(
+            source, target, mapping=mapping, transforms=[_import_qkv]
+        )
 
     @property
     def tokenizer(self):
@@ -143,7 +152,9 @@ class HFPhi3Importer(io.ModelConnector["Phi3ForCausalLM", Phi3Model]):
             layernorm_epsilon=source.rms_norm_eps,
             rotary_base=source.rope_theta,
             gated_linear_unit=True,
-            make_vocab_size_divisible_by=make_vocab_size_divisible_by(source.vocab_size),
+            make_vocab_size_divisible_by=make_vocab_size_divisible_by(
+                source.vocab_size
+            ),
             share_embeddings_and_output_weights=False,
             fp16=(dtype_from_hf(source) == torch.float16),
             bf16=(dtype_from_hf(source) == torch.bfloat16),
@@ -184,7 +195,9 @@ class HFPhi3Exporter(io.ModelConnector[Phi3Model, "Phi3ForCausalLM"]):
             "output_layer.weight": "lm_head.weight",
         }
 
-        return io.apply_transforms(source, target, mapping=mapping, transforms=[_export_qkv])
+        return io.apply_transforms(
+            source, target, mapping=mapping, transforms=[_export_qkv]
+        )
 
     @property
     def tokenizer(self):
@@ -231,7 +244,12 @@ def _import_qkv(ctx: io.TransformCTX, qkv_weight):
     new_q_tensor_shape = (head_num, head_size, old_tensor_shape[1])
     new_kv_tensor_shape = (num_query_groups, head_size, old_tensor_shape[1])
     q, k, v = qkv_weight.split(
-        [head_num * head_size, num_query_groups * head_size, num_query_groups * head_size], dim=0
+        [
+            head_num * head_size,
+            num_query_groups * head_size,
+            num_query_groups * head_size,
+        ],
+        dim=0,
     )
     q = q.view(*new_q_tensor_shape)
     k = k.view(*new_kv_tensor_shape)
@@ -239,15 +257,21 @@ def _import_qkv(ctx: io.TransformCTX, qkv_weight):
 
     qkv_weights = torch.empty((0, head_size, old_tensor_shape[1])).type_as(qkv_weight)
     for i in range(num_query_groups):
-        qkv_weights = torch.cat((qkv_weights, q[i * heads_per_group : (i + 1) * heads_per_group, :, :]))
+        qkv_weights = torch.cat(
+            (qkv_weights, q[i * heads_per_group : (i + 1) * heads_per_group, :, :])
+        )
         qkv_weights = torch.cat((qkv_weights, k[i : i + 1, :, :]))
         qkv_weights = torch.cat((qkv_weights, v[i : i + 1, :, :]))
     assert qkv_weights.ndim == 3, qkv_weights.shape
-    assert qkv_weights.shape[0] == (heads_per_group + 2) * num_query_groups, qkv_weights.shape
+    assert (
+        qkv_weights.shape[0] == (heads_per_group + 2) * num_query_groups
+    ), qkv_weights.shape
     assert qkv_weights.shape[1] == head_size, qkv_weights.shape
     assert qkv_weights.shape[2] == old_tensor_shape[1], qkv_weights.shape
 
-    qkv_weights = qkv_weights.reshape([head_size * (head_num + 2 * num_query_groups), hidden_size])
+    qkv_weights = qkv_weights.reshape(
+        [head_size * (head_num + 2 * num_query_groups), hidden_size]
+    )
 
     return qkv_weights
 
@@ -281,7 +305,9 @@ def _export_qkv(ctx: io.TransformCTX, linear_qkv):
     linear_qkv = linear_qkv.reshape([qkv_total_dim, head_size, hidden_size])
     q_slice = torch.cat(
         [
-            torch.arange((heads_per_group + 2) * i, (heads_per_group + 2) * i + heads_per_group)
+            torch.arange(
+                (heads_per_group + 2) * i, (heads_per_group + 2) * i + heads_per_group
+            )
             for i in range(num_query_groups)
         ]
     )

@@ -24,8 +24,8 @@ from nemo.utils.exp_manager import exp_manager
 
 @hydra_runner(config_path="conf/magpietts", config_name="magpietts_en")
 def main(cfg):
-    logging.info('\nConfig Params:\n%s', OmegaConf.to_yaml(cfg, resolve=True))
-    if not cfg.model.get('use_lthose', False):
+    logging.info("\nConfig Params:\n%s", OmegaConf.to_yaml(cfg, resolve=True))
+    if not cfg.model.get("use_lthose", False):
         import torch.multiprocessing as mp
 
         mp.set_start_method("spawn", force=True)
@@ -33,27 +33,31 @@ def main(cfg):
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
 
-    if cfg.get('mode', 'train') == 'train':
+    if cfg.get("mode", "train") == "train":
         model = MagpieTTS_Model(cfg=cfg.model, trainer=trainer)
-    elif cfg.get('mode', 'dpo_train') == 'dpo_train':
+    elif cfg.get("mode", "dpo_train") == "dpo_train":
         model_cfg = cfg.model
         with open_dict(model_cfg):
             model_cfg.reference_model_ckpt_path = cfg.init_from_ptl_ckpt
         model = MagpieTTS_ModelDPO(cfg=model_cfg, trainer=trainer)
-    elif cfg.get('mode', 'train') == 'test':
+    elif cfg.get("mode", "train") == "test":
         model = MagpieTTS_ModelInference(cfg=cfg.model, trainer=trainer)
     else:
-        raise NotImplementedError(f"Only train, dpo_train and test modes are supported. Got {cfg.mode}")
+        raise NotImplementedError(
+            f"Only train, dpo_train and test modes are supported. Got {cfg.mode}"
+        )
 
     model.maybe_init_from_pretrained_checkpoint(cfg=cfg)
 
-    if cfg.get('mode', 'train') in ['train', 'dpo_train']:
+    if cfg.get("mode", "train") in ["train", "dpo_train"]:
         trainer.fit(model)
-    elif cfg.get('mode', 'train') == 'test':
+    elif cfg.get("mode", "train") == "test":
         trainer.test(model)
     else:
-        raise NotImplementedError(f"Only train and test modes are supported. Got {cfg.mode}")
+        raise NotImplementedError(
+            f"Only train and test modes are supported. Got {cfg.mode}"
+        )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()  # noqa pylint: disable=no-value-for-parameter

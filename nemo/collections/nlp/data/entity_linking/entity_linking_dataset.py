@@ -23,7 +23,7 @@ from nemo.collections.nlp.data.data_utils.data_preprocessing import (
 from nemo.core.classes import Dataset
 from nemo.utils import logging
 
-__all__ = ['EntityLinkingDataset']
+__all__ = ["EntityLinkingDataset"]
 
 
 class EntityLinkingDataset(Dataset):
@@ -33,8 +33,8 @@ class EntityLinkingDataset(Dataset):
 
     Args:
         tokenizer (obj): huggingface tokenizer,
-        data_file (str): path to tab separated column file where data 
-            pairs apear in the format 
+        data_file (str): path to tab separated column file where data
+            pairs apear in the format
             concept_ID\tconcept_synonym1\tconcept_synonym2\n
         newline_idx_file (str): path to pickle file containing location
             of data_file newline characters
@@ -55,7 +55,9 @@ class EntityLinkingDataset(Dataset):
         self.tokenizer = tokenizer
 
         # Try and load pair indices file if already exists
-        newline_indices, newline_idx_file, _ = load_data_indices(newline_idx_file, data_file, "newline_indices")
+        newline_indices, newline_idx_file, _ = load_data_indices(
+            newline_idx_file, data_file, "newline_indices"
+        )
 
         # If pair indices file doesn't exists, generate and store them
         if newline_indices is None:
@@ -85,7 +87,7 @@ class EntityLinkingDataset(Dataset):
 
         concept_offset = self.newline_indices[idx]
 
-        with open(self.data_file, "r", encoding='utf-8-sig') as f:
+        with open(self.data_file, "r", encoding="utf-8-sig") as f:
             # Find data pair within datafile using byte offset
             f.seek(concept_offset)
             concept = f.readline()[:-1]
@@ -113,7 +115,9 @@ class EntityLinkingDataset(Dataset):
         else:
             concept_ids, concepts1, concepts2 = zip(*batch)
             concept_ids = list(concept_ids)
-            concept_ids.extend(concept_ids)  # Need to double label list to match each concept
+            concept_ids.extend(
+                concept_ids
+            )  # Need to double label list to match each concept
             concepts = list(concepts1)
             concepts.extend(concepts2)
 

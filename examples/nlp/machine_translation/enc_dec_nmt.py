@@ -94,13 +94,13 @@ Usage:
 
 @dataclass
 class MTEncDecConfig(NemoConfig):
-    name: Optional[str] = 'MTEncDec'
+    name: Optional[str] = "MTEncDec"
     do_training: bool = True
     do_testing: bool = False
     model: MTEncDecModelConfig = field(default_factory=MTEncDecModelConfig)
     trainer: Optional[TrainerConfig] = field(default_factory=TrainerConfig)
     exp_manager: Optional[ExpManagerConfig] = field(
-        default_factory=lambda: ExpManagerConfig(name='MTEncDec', files_to_copy=[])
+        default_factory=lambda: ExpManagerConfig(name="MTEncDec", files_to_copy=[])
     )
 
 
@@ -110,11 +110,11 @@ def main(cfg: MTEncDecConfig) -> None:
     default_cfg = MTEncDecConfig()
     cfg = update_model_config(default_cfg, cfg)
     logging.info("\n\n************** Experiment configuration ***********")
-    logging.info(f'Config: {OmegaConf.to_yaml(cfg)}')
+    logging.info(f"Config: {OmegaConf.to_yaml(cfg)}")
 
     # training is managed by PyTorch Lightning
     trainer_cfg = OmegaConf.to_container(cfg.trainer)
-    trainer_cfg.pop('strategy', None)
+    trainer_cfg.pop("strategy", None)
     trainer = Trainer(strategy=NLPDDPStrategy(), **trainer_cfg)
 
     # tokenizers will be trained and and tarred training data will be created if needed
@@ -141,5 +141,5 @@ def main(cfg: MTEncDecConfig) -> None:
         trainer.test(mt_model)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

@@ -105,7 +105,10 @@ class MLPerfGovReportDataModule(FineTuningDataModule, IOMixin):
         )
 
     def _preprocess_and_split_data(
-        self, dset: DatasetDict, split_val_from_train: bool = True, val_proportion: float = 0.05
+        self,
+        dset: DatasetDict,
+        split_val_from_train: bool = True,
+        val_proportion: float = 0.05,
     ):
         """Preprocesses and splits the downloaded dataset into training, validation, and test sets.
 
@@ -117,21 +120,27 @@ class MLPerfGovReportDataModule(FineTuningDataModule, IOMixin):
                 the validation split.
                 Defaults to 0.05.
         """
-        logging.info(f"Preprocessing {self.__class__.__name__} to npy format and splitting...")
+        logging.info(
+            f"Preprocessing {self.__class__.__name__} to npy format and splitting..."
+        )
         save_splits = {}
-        train_set = dset.get('train')
-        val_set = dset.get('validation')
+        train_set = dset.get("train")
+        val_set = dset.get("validation")
 
         if split_val_from_train:
-            split_dataset = train_set.train_test_split(test_size=val_proportion, seed=self.seed)
-            save_splits['training'] = split_dataset['train']
-            save_splits['validation'] = split_dataset['test']
-            save_splits['test'] = val_set
+            split_dataset = train_set.train_test_split(
+                test_size=val_proportion, seed=self.seed
+            )
+            save_splits["training"] = split_dataset["train"]
+            save_splits["validation"] = split_dataset["test"]
+            save_splits["test"] = val_set
         else:
-            split_dataset = val_set.train_test_split(test_size=val_proportion, seed=self.seed)
-            save_splits['training'] = train_set
-            save_splits['validation'] = split_dataset['test']
-            save_splits['test'] = split_dataset['train']
+            split_dataset = val_set.train_test_split(
+                test_size=val_proportion, seed=self.seed
+            )
+            save_splits["training"] = train_set
+            save_splits["validation"] = split_dataset["test"]
+            save_splits["test"] = split_dataset["train"]
 
         for split_name, dataset in save_splits.items():
             output_file = self.dataset_root / f"{split_name}.npy"
@@ -151,7 +160,7 @@ class MLPerfGovReportDataModule(FineTuningDataModule, IOMixin):
             for p in self.dataset_root.iterdir():
                 if p.is_dir():
                     shutil.rmtree(p)
-                elif '.npy' not in str(p.name):
+                elif ".npy" not in str(p.name):
                     p.unlink()
 
     @property
@@ -180,11 +189,13 @@ class MLPerfGovReportDataModule(FineTuningDataModule, IOMixin):
     @property
     def train_path_packed(self) -> Path:
         """Path to training dataset file for packed sequence. The file path contains a reference to the
-        tokenizer/model name since packed sequence dataset consists of tokenized indices."""
+        tokenizer/model name since packed sequence dataset consists of tokenized indices.
+        """
         return self.train_path
 
     @property
     def validation_path_packed(self) -> Path:
         """Path to validation dataset file for packed sequence. The file path contains a reference to the
-        tokenizer/model name since packed sequence dataset consists of tokenized indices."""
+        tokenizer/model name since packed sequence dataset consists of tokenized indices.
+        """
         return self.validation_path

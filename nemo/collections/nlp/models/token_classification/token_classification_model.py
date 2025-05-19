@@ -37,7 +37,7 @@ from nemo.collections.nlp.parts.utils_funcs import (get_classification_report,
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.utils import logging
 
-__all__ = ['TokenClassificationModel']
+__all__ = ["TokenClassificationModel"]
 
 
 class TokenClassificationModel(NLPModel):
@@ -48,12 +48,12 @@ class TokenClassificationModel(NLPModel):
         # extract str to int labels mapping if a mapping file provided
         if isinstance(cfg.label_ids, str):
             if os.path.exists(cfg.label_ids):
-                logging.info(f'Reusing label_ids file found at {cfg.label_ids}.')
+                logging.info(f"Reusing label_ids file found at {cfg.label_ids}.")
                 label_ids = get_labels_to_labels_id_mapping(cfg.label_ids)
                 # update the config to store name to id mapping
                 cfg.label_ids = OmegaConf.create(label_ids)
             else:
-                raise ValueError(f'{cfg.label_ids} not found.')
+                raise ValueError(f"{cfg.label_ids} not found.")
 
         self.class_weights = None
         super().__init__(cfg=cfg, trainer=trainer)
@@ -72,7 +72,9 @@ class TokenClassificationModel(NLPModel):
 
         # setup to track metrics
         self.classification_report = ClassificationReport(
-            len(self._cfg.label_ids), label_ids=self._cfg.label_ids, dist_sync_on_step=True
+            len(self._cfg.label_ids),
+            label_ids=self._cfg.label_ids,
+            dist_sync_on_step=True,
         )
 
     def update_data_dir(self, data_dir: str) -> None:
@@ -84,7 +86,7 @@ class TokenClassificationModel(NLPModel):
             data_dir: path to data directory
         """
         self._cfg.dataset.data_dir = data_dir
-        logging.info(f'Setting model.dataset.data_dir to {data_dir}.')
+        logging.info(f"Setting model.dataset.data_dir to {data_dir}.")
 
     def setup_loss(self, class_balancing: str = None):
         """Setup loss
@@ -93,21 +95,25 @@ class TokenClassificationModel(NLPModel):
         Args:
             class_balancing: whether to use class weights during training
         """
-        if class_balancing not in ['weighted_loss', None]:
-            raise ValueError(f'Class balancing {class_balancing} is not supported. Choose from: [null, weighted_loss]')
-        if class_balancing == 'weighted_loss' and self.class_weights:
+        if class_balancing not in ["weighted_loss", None]:
+            raise ValueError(
+                f"Class balancing {class_balancing} is not supported. Choose from: [null, weighted_loss]"
+            )
+        if class_balancing == "weighted_loss" and self.class_weights:
             # you may need to increase the number of epochs for convergence when using weighted_loss
             loss = CrossEntropyLoss(logits_ndim=3, weight=self.class_weights)
-            logging.debug(f'Using {class_balancing} class balancing.')
+            logging.debug(f"Using {class_balancing} class balancing.")
         else:
             loss = CrossEntropyLoss(logits_ndim=3)
-            logging.debug(f'Using CrossEntropyLoss class balancing.')
+            logging.debug(f"Using CrossEntropyLoss class balancing.")
         return loss
 
     @typecheck()
     def forward(self, input_ids, attention_mask, token_type_ids):
         hidden_states = self.bert_model(
-            input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask
+            input_ids=input_ids,
+            token_type_ids=token_type_ids,
+            attention_mask=attention_mask,
         )
         if isinstance(hidden_states, tuple):
             hidden_states = hidden_states[0]
@@ -120,16 +126,20 @@ class TokenClassificationModel(NLPModel):
         passed in as `batch`.
         """
         input_ids, input_type_ids, input_mask, subtokens_mask, loss_mask, labels = batch
-        logits = self(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
+        logits = self(
+            input_ids=input_ids,
+            token_type_ids=input_type_ids,
+            attention_mask=input_mask,
+        )
         loss = self.loss(logits=logits, labels=labels, loss_mask=loss_mask)
-        lr = self._optimizer.param_groups[0]['lr']
+        lr = self._optimizer.param_groups[0]["lr"]
 
-        self.log('train_loss', loss)
-        self.log('lr', lr, prog_bar=True)
+        self.log("train_loss", loss)
+        self.log("lr", lr, prog_bar=True)
 
         return {
-            'loss': loss,
-            'lr': lr,
+            "loss": loss,
+            "lr": lr,
         }
 
     def validation_step(self, batch, batch_idx):
@@ -138,7 +148,11 @@ class TokenClassificationModel(NLPModel):
         passed in as `batch`.
         """
         input_ids, input_type_ids, input_mask, subtokens_mask, loss_mask, labels = batch
-        logits = self(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
+        logits = self(
+            input_ids=input_ids,
+            token_type_ids=input_type_ids,
+            attention_mask=input_mask,
+        )
         val_loss = self.loss(logits=logits, labels=labels, loss_mask=loss_mask)
 
         subtokens_mask = subtokens_mask > 0.5
@@ -147,7 +161,7 @@ class TokenClassificationModel(NLPModel):
         labels = labels[subtokens_mask]
         tp, fn, fp, _ = self.classification_report(preds, labels)
 
-        loss = {'val_loss': val_loss, 'tp': tp, 'fn': fn, 'fp': fp}
+        loss = {"val_loss": val_loss, "tp": tp, "fn": fn, "fp": fp}
         self.validation_step_outputs.append(loss)
         return loss
 
@@ -156,24 +170,30 @@ class TokenClassificationModel(NLPModel):
         Called at the end of validation to aggregate outputs.
         outputs: list of individual outputs of each validation step.
         """
-        avg_loss = torch.stack([x['val_loss'] for x in self.validation_step_outputs]).mean()
+        avg_loss = torch.stack(
+            [x["val_loss"] for x in self.validation_step_outputs]
+        ).mean()
 
         # calculate metrics and classification report
         precision, recall, f1, report = self.classification_report.compute()
 
         logging.info(report)
 
-        self.log('val_loss', avg_loss, prog_bar=True)
-        self.log('precision', precision)
-        self.log('f1', f1)
-        self.log('recall', recall)
+        self.log("val_loss", avg_loss, prog_bar=True)
+        self.log("precision", precision)
+        self.log("f1", f1)
+        self.log("recall", recall)
 
         self.classification_report.reset()
         self.validation_step_outputs.clear()  # free memory
 
     def test_step(self, batch, batch_idx):
         input_ids, input_type_ids, input_mask, subtokens_mask, loss_mask, labels = batch
-        logits = self(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
+        logits = self(
+            input_ids=input_ids,
+            token_type_ids=input_type_ids,
+            attention_mask=input_mask,
+        )
         val_loss = self.loss(logits=logits, labels=labels, loss_mask=loss_mask)
 
         subtokens_mask = subtokens_mask > 0.5
@@ -182,33 +202,37 @@ class TokenClassificationModel(NLPModel):
         labels = labels[subtokens_mask]
         tp, fn, fp, _ = self.classification_report(preds, labels)
 
-        loss = {'test_loss': val_loss, 'tp': tp, 'fn': fn, 'fp': fp}
+        loss = {"test_loss": val_loss, "tp": tp, "fn": fn, "fp": fp}
         self.test_step_outputs.append(loss)
         return loss
 
     def on_test_epoch_end(self):
-        avg_loss = torch.stack([x['test_loss'] for x in self.test_step_outputs]).mean()
+        avg_loss = torch.stack([x["test_loss"] for x in self.test_step_outputs]).mean()
         # calculate metrics and classification report
         precision, recall, f1, report = self.classification_report.compute()
         logging.info(report)
 
-        self.log('test_loss', avg_loss, prog_bar=True)
-        self.log('precision', precision)
-        self.log('f1', f1)
-        self.log('recall', recall)
+        self.log("test_loss", avg_loss, prog_bar=True)
+        self.log("precision", precision)
+        self.log("f1", f1)
+        self.log("recall", recall)
         self.test_step_outputs.clear()  # free memory
 
     def setup_training_data(self, train_data_config: Optional[DictConfig] = None):
         if train_data_config is None:
             train_data_config = self._cfg.train_ds
 
-        labels_file = os.path.join(self._cfg.dataset.data_dir, train_data_config.labels_file)
+        labels_file = os.path.join(
+            self._cfg.dataset.data_dir, train_data_config.labels_file
+        )
 
         # for older(pre - 1.0.0.b3) configs compatibility
         if not hasattr(self._cfg, "class_labels") or self._cfg.class_labels is None:
             OmegaConf.set_struct(self._cfg, False)
             self._cfg.class_labels = {}
-            self._cfg.class_labels = OmegaConf.create({'class_labels_file': 'label_ids.csv'})
+            self._cfg.class_labels = OmegaConf.create(
+                {"class_labels_file": "label_ids.csv"}
+            )
             OmegaConf.set_struct(self._cfg, True)
 
         label_ids, label_ids_filename, self.class_weights = get_label_ids(
@@ -222,14 +246,16 @@ class TokenClassificationModel(NLPModel):
         # save label maps to the config
         self._cfg.label_ids = OmegaConf.create(label_ids)
 
-        self.register_artifact('class_labels.class_labels_file', label_ids_filename)
+        self.register_artifact("class_labels.class_labels_file", label_ids_filename)
         self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config)
 
     def setup_validation_data(self, val_data_config: Optional[DictConfig] = None):
         if val_data_config is None:
             val_data_config = self._cfg.validation_ds
 
-        labels_file = os.path.join(self._cfg.dataset.data_dir, val_data_config.labels_file)
+        labels_file = os.path.join(
+            self._cfg.dataset.data_dir, val_data_config.labels_file
+        )
         get_label_ids(
             label_file=labels_file,
             is_training=False,
@@ -244,7 +270,9 @@ class TokenClassificationModel(NLPModel):
         if test_data_config is None:
             test_data_config = self._cfg.test_ds
 
-        labels_file = os.path.join(self._cfg.dataset.data_dir, test_data_config.labels_file)
+        labels_file = os.path.join(
+            self._cfg.dataset.data_dir, test_data_config.labels_file
+        )
         get_label_ids(
             label_file=labels_file,
             is_training=False,
@@ -274,12 +302,12 @@ class TokenClassificationModel(NLPModel):
 
         if not (os.path.exists(text_file) and os.path.exists(labels_file)):
             raise FileNotFoundError(
-                f'{text_file} or {labels_file} not found. The data should be split into 2 files: text.txt and \
+                f"{text_file} or {labels_file} not found. The data should be split into 2 files: text.txt and \
                 labels.txt. Each line of the text.txt file contains text sequences, where words are separated with \
                 spaces. The labels.txt file contains corresponding labels for each word in text.txt, the labels are \
                 separated with spaces. Each line of the files should follow the format:  \
                    [WORD] [SPACE] [WORD] [SPACE] [WORD] (for text.txt) and \
-                   [LABEL] [SPACE] [LABEL] [SPACE] [LABEL] (for labels.txt).'
+                   [LABEL] [SPACE] [LABEL] [SPACE] [LABEL] (for labels.txt)."
             )
         dataset = BertTokenClassificationDataset(
             text_file=text_file,
@@ -303,7 +331,9 @@ class TokenClassificationModel(NLPModel):
             drop_last=dataset_cfg.drop_last,
         )
 
-    def _setup_infer_dataloader(self, queries: List[str], batch_size: int) -> 'torch.utils.data.DataLoader':
+    def _setup_infer_dataloader(
+        self, queries: List[str], batch_size: int
+    ) -> "torch.utils.data.DataLoader":
         """
         Setup function for an infer data loader.
 
@@ -315,7 +345,9 @@ class TokenClassificationModel(NLPModel):
             A pytorch DataLoader.
         """
 
-        dataset = BertTokenClassificationInferDataset(tokenizer=self.tokenizer, queries=queries, max_seq_length=-1)
+        dataset = BertTokenClassificationInferDataset(
+            tokenizer=self.tokenizer, queries=queries, max_seq_length=-1
+        )
 
         return torch.utils.data.DataLoader(
             dataset=dataset,
@@ -341,7 +373,7 @@ class TokenClassificationModel(NLPModel):
         all_preds = []
         mode = self.training
         try:
-            device = 'cuda' if torch.cuda.is_available() else 'cpu'
+            device = "cuda" if torch.cuda.is_available() else "cpu"
             # Switch model to evaluation mode
             self.eval()
             self.to(device)
@@ -365,7 +397,10 @@ class TokenClassificationModel(NLPModel):
         return all_preds
 
     def add_predictions(
-        self, queries: Union[List[str], str], batch_size: int = 32, output_file: Optional[str] = None
+        self,
+        queries: Union[List[str], str],
+        batch_size: int = 32,
+        output_file: Optional[str] = None,
     ) -> List[str]:
         """
         Add predicted token labels to the queries. Use this method for debugging and prototyping.
@@ -380,8 +415,8 @@ class TokenClassificationModel(NLPModel):
             return []
 
         if isinstance(queries, str):
-            logging.info(f'Reading from {queries} file')
-            with open(queries, 'r') as f:
+            logging.info(f"Reading from {queries} file")
+            with open(queries, "r") as f:
                 queries = f.readlines()
 
         result = []
@@ -390,7 +425,7 @@ class TokenClassificationModel(NLPModel):
         queries = [q.strip().split() for q in queries]
         num_words = [len(q) for q in queries]
         if sum(num_words) != len(all_preds):
-            raise ValueError('Pred and words must have the same length')
+            raise ValueError("Pred and words must have the same length")
 
         ids_to_labels = {v: k for k, v in self._cfg.label_ids.items()}
         start_idx = 0
@@ -402,12 +437,12 @@ class TokenClassificationModel(NLPModel):
             preds = all_preds[start_idx:end_idx]
             start_idx = end_idx
 
-            query_with_entities = ''
+            query_with_entities = ""
             for j, word in enumerate(query):
                 # strip out the punctuation to attach the entity tag to the word not to a punctuation mark
                 # that follows the word
                 if word[-1].isalpha():
-                    punct = ''
+                    punct = ""
                 else:
                     punct = word[-1]
                     word = word[:-1]
@@ -416,15 +451,15 @@ class TokenClassificationModel(NLPModel):
                 label = ids_to_labels[preds[j]]
 
                 if label != self._cfg.dataset.pad_label:
-                    query_with_entities += '[' + label + ']'
-                query_with_entities += punct + ' '
+                    query_with_entities += "[" + label + "]"
+                query_with_entities += punct + " "
             result.append(query_with_entities.strip())
 
         if output_file is not None:
-            with open(output_file, 'w') as f:
+            with open(output_file, "w") as f:
                 for r in result:
-                    f.write(r + '\n')
-            logging.info(f'Predictions saved to {output_file}')
+                    f.write(r + "\n")
+            logging.info(f"Predictions saved to {output_file}")
         return result
 
     def evaluate_from_file(
@@ -453,30 +488,30 @@ class TokenClassificationModel(NLPModel):
         """
         output_dir = os.path.abspath(output_dir)
 
-        with open(text_file, 'r') as f:
+        with open(text_file, "r") as f:
             queries = f.readlines()
 
         all_preds = self._infer(queries, batch_size)
         with_labels = labels_file is not None
         if with_labels:
-            with open(labels_file, 'r') as f:
+            with open(labels_file, "r") as f:
                 all_labels_str = f.readlines()
-                all_labels_str = ' '.join([labels.strip() for labels in all_labels_str])
+                all_labels_str = " ".join([labels.strip() for labels in all_labels_str])
 
         # writing labels and predictions to a file in output_dir is specified in the config
         os.makedirs(output_dir, exist_ok=True)
-        filename = os.path.join(output_dir, 'infer_' + os.path.basename(text_file))
+        filename = os.path.join(output_dir, "infer_" + os.path.basename(text_file))
         try:
-            with open(filename, 'w') as f:
+            with open(filename, "w") as f:
                 if with_labels:
-                    f.write('labels\t' + all_labels_str + '\n')
-                    logging.info(f'Labels save to {filename}')
+                    f.write("labels\t" + all_labels_str + "\n")
+                    logging.info(f"Labels save to {filename}")
 
                 # convert labels from string label to ids
                 ids_to_labels = {v: k for k, v in self._cfg.label_ids.items()}
                 all_preds_str = [ids_to_labels[pred] for pred in all_preds]
-                f.write('preds\t' + ' '.join(all_preds_str) + '\n')
-                logging.info(f'Predictions saved to {filename}')
+                f.write("preds\t" + " ".join(all_preds_str) + "\n")
+                logging.info(f"Predictions saved to {filename}")
 
             if with_labels and add_confusion_matrix:
                 all_labels = all_labels_str.split()
@@ -485,13 +520,19 @@ class TokenClassificationModel(NLPModel):
                 all_labels = [label_ids[label] for label in all_labels]
 
                 plot_confusion_matrix(
-                    all_labels, all_preds, output_dir, label_ids=label_ids, normalize=normalize_confusion_matrix
+                    all_labels,
+                    all_preds,
+                    output_dir,
+                    label_ids=label_ids,
+                    normalize=normalize_confusion_matrix,
                 )
-                logging.info(get_classification_report(all_labels, all_preds, label_ids))
+                logging.info(
+                    get_classification_report(all_labels, all_preds, label_ids)
+                )
         except Exception:
             logging.error(
-                f'When providing a file with labels, check that all labels in {labels_file} were'
-                f'seen during training.'
+                f"When providing a file with labels, check that all labels in {labels_file} were"
+                f"seen during training."
             )
             raise
 

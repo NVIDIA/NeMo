@@ -38,13 +38,18 @@ except ModuleNotFoundError:
 
 class TestGenerateApproximateNoiseField:
     @pytest.mark.unit
-    @pytest.mark.parametrize('num_mics', [5])
-    @pytest.mark.parametrize('mic_spacing', [0.05])
-    @pytest.mark.parametrize('fft_length', [512, 2048])
-    @pytest.mark.parametrize('sample_rate', [8000, 16000])
-    @pytest.mark.parametrize('field', ['spherical'])
+    @pytest.mark.parametrize("num_mics", [5])
+    @pytest.mark.parametrize("mic_spacing", [0.05])
+    @pytest.mark.parametrize("fft_length", [512, 2048])
+    @pytest.mark.parametrize("sample_rate", [8000, 16000])
+    @pytest.mark.parametrize("field", ["spherical"])
     def test_theoretical_coherence_matrix(
-        self, num_mics: int, mic_spacing: float, fft_length: int, sample_rate: float, field: str
+        self,
+        num_mics: int,
+        mic_spacing: float,
+        fft_length: int,
+        sample_rate: float,
+        field: str,
     ):
         """Test calculation of a theoretical coherence matrix."""
         # test setup
@@ -60,12 +65,12 @@ class TestGenerateApproximateNoiseField:
                 if p == q:
                     golden_coherence[:, p, q] = 1.0
                 else:
-                    if field == 'spherical':
+                    if field == "spherical":
                         dist_pq = abs(p - q) * mic_spacing
                         sinc_arg = angular_freq * dist_pq / sound_velocity
                         golden_coherence[:, p, q] = np.sinc(sinc_arg / np.pi)
                     else:
-                        raise NotImplementedError(f'Field {field} not supported.')
+                        raise NotImplementedError(f"Field {field} not supported.")
 
         # assume linear arrray
         mic_positions = np.zeros((num_mics, 3))
@@ -73,7 +78,10 @@ class TestGenerateApproximateNoiseField:
 
         # UUT
         uut_coherence = theoretical_coherence(
-            mic_positions, sample_rate=sample_rate, fft_length=fft_length, field='spherical'
+            mic_positions,
+            sample_rate=sample_rate,
+            fft_length=fft_length,
+            field="spherical",
         )
 
         # Check difference
@@ -81,11 +89,11 @@ class TestGenerateApproximateNoiseField:
         assert max_diff < max_diff_tol
 
     @pytest.mark.unit
-    @pytest.mark.parametrize('num_mics', [5])
-    @pytest.mark.parametrize('mic_spacing', [0.10])
-    @pytest.mark.parametrize('fft_length', [256, 512])
-    @pytest.mark.parametrize('sample_rate', [8000, 16000])
-    @pytest.mark.parametrize('field', ['spherical'])
+    @pytest.mark.parametrize("num_mics", [5])
+    @pytest.mark.parametrize("mic_spacing", [0.10])
+    @pytest.mark.parametrize("fft_length", [256, 512])
+    @pytest.mark.parametrize("sample_rate", [8000, 16000])
+    @pytest.mark.parametrize("field", ["spherical"])
     def test_generate_approximate_noise_field(
         self,
         num_mics: int,
@@ -111,7 +119,11 @@ class TestGenerateApproximateNoiseField:
 
         # UUT
         noise_field = generate_approximate_noise_field(
-            mic_positions, noise_signal, sample_rate=sample_rate, field=field, fft_length=fft_length
+            mic_positions,
+            noise_signal,
+            sample_rate=sample_rate,
+            field=field,
+            fft_length=fft_length,
         )
 
         # Compare the estimated coherence with the theoretical coherence
@@ -135,7 +147,7 @@ class TestGenerateApproximateNoiseField:
 
         if save_figures:
             # For debugging and visualization template
-            figure_dir = os.path.expanduser('~/_coherence')
+            figure_dir = os.path.expanduser("~/_coherence")
             if not os.path.exists(figure_dir):
                 os.mkdir(figure_dir)
 
@@ -145,25 +157,26 @@ class TestGenerateApproximateNoiseField:
             plt.figure(figsize=(7, 10))
             for n in range(1, num_mics):
                 plt.subplot(num_mics - 1, 2, 2 * n - 1)
-                plt.plot(freq, golden_coherence[:, 0, n].real, label='golden')
-                plt.plot(freq, uut_coherence[:, 0, n].real, label='estimated')
-                plt.title(f'Real(coherence), p=0, q={n}')
-                plt.xlabel('f / kHz')
+                plt.plot(freq, golden_coherence[:, 0, n].real, label="golden")
+                plt.plot(freq, uut_coherence[:, 0, n].real, label="estimated")
+                plt.title(f"Real(coherence), p=0, q={n}")
+                plt.xlabel("f / kHz")
                 plt.grid()
-                plt.legend(loc='upper right')
+                plt.legend(loc="upper right")
 
                 plt.subplot(num_mics - 1, 2, 2 * n)
-                plt.plot(golden_coherence[:, 0, n].imag, label='golden')
-                plt.plot(uut_coherence[:, 0, n].imag, label='estimated')
-                plt.title(f'Imag(coherence), p=0, q={n}')
-                plt.xlabel('f / kHz')
+                plt.plot(golden_coherence[:, 0, n].imag, label="golden")
+                plt.plot(uut_coherence[:, 0, n].imag, label="estimated")
+                plt.title(f"Imag(coherence), p=0, q={n}")
+                plt.xlabel("f / kHz")
                 plt.grid()
-                plt.legend(loc='upper right')
+                plt.legend(loc="upper right")
 
             plt.tight_layout()
             plt.savefig(
                 os.path.join(
-                    figure_dir, f'num_mics_{num_mics}_sample_rate_{sample_rate}_fft_length_{fft_length}_{field}.png'
+                    figure_dir,
+                    f"num_mics_{num_mics}_sample_rate_{sample_rate}_fft_length_{fft_length}_{field}.png",
                 )
             )
             plt.close()
@@ -186,7 +199,7 @@ class TestAudioUtilsElements:
         golden_rms = A / np.sqrt(2)
         assert (
             np.abs(x_rms - golden_rms) < rms_threshold
-        ), f'RMS not matching for A={A}, omega={omega}, n_point={n_points}'
+        ), f"RMS not matching for A={A}, omega={omega}, n_point={n_points}"
 
     @pytest.mark.unit
     def test_db_conversion(self):
@@ -224,7 +237,7 @@ class TestAudioUtilsElements:
 
             assert (
                 estimated_start == start
-            ), f'Example {n}: estimated start ({estimated_start}) not matching the actual start ({start})'
+            ), f"Example {n}: estimated start ({estimated_start}) not matching the actual start ({start})"
 
     @pytest.mark.unit
     def test_calculate_sdr_numpy(self):
@@ -243,11 +256,13 @@ class TestAudioUtilsElements:
             estimate = target * (1 + 10 ** (-golden_sdr / 20))
 
             # UUT
-            estimated_sdr = calculate_sdr_numpy(estimate=estimate, target=target, remove_mean=False)
+            estimated_sdr = calculate_sdr_numpy(
+                estimate=estimate, target=target, remove_mean=False
+            )
 
             assert np.isclose(
                 estimated_sdr, golden_sdr, atol=atol
-            ), f'Example {n}: estimated ({estimated_sdr}) not matching the actual value ({golden_sdr})'
+            ), f"Example {n}: estimated ({estimated_sdr}) not matching the actual value ({golden_sdr})"
 
             # Add random mean and use remove_mean=True
             # SDR should not change
@@ -255,11 +270,13 @@ class TestAudioUtilsElements:
             estimate += _rng.uniform(low=-10, high=10)
 
             # UUT
-            estimated_sdr = calculate_sdr_numpy(estimate=estimate, target=target, remove_mean=True)
+            estimated_sdr = calculate_sdr_numpy(
+                estimate=estimate, target=target, remove_mean=True
+            )
 
             assert np.isclose(
                 estimated_sdr, golden_sdr, atol=atol
-            ), f'Example {n}: estimated ({estimated_sdr}) not matching the actual value ({golden_sdr})'
+            ), f"Example {n}: estimated ({estimated_sdr}) not matching the actual value ({golden_sdr})"
 
     @pytest.mark.unit
     def test_calculate_sdr_numpy_scale_invariant(self):
@@ -274,29 +291,37 @@ class TestAudioUtilsElements:
             # Generate signal
             target = _rng.normal(size=num_samples)
             # Adjust the estimate
-            estimate = target + _rng.uniform(low=0.01, high=1) * _rng.normal(size=target.size)
+            estimate = target + _rng.uniform(low=0.01, high=1) * _rng.normal(
+                size=target.size
+            )
 
             # scaled target
             target_scaled = target / (np.linalg.norm(target) + 1e-16)
             target_scaled = np.sum(estimate * target_scaled) * target_scaled
 
             golden_sdr = calculate_sdr_numpy(
-                estimate=estimate, target=target_scaled, scale_invariant=False, remove_mean=False
+                estimate=estimate,
+                target=target_scaled,
+                scale_invariant=False,
+                remove_mean=False,
             )
 
             # UUT
             estimated_sdr = calculate_sdr_numpy(
-                estimate=estimate, target=target, scale_invariant=True, remove_mean=False
+                estimate=estimate,
+                target=target,
+                scale_invariant=True,
+                remove_mean=False,
             )
 
             assert np.isclose(
                 estimated_sdr, golden_sdr, atol=atol
-            ), f'Example {n}: estimated ({estimated_sdr}) not matching the actual value ({golden_sdr})'
+            ), f"Example {n}: estimated ({estimated_sdr}) not matching the actual value ({golden_sdr})"
 
     @pytest.mark.unit
-    @pytest.mark.parametrize('num_channels', [1, 3])
-    @pytest.mark.parametrize('filter_length', [10])
-    @pytest.mark.parametrize('delay', [0, 5])
+    @pytest.mark.parametrize("num_channels", [1, 3])
+    @pytest.mark.parametrize("filter_length", [10])
+    @pytest.mark.parametrize("delay", [0, 5])
     def test_convmtx_mc(self, num_channels: int, filter_length: int, delay: int):
         """Test convmtx against convolve and sum.
         Multiplication of convmtx_mc of input with a vectorized multi-channel filter
@@ -324,14 +349,16 @@ class TestAudioUtilsElements:
             golden_ref = 0
             for m in range(num_channels):
                 x_m_delayed = np.hstack([np.zeros(delay), x[:, m]])
-                golden_ref += np.convolve(x_m_delayed, f[:, m], mode='full')[: len(x)]
+                golden_ref += np.convolve(x_m_delayed, f[:, m], mode="full")[: len(x)]
 
-            assert np.allclose(uut, golden_ref, atol=atol), f'Example {n}: UUT not matching the reference.'
+            assert np.allclose(
+                uut, golden_ref, atol=atol
+            ), f"Example {n}: UUT not matching the reference."
 
     @pytest.mark.unit
-    @pytest.mark.parametrize('num_channels', [1, 3])
-    @pytest.mark.parametrize('filter_length', [10])
-    @pytest.mark.parametrize('num_samples', [10, 100])
+    @pytest.mark.parametrize("num_channels", [1, 3])
+    @pytest.mark.parametrize("filter_length", [10])
+    @pytest.mark.parametrize("num_samples", [10, 100])
     def test_toeplitz(self, num_channels: int, filter_length: int, num_samples: int):
         """Test construction of a Toeplitz matrix for a given signal."""
         atol = 1e-6
@@ -354,19 +381,26 @@ class TestAudioUtilsElements:
 
                     assert np.allclose(
                         Tx[b, m, ...].cpu().numpy(), T_ref, atol=atol
-                    ), f'Example {n}: not matching the reference for (b={b}, m={m}), .'
+                    ), f"Example {n}: not matching the reference for (b={b}, m={m}), ."
 
 
 class TestCovarianceMatrix:
     @pytest.mark.unit
-    @pytest.mark.skipif(not HAVE_TORCHAUDIO, reason="Modules in this test require torchaudio")
-    @pytest.mark.parametrize('num_channels', [1, 3])
-    @pytest.mark.parametrize('num_freq', [17, 33])
-    @pytest.mark.parametrize('use_mask', [True, False])
-    @pytest.mark.parametrize('normalize_mask', [True, False])
-    @pytest.mark.parametrize('mask_type', ['real', 'complex', 'bool'])
+    @pytest.mark.skipif(
+        not HAVE_TORCHAUDIO, reason="Modules in this test require torchaudio"
+    )
+    @pytest.mark.parametrize("num_channels", [1, 3])
+    @pytest.mark.parametrize("num_freq", [17, 33])
+    @pytest.mark.parametrize("use_mask", [True, False])
+    @pytest.mark.parametrize("normalize_mask", [True, False])
+    @pytest.mark.parametrize("mask_type", ["real", "complex", "bool"])
     def test_calculate_covariance_matrix_vs_psd(
-        self, num_channels: int, num_freq: int, use_mask: bool, normalize_mask: bool, mask_type: str
+        self,
+        num_channels: int,
+        num_freq: int,
+        use_mask: bool,
+        normalize_mask: bool,
+        mask_type: str,
     ):
         """Test against reference calculation using torchaudio."""
         # Element-wise relative tolerance
@@ -381,23 +415,44 @@ class TestCovarianceMatrix:
         batch_size, num_steps = 8, 100
 
         # Reference calculation of multichannel covariance matrix
-        psd_ref = torchaudio.transforms.PSD(multi_mask=False, normalize=normalize_mask, eps=1e-8)
+        psd_ref = torchaudio.transforms.PSD(
+            multi_mask=False, normalize=normalize_mask, eps=1e-8
+        )
 
         for n in range(num_examples):
 
-            input = torch.randn(batch_size, num_channels, num_freq, num_steps, dtype=torch.cfloat, generator=rng)
+            input = torch.randn(
+                batch_size,
+                num_channels,
+                num_freq,
+                num_steps,
+                dtype=torch.cfloat,
+                generator=rng,
+            )
 
-            if mask_type == 'real':
-                mask = torch.rand(batch_size, num_freq, num_steps, dtype=torch.float, generator=rng)
-            elif mask_type == 'complex':
-                mask = torch.rand(batch_size, num_freq, num_steps, dtype=torch.cfloat, generator=rng)
-            elif mask_type == 'bool':
-                mask = torch.randint(0, 2, (batch_size, num_freq, num_steps), dtype=torch.bool, generator=rng)
+            if mask_type == "real":
+                mask = torch.rand(
+                    batch_size, num_freq, num_steps, dtype=torch.float, generator=rng
+                )
+            elif mask_type == "complex":
+                mask = torch.rand(
+                    batch_size, num_freq, num_steps, dtype=torch.cfloat, generator=rng
+                )
+            elif mask_type == "bool":
+                mask = torch.randint(
+                    0,
+                    2,
+                    (batch_size, num_freq, num_steps),
+                    dtype=torch.bool,
+                    generator=rng,
+                )
             else:
-                raise ValueError(f'Mask type {mask_type} not supported.')
+                raise ValueError(f"Mask type {mask_type} not supported.")
 
             # UUT
-            uut = covariance_matrix(x=input, mask=mask if use_mask else None, normalize_mask=normalize_mask)
+            uut = covariance_matrix(
+                x=input, mask=mask if use_mask else None, normalize_mask=normalize_mask
+            )
 
             # Reference
             ref = psd_ref(specgram=input, mask=mask if use_mask else None)
@@ -406,16 +461,23 @@ class TestCovarianceMatrix:
                 ref = ref / num_steps
 
             # Check if the UUT matches the reference
-            assert torch.allclose(uut, ref, atol=atol), f'Example {n}: UUT not matching the reference.'
+            assert torch.allclose(
+                uut, ref, atol=atol
+            ), f"Example {n}: UUT not matching the reference."
 
     @pytest.mark.unit
-    @pytest.mark.parametrize('num_channels', [1, 3])
-    @pytest.mark.parametrize('num_freq', [3, 10])
-    @pytest.mark.parametrize('use_mask', [True, False])
-    @pytest.mark.parametrize('normalize_mask', [True, False])
-    @pytest.mark.parametrize('mask_type', ['real', 'complex', 'bool'])
+    @pytest.mark.parametrize("num_channels", [1, 3])
+    @pytest.mark.parametrize("num_freq", [3, 10])
+    @pytest.mark.parametrize("use_mask", [True, False])
+    @pytest.mark.parametrize("normalize_mask", [True, False])
+    @pytest.mark.parametrize("mask_type", ["real", "complex", "bool"])
     def test_calculate_covariance_matrix(
-        self, num_channels: int, num_freq: int, use_mask: bool, normalize_mask: bool, mask_type: str
+        self,
+        num_channels: int,
+        num_freq: int,
+        use_mask: bool,
+        normalize_mask: bool,
+        mask_type: str,
     ):
         """Test against simple reference calculation."""
         # Element-wise relative tolerance
@@ -431,28 +493,56 @@ class TestCovarianceMatrix:
 
         for n in range(num_examples):
 
-            input = torch.randn(batch_size, num_channels, num_freq, num_steps, dtype=torch.cfloat, generator=rng)
+            input = torch.randn(
+                batch_size,
+                num_channels,
+                num_freq,
+                num_steps,
+                dtype=torch.cfloat,
+                generator=rng,
+            )
 
-            if mask_type == 'real':
-                mask = torch.rand(batch_size, num_freq, num_steps, dtype=torch.float, generator=rng)
-            elif mask_type == 'complex':
-                mask = torch.rand(batch_size, num_freq, num_steps, dtype=torch.cfloat, generator=rng)
-            elif mask_type == 'bool':
-                mask = torch.randint(0, 2, (batch_size, num_freq, num_steps), dtype=torch.bool, generator=rng)
+            if mask_type == "real":
+                mask = torch.rand(
+                    batch_size, num_freq, num_steps, dtype=torch.float, generator=rng
+                )
+            elif mask_type == "complex":
+                mask = torch.rand(
+                    batch_size, num_freq, num_steps, dtype=torch.cfloat, generator=rng
+                )
+            elif mask_type == "bool":
+                mask = torch.randint(
+                    0,
+                    2,
+                    (batch_size, num_freq, num_steps),
+                    dtype=torch.bool,
+                    generator=rng,
+                )
             else:
-                raise ValueError(f'Mask type {mask_type} not supported.')
+                raise ValueError(f"Mask type {mask_type} not supported.")
 
             # UUT
-            uut = covariance_matrix(x=input, mask=mask if use_mask else None, normalize_mask=normalize_mask)
+            uut = covariance_matrix(
+                x=input, mask=mask if use_mask else None, normalize_mask=normalize_mask
+            )
 
             # Reference calculation
-            ref = torch.zeros(batch_size, num_freq, num_channels, num_channels, num_steps, dtype=torch.cfloat)
+            ref = torch.zeros(
+                batch_size,
+                num_freq,
+                num_channels,
+                num_channels,
+                num_steps,
+                dtype=torch.cfloat,
+            )
 
             # calculate x(t) x(t)^H for each time step
             for b in range(batch_size):
                 for f in range(num_freq):
                     for t in range(num_steps):
-                        ref[b, f, :, :, t] = torch.outer(input[b, :, f, t], input[b, :, f, t].conj())
+                        ref[b, f, :, :, t] = torch.outer(
+                            input[b, :, f, t], input[b, :, f, t].conj()
+                        )
 
             # aggregate over time
             if use_mask:
@@ -470,17 +560,21 @@ class TestCovarianceMatrix:
                 ref = ref.mean(dim=-1)
 
             # Check if the UUT matches the reference
-            assert torch.allclose(uut, ref, atol=atol), f'Example {n}: UUT not matching the reference.'
+            assert torch.allclose(
+                uut, ref, atol=atol
+            ), f"Example {n}: UUT not matching the reference."
 
     @pytest.mark.unit
-    @pytest.mark.parametrize('num_channels', [1, 3])
-    @pytest.mark.parametrize('num_freq', [17, 33])
+    @pytest.mark.parametrize("num_channels", [1, 3])
+    @pytest.mark.parametrize("num_freq", [17, 33])
     def test_mismatch_dimensions(self, num_channels: int, num_freq: int):
         """Test that the covariance matrix is not calculated if the mask has a different number of dimensions than the input."""
         batch_size, num_steps = 8, 100
 
         # Typically-shaped inputs
-        input = torch.randn(batch_size, num_channels, num_freq, num_steps, dtype=torch.cfloat)
+        input = torch.randn(
+            batch_size, num_channels, num_freq, num_steps, dtype=torch.cfloat
+        )
         mask = torch.rand(batch_size, num_freq, num_steps, dtype=torch.float)
 
         # Input has only (freq, time) dimensions -- missing at least one channel dimension

@@ -25,7 +25,7 @@ from nemo.collections.nlp.data.language_modeling.text_memmap_dataset import \
 from nemo.core.classes import Dataset
 from nemo.utils import logging
 
-__all__ = ['SequenceToSequenceDataset', 'TextMemmapSequenceToSequenceDataset']
+__all__ = ["SequenceToSequenceDataset", "TextMemmapSequenceToSequenceDataset"]
 
 
 class SequenceToSequenceDataset(Dataset):
@@ -69,25 +69,42 @@ class SequenceToSequenceDataset(Dataset):
 
     def __getitem__(self, idx):
         example = self.examples[idx]
-        text_enc = example['src']
-        text_dec = example['tgt'][:-1]
-        labels = example['tgt'][1:]
-        return {'text_enc': text_enc, 'text_dec': text_dec, 'labels': labels}
+        text_enc = example["src"]
+        text_dec = example["tgt"][:-1]
+        labels = example["tgt"][1:]
+        return {"text_enc": text_enc, "text_dec": text_dec, "labels": labels}
 
     def _get_examples(self):
         self.examples = []
-        with open(self.src_file_name, encoding='utf8') as f_src, open(self.tgt_file_name, encoding='utf8') as f_tgt:
+        with (
+            open(self.src_file_name, encoding="utf8") as f_src,
+            open(self.tgt_file_name, encoding="utf8") as f_tgt,
+        ):
             for i, (src, tgt) in enumerate(zip(f_src, f_tgt)):
                 if i % 10000 == 0 and i != 0:
-                    logging.info(f"Read {i} lines from {self.src_file_name} & {self.tgt_file_name}")
+                    logging.info(
+                        f"Read {i} lines from {self.src_file_name} & {self.tgt_file_name}"
+                    )
                 src = self.src_tokenizer.text_to_ids(src.strip())
                 if self.add_bos_to_input:
-                    src = [self.src_tokenizer.pad_id if self.replace_bos_with_pad else self.src_tokenizer.bos_id] + src
+                    src = [
+                        (
+                            self.src_tokenizer.pad_id
+                            if self.replace_bos_with_pad
+                            else self.src_tokenizer.bos_id
+                        )
+                    ] + src
                 if self.add_eos_to_input:
                     src = src + [self.src_tokenizer.eos_id]
 
                 tgt = (
-                    [self.tgt_tokenizer.pad_id if self.replace_bos_with_pad else self.tgt_tokenizer.bos_id]
+                    [
+                        (
+                            self.tgt_tokenizer.pad_id
+                            if self.replace_bos_with_pad
+                            else self.tgt_tokenizer.bos_id
+                        )
+                    ]
                     + self.tgt_tokenizer.text_to_ids(tgt.strip())
                     + [self.tgt_tokenizer.eos_id]
                 )
@@ -96,14 +113,14 @@ class SequenceToSequenceDataset(Dataset):
                     src = src[-self.max_src_seq_length + 1 :]
                 if len(tgt) > self.max_tgt_seq_length:
                     tgt = tgt[-self.max_tgt_seq_length + 1 :]
-                self.examples.append({'src': src, 'tgt': tgt})
+                self.examples.append({"src": src, "tgt": tgt})
 
-        logging.info(f'Dataset Length : {len(self.examples)}')
+        logging.info(f"Dataset Length : {len(self.examples)}")
 
     def collate_fn(self, batch):
-        text_enc = [item['text_enc'] for item in batch]
-        text_dec = [item['text_dec'] for item in batch]
-        labels = [item['labels'] for item in batch]
+        text_enc = [item["text_enc"] for item in batch]
+        text_dec = [item["text_dec"] for item in batch]
+        labels = [item["labels"] for item in batch]
 
         if isinstance(text_enc[0], np.ndarray):
             text_enc = [x.tolist() for x in text_enc]
@@ -118,10 +135,22 @@ class SequenceToSequenceDataset(Dataset):
         max_enc_input_length = max([len(item) for item in text_enc]) if text_enc else 0
         max_label_length = max([len(item) for item in labels]) if labels else 0
 
-        loss_mask = [([1] * (len(item))) + ([0] * (max_label_length - len(item))) for item in labels]
-        text_enc = [item + [self.src_tokenizer.pad_id] * (max_enc_input_length - len(item)) for item in text_enc]
-        text_dec = [item + [self.tgt_tokenizer.pad_id] * (max_dec_input_length - len(item)) for item in text_dec]
-        labels = [item + [self.tgt_tokenizer.pad_id] * (max_label_length - len(item)) for item in labels]
+        loss_mask = [
+            ([1] * (len(item))) + ([0] * (max_label_length - len(item)))
+            for item in labels
+        ]
+        text_enc = [
+            item + [self.src_tokenizer.pad_id] * (max_enc_input_length - len(item))
+            for item in text_enc
+        ]
+        text_dec = [
+            item + [self.tgt_tokenizer.pad_id] * (max_dec_input_length - len(item))
+            for item in text_dec
+        ]
+        labels = [
+            item + [self.tgt_tokenizer.pad_id] * (max_label_length - len(item))
+            for item in labels
+        ]
 
         text_enc = torch.LongTensor(text_enc)
         text_dec = torch.LongTensor(text_dec)
@@ -132,12 +161,12 @@ class SequenceToSequenceDataset(Dataset):
         dec_mask = (text_dec != self.tgt_tokenizer.pad_id).long()
 
         return {
-            'text_enc': text_enc,
-            'text_dec': text_dec,
-            'labels': labels,
-            'loss_mask': loss_mask,
-            'enc_mask': enc_mask,
-            'dec_mask': dec_mask,
+            "text_enc": text_enc,
+            "text_dec": text_dec,
+            "labels": labels,
+            "loss_mask": loss_mask,
+            "enc_mask": enc_mask,
+            "dec_mask": dec_mask,
         }
 
 
@@ -185,9 +214,9 @@ class IndexedSequenceToSequenceDataset(SequenceToSequenceDataset):
         self.add_eos_to_enc = add_eos_to_enc
         self.prepend_id = prepend_id
 
-        logging.info(f'Desired number of samples : {self.max_num_samples}')
-        logging.info(f'Source Dataset Length : {len(self.src_indexed_dataset)}')
-        logging.info(f'Target Dataset Length : {len(self.tgt_indexed_dataset)}')
+        logging.info(f"Desired number of samples : {self.max_num_samples}")
+        logging.info(f"Source Dataset Length : {len(self.src_indexed_dataset)}")
+        logging.info(f"Target Dataset Length : {len(self.tgt_indexed_dataset)}")
 
     def __len__(self):
         if self.max_num_samples is None:
@@ -239,7 +268,7 @@ class IndexedSequenceToSequenceDataset(SequenceToSequenceDataset):
         text_dec = np.concatenate([[self.tgt_tokenizer.bos_id], tgt])
         labels = np.concatenate([tgt, [self.tgt_tokenizer.eos_id]])
 
-        return {'text_enc': src, 'text_dec': text_dec, 'labels': labels}
+        return {"text_enc": src, "text_dec": text_dec, "labels": labels}
 
     def _build_samples_mapping(self):
         if self.max_num_samples is not None:
@@ -257,7 +286,7 @@ class IndexedSequenceToSequenceDataset(SequenceToSequenceDataset):
                 max_seq_length=self.max_src_seq_length - 2,
                 short_seq_prob=0,
                 seed=self.seed,
-                name=self.src_file_name.split('/')[-1],
+                name=self.src_file_name.split("/")[-1],
                 binary_head=False,
             )
         else:
@@ -312,10 +341,14 @@ class TextMemmapSequenceToSequenceDataset(IndexedSequenceToSequenceDataset):
 
     def _get_examples(self):
         self.src_indexed_dataset = TextMemMapDataset(
-            dataset_paths=[self.src_file_name], tokenizer=self.src_tokenizer, header_lines=0
+            dataset_paths=[self.src_file_name],
+            tokenizer=self.src_tokenizer,
+            header_lines=0,
         )
         self.tgt_indexed_dataset = TextMemMapDataset(
-            dataset_paths=[self.tgt_file_name], tokenizer=self.tgt_tokenizer, header_lines=0
+            dataset_paths=[self.tgt_file_name],
+            tokenizer=self.tgt_tokenizer,
+            header_lines=0,
         )
 
         assert len(self.src_indexed_dataset) == len(
@@ -376,18 +409,22 @@ class BinarizedMemmapSequenceToSequenceDataset(IndexedSequenceToSequenceDataset)
         if not os.path.exists(self.src_dataset_prefix + ".bin") or not os.path.exists(
             self.src_dataset_prefix + ".idx"
         ):
-            raise FileNotFoundError(f"{self.src_dataset_prefix}.bin or {self.src_dataset_prefix}.idx not found")
+            raise FileNotFoundError(
+                f"{self.src_dataset_prefix}.bin or {self.src_dataset_prefix}.idx not found"
+            )
         if not os.path.exists(self.tgt_dataset_prefix + ".bin") or not os.path.exists(
             self.tgt_dataset_prefix + ".idx"
         ):
-            raise FileNotFoundError(f"{self.tgt_dataset_prefix}.bin or {self.tgt_dataset_prefix}.idx not found")
+            raise FileNotFoundError(
+                f"{self.tgt_dataset_prefix}.bin or {self.tgt_dataset_prefix}.idx not found"
+            )
 
     def _get_examples(self):
         self.src_indexed_dataset = self._get_indexed_dataset(
-            self.src_dataset_prefix, data_impl='mmap', skip_warmup=True
+            self.src_dataset_prefix, data_impl="mmap", skip_warmup=True
         )
         self.tgt_indexed_dataset = self._get_indexed_dataset(
-            self.tgt_dataset_prefix, data_impl='mmap', skip_warmup=True
+            self.tgt_dataset_prefix, data_impl="mmap", skip_warmup=True
         )
         assert len(self.src_indexed_dataset) == len(self.tgt_indexed_dataset)
         self._build_samples_mapping()

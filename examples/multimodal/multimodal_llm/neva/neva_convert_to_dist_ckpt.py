@@ -34,15 +34,21 @@ def get_args():
         required=True,
         help="Path to NeMo legacy checkpoints",
     )
-    parser.add_argument("--output_path", type=str, default=None, required=True, help="Path to output .nemo file.")
+    parser.add_argument(
+        "--output_path",
+        type=str,
+        default=None,
+        required=True,
+        help="Path to output .nemo file.",
+    )
     parser.add_argument("--gpus_per_node", type=int, required=False, default=8)
     parser.add_argument("--num_nodes", type=int, required=False, default=1)
     parser.add_argument(
         "--precision",
         type=str,
         required=False,
-        default='bf16-mixed',
-        choices=['32-true', '16-mixed', 'bf16-mixed'],
+        default="bf16-mixed",
+        choices=["32-true", "16-mixed", "bf16-mixed"],
         help="Precision value for the trainer that matches with precision of the ckpt",
     )
     args = parser.parse_args()
@@ -52,19 +58,19 @@ def get_args():
 def main() -> None:
     args = get_args()
     cfg = {
-        'trainer': {
-            'devices': args.gpus_per_node,
-            'num_nodes': args.num_nodes,
-            'accelerator': 'gpu',
-            'precision': args.precision,
+        "trainer": {
+            "devices": args.gpus_per_node,
+            "num_nodes": args.num_nodes,
+            "accelerator": "gpu",
+            "precision": args.precision,
         },
-        'model': {
-            'native_amp_init_scale': 2**32,
-            'native_amp_growth_interval': 1000,
-            'hysteresis': 2,
-            'gradient_as_bucket_view': True,
+        "model": {
+            "native_amp_init_scale": 2**32,
+            "native_amp_growth_interval": 1000,
+            "hysteresis": 2,
+            "gradient_as_bucket_view": True,
         },
-        'cluster_type': 'BCP',
+        "cluster_type": "BCP",
     }
     cfg = OmegaConf.create(cfg)
 
@@ -85,8 +91,8 @@ def main() -> None:
     )
 
     model.save_to(args.output_path)
-    logging.info(f'NeMo model saved to: {args.output_path}')
+    logging.info(f"NeMo model saved to: {args.output_path}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

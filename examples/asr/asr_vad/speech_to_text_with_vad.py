@@ -87,25 +87,41 @@ from nemo.utils import logging
 @dataclass
 class InferenceConfig:
     # Required configs
-    asr_model: Optional[str] = None  # Path to a .nemo file or a pretrained NeMo model on NGC
-    vad_model: Optional[str] = None  # Path to a .nemo file or a pretrained NeMo model on NGC
-    vad_config: Optional[str] = None  # Path to a yaml file containing VAD post-processing configs
+    asr_model: Optional[str] = (
+        None  # Path to a .nemo file or a pretrained NeMo model on NGC
+    )
+    vad_model: Optional[str] = (
+        None  # Path to a .nemo file or a pretrained NeMo model on NGC
+    )
+    vad_config: Optional[str] = (
+        None  # Path to a yaml file containing VAD post-processing configs
+    )
     manifest_filepath: Optional[str] = None  # Path to dataset's JSON manifest
-    audio_dir: Optional[str] = None  # Path to a directory containing audio files, use this if no manifest is provided
+    audio_dir: Optional[str] = (
+        None  # Path to a directory containing audio files, use this if no manifest is provided
+    )
 
     use_rttm: bool = True  # whether to use RTTM
     rttm_mode: str = "mask"  # how to use RTTM files, choices=[`mask`, `drop`]
-    feat_mask_val: Optional[float] = None  # value used to mask features based on RTTM, set None to use defaults
+    feat_mask_val: Optional[float] = (
+        None  # value used to mask features based on RTTM, set None to use defaults
+    )
     normalize: Optional[str] = (
         "post_norm"  # whether and where to normalize audio feature, choices=[None, `pre_norm`, `post_norm`]
     )
-    normalize_type: str = "per_feature"  # how to determine mean and std used for normalization
-    normalize_audio_db: Optional[float] = None  # set to normalize RMS DB of audio before extracting audio features
+    normalize_type: str = (
+        "per_feature"  # how to determine mean and std used for normalization
+    )
+    normalize_audio_db: Optional[float] = (
+        None  # set to normalize RMS DB of audio before extracting audio features
+    )
 
     profiling: bool = False  # whether to enable pytorch profiling
 
     # General configs
-    batch_size: int = 1  # batch size for ASR. Feature extraction and VAD only support single sample per batch.
+    batch_size: int = (
+        1  # batch size for ASR. Feature extraction and VAD only support single sample per batch.
+    )
     num_workers: int = 8
     sample_rate: int = 16000
     frame_unit_time_secs: float = (
@@ -116,7 +132,9 @@ class InferenceConfig:
     # Output settings, no need to change
     output_dir: Optional[str] = None  # will be automatically set by the program
     output_filename: Optional[str] = None  # will be automatically set by the program
-    pred_name_postfix: Optional[str] = None  # If you need to use another model name, other than the standard one.
+    pred_name_postfix: Optional[str] = (
+        None  # If you need to use another model name, other than the standard one.
+    )
 
     # Set to True to output language ID information
     compute_langs: bool = False
@@ -142,7 +160,7 @@ def main(cfg):
     output_dir = Path(cfg.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
+    logging.info(f"Hydra config: {OmegaConf.to_yaml(cfg)}")
 
     # setup profiling, note that profiling will significantly increast the total runtime
     if cfg.profiling:
@@ -166,10 +184,14 @@ def main(cfg):
         cfg.manifest_filepath = str(input_manifest_file)
 
     with profile_fn(
-        activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA], record_shapes=True, profile_memory=True
+        activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA],
+        record_shapes=True,
+        profile_memory=True,
     ) as prof:
 
-        input_manifest_file = extract_audio_features(input_manifest_file, cfg, record_fn)
+        input_manifest_file = extract_audio_features(
+            input_manifest_file, cfg, record_fn
+        )
 
         if cfg.vad_model is not None:
             logging.info(f"Running VAD with model: {cfg.vad_model}")
@@ -191,7 +213,11 @@ def prepare_inference_manifest(cfg: DictConfig) -> str:
     if cfg.audio_dir is not None and cfg.manifest_filepath is None:
         manifest_data = []
         for audio_file in Path(cfg.audio_dir).glob(f"**/*.{cfg.audio_type}"):
-            item = {"audio_filepath": str(audio_file.absolute()), "duration": 1000000, "offset": 0}
+            item = {
+                "audio_filepath": str(audio_file.absolute()),
+                "duration": 1000000,
+                "offset": 0,
+            }
             manifest_data.append(item)
         parent_dir = Path(cfg.audio_dir)
     else:
@@ -202,7 +228,11 @@ def prepare_inference_manifest(cfg: DictConfig) -> str:
 
     for item in manifest_data:
         audio_file = Path(item["audio_filepath"])
-        if len(str(audio_file)) < 255 and not audio_file.is_file() and not audio_file.is_absolute():
+        if (
+            len(str(audio_file)) < 255
+            and not audio_file.is_file()
+            and not audio_file.is_absolute()
+        ):
             new_audio_file = parent_dir / audio_file
             if new_audio_file.is_file():
                 item["audio_filepath"] = str(new_audio_file.absolute())
@@ -219,22 +249,28 @@ def prepare_inference_manifest(cfg: DictConfig) -> str:
     return new_manifest_filepath
 
 
-def extract_audio_features(manifest_filepath: str, cfg: DictConfig, record_fn: Callable) -> str:
+def extract_audio_features(
+    manifest_filepath: str, cfg: DictConfig, record_fn: Callable
+) -> str:
     file_list = []
     manifest_data = []
     out_dir = Path(cfg.output_dir) / Path("features")
-    new_manifest_filepath = str(Path(cfg.output_dir) / Path("temp_manifest_input_feature.json"))
+    new_manifest_filepath = str(
+        Path(cfg.output_dir) / Path("temp_manifest_input_feature.json")
+    )
 
     if Path(new_manifest_filepath).is_file():
-        logging.info("Features already exist in output_dir, skipping feature extraction.")
+        logging.info(
+            "Features already exist in output_dir, skipping feature extraction."
+        )
         return new_manifest_filepath
 
     has_feat = False
-    with open(manifest_filepath, 'r', encoding='utf-8') as fin:
+    with open(manifest_filepath, "r", encoding="utf-8") as fin:
         for line in fin.readlines():
             item = json.loads(line.strip())
             manifest_data.append(item)
-            file_list.append(Path(item['audio_filepath']).stem)
+            file_list.append(Path(item["audio_filepath"]).stem)
             if "feature_file" in item:
                 has_feat = True
     if has_feat:
@@ -246,28 +282,32 @@ def extract_audio_features(manifest_filepath: str, cfg: DictConfig, record_fn: C
     if cfg.vad_model:
         vad_model = init_frame_vad_model(cfg.vad_model)
     else:
-        vad_model = EncDecClassificationModel.from_pretrained("vad_multilingual_marblenet")
+        vad_model = EncDecClassificationModel.from_pretrained(
+            "vad_multilingual_marblenet"
+        )
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     vad_model = vad_model.to(device)
     vad_model.eval()
     vad_model.setup_test_data(
         test_data_config={
-            'batch_size': 1,
-            'vad_stream': False,
-            'sample_rate': cfg.sample_rate,
-            'manifest_filepath': manifest_filepath,
-            'labels': [
-                'infer',
+            "batch_size": 1,
+            "vad_stream": False,
+            "sample_rate": cfg.sample_rate,
+            "manifest_filepath": manifest_filepath,
+            "labels": [
+                "infer",
             ],
-            'num_workers': cfg.num_workers,
-            'shuffle': False,
-            'normalize_audio_db': cfg.normalize_audio_db,
+            "num_workers": cfg.num_workers,
+            "shuffle": False,
+            "normalize_audio_db": cfg.normalize_audio_db,
         }
     )
 
     logging.info(f"Extracting features on {len(file_list)} audio files...")
     with record_fn("feat_extract_loop"):
-        for i, test_batch in enumerate(tqdm(vad_model.test_dataloader(), total=len(vad_model.test_dataloader()))):
+        for i, test_batch in enumerate(
+            tqdm(vad_model.test_dataloader(), total=len(vad_model.test_dataloader()))
+        ):
             test_batch = [x.to(vad_model.device) for x in test_batch]
             with torch.amp.autocast(vad_model.device.type):
                 with record_fn("feat_extract_infer"):
@@ -276,7 +316,9 @@ def extract_audio_features(manifest_filepath: str, cfg: DictConfig, record_fn: C
                         length=test_batch[1],
                     )
                 with record_fn("feat_extract_other"):
-                    processed_signal = processed_signal.squeeze(0)[:, :processed_signal_length]
+                    processed_signal = processed_signal.squeeze(0)[
+                        :, :processed_signal_length
+                    ]
                     processed_signal = processed_signal.cpu()
                     outpath = os.path.join(out_dir, file_list[i] + ".pt")
                     outpath = str(Path(outpath).absolute())
@@ -289,14 +331,18 @@ def extract_audio_features(manifest_filepath: str, cfg: DictConfig, record_fn: C
     return new_manifest_filepath
 
 
-def run_vad_inference(manifest_filepath: str, cfg: DictConfig, record_fn: Callable) -> str:
+def run_vad_inference(
+    manifest_filepath: str, cfg: DictConfig, record_fn: Callable
+) -> str:
     logging.info("Start VAD inference pipeline...")
     if cfg.vad_type == "segment":
         vad_model = init_vad_model(cfg.vad_model)
     elif cfg.vad_type == "frame":
         vad_model = init_frame_vad_model(cfg.vad_model)
     else:
-        raise ValueError(f"Unknown VAD type: {cfg.vad_type}, supported types: ['segment', 'frame']")
+        raise ValueError(
+            f"Unknown VAD type: {cfg.vad_type}, supported types: ['segment', 'frame']"
+        )
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     vad_model = vad_model.to(device)
@@ -311,15 +357,15 @@ def run_vad_inference(manifest_filepath: str, cfg: DictConfig, record_fn: Callab
     vad_cfg = DictConfig(vad_cfg)
 
     test_data_config = {
-        'vad_stream': True,
-        'manifest_filepath': manifest_filepath,
-        'labels': [
-            'infer',
+        "vad_stream": True,
+        "manifest_filepath": manifest_filepath,
+        "labels": [
+            "infer",
         ],
-        'num_workers': cfg.num_workers,
-        'shuffle': False,
-        'window_length_in_sec': vad_cfg.vad.parameters.window_length_in_sec,
-        'shift_length_in_sec': vad_cfg.vad.parameters.shift_length_in_sec,
+        "num_workers": cfg.num_workers,
+        "shuffle": False,
+        "window_length_in_sec": vad_cfg.vad.parameters.window_length_in_sec,
+        "shift_length_in_sec": vad_cfg.vad.parameters.shift_length_in_sec,
     }
     vad_model.setup_test_data(test_data_config=test_data_config, use_feat=True)
 
@@ -370,7 +416,9 @@ def run_vad_inference(manifest_filepath: str, cfg: DictConfig, record_fn: Callab
         frame_length_in_sec = 0.01
 
     # Turn frame-wise prediction into speech intervals
-    logging.info(f"Generating segment tables with postprocessing params: {vad_cfg.vad.parameters.postprocessing}")
+    logging.info(
+        f"Generating segment tables with postprocessing params: {vad_cfg.vad.parameters.postprocessing}"
+    )
     segment_dir_name = "vad_rttm"
     for key, val in vad_cfg.vad.parameters.postprocessing.items():
         segment_dir_name = segment_dir_name + "-" + str(key) + str(val)
@@ -402,7 +450,9 @@ def run_vad_inference(manifest_filepath: str, cfg: DictConfig, record_fn: Callab
         key = Path(manifest_data[i]["audio_filepath"]).stem
         manifest_data[i]["rttm_file"] = rttm_map[key]
 
-    new_manifest_filepath = str(Path(cfg.output_dir) / Path(f"temp_manifest_{segment_dir_name}.json"))
+    new_manifest_filepath = str(
+        Path(cfg.output_dir) / Path(f"temp_manifest_{segment_dir_name}.json")
+    )
     write_manifest(new_manifest_filepath, manifest_data)
     return new_manifest_filepath
 
@@ -425,23 +475,31 @@ def generate_vad_frame_pred(
     all_len = 0
 
     data = []
-    with open(manifest_vad_input, 'r', encoding='utf-8') as fin:
+    with open(manifest_vad_input, "r", encoding="utf-8") as fin:
         for line in fin.readlines():
-            file = json.loads(line)['audio_filepath'].split("/")[-1]
+            file = json.loads(line)["audio_filepath"].split("/")[-1]
             data.append(file.split(".wav")[0])
     logging.info(f"Inference on {len(data)} audio files/json lines!")
 
     status = get_vad_stream_status(data)
 
     with record_fn("vad_infer_loop"):
-        for i, test_batch in enumerate(tqdm(vad_model.test_dataloader(), total=len(vad_model.test_dataloader()))):
+        for i, test_batch in enumerate(
+            tqdm(vad_model.test_dataloader(), total=len(vad_model.test_dataloader()))
+        ):
             test_batch = [x.to(vad_model.device) for x in test_batch]
             with torch.amp.autocast(vad_model.device.type):
                 with record_fn("vad_infer_model"):
                     if use_feat:
-                        log_probs = vad_model(processed_signal=test_batch[0], processed_signal_length=test_batch[1])
+                        log_probs = vad_model(
+                            processed_signal=test_batch[0],
+                            processed_signal_length=test_batch[1],
+                        )
                     else:
-                        log_probs = vad_model(input_signal=test_batch[0], input_signal_length=test_batch[1])
+                        log_probs = vad_model(
+                            input_signal=test_batch[0],
+                            input_signal_length=test_batch[1],
+                        )
 
                 with record_fn("vad_infer_other"):
                     probs = torch.softmax(log_probs, dim=-1)
@@ -452,11 +510,11 @@ def generate_vad_frame_pred(
 
                     if window_length_in_sec == 0:
                         to_save = pred
-                    elif status[i] == 'start':
+                    elif status[i] == "start":
                         to_save = pred[:-trunc]
-                    elif status[i] == 'next':
+                    elif status[i] == "next":
                         to_save = pred[trunc:-trunc_l]
-                    elif status[i] == 'end':
+                    elif status[i] == "end":
                         to_save = pred[trunc_l:]
                     else:
                         to_save = pred
@@ -465,21 +523,21 @@ def generate_vad_frame_pred(
                     all_len += len(to_save)
 
                     outpath = os.path.join(out_dir, data[i] + ".frame")
-                    with open(outpath, "a", encoding='utf-8') as fout:
+                    with open(outpath, "a", encoding="utf-8") as fout:
                         for p in to_save:
-                            fout.write(f'{p:0.4f}\n')
+                            fout.write(f"{p:0.4f}\n")
 
                     del test_batch
-                    if status[i] == 'end' or status[i] == 'single':
+                    if status[i] == "end" or status[i] == "single":
                         all_len = 0
     return out_dir
 
 
 def init_asr_model(model_path: str) -> ASRModel:
-    if model_path.endswith('.nemo'):
+    if model_path.endswith(".nemo"):
         logging.info(f"Using local ASR model from {model_path}")
         asr_model = ASRModel.restore_from(restore_path=model_path)
-    elif model_path.endswith('.ckpt'):
+    elif model_path.endswith(".ckpt"):
         asr_model = ASRModel.load_from_checkpoint(checkpoint_path=model_path)
     else:
         logging.info(f"Using NGC ASR model {model_path}")
@@ -497,22 +555,28 @@ def run_asr_inference(manifest_filepath, cfg, record_fn) -> str:
     # Setup decoding strategy
     decode_function = None
     decoder_type = cfg.get("decoder_type", None)
-    if not hasattr(asr_model, 'change_decoding_strategy'):
-        raise ValueError(f"ASR model {cfg.asr_model} does not support decoding strategy.")
+    if not hasattr(asr_model, "change_decoding_strategy"):
+        raise ValueError(
+            f"ASR model {cfg.asr_model} does not support decoding strategy."
+        )
     if decoder_type is not None:  # Hybrid model
-        if decoder_type == 'rnnt':
+        if decoder_type == "rnnt":
             cfg.rnnt_decoding.fused_batch_size = -1
             cfg.rnnt_decoding.compute_langs = cfg.compute_langs
-            asr_model.change_decoding_strategy(cfg.rnnt_decoding, decoder_type=decoder_type)
+            asr_model.change_decoding_strategy(
+                cfg.rnnt_decoding, decoder_type=decoder_type
+            )
             decode_function = asr_model.decoding.rnnt_decoder_predictions_tensor
-        elif decoder_type == 'ctc':
-            asr_model.change_decoding_strategy(cfg.ctc_decoding, decoder_type=decoder_type)
+        elif decoder_type == "ctc":
+            asr_model.change_decoding_strategy(
+                cfg.ctc_decoding, decoder_type=decoder_type
+            )
             decode_function = asr_model.decoding.ctc_decoder_predictions_tensor
         else:
             raise ValueError(
                 f"Unknown decoder type for hybrid model: {decoder_type}, supported types: ['rnnt', 'ctc']"
             )
-    elif hasattr(asr_model, 'joint'):  # RNNT model
+    elif hasattr(asr_model, "joint"):  # RNNT model
         cfg.rnnt_decoding.fused_batch_size = -1
         cfg.rnnt_decoding.compute_langs = cfg.compute_langs
         asr_model.change_decoding_strategy(cfg.rnnt_decoding)
@@ -525,7 +589,9 @@ def run_asr_inference(manifest_filepath, cfg, record_fn) -> str:
     if cfg.output_filename is None:
         # create default output filename
         if cfg.pred_name_postfix is not None:
-            cfg.output_filename = cfg.manifest_filepath.replace('.json', f'_{cfg.pred_name_postfix}.json')
+            cfg.output_filename = cfg.manifest_filepath.replace(
+                ".json", f"_{cfg.pred_name_postfix}.json"
+            )
         else:
             tag = f"{cfg.normalize}_{cfg.normalize_type}"
             if cfg.use_rttm:
@@ -535,7 +601,9 @@ def run_asr_inference(manifest_filepath, cfg, record_fn) -> str:
                     tag += f"-mask{cfg.feat_mask_val}-{vad_tag}"
                 else:
                     tag += f"-dropframe-{vad_tag}"
-            cfg.output_filename = cfg.manifest_filepath.replace('.json', f'-{Path(cfg.asr_model).stem}-{tag}.json')
+            cfg.output_filename = cfg.manifest_filepath.replace(
+                ".json", f"-{Path(cfg.asr_model).stem}-{tag}.json"
+            )
         cfg.output_filename = Path(cfg.output_dir) / Path(cfg.output_filename).name
 
     logging.info("Setting up dataloader for ASR...")
@@ -548,10 +616,14 @@ def run_asr_inference(manifest_filepath, cfg, record_fn) -> str:
         "feat_mask_val": cfg.feat_mask_val,
         "frame_unit_time_secs": cfg.frame_unit_time_secs,
     }
-    logging.info(f"use_rttm = {cfg.use_rttm}, rttm_mode = {cfg.rttm_mode}, feat_mask_val = {cfg.feat_mask_val}")
+    logging.info(
+        f"use_rttm = {cfg.use_rttm}, rttm_mode = {cfg.rttm_mode}, feat_mask_val = {cfg.feat_mask_val}"
+    )
 
     if hasattr(asr_model, "tokenizer"):
-        dataset = feature_to_text_dataset.get_bpe_dataset(config=data_config, tokenizer=asr_model.tokenizer)
+        dataset = feature_to_text_dataset.get_bpe_dataset(
+            config=data_config, tokenizer=asr_model.tokenizer
+        )
     else:
         data_config["labels"] = asr_model.decoder.vocabulary
         dataset = feature_to_text_dataset.get_char_dataset(config=data_config)
@@ -562,8 +634,8 @@ def run_asr_inference(manifest_filepath, cfg, record_fn) -> str:
         collate_fn=dataset._collate_fn,
         drop_last=False,
         shuffle=False,
-        num_workers=cfg.get('num_workers', 0),
-        pin_memory=cfg.get('pin_memory', False),
+        num_workers=cfg.get("num_workers", 0),
+        pin_memory=cfg.get("pin_memory", False),
     )
 
     logging.info("Start transcribing...")
@@ -588,8 +660,13 @@ def run_asr_inference(manifest_filepath, cfg, record_fn) -> str:
                             logits_len,
                             return_hypotheses=False,
                         )
-                        if isinstance(current_hypotheses, tuple) and len(current_hypotheses) == 2:
-                            current_hypotheses = current_hypotheses[0]  # handle RNNT output
+                        if (
+                            isinstance(current_hypotheses, tuple)
+                            and len(current_hypotheses) == 2
+                        ):
+                            current_hypotheses = current_hypotheses[
+                                0
+                            ]  # handle RNNT output
 
                         hypotheses += current_hypotheses
                         if all_hyp is not None:
@@ -633,7 +710,9 @@ def run_asr_inference(manifest_filepath, cfg, record_fn) -> str:
         logging.info("-----------------------------------------")
     else:
         wer_score = word_error_rate(hypotheses=hypotheses, references=groundtruth)
-        cer_score = word_error_rate(hypotheses=hypotheses, references=groundtruth, use_cer=True)
+        cer_score = word_error_rate(
+            hypotheses=hypotheses, references=groundtruth, use_cer=True
+        )
         logging.info("-----------------------------------------")
         logging.info(f"WER={wer_score:.4f}, CER={cer_score:.4f}")
         logging.info("-----------------------------------------")

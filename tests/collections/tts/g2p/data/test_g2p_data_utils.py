@@ -22,7 +22,7 @@ class TestG2pDataUtils:
     def _create_expected_output(words):
         return [([word], False) for word in words]
 
-    @pytest.mark.run_only_on('CPU')
+    @pytest.mark.run_only_on("CPU")
     @pytest.mark.unit
     def test_get_heteronym_spans(self):
         supported_heteronyms = ["live", "read", "protest", "diffuse", "desert"]
@@ -42,11 +42,13 @@ class TestG2pDataUtils:
         ]
         expected_heteronyms = [
             ["live", "read", "protest"],
-            ['read'],
-            ['read', 'diffuse', 'live', 'desert'],
-            ['desert', 'desert'],
+            ["read"],
+            ["read", "diffuse", "live", "desert"],
+            ["desert", "desert"],
         ]
 
-        out_start_end, out_heteronyms = get_heteronym_spans(sentences, supported_heteronyms)
+        out_start_end, out_heteronyms = get_heteronym_spans(
+            sentences, supported_heteronyms
+        )
         assert out_start_end == expected_start_end, "start-end spans do not match"
         assert out_heteronyms == expected_heteronyms, "heteronym spans do not match"

@@ -100,10 +100,18 @@ def get_args():
         in `model_weights` directory.""",
     )
     parser.add_argument(
-        "--output_path", type=str, default=None, required=True, help="Path to output NeMo 2.0 directory."
+        "--output_path",
+        type=str,
+        default=None,
+        required=True,
+        help="Path to output NeMo 2.0 directory.",
     )
     parser.add_argument(
-        "--model_id", type=str, default=None, required=True, help="Hugging Face or nemotron model id for the model"
+        "--model_id",
+        type=str,
+        default=None,
+        required=True,
+        help="Hugging Face or nemotron model id for the model",
     )
     parser.add_argument(
         "--tokenizer_path",
@@ -148,7 +156,13 @@ def load_fp8_config(model_path: str) -> Dict[str, Any]:
     Returns:
         (dict): NeMo 1.0 model fp8 settings.
     """
-    fp8_params = ['fp8', 'fp8_amax_history_len', 'fp8_interval', 'fp8_margin', 'fp8_amax_compute_algo']
+    fp8_params = [
+        "fp8",
+        "fp8_amax_history_len",
+        "fp8_interval",
+        "fp8_margin",
+        "fp8_amax_compute_algo",
+    ]
     config = load_config(model_path)
     fp8_config = {key: config[key] for key in fp8_params if key in config}
     return fp8_config
@@ -171,12 +185,17 @@ def get_nemo2_model(model_id, tokenizer, input_path) -> llm.GPTModel:
 
     if model_id not in MODEL_CONFIG_MAPPING:
         valid_ids = "\n- ".join([""] + list(MODEL_CONFIG_MAPPING.keys()))
-        raise ValueError(f"Unsupported model_id: {model_id}. Please provide a valid model_id from {valid_ids}")
+        raise ValueError(
+            f"Unsupported model_id: {model_id}. Please provide a valid model_id from {valid_ids}"
+        )
     model_cls, config_cls = MODEL_CONFIG_MAPPING[model_id]
 
     fp8_config = load_fp8_config(input_path)
     # nemo1 ckpts are bf16
-    return model_cls(config_cls(bf16=True, params_dtype=torch.bfloat16, **fp8_config), tokenizer=tokenizer)
+    return model_cls(
+        config_cls(bf16=True, params_dtype=torch.bfloat16, **fp8_config),
+        tokenizer=tokenizer,
+    )
 
 
 def get_tokenizer(input_path: Path, tokenizer_tmp_dir: Path) -> AutoTokenizer:
@@ -195,16 +214,28 @@ def get_tokenizer(input_path: Path, tokenizer_tmp_dir: Path) -> AutoTokenizer:
             use_fast=True,
         )
     if not input_path.is_dir():  # if .nemo tar
-        with tempfile.TemporaryDirectory() as tmp_dir:  # we want to clean up this tmp dir
+        with (
+            tempfile.TemporaryDirectory() as tmp_dir
+        ):  # we want to clean up this tmp dir
             NLPSaveRestoreConnector._unpack_nemo_file(input_path, tmp_dir)
             cfg = OmegaConf.load(f"{tmp_dir}/model_config.yaml")
             tokenizer_lib = cfg.tokenizer.library
-            tokenizer_model = cfg.tokenizer.get("model") and cfg.tokenizer.get("model").split("nemo:", 1)[-1]
+            tokenizer_model = (
+                cfg.tokenizer.get("model")
+                and cfg.tokenizer.get("model").split("nemo:", 1)[-1]
+            )
             if tokenizer_model:
-                shutil.copy(f"{tmp_dir}/{tokenizer_model}", f"{tokenizer_tmp_dir}/{tokenizer_model}")
+                shutil.copy(
+                    f"{tmp_dir}/{tokenizer_model}",
+                    f"{tokenizer_tmp_dir}/{tokenizer_model}",
+                )
             elif cfg.tokenizer.library == "huggingface":
-                HFAutoTokenizer.from_pretrained(cfg.tokenizer.type).save_pretrained(tokenizer_tmp_dir)
-            tokenizer_model = f"{tokenizer_tmp_dir}/{tokenizer_model}" if tokenizer_model else None
+                HFAutoTokenizer.from_pretrained(cfg.tokenizer.type).save_pretrained(
+                    tokenizer_tmp_dir
+                )
+            tokenizer_model = (
+                f"{tokenizer_tmp_dir}/{tokenizer_model}" if tokenizer_model else None
+            )
     else:
         if (
             args.tokenizer_path or args.tokenizer_vocab_file
@@ -217,7 +248,9 @@ def get_tokenizer(input_path: Path, tokenizer_tmp_dir: Path) -> AutoTokenizer:
             tokenizer_model = args.tokenizer_path
         else:  # no .nemo config, no tokenizer path specified, grab from HF, reload
             tokenizer_lib = "huggingface"
-            HFAutoTokenizer.from_pretrained(args.model_id).save_pretrained(tokenizer_tmp_dir)
+            HFAutoTokenizer.from_pretrained(args.model_id).save_pretrained(
+                tokenizer_tmp_dir
+            )
 
     if tokenizer_lib == "huggingface":
         return AutoTokenizer(tokenizer_tmp_dir)
@@ -232,13 +265,17 @@ def main() -> None:
     tokenizer_tmp_dir = Path("/tmp/nemo_tokenizer")
     tokenizer_tmp_dir.mkdir(parents=True, exist_ok=True)
     tokenizer = get_tokenizer(Path(args.input_path), tokenizer_tmp_dir)
-    model = get_nemo2_model(args.model_id, tokenizer=tokenizer, input_path=args.input_path)
+    model = get_nemo2_model(
+        args.model_id, tokenizer=tokenizer, input_path=args.input_path
+    )
     model.optim = None
 
     trainer = Trainer(
         devices=1,
         accelerator="cpu",
-        strategy=MegatronStrategy(ddp="pytorch", setup_optimizers=False, plugins=bf16_mixed()),
+        strategy=MegatronStrategy(
+            ddp="pytorch", setup_optimizers=False, plugins=bf16_mixed()
+        ),
     )
 
     trainer.strategy.connect(model)
@@ -251,18 +288,28 @@ def main() -> None:
 
     logging.info(f"loading checkpoint {args.input_path}")
 
-    sharded_state_dict = {"state_dict": trainer.strategy.megatron_parallel.sharded_state_dict()}
+    sharded_state_dict = {
+        "state_dict": trainer.strategy.megatron_parallel.sharded_state_dict()
+    }
 
-    for key in list(sharded_state_dict['state_dict'].keys()):
-        new_key = key.replace('module', 'model', 1)
-        sharded_state_dict['state_dict'][new_key] = sharded_state_dict['state_dict'].pop(key)
-        sharded_state_dict['state_dict'][new_key].key = sharded_state_dict['state_dict'][new_key].key.replace(
-            'module', 'model', 1
-        )
+    for key in list(sharded_state_dict["state_dict"].keys()):
+        new_key = key.replace("module", "model", 1)
+        sharded_state_dict["state_dict"][new_key] = sharded_state_dict[
+            "state_dict"
+        ].pop(key)
+        sharded_state_dict["state_dict"][new_key].key = sharded_state_dict[
+            "state_dict"
+        ][new_key].key.replace("module", "model", 1)
 
     def skip_fp8_load(x):
-        if isinstance(x, ShardedObject) and 'core_attention' in x.key and '_extra_state' in x.key:
-            x = LocalNonpersistentObject(x.data)  # use the FP8 state from initialization, not from ckpt
+        if (
+            isinstance(x, ShardedObject)
+            and "core_attention" in x.key
+            and "_extra_state" in x.key
+        ):
+            x = LocalNonpersistentObject(
+                x.data
+            )  # use the FP8 state from initialization, not from ckpt
         return x
 
     dict_list_map_inplace(skip_fp8_load, sharded_state_dict)
@@ -270,21 +317,29 @@ def main() -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             NLPSaveRestoreConnector._unpack_nemo_file(args.input_path, tmp_dir)
             model_weight_dir = f"{tmp_dir}/model_weights"
-            model_ckpt = trainer.strategy.checkpoint_io.load_checkpoint(model_weight_dir, sharded_state_dict, None)
+            model_ckpt = trainer.strategy.checkpoint_io.load_checkpoint(
+                model_weight_dir, sharded_state_dict, None
+            )
     else:
-        model_ckpt = trainer.strategy.checkpoint_io.load_checkpoint(args.input_path, sharded_state_dict, None)
+        model_ckpt = trainer.strategy.checkpoint_io.load_checkpoint(
+            args.input_path, sharded_state_dict, None
+        )
 
     logging.info(f"Saving checkpoint to {args.output_path}")
-    model_ckpt['state_dict'] = {k.replace('model', 'module', 1): v for k, v in model_ckpt['state_dict'].items()}
-    trainer.model.module.load_state_dict(model_ckpt['state_dict'])
+    model_ckpt["state_dict"] = {
+        k.replace("model", "module", 1): v for k, v in model_ckpt["state_dict"].items()
+    }
+    trainer.model.module.load_state_dict(model_ckpt["state_dict"])
     trainer.save_checkpoint(ckpt_to_weights_subdir(args.output_path, is_saving=False))
     if getattr(trainer.strategy, "async_save", False):
         trainer.strategy.checkpoint_io.maybe_finalize_save_checkpoint(blocking=True)
 
     # Corresponding to Connector: on_import_ckpt
-    if hasattr(trainer.model, "__io__") and hasattr(trainer.model.tokenizer, '__io__'):
+    if hasattr(trainer.model, "__io__") and hasattr(trainer.model.tokenizer, "__io__"):
         trainer.model.__io__.tokenizer = trainer.model.tokenizer.__io__
-    TrainerContext.from_trainer(trainer).io_dump(ckpt_to_context_subdir(args.output_path), yaml_attrs=["model"])
+    TrainerContext.from_trainer(trainer).io_dump(
+        ckpt_to_context_subdir(args.output_path), yaml_attrs=["model"]
+    )
 
     # remove tmp dir
     if os.path.isdir(tokenizer_tmp_dir):
@@ -293,6 +348,6 @@ def main() -> None:
     logging.info(f"NeMo 2.0 checkpoint saved at {args.output_path}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     args = get_args()
     main()

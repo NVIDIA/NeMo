@@ -65,14 +65,26 @@ def gather_features(
     if gather_with_grad:
         # TODO (yuya): this is not working in current version of pytorch
         # https://github.com/mlfoundations/open_clip/blob/main/src/open_clip/loss.py#L48
-        all_image_features = torch.cat(torch.distributed.nn.all_gather(image_features), dim=0)
-        all_text_features = torch.cat(torch.distributed.nn.all_gather(text_features), dim=0)
+        all_image_features = torch.cat(
+            torch.distributed.nn.all_gather(image_features), dim=0
+        )
+        all_text_features = torch.cat(
+            torch.distributed.nn.all_gather(text_features), dim=0
+        )
 
     else:
-        gathered_image_features = [torch.zeros_like(image_features) for _ in range(data_parallel_world_size)]
-        gathered_text_features = [torch.zeros_like(text_features) for _ in range(data_parallel_world_size)]
-        dist.all_gather(gathered_image_features, image_features, group=data_parallel_group)
-        dist.all_gather(gathered_text_features, text_features, group=data_parallel_group)
+        gathered_image_features = [
+            torch.zeros_like(image_features) for _ in range(data_parallel_world_size)
+        ]
+        gathered_text_features = [
+            torch.zeros_like(text_features) for _ in range(data_parallel_world_size)
+        ]
+        dist.all_gather(
+            gathered_image_features, image_features, group=data_parallel_group
+        )
+        dist.all_gather(
+            gathered_text_features, text_features, group=data_parallel_group
+        )
         # TODO (yuya): check what's this
         if not local_loss:
             # ensure grads for local rank when all_* features don't have a gradient
@@ -144,7 +156,9 @@ class ClipLoss(nn.Module):
                 logits_per_image = logit_scale * image_features @ all_text_features.T
                 logits_per_text = logit_scale * text_features @ all_image_features.T
             else:
-                logits_per_image = logit_scale * all_image_features @ all_text_features.T
+                logits_per_image = (
+                    logit_scale * all_image_features @ all_text_features.T
+                )
                 logits_per_text = logits_per_image.T
         else:
             logits_per_image = logit_scale * image_features @ text_features.T
@@ -162,7 +176,10 @@ class ClipLoss(nn.Module):
         else:
             labels = self.labels[device]
 
-        total_loss = (F.cross_entropy(logits_per_image, labels) + F.cross_entropy(logits_per_text, labels)) / 2
+        total_loss = (
+            F.cross_entropy(logits_per_image, labels)
+            + F.cross_entropy(logits_per_text, labels)
+        ) / 2
 
         # TODO (yuya): this is not necessary; not necessary if global!
         reduced_loss = average_losses_across_data_parallel_group([total_loss])

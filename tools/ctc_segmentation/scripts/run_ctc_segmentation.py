@@ -32,7 +32,9 @@ from nemo.collections.asr.models.hybrid_rnnt_ctc_models import \
     EncDecHybridRNNTCTCModel
 
 parser = argparse.ArgumentParser(description="CTC Segmentation")
-parser.add_argument("--output_dir", default="output", type=str, help="Path to output directory")
+parser.add_argument(
+    "--output_dir", default="output", type=str, help="Path to output directory"
+)
 parser.add_argument(
     "--data",
     type=str,
@@ -41,12 +43,22 @@ parser.add_argument(
     "different or path to wav file (transcript should have the same base name and be located in the same folder"
     "as the wav file.",
 )
-parser.add_argument("--window_len", type=int, default=8000, help="Window size for ctc segmentation algorithm")
+parser.add_argument(
+    "--window_len",
+    type=int,
+    default=8000,
+    help="Window size for ctc segmentation algorithm",
+)
 parser.add_argument("--sample_rate", type=int, default=16000, help="Sampling rate, Hz")
 parser.add_argument(
-    "--model", type=str, default="QuartzNet15x5Base-En", help="Path to model checkpoint or pre-trained model name",
+    "--model",
+    type=str,
+    default="QuartzNet15x5Base-En",
+    help="Path to model checkpoint or pre-trained model name",
 )
-parser.add_argument("--debug", action="store_true", help="Flag to enable debugging messages")
+parser.add_argument(
+    "--debug", action="store_true", help="Flag to enable debugging messages"
+)
 parser.add_argument(
     "--num_jobs",
     default=-2,
@@ -79,7 +91,10 @@ if __name__ == "__main__":
     else:
         asr_model = nemo_asr.models.ASRModel.from_pretrained(args.model, strict=False)
 
-    if not (isinstance(asr_model, EncDecCTCModel) or isinstance(asr_model, EncDecHybridRNNTCTCModel)):
+    if not (
+        isinstance(asr_model, EncDecCTCModel)
+        or isinstance(asr_model, EncDecHybridRNNTCTCModel)
+    ):
         raise NotImplementedError(
             f"Model is not an instance of NeMo EncDecCTCModel or ENCDecHybridRNNTCTCModel."
             " Currently only instances of these models are supported"
@@ -99,9 +114,11 @@ if __name__ == "__main__":
         asr_model.change_decoding_strategy(decoder_type="ctc")
 
     # extract ASR vocabulary and add blank symbol
-    if hasattr(asr_model, 'tokenizer'):  # i.e. tokenization is BPE-based
+    if hasattr(asr_model, "tokenizer"):  # i.e. tokenization is BPE-based
         vocabulary = asr_model.tokenizer.vocab
-    elif hasattr(asr_model.decoder, "vocabulary"):  # i.e. tokenization is character-based
+    elif hasattr(
+        asr_model.decoder, "vocabulary"
+    ):  # i.e. tokenization is character-based
         vocabulary = asr_model.cfg.decoder.vocabulary
     else:
         raise ValueError("Unexpected model type. Vocabulary list not found.")
@@ -129,9 +146,12 @@ if __name__ == "__main__":
     index_duration = None
     for path_audio in audio_paths:
         logging.info(f"Processing {path_audio.name}...")
-        transcript_file = os.path.join(data_dir, path_audio.name.replace(".wav", ".txt"))
+        transcript_file = os.path.join(
+            data_dir, path_audio.name.replace(".wav", ".txt")
+        )
         segment_file = os.path.join(
-            segments_dir, f"{args.window_len}_" + path_audio.name.replace(".wav", "_segments.txt")
+            segments_dir,
+            f"{args.window_len}_" + path_audio.name.replace(".wav", "_segments.txt"),
         )
         if not os.path.exists(transcript_file):
             logging.info(f"{transcript_file} not found. Skipping {path_audio.name}")
@@ -150,7 +170,9 @@ if __name__ == "__main__":
             logging.debug(f"len(signal): {len(signal)}, sr: {sample_rate}")
             logging.debug(f"Duration: {original_duration}s, file_name: {path_audio}")
 
-            hypotheses = asr_model.transcribe([str(path_audio)], batch_size=1, return_hypotheses=True)
+            hypotheses = asr_model.transcribe(
+                [str(path_audio)], batch_size=1, return_hypotheses=True
+            )
             # if hypotheses form a tuple (from Hybrid model), extract just "best" hypothesis
             if type(hypotheses) == tuple and len(hypotheses) == 2:
                 hypotheses = hypotheses[0]

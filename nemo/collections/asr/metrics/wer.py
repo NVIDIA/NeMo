@@ -27,15 +27,19 @@ from nemo.collections.asr.parts.submodules.rnnt_decoding import \
     AbstractRNNTDecoding
 from nemo.utils import logging
 
-__all__ = ['word_error_rate', 'word_error_rate_detail', 'WER']
+__all__ = ["word_error_rate", "word_error_rate_detail", "WER"]
 
 
 def move_dimension_to_the_front(tensor, dim_index):
     all_dims = list(range(tensor.ndim))
-    return tensor.permute(*([dim_index] + all_dims[:dim_index] + all_dims[dim_index + 1 :]))
+    return tensor.permute(
+        *([dim_index] + all_dims[:dim_index] + all_dims[dim_index + 1 :])
+    )
 
 
-def word_error_rate(hypotheses: List[str], references: List[str], use_cer=False) -> float:
+def word_error_rate(
+    hypotheses: List[str], references: List[str], use_cer=False
+) -> float:
     """
     Computes Average Word Error rate between two texts represented as
     corresponding lists of string.
@@ -72,7 +76,7 @@ def word_error_rate(hypotheses: List[str], references: List[str], use_cer=False)
     if words != 0:
         wer = 1.0 * scores / words
     else:
-        wer = float('inf')
+        wer = float("inf")
     return wer
 
 
@@ -99,7 +103,7 @@ def word_error_rate_detail(
     """
     scores = 0
     words = 0
-    ops_count = {'substitutions': 0, 'insertions': 0, 'deletions': 0}
+    ops_count = {"substitutions": 0, "insertions": 0, "deletions": 0}
 
     if len(hypotheses) != len(references):
         raise ValueError(
@@ -120,7 +124,7 @@ def word_error_rate_detail(
         if len(r_list) == 0:
             if len(h_list) != 0:
                 errors = len(h_list)
-                ops_count['insertions'] += errors
+                ops_count["insertions"] += errors
             else:
                 errors = 0
         else:
@@ -129,26 +133,37 @@ def word_error_rate_detail(
             else:
                 measures = jiwer.compute_measures(r, h)
 
-            errors = measures['insertions'] + measures['deletions'] + measures['substitutions']
-            ops_count['insertions'] += measures['insertions']
-            ops_count['deletions'] += measures['deletions']
-            ops_count['substitutions'] += measures['substitutions']
+            errors = (
+                measures["insertions"]
+                + measures["deletions"]
+                + measures["substitutions"]
+            )
+            ops_count["insertions"] += measures["insertions"]
+            ops_count["deletions"] += measures["deletions"]
+            ops_count["substitutions"] += measures["substitutions"]
 
         scores += errors
         words += len(r_list)
 
     if words != 0:
         wer = 1.0 * scores / words
-        ins_rate = 1.0 * ops_count['insertions'] / words
-        del_rate = 1.0 * ops_count['deletions'] / words
-        sub_rate = 1.0 * ops_count['substitutions'] / words
+        ins_rate = 1.0 * ops_count["insertions"] / words
+        del_rate = 1.0 * ops_count["deletions"] / words
+        sub_rate = 1.0 * ops_count["substitutions"] / words
     else:
-        wer, ins_rate, del_rate, sub_rate = float('inf'), float('inf'), float('inf'), float('inf')
+        wer, ins_rate, del_rate, sub_rate = (
+            float("inf"),
+            float("inf"),
+            float("inf"),
+            float("inf"),
+        )
 
     return wer, words, ins_rate, del_rate, sub_rate
 
 
-def word_error_rate_per_utt(hypotheses: List[str], references: List[str], use_cer=False) -> Tuple[List[float], float]:
+def word_error_rate_per_utt(
+    hypotheses: List[str], references: List[str], use_cer=False
+) -> Tuple[List[float], float]:
     """
     Computes Word Error Rate per utterance and the average WER
     between two texts represented as corresponding lists of string.
@@ -187,16 +202,20 @@ def word_error_rate_per_utt(hypotheses: List[str], references: List[str], use_ce
         if len(r_list) == 0:
             if len(h_list) != 0:
                 errors = len(h_list)
-                wer_per_utt.append(float('inf'))
+                wer_per_utt.append(float("inf"))
         else:
             if use_cer:
                 measures = jiwer.cer(r, h, return_dict=True)
-                er = measures['cer']
+                er = measures["cer"]
             else:
                 measures = jiwer.compute_measures(r, h)
-                er = measures['wer']
+                er = measures["wer"]
 
-            errors = measures['insertions'] + measures['deletions'] + measures['substitutions']
+            errors = (
+                measures["insertions"]
+                + measures["deletions"]
+                + measures["substitutions"]
+            )
             wer_per_utt.append(er)
 
         scores += errors
@@ -205,7 +224,7 @@ def word_error_rate_per_utt(hypotheses: List[str], references: List[str], use_ce
     if words != 0:
         avg_wer = 1.0 * scores / words
     else:
-        avg_wer = float('inf')
+        avg_wer = float("inf")
 
     return wer_per_utt, avg_wer
 
@@ -251,7 +270,9 @@ class WER(Metric):
 
     def __init__(
         self,
-        decoding: Union[AbstractCTCDecoding, AbstractRNNTDecoding, AbstractMultiTaskDecoding],
+        decoding: Union[
+            AbstractCTCDecoding, AbstractRNNTDecoding, AbstractMultiTaskDecoding
+        ],
         use_cer=False,
         log_prediction=True,
         fold_consecutive=True,
@@ -259,7 +280,9 @@ class WER(Metric):
         dist_sync_on_step=False,
         sync_on_compute=True,
     ):
-        super().__init__(dist_sync_on_step=dist_sync_on_step, sync_on_compute=sync_on_compute)
+        super().__init__(
+            dist_sync_on_step=dist_sync_on_step, sync_on_compute=sync_on_compute
+        )
 
         self.decoding = decoding
         self.use_cer = use_cer
@@ -286,10 +309,16 @@ class WER(Metric):
                 return_hypotheses=False,
             )
         else:
-            raise TypeError(f"WER metric does not support decoding of type {type(self.decoding)}")
+            raise TypeError(
+                f"WER metric does not support decoding of type {type(self.decoding)}"
+            )
 
-        self.add_state("scores", default=torch.tensor(0), dist_reduce_fx='sum', persistent=False)
-        self.add_state("words", default=torch.tensor(0), dist_reduce_fx='sum', persistent=False)
+        self.add_state(
+            "scores", default=torch.tensor(0), dist_reduce_fx="sum", persistent=False
+        )
+        self.add_state(
+            "words", default=torch.tensor(0), dist_reduce_fx="sum", persistent=False
+        )
 
     def update(
         self,
@@ -319,14 +348,18 @@ class WER(Metric):
             targets_cpu_tensor = targets.long().cpu()
             # check batch_dim_index is first dim
             if self.batch_dim_index != 0:
-                targets_cpu_tensor = move_dimension_to_the_front(targets_cpu_tensor, self.batch_dim_index)
+                targets_cpu_tensor = move_dimension_to_the_front(
+                    targets_cpu_tensor, self.batch_dim_index
+                )
             # iterate over batch
             for ind in range(targets_cpu_tensor.shape[0]):
                 tgt_len = tgt_lenths_cpu_tensor[ind].item()
                 target = targets_cpu_tensor[ind][:tgt_len].numpy().tolist()
                 reference = self.decoding.decode_tokens_to_str(target)
                 references.append(reference)
-            hypotheses = self.decode(predictions, predictions_lengths, predictions_mask, input_ids, targets)
+            hypotheses = self.decode(
+                predictions, predictions_lengths, predictions_mask, input_ids, targets
+            )
 
         if self.log_prediction:
             logging.info("\n")
@@ -346,8 +379,12 @@ class WER(Metric):
             # Compute Levenstein's distance
             scores += editdistance.eval(h_list, r_list)
 
-        self.scores = torch.tensor(scores, device=self.scores.device, dtype=self.scores.dtype)
-        self.words = torch.tensor(words, device=self.words.device, dtype=self.words.dtype)
+        self.scores = torch.tensor(
+            scores, device=self.scores.device, dtype=self.scores.dtype
+        )
+        self.words = torch.tensor(
+            words, device=self.words.device, dtype=self.words.dtype
+        )
 
     def compute(self):
         scores = self.scores.detach().float()

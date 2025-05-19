@@ -23,7 +23,9 @@ from nemo.collections.nlp.modules.common.megatron.utils import \
 from nemo.collections.nlp.parts import utils_funcs
 from nemo.utils.import_utils import safe_import_from
 
-TransformerLayer, HAVE_TE = safe_import_from("transformer_engine.pytorch", "TransformerLayer")
+TransformerLayer, HAVE_TE = safe_import_from(
+    "transformer_engine.pytorch", "TransformerLayer"
+)
 if not HAVE_TE:
 
     TransformerLayer = ApexGuardDefaults
@@ -46,7 +48,9 @@ try:
 except (ImportError, ModuleNotFoundError) as e:
 
     MegatronModule = ModuleSpec = ApexGuardDefaults
-    BaseTransformerLayer = object  # try to avoid inconsistent-mro for TETransformerLayerAutocast
+    BaseTransformerLayer = (
+        object  # try to avoid inconsistent-mro for TETransformerLayerAutocast
+    )
 
     HAVE_MEGATRON_CORE = False
     IMPORT_ERROR = e
@@ -92,7 +96,7 @@ class AutocastTransformerLayer(TransformerLayer):
         ub_bulk_dgrad: bool = True,
         autocast_dtype: Any = 16,
         zero_centered_gamma: bool = False,
-        device: str = 'cuda',
+        device: str = "cuda",
         **kwargs,
     ) -> None:
         assert (
@@ -141,20 +145,28 @@ class AutocastTransformerLayer(TransformerLayer):
                 if ub_overlap_flag in kwargs:
                     transformer_layer_args[ub_overlap_flag] = kwargs[ub_overlap_flag]
                 else:
-                    transformer_layer_args[ub_overlap_flag] = kwargs.get(split_gemm_flag, True) or kwargs.get(
-                        atomic_gemm_flag, False
-                    )
+                    transformer_layer_args[ub_overlap_flag] = kwargs.get(
+                        split_gemm_flag, True
+                    ) or kwargs.get(atomic_gemm_flag, False)
             if te_version > packaging.version.Version("1.6.0.dev0"):
-                transformer_layer_args["ub_overlap_rs_dgrad"] = kwargs.get("ub_overlap_rs_dgrad", False)
+                transformer_layer_args["ub_overlap_rs_dgrad"] = kwargs.get(
+                    "ub_overlap_rs_dgrad", False
+                )
         else:
             transformer_layer_args["ub_split_ag"] = kwargs.get("ub_split_ag", True)
             transformer_layer_args["ub_split_rs"] = kwargs.get("ub_split_rs", True)
-            transformer_layer_args["ub_atomic_gemm_ag"] = kwargs.get("ub_atomic_gemm_ag", False)
-            transformer_layer_args["ub_atomic_gemm_rs"] = kwargs.get("ub_atomic_gemm_rs", False)
+            transformer_layer_args["ub_atomic_gemm_ag"] = kwargs.get(
+                "ub_atomic_gemm_ag", False
+            )
+            transformer_layer_args["ub_atomic_gemm_rs"] = kwargs.get(
+                "ub_atomic_gemm_rs", False
+            )
         super().__init__(**transformer_layer_args)
 
         # Dtype for forward pass - ignore amp O2
-        self.dtype = utils_funcs.torch_dtype_from_precision(autocast_dtype, megatron_amp_O2=None)
+        self.dtype = utils_funcs.torch_dtype_from_precision(
+            autocast_dtype, megatron_amp_O2=None
+        )
 
     def forward(
         self,
@@ -203,7 +215,7 @@ class TETransformerLayerAutocast(MegatronModule, BaseTransformerLayer):  # type:
 
         # to make type check happy
         if HAVE_MEGATRON_CORE:
-            kwargs = {'config': config}
+            kwargs = {"config": config}
         else:
             kwargs = {}
         super().__init__(**kwargs)
@@ -211,7 +223,7 @@ class TETransformerLayerAutocast(MegatronModule, BaseTransformerLayer):  # type:
 
         self.config = config
         self.is_first_microbatch = True
-        precision = 'bf16' if config.bf16 else 16
+        precision = "bf16" if config.bf16 else 16
 
         transformer_layer_args = {
             "hidden_size": config.hidden_size,
@@ -237,7 +249,7 @@ class TETransformerLayerAutocast(MegatronModule, BaseTransformerLayer):  # type:
             "ub_bulk_wgrad": config.tp_comm_bulk_wgrad,
             "ub_bulk_dgrad": config.tp_comm_bulk_dgrad,
             "zero_centered_gamma": config.layernorm_zero_centered_gamma,
-            "device": 'cpu' if config.use_cpu_initialization else 'cuda',
+            "device": "cpu" if config.use_cpu_initialization else "cuda",
         }
         te_version = packaging.version.Version(version("transformer-engine"))
         if te_version > packaging.version.Version("1.5.0"):
@@ -254,7 +266,9 @@ class TETransformerLayerAutocast(MegatronModule, BaseTransformerLayer):  # type:
             )
             if te_version > packaging.version.Version("1.6.0.dev0"):
                 transformer_layer_args["ub_overlap_rs_dgrad"] = (
-                    config.tp_comm_overlap_rs_dgrad if hasattr(config, "tp_comm_overlap_rs_dgrad") else False
+                    config.tp_comm_overlap_rs_dgrad
+                    if hasattr(config, "tp_comm_overlap_rs_dgrad")
+                    else False
                 )
         else:
             transformer_layer_args["ub_split_ag"] = config.tp_comm_split_ag
@@ -264,8 +278,10 @@ class TETransformerLayerAutocast(MegatronModule, BaseTransformerLayer):  # type:
         self.transformer_layer = AutocastTransformerLayer(**transformer_layer_args)
 
         if self.config.enable_cuda_graph and self.training:
-            assert not config.cpu_offloading and config.recompute_granularity is None, "Cudagraphs not supported"
-            self.add_module('cudagraph_manager', CudaGraphManager(config))
+            assert (
+                not config.cpu_offloading and config.recompute_granularity is None
+            ), "Cudagraphs not supported"
+            self.add_module("cudagraph_manager", CudaGraphManager(config))
 
     # Called by MCore's TransformerBlock.forward
     # megatron/core/transformer/transformer_block.py
@@ -287,14 +303,22 @@ class TETransformerLayerAutocast(MegatronModule, BaseTransformerLayer):  # type:
             encoder_output=context,
             enc_dec_attn_mask=context_mask,
             inference_params=inference_params,
-            is_first_microbatch=is_first_microbatch if is_first_microbatch is not None else self.is_first_microbatch,
+            is_first_microbatch=(
+                is_first_microbatch
+                if is_first_microbatch is not None
+                else self.is_first_microbatch
+            ),
             # checkpoint_core_attention,
         )
         self.is_first_microbatch = False
         context = None
 
         # External CUDA graph requires returned values to be Tensors
-        if hasattr(self.config, 'external_cuda_graph') and self.config.external_cuda_graph and self.training:
+        if (
+            hasattr(self.config, "external_cuda_graph")
+            and self.config.external_cuda_graph
+            and self.training
+        ):
             return hidden_states
         return hidden_states, context
 
@@ -303,7 +327,8 @@ class TETransformerLayerAutocast(MegatronModule, BaseTransformerLayer):  # type:
         pipeline_rank = parallel_state.get_pipeline_model_parallel_rank()
 
         num_layers_per_pipeline_rank = (
-            self.config.num_layers // parallel_state.get_pipeline_model_parallel_world_size()
+            self.config.num_layers
+            // parallel_state.get_pipeline_model_parallel_world_size()
         )
 
         if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
@@ -313,7 +338,9 @@ class TETransformerLayerAutocast(MegatronModule, BaseTransformerLayer):  # type:
             total_num_layers = self.config.num_layers
             num_layers_per_virtual_rank = num_layers_per_pipeline_rank // vp_size
             total_virtual_chunks = total_num_layers // vp_size
-            offset = vp_rank * total_virtual_chunks + (pipeline_rank * num_layers_per_virtual_rank)
+            offset = vp_rank * total_virtual_chunks + (
+                pipeline_rank * num_layers_per_virtual_rank
+            )
 
         else:
             # Each stage gets a contiguous set of layers.
@@ -324,18 +351,20 @@ class TETransformerLayerAutocast(MegatronModule, BaseTransformerLayer):  # type:
 
         return offset
 
-    def sharded_state_dict(self, prefix: str = '', sharded_offsets: tuple = (), metadata=None):
+    def sharded_state_dict(
+        self, prefix: str = "", sharded_offsets: tuple = (), metadata=None
+    ):
         """Get the sharded state dict for the transformer layer."""
         TENSOR_PARALLEL_LAYERS_AXIS_MAP = {
-            'self_attention.layernorm_qkv.weight': 0,
-            'self_attention.layernorm_qkv.bias': 0,
+            "self_attention.layernorm_qkv.weight": 0,
+            "self_attention.layernorm_qkv.bias": 0,
             "self_attention.proj.weight": 1,
             "layernorm_mlp.fc1_weight": 0,
             "layernorm_mlp.fc1_bias": 0,
             "layernorm_mlp.fc2_weight": 1,
         }
 
-        state_dict = self.state_dict(prefix='', keep_vars=True)
+        state_dict = self.state_dict(prefix="", keep_vars=True)
         sharded_state_dict = make_sharded_tensors_for_checkpoint(
             state_dict, prefix, TENSOR_PARALLEL_LAYERS_AXIS_MAP, sharded_offsets
         )
@@ -352,7 +381,7 @@ class TETransformerLayerAutocast(MegatronModule, BaseTransformerLayer):  # type:
         return sharded_state_dict
 
     def __call__(self, *args, **kwargs):
-        if hasattr(self, 'cudagraph_manager'):
+        if hasattr(self, "cudagraph_manager"):
             return self.cudagraph_manager(self, args, kwargs)
         return super().__call__(*args, **kwargs)
 
@@ -360,8 +389,11 @@ class TETransformerLayerAutocast(MegatronModule, BaseTransformerLayer):  # type:
 # Use this spec to use the full Transformer layer from Transformer Engine
 def get_gpt_full_te_layer_autocast_spec(transformer_config) -> ModuleSpec:
     """Get the ModuleSpec for full Transformer layer from Transformer Engine."""
-    assert HAVE_MEGATRON_CORE and HAVE_TE, "Please ensure Megatron Core and Transformer Engine are installed."
+    assert (
+        HAVE_MEGATRON_CORE and HAVE_TE
+    ), "Please ensure Megatron Core and Transformer Engine are installed."
     num_layers = get_num_layers_to_build(transformer_config)
     return TransformerBlockSubmodules(
-        layer_specs=[ModuleSpec(module=TETransformerLayerAutocast)] * num_layers, layer_norm=FusedLayerNorm
+        layer_specs=[ModuleSpec(module=TETransformerLayerAutocast)] * num_layers,
+        layer_norm=FusedLayerNorm,
     )

@@ -27,7 +27,7 @@ from nemo.utils.exp_manager import exp_manager
 @hydra_runner(config_path="conf", config_name="megatron_t5_speechllm_medium.yaml")
 def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
-    logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
+    logging.info(f"\n{OmegaConf.to_yaml(cfg)}")
 
     # MegatronTrainerBuilder compat checks
     if "gradient_as_bucket_view" not in cfg.model:
@@ -45,7 +45,10 @@ def main(cfg) -> None:
     if cfg.model.get("restore_path", None) is not None:
         logging.info(f"cfg.model.restore_path {cfg.model.restore_path}")
         model = MegatronT5SpeechLMModel.restore_from(
-            cfg.model.restore_path, cfg.model, trainer=trainer, save_restore_connector=NLPSaveRestoreConnector()
+            cfg.model.restore_path,
+            cfg.model,
+            trainer=trainer,
+            save_restore_connector=NLPSaveRestoreConnector(),
         )
     else:
         logging.info(f"cfg.model.restore_path is None")
@@ -55,5 +58,5 @@ def main(cfg) -> None:
     trainer.fit(model)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

@@ -62,7 +62,12 @@ class KenLMBatchedWrapper:
     """
 
     @kenlm_required
-    def __init__(self, lm_path: Path | str, vocab_size: int, token_offset: int = DEFAULT_TOKEN_OFFSET):
+    def __init__(
+        self,
+        lm_path: Path | str,
+        vocab_size: int,
+        token_offset: int = DEFAULT_TOKEN_OFFSET,
+    ):
         """
         Constructor from KenLM (binary) or ARPA (text) model
 
@@ -77,7 +82,10 @@ class KenLMBatchedWrapper:
 
     @classmethod
     def from_file(
-        cls, lm_path: Path | str, vocab_size: int, token_offset: int = DEFAULT_TOKEN_OFFSET
+        cls,
+        lm_path: Path | str,
+        vocab_size: int,
+        token_offset: int = DEFAULT_TOKEN_OFFSET,
     ) -> "KenLMBatchedWrapper":
         """
         Constructor from KenLM (binary) or ARPA (text) model (same as `__init__`).
@@ -124,7 +132,9 @@ class KenLMBatchedWrapper:
         """
         return [self.get_init_state(bos=bos) for _ in range(batch_size)]
 
-    def advance(self, states: list["kenlm.State"]) -> tuple[torch.Tensor, list[list["kenlm.State"]]]:
+    def advance(
+        self, states: list["kenlm.State"]
+    ) -> tuple[torch.Tensor, list[list["kenlm.State"]]]:
         """
         Advance `states` [B]: return scores [B, V] and next states [B, V] for full vocab
         Args:
@@ -144,7 +154,9 @@ class KenLMBatchedWrapper:
 
         return scores, new_states
 
-    def advance_single(self, state: "kenlm.State", label: int) -> tuple[float, "kenlm.State"]:
+    def advance_single(
+        self, state: "kenlm.State", label: int
+    ) -> tuple[float, "kenlm.State"]:
         """
         Computes the score with KenLM N-gram language model for `label` given `state`
         Args:
@@ -165,7 +177,9 @@ class KenLMBatchedWrapper:
 
         return lm_score, next_state
 
-    def score_sentence(self, sentence: list[int], bos: bool = True, eos: bool = False) -> torch.Tensor:
+    def score_sentence(
+        self, sentence: list[int], bos: bool = True, eos: bool = False
+    ) -> torch.Tensor:
         """
         Compute log-probabilities for all labels in the sentence using N-Gram LM.
 
@@ -185,7 +199,9 @@ class KenLMBatchedWrapper:
             scores.append(self.get_final_single(state=state))
         return torch.FloatTensor(scores)
 
-    def score_sentences(self, sentences: list[list[int]], bos: bool = True, eos: bool = False) -> torch.Tensor:
+    def score_sentences(
+        self, sentences: list[list[int]], bos: bool = True, eos: bool = False
+    ) -> torch.Tensor:
         """
         Compute log-probabilities for all labels in sentences using N-Gram LM.
 
@@ -197,7 +213,8 @@ class KenLMBatchedWrapper:
             Tensor with scores for each sentence. Size: [B, L+1] if eos else [B, L]
         """
         return pad_sequence(
-            [self.score_sentence(sentence, bos=bos, eos=eos) for sentence in sentences], batch_first=True
+            [self.score_sentence(sentence, bos=bos, eos=eos) for sentence in sentences],
+            batch_first=True,
         )
 
     def get_final_single(self, state: "kenlm.State") -> float:
@@ -210,7 +227,9 @@ class KenLMBatchedWrapper:
         Returns:
             final score
         """
-        new_state = kenlm.State()  # needed for query, but we ignore it further since not needed in decoding
+        new_state = (
+            kenlm.State()
+        )  # needed for query, but we ignore it further since not needed in decoding
         return _log_10_to_e(self.ngram_lm.BaseScore(state, "</s>", new_state))
 
     def get_final(self, states: list["kenlm.State"]) -> torch.Tensor:
@@ -274,14 +293,21 @@ class SuffixTreeStorage:
     start_state: int = 0
     bos_state: int = 1
 
-    def __post_init__(self, num_states_max: int, num_arcs_max: int, separate_bos_state: bool = True):
+    def __post_init__(
+        self, num_states_max: int, num_arcs_max: int, separate_bos_state: bool = True
+    ):
         if max(num_states_max, num_arcs_max) < np.iinfo(np.int32).max:
             int_np_dtype = np.int32
         else:
             int_np_dtype = np.int64
         self.arcs = np.zeros(
             [num_arcs_max],
-            dtype=[("from", int_np_dtype), ("to", int_np_dtype), ("ilabel", int_np_dtype), ("weight", np.float32)],
+            dtype=[
+                ("from", int_np_dtype),
+                ("to", int_np_dtype),
+                ("ilabel", int_np_dtype),
+                ("weight", np.float32),
+            ],
         )
         self.states = np.zeros(
             [num_states_max],
@@ -315,7 +341,14 @@ class SuffixTreeStorage:
         self.num_states = 2  # SOS + BOS
         self.num_arcs = 0
         # state: start_arcs, end_arcs, order, backoff_to, backoff_weight
-        self.states[self.start_state] = (0, self.vocab_size, 1, self.start_state, 0.0, NEG_INF)
+        self.states[self.start_state] = (
+            0,
+            self.vocab_size,
+            1,
+            self.start_state,
+            0.0,
+            NEG_INF,
+        )
         added_symbols = set()
         num_vocab_labels = 0
         for ngram in ngrams:
@@ -349,7 +382,12 @@ class SuffixTreeStorage:
                 self.unk_prob -= np.log(num_unk_labels)
         for ilabel in range(self.vocab_size):
             if ilabel not in added_symbols:
-                self.arcs[ilabel] = (self.start_state, self.start_state, ilabel, self.unk_prob)
+                self.arcs[ilabel] = (
+                    self.start_state,
+                    self.start_state,
+                    ilabel,
+                    self.unk_prob,
+                )
                 self.num_arcs += 1
 
         # add BOS unigram
@@ -539,7 +577,9 @@ class NGramGPULanguageModel(ModelPT):
         """
         super().__init__(cfg=cfg, trainer=trainer)
         cfg = cast(NGramLMConfig, cfg)
-        self.use_triton = cfg.use_triton if cfg.use_triton is not None else TRITON_AVAILABLE
+        self.use_triton = (
+            cfg.use_triton if cfg.use_triton is not None else TRITON_AVAILABLE
+        )
         if not self.use_triton:
             logging.warning(
                 "Triton is disabled. Version without Triton is not compatible with Cuda graphs; decoding can be slow"
@@ -563,14 +603,26 @@ class NGramGPULanguageModel(ModelPT):
             int_dtype = torch.int64
         # buffers: LM (suffix tree) structure
         # arcs data
-        self.register_buffer("from_states", torch.zeros([self.num_arcs_extended], dtype=int_dtype))
-        self.register_buffer("to_states", torch.zeros([self.num_arcs_extended], dtype=int_dtype))
-        self.register_buffer("ilabels", torch.zeros([self.num_arcs_extended], dtype=int_dtype))
+        self.register_buffer(
+            "from_states", torch.zeros([self.num_arcs_extended], dtype=int_dtype)
+        )
+        self.register_buffer(
+            "to_states", torch.zeros([self.num_arcs_extended], dtype=int_dtype)
+        )
+        self.register_buffer(
+            "ilabels", torch.zeros([self.num_arcs_extended], dtype=int_dtype)
+        )
 
         # states data
-        self.register_buffer("backoff_to_states", torch.zeros([self.num_states], dtype=int_dtype))
-        self.register_buffer("start_end_arcs", torch.zeros([self.num_states, 2], dtype=int_dtype))
-        self.register_buffer("state_order", torch.zeros([self.num_states], dtype=int_dtype))
+        self.register_buffer(
+            "backoff_to_states", torch.zeros([self.num_states], dtype=int_dtype)
+        )
+        self.register_buffer(
+            "start_end_arcs", torch.zeros([self.num_states, 2], dtype=int_dtype)
+        )
+        self.register_buffer(
+            "state_order", torch.zeros([self.num_states], dtype=int_dtype)
+        )
 
         self._final_resolved = False
 
@@ -602,7 +654,9 @@ class NGramGPULanguageModel(ModelPT):
             vocab_size: model vocabulary size
             use_triton: allow using Triton implementation; None (default) means "auto" (used if available)
         """
-        model = NGramGPULanguageModel.restore_from(restore_path=str(lm_path), map_location="cpu")
+        model = NGramGPULanguageModel.restore_from(
+            restore_path=str(lm_path), map_location="cpu"
+        )
         model._resolve_final()
         assert model.vocab_size == vocab_size
         model.use_triton = use_triton if use_triton is not None else TRITON_AVAILABLE
@@ -638,7 +692,9 @@ class NGramGPULanguageModel(ModelPT):
         if not isinstance(lm_path, Path):
             lm_path = Path(lm_path)
         if lm_path.suffix == ".nemo":
-            return cls.from_nemo(lm_path=lm_path, vocab_size=vocab_size, use_triton=use_triton)
+            return cls.from_nemo(
+                lm_path=lm_path, vocab_size=vocab_size, use_triton=use_triton
+            )
         return cls.from_arpa(
             lm_path=lm_path,
             vocab_size=vocab_size,
@@ -678,7 +734,9 @@ class NGramGPULanguageModel(ModelPT):
             # init suffix tree storage
             max_order = max(order2cnt.keys())
             total_ngrams = sum(order2cnt.values())
-            max_states = 2 + vocab_size + sum(order2cnt[o] for o in range(2, max_order))  # without last!
+            max_states = (
+                2 + vocab_size + sum(order2cnt[o] for o in range(2, max_order))
+            )  # without last!
             suffix_tree_np = SuffixTreeStorage(
                 num_states_max=max_states,
                 num_states=0,
@@ -691,21 +749,31 @@ class NGramGPULanguageModel(ModelPT):
             # add ngrams to suffix tree
             ngram_cur_order_i = 0
             cur_order = 1
-            for ngram in tqdm(cls._read_ngrams(f=f, token_offset=token_offset), total=total_ngrams):
+            for ngram in tqdm(
+                cls._read_ngrams(f=f, token_offset=token_offset), total=total_ngrams
+            ):
                 if ngram_cur_order_i == 0:
-                    suffix_tree_np._start_adding_ngrams_for_order(order=cur_order, max_ngrams=order2cnt[cur_order])
+                    suffix_tree_np._start_adding_ngrams_for_order(
+                        order=cur_order, max_ngrams=order2cnt[cur_order]
+                    )
                 ngram_cur_order_i += 1
                 suffix_tree_np._add_ngram(ngram=ngram, bos_id=_BOS_ID)
 
                 if ngram_cur_order_i == order2cnt[cur_order]:
-                    suffix_tree_np._end_adding_ngrams_for_order(order=cur_order, bos_id=_BOS_ID, unk_id=_UNK_ID)
-                    logging.info(f"Processed {order2cnt[cur_order]} n-grams of order {cur_order}")
+                    suffix_tree_np._end_adding_ngrams_for_order(
+                        order=cur_order, bos_id=_BOS_ID, unk_id=_UNK_ID
+                    )
+                    logging.info(
+                        f"Processed {order2cnt[cur_order]} n-grams of order {cur_order}"
+                    )
                     cur_order += 1
                     ngram_cur_order_i = 0
 
             assert ngram_cur_order_i == 0
             suffix_tree_np.sanity_check()
-        return NGramGPULanguageModel.from_suffix_tree(suffix_tree_np=suffix_tree_np, use_triton=use_triton)
+        return NGramGPULanguageModel.from_suffix_tree(
+            suffix_tree_np=suffix_tree_np, use_triton=use_triton
+        )
 
     @classmethod
     def dummy_unigram_lm(
@@ -737,7 +805,9 @@ class NGramGPULanguageModel(ModelPT):
         model.backoff_weights.data[0] = 0.0
         model.final_weights.data[0] = unigram_weight
         model.backoff_to_states.data[0] = 0
-        model.start_end_arcs.data[0, :] = torch.tensor([0, vocab_size], dtype=model.start_end_arcs.dtype)
+        model.start_end_arcs.data[0, :] = torch.tensor(
+            [0, vocab_size], dtype=model.start_end_arcs.dtype
+        )
         model.state_order.data[0] = 1
 
         # BOS state
@@ -753,7 +823,9 @@ class NGramGPULanguageModel(ModelPT):
         model.arcs_weights.data.fill_(unigram_weight)
         model.from_states.data.fill_(model.START_STATE)
         model.to_states.data.fill_(model.START_STATE)
-        model.ilabels.data[:vocab_size].copy_(torch.arange(vocab_size, dtype=model.ilabels.dtype))
+        model.ilabels.data[:vocab_size].copy_(
+            torch.arange(vocab_size, dtype=model.ilabels.dtype)
+        )
 
         model._resolve_final()
         return model
@@ -822,8 +894,10 @@ class NGramGPULanguageModel(ModelPT):
 
     @classmethod
     def _read_ngrams(cls, f, token_offset: int) -> Iterator[NGram]:
-        special_words_pattern = '|'.join(re.escape(symbol) for symbol in _SPECIAL_SYMBOLS_MAP)
-        pattern = re.compile(rf'({special_words_pattern}|.)\s?')
+        special_words_pattern = "|".join(
+            re.escape(symbol) for symbol in _SPECIAL_SYMBOLS_MAP
+        )
+        pattern = re.compile(rf"({special_words_pattern}|.)\s?")
         for line in f:
             if line.endswith("\n"):
                 line = line[:-1]
@@ -837,7 +911,9 @@ class NGramGPULanguageModel(ModelPT):
             if line.startswith("\\"):
                 continue
 
-            ngram = cls._line_to_ngram(line=line, pattern=pattern, token_offset=token_offset)
+            ngram = cls._line_to_ngram(
+                line=line, pattern=pattern, token_offset=token_offset
+            )
             yield ngram
 
     @staticmethod
@@ -853,7 +929,11 @@ class NGramGPULanguageModel(ModelPT):
         symbols_re = pattern.findall(symbols_str)
 
         symbols = tuple(
-            (ord(symbol) - token_offset if symbol not in _SPECIAL_SYMBOLS_MAP else _SPECIAL_SYMBOLS_MAP[symbol])
+            (
+                ord(symbol) - token_offset
+                if symbol not in _SPECIAL_SYMBOLS_MAP
+                else _SPECIAL_SYMBOLS_MAP[symbol]
+            )
             for symbol in symbols_re
         )
         return NGram(symbols=symbols, weight=weight, backoff=backoff)
@@ -861,19 +941,39 @@ class NGramGPULanguageModel(ModelPT):
     def _init_from_suffix_tree_np(self, suffix_tree_np: SuffixTreeStorage):
         """Helper function to init params from suffix tree params"""
         # parameters: weights
-        self.arcs_weights.data.copy_(torch.from_numpy(suffix_tree_np.arcs["weight"][: self.num_arcs_extended]))
-        self.backoff_weights.data.copy_(torch.from_numpy(suffix_tree_np.states["backoff_w"][: self.num_states]))
-        self.final_weights.data.copy_(torch.from_numpy(suffix_tree_np.states["final"][: self.num_states]))
+        self.arcs_weights.data.copy_(
+            torch.from_numpy(suffix_tree_np.arcs["weight"][: self.num_arcs_extended])
+        )
+        self.backoff_weights.data.copy_(
+            torch.from_numpy(suffix_tree_np.states["backoff_w"][: self.num_states])
+        )
+        self.final_weights.data.copy_(
+            torch.from_numpy(suffix_tree_np.states["final"][: self.num_states])
+        )
 
         # buffers: LM (suffix tree) structure
-        self.from_states.data.copy_(torch.from_numpy(suffix_tree_np.arcs["from"][: self.num_arcs_extended]))
-        self.to_states.data.copy_(torch.from_numpy(suffix_tree_np.arcs["to"][: self.num_arcs_extended]))
-        self.ilabels.data.copy_(torch.from_numpy(suffix_tree_np.arcs["ilabel"][: self.num_arcs_extended]))
-        self.backoff_to_states.data.copy_(torch.from_numpy(suffix_tree_np.states["backoff_to"][: self.num_states]))
+        self.from_states.data.copy_(
+            torch.from_numpy(suffix_tree_np.arcs["from"][: self.num_arcs_extended])
+        )
+        self.to_states.data.copy_(
+            torch.from_numpy(suffix_tree_np.arcs["to"][: self.num_arcs_extended])
+        )
+        self.ilabels.data.copy_(
+            torch.from_numpy(suffix_tree_np.arcs["ilabel"][: self.num_arcs_extended])
+        )
+        self.backoff_to_states.data.copy_(
+            torch.from_numpy(suffix_tree_np.states["backoff_to"][: self.num_states])
+        )
 
-        self.start_end_arcs.data[:, 0].copy_(torch.from_numpy(suffix_tree_np.states["arcs_start"][: self.num_states]))
-        self.start_end_arcs.data[:, 1].copy_(torch.from_numpy(suffix_tree_np.states["arcs_end"][: self.num_states]))
-        self.state_order.data.copy_(torch.from_numpy(suffix_tree_np.states["order"][: self.num_states]))
+        self.start_end_arcs.data[:, 0].copy_(
+            torch.from_numpy(suffix_tree_np.states["arcs_start"][: self.num_states])
+        )
+        self.start_end_arcs.data[:, 1].copy_(
+            torch.from_numpy(suffix_tree_np.states["arcs_end"][: self.num_states])
+        )
+        self.state_order.data.copy_(
+            torch.from_numpy(suffix_tree_np.states["order"][: self.num_states])
+        )
 
         # sanity check
         assert self.state_order.min().item() == 1
@@ -892,7 +992,10 @@ class NGramGPULanguageModel(ModelPT):
         """
         device = self.arcs_weights.device
         return torch.full(
-            [batch_size], fill_value=self.bos_state if bos else self.START_STATE, device=device, dtype=torch.long
+            [batch_size],
+            fill_value=self.bos_state if bos else self.START_STATE,
+            device=device,
+            dtype=torch.long,
         )
 
     def forward(
@@ -914,7 +1017,9 @@ class NGramGPULanguageModel(ModelPT):
         Returns:
             Tensor [B x L] with scores for each label in the utterance
         """
-        return self.score_sentences(labels=labels, labels_lengths=labels_lengths, bos=bos, eos=eos)
+        return self.score_sentences(
+            labels=labels, labels_lengths=labels_lengths, bos=bos, eos=eos
+        )
 
     def score_sentences(
         self,
@@ -938,9 +1043,13 @@ class NGramGPULanguageModel(ModelPT):
         device = labels.device
         batch_size, max_length = labels.shape
         if labels_lengths is None:
-            labels_lengths = torch.full([batch_size], fill_value=max_length, dtype=torch.int32, device=device)
+            labels_lengths = torch.full(
+                [batch_size], fill_value=max_length, dtype=torch.int32, device=device
+            )
         batch_size, max_length = labels.shape
-        scores = torch.zeros([batch_size, max_length + (1 if eos else 0)], device=device)
+        scores = torch.zeros(
+            [batch_size, max_length + (1 if eos else 0)], device=device
+        )
         states = self.get_init_states(batch_size=batch_size, bos=bos)
         # NB: It is possible to speedup this algorithm with a custom kernel (no need to retrieve all weights/labels)
         for i in range(max_length):
@@ -948,19 +1057,27 @@ class NGramGPULanguageModel(ModelPT):
             # for training _advance_pytorch only can be used
             prev_states = states
             step_scores, states = self._advance_pytorch(states)
-            scores[:, i] = step_scores.gather(dim=1, index=labels[:, i].unsqueeze(-1)).squeeze(-1) * (
-                i < labels_lengths
-            )
+            scores[:, i] = step_scores.gather(
+                dim=1, index=labels[:, i].unsqueeze(-1)
+            ).squeeze(-1) * (i < labels_lengths)
             # get next states, preserve last state if the utterance ended
             states = torch.where(
-                i < labels_lengths, states.gather(dim=1, index=labels[:, i].unsqueeze(-1)).squeeze(-1), prev_states
+                i < labels_lengths,
+                states.gather(dim=1, index=labels[:, i].unsqueeze(-1)).squeeze(-1),
+                prev_states,
             )
         if eos:
             final_weights = self.get_final(states)
-            scores.scatter_(dim=1, index=labels_lengths.unsqueeze(-1).to(torch.int64), src=final_weights.unsqueeze(-1))
+            scores.scatter_(
+                dim=1,
+                index=labels_lengths.unsqueeze(-1).to(torch.int64),
+                src=final_weights.unsqueeze(-1),
+            )
         return scores
 
-    def advance(self, states: torch.Tensor, eos_id: Optional[int] = None) -> tuple[torch.Tensor, torch.Tensor]:
+    def advance(
+        self, states: torch.Tensor, eos_id: Optional[int] = None
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         """
         Advance `states` [B]: return scores [B, V] and next states [B, V] for full vocab
         Args:
@@ -981,7 +1098,9 @@ class NGramGPULanguageModel(ModelPT):
             next_states[:, eos_id] = states
         return scores, next_states
 
-    def _advance_pytorch(self, states: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+    def _advance_pytorch(
+        self, states: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         """
         Advance `states` [B]: return scores [B, V] and next states [B, V] for full vocab.
         PyTorch implementation (slow, differentiable).
@@ -999,7 +1118,12 @@ class NGramGPULanguageModel(ModelPT):
 
         # init output tensors
         out_scores = torch.zeros(batch_size, self.vocab_size, device=device)
-        out_states = torch.full([batch_size, self.vocab_size], fill_value=-1, dtype=states_dtype, device=device)
+        out_states = torch.full(
+            [batch_size, self.vocab_size],
+            fill_value=-1,
+            dtype=states_dtype,
+            device=device,
+        )
 
         # helper ranges
         vocab_range = torch.arange(self.vocab_size, device=device)
@@ -1008,7 +1132,9 @@ class NGramGPULanguageModel(ModelPT):
         # backoff weight accumulator
         accumulated_backoff = torch.zeros(batch_size, device=device)
         # loop condition
-        start_state_not_processed = torch.full([batch_size], fill_value=True, dtype=torch.bool, device=device)
+        start_state_not_processed = torch.full(
+            [batch_size], fill_value=True, dtype=torch.bool, device=device
+        )
 
         num_iterations = 0
         while start_state_not_processed.any():
@@ -1023,31 +1149,51 @@ class NGramGPULanguageModel(ModelPT):
             mask_flat = mask.view(-1)
             indices_flat = indices.view(-1)
             # map indices outside the mask to vocab_size + 1
-            scores_add = torch.zeros([batch_size, self.vocab_size + 1], device=device, dtype=out_scores.dtype)
-            out_states_add = torch.full(
-                [batch_size, self.vocab_size + 1], fill_value=-1, device=device, dtype=states_dtype
+            scores_add = torch.zeros(
+                [batch_size, self.vocab_size + 1], device=device, dtype=out_scores.dtype
             )
-            ilabels = self.ilabels[indices_flat] * mask_flat + ~mask_flat * self.vocab_size
-            scores_add[batch_indices.repeat_interleave(self.vocab_size), ilabels] = self.arcs_weights[indices_flat]
-            out_states_add[batch_indices.repeat_interleave(self.vocab_size), ilabels] = self.to_states[
-                indices_flat
-            ].to(states_dtype)
+            out_states_add = torch.full(
+                [batch_size, self.vocab_size + 1],
+                fill_value=-1,
+                device=device,
+                dtype=states_dtype,
+            )
+            ilabels = (
+                self.ilabels[indices_flat] * mask_flat + ~mask_flat * self.vocab_size
+            )
+            scores_add[batch_indices.repeat_interleave(self.vocab_size), ilabels] = (
+                self.arcs_weights[indices_flat]
+            )
+            out_states_add[
+                batch_indices.repeat_interleave(self.vocab_size), ilabels
+            ] = self.to_states[indices_flat].to(states_dtype)
             # fill out_scores and out_states with new values where state is not found yet
             state_found = out_states != -1
             out_scores = torch.where(
-                state_found, out_scores, accumulated_backoff.unsqueeze(-1) + scores_add[:, : self.vocab_size]
+                state_found,
+                out_scores,
+                accumulated_backoff.unsqueeze(-1) + scores_add[:, : self.vocab_size],
             )
-            out_states = torch.where(state_found, out_states, out_states_add[:, : self.vocab_size])
+            out_states = torch.where(
+                state_found, out_states, out_states_add[:, : self.vocab_size]
+            )
             # update loop condition; process backoffs
             start_state_not_processed &= current_states != self.START_STATE
-            accumulated_backoff += self.backoff_weights[current_states] * start_state_not_processed
+            accumulated_backoff += (
+                self.backoff_weights[current_states] * start_state_not_processed
+            )
             torch.where(
-                start_state_not_processed, self.backoff_to_states[current_states], current_states, out=current_states
+                start_state_not_processed,
+                self.backoff_to_states[current_states],
+                current_states,
+                out=current_states,
             )
         return out_scores, out_states
 
     @triton_required
-    def _advance_triton(self, states: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+    def _advance_triton(
+        self, states: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         """
         Advance `states` [B]: return scores [B, V] and next states [B, V] for full vocab.
         Triton implementation. Currently not differentiable.
@@ -1060,8 +1206,12 @@ class NGramGPULanguageModel(ModelPT):
         """
         batch_size = states.shape[0]
         device = states.device
-        scores = torch.empty([batch_size, self.vocab_size], device=device, dtype=self.arcs_weights.dtype)
-        new_states = torch.empty([batch_size, self.vocab_size], dtype=torch.long, device=device)
+        scores = torch.empty(
+            [batch_size, self.vocab_size], device=device, dtype=self.arcs_weights.dtype
+        )
+        new_states = torch.empty(
+            [batch_size, self.vocab_size], dtype=torch.long, device=device
+        )
 
         ngram_advance_triton_kernel[batch_size,](
             vocab_size=self.vocab_size,
@@ -1101,7 +1251,11 @@ class NGramGPULanguageModel(ModelPT):
             return
         with torch.no_grad():
             self.final_weights.data.copy_(
-                self._get_final_pytorch(states=torch.arange(self.num_states, device=self.final_weights.device))
+                self._get_final_pytorch(
+                    states=torch.arange(
+                        self.num_states, device=self.final_weights.device
+                    )
+                )
             )
         self._final_resolved = True
 
@@ -1123,6 +1277,8 @@ class NGramGPULanguageModel(ModelPT):
             cur_states = self.backoff_to_states[cur_states]
             cur_final = self.final_weights[cur_states]
             out_scores = torch.where(
-                (out_scores > NEG_INF) | (cur_final <= NEG_INF), out_scores, accumulated_backoff + cur_final
+                (out_scores > NEG_INF) | (cur_final <= NEG_INF),
+                out_scores,
+                accumulated_backoff + cur_final,
             )
         return out_scores

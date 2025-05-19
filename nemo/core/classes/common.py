@@ -51,7 +51,14 @@ from nemo.utils.data_utils import resolve_cache_dir
 from nemo.utils.model_utils import (import_class_by_path,
                                     maybe_update_config_version)
 
-__all__ = ['Typing', 'FileIO', 'Model', 'Serialization', 'typecheck', 'PretrainedModelInfo']
+__all__ = [
+    "Typing",
+    "FileIO",
+    "Model",
+    "Serialization",
+    "typecheck",
+    "PretrainedModelInfo",
+]
 
 _TYPECHECK_ENABLED = True
 _TYPECHECK_SEMANTIC_CHECK_ENABLED = True
@@ -156,7 +163,9 @@ class TypecheckMetadata:
 
         # Compute subset of original_types which are mandatory in the call argspec
         self.mandatory_types = {
-            type_key: type_val for type_key, type_val in self.base_types.items() if not type_val.optional
+            type_key: type_val
+            for type_key, type_val in self.base_types.items()
+            if not type_val.optional
         }
 
 
@@ -175,7 +184,9 @@ class Typing(ABC):
         """Define these to enable output neural type checks"""
         return None
 
-    def _validate_input_types(self, input_types=None, ignore_collections=False, **kwargs):
+    def _validate_input_types(
+        self, input_types=None, ignore_collections=False, **kwargs
+    ):
         """
         This function does a few things.
 
@@ -199,7 +210,9 @@ class Typing(ABC):
         """
         if input_types is not None:
             # Precompute metadata
-            metadata = TypecheckMetadata(original_types=input_types, ignore_collections=ignore_collections)
+            metadata = TypecheckMetadata(
+                original_types=input_types, ignore_collections=ignore_collections
+            )
 
             total_input_types = len(input_types)
             mandatory_input_types = len(metadata.mandatory_types)
@@ -221,7 +234,7 @@ class Typing(ABC):
 
                 # Perform neural type check
                 if (
-                    hasattr(value, 'neural_type')
+                    hasattr(value, "neural_type")
                     and is_semantic_typecheck_enabled()
                     and not metadata.base_types[key].compare(value.neural_type)
                     in (
@@ -235,14 +248,23 @@ class Typing(ABC):
                         f"Input type found : {value.neural_type}",
                         f"Argument: {key}",
                     ]
-                    for i, dict_tuple in enumerate(metadata.base_types[key].elements_type.type_parameters.items()):
-                        error_msg.insert(i + 2, f'  input param_{i} : {dict_tuple[0]}: {dict_tuple[1]}')
-                    for i, dict_tuple in enumerate(value.neural_type.elements_type.type_parameters.items()):
-                        error_msg.append(f'  input param_{i} : {dict_tuple[0]}: {dict_tuple[1]}')
+                    for i, dict_tuple in enumerate(
+                        metadata.base_types[key].elements_type.type_parameters.items()
+                    ):
+                        error_msg.insert(
+                            i + 2,
+                            f"  input param_{i} : {dict_tuple[0]}: {dict_tuple[1]}",
+                        )
+                    for i, dict_tuple in enumerate(
+                        value.neural_type.elements_type.type_parameters.items()
+                    ):
+                        error_msg.append(
+                            f"  input param_{i} : {dict_tuple[0]}: {dict_tuple[1]}"
+                        )
                     raise TypeError("\n".join(error_msg))
 
                 # Perform input ndim check
-                if hasattr(value, 'shape'):
+                if hasattr(value, "shape"):
                     value_shape = value.shape
                     type_shape = metadata.base_types[key].axes
                     name = key
@@ -263,7 +285,9 @@ class Typing(ABC):
                         """
                         self.__check_neural_type(val, metadata, depth=1, name=key)
 
-    def _attach_and_validate_output_types(self, out_objects, ignore_collections=False, output_types=None):
+    def _attach_and_validate_output_types(
+        self, out_objects, ignore_collections=False, output_types=None
+    ):
         """
         This function does a few things.
 
@@ -286,7 +310,9 @@ class Typing(ABC):
         # TODO: Properly implement this
         if output_types is not None:
             # Precompute metadata
-            metadata = TypecheckMetadata(original_types=output_types, ignore_collections=ignore_collections)
+            metadata = TypecheckMetadata(
+                original_types=output_types, ignore_collections=ignore_collections
+            )
             out_types_list = list(metadata.base_types.items())
             mandatory_out_types_list = list(metadata.mandatory_types.items())
 
@@ -309,14 +335,19 @@ class Typing(ABC):
             # In all other cases, python will wrap multiple outputs into an outer tuple.
             # Allow number of output arguments to be <= total output neural types and >= mandatory outputs.
 
-            elif len(out_container) > len(out_types_list) or len(out_container) < len(mandatory_out_types_list):
+            elif len(out_container) > len(out_types_list) or len(out_container) < len(
+                mandatory_out_types_list
+            ):
                 raise TypeError(
                     "Number of output arguments provided ({}) is not as expected. "
                     "It should be larger or equal than {} and less or equal than {}.\n"
                     "This can be either because insufficient/extra number of output NeuralTypes were provided,"
                     "or the provided NeuralTypes {} should enable container support "
                     "(add '[]' to the NeuralType definition)".format(
-                        len(out_container), len(out_types_list), len(mandatory_out_types_list), output_types
+                        len(out_container),
+                        len(out_types_list),
+                        len(mandatory_out_types_list),
+                        output_types,
                     )
                 )
 
@@ -329,7 +360,7 @@ class Typing(ABC):
                     pass
 
                 # Perform output ndim check
-                if hasattr(out_objects, 'shape'):
+                if hasattr(out_objects, "shape"):
                     value_shape = out_objects.shape
                     type_shape = out_types_list[0][1].axes
                     name = out_types_list[0][0]
@@ -362,7 +393,9 @@ class Typing(ABC):
                     depth = 0
 
                 for ind, res in enumerate(out_objects):
-                    self.__attach_neural_type(res, metadata, depth=depth, name=out_types_list[0][0])
+                    self.__attach_neural_type(
+                        res, metadata, depth=depth, name=out_types_list[0][0]
+                    )
             else:
                 # If more then one item is returned in a return statement, python will wrap
                 # the output with an outer tuple. Therefore there must be a 1:1 correspondence
@@ -373,9 +406,13 @@ class Typing(ABC):
                 # Since we are guarenteed that the outer tuple will be built by python,
                 # assuming initial depth of 0 is appropriate.
                 for ind, res in enumerate(out_objects):
-                    self.__attach_neural_type(res, metadata, depth=0, name=out_types_list[ind][0])
+                    self.__attach_neural_type(
+                        res, metadata, depth=0, name=out_types_list[ind][0]
+                    )
 
-    def __check_neural_type(self, obj, metadata: TypecheckMetadata, depth: int, name: str = None):
+    def __check_neural_type(
+        self, obj, metadata: TypecheckMetadata, depth: int, name: str = None
+    ):
         """
         Recursively tests whether the obj satisfies the semantic neural type assertion.
         Can include shape checks if shape information is provided.
@@ -403,7 +440,7 @@ class Typing(ABC):
             )
 
         if (
-            hasattr(obj, 'neural_type')
+            hasattr(obj, "neural_type")
             and is_semantic_typecheck_enabled()
             and not type_val.compare(obj.neural_type)
             in (
@@ -418,7 +455,7 @@ class Typing(ABC):
             )
 
         # Perform input ndim check
-        if hasattr(obj, 'shape'):
+        if hasattr(obj, "shape"):
             value_shape = obj.shape
             type_shape = type_val.axes
 
@@ -429,7 +466,9 @@ class Typing(ABC):
                     f"Input shape found : {value_shape}"
                 )
 
-    def __attach_neural_type(self, obj, metadata: TypecheckMetadata, depth: int, name: str = None):
+    def __attach_neural_type(
+        self, obj, metadata: TypecheckMetadata, depth: int, name: str = None
+    ):
         """
         Recursively attach neural types to a given object - as long as it can be assigned some value.
 
@@ -461,7 +500,7 @@ class Typing(ABC):
             pass
 
         # Perform output ndim check
-        if hasattr(obj, 'shape'):
+        if hasattr(obj, "shape"):
             value_shape = obj.shape
             type_shape = type_val.axes
 
@@ -475,7 +514,9 @@ class Typing(ABC):
 
 class Serialization(ABC):
     @classmethod
-    def from_config_dict(cls, config: 'DictConfig', trainer: Optional['Trainer'] = None):
+    def from_config_dict(
+        cls, config: "DictConfig", trainer: Optional["Trainer"] = None
+    ):
         """Instantiates object using DictConfig-based configuration"""
         # Resolve the config dict
         if _HAS_HYDRA:
@@ -487,19 +528,25 @@ class Serialization(ABC):
             config = maybe_update_config_version(config)
 
         # Hydra 0.x API
-        if ('cls' in config or 'target' in config) and 'params' in config and _HAS_HYDRA:
+        if (
+            ("cls" in config or "target" in config)
+            and "params" in config
+            and _HAS_HYDRA
+        ):
             # regular hydra-based instantiation
             instance = hydra.utils.instantiate(config=config)
         # Hydra 1.x API
-        elif '_target_' in config and _HAS_HYDRA:
+        elif "_target_" in config and _HAS_HYDRA:
             # regular hydra-based instantiation
             instance = hydra.utils.instantiate(config=config)
         else:
             instance = None
             prev_error = ""
             # Attempt class path resolution from config `target` class (if it exists)
-            if 'target' in config:
-                target_cls = config["target"]  # No guarantee that this is a omegaconf class
+            if "target" in config:
+                target_cls = config[
+                    "target"
+                ]  # No guarantee that this is a omegaconf class
                 imported_cls = None
                 try:
                     # try to import the target class
@@ -508,7 +555,9 @@ class Serialization(ABC):
                     # use subclass instead
                     if issubclass(cls, imported_cls):
                         imported_cls = cls
-                    accepts_trainer = Serialization._inspect_signature_for_trainer(imported_cls)
+                    accepts_trainer = Serialization._inspect_signature_for_trainer(
+                        imported_cls
+                    )
                     if accepts_trainer:
                         instance = imported_cls(cfg=config, trainer=trainer)
                     else:
@@ -516,7 +565,10 @@ class Serialization(ABC):
                 except Exception as e:
                     # record previous error
                     tb = traceback.format_exc()
-                    prev_error = f"Model instantiation failed!\nTarget class:\t{target_cls}" f"\nError(s):\t{e}\n{tb}"
+                    prev_error = (
+                        f"Model instantiation failed!\nTarget class:\t{target_cls}"
+                        f"\nError(s):\t{e}\n{tb}"
+                    )
                     logging.debug(prev_error + "\nFalling back to `cls`.")
 
             # target class resolution was unsuccessful, fall back to current `cls`
@@ -534,13 +586,13 @@ class Serialization(ABC):
                         logging.error(prev_error)
                     raise e
 
-        if not hasattr(instance, '_cfg'):
+        if not hasattr(instance, "_cfg"):
             instance._cfg = config
         return instance
 
-    def to_config_dict(self) -> 'DictConfig':
+    def to_config_dict(self) -> "DictConfig":
         """Returns object's configuration to config dictionary"""
-        if hasattr(self, '_cfg') and self._cfg is not None:
+        if hasattr(self, "_cfg") and self._cfg is not None:
             # Resolve the config dict
             if _HAS_HYDRA and isinstance(self._cfg, DictConfig):
                 config = OmegaConf.to_container(self._cfg, resolve=True)
@@ -554,14 +606,14 @@ class Serialization(ABC):
             return self._cfg
         else:
             raise NotImplementedError(
-                'to_config_dict() can currently only return object._cfg but current object does not have it.'
+                "to_config_dict() can currently only return object._cfg but current object does not have it."
             )
 
     @classmethod
     def _inspect_signature_for_trainer(cls, check_cls):
-        if hasattr(check_cls, '__init__'):
+        if hasattr(check_cls, "__init__"):
             signature = inspect.signature(check_cls.__init__)
-            if 'trainer' in signature.parameters:
+            if "trainer" in signature.parameters:
                 return True
             else:
                 return False
@@ -585,10 +637,10 @@ class FileIO(ABC):
         cls,
         restore_path: str,
         override_config_path: Optional[str] = None,
-        map_location: Optional['torch.device'] = None,
+        map_location: Optional["torch.device"] = None,
         strict: bool = True,
         return_config: bool = False,
-        trainer: Optional['Trainer'] = None,
+        trainer: Optional["Trainer"] = None,
         save_restore_connector: SaveRestoreConnector = None,
     ):
         """
@@ -634,9 +686,9 @@ class FileIO(ABC):
 
         Returns:
         """
-        if hasattr(self, '_cfg'):
+        if hasattr(self, "_cfg"):
             self._cfg = maybe_update_config_version(self._cfg)
-            with open(path2yaml_file, 'w', encoding='utf-8') as fout:
+            with open(path2yaml_file, "w", encoding="utf-8") as fout:
                 OmegaConf.save(config=self._cfg, f=fout, resolve=True)
         else:
             raise NotImplementedError()
@@ -648,7 +700,7 @@ class PretrainedModelInfo:
     pretrained_model_name: str
     description: str
     location: str
-    class_: 'Model' = None
+    class_: "Model" = None
     aliases: List[str] = None
 
     def __repr__(self):
@@ -660,7 +712,9 @@ class PretrainedModelInfo:
         )
 
         if self.class_ is not None:
-            extras = "{extras},\n\t" "class_={class_}".format(extras=extras, **self.__dict__)
+            extras = "{extras},\n\t" "class_={class_}".format(
+                extras=extras, **self.__dict__
+            )
 
         representation = f"{base}(\n\t{extras}\n)"
         return representation
@@ -674,7 +728,10 @@ class PretrainedModelInfo:
     def __eq__(self, other):
         # another object is equal to self, iff
         # if it's hash is equal to hash(self)
-        return hash(self) == hash(other) or self.pretrained_model_name == other.pretrained_model_name
+        return (
+            hash(self) == hash(other)
+            or self.pretrained_model_name == other.pretrained_model_name
+        )
 
     def __lt__(self, other):
         return self.pretrained_model_name < other.pretrained_model_name
@@ -708,7 +765,9 @@ class Model(Typing, Serialization, FileIO, HuggingFaceFileIO):
         """
         model_names = []
         if cls.list_available_models() is not None:
-            model_names = [model.pretrained_model_name for model in cls.list_available_models()]
+            model_names = [
+                model.pretrained_model_name for model in cls.list_available_models()
+            ]
         return model_names
 
     @classmethod
@@ -717,10 +776,10 @@ class Model(Typing, Serialization, FileIO, HuggingFaceFileIO):
         model_name: str,
         refresh_cache: bool = False,
         override_config_path: Optional[str] = None,
-        map_location: Optional['torch.device'] = None,
+        map_location: Optional["torch.device"] = None,
         strict: bool = True,
         return_config: bool = False,
-        trainer: Optional['Trainer'] = None,
+        trainer: Optional["Trainer"] = None,
         save_restore_connector: SaveRestoreConnector = None,
         return_model_file: Optional[bool] = False,
     ):
@@ -748,7 +807,7 @@ class Model(Typing, Serialization, FileIO, HuggingFaceFileIO):
 
         # Resolve if the pretrained model name is from NGC or other sources
         # HF Hub source
-        if '/' in model_name:
+        if "/" in model_name:
             class_, nemo_model_file_in_cache = cls._get_hf_hub_pretrained_model_info(
                 model_name=model_name, refresh_cache=refresh_cache
             )
@@ -779,7 +838,9 @@ class Model(Typing, Serialization, FileIO, HuggingFaceFileIO):
         return instance
 
     @classmethod
-    def _get_ngc_pretrained_model_info(cls, model_name: str, refresh_cache: bool = False) -> Tuple[type, str]:
+    def _get_ngc_pretrained_model_info(
+        cls, model_name: str, refresh_cache: bool = False
+    ) -> Tuple[type, str]:
         """
         Resolve the NGC model pretrained information given a model name.
         Assumes the model subclass implements the `list_available_models()` inherited method.
@@ -820,12 +881,18 @@ class Model(Typing, Serialization, FileIO, HuggingFaceFileIO):
             )
         filename = location_in_the_cloud.split("/")[-1]
         url = location_in_the_cloud.replace(filename, "")
-        cache_dir = Path.joinpath(resolve_cache_dir(), f'{filename[:-5]}')
+        cache_dir = Path.joinpath(resolve_cache_dir(), f"{filename[:-5]}")
         # If either description and location in the cloud changes, this will force re-download
-        cache_subfolder = hashlib.md5((location_in_the_cloud + description).encode('utf-8')).hexdigest()
+        cache_subfolder = hashlib.md5(
+            (location_in_the_cloud + description).encode("utf-8")
+        ).hexdigest()
         # if file exists on cache_folder/subfolder, it will be re-used, unless refresh_cache is True
         nemo_model_file_in_cache = maybe_download_from_cloud(
-            url=url, filename=filename, cache_dir=cache_dir, subfolder=cache_subfolder, refresh_cache=refresh_cache
+            url=url,
+            filename=filename,
+            cache_dir=cache_dir,
+            subfolder=cache_subfolder,
+            refresh_cache=refresh_cache,
         )
 
         logging.info("Instantiating model from pre-trained checkpoint")
@@ -836,7 +903,9 @@ class Model(Typing, Serialization, FileIO, HuggingFaceFileIO):
         return class_, nemo_model_file_in_cache
 
     @classmethod
-    def _get_hf_hub_pretrained_model_info(cls, model_name: str, refresh_cache: bool = False) -> Tuple[type, str]:
+    def _get_hf_hub_pretrained_model_info(
+        cls, model_name: str, refresh_cache: bool = False
+    ) -> Tuple[type, str]:
         """
         Resolve the HuggingFace Hub model pretrained information given a model name.
         The model name must be of general syntax ``{source_repo}/{model_name}``.
@@ -856,11 +925,13 @@ class Model(Typing, Serialization, FileIO, HuggingFaceFileIO):
             -   The path to the NeMo model (.nemo file) in some cached directory (managed by HF Hub).
         """
         # Resolve the model name without origin for filename
-        resolved_model_filename = model_name.split("/")[-1] + '.nemo'
+        resolved_model_filename = model_name.split("/")[-1] + ".nemo"
 
         # Try to take from cache first - if not fallback to options below
         if not refresh_cache:
-            path = try_to_load_from_cache(repo_id=model_name, filename=resolved_model_filename)
+            path = try_to_load_from_cache(
+                repo_id=model_name, filename=resolved_model_filename
+            )
             if path is not None and path is not _CACHED_NO_EXIST:
                 return cls, path
 
@@ -871,23 +942,29 @@ class Model(Typing, Serialization, FileIO, HuggingFaceFileIO):
         api = HfApi(token=hf_token)
 
         # Check if model exists in HF
-        nemo_file_exists = api.file_exists(repo_id=model_name, filename=resolved_model_filename, repo_type="model")
+        nemo_file_exists = api.file_exists(
+            repo_id=model_name, filename=resolved_model_filename, repo_type="model"
+        )
 
         if nemo_file_exists:
             # Try to load the model from the Huggingface Hub
             path = hf_hub_download(
                 repo_id=model_name,
                 filename=resolved_model_filename,
-                library_name='nemo',
+                library_name="nemo",
                 library_version=nemo.__version__,
                 force_download=refresh_cache,
                 token=hf_token,
             )
         else:
-            repo_info = api.repo_info(repo_id=model_name, token=hf_token, files_metadata=True)
+            repo_info = api.repo_info(
+                repo_id=model_name, token=hf_token, files_metadata=True
+            )
 
             # Download whole HF repo and load entire directory as nemo directory
-            cache_dir = Path.joinpath(resolve_cache_dir(), "hf_hub_cache", f'{model_name}')
+            cache_dir = Path.joinpath(
+                resolve_cache_dir(), "hf_hub_cache", f"{model_name}"
+            )
 
             # If either description and location in the cloud changes, this will force re-download
             cache_subfolder = []
@@ -899,7 +976,7 @@ class Model(Typing, Serialization, FileIO, HuggingFaceFileIO):
                     cache_subfolder.append(sibling.blob_id)
             cache_subfolder = sorted(cache_subfolder)
             cache_subfolder = "".join(cache_subfolder)
-            cache_subfolder = hashlib.md5(cache_subfolder.encode('utf-8')).hexdigest()
+            cache_subfolder = hashlib.md5(cache_subfolder.encode("utf-8")).hexdigest()
 
             # if file exists on cache_folder/subfolder, it will be re-used, unless refresh_cache is True
             save_path = os.path.join(cache_dir, cache_subfolder)
@@ -908,19 +985,25 @@ class Model(Typing, Serialization, FileIO, HuggingFaceFileIO):
             if os.path.exists(cache_dir):
                 num_files_in_dir = len(os.listdir(cache_dir))
                 if num_files_in_dir > 0:
-                    logging.info("Found {} files in cache directory {}".format(num_files_in_dir, cache_dir))
+                    logging.info(
+                        "Found {} files in cache directory {}".format(
+                            num_files_in_dir, cache_dir
+                        )
+                    )
                     logging.info(
                         f"Deleting old cache directory for model `{model_name}` in order to prevent duplicates..."
                     )
                 shutil.rmtree(cache_dir, ignore_errors=True)
 
             if not os.path.exists(save_path):
-                logging.info(f"Downloading {model_name} from HuggingFace Hub to path: {save_path}")
+                logging.info(
+                    f"Downloading {model_name} from HuggingFace Hub to path: {save_path}"
+                )
                 os.makedirs(save_path, exist_ok=True)
 
             path = snapshot_download(
                 repo_id=model_name,
-                library_name='nemo',
+                library_name="nemo",
                 library_version=nemo.__version__,
                 force_download=refresh_cache,
                 cache_dir=save_path,
@@ -932,7 +1015,10 @@ class Model(Typing, Serialization, FileIO, HuggingFaceFileIO):
         return cls, path
 
     def generate_model_card(
-        self, type: str = "hf", template: str = None, template_kwargs: Optional[Dict[str, str]] = None
+        self,
+        type: str = "hf",
+        template: str = None,
+        template_kwargs: Optional[Dict[str, str]] = None,
     ) -> object:
         """
         Generates a ModelCard for the current model. This method is called when pushing the model to the Hub.
@@ -949,7 +1035,9 @@ class Model(Typing, Serialization, FileIO, HuggingFaceFileIO):
 
         if type == "hf":
             # Use HuggingFaceFileIO method to generate the huggingface model card
-            return self._get_hf_model_card(template=template, template_kwargs=template_kwargs)
+            return self._get_hf_model_card(
+                template=template, template_kwargs=template_kwargs
+            )
 
         else:
             raise ValueError(f"Model card type {type} not supported.")
@@ -1044,12 +1132,16 @@ class typecheck:
 
         """
         if instance is None:
-            raise RuntimeError("Only classes which inherit nemo.core.Typing can use this decorator !")
+            raise RuntimeError(
+                "Only classes which inherit nemo.core.Typing can use this decorator !"
+            )
 
         if not isinstance(instance, Typing):
-            raise RuntimeError("Only classes which inherit nemo.core.Typing can use this decorator !")
+            raise RuntimeError(
+                "Only classes which inherit nemo.core.Typing can use this decorator !"
+            )
 
-        if hasattr(instance, 'input_ports') or hasattr(instance, 'output_ports'):
+        if hasattr(instance, "input_ports") or hasattr(instance, "output_ports"):
             raise RuntimeError(
                 "Typing requires override of `input_types()` and `output_types()`, "
                 "not `input_ports() and `output_ports()`"
@@ -1079,16 +1171,24 @@ class typecheck:
 
         # Check that all arguments are kwargs
         if input_types is not None and len(args) > 0:
-            raise TypeError("All arguments must be passed by kwargs only for typed methods")
+            raise TypeError(
+                "All arguments must be passed by kwargs only for typed methods"
+            )
 
         # Perform rudimentary input checks here
-        instance._validate_input_types(input_types=input_types, ignore_collections=self.ignore_collections, **kwargs)
+        instance._validate_input_types(
+            input_types=input_types,
+            ignore_collections=self.ignore_collections,
+            **kwargs,
+        )
 
         # Call the method - this can be forward, or any other callable method
         outputs = wrapped(*args, **kwargs)
 
         instance._attach_and_validate_output_types(
-            output_types=output_types, ignore_collections=self.ignore_collections, out_objects=outputs
+            output_types=output_types,
+            ignore_collections=self.ignore_collections,
+            out_objects=outputs,
         )
 
         return outputs

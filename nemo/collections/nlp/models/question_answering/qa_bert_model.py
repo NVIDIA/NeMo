@@ -58,31 +58,57 @@ class BERTQAModel(BaseQAModel):
         self.loss = SpanningLoss()
 
     def training_step(self, batch, batch_idx):
-        input_ids, input_type_ids, input_mask, unique_ids, start_positions, end_positions = batch
-        logits = self.forward(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
-        loss, _, _ = self.loss(logits=logits, start_positions=start_positions, end_positions=end_positions)
-        lr = self._optimizer.param_groups[0]['lr']
+        (
+            input_ids,
+            input_type_ids,
+            input_mask,
+            unique_ids,
+            start_positions,
+            end_positions,
+        ) = batch
+        logits = self.forward(
+            input_ids=input_ids,
+            token_type_ids=input_type_ids,
+            attention_mask=input_mask,
+        )
+        loss, _, _ = self.loss(
+            logits=logits, start_positions=start_positions, end_positions=end_positions
+        )
+        lr = self._optimizer.param_groups[0]["lr"]
 
-        self.log('lr', lr, prog_bar=True)
-        self.log("train_loss", loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
+        self.log("lr", lr, prog_bar=True)
+        self.log(
+            "train_loss", loss, on_step=True, on_epoch=True, prog_bar=True, logger=True
+        )
 
-        return {'loss': loss, 'lr': lr}
+        return {"loss": loss, "lr": lr}
 
     def validation_step(self, batch, batch_idx):
         prefix = "test" if self.trainer.testing else "val"
 
-        input_ids, input_type_ids, input_mask, unique_ids, start_positions, end_positions = batch
-        logits = self.forward(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
+        (
+            input_ids,
+            input_type_ids,
+            input_mask,
+            unique_ids,
+            start_positions,
+            end_positions,
+        ) = batch
+        logits = self.forward(
+            input_ids=input_ids,
+            token_type_ids=input_type_ids,
+            attention_mask=input_mask,
+        )
         loss, start_logits, end_logits = self.loss(
             logits=logits, start_positions=start_positions, end_positions=end_positions
         )
 
         tensors = {
-            'unique_ids': unique_ids,
-            'start_logits': start_logits,
-            'end_logits': end_logits,
+            "unique_ids": unique_ids,
+            "start_logits": start_logits,
+            "end_logits": end_logits,
         }
-        loss = {f'{prefix}_loss': loss, f'{prefix}_tensors': tensors}
+        loss = {f"{prefix}_loss": loss, f"{prefix}_tensors": tensors}
         if prefix == "val":
             self.validation_step_outputs.append(loss)
         else:
@@ -96,19 +122,44 @@ class BERTQAModel(BaseQAModel):
     def on_validation_epoch_end(self):
         prefix = "test" if self.trainer.testing else "val"
 
-        if prefix == 'val':
-            avg_loss = torch.stack([x[f'{prefix}_loss'] for x in self.validation_step_outputs]).mean()
+        if prefix == "val":
+            avg_loss = torch.stack(
+                [x[f"{prefix}_loss"] for x in self.validation_step_outputs]
+            ).mean()
 
-            unique_ids = torch.cat([x[f'{prefix}_tensors']['unique_ids'] for x in self.validation_step_outputs])
-            start_logits = torch.cat([x[f'{prefix}_tensors']['start_logits'] for x in self.validation_step_outputs])
-            end_logits = torch.cat([x[f'{prefix}_tensors']['end_logits'] for x in self.validation_step_outputs])
+            unique_ids = torch.cat(
+                [
+                    x[f"{prefix}_tensors"]["unique_ids"]
+                    for x in self.validation_step_outputs
+                ]
+            )
+            start_logits = torch.cat(
+                [
+                    x[f"{prefix}_tensors"]["start_logits"]
+                    for x in self.validation_step_outputs
+                ]
+            )
+            end_logits = torch.cat(
+                [
+                    x[f"{prefix}_tensors"]["end_logits"]
+                    for x in self.validation_step_outputs
+                ]
+            )
             self.validation_step_outputs.clear()  # free memory
         else:
-            avg_loss = torch.stack([x[f'{prefix}_loss'] for x in self.test_step_outputs]).mean()
+            avg_loss = torch.stack(
+                [x[f"{prefix}_loss"] for x in self.test_step_outputs]
+            ).mean()
 
-            unique_ids = torch.cat([x[f'{prefix}_tensors']['unique_ids'] for x in self.test_step_outputs])
-            start_logits = torch.cat([x[f'{prefix}_tensors']['start_logits'] for x in self.test_step_outputs])
-            end_logits = torch.cat([x[f'{prefix}_tensors']['end_logits'] for x in self.test_step_outputs])
+            unique_ids = torch.cat(
+                [x[f"{prefix}_tensors"]["unique_ids"] for x in self.test_step_outputs]
+            )
+            start_logits = torch.cat(
+                [x[f"{prefix}_tensors"]["start_logits"] for x in self.test_step_outputs]
+            )
+            end_logits = torch.cat(
+                [x[f"{prefix}_tensors"]["end_logits"] for x in self.test_step_outputs]
+            )
             self.test_step_outputs.clear()  # free memory
 
         all_unique_ids = []
@@ -141,7 +192,11 @@ class BERTQAModel(BaseQAModel):
             for u in all_end_logits:
                 end_logits.extend(tensor2list(u))
 
-            eval_dataset = self._test_dl.dataset if self.trainer.testing else self._validation_dl.dataset
+            eval_dataset = (
+                self._test_dl.dataset
+                if self.trainer.testing
+                else self._validation_dl.dataset
+            )
             eval_results, _, _ = self.evaluate(
                 eval_dataset.features,
                 eval_dataset.examples,
@@ -156,7 +211,7 @@ class BERTQAModel(BaseQAModel):
                 do_lower_case=self._cfg.dataset.do_lower_case,
             )
 
-        self.log(f'{prefix}_loss', avg_loss)
+        self.log(f"{prefix}_loss", avg_loss)
         for eval_key in eval_results:
             logging.info(f"{prefix} {eval_key}: {eval_results[eval_key]}")
             self.log(f"{prefix}_{eval_key}", eval_results[eval_key])
@@ -168,7 +223,9 @@ class BERTQAModel(BaseQAModel):
     def forward(self, input_ids, attention_mask, token_type_ids):
         with torch.cuda.amp.autocast():
             hidden_states = self.bert_model(
-                input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask
+                input_ids=input_ids,
+                token_type_ids=token_type_ids,
+                attention_mask=attention_mask,
             )
 
             if isinstance(hidden_states, tuple):
@@ -329,7 +386,8 @@ class BERTQAModel(BaseQAModel):
             example_index_to_features[feature.example_index].append(feature)
 
         _PrelimPrediction = collections.namedtuple(
-            "PrelimPrediction", ["feature_index", "start_index", "end_index", "start_logit", "end_logit"]
+            "PrelimPrediction",
+            ["feature_index", "start_index", "end_index", "start_logit", "end_logit"],
         )
 
         all_predictions = collections.OrderedDict()
@@ -343,12 +401,14 @@ class BERTQAModel(BaseQAModel):
 
             curr_features = example_index_to_features[example_index]
 
-            doc_tokens, _, _, _, _ = BERTQADataset.get_doc_tokens_and_offset_from_context_id(
-                example.context_id,
-                example.start_position_character,
-                example.is_impossible,
-                example.answer_text,
-                processor.doc_id_to_context_text,
+            doc_tokens, _, _, _, _ = (
+                BERTQADataset.get_doc_tokens_and_offset_from_context_id(
+                    example.context_id,
+                    example.start_position_character,
+                    example.is_impossible,
+                    example.answer_text,
+                    processor.doc_id_to_context_text,
+                )
             )
             prelim_predictions = []
             # keep track of the minimum score of null start+end of position 0
@@ -413,9 +473,15 @@ class BERTQAModel(BaseQAModel):
                         end_logit=null_end_logit,
                     )
                 )
-            prelim_predictions = sorted(prelim_predictions, key=lambda x: (x.start_logit + x.end_logit), reverse=True)
+            prelim_predictions = sorted(
+                prelim_predictions,
+                key=lambda x: (x.start_logit + x.end_logit),
+                reverse=True,
+            )
 
-            _NbestPrediction = collections.namedtuple("NbestPrediction", ["text", "start_logit", "end_logit"])
+            _NbestPrediction = collections.namedtuple(
+                "NbestPrediction", ["text", "start_logit", "end_logit"]
+            )
 
             seen_predictions = {}
             nbest = []
@@ -439,7 +505,9 @@ class BERTQAModel(BaseQAModel):
                     tok_text = " ".join(tok_text.split())
                     orig_text = " ".join(orig_tokens)
 
-                    final_text = self._get_final_text(tok_text, orig_text, do_lower_case)
+                    final_text = self._get_final_text(
+                        tok_text, orig_text, do_lower_case
+                    )
                     if final_text in seen_predictions:
                         continue
 
@@ -448,23 +516,40 @@ class BERTQAModel(BaseQAModel):
                     final_text = ""
                     seen_predictions[final_text] = True
 
-                nbest.append(_NbestPrediction(text=final_text, start_logit=pred.start_logit, end_logit=pred.end_logit))
+                nbest.append(
+                    _NbestPrediction(
+                        text=final_text,
+                        start_logit=pred.start_logit,
+                        end_logit=pred.end_logit,
+                    )
+                )
 
             # if we didn't include the empty option in the n-best, include it
             if version_2_with_negative:
                 if "" not in seen_predictions:
-                    nbest.append(_NbestPrediction(text="", start_logit=null_start_logit, end_logit=null_end_logit))
+                    nbest.append(
+                        _NbestPrediction(
+                            text="",
+                            start_logit=null_start_logit,
+                            end_logit=null_end_logit,
+                        )
+                    )
 
                 # In very rare edge cases we could only
                 # have single null pred. We just create a nonce prediction
                 # in this case to avoid failure.
                 if len(nbest) == 1:
-                    nbest.insert(0, _NbestPrediction(text="empty", start_logit=0.0, end_logit=0.0))
+                    nbest.insert(
+                        0,
+                        _NbestPrediction(text="empty", start_logit=0.0, end_logit=0.0),
+                    )
 
             # In very rare edge cases we could have no valid predictions. So we
             # just create a nonce prediction in this case to avoid failure.
             if not nbest:
-                nbest.append(_NbestPrediction(text="empty", start_logit=0.0, end_logit=0.0))
+                nbest.append(
+                    _NbestPrediction(text="empty", start_logit=0.0, end_logit=0.0)
+                )
 
             assert len(nbest) >= 1
 
@@ -486,12 +571,18 @@ class BERTQAModel(BaseQAModel):
                 output["probability"] = probs[i]
                 output["start_logit"] = (
                     entry.start_logit
-                    if (isinstance(entry.start_logit, float) or isinstance(entry.start_logit, int))
+                    if (
+                        isinstance(entry.start_logit, float)
+                        or isinstance(entry.start_logit, int)
+                    )
                     else list(entry.start_logit)
                 )
                 output["end_logit"] = (
                     entry.end_logit
-                    if (isinstance(entry.end_logit, float) or isinstance(entry.end_logit, int))
+                    if (
+                        isinstance(entry.end_logit, float)
+                        or isinstance(entry.end_logit, int)
+                    )
                     else list(entry.end_logit)
                 )
                 nbest_json.append(output)
@@ -502,7 +593,11 @@ class BERTQAModel(BaseQAModel):
             else:
                 # predict "" iff the null score -
                 # the score of best non-null > threshold
-                score_diff = score_null - best_non_null_entry.start_logit - best_non_null_entry.end_logit
+                score_diff = (
+                    score_null
+                    - best_non_null_entry.start_logit
+                    - best_non_null_entry.end_logit
+                )
                 scores_diff_json[example.qas_id] = score_diff
                 if score_diff > null_score_diff_threshold:
                     all_predictions[example.qas_id] = ""
@@ -548,7 +643,13 @@ class BERTQAModel(BaseQAModel):
 
         return best_indices[:n_best_size]
 
-    def _get_final_text(self, pred_text: str, orig_text: str, do_lower_case: bool, verbose_logging: bool = False):
+    def _get_final_text(
+        self,
+        pred_text: str,
+        orig_text: str,
+        do_lower_case: bool,
+        verbose_logging: bool = False,
+    ):
         """
         Project the tokenized prediction back to the original text.
         When we created the data, we kept track of the alignment between original
@@ -600,7 +701,9 @@ class BERTQAModel(BaseQAModel):
         start_position = tok_text.find(pred_text)
         if start_position == -1:
             if verbose_logging:
-                logging.warning("Unable to find text: '%s' in '%s'" % (pred_text, orig_text))
+                logging.warning(
+                    "Unable to find text: '%s' in '%s'" % (pred_text, orig_text)
+                )
             return orig_text
         end_position = start_position + len(pred_text) - 1
 

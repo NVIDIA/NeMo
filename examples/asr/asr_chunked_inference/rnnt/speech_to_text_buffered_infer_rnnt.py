@@ -102,9 +102,15 @@ class TranscriptionConfig:
     output_filename: Optional[str] = None
     batch_size: int = 32
     num_workers: int = 0
-    append_pred: bool = False  # Sets mode of work, if True it will add new field transcriptions.
-    pred_name_postfix: Optional[str] = None  # If you need to use another model name, rather than standard one.
-    random_seed: Optional[int] = None  # seed number going to be used in seed_everything()
+    append_pred: bool = (
+        False  # Sets mode of work, if True it will add new field transcriptions.
+    )
+    pred_name_postfix: Optional[str] = (
+        None  # If you need to use another model name, rather than standard one.
+    )
+    random_seed: Optional[int] = (
+        None  # seed number going to be used in seed_everything()
+    )
 
     # Set to True to output greedy timestamp information (only supported models)
     compute_timestamps: bool = False
@@ -114,7 +120,9 @@ class TranscriptionConfig:
 
     # Chunked configs
     chunk_len_in_secs: float = 1.6  # Chunk length in seconds
-    total_buffer_in_secs: float = 4.0  # Length of buffer (chunk + left and right padding) in seconds
+    total_buffer_in_secs: float = (
+        4.0  # Length of buffer (chunk + left and right padding) in seconds
+    )
     model_stride: int = (
         8  # Model downsampling factor, 8 for Citrinet and FastConformer models and 4 for Conformer models.
     )
@@ -132,7 +140,9 @@ class TranscriptionConfig:
     decoding: RNNTDecodingConfig = RNNTDecodingConfig()
 
     # Decoding configs
-    max_steps_per_timestep: int = 5  #'Maximum number of tokens decoded per acoustic timestep'
+    max_steps_per_timestep: int = (
+        5  #'Maximum number of tokens decoded per acoustic timestep'
+    )
     stateful_decoding: bool = False  # Whether to perform stateful decoding
 
     # Merge algorithm for transducers
@@ -140,12 +150,16 @@ class TranscriptionConfig:
     # if None, we use 'middle' for rnnt and 'tdt' for tdt.
     merge_algo: Optional[str] = None
 
-    lcs_alignment_dir: Optional[str] = None  # Path to a directory to store LCS algo alignments
+    lcs_alignment_dir: Optional[str] = (
+        None  # Path to a directory to store LCS algo alignments
+    )
 
     # Config for word / character error rate calculation
     calculate_wer: bool = True
     clean_groundtruth_text: bool = False
-    langid: str = "en"  # specify this for convert_num_to_words step in groundtruth cleaning
+    langid: str = (
+        "en"  # specify this for convert_num_to_words step in groundtruth cleaning
+    )
     use_cer: bool = False
 
 
@@ -157,7 +171,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     Currently, greedy_batched inferece for TDT is not supported. Decoding strategy
     will be set to greedy for TDT automatically.
     """
-    logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
+    logging.info(f"Hydra config: {OmegaConf.to_yaml(cfg)}")
     torch.set_grad_enabled(False)
 
     cfg = OmegaConf.structured(cfg)
@@ -173,21 +187,27 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     filepaths = None
     manifest = cfg.dataset_manifest
     if cfg.audio_dir is not None:
-        filepaths = list(glob.glob(os.path.join(cfg.audio_dir, f"**/*.{cfg.audio_type}"), recursive=True))
+        filepaths = list(
+            glob.glob(
+                os.path.join(cfg.audio_dir, f"**/*.{cfg.audio_type}"), recursive=True
+            )
+        )
         manifest = None  # ignore dataset_manifest if audio_dir and dataset_manifest both presents
 
     # setup GPU
     if cfg.cuda is None:
         if torch.cuda.is_available():
             device = [0]  # use 0th CUDA device
-            accelerator = 'gpu'
+            accelerator = "gpu"
         else:
             device = 1
-            accelerator = 'cpu'
+            accelerator = "cpu"
     else:
         device = [cfg.cuda]
-        accelerator = 'gpu'
-    map_location = torch.device('cuda:{}'.format(device[0]) if accelerator == 'gpu' else 'cpu')
+        accelerator = "gpu"
+    map_location = torch.device(
+        "cuda:{}".format(device[0]) if accelerator == "gpu" else "cpu"
+    )
     logging.info(f"Inference will be done on device : {device}")
 
     asr_model, model_name = setup_model(cfg, map_location)
@@ -199,7 +219,9 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     model_cfg.preprocessor.pad_to = 0
 
     if model_cfg.preprocessor.normalize != "per_feature":
-        logging.error("Only EncDecRNNTBPEModel models trained with per_feature normalization are supported currently")
+        logging.error(
+            "Only EncDecRNNTBPEModel models trained with per_feature normalization are supported currently"
+        )
 
     # Disable config overwriting
     OmegaConf.set_struct(model_cfg.preprocessor, True)
@@ -218,47 +240,64 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     asr_model.freeze()
     asr_model = asr_model.to(asr_model.device)
 
-    model_is_tdt = hasattr(asr_model.loss, '_loss') and type(asr_model.loss._loss).__name__ == 'TDTLossNumba'
+    model_is_tdt = (
+        hasattr(asr_model.loss, "_loss")
+        and type(asr_model.loss._loss).__name__ == "TDTLossNumba"
+    )
     if cfg.merge_algo is None:
         cfg.merge_algo = "tdt" if model_is_tdt else "middle"
-        logging.info(f"merge_algo not specified. We use the default algorithm (middle for rnnt and tdt for tdt).")
+        logging.info(
+            f"merge_algo not specified. We use the default algorithm (middle for rnnt and tdt for tdt)."
+        )
 
     if model_is_tdt and cfg.merge_algo != "tdt":
         raise ValueError("merge_algo must be 'tdt' for TDT models")
 
     # Change Decoding Config
     with open_dict(cfg.decoding):
-        if cfg.stateful_decoding or cfg.merge_algo == 'tdt':
+        if cfg.stateful_decoding or cfg.merge_algo == "tdt":
             cfg.decoding.strategy = "greedy"
         else:
             cfg.decoding.strategy = "greedy_batch"
-        cfg.decoding.preserve_alignments = True  # required to compute the middle token for transducers.
-        cfg.decoding.fused_batch_size = -1  # temporarily stop fused batch during inference.
-        cfg.decoding.beam.return_best_hypothesis = True  # return and write the best hypothsis only
+        cfg.decoding.preserve_alignments = (
+            True  # required to compute the middle token for transducers.
+        )
+        cfg.decoding.fused_batch_size = (
+            -1
+        )  # temporarily stop fused batch during inference.
+        cfg.decoding.beam.return_best_hypothesis = (
+            True  # return and write the best hypothsis only
+        )
 
     # Setup decoding strategy
-    if hasattr(asr_model, 'change_decoding_strategy'):
-        if not isinstance(asr_model, EncDecRNNTModel) and not isinstance(asr_model, EncDecHybridRNNTCTCModel):
-            raise ValueError("The script supports rnnt model and hybrid model with rnnt decodng!")
+    if hasattr(asr_model, "change_decoding_strategy"):
+        if not isinstance(asr_model, EncDecRNNTModel) and not isinstance(
+            asr_model, EncDecHybridRNNTCTCModel
+        ):
+            raise ValueError(
+                "The script supports rnnt model and hybrid model with rnnt decodng!"
+            )
         else:
             # rnnt model
             if isinstance(asr_model, EncDecRNNTModel):
                 asr_model.change_decoding_strategy(cfg.decoding)
 
             # hybrid ctc rnnt model with decoder_type = rnnt
-            if hasattr(asr_model, 'cur_decoder'):
-                asr_model.change_decoding_strategy(cfg.decoding, decoder_type='rnnt')
+            if hasattr(asr_model, "cur_decoder"):
+                asr_model.change_decoding_strategy(cfg.decoding, decoder_type="rnnt")
 
-    feature_stride = model_cfg.preprocessor['window_stride']
+    feature_stride = model_cfg.preprocessor["window_stride"]
     model_stride_in_secs = feature_stride * cfg.model_stride
     total_buffer = cfg.total_buffer_in_secs
     chunk_len = float(cfg.chunk_len_in_secs)
 
     tokens_per_chunk = math.ceil(chunk_len / model_stride_in_secs)
-    mid_delay = math.ceil((chunk_len + (total_buffer - chunk_len) / 2) / model_stride_in_secs)
+    mid_delay = math.ceil(
+        (chunk_len + (total_buffer - chunk_len) / 2) / model_stride_in_secs
+    )
     logging.info(f"tokens_per_chunk is {tokens_per_chunk}, mid_delay is {mid_delay}")
 
-    if cfg.merge_algo == 'middle':
+    if cfg.merge_algo == "middle":
         frame_asr = BatchedFrameASRRNNT(
             asr_model=asr_model,
             frame_len=chunk_len,
@@ -268,7 +307,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
             stateful_decoding=cfg.stateful_decoding,
         )
 
-    elif cfg.merge_algo == 'lcs':
+    elif cfg.merge_algo == "lcs":
         frame_asr = LongestCommonSubsequenceBatchedFrameASRRNNT(
             asr_model=asr_model,
             frame_len=chunk_len,
@@ -279,9 +318,11 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
             alignment_basepath=cfg.lcs_alignment_dir,
         )
         # Set the LCS algorithm delay.
-        frame_asr.lcs_delay = math.floor(((total_buffer - chunk_len)) / model_stride_in_secs)
+        frame_asr.lcs_delay = math.floor(
+            ((total_buffer - chunk_len)) / model_stride_in_secs
+        )
 
-    elif cfg.merge_algo == 'tdt':
+    elif cfg.merge_algo == "tdt":
         frame_asr = BatchedFrameASRTDT(
             asr_model=asr_model,
             frame_len=chunk_len,
@@ -292,7 +333,9 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
         )
 
     else:
-        raise ValueError("Invalid choice of merge algorithm for transducer buffered inference.")
+        raise ValueError(
+            "Invalid choice of merge algorithm for transducer buffered inference."
+        )
 
     hyps = get_buffered_pred_feat_rnnt(
         asr=frame_asr,
@@ -306,7 +349,12 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     )
 
     output_filename, pred_text_attr_name = write_transcription(
-        hyps, cfg, model_name, filepaths=filepaths, compute_langs=False, timestamps=False
+        hyps,
+        cfg,
+        model_name,
+        filepaths=filepaths,
+        compute_langs=False,
+        timestamps=False,
     )
     logging.info(f"Finished writing predictions to {output_filename}!")
 
@@ -320,11 +368,13 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
             output_filename=None,
         )
         if output_manifest_w_wer:
-            logging.info(f"Writing prediction and error rate of each sample to {output_manifest_w_wer}!")
+            logging.info(
+                f"Writing prediction and error rate of each sample to {output_manifest_w_wer}!"
+            )
             logging.info(f"{total_res}")
 
     return cfg
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()  # noqa pylint: disable=no-value-for-parameter

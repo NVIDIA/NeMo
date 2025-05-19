@@ -57,7 +57,7 @@ def finetune_recipe(
     name: str = "default",
     num_nodes: int = 1,
     num_gpus_per_node: int = 8,
-    peft_scheme: Optional[str] = 'lora',
+    peft_scheme: Optional[str] = "lora",
 ) -> run.Partial:
     """
     Create a fine-tuning recipe for Llama3.2 11B model.
@@ -126,15 +126,19 @@ def finetune_recipe(
             crop_size=(560, 560),
             num_workers=0,
         ),
-        log=llm.default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
-        optim=distributed_fused_adam_with_cosine_annealing(max_lr=1e-4, min_lr=2.0e-07, warmup_steps=150),
+        log=llm.default_log(
+            dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)
+        ),
+        optim=distributed_fused_adam_with_cosine_annealing(
+            max_lr=1e-4, min_lr=2.0e-07, warmup_steps=150
+        ),
         resume=nemo_resume("meta-llama/Llama-3.2-11B-Vision-Instruct"),
     )
 
-    if peft_scheme is None or peft_scheme.lower() == 'none':
+    if peft_scheme is None or peft_scheme.lower() == "none":
         recipe.trainer.strategy.tensor_model_parallel_size = 2
         recipe.optim.config.lr = 2e-05
-    elif peft_scheme.lower() == 'lora':
+    elif peft_scheme.lower() == "lora":
         # pylint: disable=line-too-long
         """Adapted from https://github.com/meta-llama/llama-recipes/blob/main/src/llama_recipes/configs/peft.py"""
         recipe.peft = run.Config(

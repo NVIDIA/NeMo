@@ -104,20 +104,32 @@ if __name__ == "__main__":
         required=True,
         help="Path to Starcoder checkpoint from HuggingFace hub or local dir",
     )
-    parser.add_argument("--output_path", type=str, required=True, help="Path to dir where to store output .nemo file")
+    parser.add_argument(
+        "--output_path",
+        type=str,
+        required=True,
+        help="Path to dir where to store output .nemo file",
+    )
     parser.add_argument(
         "--hparams_file",
         type=str,
         default=os.path.join(
-            os.path.dirname(__file__), '../../examples/nlp/language_modeling/conf/megatron_gpt_config.yaml'
+            os.path.dirname(__file__),
+            "../../examples/nlp/language_modeling/conf/megatron_gpt_config.yaml",
         ),
         required=False,
         help="Path config for restoring. It's created during training and may need to be modified during restore if restore environment is different than training. Ex: /raid/nemo_experiments/megatron_gpt/hparams.yaml",
     )
     parser.add_argument(
-        "--precision", type=str, default="bf16", choices=["bf16", "32"], help="Precision for checkpoint weights saved"
+        "--precision",
+        type=str,
+        default="bf16",
+        choices=["bf16", "32"],
+        help="Precision for checkpoint weights saved",
     )
-    parser.add_argument("--cuda", action="store_true", help="Put Nemo model onto GPU prior to saving")
+    parser.add_argument(
+        "--cuda", action="store_true", help="Put Nemo model onto GPU prior to saving"
+    )
     args = parser.parse_args()
 
     if not os.path.isdir(args.output_path):

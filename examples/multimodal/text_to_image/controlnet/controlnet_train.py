@@ -30,14 +30,16 @@ class MegatronControlNetTrainerBuilder(MegatronTrainerBuilder):
     def create_trainer(self, callbacks=[]) -> Trainer:
         strategy = self._training_strategy()
         plugins = self._plugins()
-        return Trainer(plugins=plugins, strategy=strategy, **self.cfg.trainer, callbacks=callbacks)
+        return Trainer(
+            plugins=plugins, strategy=strategy, **self.cfg.trainer, callbacks=callbacks
+        )
 
 
-@hydra_runner(config_path='conf', config_name='controlnet_v1-5.yaml')
+@hydra_runner(config_path="conf", config_name="controlnet_v1-5.yaml")
 def main(cfg):
     callbacks = []
 
-    if cfg.model.get('image_logger', None):
+    if cfg.model.get("image_logger", None):
         callbacks.append(ImageLogger(**cfg.model.image_logger))
 
     trainer = MegatronControlNetTrainerBuilder(cfg).create_trainer(callbacks=callbacks)
@@ -49,5 +51,5 @@ def main(cfg):
     trainer.fit(model)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

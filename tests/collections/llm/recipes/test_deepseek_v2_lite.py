@@ -72,10 +72,10 @@ class TestDeepSeekV2Lite:
 
         # Check LoRA target modules
         assert recipe.peft.target_modules == [
-            'linear_q_proj',
-            'linear_kv_down_proj',
-            'linear_kv_up_proj',
-            'linear_proj',
+            "linear_q_proj",
+            "linear_kv_down_proj",
+            "linear_kv_up_proj",
+            "linear_proj",
         ]
 
     def test_finetune_recipe_without_peft(self, recipe_module):
@@ -83,8 +83,10 @@ class TestDeepSeekV2Lite:
         assert recipe.trainer.strategy.tensor_model_parallel_size == 4
         assert recipe.trainer.strategy.sequence_parallel is True
         assert recipe.optim.config.lr == 5e-6
-        assert not hasattr(recipe, 'peft') or recipe.peft is None
+        assert not hasattr(recipe, "peft") or recipe.peft is None
 
     def test_finetune_recipe_with_invalid_peft(self, recipe_module):
-        with pytest.raises(ValueError, match="Unrecognized peft scheme: invalid_scheme"):
+        with pytest.raises(
+            ValueError, match="Unrecognized peft scheme: invalid_scheme"
+        ):
             recipe_module.finetune_recipe(peft_scheme="invalid_scheme")

@@ -79,7 +79,9 @@ def get_best_indexes(logits, n_best_size):
     return best_indices[:n_best_size]
 
 
-def get_final_text(pred_text: str, orig_text: str, do_lower_case: bool, verbose_logging: bool = False):
+def get_final_text(
+    pred_text: str, orig_text: str, do_lower_case: bool, verbose_logging: bool = False
+):
     """Project the tokenized prediction back to the original text.
     When we created the data, we kept track of the alignment between original
     (whitespace tokenized) tokens and our WordPiece tokenized tokens. So
@@ -110,7 +112,7 @@ def get_final_text(pred_text: str, orig_text: str, do_lower_case: bool, verbose_
     def _strip_spaces(text):
         ns_chars = []
         ns_to_s_map = collections.OrderedDict()
-        for (i, c) in enumerate(text):
+        for i, c in enumerate(text):
             if c == " ":
                 continue
             ns_to_s_map[len(ns_chars)] = i
@@ -129,7 +131,9 @@ def get_final_text(pred_text: str, orig_text: str, do_lower_case: bool, verbose_
     start_position = tok_text.find(pred_text)
     if start_position == -1:
         if verbose_logging:
-            logging.warning("Unable to find text: '%s' in '%s'" % (pred_text, orig_text))
+            logging.warning(
+                "Unable to find text: '%s' in '%s'" % (pred_text, orig_text)
+            )
         return orig_text
     end_position = start_position + len(pred_text) - 1
 
@@ -139,14 +143,16 @@ def get_final_text(pred_text: str, orig_text: str, do_lower_case: bool, verbose_
     if len(orig_ns_text) != len(tok_ns_text):
         if verbose_logging:
             logging.warning(
-                "Length not equal after stripping spaces: '%s' vs '%s'", orig_ns_text, tok_ns_text,
+                "Length not equal after stripping spaces: '%s' vs '%s'",
+                orig_ns_text,
+                tok_ns_text,
             )
         return orig_text
 
     # We then project the characters in `pred_text` back to `orig_text` using
     # the character-to-character alignment.
     tok_s_to_ns_map = {}
-    for (i, tok_index) in tok_ns_to_s_map.items():
+    for i, tok_index in tok_ns_to_s_map.items():
         tok_s_to_ns_map[tok_index] = i
 
     orig_start_position = None
@@ -179,7 +185,9 @@ def f1_score(prediction, ground_truth):
     """computes f1 score between prediction and ground truth"""
     prediction_tokens = _get_tokens(prediction)
     ground_truth_tokens = _get_tokens(ground_truth)
-    common = collections.Counter(prediction_tokens) & collections.Counter(ground_truth_tokens)
+    common = collections.Counter(prediction_tokens) & collections.Counter(
+        ground_truth_tokens
+    )
     num_same = sum(common.values())
     if len(ground_truth_tokens) == 0 or len(prediction_tokens) == 0:
         # If either is no-answer, then F1 is 1 if they agree, 0 otherwise
@@ -241,7 +249,9 @@ def find_all_best_thresh(main_eval, preds, exact_raw, f1_raw, na_probs, qid_to_h
     """
     Find best threshholds to maximize all evaluation metrics.
     """
-    best_exact, exact_thresh = _find_best_thresh(preds, exact_raw, na_probs, qid_to_has_ans)
+    best_exact, exact_thresh = _find_best_thresh(
+        preds, exact_raw, na_probs, qid_to_has_ans
+    )
     best_f1, f1_thresh = _find_best_thresh(preds, f1_raw, na_probs, qid_to_has_ans)
 
     main_eval["best_exact"] = best_exact
@@ -277,7 +287,11 @@ def _find_best_thresh(preds, scores, na_probs, qid_to_has_ans):
 
 
 def _improve_answer_span(
-    doc_tokens: List[str], input_start: int, input_end: int, tokenizer: object, orig_answer_text: str
+    doc_tokens: List[str],
+    input_start: int,
+    input_end: int,
+    tokenizer: object,
+    orig_answer_text: str,
 ):
     """Returns tokenized answer spans that better match the annotated answer."""
     tok_answer_text = " ".join(tokenizer.text_to_tokens(orig_answer_text))
@@ -317,7 +331,9 @@ class SquadProcessor(DataProcessor):
             raise ValueError(f"{self.mode} data file is None.")
 
         # remove this line and the replace cache line below - which is a temp fix
-        with open(self.data_file.replace('_cache', ''), "r", encoding="utf-8") as reader:
+        with open(
+            self.data_file.replace("_cache", ""), "r", encoding="utf-8"
+        ) as reader:
             input_data = ijson.items(reader, "data.item")
 
             examples = []
@@ -335,7 +351,9 @@ class SquadProcessor(DataProcessor):
                         answer_text = None
                         answers = []
                         if "is_impossible" in qa:
-                            is_impossible = qa["is_impossible"] or len(qa["answers"]) < 1
+                            is_impossible = (
+                                qa["is_impossible"] or len(qa["answers"]) < 1
+                            )
                         else:
                             is_impossible = False
 
@@ -369,8 +387,8 @@ class SquadProcessor(DataProcessor):
 
                         examples.append(example)
 
-                logging.info('mean no. of chars in doc: {}'.format(np.mean(len_docs)))
-                logging.info('max no. of chars in doc: {}'.format(np.max(len_docs)))
+                logging.info("mean no. of chars in doc: {}".format(np.mean(len_docs)))
+                logging.info("max no. of chars in doc: {}".format(np.max(len_docs)))
         return examples
 
 

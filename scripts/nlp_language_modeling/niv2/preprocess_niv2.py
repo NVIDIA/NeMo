@@ -41,10 +41,10 @@ Use instructions:
 
 
 def remove_newline_and_detokenize(x, detokenizer):
-    x = re.sub(r'\\n+', ' ', x)
-    x = re.sub(r'\n+', ' ', x)
-    x = re.sub(r'\\r+', ' ', x)
-    x = re.sub(r'\r+', ' ', x)
+    x = re.sub(r"\\n+", " ", x)
+    x = re.sub(r"\n+", " ", x)
+    x = re.sub(r"\\r+", " ", x)
+    x = re.sub(r"\r+", " ", x)
     x = x.strip()
     x = detokenizer.detokenize([x])
     return x
@@ -61,19 +61,29 @@ def is_empty(x, tokenizer):
     return len(tokenizer.text_to_tokens(x.strip())) < 1
 
 
-def write_dataset_to_file(file_name, output_file_name, detokenizer, tokenizer, idx, total_num_files, remove_newline):
-    print(f'Processing file {idx + 1}/{total_num_files} : {file_name} -> {output_file_name}')
-    dataset = json.load(open(file_name, 'r'))
-    with open(output_file_name, 'w') as f:
-        instances = dataset['Instances']
-        definitions = dataset['Definition']
+def write_dataset_to_file(
+    file_name,
+    output_file_name,
+    detokenizer,
+    tokenizer,
+    idx,
+    total_num_files,
+    remove_newline,
+):
+    print(
+        f"Processing file {idx + 1}/{total_num_files} : {file_name} -> {output_file_name}"
+    )
+    dataset = json.load(open(file_name, "r"))
+    with open(output_file_name, "w") as f:
+        instances = dataset["Instances"]
+        definitions = dataset["Definition"]
         for definition in definitions:
             if is_empty(definition, tokenizer):
                 continue
             for instance in instances:
-                id = instance['id']
-                input = instance['input']
-                outputs = instance['output']
+                id = instance["id"]
+                input = instance["input"]
+                outputs = instance["output"]
                 # On rare occasions, the same instance can have multiple outputs. We add all of them as examples.
                 if is_empty(input, tokenizer):
                     continue
@@ -81,46 +91,54 @@ def write_dataset_to_file(file_name, output_file_name, detokenizer, tokenizer, i
                     if is_empty(output, tokenizer):
                         continue
                     if remove_newline:
-                        prompted_input = definition + ' ' + input
+                        prompted_input = definition + " " + input
                     else:
-                        prompted_input = definition + '\n\n' + input
-                    proc_func = remove_newline_and_detokenize if remove_newline else detokenize
+                        prompted_input = definition + "\n\n" + input
+                    proc_func = (
+                        remove_newline_and_detokenize if remove_newline else detokenize
+                    )
                     prompted_input = proc_func(prompted_input, detokenizer)
                     output = proc_func(output, detokenizer)
                     instance_object = {
-                        'id': id,
-                        'input': prompted_input,
-                        'output': output,
+                        "id": id,
+                        "input": prompted_input,
+                        "output": output,
                     }
-                    f.write(json.dumps(instance_object) + '\n')
+                    f.write(json.dumps(instance_object) + "\n")
 
 
 def process_folder(data_folder, output_folder, splits_file, remove_newline):
     from sacremoses import MosesDetokenizer
 
-    detokenizer = MosesDetokenizer('en')
+    detokenizer = MosesDetokenizer("en")
     tokenizer = AutoTokenizer("gpt2")
     assert os.path.isdir(data_folder)
     assert os.path.exists(splits_file)
     if not os.path.exists(output_folder):
-        os.system(f'mkdir -p {output_folder}')
-    if not os.path.exists(os.path.join(output_folder, 'train')):
+        os.system(f"mkdir -p {output_folder}")
+    if not os.path.exists(os.path.join(output_folder, "train")):
         os.system(f'mkdir -p {os.path.join(output_folder, "train")}')
-    if not os.path.exists(os.path.join(output_folder, 'test')):
+    if not os.path.exists(os.path.join(output_folder, "test")):
         os.system(f'mkdir -p {os.path.join(output_folder, "test")}')
 
-    splits_file_names = [line.strip() + '.json' for line in open(splits_file, 'r')]
-    print(f'Found {len(os.listdir(data_folder))} files in the data folder ...')
-    print(f'Found {len(splits_file_names)} in the splits in the splits file ...')
-    print(f'Processing {len(splits_file_names)}/{len(os.listdir(data_folder))} files ...')
+    splits_file_names = [line.strip() + ".json" for line in open(splits_file, "r")]
+    print(f"Found {len(os.listdir(data_folder))} files in the data folder ...")
+    print(f"Found {len(splits_file_names)} in the splits in the splits file ...")
+    print(
+        f"Processing {len(splits_file_names)}/{len(os.listdir(data_folder))} files ..."
+    )
     pool_args = []
     for idx, file_name in enumerate(splits_file_names):
-        print(f'Processing file {idx}/{len(splits_file_names)}: {file_name}')
+        print(f"Processing file {idx}/{len(splits_file_names)}: {file_name}")
         if not os.path.exists(os.path.join(data_folder, file_name)):
-            raise FileNotFoundError(f'Could not find {os.path.join(data_folder, file_name)}')
-        if not file_name.endswith('.json'):
-            print(f'Skipping {file_name} because it is not a JSON file')
-        output_file_name = os.path.join(output_folder, file_name.replace('.json', '.jsonl'))
+            raise FileNotFoundError(
+                f"Could not find {os.path.join(data_folder, file_name)}"
+            )
+        if not file_name.endswith(".json"):
+            print(f"Skipping {file_name} because it is not a JSON file")
+        output_file_name = os.path.join(
+            output_folder, file_name.replace(".json", ".jsonl")
+        )
         pool_args.append(
             (
                 os.path.join(data_folder, file_name),
@@ -146,7 +164,7 @@ def process_folder(data_folder, output_folder, splits_file, remove_newline):
     pool.starmap(write_dataset_to_file, pool_args)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument(
         "--niv2_dataset_path",
@@ -172,4 +190,9 @@ if __name__ == '__main__':
         help="Whether to remove newlines from the input and output.",
     )
     args = parser.parse_args()
-    process_folder(args.niv2_dataset_path, args.jsonl_output_path, args.splits_file_path, args.remove_newline)
+    process_folder(
+        args.niv2_dataset_path,
+        args.jsonl_output_path,
+        args.splits_file_path,
+        args.remove_newline,
+    )

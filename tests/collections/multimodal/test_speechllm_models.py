@@ -41,11 +41,13 @@ class ModularAudioGPTModel(modular_models.ModularAudioGPTModel):
 def setup_module():
     pl.seed_everything(1)
     # init model parallel needed for LLM loss
-    init_method = 'tcp://'
-    master_ip = 'localhost'
-    master_port = '6000'
-    init_method += master_ip + ':' + master_port
-    torch.distributed.init_process_group(backend='gloo', world_size=1, rank=0, init_method=init_method)
+    init_method = "tcp://"
+    master_ip = "localhost"
+    master_port = "6000"
+    init_method += master_ip + ":" + master_port
+    torch.distributed.init_process_group(
+        backend="gloo", world_size=1, rank=0, init_method=init_method
+    )
     parallel_state.initialize_model_parallel(1, 1)
 
 
@@ -65,10 +67,10 @@ def llm_model_config():
     config.model.micro_batch_size = 2
     config.model.global_batch_size = 2
     config.model.data.validation_ds.manifest_filepath = (
-        '/root/home/works/TestData/datasets/LibriSpeech/dev_clean_cleaned.json'
+        "/root/home/works/TestData/datasets/LibriSpeech/dev_clean_cleaned.json"
     )
     config.model.data.train_ds.manifest_filepath = (
-        '/root/home/works/TestData/datasets/LibriSpeech/dev_clean_cleaned.json'
+        "/root/home/works/TestData/datasets/LibriSpeech/dev_clean_cleaned.json"
     )
     return config
 
@@ -79,7 +81,7 @@ def trainer_config():
 
     if torch.cuda.is_available():
         accelerator = "gpu"
-        torch.set_default_device('cuda')
+        torch.set_default_device("cuda")
     else:
         accelerator = "cpu"
     config_trainer.accelerator = accelerator
@@ -102,13 +104,17 @@ def trainer_config():
 
     strategy = NLPDDPStrategy()
     plugins = [TorchElasticEnvironment()]
-    trainer = pl.Trainer(logger=False, plugins=plugins, strategy=strategy, **config_trainer)
+    trainer = pl.Trainer(
+        logger=False, plugins=plugins, strategy=strategy, **config_trainer
+    )
     return trainer, config_trainer
 
 
 @pytest.fixture
 def perception_model_config():
-    preprocessor = {"_target_": "nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor"}
+    preprocessor = {
+        "_target_": "nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor"
+    }
     encoder = {
         "_target_": "nemo.collections.asr.modules.ConformerEncoder",
         "feat_in": 64,
@@ -140,27 +146,35 @@ def test_batch():
     # assuming context_lengths = [1, 1]
     loss_mask = torch.Tensor([[0, 1, 1, 0], [0, 1, 0, 0]])
     batch = {
-        'audio_signal_length': signal_len,
-        'tokens': tokens,
-        'tokens_length': transcript_length,
-        'contexts': torch.arange(260).reshape(2, 130).int(),
-        'context_lengths': torch.Tensor([1, 1]).int(),
-        'labels': labels,
-        'answers': labels,
-        'loss_mask': loss_mask,
+        "audio_signal_length": signal_len,
+        "tokens": tokens,
+        "tokens_length": transcript_length,
+        "contexts": torch.arange(260).reshape(2, 130).int(),
+        "context_lengths": torch.Tensor([1, 1]).int(),
+        "labels": labels,
+        "answers": labels,
+        "loss_mask": loss_mask,
     }
-    batch['audio_signal'] = torch.randn([2, 64000])
+    batch["audio_signal"] = torch.randn([2, 64000])
     return batch
 
 
-@pytest.mark.skip(reason="nedd to move pretrained GPT model to /home/works/TestData first")
+@pytest.mark.skip(
+    reason="nedd to move pretrained GPT model to /home/works/TestData first"
+)
 class TestModularAudioGPTModel:
     @pytest.mark.unit
-    def test_init_and_train(self, llm_model_config, perception_model_config, trainer_config):
-        llm_model_config.model.pretrained_audio_model = "stt_en_fastconformer_transducer_large"
+    def test_init_and_train(
+        self, llm_model_config, perception_model_config, trainer_config
+    ):
+        llm_model_config.model.pretrained_audio_model = (
+            "stt_en_fastconformer_transducer_large"
+        )
         llm_model_config.model.perception = perception_model_config
         trainer, llm_model_config.trainer = trainer_config
-        model = ModularAudioGPTModel.restore_from_pretrained_models(llm_model_config, trainer=trainer)
+        model = ModularAudioGPTModel.restore_from_pretrained_models(
+            llm_model_config, trainer=trainer
+        )
 
         assert isinstance(model.model, GPTModel)
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -169,15 +183,23 @@ class TestModularAudioGPTModel:
             model.save_to(save_path)
 
     @pytest.mark.unit
-    def test_prepare_llm_input(self, llm_model_config, perception_model_config, trainer_config, test_batch):
-        llm_model_config.model.pretrained_audio_model = "stt_en_fastconformer_transducer_large"
+    def test_prepare_llm_input(
+        self, llm_model_config, perception_model_config, trainer_config, test_batch
+    ):
+        llm_model_config.model.pretrained_audio_model = (
+            "stt_en_fastconformer_transducer_large"
+        )
         llm_model_config.model.perception = perception_model_config
         trainer, llm_model_config.trainer = trainer_config
-        model = ModularAudioGPTModel.restore_from_pretrained_models(llm_model_config, trainer=trainer)
+        model = ModularAudioGPTModel.restore_from_pretrained_models(
+            llm_model_config, trainer=trainer
+        )
         model.cuda()
         model.train()
         batch = {key: val.cuda(non_blocking=True) for key, val in test_batch.items()}
-        encoder_input, attention_mask, labels, loss_mask, encoder_length = model.prepare_llm_input(batch)
+        encoder_input, attention_mask, labels, loss_mask, encoder_length = (
+            model.prepare_llm_input(batch)
+        )
         assert encoder_input.shape == (17, 2, 768)
         assert np.allclose(encoder_input.sum().cpu().detach().numpy(), 15.783691)
         assert attention_mask.shape == (2, 1, 17, 17)
@@ -186,11 +208,17 @@ class TestModularAudioGPTModel:
         assert np.allclose(encoder_length.cpu().numpy(), (16, 15))
 
     @pytest.mark.unit
-    def test_training_step(self, llm_model_config, perception_model_config, trainer_config, test_batch):
-        llm_model_config.model.pretrained_audio_model = "stt_en_fastconformer_transducer_large"
+    def test_training_step(
+        self, llm_model_config, perception_model_config, trainer_config, test_batch
+    ):
+        llm_model_config.model.pretrained_audio_model = (
+            "stt_en_fastconformer_transducer_large"
+        )
         llm_model_config.model.perception = perception_model_config
         trainer, llm_model_config.trainer = trainer_config
-        model = ModularAudioGPTModel.restore_from_pretrained_models(llm_model_config, trainer=trainer)
+        model = ModularAudioGPTModel.restore_from_pretrained_models(
+            llm_model_config, trainer=trainer
+        )
         model.cuda()
         model.on_train_start()
         model.setup()
@@ -199,36 +227,54 @@ class TestModularAudioGPTModel:
         assert np.allclose(loss_mean.cpu().detach().numpy(), 5.7052)
 
     @pytest.mark.unit
-    def test_validation_step(self, llm_model_config, perception_model_config, trainer_config, test_batch):
-        llm_model_config.model.pretrained_audio_model = "stt_en_fastconformer_transducer_large"
+    def test_validation_step(
+        self, llm_model_config, perception_model_config, trainer_config, test_batch
+    ):
+        llm_model_config.model.pretrained_audio_model = (
+            "stt_en_fastconformer_transducer_large"
+        )
         llm_model_config.model.perception = perception_model_config
         trainer, llm_model_config.trainer = trainer_config
-        model = ModularAudioGPTModel.restore_from_pretrained_models(llm_model_config, trainer=trainer)
+        model = ModularAudioGPTModel.restore_from_pretrained_models(
+            llm_model_config, trainer=trainer
+        )
         model.cuda()
         model.train()
         batch = {key: val.cuda(non_blocking=True) for key, val in test_batch.items()}
         loss_mean = model.validation_step(iter([batch]), 0)
-        assert np.allclose(loss_mean['loss'].cpu().detach().numpy(), 5.7052)
+        assert np.allclose(loss_mean["loss"].cpu().detach().numpy(), 5.7052)
 
     @pytest.mark.unit
-    def test_predict_step(self, llm_model_config, perception_model_config, trainer_config, test_batch):
-        llm_model_config.model.pretrained_audio_model = "stt_en_fastconformer_transducer_large"
+    def test_predict_step(
+        self, llm_model_config, perception_model_config, trainer_config, test_batch
+    ):
+        llm_model_config.model.pretrained_audio_model = (
+            "stt_en_fastconformer_transducer_large"
+        )
         llm_model_config.model.perception = perception_model_config
         trainer, llm_model_config.trainer = trainer_config
-        model = ModularAudioGPTModel.restore_from_pretrained_models(llm_model_config, trainer=trainer)
+        model = ModularAudioGPTModel.restore_from_pretrained_models(
+            llm_model_config, trainer=trainer
+        )
         model.cuda()
         model.train()
         batch = {key: val.cuda(non_blocking=True) for key, val in test_batch.items()}
         response = model.predict_step(batch, 0, 0)
-        ground_truth = 'to suit you. Please note these are lecture notes from an alternate presentation. Copyright  ⁇ '
-        assert response['sentences'][0] == ground_truth
+        ground_truth = "to suit you. Please note these are lecture notes from an alternate presentation. Copyright  ⁇ "
+        assert response["sentences"][0] == ground_truth
 
     @pytest.mark.unit
-    def test_concat_multi_features(self, llm_model_config, perception_model_config, trainer_config):
-        llm_model_config.model.pretrained_audio_model = "stt_en_fastconformer_transducer_large"
+    def test_concat_multi_features(
+        self, llm_model_config, perception_model_config, trainer_config
+    ):
+        llm_model_config.model.pretrained_audio_model = (
+            "stt_en_fastconformer_transducer_large"
+        )
         llm_model_config.model.perception = perception_model_config
         trainer, llm_model_config.trainer = trainer_config
-        model = ModularAudioGPTModel.restore_from_pretrained_models(llm_model_config, trainer=trainer)
+        model = ModularAudioGPTModel.restore_from_pretrained_models(
+            llm_model_config, trainer=trainer
+        )
         model.eval()
 
         feat_dim = 32
@@ -240,12 +286,20 @@ class TestModularAudioGPTModel:
         encoder_input, encoder_length = model._concat_multi_features(
             encoded, encoded_len, input_embeds, input_length, context_start_idx
         )
-        assert encoder_input.shape == (2, 56, feat_dim)  # max audio_len + text_len = (12 + 8 + 4) + 32 = 56
+        assert encoder_input.shape == (
+            2,
+            56,
+            feat_dim,
+        )  # max audio_len + text_len = (12 + 8 + 4) + 32 = 56
         assert encoder_length.shape == (2,)
         assert np.allclose(encoder_length.cpu().numpy(), (56, 52))
-        assert encoder_input[0, : context_start_idx[0][1]].sum() == 0  # first 4 features are text features
+        assert (
+            encoder_input[0, : context_start_idx[0][1]].sum() == 0
+        )  # first 4 features are text features
         assert np.allclose(
-            encoder_input[0, context_start_idx[0][1] : context_start_idx[0][1] + encoded_len[0][0]],
+            encoder_input[
+                0, context_start_idx[0][1] : context_start_idx[0][1] + encoded_len[0][0]
+            ],
             torch.ones([encoded_len[0][0], feat_dim]),
         )
 
@@ -258,11 +312,20 @@ class TestModularAudioGPTModel:
         context_length = torch.LongTensor([32, 28])
         context_start_idx = [[0, 4, 12, 20], [0, 8, 16, 25]]
         new_context_tokens = shift_tokens_by_multi_audios(
-            context_tokens, context_length, audio_len, context_start_idx, encoder_max_length
+            context_tokens,
+            context_length,
+            audio_len,
+            context_start_idx,
+            encoder_max_length,
         )
         assert new_context_tokens.shape == (2, 64)
-        assert np.allclose(new_context_tokens[0, : context_start_idx[0][1]], torch.ones([context_start_idx[0][1]]))
         assert np.allclose(
-            new_context_tokens[0, context_start_idx[0][1] : context_start_idx[0][1] + audio_len[0][0]],
+            new_context_tokens[0, : context_start_idx[0][1]],
+            torch.ones([context_start_idx[0][1]]),
+        )
+        assert np.allclose(
+            new_context_tokens[
+                0, context_start_idx[0][1] : context_start_idx[0][1] + audio_len[0][0]
+            ],
             torch.zeros([audio_len[0][0]]),
         )

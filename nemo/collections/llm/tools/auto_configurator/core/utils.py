@@ -91,7 +91,9 @@ class ModelSizeParams:
             elif model_size_in_b < 1105:
                 self.hs, self.att_h, self.lr = 25600, 160, 0.3e-4
             else:
-                raise ValueError("Model_size for GPT-3 must be smaller than 1.1T parameters.")
+                raise ValueError(
+                    "Model_size for GPT-3 must be smaller than 1.1T parameters."
+                )
         elif model_name == "t5":
             self.kv, self.lr = 64, 1e-4
             if model_size_in_b < 0.1:
@@ -115,7 +117,9 @@ class ModelSizeParams:
             elif model_size_in_b <= 250:
                 self.hs, self.att_h, self.ffn = 12288, 96, 32768
             else:
-                raise ValueError("Model_size for T5 must be smaller than 250B parameters.")
+                raise ValueError(
+                    "Model_size for T5 must be smaller than 250B parameters."
+                )
         elif model_name == "mt5":
             self.kv, self.lr = 64, 1e-4
             if model_size_in_b < 0.25:
@@ -139,7 +143,9 @@ class ModelSizeParams:
             elif model_size_in_b <= 250:
                 self.hs, self.att_h, self.ffn = 12288, 96, 32768
             else:
-                raise ValueError("Model_size for mT5 must be smaller than 250B parameters.")
+                raise ValueError(
+                    "Model_size for mT5 must be smaller than 250B parameters."
+                )
         elif model_name == "bert":
             self.lr = 1e-4
             if model_size_in_b < 0.25:
@@ -169,7 +175,9 @@ class ModelSizeParams:
             elif model_size_in_b <= 250.5:
                 self.hs, self.att_h = 12288, 96
             else:
-                raise ValueError("Model_size for BERT must be smaller than 250B parameters.")
+                raise ValueError(
+                    "Model_size for BERT must be smaller than 250B parameters."
+                )
             self.ffn = 4 * self.hs
         else:
             raise NotImplementedError("Model name is not valid.")
@@ -188,7 +196,12 @@ class ModelSizeParams:
                     att_heads=self.att_h,
                     model_name=self.model_name,
                 )
-                if model_size_in_b * (1.0 - margin) < out_size < model_size_in_b * (1.0 + margin) and not self.layers:
+                if (
+                    model_size_in_b * (1.0 - margin)
+                    < out_size
+                    < model_size_in_b * (1.0 + margin)
+                    and not self.layers
+                ):
                     self.layers = layers
             margin += 0.01  # Double margin of acceptable model sizes.
 
@@ -206,7 +219,12 @@ class ModelSizeParams:
                     att_heads=self.att_h,
                     model_name=self.model_name,
                 )
-                if model_size_in_b * (1.0 - margin) < out_size < model_size_in_b * (1.0 + margin) and not self.layers:
+                if (
+                    model_size_in_b * (1.0 - margin)
+                    < out_size
+                    < model_size_in_b * (1.0 + margin)
+                    and not self.layers
+                ):
                     self.layers = layers
             margin += 0.01  # Double margin of acceptable model sizes.
 
@@ -224,7 +242,12 @@ class ModelSizeParams:
                     att_heads=self.att_h,
                     model_name=self.model_name,
                 )
-                if model_size_in_b * (1.0 - margin) < out_size < model_size_in_b * (1.0 + margin) and not self.layers:
+                if (
+                    model_size_in_b * (1.0 - margin)
+                    < out_size
+                    < model_size_in_b * (1.0 + margin)
+                    and not self.layers
+                ):
                     self.layers = layers
             margin += 0.01  # Double margin of acceptable model sizes.
 
@@ -242,7 +265,12 @@ class ModelSizeParams:
                     att_heads=self.att_h,
                     model_name=self.model_name,
                 )
-                if model_size_in_b * (1.0 - margin) < out_size < model_size_in_b * (1.0 + margin) and not self.layers:
+                if (
+                    model_size_in_b * (1.0 - margin)
+                    < out_size
+                    < model_size_in_b * (1.0 + margin)
+                    and not self.layers
+                ):
                     self.layers = layers
             margin += 0.01  # Double margin of acceptable model sizes.
 
@@ -260,7 +288,12 @@ class ModelSizeParams:
                     att_heads=self.att_h,
                     model_name=self.model_name,
                 )
-                if model_size_in_b * (1.0 - margin) < out_size < model_size_in_b * (1.0 + margin) and not self.layers:
+                if (
+                    model_size_in_b * (1.0 - margin)
+                    < out_size
+                    < model_size_in_b * (1.0 + margin)
+                    and not self.layers
+                ):
                     self.layers = layers
             margin += 0.01  # Double margin of acceptable model sizes.
 
@@ -302,7 +335,11 @@ def _calculate_model_size(
             12
             * num_layers
             * hidden_size**2
-            * (1 + (13 / (12 * hidden_size)) + ((vocab_size + seq_length) / (12 * num_layers * hidden_size)))
+            * (
+                1
+                + (13 / (12 * hidden_size))
+                + ((vocab_size + seq_length) / (12 * num_layers * hidden_size))
+            )
             / 1e9
         )
     elif model_name in ["t5", "mt5"]:
@@ -312,11 +349,21 @@ def _calculate_model_size(
             2 * num_layers * 1.5 * ffn_size
             + 3 * num_layers * proj_size
             + hidden_size
-            * (2 + 4 * num_layers * 1.5 * ffn_size + num_layers * (21 + 12 * proj_size) + seq_length + vocab_size)
+            * (
+                2
+                + 4 * num_layers * 1.5 * ffn_size
+                + num_layers * (21 + 12 * proj_size)
+                + seq_length
+                + vocab_size
+            )
         ) / 1e9
     elif model_name == "bert":
         model_size = (
-            num_layers * (ffn_size + hidden_size * (4 * hidden_size + 3 * att_heads + 2 * ffn_size + 6))
+            num_layers
+            * (
+                ffn_size
+                + hidden_size * (4 * hidden_size + 3 * att_heads + 2 * ffn_size + 6)
+            )
             + hidden_size * (vocab_size + seq_length + hidden_size + 5)
         ) / 1e9
 

@@ -24,108 +24,111 @@ from nemo.core.classes.common import typecheck
 @pytest.fixture()
 def ssl_model():
     preprocessor = {
-        'cls': 'nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor',
-        'params': dict({'pad_to': 16, 'dither': 0}),
+        "cls": "nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor",
+        "params": dict({"pad_to": 16, "dither": 0}),
     }
 
-    model_defaults = {'enc_hidden': 32, 'dec_out': 128}
+    model_defaults = {"enc_hidden": 32, "dec_out": 128}
 
     encoder = {
-        'cls': 'nemo.collections.asr.modules.ConvASREncoder',
-        'params': {
-            'feat_in': 64,
-            'activation': 'relu',
-            'conv_mask': True,
-            'jasper': [
+        "cls": "nemo.collections.asr.modules.ConvASREncoder",
+        "params": {
+            "feat_in": 64,
+            "activation": "relu",
+            "conv_mask": True,
+            "jasper": [
                 {
-                    'filters': model_defaults['enc_hidden'],
-                    'repeat': 1,
-                    'kernel': [1],
-                    'stride': [1],
-                    'dilation': [1],
-                    'dropout': 0.0,
-                    'residual': False,
-                    'separable': True,
-                    'se': True,
-                    'se_context_size': -1,
+                    "filters": model_defaults["enc_hidden"],
+                    "repeat": 1,
+                    "kernel": [1],
+                    "stride": [1],
+                    "dilation": [1],
+                    "dropout": 0.0,
+                    "residual": False,
+                    "separable": True,
+                    "se": True,
+                    "se_context_size": -1,
                 },
                 {
-                    'filters': model_defaults['enc_hidden'],
-                    'repeat': 1,
-                    'kernel': [1],
-                    'stride': [1],
-                    'dilation': [1],
-                    'dropout': 0.0,
-                    'residual': False,
-                    'separable': True,
-                    'se': True,
-                    'se_context_size': -1,
+                    "filters": model_defaults["enc_hidden"],
+                    "repeat": 1,
+                    "kernel": [1],
+                    "stride": [1],
+                    "dilation": [1],
+                    "dropout": 0.0,
+                    "residual": False,
+                    "separable": True,
+                    "se": True,
+                    "se_context_size": -1,
                 },
                 {
-                    'filters': model_defaults['enc_hidden'],
-                    'repeat': 1,
-                    'kernel': [1],
-                    'stride': [1],
-                    'dilation': [1],
-                    'dropout': 0.0,
-                    'residual': False,
-                    'separable': True,
-                    'se': True,
-                    'se_context_size': -1,
+                    "filters": model_defaults["enc_hidden"],
+                    "repeat": 1,
+                    "kernel": [1],
+                    "stride": [1],
+                    "dilation": [1],
+                    "dropout": 0.0,
+                    "residual": False,
+                    "separable": True,
+                    "se": True,
+                    "se_context_size": -1,
                 },
             ],
         },
     }
 
     spec_augment = {
-        '_target_': 'nemo.collections.asr.modules.MaskedPatchAugmentation',
-        'freq_masks': 3,
-        'freq_width': 20,
-        'patch_size': 16,
-        'mask_patches': 0.5,
+        "_target_": "nemo.collections.asr.modules.MaskedPatchAugmentation",
+        "freq_masks": 3,
+        "freq_width": 20,
+        "patch_size": 16,
+        "mask_patches": 0.5,
     }
 
     loss_list_contr_mlm = {
-        'contr': {
-            'decoder': {
-                '_target_': 'nemo.collections.asr.modules.ConvASRDecoderReconstruction',
-                'feat_in': model_defaults['enc_hidden'],
-                'feat_hidden': 128,
-                'feat_out': model_defaults['dec_out'],
-                'stride_layers': 0,
-                'non_stride_layers': 0,
-                'stride_transpose': False,
+        "contr": {
+            "decoder": {
+                "_target_": "nemo.collections.asr.modules.ConvASRDecoderReconstruction",
+                "feat_in": model_defaults["enc_hidden"],
+                "feat_hidden": 128,
+                "feat_out": model_defaults["dec_out"],
+                "stride_layers": 0,
+                "non_stride_layers": 0,
+                "stride_transpose": False,
             },
-            'loss': {
-                '_target_': 'nemo.collections.asr.losses.ContrastiveLoss',
-                'in_dim': 64,
-                'proj_dim': model_defaults['dec_out'],
-                'combine_time_steps': 1,
-                'quantized_targets': True,
-                'codebook_size': 64,
-                'sample_from_same_utterance_only': True,
-                'sample_from_non_masked': False,
-                'num_negatives': 3,
+            "loss": {
+                "_target_": "nemo.collections.asr.losses.ContrastiveLoss",
+                "in_dim": 64,
+                "proj_dim": model_defaults["dec_out"],
+                "combine_time_steps": 1,
+                "quantized_targets": True,
+                "codebook_size": 64,
+                "sample_from_same_utterance_only": True,
+                "sample_from_non_masked": False,
+                "num_negatives": 3,
             },
         },
-        'mlm': {
-            'decoder': {
-                '_target_': 'nemo.collections.asr.modules.ConvASRDecoder',
-                'feat_in': model_defaults['enc_hidden'],
-                'num_classes': 4096,
+        "mlm": {
+            "decoder": {
+                "_target_": "nemo.collections.asr.modules.ConvASRDecoder",
+                "feat_in": model_defaults["enc_hidden"],
+                "num_classes": 4096,
             },
-            'loss': {'_target_': 'nemo.collections.asr.losses.MLMLoss', 'combine_time_steps': 1},
-            'targets_from_loss': "contr",
+            "loss": {
+                "_target_": "nemo.collections.asr.losses.MLMLoss",
+                "combine_time_steps": 1,
+            },
+            "targets_from_loss": "contr",
         },
     }
 
     modelConfig_contr_mlm = DictConfig(
         {
-            'preprocessor': DictConfig(preprocessor),
-            'spec_augment': DictConfig(spec_augment),
-            'model_defaults': DictConfig(model_defaults),
-            'encoder': DictConfig(encoder),
-            'loss_list': DictConfig(loss_list_contr_mlm),
+            "preprocessor": DictConfig(preprocessor),
+            "spec_augment": DictConfig(spec_augment),
+            "model_defaults": DictConfig(model_defaults),
+            "encoder": DictConfig(encoder),
+            "loss_list": DictConfig(loss_list_contr_mlm),
         }
     )
     ssl_model = SpeechEncDecSelfSupervisedModel(cfg=modelConfig_contr_mlm)
@@ -137,8 +140,8 @@ def denoise_mlm_ssl_model():
 
     model_defaults = {
         "subsampling_factor": 1,
-        'enc_hidden': 32,
-        'dec_out': 128,
+        "enc_hidden": 32,
+        "dec_out": 128,
         "sample_rate": 16000,
         "num_classes": 32,
         "num_books": 1,
@@ -164,58 +167,58 @@ def denoise_mlm_ssl_model():
     }
 
     encoder = {
-        'cls': 'nemo.collections.asr.modules.ConvASREncoder',
-        'params': {
-            'feat_in': preprocessor["features"],
-            'activation': 'relu',
-            'conv_mask': True,
-            'jasper': [
+        "cls": "nemo.collections.asr.modules.ConvASREncoder",
+        "params": {
+            "feat_in": preprocessor["features"],
+            "activation": "relu",
+            "conv_mask": True,
+            "jasper": [
                 {
-                    'filters': model_defaults['enc_hidden'],
-                    'repeat': 1,
-                    'kernel': [1],
-                    'stride': [1],
-                    'dilation': [1],
-                    'dropout': 0.0,
-                    'residual': False,
-                    'separable': True,
-                    'se': True,
-                    'se_context_size': -1,
+                    "filters": model_defaults["enc_hidden"],
+                    "repeat": 1,
+                    "kernel": [1],
+                    "stride": [1],
+                    "dilation": [1],
+                    "dropout": 0.0,
+                    "residual": False,
+                    "separable": True,
+                    "se": True,
+                    "se_context_size": -1,
                 },
                 {
-                    'filters': model_defaults['enc_hidden'],
-                    'repeat': 1,
-                    'kernel': [1],
-                    'stride': [1],
-                    'dilation': [1],
-                    'dropout': 0.0,
-                    'residual': False,
-                    'separable': True,
-                    'se': True,
-                    'se_context_size': -1,
+                    "filters": model_defaults["enc_hidden"],
+                    "repeat": 1,
+                    "kernel": [1],
+                    "stride": [1],
+                    "dilation": [1],
+                    "dropout": 0.0,
+                    "residual": False,
+                    "separable": True,
+                    "se": True,
+                    "se_context_size": -1,
                 },
                 {
-                    'filters': model_defaults['enc_hidden'],
-                    'repeat': 1,
-                    'kernel': [1],
-                    'stride': [1],
-                    'dilation': [1],
-                    'dropout': 0.0,
-                    'residual': False,
-                    'separable': True,
-                    'se': True,
-                    'se_context_size': -1,
+                    "filters": model_defaults["enc_hidden"],
+                    "repeat": 1,
+                    "kernel": [1],
+                    "stride": [1],
+                    "dilation": [1],
+                    "dropout": 0.0,
+                    "residual": False,
+                    "separable": True,
+                    "se": True,
+                    "se_context_size": -1,
                 },
             ],
         },
     }
 
     spec_augment = {
-        '_target_': 'nemo.collections.asr.modules.SpectrogramAugmentation',
-        'freq_masks': 0,
-        'time_masks': 0,
-        'freq_width': 16,
-        'time_width': 0.05,
+        "_target_": "nemo.collections.asr.modules.SpectrogramAugmentation",
+        "freq_masks": 0,
+        "time_masks": 0,
+        "freq_width": 16,
+        "time_width": 0.05,
     }
 
     masking = {
@@ -236,7 +239,9 @@ def denoise_mlm_ssl_model():
         "dist_fn": "l2",  # choices=["l2", "cosine"]
         "freeze": True,
         "squeeze_single": model_defaults["squeeze_single"],
-        "combine_time_steps": model_defaults["subsampling_factor"],  # conformer sub-sampling ratio
+        "combine_time_steps": model_defaults[
+            "subsampling_factor"
+        ],  # conformer sub-sampling ratio
     }
 
     decoder = {
@@ -270,7 +275,7 @@ def denoise_mlm_ssl_model():
         {
             "preprocessor": DictConfig(preprocessor),
             "spec_augment": DictConfig(spec_augment),
-            'model_defaults': DictConfig(model_defaults),
+            "model_defaults": DictConfig(model_defaults),
             "masking": DictConfig(masking),
             "quantizer": DictConfig(quantizer),
             "encoder": DictConfig(encoder),
@@ -294,12 +299,12 @@ class TestSSLModel:
     def test_contr_nonquant(self, ssl_model):
         modelConfig_contr_nonquant = ssl_model.to_config_dict()
 
-        loss_list_contr_nonquant = dict(modelConfig_contr_nonquant['loss_list'])
-        del loss_list_contr_nonquant['mlm']
+        loss_list_contr_nonquant = dict(modelConfig_contr_nonquant["loss_list"])
+        del loss_list_contr_nonquant["mlm"]
 
-        loss_list_contr_nonquant['contr']['loss']['quantized_targets'] = False
+        loss_list_contr_nonquant["contr"]["loss"]["quantized_targets"] = False
 
-        modelConfig_contr_nonquant['loss_list'] = DictConfig(loss_list_contr_nonquant)
+        modelConfig_contr_nonquant["loss_list"] = DictConfig(loss_list_contr_nonquant)
 
         ssl_model = SpeechEncDecSelfSupervisedModel(cfg=modelConfig_contr_nonquant)
 
@@ -311,7 +316,9 @@ class TestSSLModel:
                 input_signal=input_signal, input_signal_length=length
             )
 
-            loss_value, loss_val_dict = ssl_model.decoder_loss_step(spectrograms, spec_masks, encoded, encoded_len)
+            loss_value, loss_val_dict = ssl_model.decoder_loss_step(
+                spectrograms, spec_masks, encoded, encoded_len
+            )
 
         assert len(loss_val_dict) == 1
 
@@ -326,7 +333,9 @@ class TestSSLModel:
                 input_signal=input_signal, input_signal_length=length
             )
 
-        loss_value, loss_val_dict = ssl_model.decoder_loss_step(spectrograms, spec_masks, encoded, encoded_len)
+        loss_value, loss_val_dict = ssl_model.decoder_loss_step(
+            spectrograms, spec_masks, encoded, encoded_len
+        )
 
         assert len(loss_val_dict) == 2
 
@@ -334,30 +343,36 @@ class TestSSLModel:
     def test_contr_mlm_multi(self, ssl_model):
         modelConfig_contr_mlm_multi = ssl_model.to_config_dict()
 
-        model_defaults = modelConfig_contr_mlm_multi['model_defaults']
+        model_defaults = modelConfig_contr_mlm_multi["model_defaults"]
 
-        loss_list_contr_mlm_multi = dict(modelConfig_contr_mlm_multi['loss_list'])
-        loss_list_contr_mlm_multi['mlm_2'] = {
-            'decoder': {
-                '_target_': 'nemo.collections.asr.modules.ConvASRDecoder',
-                'feat_in': model_defaults['enc_hidden'],
-                'num_classes': 4096,
+        loss_list_contr_mlm_multi = dict(modelConfig_contr_mlm_multi["loss_list"])
+        loss_list_contr_mlm_multi["mlm_2"] = {
+            "decoder": {
+                "_target_": "nemo.collections.asr.modules.ConvASRDecoder",
+                "feat_in": model_defaults["enc_hidden"],
+                "num_classes": 4096,
             },
-            'loss': {'_target_': 'nemo.collections.asr.losses.MLMLoss', 'combine_time_steps': 1},
-            'output_from_layer': "encoder.0",
-            'targets_from_loss': "contr",
-        }
-        loss_list_contr_mlm_multi['mlm_3'] = {
-            'decoder': {
-                '_target_': 'nemo.collections.asr.modules.ConvASRDecoder',
-                'feat_in': model_defaults['enc_hidden'],
-                'num_classes': 4096,
+            "loss": {
+                "_target_": "nemo.collections.asr.losses.MLMLoss",
+                "combine_time_steps": 1,
             },
-            'loss': {'_target_': 'nemo.collections.asr.losses.MLMLoss', 'combine_time_steps': 1},
-            'output_from_layer': "encoder.1",
-            'targets_from_loss': "contr",
+            "output_from_layer": "encoder.0",
+            "targets_from_loss": "contr",
         }
-        modelConfig_contr_mlm_multi['loss_list'] = DictConfig(loss_list_contr_mlm_multi)
+        loss_list_contr_mlm_multi["mlm_3"] = {
+            "decoder": {
+                "_target_": "nemo.collections.asr.modules.ConvASRDecoder",
+                "feat_in": model_defaults["enc_hidden"],
+                "num_classes": 4096,
+            },
+            "loss": {
+                "_target_": "nemo.collections.asr.losses.MLMLoss",
+                "combine_time_steps": 1,
+            },
+            "output_from_layer": "encoder.1",
+            "targets_from_loss": "contr",
+        }
+        modelConfig_contr_mlm_multi["loss_list"] = DictConfig(loss_list_contr_mlm_multi)
 
         ssl_model = SpeechEncDecSelfSupervisedModel(cfg=modelConfig_contr_mlm_multi)
 
@@ -369,7 +384,9 @@ class TestSSLModel:
                 input_signal=input_signal, input_signal_length=length
             )
 
-            loss_value, loss_val_dict = ssl_model.decoder_loss_step(spectrograms, spec_masks, encoded, encoded_len)
+            loss_value, loss_val_dict = ssl_model.decoder_loss_step(
+                spectrograms, spec_masks, encoded, encoded_len
+            )
 
         assert len(loss_val_dict) == 4
 
@@ -399,7 +416,9 @@ class TestDenoiseMLMSSLModel:
         assert masks.sum() == 0.0  # no mask should be applied to the input by default
 
     @pytest.mark.unit
-    def test_forward_masked(self, denoise_mlm_ssl_model: EncDecDenoiseMaskedTokenPredModel):
+    def test_forward_masked(
+        self, denoise_mlm_ssl_model: EncDecDenoiseMaskedTokenPredModel
+    ):
         input_signal = torch.randn(size=(4, 64000))
         input_length = torch.randint(low=48000, high=64000, size=[4])
         noise = 0.1 * torch.ones_like(input_signal)
@@ -417,7 +436,10 @@ class TestDenoiseMLMSSLModel:
                 )
 
         loss_value = denoise_mlm_ssl_model.loss(
-            masks=masks, decoder_outputs=log_probs, targets=tokens, decoder_lengths=encoded_len
+            masks=masks,
+            decoder_outputs=log_probs,
+            targets=tokens,
+            decoder_lengths=encoded_len,
         )
 
         assert log_probs.size(0) == 4

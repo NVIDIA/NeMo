@@ -72,7 +72,9 @@ class T5LMAdaptedDataset(GPTDataset):
         add_eos=False,
     ):
         # get random split index
-        if pivot_distribution == LengthDistribution.truncated_normal and (pivot_mean < 0.0 or pivot_mean > 1.0):
+        if pivot_distribution == LengthDistribution.truncated_normal and (
+            pivot_mean < 0.0 or pivot_mean > 1.0
+        ):
             raise ValueError(
                 f"Invalid pivot_mean: {pivot_mean}. Must be in [0.0, 1.0]. It is a fraction of the encoder sequence length."
             )
@@ -85,13 +87,20 @@ class T5LMAdaptedDataset(GPTDataset):
             split_idx = np_rng.randint(0, max_split_idx)
         elif pivot_distribution == LengthDistribution.truncated_normal:
             loc = pivot_mean * max_split_idx
-            split_idx = np.clip(int(np_rng.normal(loc=loc, scale=loc)), 0, max_split_idx,)
+            split_idx = np.clip(
+                int(np_rng.normal(loc=loc, scale=loc)),
+                0,
+                max_split_idx,
+            )
         else:
             raise ValueError(f"Invalid pivot_distribution: {pivot_distribution}")
 
         # Encoder inputs get truncated based on the split indx
         tokens_enc = np.concatenate(
-            [sample[:split_idx], [tokenizer.pad_id] * (max_seq_length_encoder - split_idx)]
+            [
+                sample[:split_idx],
+                [tokenizer.pad_id] * (max_seq_length_encoder - split_idx),
+            ]
         ).astype(np.int64)
 
         # The decoder sequence is never truncated and is always of max decoder length.
@@ -120,12 +129,12 @@ class T5LMAdaptedDataset(GPTDataset):
         loss_mask = dec_mask
 
         train_sample = {
-            'text_enc': tokens_enc,
-            'text_dec': tokens_dec_in,
-            'labels': labels,
-            'loss_mask': loss_mask,
-            'enc_mask': enc_mask,
-            'dec_mask': dec_mask,
+            "text_enc": tokens_enc,
+            "text_dec": tokens_dec_in,
+            "labels": labels,
+            "loss_mask": loss_mask,
+            "enc_mask": enc_mask,
+            "dec_mask": dec_mask,
         }
         return train_sample
 

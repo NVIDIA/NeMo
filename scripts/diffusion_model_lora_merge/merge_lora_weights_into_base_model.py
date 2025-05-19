@@ -35,18 +35,24 @@ def load_lora(lora_nemo):
 
         ckpt_file = f"{tmpdir}/model_weights.ckpt"
 
-        lora_state_dict = torch.load(ckpt_file, map_location=torch.device('cpu'))
+        lora_state_dict = torch.load(ckpt_file, map_location=torch.device("cpu"))
         return lora_state_dict
 
 
-def merge(base_model_state_dict: Dict[str, Any], lora_state_dict: Dict[int, Any], lora_scale=1.0):
+def merge(
+    base_model_state_dict: Dict[str, Any],
+    lora_state_dict: Dict[int, Any],
+    lora_scale=1.0,
+):
 
     for key in lora_state_dict.keys():
-        if 'linear_out' in key:
+        if "linear_out" in key:
             continue
         key_lora_in = key
-        key_lora_out = key.replace('linear_in', 'linear_out')
-        key_base_model = key.replace('.adapter_layer.parallel_linear_adapter.linear_in', '').replace('._orig_mod', '')
+        key_lora_out = key.replace("linear_in", "linear_out")
+        key_base_model = key.replace(
+            ".adapter_layer.parallel_linear_adapter.linear_in", ""
+        ).replace("._orig_mod", "")
 
         wt_lora_in = lora_state_dict[key_lora_in]
         wt_lora_out = lora_state_dict[key_lora_out]
@@ -71,7 +77,9 @@ def main(cfg) -> None:
         model_cfg.first_stage_config.from_pretrained = None
 
     trainer, megatron_diffusion_model = setup_trainer_and_model_for_inference(
-        model_provider=MegatronLatentDiffusion, cfg=cfg, model_cfg_modifier=model_cfg_modifier
+        model_provider=MegatronLatentDiffusion,
+        cfg=cfg,
+        model_cfg_modifier=model_cfg_modifier,
     )
     model = megatron_diffusion_model.cpu()
     lora_weights = load_lora(cfg.lora_model_path)
@@ -84,5 +92,5 @@ def main(cfg) -> None:
     print(f"saved merged model to {cfg.merged_model_path}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

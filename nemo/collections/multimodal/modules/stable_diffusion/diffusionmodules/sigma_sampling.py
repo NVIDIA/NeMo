@@ -37,5 +37,8 @@ class DiscreteSampling:
         return self.sigmas[idx]
 
     def __call__(self, n_samples, rand=None):
-        idx = default(rand, torch.randint(0, self.num_idx, (n_samples,)),)
+        idx = default(
+            rand,
+            torch.randint(0, self.num_idx, (n_samples,)),
+        )
         return self.idx_to_sigma(idx)

@@ -36,7 +36,9 @@ class VerbalizeFst(GraphFst):
     """
 
     def __init__(self, deterministic: bool = True):
-        super().__init__(name="verbalize", kind="verbalize", deterministic=deterministic)
+        super().__init__(
+            name="verbalize", kind="verbalize", deterministic=deterministic
+        )
         electronic_graph = ElectronicFst(deterministic=deterministic).fst
 
         self.fst = electronic_graph

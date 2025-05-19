@@ -60,23 +60,37 @@ class HFTextProcessor:
         self.bos_id = bos_id
         self.pad_id = pad_id
         self.normalize_text = normalize_text
-        self.symbols_to_keep = [x for x in symbols_to_keep] if symbols_to_keep is not None else []
+        self.symbols_to_keep = (
+            [x for x in symbols_to_keep] if symbols_to_keep is not None else []
+        )
 
     def process_text(self, text: str, lang: Optional[str] = None) -> List[int]:
 
         if self.normalize_text:
             text = text.lower()
             # only keep alphanumeric characters, spaces and symbols defined in self.symbols_to_keep
-            text = ''.join([c for c in text if c.isalnum() or c.isspace() or c in self.symbols_to_keep])
+            text = "".join(
+                [
+                    c
+                    for c in text
+                    if c.isalnum() or c.isspace() or c in self.symbols_to_keep
+                ]
+            )
 
-        if hasattr(self.parser, "is_aggregate") and self.parser.is_aggregate and isinstance(text, str):
+        if (
+            hasattr(self.parser, "is_aggregate")
+            and self.parser.is_aggregate
+            and isinstance(text, str)
+        ):
             if lang is not None:
                 text_tokens = self.parser(text, lang)
             # for future use if want to add language bypass to audio_to_text classes
             # elif hasattr(parser, "lang") and parser.lang is not None:
             #    text_tokens = parser(text, parser.lang)
             else:
-                raise ValueError("lang required in manifest when using aggregate tokenizers")
+                raise ValueError(
+                    "lang required in manifest when using aggregate tokenizers"
+                )
         else:
             text_tokens = self.parser(text)
         text_tokens_length = len(text_tokens)
@@ -136,7 +150,7 @@ class _HFAudioTextDataset(Dataset):
         hf_data_cfg: Union[DictConfig, ListConfig],
         parser: Union[str, Callable],
         sample_rate: int,
-        augmentor: 'nemo.collections.asr.parts.perturb.AudioAugmentor' = None,
+        augmentor: "nemo.collections.asr.parts.perturb.AudioAugmentor" = None,
         trim: bool = False,
         bos_id: Optional[int] = None,
         eos_id: Optional[int] = None,
@@ -162,9 +176,13 @@ class _HFAudioTextDataset(Dataset):
         self.normalize_db = normalize_db
         self.ref_channel = ref_channel
 
-        self.text_processor = HFTextProcessor(parser, bos_id, eos_id, pad_id, normalize_text, symbols_to_keep)
+        self.text_processor = HFTextProcessor(
+            parser, bos_id, eos_id, pad_id, normalize_text, symbols_to_keep
+        )
 
-        data_config_list = [hf_data_cfg] if isinstance(hf_data_cfg, DictConfig) else hf_data_cfg
+        data_config_list = (
+            [hf_data_cfg] if isinstance(hf_data_cfg, DictConfig) else hf_data_cfg
+        )
         dataset_list = []
         for data_cfg in data_config_list:
             with open_dict(data_cfg):
@@ -225,11 +243,11 @@ class HFAudioToCharDataset(_HFAudioTextDataset):
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         """Returns definitions of module output ports."""
         return {
-            'audio_signal': NeuralType(('B', 'T'), AudioSignal()),
-            'a_sig_length': NeuralType(tuple('B'), LengthsType()),
-            'transcripts': NeuralType(('B', 'T'), LabelsType()),
-            'transcript_length': NeuralType(tuple('B'), LengthsType()),
-            'sample_id': NeuralType(tuple('B'), LengthsType(), optional=True),
+            "audio_signal": NeuralType(("B", "T"), AudioSignal()),
+            "a_sig_length": NeuralType(tuple("B"), LengthsType()),
+            "transcripts": NeuralType(("B", "T"), LabelsType()),
+            "transcript_length": NeuralType(tuple("B"), LengthsType()),
+            "sample_id": NeuralType(tuple("B"), LengthsType(), optional=True),
         }
 
     def __init__(
@@ -240,7 +258,7 @@ class HFAudioToCharDataset(_HFAudioTextDataset):
         hf_data_cfg: DictConfig,
         labels: List[str],
         sample_rate: int,
-        augmentor: 'nemo.collections.asr.parts.perturb.AudioAugmentor' = None,
+        augmentor: "nemo.collections.asr.parts.perturb.AudioAugmentor" = None,
         trim: bool = False,
         bos_id: Optional[int] = None,
         eos_id: Optional[int] = None,
@@ -249,7 +267,7 @@ class HFAudioToCharDataset(_HFAudioTextDataset):
         channel_selector: Optional[ChannelSelectorType] = None,
         normalize_db: Optional[float] = None,
         ref_channel: Optional[int] = None,
-        parser: Union[str, Callable] = 'en',
+        parser: Union[str, Callable] = "en",
         blank_index: int = -1,
         unk_index: int = -1,
         normalize: bool = True,
@@ -260,7 +278,11 @@ class HFAudioToCharDataset(_HFAudioTextDataset):
         self.labels = labels
 
         parser = parsers.make_parser(
-            labels=labels, name=parser, unk_id=unk_index, blank_id=blank_index, do_normalize=normalize
+            labels=labels,
+            name=parser,
+            unk_id=unk_index,
+            blank_id=blank_index,
+            do_normalize=normalize,
         )
 
         super().__init__(
@@ -294,11 +316,11 @@ class HFAudioToBPEDataset(_HFAudioTextDataset):
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         """Returns definitions of module output ports."""
         return {
-            'audio_signal': NeuralType(('B', 'T'), AudioSignal()),
-            'a_sig_length': NeuralType(tuple('B'), LengthsType()),
-            'transcripts': NeuralType(('B', 'T'), LabelsType()),
-            'transcript_length': NeuralType(tuple('B'), LengthsType()),
-            'sample_id': NeuralType(tuple('B'), LengthsType(), optional=True),
+            "audio_signal": NeuralType(("B", "T"), AudioSignal()),
+            "a_sig_length": NeuralType(tuple("B"), LengthsType()),
+            "transcripts": NeuralType(("B", "T"), LabelsType()),
+            "transcript_length": NeuralType(tuple("B"), LengthsType()),
+            "sample_id": NeuralType(tuple("B"), LengthsType(), optional=True),
         }
 
     def __init__(
@@ -307,9 +329,9 @@ class HFAudioToBPEDataset(_HFAudioTextDataset):
         text_key: str,
         sample_rate_key: str,
         hf_data_cfg: DictConfig,
-        tokenizer: 'nemo.collections.common.tokenizers.TokenizerSpec',
+        tokenizer: "nemo.collections.common.tokenizers.TokenizerSpec",
         sample_rate: int,
-        augmentor: 'nemo.collections.asr.parts.perturb.AudioAugmentor' = None,
+        augmentor: "nemo.collections.asr.parts.perturb.AudioAugmentor" = None,
         trim: bool = False,
         return_sample_id: bool = False,
         channel_selector: Optional[ChannelSelectorType] = None,
@@ -320,12 +342,20 @@ class HFAudioToBPEDataset(_HFAudioTextDataset):
         normalize_text: bool = False,
         symbols_to_keep: Optional[str] = None,
     ):
-        if use_start_end_token and hasattr(tokenizer, "bos_id") and tokenizer.bos_id > 0:
+        if (
+            use_start_end_token
+            and hasattr(tokenizer, "bos_id")
+            and tokenizer.bos_id > 0
+        ):
             bos_id = tokenizer.bos_id
         else:
             bos_id = None
 
-        if use_start_end_token and hasattr(tokenizer, "eos_id") and tokenizer.eos_id > 0:
+        if (
+            use_start_end_token
+            and hasattr(tokenizer, "eos_id")
+            and tokenizer.eos_id > 0
+        ):
             eos_id = tokenizer.eos_id
         else:
             eos_id = None
@@ -337,7 +367,9 @@ class HFAudioToBPEDataset(_HFAudioTextDataset):
 
         class TokenizerWrapper:
             def __init__(self, tokenizer):
-                if isinstance(tokenizer, tokenizers.aggregate_tokenizer.AggregateTokenizer):
+                if isinstance(
+                    tokenizer, tokenizers.aggregate_tokenizer.AggregateTokenizer
+                ):
                     self.is_aggregate = True
                 else:
                     self.is_aggregate = False
@@ -347,7 +379,7 @@ class HFAudioToBPEDataset(_HFAudioTextDataset):
                 if isinstance(args[0], List) and self.is_aggregate:
                     t = []
                     for span in args[0]:
-                        t.extend(self._tokenizer.text_to_ids(span['str'], span['lang']))
+                        t.extend(self._tokenizer.text_to_ids(span["str"], span["lang"]))
                     return t
 
                 t = self._tokenizer.text_to_ids(*args)
@@ -410,7 +442,7 @@ class _HFIterableAudioTextDataset(IterableDataset):
         hf_data_cfg: Union[DictConfig, ListConfig],
         parser: Union[str, Callable],
         sample_rate: int,
-        augmentor: 'nemo.collections.asr.parts.perturb.AudioAugmentor' = None,
+        augmentor: "nemo.collections.asr.parts.perturb.AudioAugmentor" = None,
         trim: bool = False,
         bos_id: Optional[int] = None,
         eos_id: Optional[int] = None,
@@ -444,9 +476,13 @@ class _HFIterableAudioTextDataset(IterableDataset):
         self.normalize_db = normalize_db
         self.ref_channel = ref_channel
 
-        self.text_processor = HFTextProcessor(parser, bos_id, eos_id, pad_id, normalize_text, symbols_to_keep)
+        self.text_processor = HFTextProcessor(
+            parser, bos_id, eos_id, pad_id, normalize_text, symbols_to_keep
+        )
 
-        data_config_list = [hf_data_cfg] if isinstance(hf_data_cfg, DictConfig) else hf_data_cfg
+        data_config_list = (
+            [hf_data_cfg] if isinstance(hf_data_cfg, DictConfig) else hf_data_cfg
+        )
         dataset_list = []
         for data_cfg in data_config_list:
             with open_dict(data_cfg):
@@ -460,10 +496,14 @@ class _HFIterableAudioTextDataset(IterableDataset):
             dataset_list.append(hf_datasets.load_dataset(**data_cfg))
 
         self.dataset = concatenate_datasets(dataset_list)
-        logging.info(f"Total number of samples cannot be extracted from HF streaming dataset")
+        logging.info(
+            f"Total number of samples cannot be extracted from HF streaming dataset"
+        )
 
         if shuffle_n > 0:
-            self.dataset = self.dataset.shuffle(seed=shuffle_seed, buffer_size=shuffle_n)
+            self.dataset = self.dataset.shuffle(
+                seed=shuffle_seed, buffer_size=shuffle_n
+            )
 
         self.dataset = split_dataset_by_node(self.dataset, global_rank, world_size)
         self.dataset = self.dataset.map(self._build_sample)
@@ -477,15 +517,19 @@ class _HFIterableAudioTextDataset(IterableDataset):
         return self.dataset.__iter__()
 
     def _collate_fn(self, batch):
-        a_signal = [b['audio_signal'] for b in batch]
-        a_sig_length = [b['a_sig_length'] for b in batch]
-        transcripts = [b['transcripts'] for b in batch]
-        transcript_length = [b['transcript_length'] for b in batch]
+        a_signal = [b["audio_signal"] for b in batch]
+        a_sig_length = [b["a_sig_length"] for b in batch]
+        transcripts = [b["transcripts"] for b in batch]
+        transcript_length = [b["transcript_length"] for b in batch]
         if self.return_sample_id:
-            sample_id = [b['sample_id'] for b in batch]
-            batch_list = list(zip(a_signal, a_sig_length, transcripts, transcript_length, sample_id))
+            sample_id = [b["sample_id"] for b in batch]
+            batch_list = list(
+                zip(a_signal, a_sig_length, transcripts, transcript_length, sample_id)
+            )
         else:
-            batch_list = list(zip(a_signal, a_sig_length, transcripts, transcript_length))
+            batch_list = list(
+                zip(a_signal, a_sig_length, transcripts, transcript_length)
+            )
 
         return _speech_collate_fn(batch_list, pad_id=self.text_processor.pad_id)
 
@@ -509,14 +553,14 @@ class _HFIterableAudioTextDataset(IterableDataset):
         t, tl = self.text_processor.process_text(text)
 
         output = {
-            'audio_signal': f,
-            'a_sig_length': fl,
-            'transcripts': torch.tensor(t).long(),
-            'transcript_length': torch.tensor(tl).long(),
+            "audio_signal": f,
+            "a_sig_length": fl,
+            "transcripts": torch.tensor(t).long(),
+            "transcript_length": torch.tensor(tl).long(),
         }
 
         if self.return_sample_id:
-            output['sample_id'] = get_nested_dict_value(sample, self.id_key)
+            output["sample_id"] = get_nested_dict_value(sample, self.id_key)
         return output
 
 
@@ -529,11 +573,11 @@ class HFIterableAudioToCharDataset(_HFIterableAudioTextDataset):
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         """Returns definitions of module output ports."""
         return {
-            'audio_signal': NeuralType(('B', 'T'), AudioSignal()),
-            'a_sig_length': NeuralType(tuple('B'), LengthsType()),
-            'transcripts': NeuralType(('B', 'T'), LabelsType()),
-            'transcript_length': NeuralType(tuple('B'), LengthsType()),
-            'sample_id': NeuralType(tuple('B'), LengthsType(), optional=True),
+            "audio_signal": NeuralType(("B", "T"), AudioSignal()),
+            "a_sig_length": NeuralType(tuple("B"), LengthsType()),
+            "transcripts": NeuralType(("B", "T"), LabelsType()),
+            "transcript_length": NeuralType(tuple("B"), LengthsType()),
+            "sample_id": NeuralType(tuple("B"), LengthsType(), optional=True),
         }
 
     def __init__(
@@ -544,7 +588,7 @@ class HFIterableAudioToCharDataset(_HFIterableAudioTextDataset):
         sample_rate_key: str,
         hf_data_cfg: DictConfig,
         sample_rate: int,
-        augmentor: 'nemo.collections.asr.parts.perturb.AudioAugmentor' = None,
+        augmentor: "nemo.collections.asr.parts.perturb.AudioAugmentor" = None,
         trim: bool = False,
         bos_id: int | None = None,
         eos_id: int | None = None,
@@ -558,7 +602,7 @@ class HFIterableAudioToCharDataset(_HFIterableAudioTextDataset):
         world_size: int = 0,
         shuffle_n: int = 0,
         shuffle_seed: Optional[int] = None,
-        parser: Union[str, Callable] = 'en',
+        parser: Union[str, Callable] = "en",
         blank_index: int = -1,
         unk_index: int = -1,
         normalize: bool = True,
@@ -568,7 +612,11 @@ class HFIterableAudioToCharDataset(_HFIterableAudioTextDataset):
         self.labels = labels
 
         parser = parsers.make_parser(
-            labels=labels, name=parser, unk_id=unk_index, blank_id=blank_index, do_normalize=normalize
+            labels=labels,
+            name=parser,
+            unk_id=unk_index,
+            blank_id=blank_index,
+            do_normalize=normalize,
         )
 
         super().__init__(
@@ -606,11 +654,11 @@ class HFIterableAudioToBPEDataset(_HFIterableAudioTextDataset):
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         """Returns definitions of module output ports."""
         return {
-            'audio_signal': NeuralType(('B', 'T'), AudioSignal()),
-            'a_sig_length': NeuralType(tuple('B'), LengthsType()),
-            'transcripts': NeuralType(('B', 'T'), LabelsType()),
-            'transcript_length': NeuralType(tuple('B'), LengthsType()),
-            'sample_id': NeuralType(tuple('B'), LengthsType(), optional=True),
+            "audio_signal": NeuralType(("B", "T"), AudioSignal()),
+            "a_sig_length": NeuralType(tuple("B"), LengthsType()),
+            "transcripts": NeuralType(("B", "T"), LabelsType()),
+            "transcript_length": NeuralType(tuple("B"), LengthsType()),
+            "sample_id": NeuralType(tuple("B"), LengthsType(), optional=True),
         }
 
     def __init__(
@@ -619,9 +667,9 @@ class HFIterableAudioToBPEDataset(_HFIterableAudioTextDataset):
         text_key: str,
         sample_rate_key: str,
         hf_data_cfg: DictConfig,
-        tokenizer: 'nemo.collections.common.tokenizers.TokenizerSpec',
+        tokenizer: "nemo.collections.common.tokenizers.TokenizerSpec",
         sample_rate: int,
-        augmentor: 'nemo.collections.asr.parts.perturb.AudioAugmentor' = None,
+        augmentor: "nemo.collections.asr.parts.perturb.AudioAugmentor" = None,
         trim: bool = False,
         return_sample_id: bool = False,
         id_key: str | None = None,
@@ -637,12 +685,20 @@ class HFIterableAudioToBPEDataset(_HFIterableAudioTextDataset):
         symbols_to_keep: Optional[str] = None,
     ) -> None:
 
-        if use_start_end_token and hasattr(tokenizer, "bos_id") and tokenizer.bos_id > 0:
+        if (
+            use_start_end_token
+            and hasattr(tokenizer, "bos_id")
+            and tokenizer.bos_id > 0
+        ):
             bos_id = tokenizer.bos_id
         else:
             bos_id = None
 
-        if use_start_end_token and hasattr(tokenizer, "eos_id") and tokenizer.eos_id > 0:
+        if (
+            use_start_end_token
+            and hasattr(tokenizer, "eos_id")
+            and tokenizer.eos_id > 0
+        ):
             eos_id = tokenizer.eos_id
         else:
             eos_id = None
@@ -654,7 +710,9 @@ class HFIterableAudioToBPEDataset(_HFIterableAudioTextDataset):
 
         class TokenizerWrapper:
             def __init__(self, tokenizer):
-                if isinstance(tokenizer, tokenizers.aggregate_tokenizer.AggregateTokenizer):
+                if isinstance(
+                    tokenizer, tokenizers.aggregate_tokenizer.AggregateTokenizer
+                ):
                     self.is_aggregate = True
                 else:
                     self.is_aggregate = False
@@ -664,7 +722,7 @@ class HFIterableAudioToBPEDataset(_HFIterableAudioTextDataset):
                 if isinstance(args[0], List) and self.is_aggregate:
                     t = []
                     for span in args[0]:
-                        t.extend(self._tokenizer.text_to_ids(span['str'], span['lang']))
+                        t.extend(self._tokenizer.text_to_ids(span["str"], span["lang"]))
                     return t
 
                 t = self._tokenizer.text_to_ids(*args)

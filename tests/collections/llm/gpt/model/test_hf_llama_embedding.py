@@ -31,13 +31,17 @@ def sample_hidden_states():
 
 @pytest.fixture
 def sample_attention_mask():
-    return torch.tensor([[1, 1, 1], [1, 1, 0]])  # all tokens are valid  # last token is padding
+    return torch.tensor(
+        [[1, 1, 1], [1, 1, 0]]
+    )  # all tokens are valid  # last token is padding
 
 
 def test_pool_avg(sample_hidden_states, sample_attention_mask):
     result = pool(sample_hidden_states, sample_attention_mask, "avg")
     expected_first = torch.tensor([3.0, 4.0])  # average of all tokens in first sequence
-    expected_second = torch.tensor([8.0, 9.0])  # average of first two tokens in second sequence
+    expected_second = torch.tensor(
+        [8.0, 9.0]
+    )  # average of first two tokens in second sequence
 
     assert torch.allclose(result[0], expected_first)
     assert torch.allclose(result[1], expected_second)
@@ -73,7 +77,9 @@ class TestPoolingModule:
         result = pooling(sample_hidden_states, sample_attention_mask)
         assert torch.allclose(result, sample_hidden_states[:, 0, :])
 
-    @pytest.mark.parametrize("pool_type", ["avg", "cls", "cls__left", "last", "last__right"])
+    @pytest.mark.parametrize(
+        "pool_type", ["avg", "cls", "cls__left", "last", "last__right"]
+    )
     def test_batch_size_one(self, pool_type):
         pooling = Pooling(pool_type)
         hidden_states = torch.randn(1, 3, 2)
@@ -93,20 +99,24 @@ class TestLlamaBidirectionalHFAdapter:
     @pytest.fixture
     def adapter(self, mock_model):
         pooling = Pooling("avg")
-        return LlamaBidirectionalHFAdapter(model=mock_model, normalize=True, pooling_module=pooling)
+        return LlamaBidirectionalHFAdapter(
+            model=mock_model, normalize=True, pooling_module=pooling
+        )
 
     def test_forward(self, adapter, sample_hidden_states, sample_attention_mask):
         adapter.model.return_value = {"last_hidden_state": sample_hidden_states}
 
-        result = adapter(input_ids=torch.ones(2, 3).long(), attention_mask=sample_attention_mask)
+        result = adapter(
+            input_ids=torch.ones(2, 3).long(), attention_mask=sample_attention_mask
+        )
 
         assert result.shape == (2, 2)
         # Check if normalization was applied
         assert torch.allclose(torch.norm(result, dim=1), torch.ones(2))
 
 
-@patch('nemo.collections.llm.gpt.model.hf_llama_embedding.AutoModel')
-@patch('nemo.collections.llm.gpt.model.hf_llama_embedding.AutoTokenizer')
+@patch("nemo.collections.llm.gpt.model.hf_llama_embedding.AutoModel")
+@patch("nemo.collections.llm.gpt.model.hf_llama_embedding.AutoTokenizer")
 def test_get_llama_bidirectional_hf_model(mock_tokenizer_cls, mock_model_cls):
     # Setup mocks
     mock_tokenizer = Mock()
@@ -156,7 +166,9 @@ class TestLlamaBidirectionalForSequenceClassification:
         attention_mask = torch.ones(batch_size, seq_length)
         labels = torch.randint(0, 3, (batch_size,))
 
-        outputs = model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
+        outputs = model(
+            input_ids=input_ids, attention_mask=attention_mask, labels=labels
+        )
 
         # Check output structure
         assert outputs.loss is not None
@@ -182,7 +194,9 @@ class TestLlamaBidirectionalForSequenceClassification:
         attention_mask = torch.ones(batch_size, seq_length)
         labels = torch.randn(batch_size, 1)  # Continuous values for regression
 
-        outputs = model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
+        outputs = model(
+            input_ids=input_ids, attention_mask=attention_mask, labels=labels
+        )
 
         assert outputs.loss is not None
         assert outputs.logits.shape == (batch_size, 1)
@@ -206,9 +220,13 @@ class TestLlamaBidirectionalForSequenceClassification:
         seq_length = 4
         input_ids = torch.randint(0, 100, (batch_size, seq_length))
         attention_mask = torch.ones(batch_size, seq_length)
-        labels = torch.randint(0, 2, (batch_size, 3)).float()  # Binary labels for each class
+        labels = torch.randint(
+            0, 2, (batch_size, 3)
+        ).float()  # Binary labels for each class
 
-        outputs = model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
+        outputs = model(
+            input_ids=input_ids, attention_mask=attention_mask, labels=labels
+        )
 
         assert outputs.loss is not None
         assert outputs.logits.shape == (batch_size, 3)
@@ -262,7 +280,9 @@ class TestLlamaBidirectionalForSequenceClassification:
         input_ids = torch.randint(0, 100, (batch_size, seq_length))
         attention_mask = torch.ones(batch_size, seq_length)
 
-        outputs = model(input_ids=input_ids, attention_mask=attention_mask, return_dict=return_dict)
+        outputs = model(
+            input_ids=input_ids, attention_mask=attention_mask, return_dict=return_dict
+        )
 
         if return_dict:
             assert hasattr(outputs, "logits")

@@ -94,19 +94,25 @@ class DollyDataModule(FineTuningDataModule, IOMixin):
             download_mode="force_redownload" if self.force_redownload else None,
         )
 
-    def _preprocess_and_split_data(self, dset, train_ratio: float = 0.80, val_ratio: float = 0.15):
-        logging.info(f"Preprocessing {self.__class__.__name__} to jsonl format and splitting...")
+    def _preprocess_and_split_data(
+        self, dset, train_ratio: float = 0.80, val_ratio: float = 0.15
+    ):
+        logging.info(
+            f"Preprocessing {self.__class__.__name__} to jsonl format and splitting..."
+        )
 
         test_ratio = 1 - train_ratio - val_ratio
         save_splits = {}
-        dataset = dset.get('train')
-        split_dataset = dataset.train_test_split(test_size=val_ratio + test_ratio, seed=self.seed)
-        split_dataset2 = split_dataset['test'].train_test_split(
+        dataset = dset.get("train")
+        split_dataset = dataset.train_test_split(
+            test_size=val_ratio + test_ratio, seed=self.seed
+        )
+        split_dataset2 = split_dataset["test"].train_test_split(
             test_size=test_ratio / (val_ratio + test_ratio), seed=self.seed
         )
-        save_splits['training'] = split_dataset['train']
-        save_splits['validation'] = split_dataset2['train']
-        save_splits['test'] = split_dataset2['test']
+        save_splits["training"] = split_dataset["train"]
+        save_splits["validation"] = split_dataset2["train"]
+        save_splits["test"] = split_dataset2["test"]
 
         for split_name, dataset in save_splits.items():
             output_file = self.dataset_root / f"{split_name}.jsonl"
@@ -130,7 +136,16 @@ class DollyDataModule(FineTuningDataModule, IOMixin):
                         _input = example["instruction"]
                         _output = example["response"]
 
-                    f.write(json.dumps({"input": _input, "output": _output, "category": example["category"]}) + "\n")
+                    f.write(
+                        json.dumps(
+                            {
+                                "input": _input,
+                                "output": _output,
+                                "category": example["category"],
+                            }
+                        )
+                        + "\n"
+                    )
 
             logging.info(f"{split_name} split saved to {output_file}")
 
@@ -138,5 +153,5 @@ class DollyDataModule(FineTuningDataModule, IOMixin):
             for p in self.dataset_root.iterdir():
                 if p.is_dir():
                     shutil.rmtree(p)
-                elif '.jsonl' not in str(p.name):
+                elif ".jsonl" not in str(p.name):
                     p.unlink()

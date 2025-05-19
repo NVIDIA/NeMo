@@ -33,14 +33,16 @@ class TestSelectChannels:
     max_diff_tol = 1e-9
 
     @pytest.mark.unit
-    @pytest.mark.parametrize("channel_selector", [None, 'average', 0, 1, [0, 1]])
-    def test_single_channel_input(self, channel_selector: Type[Union[str, int, List[int]]]):
+    @pytest.mark.parametrize("channel_selector", [None, "average", 0, 1, [0, 1]])
+    def test_single_channel_input(
+        self, channel_selector: Type[Union[str, int, List[int]]]
+    ):
         """Cover the case with single-channel input signal.
         Channel selector should not do anything in this case.
         """
         golden_out = signal_in = np.random.rand(self.num_samples)
 
-        if channel_selector not in [None, 0, 'average']:
+        if channel_selector not in [None, 0, "average"]:
             # Expect a failure if looking for a different channel when input is 1D
             with pytest.raises(ValueError):
                 # UUT
@@ -55,8 +57,10 @@ class TestSelectChannels:
 
     @pytest.mark.unit
     @pytest.mark.parametrize("num_channels", [2, 4])
-    @pytest.mark.parametrize("channel_selector", [None, 'average', 0, [1], [0, 1]])
-    def test_multi_channel_input(self, num_channels: int, channel_selector: Type[Union[str, int, List[int]]]):
+    @pytest.mark.parametrize("channel_selector", [None, "average", 0, [1], [0, 1]])
+    def test_multi_channel_input(
+        self, num_channels: int, channel_selector: Type[Union[str, int, List[int]]]
+    ):
         """Cover the case with multi-channel input signal and single-
         or multi-channel output.
         """
@@ -65,7 +69,7 @@ class TestSelectChannels:
         # calculate golden output
         if channel_selector is None:
             golden_out = signal_in
-        elif channel_selector == 'average':
+        elif channel_selector == "average":
             golden_out = np.mean(signal_in, axis=1)
         else:
             golden_out = signal_in[:, channel_selector].squeeze()
@@ -106,8 +110,10 @@ class TestAudioSegment:
 
     @pytest.mark.unit
     @pytest.mark.parametrize("num_channels", [1, 4])
-    @pytest.mark.parametrize("channel_selector", [None, 'average', 0, 1, [0, 1]])
-    def test_init_single_channel(self, num_channels: int, channel_selector: Type[Union[str, int, List[int]]]):
+    @pytest.mark.parametrize("channel_selector", [None, "average", 0, 1, [0, 1]])
+    def test_init_single_channel(
+        self, num_channels: int, channel_selector: Type[Union[str, int, List[int]]]
+    ):
         """Test the constructor directly."""
         if num_channels == 1:
             # samples is a one-dimensional vector for single-channel signal
@@ -121,15 +127,27 @@ class TestAudioSegment:
             # Expect a failure if looking for a different channel when input is 1D
             with pytest.raises(ValueError):
                 # Construct UUT
-                uut = AudioSegment(samples=samples, sample_rate=self.sample_rate, channel_selector=channel_selector)
+                uut = AudioSegment(
+                    samples=samples,
+                    sample_rate=self.sample_rate,
+                    channel_selector=channel_selector,
+                )
         else:
             # Construct UUT
-            uut = AudioSegment(samples=samples, sample_rate=self.sample_rate, channel_selector=channel_selector)
+            uut = AudioSegment(
+                samples=samples,
+                sample_rate=self.sample_rate,
+                channel_selector=channel_selector,
+            )
 
             # Create golden reference
             # Note: AudioSegment converts input samples to float32
-            golden_samples = select_channels(samples.astype('float32'), channel_selector)
-            expected_num_channels = 1 if golden_samples.ndim == 1 else golden_samples.shape[1]
+            golden_samples = select_channels(
+                samples.astype("float32"), channel_selector
+            )
+            expected_num_channels = (
+                1 if golden_samples.ndim == 1 else golden_samples.shape[1]
+            )
 
             # Test UUT
             assert uut.num_channels == expected_num_channels
@@ -155,31 +173,37 @@ class TestAudioSegment:
             # compare to golden references
             start_sample = int(round(start_time * self.sample_rate))
             end_sample = int(round(end_time * self.sample_rate))
-            max_diff = np.max(np.abs(uut.samples - golden_samples[start_sample:end_sample]))
+            max_diff = np.max(
+                np.abs(uut.samples - golden_samples[start_sample:end_sample])
+            )
             assert max_diff < self.max_diff_tol
 
     @pytest.mark.unit
     @pytest.mark.parametrize("num_channels", [1, 4])
-    @pytest.mark.parametrize("channel_selector", [None, 'average', 0])
+    @pytest.mark.parametrize("channel_selector", [None, "average", 0])
     def test_from_file(self, num_channels, channel_selector):
         """Test loading a signal from a file."""
         with tempfile.TemporaryDirectory() as test_dir:
             # Prepare a wav file
-            audio_file = os.path.join(test_dir, 'audio.wav')
+            audio_file = os.path.join(test_dir, "audio.wav")
             if num_channels == 1:
                 # samples is a one-dimensional vector for single-channel signal
                 samples = np.random.rand(self.num_samples)
             else:
                 samples = np.random.rand(self.num_samples, num_channels)
-            sf.write(audio_file, samples, self.sample_rate, 'float')
+            sf.write(audio_file, samples, self.sample_rate, "float")
 
             # Create UUT
             uut = AudioSegment.from_file(audio_file, channel_selector=channel_selector)
 
             # Create golden reference
             # Note: AudioSegment converts input samples to float32
-            golden_samples = select_channels(samples.astype('float32'), channel_selector)
-            expected_num_channels = 1 if golden_samples.ndim == 1 else golden_samples.shape[1]
+            golden_samples = select_channels(
+                samples.astype("float32"), channel_selector
+            )
+            expected_num_channels = (
+                1 if golden_samples.ndim == 1 else golden_samples.shape[1]
+            )
 
             # Test UUT
             assert uut.num_channels == expected_num_channels
@@ -196,26 +220,31 @@ class TestAudioSegment:
         """Test loading a signal from a file."""
         with tempfile.TemporaryDirectory() as test_dir:
             # Prepare a wav file
-            audio_file = os.path.join(test_dir, 'audio.wav')
+            audio_file = os.path.join(test_dir, "audio.wav")
             if data_channels == 1:
                 # samples is a one-dimensional vector for single-channel signal
                 samples = np.random.rand(self.num_samples)
             else:
                 samples = np.random.rand(self.num_samples, data_channels)
-            sf.write(audio_file, samples, self.sample_rate, 'float')
+            sf.write(audio_file, samples, self.sample_rate, "float")
 
-            noise_file = os.path.join(test_dir, 'noise.wav')
+            noise_file = os.path.join(test_dir, "noise.wav")
             if noise_channels == 1:
                 # samples is a one-dimensional vector for single-channel signal
                 samples = np.random.rand(self.num_samples)
             else:
                 samples = np.random.rand(self.num_samples, noise_channels)
-            sf.write(noise_file, samples, self.sample_rate, 'float')
+            sf.write(noise_file, samples, self.sample_rate, "float")
 
-            manifest_file = os.path.join(test_dir, 'noise_manifest.json')
-            with open(manifest_file, 'w') as fout:
-                item = {'audio_filepath': os.path.abspath(noise_file), 'label': '-', 'duration': 0.1, 'offset': 0.0}
-                fout.write(f'{json.dumps(item)}\n')
+            manifest_file = os.path.join(test_dir, "noise_manifest.json")
+            with open(manifest_file, "w") as fout:
+                item = {
+                    "audio_filepath": os.path.abspath(noise_file),
+                    "label": "-",
+                    "duration": 0.1,
+                    "offset": 0.0,
+                }
+                fout.write(f"{json.dumps(item)}\n")
 
             perturber = NoisePerturbation(manifest_file)
             audio = AudioSegment.from_file(audio_file)
@@ -228,7 +257,9 @@ class TestAudioSegment:
                     assert False, "perturb_with_input_noise failed with ref_mic=0"
 
                 with pytest.raises(ValueError):
-                    _ = perturber.perturb_with_input_noise(audio, noise, ref_mic=data_channels)
+                    _ = perturber.perturb_with_input_noise(
+                        audio, noise, ref_mic=data_channels
+                    )
 
                 try:
                     _ = perturber.perturb_with_foreground_noise(audio, noise, ref_mic=0)
@@ -236,7 +267,9 @@ class TestAudioSegment:
                     assert False, "perturb_with_foreground_noise failed with ref_mic=0"
 
                 with pytest.raises(ValueError):
-                    _ = perturber.perturb_with_foreground_noise(audio, noise, ref_mic=data_channels)
+                    _ = perturber.perturb_with_foreground_noise(
+                        audio, noise, ref_mic=data_channels
+                    )
             else:
                 with pytest.raises(ValueError):
                     _ = perturber.perturb_with_input_noise(audio, noise)
@@ -247,10 +280,10 @@ class TestAudioSegment:
         """Test loading a signal from a file and apply silence perturbation"""
         with tempfile.TemporaryDirectory() as test_dir:
             # Prepare a wav file
-            audio_file = os.path.join(test_dir, 'audio.wav')
+            audio_file = os.path.join(test_dir, "audio.wav")
             # samples is a one-dimensional vector for single-channel signal
             samples = np.random.rand(self.num_samples)
-            sf.write(audio_file, samples, self.sample_rate, 'float')
+            sf.write(audio_file, samples, self.sample_rate, "float")
 
             dur = 2
             perturber = SilencePerturbation(
@@ -270,12 +303,14 @@ class TestAudioSegment:
     @pytest.mark.parametrize(
         "num_channels, channel_selectors",
         [
-            (1, [None, 'average', 0]),
-            (3, [None, 'average', 0, 1, [0, 1]]),
+            (1, [None, "average", 0]),
+            (3, [None, "average", 0, 1, [0, 1]]),
         ],
     )
     @pytest.mark.parametrize("sample_rate", [8000, 16000, 22500])
-    def test_audio_segment_from_file(self, tmpdir, num_channels, channel_selectors, sample_rate):
+    def test_audio_segment_from_file(
+        self, tmpdir, num_channels, channel_selectors, sample_rate
+    ):
         """Test loading and audio signal from a file."""
         signal_len_sec = 4
         num_samples = signal_len_sec * sample_rate
@@ -284,19 +319,23 @@ class TestAudioSegment:
 
         for n in range(num_examples):
             # Create a test vector
-            audio_file = os.path.join(tmpdir, f'test_audio_{n:02}.wav')
+            audio_file = os.path.join(tmpdir, f"test_audio_{n:02}.wav")
             samples = np.random.randn(num_samples, num_channels)
-            sf.write(audio_file, samples, sample_rate, 'float')
+            sf.write(audio_file, samples, sample_rate, "float")
 
             for channel_selector in channel_selectors:
                 if channel_selector is None:
                     ref_samples = samples
-                elif isinstance(channel_selector, int) or isinstance(channel_selector, list):
+                elif isinstance(channel_selector, int) or isinstance(
+                    channel_selector, list
+                ):
                     ref_samples = samples[:, channel_selector]
-                elif channel_selector == 'average':
+                elif channel_selector == "average":
                     ref_samples = np.mean(samples, axis=1)
                 else:
-                    raise ValueError(f'Unexpected value of channel_selector {channel_selector}')
+                    raise ValueError(
+                        f"Unexpected value of channel_selector {channel_selector}"
+                    )
 
                 # 1) Load complete audio
                 # Reference
@@ -304,42 +343,47 @@ class TestAudioSegment:
                 ref_channels = 1 if ref_samples.ndim == 1 else ref_samples.shape[1]
 
                 # UUT
-                audio_segment = AudioSegment.from_file(audio_file, channel_selector=channel_selector)
-
-                # Test
-                assert (
-                    audio_segment.sample_rate == sample_rate
-                ), f'channel_selector {channel_selector}, sample rate not matching: {audio_segment.sample_rate} != {sample_rate}'
-                assert (
-                    audio_segment.num_channels == ref_channels
-                ), f'channel_selector {channel_selector}, num channels not matching: {audio_segment.num_channels} != {ref_channels}'
-                assert audio_segment.num_samples == len(
-                    ref_samples
-                ), f'channel_selector {channel_selector}, num samples not matching: {audio_segment.num_samples} != {len(ref_samples)}'
-                assert np.allclose(
-                    audio_segment.samples, ref_samples, rtol=rtol, atol=atol
-                ), f'channel_selector {channel_selector}, samples not matching'
-
-                # 2) Load a with duration=None and offset=None, should load the whole audio
-
-                # UUT
                 audio_segment = AudioSegment.from_file(
-                    audio_file, offset=None, duration=None, channel_selector=channel_selector
+                    audio_file, channel_selector=channel_selector
                 )
 
                 # Test
                 assert (
                     audio_segment.sample_rate == sample_rate
-                ), f'channel_selector {channel_selector}, offset {offset}, duration {duration}, sample rate not matching: {audio_segment.sample_rate} != {sample_rate}'
+                ), f"channel_selector {channel_selector}, sample rate not matching: {audio_segment.sample_rate} != {sample_rate}"
                 assert (
                     audio_segment.num_channels == ref_channels
-                ), f'channel_selector {channel_selector}, offset {offset}, duration {duration}, num channels not matching: {audio_segment.num_channels} != {ref_channels}'
+                ), f"channel_selector {channel_selector}, num channels not matching: {audio_segment.num_channels} != {ref_channels}"
                 assert audio_segment.num_samples == len(
                     ref_samples
-                ), f'channel_selector {channel_selector}, offset {offset}, duration {duration}, num samples not matching: {audio_segment.num_samples} != {len(ref_samples)}'
+                ), f"channel_selector {channel_selector}, num samples not matching: {audio_segment.num_samples} != {len(ref_samples)}"
                 assert np.allclose(
                     audio_segment.samples, ref_samples, rtol=rtol, atol=atol
-                ), f'channel_selector {channel_selector}, offset {offset}, duration {duration}, samples not matching'
+                ), f"channel_selector {channel_selector}, samples not matching"
+
+                # 2) Load a with duration=None and offset=None, should load the whole audio
+
+                # UUT
+                audio_segment = AudioSegment.from_file(
+                    audio_file,
+                    offset=None,
+                    duration=None,
+                    channel_selector=channel_selector,
+                )
+
+                # Test
+                assert (
+                    audio_segment.sample_rate == sample_rate
+                ), f"channel_selector {channel_selector}, offset {offset}, duration {duration}, sample rate not matching: {audio_segment.sample_rate} != {sample_rate}"
+                assert (
+                    audio_segment.num_channels == ref_channels
+                ), f"channel_selector {channel_selector}, offset {offset}, duration {duration}, num channels not matching: {audio_segment.num_channels} != {ref_channels}"
+                assert audio_segment.num_samples == len(
+                    ref_samples
+                ), f"channel_selector {channel_selector}, offset {offset}, duration {duration}, num samples not matching: {audio_segment.num_samples} != {len(ref_samples)}"
+                assert np.allclose(
+                    audio_segment.samples, ref_samples, rtol=rtol, atol=atol
+                ), f"channel_selector {channel_selector}, offset {offset}, duration {duration}, samples not matching"
 
                 # 3) Load a random segment
                 offset = 0.45 * np.random.rand() * signal_len_sec
@@ -352,34 +396,39 @@ class TestAudioSegment:
 
                 # UUT
                 audio_segment = AudioSegment.from_file(
-                    audio_file, offset=offset, duration=duration, channel_selector=channel_selector
+                    audio_file,
+                    offset=offset,
+                    duration=duration,
+                    channel_selector=channel_selector,
                 )
 
                 # Test
                 assert (
                     audio_segment.sample_rate == sample_rate
-                ), f'channel_selector {channel_selector}, offset {offset}, duration {duration}, sample rate not matching: {audio_segment.sample_rate} != {sample_rate}'
+                ), f"channel_selector {channel_selector}, offset {offset}, duration {duration}, sample rate not matching: {audio_segment.sample_rate} != {sample_rate}"
                 assert (
                     audio_segment.num_channels == ref_channels
-                ), f'channel_selector {channel_selector}, offset {offset}, duration {duration}, num channels not matching: {audio_segment.num_channels} != {ref_channels}'
+                ), f"channel_selector {channel_selector}, offset {offset}, duration {duration}, num channels not matching: {audio_segment.num_channels} != {ref_channels}"
                 assert audio_segment.num_samples == len(
                     ref_samples
-                ), f'channel_selector {channel_selector}, offset {offset}, duration {duration}, num samples not matching: {audio_segment.num_samples} != {len(ref_samples)}'
+                ), f"channel_selector {channel_selector}, offset {offset}, duration {duration}, num samples not matching: {audio_segment.num_samples} != {len(ref_samples)}"
                 assert np.allclose(
                     audio_segment.samples, ref_samples, rtol=rtol, atol=atol
-                ), f'channel_selector {channel_selector}, offset {offset}, duration {duration}, samples not matching'
+                ), f"channel_selector {channel_selector}, offset {offset}, duration {duration}, samples not matching"
 
     @pytest.mark.unit
     @pytest.mark.parametrize(
         "num_channels, channel_selectors",
         [
-            (1, [None, 'average', 0]),
-            (3, [None, 'average', 0, 1, [0, 1]]),
+            (1, [None, "average", 0]),
+            (3, [None, "average", 0, 1, [0, 1]]),
         ],
     )
     @pytest.mark.parametrize("offset", [0, 1.5])
     @pytest.mark.parametrize("duration", [1, 2])
-    def test_audio_segment_multichannel_with_list(self, tmpdir, num_channels, channel_selectors, offset, duration):
+    def test_audio_segment_multichannel_with_list(
+        self, tmpdir, num_channels, channel_selectors, offset, duration
+    ):
         """Test loading an audio signal from a list of single-channel files."""
         sample_rate = 16000
         signal_len_sec = 5
@@ -392,48 +441,62 @@ class TestAudioSegment:
         # Save audio
         audio_files = []
         for m in range(num_channels):
-            a_file = os.path.join(tmpdir, f'ch_{m}.wav')
+            a_file = os.path.join(tmpdir, f"ch_{m}.wav")
             sf.write(a_file, samples[:, m], sample_rate)
             audio_files.append(a_file)
-        mc_file = os.path.join(tmpdir, f'mc.wav')
+        mc_file = os.path.join(tmpdir, f"mc.wav")
         sf.write(mc_file, samples, sample_rate)
 
         for channel_selector in channel_selectors:
 
             # UUT: loading audio from a list of files
             uut_segment = AudioSegment.from_file(
-                audio_file=audio_files, offset=offset, duration=duration, channel_selector=channel_selector
+                audio_file=audio_files,
+                offset=offset,
+                duration=duration,
+                channel_selector=channel_selector,
             )
 
             # Reference: load from the original file
             ref_segment = AudioSegment.from_file(
-                audio_file=mc_file, offset=offset, duration=duration, channel_selector=channel_selector
+                audio_file=mc_file,
+                offset=offset,
+                duration=duration,
+                channel_selector=channel_selector,
             )
 
             # Check
             assert (
                 uut_segment.sample_rate == ref_segment.sample_rate
-            ), f'channel_selector {channel_selector}: expecting {ref_segment.sample_rate}, but UUT segment has {uut_segment.sample_rate}'
+            ), f"channel_selector {channel_selector}: expecting {ref_segment.sample_rate}, but UUT segment has {uut_segment.sample_rate}"
             assert (
                 uut_segment.num_samples == ref_segment.num_samples
-            ), f'channel_selector {channel_selector}: expecting {ref_segment.num_samples}, but UUT segment has {uut_segment.num_samples}'
+            ), f"channel_selector {channel_selector}: expecting {ref_segment.num_samples}, but UUT segment has {uut_segment.num_samples}"
             assert np.allclose(
                 uut_segment.samples, ref_segment.samples, rtol=rtol, atol=atol
-            ), f'channel_selector {channel_selector}: samples not matching'
+            ), f"channel_selector {channel_selector}: samples not matching"
 
         # Try to get a channel that is out of range.
         with pytest.raises(RuntimeError, match="Channel cannot be selected"):
-            AudioSegment.from_file(audio_file=audio_files, channel_selector=num_channels)
+            AudioSegment.from_file(
+                audio_file=audio_files, channel_selector=num_channels
+            )
 
         if num_channels > 1:
             # Try to load a list of multichannel files
             # This is expected to fail since we only support loading a single-channel signal
             # from each file when audio_file is a list
-            with pytest.raises(RuntimeError, match="Expecting a single-channel audio signal"):
+            with pytest.raises(
+                RuntimeError, match="Expecting a single-channel audio signal"
+            ):
                 AudioSegment.from_file(audio_file=[mc_file, mc_file])
 
-            with pytest.raises(RuntimeError, match="Expecting a single-channel audio signal"):
-                AudioSegment.from_file(audio_file=[mc_file, mc_file], channel_selector=0)
+            with pytest.raises(
+                RuntimeError, match="Expecting a single-channel audio signal"
+            ):
+                AudioSegment.from_file(
+                    audio_file=[mc_file, mc_file], channel_selector=0
+                )
 
     @pytest.mark.unit
     @pytest.mark.parametrize("target_sr", [8000, 16000])
@@ -454,13 +517,13 @@ class TestAudioSegment:
 
         for n in range(num_examples):
             # Create a test vector
-            audio_file = os.path.join(tmpdir, f'test_audio_{n:02}.wav')
+            audio_file = os.path.join(tmpdir, f"test_audio_{n:02}.wav")
             samples = np.random.randn(num_samples)
             # normalize
             samples = samples / np.max(samples)
             # apply random scaling and window to have some samples cut by trim
             samples = np.random.rand() * np.hanning(num_samples) * samples
-            sf.write(audio_file, samples, sample_rate, 'float')
+            sf.write(audio_file, samples, sample_rate, "float")
 
             for trim_setup in trim_setups:
                 # UUT 1: load from a path
@@ -486,4 +549,6 @@ class TestAudioSegment:
                 )
 
                 # Test
-                assert audio_segment_1 == audio_segment_2, f'trim setup {trim_setup}, loaded segments not matching'
+                assert (
+                    audio_segment_1 == audio_segment_2
+                ), f"trim setup {trim_setup}, loaded segments not matching"

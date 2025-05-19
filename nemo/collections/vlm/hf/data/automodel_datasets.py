@@ -23,10 +23,12 @@ from nemo.collections.llm.gpt.data.hf_dataset import \
 
 
 def mk_hf_vlm_dataset_fineweb_edu(data_path, processor, mbs, gbs):
-    '''
+    """
     FineWeb-Edu dataset
-    '''
-    skipped_tokens = vlm.HFAutoModelForImageTextToText.extract_skipped_token_ids(processor)
+    """
+    skipped_tokens = vlm.HFAutoModelForImageTextToText.extract_skipped_token_ids(
+        processor
+    )
 
     def collate_fn(examples, processor):
         # Simply tokenize the text directly
@@ -60,10 +62,12 @@ def mk_hf_vlm_dataset_fineweb_edu(data_path, processor, mbs, gbs):
 
 
 def mk_hf_vlm_dataset_rdr(data_path, processor, mbs, gbs):
-    '''
+    """
     RDR dataset
-    '''
-    skipped_tokens = vlm.HFAutoModelForImageTextToText.extract_skipped_token_ids(processor)
+    """
+    skipped_tokens = vlm.HFAutoModelForImageTextToText.extract_skipped_token_ids(
+        processor
+    )
 
     def collate_fn(examples, processor):
         def fmt(sample):
@@ -71,11 +75,20 @@ def mk_hf_vlm_dataset_rdr(data_path, processor, mbs, gbs):
             conversation = [
                 {
                     "role": "user",
-                    "content": [{"type": "text", "text": instruction}, {"type": "image", "image": sample["image"]}],
+                    "content": [
+                        {"type": "text", "text": instruction},
+                        {"type": "image", "image": sample["image"]},
+                    ],
                 },
-                {"role": "assistant", "content": [{"type": "text", "text": sample["text"]}]},
+                {
+                    "role": "assistant",
+                    "content": [{"type": "text", "text": sample["text"]}],
+                },
             ]
-            return {"conversation": conversation, "images": [sample['image'].convert("RGB")]}
+            return {
+                "conversation": conversation,
+                "images": [sample["image"].convert("RGB")],
+            }
 
         text = []
         images = []
@@ -88,7 +101,7 @@ def mk_hf_vlm_dataset_rdr(data_path, processor, mbs, gbs):
                     add_generation_prompt=False,
                 )
             )
-            images += example['images']
+            images += example["images"]
 
         # Tokenize the text and process the images
         batch = processor(
@@ -131,7 +144,7 @@ def json2token(obj, sort_json_key: bool = True):
             else:
                 keys = obj.keys()
             for k in keys:
-                output += fr"<s_{k}>" + json2token(obj[k], sort_json_key) + fr"</s_{k}>"
+                output += rf"<s_{k}>" + json2token(obj[k], sort_json_key) + rf"</s_{k}>"
             return output
     elif type(obj) == list:
         return r"<sep/>".join([json2token(item, sort_json_key) for item in obj])
@@ -141,23 +154,31 @@ def json2token(obj, sort_json_key: bool = True):
 
 
 def mk_hf_vlm_dataset_cord_v2(data_path, processor, mbs, gbs):
-    '''
+    """
     CORD-V2 dataset
-    '''
-    skipped_tokens = vlm.HFAutoModelForImageTextToText.extract_skipped_token_ids(processor)
+    """
+    skipped_tokens = vlm.HFAutoModelForImageTextToText.extract_skipped_token_ids(
+        processor
+    )
 
     def train_collate_fn(examples, processor):
         processed_examples = []
         for example in examples:
             ground_truth = json.loads(example["ground_truth"])
-            if "gt_parses" in ground_truth:  # when multiple ground truths are available, e.g., docvqa
+            if (
+                "gt_parses" in ground_truth
+            ):  # when multiple ground truths are available, e.g., docvqa
                 assert isinstance(ground_truth["gt_parses"], list)
                 gt_jsons = ground_truth["gt_parses"]
             else:
-                assert "gt_parse" in ground_truth and isinstance(ground_truth["gt_parse"], dict)
+                assert "gt_parse" in ground_truth and isinstance(
+                    ground_truth["gt_parse"], dict
+                )
                 gt_jsons = [ground_truth["gt_parse"]]
 
-            text = random.choice([json2token(gt_json, sort_json_key=True) for gt_json in gt_jsons])
+            text = random.choice(
+                [json2token(gt_json, sort_json_key=True) for gt_json in gt_jsons]
+            )
             processed_examples.append((example["image"], text))
 
         examples = processed_examples
@@ -186,7 +207,13 @@ def mk_hf_vlm_dataset_cord_v2(data_path, processor, mbs, gbs):
             text_prompt = processor.apply_chat_template(conversation)
             texts.append(text_prompt)
 
-        batch = processor(text=texts, images=images, padding=True, truncation=True, return_tensors="pt")
+        batch = processor(
+            text=texts,
+            images=images,
+            padding=True,
+            truncation=True,
+            return_tensors="pt",
+        )
 
         batch["pixel_values"] = batch["pixel_values"].to(torch.bfloat16)
         labels = batch["input_ids"].clone()[:, 1:]  # shift labels by 1

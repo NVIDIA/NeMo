@@ -86,14 +86,21 @@ class TestMistral:
         assert recipe.peft.__fn_or_cls__ == LoRA
 
     @pytest.mark.parametrize("num_nodes,num_gpus_per_node", [(1, 8), (2, 4), (4, 2)])
-    def test_pretrain_recipe_with_different_configurations(self, recipe_module, num_nodes, num_gpus_per_node):
-        recipe = recipe_module.pretrain_recipe(num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node)
+    def test_pretrain_recipe_with_different_configurations(
+        self, recipe_module, num_nodes, num_gpus_per_node
+    ):
+        recipe = recipe_module.pretrain_recipe(
+            num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node
+        )
         assert recipe.trainer.num_nodes == num_nodes
         assert recipe.trainer.devices == num_gpus_per_node
 
     def test_trainer_parallelism_options(self, recipe_module):
         trainer_config = recipe_module.trainer(
-            tensor_parallelism=2, pipeline_parallelism=2, context_parallelism=4, sequence_parallelism=True
+            tensor_parallelism=2,
+            pipeline_parallelism=2,
+            context_parallelism=4,
+            sequence_parallelism=True,
         )
         assert trainer_config.strategy.tensor_model_parallel_size == 2
         assert trainer_config.strategy.pipeline_model_parallel_size == 2

@@ -57,14 +57,14 @@ Usage:
 
 @dataclass
 class MTFineTuneConfig(NemoConfig):
-    name: Optional[str] = 'MTEncDec'
+    name: Optional[str] = "MTEncDec"
     model_path: str = MISSING
     do_training: bool = True
     do_testing: bool = False
     model: MTEncDecModelConfig = field(default_factory=lambda: MTEncDecModelConfig())
     trainer: Optional[TrainerConfig] = field(default_factory=lambda: TrainerConfig())
     exp_manager: Optional[ExpManagerConfig] = field(
-        default_factory=lambda: ExpManagerConfig(name='MTEncDec', files_to_copy=[])
+        default_factory=lambda: ExpManagerConfig(name="MTEncDec", files_to_copy=[])
     )
 
 
@@ -72,22 +72,31 @@ class MTFineTuneConfig(NemoConfig):
 def main(cfg: MTFineTuneConfig) -> None:
     # merge default config with user specified config
     default_cfg = MTFineTuneConfig()
-    default_cfg.model = MTEncDecModel.restore_from(restore_path=cfg.model_path, return_config=True)
-    del default_cfg.model.optim, default_cfg.model.train_ds, default_cfg.model.validation_ds, default_cfg.model.test_ds
+    default_cfg.model = MTEncDecModel.restore_from(
+        restore_path=cfg.model_path, return_config=True
+    )
+    del (
+        default_cfg.model.optim,
+        default_cfg.model.train_ds,
+        default_cfg.model.validation_ds,
+        default_cfg.model.test_ds,
+    )
     cfg = update_model_config(default_cfg, cfg, drop_missing_subconfigs=False)
     logging.info("\n\n************** Experiment configuration ***********")
-    logging.info(f'Config: {OmegaConf.to_yaml(cfg)}')
+    logging.info(f"Config: {OmegaConf.to_yaml(cfg)}")
 
     # training is managed by PyTorch Lightning
     trainer_cfg = OmegaConf.to_container(cfg.trainer)
-    trainer_cfg.pop('strategy', None)
+    trainer_cfg.pop("strategy", None)
     trainer = Trainer(strategy=NLPDDPStrategy(), **trainer_cfg)
 
     # experiment logs, checkpoints, and auto-resume are managed by exp_manager and PyTorch Lightning
     exp_manager(trainer, cfg.exp_manager)
 
     # everything needed to train translation models is encapsulated in the NeMo MTEncdDecModel
-    mt_model = MTEncDecModel.restore_from(restore_path=cfg.model_path, override_config_path=cfg.model, trainer=trainer)
+    mt_model = MTEncDecModel.restore_from(
+        restore_path=cfg.model_path, override_config_path=cfg.model, trainer=trainer
+    )
 
     mt_model.setup_training_data(cfg.model.train_ds)
     mt_model.setup_multiple_validation_data(val_data_config=cfg.model.validation_ds)
@@ -105,5 +114,5 @@ def main(cfg: MTFineTuneConfig) -> None:
         trainer.test(mt_model)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

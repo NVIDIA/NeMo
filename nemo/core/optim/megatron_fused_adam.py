@@ -47,7 +47,9 @@ class MegatronFusedAdam(FusedAdam):
     def __init__(self, *args, max_norm=0, norm_type=2, **kwargs):
         super().__init__(*args, **kwargs)
 
-        assert norm_type == 2, "Currently only norm_type=2 is supported for MegatronFusedAdam"
+        assert (
+            norm_type == 2
+        ), "Currently only norm_type=2 is supported for MegatronFusedAdam"
 
         # Gradient clipping parameters
         self.max_norm = float(max_norm)
@@ -63,17 +65,25 @@ class MegatronFusedAdam(FusedAdam):
             loss = closure()
 
         for group, group_master in zip(self.param_groups, self.param_groups_master):
-            if len(group['params']) == 0:
+            if len(group["params"]) == 0:
                 continue
-            device = group['params'][0].device
-            bias_correction = 1 if group['bias_correction'] else 0
-            beta1, beta2 = group['betas']
+            device = group["params"][0].device
+            bias_correction = 1 if group["bias_correction"] else 0
+            beta1, beta2 = group["betas"]
 
             # Assume same step per parameter group for simplicity
-            if 'step' in group:
-                group['step'] += 1 if not self.capturable else (self._dummy_overflow_buf != 1).to(torch.int)
+            if "step" in group:
+                group["step"] += (
+                    1
+                    if not self.capturable
+                    else (self._dummy_overflow_buf != 1).to(torch.int)
+                )
             else:
-                group['step'] = 1 if not self.capturable else torch.tensor([1], dtype=torch.int, device=device)
+                group["step"] = (
+                    1
+                    if not self.capturable
+                    else torch.tensor([1], dtype=torch.int, device=device)
+                )
 
             # Check for overflow in gradients
             found_inf = (
@@ -98,10 +108,13 @@ class MegatronFusedAdam(FusedAdam):
                 # Unscale gradients and find L2 norm
                 fp32_grads_for_norm = []
                 fp16_grads_for_norm = []
-                for p in group['params']:
+                for p in group["params"]:
                     if p.grad is None:
                         continue
-                    assert p.dtype in [torch.float32, torch.float16], 'Only FP32/FP16 model parameters are supported'
+                    assert p.dtype in [
+                        torch.float32,
+                        torch.float16,
+                    ], "Only FP32/FP16 model parameters are supported"
 
                     is_not_shared = param_is_not_shared(p)
                     is_not_tp_duplicate = param_is_not_tensor_parallel_duplicate(p)
@@ -134,18 +147,24 @@ class MegatronFusedAdam(FusedAdam):
                     fp16_grad_norm = torch.zeros(1, dtype=torch.float32, device=device)
 
                 # Prep L2 norm for allreduce
-                total_norm = (fp32_grad_norm ** self.norm_type + fp16_grad_norm ** self.norm_type).squeeze()
+                total_norm = (
+                    fp32_grad_norm**self.norm_type + fp16_grad_norm**self.norm_type
+                ).squeeze()
 
                 # Allreduce L2 norm across model-parallel GPUs
                 torch.distributed.all_reduce(
-                    total_norm, op=torch.distributed.ReduceOp.SUM, group=parallel_state.get_model_parallel_group()
+                    total_norm,
+                    op=torch.distributed.ReduceOp.SUM,
+                    group=parallel_state.get_model_parallel_group(),
                 )
                 total_norm = total_norm ** (1.0 / self.norm_type)
 
                 # Combine unscaling factor with clip coefficient
                 clip_coeff = self.max_norm / (total_norm + 1.0e-6)
                 clip_coeff_clamped = torch.clamp(clip_coeff, max=1.0)
-                combined_scale = clip_coeff_clamped * combined_scale  # Potential issue with associativity?
+                combined_scale = (
+                    clip_coeff_clamped * combined_scale
+                )  # Potential issue with associativity?
 
             # Create lists for multi-tensor apply
             g_16, p_16, m_16, v_16 = [], [], [], []
@@ -153,50 +172,50 @@ class MegatronFusedAdam(FusedAdam):
             p_16_master = []
             p_32_master = []
 
-            for p, p_master in zip(group['params'], group_master['params']):
+            for p, p_master in zip(group["params"], group_master["params"]):
                 if p.grad is None:
                     continue
                 if p.grad.data.is_sparse:
                     raise RuntimeError(
-                        'MegatronFusedAdam does not support sparse gradients, please consider SparseAdam instead'
+                        "MegatronFusedAdam does not support sparse gradients, please consider SparseAdam instead"
                     )
 
                 state = self.state[p]
                 # State initialization
                 if len(state) == 0:
                     # Exponential moving average of gradient values
-                    state['exp_avg'] = torch.zeros_like(p.data).float()
+                    state["exp_avg"] = torch.zeros_like(p.data).float()
                     # Exponential moving average of squared gradient values
-                    state['exp_avg_sq'] = torch.zeros_like(p.data).float()
+                    state["exp_avg_sq"] = torch.zeros_like(p.data).float()
 
                 if p.dtype == torch.float16:
                     p_16_master.append(p_master.data)
                     g_16.append(p.grad.data)
                     p_16.append(p.data)
-                    m_16.append(state['exp_avg'])
-                    v_16.append(state['exp_avg_sq'])
+                    m_16.append(state["exp_avg"])
+                    v_16.append(state["exp_avg_sq"])
                 elif p.dtype == torch.float32:
                     p_32_master.append(p_master.data)
                     g_32.append(p.grad.data)
                     p_32.append(p.data)
-                    m_32.append(state['exp_avg'])
-                    v_32.append(state['exp_avg_sq'])
+                    m_32.append(state["exp_avg"])
+                    v_32.append(state["exp_avg_sq"])
                 else:
-                    raise RuntimeError('MegatronFusedAdam only supports fp16 and fp32.')
+                    raise RuntimeError("MegatronFusedAdam only supports fp16 and fp32.")
 
             if len(g_16) > 0:
                 multi_tensor_applier(
                     self.multi_tensor_adam_capturable_master,
                     self._dummy_overflow_buf,
                     [g_16, p_16, m_16, v_16, p_16_master],
-                    group['lr'],
+                    group["lr"],
                     beta1,
                     beta2,
-                    group['eps'],
-                    group['step'],
+                    group["eps"],
+                    group["step"],
                     self.adam_w_mode,
                     bias_correction,
-                    group['weight_decay'],
+                    group["weight_decay"],
                     combined_scale,
                 )
 
@@ -205,14 +224,14 @@ class MegatronFusedAdam(FusedAdam):
                     self.multi_tensor_adam_capturable_master,
                     self._dummy_overflow_buf,
                     [g_32, p_32, m_32, v_32, p_32_master],
-                    group['lr'],
+                    group["lr"],
                     beta1,
                     beta2,
-                    group['eps'],
-                    group['step'],
+                    group["eps"],
+                    group["step"],
                     self.adam_w_mode,
                     bias_correction,
-                    group['weight_decay'],
+                    group["weight_decay"],
                     combined_scale,
                 )
 

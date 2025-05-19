@@ -26,7 +26,7 @@ from nemo.core.classes.module import NeuralModule
 from nemo.core.neural_types import (AcousticEncodedRepresentation, LengthsType,
                                     NeuralType, SpectrogramType)
 
-__all__ = ['RNNEncoder']
+__all__ = ["RNNEncoder"]
 
 
 class RNNEncoder(NeuralModule, Exportable):
@@ -63,29 +63,31 @@ class RNNEncoder(NeuralModule, Exportable):
         Returns:
             A tuple of input examples.
         """
-        input_example = torch.randn(16, self._feat_in, 256).to(next(self.parameters()).device)
-        input_example_length = torch.randint(0, 256, (16,)).to(next(self.parameters()).device)
+        input_example = torch.randn(16, self._feat_in, 256).to(
+            next(self.parameters()).device
+        )
+        input_example_length = torch.randint(0, 256, (16,)).to(
+            next(self.parameters()).device
+        )
         return tuple([input_example, input_example_length])
 
     @property
     def input_types(self):
-        """Returns definitions of module input ports.
-        """
+        """Returns definitions of module input ports."""
         return OrderedDict(
             {
-                "audio_signal": NeuralType(('B', 'D', 'T'), SpectrogramType()),
-                "length": NeuralType(tuple('B'), LengthsType()),
+                "audio_signal": NeuralType(("B", "D", "T"), SpectrogramType()),
+                "length": NeuralType(tuple("B"), LengthsType()),
             }
         )
 
     @property
     def output_types(self):
-        """Returns definitions of module output ports.
-        """
+        """Returns definitions of module output ports."""
         return OrderedDict(
             {
-                "outputs": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
-                "encoded_lengths": NeuralType(tuple('B'), LengthsType()),
+                "outputs": NeuralType(("B", "D", "T"), AcousticEncodedRepresentation()),
+                "encoded_lengths": NeuralType(tuple("B"), LengthsType()),
             }
         )
 
@@ -95,9 +97,9 @@ class RNNEncoder(NeuralModule, Exportable):
         n_layers: int,
         d_model: int,
         proj_size: int = -1,
-        rnn_type: str = 'lstm',
+        rnn_type: str = "lstm",
         bidirectional: bool = True,
-        subsampling: str = 'striding',
+        subsampling: str = "striding",
         subsampling_factor: int = 4,
         subsampling_conv_channels: int = -1,
         dropout: float = 0.2,
@@ -110,12 +112,12 @@ class RNNEncoder(NeuralModule, Exportable):
         if subsampling_conv_channels == -1:
             subsampling_conv_channels = proj_size
         if subsampling and subsampling_factor > 1:
-            if subsampling in ['stacking', 'stacking_norm']:
+            if subsampling in ["stacking", "stacking_norm"]:
                 self.pre_encode = StackingSubsampling(
                     subsampling_factor=subsampling_factor,
                     feat_in=feat_in,
                     feat_out=proj_size,
-                    norm=True if 'norm' in subsampling else False,
+                    norm=True if "norm" in subsampling else False,
                 )
             else:
                 self.pre_encode = ConvSubsampling(
@@ -135,7 +137,9 @@ class RNNEncoder(NeuralModule, Exportable):
 
         SUPPORTED_RNN = {"lstm": nn.LSTM, "gru": nn.GRU, "rnn": nn.RNN}
         if rnn_type not in SUPPORTED_RNN:
-            raise ValueError(f"rnn_type can be one from the following:{SUPPORTED_RNN.keys()}")
+            raise ValueError(
+                f"rnn_type can be one from the following:{SUPPORTED_RNN.keys()}"
+            )
         else:
             rnn_module = SUPPORTED_RNN[rnn_type]
 
@@ -161,7 +165,10 @@ class RNNEncoder(NeuralModule, Exportable):
 
         if length is None:
             length = audio_signal.new_full(
-                audio_signal.size(0), max_audio_length, dtype=torch.int32, device=self.seq_range.device
+                audio_signal.size(0),
+                max_audio_length,
+                dtype=torch.int32,
+                device=self.seq_range.device,
             )
 
         audio_signal = torch.transpose(audio_signal, 1, 2)

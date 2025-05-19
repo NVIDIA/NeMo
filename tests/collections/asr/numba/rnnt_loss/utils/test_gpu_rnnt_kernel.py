@@ -48,9 +48,12 @@ def log_softmax_grad(x, axis=-1):
 
 
 class TestRNNTCUDAKernels:
-    @pytest.mark.skipif(not cuda.is_available(), reason="CUDA Reductions can only be run when CUDA is available")
+    @pytest.mark.skipif(
+        not cuda.is_available(),
+        reason="CUDA Reductions can only be run when CUDA is available",
+    )
     @pytest.mark.unit
-    @pytest.mark.parametrize('dtype', DTYPES)
+    @pytest.mark.parametrize("dtype", DTYPES)
     def test_compute_alphas_kernel(self, dtype):
         numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
 
@@ -71,8 +74,8 @@ class TestRNNTCUDAKernels:
         )
 
         # Pytorch kernel
-        device = torch.device('cuda')
-        if hasattr(cuda, 'external_stream'):
+        device = torch.device("cuda")
+        if hasattr(cuda, "external_stream"):
             stream = cuda.external_stream(torch.cuda.current_stream(device).cuda_stream)
         else:
             stream = cuda.default_stream()
@@ -95,12 +98,25 @@ class TestRNNTCUDAKernels:
 
         # call kernel
         # log softmax reduction
-        reduce.reduce_max(x_c, denom, rows=V, cols=B * T * U, minus=False, stream=stream)
+        reduce.reduce_max(
+            x_c, denom, rows=V, cols=B * T * U, minus=False, stream=stream
+        )
         reduce.reduce_exp(x_c, denom, rows=V, cols=B * T * U, minus=True, stream=stream)
 
         # alpha kernel
         gpu_rnnt_kernel.compute_alphas_kernel[B, U, stream, 0](
-            x_c, denom, alphas, llForward, input_lengths, label_lengths, labels_c, B, T, U, V, blank_idx,
+            x_c,
+            denom,
+            alphas,
+            llForward,
+            input_lengths,
+            label_lengths,
+            labels_c,
+            B,
+            T,
+            U,
+            V,
+            blank_idx,
         )
 
         # sync kernel
@@ -111,16 +127,19 @@ class TestRNNTCUDAKernels:
         diff = ground_alphas - alphas[0].cpu().numpy()
 
         assert np.abs(diff).mean() <= threshold
-        assert np.square(diff).mean() <= (threshold ** 2)
+        assert np.square(diff).mean() <= (threshold**2)
 
         ll_diff = ground_log_likelihood - llForward[0].cpu().numpy()
 
         assert np.abs(ll_diff).mean() <= threshold
-        assert np.square(ll_diff).mean() <= (threshold ** 2)
+        assert np.square(ll_diff).mean() <= (threshold**2)
 
-    @pytest.mark.skipif(not cuda.is_available(), reason="CUDA Reductions can only be run when CUDA is available")
+    @pytest.mark.skipif(
+        not cuda.is_available(),
+        reason="CUDA Reductions can only be run when CUDA is available",
+    )
     @pytest.mark.unit
-    @pytest.mark.parametrize('dtype', DTYPES)
+    @pytest.mark.parametrize("dtype", DTYPES)
     def test_compute_betas_kernel(self, dtype):
         numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
 
@@ -141,8 +160,8 @@ class TestRNNTCUDAKernels:
         )
 
         # Pytorch kernel
-        device = torch.device('cuda')
-        if hasattr(cuda, 'external_stream'):
+        device = torch.device("cuda")
+        if hasattr(cuda, "external_stream"):
             stream = cuda.external_stream(torch.cuda.current_stream(device).cuda_stream)
         else:
             stream = cuda.default_stream()
@@ -165,12 +184,25 @@ class TestRNNTCUDAKernels:
 
         # call kernel
         # log softmax reduction
-        reduce.reduce_max(x_c, denom, rows=V, cols=B * T * U, minus=False, stream=stream)
+        reduce.reduce_max(
+            x_c, denom, rows=V, cols=B * T * U, minus=False, stream=stream
+        )
         reduce.reduce_exp(x_c, denom, rows=V, cols=B * T * U, minus=True, stream=stream)
 
         # beta kernel
         gpu_rnnt_kernel.compute_betas_kernel[B, U, stream, 0](
-            x_c, denom, betas, llBackward, input_lengths, label_lengths, labels_c, B, T, U, V, blank_idx,
+            x_c,
+            denom,
+            betas,
+            llBackward,
+            input_lengths,
+            label_lengths,
+            labels_c,
+            B,
+            T,
+            U,
+            V,
+            blank_idx,
         )
 
         # sync kernel
@@ -181,16 +213,19 @@ class TestRNNTCUDAKernels:
         diff = ground_alphas - betas[0].cpu().numpy()
 
         assert np.abs(diff).mean() <= threshold
-        assert np.square(diff).mean() <= (threshold ** 2)
+        assert np.square(diff).mean() <= (threshold**2)
 
         ll_diff = ground_log_likelihood - llBackward[0].cpu().numpy()
 
         assert np.abs(ll_diff).mean() <= threshold
-        assert np.square(ll_diff).mean() <= (threshold ** 2)
+        assert np.square(ll_diff).mean() <= (threshold**2)
 
-    @pytest.mark.skipif(not cuda.is_available(), reason="CUDA Reductions can only be run when CUDA is available")
+    @pytest.mark.skipif(
+        not cuda.is_available(),
+        reason="CUDA Reductions can only be run when CUDA is available",
+    )
     @pytest.mark.unit
-    @pytest.mark.parametrize('dtype', DTYPES)
+    @pytest.mark.parametrize("dtype", DTYPES)
     def test_compute_grads_kernel(self, dtype):
         numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
 
@@ -204,7 +239,9 @@ class TestRNNTCUDAKernels:
 
         # Numpy kernel
         x = random.randn(*original_shape)
-        labels = torch.from_numpy(np.array([[1, 1, 1, 2, 2, 2, 1, 2, 2, 1]], dtype=np.int64))  # [1, 10]
+        labels = torch.from_numpy(
+            np.array([[1, 1, 1, 2, 2, 2, 1, 2, 2, 1]], dtype=np.int64)
+        )  # [1, 10]
         audio_len = torch.from_numpy(np.array([T], dtype=np.int64))
         label_len = torch.from_numpy(np.array([U - 1], dtype=np.int64))
         blank_idx = 0
@@ -222,14 +259,16 @@ class TestRNNTCUDAKernels:
         and update the alignments by hand. Instead, we will rely on pytorch to compute the gradient 
         of the log_softmax(x) step and propagate it backwards. 
         """
-        loss_func = rnnt_numpy.RNNTLoss(blank_idx, fastemit_lambda=fastemit_lambda, clamp=clamp)
+        loss_func = rnnt_numpy.RNNTLoss(
+            blank_idx, fastemit_lambda=fastemit_lambda, clamp=clamp
+        )
         loss_val = loss_func(x_np, labels, audio_len, label_len)
         loss_val.sum().backward()
         true_grads = x_np.grad
 
         # Pytorch kernel
-        device = torch.device('cuda')
-        if hasattr(cuda, 'external_stream'):
+        device = torch.device("cuda")
+        if hasattr(cuda, "external_stream"):
             stream = cuda.external_stream(torch.cuda.current_stream(device).cuda_stream)
         else:
             stream = cuda.default_stream()
@@ -255,23 +294,49 @@ class TestRNNTCUDAKernels:
 
         # call kernel
         # log softmax reduction
-        reduce.reduce_max(x_c, denom, rows=V, cols=B * T * U, minus=False, stream=stream)
+        reduce.reduce_max(
+            x_c, denom, rows=V, cols=B * T * U, minus=False, stream=stream
+        )
         reduce.reduce_exp(x_c, denom, rows=V, cols=B * T * U, minus=True, stream=stream)
 
         # alpha kernel
         gpu_rnnt_kernel.compute_alphas_kernel[B, U, stream, 0](
-            x_c, denom, alphas, llForward, input_lengths, label_lengths, labels_c, B, T, U, V, blank_idx,
+            x_c,
+            denom,
+            alphas,
+            llForward,
+            input_lengths,
+            label_lengths,
+            labels_c,
+            B,
+            T,
+            U,
+            V,
+            blank_idx,
         )
 
         # beta kernel
         gpu_rnnt_kernel.compute_betas_kernel[B, U, stream, 0](
-            x_c, denom, betas, llBackward, input_lengths, label_lengths, labels_c, B, T, U, V, blank_idx,
+            x_c,
+            denom,
+            betas,
+            llBackward,
+            input_lengths,
+            label_lengths,
+            labels_c,
+            B,
+            T,
+            U,
+            V,
+            blank_idx,
         )
 
         # gamma kernel
         grad_blocks_per_grid = B * T * U
         grad_threads_per_block = gpu_rnnt_kernel.GPU_RNNT_THREAD_SIZE
-        gpu_rnnt_kernel.compute_grad_kernel[grad_blocks_per_grid, grad_threads_per_block, stream, 0](
+        gpu_rnnt_kernel.compute_grad_kernel[
+            grad_blocks_per_grid, grad_threads_per_block, stream, 0
+        ](
             grads,
             x_c,
             denom,
@@ -298,11 +363,14 @@ class TestRNNTCUDAKernels:
         diff = true_grads - grads[0].cpu().numpy()
 
         assert np.abs(diff).mean() <= threshold
-        assert np.square(diff).mean() <= (threshold ** 2) * 5.0
+        assert np.square(diff).mean() <= (threshold**2) * 5.0
 
-    @pytest.mark.skipif(not cuda.is_available(), reason="CUDA Reductions can only be run when CUDA is available")
+    @pytest.mark.skipif(
+        not cuda.is_available(),
+        reason="CUDA Reductions can only be run when CUDA is available",
+    )
     @pytest.mark.unit
-    @pytest.mark.parametrize('dtype', DTYPES)
+    @pytest.mark.parametrize("dtype", DTYPES)
     def test_compute_grads_kernel_fastemit(self, dtype):
         numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
 
@@ -316,7 +384,9 @@ class TestRNNTCUDAKernels:
 
         # Numpy kernel
         x = random.randn(*original_shape)
-        labels = torch.from_numpy(np.array([[1, 1, 1, 2, 2, 2, 1, 2, 2, 1]], dtype=np.int64))  # [1, 10]
+        labels = torch.from_numpy(
+            np.array([[1, 1, 1, 2, 2, 2, 1, 2, 2, 1]], dtype=np.int64)
+        )  # [1, 10]
         audio_len = torch.from_numpy(np.array([T], dtype=np.int64))
         label_len = torch.from_numpy(np.array([U - 1], dtype=np.int64))
         blank_idx = 0
@@ -334,14 +404,16 @@ class TestRNNTCUDAKernels:
         and update the alignments by hand. Instead, we will rely on pytorch to compute the gradient 
         of the log_softmax(x) step and propagate it backwards. 
         """
-        loss_func = rnnt_numpy.RNNTLoss(blank_idx, fastemit_lambda=fastemit_lambda, clamp=clamp)
+        loss_func = rnnt_numpy.RNNTLoss(
+            blank_idx, fastemit_lambda=fastemit_lambda, clamp=clamp
+        )
         loss_val = loss_func(x_np, labels, audio_len, label_len)
         loss_val.sum().backward()
         true_grads = x_np.grad
 
         # Pytorch kernel
-        device = torch.device('cuda')
-        if hasattr(cuda, 'external_stream'):
+        device = torch.device("cuda")
+        if hasattr(cuda, "external_stream"):
             stream = cuda.external_stream(torch.cuda.current_stream(device).cuda_stream)
         else:
             stream = cuda.default_stream()
@@ -367,23 +439,49 @@ class TestRNNTCUDAKernels:
 
         # call kernel
         # log softmax reduction
-        reduce.reduce_max(x_c, denom, rows=V, cols=B * T * U, minus=False, stream=stream)
+        reduce.reduce_max(
+            x_c, denom, rows=V, cols=B * T * U, minus=False, stream=stream
+        )
         reduce.reduce_exp(x_c, denom, rows=V, cols=B * T * U, minus=True, stream=stream)
 
         # alpha kernel
         gpu_rnnt_kernel.compute_alphas_kernel[B, U, stream, 0](
-            x_c, denom, alphas, llForward, input_lengths, label_lengths, labels_c, B, T, U, V, blank_idx,
+            x_c,
+            denom,
+            alphas,
+            llForward,
+            input_lengths,
+            label_lengths,
+            labels_c,
+            B,
+            T,
+            U,
+            V,
+            blank_idx,
         )
 
         # beta kernel
         gpu_rnnt_kernel.compute_betas_kernel[B, U, stream, 0](
-            x_c, denom, betas, llBackward, input_lengths, label_lengths, labels_c, B, T, U, V, blank_idx,
+            x_c,
+            denom,
+            betas,
+            llBackward,
+            input_lengths,
+            label_lengths,
+            labels_c,
+            B,
+            T,
+            U,
+            V,
+            blank_idx,
         )
 
         # gamma kernel
         grad_blocks_per_grid = B * T * U
         grad_threads_per_block = gpu_rnnt_kernel.GPU_RNNT_THREAD_SIZE
-        gpu_rnnt_kernel.compute_grad_kernel[grad_blocks_per_grid, grad_threads_per_block, stream, 0](
+        gpu_rnnt_kernel.compute_grad_kernel[
+            grad_blocks_per_grid, grad_threads_per_block, stream, 0
+        ](
             grads,
             x_c,
             denom,
@@ -410,11 +508,14 @@ class TestRNNTCUDAKernels:
         diff = true_grads - grads[0].cpu().numpy()
 
         assert np.abs(diff).mean() <= threshold
-        assert np.square(diff).mean() <= (threshold ** 2) * 5
+        assert np.square(diff).mean() <= (threshold**2) * 5
 
-    @pytest.mark.skipif(not cuda.is_available(), reason="CUDA Reductions can only be run when CUDA is available")
+    @pytest.mark.skipif(
+        not cuda.is_available(),
+        reason="CUDA Reductions can only be run when CUDA is available",
+    )
     @pytest.mark.unit
-    @pytest.mark.parametrize('dtype', DTYPES)
+    @pytest.mark.parametrize("dtype", DTYPES)
     def test_compute_grads_kernel_clamp(self, dtype):
         numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
 
@@ -428,7 +529,9 @@ class TestRNNTCUDAKernels:
 
         # Numpy kernel
         x = random.randn(*original_shape)
-        labels = torch.from_numpy(np.array([[1, 1, 1, 2, 2, 2, 1, 2, 2, 1]], dtype=np.int64))  # [1, 10]
+        labels = torch.from_numpy(
+            np.array([[1, 1, 1, 2, 2, 2, 1, 2, 2, 1]], dtype=np.int64)
+        )  # [1, 10]
         audio_len = torch.from_numpy(np.array([T], dtype=np.int64))
         label_len = torch.from_numpy(np.array([U - 1], dtype=np.int64))
         blank_idx = 0
@@ -446,14 +549,16 @@ class TestRNNTCUDAKernels:
         and update the alignments by hand. Instead, we will rely on pytorch to compute the gradient 
         of the log_softmax(x) step and propagate it backwards. 
         """
-        loss_func = rnnt_numpy.RNNTLoss(blank_idx, fastemit_lambda=fastemit_lambda, clamp=clamp)
+        loss_func = rnnt_numpy.RNNTLoss(
+            blank_idx, fastemit_lambda=fastemit_lambda, clamp=clamp
+        )
         loss_val = loss_func(x_np, labels, audio_len, label_len)
         loss_val.sum().backward()
         true_grads = x_np.grad
 
         # Pytorch kernel
-        device = torch.device('cuda')
-        if hasattr(cuda, 'external_stream'):
+        device = torch.device("cuda")
+        if hasattr(cuda, "external_stream"):
             stream = cuda.external_stream(torch.cuda.current_stream(device).cuda_stream)
         else:
             stream = cuda.default_stream()
@@ -479,23 +584,49 @@ class TestRNNTCUDAKernels:
 
         # call kernel
         # log softmax reduction
-        reduce.reduce_max(x_c, denom, rows=V, cols=B * T * U, minus=False, stream=stream)
+        reduce.reduce_max(
+            x_c, denom, rows=V, cols=B * T * U, minus=False, stream=stream
+        )
         reduce.reduce_exp(x_c, denom, rows=V, cols=B * T * U, minus=True, stream=stream)
 
         # alpha kernel
         gpu_rnnt_kernel.compute_alphas_kernel[B, U, stream, 0](
-            x_c, denom, alphas, llForward, input_lengths, label_lengths, labels_c, B, T, U, V, blank_idx,
+            x_c,
+            denom,
+            alphas,
+            llForward,
+            input_lengths,
+            label_lengths,
+            labels_c,
+            B,
+            T,
+            U,
+            V,
+            blank_idx,
         )
 
         # beta kernel
         gpu_rnnt_kernel.compute_betas_kernel[B, U, stream, 0](
-            x_c, denom, betas, llBackward, input_lengths, label_lengths, labels_c, B, T, U, V, blank_idx,
+            x_c,
+            denom,
+            betas,
+            llBackward,
+            input_lengths,
+            label_lengths,
+            labels_c,
+            B,
+            T,
+            U,
+            V,
+            blank_idx,
         )
 
         # gamma kernel
         grad_blocks_per_grid = B * T * U
         grad_threads_per_block = gpu_rnnt_kernel.GPU_RNNT_THREAD_SIZE
-        gpu_rnnt_kernel.compute_grad_kernel[grad_blocks_per_grid, grad_threads_per_block, stream, 0](
+        gpu_rnnt_kernel.compute_grad_kernel[
+            grad_blocks_per_grid, grad_threads_per_block, stream, 0
+        ](
             grads,
             x_c,
             denom,
@@ -522,11 +653,14 @@ class TestRNNTCUDAKernels:
         diff = true_grads - grads[0].cpu().numpy()
 
         assert np.abs(diff).mean() <= threshold
-        assert np.square(diff).mean() <= (threshold ** 2) * 5
+        assert np.square(diff).mean() <= (threshold**2) * 5
 
 
 class TestTDTCUDAKernels:
-    @pytest.mark.skipif(not cuda.is_available(), reason="CUDA Reductions can only be run when CUDA is available")
+    @pytest.mark.skipif(
+        not cuda.is_available(),
+        reason="CUDA Reductions can only be run when CUDA is available",
+    )
     @pytest.mark.unit
     def test_compute_alphas_kernel(self):
         numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
@@ -555,8 +689,8 @@ class TestTDTCUDAKernels:
         pytorch_tdt_loss = TDTLossPytorch(blank_idx, durations, sigma=sigma)
 
         # Pytorch kernel
-        device = torch.device('cuda')
-        if hasattr(cuda, 'external_stream'):
+        device = torch.device("cuda")
+        if hasattr(cuda, "external_stream"):
             stream = cuda.external_stream(torch.cuda.current_stream(device).cuda_stream)
         else:
             stream = cuda.default_stream()
@@ -623,7 +757,10 @@ class TestTDTCUDAKernels:
 
 
 class TestMultiblankRNNTCUDAKernels:
-    @pytest.mark.skipif(not cuda.is_available(), reason="CUDA Reductions can only be run when CUDA is available")
+    @pytest.mark.skipif(
+        not cuda.is_available(),
+        reason="CUDA Reductions can only be run when CUDA is available",
+    )
     @pytest.mark.unit
     def test_compute_alphas_kernel(self):
         numba_utils.skip_numba_cuda_test_if_unsupported(__NUMBA_MINIMUM_VERSION__)
@@ -644,11 +781,13 @@ class TestMultiblankRNNTCUDAKernels:
         labels = np.array([[1, 1, 1, 1, 0, 0, 1, 0, 0, 1]])  # [1, 10]
         blank_idx = V - 1
 
-        pytorch_multiblank_loss = MultiblankRNNTLossPytorch(blank_idx, big_blank_durations, sigma=sigma)
+        pytorch_multiblank_loss = MultiblankRNNTLossPytorch(
+            blank_idx, big_blank_durations, sigma=sigma
+        )
 
         # Pytorch kernel
-        device = torch.device('cuda')
-        if hasattr(cuda, 'external_stream'):
+        device = torch.device("cuda")
+        if hasattr(cuda, "external_stream"):
             stream = cuda.external_stream(torch.cuda.current_stream(device).cuda_stream)
         else:
             stream = cuda.default_stream()
@@ -656,7 +795,9 @@ class TestMultiblankRNNTCUDAKernels:
         x = torch.tensor(x, device=device, dtype=torch.float32)
         normalized_x = torch.tensor(normalized_x, device=device, dtype=torch.float32)
         labels = torch.tensor(labels, device=device, dtype=torch.long)
-        big_blank_durations = torch.tensor(big_blank_durations, device=device, dtype=torch.long)
+        big_blank_durations = torch.tensor(
+            big_blank_durations, device=device, dtype=torch.long
+        )
 
         # Allocate workspace memory
         denom = torch.zeros(B * T * U, device=device, dtype=x.dtype)
@@ -665,8 +806,10 @@ class TestMultiblankRNNTCUDAKernels:
         input_lengths = torch.tensor([T], dtype=torch.long, device=device)
         label_lengths = torch.tensor([U - 1], dtype=torch.long, device=device)
 
-        ground_log_likelihood, ground_alphas = pytorch_multiblank_loss.compute_forward_prob(
-            normalized_x, labels, input_lengths, label_lengths
+        ground_log_likelihood, ground_alphas = (
+            pytorch_multiblank_loss.compute_forward_prob(
+                normalized_x, labels, input_lengths, label_lengths
+            )
         )
 
         # certify input data

@@ -77,14 +77,18 @@ class MuReadout(MegatronModule):
         self.warn_once = False
 
     def forward(self, hidden_states, word_embeddings_weight):
-        if hasattr(word_embeddings_weight, 'infshape'):
+        if hasattr(word_embeddings_weight, "infshape"):
             width_mult = word_embeddings_weight.infshape.width_mult()
         else:
             width_mult = 1.0
             if not self.warn_once:
-                logging.warning("need to set_shape before use mu-Transfer readout layer")
+                logging.warning(
+                    "need to set_shape before use mu-Transfer readout layer"
+                )
             self.warn_once = True
-        async_tensor_model_parallel_allreduce = parallel_state.get_tensor_model_parallel_world_size() > 1
+        async_tensor_model_parallel_allreduce = (
+            parallel_state.get_tensor_model_parallel_world_size() > 1
+        )
         output = parallel_lm_logits(
             hidden_states / width_mult,
             word_embeddings_weight,
@@ -96,12 +100,12 @@ class MuReadout(MegatronModule):
 
 
 def rescale_linear_bias(linear):
-    '''Rescale bias in nn.Linear layers to convert SP initialization to μP initialization.
+    """Rescale bias in nn.Linear layers to convert SP initialization to μP initialization.
 
     Warning: This method is NOT idempotent and should be called only once
     unless you know what you are doing.
-    '''
-    if hasattr(linear, '_has_rescaled_params') and linear._has_rescaled_params:
+    """
+    if hasattr(linear, "_has_rescaled_params") and linear._has_rescaled_params:
         raise RuntimeError(
             "`rescale_linear_bias` has been called once before already. Unless you know what you are doing, usually you should not be calling `rescale_linear_bias` more than once.\n"
             "If you called `set_base_shapes` on a model loaded from a checkpoint, or just want to re-set the base shapes of an existing model, make sure to set the flag `rescale_params=False`.\n"
@@ -110,5 +114,5 @@ def rescale_linear_bias(linear):
     if linear.bias is None:
         return
     fanin_mult = linear.weight.infshape[1].width_mult()
-    linear.bias.data *= fanin_mult ** 0.5
+    linear.bias.data *= fanin_mult**0.5
     linear._has_rescaled_params = True

@@ -33,14 +33,14 @@ class TestTTSFeatureProcessors:
         try:
             test_dir = Path(temp_dir.name)
             test_dict_filepath = test_dir / filename
-            with open(test_dict_filepath, 'w', encoding="utf-8") as stats_f:
+            with open(test_dict_filepath, "w", encoding="utf-8") as stats_f:
                 json.dump(test_dict, stats_f, indent=4)
 
             yield test_dict_filepath
         finally:
             temp_dir.cleanup()
 
-    @pytest.mark.run_only_on('CPU')
+    @pytest.mark.run_only_on("CPU")
     @pytest.mark.unit
     def test_feature_scalar(self):
         field = "test_feat"
@@ -54,13 +54,15 @@ class TestTTSFeatureProcessors:
 
         torch.testing.assert_close(output_tensor, expected_tensor)
 
-    @pytest.mark.run_only_on('CPU')
+    @pytest.mark.run_only_on("CPU")
     @pytest.mark.unit
     def test_log_compression(self):
         field = "test_feat"
 
         input_tensor = torch.tensor([-0.5, 0.0, 2.0], dtype=torch.float32)
-        expected_tensor = torch.tensor([np.log(0.5), 0.0, np.log(3.0)], dtype=torch.float32)
+        expected_tensor = torch.tensor(
+            [np.log(0.5), 0.0, np.log(3.0)], dtype=torch.float32
+        )
         processor = LogCompression(field)
 
         training_example = {field: input_tensor}
@@ -69,14 +71,18 @@ class TestTTSFeatureProcessors:
 
         torch.testing.assert_close(output_tensor, expected_tensor)
 
-    @pytest.mark.run_only_on('CPU')
+    @pytest.mark.run_only_on("CPU")
     @pytest.mark.unit
     def test_log_compression_clamp(self):
         field = "test_feat"
 
         input_tensor = torch.tensor([0.1, 1.0, 2.0], dtype=torch.float32)
-        expected_tensor = torch.tensor([np.log(0.5), 0.0, np.log(2.0)], dtype=torch.float32)
-        processor = LogCompression(field, log_zero_guard_type="clamp", log_zero_guard_value=0.5)
+        expected_tensor = torch.tensor(
+            [np.log(0.5), 0.0, np.log(2.0)], dtype=torch.float32
+        )
+        processor = LogCompression(
+            field, log_zero_guard_type="clamp", log_zero_guard_value=0.5
+        )
 
         training_example = {field: input_tensor}
         processor.process(training_example)
@@ -84,7 +90,7 @@ class TestTTSFeatureProcessors:
 
         torch.testing.assert_close(output_tensor, expected_tensor)
 
-    @pytest.mark.run_only_on('CPU')
+    @pytest.mark.run_only_on("CPU")
     @pytest.mark.unit
     def test_mean_variance_normalization(self):
         field = "test_feat"
@@ -96,13 +102,15 @@ class TestTTSFeatureProcessors:
         training_example = {field: input_tensor}
 
         with self._write_test_dict(stat_dict, filename=filename) as stat_dict_filepath:
-            processor = MeanVarianceNormalization(field, stats_path=stat_dict_filepath, mask_field=None)
+            processor = MeanVarianceNormalization(
+                field, stats_path=stat_dict_filepath, mask_field=None
+            )
             processor.process(training_example)
 
         output_tensor = training_example[field]
         torch.testing.assert_close(output_tensor, expected_tensor)
 
-    @pytest.mark.run_only_on('CPU')
+    @pytest.mark.run_only_on("CPU")
     @pytest.mark.unit
     def test_mean_variance_normalization_masked(self):
         field = "test_feat"
@@ -116,13 +124,15 @@ class TestTTSFeatureProcessors:
         training_example = {field: input_tensor, mask_field: input_mask}
 
         with self._write_test_dict(stat_dict, filename=filename) as stat_dict_filepath:
-            processor = MeanVarianceNormalization(field, stats_path=stat_dict_filepath, mask_field=mask_field)
+            processor = MeanVarianceNormalization(
+                field, stats_path=stat_dict_filepath, mask_field=mask_field
+            )
             processor.process(training_example)
 
         output_tensor = training_example[field]
         torch.testing.assert_close(output_tensor, expected_tensor)
 
-    @pytest.mark.run_only_on('CPU')
+    @pytest.mark.run_only_on("CPU")
     @pytest.mark.unit
     def test_mean_variance_speaker_normalization(self):
         field = "pitch"
@@ -144,7 +154,10 @@ class TestTTSFeatureProcessors:
 
         with self._write_test_dict(stat_dict, filename=filename) as stat_dict_filepath:
             processor = MeanVarianceSpeakerNormalization(
-                field, stats_path=stat_dict_filepath, mask_field=None, fallback_to_default=True
+                field,
+                stats_path=stat_dict_filepath,
+                mask_field=None,
+                fallback_to_default=True,
             )
             processor.process(training_example1)
             processor.process(training_example2)
@@ -157,7 +170,7 @@ class TestTTSFeatureProcessors:
         torch.testing.assert_close(output_tensor2, expected_tensor2)
         torch.testing.assert_close(output_tensor3, expected_tensor3)
 
-    @pytest.mark.run_only_on('CPU')
+    @pytest.mark.run_only_on("CPU")
     @pytest.mark.unit
     def test_mean_variance_speaker_normalization_masked(self):
         field = "test_feat"
@@ -169,10 +182,16 @@ class TestTTSFeatureProcessors:
         input_mask = torch.tensor([False, True, False, True], dtype=torch.bool)
         expected_tensor = torch.tensor([0.0, 1.5, 0.0, 2.5], dtype=torch.float32)
 
-        training_example = {field: input_tensor, "speaker": "steve", mask_field: input_mask}
+        training_example = {
+            field: input_tensor,
+            "speaker": "steve",
+            mask_field: input_mask,
+        }
 
         with self._write_test_dict(stat_dict, filename=filename) as stat_dict_filepath:
-            processor = MeanVarianceSpeakerNormalization(field, stats_path=stat_dict_filepath, mask_field=mask_field)
+            processor = MeanVarianceSpeakerNormalization(
+                field, stats_path=stat_dict_filepath, mask_field=mask_field
+            )
             processor.process(training_example)
 
         output_tensor = training_example[field]

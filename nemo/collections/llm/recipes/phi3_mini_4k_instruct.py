@@ -188,8 +188,12 @@ def pretrain_recipe(
             num_gpus_per_node=num_gpus_per_node,
             callbacks=[run.Config(TimingCallback)],
         ),
-        data=run.Config(MockDataModule, seq_length=4096, global_batch_size=512, micro_batch_size=1),
-        log=default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
+        data=run.Config(
+            MockDataModule, seq_length=4096, global_batch_size=512, micro_batch_size=1
+        ),
+        log=default_log(
+            dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)
+        ),
         optim=distributed_fused_adam_with_cosine_annealing(max_lr=3e-4),
         resume=default_resume(),
     )
@@ -205,7 +209,7 @@ def finetune_recipe(
     num_gpus_per_node: int = 1,
     tensor_parallelism: int = 1,
     max_steps: int = 116825,
-    peft_scheme: Optional[str] = 'lora',
+    peft_scheme: Optional[str] = "lora",
     seq_length: Optional[int] = None,
     packed_sequence: Optional[bool] = None,
     performance_mode: bool = False,
@@ -253,12 +257,18 @@ def finetune_recipe(
         seq_length = 4096 if packed_sequence else 2048
 
     recipe = default_finetune_recipe(
-        model(), "microsoft/Phi-3-mini-4k-instruct", dir, name, num_nodes, num_gpus_per_node, packed_sequence
+        model(),
+        "microsoft/Phi-3-mini-4k-instruct",
+        dir,
+        name,
+        num_nodes,
+        num_gpus_per_node,
+        packed_sequence,
     )
-    if peft_scheme is None or peft_scheme.lower() == 'none':
+    if peft_scheme is None or peft_scheme.lower() == "none":
         recipe.trainer.strategy.tensor_model_parallel_size = 1
         recipe.optim.config.lr = 5e-6
-    elif peft_scheme.lower() in ['lora', 'dora']:
+    elif peft_scheme.lower() in ["lora", "dora"]:
         recipe.peft = run.Config(PEFT_STR2CLS[peft_scheme.lower()])
         recipe.peft.dim = 8
         recipe.peft.alpha = 16
@@ -275,7 +285,9 @@ def finetune_recipe(
     recipe.model.config.seq_length = seq_length
     recipe.data.seq_length = seq_length
     if packed_sequence:
-        recipe.data.dataset_kwargs = {'pad_to_max_length': True}
-        recipe.data.packed_sequence_specs = run.Config(PackedSequenceSpecs, packed_sequence_size=seq_length)
+        recipe.data.dataset_kwargs = {"pad_to_max_length": True}
+        recipe.data.packed_sequence_specs = run.Config(
+            PackedSequenceSpecs, packed_sequence_size=seq_length
+        )
 
     return recipe

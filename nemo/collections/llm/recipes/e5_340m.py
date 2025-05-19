@@ -91,7 +91,9 @@ def finetune_recipe(
     Note:
         This recipe uses the Specter dataset for fine-tuning.
     """
-    recipe = default_finetune_recipe(model(), resume_path, dir, name, num_nodes, num_gpus_per_node)
+    recipe = default_finetune_recipe(
+        model(), resume_path, dir, name, num_nodes, num_gpus_per_node
+    )
     datamodule = run.Config(
         llm.SpecterDataModule,
         seq_length=seq_length,
@@ -100,5 +102,5 @@ def finetune_recipe(
     )
     recipe.data = datamodule
 
-    assert peft_scheme is None or peft_scheme.lower() == 'none', 'E5 only supports SFT.'
+    assert peft_scheme is None or peft_scheme.lower() == "none", "E5 only supports SFT."
     return recipe

@@ -45,7 +45,7 @@ def main(cfg):
     else:
         simulator = MultiSpeakerSimulator(cfg=cfg)
 
-    set_start_method('spawn', force=True)
+    set_start_method("spawn", force=True)
     simulator.generate_sessions()
 
 

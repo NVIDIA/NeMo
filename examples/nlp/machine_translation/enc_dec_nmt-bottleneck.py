@@ -100,12 +100,14 @@ Usage:
 
 @dataclass
 class MTBottleneckConfig(NemoConfig):
-    name: Optional[str] = 'MTBottleneck'
+    name: Optional[str] = "MTBottleneck"
     do_training: bool = True
     do_testing: bool = False
     model: MTBottleneckModelConfig = MTBottleneckModelConfig()
     trainer: Optional[TrainerConfig] = TrainerConfig()
-    exp_manager: Optional[ExpManagerConfig] = ExpManagerConfig(name='MTBottleneck', files_to_copy=[])
+    exp_manager: Optional[ExpManagerConfig] = ExpManagerConfig(
+        name="MTBottleneck", files_to_copy=[]
+    )
 
 
 @hydra_runner(config_path="conf", config_name="aayn_bottleneck")
@@ -114,11 +116,11 @@ def main(cfg: MTBottleneckConfig) -> None:
     default_cfg = MTBottleneckConfig()
     cfg = update_model_config(default_cfg, cfg)
     logging.info("\n\n************** Experiment configuration ***********")
-    logging.info(f'Config: {OmegaConf.to_yaml(cfg)}')
+    logging.info(f"Config: {OmegaConf.to_yaml(cfg)}")
 
     # training is managed by PyTorch Lightning
     trainer_cfg = OmegaConf.to_container(cfg.trainer)
-    trainer_cfg.pop('strategy', None)
+    trainer_cfg.pop("strategy", None)
     trainer = Trainer(strategy=NLPDDPStrategy(), **trainer_cfg)
 
     # tokenizers will be trained and and tarred training data will be created if needed
@@ -144,5 +146,5 @@ def main(cfg: MTBottleneckConfig) -> None:
         trainer.test(mt_model)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

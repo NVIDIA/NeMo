@@ -32,22 +32,38 @@ from tests.collections.llm.common import Llama3ConfigCI
 
 
 def get_args():
-    parser = argparse.ArgumentParser(description='Finetune a small GPT model using NeMo 2.0')
-    parser.add_argument('--restore_path', type=str, help="Path to model to be finetuned")
-    parser.add_argument('--experiment_dir', type=str, help="directory to write results and checkpoints to")
-    parser.add_argument('--peft', type=str, default='none', help="none | lora")
-    parser.add_argument('--devices', type=int, default=1, help="number of devices")
-    parser.add_argument('--max_steps', type=int, default=1, help="number of devices")
-    parser.add_argument('--mbs', type=int, default=1, help="micro batch size")
-    parser.add_argument('--tp_size', type=int, default=1, help="tensor parallel size")
-    parser.add_argument('--pp_size', type=int, default=1, help="pipeline parallel size")
-    parser.add_argument('--packed', action='store_true', help="use packed sequence dataset")
-    parser.add_argument('--dataset', type=str, default="dolly", choices=['dolly', 'chat'], help="Dataset to use")
+    parser = argparse.ArgumentParser(
+        description="Finetune a small GPT model using NeMo 2.0"
+    )
+    parser.add_argument(
+        "--restore_path", type=str, help="Path to model to be finetuned"
+    )
+    parser.add_argument(
+        "--experiment_dir",
+        type=str,
+        help="directory to write results and checkpoints to",
+    )
+    parser.add_argument("--peft", type=str, default="none", help="none | lora")
+    parser.add_argument("--devices", type=int, default=1, help="number of devices")
+    parser.add_argument("--max_steps", type=int, default=1, help="number of devices")
+    parser.add_argument("--mbs", type=int, default=1, help="micro batch size")
+    parser.add_argument("--tp_size", type=int, default=1, help="tensor parallel size")
+    parser.add_argument("--pp_size", type=int, default=1, help="pipeline parallel size")
+    parser.add_argument(
+        "--packed", action="store_true", help="use packed sequence dataset"
+    )
+    parser.add_argument(
+        "--dataset",
+        type=str,
+        default="dolly",
+        choices=["dolly", "chat"],
+        help="Dataset to use",
+    )
 
     return parser.parse_args()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     args = get_args()
 
     strategy = nl.MegatronStrategy(
@@ -101,10 +117,14 @@ if __name__ == '__main__':
         peft = None
 
     packed_sequence_specs = (
-        PackedSequenceSpecs(packed_sequence_size=2048, tokenizer_model_name="dummy_tokenizer") if args.packed else None
+        PackedSequenceSpecs(
+            packed_sequence_size=2048, tokenizer_model_name="dummy_tokenizer"
+        )
+        if args.packed
+        else None
     )
 
-    if args.dataset == 'chat':
+    if args.dataset == "chat":
         assert not args.packed
         data = llm.ChatDataModule(
             dataset_root=get_dataset_root("chat"),
@@ -126,7 +146,9 @@ if __name__ == '__main__':
     # ensure using cached dir
     assert str(data.dataset_root).startswith(os.environ.get("NEMO_HOME"))
 
-    tokenizer = get_nmt_tokenizer(tokenizer_model=os.path.join(args.restore_path, "dummy_tokenizer.model"))
+    tokenizer = get_nmt_tokenizer(
+        tokenizer_model=os.path.join(args.restore_path, "dummy_tokenizer.model")
+    )
     llama3_8b = llm.LlamaModel(Llama3ConfigCI(), tokenizer=tokenizer)
 
     resume = nl.AutoResume(
@@ -153,4 +175,4 @@ if __name__ == '__main__':
             "Hint: Scroll up and see whether 'Initial Training Succeeded' is printed out.\n"
             "If not, then the issue is not with ckpt resume."
         )
-        assert 'reduced_train_loss=' in str(trainer.ckpt_path), msg
+        assert "reduced_train_loss=" in str(trainer.ckpt_path), msg

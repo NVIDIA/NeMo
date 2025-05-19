@@ -110,7 +110,8 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
         if isinstance(paths, dict):
             if split is not None:
                 warnings.warn(
-                    f"{split=} will be ignored since datasets are being created " f"from 3 separate distributions."
+                    f"{split=} will be ignored since datasets are being created "
+                    f"from 3 separate distributions."
                 )
             build_kwargs["blend_per_split"] = [
                 get_blend_from_list(paths["train"]),
@@ -151,7 +152,9 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
                 get_nmt_tokenizer
 
             special_tokens = {}
-            special_tokens['additional_special_tokens'] = [f'<extra_id_{i}>' for i in range(100)]
+            special_tokens["additional_special_tokens"] = [
+                f"<extra_id_{i}>" for i in range(100)
+            ]
             tokenizer = get_nmt_tokenizer(
                 "megatron",
                 "BertWordPieceCase",
@@ -178,13 +181,17 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
         # Trainer API
         max_train_steps = self.trainer.max_steps
         assert max_train_steps > 0, "Please specify trainer.max_steps"
-        eval_iters = (max_train_steps // self.trainer.val_check_interval + 1) * self.trainer.limit_val_batches
+        eval_iters = (
+            max_train_steps // self.trainer.val_check_interval + 1
+        ) * self.trainer.limit_val_batches
         test_iters = self.trainer.limit_test_batches
         num_train_samples = int(max_train_steps * self.data_sampler.global_batch_size)
         num_val_samples = int(eval_iters * self.data_sampler.global_batch_size)
         num_test_samples = int(test_iters * self.data_sampler.global_batch_size)
 
-        if self.trainer.limit_val_batches <= 1.0 and isinstance(self.trainer.limit_val_batches, float):
+        if self.trainer.limit_val_batches <= 1.0 and isinstance(
+            self.trainer.limit_val_batches, float
+        ):
             assert "blend" not in self.build_kwargs, (
                 "When using a single data distribution, limit_val_batches <= 1.0 is not supported. If you'd "
                 "like to run with a fractional value of limit_val_batches, please pass in separate datasets for "
@@ -199,13 +206,19 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
             # This is to make sure we only have one epoch on every validation iteration
             num_val_samples = None
 
-        train_valid_test_num_samples = [num_train_samples, num_val_samples, num_test_samples]
-        self._train_ds, self._validation_ds, self._test_ds = BlendedMegatronDatasetBuilder(
-            T5MaskedWordPieceDataset,
-            train_valid_test_num_samples,
-            is_built_on_rank=lambda: True,
-            config=self.t5_dataset_config,
-        ).build()
+        train_valid_test_num_samples = [
+            num_train_samples,
+            num_val_samples,
+            num_test_samples,
+        ]
+        self._train_ds, self._validation_ds, self._test_ds = (
+            BlendedMegatronDatasetBuilder(
+                T5MaskedWordPieceDataset,
+                train_valid_test_num_samples,
+                is_built_on_rank=lambda: True,
+                config=self.t5_dataset_config,
+            ).build()
+        )
 
     # uncomment once fabric API is merged
     # def fabric_setup(
@@ -225,13 +238,13 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
     #     ).build()
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
-        return self._create_dataloader(self._train_ds, mode='train')
+        return self._create_dataloader(self._train_ds, mode="train")
 
     def val_dataloader(self) -> EVAL_DATALOADERS:
-        return self._create_dataloader(self._validation_ds, mode='validation')
+        return self._create_dataloader(self._validation_ds, mode="validation")
 
     def test_dataloader(self) -> EVAL_DATALOADERS:
-        return self._create_dataloader(self._test_ds, mode='test')
+        return self._create_dataloader(self._test_ds, mode="test")
 
     def _create_dataloader(self, dataset, mode, **kwargs) -> WrappedDataLoader:
         self.init_global_step = self.trainer.global_step
@@ -241,7 +254,7 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
             num_workers=self.num_workers,
             pin_memory=self.pin_memory,
             persistent_workers=self.persistent_workers,
-            collate_fn=getattr(dataset, 'collate_fn', data.dataloader.default_collate),
+            collate_fn=getattr(dataset, "collate_fn", data.dataloader.default_collate),
             **kwargs,
         )
         return dataloader
@@ -274,8 +287,10 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
             A dictionary containing datamodule state.
 
         """
-        consumed_samples = self.data_sampler.compute_consumed_samples(self.trainer.global_step - self.init_global_step)
-        return {'consumed_samples': consumed_samples}
+        consumed_samples = self.data_sampler.compute_consumed_samples(
+            self.trainer.global_step - self.init_global_step
+        )
+        return {"consumed_samples": consumed_samples}
 
     def load_state_dict(self, state_dict: Dict[str, Any]) -> None:
         """Called when loading a checkpoint, implement to reload datamodule state given datamodule stat
@@ -289,11 +304,13 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
                 update_num_microbatches
 
         except (ImportError, ModuleNotFoundError):
-            logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
+            logging.warning(
+                "Megatron num_microbatches_calculator not found, using Apex version."
+            )
             from apex.transformer.pipeline_parallel.utils import \
                 update_num_microbatches
 
-        consumed_samples = state_dict['consumed_samples']
+        consumed_samples = state_dict["consumed_samples"]
         self.data_sampler.init_consumed_samples = consumed_samples
         self.data_sampler.prev_consumed_samples = consumed_samples
 
@@ -305,9 +322,13 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
 
     def reconfigure_limit_batches(self):
         # Override limit_train_batches in terms of num of microbatches
-        self._reconfigure_limit_batches(self.trainer.limit_train_batches, self._train_ds, 'train')
+        self._reconfigure_limit_batches(
+            self.trainer.limit_train_batches, self._train_ds, "train"
+        )
         # Override limit_val_batches to be a multiple of num microbatches to prevent val_step from exiting in between a step
-        self._reconfigure_limit_batches(self.trainer.limit_val_batches, self._validation_ds, 'val')
+        self._reconfigure_limit_batches(
+            self.trainer.limit_val_batches, self._validation_ds, "val"
+        )
 
     def _reconfigure_limit_batches(self, limit_batches, dataloader, mode):
         """
@@ -319,7 +340,9 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
                 get_num_microbatches
 
         except (ImportError, ModuleNotFoundError):
-            logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
+            logging.warning(
+                "Megatron num_microbatches_calculator not found, using Apex version."
+            )
             from apex.transformer.pipeline_parallel.utils import \
                 get_num_microbatches
 
@@ -349,9 +372,11 @@ class PreTrainingDataModule(pl.LightningDataModule, IOMixin):
                     if limit_micro_batches < get_num_microbatches():
                         limit_batches = get_num_microbatches()
                     else:
-                        limit_batches = limit_batches - limit_batches % get_num_microbatches()
+                        limit_batches = (
+                            limit_batches - limit_batches % get_num_microbatches()
+                        )
 
-        if mode == 'train':
+        if mode == "train":
             self.trainer.limit_train_batches = limit_batches
         else:
             self.trainer.limit_val_batches = limit_batches

@@ -41,18 +41,18 @@ try:
     import torchaudio.transforms
 
     TORCHAUDIO_VERSION = version.parse(torchaudio.__version__)
-    TORCHAUDIO_VERSION_MIN = version.parse('0.5')
+    TORCHAUDIO_VERSION_MIN = version.parse("0.5")
 
     HAVE_TORCHAUDIO = True
 except ModuleNotFoundError:
     HAVE_TORCHAUDIO = False
 
 __all__ = [
-    'AudioToMelSpectrogramPreprocessor',
-    'AudioToMFCCPreprocessor',
-    'SpectrogramAugmentation',
-    'MaskedPatchAugmentation',
-    'CropOrPadSpectrogramAugmentation',
+    "AudioToMelSpectrogramPreprocessor",
+    "AudioToMFCCPreprocessor",
+    "SpectrogramAugmentation",
+    "MaskedPatchAugmentation",
+    "CropOrPadSpectrogramAugmentation",
 ]
 
 
@@ -69,11 +69,11 @@ class AudioPreprocessor(NeuralModule, ABC):
         self.hop_length = hop_length
 
         self.torch_windows = {
-            'hann': torch.hann_window,
-            'hamming': torch.hamming_window,
-            'blackman': torch.blackman_window,
-            'bartlett': torch.bartlett_window,
-            'ones': torch.ones,
+            "hann": torch.hann_window,
+            "hamming": torch.hamming_window,
+            "blackman": torch.blackman_window,
+            "bartlett": torch.bartlett_window,
+            "ones": torch.ones,
             None: torch.ones,
         }
 
@@ -86,7 +86,11 @@ class AudioPreprocessor(NeuralModule, ABC):
         # output in appropriate precision. We have this empty tensor
         # here just to detect which dtype tensor this module should
         # output at the end of execution.
-        self.register_buffer("dtype_sentinel_tensor", torch.tensor((), dtype=torch.float32), persistent=False)
+        self.register_buffer(
+            "dtype_sentinel_tensor",
+            torch.tensor((), dtype=torch.float32),
+            persistent=False,
+        )
 
     @typecheck()
     @torch.no_grad()
@@ -96,7 +100,9 @@ class AudioPreprocessor(NeuralModule, ABC):
                 f"AudioPreprocessor received an input signal of dtype {input_signal.dtype}, rather than torch.float32. In sweeps across multiple datasets, we have found that the preprocessor is not robust to low precision  mathematics. As such, it runs in float32. Your input will be cast to float32, but this is not necessarily enough to recovery full accuracy. For example, simply casting input_signal from torch.float32 to torch.bfloat16, then back to torch.float32 before running AudioPreprocessor causes drops in absolute WER of up to 0.1%. torch.bfloat16 simply does not have enough mantissa bits to represent enough values in the range [-1.0,+1.0] correctly.",
                 mode=logging_mode.ONCE,
             )
-        processed_signal, processed_length = self.get_features(input_signal.to(torch.float32), length)
+        processed_signal, processed_length = self.get_features(
+            input_signal.to(torch.float32), length
+        )
         processed_signal = processed_signal.to(self.dtype_sentinel_tensor.dtype)
         return processed_signal, processed_length
 
@@ -187,9 +193,9 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor, Exportable):
     def input_types(self):
         """Returns definitions of module input ports."""
         return {
-            "input_signal": NeuralType(('B', 'T'), AudioSignal(freq=self._sample_rate)),
+            "input_signal": NeuralType(("B", "T"), AudioSignal(freq=self._sample_rate)),
             "length": NeuralType(
-                tuple('B'), LengthsType()
+                tuple("B"), LengthsType()
             ),  # Please note that length should be in samples not seconds.
         }
 
@@ -205,8 +211,8 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor, Exportable):
             0: AxisType(BatchTag)
         """
         return {
-            "processed_signal": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
-            "processed_length": NeuralType(tuple('B'), LengthsType()),
+            "processed_signal": NeuralType(("B", "D", "T"), MelSpectrogramType()),
+            "processed_length": NeuralType(tuple("B"), LengthsType()),
         }
 
     def __init__(
@@ -244,10 +250,14 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor, Exportable):
 
         self._sample_rate = sample_rate
         if window_size and n_window_size:
-            raise ValueError(f"{self} received both window_size and " f"n_window_size. Only one should be specified.")
+            raise ValueError(
+                f"{self} received both window_size and "
+                f"n_window_size. Only one should be specified."
+            )
         if window_stride and n_window_stride:
             raise ValueError(
-                f"{self} received both window_stride and " f"n_window_stride. Only one should be specified."
+                f"{self} received both window_stride and "
+                f"n_window_stride. Only one should be specified."
             )
         if window_size:
             n_window_size = int(window_size * self._sample_rate)
@@ -287,11 +297,15 @@ class AudioToMelSpectrogramPreprocessor(AudioPreprocessor, Exportable):
             stft_conv=stft_conv,  # Deprecated arguments; kept for config compatibility
         )
 
-    def input_example(self, max_batch: int = 8, max_dim: int = 32000, min_length: int = 200):
+    def input_example(
+        self, max_batch: int = 8, max_dim: int = 32000, min_length: int = 200
+    ):
         dev = self.filter_banks.device
 
         signals = torch.randn(size=[max_batch, max_dim], device=dev)
-        lengths = torch.randint(low=min_length, high=max_dim, size=[max_batch], device=dev)
+        lengths = torch.randint(
+            low=min_length, high=max_dim, size=[max_batch], device=dev
+        )
         lengths[0] = max_dim
         return signals, lengths
 
@@ -344,16 +358,16 @@ class AudioToMFCCPreprocessor(AudioPreprocessor):
     def input_types(self):
         """Returns definitions of module input ports."""
         return {
-            "input_signal": NeuralType(('B', 'T'), AudioSignal(freq=self._sample_rate)),
-            "length": NeuralType(tuple('B'), LengthsType()),
+            "input_signal": NeuralType(("B", "T"), AudioSignal(freq=self._sample_rate)),
+            "length": NeuralType(tuple("B"), LengthsType()),
         }
 
     @property
     def output_types(self):
         """Returns definitions of module output ports."""
         return {
-            "processed_signal": NeuralType(('B', 'D', 'T'), MFCCSpectrogramType()),
-            "processed_length": NeuralType(tuple('B'), LengthsType()),
+            "processed_signal": NeuralType(("B", "D", "T"), MFCCSpectrogramType()),
+            "processed_length": NeuralType(tuple("B"), LengthsType()),
         }
 
     def save_to(self, save_path: str):
@@ -370,19 +384,19 @@ class AudioToMFCCPreprocessor(AudioPreprocessor):
         window_stride=0.01,
         n_window_size=None,
         n_window_stride=None,
-        window='hann',
+        window="hann",
         n_fft=None,
         lowfreq=0.0,
         highfreq=None,
         n_mels=64,
         n_mfcc=64,
         dct_type=2,
-        norm='ortho',
+        norm="ortho",
         log=True,
     ):
         self._sample_rate = sample_rate
         if not HAVE_TORCHAUDIO:
-            logging.error('Could not import torchaudio. Some features might not work.')
+            logging.error("Could not import torchaudio. Some features might not work.")
 
             raise ModuleNotFoundError(
                 "torchaudio is not installed but is necessary for "
@@ -390,10 +404,14 @@ class AudioToMFCCPreprocessor(AudioPreprocessor):
                 "building it from source for the PyTorch version you have."
             )
         if window_size and n_window_size:
-            raise ValueError(f"{self} received both window_size and " f"n_window_size. Only one should be specified.")
+            raise ValueError(
+                f"{self} received both window_size and "
+                f"n_window_size. Only one should be specified."
+            )
         if window_stride and n_window_stride:
             raise ValueError(
-                f"{self} received both window_stride and " f"n_window_stride. Only one should be specified."
+                f"{self} received both window_stride and "
+                f"n_window_stride. Only one should be specified."
             )
         # Get win_length (n_window_size) and hop_length (n_window_stride)
         if window_size:
@@ -405,14 +423,14 @@ class AudioToMFCCPreprocessor(AudioPreprocessor):
 
         mel_kwargs = {}
 
-        mel_kwargs['f_min'] = lowfreq
-        mel_kwargs['f_max'] = highfreq
-        mel_kwargs['n_mels'] = n_mels
+        mel_kwargs["f_min"] = lowfreq
+        mel_kwargs["f_max"] = highfreq
+        mel_kwargs["n_mels"] = n_mels
 
-        mel_kwargs['n_fft'] = n_fft or 2 ** math.ceil(math.log2(n_window_size))
+        mel_kwargs["n_fft"] = n_fft or 2 ** math.ceil(math.log2(n_window_size))
 
-        mel_kwargs['win_length'] = n_window_size
-        mel_kwargs['hop_length'] = n_window_stride
+        mel_kwargs["win_length"] = n_window_size
+        mel_kwargs["hop_length"] = n_window_stride
 
         # Set window_fn. None defaults to torch.ones.
         window_fn = self.torch_windows.get(window, None)
@@ -421,7 +439,7 @@ class AudioToMFCCPreprocessor(AudioPreprocessor):
                 f"Window argument for AudioProcessor is invalid: {window}."
                 f"For no window function, use 'ones' or None."
             )
-        mel_kwargs['window_fn'] = window_fn
+        mel_kwargs["window_fn"] = window_fn
 
         # Use torchaudio's implementation of MFCCs as featurizer
         self.featurizer = torchaudio.transforms.MFCC(
@@ -435,7 +453,9 @@ class AudioToMFCCPreprocessor(AudioPreprocessor):
 
     def get_features(self, input_signal, length):
         features = self.featurizer(input_signal)
-        seq_len = torch.ceil(length.to(torch.float32) / self.hop_length).to(dtype=torch.long)
+        seq_len = torch.ceil(length.to(torch.float32) / self.hop_length).to(
+            dtype=torch.long
+        )
         return features, seq_len
 
 
@@ -477,14 +497,14 @@ class SpectrogramAugmentation(NeuralModule):
     def input_types(self):
         """Returns definitions of module input types"""
         return {
-            "input_spec": NeuralType(('B', 'D', 'T'), SpectrogramType()),
-            "length": NeuralType(tuple('B'), LengthsType()),
+            "input_spec": NeuralType(("B", "D", "T"), SpectrogramType()),
+            "length": NeuralType(tuple("B"), LengthsType()),
         }
 
     @property
     def output_types(self):
         """Returns definitions of module output types"""
-        return {"augmented_spec": NeuralType(('B', 'D', 'T'), SpectrogramType())}
+        return {"augmented_spec": NeuralType(("B", "D", "T"), SpectrogramType())}
 
     def __init__(
         self,
@@ -526,8 +546,10 @@ class SpectrogramAugmentation(NeuralModule):
             self.spec_augment = lambda input_spec, length: input_spec
 
         # Check if numba is supported, and use a Numba kernel if it is
-        if use_numba_spec_augment and numba_utils.numba_cuda_is_supported(__NUMBA_MINIMUM_VERSION__):
-            logging.info('Numba CUDA SpecAugment kernel is being used')
+        if use_numba_spec_augment and numba_utils.numba_cuda_is_supported(
+            __NUMBA_MINIMUM_VERSION__
+        ):
+            logging.info("Numba CUDA SpecAugment kernel is being used")
             self.spec_augment_numba = SpecAugmentNumba(
                 freq_masks=freq_masks,
                 time_masks=time_masks,
@@ -545,8 +567,12 @@ class SpectrogramAugmentation(NeuralModule):
 
         # To run the Numba kernel, correct numba version is required as well as
         # tensor must be on GPU and length must be provided
-        if self.spec_augment_numba is not None and spec_augment_launch_heuristics(augmented_spec, length):
-            augmented_spec = self.spec_augment_numba(input_spec=augmented_spec, length=length)
+        if self.spec_augment_numba is not None and spec_augment_launch_heuristics(
+            augmented_spec, length
+        ):
+            augmented_spec = self.spec_augment_numba(
+                input_spec=augmented_spec, length=length
+            )
         else:
             augmented_spec = self.spec_augment(input_spec=augmented_spec, length=length)
         return augmented_spec
@@ -574,14 +600,14 @@ class MaskedPatchAugmentation(NeuralModule):
     def input_types(self):
         """Returns definitions of module input types"""
         return {
-            "input_spec": NeuralType(('B', 'D', 'T'), SpectrogramType()),
-            "length": NeuralType(tuple('B'), LengthsType()),
+            "input_spec": NeuralType(("B", "D", "T"), SpectrogramType()),
+            "length": NeuralType(tuple("B"), LengthsType()),
         }
 
     @property
     def output_types(self):
         """Returns definitions of module output types"""
-        return {"augmented_spec": NeuralType(('B', 'D', 'T'), SpectrogramType())}
+        return {"augmented_spec": NeuralType(("B", "D", "T"), SpectrogramType())}
 
     def __init__(
         self,
@@ -598,7 +624,7 @@ class MaskedPatchAugmentation(NeuralModule):
             self._mask_fraction = mask_patches
             self.mask_patches = None
         else:
-            raise ValueError('mask_patches cannot be negative')
+            raise ValueError("mask_patches cannot be negative")
 
         if freq_masks > 0:
             self.spec_augment = SpecAugment(
@@ -619,7 +645,9 @@ class MaskedPatchAugmentation(NeuralModule):
         if self.mask_patches is None:
             # masking specified as fraction
             len_fraction = int(min_len * self._mask_fraction)
-            mask_patches = len_fraction // self.patch_size + int(len_fraction % self.patch_size != 0)
+            mask_patches = len_fraction // self.patch_size + int(
+                len_fraction % self.patch_size != 0
+            )
         else:
             mask_patches = self.mask_patches
 
@@ -632,7 +660,9 @@ class MaskedPatchAugmentation(NeuralModule):
             masked_patches = random.sample(patches, mask_patches)
 
             for mp in masked_patches:
-                augmented_spec[idx, :, mp * self.patch_size : (mp + 1) * self.patch_size] = 0.0
+                augmented_spec[
+                    idx, :, mp * self.patch_size : (mp + 1) * self.patch_size
+                ] = 0.0
 
         if self.spec_augment is not None:
             augmented_spec = self.spec_augment(input_spec=augmented_spec, length=length)
@@ -656,8 +686,8 @@ class CropOrPadSpectrogramAugmentation(NeuralModule):
 
         if self.audio_length < 0:
             raise ValueError(
-                'audio_length must be non-negative. If using a dataclass with OmegaConf, '
-                'please call OmegaConf.to_object(cfg) to call appropriate __post_init__ methods.'
+                "audio_length must be non-negative. If using a dataclass with OmegaConf, "
+                "please call OmegaConf.to_object(cfg) to call appropriate __post_init__ methods."
             )
 
     @typecheck()
@@ -672,10 +702,14 @@ class CropOrPadSpectrogramAugmentation(NeuralModule):
         # Crop long signal
         if image_len > audio_length:  # randomly slice
             cutout_images = []
-            offset = torch.randint(low=0, high=image_len - audio_length + 1, size=[num_images])
+            offset = torch.randint(
+                low=0, high=image_len - audio_length + 1, size=[num_images]
+            )
 
             for idx, offset in enumerate(offset):
-                cutout_images.append(image[idx : idx + 1, :, offset : offset + audio_length])
+                cutout_images.append(
+                    image[idx : idx + 1, :, offset : offset + audio_length]
+                )
 
             image = torch.cat(cutout_images, dim=0)
             del cutout_images
@@ -687,7 +721,9 @@ class CropOrPadSpectrogramAugmentation(NeuralModule):
             if (audio_length - image_len) % 2 == 1:
                 pad_right += 1
 
-            image = torch.nn.functional.pad(image, [pad_left, pad_right], mode="constant", value=0)
+            image = torch.nn.functional.pad(
+                image, [pad_left, pad_right], mode="constant", value=0
+            )
 
         # Replace dynamic length sequences with static number of timesteps
         length = (length * 0) + audio_length
@@ -698,16 +734,16 @@ class CropOrPadSpectrogramAugmentation(NeuralModule):
     def input_types(self):
         """Returns definitions of module output ports."""
         return {
-            "input_signal": NeuralType(('B', 'D', 'T'), SpectrogramType()),
-            "length": NeuralType(tuple('B'), LengthsType()),
+            "input_signal": NeuralType(("B", "D", "T"), SpectrogramType()),
+            "length": NeuralType(tuple("B"), LengthsType()),
         }
 
     @property
     def output_types(self):
         """Returns definitions of module output ports."""
         return {
-            "processed_signal": NeuralType(('B', 'D', 'T'), SpectrogramType()),
-            "processed_length": NeuralType(tuple('B'), LengthsType()),
+            "processed_signal": NeuralType(("B", "D", "T"), SpectrogramType()),
+            "processed_length": NeuralType(tuple("B"), LengthsType()),
         }
 
     def save_to(self, save_path: str):
@@ -747,26 +783,30 @@ class AudioToMelSpectrogramPreprocessorConfig:
     nb_max_freq: int = 4000
     use_torchaudio: bool = False
     mel_norm: str = "slaney"
-    stft_exact_pad: bool = False  # Deprecated argument, kept for compatibility with older checkpoints.
-    stft_conv: bool = False  # Deprecated argument, kept for compatibility with older checkpoints.
+    stft_exact_pad: bool = (
+        False  # Deprecated argument, kept for compatibility with older checkpoints.
+    )
+    stft_conv: bool = (
+        False  # Deprecated argument, kept for compatibility with older checkpoints.
+    )
 
 
 @dataclass
 class AudioToMFCCPreprocessorConfig:
-    _target_: str = 'nemo.collections.asr.modules.AudioToMFCCPreprocessor'
+    _target_: str = "nemo.collections.asr.modules.AudioToMFCCPreprocessor"
     sample_rate: int = 16000
     window_size: float = 0.02
     window_stride: float = 0.01
     n_window_size: Optional[int] = None
     n_window_stride: Optional[int] = None
-    window: str = 'hann'
+    window: str = "hann"
     n_fft: Optional[int] = None
     lowfreq: Optional[float] = 0.0
     highfreq: Optional[float] = None
     n_mels: int = 64
     n_mfcc: int = 64
     dct_type: int = 2
-    norm: str = 'ortho'
+    norm: str = "ortho"
     log: bool = True
 
 

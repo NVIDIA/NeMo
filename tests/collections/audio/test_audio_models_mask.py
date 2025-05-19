@@ -21,7 +21,7 @@ from omegaconf import DictConfig
 from nemo.collections.audio.models import EncMaskDecAudioToAudioModel
 
 try:
-    importlib.import_module('torchaudio')
+    importlib.import_module("torchaudio")
 
     HAVE_TORCHAUDIO = True
 except ModuleNotFoundError:
@@ -32,51 +32,51 @@ except ModuleNotFoundError:
 def mask_model_rnn():
 
     model = {
-        'sample_rate': 16000,
-        'num_outputs': 1,
-        'normalize_input': True,
+        "sample_rate": 16000,
+        "num_outputs": 1,
+        "normalize_input": True,
     }
     encoder = {
-        '_target_': 'nemo.collections.audio.modules.transforms.AudioToSpectrogram',
-        'fft_length': 512,
-        'hop_length': 256,
+        "_target_": "nemo.collections.audio.modules.transforms.AudioToSpectrogram",
+        "fft_length": 512,
+        "hop_length": 256,
     }
     decoder = {
-        '_target_': 'nemo.collections.audio.modules.transforms.SpectrogramToAudio',
-        'fft_length': encoder['fft_length'],
-        'hop_length': encoder['hop_length'],
+        "_target_": "nemo.collections.audio.modules.transforms.SpectrogramToAudio",
+        "fft_length": encoder["fft_length"],
+        "hop_length": encoder["hop_length"],
     }
     mask_estimator = {
-        '_target_': 'nemo.collections.audio.modules.masking.MaskEstimatorRNN',
-        'num_outputs': model['num_outputs'],
-        'num_subbands': encoder['fft_length'] // 2 + 1,
-        'num_features': 256,
-        'num_layers': 3,
-        'bidirectional': True,
+        "_target_": "nemo.collections.audio.modules.masking.MaskEstimatorRNN",
+        "num_outputs": model["num_outputs"],
+        "num_subbands": encoder["fft_length"] // 2 + 1,
+        "num_features": 256,
+        "num_layers": 3,
+        "bidirectional": True,
     }
     mask_processor = {
-        '_target_': 'nemo.collections.audio.modules.masking.MaskReferenceChannel',
-        'ref_channel': 0,
+        "_target_": "nemo.collections.audio.modules.masking.MaskReferenceChannel",
+        "ref_channel": 0,
     }
 
     loss = {
-        '_target_': 'nemo.collections.audio.losses.SDRLoss',
-        'scale_invariant': True,
+        "_target_": "nemo.collections.audio.losses.SDRLoss",
+        "scale_invariant": True,
     }
 
     model_config = DictConfig(
         {
-            'sample_rate': model['sample_rate'],
-            'num_outputs': model['num_outputs'],
-            'encoder': DictConfig(encoder),
-            'decoder': DictConfig(decoder),
-            'mask_estimator': DictConfig(mask_estimator),
-            'mask_processor': DictConfig(mask_processor),
-            'loss': DictConfig(loss),
-            'optim': {
-                'optimizer': 'Adam',
-                'lr': 0.001,
-                'betas': (0.9, 0.98),
+            "sample_rate": model["sample_rate"],
+            "num_outputs": model["num_outputs"],
+            "encoder": DictConfig(encoder),
+            "decoder": DictConfig(decoder),
+            "mask_estimator": DictConfig(mask_estimator),
+            "mask_processor": DictConfig(mask_processor),
+            "loss": DictConfig(loss),
+            "optim": {
+                "optimizer": "Adam",
+                "lr": 0.001,
+                "betas": (0.9, 0.98),
             },
         }
     )
@@ -90,60 +90,60 @@ def mask_model_rnn():
 def mask_model_flexarray():
 
     model = {
-        'sample_rate': 16000,
-        'num_outputs': 1,
-        'normalize_input': True,
+        "sample_rate": 16000,
+        "num_outputs": 1,
+        "normalize_input": True,
     }
     encoder = {
-        '_target_': 'nemo.collections.audio.modules.transforms.AudioToSpectrogram',
-        'fft_length': 512,
-        'hop_length': 256,
+        "_target_": "nemo.collections.audio.modules.transforms.AudioToSpectrogram",
+        "fft_length": 512,
+        "hop_length": 256,
     }
     decoder = {
-        '_target_': 'nemo.collections.audio.modules.transforms.SpectrogramToAudio',
-        'fft_length': encoder['fft_length'],
-        'hop_length': encoder['hop_length'],
+        "_target_": "nemo.collections.audio.modules.transforms.SpectrogramToAudio",
+        "fft_length": encoder["fft_length"],
+        "hop_length": encoder["hop_length"],
     }
     mask_estimator = {
-        '_target_': 'nemo.collections.audio.modules.masking.MaskEstimatorFlexChannels',
-        'num_outputs': model['num_outputs'],
-        'num_subbands': encoder['fft_length'] // 2 + 1,
-        'num_blocks': 3,
-        'channel_reduction_position': 3,
-        'channel_reduction_type': 'average',
-        'channel_block_type': 'transform_average_concatenate',
-        'temporal_block_type': 'conformer_encoder',
-        'temporal_block_num_layers': 5,
-        'temporal_block_num_heads': 4,
-        'temporal_block_dimension': 128,
-        'mag_reduction': None,
-        'mag_normalization': 'mean_var',
-        'use_ipd': True,
-        'ipd_normalization': 'mean',
+        "_target_": "nemo.collections.audio.modules.masking.MaskEstimatorFlexChannels",
+        "num_outputs": model["num_outputs"],
+        "num_subbands": encoder["fft_length"] // 2 + 1,
+        "num_blocks": 3,
+        "channel_reduction_position": 3,
+        "channel_reduction_type": "average",
+        "channel_block_type": "transform_average_concatenate",
+        "temporal_block_type": "conformer_encoder",
+        "temporal_block_num_layers": 5,
+        "temporal_block_num_heads": 4,
+        "temporal_block_dimension": 128,
+        "mag_reduction": None,
+        "mag_normalization": "mean_var",
+        "use_ipd": True,
+        "ipd_normalization": "mean",
     }
     mask_processor = {
-        '_target_': 'nemo.collections.audio.modules.masking.MaskReferenceChannel',
-        'ref_channel': 0,
+        "_target_": "nemo.collections.audio.modules.masking.MaskReferenceChannel",
+        "ref_channel": 0,
     }
 
     loss = {
-        '_target_': 'nemo.collections.audio.losses.SDRLoss',
-        'scale_invariant': True,
+        "_target_": "nemo.collections.audio.losses.SDRLoss",
+        "scale_invariant": True,
     }
 
     model_config = DictConfig(
         {
-            'sample_rate': model['sample_rate'],
-            'num_outputs': model['num_outputs'],
-            'encoder': DictConfig(encoder),
-            'decoder': DictConfig(decoder),
-            'mask_estimator': DictConfig(mask_estimator),
-            'mask_processor': DictConfig(mask_processor),
-            'loss': DictConfig(loss),
-            'optim': {
-                'optimizer': 'Adam',
-                'lr': 0.001,
-                'betas': (0.9, 0.98),
+            "sample_rate": model["sample_rate"],
+            "num_outputs": model["num_outputs"],
+            "encoder": DictConfig(encoder),
+            "decoder": DictConfig(decoder),
+            "mask_estimator": DictConfig(mask_estimator),
+            "mask_processor": DictConfig(mask_processor),
+            "loss": DictConfig(loss),
+            "optim": {
+                "optimizer": "Adam",
+                "lr": 0.001,
+                "betas": (0.9, 0.98),
             },
         }
     )
@@ -158,16 +158,16 @@ def bf_model_flexarray(mask_model_flexarray):
 
     model_config = mask_model_flexarray.to_config_dict()
     # Switch processor to beamformer
-    model_config['mask_processor'] = {
-        '_target_': 'nemo.collections.audio.modules.masking.MaskBasedBeamformer',
-        'filter_type': 'pmwf',
-        'filter_beta': 0.0,
-        'filter_rank': 'one',
-        'ref_channel': 'max_snr',
-        'ref_hard': 1,
-        'ref_hard_use_grad': False,
-        'ref_subband_weighting': False,
-        'num_subbands': model_config['mask_estimator']['num_subbands'],
+    model_config["mask_processor"] = {
+        "_target_": "nemo.collections.audio.modules.masking.MaskBasedBeamformer",
+        "filter_type": "pmwf",
+        "filter_beta": 0.0,
+        "filter_rank": "one",
+        "ref_channel": "max_snr",
+        "ref_hard": 1,
+        "ref_hard_use_grad": False,
+        "ref_subband_weighting": False,
+        "num_subbands": model_config["mask_estimator"]["num_subbands"],
     }
 
     model = EncMaskDecAudioToAudioModel(cfg=model_config)
@@ -199,11 +199,15 @@ class TestMaskModelRNN:
         """Test that the model can run forward inference."""
         model = mask_model_rnn.eval()
         confdict = model.to_config_dict()
-        sampling_rate = confdict['sample_rate']
+        sampling_rate = confdict["sample_rate"]
         rng = torch.Generator()
         rng.manual_seed(0)
-        input_signal = torch.randn(size=(batch_size, 1, sample_len * sampling_rate), generator=rng)
-        input_signal_length = (sample_len * sampling_rate) * torch.ones(batch_size, dtype=torch.int)
+        input_signal = torch.randn(
+            size=(batch_size, 1, sample_len * sampling_rate), generator=rng
+        )
+        input_signal_length = (sample_len * sampling_rate) * torch.ones(
+            batch_size, dtype=torch.int
+        )
 
         abs_tol = 1e-5
 
@@ -213,7 +217,8 @@ class TestMaskModelRNN:
             output_length_list = []
             for i in range(input_signal.size(0)):
                 output, output_length = model.forward(
-                    input_signal=input_signal[i : i + 1], input_length=input_signal_length[i : i + 1]
+                    input_signal=input_signal[i : i + 1],
+                    input_length=input_signal_length[i : i + 1],
                 )
                 output_list.append(output)
                 output_length_list.append(output_length)
@@ -256,15 +261,21 @@ class TestMaskModelFlexArray:
             (1, 3, 10),  # 3-channel, Example 3
         ],
     )
-    def test_forward_infer(self, mask_model_flexarray, batch_size, num_channels, sample_len):
+    def test_forward_infer(
+        self, mask_model_flexarray, batch_size, num_channels, sample_len
+    ):
         """Test that the model can run forward inference."""
         model = mask_model_flexarray.eval()
         confdict = model.to_config_dict()
-        sampling_rate = confdict['sample_rate']
+        sampling_rate = confdict["sample_rate"]
         rng = torch.Generator()
         rng.manual_seed(0)
-        input_signal = torch.randn(size=(batch_size, num_channels, sample_len * sampling_rate), generator=rng)
-        input_signal_length = (sample_len * sampling_rate) * torch.ones(batch_size, dtype=torch.int)
+        input_signal = torch.randn(
+            size=(batch_size, num_channels, sample_len * sampling_rate), generator=rng
+        )
+        input_signal_length = (sample_len * sampling_rate) * torch.ones(
+            batch_size, dtype=torch.int
+        )
 
         abs_tol = 1e-5
 
@@ -274,7 +285,8 @@ class TestMaskModelFlexArray:
             output_length_list = []
             for i in range(input_signal.size(0)):
                 output, output_length = model.forward(
-                    input_signal=input_signal[i : i + 1], input_length=input_signal_length[i : i + 1]
+                    input_signal=input_signal[i : i + 1],
+                    input_length=input_signal_length[i : i + 1],
                 )
                 output_list.append(output)
                 output_length_list.append(output_length)
@@ -298,7 +310,9 @@ class TestBFModelFlexArray:
     """Test beamforming model with channel-flexible mask estimator."""
 
     @pytest.mark.unit
-    @pytest.mark.skipif(not HAVE_TORCHAUDIO, reason="Modules in this test require torchaudio")
+    @pytest.mark.skipif(
+        not HAVE_TORCHAUDIO, reason="Modules in this test require torchaudio"
+    )
     def test_constructor(self, bf_model_flexarray):
         """Test that the model can be constructed from a config dict."""
         model = bf_model_flexarray.train()
@@ -307,7 +321,9 @@ class TestBFModelFlexArray:
         assert isinstance(instance2, EncMaskDecAudioToAudioModel)
 
     @pytest.mark.unit
-    @pytest.mark.skipif(not HAVE_TORCHAUDIO, reason="Modules in this test require torchaudio")
+    @pytest.mark.skipif(
+        not HAVE_TORCHAUDIO, reason="Modules in this test require torchaudio"
+    )
     @pytest.mark.parametrize(
         "batch_size, num_channels, sample_len",
         [
@@ -319,15 +335,21 @@ class TestBFModelFlexArray:
             (1, 3, 10),  # 3-channel, Example 3
         ],
     )
-    def test_forward_infer(self, bf_model_flexarray, batch_size, num_channels, sample_len):
+    def test_forward_infer(
+        self, bf_model_flexarray, batch_size, num_channels, sample_len
+    ):
         """Test that the model can run forward inference."""
         model = bf_model_flexarray.eval()
         confdict = model.to_config_dict()
-        sampling_rate = confdict['sample_rate']
+        sampling_rate = confdict["sample_rate"]
         rng = torch.Generator()
         rng.manual_seed(0)
-        input_signal = torch.randn(size=(batch_size, num_channels, sample_len * sampling_rate), generator=rng)
-        input_signal_length = (sample_len * sampling_rate) * torch.ones(batch_size, dtype=torch.int)
+        input_signal = torch.randn(
+            size=(batch_size, num_channels, sample_len * sampling_rate), generator=rng
+        )
+        input_signal_length = (sample_len * sampling_rate) * torch.ones(
+            batch_size, dtype=torch.int
+        )
 
         abs_tol = 1e-5
 
@@ -337,7 +359,8 @@ class TestBFModelFlexArray:
             output_length_list = []
             for i in range(input_signal.size(0)):
                 output, output_length = model.forward(
-                    input_signal=input_signal[i : i + 1], input_length=input_signal_length[i : i + 1]
+                    input_signal=input_signal[i : i + 1],
+                    input_length=input_signal_length[i : i + 1],
                 )
                 output_list.append(output)
                 output_length_list.append(output_length)

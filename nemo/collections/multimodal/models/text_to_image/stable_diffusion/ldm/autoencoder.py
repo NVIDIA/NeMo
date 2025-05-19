@@ -58,7 +58,13 @@ class VQModel(pl.LightningModule):
         self.encoder = Encoder(**ddconfig)
         self.decoder = Decoder(**ddconfig)
         self.loss = instantiate_from_config(lossconfig)
-        self.quantize = VectorQuantizer(n_embed, embed_dim, beta=0.25, remap=remap, sane_index_shape=sane_index_shape)
+        self.quantize = VectorQuantizer(
+            n_embed,
+            embed_dim,
+            beta=0.25,
+            remap=remap,
+            sane_index_shape=sane_index_shape,
+        )
         self.quant_conv = torch.nn.Conv2d(ddconfig["z_channels"], embed_dim, 1)
         self.post_quant_conv = torch.nn.Conv2d(embed_dim, ddconfig["z_channels"], 1)
         if colorize_nlabels is not None:
@@ -68,7 +74,9 @@ class VQModel(pl.LightningModule):
             self.monitor = monitor
         self.batch_resize_range = batch_resize_range
         if self.batch_resize_range is not None:
-            print(f"{self.__class__.__name__}: Using per-batch resizing in range {batch_resize_range}.")
+            print(
+                f"{self.__class__.__name__}: Using per-batch resizing in range {batch_resize_range}."
+            )
 
         if ckpt_path is not None:
             self.init_from_ckpt(ckpt_path, ignore_keys=ignore_keys)
@@ -99,7 +107,9 @@ class VQModel(pl.LightningModule):
                     print("Deleting key {} from state_dict.".format(k))
                     del sd[k]
         missing, unexpected = self.load_state_dict(sd, strict=False)
-        print(f"Restored from {path} with {len(missing)} missing and {len(unexpected)} unexpected keys")
+        print(
+            f"Restored from {path} with {len(missing)} missing and {len(unexpected)} unexpected keys"
+        )
         if len(missing) > 0:
             print(f"Missing Keys: {missing}")
             print(f"Unexpected Keys: {unexpected}")
@@ -148,7 +158,9 @@ class VQModel(pl.LightningModule):
                 # do the first few batches with max size to avoid later oom
                 new_resize = upper_size
             else:
-                new_resize = np.random.choice(np.arange(lower_size, upper_size + 16, 16))
+                new_resize = np.random.choice(
+                    np.arange(lower_size, upper_size + 16, 16)
+                )
             if new_resize != x.shape[2]:
                 x = F.interpolate(x, size=new_resize, mode="bicubic")
             x = x.detach()
@@ -173,15 +185,25 @@ class VQModel(pl.LightningModule):
                 predicted_indices=ind,
             )
 
-            self.log_dict(log_dict_ae, prog_bar=False, logger=True, on_step=True, on_epoch=True)
+            self.log_dict(
+                log_dict_ae, prog_bar=False, logger=True, on_step=True, on_epoch=True
+            )
             return aeloss
 
         if optimizer_idx == 1:
             # discriminator
             discloss, log_dict_disc = self.loss(
-                qloss, x, xrec, optimizer_idx, self.global_step, last_layer=self.get_last_layer(), split="train"
+                qloss,
+                x,
+                xrec,
+                optimizer_idx,
+                self.global_step,
+                last_layer=self.get_last_layer(),
+                split="train",
             )
-            self.log_dict(log_dict_disc, prog_bar=False, logger=True, on_step=True, on_epoch=True)
+            self.log_dict(
+                log_dict_disc, prog_bar=False, logger=True, on_step=True, on_epoch=True
+            )
             return discloss
 
     def validation_step(self, batch, batch_idx):
@@ -216,12 +238,24 @@ class VQModel(pl.LightningModule):
         )
         rec_loss = log_dict_ae[f"val{suffix}/rec_loss"]
         self.log(
-            f"val{suffix}/rec_loss", rec_loss, prog_bar=True, logger=True, on_step=False, on_epoch=True, sync_dist=True
+            f"val{suffix}/rec_loss",
+            rec_loss,
+            prog_bar=True,
+            logger=True,
+            on_step=False,
+            on_epoch=True,
+            sync_dist=True,
         )
         self.log(
-            f"val{suffix}/aeloss", aeloss, prog_bar=True, logger=True, on_step=False, on_epoch=True, sync_dist=True
+            f"val{suffix}/aeloss",
+            aeloss,
+            prog_bar=True,
+            logger=True,
+            on_step=False,
+            on_epoch=True,
+            sync_dist=True,
         )
-        if version.parse(pl.__version__) >= version.parse('1.4.0'):
+        if version.parse(pl.__version__) >= version.parse("1.4.0"):
             del log_dict_ae[f"val{suffix}/rec_loss"]
         self.log_dict(log_dict_ae)
         self.log_dict(log_dict_disc)
@@ -241,15 +275,25 @@ class VQModel(pl.LightningModule):
             lr=lr_g,
             betas=(0.5, 0.9),
         )
-        opt_disc = torch.optim.Adam(self.loss.discriminator.parameters(), lr=lr_d, betas=(0.5, 0.9))
+        opt_disc = torch.optim.Adam(
+            self.loss.discriminator.parameters(), lr=lr_d, betas=(0.5, 0.9)
+        )
 
         if self.scheduler_config is not None:
             scheduler = instantiate_from_config(self.scheduler_config)
 
             print("Setting up LambdaLR scheduler...")
             scheduler = [
-                {'scheduler': LambdaLR(opt_ae, lr_lambda=scheduler.schedule), 'interval': 'step', 'frequency': 1},
-                {'scheduler': LambdaLR(opt_disc, lr_lambda=scheduler.schedule), 'interval': 'step', 'frequency': 1},
+                {
+                    "scheduler": LambdaLR(opt_ae, lr_lambda=scheduler.schedule),
+                    "interval": "step",
+                    "frequency": 1,
+                },
+                {
+                    "scheduler": LambdaLR(opt_disc, lr_lambda=scheduler.schedule),
+                    "interval": "step",
+                    "frequency": 1,
+                },
             ]
             return [opt_ae, opt_disc], scheduler
         return [opt_ae, opt_disc], []
@@ -343,21 +387,23 @@ class AutoencoderKL(pl.LightningModule):
 
         if from_pretrained is not None:
             logging.info(f"Attempting to load vae weights from {from_pretrained}")
-            if from_pretrained.endswith('safetensors'):
+            if from_pretrained.endswith("safetensors"):
                 from safetensors.torch import load_file as load_safetensors
 
                 state_dict = load_safetensors(from_pretrained)
             else:
                 state_dict = torch.load(from_pretrained, weights_only=False)
-            if 'state_dict' in state_dict:
-                state_dict = state_dict['state_dict']
-            missing_key, unexpected_key, _, _ = self._load_pretrained_model(state_dict, from_NeMo=from_NeMo)
+            if "state_dict" in state_dict:
+                state_dict = state_dict["state_dict"]
+            missing_key, unexpected_key, _, _ = self._load_pretrained_model(
+                state_dict, from_NeMo=from_NeMo
+            )
             if len(missing_key) > 0:
                 print(
-                    f'{self.__class__.__name__}: Following keys are missing during loading VAE weights, which may lead to compromised image quality for a resumed training. Please check the checkpoint you provided.'
+                    f"{self.__class__.__name__}: Following keys are missing during loading VAE weights, which may lead to compromised image quality for a resumed training. Please check the checkpoint you provided."
                 )
-                print(f'Missing:{missing_key}')
-                print(f'Unexpected:{unexpected_key}')
+                print(f"Missing:{missing_key}")
+                print(f"Unexpected:{unexpected_key}")
 
     def _state_key_mapping(self, state_dict: dict):
         import re
@@ -365,26 +411,26 @@ class AutoencoderKL(pl.LightningModule):
         res_dict = {}
         key_list = state_dict.keys()
         key_str = " ".join(key_list)
-        up_block_pattern = re.compile('upsamplers')
-        p1 = re.compile('mid.block_[0-9]')
-        p2 = re.compile('decoder.up.[0-9]')
+        up_block_pattern = re.compile("upsamplers")
+        p1 = re.compile("mid.block_[0-9]")
+        p2 = re.compile("decoder.up.[0-9]")
         up_blocks_count = int(len(re.findall(up_block_pattern, key_str)) / 2 + 1)
         for key_, val_ in state_dict.items():
             key_ = (
                 key_.replace("up_blocks", "up")
                 .replace("down_blocks", "down")
-                .replace('resnets', 'block')
-                .replace('mid_block', 'mid')
+                .replace("resnets", "block")
+                .replace("mid_block", "mid")
                 .replace("mid.block.", "mid.block_")
-                .replace('mid.attentions.0.key', 'mid.attn_1.k')
-                .replace('mid.attentions.0.query', 'mid.attn_1.q')
-                .replace('mid.attentions.0.value', 'mid.attn_1.v')
-                .replace('mid.attentions.0.group_norm', 'mid.attn_1.norm')
-                .replace('mid.attentions.0.proj_attn', 'mid.attn_1.proj_out')
-                .replace('upsamplers.0', 'upsample')
-                .replace('downsamplers.0', 'downsample')
-                .replace('conv_shortcut', 'nin_shortcut')
-                .replace('conv_norm_out', 'norm_out')
+                .replace("mid.attentions.0.key", "mid.attn_1.k")
+                .replace("mid.attentions.0.query", "mid.attn_1.q")
+                .replace("mid.attentions.0.value", "mid.attn_1.v")
+                .replace("mid.attentions.0.group_norm", "mid.attn_1.norm")
+                .replace("mid.attentions.0.proj_attn", "mid.attn_1.proj_out")
+                .replace("upsamplers.0", "upsample")
+                .replace("downsamplers.0", "downsample")
+                .replace("conv_shortcut", "nin_shortcut")
+                .replace("conv_norm_out", "norm_out")
             )
 
             mid_list = re.findall(p1, key_)
@@ -401,7 +447,9 @@ class AutoencoderKL(pl.LightningModule):
             res_dict[key_] = val_
         return res_dict
 
-    def _load_pretrained_model(self, state_dict, ignore_mismatched_sizes=False, from_NeMo=False):
+    def _load_pretrained_model(
+        self, state_dict, ignore_mismatched_sizes=False, from_NeMo=False
+    ):
         if not from_NeMo:
             state_dict = self._state_key_mapping(state_dict)
         model_state_dict = self.state_dict()
@@ -424,26 +472,31 @@ class AutoencoderKL(pl.LightningModule):
 
                     if (
                         model_key in model_state_dict
-                        and state_dict[checkpoint_key].shape != model_state_dict[model_key].shape
+                        and state_dict[checkpoint_key].shape
+                        != model_state_dict[model_key].shape
                     ):
                         mismatched_keys.append(
-                            (checkpoint_key, state_dict[checkpoint_key].shape, model_state_dict[model_key].shape)
+                            (
+                                checkpoint_key,
+                                state_dict[checkpoint_key].shape,
+                                model_state_dict[model_key].shape,
+                            )
                         )
                         del state_dict[checkpoint_key]
             return mismatched_keys
 
-        if 'encoder.mid.attn_1.q.weight' in loaded_keys and (
-            state_dict['encoder.mid.attn_1.q.weight'].shape == torch.Size([512, 512])
+        if "encoder.mid.attn_1.q.weight" in loaded_keys and (
+            state_dict["encoder.mid.attn_1.q.weight"].shape == torch.Size([512, 512])
         ):
             for key in [
-                'encoder.mid.attn_1.q.weight',
-                'decoder.mid.attn_1.q.weight',
-                'encoder.mid.attn_1.v.weight',
-                'decoder.mid.attn_1.v.weight',
-                'encoder.mid.attn_1.k.weight',
-                'decoder.mid.attn_1.k.weight',
-                'encoder.mid.attn_1.proj_out.weight',
-                'decoder.mid.attn_1.proj_out.weight',
+                "encoder.mid.attn_1.q.weight",
+                "decoder.mid.attn_1.q.weight",
+                "encoder.mid.attn_1.v.weight",
+                "decoder.mid.attn_1.v.weight",
+                "encoder.mid.attn_1.k.weight",
+                "decoder.mid.attn_1.k.weight",
+                "encoder.mid.attn_1.proj_out.weight",
+                "decoder.mid.attn_1.proj_out.weight",
             ]:
                 state_dict[key] = state_dict[key].unsqueeze(2).unsqueeze(3)
 
@@ -490,18 +543,18 @@ class AutoencoderKL(pl.LightningModule):
         print(f"Restored from {path}")
 
     def encode(self, x):
-        '''
+        """
         Encode input image in pixel space to latent representation.
-        '''
+        """
         h = self.encoder(x)
         moments = self.quant_conv(h)
         posterior = DiagonalGaussianDistribution(moments)
         return posterior
 
     def decode(self, z):
-        '''
+        """
         Decode latent representation back to pixel space.
-        '''
+        """
         z = self.post_quant_conv(z)
         dec = self.decoder(z)
         return dec
@@ -537,8 +590,17 @@ class AutoencoderKL(pl.LightningModule):
                 last_layer=self.get_last_layer(),
                 split="train",
             )
-            self.log("aeloss", aeloss, prog_bar=True, logger=True, on_step=True, on_epoch=True)
-            self.log_dict(log_dict_ae, prog_bar=False, logger=True, on_step=True, on_epoch=False)
+            self.log(
+                "aeloss",
+                aeloss,
+                prog_bar=True,
+                logger=True,
+                on_step=True,
+                on_epoch=True,
+            )
+            self.log_dict(
+                log_dict_ae, prog_bar=False, logger=True, on_step=True, on_epoch=False
+            )
             return aeloss
 
         if optimizer_idx == 1:
@@ -553,19 +615,40 @@ class AutoencoderKL(pl.LightningModule):
                 split="train",
             )
 
-            self.log("discloss", discloss, prog_bar=True, logger=True, on_step=True, on_epoch=True)
-            self.log_dict(log_dict_disc, prog_bar=False, logger=True, on_step=True, on_epoch=False)
+            self.log(
+                "discloss",
+                discloss,
+                prog_bar=True,
+                logger=True,
+                on_step=True,
+                on_epoch=True,
+            )
+            self.log_dict(
+                log_dict_disc, prog_bar=False, logger=True, on_step=True, on_epoch=False
+            )
             return discloss
 
     def validation_step(self, batch, batch_idx):
         inputs = self.get_input(batch, self.image_key)
         reconstructions, posterior = self(inputs)
         aeloss, log_dict_ae = self.loss(
-            inputs, reconstructions, posterior, 0, self.global_step, last_layer=self.get_last_layer(), split="val"
+            inputs,
+            reconstructions,
+            posterior,
+            0,
+            self.global_step,
+            last_layer=self.get_last_layer(),
+            split="val",
         )
 
         discloss, log_dict_disc = self.loss(
-            inputs, reconstructions, posterior, 1, self.global_step, last_layer=self.get_last_layer(), split="val"
+            inputs,
+            reconstructions,
+            posterior,
+            1,
+            self.global_step,
+            last_layer=self.get_last_layer(),
+            split="val",
         )
 
         self.log("val/rec_loss", log_dict_ae["val/rec_loss"])
@@ -583,7 +666,9 @@ class AutoencoderKL(pl.LightningModule):
             lr=lr,
             betas=(0.5, 0.9),
         )
-        opt_disc = torch.optim.Adam(self.loss.discriminator.parameters(), lr=lr, betas=(0.5, 0.9))
+        opt_disc = torch.optim.Adam(
+            self.loss.discriminator.parameters(), lr=lr, betas=(0.5, 0.9)
+        )
         return [opt_ae, opt_disc], []
 
     def get_last_layer(self):

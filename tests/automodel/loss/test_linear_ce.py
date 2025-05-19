@@ -29,7 +29,7 @@ def test_fused_cross_entropy():
     if not torch.cuda.is_available():
         pytest.skip("This test requires a GPU")
 
-    device = torch.device('cuda')
+    device = torch.device("cuda")
     batch_size = 8
     seq_length = 2048  # Added sequence length dimension
     hidden_dim = 4096
@@ -37,16 +37,22 @@ def test_fused_cross_entropy():
     dtype = torch.bfloat16
 
     # Create inputs on GPU
-    hidden_states = torch.randn(batch_size, seq_length, hidden_dim, dtype=dtype, device=device)
-    weight = torch.randn(vocab_size, hidden_dim, dtype=dtype, device=device)  # Note: transposed shape
+    hidden_states = torch.randn(
+        batch_size, seq_length, hidden_dim, dtype=dtype, device=device
+    )
+    weight = torch.randn(
+        vocab_size, hidden_dim, dtype=dtype, device=device
+    )  # Note: transposed shape
     targets = torch.randint(0, vocab_size, (batch_size, seq_length), device=device)
 
     # Measure memory for PyTorch implementation
     torch.cuda.reset_peak_memory_stats()
-    with torch.amp.autocast(device_type='cuda', dtype=dtype):
+    with torch.amp.autocast(device_type="cuda", dtype=dtype):
         # Reshape for matmul: [batch_size, seq_length, hidden_dim] -> [batch_size * seq_length, hidden_dim]
         hidden_states_reshaped = hidden_states.reshape(-1, hidden_dim)
-        logits = torch.matmul(hidden_states_reshaped, weight.t())  # Use transpose for matmul
+        logits = torch.matmul(
+            hidden_states_reshaped, weight.t()
+        )  # Use transpose for matmul
         # Reshape targets for loss: [batch_size, seq_length] -> [batch_size * seq_length]
         targets_reshaped = targets.reshape(-1)
         pytorch_loss = F.cross_entropy(logits, targets_reshaped, reduction="mean")
@@ -59,7 +65,7 @@ def test_fused_cross_entropy():
 
     # Measure memory for fused implementation
     torch.cuda.reset_peak_memory_stats()
-    with torch.amp.autocast(device_type='cuda', dtype=dtype):
+    with torch.amp.autocast(device_type="cuda", dtype=dtype):
         fused_loss = fused_linear_cross_entropy(hidden_states, weight, targets)
     fused_memory = torch.cuda.max_memory_allocated()
 
@@ -78,4 +84,6 @@ def test_fused_cross_entropy():
         fused_loss, pytorch_loss, rtol=1e-2, atol=1e-2
     ), f"Loss mismatch: PyTorch={pytorch_loss.item()}, Fused={fused_loss.item()}"
     # Check if the fused implementation uses less memory
-    assert fused_memory < pytorch_memory, "Fused implementation should use less memory than PyTorch implementation"
+    assert (
+        fused_memory < pytorch_memory
+    ), "Fused implementation should use less memory than PyTorch implementation"

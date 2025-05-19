@@ -25,7 +25,7 @@ from nemo.collections.nlp.data.language_modeling.text_memmap_dataset import \
 from nemo.core.classes import Dataset
 from nemo.utils import logging
 
-__all__ = ['T5SFTDataset']
+__all__ = ["T5SFTDataset"]
 
 
 class T5SFTDataset(Dataset):
@@ -69,7 +69,11 @@ class T5SFTDataset(Dataset):
 
         if hf_dataset:
             self.indexed_dataset = load_dataset(
-                'json', data_files=file_path, cache_dir=index_mapping_dir, num_proc=memmap_workers, split='train'
+                "json",
+                data_files=file_path,
+                cache_dir=index_mapping_dir,
+                num_proc=memmap_workers,
+                split="train",
             )
         else:
             self.indexed_dataset = JSONLMemMapDataset(
@@ -83,7 +87,13 @@ class T5SFTDataset(Dataset):
     def _process_src(self, src):
         src = self.src_tokenizer.text_to_ids(src.strip())
         if self.add_bos_to_input:
-            src = [self.src_tokenizer.pad_id if self.replace_bos_with_pad else self.src_tokenizer.bos_id] + src
+            src = [
+                (
+                    self.src_tokenizer.pad_id
+                    if self.replace_bos_with_pad
+                    else self.src_tokenizer.bos_id
+                )
+            ] + src
         if self.add_eos_to_input:
             src = src + [self.src_tokenizer.eos_id]
         if len(src) > self.max_src_seq_length:
@@ -92,7 +102,13 @@ class T5SFTDataset(Dataset):
 
     def _process_tgt(self, tgt):
         tgt = (
-            [self.tgt_tokenizer.pad_id if self.replace_bos_with_pad else self.tgt_tokenizer.bos_id]
+            [
+                (
+                    self.tgt_tokenizer.pad_id
+                    if self.replace_bos_with_pad
+                    else self.tgt_tokenizer.bos_id
+                )
+            ]
             + self.tgt_tokenizer.text_to_ids(tgt.strip())
             + [self.tgt_tokenizer.eos_id]
         )
@@ -105,16 +121,16 @@ class T5SFTDataset(Dataset):
 
     def __getitem__(self, idx):
         example = self.indexed_dataset[idx]
-        text_enc = self._process_src(example['input'])
-        tgt = self._process_tgt(example['output'])
+        text_enc = self._process_src(example["input"])
+        tgt = self._process_tgt(example["output"])
         text_dec = tgt[:-1]
         labels = tgt[1:]
-        return {'text_enc': text_enc, 'text_dec': text_dec, 'labels': labels}
+        return {"text_enc": text_enc, "text_dec": text_dec, "labels": labels}
 
     def collate_fn(self, batch):
-        text_enc = [item['text_enc'] for item in batch]
-        text_dec = [item['text_dec'] for item in batch]
-        labels = [item['labels'] for item in batch]
+        text_enc = [item["text_enc"] for item in batch]
+        text_dec = [item["text_dec"] for item in batch]
+        labels = [item["labels"] for item in batch]
 
         if isinstance(text_enc[0], np.ndarray):
             text_enc = [x.tolist() for x in text_enc]
@@ -129,10 +145,22 @@ class T5SFTDataset(Dataset):
         max_enc_input_length = max([len(item) for item in text_enc]) if text_enc else 0
         max_label_length = max([len(item) for item in labels]) if labels else 0
 
-        loss_mask = [([1] * (len(item))) + ([0] * (max_label_length - len(item))) for item in labels]
-        text_enc = [item + [self.src_tokenizer.pad_id] * (max_enc_input_length - len(item)) for item in text_enc]
-        text_dec = [item + [self.tgt_tokenizer.pad_id] * (max_dec_input_length - len(item)) for item in text_dec]
-        labels = [item + [self.tgt_tokenizer.pad_id] * (max_label_length - len(item)) for item in labels]
+        loss_mask = [
+            ([1] * (len(item))) + ([0] * (max_label_length - len(item)))
+            for item in labels
+        ]
+        text_enc = [
+            item + [self.src_tokenizer.pad_id] * (max_enc_input_length - len(item))
+            for item in text_enc
+        ]
+        text_dec = [
+            item + [self.tgt_tokenizer.pad_id] * (max_dec_input_length - len(item))
+            for item in text_dec
+        ]
+        labels = [
+            item + [self.tgt_tokenizer.pad_id] * (max_label_length - len(item))
+            for item in labels
+        ]
 
         text_enc = torch.LongTensor(text_enc)
         text_dec = torch.LongTensor(text_dec)
@@ -143,12 +171,12 @@ class T5SFTDataset(Dataset):
         dec_mask = (text_dec != self.tgt_tokenizer.pad_id).long()
 
         return {
-            'text_enc': text_enc,
-            'text_dec': text_dec,
-            'labels': labels,
-            'loss_mask': loss_mask,
-            'enc_mask': enc_mask,
-            'dec_mask': dec_mask,
+            "text_enc": text_enc,
+            "text_dec": text_dec,
+            "labels": labels,
+            "loss_mask": loss_mask,
+            "enc_mask": enc_mask,
+            "dec_mask": dec_mask,
         }
 
 
@@ -157,14 +185,17 @@ def convert_data_file_format(src_file_name, tgt_file_name, output_file_name):
     Converts the old two-file format used by SequenceToSequenceDataset to the new JSONL format used by T5SFTDataset
     """
     output_lines = []
-    with open(src_file_name, encoding='utf8') as f_src, open(tgt_file_name, encoding='utf8') as f_tgt:
+    with (
+        open(src_file_name, encoding="utf8") as f_src,
+        open(tgt_file_name, encoding="utf8") as f_tgt,
+    ):
         for i, (src, tgt) in enumerate(zip(f_src, f_tgt)):
             if i % 10000 == 0 and i != 0:
                 logging.info(f"Read {i} lines from {src_file_name} & {tgt_file_name}")
-            output_lines.append({'input': src, 'output': tgt})
+            output_lines.append({"input": src, "output": tgt})
 
-    logging.info(f'Dataset Length : {len(output_lines)}')
+    logging.info(f"Dataset Length : {len(output_lines)}")
 
     with open(output_file_name, "w") as f_json:
         for line in output_lines:
-            f_json.write(json.dumps(line) + '\n')
+            f_json.write(json.dumps(line) + "\n")

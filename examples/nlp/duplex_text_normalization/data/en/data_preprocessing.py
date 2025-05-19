@@ -70,7 +70,10 @@ def inflect_engine():
 number_verbalizations = list(range(0, 20)) + list(range(20, 100, 10))
 number_verbalizations = (
     [
-        inflect_engine().number_to_words(x, zero="zero").replace("-", " ").replace(",", "")
+        inflect_engine()
+        .number_to_words(x, zero="zero")
+        .replace("-", " ")
+        .replace(",", "")
         for x in number_verbalizations
     ]
     + ["hundred", "thousand", "million", "billion", "trillion"]
@@ -95,32 +98,32 @@ def process_url(o):
         """flatten a list of lists"""
         return [item for sublist in l for item in sublist]
 
-    if o != '<self>' and '_letter' in o:
-        o_tokens = o.split(' ')
+    if o != "<self>" and "_letter" in o:
+        o_tokens = o.split(" ")
         all_spans, cur_span = [], []
         for j in range(len(o_tokens)):
             if len(o_tokens[j]) == 0:
                 continue
-            if o_tokens[j] == '_letter':
+            if o_tokens[j] == "_letter":
                 all_spans.append(cur_span)
-                all_spans.append([' '])
+                all_spans.append([" "])
                 cur_span = []
             else:
-                o_tokens[j] = o_tokens[j].replace('_letter', '')
+                o_tokens[j] = o_tokens[j].replace("_letter", "")
                 cur_span.append(o_tokens[j])
         if len(cur_span) > 0:
             all_spans.append(cur_span)
         o_tokens = flatten(all_spans)
 
-        o = ''
+        o = ""
         for o_token in o_tokens:
             if len(o_token) > 1:
-                o += ' ' + o_token + ' '
+                o += " " + o_token + " "
             else:
                 o += o_token
         o = o.strip()
         o_tokens = processor.tokenize(o).split()
-        o = ' '.join(o_tokens)
+        o = " ".join(o_tokens)
 
     return o
 
@@ -140,7 +143,11 @@ def convert2digits(digits: str):
     res = []
     for i, x in enumerate(digits):
         if x in digit:
-            res.append(engine.number_to_words(str(x), zero="zero").replace("-", " ").replace(",", ""))
+            res.append(
+                engine.number_to_words(str(x), zero="zero")
+                .replace("-", " ")
+                .replace(",", "")
+            )
         elif x == ".":
             res.append("point")
         elif x in [" ", ","]:
@@ -215,7 +222,11 @@ def convert(example):
             if i == 0 and x == "-":
                 res.append("minus")
             elif x in digit:
-                res.append(engine.number_to_words(str(x), zero="zero").replace("-", " ").replace(",", ""))
+                res.append(
+                    engine.number_to_words(str(x), zero="zero")
+                    .replace("-", " ")
+                    .replace(",", "")
+                )
             elif x == ".":
                 res.append("point")
         spoken = " ".join(res)
@@ -233,11 +244,19 @@ def convert(example):
         if len(numerator) > args.max_integer_length:
             numerator = convert2digits(numerator)[0]
         else:
-            numerator = engine.number_to_words(str(numerator), zero="zero").replace("-", " ").replace(",", "")
+            numerator = (
+                engine.number_to_words(str(numerator), zero="zero")
+                .replace("-", " ")
+                .replace(",", "")
+            )
         if len(denominator) > args.max_denominator_length:
             denominator = convert2digits(denominator)[0]
         else:
-            denominator = engine.number_to_words(str(denominator), zero="zero").replace("-", " ").replace(",", "")
+            denominator = (
+                engine.number_to_words(str(denominator), zero="zero")
+                .replace("-", " ")
+                .replace(",", "")
+            )
         spoken = numerator + " slash " + denominator
         if res:
             spoken = "minus " + spoken
@@ -288,7 +307,9 @@ def convert(example):
         elif "st" in written.lower():
             idx = written.lower().index("st")
         if re.search(r"[¿¡ºª]", written) is None:
-            spoken = convert2digits(written[:idx].strip())[0] + " " + written[idx:].lower()
+            spoken = (
+                convert2digits(written[:idx].strip())[0] + " " + written[idx:].lower()
+            )
         if res:
             spoken = "minus " + spoken
     example[2] = spoken
@@ -304,7 +325,7 @@ def ignore(example):
     cls, _, _ = example
     if cls in ["PLAIN", "LETTERS", "ELECTRONIC", "VERBATIM", "PUNCT"]:
         example[2] = "<self>"
-    if example[1] == 'I' and re.search("(first|one)", example[2]):
+    if example[1] == "I" and re.search("(first|one)", example[2]):
         example[2] = "<self>"
 
 
@@ -323,10 +344,10 @@ def process_file(fp):
 
     insts, w_words, s_words, classes = [], [], [], []
     delete_sentence = False
-    with open(fp, 'r', encoding='utf-8') as f:
+    with open(fp, "r", encoding="utf-8") as f:
         for line in tqdm(f):
-            es = [e.strip() for e in line.strip().split('\t')]
-            if es[0] == '<eos>':
+            es = [e.strip() for e in line.strip().split("\t")]
+            if es[0] == "<eos>":
                 if not delete_sentence:
                     inst = (classes, w_words, s_words)
                     insts.append(inst)
@@ -344,13 +365,13 @@ def process_file(fp):
                 if re.search(rf"[{characters_ignore}]", es[1]) is not None:
                     delete_sentence = True
                 # delete characters from chinese, japanese, korean
-                if re.search(r'[\u4e00-\u9fff]+', es[1]) is not None:
+                if re.search(r"[\u4e00-\u9fff]+", es[1]) is not None:
                     delete_sentence = True
 
-                if es[0] == 'MONEY' and re.search("\s?DM$", es[1]):
+                if es[0] == "MONEY" and re.search("\s?DM$", es[1]):
                     delete_sentence = True
 
-                if es[0] == 'MEASURE' and re.search("\s?Da$", es[1]):
+                if es[0] == "MEASURE" and re.search("\s?Da$", es[1]):
                     delete_sentence = True
 
                 classes.append(es[0])
@@ -360,13 +381,13 @@ def process_file(fp):
         inst = (classes, w_words, s_words)
         insts.append(inst)
 
-    output_f = open(output_path, 'w+', encoding='utf-8')
+    output_f = open(output_path, "w+", encoding="utf-8")
     for _, inst in enumerate(insts):
         cur_classes, cur_tokens, cur_outputs = inst
         for c, t, o in zip(cur_classes, cur_tokens, cur_outputs):
-            output_f.write(f'{c}\t{t}\t{o}\n')
+            output_f.write(f"{c}\t{t}\t{o}\n")
 
-        output_f.write(f'<eos>\t<eos>\n')
+        output_f.write(f"<eos>\t<eos>\n")
 
 
 def main():
@@ -381,7 +402,9 @@ def main():
         os.makedirs(args.output_dir, exist_ok=True)
 
     if os.path.isdir(args.input_path):
-        input_paths = sorted([os.path.join(args.input_path, f) for f in os.listdir(args.input_path)])
+        input_paths = sorted(
+            [os.path.join(args.input_path, f) for f in os.listdir(args.input_path)]
+        )
     else:
         input_paths = [args.input_path]
 
@@ -391,20 +414,29 @@ def main():
 
 if __name__ == "__main__":
 
-    parser = ArgumentParser(description="Text Normalization Data Preprocessing for English")
-    parser.add_argument("--output_dir", required=True, type=str, help='Path to output directory.')
-    parser.add_argument("--input_path", required=True, type=str, help='Path to input file or input directory.')
+    parser = ArgumentParser(
+        description="Text Normalization Data Preprocessing for English"
+    )
+    parser.add_argument(
+        "--output_dir", required=True, type=str, help="Path to output directory."
+    )
+    parser.add_argument(
+        "--input_path",
+        required=True,
+        type=str,
+        help="Path to input file or input directory.",
+    )
     parser.add_argument(
         "--max_integer_length",
         default=4,
         type=int,
-        help='Maximum number of digits for integers that are allowed. Beyond this, the integers are verbalized digit by digit.',
+        help="Maximum number of digits for integers that are allowed. Beyond this, the integers are verbalized digit by digit.",
     )
     parser.add_argument(
         "--max_denominator_length",
         default=3,
         type=int,
-        help='Maximum number of digits for denominators that are allowed. Beyond this, the denominator is verbalized digit by digit.',
+        help="Maximum number of digits for denominators that are allowed. Beyond this, the denominator is verbalized digit by digit.",
     )
     args = parser.parse_args()
 

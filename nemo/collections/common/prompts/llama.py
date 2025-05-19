@@ -67,7 +67,12 @@ def llama2(cut: Cut, prompt: Llama2PromptFormatter) -> dict[str, torch.Tensor]:
 
     turns = []
     if cut.has_custom("system_prompt"):
-        turns.append({"role": "system_and_user", "slots": {"system": cut.system_prompt, "message": context}})
+        turns.append(
+            {
+                "role": "system_and_user",
+                "slots": {"system": cut.system_prompt, "message": context},
+            }
+        )
     else:
         turns.append({"role": "user", "slots": {"message": context}})
     if (answer := cut.supervisions[0].text) is not None:
@@ -76,7 +81,9 @@ def llama2(cut: Cut, prompt: Llama2PromptFormatter) -> dict[str, torch.Tensor]:
 
 
 @registered_prompt_format_fn(SourceTargetTextExample, Llama2PromptFormatter)
-def llama2_src_tgt_text_example(example: SourceTargetTextExample, prompt: Llama2PromptFormatter):
+def llama2_src_tgt_text_example(
+    example: SourceTargetTextExample, prompt: Llama2PromptFormatter
+):
     if example.question is not None:
         user_turn = {
             "role": "system_and_user",
@@ -111,7 +118,10 @@ def llama2_sft_text_example(example: NeMoSFTExample, prompt: Llama2PromptFormatt
     return prompt.encode_dialog(
         [first_turn]
         + [
-            {"role": "user" if turn["from"] == "User" else prompt.OUTPUT_ROLE, "slots": {"message": turn["value"]}}
+            {
+                "role": "user" if turn["from"] == "User" else prompt.OUTPUT_ROLE,
+                "slots": {"message": turn["value"]},
+            }
             for turn in example.data["conversations"][1:]
         ]
     )
@@ -170,7 +180,12 @@ def llama3(cut: Cut, prompt: Llama3PromptFormatter) -> dict[str, torch.Tensor]:
 
     turns = []
     if cut.has_custom("system_prompt"):
-        turns.append({"role": "system_and_user", "slots": {"system": cut.system_prompt, "message": context}})
+        turns.append(
+            {
+                "role": "system_and_user",
+                "slots": {"system": cut.system_prompt, "message": context},
+            }
+        )
     else:
         turns.append({"role": "user", "slots": {"message": context}})
     if (answer := cut.supervisions[0].text) is not None:

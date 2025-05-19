@@ -65,7 +65,7 @@ class TemporalNevaDataset(Dataset):
         This function groups the prompt dicts by the media/video/image file name
         """
         media_dict = {}
-        media = media_token.lstrip('<').rstrip('>')
+        media = media_token.lstrip("<").rstrip(">")
         for prompt_dict in self.prompt_dicts:
             media_name = prompt_dict[media]  # video or image file name
             if media_name not in media_dict:
@@ -86,26 +86,34 @@ class TemporalNevaDataset(Dataset):
         cur_item = []
         cur_media_feature = None
         for prompt_dict in prompt_dict_list:
-            if 'prompt' not in prompt_dict:
-                prompt_dict['prompt'] = prompt_dict['text'] if 'text' in prompt_dict else prompt_dict['question']
-            if self.insert_media_token == 'left':
+            if "prompt" not in prompt_dict:
+                prompt_dict["prompt"] = (
+                    prompt_dict["text"]
+                    if "text" in prompt_dict
+                    else prompt_dict["question"]
+                )
+            if self.insert_media_token == "left":
                 if self.add_media_sep:
-                    prompt_dict['prompt'] = self.media_token + " \n" + prompt_dict['prompt']
+                    prompt_dict["prompt"] = (
+                        self.media_token + " \n" + prompt_dict["prompt"]
+                    )
                 else:
-                    prompt_dict['prompt'] = self.media_token + prompt_dict['prompt']
-            elif self.insert_media_token == 'right':
+                    prompt_dict["prompt"] = self.media_token + prompt_dict["prompt"]
+            elif self.insert_media_token == "right":
                 if self.add_media_sep:
-                    prompt_dict['prompt'] = prompt_dict['prompt'] + self.media_token + " \n"
+                    prompt_dict["prompt"] = (
+                        prompt_dict["prompt"] + self.media_token + " \n"
+                    )
                 else:
-                    prompt_dict['prompt'] = prompt_dict['prompt'] + self.media_token
-            if 'image' in prompt_dict:
-                prompt_dict['image_path'] = prompt_dict['image']
-                image_path = os.path.join(self.media_base_path, prompt_dict['image'])
+                    prompt_dict["prompt"] = prompt_dict["prompt"] + self.media_token
+            if "image" in prompt_dict:
+                prompt_dict["image_path"] = prompt_dict["image"]
+                image_path = os.path.join(self.media_base_path, prompt_dict["image"])
                 if cur_media_feature is None:
                     cur_media_feature = ("image", self.image_processor(image_path))
-            if 'video' in prompt_dict:
-                prompt_dict['video_path'] = prompt_dict['video']
-                video_path = os.path.join(self.media_base_path, prompt_dict['video'])
+            if "video" in prompt_dict:
+                prompt_dict["video_path"] = prompt_dict["video"]
+                video_path = os.path.join(self.media_base_path, prompt_dict["video"])
                 if cur_media_feature is None:
                     cur_media_feature = ("video", self.video_processor(video_path))
             cur_item.append(prompt_dict)
@@ -159,11 +167,11 @@ def main(cfg) -> None:
     }
 
     prompt_dicts = []
-    if cfg.prompt_file.endswith('.json'):
-        with open(cfg.prompt_file, 'r') as f:
+    if cfg.prompt_file.endswith(".json"):
+        with open(cfg.prompt_file, "r") as f:
             prompt_dicts = json.load(f)
-    elif cfg.prompt_file.endswith('.jsonl'):
-        with open(cfg.prompt_file, 'r') as f:
+    elif cfg.prompt_file.endswith(".jsonl"):
+        with open(cfg.prompt_file, "r") as f:
             lines = f.readlines()
         for line in lines:
             prompt_dicts.append(json.loads(line))
@@ -193,7 +201,9 @@ def main(cfg) -> None:
         num_workers=num_workers,
         persistent_workers=True,
     )
-    responses, final_prompts = do_inference(dataloader, model, length_params, sampling_params, cfg)
+    responses, final_prompts = do_inference(
+        dataloader, model, length_params, sampling_params, cfg
+    )
 
     # =================== Start Quantization ====================
     if HAVE_MODELOPT and cfg.quantization.enable == True:
@@ -205,7 +215,9 @@ def main(cfg) -> None:
         elif cfg.quantization.algorithm == "awq":
             mtq_config = mtq.INT4_AWQ_CFG
         else:
-            raise ValueError(f"Unsupported quantization algorithm: {cfg.quantization.algorithm}")
+            raise ValueError(
+                f"Unsupported quantization algorithm: {cfg.quantization.algorithm}"
+            )
 
         def forward_loop():
             num_samples = cfg.quantization.get("num_samples", 100)
@@ -229,11 +241,15 @@ def main(cfg) -> None:
                 collate_fn=collate_function,
                 num_workers=num_workers,
             )
-            _, _ = do_inference(cur_dataloader, model, length_params, sampling_params, cfg)
+            _, _ = do_inference(
+                cur_dataloader, model, length_params, sampling_params, cfg
+            )
 
         mtq.quantize(model, mtq_config, forward_loop)
 
-        responses, final_prompts = do_inference(dataloader, model, length_params, sampling_params, cfg)
+        responses, final_prompts = do_inference(
+            dataloader, model, length_params, sampling_params, cfg
+        )
 
     # ============== Quantization End =========================
 
@@ -244,26 +260,26 @@ def main(cfg) -> None:
     if is_global_rank_zero():
         results = []
         for response, prompt in zip(responses, final_prompts):
-            prompt['full_text'] = response["clean_text"]
-            prompt['pred_answer'] = response["clean_response"]
-            prompt['model_id'] = cfg.neva_model_file
-            if 'image_path' in prompt:
-                prompt['image'] = prompt.pop('image_path')
-            if 'video_path' in prompt:
-                prompt['video'] = prompt.pop('video_path')
-            if 'answer_id' not in prompt:
-                prompt['answer_id'] = 0
-            if 'metadata' not in prompt:
-                prompt['metadata'] = {}
+            prompt["full_text"] = response["clean_text"]
+            prompt["pred_answer"] = response["clean_response"]
+            prompt["model_id"] = cfg.neva_model_file
+            if "image_path" in prompt:
+                prompt["image"] = prompt.pop("image_path")
+            if "video_path" in prompt:
+                prompt["video"] = prompt.pop("video_path")
+            if "answer_id" not in prompt:
+                prompt["answer_id"] = 0
+            if "metadata" not in prompt:
+                prompt["metadata"] = {}
             results.append(prompt)
 
-        with open(cfg.output_file, 'w') as f:
-            if cfg.output_file.endswith('.json'):
+        with open(cfg.output_file, "w") as f:
+            if cfg.output_file.endswith(".json"):
                 json.dump(results, f, indent=2)
             else:
                 for result in results:
-                    f.write(json.dumps(result) + '\n')
+                    f.write(json.dumps(result) + "\n")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()  # noqa pylint: disable=no-value-for-parameter

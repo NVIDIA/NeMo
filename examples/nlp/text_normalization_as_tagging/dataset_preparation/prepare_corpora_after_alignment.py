@@ -36,21 +36,32 @@ parser.add_argument(
     help='Mode, one of ["get_replacement_vocab", "filter_by_vocab", "get_labeled_corpus"]',
 )
 parser.add_argument(
-    "--data_dir", required=True, type=str, help='Path to data directory with files like output-00000-of-00100.tsv'
+    "--data_dir",
+    required=True,
+    type=str,
+    help="Path to data directory with files like output-00000-of-00100.tsv",
 )
 parser.add_argument(
-    "--giza_dir", required=True, type=str, help='Path to directory with class folders like ordinal, date etc'
+    "--giza_dir",
+    required=True,
+    type=str,
+    help="Path to directory with class folders like ordinal, date etc",
 )
 parser.add_argument(
-    "--alignment_filename", required=True, type=str, help='Name of alignment file, like "itn.out", "itn.out.vocab2000"'
+    "--alignment_filename",
+    required=True,
+    type=str,
+    help='Name of alignment file, like "itn.out", "itn.out.vocab2000"',
 )
-parser.add_argument("--out_filename", required=True, type=str, help='Output file')
-parser.add_argument("--vocab_filename", required=True, type=str, help='Vocab name')
+parser.add_argument("--out_filename", required=True, type=str, help="Output file")
+parser.add_argument("--vocab_filename", required=True, type=str, help="Vocab name")
 parser.add_argument("--lang", required=True, type=str, help="Language")
 args = parser.parse_args()
 
 
-def process_file_itn(inputname: str, out: TextIO, keys2replacements: Dict[str, str]) -> None:
+def process_file_itn(
+    inputname: str, out: TextIO, keys2replacements: Dict[str, str]
+) -> None:
     """Processes one file in Google TN Dataset format to get the labeled data for ThutmoseTaggerModel
 
     Args:
@@ -68,7 +79,14 @@ def process_file_itn(inputname: str, out: TextIO, keys2replacements: Dict[str, s
         for line in f:
             if line.startswith("<eos>"):
                 if sent_is_ok and len(words) > 0:
-                    out.write(" ".join(words) + "\t" + " ".join(tags) + "\t" + ";".join(semiotic_info) + "\n")
+                    out.write(
+                        " ".join(words)
+                        + "\t"
+                        + " ".join(tags)
+                        + "\t"
+                        + ";".join(semiotic_info)
+                        + "\n"
+                    )
                 words = []
                 tags = []
                 semiotic_info = []
@@ -91,7 +109,8 @@ def process_file_itn(inputname: str, out: TextIO, keys2replacements: Dict[str, s
                     replacements = keys2replacements[key].split(" ")
                     spoken_words = dst.split(" ")
                     for w, r in zip(
-                        same_from_begin + spoken_words + same_from_end, same_from_begin + replacements + same_from_end
+                        same_from_begin + spoken_words + same_from_end,
+                        same_from_begin + replacements + same_from_end,
                     ):
                         words.append(w)
                         if cls == "LETTERS" or cls == "PLAIN":
@@ -106,7 +125,12 @@ def process_file_itn(inputname: str, out: TextIO, keys2replacements: Dict[str, s
                     semiotic_info.append(
                         cls
                         + " "
-                        + str(len(words) - len(spoken_words) - len(same_from_begin) - len(same_from_end))
+                        + str(
+                            len(words)
+                            - len(spoken_words)
+                            - len(same_from_begin)
+                            - len(same_from_end)
+                        )
                         + " "
                         + str(len(words))
                     )
@@ -134,7 +158,7 @@ def process_line(semiotic_class: str, line: str) -> Optional[Tuple[str, str, str
 
 def get_replacement_vocab() -> None:
     """Loops through the files with alignment results in each semiotic class subfolder, counts frequencies of different
-     replacement segments.
+    replacement segments.
     """
 
     full_vocab = Counter()
@@ -160,7 +184,9 @@ def get_replacement_vocab() -> None:
                         continue
                     full_vocab[rep] += freq
                     class_vocab[rep] += freq
-        with open(args.vocab_filename + "." + semiotic_class, "w", encoding="utf-8") as out:
+        with open(
+            args.vocab_filename + "." + semiotic_class, "w", encoding="utf-8"
+        ) as out:
             for k, v in class_vocab.most_common(1000000000):
                 out.write(k + "\t" + str(v) + "\n")
 
@@ -190,7 +216,11 @@ def filter_by_vocab() -> None:
         if len(fn_parts) < 2:
             raise ValueError("Bad filename: " + fn)
         semiotic_class = fn_parts[-2]
-        out = open(args.giza_dir + "/" + semiotic_class + "/" + args.out_filename, "w", encoding="utf-8")
+        out = open(
+            args.giza_dir + "/" + semiotic_class + "/" + args.out_filename,
+            "w",
+            encoding="utf-8",
+        )
         with open(fn, "r", encoding="utf-8") as f:
             for line in f:
                 t = process_line(semiotic_class, line)
@@ -202,7 +232,16 @@ def filter_by_vocab() -> None:
                     if s != r and r not in vocab:
                         ok = False
                 if ok:
-                    out.write(semiotic_class + "\t" + src + "\t" + dst + "\t" + replacement + "\n")
+                    out.write(
+                        semiotic_class
+                        + "\t"
+                        + src
+                        + "\t"
+                        + dst
+                        + "\t"
+                        + replacement
+                        + "\n"
+                    )
         out.close()
 
 
@@ -220,18 +259,29 @@ def get_labeled_corpus() -> None:
     keys2replacements = {}
     alignment_files = glob.glob(args.giza_dir + "/*/" + args.alignment_filename)
     if len(alignment_files) == 0:
-        raise ValueError("Did not found any such files: " + args.giza_dir + "/*/" + args.alignment_filename)
+        raise ValueError(
+            "Did not found any such files: "
+            + args.giza_dir
+            + "/*/"
+            + args.alignment_filename
+        )
     for af in alignment_files:
         with open(af, "r", encoding="utf-8") as f:
             for line in f:
                 cls, src, dst, replacements = line.strip().split("\t")
                 key = cls + "\t" + dst + "\t" + src
                 if key in keys2replacements and keys2replacements[key] != replacements:
-                    logging.warning("keys2replacements[key] != replacements", keys2replacements[key], replacements)
+                    logging.warning(
+                        "keys2replacements[key] != replacements",
+                        keys2replacements[key],
+                        replacements,
+                    )
                 keys2replacements[key] = replacements
     print("size of phrase-to-replacements dictionary =", len(keys2replacements))
     out = open(args.out_filename, "w", encoding="utf-8")
-    input_paths = sorted([os.path.join(args.data_dir, f) for f in os.listdir(args.data_dir)])
+    input_paths = sorted(
+        [os.path.join(args.data_dir, f) for f in os.listdir(args.data_dir)]
+    )
     for inputname in input_paths:
         process_file_itn(inputname, out, keys2replacements)
     out.close()

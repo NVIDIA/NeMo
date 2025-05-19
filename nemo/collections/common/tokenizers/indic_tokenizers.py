@@ -22,7 +22,7 @@ class IndicProcessor:
     """
 
     def __init__(self, lang_id: str):
-        if lang_id != 'hi':
+        if lang_id != "hi":
             raise NotImplementedError
         from sacremoses import (MosesDetokenizer, MosesPunctNormalizer,
                                 MosesTokenizer)

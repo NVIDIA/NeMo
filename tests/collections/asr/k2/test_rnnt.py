@@ -19,17 +19,17 @@ import torch
 from nemo.collections.asr.parts.numba.rnnt_loss.rnnt_numpy import \
     RNNTLoss as RNNTLoss_Numpy
 
-DEVICES = ['cpu']
+DEVICES = ["cpu"]
 
 if torch.cuda.is_available():
-    DEVICES.append('cuda')
+    DEVICES.append("cuda")
 
 
 def wrap_and_call(fn, acts, labels, device):
     if not torch.is_tensor(acts):
         acts = torch.FloatTensor(acts)
 
-    if 'cuda' in device:
+    if "cuda" in device:
         acts = acts.cuda()
 
     if not acts.requires_grad:
@@ -40,7 +40,7 @@ def wrap_and_call(fn, acts, labels, device):
     labels = torch.LongTensor(labels)
     lengths = torch.LongTensor(lengths)
     label_lengths = torch.LongTensor(label_lengths)
-    if 'cuda' in device:
+    if "cuda" in device:
         labels = labels.cuda()
         lengths = lengths.cuda()
         label_lengths = label_lengths.cuda()
@@ -49,7 +49,7 @@ def wrap_and_call(fn, acts, labels, device):
     cost = torch.sum(costs)
     cost.backward()
 
-    if 'cuda' in device:
+    if "cuda" in device:
         torch.cuda.synchronize()
 
     if acts.grad is not None:
@@ -73,9 +73,9 @@ def init_k2_rnnt(**kwargs):
 
 
 def skip_test_if_unsupported(device, k2_is_appropriate, k2_cuda_is_enabled):
-    if device == 'cpu':
+    if device == "cpu":
         supported, msg = k2_is_appropriate
-    elif device == 'cuda':
+    elif device == "cuda":
         supported, msg = k2_cuda_is_enabled
     else:
         raise ValueError(f"Unknown device: {device}")
@@ -85,21 +85,29 @@ def skip_test_if_unsupported(device, k2_is_appropriate, k2_cuda_is_enabled):
 
 class TestRNNTLossK2:
     @pytest.mark.unit
-    @pytest.mark.parametrize('device', DEVICES)
+    @pytest.mark.parametrize("device", DEVICES)
     def test_case_small(self, device, k2_is_appropriate, k2_cuda_is_enabled):
         skip_test_if_unsupported(device, k2_is_appropriate, k2_cuda_is_enabled)
 
         acts = np.array(
             [
                 [
-                    [[0.1, 0.6, 0.1, 0.1, 0.1], [0.1, 0.1, 0.6, 0.1, 0.1], [0.1, 0.1, 0.2, 0.8, 0.1]],
-                    [[0.1, 0.6, 0.1, 0.1, 0.1], [0.1, 0.1, 0.2, 0.1, 0.1], [0.7, 0.1, 0.2, 0.1, 0.1]],
+                    [
+                        [0.1, 0.6, 0.1, 0.1, 0.1],
+                        [0.1, 0.1, 0.6, 0.1, 0.1],
+                        [0.1, 0.1, 0.2, 0.8, 0.1],
+                    ],
+                    [
+                        [0.1, 0.6, 0.1, 0.1, 0.1],
+                        [0.1, 0.1, 0.2, 0.1, 0.1],
+                        [0.7, 0.1, 0.2, 0.1, 0.1],
+                    ],
                 ]
             ]
         )
         labels = [[1, 2]]
 
-        fn_k2 = init_k2_rnnt(num_classes=acts.shape[-1], blank=0, reduction='sum')
+        fn_k2 = init_k2_rnnt(num_classes=acts.shape[-1], blank=0, reduction="sum")
         k2_cost, k2_grads = wrap_and_call(fn_k2, acts, labels, device)
 
         expected_cost = 4.495666
@@ -120,28 +128,59 @@ class TestRNNTLossK2:
             ]
         )
 
-        assert np.allclose(k2_cost, expected_cost, rtol=1e-6), "small_test costs mismatch."
-        assert np.allclose(k2_grads, expected_grads, atol=1e-6), "small_test gradient mismatch."
+        assert np.allclose(
+            k2_cost, expected_cost, rtol=1e-6
+        ), "small_test costs mismatch."
+        assert np.allclose(
+            k2_grads, expected_grads, atol=1e-6
+        ), "small_test gradient mismatch."
 
     @pytest.mark.unit
-    @pytest.mark.parametrize('device', DEVICES)
+    @pytest.mark.parametrize("device", DEVICES)
     def test_case_small_blank_last(self, device, k2_is_appropriate, k2_cuda_is_enabled):
         skip_test_if_unsupported(device, k2_is_appropriate, k2_cuda_is_enabled)
 
         acts = np.array(
             [
                 [
-                    [[0.0, 1.0, 3.0], [0.0, 2.0, 3.0], [1.0, 1.0, 3.0], [2.0, 3.0, 2.0]],
-                    [[0.0, 0.0, 1.0], [0.0, 1.0, 1.0], [1.0, 0.0, 1.0], [2.0, 2.0, 0.0]],
-                    [[0.0, 2.0, 5.0], [0.0, 3.0, 5.0], [1.0, 2.0, 5.0], [2.0, 4.0, 4.0]],
-                    [[0.0, 3.0, 4.0], [0.0, 4.0, 4.0], [1.0, 3.0, 4.0], [2.0, 5.0, 3.0]],
-                    [[2.0, 2.0, 1.0], [2.0, 3.0, 1.0], [3.0, 2.0, 1.0], [4.0, 4.0, 0.0]],
+                    [
+                        [0.0, 1.0, 3.0],
+                        [0.0, 2.0, 3.0],
+                        [1.0, 1.0, 3.0],
+                        [2.0, 3.0, 2.0],
+                    ],
+                    [
+                        [0.0, 0.0, 1.0],
+                        [0.0, 1.0, 1.0],
+                        [1.0, 0.0, 1.0],
+                        [2.0, 2.0, 0.0],
+                    ],
+                    [
+                        [0.0, 2.0, 5.0],
+                        [0.0, 3.0, 5.0],
+                        [1.0, 2.0, 5.0],
+                        [2.0, 4.0, 4.0],
+                    ],
+                    [
+                        [0.0, 3.0, 4.0],
+                        [0.0, 4.0, 4.0],
+                        [1.0, 3.0, 4.0],
+                        [2.0, 5.0, 3.0],
+                    ],
+                    [
+                        [2.0, 2.0, 1.0],
+                        [2.0, 3.0, 1.0],
+                        [3.0, 2.0, 1.0],
+                        [4.0, 4.0, 0.0],
+                    ],
                 ]
             ]
         )
         labels = [[0, 1, 0]]
 
-        fn_k2 = init_k2_rnnt(num_classes=acts.shape[-1], blank=acts.shape[-1] - 1, reduction='sum')
+        fn_k2 = init_k2_rnnt(
+            num_classes=acts.shape[-1], blank=acts.shape[-1] - 1, reduction="sum"
+        )
         k2_cost, k2_grads = wrap_and_call(fn_k2, acts, labels, device)
 
         expected_cost = 6.789285182952881
@@ -149,28 +188,92 @@ class TestRNNTLossK2:
             [
                 [
                     [
-                        [-0.03551076725125313, 0.11419519782066345, -0.07868456840515137],
-                        [0.0027224558871239424, 0.00704305712133646, -0.009765520691871643],
-                        [0.0013856772566214204, 0.0013924005907028913, -0.0027780719101428986],
-                        [1.4249643527364242e-06, 3.873454716085689e-06, -5.298420546751004e-06],
+                        [
+                            -0.03551076725125313,
+                            0.11419519782066345,
+                            -0.07868456840515137,
+                        ],
+                        [
+                            0.0027224558871239424,
+                            0.00704305712133646,
+                            -0.009765520691871643,
+                        ],
+                        [
+                            0.0013856772566214204,
+                            0.0013924005907028913,
+                            -0.0027780719101428986,
+                        ],
+                        [
+                            1.4249643527364242e-06,
+                            3.873454716085689e-06,
+                            -5.298420546751004e-06,
+                        ],
                     ],
                     [
-                        [-0.1934257447719574, 0.19551163911819458, -0.0020859241485595703],
-                        [0.07043898105621338, 0.05738453567028046, -0.12782356142997742],
-                        [0.061031512916088104, 0.02286236733198166, -0.08389391005039215],
-                        [0.0005252412520349026, 0.0005252412520349026, -0.0010504829697310925],
+                        [
+                            -0.1934257447719574,
+                            0.19551163911819458,
+                            -0.0020859241485595703,
+                        ],
+                        [
+                            0.07043898105621338,
+                            0.05738453567028046,
+                            -0.12782356142997742,
+                        ],
+                        [
+                            0.061031512916088104,
+                            0.02286236733198166,
+                            -0.08389391005039215,
+                        ],
+                        [
+                            0.0005252412520349026,
+                            0.0005252412520349026,
+                            -0.0010504829697310925,
+                        ],
                     ],
                     [
-                        [-0.007841046899557114, 0.025142310187220573, -0.017301201820373535],
-                        [0.0019501042552292347, 0.0005148053169250488, -0.0024650096893310547],
-                        [0.0027856370434165, 0.008609085343778133, -0.01139475405216217],
-                        [9.526080975774676e-05, 0.0007038871408440173, -0.000799147819634527],
+                        [
+                            -0.007841046899557114,
+                            0.025142310187220573,
+                            -0.017301201820373535,
+                        ],
+                        [
+                            0.0019501042552292347,
+                            0.0005148053169250488,
+                            -0.0024650096893310547,
+                        ],
+                        [
+                            0.0027856370434165,
+                            0.008609085343778133,
+                            -0.01139475405216217,
+                        ],
+                        [
+                            9.526080975774676e-05,
+                            0.0007038871408440173,
+                            -0.000799147819634527,
+                        ],
                     ],
                     [
-                        [-0.01533521432429552, 0.1386115401983261, -0.12327653169631958],
-                        [0.002850571647286415, -0.006693005561828613, 0.003842458128929138],
-                        [0.009236274287104607, 0.08995233476161957, -0.0991886705160141],
-                        [0.0001865450612967834, 0.0037468576338142157, -0.003933403175324202],
+                        [
+                            -0.01533521432429552,
+                            0.1386115401983261,
+                            -0.12327653169631958,
+                        ],
+                        [
+                            0.002850571647286415,
+                            -0.006693005561828613,
+                            0.003842458128929138,
+                        ],
+                        [
+                            0.009236274287104607,
+                            0.08995233476161957,
+                            -0.0991886705160141,
+                        ],
+                        [
+                            0.0001865450612967834,
+                            0.0037468576338142157,
+                            -0.003933403175324202,
+                        ],
                     ],
                     [
                         [-0.2888762652873993, 0.211185485124588, 0.07769080251455307],
@@ -182,11 +285,15 @@ class TestRNNTLossK2:
             ]
         )
 
-        assert np.allclose(k2_cost, expected_cost, rtol=1e-6), "small_test_blank_last costs mismatch."
-        assert np.allclose(k2_grads, expected_grads, atol=1e-6), "small_test_blank_last gradient mismatch."
+        assert np.allclose(
+            k2_cost, expected_cost, rtol=1e-6
+        ), "small_test_blank_last costs mismatch."
+        assert np.allclose(
+            k2_grads, expected_grads, atol=1e-6
+        ), "small_test_blank_last gradient mismatch."
 
     @pytest.mark.unit
-    @pytest.mark.parametrize('device', DEVICES)
+    @pytest.mark.parametrize("device", DEVICES)
     def test_case_small_random(self, device, k2_is_appropriate, k2_cuda_is_enabled):
         skip_test_if_unsupported(device, k2_is_appropriate, k2_cuda_is_enabled)
 
@@ -194,17 +301,21 @@ class TestRNNTLossK2:
         acts = rng.randn(1, 4, 3, 3)
         labels = [[1, 2]]
 
-        fn_k2 = init_k2_rnnt(num_classes=acts.shape[-1], blank=0, reduction='sum')
+        fn_k2 = init_k2_rnnt(num_classes=acts.shape[-1], blank=0, reduction="sum")
         k2_cost, k2_grads = wrap_and_call(fn_k2, acts, labels, device)
 
         fn_np = RNNTLoss_Numpy()
         np_cost, np_grads = wrap_and_call(fn_np, acts, labels, device)
 
-        assert np.allclose(k2_cost, np_cost, rtol=1e-6), "small_random_test costs mismatch."
-        assert np.allclose(k2_grads, np_grads, atol=1e-6), "small_random_test gradient mismatch."
+        assert np.allclose(
+            k2_cost, np_cost, rtol=1e-6
+        ), "small_random_test costs mismatch."
+        assert np.allclose(
+            k2_grads, np_grads, atol=1e-6
+        ), "small_random_test gradient mismatch."
 
     @pytest.mark.unit
-    @pytest.mark.parametrize('device', DEVICES)
+    @pytest.mark.parametrize("device", DEVICES)
     def test_case_big_tensor(self, device, k2_is_appropriate, k2_cuda_is_enabled):
         skip_test_if_unsupported(device, k2_is_appropriate, k2_cuda_is_enabled)
 
@@ -308,14 +419,16 @@ class TestRNNTLossK2:
         expected_costs = np.array(expected_costs)
         labels = [[1, 2], [1, 1]]
 
-        fn_k2 = init_k2_rnnt(num_classes=acts.shape[-1], blank=0, reduction='none')
+        fn_k2 = init_k2_rnnt(num_classes=acts.shape[-1], blank=0, reduction="none")
         k2_costs, k2_grads = wrap_and_call(fn_k2, acts, labels, device)
 
         assert np.allclose(k2_costs, expected_costs), "big_test average costs mismatch."
-        assert np.allclose(k2_grads, expected_grads, rtol=1e-3), "big_test grads for average cost mismatch."
+        assert np.allclose(
+            k2_grads, expected_grads, rtol=1e-3
+        ), "big_test grads for average cost mismatch."
 
     @pytest.mark.unit
-    @pytest.mark.parametrize('device', DEVICES)
+    @pytest.mark.parametrize("device", DEVICES)
     def test_case_large_random(self, device, k2_is_appropriate, k2_cuda_is_enabled):
         skip_test_if_unsupported(device, k2_is_appropriate, k2_cuda_is_enabled)
 
@@ -328,14 +441,18 @@ class TestRNNTLossK2:
             [1, 1, 2, 1, 2, 3, 3, 1, 1, 1],
         ]
 
-        fn_k2 = init_k2_rnnt(num_classes=acts.shape[-1], blank=0, reduction='sum')
+        fn_k2 = init_k2_rnnt(num_classes=acts.shape[-1], blank=0, reduction="sum")
         k2_costs, k2_grads = wrap_and_call(fn_k2, acts, labels, device)
 
         fn_np = RNNTLoss_Numpy()
         np_costs, np_grads = wrap_and_call(fn_np, acts, labels, device)
 
-        assert np.allclose(k2_costs, np_costs, atol=1e-5, rtol=1e-3), "large_random_test costs mismatch."
-        assert np.allclose(k2_grads, np_grads, atol=1e-5, rtol=1e-3), "large_random_test gradient mismatch."
+        assert np.allclose(
+            k2_costs, np_costs, atol=1e-5, rtol=1e-3
+        ), "large_random_test costs mismatch."
+        assert np.allclose(
+            k2_grads, np_grads, atol=1e-5, rtol=1e-3
+        ), "large_random_test gradient mismatch."
 
 
 if __name__ == "__main__":

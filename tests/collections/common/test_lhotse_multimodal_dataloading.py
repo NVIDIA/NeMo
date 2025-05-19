@@ -81,7 +81,9 @@ def multimodal_conversations_path(tmp_path_factory):
     ]
     lhotse.serialization.save_to_jsonl(data, en_path)
     dummy_recording(0, 5.73, with_data=True).to_cut().save_audio(tmp_path / "123.wav")
-    dummy_recording(0, 7.11, with_data=True).to_cut().save_audio(tmp_path / "123_answer.wav")
+    dummy_recording(0, 7.11, with_data=True).to_cut().save_audio(
+        tmp_path / "123_answer.wav"
+    )
     return en_path
 
 
@@ -106,7 +108,9 @@ def test_multimodal_conversation_input(multimodal_conversations_path):
     )
 
     # Note: this test does not need to pass a tokenizer because we use static batch sizes
-    dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=Identity())
+    dl = get_lhotse_dataloader_from_config(
+        config=config, global_rank=0, world_size=1, dataset=Identity()
+    )
     batches = [batch for batch in dl]
     assert len(batches) == 1
 
@@ -172,7 +176,9 @@ def tokenizer(tmp_path_factory, multimodal_conversations_path):
     return SentencePieceTokenizer(str(tmpdir / "tokenizer.model"))
 
 
-def test_multimodal_conversation_input_with_prompt(multimodal_conversations_path, tokenizer):
+def test_multimodal_conversation_input_with_prompt(
+    multimodal_conversations_path, tokenizer
+):
 
     config = OmegaConf.create(
         {
@@ -194,7 +200,11 @@ def test_multimodal_conversation_input_with_prompt(multimodal_conversations_path
     )
 
     dl = get_lhotse_dataloader_from_config(
-        config=config, global_rank=0, world_size=1, dataset=Identity(), tokenizer=tokenizer
+        config=config,
+        global_rank=0,
+        world_size=1,
+        dataset=Identity(),
+        tokenizer=tokenizer,
     )
     batches = [batch for batch in dl]
     assert len(batches) == 1
@@ -255,7 +265,9 @@ def test_text_only_conversation_length_measurement(tokenizer):
     assert constr.measure_length(convo) == 14
 
     constr = MultimodalFixedBucketBatchSizeConstraint2D(
-        max_seq_len_buckets=[5, 10, 15], batch_sizes=[3, 2, 1], measure_total_length=True
+        max_seq_len_buckets=[5, 10, 15],
+        batch_sizes=[3, 2, 1],
+        measure_total_length=True,
     )
     assert constr.measure_length(convo) == 14
     assert constr.select_bucket(constr.max_seq_len_buckets, convo) == 2
@@ -271,8 +283,16 @@ def test_text_only_conversation_length_measurement(tokenizer):
 
 def test_audio_only_conversation_length_measurement(tokenizer, tmp_path_factory):
     audio_dir = tmp_path_factory.mktemp("audio")
-    c1 = dummy_recording(0, duration=7.16, with_data=True).to_cut().save_audio(audio_dir / "1.wav")
-    c2 = dummy_recording(1, duration=15.96, with_data=True).to_cut().save_audio(audio_dir / "2.wav")
+    c1 = (
+        dummy_recording(0, duration=7.16, with_data=True)
+        .to_cut()
+        .save_audio(audio_dir / "1.wav")
+    )
+    c2 = (
+        dummy_recording(1, duration=15.96, with_data=True)
+        .to_cut()
+        .save_audio(audio_dir / "2.wav")
+    )
     convo = NeMoMultimodalConversation(
         id="audioonly-1",
         turns=[
@@ -305,7 +325,9 @@ def test_audio_only_conversation_length_measurement(tokenizer, tmp_path_factory)
     assert constr.measure_length(convo) == 162 + 78
 
     constr = MultimodalFixedBucketBatchSizeConstraint2D(
-        max_seq_len_buckets=[100, 200, 300, 400], batch_sizes=[3, 2, 1, 1], measure_total_length=True
+        max_seq_len_buckets=[100, 200, 300, 400],
+        batch_sizes=[3, 2, 1, 1],
+        measure_total_length=True,
     )
     assert constr.measure_length(convo) == 162 + 78
     assert constr.select_bucket(constr.max_seq_len_buckets, convo) == 2
@@ -330,8 +352,16 @@ def test_audio_only_conversation_length_measurement(tokenizer, tmp_path_factory)
 
 def test_multimodal_conversation_length_measurement(tokenizer, tmp_path_factory):
     audio_dir = tmp_path_factory.mktemp("audio")
-    c1 = dummy_recording(0, duration=7.16, with_data=True).to_cut().save_audio(audio_dir / "1.wav")
-    c2 = dummy_recording(1, duration=15.96, with_data=True).to_cut().save_audio(audio_dir / "2.wav")
+    c1 = (
+        dummy_recording(0, duration=7.16, with_data=True)
+        .to_cut()
+        .save_audio(audio_dir / "1.wav")
+    )
+    c2 = (
+        dummy_recording(1, duration=15.96, with_data=True)
+        .to_cut()
+        .save_audio(audio_dir / "2.wav")
+    )
     convo = NeMoMultimodalConversation(
         id="multimodal-1",
         turns=[
@@ -373,7 +403,9 @@ def test_multimodal_conversation_length_measurement(tokenizer, tmp_path_factory)
     assert constr.measure_length(convo) == 303
 
     constr = MultimodalFixedBucketBatchSizeConstraint2D(
-        max_seq_len_buckets=[100, 200, 300, 400], batch_sizes=[3, 2, 1, 1], measure_total_length=True
+        max_seq_len_buckets=[100, 200, 300, 400],
+        batch_sizes=[3, 2, 1, 1],
+        measure_total_length=True,
     )
     assert constr.measure_length(convo) == 303
     assert constr.select_bucket(constr.max_seq_len_buckets, convo) == 3
@@ -396,8 +428,12 @@ def test_multimodal_conversation_length_measurement(tokenizer, tmp_path_factory)
     assert constr.select_bucket(constr.max_seq_len_buckets, convo) == 7
 
 
-def test_multimodal_conversation_tarred_format(multimodal_conversations_path, tmp_path_factory):
-    (conversation,) = list(NeMoMultimodalConversationJsonlAdapter(multimodal_conversations_path, "[audio]"))
+def test_multimodal_conversation_tarred_format(
+    multimodal_conversations_path, tmp_path_factory
+):
+    (conversation,) = list(
+        NeMoMultimodalConversationJsonlAdapter(multimodal_conversations_path, "[audio]")
+    )
     tar_dir = tmp_path_factory.mktemp("multi_convo_tarred")
     with NeMoMultimodalConversationTarWriter(tar_dir) as writer:
         writer.write(conversation)
@@ -422,8 +458,12 @@ def test_multimodal_conversation_tarred_format(multimodal_conversations_path, tm
             np.testing.assert_allclose(lhs.cut.load_audio(), rhs.cut.load_audio())
 
 
-def test_multimodal_conversation_tarred_format_sharding_works(multimodal_conversations_path, tmp_path_factory):
-    (conversation,) = list(NeMoMultimodalConversationJsonlAdapter(multimodal_conversations_path, "[audio]"))
+def test_multimodal_conversation_tarred_format_sharding_works(
+    multimodal_conversations_path, tmp_path_factory
+):
+    (conversation,) = list(
+        NeMoMultimodalConversationJsonlAdapter(multimodal_conversations_path, "[audio]")
+    )
     tar_dir = tmp_path_factory.mktemp("multi_convo_tarred")
     with NeMoMultimodalConversationTarWriter(tar_dir, shard_size=10) as writer:
         for i in range(30):

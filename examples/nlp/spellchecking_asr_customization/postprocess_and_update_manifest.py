@@ -23,11 +23,18 @@ from argparse import ArgumentParser
 from nemo.collections.nlp.data.spellchecking_asr_customization.utils import \
     update_manifest_with_spellmapper_corrections
 
-parser = ArgumentParser(description="Postprocess SpellMapper results and generate an updated nemo ASR manifest")
+parser = ArgumentParser(
+    description="Postprocess SpellMapper results and generate an updated nemo ASR manifest"
+)
 
-parser.add_argument("--input_manifest", required=True, type=str, help="Path to input nemo ASR manifest")
 parser.add_argument(
-    "--field_name", default="pred_text", type=str, help="Name of json field with original ASR hypothesis text"
+    "--input_manifest", required=True, type=str, help="Path to input nemo ASR manifest"
+)
+parser.add_argument(
+    "--field_name",
+    default="pred_text",
+    type=str,
+    help="Name of json field with original ASR hypothesis text",
 )
 parser.add_argument(
     "--short2full_name",
@@ -36,10 +43,20 @@ parser.add_argument(
     help="Path to input file with correspondence between sentence fragments and full sentences",
 )
 parser.add_argument(
-    "--spellmapper_results", required=True, type=str, help="Path to input file with SpellMapper inference results"
+    "--spellmapper_results",
+    required=True,
+    type=str,
+    help="Path to input file with SpellMapper inference results",
 )
-parser.add_argument("--output_manifest", required=True, type=str, help="Path to output nemo ASR manifest")
-parser.add_argument("--min_prob", default=0.5, type=float, help="Threshold on replacement probability")
+parser.add_argument(
+    "--output_manifest",
+    required=True,
+    type=str,
+    help="Path to output nemo ASR manifest",
+)
+parser.add_argument(
+    "--min_prob", default=0.5, type=float, help="Threshold on replacement probability"
+)
 parser.add_argument(
     "--use_dp",
     action="store_true",
@@ -51,7 +68,10 @@ parser.add_argument(
     help="Whether to use space instead of hyphen in replaced fragments",
 )
 parser.add_argument(
-    "--ngram_mappings", type=str, required=True, help="File with ngram mappings, only needed if use_dp=true"
+    "--ngram_mappings",
+    type=str,
+    required=True,
+    help="File with ngram mappings, only needed if use_dp=true",
 )
 parser.add_argument(
     "--min_dp_score_per_symbol",

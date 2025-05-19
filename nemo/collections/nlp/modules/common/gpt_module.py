@@ -24,20 +24,20 @@ from nemo.core.neural_types import (ChannelType, FloatType, IntType, MaskType,
                                     NeuralType, StringType, VoidType)
 from nemo.utils import logging
 
-__all__ = ['GPTModule']
+__all__ = ["GPTModule"]
 
 
 class GPTModule(NeuralModule, Exportable):
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
         return {
-            "input_ids": NeuralType(('B', 'T'), ChannelType()),
-            "token_type_ids": NeuralType(('B', 'T'), ChannelType(), optional=True),
-            "attention_mask": NeuralType(('B', 'T'), MaskType(), optional=True),
-            "labels": NeuralType(('B', 'T'), ChannelType(), optional=True),
-            'past_key_values': [[NeuralType(None, StringType(), optional=True)]],
-            'use_cache': NeuralType(None, VoidType(), optional=True),
-            'position_ids': NeuralType(('B', 'T'), ChannelType(), optional=True),
+            "input_ids": NeuralType(("B", "T"), ChannelType()),
+            "token_type_ids": NeuralType(("B", "T"), ChannelType(), optional=True),
+            "attention_mask": NeuralType(("B", "T"), MaskType(), optional=True),
+            "labels": NeuralType(("B", "T"), ChannelType(), optional=True),
+            "past_key_values": [[NeuralType(None, StringType(), optional=True)]],
+            "use_cache": NeuralType(None, VoidType(), optional=True),
+            "position_ids": NeuralType(("B", "T"), ChannelType(), optional=True),
             "return_dict": NeuralType(None, StringType(), optional=True),
             "output_attentions": NeuralType(None, StringType(), optional=True),
             "output_hidden_states": NeuralType(None, StringType(), optional=True),
@@ -47,8 +47,8 @@ class GPTModule(NeuralModule, Exportable):
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         return {
-            'loss': NeuralType(None, FloatType(), optional=True),
-            'hidden_states': NeuralType(('B', 'T', 'D'), ChannelType()),
+            "loss": NeuralType(None, FloatType(), optional=True),
+            "hidden_states": NeuralType(("B", "T", "D"), ChannelType()),
         }
 
     def restore_weights(self, restore_path: str):
@@ -56,7 +56,7 @@ class GPTModule(NeuralModule, Exportable):
         logging.info(f"Restoring weights from {restore_path}")
 
         if not os.path.exists(restore_path):
-            logging.warning(f'Path {restore_path} not found')
+            logging.warning(f"Path {restore_path} not found")
             return
 
         pretrained_dict = torch.load(restore_path)
@@ -75,8 +75,13 @@ class GPTModule(NeuralModule, Exportable):
 
         # starting with transformers 3.1.0, embeddings.position_ids is added to the model's state dict and could be
         # missing in checkpoints trained with older transformers version
-        if 'embeddings.position_ids' in model_dict and 'embeddings.position_ids' not in pretrained_dict:
-            pretrained_dict['embeddings.position_ids'] = model_dict['embeddings.position_ids']
+        if (
+            "embeddings.position_ids" in model_dict
+            and "embeddings.position_ids" not in pretrained_dict
+        ):
+            pretrained_dict["embeddings.position_ids"] = model_dict[
+                "embeddings.position_ids"
+            ]
 
         model_dict.update(pretrained_dict)
         self.load_state_dict(model_dict)
@@ -90,6 +95,10 @@ class GPTModule(NeuralModule, Exportable):
         """
         sample = next(self.parameters())
         input_ids = torch.randint(low=0, high=2048, size=(2, 16), device=sample.device)
-        token_type_ids = torch.randint(low=0, high=1, size=(2, 16), device=sample.device)
-        attention_mask = torch.randint(low=0, high=1, size=(2, 16), device=sample.device)
+        token_type_ids = torch.randint(
+            low=0, high=1, size=(2, 16), device=sample.device
+        )
+        attention_mask = torch.randint(
+            low=0, high=1, size=(2, 16), device=sample.device
+        )
         return tuple([input_ids, token_type_ids, attention_mask])

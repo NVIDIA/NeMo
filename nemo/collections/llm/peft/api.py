@@ -103,7 +103,9 @@ def merge_lora(
     trainer = Trainer(
         devices=1,
         accelerator="cpu",
-        strategy=MegatronStrategy(ddp="pytorch", setup_optimizers=False, plugins=bf16_mixed()),
+        strategy=MegatronStrategy(
+            ddp="pytorch", setup_optimizers=False, plugins=bf16_mixed()
+        ),
     )
 
     # Load ckpt saved with TE < 1.14
@@ -111,18 +113,26 @@ def merge_lora(
         trainer.strategy.ckpt_load_strictness = False
 
     model, lora = _load_base_model_and_lora(lora_checkpoint_path)
-    _setup_trainer_and_restore_model_and_adapter(Path(lora_checkpoint_path), trainer, model, lora)
+    _setup_trainer_and_restore_model_and_adapter(
+        Path(lora_checkpoint_path), trainer, model, lora
+    )
 
     lora_merge = LoRAMerge()
     merged_model = lora_merge(trainer.strategy.megatron_parallel)
-    merged_weights = {k: v for k, v in merged_model.sharded_state_dict().items() if ".adapter." not in k}
+    merged_weights = {
+        k: v
+        for k, v in merged_model.sharded_state_dict().items()
+        if ".adapter." not in k
+    }
     _save_merged_weight(output_path, merged_weights, model, trainer)
 
     console = Console()
     console.print(f"[green]✓ LoRA checkpoint merged and saved to {output_path}[/green]")
 
 
-def _load_base_model_and_lora(lora_checkpoint_path: Path) -> Tuple[pl.LightningModule, LoRA]:
+def _load_base_model_and_lora(
+    lora_checkpoint_path: Path,
+) -> Tuple[pl.LightningModule, LoRA]:
     model = io.load_context(ckpt_to_context_subdir(lora_checkpoint_path), "model")
     model.model_transform, model.__io__.model_transform = None, None
     model.config.bf16 = True
@@ -138,7 +148,10 @@ def _setup_trainer_and_restore_model_and_adapter(
     lora_checkpoint_path: Path, trainer: Trainer, model: pl.LightningModule, lora: LoRA
 ) -> None:
     if (
-        adapter_meta_path := ckpt_to_weights_subdir(lora_checkpoint_path, is_saving=False) / ADAPTER_META_FILENAME
+        adapter_meta_path := ckpt_to_weights_subdir(
+            lora_checkpoint_path, is_saving=False
+        )
+        / ADAPTER_META_FILENAME
     ).exists():
         with open(adapter_meta_path, "r") as f:
             metadata = json.load(f)
@@ -168,24 +181,33 @@ def _setup_trainer_and_restore_model_and_adapter(
 
     lora(model)
     adapter_sharded_state_dict = {
-        k: v for k, v in trainer.strategy.megatron_parallel.sharded_state_dict().items() if ".adapter." in k
+        k: v
+        for k, v in trainer.strategy.megatron_parallel.sharded_state_dict().items()
+        if ".adapter." in k
     }
     adapter_state = trainer.strategy.checkpoint_io.load_checkpoint(
-        ckpt_to_weights_subdir(lora_checkpoint_path, is_saving=False), sharded_state_dict=adapter_sharded_state_dict
+        ckpt_to_weights_subdir(lora_checkpoint_path, is_saving=False),
+        sharded_state_dict=adapter_sharded_state_dict,
     )
     trainer.strategy.load_model_state_dict(adapter_state, strict=False)
 
 
-def _save_merged_weight(output_path: str, merged_weights: dict, model: pl.LightningModule, trainer: Trainer):
+def _save_merged_weight(
+    output_path: str, merged_weights: dict, model: pl.LightningModule, trainer: Trainer
+):
     weight_path = ckpt_to_weights_subdir(output_path, is_saving=True)
     Path(weight_path).mkdir(parents=True, exist_ok=True)
-    dist_checkpointing.save(merged_weights, str(ckpt_to_weights_subdir(output_path, is_saving=True)))
+    dist_checkpointing.save(
+        merged_weights, str(ckpt_to_weights_subdir(output_path, is_saving=True))
+    )
     if hasattr(model.tokenizer, "save_pretrained"):
         model.tokenizer.save_pretrained("/tmp/nemo_tokenizer")
         model.tokenizer = AutoTokenizer("/tmp/nemo_tokenizer")
-    if hasattr(trainer.model, "__io__") and hasattr(trainer.model.tokenizer, '__io__'):
+    if hasattr(trainer.model, "__io__") and hasattr(trainer.model.tokenizer, "__io__"):
         trainer.model.__io__.tokenizer = trainer.model.tokenizer.__io__
-    TrainerContext.from_trainer(trainer).io_dump(ckpt_to_context_subdir(output_path), yaml_attrs=["model"])
+    TrainerContext.from_trainer(trainer).io_dump(
+        ckpt_to_context_subdir(output_path), yaml_attrs=["model"]
+    )
     logging.info(f"Merged checkpoint saved to {output_path}")
 
 

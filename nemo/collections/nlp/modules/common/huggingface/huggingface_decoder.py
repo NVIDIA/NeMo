@@ -25,7 +25,7 @@ from nemo.utils import logging
 
 class HuggingFaceDecoderModule(DecoderModule):
     """Gets HuggingFace based model to be used as an Decoder in NeMo NLP.
-    Use the model_name arg to get a named model architecture. 
+    Use the model_name arg to get a named model architecture.
     Available model names can be found with get_huggingface_pretrained_lm_models_list() or
     by going to https://huggingface.co/models.
     Use the pretrained arg to get the named model architecture with or without pretrained weights.
@@ -35,12 +35,12 @@ class HuggingFaceDecoderModule(DecoderModule):
         config_dict={
             '_target_': 'transformers.BertConfig',
             'hidden_size': 1536
-        } 
+        }
 
 
     Args:
         model_name (Optional[str]): Named model architecture from HuggingFace. Defaults to None.
-        pretrained (bool): Use True to get pretrained weights. 
+        pretrained (bool): Use True to get pretrained weights.
                                     False will use the same architecture but with randomly initialized weights.
                                     Defaults to False.
         config_dict (Optional[dict], optional): Use for custom configuration of the HuggingFace model. Defaults to None.
@@ -64,7 +64,9 @@ class HuggingFaceDecoderModule(DecoderModule):
                     cfg = AutoConfig.from_pretrained(model_name)
                     model = AutoModel.from_config(cfg)
             else:
-                logging.error(f'{model_name} not found in list of HuggingFace pretrained models')
+                logging.error(
+                    f"{model_name} not found in list of HuggingFace pretrained models"
+                )
         else:
             cfg = instantiate(config_dict)
             model = AutoModel.from_config(cfg)

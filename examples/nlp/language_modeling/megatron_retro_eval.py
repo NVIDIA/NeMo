@@ -69,7 +69,7 @@ class RequestDataSet(Dataset):
         return len(self.sentences)
 
     def __getitem__(self, idx):
-        return {'prompts': self.sentences[idx], 'neighbors': self.neighbors[idx]}
+        return {"prompts": self.sentences[idx], "neighbors": self.neighbors[idx]}
 
 
 @hydra_runner(config_path="conf", config_name="megatron_retro_inference")
@@ -85,7 +85,9 @@ def main(cfg) -> None:
     if cfg.checkpoint_dir:
         app_state = AppState()
         if cfg.tensor_model_parallel_size > 1 or cfg.pipeline_model_parallel_size > 1:
-            app_state.model_parallel_size = cfg.tensor_model_parallel_size * cfg.pipeline_model_parallel_size
+            app_state.model_parallel_size = (
+                cfg.tensor_model_parallel_size * cfg.pipeline_model_parallel_size
+            )
             app_state.tensor_model_parallel_size = cfg.tensor_model_parallel_size
             app_state.pipeline_model_parallel_size = cfg.pipeline_model_parallel_size
             (
@@ -106,12 +108,16 @@ def main(cfg) -> None:
         # checkpoint_path is a dir in case of distributed checkpointing
         if not os.path.isdir(checkpoint_path):
             # legacy checkpoint needs model parallel rank injection
-            checkpoint_path = inject_model_parallel_rank(os.path.join(cfg.checkpoint_dir, cfg.checkpoint_name))
+            checkpoint_path = inject_model_parallel_rank(
+                os.path.join(cfg.checkpoint_dir, cfg.checkpoint_name)
+            )
         model = MegatronRetroModel.load_from_checkpoint(
             checkpoint_path, hparams_file=cfg.hparams_file, trainer=trainer
         )
     else:
-        raise ValueError("Requiring distributed checkpoint dir for loading Mcore RETRO.")
+        raise ValueError(
+            "Requiring distributed checkpoint dir for loading Mcore RETRO."
+        )
 
     model.freeze()
 
@@ -136,5 +142,5 @@ def main(cfg) -> None:
     print("***************************")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

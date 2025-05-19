@@ -58,7 +58,7 @@ class Tacotron2Config:
 class Tacotron2Model(SpectrogramGenerator):
     """Tacotron 2 Model that is used to generate mel spectrograms from text"""
 
-    def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
+    def __init__(self, cfg: DictConfig, trainer: "Trainer" = None):
         # Convert to Hydra 1.0 compatible DictConfig
         cfg = model_utils.convert_model_config_to_dict_config(cfg)
         cfg = model_utils.maybe_update_config_version(cfg)
@@ -71,7 +71,7 @@ class Tacotron2Model(SpectrogramGenerator):
 
         # setup tokenizer
         self.tokenizer = None
-        if hasattr(cfg, 'text_tokenizer'):
+        if hasattr(cfg, "text_tokenizer"):
             self._setup_tokenizer(cfg)
 
             self.num_tokens = len(self.tokenizer.tokens)
@@ -88,7 +88,9 @@ class Tacotron2Model(SpectrogramGenerator):
         if isinstance(cfg, dict):
             cfg = OmegaConf.create(cfg)
         elif not isinstance(cfg, DictConfig):
-            raise ValueError(f"cfg was type: {type(cfg)}. Expected either a dict or a DictConfig")
+            raise ValueError(
+                f"cfg was type: {type(cfg)}. Expected either a dict or a DictConfig"
+            )
         # Ensure passed cfg is compliant with schema
         try:
             OmegaConf.merge(cfg, schema)
@@ -120,7 +122,7 @@ class Tacotron2Model(SpectrogramGenerator):
         elif hasattr(self._cfg, "labels"):
             self._parser = parsers.make_parser(
                 labels=self._cfg.labels,
-                name='en',
+                name="en",
                 unk_id=-1,
                 blank_id=-1,
                 do_normalize=True,
@@ -128,7 +130,9 @@ class Tacotron2Model(SpectrogramGenerator):
                 make_table=False,
             )
         else:
-            raise ValueError("Wanted to setup parser, but model does not have necessary paramaters")
+            raise ValueError(
+                "Wanted to setup parser, but model does not have necessary paramaters"
+            )
 
         return self._parser
 
@@ -156,42 +160,48 @@ class Tacotron2Model(SpectrogramGenerator):
     def input_types(self):
         if self.training:
             return {
-                "tokens": NeuralType(('B', 'T'), EmbeddedTextType()),
-                "token_len": NeuralType(('B'), LengthsType()),
-                "audio": NeuralType(('B', 'T'), AudioSignal()),
-                "audio_len": NeuralType(('B'), LengthsType()),
+                "tokens": NeuralType(("B", "T"), EmbeddedTextType()),
+                "token_len": NeuralType(("B"), LengthsType()),
+                "audio": NeuralType(("B", "T"), AudioSignal()),
+                "audio_len": NeuralType(("B"), LengthsType()),
             }
         else:
             return {
-                "tokens": NeuralType(('B', 'T'), EmbeddedTextType()),
-                "token_len": NeuralType(('B'), LengthsType()),
-                "audio": NeuralType(('B', 'T'), AudioSignal(), optional=True),
-                "audio_len": NeuralType(('B'), LengthsType(), optional=True),
+                "tokens": NeuralType(("B", "T"), EmbeddedTextType()),
+                "token_len": NeuralType(("B"), LengthsType()),
+                "audio": NeuralType(("B", "T"), AudioSignal(), optional=True),
+                "audio_len": NeuralType(("B"), LengthsType(), optional=True),
             }
 
     @property
     def output_types(self):
         if not self.calculate_loss and not self.training:
             return {
-                "spec_pred_dec": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
-                "spec_pred_postnet": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
-                "gate_pred": NeuralType(('B', 'T'), LogitsType()),
-                "alignments": NeuralType(('B', 'T', 'T'), SequenceToSequenceAlignmentType()),
-                "pred_length": NeuralType(('B'), LengthsType()),
+                "spec_pred_dec": NeuralType(("B", "D", "T"), MelSpectrogramType()),
+                "spec_pred_postnet": NeuralType(("B", "D", "T"), MelSpectrogramType()),
+                "gate_pred": NeuralType(("B", "T"), LogitsType()),
+                "alignments": NeuralType(
+                    ("B", "T", "T"), SequenceToSequenceAlignmentType()
+                ),
+                "pred_length": NeuralType(("B"), LengthsType()),
             }
         return {
-            "spec_pred_dec": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
-            "spec_pred_postnet": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
-            "gate_pred": NeuralType(('B', 'T'), LogitsType()),
-            "spec_target": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
-            "spec_target_len": NeuralType(('B'), LengthsType()),
-            "alignments": NeuralType(('B', 'T', 'T'), SequenceToSequenceAlignmentType()),
+            "spec_pred_dec": NeuralType(("B", "D", "T"), MelSpectrogramType()),
+            "spec_pred_postnet": NeuralType(("B", "D", "T"), MelSpectrogramType()),
+            "gate_pred": NeuralType(("B", "T"), LogitsType()),
+            "spec_target": NeuralType(("B", "D", "T"), MelSpectrogramType()),
+            "spec_target_len": NeuralType(("B"), LengthsType()),
+            "alignments": NeuralType(
+                ("B", "T", "T"), SequenceToSequenceAlignmentType()
+            ),
         }
 
     @typecheck()
     def forward(self, *, tokens, token_len, audio=None, audio_len=None):
         if audio is not None and audio_len is not None:
-            spec_target, spec_target_len = self.audio_to_melspec_precessor(audio, audio_len)
+            spec_target, spec_target_len = self.audio_to_melspec_precessor(
+                audio, audio_len
+            )
         else:
             if self.training or self.calculate_loss:
                 raise ValueError(
@@ -199,11 +209,15 @@ class Tacotron2Model(SpectrogramGenerator):
                 )
 
         token_embedding = self.text_embedding(tokens).transpose(1, 2)
-        encoder_embedding = self.encoder(token_embedding=token_embedding, token_len=token_len)
+        encoder_embedding = self.encoder(
+            token_embedding=token_embedding, token_len=token_len
+        )
 
         if self.training:
             spec_pred_dec, gate_pred, alignments = self.decoder(
-                memory=encoder_embedding, decoder_inputs=spec_target, memory_lengths=token_len
+                memory=encoder_embedding,
+                decoder_inputs=spec_target,
+                memory_lengths=token_len,
             )
         else:
             spec_pred_dec, gate_pred, alignments, pred_length = self.decoder(
@@ -215,11 +229,18 @@ class Tacotron2Model(SpectrogramGenerator):
         if not self.calculate_loss and not self.training:
             return spec_pred_dec, spec_pred_postnet, gate_pred, alignments, pred_length
 
-        return spec_pred_dec, spec_pred_postnet, gate_pred, spec_target, spec_target_len, alignments
+        return (
+            spec_pred_dec,
+            spec_pred_postnet,
+            gate_pred,
+            spec_target,
+            spec_target_len,
+            alignments,
+        )
 
     @typecheck(
-        input_types={"tokens": NeuralType(('B', 'T'), EmbeddedTextType())},
-        output_types={"spec": NeuralType(('B', 'D', 'T'), MelSpectrogramType())},
+        input_types={"tokens": NeuralType(("B", "T"), EmbeddedTextType())},
+        output_types={"spec": NeuralType(("B", "D", "T"), MelSpectrogramType())},
     )
     def generate_spectrogram(self, *, tokens):
         self.eval()
@@ -239,8 +260,10 @@ class Tacotron2Model(SpectrogramGenerator):
 
     def training_step(self, batch, batch_idx):
         audio, audio_len, tokens, token_len = batch
-        spec_pred_dec, spec_pred_postnet, gate_pred, spec_target, spec_target_len, _ = self.forward(
-            audio=audio, audio_len=audio_len, tokens=tokens, token_len=token_len
+        spec_pred_dec, spec_pred_postnet, gate_pred, spec_target, spec_target_len, _ = (
+            self.forward(
+                audio=audio, audio_len=audio_len, tokens=tokens, token_len=token_len
+            )
         )
 
         loss, _ = self.loss(
@@ -253,15 +276,22 @@ class Tacotron2Model(SpectrogramGenerator):
         )
 
         output = {
-            'loss': loss,
-            'progress_bar': {'training_loss': loss},
-            'log': {'loss': loss},
+            "loss": loss,
+            "progress_bar": {"training_loss": loss},
+            "log": {"loss": loss},
         }
         return output
 
     def validation_step(self, batch, batch_idx):
         audio, audio_len, tokens, token_len = batch
-        spec_pred_dec, spec_pred_postnet, gate_pred, spec_target, spec_target_len, alignments = self.forward(
+        (
+            spec_pred_dec,
+            spec_pred_postnet,
+            gate_pred,
+            spec_target,
+            spec_target_len,
+            alignments,
+        ) = self.forward(
             audio=audio, audio_len=audio_len, tokens=tokens, token_len=token_len
         )
 
@@ -310,9 +340,9 @@ class Tacotron2Model(SpectrogramGenerator):
                     add_audio=False,
                 )
         avg_loss = torch.stack(
-            [x['val_loss'] for x in self.validation_step_outputs]
+            [x["val_loss"] for x in self.validation_step_outputs]
         ).mean()  # This reduces across batches, not workers!
-        self.log('val_loss', avg_loss)
+        self.log("val_loss", avg_loss)
         self.validation_step_outputs.clear()  # free memory
 
     def _setup_tokenizer(self, cfg):
@@ -321,8 +351,10 @@ class Tacotron2Model(SpectrogramGenerator):
             # for backward compatibility
             if (
                 self._is_model_being_restored()
-                and (cfg.text_tokenizer.g2p.get('_target_', None) is not None)
-                and cfg.text_tokenizer.g2p["_target_"].startswith("nemo_text_processing.g2p")
+                and (cfg.text_tokenizer.g2p.get("_target_", None) is not None)
+                and cfg.text_tokenizer.g2p["_target_"].startswith(
+                    "nemo_text_processing.g2p"
+                )
             ):
                 cfg.text_tokenizer.g2p["_target_"] = g2p_backward_compatible_support(
                     cfg.text_tokenizer.g2p["_target_"]
@@ -332,27 +364,33 @@ class Tacotron2Model(SpectrogramGenerator):
 
             if "phoneme_dict" in cfg.text_tokenizer.g2p:
                 g2p_kwargs["phoneme_dict"] = self.register_artifact(
-                    'text_tokenizer.g2p.phoneme_dict',
+                    "text_tokenizer.g2p.phoneme_dict",
                     cfg.text_tokenizer.g2p.phoneme_dict,
                 )
 
             if "heteronyms" in cfg.text_tokenizer.g2p:
                 g2p_kwargs["heteronyms"] = self.register_artifact(
-                    'text_tokenizer.g2p.heteronyms',
+                    "text_tokenizer.g2p.heteronyms",
                     cfg.text_tokenizer.g2p.heteronyms,
                 )
 
-            text_tokenizer_kwargs["g2p"] = instantiate(cfg.text_tokenizer.g2p, **g2p_kwargs)
+            text_tokenizer_kwargs["g2p"] = instantiate(
+                cfg.text_tokenizer.g2p, **g2p_kwargs
+            )
 
         self.tokenizer = instantiate(cfg.text_tokenizer, **text_tokenizer_kwargs)
 
-    def __setup_dataloader_from_config(self, cfg, shuffle_should_be: bool = True, name: str = "train"):
+    def __setup_dataloader_from_config(
+        self, cfg, shuffle_should_be: bool = True, name: str = "train"
+    ):
         if "dataset" not in cfg or not isinstance(cfg.dataset, DictConfig):
             raise ValueError(f"No dataset for {name}")
-        if "dataloader_params" not in cfg or not isinstance(cfg.dataloader_params, DictConfig):
+        if "dataloader_params" not in cfg or not isinstance(
+            cfg.dataloader_params, DictConfig
+        ):
             raise ValueError(f"No dataloder_params for {name}")
         if shuffle_should_be:
-            if 'shuffle' not in cfg.dataloader_params:
+            if "shuffle" not in cfg.dataloader_params:
                 logging.warning(
                     f"Shuffle should be set to True for {self}'s {name} dataloader but was not found in its "
                     "config. Manually setting to True"
@@ -360,9 +398,13 @@ class Tacotron2Model(SpectrogramGenerator):
                 with open_dict(cfg.dataloader_params):
                     cfg.dataloader_params.shuffle = True
             elif not cfg.dataloader_params.shuffle:
-                logging.error(f"The {name} dataloader for {self} has shuffle set to False!!!")
+                logging.error(
+                    f"The {name} dataloader for {self} has shuffle set to False!!!"
+                )
         elif not shuffle_should_be and cfg.dataloader_params.shuffle:
-            logging.error(f"The {name} dataloader for {self} has shuffle set to True!!!")
+            logging.error(
+                f"The {name} dataloader for {self} has shuffle set to True!!!"
+            )
 
         dataset = instantiate(
             cfg.dataset,
@@ -371,16 +413,20 @@ class Tacotron2Model(SpectrogramGenerator):
             text_tokenizer=self.tokenizer,
         )
 
-        return torch.utils.data.DataLoader(dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params)
+        return torch.utils.data.DataLoader(
+            dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params
+        )
 
     def setup_training_data(self, cfg):
         self._train_dl = self.__setup_dataloader_from_config(cfg)
 
     def setup_validation_data(self, cfg):
-        self._validation_dl = self.__setup_dataloader_from_config(cfg, shuffle_should_be=False, name="validation")
+        self._validation_dl = self.__setup_dataloader_from_config(
+            cfg, shuffle_should_be=False, name="validation"
+        )
 
     @classmethod
-    def list_available_models(cls) -> 'List[PretrainedModelInfo]':
+    def list_available_models(cls) -> "List[PretrainedModelInfo]":
         """
         This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
         Returns:

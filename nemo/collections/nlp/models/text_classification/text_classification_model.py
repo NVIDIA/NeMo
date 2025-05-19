@@ -32,7 +32,7 @@ from nemo.core.classes.common import typecheck
 from nemo.core.classes.exportable import Exportable
 from nemo.utils import logging
 
-__all__ = ['TextClassificationModel']
+__all__ = ["TextClassificationModel"]
 
 
 class TextClassificationModel(NLPModel, Exportable):
@@ -48,7 +48,7 @@ class TextClassificationModel(NLPModel, Exportable):
             hidden_size=self.hidden_size,
             num_classes=cfg.dataset.num_classes,
             num_layers=cfg.classifier_head.num_output_layers,
-            activation='relu',
+            activation="relu",
             log_softmax=False,
             dropout=cfg.classifier_head.fc_dropout,
             use_transformer_init=True,
@@ -59,17 +59,23 @@ class TextClassificationModel(NLPModel, Exportable):
 
         # setup to track metrics
         self.classification_report = ClassificationReport(
-            num_classes=cfg.dataset.num_classes, mode='micro', dist_sync_on_step=True
+            num_classes=cfg.dataset.num_classes, mode="micro", dist_sync_on_step=True
         )
 
         # register the file containing the labels into the artifacts to get stored in the '.nemo' file later
-        if 'class_labels' in cfg and 'class_labels_file' in cfg.class_labels and cfg.class_labels.class_labels_file:
-            self.register_artifact('class_labels.class_labels_file', cfg.class_labels.class_labels_file)
+        if (
+            "class_labels" in cfg
+            and "class_labels_file" in cfg.class_labels
+            and cfg.class_labels.class_labels_file
+        ):
+            self.register_artifact(
+                "class_labels.class_labels_file", cfg.class_labels.class_labels_file
+            )
 
     def create_loss_module(self):
         # create the loss module if it is not yet created by the training data loader
-        if not hasattr(self, 'loss'):
-            if hasattr(self, 'class_weights') and self.class_weights:
+        if not hasattr(self, "loss"):
+            if hasattr(self, "class_weights") and self.class_weights:
                 # You may need to increase the number of epochs for convergence when using weighted_loss
                 self.loss = CrossEntropyLoss(weight=self.class_weights)
             else:
@@ -82,7 +88,9 @@ class TextClassificationModel(NLPModel, Exportable):
         in the `nn.Module` in vanilla PyTorch.
         """
         hidden_states = self.bert_model(
-            input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask
+            input_ids=input_ids,
+            token_type_ids=token_type_ids,
+            attention_mask=attention_mask,
         )
         if isinstance(hidden_states, tuple):
             hidden_states = hidden_states[0]
@@ -96,18 +104,22 @@ class TextClassificationModel(NLPModel, Exportable):
         """
         # forward pass
         input_ids, input_type_ids, input_mask, labels = batch
-        logits = self.forward(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
+        logits = self.forward(
+            input_ids=input_ids,
+            token_type_ids=input_type_ids,
+            attention_mask=input_mask,
+        )
 
         train_loss = self.loss(logits=logits, labels=labels)
 
-        lr = self._optimizer.param_groups[0]['lr']
+        lr = self._optimizer.param_groups[0]["lr"]
 
-        self.log('train_loss', train_loss)
-        self.log('lr', lr, prog_bar=True)
+        self.log("train_loss", train_loss)
+        self.log("lr", lr, prog_bar=True)
 
         return {
-            'loss': train_loss,
-            'lr': lr,
+            "loss": train_loss,
+            "lr": lr,
         }
 
     def validation_step(self, batch, batch_idx, split="val"):
@@ -116,7 +128,11 @@ class TextClassificationModel(NLPModel, Exportable):
         passed in as `batch`.
         """
         input_ids, input_type_ids, input_mask, labels = batch
-        logits = self.forward(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
+        logits = self.forward(
+            input_ids=input_ids,
+            token_type_ids=input_type_ids,
+            attention_mask=input_mask,
+        )
 
         val_loss = self.loss(logits=logits, labels=labels)
 
@@ -124,10 +140,10 @@ class TextClassificationModel(NLPModel, Exportable):
 
         tp, fn, fp, _ = self.classification_report(preds, labels)
 
-        loss = {f'{split}_loss': val_loss, 'tp': tp, 'fn': fn, 'fp': fp}
-        if split == 'val':
+        loss = {f"{split}_loss": val_loss, "tp": tp, "fn": fn, "fp": fp}
+        if split == "val":
             self.validation_step_outputs.append(loss)
-        elif split == 'test':
+        elif split == "test":
             self.test_step_outputs.append(loss)
         return loss
 
@@ -137,22 +153,26 @@ class TextClassificationModel(NLPModel, Exportable):
         :param outputs: list of individual outputs of each validation step.
         """
         avg_loss = torch.tensor(0)
-        if split == 'val':
-            avg_loss = torch.stack([x[f'val_loss'] for x in self.validation_step_outputs]).mean()
+        if split == "val":
+            avg_loss = torch.stack(
+                [x[f"val_loss"] for x in self.validation_step_outputs]
+            ).mean()
             self.validation_step_outputs.clear()  # free memory
-        elif split == 'test':
-            avg_loss = torch.stack([x[f'test_loss'] for x in self.test_step_outputs]).mean()
+        elif split == "test":
+            avg_loss = torch.stack(
+                [x[f"test_loss"] for x in self.test_step_outputs]
+            ).mean()
             self.test_step_outputs.clear()  # free memory
 
         # calculate metrics and classification report
         precision, recall, f1, report = self.classification_report.compute()
 
-        logging.info(f'{split}_report: {report}')
+        logging.info(f"{split}_report: {report}")
 
-        self.log(f'{split}_loss', avg_loss, prog_bar=True)
-        self.log(f'{split}_precision', precision)
-        self.log(f'{split}_f1', f1)
-        self.log(f'{split}_recall', recall)
+        self.log(f"{split}_loss", avg_loss, prog_bar=True)
+        self.log(f"{split}_precision", precision)
+        self.log(f"{split}_f1", f1)
+        self.log(f"{split}_recall", recall)
 
         self.classification_report.reset()
 
@@ -161,14 +181,14 @@ class TextClassificationModel(NLPModel, Exportable):
         Lightning calls this inside the test loop with the data from the test dataloader
         passed in as `batch`.
         """
-        return self.validation_step(batch, batch_idx, 'test')
+        return self.validation_step(batch, batch_idx, "test")
 
     def on_test_epoch_end(self):
         """
         Called at the end of test to aggregate outputs.
         :param outputs: list of individual outputs of each test step.
         """
-        return self.on_validation_epoch_end(split='test')
+        return self.on_validation_epoch_end(split="test")
 
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
         if not train_data_config or not train_data_config.file_path:
@@ -180,8 +200,10 @@ class TextClassificationModel(NLPModel, Exportable):
         self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config)
 
         # calculate the class weights to be used in the loss function
-        if self.cfg.dataset.class_balancing == 'weighted_loss':
-            self.class_weights = calc_class_weights(train_data_config.file_path, self.cfg.dataset.num_classes)
+        if self.cfg.dataset.class_balancing == "weighted_loss":
+            self.class_weights = calc_class_weights(
+                train_data_config.file_path, self.cfg.dataset.num_classes
+            )
         else:
             self.class_weights = None
         # we need to create/update the loss module by using the weights calculated from the training data
@@ -205,7 +227,7 @@ class TextClassificationModel(NLPModel, Exportable):
             return
         self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config)
 
-    def _setup_dataloader_from_config(self, cfg: Dict) -> 'torch.utils.data.DataLoader':
+    def _setup_dataloader_from_config(self, cfg: Dict) -> "torch.utils.data.DataLoader":
         input_file = cfg.file_path
         if not os.path.exists(input_file):
             raise FileNotFoundError(
@@ -237,7 +259,9 @@ class TextClassificationModel(NLPModel, Exportable):
         )
 
     @torch.no_grad()
-    def classifytext(self, queries: List[str], batch_size: int = 1, max_seq_length: int = -1) -> List[int]:
+    def classifytext(
+        self, queries: List[str], batch_size: int = 1, max_seq_length: int = -1
+    ) -> List[int]:
         """
         Get prediction for the queries
         Args:
@@ -256,8 +280,14 @@ class TextClassificationModel(NLPModel, Exportable):
             self.eval()
             logging_level = logging.get_verbosity()
             logging.set_verbosity(logging.WARNING)
-            dataloader_cfg = {"batch_size": batch_size, "num_workers": 3, "pin_memory": False}
-            infer_datalayer = self._setup_infer_dataloader(dataloader_cfg, queries, max_seq_length)
+            dataloader_cfg = {
+                "batch_size": batch_size,
+                "num_workers": 3,
+                "pin_memory": False,
+            }
+            infer_datalayer = self._setup_infer_dataloader(
+                dataloader_cfg, queries, max_seq_length
+            )
 
             for i, batch in enumerate(infer_datalayer):
                 input_ids, input_type_ids, input_mask, subtokens_mask = batch
@@ -278,7 +308,7 @@ class TextClassificationModel(NLPModel, Exportable):
 
     def _setup_infer_dataloader(
         self, cfg: Dict, queries: List[str], max_seq_length: int = -1
-    ) -> 'torch.utils.data.DataLoader':
+    ) -> "torch.utils.data.DataLoader":
         """
         Setup function for a infer data loader.
 
@@ -289,7 +319,9 @@ class TextClassificationModel(NLPModel, Exportable):
         Returns:
             A pytorch DataLoader.
         """
-        dataset = TextClassificationDataset(tokenizer=self.tokenizer, queries=queries, max_seq_length=max_seq_length)
+        dataset = TextClassificationDataset(
+            tokenizer=self.tokenizer, queries=queries, max_seq_length=max_seq_length
+        )
         return torch.utils.data.DataLoader(
             dataset=dataset,
             batch_size=cfg["batch_size"],

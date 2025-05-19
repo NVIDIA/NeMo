@@ -32,8 +32,8 @@ from nemo.collections.llm.bert.model import (BertConfig,
                                              MegatronBertBaseConfig,
                                              MegatronBertConfig,
                                              MegatronBertLargeConfig)
-from nemo.collections.llm.gpt.data import (AlpacaDataModule,  # noqa: F401
-                                           ChatDataModule,
+from nemo.collections.llm.gpt.data import AlpacaDataModule  # noqa: F401
+from nemo.collections.llm.gpt.data import (ChatDataModule,
                                            CustomRetrievalDataModule,
                                            DollyDataModule,
                                            FineTuningDataModule,
@@ -43,8 +43,8 @@ from nemo.collections.llm.gpt.data import (AlpacaDataModule,  # noqa: F401
                                            PreTrainingDataModule,
                                            SquadDataModule)
 from nemo.collections.llm.gpt.data.api import dolly, hf_dataset, mock, squad
-from nemo.collections.llm.gpt.model import (Baichuan2Config,  # noqa: F401
-                                            Baichuan2Config7B, Baichuan2Model,
+from nemo.collections.llm.gpt.model import Baichuan2Config  # noqa: F401
+from nemo.collections.llm.gpt.model import (Baichuan2Config7B, Baichuan2Model,
                                             BaseMambaConfig1_3B,
                                             BaseMambaConfig2_7B,
                                             BaseMambaConfig130M,
@@ -298,10 +298,10 @@ from nemo.utils import logging
 try:
     import nemo_run as run  # noqa: F401
 
-    from nemo.collections.llm.api import (distill, export_ckpt,  # noqa: F401
-                                          finetune, generate, import_ckpt,
-                                          pretrain, prune, ptq, train,
-                                          validate)
+    from nemo.collections.llm.api import export_ckpt  # noqa: F401
+    from nemo.collections.llm.api import (distill, finetune, generate,
+                                          import_ckpt, pretrain, prune, ptq,
+                                          train, validate)
     from nemo.collections.llm.recipes import *  # noqa
 
     __all__.extend(

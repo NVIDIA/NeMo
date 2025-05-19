@@ -59,7 +59,9 @@ def override_recipe_configs(
 
     gpu_type = args.gpu.lower()
     if gpu_type in ["b200", "gb200"]:
-        recipe = finetune_recipe(peft_scheme=finetuning_scheme, performance_mode=True, seq_length=16384)
+        recipe = finetune_recipe(
+            peft_scheme=finetuning_scheme, performance_mode=True, seq_length=16384
+        )
     else:
         recipe = finetune_recipe(peft_scheme=finetuning_scheme, performance_mode=True)
 
@@ -97,10 +99,15 @@ def override_recipe_configs(
         recipe.data.tokenizer = hf_tokenizer(HF_MODEL_URI)
     else:
         recipe.data.tokenizer = run.Config(
-            get_nmt_tokenizer, library="null", model_name="NullTokenizer", vocab_size=128256
+            get_nmt_tokenizer,
+            library="null",
+            model_name="NullTokenizer",
+            vocab_size=128256,
         )
         recipe.model.tokenizer = recipe.data.tokenizer
-    if recipe.data.__fn_or_cls__ == SquadDataModule and not isfile_train_pack_metadata(HF_MODEL_URI, recipe.data):
+    if recipe.data.__fn_or_cls__ == SquadDataModule and not isfile_train_pack_metadata(
+        HF_MODEL_URI, recipe.data
+    ):
         # flag is valid only for SquadDataModule
         recipe.data.force_redownload = True
 
@@ -115,10 +122,30 @@ if __name__ == "__main__":
     args_sanity_check(args)
 
     kwargs = get_user_configs(args.gpu.lower(), args.finetuning, "llama3", "8b", args)
-    num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, _, enable_cuda_graphs = kwargs[:10]
+    (
+        num_nodes,
+        mbs,
+        gbs,
+        tp_size,
+        pp_size,
+        cp_size,
+        vp_size,
+        ep_size,
+        _,
+        enable_cuda_graphs,
+    ) = kwargs[:10]
 
     recipe = override_recipe_configs(
-        args, num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, enable_cuda_graphs
+        args,
+        num_nodes,
+        mbs,
+        gbs,
+        tp_size,
+        pp_size,
+        cp_size,
+        vp_size,
+        ep_size,
+        enable_cuda_graphs,
     )
 
     exp_config = f"{num_nodes}nodes_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_{mbs}mbs_{gbs}gbs"
@@ -143,7 +170,7 @@ if __name__ == "__main__":
         PerfEnvPlugin(
             enable_vboost=True,
             nccl_pp_comm_chunksize=2097152 if pp_size > 1 else None,
-            gpu_sm100_or_newer=(args.gpu.lower() in ['b200', 'gb200']),
+            gpu_sm100_or_newer=(args.gpu.lower() in ["b200", "gb200"]),
         )
     ]
     if args.enable_nsys:
@@ -154,8 +181,14 @@ if __name__ == "__main__":
 
     with run.Experiment(exp_name) as exp:
         if not SKIP_IMPORT:
-            assert args.hf_token is not None, "HF token is required for importing checkpoint from HuggingFace"
-            exp.add(*import_ckpt_experiment(executor, model(), source=f"hf://{HF_MODEL_URI}"))
+            assert (
+                args.hf_token is not None
+            ), "HF token is required for importing checkpoint from HuggingFace"
+            exp.add(
+                *import_ckpt_experiment(
+                    executor, model(), source=f"hf://{HF_MODEL_URI}"
+                )
+            )
         exp.add(
             recipe,
             executor=executor,

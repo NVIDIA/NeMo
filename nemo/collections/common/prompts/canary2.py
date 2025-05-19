@@ -39,7 +39,11 @@ class Canary2PromptFormatter(PromptFormatter):
                 "decodercontext": Modality.Text,
                 # Emotion of the speaker - may be predicted by the model with a partial prompt.
                 "emotion": Modality.TextLiteral(
-                    "<|emo:undefined|>", "<|emo:neutral|>", "<|emo:angry|>", "<|emo:happy|>", "<|emo:sad|>"
+                    "<|emo:undefined|>",
+                    "<|emo:neutral|>",
+                    "<|emo:angry|>",
+                    "<|emo:happy|>",
+                    "<|emo:sad|>",
                 ),
                 # Audio input language - may be predicted by the model with a partial prompt.
                 "source_lang": Modality.Text,
@@ -47,11 +51,33 @@ class Canary2PromptFormatter(PromptFormatter):
                 "target_lang": Modality.Text,
                 # Should we predict punctuation and capitalization?
                 "pnc": Modality.TextLiteral(
-                    "yes", "no", "true", "True", "false", "False", "1", "0", "pnc", "nopnc", "<|pnc|>", "<|nopnc|>"
+                    "yes",
+                    "no",
+                    "true",
+                    "True",
+                    "false",
+                    "False",
+                    "1",
+                    "0",
+                    "pnc",
+                    "nopnc",
+                    "<|pnc|>",
+                    "<|nopnc|>",
                 ),
                 # Should we predict with inverse text normalization (numerals as digits, abbreviations, etc.)
                 "itn": Modality.TextLiteral(
-                    "yes", "no", "true", "True", "false", "False", "1", "0", "itn", "noitn", "<|itn|>", "<|noitn|>"
+                    "yes",
+                    "no",
+                    "true",
+                    "True",
+                    "false",
+                    "False",
+                    "1",
+                    "0",
+                    "itn",
+                    "noitn",
+                    "<|itn|>",
+                    "<|noitn|>",
                 ),
                 # Should we predict timestamps?
                 "timestamp": Modality.TextLiteral(
@@ -104,7 +130,9 @@ class Canary2PromptFormatter(PromptFormatter):
         },
     }
 
-    def encode_turn(self, prompt_template: str, expected_slots: dict, slot_values: dict) -> list[int]:
+    def encode_turn(
+        self, prompt_template: str, expected_slots: dict, slot_values: dict
+    ) -> list[int]:
         # This method handles a level of indirection for Canary.
         # It maps values provided in trcfg to the actual special tokens
         # expected to be present in canary prompt.
@@ -113,17 +141,23 @@ class Canary2PromptFormatter(PromptFormatter):
         # This maps things such as '|task|: "asr"' to '|TASK|: "<|transcribe|>"'.
         slot_values = map_manifest_values_to_special_tokens(slot_values)
         return super().encode_turn(
-            prompt_template=prompt_template, expected_slots=expected_slots, slot_values=slot_values
+            prompt_template=prompt_template,
+            expected_slots=expected_slots,
+            slot_values=slot_values,
         )
 
 
-def map_manifest_values_to_special_tokens(slot_values: dict[str, str]) -> dict[str, str]:
+def map_manifest_values_to_special_tokens(
+    slot_values: dict[str, str]
+) -> dict[str, str]:
     slot_values = slot_values.copy()
 
     any_special_token_present = False
 
     for k in ("source_lang", "target_lang"):
-        if k in slot_values and not ((v := slot_values[k]).startswith("<|") and v.endswith("|>")):
+        if k in slot_values and not (
+            (v := slot_values[k]).startswith("<|") and v.endswith("|>")
+        ):
             val = slot_values[k]
             slot_values[k] = "<|" + val + "|>"
             any_special_token_present = True
@@ -133,12 +167,19 @@ def map_manifest_values_to_special_tokens(slot_values: dict[str, str]) -> dict[s
         true_token = f"<|{k}|>"
         false_token = f"<|no{k}|>"
         if k in slot_values and slot_values[k] not in (true_token, false_token):
-            slot_values[k] = true_token if slot_values[k] in ("yes", "1", "True", "true", k) else false_token
+            slot_values[k] = (
+                true_token
+                if slot_values[k] in ("yes", "1", "True", "true", k)
+                else false_token
+            )
             any_special_token_present = True
 
     # Auto-inject which tokenizer to look up in CanaryTokenizer if not provided,
     # and slots for this turn correspond to user prompt.
-    if any_special_token_present and PromptFormatter.PROMPT_LANGUAGE_SLOT not in slot_values:
+    if (
+        any_special_token_present
+        and PromptFormatter.PROMPT_LANGUAGE_SLOT not in slot_values
+    ):
         slot_values[PromptFormatter.PROMPT_LANGUAGE_SLOT] = CANARY_SPECIAL_TOKENIZER
 
     return slot_values
@@ -182,13 +223,15 @@ def canary2(cut: Cut, prompt: Canary2PromptFormatter) -> dict[str, torch.Tensor]
 
     turns = [dict(role="user", slots=slots)]
     # If data has no transcript, create empty response with <eos> only.
-    text = ' '.join(s.text for s in cut.supervisions if s.text is not None)
+    text = " ".join(s.text for s in cut.supervisions if s.text is not None)
     turns.append(
         dict(
             role="assistant",
             slots={
                 "text": text,
-                prompt.PROMPT_LANGUAGE_SLOT: ifnone(cut.supervisions[0].language, cut.custom.get("target_lang")),
+                prompt.PROMPT_LANGUAGE_SLOT: ifnone(
+                    cut.supervisions[0].language, cut.custom.get("target_lang")
+                ),
             },
         ),
     )
@@ -197,7 +240,9 @@ def canary2(cut: Cut, prompt: Canary2PromptFormatter) -> dict[str, torch.Tensor]
         eos = prompt.tokenizer.eos
     else:  # SPE
         eos = prompt.tokenizer.token_to_id(CANARY_EOS)
-    assert eos > -1, "Invalid tokenizer: tokenizer.token_to_id('{CANARY_EOS}') returned {eos}"
+    assert (
+        eos > -1
+    ), "Invalid tokenizer: tokenizer.token_to_id('{CANARY_EOS}') returned {eos}"
     assert (
         ans["answer_ids"][-1].item() == eos
     ), f"Expected the last token in answer_ids to be EOS, but we got {ans['answer_ids']}"

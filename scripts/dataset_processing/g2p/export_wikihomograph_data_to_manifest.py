@@ -30,12 +30,24 @@ WikiHomograph dataset could be found here:
 
 def parse_args():
     parser = ArgumentParser()
-    parser.add_argument('--data_folder', help="Path to data folder with .tsv files", type=str, required=True)
-    parser.add_argument("--output", help="Path to output .json file to store the data", type=str, required=True)
+    parser.add_argument(
+        "--data_folder",
+        help="Path to data folder with .tsv files",
+        type=str,
+        required=True,
+    )
+    parser.add_argument(
+        "--output",
+        help="Path to output .json file to store the data",
+        type=str,
+        required=True,
+    )
     return parser.parse_args()
 
 
-def read_wikihomograph_file(file: str) -> Tuple[List[str], List[List[int]], List[str], List[str]]:
+def read_wikihomograph_file(
+    file: str,
+) -> Tuple[List[str], List[List[int]], List[str], List[str]]:
     """
     Reads .tsv file from WikiHomograph dataset,
     e.g. https://github.com/google-research-datasets/WikipediaHomographData/blob/master/data/eval/live.tsv
@@ -71,7 +83,9 @@ def read_wikihomograph_file(file: str) -> Tuple[List[str], List[List[int]], List
                     assert heteronym == heteronym_span.lower()
                 else:
                     excluded_sentences += 1
-                    raise ValueError(f"heteronym {heteronym} != heteronym_span {heteronym_span} in {sentence}")
+                    raise ValueError(
+                        f"heteronym {heteronym} != heteronym_span {heteronym_span} in {sentence}"
+                    )
 
             heteronyms.append(heteronym)
             start_end_indices.append([start, end])
@@ -96,17 +110,26 @@ def correct_wikihomograph_data(sentence: str, start: int = None, end: int = None
             96,
             100,
         ],
-        "B₁₀₅ can be conceptually divided into a B₄₈ fragment and B₂₈-B-B₂₈ (B₅₇) fragment.": [44, 52],
+        "B₁₀₅ can be conceptually divided into a B₄₈ fragment and B₂₈-B-B₂₈ (B₅₇) fragment.": [
+            44,
+            52,
+        ],
         "Pierrefonds Airport on Réunion recorded just 18 mm (0.71 in) of rainfall from November to January, a record minimum.": [
             101,
             107,
         ],
-        "Consort Chen Farong (陳法容) was an imperial consort during the Chinese dynasty Liu Song.": [42, 49],
+        "Consort Chen Farong (陳法容) was an imperial consort during the Chinese dynasty Liu Song.": [
+            42,
+            49,
+        ],
         "Unlike TiO₂, which features six-coordinate Ti in all phases, monoclinic zirconia consists of seven-coordinate zirconium centres.": [
             32,
             42,
         ],
-        "Its area is 16 km², its approximate length is 10 km, and its approximate width is 3 km.": [24, 35],
+        "Its area is 16 km², its approximate length is 10 km, and its approximate width is 3 km.": [
+            24,
+            35,
+        ],
         "The conjugate momentum to X has the expressionwhere the pᵢ are the momentum functions conjugate to the coordinates.": [
             86,
             95,
@@ -124,8 +147,12 @@ def correct_wikihomograph_data(sentence: str, start: int = None, end: int = None
     if sentence in corrections:
         start, end = corrections[sentence]
 
-    sentence = sentence.replace("2014Coordinate", "2014 Coordinate")  # for normalized data for G2P OOV models
-    sentence = sentence.replace("AAA", "triple A")  # for normalized data for G2P OOV models
+    sentence = sentence.replace(
+        "2014Coordinate", "2014 Coordinate"
+    )  # for normalized data for G2P OOV models
+    sentence = sentence.replace(
+        "AAA", "triple A"
+    )  # for normalized data for G2P OOV models
 
     return sentence, start, end
 
@@ -140,7 +167,9 @@ def convert_wikihomograph_data_to_manifest(data_folder: str, output_manifest: st
     """
     with open(output_manifest, "w") as f_out:
         for file in tqdm(glob(f"{data_folder}/*.tsv")):
-            sentences, start_end_indices, heteronyms, word_ids = read_wikihomograph_file(file)
+            sentences, start_end_indices, heteronyms, word_ids = (
+                read_wikihomograph_file(file)
+            )
             for i, sent in enumerate(sentences):
                 start, end = start_end_indices[i]
                 heteronym_span = sent[start:end]
@@ -154,6 +183,6 @@ def convert_wikihomograph_data_to_manifest(data_folder: str, output_manifest: st
     print(f"Data saved at {output_manifest}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     args = parse_args()
     convert_wikihomograph_data_to_manifest(args.data_folder, args.output)

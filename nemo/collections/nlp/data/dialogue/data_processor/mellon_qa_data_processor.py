@@ -23,7 +23,7 @@ from nemo.collections.nlp.data.dialogue.input_example.input_example import \
     DialogueInputExample
 from nemo.utils.decorators import deprecated_warning
 
-__all__ = ['DialogueMellonQADataProcessor']
+__all__ = ["DialogueMellonQADataProcessor"]
 
 
 class DialogueMellonQADataProcessor(DialogueDataProcessor):
@@ -51,7 +51,7 @@ class DialogueMellonQADataProcessor(DialogueDataProcessor):
         filename = os.path.join(self.data_dir, filename)
         with open(filename, "r", encoding="UTF-8") as f:
             df = pd.read_csv(filename)
-        return df.to_dict(orient='index')
+        return df.to_dict(orient="index")
 
     def get_dialog_examples(self, dataset_split: str):
         """
@@ -66,24 +66,26 @@ class DialogueMellonQADataProcessor(DialogueDataProcessor):
 
         examples = []
 
-        raw_examples = self.open_csv('mellon_qa_data.csv')
+        raw_examples = self.open_csv("mellon_qa_data.csv")
         raw_examples = list(raw_examples.values())
         # filter out answers with no answer
         raw_examples = [
             example
             for example in raw_examples
-            if isinstance(example['Non Generative Question Answering '], str)
-            and isinstance(example['Generative Question Answering '], str)
+            if isinstance(example["Non Generative Question Answering "], str)
+            and isinstance(example["Generative Question Answering "], str)
         ]
 
         n_samples = len(raw_examples)
-        idxs = DialogueDataProcessor.get_relevant_idxs(dataset_split, n_samples, self.cfg.dev_proportion)
+        idxs = DialogueDataProcessor.get_relevant_idxs(
+            dataset_split, n_samples, self.cfg.dev_proportion
+        )
 
         for i in idxs:
-            utterance = str(raw_examples[i]['Question'])
-            answer = str(raw_examples[i]['Non Generative Question Answering '])
-            well_formed_answer = str(raw_examples[i]['Generative Question Answering '])
-            passage = raw_examples[i]['Passage']
+            utterance = str(raw_examples[i]["Question"])
+            answer = str(raw_examples[i]["Non Generative Question Answering "])
+            well_formed_answer = str(raw_examples[i]["Generative Question Answering "])
+            passage = raw_examples[i]["Passage"]
             input_example = {
                 "utterance": utterance,
                 "example_id": i,

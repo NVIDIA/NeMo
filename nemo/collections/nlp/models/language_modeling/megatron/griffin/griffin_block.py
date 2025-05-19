@@ -156,17 +156,19 @@ class GriffinStack(LanguageModule):
                     packed_seq_params,
                 )
 
-        if self.config.recompute_method == 'uniform':
+        if self.config.recompute_method == "uniform":
             # Uniformly divide the total number of Transformer layers and checkpoint
             # the input activation of each divided chunk.
             # A method to further reduce memory usage reducing checkpoints.
             l = 0
             while l < self.num_layers:
-                hidden_states, context = checkpoint_handler(custom(l, l + self.config.recompute_num_layers))
+                hidden_states, context = checkpoint_handler(
+                    custom(l, l + self.config.recompute_num_layers)
+                )
 
                 l += self.config.recompute_num_layers
 
-        elif self.config.recompute_method == 'block':
+        elif self.config.recompute_method == "block":
             # Checkpoint the input activation of only a set number of individual
             # Transformer layers and skip the rest.
             # A method fully use the device memory removing redundant re-computation.
@@ -177,7 +179,10 @@ class GriffinStack(LanguageModule):
                 # for re-enterant autograd engine.
                 if self.config.fp8 and not hidden_states.requires_grad:
                     recompute_skip_num_layers += 1
-                if l >= recompute_skip_num_layers and l < self.config.recompute_num_layers + recompute_skip_num_layers:
+                if (
+                    l >= recompute_skip_num_layers
+                    and l < self.config.recompute_num_layers + recompute_skip_num_layers
+                ):
                     hidden_states, context = checkpoint_handler(custom(l, l + 1))
                 else:
                     hidden_states, context = custom(l, l + 1)(
@@ -196,7 +201,7 @@ class GriffinStack(LanguageModule):
     def forward(self, hidden_states, attention_mask, rotary_pos_emb):
 
         if (
-            self.config.recompute_granularity == 'full'
+            self.config.recompute_granularity == "full"
             and self.training
             and not self.config.activations_checkpoint_recurrent
         ):
@@ -208,7 +213,11 @@ class GriffinStack(LanguageModule):
         else:
             for layer in self.layers:
 
-                hidden_states, _ = layer(hidden_states, attention_mask=attention_mask, rotary_pos_emb=rotary_pos_emb)
+                hidden_states, _ = layer(
+                    hidden_states,
+                    attention_mask=attention_mask,
+                    rotary_pos_emb=rotary_pos_emb,
+                )
 
         hidden_states = self.final_layernorm(hidden_states)
 

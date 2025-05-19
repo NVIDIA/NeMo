@@ -37,7 +37,7 @@ from nemo.core.classes import Dataset
 from nemo.utils import logging
 from nemo.utils.decorators import deprecated_warning
 
-__all__ = ['SquadDataset', 'InputFeatures', '_check_is_max_context']
+__all__ = ["SquadDataset", "InputFeatures", "_check_is_max_context"]
 
 
 class InputFeatures(object):
@@ -182,8 +182,8 @@ class SquadDataset(Dataset):
         vocab_size = getattr(tokenizer, "vocab_size", 0)
         cached_features_file = (
             data_file
-            + '_cache'
-            + '_{}_{}_{}_{}_{}_{}_{}'.format(
+            + "_cache"
+            + "_{}_{}_{}_{}_{}_{}_{}".format(
                 mode,
                 tokenizer.name,
                 str(vocab_size),
@@ -234,9 +234,15 @@ class SquadDataset(Dataset):
             )
 
             if use_cache:
-                master_device = not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0
+                master_device = (
+                    not torch.distributed.is_initialized()
+                    or torch.distributed.get_rank() == 0
+                )
                 if master_device:
-                    logging.info("  Saving train features into cached file %s", cached_features_file)
+                    logging.info(
+                        "  Saving train features into cached file %s",
+                        cached_features_file,
+                    )
                     with open(cached_features_file, "wb") as writer:
                         items_to_pickle = [
                             self.features,
@@ -258,7 +264,11 @@ class SquadDataset(Dataset):
 
     @staticmethod
     def get_doc_tokens_and_offset_from_context_id(
-        context_id, start_position_character, is_impossible, answer_text, context_id_to_context_text
+        context_id,
+        start_position_character,
+        is_impossible,
+        answer_text,
+        context_id_to_context_text,
     ):
         start_position, end_position = 0, 0
         context_text = context_id_to_context_text[context_id]
@@ -269,10 +279,19 @@ class SquadDataset(Dataset):
             # start_position is index of word, end_position inclusive
             start_position = char_to_word_offset[start_position_character]
             end_position = char_to_word_offset[
-                min(start_position_character + len(answer_text) - 1, len(char_to_word_offset) - 1)
+                min(
+                    start_position_character + len(answer_text) - 1,
+                    len(char_to_word_offset) - 1,
+                )
             ]
 
-        return doc_tokens, char_to_word_offset, start_position, end_position, context_text
+        return (
+            doc_tokens,
+            char_to_word_offset,
+            start_position,
+            end_position,
+            context_text,
+        )
 
     @staticmethod
     def split_into_words(context_text):
@@ -356,10 +375,14 @@ class SquadDataset(Dataset):
         """
         percent_memory = psutil.virtual_memory().percent
         if percent_memory > 75:
-            raise ValueError('Please use a device with more CPU ram or a smaller dataset')
+            raise ValueError(
+                "Please use a device with more CPU ram or a smaller dataset"
+            )
 
     @staticmethod
-    def get_average_dist_to_tok_start_and_end(doc_span, tok_start_position, tok_end_position):
+    def get_average_dist_to_tok_start_and_end(
+        doc_span, tok_start_position, tok_end_position
+    ):
         """
         Find distance between doc_span and answer_span to determine if doc_span is likely to be useful for the answer
         Helper function to filter out doc_spans that may not be helpful
@@ -395,9 +418,9 @@ class SquadDataset(Dataset):
         Returns:
             doc_spans: doc_spans after filtering
         """
-        if mode == 'all':
+        if mode == "all":
             return doc_spans
-        elif mode == 'only_positive':
+        elif mode == "only_positive":
             if tok_start_position in [-1, None] or tok_end_position in [-1, None]:
                 return []
             else:
@@ -407,7 +430,7 @@ class SquadDataset(Dataset):
                     if tok_start_position >= doc_span.start
                     and tok_end_position <= doc_span.start + doc_span.length - 1
                 ]
-        elif mode == 'limited_negative':
+        elif mode == "limited_negative":
             n_candidates = 10
             if tok_start_position in [-1, None] or tok_end_position in [-1, None]:
                 pass
@@ -419,7 +442,9 @@ class SquadDataset(Dataset):
                 )
             return doc_spans[:n_candidates]
         else:
-            raise ValueError('mode can only be in {all, only_positive and limited_negative')
+            raise ValueError(
+                "mode can only be in {all, only_positive and limited_negative"
+            )
 
     def convert_examples_to_features(
         self,
@@ -443,9 +468,9 @@ class SquadDataset(Dataset):
 
             example = examples[example_index]
             if example.question_text not in text_to_tokens_dict:
-                text_to_tokens_dict[example.question_text] = tokenizer.text_to_tokens(example.question_text)[
-                    :max_query_length
-                ]
+                text_to_tokens_dict[example.question_text] = tokenizer.text_to_tokens(
+                    example.question_text
+                )[:max_query_length]
             query_tokens = text_to_tokens_dict[example.question_text]
 
             # context: index of token -> index of word
@@ -498,14 +523,20 @@ class SquadDataset(Dataset):
                     tok_end_position = len(all_doc_tokens) - 1
 
                 (tok_start_position, tok_end_position) = _improve_answer_span(
-                    all_doc_tokens, tok_start_position, tok_end_position, tokenizer, example.answer_text
+                    all_doc_tokens,
+                    tok_start_position,
+                    tok_end_position,
+                    tokenizer,
+                    example.answer_text,
                 )
 
             # The -3 accounts for tokenizer.cls_token, tokenizer.sep_token and tokenizer.sep_token
             # doc_spans contains all possible contexts options of given length
             max_tokens_for_doc = max_seq_length - len(query_tokens) - 3
 
-            doc_spans = SquadDataset.get_docspans(all_doc_tokens, max_tokens_for_doc, doc_stride)
+            doc_spans = SquadDataset.get_docspans(
+                all_doc_tokens, max_tokens_for_doc, doc_stride
+            )
 
             doc_spans = SquadDataset.keep_relevant_docspans(
                 doc_spans, tok_start_position, tok_end_position, self.keep_doc_spans
@@ -525,8 +556,12 @@ class SquadDataset(Dataset):
 
                 for i in range(doc_span.length):
                     split_token_index = doc_span.start + i
-                    token_to_orig_map[len(tokens)] = tok_to_orig_index[split_token_index]
-                    is_max_context = _check_is_max_context(doc_spans, doc_span_index, split_token_index)
+                    token_to_orig_map[len(tokens)] = tok_to_orig_index[
+                        split_token_index
+                    ]
+                    is_max_context = _check_is_max_context(
+                        doc_spans, doc_span_index, split_token_index
+                    )
                     token_is_max_context[len(tokens)] = is_max_context
                     tokens.append(all_doc_tokens[split_token_index])
                     segment_ids.append(1)
@@ -558,7 +593,9 @@ class SquadDataset(Dataset):
                     doc_start = doc_span.start
                     doc_end = doc_span.start + doc_span.length - 1
                     out_of_span = False
-                    if not (tok_start_position >= doc_start and tok_end_position <= doc_end):
+                    if not (
+                        tok_start_position >= doc_start and tok_end_position <= doc_end
+                    ):
                         out_of_span = True
                     if out_of_span:
                         start_position = 0
@@ -581,19 +618,35 @@ class SquadDataset(Dataset):
                     logging.info("doc_span_index: %s" % (doc_span_index))
                     logging.info("tokens: %s" % " ".join(tokens))
                     logging.info(
-                        "token_to_orig_map: %s" % " ".join(["%d:%d" % (x, y) for (x, y) in token_to_orig_map.items()])
+                        "token_to_orig_map: %s"
+                        % " ".join(
+                            ["%d:%d" % (x, y) for (x, y) in token_to_orig_map.items()]
+                        )
                     )
                     logging.info(
                         "token_is_max_context: %s"
-                        % " ".join(["%d:%s" % (x, y) for (x, y) in token_is_max_context.items()])
+                        % " ".join(
+                            [
+                                "%d:%s" % (x, y)
+                                for (x, y) in token_is_max_context.items()
+                            ]
+                        )
                     )
-                    logging.info("input_ids: %s" % " ".join([str(x) for x in input_ids]))
-                    logging.info("input_mask: %s" % " ".join([str(x) for x in input_mask]))
-                    logging.info("segment_ids: %s" % " ".join([str(x) for x in segment_ids]))
+                    logging.info(
+                        "input_ids: %s" % " ".join([str(x) for x in input_ids])
+                    )
+                    logging.info(
+                        "input_mask: %s" % " ".join([str(x) for x in input_mask])
+                    )
+                    logging.info(
+                        "segment_ids: %s" % " ".join([str(x) for x in segment_ids])
+                    )
                     if has_groundtruth and example.is_impossible:
                         logging.info("impossible example")
                     if has_groundtruth and not example.is_impossible:
-                        answer_text = " ".join(tokens[start_position : (end_position + 1)])
+                        answer_text = " ".join(
+                            tokens[start_position : (end_position + 1)]
+                        )
                         logging.info("start_position: %d" % (start_position))
                         logging.info("end_position: %d" % (end_position))
                         logging.info("answer: %s" % (answer_text))
@@ -610,10 +663,16 @@ class SquadDataset(Dataset):
 
                 segment_mask = tuple(segment_ids)
                 if segment_mask in self.segment_mask_to_segment_mask_id:
-                    feature_segment_mask_id = self.segment_mask_to_segment_mask_id[segment_mask]
+                    feature_segment_mask_id = self.segment_mask_to_segment_mask_id[
+                        segment_mask
+                    ]
                 else:
-                    self.segment_mask_id_to_segment_mask[self.segment_mask_id] = segment_mask
-                    self.segment_mask_to_segment_mask_id[segment_mask] = self.segment_mask_id
+                    self.segment_mask_id_to_segment_mask[self.segment_mask_id] = (
+                        segment_mask
+                    )
+                    self.segment_mask_to_segment_mask_id[segment_mask] = (
+                        self.segment_mask_id
+                    )
                     feature_segment_mask_id = self.segment_mask_id
                     self.segment_mask_id += 1
                 # end memoization
@@ -668,7 +727,8 @@ class SquadDataset(Dataset):
             example_index_to_features[feature.example_index].append(feature)
 
         _PrelimPrediction = collections.namedtuple(
-            "PrelimPrediction", ["feature_index", "start_index", "end_index", "start_logit", "end_logit"]
+            "PrelimPrediction",
+            ["feature_index", "start_index", "end_index", "start_logit", "end_logit"],
         )
 
         all_predictions = collections.OrderedDict()
@@ -682,12 +742,14 @@ class SquadDataset(Dataset):
 
             features = example_index_to_features[example_index]
 
-            doc_tokens, _, _, _, _ = SquadDataset.get_doc_tokens_and_offset_from_context_id(
-                example.context_id,
-                example.start_position_character,
-                example.is_impossible,
-                example.answer_text,
-                self.processor.doc_id_to_context_text,
+            doc_tokens, _, _, _, _ = (
+                SquadDataset.get_doc_tokens_and_offset_from_context_id(
+                    example.context_id,
+                    example.start_position_character,
+                    example.is_impossible,
+                    example.answer_text,
+                    self.processor.doc_id_to_context_text,
+                )
             )
             prelim_predictions = []
             # keep track of the minimum score of null start+end of position 0
@@ -752,9 +814,15 @@ class SquadDataset(Dataset):
                         end_logit=null_end_logit,
                     )
                 )
-            prelim_predictions = sorted(prelim_predictions, key=lambda x: (x.start_logit + x.end_logit), reverse=True)
+            prelim_predictions = sorted(
+                prelim_predictions,
+                key=lambda x: (x.start_logit + x.end_logit),
+                reverse=True,
+            )
 
-            _NbestPrediction = collections.namedtuple("NbestPrediction", ["text", "start_logit", "end_logit"])
+            _NbestPrediction = collections.namedtuple(
+                "NbestPrediction", ["text", "start_logit", "end_logit"]
+            )
 
             seen_predictions = {}
             nbest = []
@@ -787,23 +855,40 @@ class SquadDataset(Dataset):
                     final_text = ""
                     seen_predictions[final_text] = True
 
-                nbest.append(_NbestPrediction(text=final_text, start_logit=pred.start_logit, end_logit=pred.end_logit))
+                nbest.append(
+                    _NbestPrediction(
+                        text=final_text,
+                        start_logit=pred.start_logit,
+                        end_logit=pred.end_logit,
+                    )
+                )
 
             # if we didn't include the empty option in the n-best, include it
             if version_2_with_negative:
                 if "" not in seen_predictions:
-                    nbest.append(_NbestPrediction(text="", start_logit=null_start_logit, end_logit=null_end_logit))
+                    nbest.append(
+                        _NbestPrediction(
+                            text="",
+                            start_logit=null_start_logit,
+                            end_logit=null_end_logit,
+                        )
+                    )
 
                 # In very rare edge cases we could only
                 # have single null pred. We just create a nonce prediction
                 # in this case to avoid failure.
                 if len(nbest) == 1:
-                    nbest.insert(0, _NbestPrediction(text="empty", start_logit=0.0, end_logit=0.0))
+                    nbest.insert(
+                        0,
+                        _NbestPrediction(text="empty", start_logit=0.0, end_logit=0.0),
+                    )
 
             # In very rare edge cases we could have no valid predictions. So we
             # just create a nonce prediction in this case to avoid failure.
             if not nbest:
-                nbest.append(_NbestPrediction(text="empty", start_logit=0.0, end_logit=0.0))
+                nbest.append(
+                    _NbestPrediction(text="empty", start_logit=0.0, end_logit=0.0)
+                )
 
             assert len(nbest) >= 1
 
@@ -825,12 +910,18 @@ class SquadDataset(Dataset):
                 output["probability"] = probs[i]
                 output["start_logit"] = (
                     entry.start_logit
-                    if (isinstance(entry.start_logit, float) or isinstance(entry.start_logit, int))
+                    if (
+                        isinstance(entry.start_logit, float)
+                        or isinstance(entry.start_logit, int)
+                    )
                     else list(entry.start_logit)
                 )
                 output["end_logit"] = (
                     entry.end_logit
-                    if (isinstance(entry.end_logit, float) or isinstance(entry.end_logit, int))
+                    if (
+                        isinstance(entry.end_logit, float)
+                        or isinstance(entry.end_logit, int)
+                    )
                     else list(entry.end_logit)
                 )
                 nbest_json.append(output)
@@ -841,7 +932,11 @@ class SquadDataset(Dataset):
             else:
                 # predict "" iff the null score -
                 # the score of best non-null > threshold
-                score_diff = score_null - best_non_null_entry.start_logit - (best_non_null_entry.end_logit)
+                score_diff = (
+                    score_null
+                    - best_non_null_entry.start_logit
+                    - (best_non_null_entry.end_logit)
+                )
                 scores_diff_json[example.qas_id] = score_diff
                 if score_diff > null_score_diff_threshold:
                     all_predictions[example.qas_id] = ""
@@ -858,17 +953,27 @@ class SquadDataset(Dataset):
         no_answer_probability_threshold: float = 1.0,
     ):
         qas_id_to_has_answer = {
-            example.qas_id: bool(example.answers) for example in self.examples[: len(all_predictions)]
+            example.qas_id: bool(example.answers)
+            for example in self.examples[: len(all_predictions)]
         }
-        has_answer_qids = [qas_id for qas_id, has_answer in qas_id_to_has_answer.items() if has_answer]
-        no_answer_qids = [qas_id for qas_id, has_answer in qas_id_to_has_answer.items() if not has_answer]
+        has_answer_qids = [
+            qas_id for qas_id, has_answer in qas_id_to_has_answer.items() if has_answer
+        ]
+        no_answer_qids = [
+            qas_id
+            for qas_id, has_answer in qas_id_to_has_answer.items()
+            if not has_answer
+        ]
         if no_answer_probs is None:
             no_answer_probs = {k: 0.0 for k in all_predictions}
 
         exact, f1 = self.get_raw_scores(all_predictions)
 
         exact_threshold = apply_no_ans_threshold(
-            exact, no_answer_probs, qas_id_to_has_answer, no_answer_probability_threshold
+            exact,
+            no_answer_probs,
+            qas_id_to_has_answer,
+            no_answer_probability_threshold,
         )
         f1_threshold = apply_no_ans_threshold(
             f1, no_answer_probs, qas_id_to_has_answer, no_answer_probability_threshold
@@ -877,15 +982,26 @@ class SquadDataset(Dataset):
         evaluation = make_eval_dict(exact_threshold, f1_threshold)
 
         if has_answer_qids:
-            has_ans_eval = make_eval_dict(exact_threshold, f1_threshold, qid_list=has_answer_qids)
+            has_ans_eval = make_eval_dict(
+                exact_threshold, f1_threshold, qid_list=has_answer_qids
+            )
             merge_eval(evaluation, has_ans_eval, "HasAns")
 
         if no_answer_qids:
-            no_ans_eval = make_eval_dict(exact_threshold, f1_threshold, qid_list=no_answer_qids)
+            no_ans_eval = make_eval_dict(
+                exact_threshold, f1_threshold, qid_list=no_answer_qids
+            )
             merge_eval(evaluation, no_ans_eval, "NoAns")
 
         if no_answer_probs:
-            find_all_best_thresh(evaluation, all_predictions, exact, f1, no_answer_probs, qas_id_to_has_answer)
+            find_all_best_thresh(
+                evaluation,
+                all_predictions,
+                exact,
+                f1,
+                no_answer_probs,
+                qas_id_to_has_answer,
+            )
 
         return evaluation["best_exact"], evaluation["best_f1"]
 
@@ -899,7 +1015,11 @@ class SquadDataset(Dataset):
 
         for example in self.examples:
             qas_id = example.qas_id
-            gold_answers = [answer["text"] for answer in example.answers if normalize_answer(answer["text"])]
+            gold_answers = [
+                answer["text"]
+                for answer in example.answers
+                if normalize_answer(answer["text"])
+            ]
 
             if not gold_answers:
                 # For unanswerable questions,
@@ -911,7 +1031,9 @@ class SquadDataset(Dataset):
                 continue
 
             prediction = preds[qas_id]
-            exact_scores[qas_id] = max(exact_match_score(a, prediction) for a in gold_answers)
+            exact_scores[qas_id] = max(
+                exact_match_score(a, prediction) for a in gold_answers
+            )
             f1_scores[qas_id] = max(f1_score(a, prediction) for a in gold_answers)
 
         return exact_scores, f1_scores

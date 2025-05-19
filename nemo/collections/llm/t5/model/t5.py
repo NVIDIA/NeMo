@@ -80,8 +80,13 @@ def t5_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
     # bring to device
     for key in _batch.keys():
         if key == "enc_dec_mask":  # because enc_dec_mask is a tuple
-            _batch[key] = (_batch[key][0].cuda(non_blocking=True), _batch[key][1].cuda(non_blocking=True))
-        elif key == "dec_mask":  # because dec_mask is a None since decoder uses AttnMaskType.causal
+            _batch[key] = (
+                _batch[key][0].cuda(non_blocking=True),
+                _batch[key][1].cuda(non_blocking=True),
+            )
+        elif (
+            key == "dec_mask"
+        ):  # because dec_mask is a None since decoder uses AttnMaskType.causal
             continue
         else:
             _batch[key] = _batch[key].cuda(non_blocking=True)
@@ -113,19 +118,27 @@ def t5_forward_step(model, batch) -> torch.Tensor:
     return model(**forward_args)
 
 
-def transformer_engine_layer_spec(encoder_config: "T5Config", decoder_config: "T5Config") -> ModuleSpec:
+def transformer_engine_layer_spec(
+    encoder_config: "T5Config", decoder_config: "T5Config"
+) -> ModuleSpec:
     """Spec for T5 when using transformer_engine mcore implementation"""
     from megatron.core.models.T5.t5_spec import (
         get_t5_decoder_with_transformer_engine_block_spec,
         get_t5_encoder_with_transformer_engine_block_spec)
 
-    en_block_spec = get_t5_encoder_with_transformer_engine_block_spec(encoder_config.num_layers)
-    de_block_spec = get_t5_decoder_with_transformer_engine_block_spec(decoder_config.num_layers)
+    en_block_spec = get_t5_encoder_with_transformer_engine_block_spec(
+        encoder_config.num_layers
+    )
+    de_block_spec = get_t5_decoder_with_transformer_engine_block_spec(
+        decoder_config.num_layers
+    )
 
     return [en_block_spec, de_block_spec]
 
 
-def local_layer_spec(encoder_config: "T5Config", decoder_config: "T5Config") -> ModuleSpec:
+def local_layer_spec(
+    encoder_config: "T5Config", decoder_config: "T5Config"
+) -> ModuleSpec:
     """Spec for T5 when using local mcore implementation"""
     from megatron.core.models.T5.t5_spec import (
         get_t5_decoder_with_local_block_spec,
@@ -137,7 +150,9 @@ def local_layer_spec(encoder_config: "T5Config", decoder_config: "T5Config") -> 
     return [en_block_spec, de_block_spec]
 
 
-def default_layer_spec(encoder_config: "T5Config", decoder_config: "T5Config") -> ModuleSpec:
+def default_layer_spec(
+    encoder_config: "T5Config", decoder_config: "T5Config"
+) -> ModuleSpec:
     """Set layer spec conditioning on whether transformer_engine is available"""
     if HAVE_TE:
         return transformer_engine_layer_spec(encoder_config, decoder_config)
@@ -176,7 +191,9 @@ class T5Config(TransformerConfig, io.IOMixin):
     distribute_saved_activations: bool = False
     enable_autocast: bool = False
 
-    transformer_layer_spec: Union[ModuleSpec, Callable[["T5Config"], ModuleSpec]] = default_layer_spec
+    transformer_layer_spec: Union[ModuleSpec, Callable[["T5Config"], ModuleSpec]] = (
+        default_layer_spec
+    )
     forward_step_fn: Callable = t5_forward_step
     data_step_fn: Callable = t5_data_step
 
@@ -198,12 +215,18 @@ class T5Config(TransformerConfig, io.IOMixin):
         encoder_config = copy.deepcopy(self)
         encoder_config.num_layers = self.encoder_num_layers
         if self.pipeline_model_parallel_size > 1:
-            assert self.encoder_pipeline_model_parallel_size > 0, "Need to know how to shard the encoder & decoder."
-            encoder_config.pipeline_model_parallel_size = self.encoder_pipeline_model_parallel_size
+            assert (
+                self.encoder_pipeline_model_parallel_size > 0
+            ), "Need to know how to shard the encoder & decoder."
+            encoder_config.pipeline_model_parallel_size = (
+                self.encoder_pipeline_model_parallel_size
+            )
 
         transformer_layer_spec = self.transformer_layer_spec
         if not isinstance(transformer_layer_spec, ModuleSpec):
-            transformer_layer_spec = transformer_layer_spec(encoder_config=encoder_config, decoder_config=self)
+            transformer_layer_spec = transformer_layer_spec(
+                encoder_config=encoder_config, decoder_config=self
+            )
 
         if self.vocab_size is not None:
             vocab_size = self.vocab_size
@@ -213,7 +236,9 @@ class T5Config(TransformerConfig, io.IOMixin):
                     f" {vocab_size - tokenizer.vocab_size}."
                 )
         else:
-            vocab_size = get_vocab_size(self, tokenizer.vocab_size, self.make_vocab_size_divisible_by)
+            vocab_size = get_vocab_size(
+                self, tokenizer.vocab_size, self.make_vocab_size_divisible_by
+            )
 
         model = MCoreT5Model(
             config=self,
@@ -285,7 +310,9 @@ class T5Model(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         super().__init__()
         self.config = config
         self.tokenizer = tokenizer
-        self.optim = optim or MegatronOptimizerModule(config=OptimizerConfig(lr=1e-4, use_distributed_optimizer=True))
+        self.optim = optim or MegatronOptimizerModule(
+            config=OptimizerConfig(lr=1e-4, use_distributed_optimizer=True)
+        )
         self.optim.connect(self)  # This will bind the `configure_optimizers` method
         self.model_transform = model_transform
         self._training_loss_reduction = None
@@ -320,22 +347,30 @@ class T5Model(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
 
         return output_tensor
 
-    def data_step(self, dataloader_iter) -> Dict[str, torch.Tensor]:  # pylint: disable=C0115,C0116
+    def data_step(
+        self, dataloader_iter
+    ) -> Dict[str, torch.Tensor]:  # pylint: disable=C0115,C0116
         return self.config.data_step_fn(dataloader_iter)
 
     def forward_step(self, batch) -> torch.Tensor:  # pylint: disable=C0115,C0116
         return self.config.forward_step_fn(self, batch)
 
-    def training_step(self, batch, batch_idx=None) -> torch.Tensor:  # pylint: disable=C0115,C0116
+    def training_step(
+        self, batch, batch_idx=None
+    ) -> torch.Tensor:  # pylint: disable=C0115,C0116
         # In mcore the loss-function is part of the forward-pass (when labels are provided)
         return self.forward_step(batch)
 
-    def validation_step(self, batch, batch_idx=None) -> torch.Tensor:  # pylint: disable=C0115,C0116
+    def validation_step(
+        self, batch, batch_idx=None
+    ) -> torch.Tensor:  # pylint: disable=C0115,C0116
         # In mcore the loss-function is part of the forward-pass (when labels are provided)
 
         return self.forward_step(batch)
 
-    def get_inference_wrapper(self, params_dtype, inference_batch_times_seqlen_threshold) -> torch.Tensor:
+    def get_inference_wrapper(
+        self, params_dtype, inference_batch_times_seqlen_threshold
+    ) -> torch.Tensor:
         """This is to get the MCore model required in T5InferenceWrapper"""
         mcore_model = self.module
         while mcore_model:
@@ -343,7 +378,9 @@ class T5Model(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
                 break
             mcore_model = getattr(mcore_model, "module", None)
         if mcore_model is None or type(mcore_model) is not MCoreT5Model:
-            raise ValueError("Exact MCoreT5Model instance not found in the model structure.")
+            raise ValueError(
+                "Exact MCoreT5Model instance not found in the model structure."
+            )
 
         inference_wrapper_config = InferenceWrapperConfig(
             hidden_size=mcore_model.config.hidden_size,
@@ -354,20 +391,28 @@ class T5Model(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         from megatron.core.inference.model_inference_wrappers.t5.t5_inference_wrapper import \
             T5InferenceWrapper
 
-        model_inference_wrapper = T5InferenceWrapper(mcore_model, inference_wrapper_config)
+        model_inference_wrapper = T5InferenceWrapper(
+            mcore_model, inference_wrapper_config
+        )
         return model_inference_wrapper
 
     @property
-    def training_loss_reduction(self) -> MaskedTokenLossReduction:  # pylint: disable=C0115,C0116
+    def training_loss_reduction(
+        self,
+    ) -> MaskedTokenLossReduction:  # pylint: disable=C0115,C0116
         if not self._training_loss_reduction:
             self._training_loss_reduction = MaskedTokenLossReduction()
 
         return self._training_loss_reduction
 
     @property
-    def validation_loss_reduction(self) -> MaskedTokenLossReduction:  # pylint: disable=C0115,C0116
+    def validation_loss_reduction(
+        self,
+    ) -> MaskedTokenLossReduction:  # pylint: disable=C0115,C0116
         if not self._validation_loss_reduction:
-            self._validation_loss_reduction = MaskedTokenLossReduction(validation_step=True)
+            self._validation_loss_reduction = MaskedTokenLossReduction(
+                validation_step=True
+            )
 
         return self._validation_loss_reduction
 
@@ -382,14 +427,18 @@ class HFT5Importer(io.ModelConnector["T5ForConditionalGeneration", T5Model]):
     def apply(self, output_path: Path) -> Path:
         from transformers import T5ForConditionalGeneration
 
-        source = T5ForConditionalGeneration.from_pretrained(str(self), torch_dtype="auto")
+        source = T5ForConditionalGeneration.from_pretrained(
+            str(self), torch_dtype="auto"
+        )
         target = self.init()
         trainer = self.nemo_setup(target)
         self.convert_state(source, target)
 
         self.nemo_save(output_path, trainer)
 
-        print(f"Converted T5 model to Nemo, model saved to {output_path} in {source.dtype}.")
+        print(
+            f"Converted T5 model to Nemo, model saved to {output_path} in {source.dtype}."
+        )
 
         teardown(trainer, target)
         del trainer, target
@@ -451,7 +500,9 @@ class HFT5Importer(io.ModelConnector["T5ForConditionalGeneration", T5Model]):
         # Set special tokens to match HF
         bos_token = "<pad>"
 
-        return AutoTokenizer(self.save_hf_tokenizer_assets(str(self)), bos_token=bos_token)
+        return AutoTokenizer(
+            self.save_hf_tokenizer_assets(str(self)), bos_token=bos_token
+        )
 
     @property
     def config(self) -> T5Config:
@@ -482,8 +533,12 @@ class HFT5Importer(io.ModelConnector["T5ForConditionalGeneration", T5Model]):
             normalization="RMSNorm",
             layernorm_epsilon=source.layer_norm_epsilon,
             gated_linear_unit=True,
-            make_vocab_size_divisible_by=make_vocab_size_divisible_by(source.vocab_size),
-            share_embeddings_and_output_weights=getattr(source, "tie_word_embeddings", False),
+            make_vocab_size_divisible_by=make_vocab_size_divisible_by(
+                source.vocab_size
+            ),
+            share_embeddings_and_output_weights=getattr(
+                source, "tie_word_embeddings", False
+            ),
             fp16=False,
             bf16=False,
             params_dtype=torch.float32,
@@ -664,7 +719,7 @@ class HFT5Exporter(io.ModelConnector[T5Model, "T5ForConditionalGeneration"]):
 
         if source.config.share_embeddings_and_output_weights:
             del mapping["lm_head.output_layer.weight"]
-        if source.config.position_embedding_type != 'relative':
+        if source.config.position_embedding_type != "relative":
             del mapping["encoder_relative_pos_emb.relative_attention_bias.weight"]
             del mapping["decoder_relative_pos_emb.relative_attention_bias.weight"]
 
@@ -673,15 +728,22 @@ class HFT5Exporter(io.ModelConnector[T5Model, "T5ForConditionalGeneration"]):
             transforms.append(_export_encoder_linear_fc1)
             transforms.append(_export_decoder_linear_fc1)
         else:
-            mapping['encoder.layers.*.mlp.linear_fc1.weight'] = 'encoder.block.*.layer.1.DenseReluDense.wi.weight'
-            mapping['decoder.layers.*.mlp.linear_fc1.weight'] = 'decoder.block.*.layer.2.DenseReluDense.wi.weight'
+            mapping["encoder.layers.*.mlp.linear_fc1.weight"] = (
+                "encoder.block.*.layer.1.DenseReluDense.wi.weight"
+            )
+            mapping["decoder.layers.*.mlp.linear_fc1.weight"] = (
+                "decoder.block.*.layer.2.DenseReluDense.wi.weight"
+            )
 
         return io.apply_transforms(
             source,
             target,
             mapping=mapping,
             transforms=transforms,
-            state_dict_ignored_entries=["encoder.embed_tokens.weight", "decoder.embed_tokens.weight"],
+            state_dict_ignored_entries=[
+                "encoder.embed_tokens.weight",
+                "decoder.embed_tokens.weight",
+            ],
         )
 
     @property
@@ -724,8 +786,10 @@ class HFT5Exporter(io.ModelConnector[T5Model, "T5ForConditionalGeneration"]):
             relative_attention_max_distance=source.relative_attention_max_distance,
             initializer_factor=source.init_method_std,
             layer_norm_epsilon=source.layernorm_epsilon,
-            vocab_size=round_up_to_divisible(self.tokenizer.vocab_size, source.make_vocab_size_divisible_by),
-            feed_forward_proj="gated-gelu" if source.gated_linear_unit else 'gelu',
+            vocab_size=round_up_to_divisible(
+                self.tokenizer.vocab_size, source.make_vocab_size_divisible_by
+            ),
+            feed_forward_proj="gated-gelu" if source.gated_linear_unit else "gelu",
             tie_word_embeddings=source.share_embeddings_and_output_weights,
             decoder_start_token_id=bos_id,
             pad_token_id=pad_id,
@@ -754,7 +818,9 @@ def _export_encoder_qkv(ctx: io.TransformCTX, linear_qkv):
     linear_qkv = linear_qkv.reshape([qkv_total_dim, head_size, hidden_size])
     q_slice = torch.cat(
         [
-            torch.arange((heads_per_group + 2) * i, (heads_per_group + 2) * i + heads_per_group)
+            torch.arange(
+                (heads_per_group + 2) * i, (heads_per_group + 2) * i + heads_per_group
+            )
             for i in range(num_query_groups)
         ]
     )
@@ -789,7 +855,9 @@ def _export_decoder_qkv(ctx: io.TransformCTX, linear_qkv):
     linear_qkv = linear_qkv.reshape([qkv_total_dim, head_size, hidden_size])
     q_slice = torch.cat(
         [
-            torch.arange((heads_per_group + 2) * i, (heads_per_group + 2) * i + heads_per_group)
+            torch.arange(
+                (heads_per_group + 2) * i, (heads_per_group + 2) * i + heads_per_group
+            )
             for i in range(num_query_groups)
         ]
     )

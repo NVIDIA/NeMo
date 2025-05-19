@@ -42,14 +42,24 @@ from nemo.core.neural_types import AudioSignal, NeuralType
 
 SUPPORTED_SAMPLE_RATE = 16000
 SUPPORTED_INPUT_ALIGN_MS = 10
-SUPPORTED_INPUT_ALIGN_SAMPLES = SUPPORTED_INPUT_ALIGN_MS * (SUPPORTED_SAMPLE_RATE // 1000)
+SUPPORTED_INPUT_ALIGN_SAMPLES = SUPPORTED_INPUT_ALIGN_MS * (
+    SUPPORTED_SAMPLE_RATE // 1000
+)
 
 
 class _Seasr(plt.LightningModule):
     """Internal implementation of the model class"""
 
     def __init__(
-        self, sample_rate, hidden_nodes=128, streaming=False, kernel_size=320, f1=1024, f2=512, stride=160, dropout=0.5
+        self,
+        sample_rate,
+        hidden_nodes=128,
+        streaming=False,
+        kernel_size=320,
+        f1=1024,
+        f2=512,
+        stride=160,
+        dropout=0.5,
     ):
 
         if sample_rate != SUPPORTED_SAMPLE_RATE:
@@ -60,9 +70,11 @@ class _Seasr(plt.LightningModule):
         self.f2 = f2
         self.f3 = hidden_nodes * 2
         self.gru_nodes = self.f1
-        padding = 0 if streaming else 'same'
+        padding = 0 if streaming else "same"
 
-        self.conv1d = nn.Conv1d(1, self.f1, kernel_size=kernel_size, stride=stride, bias=False)
+        self.conv1d = nn.Conv1d(
+            1, self.f1, kernel_size=kernel_size, stride=stride, bias=False
+        )
         self.bn0 = nn.BatchNorm1d(self.f1, eps=0.001)
         self.feature_gru0 = nn.GRU(self.f1, self.f3, num_layers=1, batch_first=True)
 
@@ -77,19 +89,35 @@ class _Seasr(plt.LightningModule):
         self.conv1d_out3 = nn.Conv1d(self.f2, self.f2, kernel_size=3, padding=padding)
         self.bn3 = nn.BatchNorm1d(self.f2, eps=0.001)
 
-        self.denoise_gru = nn.GRU(3 * self.f3 + self.f2, self.gru_nodes, batch_first=True, dropout=dropout)
-        self.denoise_gru_1 = nn.GRU(self.gru_nodes, self.gru_nodes, num_layers=1, batch_first=True, dropout=dropout)
-        self.denoise_gru_2 = nn.GRU(self.gru_nodes, self.gru_nodes, num_layers=1, batch_first=True, dropout=dropout)
+        self.denoise_gru = nn.GRU(
+            3 * self.f3 + self.f2, self.gru_nodes, batch_first=True, dropout=dropout
+        )
+        self.denoise_gru_1 = nn.GRU(
+            self.gru_nodes,
+            self.gru_nodes,
+            num_layers=1,
+            batch_first=True,
+            dropout=dropout,
+        )
+        self.denoise_gru_2 = nn.GRU(
+            self.gru_nodes,
+            self.gru_nodes,
+            num_layers=1,
+            batch_first=True,
+            dropout=dropout,
+        )
         self.denoise_gru_3 = nn.GRU(self.gru_nodes, self.gru_nodes, batch_first=True)
 
         self.denoise_mask = nn.Linear(self.gru_nodes, self.f1)
         self.mask_act = nn.Sigmoid()
 
-        self.inv_conv = nn.ConvTranspose1d(self.f1, 1, kernel_size=kernel_size, stride=stride)
+        self.inv_conv = nn.ConvTranspose1d(
+            self.f1, 1, kernel_size=kernel_size, stride=stride
+        )
         self.inv_conv_activation = nn.Tanh()
 
     def forward(self, **kwargs):
-        x0 = kwargs.get('x0')
+        x0 = kwargs.get("x0")
         x0 = F.relu(self.conv1d(x0))
         xc0 = self.bn0(x0)
 
@@ -180,7 +208,7 @@ class BNR2(AudioToAudioModel):
     def input_types(self) -> Dict[str, NeuralType]:
         return {
             "input_signal": NeuralType(
-                ('B', 'C', 'T'), AudioSignal(freq=self.sample_rate)
+                ("B", "C", "T"), AudioSignal(freq=self.sample_rate)
             )  # multi-channel format, only channel dimension of 1 supported currently
         }
 
@@ -188,7 +216,7 @@ class BNR2(AudioToAudioModel):
     def output_types(self) -> Dict[str, NeuralType]:
         return {
             "output_signal": NeuralType(
-                ('B', 'C', 'T'), AudioSignal(freq=self.sample_rate)
+                ("B", "C", "T"), AudioSignal(freq=self.sample_rate)
             )  # multi-channel format, channel dimension can be 1 for single-channel audio
         }
 
@@ -207,7 +235,9 @@ class BNR2(AudioToAudioModel):
         """
         if input_signal.ndim == 3:
             if input_signal.shape[1] != 1:
-                raise ValueError("This network currently only supports single channel audio signals.")
+                raise ValueError(
+                    "This network currently only supports single channel audio signals."
+                )
         elif input_signal.ndim != 2:
             raise ValueError(
                 "Invalid shape for input signal (received {}, supported [B, 1, T] or [B, T])".format(
@@ -216,63 +246,81 @@ class BNR2(AudioToAudioModel):
             )
 
         if input_signal.shape[-1] % SUPPORTED_INPUT_ALIGN_SAMPLES != 0:
-            raise ValueError("Input samples must be a multiple of {}".format(SUPPORTED_INPUT_ALIGN_SAMPLES))
+            raise ValueError(
+                "Input samples must be a multiple of {}".format(
+                    SUPPORTED_INPUT_ALIGN_SAMPLES
+                )
+            )
 
         return self.seasr.forward(x0=input_signal)
 
     def training_step(self, batch, batch_idx):
         if isinstance(batch, dict):
-            input_signal = batch['input_signal']
-            input_length = batch['input_length']
-            target_signal = batch['target_signal']
+            input_signal = batch["input_signal"]
+            input_length = batch["input_length"]
+            target_signal = batch["target_signal"]
         else:
             input_signal, input_length, target_signal, _ = batch
 
         if input_signal.ndim == 2:
-            input_signal = einops.rearrange(input_signal, 'B T -> B 1 T')
+            input_signal = einops.rearrange(input_signal, "B T -> B 1 T")
         if target_signal.ndim == 2:
-            target_signal = einops.rearrange(target_signal, 'B T -> B 1 T')
+            target_signal = einops.rearrange(target_signal, "B T -> B 1 T")
 
         predicted_audio = self.forward(input_signal=input_signal)
 
-        loss = self.loss(target=target_signal, estimate=predicted_audio, input_length=input_length)
+        loss = self.loss(
+            target=target_signal, estimate=predicted_audio, input_length=input_length
+        )
 
-        self.log('train_loss', loss)
-        self.log('learning_rate', self._optimizer.param_groups[0]['lr'])
-        self.log('global_step', torch.tensor(self.trainer.global_step, dtype=torch.float32))
+        self.log("train_loss", loss)
+        self.log("learning_rate", self._optimizer.param_groups[0]["lr"])
+        self.log(
+            "global_step", torch.tensor(self.trainer.global_step, dtype=torch.float32)
+        )
 
         return loss
 
-    def evaluation_step(self, batch, batch_idx, dataloader_idx: int = 0, tag: str = 'val'):
+    def evaluation_step(
+        self, batch, batch_idx, dataloader_idx: int = 0, tag: str = "val"
+    ):
         if isinstance(batch, dict):
-            input_signal = batch['input_signal']
-            input_length = batch['input_length']
-            target_signal = batch['target_signal']
+            input_signal = batch["input_signal"]
+            input_length = batch["input_length"]
+            target_signal = batch["target_signal"]
         else:
             input_signal, input_length, target_signal, _ = batch
 
         if input_signal.ndim == 2:
-            input_signal = einops.rearrange(input_signal, 'B T -> B 1 T')
+            input_signal = einops.rearrange(input_signal, "B T -> B 1 T")
         if target_signal.ndim == 2:
-            target_signal = einops.rearrange(target_signal, 'B T -> B 1 T')
+            target_signal = einops.rearrange(target_signal, "B T -> B 1 T")
 
         # Process input
         processed_signal = self(input_signal=input_signal)
 
         # Calculate the loss
-        loss = self.loss(target=target_signal, estimate=processed_signal, input_length=input_length)
+        loss = self.loss(
+            target=target_signal, estimate=processed_signal, input_length=input_length
+        )
 
         # Update metrics
-        if hasattr(self, 'metrics') and tag in self.metrics:
+        if hasattr(self, "metrics") and tag in self.metrics:
             # Update metrics for this (tag, dataloader_idx)
             for name, metric in self.metrics[tag][dataloader_idx].items():
-                metric.update(preds=processed_signal, target=target_signal, input_length=input_length)
+                metric.update(
+                    preds=processed_signal,
+                    target=target_signal,
+                    input_length=input_length,
+                )
 
         # Log global step
-        self.log('global_step', torch.tensor(self.trainer.global_step, dtype=torch.float32))
+        self.log(
+            "global_step", torch.tensor(self.trainer.global_step, dtype=torch.float32)
+        )
 
         # Return loss
-        return {f'{tag}_loss': loss}
+        return {f"{tag}_loss": loss}
 
     @classmethod
     def list_available_models(cls) -> Optional[PretrainedModelInfo]:

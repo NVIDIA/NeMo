@@ -120,9 +120,11 @@ def get_tokenizer(args):
         delimiter=args.delimiter,
     )
     if not hasattr(tokenizer, "pad_id"):
-        tokenizer.add_special_tokens({'pad_token': '<pad>'})
-    elif hasattr(tokenizer, "pad_id") and (tokenizer.pad_id is None or tokenizer.pad_id < 0):
-        tokenizer.add_special_tokens({'pad_token': '<pad>'})
+        tokenizer.add_special_tokens({"pad_token": "<pad>"})
+    elif hasattr(tokenizer, "pad_id") and (
+        tokenizer.pad_id is None or tokenizer.pad_id < 0
+    ):
+        tokenizer.add_special_tokens({"pad_token": "<pad>"})
     return tokenizer
 
 
@@ -179,8 +181,10 @@ def process_sentence_chunks(
             start = splits[shard_id]
             total_chunks = total_chunks
         else:
-            raise ValueError(f'{shard_id} bigger than {total_shards}')
-        logging.info(f'shard_id {shard_id}, create index from chunk {start} to {total_chunks}')
+            raise ValueError(f"{shard_id} bigger than {total_shards}")
+        logging.info(
+            f"shard_id {shard_id}, create index from chunk {start} to {total_chunks}"
+        )
 
     threshold = 0.1
     with Pool(workers) as p:
@@ -211,7 +215,9 @@ def calculate_embedding(pool, batch_size):
         if sentences is None:
             break
         beg = time.time()
-        emb = model.encode_multi_process(sentences=sentences, pool=pool, batch_size=batch_size)
+        emb = model.encode_multi_process(
+            sentences=sentences, pool=pool, batch_size=batch_size
+        )
         end = time.time()
         logging.info(f"one embedding {len(emb)} batch size takes {end-beg}")
         emb_queue.put((emb, slice_id))
@@ -223,71 +229,141 @@ def get_emb():
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="build Faiss index",)
-    parser.add_argument(
-        '--input_file', type=str, required=False, help='Input file',
+    parser = argparse.ArgumentParser(
+        description="build Faiss index",
     )
     parser.add_argument(
-        '--train_index_size', type=int, required=False, help='The number of sentences that is used to train the index',
-    )
-    parser.add_argument(
-        '--train_chunk_size', type=int, default=10000, help='The sentences in chunks that is added to the index',
-    )
-    parser.add_argument(
-        '--sentence_transformer_model',
-        type=str,
-        default='bert-base-nli-mean-tokens',
-        help='sentence transformer to load',
-    )
-    parser.add_argument(
-        '--output_file', type=str, required=True, help='Output Faiss index file',
-    )
-    parser.add_argument(
-        '--percent', type=float, default=1.0, help='percent of documents used for building the search index',
-    )
-    parser.add_argument(
-        '--devices', type=str, default=None, help='delimited list input with cuda devices. Specify like 0,1,2'
-    )
-    parser.add_argument(
-        "--batch_size", type=int, default=4000, help="Batch size for encoding. Use max according to GPU MEM"
-    )
-    parser.add_argument("--subquantizers", type=int, default=8, help="Quantizer code size")
-    group = parser.add_argument_group(title='tokenizer')
-    group.add_argument(
-        '--tokenizer-library',
+        "--input_file",
         type=str,
         required=False,
-        choices=['sentencepiece', 'megatron', 'huggingface', 'tabular'],
-        help='What tokenizer library to use.',
+        help="Input file",
+    )
+    parser.add_argument(
+        "--train_index_size",
+        type=int,
+        required=False,
+        help="The number of sentences that is used to train the index",
+    )
+    parser.add_argument(
+        "--train_chunk_size",
+        type=int,
+        default=10000,
+        help="The sentences in chunks that is added to the index",
+    )
+    parser.add_argument(
+        "--sentence_transformer_model",
+        type=str,
+        default="bert-base-nli-mean-tokens",
+        help="sentence transformer to load",
+    )
+    parser.add_argument(
+        "--output_file",
+        type=str,
+        required=True,
+        help="Output Faiss index file",
+    )
+    parser.add_argument(
+        "--percent",
+        type=float,
+        default=1.0,
+        help="percent of documents used for building the search index",
+    )
+    parser.add_argument(
+        "--devices",
+        type=str,
+        default=None,
+        help="delimited list input with cuda devices. Specify like 0,1,2",
+    )
+    parser.add_argument(
+        "--batch_size",
+        type=int,
+        default=4000,
+        help="Batch size for encoding. Use max according to GPU MEM",
+    )
+    parser.add_argument(
+        "--subquantizers", type=int, default=8, help="Quantizer code size"
+    )
+    group = parser.add_argument_group(title="tokenizer")
+    group.add_argument(
+        "--tokenizer-library",
+        type=str,
+        required=False,
+        choices=["sentencepiece", "megatron", "huggingface", "tabular"],
+        help="What tokenizer library to use.",
     )
     group.add_argument(
-        '--tokenizer-type', type=str, default=None, help='What type of tokenizer to use.',
+        "--tokenizer-type",
+        type=str,
+        default=None,
+        help="What type of tokenizer to use.",
     )
     group.add_argument(
-        '--tokenizer-model', type=str, default=None, help='Path to tokenizer model.',
+        "--tokenizer-model",
+        type=str,
+        default=None,
+        help="Path to tokenizer model.",
     )
-    group.add_argument('--no_pq', action='store_true', help="don't use the Product Quantizer")
-    group.add_argument('--vocab-file', type=str, default=None, help='Path to the vocab file')
-    group.add_argument('--workers', type=int, default=None, help='number of workers to run tokenizer')
     group.add_argument(
-        '--stage',
+        "--no_pq", action="store_true", help="don't use the Product Quantizer"
+    )
+    group.add_argument(
+        "--vocab-file", type=str, default=None, help="Path to the vocab file"
+    )
+    group.add_argument(
+        "--workers", type=int, default=None, help="number of workers to run tokenizer"
+    )
+    group.add_argument(
+        "--stage",
         type=int,
         default=None,
-        help='used for building the large index in multiple stages',
+        help="used for building the large index in multiple stages",
         choices=[0, 1, 2],
     )
-    group.add_argument('--faiss_factory', type=str, default=None, help="faiss index factory str")
-    group.add_argument('--faiss_factory_metric', type=str, default='IP', help="faiss index factory metric, l2 or IP")
-    group.add_argument('--shard_id', type=int, default=None, help='run the job to create the shard_id index')
-    group.add_argument('--total_shards', type=int, default=None, help='total number of faiss index shards')
     group.add_argument(
-        '--learned_index', type=str, default=None, help='the learned faiss index file, which is prepared at stage 0'
+        "--faiss_factory", type=str, default=None, help="faiss index factory str"
     )
     group.add_argument(
-        '--shard_index_input', type=str, default=None, help='the shard faiss index files, which are created at stage 1'
+        "--faiss_factory_metric",
+        type=str,
+        default="IP",
+        help="faiss index factory metric, l2 or IP",
     )
-    group.add_argument('--merge-file', type=str, default=None, help='Path to the BPE merge file (if necessary).')
-    group.add_argument('--delimiter', type=str, default=None, help='delimiter used for tabular tokenizer')
+    group.add_argument(
+        "--shard_id",
+        type=int,
+        default=None,
+        help="run the job to create the shard_id index",
+    )
+    group.add_argument(
+        "--total_shards",
+        type=int,
+        default=None,
+        help="total number of faiss index shards",
+    )
+    group.add_argument(
+        "--learned_index",
+        type=str,
+        default=None,
+        help="the learned faiss index file, which is prepared at stage 0",
+    )
+    group.add_argument(
+        "--shard_index_input",
+        type=str,
+        default=None,
+        help="the shard faiss index files, which are created at stage 1",
+    )
+    group.add_argument(
+        "--merge-file",
+        type=str,
+        default=None,
+        help="Path to the BPE merge file (if necessary).",
+    )
+    group.add_argument(
+        "--delimiter",
+        type=str,
+        default=None,
+        help="delimiter used for tabular tokenizer",
+    )
 
     args = parser.parse_args()
 
@@ -300,22 +376,22 @@ if __name__ == "__main__":
 
     if args.stage == 2:
         # combine shard index files into one
-        logging.info('loading trained index')
+        logging.info("loading trained index")
         # construct the output index
         index = faiss.read_index(args.learned_index)
 
         input_file = pathlib.Path(args.shard_index_input)
         path = input_file.parent
         fname = input_file.name
-        all_files = [str(i) for i in pathlib.Path(path).glob(fname + '*')]
-        merge_ondisk(index, all_files, str(path / 'merged.index'))
+        all_files = [str(i) for i in pathlib.Path(path).glob(fname + "*")]
+        merge_ondisk(index, all_files, str(path / "merged.index"))
         faiss.write_index(index, args.output_file)
-        logging.info(f'Write to {args.output_file},  Size of Index : {index.ntotal}')
+        logging.info(f"Write to {args.output_file},  Size of Index : {index.ntotal}")
         # consolidate it as one index
         if args.devices is None or not torch.cuda.is_available():
             device_list = None
         else:
-            device_list = ['cuda:' + str(device) for device in args.devices.split(',')]
+            device_list = ["cuda:" + str(device) for device in args.devices.split(",")]
         index = faiss.read_index(args.output_file)
         co = faiss.GpuMultipleClonerOptions()
         co.useFloat16 = True
@@ -344,7 +420,9 @@ if __name__ == "__main__":
             use_num_docs = int(num_docs * args.percent)
             total_chunks = ds._index._chunk_id_start[min(use_num_docs, num_docs - 1)]
         nlist = int(4 * np.sqrt(total_chunks))
-        assert 30 * nlist < args.train_index_size, f"need more training samples, at least {30 * nlist}"
+        assert (
+            30 * nlist < args.train_index_size
+        ), f"need more training samples, at least {30 * nlist}"
 
     process = multiprocessing.Process(
         target=process_sentence_chunks,
@@ -365,11 +443,13 @@ if __name__ == "__main__":
     if args.devices is None or not torch.cuda.is_available():
         device_list = None
     else:
-        device_list = ['cuda:' + str(device) for device in args.devices.split(',')]
+        device_list = ["cuda:" + str(device) for device in args.devices.split(",")]
 
     pool = model.start_multi_process_pool(device_list)
 
-    emb_process = multiprocessing.Process(target=calculate_embedding, args=(pool, args.batch_size))
+    emb_process = multiprocessing.Process(
+        target=calculate_embedding, args=(pool, args.batch_size)
+    )
     emb_process.start()
 
     # get first batch of sentences to build up the index
@@ -385,7 +465,7 @@ if __name__ == "__main__":
         if args.no_pq:
             index = faiss.IndexIVFFlat(quantizer, emb.shape[1], nlist)
         elif args.faiss_factory is not None:
-            if args.faiss_factory_metric == 'IP':
+            if args.faiss_factory_metric == "IP":
                 metric = faiss.METRIC_INNER_PRODUCT
             else:
                 metric = faiss.METRIC_L2
@@ -408,16 +488,16 @@ if __name__ == "__main__":
             co.shard = True
             index = faiss.index_cpu_to_all_gpus(index, co, ngpu=len(device_list))
     else:
-        raise ValueError(f'should not come here')
+        raise ValueError(f"should not come here")
 
     if args.stage is not None:
-        logging.info(f'build index at stage {args.stage}')
+        logging.info(f"build index at stage {args.stage}")
     if args.stage is None or args.stage == 0:
         # train the index
         beg = time.time()
         index.train(emb)
         end = time.time()
-        logging.info(f'Trained Index takes {end-beg}')
+        logging.info(f"Trained Index takes {end-beg}")
         # just need to have the learned index
         if has_gpu:
             index = faiss.index_gpu_to_cpu(index)
@@ -434,12 +514,12 @@ if __name__ == "__main__":
         beg = time.time()
         index.add_with_ids(emb, np.arange(slice_id[0], slice_id[1]).astype(np.int64))
         end = time.time()
-        logging.info(f'add index {slice_id[0]} - {slice_id[1]} takes {end-beg}')
+        logging.info(f"add index {slice_id[0]} - {slice_id[1]} takes {end-beg}")
     model.stop_multi_process_pool(pool)
     process.join()
     emb_process.join()
-    logging.info('Writing Index file')
+    logging.info("Writing Index file")
     if has_gpu:
         index = faiss.index_gpu_to_cpu(index)
     faiss.write_index(index, args.output_file)
-    logging.info(f'Size of Index : {index.ntotal}')
+    logging.info(f"Size of Index : {index.ntotal}")

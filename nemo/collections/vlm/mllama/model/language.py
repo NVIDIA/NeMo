@@ -87,7 +87,9 @@ class CrossAttentionTextModel(MCoreGPTModel):
         fp16_lm_cross_entropy: bool = False,
         parallel_output: bool = True,
         share_embeddings_and_output_weights: bool = False,
-        position_embedding_type: Literal['learned_absolute', 'rope', 'none'] = 'learned_absolute',
+        position_embedding_type: Literal[
+            "learned_absolute", "rope", "none"
+        ] = "learned_absolute",
         rotary_percent: float = 1.0,
         rotary_base: int = 10000,
         seq_len_interpolation_factor: Optional[float] = None,
@@ -133,7 +135,10 @@ class CrossAttentionTextModel(MCoreGPTModel):
         xz = torch.zeros_like(x, device=x.device)
         oz = torch.ones_like(x, device=x.device)
         x_orig = torch.minimum(x, torch.tensor(self._thresh, device=x.device))
-        x_new = torch.maximum(x, torch.tensor(self._thresh + 1, device=x.device)) - self.num_frozen_embeddings
+        x_new = (
+            torch.maximum(x, torch.tensor(self._thresh + 1, device=x.device))
+            - self.num_frozen_embeddings
+        )
 
         mask_orig = torch.where(x >= self.num_frozen_embeddings, xz, oz).unsqueeze(-1)
         mask_new = torch.where(x < self.num_frozen_embeddings, xz, oz).unsqueeze(-1)
@@ -161,7 +166,9 @@ class CrossAttentionTextModel(MCoreGPTModel):
         if decoder_input is not None:
             pass
         elif self.pre_process:
-            raise ValueError("Require: decoder_input is not None or self.pre_process is False")
+            raise ValueError(
+                "Require: decoder_input is not None or self.pre_process is False"
+            )
         else:
             # intermediate stage of pipeline
             # decoder will get hidden_states from encoder.input_tensor
@@ -169,7 +176,7 @@ class CrossAttentionTextModel(MCoreGPTModel):
 
         # Rotary positional embeddings (embedding is None for PP intermediate devices)
         rotary_pos_emb = None
-        if self.position_embedding_type == 'rope':
+        if self.position_embedding_type == "rope":
             rotary_seq_len = self.rotary_pos_emb.get_rotary_seq_len(
                 inference_params,
                 self.decoder,
@@ -260,18 +267,27 @@ class CrossAttentionTransformerBlock(TransformerBlock):
                         mlp_bda=get_bias_dropout_add,
                     ),
                 )
-                self.xattn_layers.append(build_module(layer_spec, config=self.config, layer_number=i + 1))
+                self.xattn_layers.append(
+                    build_module(layer_spec, config=self.config, layer_number=i + 1)
+                )
             else:
-                self.xattn_layers.append(DummyCrossAttentionTransformerLayer(config=self.config))
+                self.xattn_layers.append(
+                    DummyCrossAttentionTransformerLayer(config=self.config)
+                )
         self.xattn_layers = torch.nn.ModuleList(self.xattn_layers)
 
-        assert len(self.xattn_layers) == len(self.layers), 'Check PP implementation for cross attention layers!'
+        assert len(self.xattn_layers) == len(
+            self.layers
+        ), "Check PP implementation for cross attention layers!"
 
     def _get_layer_offset(self):
         """Get correct layer offset when encoder pipeline parallel size > 0."""
-        encoder_pipeline_model_parallel_size = getattr(self.config, "encoder_pipeline_model_parallel_size", 0)
+        encoder_pipeline_model_parallel_size = getattr(
+            self.config, "encoder_pipeline_model_parallel_size", 0
+        )
         decoder_pipeline_model_parallel_rank = (
-            parallel_state.get_pipeline_model_parallel_rank() - encoder_pipeline_model_parallel_size
+            parallel_state.get_pipeline_model_parallel_rank()
+            - encoder_pipeline_model_parallel_size
         )
         return decoder_pipeline_model_parallel_rank * self.num_layers_per_pipeline_rank
 
@@ -323,7 +339,9 @@ class CrossAttentionTransformerBlock(TransformerBlock):
             )
             fp8_group = None
             if parallel_state.model_parallel_is_initialized():
-                fp8_group = parallel_state.get_amax_reduction_group(with_context_parallel=True)
+                fp8_group = parallel_state.get_amax_reduction_group(
+                    with_context_parallel=True
+                )
             fp8_context = transformer_engine.pytorch.fp8_autocast(
                 enabled=True, fp8_recipe=fp8_recipe, fp8_group=fp8_group
             )
@@ -332,12 +350,17 @@ class CrossAttentionTransformerBlock(TransformerBlock):
 
         with rng_context and fp8_context:
             # Forward pass.
-            if self.config.recompute_granularity == 'full' and self.training:
+            if self.config.recompute_granularity == "full" and self.training:
                 raise NotImplementedError
             else:
-                for l_no, (layer, xattn_layer) in enumerate(zip(self.layers, self.xattn_layers)):
+                for l_no, (layer, xattn_layer) in enumerate(
+                    zip(self.layers, self.xattn_layers)
+                ):
                     layer: TransformerLayer
-                    xattn_layer: Union[DummyCrossAttentionTransformerLayer, CrossAttentionTransformerLayer]
+                    xattn_layer: Union[
+                        DummyCrossAttentionTransformerLayer,
+                        CrossAttentionTransformerLayer,
+                    ]
                     with self.offload_context:
                         hidden_states, context = xattn_layer(
                             hidden_states=hidden_states,
@@ -358,58 +381,80 @@ class CrossAttentionTransformerBlock(TransformerBlock):
                             packed_seq_params=packed_seq_params,
                         )
                         # CUDA graph doesn't output context and is expected to be None
-                        assert (context is None) or (not self.config.enable_cuda_graph) or (not self.training)
+                        assert (
+                            (context is None)
+                            or (not self.config.enable_cuda_graph)
+                            or (not self.training)
+                        )
 
                     if (
                         torch.is_grad_enabled()
                         and self.config.cpu_offloading
                         and self.group_prefetch_offload_commit_async is not None
                     ):
-                        hidden_states = self.group_prefetch_offload_commit_async(hidden_states)
+                        hidden_states = self.group_prefetch_offload_commit_async(
+                            hidden_states
+                        )
 
         # Final layer norm.
         if self.final_layernorm is not None:
             hidden_states = self.final_layernorm(hidden_states)
-            hidden_states = make_viewless_tensor(inp=hidden_states, requires_grad=True, keep_graph=True)
+            hidden_states = make_viewless_tensor(
+                inp=hidden_states, requires_grad=True, keep_graph=True
+            )
 
         return hidden_states
 
     def sharded_state_dict(
-        self, prefix: str = '', sharded_offsets: tuple = (), metadata: dict = None
+        self, prefix: str = "", sharded_offsets: tuple = (), metadata: dict = None
     ) -> ShardedStateDict:
         """Update shareded state dict for cross-attention layers"""
         sharded_state_dict = {}
 
-        layer_prefix = f'{prefix}layers.'
+        layer_prefix = f"{prefix}layers."
         num_layers = self.config.num_layers
         for layer in self.layers:
             offset = layer._get_layer_offset(layer.config)
-            global_layer_offset = layer.layer_number - 1  # self.layer_number starts at 1
-            state_dict_prefix = f'{layer_prefix}{global_layer_offset - offset}.'  # module list index in TransformerBlock # pylint: disable=line-too-long
+            global_layer_offset = (
+                layer.layer_number - 1
+            )  # self.layer_number starts at 1
+            state_dict_prefix = f"{layer_prefix}{global_layer_offset - offset}."  # module list index in TransformerBlock # pylint: disable=line-too-long
             sharded_prefix = layer_prefix
-            sharded_pp_offset = [(0, global_layer_offset, num_layers)]  # PP sharding offset for ShardedTensors
-            layer_sharded_state_dict = layer.sharded_state_dict(state_dict_prefix, sharded_pp_offset, metadata)
-            replace_prefix_for_sharding(layer_sharded_state_dict, state_dict_prefix, sharded_prefix)
+            sharded_pp_offset = [
+                (0, global_layer_offset, num_layers)
+            ]  # PP sharding offset for ShardedTensors
+            layer_sharded_state_dict = layer.sharded_state_dict(
+                state_dict_prefix, sharded_pp_offset, metadata
+            )
+            replace_prefix_for_sharding(
+                layer_sharded_state_dict, state_dict_prefix, sharded_prefix
+            )
             sharded_state_dict.update(layer_sharded_state_dict)
 
-        xlayer_prefix = f'{prefix}xattn_layers.'
+        xlayer_prefix = f"{prefix}xattn_layers."
         for xlayer in self.xattn_layers:
             if isinstance(xlayer, DummyCrossAttentionTransformerLayer):
                 continue
             offset = xlayer._get_layer_offset(xlayer.config)
             global_layer_offset = xlayer.layer_number - 1
-            state_dict_prefix = f'{xlayer_prefix}{global_layer_offset - offset}.'  # module list index in TransformerBlock # pylint: disable=line-too-long
-            sharded_prefix = f'{xlayer_prefix}{global_layer_offset}.'
+            state_dict_prefix = f"{xlayer_prefix}{global_layer_offset - offset}."  # module list index in TransformerBlock # pylint: disable=line-too-long
+            sharded_prefix = f"{xlayer_prefix}{global_layer_offset}."
             sharded_pp_offset = []
-            xlayer_sharded_state_dict = xlayer.sharded_state_dict(state_dict_prefix, sharded_pp_offset, metadata)
-            replace_prefix_for_sharding(xlayer_sharded_state_dict, state_dict_prefix, sharded_prefix)
+            xlayer_sharded_state_dict = xlayer.sharded_state_dict(
+                state_dict_prefix, sharded_pp_offset, metadata
+            )
+            replace_prefix_for_sharding(
+                xlayer_sharded_state_dict, state_dict_prefix, sharded_prefix
+            )
             sharded_state_dict.update(xlayer_sharded_state_dict)
 
         # Add modules other than self.layers
         for name, module in self.named_children():
             if not module is self.layers and not module is self.xattn_layers:
                 sharded_state_dict.update(
-                    sharded_state_dict_default(module, f'{prefix}{name}.', sharded_offsets, metadata)
+                    sharded_state_dict_default(
+                        module, f"{prefix}{name}.", sharded_offsets, metadata
+                    )
                 )
 
         return sharded_state_dict
@@ -477,15 +522,16 @@ class CrossAttentionTransformerLayer(TransformerLayer):
             attention_output_with_bias, tuple
         ), "`attention_output_with_bias` needs to be tuple for gating."
         attention_output_with_bias = tuple(
-            _gate_attn * output if output is not None else None for output in attention_output_with_bias
+            _gate_attn * output if output is not None else None
+            for output in attention_output_with_bias
         )
 
         # TODO: could we move `bias_dropout_add_exec_handler` itself
         # inside the module provided in the `bias_dropout_add_spec` module?
         with self.bias_dropout_add_exec_handler():
-            hidden_states = self.cross_attn_bda(self.training, self.config.bias_dropout_fusion)(
-                attention_output_with_bias, residual, self.hidden_dropout
-            )
+            hidden_states = self.cross_attn_bda(
+                self.training, self.config.bias_dropout_fusion
+            )(attention_output_with_bias, residual, self.hidden_dropout)
 
         # Residual connection.
         residual = hidden_states
@@ -497,17 +543,20 @@ class CrossAttentionTransformerLayer(TransformerLayer):
         mlp_output_with_bias = self.mlp(pre_mlp_layernorm_output)
 
         _gate_ffn = self.gate_ffn.tanh() * full_text_row_masked_out_mask
-        assert isinstance(mlp_output_with_bias, tuple), "`mlp_output_with_bias` needs to be tuple for gating."
+        assert isinstance(
+            mlp_output_with_bias, tuple
+        ), "`mlp_output_with_bias` needs to be tuple for gating."
         mlp_output_with_bias = tuple(
-            _gate_ffn * output if output is not None else None for output in mlp_output_with_bias
+            _gate_ffn * output if output is not None else None
+            for output in mlp_output_with_bias
         )
 
         # TODO: could we move `bias_dropout_add_exec_handler` itself
         # inside the module provided in the `bias_dropout_add_spec` module?
         with self.bias_dropout_add_exec_handler():
-            hidden_states = self.mlp_bda(self.training, self.config.bias_dropout_fusion)(
-                mlp_output_with_bias, residual, self.hidden_dropout
-            )
+            hidden_states = self.mlp_bda(
+                self.training, self.config.bias_dropout_fusion
+            )(mlp_output_with_bias, residual, self.hidden_dropout)
 
         # Jit compiled function creates 'view' tensor. This tensor
         # potentially gets saved in the MPU checkpoint function context,
@@ -515,7 +564,11 @@ class CrossAttentionTransformerLayer(TransformerLayer):
         # won't result in memory savings (like the data loader, or
         # p2p_communication), it serves to document the origin of this
         # 'view' tensor.
-        output = make_viewless_tensor(inp=hidden_states, requires_grad=hidden_states.requires_grad, keep_graph=True)
+        output = make_viewless_tensor(
+            inp=hidden_states,
+            requires_grad=hidden_states.requires_grad,
+            keep_graph=True,
+        )
 
         return output, None  # context
 
@@ -677,8 +730,16 @@ class MLlamaCrossAttention(Attention):
         # ===================================================
         # Adjust key, value, and rotary_pos_emb for inference
         # ===================================================
-        query, key, value, rotary_pos_emb, attn_mask_type, *_ = self._adjust_key_value_for_inference(
-            inference_params, query, key, value, rotary_pos_emb, rotary_pos_cos, rotary_pos_sin
+        query, key, value, rotary_pos_emb, attn_mask_type, *_ = (
+            self._adjust_key_value_for_inference(
+                inference_params,
+                query,
+                key,
+                value,
+                rotary_pos_emb,
+                rotary_pos_cos,
+                rotary_pos_sin,
+            )
         )
 
         if packed_seq_params is not None:

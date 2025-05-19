@@ -71,8 +71,8 @@ class AdapterName(str, enum.Enum):
     MLP_INFUSED = "mlp_infused_adapter"
     KEY_INFUSED = "key_infused_adapter"
     VALUE_INFUSED = "value_infused_adapter"
-    PRE_ATTN_ADAPTER = 'adapter_1'
-    POST_ATTN_ADAPTER = 'adapter_2'
+    PRE_ATTN_ADAPTER = "adapter_1"
+    POST_ATTN_ADAPTER = "adapter_2"
     PTUNING_ADAPTER = "ptuning_adapter"
     LORA_KQV_ADAPTER = "lora_kqv_adapter"
     LORA_UNFUSED_KQV_ADAPTER = "lora_unfused_kqv_adapter"
@@ -92,7 +92,10 @@ class AdapterName(str, enum.Enum):
 
 class InfusedAdapter(nn.Module, AdapterModuleUtil):
     def __init__(
-        self, in_features: int, model_parallel_config: Optional[ModelParallelConfig] = None, **kwargs
+        self,
+        in_features: int,
+        model_parallel_config: Optional[ModelParallelConfig] = None,
+        **kwargs,
     ) -> None:
         super().__init__()
 
@@ -108,7 +111,9 @@ class InfusedAdapter(nn.Module, AdapterModuleUtil):
             self.half()
 
         # Setup adapter strategy
-        self.setup_adapter_strategy(adapter_mixin_strategies.ReturnResultAdapterStrategy())
+        self.setup_adapter_strategy(
+            adapter_mixin_strategies.ReturnResultAdapterStrategy()
+        )
 
     def forward(self, x):
         x = x * self.scalers[None, None, :]
@@ -132,7 +137,9 @@ class InfusedAdapterConfig(AdapterConfig):
 
 @dataclass
 class MLPInfusedAdapterConfig(InfusedAdapterConfig):
-    _target_: str = "{0}.{1}".format(MLPInfusedAdapter.__module__, MLPInfusedAdapter.__name__)
+    _target_: str = "{0}.{1}".format(
+        MLPInfusedAdapter.__module__, MLPInfusedAdapter.__name__
+    )
 
 
 def pad_seq_to_mult(x, mult):
@@ -161,17 +168,17 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
         in_features: int,
         out_features: int,
         dim: int,
-        activation: str = 'swish',
-        norm_position: Optional[str] = 'post',
-        norm_type: Optional[str] = 'mixedfusedlayernorm',
-        column_init_method: str = 'xavier',  # TODO: (@adithyare) should rename this to input_init_method to be more precise.
-        row_init_method: str = 'zero',  # TODO: (@adithyare) should rename this to output_init_method to be more precise.
+        activation: str = "swish",
+        norm_position: Optional[str] = "post",
+        norm_type: Optional[str] = "mixedfusedlayernorm",
+        column_init_method: str = "xavier",  # TODO: (@adithyare) should rename this to input_init_method to be more precise.
+        row_init_method: str = "zero",  # TODO: (@adithyare) should rename this to output_init_method to be more precise.
         gather_output: bool = True,
         input_is_parallel: bool = False,  # NOTE: (@ertkonuk) we need this for LoRA adapters that are applied to RowParallelLinear layers
         dropout: float = 0.0,
         model_parallel_config: Optional[ModelParallelConfig] = None,
         alpha: float | None = None,
-        dropout_position: str = 'post',
+        dropout_position: str = "post",
         a2a_experimental: bool = False,  # TODO: should rename this or make it a default feature
         is_expert: bool = False,
         **kwargs,
@@ -179,7 +186,9 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
         super().__init__()
         if not HAVE_MEGATRON_CORE:
             logging.info("Megatron-core is required to use ParallelLinearAdapters.")
-            raise RuntimeError("ParallelLinearAdapter can not run without Megatron-core.")
+            raise RuntimeError(
+                "ParallelLinearAdapter can not run without Megatron-core."
+            )
         self.activation = activation_registry[activation]()
         self.norm_position = norm_position
         self.dim = dim
@@ -194,7 +203,9 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
         if model_parallel_config is None:
             model_parallel_config = ModelParallelConfig()
         self._sequence_parallel = model_parallel_config.sequence_parallel
-        model_parallel_config.sequence_parallel = False  # SP is irrelevant for the lora linear layer
+        model_parallel_config.sequence_parallel = (
+            False  # SP is irrelevant for the lora linear layer
+        )
         self.config = model_parallel_config
 
         if input_is_parallel:
@@ -244,13 +255,17 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
 
         if self.norm_position in ["pre", "post"]:
             ln_features = in_features if self.norm_position == "pre" else out_features
-            if norm_type == 'mixedfusedlayernorm':
+            if norm_type == "mixedfusedlayernorm":
                 assert HAVE_APEX, "Apex is required to use MixedFusedLayerNorm"
-                self.layer_norm = MixedFusedLayerNorm(ln_features, 1e-5, sequence_parallel_enbaled=False)
-            elif norm_type == 'layernorm':
+                self.layer_norm = MixedFusedLayerNorm(
+                    ln_features, 1e-5, sequence_parallel_enbaled=False
+                )
+            elif norm_type == "layernorm":
                 self.layer_norm = nn.LayerNorm(ln_features)
             else:
-                raise NotImplementedError("norm_type should be either mixedfusedlayernorm or layernorm")
+                raise NotImplementedError(
+                    "norm_type should be either mixedfusedlayernorm or layernorm"
+                )
         else:
             self.layer_norm = None
 
@@ -266,7 +281,9 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
             self.half()
 
         # Setup adapter strategy
-        self.setup_adapter_strategy(adapter_mixin_strategies.ReturnResultAdapterStrategy())
+        self.setup_adapter_strategy(
+            adapter_mixin_strategies.ReturnResultAdapterStrategy()
+        )
 
         # revert config change in case it is read elsewhere
         model_parallel_config.sequence_parallel = self._sequence_parallel
@@ -280,7 +297,9 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
                 not self.input_is_parallel
                 and (
                     not getattr(model_parallel_config, "tp_comm_overlap", False)
-                    or getattr(model_parallel_config, "tp_comm_overlap_disable_qkv", False)
+                    or getattr(
+                        model_parallel_config, "tp_comm_overlap_disable_qkv", False
+                    )
                 )
             ):
                 # TE 1.5 introduces the option `return_layernorm_output_gathered`, so the all gather
@@ -289,16 +308,18 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
                 self._sequence_parallel = False
 
     def _get_init_fn(self, init_method: str):
-        if init_method == 'xavier':
+        if init_method == "xavier":
             init_fn = init.xavier_normal_
-        elif init_method == 'normal':
+        elif init_method == "normal":
             init_fn = init_method_normal(0.2)
-        elif init_method == 'kaiming':
+        elif init_method == "kaiming":
             init_fn = init_method_kaiming_uniform(math.sqrt(5))
         elif init_method == "zero":
             init_fn = init_method_const(0.0)
         else:
-            raise NotImplementedError("out_init_method should be zero, normal, kaiming or xavier")
+            raise NotImplementedError(
+                "out_init_method should be zero, normal, kaiming or xavier"
+            )
         return init_fn
 
     def adapter_unfreeze(
@@ -310,14 +331,14 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
         super().adapter_unfreeze()
 
     def forward(self, x):
-        if self.dropout is not None and self.dropout_position == 'pre':
+        if self.dropout is not None and self.dropout_position == "pre":
             x = self.dropout(x)
 
         pad_len = 0
         if self.is_expert:
             x, pad_len = pad_seq_to_mult(x, self.config.tensor_model_parallel_size)
 
-        if self.norm_position == 'pre':
+        if self.norm_position == "pre":
             x = self.layer_norm(x)
         if self._sequence_parallel and not self.input_is_parallel:
             # for attention_qkv and linear_fc1
@@ -328,7 +349,9 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
 
         if self.config.cpu_offloading and self.config.cpu_offloading_activations:
             x.activation_offloading = True
-        x, _ = self.linear_in(x)  # (@adithyare) ColumnLinear returns output and bias, we are ignoring the bias term.
+        x, _ = self.linear_in(
+            x
+        )  # (@adithyare) ColumnLinear returns output and bias, we are ignoring the bias term.
 
         x = self.activation(x)
 
@@ -347,11 +370,11 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
             else:
                 x = scatter_to_sequence_parallel_region(x)
 
-        if self.norm_position == 'post':
+        if self.norm_position == "post":
             x = self.layer_norm(x)
 
         # Add dropout if available
-        if self.dropout is not None and self.dropout_position == 'post':
+        if self.dropout is not None and self.dropout_position == "post":
             x = self.dropout(x)
 
         x = x * (self.alpha / self.dim)
@@ -363,12 +386,21 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
         return x
 
     def sharded_state_dict(
-        self, prefix: str = '', sharded_offsets: tuple = (), metadata: Optional[dict] = None
+        self,
+        prefix: str = "",
+        sharded_offsets: tuple = (),
+        metadata: Optional[dict] = None,
     ) -> ShardedStateDict:
         sharded_state_dict = {}
-        sharded_state_dict.update(self.linear_in.sharded_state_dict(f"{prefix}linear_in.", sharded_offsets, metadata))
         sharded_state_dict.update(
-            self.linear_out.sharded_state_dict(f"{prefix}linear_out.", sharded_offsets, metadata)
+            self.linear_in.sharded_state_dict(
+                f"{prefix}linear_in.", sharded_offsets, metadata
+            )
+        )
+        sharded_state_dict.update(
+            self.linear_out.sharded_state_dict(
+                f"{prefix}linear_out.", sharded_offsets, metadata
+            )
         )
         return sharded_state_dict
 
@@ -412,19 +444,21 @@ class ParallelLinearAdapterConfig(AdapterConfig):
     in_features: int
     out_features: int
     dim: int
-    activation: str = 'swish'
-    norm_position: Optional[str] = 'post'
-    norm_type: Optional[str] = 'mixedfusedlayernorm'
-    column_init_method: str = 'xavier'
-    row_init_method: str = 'zero'
+    activation: str = "swish"
+    norm_position: Optional[str] = "post"
+    norm_type: Optional[str] = "mixedfusedlayernorm"
+    column_init_method: str = "xavier"
+    row_init_method: str = "zero"
     gather_output: bool = True
     input_is_parallel: bool = False
     dropout: float = 0.0
-    dropout_position: str = 'post'
+    dropout_position: str = "post"
     alpha: float | None = None
     network_alpha: int | None = None
     a2a_experimental: bool = False
-    _target_: str = "{0}.{1}".format(ParallelLinearAdapter.__module__, ParallelLinearAdapter.__name__)
+    _target_: str = "{0}.{1}".format(
+        ParallelLinearAdapter.__module__, ParallelLinearAdapter.__name__
+    )
 
 
 class MLPHeadAdapter(nn.Module, AdapterModuleUtil):
@@ -440,7 +474,9 @@ class MLPHeadAdapter(nn.Module, AdapterModuleUtil):
         if model_parallel_config is None:
             model_parallel_config = ModelParallelConfig()
         self._sequence_parallel = model_parallel_config.sequence_parallel
-        model_parallel_config.sequence_parallel = False  # SP is irrelevant for the lora linear layer
+        model_parallel_config.sequence_parallel = (
+            False  # SP is irrelevant for the lora linear layer
+        )
 
         if input_is_parallel:
             self.linear = RowParallelLinear(
@@ -464,7 +500,9 @@ class MLPHeadAdapter(nn.Module, AdapterModuleUtil):
             )
 
         # Setup adapter strategy
-        self.setup_adapter_strategy(adapter_mixin_strategies.ReturnResultAdapterStrategy())
+        self.setup_adapter_strategy(
+            adapter_mixin_strategies.ReturnResultAdapterStrategy()
+        )
 
     def forward(self, x):
         x, _ = self.linear(x)
@@ -549,18 +587,24 @@ class LoraKVAdapterConfig(ParallelLinearAdapterConfig):
 
 @dataclass
 class LoraDenseAttentionAdapterConfig(ParallelLinearAdapterConfig):
-    _target_: str = "{0}.{1}".format(LoraDenseAttentionAdapter.__module__, LoraDenseAttentionAdapter.__name__)
+    _target_: str = "{0}.{1}".format(
+        LoraDenseAttentionAdapter.__module__, LoraDenseAttentionAdapter.__name__
+    )
     input_is_parallel: bool = True
 
 
 @dataclass
 class LoraHto4HAdapterConfig(ParallelLinearAdapterConfig):
-    _target_: str = "{0}.{1}".format(LoraHto4HAdapter.__module__, LoraHto4HAdapter.__name__)
+    _target_: str = "{0}.{1}".format(
+        LoraHto4HAdapter.__module__, LoraHto4HAdapter.__name__
+    )
 
 
 @dataclass
 class Lora4HtoHAdapterConfig(ParallelLinearAdapterConfig):
-    _target_: str = "{0}.{1}".format(Lora4HtoHAdapter.__module__, Lora4HtoHAdapter.__name__)
+    _target_: str = "{0}.{1}".format(
+        Lora4HtoHAdapter.__module__, Lora4HtoHAdapter.__name__
+    )
     input_is_parallel: bool = True
 
 
@@ -570,17 +614,17 @@ class LoraUnfusedHto4HAdapter(nn.Module, AdapterModuleUtil):
         in_features: int,
         out_features: int,
         dim: int,
-        activation: str = 'swish',
-        norm_position: Optional[str] = 'post',
-        norm_type: Optional[str] = 'mixedfusedlayernorm',
-        column_init_method: str = 'xavier',  # TODO: (@adithyare) should rename this to input_init_method to be more precise.
-        row_init_method: str = 'zero',  # TODO: (@adithyare) should rename this to output_init_method to be more precise.
+        activation: str = "swish",
+        norm_position: Optional[str] = "post",
+        norm_type: Optional[str] = "mixedfusedlayernorm",
+        column_init_method: str = "xavier",  # TODO: (@adithyare) should rename this to input_init_method to be more precise.
+        row_init_method: str = "zero",  # TODO: (@adithyare) should rename this to output_init_method to be more precise.
         gather_output: bool = True,
         input_is_parallel: bool = False,  # NOTE: (@ertkonuk) we need this for LoRA adapters that are applied to RowParallelLinear layers
         dropout: float = 0.0,
         model_parallel_config: Optional[ModelParallelConfig] = None,
         alpha: float | None = None,
-        dropout_position: str = 'post',
+        dropout_position: str = "post",
         a2a_experimental: bool = False,  # TODO: should rename this or make it a default feature
         **kwargs,
     ):
@@ -629,7 +673,9 @@ class LoraUnfusedHto4HAdapter(nn.Module, AdapterModuleUtil):
 
 @dataclass
 class LoraUnfusedHto4HAdapterConfig(ParallelLinearAdapterConfig):
-    _target_: str = "{0}.{1}".format(LoraUnfusedHto4HAdapter.__module__, LoraUnfusedHto4HAdapter.__name__)
+    _target_: str = "{0}.{1}".format(
+        LoraUnfusedHto4HAdapter.__module__, LoraUnfusedHto4HAdapter.__name__
+    )
 
 
 class LoraUnfusedKQVAdapter(nn.Module, AdapterModuleUtil):
@@ -639,17 +685,17 @@ class LoraUnfusedKQVAdapter(nn.Module, AdapterModuleUtil):
         dim: int,
         num_query_groups: int,
         kv_channels: int,
-        activation: str = 'swish',
-        norm_position: Optional[str] = 'post',
-        norm_type: Optional[str] = 'mixedfusedlayernorm',
-        column_init_method: str = 'xavier',  # TODO: (@adithyare) should rename this to input_init_method to be more precise.
-        row_init_method: str = 'zero',  # TODO: (@adithyare) should rename this to output_init_method to be more precise.
+        activation: str = "swish",
+        norm_position: Optional[str] = "post",
+        norm_type: Optional[str] = "mixedfusedlayernorm",
+        column_init_method: str = "xavier",  # TODO: (@adithyare) should rename this to input_init_method to be more precise.
+        row_init_method: str = "zero",  # TODO: (@adithyare) should rename this to output_init_method to be more precise.
         gather_output: bool = True,
         input_is_parallel: bool = False,  # NOTE: (@ertkonuk) we need this for LoRA adapters that are applied to RowParallelLinear layers
         dropout: float = 0.0,
         model_parallel_config: Optional[ModelParallelConfig] = None,
         alpha: float | None = None,
-        dropout_position: str = 'post',
+        dropout_position: str = "post",
         a2a_experimental: bool = False,  # TODO: should rename this or make it a default feature
         **kwargs,
     ):
@@ -699,19 +745,21 @@ class LoraUnfusedKQVAdapterConfig(AdapterConfig):
     dim: int
     num_query_groups: int
     kv_channels: int
-    activation: str = 'swish'
-    norm_position: Optional[str] = 'post'
-    norm_type: Optional[str] = 'mixedfusedlayernorm'
-    column_init_method: str = 'xavier'
-    row_init_method: str = 'zero'
+    activation: str = "swish"
+    norm_position: Optional[str] = "post"
+    norm_type: Optional[str] = "mixedfusedlayernorm"
+    column_init_method: str = "xavier"
+    row_init_method: str = "zero"
     gather_output: bool = True
     input_is_parallel: bool = False
     dropout: float = 0.0
-    dropout_position: str = 'post'
+    dropout_position: str = "post"
     alpha: float | None = None
     network_alpha: int | None = None
     a2a_experimental: bool = False
-    _target_: str = "{0}.{1}".format(LoraUnfusedKQVAdapter.__module__, LoraUnfusedKQVAdapter.__name__)
+    _target_: str = "{0}.{1}".format(
+        LoraUnfusedKQVAdapter.__module__, LoraUnfusedKQVAdapter.__name__
+    )
 
 
 class LoraMoeAdapter(nn.Module, AdapterModuleUtil):
@@ -721,17 +769,17 @@ class LoraMoeAdapter(nn.Module, AdapterModuleUtil):
         in_features: int,
         out_features: int,
         dim: int,
-        activation: str = 'identity',
+        activation: str = "identity",
         norm_position: Optional[str] = None,
         norm_type: Optional[str] = None,
-        column_init_method: str = 'xavier',
-        row_init_method: str = 'zero',
+        column_init_method: str = "xavier",
+        row_init_method: str = "zero",
         gather_output: bool = False,
         input_is_parallel: bool = False,
         dropout: float = 0.0,
         model_parallel_config: Optional[ModelParallelConfig] = None,
         alpha: float | None = None,
-        dropout_position: str = 'post',
+        dropout_position: str = "post",
         a2a_experimental: bool = False,
         **kwargs,
     ):
@@ -769,15 +817,15 @@ class LoraMoeHto4HAdapterConfig(AdapterConfig):
     in_features: int
     out_features: int
     dim: int
-    activation: str = 'identity'
+    activation: str = "identity"
     norm_position: Optional[str] = None
     norm_type: Optional[str] = None
-    column_init_method: str = 'xavier'
-    row_init_method: str = 'zero'
+    column_init_method: str = "xavier"
+    row_init_method: str = "zero"
     gather_output: bool = False
     input_is_parallel: bool = False
     dropout: float = 0.0
-    dropout_position: str = 'post'
+    dropout_position: str = "post"
     alpha: float | None = None
     a2a_experimental: bool = False
     _target_: str = "{0}.{1}".format(LoraMoeAdapter.__module__, LoraMoeAdapter.__name__)
@@ -826,9 +874,17 @@ class PromptEncoderAdapter(nn.Module, AdapterModuleUtil):
         sequence_parallel = False
         gradient_accumulation_fusion = False
         # (@adithyare) the persistent=False will not pollute the indices into the state_dict of this module.
-        self.register_buffer("indices", torch.LongTensor(list(range(self.virtual_tokens))), persistent=False)
+        self.register_buffer(
+            "indices",
+            torch.LongTensor(list(range(self.virtual_tokens))),
+            persistent=False,
+        )
         self.embedding = torch.nn.Embedding(self.virtual_tokens, self.embedding_dim)
-        self.register_buffer("inference_table", torch.Tensor(self.virtual_tokens, self.output_dim), persistent=True)
+        self.register_buffer(
+            "inference_table",
+            torch.Tensor(self.virtual_tokens, self.output_dim),
+            persistent=True,
+        )
         self.is_inference_ready = False
         self.first = ColumnParallelLinear(
             self.embedding_dim,
@@ -856,7 +912,9 @@ class PromptEncoderAdapter(nn.Module, AdapterModuleUtil):
             self.half()
 
         # Setup adapter strategy
-        self.setup_adapter_strategy(adapter_mixin_strategies.ReturnResultAdapterStrategy())
+        self.setup_adapter_strategy(
+            adapter_mixin_strategies.ReturnResultAdapterStrategy()
+        )
 
     def set_inference_table(self, prompt_representation: torch.Tensor):
         """
@@ -908,7 +966,9 @@ class PromptEncoderAdapter(nn.Module, AdapterModuleUtil):
                     self.set_inference_table(output_embeds.squeeze(1))
                 output_embeds = self.get_inference_table().unsqueeze(1)
 
-        output_embeds = output_embeds.expand(self.virtual_tokens, batch_size, self.output_dim)
+        output_embeds = output_embeds.expand(
+            self.virtual_tokens, batch_size, self.output_dim
+        )
         return output_embeds
 
 
@@ -919,7 +979,9 @@ class PromptEncoderAdapterConfig(AdapterConfig):
     embedding_dim: int
     init_std: float
     output_dim: int
-    _target_: str = "{0}.{1}".format(PromptEncoderAdapter.__module__, PromptEncoderAdapter.__name__)
+    _target_: str = "{0}.{1}".format(
+        PromptEncoderAdapter.__module__, PromptEncoderAdapter.__name__
+    )
 
 
 class ParallelLinearAdapterWeightTying(ParallelLinearAdapter):
@@ -932,11 +994,11 @@ class ParallelLinearAdapterWeightTying(ParallelLinearAdapter):
         in_features: int,
         out_features: int,
         dim: int,
-        activation: str = 'swish',
-        norm_position: Optional[str] = 'post',
-        norm_type: Optional[str] = 'mixedfusedlayernorm',
-        column_init_method: str = 'xavier',  # TODO: (@adithyare) should rename this to input_init_method to be more precise.
-        row_init_method: str = 'zero',  # TODO: (@adithyare) should rename this to output_init_method to be more precise.
+        activation: str = "swish",
+        norm_position: Optional[str] = "post",
+        norm_type: Optional[str] = "mixedfusedlayernorm",
+        column_init_method: str = "xavier",  # TODO: (@adithyare) should rename this to input_init_method to be more precise.
+        row_init_method: str = "zero",  # TODO: (@adithyare) should rename this to output_init_method to be more precise.
         gather_output: bool = True,
         dropout: float = 0.0,
         num_position_embeddings: int = 1,
@@ -948,7 +1010,13 @@ class ParallelLinearAdapterWeightTying(ParallelLinearAdapter):
         self.position_embeddings = None
         self.mlp = None
         self.position_embedding_strategy = position_embedding_strategy
-        assert self.position_embedding_strategy in ["add", "concat", "mlpconcat", "biasadd", None]
+        assert self.position_embedding_strategy in [
+            "add",
+            "concat",
+            "mlpconcat",
+            "biasadd",
+            None,
+        ]
         if self.position_embedding_strategy == "concat":
             in_features += dim_position_embeddings
         elif self.position_embedding_strategy == "mlpconcat":
@@ -976,13 +1044,19 @@ class ParallelLinearAdapterWeightTying(ParallelLinearAdapter):
             **kwargs,
         )
         if self.position_embedding_strategy:
-            self.position_embeddings = torch.nn.Embedding(num_position_embeddings, dim_position_embeddings)
+            self.position_embeddings = torch.nn.Embedding(
+                num_position_embeddings, dim_position_embeddings
+            )
             self.position_embeddings.weight.data.fill_(0.0)
         if self.position_embedding_strategy == "mlpconcat":
             self.mlp = torch.nn.Sequential(
-                torch.nn.Linear(dim_position_embeddings, dim_position_embeddings, bias=False),
+                torch.nn.Linear(
+                    dim_position_embeddings, dim_position_embeddings, bias=False
+                ),
                 torch.nn.GELU(),
-                torch.nn.Linear(dim_position_embeddings, dim_position_embeddings, bias=False),
+                torch.nn.Linear(
+                    dim_position_embeddings, dim_position_embeddings, bias=False
+                ),
             )
         self.register_buffer("position_id", torch.LongTensor([1]), persistent=False)
 
@@ -1023,13 +1097,15 @@ class ParallelLinearAdapterWeightTying(ParallelLinearAdapter):
                 pos = self.mlp(pos)
                 x = torch.cat((x, pos), dim=2)
 
-        if self.norm_position == 'pre':
+        if self.norm_position == "pre":
             x = self.layer_norm(x)
 
-        x, _ = self.linear_in(x)  # (@adithyare) ColumnLinear returns output and bias, we are ignoring the bias term.
+        x, _ = self.linear_in(
+            x
+        )  # (@adithyare) ColumnLinear returns output and bias, we are ignoring the bias term.
         x = self.activation(x)
         x, _ = self.linear_out(x)
-        if self.norm_position == 'post':
+        if self.norm_position == "post":
             x = self.layer_norm(x)
 
         if self.position_embedding_strategy == "biasadd":
@@ -1048,18 +1124,19 @@ class ParallelLinearAdapterWeightTyingConfig:
     in_features: int
     out_features: int
     dim: int
-    activation: str = 'swish'
-    norm_position: Optional[str] = 'post'
-    norm_type: Optional[str] = 'mixedfusedlayernorm'
-    column_init_method: str = 'xavier'
-    row_init_method: str = 'zero'
+    activation: str = "swish"
+    norm_position: Optional[str] = "post"
+    norm_type: Optional[str] = "mixedfusedlayernorm"
+    column_init_method: str = "xavier"
+    row_init_method: str = "zero"
     gather_output: bool = True
     dropout: float = 0.0
     num_position_embeddings: int = 1
     dim_position_embeddings: int = 1024
     position_embedding_strategy: Optional[str] = "concat"
     _target_: str = "{0}.{1}".format(
-        ParallelLinearAdapterWeightTying.__module__, ParallelLinearAdapterWeightTying.__name__
+        ParallelLinearAdapterWeightTying.__module__,
+        ParallelLinearAdapterWeightTying.__name__,
     )
 
 
@@ -1073,7 +1150,9 @@ class LoraKQVAdapterWeightTying(ParallelLinearAdapterWeightTying):
 
 @dataclass
 class LoraKQVAdapterWeightTyingConfig(ParallelLinearAdapterWeightTyingConfig):
-    _target_: str = "{0}.{1}".format(LoraKQVAdapterWeightTying.__module__, LoraKQVAdapterWeightTying.__name__)
+    _target_: str = "{0}.{1}".format(
+        LoraKQVAdapterWeightTying.__module__, LoraKQVAdapterWeightTying.__name__
+    )
 
 
 class DownSampleBlock(nn.Module):
@@ -1088,10 +1167,14 @@ class DownSampleBlock(nn.Module):
     def flat_square(self, x):
         b, T, F, h, w, c = x.size()
         if w % 2 == 1:
-            x = torch.cat([x, torch.zeros((b, T, F, h, 1, c), dtype=x.dtype).to(x.device)], dim=4)
+            x = torch.cat(
+                [x, torch.zeros((b, T, F, h, 1, c), dtype=x.dtype).to(x.device)], dim=4
+            )
             b, T, F, h, w, c = x.size()
         if h % 2 == 1:
-            x = torch.cat([x, torch.zeros((b, T, F, 1, w, c), dtype=x.dtype).to(x.device)], dim=3)
+            x = torch.cat(
+                [x, torch.zeros((b, T, F, 1, w, c), dtype=x.dtype).to(x.device)], dim=3
+            )
             b, T, F, h, w, c = x.size()
         x = x.view(b, T, F, h, int(w / 2), int(c * 2))
         x = x.permute(0, 1, 2, 4, 3, 5).contiguous()
@@ -1100,14 +1183,21 @@ class DownSampleBlock(nn.Module):
 
 
 class MultimodalProjectorAdapter(nn.Module, AdapterModuleUtil):
-    def __init__(self, adapter_type: str, in_features: int, out_features: int, bias: bool, **kwargs) -> None:
+    def __init__(
+        self,
+        adapter_type: str,
+        in_features: int,
+        out_features: int,
+        bias: bool,
+        **kwargs,
+    ) -> None:
         super().__init__()
 
-        if adapter_type == 'linear':
+        if adapter_type == "linear":
             self.mm_projector = torch.nn.Linear(in_features, out_features, bias)
-        elif adapter_type == 'identity':
+        elif adapter_type == "identity":
             self.mm_projector = lambda x: x
-        elif adapter_type == 'mlp_downsample':
+        elif adapter_type == "mlp_downsample":
             self.mm_projector = torch.nn.Sequential(
                 DownSampleBlock(),
                 torch.nn.LayerNorm(in_features * 4),
@@ -1116,7 +1206,7 @@ class MultimodalProjectorAdapter(nn.Module, AdapterModuleUtil):
                 torch.nn.Linear(out_features, out_features, bias),
             )
         else:
-            mlp_gelu_match = re.match(r'^mlp(\d+)x_gelu$', adapter_type)
+            mlp_gelu_match = re.match(r"^mlp(\d+)x_gelu$", adapter_type)
             if mlp_gelu_match:
                 mlp_depth = int(mlp_gelu_match.group(1))
                 modules = [torch.nn.Linear(in_features, out_features, bias)]
@@ -1125,7 +1215,7 @@ class MultimodalProjectorAdapter(nn.Module, AdapterModuleUtil):
                     modules.append(torch.nn.Linear(out_features, out_features, bias))
                 self.mm_projector = torch.nn.Sequential(*modules)
             else:
-                raise ValueError(f'Unknown mm_mlp_adapter_type type: {adapter_type}')
+                raise ValueError(f"Unknown mm_mlp_adapter_type type: {adapter_type}")
 
     def forward(self, x):
         return self.mm_projector(x)
@@ -1137,4 +1227,6 @@ class MultimodalProjectorAdapterConfig:
     in_features: int
     out_features: int
     bias: bool
-    _target_: str = "{0}.{1}".format(MultimodalProjectorAdapter.__module__, MultimodalProjectorAdapter.__name__)
+    _target_: str = "{0}.{1}".format(
+        MultimodalProjectorAdapter.__module__, MultimodalProjectorAdapter.__name__
+    )

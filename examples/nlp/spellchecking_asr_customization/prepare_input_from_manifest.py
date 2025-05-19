@@ -28,10 +28,17 @@ from argparse import ArgumentParser
 from nemo.collections.nlp.data.spellchecking_asr_customization.utils import (
     extract_and_split_text_from_manifest, get_candidates, load_index)
 
-parser = ArgumentParser(description="Prepare input for SpellMapper inference from a nemo ASR manifest")
-parser.add_argument("--manifest", required=True, type=str, help="Path to input manifest file")
+parser = ArgumentParser(
+    description="Prepare input for SpellMapper inference from a nemo ASR manifest"
+)
 parser.add_argument(
-    "--custom_vocab_index", required=True, type=str, help="Path to input file with custom vocabulary index"
+    "--manifest", required=True, type=str, help="Path to input manifest file"
+)
+parser.add_argument(
+    "--custom_vocab_index",
+    required=True,
+    type=str,
+    help="Path to input file with custom vocabulary index",
 )
 parser.add_argument(
     "--big_sample",
@@ -51,8 +58,15 @@ parser.add_argument(
     type=str,
     help="Path to output file that will serve as input for SpellMapper inference",
 )
-parser.add_argument("--field_name", default="pred_text", type=str, help="Name of json field with ASR hypothesis text")
-parser.add_argument("--len_in_words", default=16, type=int, help="Maximum fragment length in words")
+parser.add_argument(
+    "--field_name",
+    default="pred_text",
+    type=str,
+    help="Name of json field with ASR hypothesis text",
+)
+parser.add_argument(
+    "--len_in_words", default=16, type=int, help="Maximum fragment length in words"
+)
 parser.add_argument(
     "--step_in_words",
     default=8,
@@ -82,7 +96,9 @@ with open(args.big_sample, "r", encoding="utf-8") as f:
         phrase, freq = line.strip().split("\t")
         if int(freq) > 50:  # do not want to use frequent phrases as dummy candidates
             continue
-        if len(phrase) < 6 or len(phrase) > 15:  # do not want to use too short or too long phrases as dummy candidates
+        if (
+            len(phrase) < 6 or len(phrase) > 15
+        ):  # do not want to use too short or too long phrases as dummy candidates
             continue
         big_sample_of_phrases.add(phrase)
 
@@ -95,7 +111,9 @@ with open(args.short2full_name, "r", encoding="utf-8") as f:
         short_sent, _ = line.strip().split("\t")
         sent = "_".join(short_sent.split())
         letters = list(sent)
-        candidates = get_candidates(ngram2phrases, phrases, letters, big_sample_of_phrases)
+        candidates = get_candidates(
+            ngram2phrases, phrases, letters, big_sample_of_phrases
+        )
         if len(candidates) == 0:
             continue
         if len(candidates) != 10:

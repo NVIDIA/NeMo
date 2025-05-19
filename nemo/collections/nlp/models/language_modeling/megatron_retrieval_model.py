@@ -69,9 +69,11 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
         super().__init__(cfg, trainer=trainer)
 
         # TODO does not support PP yet
-        self.model = self.model_provider_func(pre_process=True, post_process=True, add_encoder=True, add_decoder=True)
+        self.model = self.model_provider_func(
+            pre_process=True, post_process=True, add_encoder=True, add_decoder=True
+        )
 
-        self.megatron_amp_O2 = cfg.get('megatron_amp_O2', False)
+        self.megatron_amp_O2 = cfg.get("megatron_amp_O2", False)
 
         if self.megatron_amp_O2:
 
@@ -81,74 +83,97 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
 
             # Model wrapper to convert both model and inputs to half precision
             self.model = Float16Module(
-                config=self.model_parallel_config, module=self.model, precision=self.cfg.precision
+                config=self.model_parallel_config,
+                module=self.model,
+                precision=self.cfg.precision,
             )
 
         # self.setup_optimizer_param_groups()
         self.model.model_type = ModelType.encoder_and_decoder
 
         self.enable_autocast = (
-            True if (not self.megatron_amp_O2) and (self.autocast_dtype in [torch.float16, torch.bfloat16]) else False
+            True
+            if (not self.megatron_amp_O2)
+            and (self.autocast_dtype in [torch.float16, torch.bfloat16])
+            else False
         )
 
         if hasattr(self.cfg, "shape_file"):
-            set_base_shapes(self, self.register_artifact("shape_file", self.cfg.shape_file), rescale_params=False)
+            set_base_shapes(
+                self,
+                self.register_artifact("shape_file", self.cfg.shape_file),
+                rescale_params=False,
+            )
 
             # here manually initialize all the named parameters with the muTranfer normal initializer
             for name, tensor in self.named_parameters():
-                if name.endswith('.dense_4h_to_h.weight') or name.endswith('.dense.weight'):
+                if name.endswith(".dense_4h_to_h.weight") or name.endswith(
+                    ".dense.weight"
+                ):
                     # initialize all the output dense matrix weight
                     # match the megatron lm model
                     std = self.cfg.init_method_std / math.sqrt(2.0 * 12.0)
                     normal_(tensor, 0, std)
-                elif name.endswith('layernorm.weight'):
+                elif name.endswith("layernorm.weight"):
                     # initialize all the layer norm weight
                     if tensor.std() != 0 and tensor.mean() != 1:
-                        raise ValueError(f'need to check {name} init')
+                        raise ValueError(f"need to check {name} init")
                     normal_(tensor, 1, 0)
-                elif name.endswith('.weight'):
+                elif name.endswith(".weight"):
                     # initialize all the other dense matrix weight
                     normal_(tensor, 0, self.cfg.init_method_std)
                 else:
                     if tensor.std() != 0 and tensor.mean() != 0:
-                        raise ValueError(f'need to check {name} init')
+                        raise ValueError(f"need to check {name} init")
 
             # here manually overwrite the norm factor
             # note, has to turn off the model.apply_query_key_layer_scaling
             assert not self.cfg.apply_query_key_layer_scaling
             for name, layer in self.named_modules():
                 if (
-                    name.endswith('.self_attention')
-                    or name.endswith('.inter_attention')
-                    or name.endswith('.cross_attention')
-                    or name.endswith('.core_attention')
+                    name.endswith(".self_attention")
+                    or name.endswith(".inter_attention")
+                    or name.endswith(".cross_attention")
+                    or name.endswith(".core_attention")
                 ):
-                    if hasattr(layer, 'norm_factor') and hasattr(layer, 'hidden_size_per_attention_head'):
+                    if hasattr(layer, "norm_factor") and hasattr(
+                        layer, "hidden_size_per_attention_head"
+                    ):
                         layer.norm_factor = (
                             layer.hidden_size_per_attention_head / 8.0
                         )  # divide 8 to make it consist with ADLR setting
                 else:
-                    if hasattr(layer, 'norm_factor') or hasattr(layer, 'hidden_size_per_attention_head'):
+                    if hasattr(layer, "norm_factor") or hasattr(
+                        layer, "hidden_size_per_attention_head"
+                    ):
                         logging.error(
-                            f'module {name} has norm factor but its name is not ending with attention, need to double check'
+                            f"module {name} has norm factor but its name is not ending with attention, need to double check"
                         )
 
     def _build_tokenizer(self):
         self.tokenizer = get_nmt_tokenizer(
             library=self._cfg.tokenizer.library,
             model_name=self._cfg.tokenizer.type,
-            tokenizer_model=self.register_artifact("tokenizer.model", self._cfg.tokenizer.model),
-            vocab_file=self.register_artifact("tokenizer.vocab_file", self._cfg.tokenizer.vocab_file),
-            merges_file=self.register_artifact("tokenizer.merge_file", self._cfg.tokenizer.merge_file),
-            delimiter=self.cfg.tokenizer.get('delimiter', None),
+            tokenizer_model=self.register_artifact(
+                "tokenizer.model", self._cfg.tokenizer.model
+            ),
+            vocab_file=self.register_artifact(
+                "tokenizer.vocab_file", self._cfg.tokenizer.vocab_file
+            ),
+            merges_file=self.register_artifact(
+                "tokenizer.merge_file", self._cfg.tokenizer.merge_file
+            ),
+            delimiter=self.cfg.tokenizer.get("delimiter", None),
             legacy=False,
         )
 
         # add pad special token
         if not hasattr(self.tokenizer, "pad_id"):
-            self.tokenizer.add_special_tokens({'pad_token': '<pad>'})
-        elif hasattr(self.tokenizer, "pad_id") and (self.tokenizer.pad_id is None or self.tokenizer.pad_id < 0):
-            self.tokenizer.add_special_tokens({'pad_token': '<pad>'})
+            self.tokenizer.add_special_tokens({"pad_token": "<pad>"})
+        elif hasattr(self.tokenizer, "pad_id") and (
+            self.tokenizer.pad_id is None or self.tokenizer.pad_id < 0
+        ):
+            self.tokenizer.add_special_tokens({"pad_token": "<pad>"})
 
     def model_provider_func(self, pre_process, post_process, add_encoder, add_decoder):
         # TODO: create get_encoder_decoder_model()here for different losses (e..g, nll, vae, mim)
@@ -160,47 +185,61 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
             max_position_embeddings=self.cfg.max_position_embeddings,
             num_attention_heads=self.cfg.num_attention_heads,
             ffn_hidden_size=self.cfg.ffn_hidden_size,
-            apply_query_key_layer_scaling=self.cfg.get('apply_query_key_layer_scaling', True),
-            kv_channels=self.cfg.get('kv_channels', None),
+            apply_query_key_layer_scaling=self.cfg.get(
+                "apply_query_key_layer_scaling", True
+            ),
+            kv_channels=self.cfg.get("kv_channels", None),
             num_tokentypes=0,
             parallel_output=True,
             pre_process=pre_process,
             post_process=post_process,
-            init_method_std=self.cfg.get('init_method_std', 0.02),
-            fp16_cross_entropy=self.cfg.get('fp16_lm_cross_entropy', False),
-            hidden_dropout=self.cfg.get('hidden_dropout', 0.1),
-            attention_dropout=self.cfg.get('attention_dropout', 0.1),
-            precision=self.cfg.get('precision', 16),
-            fp32_residual_connection=self.cfg.get('fp32_residual_connection', False),
-            activations_checkpoint_method=self.cfg.get('activations_checkpoint_method', None),
-            activations_checkpoint_num_layers=self.cfg.get('activations_checkpoint_num_layers', 1),
-            layernorm_epsilon=self.cfg.get('layernorm_epsilon', 1e-5),
-            persist_layer_norm=self.cfg.get('persist_layer_norm', False),
-            bias_gelu_fusion=self.cfg.get('bias_gelu_fusion', True),
-            bias_dropout_add_fusion=self.cfg.get('bias_dropout_add_fusion', True),
-            masked_softmax_fusion=self.cfg.get('masked_softmax_fusion', True),
-            onnx_safe=self.cfg.get('onnx_safe', False),
-            activation=self.cfg.get('activation', 'gelu'),
-            bias=self.cfg.get('bias', True),
-            normalization=self.cfg.get('normalization', 'layernorm'),
-            headscale=self.cfg.get('headscale', False),
-            transformer_block_type=self.cfg.get('transformer_block_type', 'pre_ln'),
+            init_method_std=self.cfg.get("init_method_std", 0.02),
+            fp16_cross_entropy=self.cfg.get("fp16_lm_cross_entropy", False),
+            hidden_dropout=self.cfg.get("hidden_dropout", 0.1),
+            attention_dropout=self.cfg.get("attention_dropout", 0.1),
+            precision=self.cfg.get("precision", 16),
+            fp32_residual_connection=self.cfg.get("fp32_residual_connection", False),
+            activations_checkpoint_method=self.cfg.get(
+                "activations_checkpoint_method", None
+            ),
+            activations_checkpoint_num_layers=self.cfg.get(
+                "activations_checkpoint_num_layers", 1
+            ),
+            layernorm_epsilon=self.cfg.get("layernorm_epsilon", 1e-5),
+            persist_layer_norm=self.cfg.get("persist_layer_norm", False),
+            bias_gelu_fusion=self.cfg.get("bias_gelu_fusion", True),
+            bias_dropout_add_fusion=self.cfg.get("bias_dropout_add_fusion", True),
+            masked_softmax_fusion=self.cfg.get("masked_softmax_fusion", True),
+            onnx_safe=self.cfg.get("onnx_safe", False),
+            activation=self.cfg.get("activation", "gelu"),
+            bias=self.cfg.get("bias", True),
+            normalization=self.cfg.get("normalization", "layernorm"),
+            headscale=self.cfg.get("headscale", False),
+            transformer_block_type=self.cfg.get("transformer_block_type", "pre_ln"),
             add_encoder=add_encoder,
             add_decoder=add_decoder,
-            chunk_size=self.cfg.get('chunk_size', 64),  # the chunk size used to retrive
-            enc_num_layers=self.cfg.get('enc_num_layers', 4),  # total number of encoder layers
-            dec_num_layers=self.cfg.get('dec_num_layers', 6),  # total number of decoder layers
-            enc_cross_attention=self.cfg.get('enc_cross_attention', [3]),  # layer numbers for cross attention
+            chunk_size=self.cfg.get("chunk_size", 64),  # the chunk size used to retrive
+            enc_num_layers=self.cfg.get(
+                "enc_num_layers", 4
+            ),  # total number of encoder layers
+            dec_num_layers=self.cfg.get(
+                "dec_num_layers", 6
+            ),  # total number of decoder layers
+            enc_cross_attention=self.cfg.get(
+                "enc_cross_attention", [3]
+            ),  # layer numbers for cross attention
             dec_cross_attention=self.cfg.get(
-                'dec_cross_attention', [3, 5]
+                "dec_cross_attention", [3, 5]
             ),  # layer numbers for chunked cross attention
             add_position_embedding=self.cfg.get(
-                'add_position_embedding', False
+                "add_position_embedding", False
             ),  # whether use the absolute postion encoding
             tokenizer=self.tokenizer,
-            activations_checkpoint_granularity=self.cfg.get('activations_checkpoint_granularity', None),
-            megatron_lm_compatible=self.cfg.get('megatron_lm_compatible', False),
-            version=self.cfg.get('version', 1),
+            activations_checkpoint_granularity=self.cfg.get(
+                "activations_checkpoint_granularity", None
+            ),
+            megatron_lm_compatible=self.cfg.get("megatron_lm_compatible", False),
+            version=self.cfg.get("version", 1),
         )
         return model
 
@@ -228,13 +267,13 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
         return output_tensor
 
     def training_step(self, batch, batch_idx):
-        input_tokens_id = batch['tokens']
-        input_attn_mask = batch['tokens_mask']
-        loss_mask = batch['loss_mask']
-        retrieved_ids = batch['retrieved_ids']
-        retrieved_attn_mask = batch['retrieved_emb_mask']
-        labels = batch['labels']
-        if self.cfg.get('add_position_embedding', False):
+        input_tokens_id = batch["tokens"]
+        input_attn_mask = batch["tokens_mask"]
+        loss_mask = batch["loss_mask"]
+        retrieved_ids = batch["retrieved_ids"]
+        retrieved_attn_mask = batch["retrieved_emb_mask"]
+        labels = batch["labels"]
+        if self.cfg.get("add_position_embedding", False):
             input_position_ids = build_position_ids(input_tokens_id)
         else:
             input_position_ids = None
@@ -254,7 +293,7 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
         if self.torch_dtype == torch.float16:
             loss_scale = self.trainer.precision_plugin.scaler._scale
             if loss_scale is not None:
-                self.log('loss_scale', loss_scale, batch_size=1)
+                self.log("loss_scale", loss_scale, batch_size=1)
 
         if self.with_distributed_adam:
             # gradients are reduced internally in distributed optimizer
@@ -263,10 +302,10 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
             # while async grad allreduce is enabled, bprop will keep moving forward without waiting for
             # the finish of async grad AR works. Hence, to guarantee the correctness of grads reduction,
             # we cannot start weight update until all async grad AR works are done.
-            if self.cfg.get('pipeline_model_parallel_size', 1) == 1:
+            if self.cfg.get("pipeline_model_parallel_size", 1) == 1:
                 torch.cuda.synchronize()
             # when using pipeline parallelism grads must be reduced after the pipeline (not asynchronously)
-            if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
+            if self.cfg.get("pipeline_model_parallel_size", 1) > 1:
                 # main grads are stored in the MainParamsOptimizer wrapper
                 self._optimizer.allreduce_main_grads()
         else:
@@ -277,13 +316,19 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
 
         if (batch_idx + 1) % self.trainer.accumulate_grad_batches == 0:
             # Reduced loss for logging.
-            average_reduced_loss = sum(self._reduced_loss_buffer) / len(self._reduced_loss_buffer)
-            self.log('reduced_train_loss', average_reduced_loss, prog_bar=True, batch_size=1)
-            lr = self._optimizer.param_groups[0]['lr']
-            self.log('lr', lr, batch_size=1)
-            self.log('global_step', self.trainer.global_step, prog_bar=True, batch_size=1)
+            average_reduced_loss = sum(self._reduced_loss_buffer) / len(
+                self._reduced_loss_buffer
+            )
             self.log(
-                'consumed_samples',
+                "reduced_train_loss", average_reduced_loss, prog_bar=True, batch_size=1
+            )
+            lr = self._optimizer.param_groups[0]["lr"]
+            self.log("lr", lr, batch_size=1)
+            self.log(
+                "global_step", self.trainer.global_step, prog_bar=True, batch_size=1
+            )
+            self.log(
+                "consumed_samples",
                 self._compute_consumed_samples_after_training_step(),
                 prog_bar=True,
                 batch_size=1,
@@ -293,13 +338,13 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
 
     def validation_step(self, batch, batch_idx):
         prefix = "test" if self.trainer.testing else "val"
-        input_tokens_id = batch['tokens']
-        input_attn_mask = batch['tokens_mask']
-        loss_mask = batch['loss_mask']
-        retrieved_ids = batch['retrieved_ids']
-        retrieved_attn_mask = batch['retrieved_emb_mask']
-        labels = batch['labels']
-        if self.cfg.get('add_position_embedding', False):
+        input_tokens_id = batch["tokens"]
+        input_attn_mask = batch["tokens_mask"]
+        loss_mask = batch["loss_mask"]
+        retrieved_ids = batch["retrieved_ids"]
+        retrieved_attn_mask = batch["retrieved_emb_mask"]
+        labels = batch["labels"]
+        if self.cfg.get("add_position_embedding", False):
             input_position_ids = build_position_ids(input_tokens_id)
         else:
             input_position_ids = None
@@ -314,7 +359,7 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
         loss_mask = loss_mask.float()
         lm_loss = torch.sum(loss.view(-1) * loss_mask.reshape(-1)) / loss_mask.sum()
         reduced_loss = average_losses_across_data_parallel_group([lm_loss])
-        if prefix == 'val':
+        if prefix == "val":
             self.validation_step_outputs.append(reduced_loss)
         else:
             self.test_step_outputs.append(reduced_loss)
@@ -324,10 +369,10 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
         if len(self.validation_step_outputs) == 0:
             return None
         averaged_loss = torch.stack(self.validation_step_outputs).mean()
-        self.log('val_loss', averaged_loss, prog_bar=True, batch_size=1)
+        self.log("val_loss", averaged_loss, prog_bar=True, batch_size=1)
         # formula to compute the perplexity
         # https://towardsdatascience.com/the-relationship-between-perplexity-and-entropy-in-nlp-f81888775ccc
-        self.log('perplexity', torch.exp(averaged_loss), prog_bar=True, batch_size=1)
+        self.log("perplexity", torch.exp(averaged_loss), prog_bar=True, batch_size=1)
         self.validation_step_outputs.clear()  # free memory
         return averaged_loss
 
@@ -336,18 +381,24 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
 
     def on_test_epoch_end(self):
         averaged_loss = torch.stack(self.test_step_outputs).mean()
-        self.log('test_loss', averaged_loss, prog_bar=True, batch_size=1)
-        logging.info(f'test_loss: {averaged_loss} ')
-        self.log('perplexity', torch.exp(averaged_loss), prog_bar=True, batch_size=1)
+        self.log("test_loss", averaged_loss, prog_bar=True, batch_size=1)
+        logging.info(f"test_loss: {averaged_loss} ")
+        self.log("perplexity", torch.exp(averaged_loss), prog_bar=True, batch_size=1)
         self.test_step_outputs.clear()  # free memory
         return averaged_loss
 
     def build_train_valid_test_datasets(self):
-        logging.info('Building RETRO datasets.')
-        global_batch_size = self.trainer.world_size * self.cfg.micro_batch_size // self.cfg.tensor_model_parallel_size
+        logging.info("Building RETRO datasets.")
+        global_batch_size = (
+            self.trainer.world_size
+            * self.cfg.micro_batch_size
+            // self.cfg.tensor_model_parallel_size
+        )
         # Compute trianing micro-batch steps: total_global_batch_steps x grad_acumms_per_global_batch
         max_train_steps = self.trainer.max_steps * self.trainer.accumulate_grad_batches
-        eval_iters = (max_train_steps // self.trainer.val_check_interval + 1) * self.trainer.limit_val_batches
+        eval_iters = (
+            max_train_steps // self.trainer.val_check_interval + 1
+        ) * self.trainer.limit_val_batches
         test_iters = self.trainer.limit_test_batches
 
         train_valid_test_num_samples = [
@@ -355,36 +406,40 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
             eval_iters * global_batch_size,
             test_iters * global_batch_size,
         ]
-        if self.cfg.data.get('mock', False):
-            self._train_ds, self._validation_ds, self._test_ds = build_mock_train_valid_test_datasets(
-                cfg=self.cfg,
-                trainer=self.trainer,
-                splits_string=self.cfg.data.splits_string,
-                tokenizer=self.tokenizer,
-                mock_data_size=self.cfg.data.get('mock_data_size', 10000),
+        if self.cfg.data.get("mock", False):
+            self._train_ds, self._validation_ds, self._test_ds = (
+                build_mock_train_valid_test_datasets(
+                    cfg=self.cfg,
+                    trainer=self.trainer,
+                    splits_string=self.cfg.data.splits_string,
+                    tokenizer=self.tokenizer,
+                    mock_data_size=self.cfg.data.get("mock_data_size", 10000),
+                )
             )
         else:
-            self._train_ds, self._validation_ds, self._test_ds = build_train_valid_test_datasets(
-                cfg=self.cfg,
-                trainer=self.trainer,
-                data_prefix=self.cfg.data.data_prefix,
-                data_impl=self.cfg.data.data_impl,
-                splits_string=self.cfg.data.splits_string,
-                train_valid_test_num_samples=train_valid_test_num_samples,
-                seq_length=self.cfg.data.seq_length,
-                seed=self.cfg.seed,
-                skip_warmup=self.cfg.data.get('skip_warmup', True),
-                tokenizer=self.tokenizer,
-                retrieval_prefix=self.cfg.data.retrieval_prefix,
-                knn_map_path=self.cfg.data.knn_index,
+            self._train_ds, self._validation_ds, self._test_ds = (
+                build_train_valid_test_datasets(
+                    cfg=self.cfg,
+                    trainer=self.trainer,
+                    data_prefix=self.cfg.data.data_prefix,
+                    data_impl=self.cfg.data.data_impl,
+                    splits_string=self.cfg.data.splits_string,
+                    train_valid_test_num_samples=train_valid_test_num_samples,
+                    seq_length=self.cfg.data.seq_length,
+                    seed=self.cfg.seed,
+                    skip_warmup=self.cfg.data.get("skip_warmup", True),
+                    tokenizer=self.tokenizer,
+                    retrieval_prefix=self.cfg.data.retrieval_prefix,
+                    knn_map_path=self.cfg.data.knn_index,
+                )
             )
         if self._train_ds is not None:
-            logging.info(f'Length of train dataset: {len(self._train_ds)}')
+            logging.info(f"Length of train dataset: {len(self._train_ds)}")
         if self._validation_ds is not None:
-            logging.info(f'Length of val dataset: {len(self._validation_ds)}')
+            logging.info(f"Length of val dataset: {len(self._validation_ds)}")
         if self._test_ds is not None:
-            logging.info(f'Length of test dataset: {len(self._test_ds)}')
-        logging.info(f'Finished building RETRO datasets.')
+            logging.info(f"Length of test dataset: {len(self._test_ds)}")
+        logging.info(f"Finished building RETRO datasets.")
         return self._train_ds, self._validation_ds, self._test_ds
 
     def build_pretraining_data_loader(self, dataset, consumed_samples):
@@ -393,10 +448,13 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
         if dataset is None:
             return None
 
-        logging.info(f'Building dataloader with consumed samples: {consumed_samples}')
+        logging.info(f"Building dataloader with consumed samples: {consumed_samples}")
         # Megatron sampler
-        if hasattr(self.cfg.data, 'dataloader_type') and self.cfg.data.dataloader_type is not None:
-            if self.cfg.data.dataloader_type == 'single':
+        if (
+            hasattr(self.cfg.data, "dataloader_type")
+            and self.cfg.data.dataloader_type is not None
+        ):
+            if self.cfg.data.dataloader_type == "single":
                 batch_sampler = MegatronPretrainingSampler(
                     total_samples=len(dataset),
                     consumed_samples=consumed_samples,
@@ -404,7 +462,7 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
                     data_parallel_rank=parallel_state.get_data_parallel_rank(),
                     data_parallel_size=parallel_state.get_data_parallel_world_size(),
                 )
-            elif self.cfg.data.dataloader_type == 'cyclic':
+            elif self.cfg.data.dataloader_type == "cyclic":
                 batch_sampler = MegatronPretrainingRandomSampler(
                     total_samples=len(dataset),
                     consumed_samples=consumed_samples,
@@ -413,9 +471,13 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
                     data_parallel_size=parallel_state.get_data_parallel_world_size(),
                 )
             else:
-                raise ValueError('cfg.data.dataloader_type must be "single" or "cyclic"')
+                raise ValueError(
+                    'cfg.data.dataloader_type must be "single" or "cyclic"'
+                )
         else:
-            raise ValueError('cfg.data.dataloader_type not found. Must be "single" or "cyclic"')
+            raise ValueError(
+                'cfg.data.dataloader_type not found. Must be "single" or "cyclic"'
+            )
 
         # Torch dataloader.
         return torch.utils.data.DataLoader(
@@ -428,13 +490,15 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
     def setup(self, stage=None):
         resume_checkpoint_path = self.trainer.ckpt_path
         if resume_checkpoint_path:
-            init_consumed_samples = self._extract_consumed_samples_from_ckpt(resume_checkpoint_path)
+            init_consumed_samples = self._extract_consumed_samples_from_ckpt(
+                resume_checkpoint_path
+            )
         else:
             init_consumed_samples = 0
         self.init_consumed_samples = init_consumed_samples
 
         """A PTL method to setup the training, validation and test datasets."""
-        if stage == 'predict':
+        if stage == "predict":
             return
         if self._train_dl is not None and self._validation_dl is not None:
             return
@@ -445,28 +509,38 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
 
     def set_inference_config(self, inference_config, retrieval_config):
         self._inference_config = inference_config
-        self.inference_strategy = model_inference_strategy_dispatcher(self, **retrieval_config)
+        self.inference_strategy = model_inference_strategy_dispatcher(
+            self, **retrieval_config
+        )
 
-    def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:
+    def predict_step(
+        self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None
+    ) -> Any:
         inference_config = self._inference_config
         if inference_config is None:
             return None
         else:
             # need to overwrite some configuration, make it immutable
             inference_config = inference_config.copy()
-            compute_logprob = inference_config['compute_logprob']
+            compute_logprob = inference_config["compute_logprob"]
             if compute_logprob:
-                inference_config['inputs'] = batch
-                inference_config['tokens_to_generate'] = 1
-                inference_config['all_probs'] = True
+                inference_config["inputs"] = batch
+                inference_config["tokens_to_generate"] = 1
+                inference_config["all_probs"] = True
                 inference_config["add_BOS"] = False
-                inference_config['greedy'] = True
-                response = generate(self, **inference_config, strategy=self.inference_strategy)
-                compute_prob_response = get_computeprob_response(self.tokenizer, response, batch)
+                inference_config["greedy"] = True
+                response = generate(
+                    self, **inference_config, strategy=self.inference_strategy
+                )
+                compute_prob_response = get_computeprob_response(
+                    self.tokenizer, response, batch
+                )
                 return compute_prob_response
             else:
-                inference_config['inputs'] = batch
-                return generate(self, **inference_config, strategy=self.inference_strategy)
+                inference_config["inputs"] = batch
+                return generate(
+                    self, **inference_config, strategy=self.inference_strategy
+                )
 
     def generate(
         self,
@@ -496,7 +570,9 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
         if length_params is None:
             length_params = get_default_length_params()
 
-        return megatron_gpt_generate(self.cuda(), inputs, self.tokenizer, length_params, sampling_params, **args)
+        return megatron_gpt_generate(
+            self.cuda(), inputs, self.tokenizer, length_params, sampling_params, **args
+        )
 
     def get_forward_output_only_func(self):
         """
@@ -524,34 +600,46 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
                 retrieved = retrieved.cuda()
                 retrieved_mask = retrieved_mask.cuda()
 
-            extra_arg['set_inference_key_value_memory'] = set_inference_key_value_memory[0].item()
-            extra_arg['inference_max_sequence_len'] = inference_max_sequence_len[0].item()
-            extra_arg['neighbors'] = neighbors[0].item()
-            extra_arg['position_ids'] = position_ids
+            extra_arg["set_inference_key_value_memory"] = (
+                set_inference_key_value_memory[0].item()
+            )
+            extra_arg["inference_max_sequence_len"] = inference_max_sequence_len[
+                0
+            ].item()
+            extra_arg["neighbors"] = neighbors[0].item()
+            extra_arg["position_ids"] = position_ids
 
-            output_tensor = model(tokens, attention_mask, retrieved, retrieved_mask, **extra_arg)
+            output_tensor = model(
+                tokens, attention_mask, retrieved, retrieved_mask, **extra_arg
+            )
 
             def id_func(output_tensor):
-                return output_tensor, {'logits': output_tensor}
+                return output_tensor, {"logits": output_tensor}
 
             return output_tensor, id_func
 
         return fwd_output_only_func
 
     def setup_training_data(self, cfg):
-        if hasattr(self, '_train_ds'):
+        if hasattr(self, "_train_ds"):
             consumed_samples = self.compute_consumed_samples(0)
-            self._train_dl = self.build_pretraining_data_loader(self._train_ds, consumed_samples)
+            self._train_dl = self.build_pretraining_data_loader(
+                self._train_ds, consumed_samples
+            )
 
     def setup_validation_data(self, cfg):
-        if hasattr(self, '_validation_ds'):
+        if hasattr(self, "_validation_ds"):
             consumed_samples = 0
-            self._validation_dl = self.build_pretraining_data_loader(self._validation_ds, consumed_samples)
+            self._validation_dl = self.build_pretraining_data_loader(
+                self._validation_ds, consumed_samples
+            )
 
     def setup_test_data(self, cfg):
-        if hasattr(self, '_test_ds'):
+        if hasattr(self, "_test_ds"):
             consumed_samples = 0
-            self._test_dl = self.build_pretraining_data_loader(self._test_ds, consumed_samples)
+            self._test_dl = self.build_pretraining_data_loader(
+                self._test_ds, consumed_samples
+            )
 
     def compute_consumed_samples(self, steps_since_resume=0):
         app_state = AppState()
@@ -566,7 +654,9 @@ class MegatronRetrievalModel(MegatronBaseModel, TextGeneration):
 
     def setup_optimizer_param_groups(self):
         """ModelPT override. Optimizer will get self._optimizer_param_groups"""
-        self._optimizer_param_groups = get_params_for_weight_decay_optimization([self.model])
+        self._optimizer_param_groups = get_params_for_weight_decay_optimization(
+            [self.model]
+        )
 
     def list_available_models(self):
         pass

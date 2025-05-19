@@ -40,8 +40,8 @@ def clean_split(name):
     """
     if "[" in name:
         name = name.split("[")[0]
-    if '+' in name:
-        name = name.split('+')[0]
+    if "+" in name:
+        name = name.split("+")[0]
     return name
 
 
@@ -87,13 +87,17 @@ def make_dataset_splits(dataset, split, split_aliases):
         alias_to_split[name] = name
 
     if isinstance(dataset, Dataset):
-        assert isinstance(split, str), "Expected split to be a string, but got {}".format(type(split))
+        assert isinstance(
+            split, str
+        ), "Expected split to be a string, but got {}".format(type(split))
         split = clean_split(split)
         split = alias_to_split[split]
         dataset_splits[split] = dataset
     elif isinstance(dataset, DatasetDict):
         dataset_split_names = dataset.keys()
-        logging.info("HF dataset has the following splits: {}".format(dataset_split_names))
+        logging.info(
+            "HF dataset has the following splits: {}".format(dataset_split_names)
+        )
         for alias_split_name, split in dataset.items():
             split_name = alias_to_split[alias_split_name]
             assert dataset_splits[split_name] is None
@@ -121,13 +125,15 @@ def make_dataset_splits(dataset, split, split_aliases):
 
     assert set(valid_split_names) == set(dataset_splits.keys()), dataset_splits.keys()
     num_init_splits = sum(map(lambda x: x is not None, dataset_splits.values()))
-    assert num_init_splits > 0, "Expected at least one split to have been initialized {}".format(num_init_splits)
+    assert (
+        num_init_splits > 0
+    ), "Expected at least one split to have been initialized {}".format(num_init_splits)
     return dataset_splits
 
 
 def has_dist_env_init_or_rank_env_var():
     """returns whether it runs on a dist-environment"""
-    return dist.is_initialized() or int(os.environ.get('WORLD_SIZE', '0')) > 1
+    return dist.is_initialized() or int(os.environ.get("WORLD_SIZE", "0")) > 1
 
 
 def batchify(tensor):
@@ -271,21 +277,31 @@ class HFDatasetDataModule(pl.LightningDataModule):
 
         # self.dataset_splits will hold the actual dataset for each split.
         if isinstance(path_or_dataset, str):
-            logging.info("Loading HF dataset from {}, this may take a moment.".format(path_or_dataset))
+            logging.info(
+                "Loading HF dataset from {}, this may take a moment.".format(
+                    path_or_dataset
+                )
+            )
             dataset = load_dataset(path_or_dataset, split=split, **kwargs)
-        elif isinstance(path_or_dataset, Dataset) or isinstance(path_or_dataset, DatasetDict):
+        elif isinstance(path_or_dataset, Dataset) or isinstance(
+            path_or_dataset, DatasetDict
+        ):
             logging.info("Using passed HF dataset {}".format(path_or_dataset))
             dataset = path_or_dataset
         else:
             raise ValueError(
-                "Expected `path_or_dataset` to be str, Dataset, DatasetDict, but got {}".format(type(path_or_dataset))
+                "Expected `path_or_dataset` to be str, Dataset, DatasetDict, but got {}".format(
+                    type(path_or_dataset)
+                )
             )
 
         self.dataset_splits = make_dataset_splits(dataset, split, split_aliases)
 
         if collate_fn is None:
             self._collate_fn = lambda x: self.collate_fn(
-                x, pad_token_id=self.pad_token_id, pad_seq_len_divisible=pad_seq_len_divisible
+                x,
+                pad_token_id=self.pad_token_id,
+                pad_seq_len_divisible=pad_seq_len_divisible,
             )
         else:
             self._collate_fn = collate_fn
@@ -312,7 +328,7 @@ class HFDatasetDataModule(pl.LightningDataModule):
                 torch.LongTensor(
                     pad_within_micro(
                         extract_key_from_dicts(batch, key),
-                        pad_token_id if key != 'loss_mask' else 0,
+                        pad_token_id if key != "loss_mask" else 0,
                         pad_seq_len_divisible,
                     )
                 )
@@ -325,7 +341,9 @@ class HFDatasetDataModule(pl.LightningDataModule):
         assert dataset is not None
         if collate_fn is None:
             collate_fn = lambda x: self.collate_fn(
-                x, pad_token_id=self.pad_token_id, pad_seq_len_divisible=self.pad_seq_len_divisible
+                x,
+                pad_token_id=self.pad_token_id,
+                pad_seq_len_divisible=self.pad_seq_len_divisible,
             )
 
         return DataLoader(
@@ -378,7 +396,9 @@ class HFDatasetDataModule(pl.LightningDataModule):
 
         for split_name in split_names:
             if self.dataset_splits[split_name] is not None:
-                self.dataset_splits[split_name] = self.dataset_splits[split_name].map(function, **kwargs)
+                self.dataset_splits[split_name] = self.dataset_splits[split_name].map(
+                    function, **kwargs
+                )
 
 
 class HFDatasetDataModulePacked(HFDatasetDataModule):
@@ -395,7 +415,12 @@ class HFDatasetDataModulePacked(HFDatasetDataModule):
     """
 
     def __init__(
-        self, path_or_dataset, packed_sequence_size, split_across_pack: bool = False, max_packs: int = None, **kwargs
+        self,
+        path_or_dataset,
+        packed_sequence_size,
+        split_across_pack: bool = False,
+        max_packs: int = None,
+        **kwargs,
     ):
         super().__init__(path_or_dataset, **kwargs)
         self.packed_sequence_size = packed_sequence_size
@@ -427,7 +452,9 @@ class HFDatasetDataModulePacked(HFDatasetDataModule):
         """
         assert dataset is not None
         packed_seq_helper_class = HFDatasetPackedSequenceHelper(dataset, split)
-        dataset = packed_seq_helper_class.pack(self.packed_sequence_size, self.split_across_pack, self.max_packs)
+        dataset = packed_seq_helper_class.pack(
+            self.packed_sequence_size, self.split_across_pack, self.max_packs
+        )
         return super()._make_dataloader(dataset, collate_fn)
 
     def train_dataloader(self):
@@ -450,7 +477,11 @@ class HellaSwagHFDataModule(HFDatasetDataModule):
         tokenizer.pad_token = tokenizer.eos_token
         self.pad_token_id = tokenizer.eos_id
         dataset = load_dataset(dataset_name)
-        super().__init__(HellaSwagHFDataModule.preprocess_dataset(tokenizer, 7500, dataset["train"]), *args, **kwargs)
+        super().__init__(
+            HellaSwagHFDataModule.preprocess_dataset(tokenizer, 7500, dataset["train"]),
+            *args,
+            **kwargs,
+        )
 
     @staticmethod
     def preprocess(text):
@@ -467,7 +498,9 @@ class HellaSwagHFDataModule(HFDatasetDataModule):
         """Processes a document from the HellaSwag dataset into a structured format suitable for training."""
         ctx = doc["ctx_a"] + " " + doc["ctx_b"].capitalize()
         query = HellaSwagHFDataModule.preprocess(doc["activity_label"] + ": " + ctx)
-        choices = [HellaSwagHFDataModule.preprocess(ending) for ending in doc["endings"]]
+        choices = [
+            HellaSwagHFDataModule.preprocess(ending) for ending in doc["endings"]
+        ]
         gold = int(doc["label"])
         out_doc = {
             "query": query,
@@ -495,7 +528,9 @@ class HellaSwagHFDataModule(HFDatasetDataModule):
             return ans
 
         # Apply preprocessing to each batch of the dataset & and remove "conversations" and "text" fields.
-        _preprocessing_function = partial(preprocess_batch, max_length=max_length, tokenizer=tokenizer)
+        _preprocessing_function = partial(
+            preprocess_batch, max_length=max_length, tokenizer=tokenizer
+        )
         dataset = dataset.map(
             _preprocessing_function,
             batched=True,
@@ -620,7 +655,11 @@ class HFMockDataModule(pl.LightningDataModule):
         self.collate_fn = lambda x: HFMockDataModule.collate_fn(x, pad_token_id=0)
         self.vocab_size = vocab_size
         if pad_seq_len_divisible is not None:
-            self.seq_length = (seq_length + pad_seq_len_divisible - 1) // pad_seq_len_divisible * pad_seq_len_divisible
+            self.seq_length = (
+                (seq_length + pad_seq_len_divisible - 1)
+                // pad_seq_len_divisible
+                * pad_seq_len_divisible
+            )
 
     def setup(self, stage: str = None) -> None:
         """setup"""
@@ -677,7 +716,7 @@ class HFMockDataModule(pl.LightningDataModule):
                 torch.LongTensor(
                     pad_within_micro(
                         extract_key_from_dicts(batch, key),
-                        pad_token_id if key != 'loss_mask' else 0,
+                        pad_token_id if key != "loss_mask" else 0,
                         pad_seq_len_divisible,
                     )
                 )
@@ -707,9 +746,9 @@ class _MockGPTDataset(torch.utils.data.Dataset):
         self.create_attention_mask = create_attention_mask
 
         if create_attention_mask:
-            self.attention_mask = np.tril(np.ones((self.seq_length, self.seq_length), dtype=np.float32))[
-                np.newaxis, :
-            ].tolist()
+            self.attention_mask = np.tril(
+                np.ones((self.seq_length, self.seq_length), dtype=np.float32)
+            )[np.newaxis, :].tolist()
 
         self.loss_mask = np.ones(self.seq_length, dtype=np.float32).tolist()
         self.position_ids = np.arange(self.seq_length, dtype=np.int64).tolist()
@@ -719,8 +758,12 @@ class _MockGPTDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, idx) -> Dict[str, list]:
         np_gen = np.random.default_rng(seed=(self.seed + idx))
-        input_ids = np_gen.integers(self.vocab_size, size=[self.seq_length], dtype=np.int64).tolist()
-        labels = np_gen.integers(self.vocab_size, size=[self.seq_length], dtype=np.int64).tolist()
+        input_ids = np_gen.integers(
+            self.vocab_size, size=[self.seq_length], dtype=np.int64
+        ).tolist()
+        labels = np_gen.integers(
+            self.vocab_size, size=[self.seq_length], dtype=np.int64
+        ).tolist()
 
         batch = {
             "input_ids": input_ids,

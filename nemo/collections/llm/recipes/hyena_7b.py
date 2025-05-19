@@ -42,14 +42,16 @@ def tokenizer() -> run.Config[TokenizerSpec]:
 
 
 @run.cli.factory(name=NAME)
-def model(tp_comm_overlap: bool = False, seq_length: int = 8192) -> run.Config[pl.LightningModule]:
+def model(
+    tp_comm_overlap: bool = False, seq_length: int = 8192
+) -> run.Config[pl.LightningModule]:
     """
     Factory function to create a Striped-Hyena 7B model configuration.
 
     Returns:
         run.Config[pl.LightningModule]: Configuration for the Striped-Hyena 7B model.
     """
-    return model_recipe('7b', tp_comm_overlap, seq_length)
+    return model_recipe("7b", tp_comm_overlap, seq_length)
 
 
 @run.cli.factory(target=pretrain, name=NAME)
@@ -61,7 +63,7 @@ def pretrain_recipe(
     num_gpus_per_node=8,
     tensor_parallel_size=4,
     context_parallel_size=2,
-    model_size='7b',
+    model_size="7b",
     fn=pretrain,
     **kwargs,
 ) -> run.Partial:
@@ -106,7 +108,7 @@ def finetune_recipe(
     num_gpus_per_node=8,
     tensor_parallel_size=4,
     context_parallel_size=2,
-    model_size='7b',
+    model_size="7b",
     fn=finetune,
     **kwargs,
 ) -> run.Partial:

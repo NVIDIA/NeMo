@@ -25,13 +25,19 @@ from nemo.collections.llm.gpt.model.hyena import \
 def get_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--hf-model", type=str, default="/home/TestData/nemo2_ckpt/HyenaConfig1B/savanna_evo2_1b_base.pt"
+        "--hf-model",
+        type=str,
+        default="/home/TestData/nemo2_ckpt/HyenaConfig1B/savanna_evo2_1b_base.pt",
     )
-    parser.add_argument("--output-path", type=str, default="/home/TestData/nemo2_ckpt/HyenaConfig1B/nemo2_hyena_1b")
+    parser.add_argument(
+        "--output-path",
+        type=str,
+        default="/home/TestData/nemo2_ckpt/HyenaConfig1B/nemo2_hyena_1b",
+    )
     return parser
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     args = get_parser().parse_args()
 
     evo2_config = llm.Hyena1bConfig()

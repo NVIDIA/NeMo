@@ -46,16 +46,18 @@ from nemo.lightning.pytorch.plugins import MegatronDataSampler
 
 def process_vision(processor, images, videos):
     # pylint: disable=C0115,C0116
-    assert isinstance(processor, Qwen2VLImageProcessor), "processor needs to be Qwen2VLImageProcessor"
+    assert isinstance(
+        processor, Qwen2VLImageProcessor
+    ), "processor needs to be Qwen2VLImageProcessor"
     if images is not None:
-        image_inputs = processor(images=images, videos=None, return_tensors='pt')
+        image_inputs = processor(images=images, videos=None, return_tensors="pt")
         image_grid_thw = image_inputs["image_grid_thw"]
     else:
         image_inputs = {}
         image_grid_thw = None
 
     if videos is not None:
-        videos_inputs = processor(images=None, videos=videos, return_tensors='pt')
+        videos_inputs = processor(images=None, videos=videos, return_tensors="pt")
         video_grid_thw = videos_inputs["video_grid_thw"]
     else:
         videos_inputs = {}
@@ -69,7 +71,9 @@ def process_vision(processor, images, videos):
     }
 
 
-def tokenize_special_token(prompt, tokenizer, vision_tensors, merge_length=2, special_token_map=None):
+def tokenize_special_token(
+    prompt, tokenizer, vision_tensors, merge_length=2, special_token_map=None
+):
     """
     Tokenizes a given prompt with special handling for multiple special tokens.
 
@@ -85,13 +89,17 @@ def tokenize_special_token(prompt, tokenizer, vision_tensors, merge_length=2, sp
     Returns:
     torch.Tensor: A tensor of token IDs representing the tokenized prompt with special tokens.
     """
-    if vision_tensors['image_grid_thw'] is not None:
-        image_token_length = vision_tensors['image_grid_thw'].prod(dim=1) // (merge_length**2)
+    if vision_tensors["image_grid_thw"] is not None:
+        image_token_length = vision_tensors["image_grid_thw"].prod(dim=1) // (
+            merge_length**2
+        )
     else:
         image_token_length = 0
 
-    if vision_tensors['video_grid_thw'] is not None:
-        video_token_length = vision_tensors['video_grid_thw'].prod(dim=1) // (merge_length**2)
+    if vision_tensors["video_grid_thw"] is not None:
+        video_token_length = vision_tensors["video_grid_thw"].prod(dim=1) // (
+            merge_length**2
+        )
     else:
         video_token_length = 0
     # Use the default special token map if none is provided
@@ -102,7 +110,9 @@ def tokenize_special_token(prompt, tokenizer, vision_tensors, merge_length=2, sp
     special_token_dict = {token: index for token, index in special_token_map}
 
     # Split the prompt into chunks and track special tokens
-    regex_pattern = '(' + '|'.join(re.escape(token) for token in special_token_dict.keys()) + ')'
+    regex_pattern = (
+        "(" + "|".join(re.escape(token) for token in special_token_dict.keys()) + ")"
+    )
     chunks = re.split(regex_pattern, prompt)
 
     # Tokenize each chunk and replace special tokens with their indices
@@ -111,10 +121,14 @@ def tokenize_special_token(prompt, tokenizer, vision_tensors, merge_length=2, sp
     video_index = 0
     for chunk in chunks:
         if chunk in special_token_dict and chunk == "<|image_pad|>":
-            tokenized_chunks.extend([special_token_dict[chunk]] * image_token_length[image_index])
+            tokenized_chunks.extend(
+                [special_token_dict[chunk]] * image_token_length[image_index]
+            )
             image_index += 1
         elif chunk in special_token_dict and chunk == "<|video_pad|>":
-            tokenized_chunks.extend([special_token_dict[chunk]] * video_token_length[video_index])
+            tokenized_chunks.extend(
+                [special_token_dict[chunk]] * video_token_length[video_index]
+            )
             video_index += 1
         elif chunk in special_token_dict:
             tokenized_chunks.append(special_token_dict[chunk])
@@ -123,20 +137,24 @@ def tokenize_special_token(prompt, tokenizer, vision_tensors, merge_length=2, sp
             tokenized_chunks.extend(tokenized_chunk.input_ids)
 
     assert vision_tensors["image_grid_thw"] is None or image_index == len(
-        vision_tensors['image_grid_thw']
+        vision_tensors["image_grid_thw"]
     ), f"{image_index=} != {len(vision_tensors['image_grid_thw'])=}"
     assert vision_tensors["video_grid_thw"] is None or video_index == len(
-        vision_tensors['video_grid_thw']
+        vision_tensors["video_grid_thw"]
     ), f"{video_index=} != {len(vision_tensors['video_grid_thw'])=}"
     return tokenized_chunks
 
 
-def find_pattern_indices(template, pattern, search_start_index=0, allow_first_token_mismatch=False):
+def find_pattern_indices(
+    template, pattern, search_start_index=0, allow_first_token_mismatch=False
+):
     # pylint: disable=C0115,C0116
     template_len = len(template)
     pattern_len = len(pattern)
     for i in range(search_start_index, template_len - pattern_len + 1):
-        match = torch.tensor([template[i + j] == pattern[j] for j in range(pattern_len)])
+        match = torch.tensor(
+            [template[i + j] == pattern[j] for j in range(pattern_len)]
+        )
         if torch.all(match) or (allow_first_token_mismatch and torch.all(match[1:])):
             return i, i + pattern_len
     return -1, -1
@@ -192,9 +210,9 @@ def extract_dialogue_pairs(tokens, decoded_tokens):
         # Detect user dialogue start
         if (
             i + 2 < len(decoded_tokens)
-            and decoded_tokens[i] == '<|im_start|>'
-            and decoded_tokens[i + 1] == 'user'
-            and decoded_tokens[i + 2] == '\n'
+            and decoded_tokens[i] == "<|im_start|>"
+            and decoded_tokens[i + 1] == "user"
+            and decoded_tokens[i + 2] == "\n"
         ):
             if first_user_start == -1:
                 first_user_start = i
@@ -214,11 +232,11 @@ def extract_dialogue_pairs(tokens, decoded_tokens):
         if (
             in_user
             and i + 4 < len(decoded_tokens)
-            and decoded_tokens[i] == '<|im_end|>'
-            and decoded_tokens[i + 1] == '\n'
-            and decoded_tokens[i + 2] == '<|im_start|>'
-            and decoded_tokens[i + 3] == 'assistant'
-            and decoded_tokens[i + 4] == '\n'
+            and decoded_tokens[i] == "<|im_end|>"
+            and decoded_tokens[i + 1] == "\n"
+            and decoded_tokens[i + 2] == "<|im_start|>"
+            and decoded_tokens[i + 3] == "assistant"
+            and decoded_tokens[i + 4] == "\n"
         ):
             user_end_idx = i + 4
             assistant_start_idx = i + 5
@@ -230,15 +248,20 @@ def extract_dialogue_pairs(tokens, decoded_tokens):
         # Detect assistant dialogue end
         if (
             in_assistant
-            and decoded_tokens[i] == '<|im_end|>'
+            and decoded_tokens[i] == "<|im_end|>"
             and i + 1 < len(decoded_tokens)
-            and decoded_tokens[i + 1] == '\n'
+            and decoded_tokens[i + 1] == "\n"
         ):
             assistant_end_idx = i + 1
             in_assistant = False
 
             # Found a complete dialogue pair
-            if user_start_idx != -1 and user_end_idx != -1 and assistant_start_idx != -1 and assistant_end_idx != -1:
+            if (
+                user_start_idx != -1
+                and user_end_idx != -1
+                and assistant_start_idx != -1
+                and assistant_end_idx != -1
+            ):
                 user_tokens = tokens[user_start_idx : user_end_idx + 1]
                 assistant_tokens = tokens[assistant_start_idx : assistant_end_idx + 1]
                 dialogue_pairs.append([user_tokens, assistant_tokens])
@@ -291,7 +314,9 @@ def truncate_tokens(tokens, labels, max_sequence_length, tokenizer):
         target_labels = current_labels[len(source_ids) :]
 
         # infer the length of source and target
-        source_len, target_len = infer_seqlen(len(source_ids), len(target_ids), max_sequence_length - total_length)
+        source_len, target_len = infer_seqlen(
+            len(source_ids), len(target_ids), max_sequence_length - total_length
+        )
         source_ids = source_ids[:source_len]
         target_ids = target_ids[:target_len]
         truncated_tokens += source_ids + target_ids
@@ -302,14 +327,19 @@ def truncate_tokens(tokens, labels, max_sequence_length, tokenizer):
 
         total_length += source_len + target_len
 
-    if len([i for i in truncated_tokens if i == VISION_END_TOKEN_INDEX]) != vision_token_num:
+    if (
+        len([i for i in truncated_tokens if i == VISION_END_TOKEN_INDEX])
+        != vision_token_num
+    ):
         raise ValueError(
             f"Image/video tokens was truncated. This will cause training to fail. "
             f"Please increase max_sequence_length {max_sequence_length=} to accommodate "
             f"the full image/video token sequence."
         )
 
-    return torch.tensor(truncated_tokens, dtype=torch.long), torch.tensor(truncated_labels, dtype=torch.long)
+    return torch.tensor(truncated_tokens, dtype=torch.long), torch.tensor(
+        truncated_labels, dtype=torch.long
+    )
 
 
 class PreloadedSupervisedDataset(Dataset):
@@ -347,7 +377,9 @@ class PreloadedSupervisedDataset(Dataset):
         self.list_data_dict = list_data_dict
 
         self.image_folder = getattr(data_config, "image_folder", None)
-        self.video_folder = getattr(data_config, "video_folder", None) or self.image_folder
+        self.video_folder = (
+            getattr(data_config, "video_folder", None) or self.image_folder
+        )
 
     def __len__(self):
         return len(self.list_data_dict)
@@ -356,16 +388,20 @@ class PreloadedSupervisedDataset(Dataset):
         source = self.list_data_dict[i]
         # To prevent multiple threads from modifying conv at the same time
         conv = copy.deepcopy(supported_conv_templates[self.conv_template])
-        chatml = self._apply_prompt_templates(conv, source, use_plain=self.conv_template == "plain")
+        chatml = self._apply_prompt_templates(
+            conv, source, use_plain=self.conv_template == "plain"
+        )
 
-        vision_tensors = self._process_vision(source, self.image_folder, self.video_folder)
+        vision_tensors = self._process_vision(
+            source, self.image_folder, self.video_folder
+        )
         tokens, labels = self._tokenize_and_label(conv, chatml, vision_tensors)
 
         data_dict = dict(
             tokens=tokens,
             labels=labels,
-            **vision_tensors['image_inputs'],
-            **vision_tensors['video_inputs'],
+            **vision_tensors["image_inputs"],
+            **vision_tensors["video_inputs"],
         )
         return data_dict
 
@@ -393,7 +429,9 @@ class PreloadedSupervisedDataset(Dataset):
                     continue
 
                 # Skip URLs and absolute paths
-                if any(prefix in path for prefix in ["http:", "https:", "file:"]) or os.path.isabs(path):
+                if any(
+                    prefix in path for prefix in ["http:", "https:", "file:"]
+                ) or os.path.isabs(path):
                     continue
 
                 # Convert relative path to absolute path
@@ -402,8 +440,8 @@ class PreloadedSupervisedDataset(Dataset):
             return paths
 
         # Get image and video paths
-        images = source.get('images', [])
-        videos = source.get('videos', [])
+        images = source.get("images", [])
+        videos = source.get("videos", [])
 
         # Process image and video paths
         images = normalize_paths(images, image_folder)
@@ -426,11 +464,15 @@ class PreloadedSupervisedDataset(Dataset):
 
     def _process_vision(self, source, image_folder, video_folder):
         # normalize image and video paths
-        images, videos = self._normalize_vision_paths(source, image_folder, video_folder)
+        images, videos = self._normalize_vision_paths(
+            source, image_folder, video_folder
+        )
         # leave the I/O and smart_resize to qwen_vl_utils, which is maintained on github by Qwen Team.
         image_inputs, video_inputs = self._fetch_vision_content(images, videos)
         # call Huggingface processor to get patches and size info, which is maintained by Qwen Team as well.
-        vision_tensors = process_vision(self.image_processor, image_inputs, video_inputs)
+        vision_tensors = process_vision(
+            self.image_processor, image_inputs, video_inputs
+        )
         return vision_tensors
 
     def _apply_prompt_templates(self, conv, source, use_plain=False):
@@ -468,14 +510,17 @@ class PreloadedSupervisedDataset(Dataset):
 
         # FIXME: Current implementation does not support system prompt in the data.
         # FIXME: Current implementation does not support tools in the data.
-        messages = source['messages']
-        if source.get('system', None) is not None:
-            conv.system = source['system']
+        messages = source["messages"]
+        if source.get("system", None) is not None:
+            conv.system = source["system"]
 
         def _fix_roles(roles):
             if len(messages) < 2:
                 return roles
-            return {messages[0]["role"]: conv.roles[0], messages[1]["role"]: conv.roles[1]}
+            return {
+                messages[0]["role"]: conv.roles[0],
+                messages[1]["role"]: conv.roles[1],
+            }
 
         roles = _fix_roles(roles)
 
@@ -487,10 +532,14 @@ class PreloadedSupervisedDataset(Dataset):
 
         prompt = conv.get_prompt()
 
-        images = source.get('images', [])
-        videos = source.get('videos', [])
-        assert prompt.count("<image>") == len(images), f"{prompt.count('<image>')=} != {len(images)=}"
-        assert prompt.count("<video>") == len(videos), f"{prompt.count('<video>')=} != {len(videos)=}"
+        images = source.get("images", [])
+        videos = source.get("videos", [])
+        assert prompt.count("<image>") == len(
+            images
+        ), f"{prompt.count('<image>')=} != {len(images)=}"
+        assert prompt.count("<video>") == len(
+            videos
+        ), f"{prompt.count('<video>')=} != {len(videos)=}"
 
         image_block = "<|vision_start|><|image_pad|><|vision_end|>"
         video_block = "<|vision_start|><|video_pad|><|vision_end|>"
@@ -500,7 +549,10 @@ class PreloadedSupervisedDataset(Dataset):
 
     def _tokenize_and_label(self, conv, chatml, vision_tensors):
         tokens = tokenize_special_token(
-            chatml, self.tokenizer, vision_tensors, merge_length=self.image_processor.merge_size
+            chatml,
+            self.tokenizer,
+            vision_tensors,
+            merge_length=self.image_processor.merge_size,
         )
 
         labels = [IGNORE_INDEX for _ in range(len(tokens))]
@@ -508,7 +560,7 @@ class PreloadedSupervisedDataset(Dataset):
         messages = conv.messages
         for i in range(len(messages)):
             role = messages[i][0]
-            if role == 'assistant':
+            if role == "assistant":
                 stop_str = getattr(conv, "stop_str", None)
 
                 answer = messages[i][1]
@@ -517,7 +569,9 @@ class PreloadedSupervisedDataset(Dataset):
                     answer + ("" if stop_str is None else stop_str) + "\n",
                     add_special_tokens=False,
                 )
-                answer_start, answer_end = find_pattern_indices(tokens, answer_tokens, search_start_index)
+                answer_start, answer_end = find_pattern_indices(
+                    tokens, answer_tokens, search_start_index
+                )
                 assert answer_start > 0, "Not found valid answer in conversation."
                 labels[answer_start:answer_end] = tokens[answer_start:answer_end]
                 search_start_index = answer_end
@@ -528,16 +582,23 @@ class PreloadedSupervisedDataset(Dataset):
                 f"for this model ({len(tokens) - 1} > {self.sequence_length}). "
                 f"Running this sequence through the model will result in indexing errors."
             )
-            tokens, labels = truncate_tokens(tokens, labels, self.sequence_length, self.tokenizer)
+            tokens, labels = truncate_tokens(
+                tokens, labels, self.sequence_length, self.tokenizer
+            )
         else:
-            tokens, labels = torch.tensor(tokens, dtype=torch.long), torch.tensor(labels, dtype=torch.long)
+            tokens, labels = torch.tensor(tokens, dtype=torch.long), torch.tensor(
+                labels, dtype=torch.long
+            )
         tokens = tokens[:-1]
         labels = labels[1:]
         return tokens, labels
 
     def _get_crop_size(self):
         if isinstance(self.image_processor, CLIPImageProcessor):
-            return [self.image_processor.crop_size['height'], self.image_processor.crop_size['width']]
+            return [
+                self.image_processor.crop_size["height"],
+                self.image_processor.crop_size["width"],
+            ]
         else:
             raise NotImplementedError
 
@@ -555,12 +616,16 @@ class Qwen2VLDataset(PreloadedSupervisedDataset):
     ):
 
         if data_path.endswith(".json"):
-            super().__init__(data_path, data_config, tokenizer, image_processor, sequence_length)
+            super().__init__(
+                data_path, data_config, tokenizer, image_processor, sequence_length
+            )
         elif data_path.endswith(".jsonl"):
             # FIXME: implement support for more data formats
-            super().__init__(None, data_config, tokenizer, image_processor, sequence_length)
+            super().__init__(
+                None, data_config, tokenizer, image_processor, sequence_length
+            )
             logging.warning("Loading image inputs from Dataset...")
-            if data_config.media_type == 'image':
+            if data_config.media_type == "image":
                 image_folder = data_config.image_folder
                 for line in open(data_path, "r"):
                     record = json.loads(line)
@@ -569,17 +634,19 @@ class Qwen2VLDataset(PreloadedSupervisedDataset):
                     # search for <img src="/absolute/path/to/image" in the conversation
                     #   add it as record['image'], remove src tag from the <img> tag
 
-                    record['image'] = []
-                    for turn in record['conversations']:
-                        matches = re.finditer('<img src="([^"]+)"', turn['value'])
+                    record["image"] = []
+                    for turn in record["conversations"]:
+                        matches = re.finditer('<img src="([^"]+)"', turn["value"])
                         for match in matches:
                             image_name = match.group(1).split("/")[-1]
                             image_path = os.path.join(image_folder, image_name)
                             if not os.path.isfile(image_path):
                                 logging.warning(f"Image not found: {image_path}")
                                 continue
-                            record['image'].append(image_name)  # url
-                        turn['value'] = re.sub('<img src="([^"]+)">', "<image>", turn['value'])
+                            record["image"].append(image_name)  # url
+                        turn["value"] = re.sub(
+                            '<img src="([^"]+)">', "<image>", turn["value"]
+                        )
 
                     self.list_data_dict.append(record)
 
@@ -593,58 +660,72 @@ class Qwen2VLDataset(PreloadedSupervisedDataset):
         data_config = self.data_config
         # FIXME: packed_sequence is not supported yet.
         packed_sequence = "cu_seqlens" in instances[0]
-        max_len = max(instance['tokens'].shape[0] for instance in instances)
+        max_len = max(instance["tokens"].shape[0] for instance in instances)
         max_len = (max_len - 1) // 64 * 64 + 64
         for instance in instances:
-            pad_len = max_len - instance['tokens'].shape[0]
-            instance['tokens'] = F.pad(instance['tokens'], (0, pad_len), 'constant', 0)
-            instance['labels'] = F.pad(instance['labels'], (0, pad_len), 'constant', IGNORE_INDEX)
+            pad_len = max_len - instance["tokens"].shape[0]
+            instance["tokens"] = F.pad(instance["tokens"], (0, pad_len), "constant", 0)
+            instance["labels"] = F.pad(
+                instance["labels"], (0, pad_len), "constant", IGNORE_INDEX
+            )
             # FIXME: packed_sequence is not supported yet.
             if packed_sequence and instance["cu_seqlens"][-1] != max_len:
-                instance["cu_seqlens"] = torch.cat((instance["cu_seqlens"], torch.IntTensor([max_len])), 0)
+                instance["cu_seqlens"] = torch.cat(
+                    (instance["cu_seqlens"], torch.IntTensor([max_len])), 0
+                )
 
         # FIXME: packed_sequence is not supported yet.
         if packed_sequence:
-            max_len_cu = max(instance['cu_seqlens'].shape[0] for instance in instances)
-            max_len_image = max(instance['image'].shape[0] for instance in instances)
+            max_len_cu = max(instance["cu_seqlens"].shape[0] for instance in instances)
+            max_len_image = max(instance["image"].shape[0] for instance in instances)
             for instance in instances:
-                pad_len_cu = max_len_cu - instance['cu_seqlens'].shape[0]
-                instance['cu_seqlens'] = F.pad(instance['cu_seqlens'], (0, pad_len_cu), 'constant', max_len)
+                pad_len_cu = max_len_cu - instance["cu_seqlens"].shape[0]
+                instance["cu_seqlens"] = F.pad(
+                    instance["cu_seqlens"], (0, pad_len_cu), "constant", max_len
+                )
 
-                x = instance['pixel_values']
+                x = instance["pixel_values"]
                 num_pad = max_len_image - x.shape[0]
-                pad_tensor = torch.zeros(num_pad, *x.shape[1:], dtype=x.dtype, device=x.device)
-                instance['pixel_values'] = torch.cat((x, pad_tensor), dim=0)
+                pad_tensor = torch.zeros(
+                    num_pad, *x.shape[1:], dtype=x.dtype, device=x.device
+                )
+                instance["pixel_values"] = torch.cat((x, pad_tensor), dim=0)
 
         batch = {
-            'input_ids': torch.stack([instance['tokens'] for instance in instances]),
-            'labels': torch.stack([instance['labels'] for instance in instances]),
+            "input_ids": torch.stack([instance["tokens"] for instance in instances]),
+            "labels": torch.stack([instance["labels"] for instance in instances]),
         }
 
-        if 'pixel_values' in instances[0]:
-            batch['pixel_values'] = torch.cat([instance['pixel_values'] for instance in instances], dim=0)
-        else:
-            batch['pixel_values'] = None
-        if 'image_grid_thw' in instances[0]:
-            batch['image_grid_thw'] = torch.cat([instance['image_grid_thw'] for instance in instances], dim=0)
-        else:
-            batch['image_grid_thw'] = None
-
-        if 'pixel_values_videos' in instances[0]:
-            batch['pixel_values_videos'] = torch.cat(
-                [instance['pixel_values_videos'] for instance in instances], dim=0
+        if "pixel_values" in instances[0]:
+            batch["pixel_values"] = torch.cat(
+                [instance["pixel_values"] for instance in instances], dim=0
             )
         else:
-            batch['pixel_values_videos'] = None
-        if 'video_grid_thw' in instances[0]:
-            batch['video_grid_thw'] = torch.cat([instance['video_grid_thw'] for instance in instances], dim=0)
+            batch["pixel_values"] = None
+        if "image_grid_thw" in instances[0]:
+            batch["image_grid_thw"] = torch.cat(
+                [instance["image_grid_thw"] for instance in instances], dim=0
+            )
         else:
-            batch['video_grid_thw'] = None
+            batch["image_grid_thw"] = None
+
+        if "pixel_values_videos" in instances[0]:
+            batch["pixel_values_videos"] = torch.cat(
+                [instance["pixel_values_videos"] for instance in instances], dim=0
+            )
+        else:
+            batch["pixel_values_videos"] = None
+        if "video_grid_thw" in instances[0]:
+            batch["video_grid_thw"] = torch.cat(
+                [instance["video_grid_thw"] for instance in instances], dim=0
+            )
+        else:
+            batch["video_grid_thw"] = None
 
         tokenizer = self.tokenizer
 
-        tokens = batch['input_ids']
-        labels = batch['labels']
+        tokens = batch["input_ids"]
+        labels = batch["labels"]
 
         if packed_sequence:
             # FIXME: packed_sequence is not supported yet.
@@ -656,8 +737,12 @@ class Qwen2VLDataset(PreloadedSupervisedDataset):
                     seqlen = cu_seqlen[ind + 1] - cu_seqlen[ind]
                     position_ids[-1].extend(list(range(seqlen)))
             position_ids = torch.LongTensor(position_ids)
-            loss_mask = torch.ones(tokens.size(), dtype=torch.float, device=tokens.device)
-            attention_mask = torch.ones(tokens.size(), dtype=torch.long, device=tokens.device)
+            loss_mask = torch.ones(
+                tokens.size(), dtype=torch.float, device=tokens.device
+            )
+            attention_mask = torch.ones(
+                tokens.size(), dtype=torch.long, device=tokens.device
+            )
         else:
             attention_mask, loss_mask, position_ids = get_ltor_masks_and_position_ids(
                 data=tokens,
@@ -669,7 +754,7 @@ class Qwen2VLDataset(PreloadedSupervisedDataset):
 
         loss_mask[labels < 0] = 0.0
 
-        batch['loss_mask'] = loss_mask
+        batch["loss_mask"] = loss_mask
 
         if packed_sequence:
             batch["cu_seqlens"] = cu_seqlens
@@ -744,10 +829,18 @@ class Qwen2VLPreloadedDataModule(pl.LightningDataModule):
             # TODO:
             # rng = torch.Generator().manual_seed(self.seed)
             self._train_ds = Qwen2VLDataset(
-                self.paths[0], self.data_config, self.tokenizer, self.image_processor, sequence_length=self.seq_length
+                self.paths[0],
+                self.data_config,
+                self.tokenizer,
+                self.image_processor,
+                sequence_length=self.seq_length,
             )
             self._validation_ds = Qwen2VLDataset(
-                self.paths[0], self.data_config, self.tokenizer, self.image_processor, sequence_length=self.seq_length
+                self.paths[0],
+                self.data_config,
+                self.tokenizer,
+                self.image_processor,
+                sequence_length=self.seq_length,
             )
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
@@ -771,7 +864,7 @@ class Qwen2VLPreloadedDataModule(pl.LightningDataModule):
             num_workers=self.num_workers,
             pin_memory=self.pin_memory,
             persistent_workers=self.persistent_workers,
-            collate_fn=getattr(dataset, 'collate_fn', data.dataloader.default_collate),
+            collate_fn=getattr(dataset, "collate_fn", data.dataloader.default_collate),
             **kwargs,
         )
 
@@ -782,8 +875,10 @@ class Qwen2VLPreloadedDataModule(pl.LightningDataModule):
             A dictionary containing datamodule state.
 
         """
-        consumed_samples = self.data_sampler.compute_consumed_samples(self.trainer.global_step - self.init_global_step)
-        return {'consumed_samples': consumed_samples}
+        consumed_samples = self.data_sampler.compute_consumed_samples(
+            self.trainer.global_step - self.init_global_step
+        )
+        return {"consumed_samples": consumed_samples}
 
     def load_state_dict(self, state_dict: Dict[str, Any]) -> None:
         """Called when loading a checkpoint, implement to reload datamodule state given datamodule stat
@@ -798,13 +893,15 @@ class Qwen2VLPreloadedDataModule(pl.LightningDataModule):
         except ModuleNotFoundError:
             from nemo.lightning.apex_utils import \
                 _GLOBAL_NUM_MICROBATCHES_CALCULATOR
-        consumed_samples = state_dict['consumed_samples']
+        consumed_samples = state_dict["consumed_samples"]
         self.data_sampler.init_consumed_samples = consumed_samples
         self.data_sampler.prev_consumed_samples = consumed_samples
         self.if_first_step = 1
 
         if _GLOBAL_NUM_MICROBATCHES_CALCULATOR is not None:
-            num_microbatch_calculator = _GLOBAL_NUM_MICROBATCHES_CALCULATOR  # noqa: SLF001
+            num_microbatch_calculator = (
+                _GLOBAL_NUM_MICROBATCHES_CALCULATOR  # noqa: SLF001
+            )
 
             num_microbatch_calculator.update(
                 consumed_samples=consumed_samples,

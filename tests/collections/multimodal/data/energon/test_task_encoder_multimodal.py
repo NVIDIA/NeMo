@@ -38,14 +38,19 @@ class TestMultiModalTaskEncoder(unittest.TestCase):
 
     def setUp(self):
         self.config = MultiModalSampleConfig(
-            image_token=ImageToken(token_str="<image>", token_id=-200), ignore_place_holder=-100
+            image_token=ImageToken(token_str="<image>", token_id=-200),
+            ignore_place_holder=-100,
         )
         self.encoder = MultiModalTaskEncoder(
-            tokenizer=self.tokenizer, image_processor=self.image_processor, multimodal_sample_config=self.config
+            tokenizer=self.tokenizer,
+            image_processor=self.image_processor,
+            multimodal_sample_config=self.config,
         )
 
     def test_register_encoder(self):
-        mock_encoder = VQASampleEncoder(self.tokenizer, self.image_processor, self.config)
+        mock_encoder = VQASampleEncoder(
+            self.tokenizer, self.image_processor, self.config
+        )
         self.encoder.register_encoder("CustomSample", mock_encoder)
         self.assertIn("CustomSample", self.encoder.encoders)
 
@@ -82,7 +87,11 @@ class TestMultiModalTaskEncoder(unittest.TestCase):
             __key__="sample_key",
             images=[torch.rand(3, 224, 224), torch.rand(3, 224, 224)],
             matched_text_indices=[0, 2],
-            texts=["This is the first sentence.", "This is the second sentence.", "This is the third sentence."],
+            texts=[
+                "This is the first sentence.",
+                "This is the second sentence.",
+                "This is the third sentence.",
+            ],
             similarity_matrix=None,
             __restore_key__=None,
             __subflavor__=None,
@@ -114,9 +123,13 @@ class TestMultiModalTaskEncoder(unittest.TestCase):
         self.assertIsInstance(batch, ImageTextRawBatch)
         self.assertEqual(batch.images.shape[0], len(samples))
         self.assertEqual(batch.tokens.shape[0], len(samples))
-        self.assertEqual(batch.tokens.shape[1], max(sample.tokens.shape[0] for sample in samples))
+        self.assertEqual(
+            batch.tokens.shape[1], max(sample.tokens.shape[0] for sample in samples)
+        )
         self.assertEqual(batch.labels.shape[0], len(samples))
-        self.assertEqual(batch.labels.shape[1], max(sample.labels.shape[0] for sample in samples))
+        self.assertEqual(
+            batch.labels.shape[1], max(sample.labels.shape[0] for sample in samples)
+        )
         self.assertEqual(batch.loss_mask.shape[0], len(samples))
 
     def test_encode_batch(self):
@@ -139,13 +152,13 @@ class TestMultiModalTaskEncoder(unittest.TestCase):
         batch = self.encoder.batch(samples)
         encoded_batch = self.encoder.encode_batch(batch)
         self.assertIsInstance(encoded_batch, dict)
-        self.assertIn('position_ids', encoded_batch)
-        self.assertIn('tokens', encoded_batch)
-        self.assertIn('labels', encoded_batch)
-        self.assertIn('loss_mask', encoded_batch)
-        self.assertIn('attention_mask', encoded_batch)
-        self.assertEqual(encoded_batch['tokens'].shape[0], len(samples))
+        self.assertIn("position_ids", encoded_batch)
+        self.assertIn("tokens", encoded_batch)
+        self.assertIn("labels", encoded_batch)
+        self.assertIn("loss_mask", encoded_batch)
+        self.assertIn("attention_mask", encoded_batch)
+        self.assertEqual(encoded_batch["tokens"].shape[0], len(samples))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

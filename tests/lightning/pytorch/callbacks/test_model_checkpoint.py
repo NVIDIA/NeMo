@@ -144,7 +144,7 @@ class ExampleModel(pl.LightningModule, IOMixin):
     def test_dataloader(self):
         dataset = RandomDataset(32, 16)
         dl = torch.utils.data.DataLoader(dataset, batch_size=2)
-        self._test_names = ['test_{}_'.format(idx) for idx in range(len(dl))]
+        self._test_names = ["test_{}_".format(idx) for idx in range(len(dl))]
         return dl
 
     def training_step(self, batch):
@@ -210,7 +210,7 @@ def setup_test(path, async_save=False, max_epochs=3):
             save_top_k=3,
             save_on_train_epoch_end=True,
             save_context_on_train_end=False,
-            filename=f'{{step}}-{{epoch}}-{{val_loss}}-{{consumed_samples}}',
+            filename=f"{{step}}-{{epoch}}-{{val_loss}}-{{consumed_samples}}",
             save_last="link",
         ),
         strategy=strategy,
@@ -296,5 +296,7 @@ class TestLinkCheckpoint:
             assert os.path.islink(final_ckpt)
             assert len(top_k_checkpoints) == 3
 
-            epoch = str(final_ckpt).split('epoch=')[1][0]
-            assert int(epoch) == 5  ## make sure we're running the correct number of epochs
+            epoch = str(final_ckpt).split("epoch=")[1][0]
+            assert (
+                int(epoch) == 5
+            )  ## make sure we're running the correct number of epochs

@@ -37,9 +37,9 @@ class MaskedLoss(Loss):
     @property
     def input_types(self):
         return {
-            "predicted": NeuralType(('B', 'D', 'T'), PredictionsType()),
-            "target": NeuralType(('B', 'D', 'T'), RegressionValuesType()),
-            "target_len": NeuralType(tuple('B'), LengthsType()),
+            "predicted": NeuralType(("B", "D", "T"), PredictionsType()),
+            "target": NeuralType(("B", "D", "T"), RegressionValuesType()),
+            "target_len": NeuralType(tuple("B"), LengthsType()),
         }
 
     @property
@@ -68,13 +68,13 @@ class MaskedLoss(Loss):
 
 class MaskedMAELoss(MaskedLoss):
     def __init__(self, loss_scale: float = 1.0):
-        loss_fn = torch.nn.L1Loss(reduction='none')
+        loss_fn = torch.nn.L1Loss(reduction="none")
         super(MaskedMAELoss, self).__init__(loss_fn=loss_fn, loss_scale=loss_scale)
 
 
 class MaskedMSELoss(MaskedLoss):
     def __init__(self, loss_scale: float = 1.0):
-        loss_fn = torch.nn.MSELoss(reduction='none')
+        loss_fn = torch.nn.MSELoss(reduction="none")
         super(MaskedMSELoss, self).__init__(loss_fn=loss_fn, loss_scale=loss_scale)
 
 
@@ -86,9 +86,9 @@ class TimeDomainLoss(Loss):
     @property
     def input_types(self):
         return {
-            "audio_real": NeuralType(('B', 'T'), AudioSignal()),
-            "audio_gen": NeuralType(('B', 'T'), AudioSignal()),
-            "audio_len": NeuralType(tuple('B'), LengthsType()),
+            "audio_real": NeuralType(("B", "T"), AudioSignal()),
+            "audio_gen": NeuralType(("B", "T"), AudioSignal()),
+            "audio_len": NeuralType(tuple("B"), LengthsType()),
         }
 
     @property
@@ -101,7 +101,9 @@ class TimeDomainLoss(Loss):
     def forward(self, audio_real, audio_gen, audio_len):
         audio_real = rearrange(audio_real, "B T -> B 1 T")
         audio_gen = rearrange(audio_gen, "B T -> B 1 T")
-        loss = self.loss_fn(target=audio_real, predicted=audio_gen, target_len=audio_len)
+        loss = self.loss_fn(
+            target=audio_real, predicted=audio_gen, target_len=audio_len
+        )
         return loss
 
 
@@ -116,7 +118,13 @@ class MultiResolutionMelLoss(Loss):
         log_guard: Value to add to mel spectrogram to avoid taking log of 0.
     """
 
-    def __init__(self, sample_rate: int, resolutions: List[List], mel_dims: List[int], log_guard: float = 1.0):
+    def __init__(
+        self,
+        sample_rate: int,
+        resolutions: List[List],
+        mel_dims: List[int],
+        log_guard: float = 1.0,
+    ):
         super(MultiResolutionMelLoss, self).__init__()
         assert len(resolutions) == len(mel_dims)
 
@@ -146,9 +154,9 @@ class MultiResolutionMelLoss(Loss):
     @property
     def input_types(self):
         return {
-            "audio_real": NeuralType(('B', 'T'), AudioSignal()),
-            "audio_gen": NeuralType(('B', 'T'), AudioSignal()),
-            "audio_len": NeuralType(tuple('B'), LengthsType()),
+            "audio_real": NeuralType(("B", "T"), AudioSignal()),
+            "audio_gen": NeuralType(("B", "T"), AudioSignal()),
+            "audio_len": NeuralType(tuple("B"), LengthsType()),
         }
 
     @property
@@ -165,8 +173,12 @@ class MultiResolutionMelLoss(Loss):
         for mel_feature in self.mel_features:
             mel_real, mel_real_len = mel_feature(x=audio_real, seq_len=audio_len)
             mel_gen, _ = mel_feature(x=audio_gen, seq_len=audio_len)
-            l1_loss += self.l1_loss_fn(predicted=mel_gen, target=mel_real, target_len=mel_real_len)
-            l2_loss += self.l2_loss_fn(predicted=mel_gen, target=mel_real, target_len=mel_real_len)
+            l1_loss += self.l1_loss_fn(
+                predicted=mel_gen, target=mel_real, target_len=mel_real_len
+            )
+            l2_loss += self.l2_loss_fn(
+                predicted=mel_gen, target=mel_real, target_len=mel_real_len
+            )
 
         l1_loss /= len(self.mel_features)
         l2_loss /= len(self.mel_features)
@@ -184,11 +196,15 @@ class STFTLoss(Loss):
         sqrt_guard: Value to add to when computing absolute value of STFT to avoid NaN loss.
     """
 
-    def __init__(self, resolution: List[int], log_guard: float = 1.0, sqrt_guard: float = 1e-5):
+    def __init__(
+        self, resolution: List[int], log_guard: float = 1.0, sqrt_guard: float = 1e-5
+    ):
         super(STFTLoss, self).__init__()
         self.loss_fn = MaskedMAELoss()
         self.n_fft, self.hop_length, self.win_length = resolution
-        self.register_buffer("window", torch.hann_window(self.win_length, periodic=False))
+        self.register_buffer(
+            "window", torch.hann_window(self.win_length, periodic=False)
+        )
         self.log_guard = log_guard
         self.sqrt_guard = sqrt_guard
 
@@ -213,9 +229,9 @@ class STFTLoss(Loss):
     @property
     def input_types(self):
         return {
-            "audio_real": NeuralType(('B', 'T'), AudioSignal()),
-            "audio_gen": NeuralType(('B', 'T'), AudioSignal()),
-            "audio_len": NeuralType(tuple('B'), LengthsType()),
+            "audio_real": NeuralType(("B", "T"), AudioSignal()),
+            "audio_gen": NeuralType(("B", "T"), AudioSignal()),
+            "audio_len": NeuralType(tuple("B"), LengthsType()),
         }
 
     @property
@@ -241,18 +257,25 @@ class MultiResolutionSTFTLoss(Loss):
         sqrt_guard: Value to add to when computing absolute value of STFT to avoid NaN loss.
     """
 
-    def __init__(self, resolutions: List[List], log_guard: float = 1.0, sqrt_guard: float = 1e-5):
+    def __init__(
+        self, resolutions: List[List], log_guard: float = 1.0, sqrt_guard: float = 1e-5
+    ):
         super(MultiResolutionSTFTLoss, self).__init__()
         self.loss_fns = torch.nn.ModuleList(
-            [STFTLoss(resolution=resolution, log_guard=log_guard, sqrt_guard=sqrt_guard) for resolution in resolutions]
+            [
+                STFTLoss(
+                    resolution=resolution, log_guard=log_guard, sqrt_guard=sqrt_guard
+                )
+                for resolution in resolutions
+            ]
         )
 
     @property
     def input_types(self):
         return {
-            "audio_real": NeuralType(('B', 'T'), AudioSignal()),
-            "audio_gen": NeuralType(('B', 'T'), AudioSignal()),
-            "audio_len": NeuralType(tuple('B'), LengthsType()),
+            "audio_real": NeuralType(("B", "T"), AudioSignal()),
+            "audio_gen": NeuralType(("B", "T"), AudioSignal()),
+            "audio_len": NeuralType(tuple("B"), LengthsType()),
         }
 
     @property
@@ -263,7 +286,9 @@ class MultiResolutionSTFTLoss(Loss):
     def forward(self, audio_real, audio_gen, audio_len):
         loss = 0.0
         for loss_fn in self.loss_fns:
-            loss += loss_fn(audio_real=audio_real, audio_gen=audio_gen, audio_len=audio_len)
+            loss += loss_fn(
+                audio_real=audio_real, audio_gen=audio_gen, audio_len=audio_len
+            )
         loss /= len(self.loss_fns)
         return loss
 
@@ -281,9 +306,9 @@ class SISDRLoss(Loss):
     @property
     def input_types(self):
         return {
-            "audio_real": NeuralType(('B', 'T'), AudioSignal()),
-            "audio_gen": NeuralType(('B', 'T'), AudioSignal()),
-            "audio_len": NeuralType(tuple('B'), LengthsType()),
+            "audio_real": NeuralType(("B", "T"), AudioSignal()),
+            "audio_gen": NeuralType(("B", "T"), AudioSignal()),
+            "audio_len": NeuralType(tuple("B"), LengthsType()),
         }
 
     @property
@@ -293,7 +318,7 @@ class SISDRLoss(Loss):
     @typecheck()
     def forward(self, audio_real, audio_gen, audio_len):
         mask = get_mask_from_lengths(x=audio_real, lengths=audio_len)
-        audio_len = rearrange(audio_len, 'B -> B 1')
+        audio_len = rearrange(audio_len, "B -> B 1")
 
         # Shift audio to have zero-mean
         # [B, 1]
@@ -419,7 +444,7 @@ class GeneratorHingedLoss(Loss):
     @property
     def input_types(self):
         return {
-            "disc_scores_gen": [NeuralType(('B', 'C', 'T'), VoidType())],
+            "disc_scores_gen": [NeuralType(("B", "C", "T"), VoidType())],
         }
 
     @property
@@ -441,7 +466,7 @@ class GeneratorSquaredLoss(Loss):
     @property
     def input_types(self):
         return {
-            "disc_scores_gen": [NeuralType(('B', 'C', 'T'), VoidType())],
+            "disc_scores_gen": [NeuralType(("B", "C", "T"), VoidType())],
         }
 
     @property
@@ -463,8 +488,8 @@ class DiscriminatorHingedLoss(Loss):
     @property
     def input_types(self):
         return {
-            "disc_scores_real": [NeuralType(('B', 'C', 'T'), VoidType())],
-            "disc_scores_gen": [NeuralType(('B', 'C', 'T'), VoidType())],
+            "disc_scores_real": [NeuralType(("B", "C", "T"), VoidType())],
+            "disc_scores_gen": [NeuralType(("B", "C", "T"), VoidType())],
         }
 
     @property
@@ -488,8 +513,8 @@ class DiscriminatorSquaredLoss(Loss):
     @property
     def input_types(self):
         return {
-            "disc_scores_real": [NeuralType(('B', 'C', 'T'), VoidType())],
-            "disc_scores_gen": [NeuralType(('B', 'C', 'T'), VoidType())],
+            "disc_scores_real": [NeuralType(("B", "C", "T"), VoidType())],
+            "disc_scores_gen": [NeuralType(("B", "C", "T"), VoidType())],
         }
 
     @property

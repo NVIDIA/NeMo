@@ -135,17 +135,25 @@ class WebDatasetCommon(NeMoIterableDataset):
             assert len(dataset_path) > 0, f"No files found for {glob_path}"
 
         if "boto3" in dataset_cfg:
-            logging.info(f'Init boto3 using credentials file at {dataset_cfg.boto3.credentials_file}')
+            logging.info(
+                f"Init boto3 using credentials file at {dataset_cfg.boto3.credentials_file}"
+            )
             self.use_boto3 = True
             assert dataset_cfg.boto3.credentials_file is not None
             with open(dataset_cfg.boto3.credentials_file) as fin:
                 self.credentials = json.load(fin)
-            config = Config(connect_timeout=30, signature_version="s3", retries={"max_attempts": 999999})
-            self.s3 = boto3.client('s3', **self.credentials, config=config)
+            config = Config(
+                connect_timeout=30,
+                signature_version="s3",
+                retries={"max_attempts": 999999},
+            )
+            self.s3 = boto3.client("s3", **self.credentials, config=config)
             self.bucket = dataset_cfg.boto3.bucket
             self.local_root_path = ""
         else:
-            logging.info(f'Read Webdataset locally. Data stores at {self.local_root_path}')
+            logging.info(
+                f"Read Webdataset locally. Data stores at {self.local_root_path}"
+            )
             self.use_boto3 = False
             self.s3 = None
             self.bucket = None
@@ -154,25 +162,29 @@ class WebDatasetCommon(NeMoIterableDataset):
         self.wdinfo = dict()
         if dataset_path[0].endswith(".pkl"):
             for dset_info_path in dataset_path:
-                with open(dset_info_path, 'rb') as fp:
+                with open(dset_info_path, "rb") as fp:
                     dset_info = pickle.load(fp)
-                    if 'tar_files' not in self.wdinfo:
-                        self.wdinfo['tar_files'] = dset_info['tar_files']
-                        self.wdinfo['total_key_count'] = dset_info['total_key_count']
-                        self.wdinfo['chunk_size'] = dset_info['chunk_size']
+                    if "tar_files" not in self.wdinfo:
+                        self.wdinfo["tar_files"] = dset_info["tar_files"]
+                        self.wdinfo["total_key_count"] = dset_info["total_key_count"]
+                        self.wdinfo["chunk_size"] = dset_info["chunk_size"]
                     else:
-                        self.wdinfo['tar_files'].extend(dset_info['tar_files'])
-                        self.wdinfo['total_key_count'] += dset_info['total_key_count']
+                        self.wdinfo["tar_files"].extend(dset_info["tar_files"])
+                        self.wdinfo["total_key_count"] += dset_info["total_key_count"]
             train_info = self.wdinfo
         else:
             train_info = self.wdinfo
-            train_info['tar_files'] = map(wds.shardlists.expand_urls, dataset_path)
-            train_info['tar_files'] = list(itertools.chain.from_iterable(train_info['tar_files']))
-            train_info['chunk_size'] = self.webdata_cfg.get("chunk_size", 1000)
-            train_info['total_key_count'] = train_info['chunk_size'] * len(train_info['tar_files'])
+            train_info["tar_files"] = map(wds.shardlists.expand_urls, dataset_path)
+            train_info["tar_files"] = list(
+                itertools.chain.from_iterable(train_info["tar_files"])
+            )
+            train_info["chunk_size"] = self.webdata_cfg.get("chunk_size", 1000)
+            train_info["total_key_count"] = train_info["chunk_size"] * len(
+                train_info["tar_files"]
+            )
 
         self.data_parallel_size = parallel_state.get_data_parallel_world_size()
-        chunk_size = train_info['chunk_size']
+        chunk_size = train_info["chunk_size"]
 
         num_workers = dataset_cfg.get("num_workers") or 1
         self.consumed_urls = (
@@ -195,13 +207,19 @@ class WebDatasetCommon(NeMoIterableDataset):
         if self.filterings is not None:
             # TODO : Not a good way of estimating filtering (We expect user to give estimated portion)
             # We should estimate in someway. This is anyway used only in progress bar
-            logging.info(f'Estimated {self.filterings.estimated_portion} will be remaining after filtering')
-            train_info["total_key_count"] = int(train_info["total_key_count"] * self.filterings.estimated_portion)
+            logging.info(
+                f"Estimated {self.filterings.estimated_portion} will be remaining after filtering"
+            )
+            train_info["total_key_count"] = int(
+                train_info["total_key_count"] * self.filterings.estimated_portion
+            )
 
         # WDS Dataset Pipeline
         # DetShuffle -> Decode -> Filter -> Map -> Compose
         train_dataset, epoch = self._get_webdataset_and_epoch()
-        train_dataset = train_dataset.compose(detshuffle2(bufsize=shuffle_buffer_size, epoch=epoch))
+        train_dataset = train_dataset.compose(
+            detshuffle2(bufsize=shuffle_buffer_size, epoch=epoch)
+        )
         train_dataset = train_dataset.decode(decode_fn, handler=warn_and_continue)
 
         if self.filterings is not None:
@@ -215,13 +233,19 @@ class WebDatasetCommon(NeMoIterableDataset):
             train_dataset = train_dataset.compose(fn)
         train_dataset.total_images = train_info["total_key_count"]
 
-        if train_info["total_key_count"] != train_info["chunk_size"] * len(train_info["tar_files"]):
-            logging.warning("Total image count is not equal to chunk_size * number of tar files.")
+        if train_info["total_key_count"] != train_info["chunk_size"] * len(
+            train_info["tar_files"]
+        ):
+            logging.warning(
+                "Total image count is not equal to chunk_size * number of tar files."
+            )
 
         if self.infinite_sampler:
             rank, world_size, worker_id, num_workers = pytorch_worker_info()
             nbatches = train_dataset.total_images // world_size // self.num_workers
-            logging.info(f'Setting nbatches={nbatches} for infinite sampler. world_size={world_size}')
+            logging.info(
+                f"Setting nbatches={nbatches} for infinite sampler. world_size={world_size}"
+            )
             train_dataset = train_dataset.with_epoch(nbatches=nbatches)
 
         logging.info("Total number of training shards: %d", num_shards)
@@ -233,14 +257,16 @@ class WebDatasetCommon(NeMoIterableDataset):
         train_info = self.wdinfo
         chunk_size = train_info["chunk_size"]
         shards_train_list = train_info["tar_files"]
-        shards_train_list = [os.path.join(self.local_root_path, x) for x in shards_train_list]
+        shards_train_list = [
+            os.path.join(self.local_root_path, x) for x in shards_train_list
+        ]
         epoch = 0
 
         if not self.infinite_sampler:
-            logging.info(f'Initiating Webdataset Random Sampler..')
+            logging.info(f"Initiating Webdataset Random Sampler..")
             assert (
                 self.filterings is None
-            ), 'Webdataset Random Sampler should not be used with filters. Switch to infinite sampler'
+            ), "Webdataset Random Sampler should not be used with filters. Switch to infinite sampler"
             shards_train_list = WDSUrlsRandomSampler(
                 urls=shards_train_list,
                 total_urls=len(shards_train_list),
@@ -265,7 +291,9 @@ class WebDatasetCommon(NeMoIterableDataset):
             )
         else:
             train_dataset = WebDataset(
-                shards_train_list, handler=warn_and_continue, resampled=self.infinite_sampler or False,
+                shards_train_list,
+                handler=warn_and_continue,
+                resampled=self.infinite_sampler or False,
             )
 
         return train_dataset, epoch
@@ -288,7 +316,11 @@ if HAVE_WEBDATASET:
 
     class detshuffle2(wds.PipelineStage):
         def __init__(
-            self, bufsize=1000, initial=100, seed=0, epoch=-1,
+            self,
+            bufsize=1000,
+            initial=100,
+            seed=0,
+            epoch=-1,
         ):
             self.bufsize = bufsize
             self.initial = initial
@@ -308,14 +340,17 @@ if HAVE_WEBDATASET:
             if not parallel_state.is_initialized():
                 seed = self.seed + epoch
             else:
-                seed = self.seed + epoch + (100 * parallel_state.get_data_parallel_rank())
+                seed = (
+                    self.seed + epoch + (100 * parallel_state.get_data_parallel_rank())
+                )
             rng.seed(seed)
             return _shuffle(src, self.bufsize, self.initial, rng)
-
 
 else:
 
     class detshuffle2(ApexGuardDefaults):
         def __init__(self):
             super().__init__()
-            logging.warning("Webdataset import failed! We recommend use `webdataset==0.2.48`.")
+            logging.warning(
+                "Webdataset import failed! We recommend use `webdataset==0.2.48`."
+            )

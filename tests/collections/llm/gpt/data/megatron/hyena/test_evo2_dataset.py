@@ -483,7 +483,9 @@ def test_ambiguous_dna_char_followed_by_tag_start(tag_tokens):
         eod_token_id=tag_tokens["eod"],
     )
 
-    expected_mask = torch.tensor([0, 0, 1, 1, 1, 1])  # Ambiguous t and pipe masked, DNA unmasked
+    expected_mask = torch.tensor(
+        [0, 0, 1, 1, 1, 1]
+    )  # Ambiguous t and pipe masked, DNA unmasked
     assert torch.equal(mask, expected_mask)
 
 
@@ -626,9 +628,14 @@ def test_packed_partial_tag_subsequence_predna(tag_tokens):
 
     """
     sequence_alpha = "GAATA0cacata|acagataaaataTACAGGGAATA|d__"
-    sequence = torch.tensor([ord(t) if t != "0" else 0 for t in sequence_alpha], dtype=torch.int32)
+    sequence = torch.tensor(
+        [ord(t) if t != "0" else 0 for t in sequence_alpha], dtype=torch.int32
+    )
     expected_mask = torch.tensor(
-        len("GAATA0") * [1] + [0] * len("cacata|") + len("acagataaaataTACAGGGAATA") * [1] + [0] * len("|d__"),
+        len("GAATA0") * [1]
+        + [0] * len("cacata|")
+        + len("acagataaaataTACAGGGAATA") * [1]
+        + [0] * len("|d__"),
         dtype=torch.int32,
     )
     mask = Evo2Dataset.mask_phylogenetic_tags(
@@ -647,9 +654,15 @@ def test_packed_partial_tag_subsequence_pretag(tag_tokens):
 
     """
     sequence_alpha = "cacata|0acagataaaataTACAGGGAATA|d__"
-    sequence = torch.tensor([ord(t) if t != "0" else 0 for t in sequence_alpha], dtype=torch.int32)
+    sequence = torch.tensor(
+        [ord(t) if t != "0" else 0 for t in sequence_alpha], dtype=torch.int32
+    )
     expected_mask = torch.tensor(
-        len("cacata") * [1] + [0] + [1] * len("0acagataaaataTACAGGGAATA") + len("|d__") * [0], dtype=torch.int32
+        len("cacata") * [1]
+        + [0]
+        + [1] * len("0acagataaaataTACAGGGAATA")
+        + len("|d__") * [0],
+        dtype=torch.int32,
     )
     mask = Evo2Dataset.mask_phylogenetic_tags(
         tokenized_sequence=sequence,
@@ -667,7 +680,9 @@ def test_packed_partial_tag_subsequence_predna_middletag(tag_tokens):
 
     """
     sequence_alpha = "GAATA0cacata|acagataaaata|d__tag;|TACAGGGAATA|d__"
-    sequence = torch.tensor([ord(t) if t != "0" else 0 for t in sequence_alpha], dtype=torch.int32)
+    sequence = torch.tensor(
+        [ord(t) if t != "0" else 0 for t in sequence_alpha], dtype=torch.int32
+    )
     expected_mask = torch.tensor(
         len("GAATA0") * [1]
         + len("cacata|") * [0]
@@ -693,7 +708,9 @@ def test_packed_partial_tag_subsequence_pretag_middletag(tag_tokens):
 
     """
     sequence_alpha = "cacata|0acagataaaata|d__tag;|TACAGGGAATA|d__"
-    sequence = torch.tensor([ord(t) if t != "0" else 0 for t in sequence_alpha], dtype=torch.int32)
+    sequence = torch.tensor(
+        [ord(t) if t != "0" else 0 for t in sequence_alpha], dtype=torch.int32
+    )
     expected_mask = torch.tensor(
         len("cacata") * [1]
         + [0]  # masked pipe.
@@ -719,7 +736,9 @@ def test_packed_partial_tag_subsequence_pretag_middletag_bs2(tag_tokens):
 
     """
     sequence_alpha = "cacata|0acagataaaata|d__tag;|TACAGGGAATA|d__"
-    sequence = torch.tensor([ord(t) if t != "0" else 0 for t in sequence_alpha], dtype=torch.int32)
+    sequence = torch.tensor(
+        [ord(t) if t != "0" else 0 for t in sequence_alpha], dtype=torch.int32
+    )
     expected_mask = torch.tensor(
         len("cacata") * [1]
         + [0]
@@ -746,7 +765,9 @@ def test_packed_partial_tag_subsequence_pretag_middletag_bs3(tag_tokens):
 
     """
     sequence_alpha = "cacata|0acagataaaata|d__tag;|TACAGGGAATA|d__somet"
-    sequence = torch.tensor([ord(t) if t != "0" else 0 for t in sequence_alpha], dtype=torch.int32)
+    sequence = torch.tensor(
+        [ord(t) if t != "0" else 0 for t in sequence_alpha], dtype=torch.int32
+    )
     expected_mask = torch.tensor(
         len("cacata") * [1]
         + [0]
@@ -758,7 +779,9 @@ def test_packed_partial_tag_subsequence_pretag_middletag_bs3(tag_tokens):
     )
 
     sequence_alpha2 = "GAATA0cacata|acagataaaata|d__tag;|TACAGGGAATA|d__"
-    sequence2 = torch.tensor([ord(t) if t != "0" else 0 for t in sequence_alpha2], dtype=torch.int32)
+    sequence2 = torch.tensor(
+        [ord(t) if t != "0" else 0 for t in sequence_alpha2], dtype=torch.int32
+    )
     expected_mask2 = torch.tensor(
         len("GAATA0") * [1]
         + len("cacata|") * [0]
@@ -783,7 +806,9 @@ def test_packed_partial_tag_subsequence_pretag_middletag_bs3(tag_tokens):
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA not available")
 def test_packed_partial_tag_subsequence_pretag_middletag_bs3_cuda(tag_tokens):
     sequence_alpha = "cacata|0acagataaaata|d__tag;|TACAGGGAATA|d__somet"
-    sequence = torch.tensor([ord(t) if t != "0" else 0 for t in sequence_alpha], dtype=torch.int32)
+    sequence = torch.tensor(
+        [ord(t) if t != "0" else 0 for t in sequence_alpha], dtype=torch.int32
+    )
     expected_mask = torch.tensor(
         len("cacata") * [1]
         + [0]
@@ -795,7 +820,9 @@ def test_packed_partial_tag_subsequence_pretag_middletag_bs3_cuda(tag_tokens):
     )
 
     sequence_alpha2 = "GAATA0cacata|acagataaaata|d__tag;|TACAGGGAATA|d__"
-    sequence2 = torch.tensor([ord(t) if t != "0" else 0 for t in sequence_alpha2], dtype=torch.int32)
+    sequence2 = torch.tensor(
+        [ord(t) if t != "0" else 0 for t in sequence_alpha2], dtype=torch.int32
+    )
     expected_mask2 = torch.tensor(
         len("GAATA0") * [1]
         + len("cacata|") * [0]
@@ -822,9 +849,15 @@ def test_multiple_packed_tags(tag_tokens):
     Tests a sequence with multiple packed tags.
     """
     sequence_alpha = "|d__tag;|0|d__tag;|0|d__somet"
-    sequence = torch.tensor([ord(t) if t != "0" else 0 for t in sequence_alpha], dtype=torch.int32)
+    sequence = torch.tensor(
+        [ord(t) if t != "0" else 0 for t in sequence_alpha], dtype=torch.int32
+    )
     expected_mask = torch.tensor(
-        len("|d__tag;|") * [0] + len("0") * [1] + len("|d__tag;|") * [0] + len("0") * [1] + len("|d__somet") * [0],
+        len("|d__tag;|") * [0]
+        + len("0") * [1]
+        + len("|d__tag;|") * [0]
+        + len("0") * [1]
+        + len("|d__somet") * [0],
         dtype=torch.int32,
     )
     mask = Evo2DatasetPadEodLossMask.mask_phylogenetic_tags(
@@ -841,7 +874,9 @@ def test_multiple_eods(tag_tokens):
     Tests a sequence with multiple EODs.
     """
     sequence_alpha = "ACGT0tacg0"
-    sequence = torch.tensor([ord(t) if t != "0" else 0 for t in sequence_alpha], dtype=torch.int32)
+    sequence = torch.tensor(
+        [ord(t) if t != "0" else 0 for t in sequence_alpha], dtype=torch.int32
+    )
     expected_mask = torch.tensor(len(sequence_alpha) * [1], dtype=torch.int32)
     mask = Evo2DatasetPadEodLossMask.mask_phylogenetic_tags(
         tokenized_sequence=sequence,
@@ -857,7 +892,9 @@ def test_multiple_eods_prefix_no_suffix(tag_tokens):
     Tests a sequence with multiple EODs.
     """
     sequence_alpha = "0ACGT0tacg0aa"
-    sequence = torch.tensor([ord(t) if t != "0" else 0 for t in sequence_alpha], dtype=torch.int32)
+    sequence = torch.tensor(
+        [ord(t) if t != "0" else 0 for t in sequence_alpha], dtype=torch.int32
+    )
     expected_mask = torch.tensor(len(sequence_alpha) * [1], dtype=torch.int32)
     mask = Evo2DatasetPadEodLossMask.mask_phylogenetic_tags(
         tokenized_sequence=sequence,
@@ -873,7 +910,9 @@ def test_no_eods_with_batch(tag_tokens):
     Tests a sequence with multiple EODs.
     """
     sequence_alpha = "ACATAGATTT"
-    sequence = torch.tensor([ord(t) if t != "0" else 0 for t in sequence_alpha], dtype=torch.int32)
+    sequence = torch.tensor(
+        [ord(t) if t != "0" else 0 for t in sequence_alpha], dtype=torch.int32
+    )
     expected_mask = torch.tensor(len(sequence_alpha) * [1], dtype=torch.int32)
     mask = Evo2DatasetPadEodLossMask.mask_phylogenetic_tags(
         tokenized_sequence=torch.stack([sequence, sequence]),
@@ -889,8 +928,13 @@ def test_no_eods_one_tag_with_batch_bs2(tag_tokens):
     Tests a sequence with multiple EODs.
     """
     sequence_alpha = "ACAT|d__tag;|AGATTT"
-    sequence = torch.tensor([ord(t) if t != "0" else 0 for t in sequence_alpha], dtype=torch.int32)
-    expected_mask = torch.tensor(len("ACAT") * [1] + len("|d__tag;|") * [0] + len("AGATTT") * [1], dtype=torch.int32)
+    sequence = torch.tensor(
+        [ord(t) if t != "0" else 0 for t in sequence_alpha], dtype=torch.int32
+    )
+    expected_mask = torch.tensor(
+        len("ACAT") * [1] + len("|d__tag;|") * [0] + len("AGATTT") * [1],
+        dtype=torch.int32,
+    )
     mask = Evo2DatasetPadEodLossMask.mask_phylogenetic_tags(
         tokenized_sequence=torch.stack([sequence, sequence]),
         terminal_tag_char=tag_tokens["terminal"],
@@ -907,9 +951,14 @@ def test_packed_partial_tag_subsequence_predna_with_control(tag_tokens):
 
     """
     sequence_alpha = "GAATA0cacata|acagataaaa@taTACAGGGAATA|d__"
-    sequence = torch.tensor([ord(t) if t != "0" else 0 for t in sequence_alpha], dtype=torch.int32)
+    sequence = torch.tensor(
+        [ord(t) if t != "0" else 0 for t in sequence_alpha], dtype=torch.int32
+    )
     expected_mask = torch.tensor(
-        len("GAATA0") * [1] + [0] * len("cacata|") + len("acagataaaa@taTACAGGGAATA") * [1] + [0] * len("|d__"),
+        len("GAATA0") * [1]
+        + [0] * len("cacata|")
+        + len("acagataaaa@taTACAGGGAATA") * [1]
+        + [0] * len("|d__"),
         dtype=torch.int32,
     )
     mask = Evo2Dataset.mask_phylogenetic_tags(
@@ -928,9 +977,14 @@ def test_packed_partial_tag_subsequence_predna_with_control2(tag_tokens):
 
     """
     sequence_alpha = "GA#ATA0cacata|acagataaaa@taTACAGGGAATA|d__"
-    sequence = torch.tensor([ord(t) if t != "0" else 0 for t in sequence_alpha], dtype=torch.int32)
+    sequence = torch.tensor(
+        [ord(t) if t != "0" else 0 for t in sequence_alpha], dtype=torch.int32
+    )
     expected_mask = torch.tensor(
-        len("GA#ATA0") * [1] + [0] * len("cacata|") + len("acagataaaa@taTACAGGGAATA") * [1] + [0] * len("|d__"),
+        len("GA#ATA0") * [1]
+        + [0] * len("cacata|")
+        + len("acagataaaa@taTACAGGGAATA") * [1]
+        + [0] * len("|d__"),
         dtype=torch.int32,
     )
     mask = Evo2Dataset.mask_phylogenetic_tags(
@@ -963,7 +1017,9 @@ def _construct_taxonomy_token(dropout: float = 0.0) -> str:
     )
 
 
-def mask_phylogenetic_tags_old(tokenized_sequence, terminal_tag_char, other_tag_chars, eod_token_id):
+def mask_phylogenetic_tags_old(
+    tokenized_sequence, terminal_tag_char, other_tag_chars, eod_token_id
+):
     """
     Optimized version to create a phylonetic tag mask for batched tokenized sequences with correct handling of partial tags.
     Args:
@@ -983,7 +1039,9 @@ def mask_phylogenetic_tags_old(tokenized_sequence, terminal_tag_char, other_tag_
     terms = torch.tensor([0, seq_len - 1], device=device)
     other_tags = torch.tensor(list(other_tag_chars), device=device)
     for batch_idx in range(batch_size):
-        tag_term_locs = torch.where(tokenized_sequence[batch_idx] == terminal_tag_char)[0]
+        tag_term_locs = torch.where(tokenized_sequence[batch_idx] == terminal_tag_char)[
+            0
+        ]
         tag_end_locs = torch.where(tokenized_sequence[batch_idx] == eod_token_id)[0]
 
         merged_tags = torch.cat((terms, tag_term_locs, tag_end_locs)).sort()[0]
@@ -991,7 +1049,10 @@ def mask_phylogenetic_tags_old(tokenized_sequence, terminal_tag_char, other_tag_
 
         start = 0  # First and last locations are always added
         for end in merged_tags[1:]:
-            if torch.isin(tokenized_sequence[batch_idx][start:end], other_tags).sum() > 0:
+            if (
+                torch.isin(tokenized_sequence[batch_idx][start:end], other_tags).sum()
+                > 0
+            ):
                 # end token is not part of the tag
                 if eod_token_id == tokenized_sequence[batch_idx][end]:
                     end = end - 1
@@ -1018,11 +1079,17 @@ def benchmark_phylo_tag_masking(num_iterations: int = 1000) -> Tuple[float, floa
         + tax_token[36:]
         + "".join(random.choice("ACGTacgt") for _ in range(5000))
     )
-    sequence = torch.tensor([ord(t) if t != "0" else 0 for t in sequence_alpha], dtype=torch.int32, device="cpu")
+    sequence = torch.tensor(
+        [ord(t) if t != "0" else 0 for t in sequence_alpha],
+        dtype=torch.int32,
+        device="cpu",
+    )
 
     # Time the new implementation
     new_time1 = timeit.timeit(
-        lambda: Evo2Dataset.mask_phylogenetic_tags(sequence.unsqueeze(0), 124, {95, 59, 32}, 0),
+        lambda: Evo2Dataset.mask_phylogenetic_tags(
+            sequence.unsqueeze(0), 124, {95, 59, 32}, 0
+        ),
         number=num_iterations,
     )
 
@@ -1034,7 +1101,9 @@ def benchmark_phylo_tag_masking(num_iterations: int = 1000) -> Tuple[float, floa
 
     # Time the new implementation
     new_time2 = timeit.timeit(
-        lambda: Evo2Dataset.mask_phylogenetic_tags(sequence.unsqueeze(0), 124, {95, 59, 32}, 0),
+        lambda: Evo2Dataset.mask_phylogenetic_tags(
+            sequence.unsqueeze(0), 124, {95, 59, 32}, 0
+        ),
         number=num_iterations,
     )
 
@@ -1074,12 +1143,18 @@ def test_evo2_dataset_getitem(monkeypatch):
     eod_token_id = tokenizer.eod
     # labels are all case, tokens are converted to upper case.
     input_string = f"a  @  t  |  d  _  _  t  {eod_token_id}  #  a  t".replace(" ", "")
-    starting_loss_mask = torch.tensor([1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1], dtype=torch.bool)
-    expected_loss_mask = torch.tensor([1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1], dtype=torch.bool)
+    starting_loss_mask = torch.tensor(
+        [1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1], dtype=torch.bool
+    )
+    expected_loss_mask = torch.tensor(
+        [1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1], dtype=torch.bool
+    )
     input_tokens = [
         ord(t) if t != str(eod_token_id) else eod_token_id for t in input_string
     ]  # starts out both lower/upper
-    input_labels = [ord(t) if t != str(eod_token_id) else eod_token_id for t in input_string]
+    input_labels = [
+        ord(t) if t != str(eod_token_id) else eod_token_id for t in input_string
+    ]
 
     class MockIndexedDataset:
         def __init__(self):
@@ -1131,7 +1206,9 @@ def test_evo2_dataset_getitem(monkeypatch):
         "loss_mask": starting_loss_mask,  # Will be modified by Evo2Dataset
         "labels": torch.tensor(input_labels),  # A@T|d_T#AT
         "tokens": torch.tensor(input_tokens),  # a@t|d_t#at
-        "attention_mask": torch.ones(len(input_tokens), len(input_tokens)),  # Add attention mask
+        "attention_mask": torch.ones(
+            len(input_tokens), len(input_tokens)
+        ),  # Add attention mask
         "position_ids": torch.arange(len(input_tokens)),  # Add position ids
     }
     # monkey patch the _get_gpt_batch method in this dataset so that we use our parent_batch as the starting point.

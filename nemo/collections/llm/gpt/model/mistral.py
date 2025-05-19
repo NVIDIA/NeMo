@@ -115,7 +115,10 @@ class MistralModel(GPTModel):
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
         super().__init__(
-            config or MistralConfig7B(), optim=optim, tokenizer=tokenizer, model_transform=model_transform
+            config or MistralConfig7B(),
+            optim=optim,
+            tokenizer=tokenizer,
+            model_transform=model_transform,
         )
 
 
@@ -129,7 +132,7 @@ class HFMistralImporter(io.ModelConnector["MistralForCausalLM", MistralModel]):
     def apply(self, output_path: Path) -> Path:
         from transformers import MistralForCausalLM
 
-        source = MistralForCausalLM.from_pretrained(str(self), torch_dtype='auto')
+        source = MistralForCausalLM.from_pretrained(str(self), torch_dtype="auto")
         target = self.init()
         trainer = self.nemo_setup(target)
         self.convert_state(source, target)
@@ -165,12 +168,17 @@ class HFMistralImporter(io.ModelConnector["MistralForCausalLM", MistralModel]):
                 fn=TransformFns.merge_qkv,
             ),
             io.state_transform(
-                source_key=("model.layers.*.mlp.gate_proj.weight", "model.layers.*.mlp.up_proj.weight"),
+                source_key=(
+                    "model.layers.*.mlp.gate_proj.weight",
+                    "model.layers.*.mlp.up_proj.weight",
+                ),
                 target_key="decoder.layers.*.mlp.linear_fc1.weight",
                 fn=TransformFns.merge_fc1,
             ),
         ]
-        return io.apply_transforms(source, target, mapping=mapping, transforms=transforms)
+        return io.apply_transforms(
+            source, target, mapping=mapping, transforms=transforms
+        )
 
     @property
     def tokenizer(self) -> "AutoTokenizer":
@@ -195,15 +203,17 @@ class HFMistralImporter(io.ModelConnector["MistralForCausalLM", MistralModel]):
             return base
 
         window_size, cp_comm_type = (None, None)
-        if getattr(source, 'sliding_window', None) is not None:
+        if getattr(source, "sliding_window", None) is not None:
             window_size = [source.sliding_window, 0]
-            cp_comm_type = 'a2a'
+            cp_comm_type = "a2a"
         output = MistralConfig7B(
             seq_length=source.sliding_window,
             num_layers=source.num_hidden_layers,
             hidden_size=source.hidden_size,
             ffn_hidden_size=source.intermediate_size,
-            kv_channels=getattr(source, 'head_dim', source.hidden_size // source.num_attention_heads),
+            kv_channels=getattr(
+                source, "head_dim", source.hidden_size // source.num_attention_heads
+            ),
             num_attention_heads=source.num_attention_heads,
             # max_position_embeddings=source.max_position_embeddings,
             init_method_std=source.initializer_range,
@@ -211,7 +221,9 @@ class HFMistralImporter(io.ModelConnector["MistralForCausalLM", MistralModel]):
             num_query_groups=source.num_key_value_heads,
             rotary_base=source.rope_theta,
             gated_linear_unit=True,
-            make_vocab_size_divisible_by=make_vocab_size_divisible_by(source.vocab_size),
+            make_vocab_size_divisible_by=make_vocab_size_divisible_by(
+                source.vocab_size
+            ),
             window_size=window_size,
             cp_comm_type=cp_comm_type,
             share_embeddings_and_output_weights=False,
@@ -282,7 +294,10 @@ class HFMistralExporter(io.ModelConnector[MistralModel, "MistralForCausalLM"]):
             ),
             io.state_transform(
                 source_key="decoder.layers.*.mlp.linear_fc1.weight",
-                target_key=("model.layers.*.mlp.gate_proj.weight", "model.layers.*.mlp.up_proj.weight"),
+                target_key=(
+                    "model.layers.*.mlp.gate_proj.weight",
+                    "model.layers.*.mlp.up_proj.weight",
+                ),
                 fn=TransformFns.split_fc1,
             ),
         ]
@@ -307,7 +322,9 @@ class HFMistralExporter(io.ModelConnector[MistralModel, "MistralForCausalLM"]):
 
         return HfMistralConfig(
             architectures=["MistralForCausalLM"],
-            sliding_window=source.window_size[0] if source.window_size is not None else None,
+            sliding_window=(
+                source.window_size[0] if source.window_size is not None else None
+            ),
             num_hidden_layers=source.num_layers,
             hidden_size=source.hidden_size,
             intermediate_size=source.ffn_hidden_size,

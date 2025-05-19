@@ -29,7 +29,12 @@ from nemo.collections.llm.tools.auto_configurator import (AutoConfigurator,
 
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model_type", type=str, choices=["llama", "bert", "t5"], help="Model type to run")
+    parser.add_argument(
+        "--model_type",
+        type=str,
+        choices=["llama", "bert", "t5"],
+        help="Model type to run",
+    )
     parser.add_argument("--run_number", type=int, help="Number of config to run")
     parser.add_argument("--log_dir", type=str, help="Path where to save training logs")
     parser.add_argument("--get_results", action="store_true")
@@ -49,7 +54,11 @@ class Llama3Config145M(Llama3Config):
 @run.cli.factory(target=llm.pretrain, name="llama3_145m")
 def llama3_145m(num_nodes=1, num_gpus_per_node=1):
     # Setup Llama3 145M config
-    recipe = partial(llm.llama3_8b.pretrain_recipe, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node)()
+    recipe = partial(
+        llm.llama3_8b.pretrain_recipe,
+        num_nodes=num_nodes,
+        num_gpus_per_node=num_gpus_per_node,
+    )()
     recipe = run.Partial(
         llm.pretrain,
         model=run.Config(LlamaModel, config=run.Config(Llama3Config145M)),
@@ -75,9 +84,13 @@ def train_config(args):
         recipe = partial(llama3_145m)()
         recipe.data.seq_length = recipe.model.config.seq_length = 2048
     elif args.model_type == "bert":
-        recipe = partial(llm.bert_110m.pretrain_recipe, num_nodes=1, num_gpus_per_node=1)()
+        recipe = partial(
+            llm.bert_110m.pretrain_recipe, num_nodes=1, num_gpus_per_node=1
+        )()
     elif args.model_type == "t5":
-        recipe = partial(llm.t5_220m.pretrain_recipe, num_nodes=1, num_gpus_per_node=1)()
+        recipe = partial(
+            llm.t5_220m.pretrain_recipe, num_nodes=1, num_gpus_per_node=1
+        )()
         # Set to False if you don't want Auto Configurator to calculate model size
         calculate_model_size = True
     else:
@@ -119,5 +132,5 @@ def main():
     train_config(args)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

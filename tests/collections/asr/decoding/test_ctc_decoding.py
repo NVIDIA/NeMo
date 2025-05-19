@@ -28,13 +28,18 @@ from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 
 
 def char_vocabulary():
-    return [' ', 'a', 'b', 'c', 'd', 'e', 'f', '.']
+    return [" ", "a", "b", "c", "d", "e", "f", "."]
 
 
 @pytest.fixture()
 @lru_cache(maxsize=8)
 def tmp_tokenizer(test_data_dir):
-    cfg = DictConfig({'dir': os.path.join(test_data_dir, "asr", "tokenizers", "an4_wpe_128"), 'type': 'wpe'})
+    cfg = DictConfig(
+        {
+            "dir": os.path.join(test_data_dir, "asr", "tokenizers", "an4_wpe_128"),
+            "type": "wpe",
+        }
+    )
 
     class _TmpASRBPE(mixins.ASRBPEMixin):
         def register_artifact(self, _, vocab_path):
@@ -48,14 +53,14 @@ def tmp_tokenizer(test_data_dir):
 def check_char_timestamps(hyp: Hypothesis, decoding: CTCDecoding):
     assert hyp.timestamp is not None
     assert isinstance(hyp.timestamp, dict)
-    assert 'timestep' in hyp.timestamp
-    assert 'char' in hyp.timestamp
-    assert 'word' in hyp.timestamp
-    assert 'segment' in hyp.timestamp
+    assert "timestep" in hyp.timestamp
+    assert "char" in hyp.timestamp
+    assert "word" in hyp.timestamp
+    assert "segment" in hyp.timestamp
 
     words = hyp.text.split(decoding.word_seperator)
-    words = list(filter(lambda x: x != '', words))
-    assert len(hyp.timestamp['word']) == len(words)
+    words = list(filter(lambda x: x != "", words))
+    assert len(hyp.timestamp["word"]) == len(words)
 
     segments = []
     segment = []
@@ -63,35 +68,40 @@ def check_char_timestamps(hyp: Hypothesis, decoding: CTCDecoding):
     for word in words:
         segment.append(word)
         if word[-1] in decoding.segment_seperators:
-            segments.append(' '.join(segment))
+            segments.append(" ".join(segment))
             segment = []
 
     if segment:
-        segments.append(' '.join(segment))
+        segments.append(" ".join(segment))
 
-    assert len(hyp.timestamp['segment']) == len(segments)
+    assert len(hyp.timestamp["segment"]) == len(segments)
 
 
 def check_subword_timestamps(hyp: Hypothesis, decoding: CTCBPEDecoding):
     assert hyp.timestamp is not None
     assert isinstance(hyp.timestamp, dict)
-    assert 'timestep' in hyp.timestamp
-    assert 'char' in hyp.timestamp
-    assert 'word' in hyp.timestamp
-    assert 'segment' in hyp.timestamp
+    assert "timestep" in hyp.timestamp
+    assert "char" in hyp.timestamp
+    assert "word" in hyp.timestamp
+    assert "segment" in hyp.timestamp
 
     chars = list(hyp.text)
-    chars = list(filter(lambda x: x not in ['', ' ', '#'], chars))
-    all_chars = [list(decoding.tokenizer.tokens_to_text(data['char'])) for data in hyp.timestamp['char']]
+    chars = list(filter(lambda x: x not in ["", " ", "#"], chars))
+    all_chars = [
+        list(decoding.tokenizer.tokens_to_text(data["char"]))
+        for data in hyp.timestamp["char"]
+    ]
     all_chars = [char for subword in all_chars for char in subword]
-    all_chars = list(filter(lambda x: x not in ['', ' ', '#'], all_chars))
+    all_chars = list(filter(lambda x: x not in ["", " ", "#"], all_chars))
     assert len(chars) == len(all_chars)
 
-    segments_count = sum([hyp.text.count(seperator) for seperator in decoding.segment_seperators])
+    segments_count = sum(
+        [hyp.text.count(seperator) for seperator in decoding.segment_seperators]
+    )
     if not hyp.text or hyp.text[-1] not in decoding.segment_seperators:
         segments_count += 1
 
-    assert len(hyp.timestamp['segment']) == segments_count
+    assert len(hyp.timestamp["segment"]) == segments_count
 
 
 class TestCTCDecoding:
@@ -112,7 +122,7 @@ class TestCTCDecoding:
     def test_char_decoding_greedy_forward(
         self,
     ):
-        cfg = CTCDecodingConfig(strategy='greedy')
+        cfg = CTCDecodingConfig(strategy="greedy")
         vocab = char_vocabulary()
         decoding = CTCDecoding(decoding_cfg=cfg, vocabulary=vocab)
 
@@ -131,10 +141,14 @@ class TestCTCDecoding:
                 assert isinstance(text, str)
 
     @pytest.mark.unit
-    @pytest.mark.parametrize('alignments', [False, True])
-    @pytest.mark.parametrize('timestamps', [False, True])
+    @pytest.mark.parametrize("alignments", [False, True])
+    @pytest.mark.parametrize("timestamps", [False, True])
     def test_char_decoding_greedy_forward_hypotheses(self, alignments, timestamps):
-        cfg = CTCDecodingConfig(strategy='greedy', preserve_alignments=alignments, compute_timestamps=timestamps)
+        cfg = CTCDecodingConfig(
+            strategy="greedy",
+            preserve_alignments=alignments,
+            compute_timestamps=timestamps,
+        )
         vocab = char_vocabulary()
         decoding = CTCDecoding(decoding_cfg=cfg, vocabulary=vocab)
 
@@ -166,7 +180,7 @@ class TestCTCDecoding:
 
     @pytest.mark.unit
     def test_subword_decoding_greedy_forward(self, tmp_tokenizer):
-        cfg = CTCBPEDecodingConfig(strategy='greedy')
+        cfg = CTCBPEDecodingConfig(strategy="greedy")
         decoding = CTCBPEDecoding(decoding_cfg=cfg, tokenizer=tmp_tokenizer)
 
         B, T = 4, 20
@@ -184,11 +198,17 @@ class TestCTCDecoding:
                 assert isinstance(text, str)
 
     @pytest.mark.unit
-    @pytest.mark.parametrize('alignments', [False, True])
-    @pytest.mark.parametrize('timestamps', [False, True])
+    @pytest.mark.parametrize("alignments", [False, True])
+    @pytest.mark.parametrize("timestamps", [False, True])
     @pytest.mark.pleasefixme
-    def test_subword_decoding_greedy_forward_hypotheses(self, tmp_tokenizer, alignments, timestamps):
-        cfg = CTCBPEDecodingConfig(strategy='greedy', preserve_alignments=alignments, compute_timestamps=timestamps)
+    def test_subword_decoding_greedy_forward_hypotheses(
+        self, tmp_tokenizer, alignments, timestamps
+    ):
+        cfg = CTCBPEDecodingConfig(
+            strategy="greedy",
+            preserve_alignments=alignments,
+            compute_timestamps=timestamps,
+        )
         decoding = CTCBPEDecoding(decoding_cfg=cfg, tokenizer=tmp_tokenizer)
 
         B, T = 4, 20
@@ -218,10 +238,10 @@ class TestCTCDecoding:
                     check_subword_timestamps(hyp, decoding)
 
     @pytest.mark.unit
-    @pytest.mark.parametrize('alignments', [False, True])
-    @pytest.mark.parametrize('timestamps', [False, True])
-    @pytest.mark.parametrize('preserve_frame_confidence', [False, True])
-    @pytest.mark.parametrize('length_is_none', [False, True])
+    @pytest.mark.parametrize("alignments", [False, True])
+    @pytest.mark.parametrize("timestamps", [False, True])
+    @pytest.mark.parametrize("preserve_frame_confidence", [False, True])
+    @pytest.mark.parametrize("length_is_none", [False, True])
     @pytest.mark.parametrize(
         "logprobs_device",
         [
@@ -230,7 +250,7 @@ class TestCTCDecoding:
                 torch.device("cuda"),
                 marks=pytest.mark.skipif(
                     not torch.cuda.is_available(),
-                    reason='CUDA required for test.',
+                    reason="CUDA required for test.",
                 ),
             ),
         ],
@@ -243,7 +263,7 @@ class TestCTCDecoding:
                 torch.device("cuda"),
                 marks=pytest.mark.skipif(
                     not torch.cuda.is_available(),
-                    reason='CUDA required for test.',
+                    reason="CUDA required for test.",
                 ),
             ),
         ],
@@ -259,14 +279,16 @@ class TestCTCDecoding:
         length_device,
     ):
         cfg = CTCBPEDecodingConfig(
-            strategy='greedy',
+            strategy="greedy",
             preserve_alignments=alignments,
             compute_timestamps=timestamps,
-            confidence_cfg=ConfidenceConfig(preserve_frame_confidence=preserve_frame_confidence),
+            confidence_cfg=ConfidenceConfig(
+                preserve_frame_confidence=preserve_frame_confidence
+            ),
         )
         unbatched_decoding = CTCBPEDecoding(decoding_cfg=cfg, tokenizer=tmp_tokenizer)
 
-        cfg.strategy = 'greedy_batch'
+        cfg.strategy = "greedy_batch"
         batched_decoding = CTCBPEDecoding(decoding_cfg=cfg, tokenizer=tmp_tokenizer)
 
         torch.manual_seed(1)
@@ -302,8 +324,8 @@ class TestCTCDecoding:
                     assert torch.all(hyp.alignments[1] == batched_hyp.alignments[1])
 
     @pytest.mark.unit
-    @pytest.mark.parametrize('timestamps', [False, True])
-    @pytest.mark.parametrize('length_is_none', [False, True])
+    @pytest.mark.parametrize("timestamps", [False, True])
+    @pytest.mark.parametrize("length_is_none", [False, True])
     @pytest.mark.parametrize(
         "labels_device",
         [
@@ -312,7 +334,7 @@ class TestCTCDecoding:
                 torch.device("cuda"),
                 marks=pytest.mark.skipif(
                     not torch.cuda.is_available(),
-                    reason='CUDA required for test.',
+                    reason="CUDA required for test.",
                 ),
             ),
         ],
@@ -325,15 +347,17 @@ class TestCTCDecoding:
                 torch.device("cuda"),
                 marks=pytest.mark.skipif(
                     not torch.cuda.is_available(),
-                    reason='CUDA required for test.',
+                    reason="CUDA required for test.",
                 ),
             ),
         ],
     )
-    def test_batched_decoding_labels(self, tmp_tokenizer, timestamps, length_is_none, labels_device, length_device):
-        cfg = CTCBPEDecodingConfig(strategy='greedy', compute_timestamps=timestamps)
+    def test_batched_decoding_labels(
+        self, tmp_tokenizer, timestamps, length_is_none, labels_device, length_device
+    ):
+        cfg = CTCBPEDecodingConfig(strategy="greedy", compute_timestamps=timestamps)
         unbatched_decoding = CTCBPEDecoding(decoding_cfg=cfg, tokenizer=tmp_tokenizer)
-        cfg.strategy = 'greedy_batch'
+        cfg.strategy = "greedy_batch"
         batched_decoding = CTCBPEDecoding(decoding_cfg=cfg, tokenizer=tmp_tokenizer)
 
         torch.manual_seed(1)

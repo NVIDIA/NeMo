@@ -23,7 +23,9 @@ from lightning.pytorch.strategies import DDPStrategy, StrategyRegistry
 from nemo.utils import logging
 
 
-def maybe_download_from_cloud(url, filename, subfolder=None, cache_dir=None, refresh_cache=False) -> str:
+def maybe_download_from_cloud(
+    url, filename, subfolder=None, cache_dir=None, refresh_cache=False
+) -> str:
     """
     Helper function to download pre-trained weights from the cloud
     Args:
@@ -105,14 +107,16 @@ def initialize_sagemaker() -> None:
     """
 
     StrategyRegistry.register(
-        name='smddp',
+        name="smddp",
         strategy=SageMakerDDPStrategy,
         process_group_backend="smddp",
         find_unused_parameters=False,
     )
 
     def _install_system_libraries() -> None:
-        os.system('chmod 777 /tmp && apt-get update && apt-get install -y libsndfile1 ffmpeg')
+        os.system(
+            "chmod 777 /tmp && apt-get update && apt-get install -y libsndfile1 ffmpeg"
+        )
 
     def _patch_torch_metrics() -> None:
         """

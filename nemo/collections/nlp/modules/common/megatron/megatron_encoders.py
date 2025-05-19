@@ -104,7 +104,7 @@ def get_encoder_model(
     moe_dropout=0.0,
     turn_off_rop=False,  # turn off the RoP positional embedding
     version=1,  # model version
-    position_embedding_type='learned_absolute',
+    position_embedding_type="learned_absolute",
     use_flash_attention=False,
     n_transformers=1,
 ):
@@ -113,7 +113,7 @@ def get_encoder_model(
     if kv_channels is None:
         assert (
             hidden_size % num_attention_heads == 0
-        ), 'hidden_size must be divisible by num_attention_heads if kv_channels is None'
+        ), "hidden_size must be divisible by num_attention_heads if kv_channels is None"
         kv_channels = hidden_size // num_attention_heads
 
     if init_method is None:
@@ -292,6 +292,8 @@ def get_encoder_model(
             normalize_attention_scores=normalize_attention_scores,
         )
     else:
-        raise ValueError(f"Unknown encoder arch = {arch}. Available encoder arch = {AVAILABLE_ENCODERS}")
+        raise ValueError(
+            f"Unknown encoder arch = {arch}. Available encoder arch = {AVAILABLE_ENCODERS}"
+        )
 
     return encoder

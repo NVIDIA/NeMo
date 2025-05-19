@@ -50,7 +50,7 @@ def flux_mock_datamodule() -> pl.LightningDataModule:
     return data_module
 
 
-@run.cli.factory(target=llm.train, name='flux_controlnet_training_test')
+@run.cli.factory(target=llm.train, name="flux_controlnet_training_test")
 def flux_controlnet_training(
     flux_num_joint_layers=1,
     flux_num_single_layers=1,
@@ -112,9 +112,9 @@ def flux_controlnet_training(
         log=run.Config(
             nl.NeMoLogger,
             ckpt=None,
-            name='flux_controlnet_training_test',
-            tensorboard=tensorboard_logger(name='flux_controlnet_training'),
-            log_dir='/tmp/flux_controlnet_training',
+            name="flux_controlnet_training_test",
+            tensorboard=tensorboard_logger(name="flux_controlnet_training"),
+            log_dir="/tmp/flux_controlnet_training",
         ),
         optim=run.Config(
             nl.MegatronOptimizerModule,
@@ -131,7 +131,7 @@ def flux_controlnet_training(
     )
 
 
-@run.cli.factory(target=llm.train, name='flux_training_test')
+@run.cli.factory(target=llm.train, name="flux_training_test")
 def flux_training(
     flux_num_joint_layers=1,
     flux_num_single_layers=1,
@@ -185,9 +185,9 @@ def flux_training(
         log=run.Config(
             nl.NeMoLogger,
             ckpt=None,
-            name='flux_training_test',
-            tensorboard=tensorboard_logger(name='flux_training'),
-            log_dir='/tmp/flux_training',
+            name="flux_training_test",
+            tensorboard=tensorboard_logger(name="flux_training"),
+            log_dir="/tmp/flux_training",
         ),
         optim=run.Config(
             nl.MegatronOptimizerModule,

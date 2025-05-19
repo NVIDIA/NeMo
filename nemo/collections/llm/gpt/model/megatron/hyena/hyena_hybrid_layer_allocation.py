@@ -22,7 +22,9 @@ if __name__ != "__main__":
 else:
     from typing import Any
 
-    def log_single_rank(logger: logging.Logger, *args: Any, rank: int = 0, **kwargs: Any):
+    def log_single_rank(
+        logger: logging.Logger, *args: Any, rank: int = 0, **kwargs: Any
+    ):
         """Log a message from the current rank."""
         print(*args[1:], **kwargs)
 
@@ -33,10 +35,10 @@ logger = logging.getLogger(__name__)
 class Symbols:
     """Symbols for the hybrid layer allocation."""
 
-    HYENA_SHORT = 'S'
-    HYENA_MEDIUM = 'D'
-    HYENA = 'H'
-    ATTENTION = '*'
+    HYENA_SHORT = "S"
+    HYENA_MEDIUM = "D"
+    HYENA = "H"
+    ATTENTION = "*"
     VALID = {HYENA_SHORT, HYENA_MEDIUM, HYENA, ATTENTION}
 
 
@@ -51,7 +53,10 @@ def _allocate_override(total_layers_count: int, override_pattern: str) -> list:
         )
     for layer_type in layer_type_list:
         if layer_type not in Symbols.VALID:
-            raise ValueError(f"In hybrid override pattern, '{layer_type}' is not " f"one of {Symbols.VALID}")
+            raise ValueError(
+                f"In hybrid override pattern, '{layer_type}' is not "
+                f"one of {Symbols.VALID}"
+            )
 
     return layer_type_list
 
@@ -67,7 +72,7 @@ def allocate_layers(
     actual_hyena_medium_layers_count = layer_type_list.count(Symbols.HYENA_MEDIUM)
     actual_hyena_layers_count = layer_type_list.count(Symbols.HYENA)
     actual_attention_layers_count = layer_type_list.count(Symbols.ATTENTION)
-    allocation_string = ''.join(layer_type_list)
+    allocation_string = "".join(layer_type_list)
     log_single_rank(
         logger,
         logging.INFO,
@@ -80,22 +85,26 @@ def allocate_layers(
     log_single_rank(
         logger,
         logging.INFO,
-        f"{actual_hyena_short_layers_count} heyna_short_conv layers in " f"{total_layers_count} total layers.",
+        f"{actual_hyena_short_layers_count} heyna_short_conv layers in "
+        f"{total_layers_count} total layers.",
     )
     log_single_rank(
         logger,
         logging.INFO,
-        f"{actual_hyena_medium_layers_count} heyna_medium_conv layers in " f"{total_layers_count} total layers.",
+        f"{actual_hyena_medium_layers_count} heyna_medium_conv layers in "
+        f"{total_layers_count} total layers.",
     )
     log_single_rank(
         logger,
         logging.INFO,
-        f"{actual_hyena_layers_count} heyna layers in " f"{total_layers_count} total layers.",
+        f"{actual_hyena_layers_count} heyna layers in "
+        f"{total_layers_count} total layers.",
     )
     log_single_rank(
         logger,
         logging.INFO,
-        f"{actual_attention_layers_count} attention layers in " f"{total_layers_count} total layers.",
+        f"{actual_attention_layers_count} attention layers in "
+        f"{total_layers_count} total layers.",
     )
 
     return layer_type_list

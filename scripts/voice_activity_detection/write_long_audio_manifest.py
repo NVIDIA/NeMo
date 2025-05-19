@@ -36,20 +36,47 @@ python write_long_audio_manifest.py  --inp_dir=<FULL PATH OF FOLDER OF AUDIO FIL
 
 def main():
     parser = ArgumentParser()
-    parser.add_argument("--inp_dir", type=str, required=True, help="(full path) folder of files to be processed")
     parser.add_argument(
-        "--inp_list", type=str, help="(full path) a file contains NAME of files inside inp_dir to be processed"
+        "--inp_dir",
+        type=str,
+        required=True,
+        help="(full path) folder of files to be processed",
     )
-    parser.add_argument("--out_dir", type=str, default=".", help="(full path) location to store generated json file")
-    parser.add_argument("--manifest_name", type=str, default="generated_manifest", help="name of generated json file")
-    parser.add_argument("--split_duration", type=int, required=True, help="max duration of each audio clip/line")
+    parser.add_argument(
+        "--inp_list",
+        type=str,
+        help="(full path) a file contains NAME of files inside inp_dir to be processed",
+    )
+    parser.add_argument(
+        "--out_dir",
+        type=str,
+        default=".",
+        help="(full path) location to store generated json file",
+    )
+    parser.add_argument(
+        "--manifest_name",
+        type=str,
+        default="generated_manifest",
+        help="name of generated json file",
+    )
+    parser.add_argument(
+        "--split_duration",
+        type=int,
+        required=True,
+        help="max duration of each audio clip/line",
+    )
     parser.add_argument(
         "--window_length_in_sec",
         type=float,
         default=0.63,
         help="window length in sec for VAD context input , default is 0.63s",
     )
-    parser.add_argument("--num_workers", type=int, default=4, help="number of workers for multiprocessing")
+    parser.add_argument(
+        "--num_workers",
+        type=int,
+        default=4,
+        help="number of workers for multiprocessing",
+    )
 
     args = parser.parse_args()
 
@@ -57,33 +84,33 @@ def main():
         input_audios = []
         for root, dirs, files in os.walk(args.inp_dir):
             for basename in files:
-                if basename.endswith('.wav'):
+                if basename.endswith(".wav"):
                     filename = os.path.join(root, basename)
                     input_audios.append(filename)
     else:
-        name_list = np.loadtxt(args.inp_list, dtype='str')
+        name_list = np.loadtxt(args.inp_list, dtype="str")
         input_audios = [os.path.join(args.inp_dir, name + ".wav") for name in name_list]
 
     input_list = []
     for i in input_audios:
-        input_list.append({'audio_filepath': i, "offset": 0, "duration": None})
+        input_list.append({"audio_filepath": i, "offset": 0, "duration": None})
 
     logging.info(f"Number of wav files to be processed: {len(input_audios)}")
-    output_path = os.path.join(args.out_dir, args.manifest_name + '.json')
+    output_path = os.path.join(args.out_dir, args.manifest_name + ".json")
 
     logging.info("Split long audio file to avoid CUDA memory issue")
     logging.debug("Try smaller split_duration if you still have CUDA memory issue")
 
     config = {
-        'input': input_list,
-        'window_length_in_sec': args.window_length_in_sec,
-        'split_duration': args.split_duration,
-        'num_workers': args.num_workers,
-        'prepared_manfiest_vad_input': output_path,
+        "input": input_list,
+        "window_length_in_sec": args.window_length_in_sec,
+        "split_duration": args.split_duration,
+        "num_workers": args.num_workers,
+        "prepared_manfiest_vad_input": output_path,
     }
     manifest_vad_input = prepare_manifest(config)
     logging.info(f"Done! Save to {manifest_vad_input}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

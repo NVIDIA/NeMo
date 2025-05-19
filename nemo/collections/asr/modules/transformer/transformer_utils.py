@@ -22,7 +22,7 @@ from nemo.collections.asr.modules.transformer.transformer import (
 from nemo.collections.asr.modules.transformer.transformer_bottleneck import \
     TransformerBottleneckEncoderNM
 
-__all__ = ['get_nemo_transformer']
+__all__ = ["get_nemo_transformer"]
 
 
 def get_nemo_transformer(
@@ -49,89 +49,93 @@ def get_nemo_transformer(
         encoder (bool, optional): True will use EncoderTransformerNM, False will use DecoderTransformerNM. Defaults to True.
     """
     if model_name is not None:
-        raise ValueError(f'NeMo transformers cannot be loaded from NGC yet. model_name should be None')
+        raise ValueError(
+            f"NeMo transformers cannot be loaded from NGC yet. model_name should be None"
+        )
 
     if pretrained:
-        raise ValueError(f'NeMo transformers cannot be loaded from NGC yet. pretrained should be False')
+        raise ValueError(
+            f"NeMo transformers cannot be loaded from NGC yet. pretrained should be False"
+        )
 
     cfg = None
 
     if not pretrained:
         assert (
-            config_dict.get('vocab_size') is not None
-            and config_dict.get('hidden_size') is not None
-            and config_dict.get('num_layers') is not None
-            and config_dict.get('inner_size') is not None
-        ), f'Using config_dict: {config_dict}. vocab_size, hidden_size, num_layers, and inner_size must are mandatory arguments'
+            config_dict.get("vocab_size") is not None
+            and config_dict.get("hidden_size") is not None
+            and config_dict.get("num_layers") is not None
+            and config_dict.get("inner_size") is not None
+        ), f"Using config_dict: {config_dict}. vocab_size, hidden_size, num_layers, and inner_size must are mandatory arguments"
 
         cfg = config_dict
 
     if encoder:
         # if arch exists in cfg we return TransformerBottleneckEncoderNM
-        arch = cfg.get('arch', '')
+        arch = cfg.get("arch", "")
         if not arch:
             model = TransformerEncoderNM(
-                vocab_size=cfg.get('vocab_size'),
-                hidden_size=cfg.get('hidden_size'),
-                num_layers=cfg.get('num_layers'),
-                inner_size=cfg.get('inner_size'),
-                max_sequence_length=cfg.get('max_sequence_length', 512),
-                embedding_dropout=cfg.get('embedding_dropout', 0.0),
-                learn_positional_encodings=cfg.get('learn_positional_encodings', False),
-                num_attention_heads=cfg.get('num_attention_heads'),
-                ffn_dropout=cfg.get('ffn_dropout', 0.0),
-                attn_score_dropout=cfg.get('attn_score_dropout', 0.0),
-                attn_layer_dropout=cfg.get('attn_layer_dropout', 0.0),
-                hidden_act=cfg.get('hidden_act', 'relu'),
-                mask_future=cfg.get('mask_future', True),
-                pre_ln=cfg.get('pre_ln', False),
+                vocab_size=cfg.get("vocab_size"),
+                hidden_size=cfg.get("hidden_size"),
+                num_layers=cfg.get("num_layers"),
+                inner_size=cfg.get("inner_size"),
+                max_sequence_length=cfg.get("max_sequence_length", 512),
+                embedding_dropout=cfg.get("embedding_dropout", 0.0),
+                learn_positional_encodings=cfg.get("learn_positional_encodings", False),
+                num_attention_heads=cfg.get("num_attention_heads"),
+                ffn_dropout=cfg.get("ffn_dropout", 0.0),
+                attn_score_dropout=cfg.get("attn_score_dropout", 0.0),
+                attn_layer_dropout=cfg.get("attn_layer_dropout", 0.0),
+                hidden_act=cfg.get("hidden_act", "relu"),
+                mask_future=cfg.get("mask_future", True),
+                pre_ln=cfg.get("pre_ln", False),
                 pre_ln_final_layer_norm=pre_ln_final_layer_norm,
-                num_token_types=cfg.get('num_token_types', 2),
+                num_token_types=cfg.get("num_token_types", 2),
             )
         elif arch in TransformerBottleneckEncoderNM._SUPPORTED_ARCH:
             model = TransformerBottleneckEncoderNM(
-                vocab_size=cfg.get('vocab_size'),
-                hidden_size=cfg.get('hidden_size'),
-                num_layers=cfg.get('num_layers'),
-                inner_size=cfg.get('inner_size'),
-                max_sequence_length=cfg.get('max_sequence_length', 512),
-                embedding_dropout=cfg.get('embedding_dropout', 0.0),
-                learn_positional_encodings=cfg.get('learn_positional_encodings', False),
-                num_attention_heads=cfg.get('num_attention_heads'),
-                ffn_dropout=cfg.get('ffn_dropout', 0.0),
-                attn_score_dropout=cfg.get('attn_score_dropout', 0.0),
-                attn_layer_dropout=cfg.get('attn_layer_dropout', 0.0),
-                hidden_act=cfg.get('hidden_act', 'relu'),
-                mask_future=cfg.get('mask_future', False),
-                pre_ln=cfg.get('pre_ln', False),
+                vocab_size=cfg.get("vocab_size"),
+                hidden_size=cfg.get("hidden_size"),
+                num_layers=cfg.get("num_layers"),
+                inner_size=cfg.get("inner_size"),
+                max_sequence_length=cfg.get("max_sequence_length", 512),
+                embedding_dropout=cfg.get("embedding_dropout", 0.0),
+                learn_positional_encodings=cfg.get("learn_positional_encodings", False),
+                num_attention_heads=cfg.get("num_attention_heads"),
+                ffn_dropout=cfg.get("ffn_dropout", 0.0),
+                attn_score_dropout=cfg.get("attn_score_dropout", 0.0),
+                attn_layer_dropout=cfg.get("attn_layer_dropout", 0.0),
+                hidden_act=cfg.get("hidden_act", "relu"),
+                mask_future=cfg.get("mask_future", False),
+                pre_ln=cfg.get("pre_ln", False),
                 pre_ln_final_layer_norm=pre_ln_final_layer_norm,
-                num_token_types=cfg.get('num_token_types', 2),
-                arch=cfg.get('arch', 'full'),
-                hidden_steps=cfg.get('hidden_steps', -1),
-                hidden_blocks=cfg.get('hidden_blocks', 1),
-                hidden_init_method=cfg.get('hidden_init_method', 'default'),
-                return_mask=cfg.get('return_mask', True),
+                num_token_types=cfg.get("num_token_types", 2),
+                arch=cfg.get("arch", "full"),
+                hidden_steps=cfg.get("hidden_steps", -1),
+                hidden_blocks=cfg.get("hidden_blocks", 1),
+                hidden_init_method=cfg.get("hidden_init_method", "default"),
+                return_mask=cfg.get("return_mask", True),
             )
         else:
             raise ValueError(f"Unknown arch = {arch}")
     else:
 
         model = TransformerDecoderNM(
-            vocab_size=cfg.get('vocab_size'),
-            hidden_size=cfg.get('hidden_size'),
-            num_layers=cfg.get('num_layers'),
-            inner_size=cfg.get('inner_size'),
-            max_sequence_length=cfg.get('max_sequence_length', 512),
-            embedding_dropout=cfg.get('embedding_dropout', 0.0),
-            learn_positional_encodings=cfg.get('learn_positional_encodings', False),
-            num_attention_heads=cfg.get('num_attention_heads'),
-            ffn_dropout=cfg.get('ffn_dropout', 0.0),
-            attn_score_dropout=cfg.get('attn_score_dropout', 0.0),
-            attn_layer_dropout=cfg.get('attn_layer_dropout', 0.0),
-            hidden_act=cfg.get('hidden_act', 'relu'),
-            pre_ln=cfg.get('pre_ln', False),
+            vocab_size=cfg.get("vocab_size"),
+            hidden_size=cfg.get("hidden_size"),
+            num_layers=cfg.get("num_layers"),
+            inner_size=cfg.get("inner_size"),
+            max_sequence_length=cfg.get("max_sequence_length", 512),
+            embedding_dropout=cfg.get("embedding_dropout", 0.0),
+            learn_positional_encodings=cfg.get("learn_positional_encodings", False),
+            num_attention_heads=cfg.get("num_attention_heads"),
+            ffn_dropout=cfg.get("ffn_dropout", 0.0),
+            attn_score_dropout=cfg.get("attn_score_dropout", 0.0),
+            attn_layer_dropout=cfg.get("attn_layer_dropout", 0.0),
+            hidden_act=cfg.get("hidden_act", "relu"),
+            pre_ln=cfg.get("pre_ln", False),
             pre_ln_final_layer_norm=pre_ln_final_layer_norm,
-            num_token_types=cfg.get('num_token_types', 2),
+            num_token_types=cfg.get("num_token_types", 2),
         )
 
     return model

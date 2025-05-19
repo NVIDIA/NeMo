@@ -58,14 +58,26 @@ def gather_features(
 
     if gather_with_grad:
         # https://github.com/mlfoundations/open_clip/blob/main/src/open_clip/loss.py#L48
-        all_image_features = torch.cat(torch.distributed.nn.all_gather(image_features), dim=0)
-        all_text_features = torch.cat(torch.distributed.nn.all_gather(text_features), dim=0)
+        all_image_features = torch.cat(
+            torch.distributed.nn.all_gather(image_features), dim=0
+        )
+        all_text_features = torch.cat(
+            torch.distributed.nn.all_gather(text_features), dim=0
+        )
 
     else:
-        gathered_image_features = [torch.zeros_like(image_features) for _ in range(data_parallel_world_size)]
-        gathered_text_features = [torch.zeros_like(text_features) for _ in range(data_parallel_world_size)]
-        dist.all_gather(gathered_image_features, image_features, group=data_parallel_group)
-        dist.all_gather(gathered_text_features, text_features, group=data_parallel_group)
+        gathered_image_features = [
+            torch.zeros_like(image_features) for _ in range(data_parallel_world_size)
+        ]
+        gathered_text_features = [
+            torch.zeros_like(text_features) for _ in range(data_parallel_world_size)
+        ]
+        dist.all_gather(
+            gathered_image_features, image_features, group=data_parallel_group
+        )
+        dist.all_gather(
+            gathered_text_features, text_features, group=data_parallel_group
+        )
         if not local_loss:
             # ensure grads for local rank when all_* features don't have a gradient
             # https://amsword.medium.com/gradient-backpropagation-with-torch-distributed-all-gather-9f3941a381f8
@@ -123,7 +135,9 @@ class ClipMegatronLoss(MegatronLossReduction):
         self.rank = parallel_state.get_data_parallel_rank()
 
     def forward(
-        self, batch: Dict[str, torch.Tensor], forward_out: Tuple[torch.Tensor, torch.Tensor, torch.Tensor]
+        self,
+        batch: Dict[str, torch.Tensor],
+        forward_out: Tuple[torch.Tensor, torch.Tensor, torch.Tensor],
     ) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
         image_features, text_features, logit_scale = forward_out
         device = image_features.device
@@ -136,7 +150,9 @@ class ClipMegatronLoss(MegatronLossReduction):
                 logits_per_image = logit_scale * image_features @ all_text_features.T
                 logits_per_text = logit_scale * text_features @ all_image_features.T
             else:
-                logits_per_image = logit_scale * all_image_features @ all_text_features.T
+                logits_per_image = (
+                    logit_scale * all_image_features @ all_text_features.T
+                )
                 logits_per_text = logits_per_image.T
         else:
             logits_per_image = logit_scale * image_features @ text_features.T
@@ -154,7 +170,10 @@ class ClipMegatronLoss(MegatronLossReduction):
         else:
             labels = self.labels[device]
 
-        total_loss = (F.cross_entropy(logits_per_image, labels) + F.cross_entropy(logits_per_text, labels)) / 2
+        total_loss = (
+            F.cross_entropy(logits_per_image, labels)
+            + F.cross_entropy(logits_per_text, labels)
+        ) / 2
 
         reduced_loss = average_losses_across_data_parallel_group([total_loss])
 
@@ -163,7 +182,10 @@ class ClipMegatronLoss(MegatronLossReduction):
     def reduce(self, losses_reduced_per_micro_batch) -> torch.Tensor:
         if losses_reduced_per_micro_batch:
             if "avg" in losses_reduced_per_micro_batch[0]:
-                loss_tensors_list = [loss_reduced["avg"] for loss_reduced in losses_reduced_per_micro_batch]
+                loss_tensors_list = [
+                    loss_reduced["avg"]
+                    for loss_reduced in losses_reduced_per_micro_batch
+                ]
                 loss_tensor = torch.concat(loss_tensors_list)
                 return loss_tensor.mean()
         return torch.tensor(0.0, device=torch.cuda.current_device())

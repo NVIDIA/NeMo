@@ -185,19 +185,23 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
             ),
         )
 
-        self.mcore_engine, self.inference_wrapped_model, self.mcore_tokenizer = inference.setup_mcore_engine(
-            path=Path(nemo_checkpoint_filepath),
-            trainer=trainer,
-            params_dtype=params_dtype,
-            inference_batch_times_seqlen_threshold=inference_batch_times_seqlen_threshold,
-            inference_max_seq_length=inference_max_seq_length,
-            max_batch_size=max_batch_size,
-            random_seed=random_seed,
-            enable_flash_decode=enable_flash_decode,
+        self.mcore_engine, self.inference_wrapped_model, self.mcore_tokenizer = (
+            inference.setup_mcore_engine(
+                path=Path(nemo_checkpoint_filepath),
+                trainer=trainer,
+                params_dtype=params_dtype,
+                inference_batch_times_seqlen_threshold=inference_batch_times_seqlen_threshold,
+                inference_max_seq_length=inference_max_seq_length,
+                max_batch_size=max_batch_size,
+                random_seed=random_seed,
+                enable_flash_decode=enable_flash_decode,
+            )
         )
 
     def generate(
-        self, prompts: List[str], inference_params: Optional[CommonInferenceParams] = None
+        self,
+        prompts: List[str],
+        inference_params: Optional[CommonInferenceParams] = None,
     ) -> List[InferenceRequest]:
         """
         Generates text based on the provided input prompts.
@@ -227,7 +231,9 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
             torch.distributed.broadcast(message, src=0)
             if message == 0:
                 prompts = broadcast_list(data=[None], src=0)
-                temperature, top_k, top_p, num_tokens_to_generate, log_probs = broadcast_list(data=[None], src=0)
+                temperature, top_k, top_p, num_tokens_to_generate, log_probs = (
+                    broadcast_list(data=[None], src=0)
+                )
 
                 inference_params = CommonInferenceParams(
                     temperature=temperature,
@@ -247,7 +253,9 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
         Works when model's tokenizer has chat template (typically chat models).
         """
         try:
-            tokenizer_chat_template = self.mcore_tokenizer.tokenizer.tokenizer.chat_template
+            tokenizer_chat_template = (
+                self.mcore_tokenizer.tokenizer.tokenizer.chat_template
+            )
             bos_token = self.mcore_tokenizer.tokenizer.tokenizer.bos_token
             template = Template(tokenizer_chat_template)
         except AttributeError:
@@ -258,7 +266,9 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
             )
         # Render the template with the provided messages
         rendered_output = template.render(
-            messages=messages, bos_token=bos_token, add_generation_prompt=add_generation_prompt
+            messages=messages,
+            bos_token=bos_token,
+            add_generation_prompt=add_generation_prompt,
         )
 
         return rendered_output
@@ -293,7 +303,9 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
             Tensor(name="temperature", shape=(-1,), dtype=np.single, optional=True),
             Tensor(name="random_seed", shape=(-1,), dtype=np.int_, optional=True),
             Tensor(name="compute_logprob", shape=(-1,), dtype=np.bool_, optional=True),
-            Tensor(name="apply_chat_template", shape=(-1,), dtype=np.bool_, optional=True),
+            Tensor(
+                name="apply_chat_template", shape=(-1,), dtype=np.bool_, optional=True
+            ),
         )
         return inputs
 
@@ -334,7 +346,9 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
             # The provided qkv memory layout is not supported!
         if torch.distributed.is_initialized():
             if torch.distributed.get_world_size() > 1:
-                torch.distributed.broadcast(torch.tensor([0], dtype=torch.long, device="cuda"), src=0)
+                torch.distributed.broadcast(
+                    torch.tensor([0], dtype=torch.long, device="cuda"), src=0
+                )
                 broadcast_list(prompts, src=0)
                 broadcast_list(
                     data=[

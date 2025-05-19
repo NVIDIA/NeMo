@@ -32,7 +32,7 @@ class DiffusionWrapper(torch.nn.Module, Serialization):
         else:
             self.diffusion_model = DiffusionWrapper.from_config_dict(diff_model_config)
         self.conditioning_key = conditioning_key
-        assert self.conditioning_key in [None, 'concat', 'crossattn', 'hybrid', 'adm']
+        assert self.conditioning_key in [None, "concat", "crossattn", "hybrid", "adm"]
 
     def forward(self, x_noisy, t, cond, return_ids=False):
         if isinstance(cond, dict):
@@ -41,7 +41,7 @@ class DiffusionWrapper(torch.nn.Module, Serialization):
         else:
             if not isinstance(cond, list):
                 cond = [cond]
-            key = 'c_concat' if self.conditioning_key == 'concat' else 'c_crossattn'
+            key = "c_concat" if self.conditioning_key == "concat" else "c_crossattn"
             cond = {key: cond}
         x_recon = self.apply_step(x_noisy, t, **cond)
         return x_recon
@@ -49,17 +49,17 @@ class DiffusionWrapper(torch.nn.Module, Serialization):
     def apply_step(self, x, t, c_concat: list = None, c_crossattn: list = None):
         if self.conditioning_key is None:
             out = self.diffusion_model(x, t)
-        elif self.conditioning_key == 'concat':
+        elif self.conditioning_key == "concat":
             xc = torch.cat([x] + c_concat, dim=1)
             out = self.diffusion_model(xc, t)
-        elif self.conditioning_key == 'crossattn':
+        elif self.conditioning_key == "crossattn":
             cc = torch.cat(c_crossattn, 1)
             out = self.diffusion_model(x, t, context=cc)
-        elif self.conditioning_key == 'hybrid':
+        elif self.conditioning_key == "hybrid":
             xc = torch.cat([x] + c_concat, dim=1)
             cc = torch.cat(c_crossattn, 1)
             out = self.diffusion_model(xc, t, context=cc)
-        elif self.conditioning_key == 'adm':
+        elif self.conditioning_key == "adm":
             cc = c_crossattn[0]
             out = self.diffusion_model(x, t, y=cc)
         else:
@@ -71,10 +71,10 @@ class DiffusionWrapper(torch.nn.Module, Serialization):
 class sd_noise_scheduler(nn.Module):
     def __init__(
         self,
-        parameterization='eps',
+        parameterization="eps",
         v_posterior=0,
         given_betas=None,
-        beta_schedule='linear',
+        beta_schedule="linear",
         timesteps=1000,
         linear_start=0.00085,
         linear_end=0.012,
@@ -105,7 +105,11 @@ class sd_noise_scheduler(nn.Module):
             betas = given_betas
         else:
             betas = make_beta_schedule(
-                beta_schedule, timesteps, linear_start=linear_start, linear_end=linear_end, cosine_s=cosine_s
+                beta_schedule,
+                timesteps,
+                linear_start=linear_start,
+                linear_end=linear_end,
+                cosine_s=cosine_s,
             )
         alphas = 1.0 - betas
         alphas_cumprod = np.cumprod(alphas, axis=0)
@@ -115,52 +119,77 @@ class sd_noise_scheduler(nn.Module):
         self.num_timesteps = int(timesteps)
         self.linear_start = linear_start
         self.linear_end = linear_end
-        assert alphas_cumprod.shape[0] == self.num_timesteps, 'alphas have to be defined for each timestep'
+        assert (
+            alphas_cumprod.shape[0] == self.num_timesteps
+        ), "alphas have to be defined for each timestep"
 
         to_torch = partial(torch.tensor, dtype=torch.float32)
 
-        self.register_buffer('betas', to_torch(betas))
-        self.register_buffer('alphas_cumprod', to_torch(alphas_cumprod))
-        self.register_buffer('alphas_cumprod_prev', to_torch(alphas_cumprod_prev))
+        self.register_buffer("betas", to_torch(betas))
+        self.register_buffer("alphas_cumprod", to_torch(alphas_cumprod))
+        self.register_buffer("alphas_cumprod_prev", to_torch(alphas_cumprod_prev))
 
         # calculations for diffusion q(x_t | x_{t-1}) and others
-        self.register_buffer('sqrt_alphas_cumprod', to_torch(np.sqrt(alphas_cumprod)))
-        self.register_buffer('sqrt_one_minus_alphas_cumprod', to_torch(np.sqrt(1.0 - alphas_cumprod)))
-        self.register_buffer('log_one_minus_alphas_cumprod', to_torch(np.log(1.0 - alphas_cumprod)))
-        self.register_buffer('sqrt_recip_alphas_cumprod', to_torch(np.sqrt(1.0 / alphas_cumprod)))
-        self.register_buffer('sqrt_recipm1_alphas_cumprod', to_torch(np.sqrt(1.0 / alphas_cumprod - 1)))
-
-        # calculations for posterior q(x_{t-1} | x_t, x_0)
-        posterior_variance = (1 - self.v_posterior) * betas * (1.0 - alphas_cumprod_prev) / (
-            1.0 - alphas_cumprod
-        ) + self.v_posterior * betas
-        # above: equal to 1. / (1. / (1. - alpha_cumprod_tm1) + alpha_t / beta_t)
-        self.register_buffer('posterior_variance', to_torch(posterior_variance))
-        # below: log calculation clipped because the posterior variance is 0 at the beginning of the diffusion chain
-        self.register_buffer('posterior_log_variance_clipped', to_torch(np.log(np.maximum(posterior_variance, 1e-20))))
+        self.register_buffer("sqrt_alphas_cumprod", to_torch(np.sqrt(alphas_cumprod)))
         self.register_buffer(
-            'posterior_mean_coef1', to_torch(betas * np.sqrt(alphas_cumprod_prev) / (1.0 - alphas_cumprod))
+            "sqrt_one_minus_alphas_cumprod", to_torch(np.sqrt(1.0 - alphas_cumprod))
         )
         self.register_buffer(
-            'posterior_mean_coef2', to_torch((1.0 - alphas_cumprod_prev) * np.sqrt(alphas) / (1.0 - alphas_cumprod))
+            "log_one_minus_alphas_cumprod", to_torch(np.log(1.0 - alphas_cumprod))
+        )
+        self.register_buffer(
+            "sqrt_recip_alphas_cumprod", to_torch(np.sqrt(1.0 / alphas_cumprod))
+        )
+        self.register_buffer(
+            "sqrt_recipm1_alphas_cumprod", to_torch(np.sqrt(1.0 / alphas_cumprod - 1))
+        )
+
+        # calculations for posterior q(x_{t-1} | x_t, x_0)
+        posterior_variance = (1 - self.v_posterior) * betas * (
+            1.0 - alphas_cumprod_prev
+        ) / (1.0 - alphas_cumprod) + self.v_posterior * betas
+        # above: equal to 1. / (1. / (1. - alpha_cumprod_tm1) + alpha_t / beta_t)
+        self.register_buffer("posterior_variance", to_torch(posterior_variance))
+        # below: log calculation clipped because the posterior variance is 0 at the beginning of the diffusion chain
+        self.register_buffer(
+            "posterior_log_variance_clipped",
+            to_torch(np.log(np.maximum(posterior_variance, 1e-20))),
+        )
+        self.register_buffer(
+            "posterior_mean_coef1",
+            to_torch(betas * np.sqrt(alphas_cumprod_prev) / (1.0 - alphas_cumprod)),
+        )
+        self.register_buffer(
+            "posterior_mean_coef2",
+            to_torch(
+                (1.0 - alphas_cumprod_prev) * np.sqrt(alphas) / (1.0 - alphas_cumprod)
+            ),
         )
 
         if self.parameterization == "eps":
-            lvlb_weights = self.betas ** 2 / (
-                2 * self.posterior_variance * to_torch(alphas) * (1 - self.alphas_cumprod)
+            lvlb_weights = self.betas**2 / (
+                2
+                * self.posterior_variance
+                * to_torch(alphas)
+                * (1 - self.alphas_cumprod)
             )
         elif self.parameterization == "x0":
-            lvlb_weights = 0.5 * np.sqrt(torch.Tensor(alphas_cumprod)) / (2.0 * 1 - torch.Tensor(alphas_cumprod))
+            lvlb_weights = (
+                0.5
+                * np.sqrt(torch.Tensor(alphas_cumprod))
+                / (2.0 * 1 - torch.Tensor(alphas_cumprod))
+            )
         else:
             raise NotImplementedError("mu not supported")
         # TODO how to choose this term
         lvlb_weights[0] = lvlb_weights[1]
-        self.register_buffer('lvlb_weights', lvlb_weights, persistent=False)
+        self.register_buffer("lvlb_weights", lvlb_weights, persistent=False)
         assert not torch.isnan(self.lvlb_weights).all()
 
     def forward(self, x_start, t, noise=None):
         noise = default(noise, lambda: torch.randn_like(x_start))
         return (
             extract_into_tensor(self.sqrt_alphas_cumprod, t, x_start.shape) * x_start
-            + extract_into_tensor(self.sqrt_one_minus_alphas_cumprod, t, x_start.shape) * noise
+            + extract_into_tensor(self.sqrt_one_minus_alphas_cumprod, t, x_start.shape)
+            * noise
         )

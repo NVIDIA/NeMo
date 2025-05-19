@@ -81,9 +81,11 @@ class DefaultModelAdapterMixin(AdapterModelPTMixin):
         supports_adapters = False
 
         # At least the encoder must extend AdapterModuleMixin
-        valid_adapter_names = [x for x in self.adapter_module_names if x != '']
+        valid_adapter_names = [x for x in self.adapter_module_names if x != ""]
         for module_name in valid_adapter_names:
-            if hasattr(self, module_name) and isinstance(getattr(self, module_name), AdapterModuleMixin):
+            if hasattr(self, module_name) and isinstance(
+                getattr(self, module_name), AdapterModuleMixin
+            ):
                 supports_adapters |= True
 
         # If adapters are supported, setup the adapter config + any modules (pre-existing adapter modules)
@@ -98,19 +100,21 @@ class DefaultModelAdapterMixin(AdapterModelPTMixin):
         module_name, adapter_name = self.resolve_adapter_module_name_(name)
 
         # Use + as a splitter, in order to share one name across multiple modules
-        if '+' in module_name:
-            module_names = module_name.split('+')
+        if "+" in module_name:
+            module_names = module_name.split("+")
         else:
             module_names = [module_name]
 
-        valid_module_names = [x for x in self.adapter_module_names if x != '']
+        valid_module_names = [x for x in self.adapter_module_names if x != ""]
         default_module_name = self.default_adapter_module_name
 
         # Update the model.cfg with information about the new adapter from cfg
         for module_name in module_names:
             # Check if encoder adapters should be added
-            if module_name == '':
-                for default in default_module_name:  # This model has multiple default modules
+            if module_name == "":
+                for (
+                    default
+                ) in default_module_name:  # This model has multiple default modules
                     if hasattr(self, default):
                         # Dispatch the call to the default model.
                         getattr(self, default).add_adapter(name=name, cfg=cfg)
@@ -132,12 +136,12 @@ class DefaultModelAdapterMixin(AdapterModelPTMixin):
             module_name = None
 
         # Use + as a splitter, in order to share one name across multiple modules
-        if module_name is not None and '+' in module_name:
-            module_names = module_name.split('+')
+        if module_name is not None and "+" in module_name:
+            module_names = module_name.split("+")
         else:
             module_names = [module_name]
 
-        valid_module_names = [x for x in self.adapter_module_names if x != '']
+        valid_module_names = [x for x in self.adapter_module_names if x != ""]
         default_module_name = self.default_adapter_module_name
 
         # Check if default module name is None or not
@@ -151,28 +155,40 @@ class DefaultModelAdapterMixin(AdapterModelPTMixin):
         for module_name in module_names:
             # Check if encoder adapters should be used
 
-            if module_name == '':
+            if module_name == "":
                 for default in default_module_name:
-                    if hasattr(self, default) and isinstance(getattr(self, default), AdapterModuleMixin):
+                    if hasattr(self, default) and isinstance(
+                        getattr(self, default), AdapterModuleMixin
+                    ):
                         if getattr(self, default).is_adapter_available():
                             # Dispatch the call to the default model.
-                            getattr(self, default).set_enabled_adapters(name=name, enabled=enabled)
+                            getattr(self, default).set_enabled_adapters(
+                                name=name, enabled=enabled
+                            )
 
             elif module_name in valid_module_names:
-                if hasattr(self, module_name) and isinstance(getattr(self, module_name), AdapterModuleMixin):
+                if hasattr(self, module_name) and isinstance(
+                    getattr(self, module_name), AdapterModuleMixin
+                ):
                     if getattr(self, module_name).is_adapter_available():
                         # Dispatch the call to the module.
-                        getattr(self, module_name).set_enabled_adapters(name=name, enabled=enabled)
+                        getattr(self, module_name).set_enabled_adapters(
+                            name=name, enabled=enabled
+                        )
 
     def get_enabled_adapters(self) -> list:
         enabled_adapters = super().get_enabled_adapters()
 
-        valid_module_names = [x for x in self.adapter_module_names if x != '']
+        valid_module_names = [x for x in self.adapter_module_names if x != ""]
 
         # Check if encoder adapters should be used or are enabled
         for module_name in valid_module_names:
-            if hasattr(self, module_name) and isinstance(getattr(self, module_name), AdapterModuleMixin):
-                enabled_adapters.extend(getattr(self, module_name).get_enabled_adapters())
+            if hasattr(self, module_name) and isinstance(
+                getattr(self, module_name), AdapterModuleMixin
+            ):
+                enabled_adapters.extend(
+                    getattr(self, module_name).get_enabled_adapters()
+                )
 
         enabled_adapters = list(sorted(list(set(enabled_adapters))))
 
@@ -181,14 +197,20 @@ class DefaultModelAdapterMixin(AdapterModelPTMixin):
     def is_adapter_available(self) -> bool:
         adapters_available = super().is_adapter_available()
 
-        valid_module_names = [x for x in self.adapter_module_names if x != '']
+        valid_module_names = [x for x in self.adapter_module_names if x != ""]
 
         # Forward the method call to the individual modules
         for module_name in valid_module_names:
             print("Module name", module_name)
-            if hasattr(self, module_name) and isinstance(getattr(self, module_name), AdapterModuleMixin):
+            if hasattr(self, module_name) and isinstance(
+                getattr(self, module_name), AdapterModuleMixin
+            ):
                 adapters_available |= getattr(self, module_name).is_adapter_available()
-                print("Adapter available for module", module_name, getattr(self, module_name).is_adapter_available())
+                print(
+                    "Adapter available for module",
+                    module_name,
+                    getattr(self, module_name).is_adapter_available(),
+                )
 
         return adapters_available
 
@@ -197,18 +219,22 @@ class DefaultModelAdapterMixin(AdapterModelPTMixin):
         if self.adapter_global_cfg_key in self.adapter_cfg:
             global_cfg = self.adapter_cfg[self.adapter_global_cfg_key]
 
-        encoder_adapter = global_cfg.get('encoder_adapter', True)
-        decoder_adapter = global_cfg.get('decoder_adapter', False)
+        encoder_adapter = global_cfg.get("encoder_adapter", True)
+        decoder_adapter = global_cfg.get("decoder_adapter", False)
 
-        if encoder_adapter and not hasattr(self, 'encoder'):
+        if encoder_adapter and not hasattr(self, "encoder"):
             logging.warning("Encoder not available", mode=logging_mode.ONCE)
         elif encoder_adapter and not isinstance(self.encoder, AdapterModuleMixin):
-            logging.warning("Encoder does not support adapters !", mode=logging_mode.ONCE)
+            logging.warning(
+                "Encoder does not support adapters !", mode=logging_mode.ONCE
+            )
 
-        if decoder_adapter and not hasattr(self, 'decoder'):
+        if decoder_adapter and not hasattr(self, "decoder"):
             logging.warning("Decoder is not available", mode=logging_mode.ONCE)
         elif decoder_adapter and not isinstance(self.decoder, AdapterModuleMixin):
-            logging.warning("Decoder does not support adapters !", mode=logging_mode.ONCE)
+            logging.warning(
+                "Decoder does not support adapters !", mode=logging_mode.ONCE
+            )
 
     def resolve_adapter_module_name_(self, name: str) -> Tuple[str, str]:
         # resolve name and module
@@ -216,32 +242,34 @@ class DefaultModelAdapterMixin(AdapterModelPTMixin):
         module_name, adapter_name = super().resolve_adapter_module_name_(name)
 
         if module_name not in valid_module_names:
-            raise ValueError(f"Provided module name `{module_name}` is not in valid list : {valid_module_names}")
+            raise ValueError(
+                f"Provided module name `{module_name}` is not in valid list : {valid_module_names}"
+            )
 
         return (module_name, adapter_name)
 
     def _get_global_cfg(self):
         global_config = DictConfig({})
-        if 'adapters' in self.cfg and self.adapter_global_cfg_key in self.cfg.adapters:
+        if "adapters" in self.cfg and self.adapter_global_cfg_key in self.cfg.adapters:
             global_config = self.adapter_cfg[self.adapter_global_cfg_key]
         return global_config
 
     @property
     def adapter_module_names(self) -> list:
-        valid_adapter_modules = ['', 'encoder', 'decoder']
+        valid_adapter_modules = ["", "encoder", "decoder"]
         return valid_adapter_modules
 
     @property
     def default_adapter_module_name(self) -> Optional[List[str]]:
         global_config = self._get_global_cfg()
         default_modules = []
-        encoder_adapter = global_config.get('encoder_adapter', True)
-        decoder_adapter = global_config.get('decoder_adapter', False)
+        encoder_adapter = global_config.get("encoder_adapter", True)
+        decoder_adapter = global_config.get("decoder_adapter", False)
 
         if encoder_adapter:
-            default_modules.append('encoder')
+            default_modules.append("encoder")
         if decoder_adapter:
-            default_modules.append('decoder')
+            default_modules.append("decoder")
         return default_modules
 
 
@@ -264,20 +292,20 @@ class DefaultAdapterModel(ModelPT, DefaultModelAdapterMixin):
         return []
 
     def setup_training_data(self, train_data_config):
-        self._update_dataset_config('train', train_data_config)
+        self._update_dataset_config("train", train_data_config)
         self._train_dl = None
 
     def setup_validation_data(self, val_data_config):
-        self._update_dataset_config('validation', val_data_config)
+        self._update_dataset_config("validation", val_data_config)
         self._validation_dl = None
 
 
-def get_adapter_cfg(in_features=50, dim=100, norm_pos='pre'):
+def get_adapter_cfg(in_features=50, dim=100, norm_pos="pre"):
     cfg = {
-        '_target_': 'nemo.collections.common.parts.adapter_modules.LinearAdapter',
-        'in_features': in_features,
-        'dim': dim,
-        'norm_position': norm_pos,
+        "_target_": "nemo.collections.common.parts.adapter_modules.LinearAdapter",
+        "in_features": in_features,
+        "dim": dim,
+        "norm_position": norm_pos,
     }
     return cfg
 
@@ -285,28 +313,35 @@ def get_adapter_cfg(in_features=50, dim=100, norm_pos='pre'):
 def get_model_config(in_features=50, update_adapter_cfg: bool = True):
     config = OmegaConf.create(
         {
-            'in_features': in_features,
-            'encoder': {'_target_': get_classpath(DefaultModule)},
-            'decoder': {'_target_': get_classpath(DefaultModule)},
+            "in_features": in_features,
+            "encoder": {"_target_": get_classpath(DefaultModule)},
+            "decoder": {"_target_": get_classpath(DefaultModule)},
         }
     )
 
     if update_adapter_cfg:
-        enc_adapter_metadata = adapter_mixins.get_registered_adapter(config.encoder._target_)
+        enc_adapter_metadata = adapter_mixins.get_registered_adapter(
+            config.encoder._target_
+        )
         if enc_adapter_metadata is not None:
             config.encoder._target_ = enc_adapter_metadata.adapter_class_path
 
-        dec_adapter_metadata = adapter_mixins.get_registered_adapter(config.decoder._target_)
+        dec_adapter_metadata = adapter_mixins.get_registered_adapter(
+            config.decoder._target_
+        )
         if dec_adapter_metadata is not None:
             config.decoder._target_ = dec_adapter_metadata.adapter_class_path
 
     return config
 
 
-def update_adapter_global_cfg(cfg: DictConfig, encoder_adapter=True, decoder_adapter=False):
-    if 'adapters' not in cfg:
+def update_adapter_global_cfg(
+    cfg: DictConfig, encoder_adapter=True, decoder_adapter=False
+):
+    if "adapters" not in cfg:
         cfg.adapters = adapter_mixins._prepare_default_adapter_config(
-            global_key=AdapterModuleMixin.adapter_global_cfg_key, meta_key=AdapterModuleMixin.adapter_metadata_cfg_key
+            global_key=AdapterModuleMixin.adapter_global_cfg_key,
+            meta_key=AdapterModuleMixin.adapter_metadata_cfg_key,
         )
 
     cfg.adapters.global_cfg.encoder_adapter = encoder_adapter
@@ -315,7 +350,7 @@ def update_adapter_global_cfg(cfg: DictConfig, encoder_adapter=True, decoder_ada
 
 
 def get_classpath(cls):
-    return f'{cls.__module__}.{cls.__name__}'
+    return f"{cls.__module__}.{cls.__name__}"
 
 
 if adapter_mixins.get_registered_adapter(DefaultModule) is None:
@@ -334,7 +369,7 @@ class TestAdapterModelMixin:
         model = DefaultAdapterModel(cfg)
 
         with pytest.raises(AttributeError):
-            model.add_adapter(name='adapter_0', cfg=get_adapter_cfg())
+            model.add_adapter(name="adapter_0", cfg=get_adapter_cfg())
 
         # check that warning message indicates that it module is not available
         assert """Encoder does not support adapters !""" in caplog.text
@@ -354,7 +389,7 @@ class TestAdapterModelMixin:
         model = DefaultAdapterModel(cfg)
 
         with pytest.raises(AttributeError):
-            model.add_adapter(name='adapter_0', cfg=get_adapter_cfg())
+            model.add_adapter(name="adapter_0", cfg=get_adapter_cfg())
 
         # Replace the modules of the model dynamically to support adapters
         model.replace_adapter_compatible_modules()
@@ -362,7 +397,7 @@ class TestAdapterModelMixin:
         assert isinstance(model.encoder, AdapterModuleMixin)
         assert model.encoder.is_adapter_available() is False
 
-        model.add_adapter(name='encoder:adapter_0', cfg=get_adapter_cfg())
+        model.add_adapter(name="encoder:adapter_0", cfg=get_adapter_cfg())
         assert model.encoder.is_adapter_available() is True
 
     @pytest.mark.unit
@@ -372,7 +407,7 @@ class TestAdapterModelMixin:
         model = DefaultAdapterModel(cfg)
         original_num_params = model.num_weights
 
-        model.add_adapter(name='adapter_0', cfg=get_adapter_cfg())
+        model.add_adapter(name="adapter_0", cfg=get_adapter_cfg())
         new_num_params = model.num_weights
         assert new_num_params > original_num_params
 
@@ -385,28 +420,32 @@ class TestAdapterModelMixin:
         model = DefaultAdapterModel(cfg)
         original_num_params = model.num_weights
 
-        model.add_adapter(name='encoder:adapter_0', cfg=get_adapter_cfg())
+        model.add_adapter(name="encoder:adapter_0", cfg=get_adapter_cfg())
         new_num_params = model.num_weights
         assert new_num_params > original_num_params
 
         assert model.decoder.is_adapter_available() is False
 
         adapter_cfg = model.cfg.adapters
-        meta_cfg = adapter_cfg[model.adapter_global_cfg_key][model.adapter_metadata_cfg_key]
-        modules_cfg = meta_cfg['modules']
+        meta_cfg = adapter_cfg[model.adapter_global_cfg_key][
+            model.adapter_metadata_cfg_key
+        ]
+        modules_cfg = meta_cfg["modules"]
 
         assert modules_cfg is not None
-        assert modules_cfg[model.get_enabled_adapters()[0]] == 'encoder'  # encoder
+        assert modules_cfg[model.get_enabled_adapters()[0]] == "encoder"  # encoder
 
         # save restore test
         with tempfile.TemporaryDirectory() as outer_tmpdir:
             with tempfile.TemporaryDirectory() as tmpdir:
-                path = os.path.join(tmpdir, 'temp.nemo')
+                path = os.path.join(tmpdir, "temp.nemo")
                 model.save_to(path)
                 shutil.move(path, outer_tmpdir)
 
-            outer_path = os.path.join(outer_tmpdir, 'temp.nemo')
-            new_model = DefaultAdapterModel.restore_from(outer_path)  # type: DefaultAdapterModel
+            outer_path = os.path.join(outer_tmpdir, "temp.nemo")
+            new_model = DefaultAdapterModel.restore_from(
+                outer_path
+            )  # type: DefaultAdapterModel
 
         assert isinstance(new_model, AdapterModelPTMixin)
         assert len(new_model.get_enabled_adapters()) > 0
@@ -414,11 +453,13 @@ class TestAdapterModelMixin:
         assert new_model.decoder.is_adapter_available() is False
 
         adapter_cfg = new_model.cfg.adapters
-        meta_cfg = adapter_cfg[model.adapter_global_cfg_key][model.adapter_metadata_cfg_key]
-        modules_cfg = meta_cfg['modules']
+        meta_cfg = adapter_cfg[model.adapter_global_cfg_key][
+            model.adapter_metadata_cfg_key
+        ]
+        modules_cfg = meta_cfg["modules"]
 
         assert modules_cfg is not None
-        assert modules_cfg[model.get_enabled_adapters()[0]] == 'encoder'  # encoder
+        assert modules_cfg[model.get_enabled_adapters()[0]] == "encoder"  # encoder
 
     @pytest.mark.unit
     def test_single_decoder_module_adapter(self):
@@ -429,28 +470,34 @@ class TestAdapterModelMixin:
         model = DefaultAdapterModel(cfg)
         original_num_params = model.num_weights
 
-        model.add_adapter(name='decoder:adapter_0', cfg=get_adapter_cfg())
+        model.add_adapter(name="decoder:adapter_0", cfg=get_adapter_cfg())
         new_num_params = model.num_weights
         assert new_num_params > original_num_params
 
         assert model.encoder.is_adapter_available() is False
 
         adapter_cfg = model.cfg.adapters
-        meta_cfg = adapter_cfg[model.adapter_global_cfg_key][model.adapter_metadata_cfg_key]
-        modules_cfg = meta_cfg['modules']
+        meta_cfg = adapter_cfg[model.adapter_global_cfg_key][
+            model.adapter_metadata_cfg_key
+        ]
+        modules_cfg = meta_cfg["modules"]
 
         assert modules_cfg is not None
-        assert modules_cfg[model.get_enabled_adapters()[0]] == 'decoder'  # decoder module
+        assert (
+            modules_cfg[model.get_enabled_adapters()[0]] == "decoder"
+        )  # decoder module
 
         # save restore test
         with tempfile.TemporaryDirectory() as outer_tmpdir:
             with tempfile.TemporaryDirectory() as tmpdir:
-                path = os.path.join(tmpdir, 'temp.nemo')
+                path = os.path.join(tmpdir, "temp.nemo")
                 model.save_to(path)
                 shutil.move(path, outer_tmpdir)
 
-            outer_path = os.path.join(outer_tmpdir, 'temp.nemo')
-            new_model = DefaultAdapterModel.restore_from(outer_path)  # type: DefaultAdapterModel
+            outer_path = os.path.join(outer_tmpdir, "temp.nemo")
+            new_model = DefaultAdapterModel.restore_from(
+                outer_path
+            )  # type: DefaultAdapterModel
 
         assert isinstance(new_model, AdapterModelPTMixin)
         assert len(new_model.get_enabled_adapters()) > 0
@@ -458,40 +505,50 @@ class TestAdapterModelMixin:
         assert new_model.encoder.is_adapter_available() is False
 
         adapter_cfg = new_model.cfg.adapters
-        meta_cfg = adapter_cfg[model.adapter_global_cfg_key][model.adapter_metadata_cfg_key]
-        modules_cfg = meta_cfg['modules']
+        meta_cfg = adapter_cfg[model.adapter_global_cfg_key][
+            model.adapter_metadata_cfg_key
+        ]
+        modules_cfg = meta_cfg["modules"]
 
         assert modules_cfg is not None
-        assert modules_cfg[new_model.get_enabled_adapters()[0]] == 'decoder'  # decoder module
+        assert (
+            modules_cfg[new_model.get_enabled_adapters()[0]] == "decoder"
+        )  # decoder module
 
     @pytest.mark.unit
     def test_single_adapter_default_metaconfig(self):
         cfg = get_model_config(in_features=50)
 
         model = DefaultAdapterModel(cfg)
-        model.add_adapter(name='adapter_0', cfg=get_adapter_cfg())
+        model.add_adapter(name="adapter_0", cfg=get_adapter_cfg())
 
         adapter_cfg = model.cfg.adapters
         assert model.adapter_global_cfg_key in adapter_cfg
-        assert model.adapter_metadata_cfg_key in adapter_cfg[model.adapter_global_cfg_key]
+        assert (
+            model.adapter_metadata_cfg_key in adapter_cfg[model.adapter_global_cfg_key]
+        )
 
-        meta_cfg = adapter_cfg[model.adapter_global_cfg_key][model.adapter_metadata_cfg_key]
+        meta_cfg = adapter_cfg[model.adapter_global_cfg_key][
+            model.adapter_metadata_cfg_key
+        ]
         assert meta_cfg is not None
-        assert 'modules' in meta_cfg
+        assert "modules" in meta_cfg
 
-        modules_cfg = meta_cfg['modules']
+        modules_cfg = meta_cfg["modules"]
         assert modules_cfg is not None
-        assert modules_cfg[model.get_enabled_adapters()[0]] == ''  # default module
+        assert modules_cfg[model.get_enabled_adapters()[0]] == ""  # default module
 
     @pytest.mark.unit
     def test_all_disabled_adapters(self):
         cfg = get_model_config(in_features=50)
-        cfg = update_adapter_global_cfg(cfg, encoder_adapter=False, decoder_adapter=False)
+        cfg = update_adapter_global_cfg(
+            cfg, encoder_adapter=False, decoder_adapter=False
+        )
 
         model = DefaultAdapterModel(cfg)
         original_num_params = model.num_weights
 
-        model.add_adapter(name='adapter_0', cfg=get_adapter_cfg())
+        model.add_adapter(name="adapter_0", cfg=get_adapter_cfg())
         new_num_params = model.num_weights
 
         assert new_num_params == original_num_params
@@ -505,8 +562,8 @@ class TestAdapterModelMixin:
         model = DefaultAdapterModel(cfg)
         original_num_params = model.num_weights
 
-        model.add_adapter(name='adapter_0', cfg=get_adapter_cfg())
-        model.add_adapter(name='decoder:adapter_1', cfg=get_adapter_cfg())
+        model.add_adapter(name="adapter_0", cfg=get_adapter_cfg())
+        model.add_adapter(name="decoder:adapter_1", cfg=get_adapter_cfg())
         new_num_params = model.num_weights
 
         model.set_enabled_adapters(enabled=False)
@@ -523,7 +580,7 @@ class TestAdapterModelMixin:
         model = DefaultAdapterModel(cfg)
         original_num_params = model.num_weights
 
-        model.add_adapter(name='decoder:adapter_1', cfg=get_adapter_cfg())
+        model.add_adapter(name="decoder:adapter_1", cfg=get_adapter_cfg())
         new_num_params = model.num_weights
 
         model.set_enabled_adapters(enabled=False)
@@ -535,26 +592,28 @@ class TestAdapterModelMixin:
     @pytest.mark.unit
     def test_enc_dec_enabled_adapters(self):
         cfg = get_model_config(in_features=50)
-        cfg = update_adapter_global_cfg(cfg, encoder_adapter=True, decoder_adapter=False)
+        cfg = update_adapter_global_cfg(
+            cfg, encoder_adapter=True, decoder_adapter=False
+        )
 
         model = DefaultAdapterModel(cfg)
         original_num_params = model.num_weights
 
-        model.add_adapter(name='adapter_0', cfg=get_adapter_cfg())
+        model.add_adapter(name="adapter_0", cfg=get_adapter_cfg())
         new_num_params = model.num_weights
         assert new_num_params > original_num_params
 
         cfg = update_adapter_global_cfg(cfg, encoder_adapter=True, decoder_adapter=True)
         model2 = DefaultAdapterModel(cfg)
 
-        model2.add_adapter(name='adapter_0', cfg=get_adapter_cfg())
+        model2.add_adapter(name="adapter_0", cfg=get_adapter_cfg())
         new_encdec_num_params = model2.num_weights
 
         assert new_encdec_num_params > new_num_params
 
     @pytest.mark.unit
-    @pytest.mark.parametrize('enc', [True, False])
-    @pytest.mark.parametrize('dec', [True, False])
+    @pytest.mark.parametrize("enc", [True, False])
+    @pytest.mark.parametrize("dec", [True, False])
     def test_multiple_adapter(self, enc, dec):
         if enc is False and dec is False:
             return  # need at least one adapter active
@@ -565,12 +624,12 @@ class TestAdapterModelMixin:
         model = DefaultAdapterModel(cfg)
         original_num_params = model.num_weights
 
-        model.add_adapter(name='adapter_0', cfg=get_adapter_cfg())
+        model.add_adapter(name="adapter_0", cfg=get_adapter_cfg())
         new_num_params = model.num_weights
         assert new_num_params > original_num_params
 
         original_num_params = new_num_params
-        model.add_adapter(name='adapter_1', cfg=get_adapter_cfg())
+        model.add_adapter(name="adapter_1", cfg=get_adapter_cfg())
         new_num_params = model.num_weights
         assert new_num_params > original_num_params
 
@@ -581,17 +640,17 @@ class TestAdapterModelMixin:
 
         model = DefaultAdapterModel(cfg)
 
-        model.add_adapter(name='adapter_0', cfg=get_adapter_cfg())
+        model.add_adapter(name="adapter_0", cfg=get_adapter_cfg())
 
         with pytest.raises(ValueError):
-            model.add_adapter(name='encoder:adapter_0', cfg=get_adapter_cfg())
+            model.add_adapter(name="encoder:adapter_0", cfg=get_adapter_cfg())
 
         with pytest.raises(ValueError):
-            model.add_adapter(name='decoder:adapter_0', cfg=get_adapter_cfg())
+            model.add_adapter(name="decoder:adapter_0", cfg=get_adapter_cfg())
 
     @pytest.mark.unit
-    @pytest.mark.parametrize('enc', [True, False])
-    @pytest.mark.parametrize('dec', [True, False])
+    @pytest.mark.parametrize("enc", [True, False])
+    @pytest.mark.parametrize("dec", [True, False])
     def test_forward_linear_pre(self, enc, dec):
         if enc is False and dec is False:
             return  # need at least one adapter active
@@ -605,14 +664,14 @@ class TestAdapterModelMixin:
         model = DefaultAdapterModel(cfg)
         origial_output = model(x)
 
-        model.add_adapter(name='adapter_0', cfg=get_adapter_cfg())
+        model.add_adapter(name="adapter_0", cfg=get_adapter_cfg())
         new_output = model(x)
 
         assert torch.mean(torch.abs(origial_output - new_output)) < 1e-5
 
     @pytest.mark.unit
-    @pytest.mark.parametrize('enc', [True, False])
-    @pytest.mark.parametrize('dec', [True, False])
+    @pytest.mark.parametrize("enc", [True, False])
+    @pytest.mark.parametrize("dec", [True, False])
     def test_forward_linear_post(self, enc, dec):
         if enc is False and dec is False:
             return  # need at least one adapter active
@@ -626,14 +685,14 @@ class TestAdapterModelMixin:
         model = DefaultAdapterModel(cfg)
         origial_output = model(x)
 
-        model.add_adapter(name='adapter_0', cfg=get_adapter_cfg(norm_pos='post'))
+        model.add_adapter(name="adapter_0", cfg=get_adapter_cfg(norm_pos="post"))
         new_output = model(x)
 
         assert torch.mean(torch.abs(origial_output - new_output)) < 1e-5
 
     @pytest.mark.unit
-    @pytest.mark.parametrize('enc', [True, False])
-    @pytest.mark.parametrize('dec', [True, False])
+    @pytest.mark.parametrize("enc", [True, False])
+    @pytest.mark.parametrize("dec", [True, False])
     def test_multi_adapter_forward(self, enc, dec):
         if enc is False and dec is False:
             return  # need at least one adapter active
@@ -647,20 +706,20 @@ class TestAdapterModelMixin:
         model = DefaultAdapterModel(cfg)
         origial_output = model(x)
 
-        model.add_adapter(name='adapter_0', cfg=get_adapter_cfg())
-        model.add_adapter(name='adapter_1', cfg=get_adapter_cfg())
+        model.add_adapter(name="adapter_0", cfg=get_adapter_cfg())
+        model.add_adapter(name="adapter_1", cfg=get_adapter_cfg())
         new_output = model(x)
 
         if enc:
-            assert model.encoder._adapter_names == ['adapter_0', 'adapter_1']
+            assert model.encoder._adapter_names == ["adapter_0", "adapter_1"]
         if dec:
-            assert model.decoder._adapter_names == ['adapter_0', 'adapter_1']
+            assert model.decoder._adapter_names == ["adapter_0", "adapter_1"]
 
         assert torch.mean(torch.abs(origial_output - new_output)) < 1e-5
 
     @pytest.mark.unit
-    @pytest.mark.parametrize('enc', [True, False])
-    @pytest.mark.parametrize('dec', [True, False])
+    @pytest.mark.parametrize("enc", [True, False])
+    @pytest.mark.parametrize("dec", [True, False])
     def test_multi_adapter_partial_forward_global_module_different(self, enc, dec):
         if enc is False and dec is False:
             return  # need at least one adapter active
@@ -676,40 +735,44 @@ class TestAdapterModelMixin:
 
         # add encoder adapters
         if enc:
-            model.add_adapter(name='adapter_0', cfg=get_adapter_cfg())
-            model.add_adapter(name='encoder:adapter_1', cfg=get_adapter_cfg())
+            model.add_adapter(name="adapter_0", cfg=get_adapter_cfg())
+            model.add_adapter(name="encoder:adapter_1", cfg=get_adapter_cfg())
 
         # add decoder adapters
         if dec:
-            model.add_adapter(name='decoder:adapter_2', cfg=get_adapter_cfg())
-            model.add_adapter(name='decoder:adapter_3', cfg=get_adapter_cfg())
+            model.add_adapter(name="decoder:adapter_2", cfg=get_adapter_cfg())
+            model.add_adapter(name="decoder:adapter_3", cfg=get_adapter_cfg())
 
         # disable encoder adapters
         if enc:
-            model.set_enabled_adapters(name='adapter_0', enabled=False)
+            model.set_enabled_adapters(name="adapter_0", enabled=False)
 
         # disable decoder adapters
         if dec:
-            model.set_enabled_adapters(name='adapter_3', enabled=False)
+            model.set_enabled_adapters(name="adapter_3", enabled=False)
 
         # perform forward
         new_output = model(x)
 
         if enc:
-            assert model.encoder._adapter_names == ['adapter_1']
+            assert model.encoder._adapter_names == ["adapter_1"]
         if dec:
-            assert model.decoder._adapter_names == ['adapter_2']
+            assert model.decoder._adapter_names == ["adapter_2"]
         assert torch.mean(torch.abs(origial_output - new_output)) < 1e-5
 
     @pytest.mark.unit
-    @pytest.mark.parametrize('name1', ['adapter_0', 'encoder:adapter_0'])
-    @pytest.mark.parametrize('name2', ['adapter_1', 'encoder:adapter_1'])
-    def test_multi_adapter_partial_forward_global_module_same_output(self, name1, name2):
+    @pytest.mark.parametrize("name1", ["adapter_0", "encoder:adapter_0"])
+    @pytest.mark.parametrize("name2", ["adapter_1", "encoder:adapter_1"])
+    def test_multi_adapter_partial_forward_global_module_same_output(
+        self, name1, name2
+    ):
         torch.random.manual_seed(0)
         x = torch.randn(2, 50)
 
         cfg = get_model_config(in_features=50)
-        cfg = update_adapter_global_cfg(cfg, encoder_adapter=True, decoder_adapter=False)
+        cfg = update_adapter_global_cfg(
+            cfg, encoder_adapter=True, decoder_adapter=False
+        )
 
         model = DefaultAdapterModel(cfg)
         original_output = model(x)
@@ -725,8 +788,8 @@ class TestAdapterModelMixin:
         assert torch.mean(torch.abs(original_output - new_output)) < 1e-5
 
     @pytest.mark.unit
-    @pytest.mark.parametrize('enc', [True, False])
-    @pytest.mark.parametrize('dec', [True, False])
+    @pytest.mark.parametrize("enc", [True, False])
+    @pytest.mark.parametrize("dec", [True, False])
     def test_forward_unfrozen_adapters(self, enc, dec):
         if enc is False and dec is False:
             return  # need at least one adapter active
@@ -739,7 +802,7 @@ class TestAdapterModelMixin:
 
         dim = 10
 
-        model.add_adapter(name='adapter_0', cfg=get_adapter_cfg(dim=dim))
+        model.add_adapter(name="adapter_0", cfg=get_adapter_cfg(dim=dim))
         model.freeze()
         model.unfreeze_enabled_adapters()
 
@@ -748,7 +811,7 @@ class TestAdapterModelMixin:
         original_params = 0
         adapter_params = 0
         for name, param in model.named_parameters():
-            if 'adapter' not in name:
+            if "adapter" not in name:
                 assert param.requires_grad is False
                 original_params += param.numel()
             else:
@@ -756,7 +819,10 @@ class TestAdapterModelMixin:
                 adapter_params += param.numel()
 
         for mname, module in model.named_modules():
-            if isinstance(module, (torch.nn.BatchNorm1d, torch.nn.BatchNorm2d, torch.nn.BatchNorm3d)):
+            if isinstance(
+                module,
+                (torch.nn.BatchNorm1d, torch.nn.BatchNorm2d, torch.nn.BatchNorm3d),
+            ):
                 assert module.track_running_stats is False
 
         assert original_params > adapter_params
@@ -771,10 +837,12 @@ class TestAdapterModelMixin:
         x = torch.randn(2, 50)
 
         cfg = get_model_config(in_features=50)
-        cfg = update_adapter_global_cfg(cfg, encoder_adapter=True, decoder_adapter=False)
+        cfg = update_adapter_global_cfg(
+            cfg, encoder_adapter=True, decoder_adapter=False
+        )
 
         model = DefaultAdapterModel(cfg)
-        model.add_adapter(name='adapter_0', cfg=get_adapter_cfg())
+        model.add_adapter(name="adapter_0", cfg=get_adapter_cfg())
 
         # delete the strategy
         adapter_module = model.encoder.adapter_layer[model.get_enabled_adapters()[0]]
@@ -786,7 +854,13 @@ class TestAdapterModelMixin:
     @pytest.mark.unit
     def test_forward_linear_replaced_strategy(self):
         class MultiplyAdapterStrategy(adapter_mixin_strategies.AbstractAdapterStrategy):
-            def forward(self, input: torch.Tensor, adapter: torch.nn.Module, *, module: AdapterModuleMixin):
+            def forward(
+                self,
+                input: torch.Tensor,
+                adapter: torch.nn.Module,
+                *,
+                module: AdapterModuleMixin,
+            ):
                 out = adapter(input)
                 return input * out
 
@@ -798,7 +872,7 @@ class TestAdapterModelMixin:
         cfg = update_adapter_global_cfg(cfg, encoder_adapter=True, decoder_adapter=True)
 
         model = DefaultAdapterModel(cfg)
-        model.add_adapter(name='adapter_0', cfg=get_adapter_cfg())
+        model.add_adapter(name="adapter_0", cfg=get_adapter_cfg())
 
         # modify the strategy of both encoder and decoder
         adapter_module = model.encoder.adapter_layer[model.get_enabled_adapters()[0]]
@@ -820,7 +894,7 @@ class TestAdapterModelMixin:
         model = DefaultAdapterModel(cfg)
 
         with pytest.raises(AttributeError):
-            model.save_adapters(filepath='temp.pt', name=None)
+            model.save_adapters(filepath="temp.pt", name=None)
 
     @pytest.mark.unit
     def test_single_decoder_save_load_adapter_only_exact_name(self):
@@ -831,7 +905,7 @@ class TestAdapterModelMixin:
         model = DefaultAdapterModel(cfg)
         original_num_params = model.num_weights
 
-        model.add_adapter(name='decoder:adapter_0', cfg=get_adapter_cfg(dim=5))
+        model.add_adapter(name="decoder:adapter_0", cfg=get_adapter_cfg(dim=5))
         new_num_params = model.num_weights
         assert new_num_params > original_num_params
 
@@ -840,17 +914,17 @@ class TestAdapterModelMixin:
         # save restore test
         with tempfile.TemporaryDirectory() as outer_tmpdir:
             with tempfile.TemporaryDirectory() as tmpdir:
-                adapter_path = os.path.join(tmpdir, 'temp.pt')
-                model.save_adapters(adapter_path, name='decoder:adapter_0')
+                adapter_path = os.path.join(tmpdir, "temp.pt")
+                model.save_adapters(adapter_path, name="decoder:adapter_0")
 
-                model_path = os.path.join('temp.nemo')
+                model_path = os.path.join("temp.nemo")
                 model.save_to(model_path)
 
                 shutil.move(adapter_path, outer_tmpdir)
                 shutil.move(model_path, outer_tmpdir)
 
-            outer_adapter_path = os.path.join(outer_tmpdir, 'temp.pt')
-            outer_model_path = os.path.join(outer_tmpdir, 'temp.nemo')
+            outer_adapter_path = os.path.join(outer_tmpdir, "temp.pt")
+            outer_model_path = os.path.join(outer_tmpdir, "temp.nemo")
 
             # Assert size of this params
             adapter_filesize = os.path.getsize(outer_adapter_path)
@@ -860,7 +934,7 @@ class TestAdapterModelMixin:
 
             # restore adapter to new model (without any decoder adapter)
             new_model = DefaultAdapterModel(cfg)
-            new_model.load_adapters(outer_adapter_path, name='decoder:adapter_0')
+            new_model.load_adapters(outer_adapter_path, name="decoder:adapter_0")
 
         assert isinstance(new_model, AdapterModelPTMixin)
         assert len(new_model.get_enabled_adapters()) > 0
@@ -868,20 +942,28 @@ class TestAdapterModelMixin:
         assert new_model.encoder.is_adapter_available() is False
 
         adapter_cfg = new_model.cfg.adapters
-        meta_cfg = adapter_cfg[model.adapter_global_cfg_key][model.adapter_metadata_cfg_key]
-        modules_cfg = meta_cfg['modules']
+        meta_cfg = adapter_cfg[model.adapter_global_cfg_key][
+            model.adapter_metadata_cfg_key
+        ]
+        modules_cfg = meta_cfg["modules"]
 
         assert modules_cfg is not None
-        assert modules_cfg[new_model.get_enabled_adapters()[0]] == 'decoder'  # decoder module
+        assert (
+            modules_cfg[new_model.get_enabled_adapters()[0]] == "decoder"
+        )  # decoder module
 
         original_state_dict = model.decoder.adapter_layer.state_dict()
         restored_state_dict = new_model.decoder.adapter_layer.state_dict()
 
-        for ogkey, newkey in zip(original_state_dict.keys(), restored_state_dict.keys()):
-            assert (original_state_dict[ogkey] - restored_state_dict[newkey]).abs().mean() < 1e-6
+        for ogkey, newkey in zip(
+            original_state_dict.keys(), restored_state_dict.keys()
+        ):
+            assert (
+                original_state_dict[ogkey] - restored_state_dict[newkey]
+            ).abs().mean() < 1e-6
 
     @pytest.mark.unit
-    @pytest.mark.parametrize('restore_name', [None, 'adapter_0'])
+    @pytest.mark.parametrize("restore_name", [None, "adapter_0"])
     def test_single_decoder_save_load_adapter_only_global_name(self, restore_name):
         # create a model config, but do not add global_cfg to it
         # we want to test just module level adapter
@@ -890,7 +972,7 @@ class TestAdapterModelMixin:
         model = DefaultAdapterModel(cfg)
         original_num_params = model.num_weights
 
-        model.add_adapter(name='adapter_0', cfg=get_adapter_cfg(dim=5))
+        model.add_adapter(name="adapter_0", cfg=get_adapter_cfg(dim=5))
         new_num_params = model.num_weights
         assert new_num_params > original_num_params
 
@@ -899,17 +981,17 @@ class TestAdapterModelMixin:
         # save restore test
         with tempfile.TemporaryDirectory() as outer_tmpdir:
             with tempfile.TemporaryDirectory() as tmpdir:
-                adapter_path = os.path.join(tmpdir, 'temp.pt')
-                model.save_adapters(adapter_path, name='adapter_0')
+                adapter_path = os.path.join(tmpdir, "temp.pt")
+                model.save_adapters(adapter_path, name="adapter_0")
 
-                model_path = os.path.join('temp.nemo')
+                model_path = os.path.join("temp.nemo")
                 model.save_to(model_path)
 
                 shutil.move(adapter_path, outer_tmpdir)
                 shutil.move(model_path, outer_tmpdir)
 
-            outer_adapter_path = os.path.join(outer_tmpdir, 'temp.pt')
-            outer_model_path = os.path.join(outer_tmpdir, 'temp.nemo')
+            outer_adapter_path = os.path.join(outer_tmpdir, "temp.pt")
+            outer_model_path = os.path.join(outer_tmpdir, "temp.nemo")
 
             # Assert size of this params
             adapter_filesize = os.path.getsize(outer_adapter_path)
@@ -927,17 +1009,23 @@ class TestAdapterModelMixin:
         assert new_model.decoder.is_adapter_available() is False
 
         adapter_cfg = new_model.cfg.adapters
-        meta_cfg = adapter_cfg[model.adapter_global_cfg_key][model.adapter_metadata_cfg_key]
-        modules_cfg = meta_cfg['modules']
+        meta_cfg = adapter_cfg[model.adapter_global_cfg_key][
+            model.adapter_metadata_cfg_key
+        ]
+        modules_cfg = meta_cfg["modules"]
 
         assert modules_cfg is not None
-        assert modules_cfg[new_model.get_enabled_adapters()[0]] == ''  # global adapter
+        assert modules_cfg[new_model.get_enabled_adapters()[0]] == ""  # global adapter
 
         original_state_dict = model.encoder.adapter_layer.state_dict()
         restored_state_dict = new_model.encoder.adapter_layer.state_dict()
 
-        for ogkey, newkey in zip(original_state_dict.keys(), restored_state_dict.keys()):
-            assert (original_state_dict[ogkey] - restored_state_dict[newkey]).abs().mean() < 1e-6
+        for ogkey, newkey in zip(
+            original_state_dict.keys(), restored_state_dict.keys()
+        ):
+            assert (
+                original_state_dict[ogkey] - restored_state_dict[newkey]
+            ).abs().mean() < 1e-6
 
     @pytest.mark.unit
     def test_multiple_decoder_save_load_adapter_only_exact_name(self):
@@ -948,25 +1036,25 @@ class TestAdapterModelMixin:
         model = DefaultAdapterModel(cfg)
         original_num_params = model.num_weights
 
-        model.add_adapter(name='decoder:adapter_0', cfg=get_adapter_cfg(dim=5))
-        model.add_adapter(name='encoder:adapter_1', cfg=get_adapter_cfg(dim=5))
+        model.add_adapter(name="decoder:adapter_0", cfg=get_adapter_cfg(dim=5))
+        model.add_adapter(name="encoder:adapter_1", cfg=get_adapter_cfg(dim=5))
         new_num_params = model.num_weights
         assert new_num_params > original_num_params
 
         # save restore test
         with tempfile.TemporaryDirectory() as outer_tmpdir:
             with tempfile.TemporaryDirectory() as tmpdir:
-                adapter_path = os.path.join(tmpdir, 'temp.pt')
-                model.save_adapters(adapter_path, name='decoder:adapter_0')
+                adapter_path = os.path.join(tmpdir, "temp.pt")
+                model.save_adapters(adapter_path, name="decoder:adapter_0")
 
-                model_path = os.path.join('temp.nemo')
+                model_path = os.path.join("temp.nemo")
                 model.save_to(model_path)
 
                 shutil.move(adapter_path, outer_tmpdir)
                 shutil.move(model_path, outer_tmpdir)
 
-            outer_adapter_path = os.path.join(outer_tmpdir, 'temp.pt')
-            outer_model_path = os.path.join(outer_tmpdir, 'temp.nemo')
+            outer_adapter_path = os.path.join(outer_tmpdir, "temp.pt")
+            outer_model_path = os.path.join(outer_tmpdir, "temp.nemo")
 
             # Assert size of this params
             adapter_filesize = os.path.getsize(outer_adapter_path)
@@ -976,25 +1064,35 @@ class TestAdapterModelMixin:
 
             # restore adapter to new model (without any decoder adapter)
             new_model = DefaultAdapterModel(cfg)
-            new_model.load_adapters(outer_adapter_path, name='decoder:adapter_0')
+            new_model.load_adapters(outer_adapter_path, name="decoder:adapter_0")
 
         assert isinstance(new_model, AdapterModelPTMixin)
         assert len(new_model.get_enabled_adapters()) > 0
-        assert model.num_weights > new_model.num_weights  # the new model has only one adapter not both
-        assert new_model.encoder.is_adapter_available() is False  # encoder adaper not available in new model
+        assert (
+            model.num_weights > new_model.num_weights
+        )  # the new model has only one adapter not both
+        assert (
+            new_model.encoder.is_adapter_available() is False
+        )  # encoder adaper not available in new model
 
         adapter_cfg = new_model.cfg.adapters
-        meta_cfg = adapter_cfg[model.adapter_global_cfg_key][model.adapter_metadata_cfg_key]
-        modules_cfg = meta_cfg['modules']
+        meta_cfg = adapter_cfg[model.adapter_global_cfg_key][
+            model.adapter_metadata_cfg_key
+        ]
+        modules_cfg = meta_cfg["modules"]
 
         assert modules_cfg is not None
-        assert modules_cfg[new_model.get_enabled_adapters()[0]] == 'decoder'  # decoder
+        assert modules_cfg[new_model.get_enabled_adapters()[0]] == "decoder"  # decoder
 
         original_state_dict = model.decoder.adapter_layer.state_dict()
         restored_state_dict = new_model.decoder.adapter_layer.state_dict()
 
-        for ogkey, newkey in zip(original_state_dict.keys(), restored_state_dict.keys()):
-            assert (original_state_dict[ogkey] - restored_state_dict[newkey]).abs().mean() < 1e-6
+        for ogkey, newkey in zip(
+            original_state_dict.keys(), restored_state_dict.keys()
+        ):
+            assert (
+                original_state_dict[ogkey] - restored_state_dict[newkey]
+            ).abs().mean() < 1e-6
 
     @pytest.mark.unit
     @pytest.mark.parametrize(
@@ -1027,23 +1125,23 @@ class TestAdapterModelMixin:
         # save restore test
         with tempfile.TemporaryDirectory() as outer_tmpdir:
             with tempfile.TemporaryDirectory() as tmpdir:
-                adapter_path = os.path.join(tmpdir, 'temp.pt')
-                adapter_path_2 = os.path.join(tmpdir, 'temp-2.pt')
+                adapter_path = os.path.join(tmpdir, "temp.pt")
+                adapter_path_2 = os.path.join(tmpdir, "temp-2.pt")
                 print("saving adapter ", decoder)
                 model.save_adapters(adapter_path, name=decoder)
                 print("Saving adapter ", encoder)
                 model.save_adapters(adapter_path_2, name=encoder)
 
-                model_path = os.path.join('temp.nemo')
+                model_path = os.path.join("temp.nemo")
                 model.save_to(model_path)
 
                 shutil.move(adapter_path, outer_tmpdir)
                 shutil.move(adapter_path_2, outer_tmpdir)
                 shutil.move(model_path, outer_tmpdir)
 
-            outer_adapter_path = os.path.join(outer_tmpdir, 'temp.pt')
-            outer_adapter_path_2 = os.path.join(outer_tmpdir, 'temp-2.pt')
-            outer_model_path = os.path.join(outer_tmpdir, 'temp.nemo')
+            outer_adapter_path = os.path.join(outer_tmpdir, "temp.pt")
+            outer_adapter_path_2 = os.path.join(outer_tmpdir, "temp-2.pt")
+            outer_model_path = os.path.join(outer_tmpdir, "temp.nemo")
 
             # Assert size of this params
             adapter_filesize = os.path.getsize(outer_adapter_path)
@@ -1061,12 +1159,18 @@ class TestAdapterModelMixin:
 
         assert isinstance(new_model, AdapterModelPTMixin)
         assert len(new_model.get_enabled_adapters()) > 0
-        assert model.num_weights == new_model.num_weights  # the new model has only one adapter not both
-        assert new_model.encoder.is_adapter_available() is True  # encoder adaper is available in new model
+        assert (
+            model.num_weights == new_model.num_weights
+        )  # the new model has only one adapter not both
+        assert (
+            new_model.encoder.is_adapter_available() is True
+        )  # encoder adaper is available in new model
 
         adapter_cfg = new_model.cfg.adapters
-        meta_cfg = adapter_cfg[model.adapter_global_cfg_key][model.adapter_metadata_cfg_key]
-        modules_cfg = meta_cfg['modules']
+        meta_cfg = adapter_cfg[model.adapter_global_cfg_key][
+            model.adapter_metadata_cfg_key
+        ]
+        modules_cfg = meta_cfg["modules"]
 
         assert modules_cfg is not None
         enabled_adapters = new_model.get_enabled_adapters()
@@ -1080,8 +1184,12 @@ class TestAdapterModelMixin:
             original_state_dict = model.encoder.adapter_layer.state_dict()
             restored_state_dict = new_model.encoder.adapter_layer.state_dict()
 
-        for ogkey, newkey in zip(original_state_dict.keys(), restored_state_dict.keys()):
-            assert (original_state_dict[ogkey] - restored_state_dict[newkey]).abs().mean() < 1e-6
+        for ogkey, newkey in zip(
+            original_state_dict.keys(), restored_state_dict.keys()
+        ):
+            assert (
+                original_state_dict[ogkey] - restored_state_dict[newkey]
+            ).abs().mean() < 1e-6
 
     @pytest.mark.unit
     def test_multiple_decoder_save_load_adapter_dual_name(self):
@@ -1093,25 +1201,25 @@ class TestAdapterModelMixin:
         original_num_params = model.num_weights
 
         # one adapter will have module name, other will have global name
-        model.add_adapter(name='decoder:adapter_0', cfg=get_adapter_cfg(dim=5))
-        model.add_adapter(name='adapter_1', cfg=get_adapter_cfg(dim=5))
+        model.add_adapter(name="decoder:adapter_0", cfg=get_adapter_cfg(dim=5))
+        model.add_adapter(name="adapter_1", cfg=get_adapter_cfg(dim=5))
         new_num_params = model.num_weights
         assert new_num_params > original_num_params
 
         # save restore test
         with tempfile.TemporaryDirectory() as outer_tmpdir:
             with tempfile.TemporaryDirectory() as tmpdir:
-                adapter_path = os.path.join(tmpdir, 'temp.pt')
+                adapter_path = os.path.join(tmpdir, "temp.pt")
                 model.save_adapters(adapter_path, name=None)  # save all adapters
 
-                model_path = os.path.join('temp.nemo')
+                model_path = os.path.join("temp.nemo")
                 model.save_to(model_path)
 
                 shutil.move(adapter_path, outer_tmpdir)
                 shutil.move(model_path, outer_tmpdir)
 
-            outer_adapter_path = os.path.join(outer_tmpdir, 'temp.pt')
-            outer_model_path = os.path.join(outer_tmpdir, 'temp.nemo')
+            outer_adapter_path = os.path.join(outer_tmpdir, "temp.pt")
+            outer_model_path = os.path.join(outer_tmpdir, "temp.nemo")
 
             # Assert size of this params
             adapter_filesize = os.path.getsize(outer_adapter_path)
@@ -1121,25 +1229,37 @@ class TestAdapterModelMixin:
 
             # restore adapter to new model (without any decoder adapter)
             new_model = DefaultAdapterModel(cfg)
-            new_model.load_adapters(outer_adapter_path, name='decoder:adapter_0')  # load just one adapter from 2 saved
+            new_model.load_adapters(
+                outer_adapter_path, name="decoder:adapter_0"
+            )  # load just one adapter from 2 saved
 
         assert isinstance(new_model, AdapterModelPTMixin)
         assert len(new_model.get_enabled_adapters()) > 0
-        assert model.num_weights > new_model.num_weights  # the new model has only one adapter not both
-        assert new_model.encoder.is_adapter_available() is False  # encoder adaper not available in new model
+        assert (
+            model.num_weights > new_model.num_weights
+        )  # the new model has only one adapter not both
+        assert (
+            new_model.encoder.is_adapter_available() is False
+        )  # encoder adaper not available in new model
 
         adapter_cfg = new_model.cfg.adapters
-        meta_cfg = adapter_cfg[model.adapter_global_cfg_key][model.adapter_metadata_cfg_key]
-        modules_cfg = meta_cfg['modules']
+        meta_cfg = adapter_cfg[model.adapter_global_cfg_key][
+            model.adapter_metadata_cfg_key
+        ]
+        modules_cfg = meta_cfg["modules"]
 
         assert modules_cfg is not None
-        assert modules_cfg[new_model.get_enabled_adapters()[0]] == 'decoder'  # decoder
+        assert modules_cfg[new_model.get_enabled_adapters()[0]] == "decoder"  # decoder
 
         original_state_dict = model.decoder.adapter_layer.state_dict()
         restored_state_dict = new_model.decoder.adapter_layer.state_dict()
 
-        for ogkey, newkey in zip(original_state_dict.keys(), restored_state_dict.keys()):
-            assert (original_state_dict[ogkey] - restored_state_dict[newkey]).abs().mean() < 1e-6
+        for ogkey, newkey in zip(
+            original_state_dict.keys(), restored_state_dict.keys()
+        ):
+            assert (
+                original_state_dict[ogkey] - restored_state_dict[newkey]
+            ).abs().mean() < 1e-6
 
     @pytest.mark.unit
     def test_single_decoder_save_load_adapter_only_partial_name(self):
@@ -1151,7 +1271,7 @@ class TestAdapterModelMixin:
         original_num_params = model.num_weights
 
         # build adapter with exact name in decoder module only
-        model.add_adapter(name='decoder:adapter_0', cfg=get_adapter_cfg(dim=5))
+        model.add_adapter(name="decoder:adapter_0", cfg=get_adapter_cfg(dim=5))
         new_num_params = model.num_weights
         assert new_num_params > original_num_params
 
@@ -1160,19 +1280,19 @@ class TestAdapterModelMixin:
         # save restore test
         with tempfile.TemporaryDirectory() as outer_tmpdir:
             with tempfile.TemporaryDirectory() as tmpdir:
-                adapter_path = os.path.join(tmpdir, 'temp.pt')
+                adapter_path = os.path.join(tmpdir, "temp.pt")
 
                 # save adapter with partial name- just adapter_0
-                model.save_adapters(adapter_path, name='adapter_0')
+                model.save_adapters(adapter_path, name="adapter_0")
 
-                model_path = os.path.join('temp.nemo')
+                model_path = os.path.join("temp.nemo")
                 model.save_to(model_path)
 
                 shutil.move(adapter_path, outer_tmpdir)
                 shutil.move(model_path, outer_tmpdir)
 
-            outer_adapter_path = os.path.join(outer_tmpdir, 'temp.pt')
-            outer_model_path = os.path.join(outer_tmpdir, 'temp.nemo')
+            outer_adapter_path = os.path.join(outer_tmpdir, "temp.pt")
+            outer_model_path = os.path.join(outer_tmpdir, "temp.nemo")
 
             # Assert size of this params
             adapter_filesize = os.path.getsize(outer_adapter_path)
@@ -1183,12 +1303,12 @@ class TestAdapterModelMixin:
             # restore adapter to new model (without any decoder adapter)
             new_model = DefaultAdapterModel(cfg)
             # load adapter with partial name only - just adapter_0 - should work
-            new_model.load_adapters(outer_adapter_path, name='adapter_0')
+            new_model.load_adapters(outer_adapter_path, name="adapter_0")
 
             # restore adapter to new model (without any decoder adapter)
             new_model = DefaultAdapterModel(cfg)
             # properly load with correct key
-            new_model.load_adapters(outer_adapter_path, name='decoder:adapter_0')
+            new_model.load_adapters(outer_adapter_path, name="decoder:adapter_0")
 
         assert isinstance(new_model, AdapterModelPTMixin)
         assert len(new_model.get_enabled_adapters()) > 0
@@ -1196,14 +1316,22 @@ class TestAdapterModelMixin:
         assert new_model.encoder.is_adapter_available() is False
 
         adapter_cfg = new_model.cfg.adapters
-        meta_cfg = adapter_cfg[model.adapter_global_cfg_key][model.adapter_metadata_cfg_key]
-        modules_cfg = meta_cfg['modules']
+        meta_cfg = adapter_cfg[model.adapter_global_cfg_key][
+            model.adapter_metadata_cfg_key
+        ]
+        modules_cfg = meta_cfg["modules"]
 
         assert modules_cfg is not None
-        assert modules_cfg[new_model.get_enabled_adapters()[0]] == 'decoder'  # decoder module
+        assert (
+            modules_cfg[new_model.get_enabled_adapters()[0]] == "decoder"
+        )  # decoder module
 
         original_state_dict = model.decoder.adapter_layer.state_dict()
         restored_state_dict = new_model.decoder.adapter_layer.state_dict()
 
-        for ogkey, newkey in zip(original_state_dict.keys(), restored_state_dict.keys()):
-            assert (original_state_dict[ogkey] - restored_state_dict[newkey]).abs().mean() < 1e-6
+        for ogkey, newkey in zip(
+            original_state_dict.keys(), restored_state_dict.keys()
+        ):
+            assert (
+                original_state_dict[ogkey] - restored_state_dict[newkey]
+            ).abs().mean() < 1e-6

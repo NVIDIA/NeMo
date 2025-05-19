@@ -38,7 +38,9 @@ class MegatronBaseHiddenLoss(torch.nn.Module):
         """Validate inputs"""
         # validate inputs
         if not set(self.input_names).issubset(set(inputs.keys())):
-            raise ValueError(f"Inputs should contain {self.input_names}, but got {inputs.keys()}")
+            raise ValueError(
+                f"Inputs should contain {self.input_names}, but got {inputs.keys()}"
+            )
 
     @property
     def input_names(self):
@@ -58,7 +60,7 @@ class MegatronBaseHiddenLoss(torch.nn.Module):
         Implement your own loss calculations. Must return "loss" key.
         loss shape - [B x S] for Batch, Sequence sizes
         batch_data - a dictionary of additional data that can be used to calculate loss
-        
+
         Returns:
             dict: a dictionary with loss and additional outputs (must include "loss" key)
                   example: {"loss": 0.0}
@@ -101,7 +103,8 @@ class MegatronAMIMHiddenLoss(MegatronBaseHiddenLoss):
 
     def __init__(self, loss_weight=1.0, hidden_aggregation_method="sum", name="mim"):
         super().__init__(
-            name=name, loss_weight=loss_weight,
+            name=name,
+            loss_weight=loss_weight,
         )
 
         # allows to determine how to aggregate hidden loss over hidden dimension
@@ -148,7 +151,8 @@ class MegatronVAEHiddenLoss(MegatronBaseHiddenLoss):
 
     def __init__(self, loss_weight=1.0, min_kl_value=None, name="vae"):
         super().__init__(
-            name=name, loss_weight=loss_weight,
+            name=name,
+            loss_weight=loss_weight,
         )
 
         # minimum value for KL divergence

@@ -39,12 +39,14 @@ try:
 except (ImportError, ModuleNotFoundError):
     ASR_AVAILABLE = False
 
-__all__ = ['PunctuationCapitalizationLexicalAudioModel']
+__all__ = ["PunctuationCapitalizationLexicalAudioModel"]
 
 
 def update_model_config_to_support_adapter(model_cfg):
     with open_dict(model_cfg):
-        adapter_metadata = adapter_mixins.get_registered_adapter(model_cfg.encoder._target_)
+        adapter_metadata = adapter_mixins.get_registered_adapter(
+            model_cfg.encoder._target_
+        )
         if adapter_metadata is not None:
             model_cfg.encoder._target_ = adapter_metadata.adapter_class_path
 
@@ -79,16 +81,18 @@ class PunctuationCapitalizationLexicalAudioModel(PunctuationCapitalizationModel)
         super().__init__(cfg, trainer)
         if not ASR_AVAILABLE:
             raise ModuleNotFoundError(
-                'Nemo ASR was not installed, see https://github.com/NVIDIA/NeMo#installation for installation instructions'
+                "Nemo ASR was not installed, see https://github.com/NVIDIA/NeMo#installation for installation instructions"
             )
         if os.path.exists(cfg.audio_encoder.pretrained_model):
-            audio_cfg = nemo_asr.models.ASRModel.restore_from(cfg.audio_encoder.pretrained_model, return_config=True)
+            audio_cfg = nemo_asr.models.ASRModel.restore_from(
+                cfg.audio_encoder.pretrained_model, return_config=True
+            )
         else:
             audio_cfg = nemo_asr.models.ASRModel.from_pretrained(
                 cfg.audio_encoder.pretrained_model, return_config=True
             )
 
-        if cfg.audio_encoder.get('adapter', None):
+        if cfg.audio_encoder.get("adapter", None):
             if cfg.audio_encoder.adapter.enable:
                 audio_cfg = update_model_config_to_support_adapter(audio_cfg)
 
@@ -101,22 +105,28 @@ class PunctuationCapitalizationLexicalAudioModel(PunctuationCapitalizationModel)
                 cfg.audio_encoder.pretrained_model, override_config_path=audio_cfg
             )
 
-        if cfg.audio_encoder.adapter.get('enable', False):
+        if cfg.audio_encoder.adapter.get("enable", False):
             with open_dict(cfg):
-                cfg.audio_encoder.adapter.config.in_features = self.audio_encoder.cfg.decoder.feat_in
-            self.audio_encoder.add_adapter(name='audio_adapter', cfg=cfg.audio_encoder.adapter.config)
+                cfg.audio_encoder.adapter.config.in_features = (
+                    self.audio_encoder.cfg.decoder.feat_in
+                )
+            self.audio_encoder.add_adapter(
+                name="audio_adapter", cfg=cfg.audio_encoder.adapter.config
+            )
             self.audio_encoder.set_enabled_adapters(enabled=True)
             self.audio_encoder.freeze()
             self.audio_encoder.unfreeze_enabled_adapters()
 
         self.fusion = TransformerDecoder(
             num_layers=cfg.audio_encoder.fusion.num_layers,
-            hidden_size=self.bert_model(**self.bert_model.input_example()[0]).size()[-1],
+            hidden_size=self.bert_model(**self.bert_model.input_example()[0]).size()[
+                -1
+            ],
             inner_size=cfg.audio_encoder.fusion.inner_size,
             num_attention_heads=cfg.audio_encoder.fusion.num_attention_heads,
         )
 
-        if hasattr(self.audio_encoder.cfg, 'decoder.feat_in'):
+        if hasattr(self.audio_encoder.cfg, "decoder.feat_in"):
             self.audio_proj = Linear(
                 self.audio_encoder.cfg.decoder.feat_in,
                 self.bert_model(**self.bert_model.input_example()[0]).size()[-1],
@@ -127,44 +137,54 @@ class PunctuationCapitalizationLexicalAudioModel(PunctuationCapitalizationModel)
                 self.bert_model(**self.bert_model.input_example()[0]).size()[-1],
             )
 
-        if cfg.audio_encoder.freeze.get('is_enabled', False):
+        if cfg.audio_encoder.freeze.get("is_enabled", False):
             for param in self.audio_encoder.parameters():
                 param.requires_grad = False
-            for i in range(cfg.audio_encoder.freeze.get('num_layers')):
+            for i in range(cfg.audio_encoder.freeze.get("num_layers")):
                 self.audio_encoder.add_module(
-                    f'conf_encoder_{i}',
+                    f"conf_encoder_{i}",
                     ConformerLayer(
-                        d_model=cfg.audio_encoder.freeze.get('d_model'), d_ff=cfg.audio_encoder.freeze.get('d_ff')
+                        d_model=cfg.audio_encoder.freeze.get("d_model"),
+                        d_ff=cfg.audio_encoder.freeze.get("d_ff"),
                     ),
                 )
 
-        if cfg.get('restore_lexical_encoder_from', None) and not self._is_model_being_restored():
-            if os.path.exists(cfg.get('restore_lexical_encoder_from')):
+        if (
+            cfg.get("restore_lexical_encoder_from", None)
+            and not self._is_model_being_restored()
+        ):
+            if os.path.exists(cfg.get("restore_lexical_encoder_from")):
                 self.bert_model = (
-                    PunctuationCapitalizationModel.restore_from(cfg.restore_lexical_encoder_from)
+                    PunctuationCapitalizationModel.restore_from(
+                        cfg.restore_lexical_encoder_from
+                    )
                     .to(self.device)
                     .bert_model
                 )
             else:
-                raise ValueError(f'Provided path {cfg.get("restore_lexical_encoder_from")} does not exists')
+                raise ValueError(
+                    f'Provided path {cfg.get("restore_lexical_encoder_from")} does not exists'
+                )
 
-        if hasattr(self.audio_encoder, 'decoder'):
+        if hasattr(self.audio_encoder, "decoder"):
             del self.audio_encoder.decoder
-        if hasattr(self.audio_encoder, '_wer'):
+        if hasattr(self.audio_encoder, "_wer"):
             del self.audio_encoder._wer
-        if hasattr(self.audio_encoder, 'loss'):
+        if hasattr(self.audio_encoder, "loss"):
             del self.audio_encoder.loss
-        if hasattr(self.audio_encoder, 'decoder_losses'):
+        if hasattr(self.audio_encoder, "decoder_losses"):
             del self.audio_encoder.decoder_losses
 
-        if cfg.get('use_weighted_loss', False):
+        if cfg.get("use_weighted_loss", False):
             punct_freq = torch.tensor(
-                list(self.train_dataloader().dataset.punct_label_frequencies.values()), dtype=torch.float
+                list(self.train_dataloader().dataset.punct_label_frequencies.values()),
+                dtype=torch.float,
             )
             punct_weight = 1 - (punct_freq - punct_freq.min()) / punct_freq.max()
 
             capit_freq = torch.tensor(
-                list(self.train_dataloader().dataset.capit_label_frequencies.values()), dtype=torch.float
+                list(self.train_dataloader().dataset.capit_label_frequencies.values()),
+                dtype=torch.float,
             )
             capit_weight = 1 - (capit_freq - capit_freq.min()) / capit_freq.max()
 
@@ -176,17 +196,27 @@ class PunctuationCapitalizationLexicalAudioModel(PunctuationCapitalizationModel)
 
         self.set_max_audio_length(1024)
 
-    def _make_step(self, batch: Dict[str, torch.Tensor]) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    def _make_step(
+        self, batch: Dict[str, torch.Tensor]
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         punct_logits, capit_logits = self(
-            input_ids=batch['input_ids'],
-            token_type_ids=batch['segment_ids'],
-            attention_mask=batch['input_mask'],
-            features=batch['features'],
-            features_length=batch['features_length'],
+            input_ids=batch["input_ids"],
+            token_type_ids=batch["segment_ids"],
+            attention_mask=batch["input_mask"],
+            features=batch["features"],
+            features_length=batch["features_length"],
         )
 
-        punct_loss = self.loss_punct(logits=punct_logits, labels=batch['punct_labels'], loss_mask=batch['loss_mask'])
-        capit_loss = self.loss_capit(logits=capit_logits, labels=batch['capit_labels'], loss_mask=batch['loss_mask'])
+        punct_loss = self.loss_punct(
+            logits=punct_logits,
+            labels=batch["punct_labels"],
+            loss_mask=batch["loss_mask"],
+        )
+        capit_loss = self.loss_capit(
+            logits=capit_logits,
+            labels=batch["capit_labels"],
+            loss_mask=batch["loss_mask"],
+        )
         loss = self.agg_loss(loss_1=punct_loss, loss_2=capit_loss)
         return loss, punct_logits, capit_logits
 
@@ -226,7 +256,9 @@ class PunctuationCapitalizationLexicalAudioModel(PunctuationCapitalizationModel)
         """
         self.update_max_seq_length(seq_length=features.size(1), device=features.device)
         lexical_hidden_states = self.bert_model(
-            input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask
+            input_ids=input_ids,
+            token_type_ids=token_type_ids,
+            attention_mask=attention_mask,
         )
         if isinstance(lexical_hidden_states, tuple):
             lexical_hidden_states = lexical_hidden_states[0]
@@ -261,15 +293,21 @@ class PunctuationCapitalizationLexicalAudioModel(PunctuationCapitalizationModel)
 
     def make_pad_mask(self, max_audio_length, seq_lens):
         """Make masking for padding."""
-        mask = self.seq_range[:max_audio_length].expand(seq_lens.size(0), -1) < seq_lens.unsqueeze(-1)
+        mask = self.seq_range[:max_audio_length].expand(
+            seq_lens.size(0), -1
+        ) < seq_lens.unsqueeze(-1)
         return mask
 
     def update_max_seq_length(self, seq_length: int, device):
         if torch.distributed.is_initialized():
-            global_max_len = torch.tensor([seq_length], dtype=torch.float32, device=device)
+            global_max_len = torch.tensor(
+                [seq_length], dtype=torch.float32, device=device
+            )
 
             # Update across all ranks in the distributed system
-            torch.distributed.all_reduce(global_max_len, op=torch.distributed.ReduceOp.MAX)
+            torch.distributed.all_reduce(
+                global_max_len, op=torch.distributed.ReduceOp.MAX
+            )
 
             seq_length = global_max_len.int().item()
 
@@ -284,10 +322,10 @@ class PunctuationCapitalizationLexicalAudioModel(PunctuationCapitalizationModel)
         self.max_audio_length = max_audio_length
         device = next(self.parameters()).device
         seq_range = torch.arange(0, self.max_audio_length, device=device)
-        if hasattr(self, 'seq_range'):
+        if hasattr(self, "seq_range"):
             self.seq_range = seq_range
         else:
-            self.register_buffer('seq_range', seq_range, persistent=False)
+            self.register_buffer("seq_range", seq_range, persistent=False)
 
     def add_punctuation_capitalization(
         self,
@@ -350,13 +388,20 @@ class PunctuationCapitalizationLexicalAudioModel(PunctuationCapitalizationModel)
             return []
         if batch_size is None:
             batch_size = len(queries)
-            logging.info(f'Using batch size {batch_size} for inference')
+            logging.info(f"Using batch size {batch_size} for inference")
         result: List[str] = []
         mode = self.training
         try:
             self.eval()
             infer_datalayer = self._setup_infer_dataloader(
-                queries, batch_size, max_seq_length, step, margin, dataloader_kwargs, audio_queries, target_sr
+                queries,
+                batch_size,
+                max_seq_length,
+                step,
+                margin,
+                dataloader_kwargs,
+                audio_queries,
+                target_sr,
             )
             # Predicted labels for queries. List of labels for every query
             all_punct_preds: List[List[int]] = [[] for _ in queries]
@@ -373,7 +418,9 @@ class PunctuationCapitalizationLexicalAudioModel(PunctuationCapitalizationModel)
             acc_capit_probs: List[Optional[np.ndarray]] = [None for _ in queries]
             d = self.device
             for batch_i, batch in tqdm(
-                enumerate(infer_datalayer), total=ceil(len(infer_datalayer.dataset) / batch_size), unit="batch"
+                enumerate(infer_datalayer),
+                total=ceil(len(infer_datalayer.dataset) / batch_size),
+                unit="batch",
             ):
                 (
                     inp_ids,
@@ -395,7 +442,13 @@ class PunctuationCapitalizationLexicalAudioModel(PunctuationCapitalizationModel)
                     features_length=features_length.to(d),
                 )
                 _res = self._transform_logit_to_prob_and_remove_margins_and_extract_word_probs(
-                    punct_logits, capit_logits, subtokens_mask, start_word_ids, margin, is_first, is_last
+                    punct_logits,
+                    capit_logits,
+                    subtokens_mask,
+                    start_word_ids,
+                    margin,
+                    is_first,
+                    is_last,
                 )
                 punct_probs, capit_probs, start_word_ids = _res
                 for i, (q_i, start_word_id, bpp_i, bcp_i) in enumerate(
@@ -408,21 +461,32 @@ class PunctuationCapitalizationLexicalAudioModel(PunctuationCapitalizationModel)
                         if acc_probs[q_i] is None:
                             acc_probs[q_i] = b_probs_i
                         else:
-                            all_preds[q_i], acc_probs[q_i] = self._move_acc_probs_to_token_preds(
-                                all_preds[q_i],
-                                acc_probs[q_i],
-                                start_word_id - len(all_preds[q_i]),
+                            all_preds[q_i], acc_probs[q_i] = (
+                                self._move_acc_probs_to_token_preds(
+                                    all_preds[q_i],
+                                    acc_probs[q_i],
+                                    start_word_id - len(all_preds[q_i]),
+                                )
                             )
-                            acc_probs[q_i] = self._update_accumulated_probabilities(acc_probs[q_i], b_probs_i)
-            for all_preds, acc_probs in [(all_punct_preds, acc_punct_probs), (all_capit_preds, acc_capit_probs)]:
+                            acc_probs[q_i] = self._update_accumulated_probabilities(
+                                acc_probs[q_i], b_probs_i
+                            )
+            for all_preds, acc_probs in [
+                (all_punct_preds, acc_punct_probs),
+                (all_capit_preds, acc_capit_probs),
+            ]:
                 for q_i, (pred, prob) in enumerate(zip(all_preds, acc_probs)):
                     if prob is not None:
-                        all_preds[q_i], acc_probs[q_i] = self._move_acc_probs_to_token_preds(pred, prob, len(prob))
+                        all_preds[q_i], acc_probs[q_i] = (
+                            self._move_acc_probs_to_token_preds(pred, prob, len(prob))
+                        )
             for i, query in enumerate(queries):
                 result.append(
                     self._get_labels(all_punct_preds[i], all_capit_preds[i])
                     if return_labels
-                    else self._apply_punct_capit_predictions(query, all_punct_preds[i], all_capit_preds[i])
+                    else self._apply_punct_capit_predictions(
+                        query, all_punct_preds[i], all_capit_preds[i]
+                    )
                 )
         finally:
             # set mode back to its original value

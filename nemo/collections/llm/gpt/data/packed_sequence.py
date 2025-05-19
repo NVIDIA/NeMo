@@ -26,7 +26,9 @@ from nemo.utils.sequence_packing_utils import (create_hist,
                                                fill_packing_strategy)
 
 
-def tokenize_dataset(path: Path, tokenizer: TokenizerSpec, max_seq_length: int, seed: int):
+def tokenize_dataset(
+    path: Path, tokenizer: TokenizerSpec, max_seq_length: int, seed: int
+):
     """
     Tokenizes a dataset from the provided path using the specified tokenizer
     and prepares it for further processing.
@@ -81,8 +83,12 @@ def prepare_packed_sequence_data(
     dataset = tokenize_dataset(input_path, tokenizer, max_seq_length, seed)
     sequences, histogram = create_hist(dataset, max_seq_length)
 
-    assignments, packing_metadata = create_packing_strategy(histogram, packed_sequence_size, packing_algorithm)
-    output_data = fill_packing_strategy(assignments, sequences, packed_sequence_size, tokenizer.eos_id)
+    assignments, packing_metadata = create_packing_strategy(
+        histogram, packed_sequence_size, packing_algorithm
+    )
+    output_data = fill_packing_strategy(
+        assignments, sequences, packed_sequence_size, tokenizer.eos_id
+    )
 
     # save output data
     np.save(output_path, output_data)
@@ -98,7 +104,9 @@ def prepare_packed_sequence_data(
                 # Each dict records two values: 'max_samples_per_bin', the max
                 # number of samples per packed sequence, and 'dataset_max_seqlen', the max
                 # sequence length per sample in the packed dataset.
-                assert isinstance(packing_metadata_file, list), "invalid packing_metadata_file!"
+                assert isinstance(
+                    packing_metadata_file, list
+                ), "invalid packing_metadata_file!"
         except FileNotFoundError:
             packing_metadata_file = []
 

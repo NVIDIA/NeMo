@@ -72,7 +72,7 @@ def download_text2sparql(infold: str):
 
 
 def process_text2sparql(infold: str, outfold: str, do_lower_case: bool):
-    """ Process and convert MeetKai's text2sparql datasets to NeMo's neural machine translation format.
+    """Process and convert MeetKai's text2sparql datasets to NeMo's neural machine translation format.
 
     Args:
         infold: directory path to raw text2sparql data containing
@@ -92,11 +92,15 @@ def process_text2sparql(infold: str, outfold: str, do_lower_case: bool):
         output_file = os.path.join(outfold, prefix_map[prefix])
 
         if if_exist(outfold, [prefix_map[prefix]]):
-            logging.info(f"** {MODE_EXISTS_TMP.format(prefix_map[prefix], dataset_name, output_file)}")
+            logging.info(
+                f"** {MODE_EXISTS_TMP.format(prefix_map[prefix], dataset_name, output_file)}"
+            )
             continue
 
         if not if_exist(infold, [prefix]):
-            logging.info(f"** {prefix} of {dataset_name}" f" is skipped as it was not found")
+            logging.info(
+                f"** {prefix} of {dataset_name}" f" is skipped as it was not found"
+            )
             continue
 
         assert input_file != output_file, "input file cannot equal output file"
@@ -119,11 +123,21 @@ def process_text2sparql(infold: str, outfold: str, do_lower_case: bool):
 
 if __name__ == "__main__":
     # Parse the command-line arguments.
-    parser = argparse.ArgumentParser(description="Process and convert datasets into NeMo's format")
-    parser.add_argument(
-        "--source_data_dir", required=True, type=str, help="Path to the folder containing the dataset files"
+    parser = argparse.ArgumentParser(
+        description="Process and convert datasets into NeMo's format"
     )
-    parser.add_argument("--target_data_dir", required=True, type=str, help="Path to save the processed dataset")
+    parser.add_argument(
+        "--source_data_dir",
+        required=True,
+        type=str,
+        help="Path to the folder containing the dataset files",
+    )
+    parser.add_argument(
+        "--target_data_dir",
+        required=True,
+        type=str,
+        help="Path to save the processed dataset",
+    )
     parser.add_argument("--do_lower_case", action="store_true")
     args = parser.parse_args()
 
@@ -132,4 +146,6 @@ if __name__ == "__main__":
     do_lower_case = args.do_lower_case
 
     download_text2sparql(infold=source_dir)
-    process_text2sparql(infold=source_dir, outfold=target_dir, do_lower_case=do_lower_case)
+    process_text2sparql(
+        infold=source_dir, outfold=target_dir, do_lower_case=do_lower_case
+    )

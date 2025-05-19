@@ -147,7 +147,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--image_url",
-        nargs='+',
+        nargs="+",
         type=str,
         # pylint: disable=line-too-long
         default=[

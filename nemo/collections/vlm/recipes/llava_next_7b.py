@@ -57,7 +57,7 @@ def finetune_recipe(
     name: str = "default",
     num_nodes: int = 1,
     num_gpus_per_node: int = 8,
-    peft_scheme: Optional[str] = 'none',
+    peft_scheme: Optional[str] = "none",
 ) -> run.Partial:
     """
     Create a fine-tuning recipe for LlavaNext 7B model.
@@ -131,15 +131,19 @@ def finetune_recipe(
             image_processor=None,
             num_workers=4,
         ),
-        log=llm.default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
-        optim=distributed_fused_adam_with_cosine_annealing(max_lr=2.0e-05, min_lr=2.0e-07, warmup_steps=150),
+        log=llm.default_log(
+            dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)
+        ),
+        optim=distributed_fused_adam_with_cosine_annealing(
+            max_lr=2.0e-05, min_lr=2.0e-07, warmup_steps=150
+        ),
         resume=nemo_resume("llava-hf/llava-v1.6-vicuna-7b-hf"),
     )
 
-    if peft_scheme is None or peft_scheme.lower() == 'none':
+    if peft_scheme is None or peft_scheme.lower() == "none":
         recipe.trainer.strategy.tensor_model_parallel_size = 2
         recipe.optim.config.lr = 2e-05
-    elif peft_scheme.lower() == 'lora':
+    elif peft_scheme.lower() == "lora":
         recipe.peft = run.Config(
             vlm.LoRA,
             freeze_vision_model=False,
@@ -239,8 +243,12 @@ def pretrain_recipe(
             image_processor=None,
             num_workers=4,
         ),
-        log=llm.default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
-        optim=distributed_fused_adam_with_cosine_annealing(max_lr=0.001, min_lr=2.0e-05, warmup_steps=150),
+        log=llm.default_log(
+            dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)
+        ),
+        optim=distributed_fused_adam_with_cosine_annealing(
+            max_lr=0.001, min_lr=2.0e-05, warmup_steps=150
+        ),
     )
 
     return recipe

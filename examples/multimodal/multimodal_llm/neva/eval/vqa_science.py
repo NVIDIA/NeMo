@@ -109,20 +109,30 @@ def eval_model(args):
         ans_file = open(answers_file, "w")
     for i, line in enumerate(tqdm(questions, disable=(not is_global_rank_zero()))):
         idx = line["id"]
-        question = line['conversations'][0]
-        qs = question['value'].replace('<image>', '').strip()
+        question = line["conversations"][0]
+        qs = question["value"].replace("<image>", "").strip()
         cur_prompt = qs
 
-        if 'image' in line:
-            cur_prompt = qs = '<image>' + cur_prompt
-            line['image'] = image_processor(os.path.join(cfg.inference.media_base_path, line['image']))
+        if "image" in line:
+            cur_prompt = qs = "<image>" + cur_prompt
+            line["image"] = image_processor(
+                os.path.join(cfg.inference.media_base_path, line["image"])
+            )
 
         if args.single_pred_prompt:
-            qs = qs + '\n' + "Answer with the option's letter from the given choices directly."
-            cur_prompt = cur_prompt + '\n' + "Answer with the option's letter from the given choices directly."
+            qs = (
+                qs
+                + "\n"
+                + "Answer with the option's letter from the given choices directly."
+            )
+            cur_prompt = (
+                cur_prompt
+                + "\n"
+                + "Answer with the option's letter from the given choices directly."
+            )
 
         responses = model.generate(
-            input_prompts=[dict(prompt=qs, image=line.get('image', None))],
+            input_prompts=[dict(prompt=qs, image=line.get("image", None))],
             length_params=length_params,
             sampling_params=sampling_params,
             inference_config=cfg,
@@ -136,13 +146,13 @@ def eval_model(args):
             outputs_reasoning = outputs
 
             responses = model.generate(
-                input_prompts=[prompt + outputs_reasoning + ' ###\nANSWER:'],
+                input_prompts=[prompt + outputs_reasoning + " ###\nANSWER:"],
                 length_params=length_params,
                 sampling_params=sampling_params,
                 inference_config=cfg,
             )
             outputs = responses[0]["clean_response"]
-            outputs = outputs_reasoning + '\n The answer is ' + outputs
+            outputs = outputs_reasoning + "\n The answer is " + outputs
 
         if is_global_rank_zero():
             ans_id = shortuuid.uuid()

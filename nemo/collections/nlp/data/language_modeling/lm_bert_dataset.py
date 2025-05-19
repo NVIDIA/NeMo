@@ -27,7 +27,7 @@ from nemo.collections.nlp.data.data_utils.data_preprocessing import (
     find_newlines, load_data_indices)
 from nemo.core.classes import Dataset
 
-__all__ = ['BertPretrainingDataset', 'BertPretrainingPreprocessedDataloader']
+__all__ = ["BertPretrainingDataset", "BertPretrainingPreprocessedDataloader"]
 
 
 def load_h5(input_file: str):
@@ -149,7 +149,11 @@ class BertPretrainingDataset(Dataset):
             return document
 
         def match_target_seq_length(
-            document: str, target_seq_length: int, filename: str, line_idx: int, sentence_indices: Dict[str, dict]
+            document: str,
+            target_seq_length: int,
+            filename: str,
+            line_idx: int,
+            sentence_indices: Dict[str, dict],
         ):
             # If document is shorter than target sequence length,
             # append the next line or take a random line as replacement.
@@ -175,7 +179,11 @@ class BertPretrainingDataset(Dataset):
         a_line_offset = self.sentence_indices[a_filename][a_line_idx]
         a_document = get_document(a_filename, a_line_offset)
         a_document, a_line_idx = match_target_seq_length(
-            a_document, target_seq_length_a, a_filename, a_line_idx, self.sentence_indices
+            a_document,
+            target_seq_length_a,
+            a_filename,
+            a_line_idx,
+            self.sentence_indices,
         )
 
         is_last_line = a_line_idx >= (len(self.sentence_indices[a_filename]) - 1)
@@ -189,7 +197,9 @@ class BertPretrainingDataset(Dataset):
             # we're processing.
             for _ in range(10):
                 b_filename = random.choice(self.filenames)
-                b_line_idx = random.choice(range(len(self.sentence_indices[b_filename])))
+                b_line_idx = random.choice(
+                    range(len(self.sentence_indices[b_filename]))
+                )
                 if b_filename != a_filename:
                     break
                 else:
@@ -209,7 +219,11 @@ class BertPretrainingDataset(Dataset):
         b_line_pos = self.sentence_indices[b_filename][b_line_idx]
         b_document = get_document(b_filename, b_line_pos)
         b_document, b_line_idx = match_target_seq_length(
-            b_document, target_seq_length_b, b_filename, b_line_idx, self.sentence_indices
+            b_document,
+            target_seq_length_b,
+            b_filename,
+            b_line_idx,
+            self.sentence_indices,
         )
 
         def truncate_seq_pair(a, b, max_num_tokens):
@@ -237,7 +251,11 @@ class BertPretrainingDataset(Dataset):
         truncate_seq_pair(a_document, b_document, max_num_tokens)
 
         output_ids = (
-            [self.tokenizer.cls_id] + a_document + [self.tokenizer.sep_id] + b_document + [self.tokenizer.eos_id]
+            [self.tokenizer.cls_id]
+            + a_document
+            + [self.tokenizer.sep_id]
+            + b_document
+            + [self.tokenizer.eos_id]
         )
 
         input_ids, output_mask = self.mask_ids(output_ids)
@@ -283,7 +301,7 @@ class BertPretrainingDataset(Dataset):
         cand_indexes = [[ids[0]]]
         for tid in ids[1:]:
             token = self.tokenizer.ids_to_tokens([tid])[0]
-            is_suffix = token.startswith('\u2581')
+            is_suffix = token.startswith("\u2581")
             if is_suffix:
                 # group together with its previous token to form a whole-word
                 cand_indexes[-1].append(tid)
@@ -294,7 +312,9 @@ class BertPretrainingDataset(Dataset):
         mask_id = self.tokenizer.token_to_id("[MASK]")
 
         for word_ids in cand_indexes:
-            is_special = (word_ids[0] == self.tokenizer.cls_id) or (word_ids[0] == self.tokenizer.sep_id)
+            is_special = (word_ids[0] == self.tokenizer.cls_id) or (
+                word_ids[0] == self.tokenizer.sep_id
+            )
             if is_special or (random.random() > self.mask_probability):
                 output_mask.extend([0] * len(word_ids))
                 masked_ids.extend(word_ids)
@@ -309,7 +329,10 @@ class BertPretrainingDataset(Dataset):
                     for _ in word_ids:
                         # randomly select a valid word
                         random_word = random.randrange(self.vocab_size)
-                        while random_word in (self.tokenizer.cls_id, self.tokenizer.sep_id):
+                        while random_word in (
+                            self.tokenizer.cls_id,
+                            self.tokenizer.sep_id,
+                        ):
                             random_word = random.randrange(self.vocab_size)
                         masked_ids.append(random_word)
                 # for 10%, use same token
@@ -334,24 +357,29 @@ class BertPretrainingPreprocessedDataset(Dataset):
         self.max_predictions_per_seq = max_predictions_per_seq
         f = load_h5(input_file)
         keys = [
-            'input_ids',
-            'input_mask',
-            'segment_ids',
-            'masked_lm_positions',
-            'masked_lm_ids',
-            'next_sentence_labels',
+            "input_ids",
+            "input_mask",
+            "segment_ids",
+            "masked_lm_positions",
+            "masked_lm_ids",
+            "next_sentence_labels",
         ]
         self.inputs = [np.asarray(f[key][:]) for key in keys]
         f.close()
 
     def __len__(self):
-        'Denotes the total number of samples'
+        "Denotes the total number of samples"
         return len(self.inputs[0])
 
     def __getitem__(self, index: int):
-        [input_ids, input_mask, segment_ids, masked_lm_positions, masked_lm_ids, next_sentence_labels] = [
-            input[index].astype(np.int64) for input in self.inputs
-        ]
+        [
+            input_ids,
+            input_mask,
+            segment_ids,
+            masked_lm_positions,
+            masked_lm_ids,
+            next_sentence_labels,
+        ] = [input[index].astype(np.int64) for input in self.inputs]
 
         output_mask = np.zeros_like(input_ids)
         output_ids = input_ids.copy()
@@ -366,7 +394,14 @@ class BertPretrainingPreprocessedDataset(Dataset):
 
         # input_mask = np.asarray(input_mask, dtype=np.float32)
         # output_mask = np.asarray(output_mask, dtype=np.float32)
-        return (input_ids, segment_ids, input_mask, output_ids, output_mask, next_sentence_labels)
+        return (
+            input_ids,
+            segment_ids,
+            input_mask,
+            output_ids,
+            output_mask,
+            next_sentence_labels,
+        )
 
 
 class BertPretrainingPreprocessedDataloader(DataLoader):
@@ -374,7 +409,13 @@ class BertPretrainingPreprocessedDataloader(DataLoader):
     Dataloader for already preprocessed data in hdf5 files that is already in the format expected by BERT model.
     """
 
-    def __init__(self, data_files: List[str], max_predictions_per_seq: int, batch_size: int, seed: Optional[int] = 42):
+    def __init__(
+        self,
+        data_files: List[str],
+        max_predictions_per_seq: int,
+        batch_size: int,
+        seed: Optional[int] = 42,
+    ):
         """
         Args:
             data_files: list of data files in hdf5 format with preprocessed data in array format
@@ -394,14 +435,18 @@ class BertPretrainingPreprocessedDataloader(DataLoader):
         self.random.shuffle(self.data_files)
         for data_file in self.data_files:
             train_data = BertPretrainingPreprocessedDataset(
-                input_file=data_file, max_predictions_per_seq=self.max_predictions_per_seq
+                input_file=data_file,
+                max_predictions_per_seq=self.max_predictions_per_seq,
             )
             train_sampler = DistributedSampler(train_data)
             # print("---")
             # print(os.getpid(), train_sampler.rank, train_sampler.num_replicas, train_sampler.num_samples)
             # print("---")
             train_dataloader = DataLoader(
-                dataset=train_data, sampler=train_sampler, batch_size=self.batch_size, shuffle=False,
+                dataset=train_data,
+                sampler=train_sampler,
+                batch_size=self.batch_size,
+                shuffle=False,
             )
             for x in train_dataloader:
                 yield x

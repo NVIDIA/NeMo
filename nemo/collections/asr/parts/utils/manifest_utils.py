@@ -30,7 +30,9 @@ from nemo.utils import logging
 from nemo.utils.data_utils import DataStoreObject
 
 
-def get_rounded_str_float(num: float, output_precision: int, min_precision=1, max_precision=3) -> str:
+def get_rounded_str_float(
+    num: float, output_precision: int, min_precision=1, max_precision=3
+) -> str:
     """
     Get a string of a float number with rounded precision.
 
@@ -56,9 +58,9 @@ def get_ctm_line(
     conf: float,
     type_of_token: str,
     speaker: str,
-    NA_token: str = 'NA',
-    UNK: str = 'unknown',
-    default_channel: str = '1',
+    NA_token: str = "NA",
+    UNK: str = "unknown",
+    default_channel: str = "1",
     output_precision: int = 2,
 ) -> str:
     """
@@ -92,33 +94,52 @@ def get_ctm_line(
     Returns:
         str: Return a line in CTM format filled with the given information.
     """
-    VALID_TOKEN_TYPES = ["lex", "frag", "fp", "un-lex", "for-lex", "non-lex", "misc", "noscore"]
+    VALID_TOKEN_TYPES = [
+        "lex",
+        "frag",
+        "fp",
+        "un-lex",
+        "for-lex",
+        "non-lex",
+        "misc",
+        "noscore",
+    ]
 
-    if type(start_time) == str and start_time.replace('.', '', 1).isdigit():
+    if type(start_time) == str and start_time.replace(".", "", 1).isdigit():
         start_time = float(start_time)
     elif type(start_time) != float:
-        raise ValueError(f"`start_time` must be a float or str containing float, but got {type(start_time)}")
+        raise ValueError(
+            f"`start_time` must be a float or str containing float, but got {type(start_time)}"
+        )
 
-    if type(duration) == str and duration.replace('.', '', 1).isdigit():
+    if type(duration) == str and duration.replace(".", "", 1).isdigit():
         duration = float(duration)
     elif type(duration) != float:
-        raise ValueError(f"`duration` must be a float or str containing float, but got {type(duration)}")
+        raise ValueError(
+            f"`duration` must be a float or str containing float, but got {type(duration)}"
+        )
 
-    if type(conf) == str and conf.replace('.', '', 1).isdigit():
+    if type(conf) == str and conf.replace(".", "", 1).isdigit():
         conf = float(conf)
     elif conf is None:
         conf = NA_token
     elif type(conf) != float:
-        raise ValueError(f"`conf` must be a float or str containing float, but got {type(conf)}")
+        raise ValueError(
+            f"`conf` must be a float or str containing float, but got {type(conf)}"
+        )
 
     if channel is not None and type(channel) != int:
         channel = str(channel)
     if conf is not None and type(conf) == float and not (0 <= conf <= 1):
         raise ValueError(f"`conf` must be between 0 and 1, but got {conf}")
     if type_of_token is not None and type(type_of_token) != str:
-        raise ValueError(f"`type` must be a string, but got {type(type_of_token)} type {type_of_token}")
+        raise ValueError(
+            f"`type` must be a string, but got {type(type_of_token)} type {type_of_token}"
+        )
     if type_of_token is not None and type_of_token not in VALID_TOKEN_TYPES:
-        raise ValueError(f"`type` must be one of {VALID_TOKEN_TYPES}, but got {type_of_token} type {type_of_token}")
+        raise ValueError(
+            f"`type` must be one of {VALID_TOKEN_TYPES}, but got {type_of_token} type {type_of_token}"
+        )
     if speaker is not None and type(speaker) != str:
         raise ValueError(f"`speaker` must be a string, but got {type(speaker)}")
 
@@ -156,12 +177,14 @@ def get_uniq_id_with_period(path: str) -> str:
     Returns:
         uniq_id (str): unique speaker ID
     """
-    split_path = os.path.basename(path).split('.')[:-1]
-    uniq_id = '.'.join(split_path) if len(split_path) > 1 else split_path[0]
+    split_path = os.path.basename(path).split(".")[:-1]
+    uniq_id = ".".join(split_path) if len(split_path) > 1 else split_path[0]
     return uniq_id
 
 
-def get_subsegment_dict(subsegments_manifest_file: str, window: float, shift: float, deci: int) -> Dict[str, dict]:
+def get_subsegment_dict(
+    subsegments_manifest_file: str, window: float, shift: float, deci: int
+) -> Dict[str, dict]:
     """
     Get subsegment dictionary from manifest file.
 
@@ -174,23 +197,32 @@ def get_subsegment_dict(subsegments_manifest_file: str, window: float, shift: fl
         _subsegment_dict (dict): Subsegment dictionary
     """
     _subsegment_dict = {}
-    with open(subsegments_manifest_file, 'r') as subsegments_manifest:
+    with open(subsegments_manifest_file, "r") as subsegments_manifest:
         segments = subsegments_manifest.readlines()
         for segment in segments:
             segment = segment.strip()
             dic = json.loads(segment)
-            audio, offset, duration, label = dic['audio_filepath'], dic['offset'], dic['duration'], dic['label']
-            subsegments = get_subsegments_scriptable(offset=offset, window=window, shift=shift, duration=duration)
-            if dic['uniq_id'] is not None:
-                uniq_id = dic['uniq_id']
+            audio, offset, duration, label = (
+                dic["audio_filepath"],
+                dic["offset"],
+                dic["duration"],
+                dic["label"],
+            )
+            subsegments = get_subsegments_scriptable(
+                offset=offset, window=window, shift=shift, duration=duration
+            )
+            if dic["uniq_id"] is not None:
+                uniq_id = dic["uniq_id"]
             else:
                 uniq_id = get_uniq_id_with_period(audio)
             if uniq_id not in _subsegment_dict:
-                _subsegment_dict[uniq_id] = {'ts': [], 'json_dic': []}
+                _subsegment_dict[uniq_id] = {"ts": [], "json_dic": []}
             for subsegment in subsegments:
                 start, dur = subsegment
-            _subsegment_dict[uniq_id]['ts'].append([round(start, deci), round(start + dur, deci)])
-            _subsegment_dict[uniq_id]['json_dic'].append(dic)
+            _subsegment_dict[uniq_id]["ts"].append(
+                [round(start, deci), round(start + dur, deci)]
+            )
+            _subsegment_dict[uniq_id]["json_dic"].append(dic)
     return _subsegment_dict
 
 
@@ -204,7 +236,7 @@ def get_input_manifest_dict(input_manifest_path: str) -> Dict[str, dict]:
         input_manifest_dict (dict): Dictionary from manifest file
     """
     input_manifest_dict = {}
-    with open(input_manifest_path, 'r') as input_manifest_fp:
+    with open(input_manifest_path, "r") as input_manifest_fp:
         json_lines = input_manifest_fp.readlines()
         for json_line in json_lines:
             dic = json.loads(json_line)
@@ -231,9 +263,9 @@ def write_truncated_subsegments(
         step_count (int): Number of the unit segments you want to create per utterance
         deci (int): Rounding number of decimal places
     """
-    with open(output_manifest_path, 'w') as output_manifest_fp:
+    with open(output_manifest_path, "w") as output_manifest_fp:
         for uniq_id, subseg_dict in _subsegment_dict.items():
-            subseg_array = np.array(subseg_dict['ts'])
+            subseg_array = np.array(subseg_dict["ts"])
             subseg_array_idx = np.argsort(subseg_array, axis=0)
             chunked_set_count = subseg_array_idx.shape[0] // step_count
 
@@ -244,8 +276,8 @@ def write_truncated_subsegments(
                 end_sec = subseg_array[chunk_index_end, 1]
                 dur = round(end_sec - offset_sec, deci)
                 meta = input_manifest_dict[uniq_id]
-                meta['offset'] = offset_sec
-                meta['duration'] = dur
+                meta["offset"] = offset_sec
+                meta["duration"] = dur
                 json.dump(meta, output_manifest_fp)
                 output_manifest_fp.write("\n")
 
@@ -259,11 +291,11 @@ def write_file(name: str, lines: List[dict], idx: int):
         lines (list): List of json lines
         idx (int): Indices to dump to the file
     """
-    with open(name, 'w') as fout:
+    with open(name, "w") as fout:
         for i in idx:
             dic = lines[i]
             json.dump(dic, fout)
-            fout.write('\n')
+            fout.write("\n")
 
 
 def read_file(pathlist: str) -> List[str]:
@@ -275,7 +307,7 @@ def read_file(pathlist: str) -> List[str]:
     Returns:
         sorted(pathlist) (list): List of lines
     """
-    with open(pathlist, 'r') as f:
+    with open(pathlist, "r") as f:
         pathlist = f.readlines()
     return sorted(pathlist)
 
@@ -292,7 +324,7 @@ def get_dict_from_wavlist(pathlist: List[str]) -> Dict[str, str]:
     path_dict = od()
     pathlist = sorted(pathlist)
     for line_path in pathlist:
-        uniq_id = os.path.basename(line_path).split('.')[0]
+        uniq_id = os.path.basename(line_path).split(".")[0]
         path_dict[uniq_id] = line_path
     return path_dict
 
@@ -309,15 +341,17 @@ def get_dict_from_list(data_pathlist: List[str], uniqids: List[str]) -> Dict[str
     """
     path_dict = {}
     for line_path in data_pathlist:
-        uniq_id = os.path.basename(line_path).split('.')[0]
+        uniq_id = os.path.basename(line_path).split(".")[0]
         if uniq_id in uniqids:
             path_dict[uniq_id] = line_path
         else:
-            raise ValueError(f'uniq id {uniq_id} is not in wav filelist')
+            raise ValueError(f"uniq id {uniq_id} is not in wav filelist")
     return path_dict
 
 
-def get_path_dict(data_path: str, uniqids: List[str], len_wavs: int = None) -> Dict[str, str]:
+def get_path_dict(
+    data_path: str, uniqids: List[str], len_wavs: int = None
+) -> Dict[str, str]:
     """
     Create dictionary from list of lines (using the get_dict_from_list function)
 
@@ -339,7 +373,12 @@ def get_path_dict(data_path: str, uniqids: List[str], len_wavs: int = None) -> D
 
 
 def create_segment_manifest(
-    input_manifest_path: str, output_manifest_path: str, window: float, shift: float, step_count: int, deci: int
+    input_manifest_path: str,
+    output_manifest_path: str,
+    window: float,
+    shift: float,
+    step_count: int,
+    deci: int,
 ):
     """
     Create segmented manifest file from base manifest file
@@ -352,21 +391,25 @@ def create_segment_manifest(
         step_count (int): Number of the unit segments you want to create per utterance
         deci (int): Rounding number of decimal places
     """
-    if '.json' not in input_manifest_path:
+    if ".json" not in input_manifest_path:
         raise ValueError("input_manifest_path file should be .json file format")
-    if output_manifest_path and '.json' not in output_manifest_path:
+    if output_manifest_path and ".json" not in output_manifest_path:
         raise ValueError("output_manifest_path file should be .json file format")
     elif not output_manifest_path:
-        output_manifest_path = rreplace(input_manifest_path, '.json', f'_{step_count}seg.json')
+        output_manifest_path = rreplace(
+            input_manifest_path, ".json", f"_{step_count}seg.json"
+        )
 
     input_manifest_dict = get_input_manifest_dict(input_manifest_path)
-    segment_manifest_path = rreplace(input_manifest_path, '.json', '_seg.json')
-    subsegment_manifest_path = rreplace(input_manifest_path, '.json', '_subseg.json')
+    segment_manifest_path = rreplace(input_manifest_path, ".json", "_seg.json")
+    subsegment_manifest_path = rreplace(input_manifest_path, ".json", "_subseg.json")
     min_subsegment_duration = 0.05
     step_count = int(step_count)
 
     AUDIO_RTTM_MAP = audio_rttm_map(input_manifest_path)
-    segments_manifest_file = write_rttm2manifest(AUDIO_RTTM_MAP, segment_manifest_path, deci)
+    segments_manifest_file = write_rttm2manifest(
+        AUDIO_RTTM_MAP, segment_manifest_path, deci
+    )
     subsegments_manifest_file = subsegment_manifest_path
     segments_manifest_to_subsegments_manifest(
         segments_manifest_file,
@@ -375,8 +418,12 @@ def create_segment_manifest(
         shift,
         min_subsegment_duration,
     )
-    subsegments_dict = get_subsegment_dict(subsegments_manifest_file, window, shift, deci)
-    write_truncated_subsegments(input_manifest_dict, subsegments_dict, output_manifest_path, step_count, deci)
+    subsegments_dict = get_subsegment_dict(
+        subsegments_manifest_file, window, shift, deci
+    )
+    write_truncated_subsegments(
+        input_manifest_dict, subsegments_dict, output_manifest_path, step_count, deci
+    )
     os.remove(segment_manifest_path)
     os.remove(subsegment_manifest_path)
 
@@ -479,7 +526,7 @@ def read_manifest(manifest: Union[Path, str]) -> List[dict]:
 
     data = []
     try:
-        f = open(manifest.get(), 'r', encoding='utf-8')
+        f = open(manifest.get(), "r", encoding="utf-8")
     except:
         raise Exception(f"Manifest file could not be opened: {manifest}")
 
@@ -496,14 +543,22 @@ def read_manifest(manifest: Union[Path, str]) -> List[dict]:
         data.append(item)
     f.close()
     if errors:
-        logging.error(f"{len(errors)} Errors encountered while reading manifest file: {manifest}")
+        logging.error(
+            f"{len(errors)} Errors encountered while reading manifest file: {manifest}"
+        )
         for error in errors:
             logging.error(f"-- Failed to parse line: `{error}`")
-        raise RuntimeError(f"Errors encountered while reading manifest file: {manifest}")
+        raise RuntimeError(
+            f"Errors encountered while reading manifest file: {manifest}"
+        )
     return data
 
 
-def write_manifest(output_path: Union[Path, str], target_manifest: List[dict], ensure_ascii: bool = True):
+def write_manifest(
+    output_path: Union[Path, str],
+    target_manifest: List[dict],
+    ensure_ascii: bool = True,
+):
     """
     Write to manifest file
 
@@ -517,7 +572,7 @@ def write_manifest(output_path: Union[Path, str], target_manifest: List[dict], e
     with open(output_path, "w", encoding="utf-8") as outfile:
         for tgt in target_manifest:
             json.dump(tgt, outfile, ensure_ascii=ensure_ascii)
-            outfile.write('\n')
+            outfile.write("\n")
 
 
 def write_ctm(output_path: str, target_ctm: Dict[str, dict]):
@@ -547,6 +602,6 @@ def write_text(output_path: str, target_ctm: Dict[str, dict]):
     with open(output_path, "w") as outfile:
         for pair in target_ctm:
             tgt = pair[1]
-            word = tgt.split(' ')[4]
-            outfile.write(word + ' ')
-        outfile.write('\n')
+            word = tgt.split(" ")[4]
+            outfile.write(word + " ")
+        outfile.write("\n")

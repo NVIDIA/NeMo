@@ -25,7 +25,7 @@ from nemo.lightning.pytorch.optim.base import (LRSchedulerModule,
 
 
 def _param_does_not_have_wd(param_name, param):
-    return 'bias' in param_name
+    return "bias" in param_name
 
 
 def _extract_model_params_for_optim(model, weight_decay=0, no_weight_decay_cond=None):
@@ -41,10 +41,12 @@ def _extract_model_params_for_optim(model, weight_decay=0, no_weight_decay_cond=
     else:
         params_with_wd = list(filter(lambda x: x.requires_grad, model.parameters()))
 
-    assert max(map(len, (params_with_wd, params_without_wd))) > 0, "Expected at least one optimizer with params"
+    assert (
+        max(map(len, (params_with_wd, params_without_wd))) > 0
+    ), "Expected at least one optimizer with params"
 
     return [
-        {'params': params, 'weight_decay': wd}
+        {"params": params, "weight_decay": wd}
         for params, wd in zip((params_with_wd, params_without_wd), (weight_decay, 0))
     ]
 
@@ -118,8 +120,10 @@ class PytorchOptimizerModule(OptimizerModule):
         if isinstance(model, MegatronParallel):
             raise ValueError("Model cannot be an instance of MegatronParallel")
 
-        wd = self.optimizer_fn.keywords.get('weight_decay', 0)
-        optim = self.optimizer_fn(_extract_model_params_for_optim(model, wd, self.no_weight_decay_cond))
+        wd = self.optimizer_fn.keywords.get("weight_decay", 0)
+        optim = self.optimizer_fn(
+            _extract_model_params_for_optim(model, wd, self.no_weight_decay_cond)
+        )
         self._optimizers = optim
         if not isinstance(optim, list):
             optim = [optim]

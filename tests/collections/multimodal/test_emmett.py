@@ -140,7 +140,11 @@ def test_audio_example_with_prompt_emmett_t5(cuts_path, tokenizer):
     # First test that sampling is correct and tokenizer + prompt formatter is applied there
 
     dl = get_lhotse_dataloader_from_config(
-        config=config, global_rank=0, world_size=1, dataset=Identity(), tokenizer=tokenizer
+        config=config,
+        global_rank=0,
+        world_size=1,
+        dataset=Identity(),
+        tokenizer=tokenizer,
     )
     batches = [batch for batch in dl]
     assert len(batches) == 1
@@ -165,7 +169,9 @@ def test_audio_example_with_prompt_emmett_t5(cuts_path, tokenizer):
 
     # Test that speechlm dataset processes the example correctly
 
-    text_processor = PromptFormatterTextProcessing(tokenizer=tokenizer, prompt_format="t5nmt")
+    text_processor = PromptFormatterTextProcessing(
+        tokenizer=tokenizer, prompt_format="t5nmt"
+    )
     dataset = LhotseAudioQuestionAnswerDataset(
         text_processor=text_processor,
         default_context="<en>",
@@ -226,7 +232,11 @@ def test_text_example_with_prompt_emmett_t5(nmt_paths, tokenizer):
     # First test that sampling is correct and tokenizer + prompt formatter is applied there
 
     dl = get_lhotse_dataloader_from_config(
-        config=config, global_rank=0, world_size=1, dataset=Identity(), tokenizer=tokenizer
+        config=config,
+        global_rank=0,
+        world_size=1,
+        dataset=Identity(),
+        tokenizer=tokenizer,
     )
     batches = [batch for batch in dl]
     assert len(batches) == 1
@@ -248,7 +258,9 @@ def test_text_example_with_prompt_emmett_t5(nmt_paths, tokenizer):
 
     # Test that speechlm dataset processes the example correctly
 
-    text_processor = PromptFormatterTextProcessing(tokenizer=tokenizer, prompt_format="t5nmt")
+    text_processor = PromptFormatterTextProcessing(
+        tokenizer=tokenizer, prompt_format="t5nmt"
+    )
     dataset = LhotseAudioQuestionAnswerDataset(
         text_processor=text_processor,
         default_context="<en>",
@@ -259,6 +271,9 @@ def test_text_example_with_prompt_emmett_t5(nmt_paths, tokenizer):
 
     batch = dataset[batches[0]]
 
-    assert tokenizer.ids_to_text(batch["text_input_ids"][0]) == "<en> fake german real english"
+    assert (
+        tokenizer.ids_to_text(batch["text_input_ids"][0])
+        == "<en> fake german real english"
+    )
     assert tokenizer.ids_to_text(batch["text_context_ids"][0]) == "<en> fake german"
     assert tokenizer.ids_to_text(batch["text_answer_ids"][0]) == "real english"

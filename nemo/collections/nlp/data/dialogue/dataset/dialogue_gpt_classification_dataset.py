@@ -26,7 +26,7 @@ from nemo.utils.decorators import deprecated_warning
 
 
 class DialogueGPTClassificationDataset(DialogueDataset):
-    '''
+    """
     Designed for classification tasks such as intent/domain classification as well as slot tagging
 
     Dataset Class
@@ -34,7 +34,7 @@ class DialogueGPTClassificationDataset(DialogueDataset):
         2. This can allow the same model preprocessing for multiple datasources
         3. Users can configurate which labels to use for modelling
             (e.g. intent classification, slot filling or both together etc)
-    '''
+    """
 
     def __init__(self, dataset_split: str, dialogues_processor: object, tokenizer, cfg):
         """Constructor
@@ -49,14 +49,19 @@ class DialogueGPTClassificationDataset(DialogueDataset):
 
         self.cfg = cfg
 
-        if self.cfg.target_template == "with_slots" and self.cfg.eval_mode != "generation":
+        if (
+            self.cfg.target_template == "with_slots"
+            and self.cfg.eval_mode != "generation"
+        ):
             raise ValueError(
                 "slot-filling is not supported by eval_mode {}, please set model.dataset.eval_mode=generation instead".format(
                     self.cfg.eval_mode
                 )
             )
         if self.cfg.target_template != "with_slots" and self.cfg.field == "slots":
-            raise ValueError("please set model.dataset.target_template='with_slots' if model.dataset.field='slots'")
+            raise ValueError(
+                "please set model.dataset.target_template='with_slots' if model.dataset.field='slots'"
+            )
         self.label_type = self.cfg.field
         if self.cfg.target_template == "with_description":
             self.label_to_description = defaultdict(str)
@@ -84,7 +89,7 @@ class DialogueGPTClassificationDataset(DialogueDataset):
             normalized_label: str
         """
         if self.cfg.task == "assistant" and self.cfg.prompt_template != "prompt_tuning":
-            label = label.replace('_', ' ')
+            label = label.replace("_", " ")
         return label
 
     def __len__(self):
@@ -92,9 +97,13 @@ class DialogueGPTClassificationDataset(DialogueDataset):
 
     def get_n_tokens_in_sentence(self, sentence):
         encodings_dict = self.tokenizer.tokenizer(
-            sentence, truncation=True, max_length=self.cfg.max_seq_length, padding=False, return_tensors="pt"
+            sentence,
+            truncation=True,
+            max_length=self.cfg.max_seq_length,
+            padding=False,
+            return_tensors="pt",
         )
-        output = torch.squeeze(encodings_dict['input_ids'])
+        output = torch.squeeze(encodings_dict["input_ids"])
         return len(output) if len(output.size()) > 0 else 0
 
     def preprocess_feature(self, idx):
@@ -117,10 +126,14 @@ class DialogueGPTClassificationDataset(DialogueDataset):
 
     def default_encode(self, sentence):
         encodings_dict = self.tokenizer.tokenizer(
-            sentence, truncation=True, max_length=self.cfg.max_seq_length, padding="max_length", return_tensors="pt"
+            sentence,
+            truncation=True,
+            max_length=self.cfg.max_seq_length,
+            padding="max_length",
+            return_tensors="pt",
         )
-        input_ids = torch.squeeze(encodings_dict['input_ids'])
-        attn_masks = torch.squeeze(encodings_dict['attention_mask'])
+        input_ids = torch.squeeze(encodings_dict["input_ids"])
+        attn_masks = torch.squeeze(encodings_dict["attention_mask"])
         return encodings_dict, input_ids, attn_masks
 
     @staticmethod
@@ -136,7 +149,10 @@ class DialogueGPTClassificationDataset(DialogueDataset):
         if not slots:
             return "None"
         return ", ".join(
-            ["{}({})".format(slot, value if isinstance(value, str) else value[0]) for slot, value in slots.items()]
+            [
+                "{}({})".format(slot, value if isinstance(value, str) else value[0])
+                for slot, value in slots.items()
+            ]
         )
 
     def format_target(self, target, slots=None):
@@ -147,15 +163,29 @@ class DialogueGPTClassificationDataset(DialogueDataset):
         "<utterance>\nintent: set alarm\nslots: <slot_name1>(<slot_value1>), <slot_name1>(<slot_value1>)"
         """
         if self.cfg.target_template == "with_description":
-            return target + ' (' + self.label_to_description[target] + ')'
+            return target + " (" + self.label_to_description[target] + ")"
         elif self.cfg.target_template == "default":
             return target
-        elif self.cfg.target_template == "with_slots" and slots is not None and self.cfg.field == "intent":
-            return target + '\nslots: ' + DialogueGPTClassificationDataset.linearize_slots(slots)
-        elif self.cfg.target_template == "with_slots" and slots is not None and self.cfg.field == "slots":
+        elif (
+            self.cfg.target_template == "with_slots"
+            and slots is not None
+            and self.cfg.field == "intent"
+        ):
+            return (
+                target
+                + "\nslots: "
+                + DialogueGPTClassificationDataset.linearize_slots(slots)
+            )
+        elif (
+            self.cfg.target_template == "with_slots"
+            and slots is not None
+            and self.cfg.field == "slots"
+        ):
             return DialogueGPTClassificationDataset.linearize_slots(slots)
         else:
-            raise ValueError("Please choose a target format from {default, with_description, with_slots}")
+            raise ValueError(
+                "Please choose a target format from {default, with_description, with_slots}"
+            )
 
     def get_lm_samples(self):
         max_sample_length = 0
@@ -164,35 +194,47 @@ class DialogueGPTClassificationDataset(DialogueDataset):
             ex = self.features[idx].data
             utterance = ex["utterance"]
             label = ex["labels"][self.label_type]
-            slots = ex["labels"]["slots"] if self.cfg.target_template == "with_slots" else None
-            lm_feature = self.format_prompt(utterance) + ' ' + self.format_target(label, slots=slots)
+            slots = (
+                ex["labels"]["slots"]
+                if self.cfg.target_template == "with_slots"
+                else None
+            )
+            lm_feature = (
+                self.format_prompt(utterance)
+                + " "
+                + self.format_target(label, slots=slots)
+            )
             feature_len = self.get_n_tokens_in_sentence(lm_feature)
             max_sample_length = max(max_sample_length, feature_len)
             lm_features.append(lm_feature)
-        logging.info("max feature length per sample with label: ".format(max_sample_length))
+        logging.info(
+            "max feature length per sample with label: ".format(max_sample_length)
+        )
         logging.info(
             "please adjust max seq len to at least {} * ({} + 1) = {} but not too much more for efficiency".format(
-                max_sample_length, self.cfg.few_shot, max_sample_length * (1 + self.cfg.few_shot)
+                max_sample_length,
+                self.cfg.few_shot,
+                max_sample_length * (1 + self.cfg.few_shot),
             )
         )
         return lm_features
 
     def format_prompt(self, utterance, few_shot=0, idx=None):
         if self.cfg.prompt_template == "default":
-            base_template = utterance + ' ' + self.label_type + ':'
+            base_template = utterance + " " + self.label_type + ":"
         elif self.cfg.prompt_template == "i_want_to":
-            base_template = utterance + ' ' + 'I want to'
+            base_template = utterance + " " + "I want to"
         elif self.cfg.prompt_template == "prompt_tuning":
-            base_template = utterance + '\n' + self.label_type + ':'
+            base_template = utterance + "\n" + self.label_type + ":"
         elif self.cfg.prompt_template == "prompt_tuning_with_options":
             base_template = (
-                'possible intents: '
-                + ', '.join(sorted(list(self.all_possible_labels)))
-                + '\n\n'
+                "possible intents: "
+                + ", ".join(sorted(list(self.all_possible_labels)))
+                + "\n\n"
                 + utterance
-                + '\n'
+                + "\n"
                 + self.label_type
-                + ':'
+                + ":"
             )
 
         if few_shot > 0:
@@ -215,7 +257,9 @@ class DialogueGPTClassificationDataset(DialogueDataset):
         batch_max_length = 0
         for candidate_attn_mask in candidate_attn_masks:
             for one_attn_mask in candidate_attn_mask:
-                batch_max_length = max(batch_max_length, torch.sum(one_attn_mask).item())
+                batch_max_length = max(
+                    batch_max_length, torch.sum(one_attn_mask).item()
+                )
         # padding for tp=2 situation
         if batch_max_length % 2:
             batch_max_length += 1
@@ -234,7 +278,7 @@ class DialogueGPTClassificationDataset(DialogueDataset):
         return all_items
 
     def __getitem__(self, idx: int):
-        '''
+        """
         State how the input and output samples look like
 
         This template can be changed
@@ -247,7 +291,7 @@ class DialogueGPTClassificationDataset(DialogueDataset):
         Generation example:
             e.g. <utterance> service:
 
-        '''
+        """
         ex = self.features[idx].data
 
         utterance = ex["utterance"]
@@ -256,19 +300,23 @@ class DialogueGPTClassificationDataset(DialogueDataset):
         label = ex["labels"][self.label_type]
         candidates = ex["possible_labels"][self.label_type]
 
-        slots = ex["labels"]["slots"] if self.cfg.target_template == "with_slots" else None
+        slots = (
+            ex["labels"]["slots"] if self.cfg.target_template == "with_slots" else None
+        )
 
-        base_template = self.format_prompt(utterance, few_shot=self.cfg.few_shot, idx=idx)
+        base_template = self.format_prompt(
+            utterance, few_shot=self.cfg.few_shot, idx=idx
+        )
 
         sentence_without_answer = base_template
 
-        sentence = base_template + ' ' + self.format_target(label, slots=slots)
+        sentence = base_template + " " + self.format_target(label, slots=slots)
 
         if self.cfg.eval_mode == "binary_score":
             candidate_sentences = []
             for candidate in candidates:
-                positive_answer = base_template + ' ' + candidate + ' Answer: ' + 'yes'
-                negative_answer = base_template + ' ' + candidate + ' Answer: ' + 'no'
+                positive_answer = base_template + " " + candidate + " Answer: " + "yes"
+                negative_answer = base_template + " " + candidate + " Answer: " + "no"
                 if candidate == label:
                     correct_candidate = len(candidate_sentences) // 2
                     candidate_sentences.append(positive_answer)
@@ -279,13 +327,15 @@ class DialogueGPTClassificationDataset(DialogueDataset):
         else:
             correct_candidate = 0
             candidate_sentences = [
-                base_template + ' ' + self.format_target(candidate, slots=slots) for candidate in candidates
+                base_template + " " + self.format_target(candidate, slots=slots)
+                for candidate in candidates
             ]
 
         encodings_dict, input_ids, attn_masks = self.default_encode(sentence)
 
         candidate_tokenized_sentences = [
-            self.default_encode(candidate_sentence) for candidate_sentence in candidate_sentences
+            self.default_encode(candidate_sentence)
+            for candidate_sentence in candidate_sentences
         ]
 
         # ensure all samples have the same number of candidates for collating into tensor
@@ -293,14 +343,19 @@ class DialogueGPTClassificationDataset(DialogueDataset):
             candidate_tokenized_sentences.append(candidate_tokenized_sentences[0])
 
         candidate_input_ids = torch.stack([i[1] for i in candidate_tokenized_sentences])
-        candidate_attn_masks = torch.stack([i[2] for i in candidate_tokenized_sentences])
+        candidate_attn_masks = torch.stack(
+            [i[2] for i in candidate_tokenized_sentences]
+        )
 
-        labels = copy.copy(torch.squeeze(encodings_dict['input_ids']))
+        labels = copy.copy(torch.squeeze(encodings_dict["input_ids"]))
 
         training_mask_end = self.get_n_tokens_in_sentence(sentence_without_answer)
 
         labels.data = torch.tensor(
-            [-100 if i < training_mask_end else labels.data[i] for i in range(len(labels.data))]
+            [
+                -100 if i < training_mask_end else labels.data[i]
+                for i in range(len(labels.data))
+            ]
         )
 
         return (

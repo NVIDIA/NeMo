@@ -187,7 +187,9 @@ class LhotseTextPairAdapter:
         if isinstance(self.source_paths, (str, Path)):
             assert isinstance(self.target_paths, (str, Path)), ASSERT_MSG
         else:
-            assert isinstance(self.source_paths, list) and isinstance(self.target_paths, list), ASSERT_MSG
+            assert isinstance(self.source_paths, list) and isinstance(
+                self.target_paths, list
+            ), ASSERT_MSG
             assert len(self.source_paths) == len(
                 self.target_paths
             ), f"Source ({len(self.source_paths)}) and target ({len(self.target_paths)}) path lists must have the same number of items."
@@ -211,7 +213,9 @@ class LhotseTextPairAdapter:
                         source=TextExample(ls.strip(), language=self.source_language),
                         target=TextExample(lt.strip(), language=self.target_language),
                         question=(
-                            TextExample(rng.choice(questions), language=self.questions_language)
+                            TextExample(
+                                rng.choice(questions), language=self.questions_language
+                            )
                             if questions is not None
                             else None
                         ),
@@ -254,7 +258,10 @@ def default_sft_prompt_format_fn(example: NeMoSFTExample, prompt):
         )
     return prompt.encode_dialog(
         [
-            {"role": "user" if turn["from"] == "User" else prompt.OUTPUT_ROLE, "slots": {"message": turn["value"]}}
+            {
+                "role": "user" if turn["from"] == "User" else prompt.OUTPUT_ROLE,
+                "slots": {"message": turn["value"]},
+            }
             for turn in example.data["conversations"]
         ]
     )
@@ -379,7 +386,9 @@ class NeMoMultimodalConversation(Formattable, CustomFieldMixin):
         return [turn.cut for turn in self.turns if isinstance(turn, AudioTurn)]
 
 
-def _compute_num_audio_tokens(example: NeMoMultimodalConversation, mode: Literal["context", "answer", "all"]) -> int:
+def _compute_num_audio_tokens(
+    example: NeMoMultimodalConversation, mode: Literal["context", "answer", "all"]
+) -> int:
     if not example.has_audio_turns:
         return 0
     assert example.token_equivalent_duration is not None, (
@@ -395,7 +404,9 @@ def _compute_num_audio_tokens(example: NeMoMultimodalConversation, mode: Literal
     elif mode == "all":
         turns = example.turns
     else:
-        raise RuntimeError(f"invalid mode for number of audio token computation: {mode}")
+        raise RuntimeError(
+            f"invalid mode for number of audio token computation: {mode}"
+        )
     return sum(
         [
             # subtract 1 for each audio locator tag as its token will be replaced
@@ -407,20 +418,31 @@ def _compute_num_audio_tokens(example: NeMoMultimodalConversation, mode: Literal
 
 
 @registered_prompt_format_fn(NeMoMultimodalConversation)
-def default_multimodal_conversation_prompt_format_fn(example: NeMoMultimodalConversation, prompt):
+def default_multimodal_conversation_prompt_format_fn(
+    example: NeMoMultimodalConversation, prompt
+):
     # Collapse consecutive same-role turns into single turn for proper prompt formatting.
     turns = groupby(
         [
             {
                 "role": turn.role,
-                "slots": {"message": turn.value if isinstance(turn, TextTurn) else turn.audio_locator_tag},
+                "slots": {
+                    "message": (
+                        turn.value
+                        if isinstance(turn, TextTurn)
+                        else turn.audio_locator_tag
+                    )
+                },
             }
             for turn in example.turns
         ],
         key=lambda turn: turn["role"],
     )
     turns = [
-        {"role": role, "slots": {"message": " ".join(t["slots"]["message"] for t in turn_grp)}}
+        {
+            "role": role,
+            "slots": {"message": " ".join(t["slots"]["message"] for t in turn_grp)},
+        }
         for role, turn_grp in turns
     ]
     return prompt.encode_dialog(turns)
@@ -458,7 +480,9 @@ class NeMoMultimodalConversationJsonlAdapter:
     def __post_init__(self):
         self.manifest_filepath = expand_sharded_filepaths(self.manifest_filepath)
         if self.tarred_audio_filepaths is not None:
-            self.tarred_audio_filepaths = expand_sharded_filepaths(self.tarred_audio_filepaths)
+            self.tarred_audio_filepaths = expand_sharded_filepaths(
+                self.tarred_audio_filepaths
+            )
             assert len(self.manifest_filepath) == len(
                 self.tarred_audio_filepaths
             ), f"{len(self.manifest_filepath)} != {len(self.tarred_audio_filepaths)}"
@@ -484,7 +508,7 @@ class NeMoMultimodalConversationJsonlAdapter:
                     audio_path = str(audio_path)
                     cut = recording.to_cut()
                     assert (
-                        audio_path == turn['value']
+                        audio_path == turn["value"]
                     ), f"Mismatch between JSONL and tar. JSONL defines audio path={turn['value']} but we got the following from tar {audio_path=}"
                     assert (
                         cut.duration == turn["duration"]
@@ -533,7 +557,9 @@ class NeMoMultimodalConversationJsonlAdapter:
                             )
                             if turn["type"] == "text"
                             else AudioTurn(
-                                cut=Recording.from_file(get_full_path(turn["value"], path)).to_cut(),
+                                cut=Recording.from_file(
+                                    get_full_path(turn["value"], path)
+                                ).to_cut(),
                                 role=turn[
                                     "from"
                                 ].lower(),  # prompt formatter role's are typically lowercase: user/assistant
@@ -564,7 +590,9 @@ class NeMoMultimodalConversationTarWriter:
             assert (
                 cut.has_recording
             ), f"Cannot serialize multimodal conversation with cuts that have no recordings. We got: {cut}"
-            self.tar_writer.write(cut.recording.id, cut.load_audio(), cut.sampling_rate, cut.recording)
+            self.tar_writer.write(
+                cut.recording.id, cut.load_audio(), cut.sampling_rate, cut.recording
+            )
         self.item_cntr += 1
 
     def close(self):
@@ -593,5 +621,9 @@ class NeMoMultimodalConversationTarWriter:
     def _setup_writers(self):
         if not is_valid_url(self.output_dir):  # skip dir creation for URLs
             Path(self.output_dir).mkdir(exist_ok=True)
-        self.manifest_writer = JsonlShardWriter(f"{self.output_dir}/manifest_{self.shard_idx}.jsonl", shard_size=None)
-        self.tar_writer = AudioTarWriter(f"{self.output_dir}/audio_{self.shard_idx}.tar", shard_size=None)
+        self.manifest_writer = JsonlShardWriter(
+            f"{self.output_dir}/manifest_{self.shard_idx}.jsonl", shard_size=None
+        )
+        self.tar_writer = AudioTarWriter(
+            f"{self.output_dir}/audio_{self.shard_idx}.tar", shard_size=None
+        )

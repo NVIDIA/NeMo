@@ -76,7 +76,10 @@ def clip_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
     if "captions" in _batch and len(_batch["captions"].shape) == 3:
         _batch["captions"] = _batch["captions"].squeeze()
 
-    _batch = {key: val.cuda(non_blocking=True) if val is not None else None for key, val in _batch.items()}
+    _batch = {
+        key: val.cuda(non_blocking=True) if val is not None else None
+        for key, val in _batch.items()
+    }
     return _batch
 
 
@@ -113,7 +116,9 @@ class CLIPViTConfig(TransformerConfig, io.IOMixin):
 
             transformer_layer_spec = get_layer_spec_te(is_vit=True)
 
-        transformer_layer_spec.submodules.self_attention.params['attn_mask_type'] = MCoreAttnMaskType.no_mask
+        transformer_layer_spec.submodules.self_attention.params["attn_mask_type"] = (
+            MCoreAttnMaskType.no_mask
+        )
         self.transformer_layer_spec = transformer_layer_spec
 
         return CLIPViTModel(
@@ -202,13 +207,15 @@ class CLIPTextModelConfig(TransformerConfig, io.IOMixin):
 
     # Without these the init for transformer will give error
 
-    def configure_model(self, tokenizer, pre_process=None, post_process=None) -> "CLIPTextModel":
+    def configure_model(
+        self, tokenizer, pre_process=None, post_process=None
+    ) -> "CLIPTextModel":
         # pylint: disable=C0116
         transformer_layer_spec = self.transformer_layer_spec
         if not isinstance(transformer_layer_spec, ModuleSpec):
             transformer_layer_spec = transformer_layer_spec(self)
 
-        if hasattr(self, 'vocab_size'):
+        if hasattr(self, "vocab_size"):
             vocab_size = self.vocab_size
             if tokenizer is not None:
                 logging.info(
@@ -216,7 +223,9 @@ class CLIPTextModelConfig(TransformerConfig, io.IOMixin):
                     f" {vocab_size - tokenizer.vocab_size}."
                 )
         else:
-            vocab_size = get_vocab_size(self, tokenizer.vocab_size, self.make_vocab_size_divisible_by)
+            vocab_size = get_vocab_size(
+                self, tokenizer.vocab_size, self.make_vocab_size_divisible_by
+            )
 
         return CLIPTextModel(
             transformer_config=self,
@@ -271,7 +280,9 @@ class CLIPTextModel(MCoreGPTModel):
 
     def forward(self, input_ids):
         # pylint: disable=C0116
-        x = super().forward(input_ids, position_ids=self.position_ids, attention_mask=None)
+        x = super().forward(
+            input_ids, position_ids=self.position_ids, attention_mask=None
+        )
         x = self.final_layernorm(x)
         x = x[input_ids.argmax(dim=-1), torch.arange(x.shape[1])]
         x = self.head(x)
@@ -314,7 +325,9 @@ class CLIPConfig(TransformerConfig, io.IOMixin):
 class MCoreClipModel(MegatronModule):
     """Clip model"""
 
-    def __init__(self, config: CLIPConfig, tokenizer, pre_process=True, post_process=True) -> None:
+    def __init__(
+        self, config: CLIPConfig, tokenizer, pre_process=True, post_process=True
+    ) -> None:
         # pylint: disable=C0116
         super().__init__(config=config)
         self.pre_process = pre_process
@@ -335,7 +348,11 @@ class MCoreClipModel(MegatronModule):
         image_features = self.vision_model(images)
         text_features = self.text_model(captions)
         if self.post_process:
-            return F.normalize(image_features, dim=-1), F.normalize(text_features, dim=-1), self.logit_scale.exp()
+            return (
+                F.normalize(image_features, dim=-1),
+                F.normalize(text_features, dim=-1),
+                self.logit_scale.exp(),
+            )
 
         return image_features, text_features
 
@@ -376,7 +393,9 @@ class CLIPModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         super().__init__()
         self.config = config
         self.tokenizer = tokenizer
-        self.optim = optim or MegatronOptimizerModule(config=OptimizerConfig(lr=1e-4, use_distributed_optimizer=True))
+        self.optim = optim or MegatronOptimizerModule(
+            config=OptimizerConfig(lr=1e-4, use_distributed_optimizer=True)
+        )
         self.optim.connect(self)  # This will bind the `configure_optimizers` method
         self._training_loss_reduction = None
         self._validation_loss_reduction = None
@@ -450,20 +469,29 @@ class CLIPModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         def accuracy(output, target, topk=(1,)):
             pred = output.topk(max(topk), 1, True, True)[1].t()
             correct = pred.eq(target.view(1, -1).expand_as(pred))
-            return [float(correct[:k].reshape(-1).float().sum(0, keepdim=True).cpu().numpy()) for k in topk]
+            return [
+                float(
+                    correct[:k].reshape(-1).float().sum(0, keepdim=True).cpu().numpy()
+                )
+                for k in topk
+            ]
 
-        logging.info('Starting zero-shot imagenet.')
+        logging.info("Starting zero-shot imagenet.")
 
-        logging.info('Building zero-shot classifier')
+        logging.info("Building zero-shot classifier")
         classifier = self.zero_shot_classifier()
 
-        logging.info('Using classifier')
+        logging.info("Using classifier")
 
         vision_encoder = self.module.module.module.vision_model
 
         with torch.no_grad():
             top1, top5, n = 0.0, 0.0, 0.0
-            for images, target in tqdm(self.imagenet_val["images"], desc="Imagenet Zero-shot Evaluation", leave=False):
+            for images, target in tqdm(
+                self.imagenet_val["images"],
+                desc="Imagenet Zero-shot Evaluation",
+                leave=False,
+            ):
                 if images is None or target is None:
                     continue
 
@@ -486,7 +514,7 @@ class CLIPModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
                 top5 += acc5
                 n += images.size(0)
 
-        logging.info('Finished zero-shot imagenet.')
+        logging.info("Finished zero-shot imagenet.")
         top1 = top1 / n
         top5 = top5 / n
         return top1, top5
@@ -497,8 +525,20 @@ class CLIPModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
             imagenet_metric = torch.zeros(2).cuda()
             imagenet_metric[0], imagenet_metric[1] = self.zero_shot_eval()
             imagenet_metric = average_losses_across_data_parallel_group(imagenet_metric)
-            self.log('imagenet_top1', imagenet_metric[0], prog_bar=True, rank_zero_only=True, batch_size=1)
-            self.log('imagenet_top5', imagenet_metric[1], prog_bar=True, rank_zero_only=True, batch_size=1)
+            self.log(
+                "imagenet_top1",
+                imagenet_metric[0],
+                prog_bar=True,
+                rank_zero_only=True,
+                batch_size=1,
+            )
+            self.log(
+                "imagenet_top5",
+                imagenet_metric[1],
+                prog_bar=True,
+                rank_zero_only=True,
+                batch_size=1,
+            )
 
     @property
     def training_loss_reduction(self) -> ClipMegatronLoss:

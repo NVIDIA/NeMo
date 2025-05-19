@@ -40,7 +40,9 @@ from nemo.core.classes.mixins import AccessMixin
 from nemo.utils import logging, model_utils
 
 
-class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin, ASRTranscriptionMixin):
+class EncDecHybridRNNTCTCModel(
+    EncDecRNNTModel, ASRBPEMixin, InterCTCMixin, ASRTranscriptionMixin
+):
     """Base class for hybrid RNNT/CTC models."""
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
@@ -48,25 +50,35 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin, ASRT
         cfg = model_utils.maybe_update_config_version(cfg)
         super().__init__(cfg=cfg, trainer=trainer)
 
-        if 'aux_ctc' not in self.cfg:
+        if "aux_ctc" not in self.cfg:
             raise ValueError(
                 "The config need to have a section for the CTC decoder named as aux_ctc for Hybrid models."
             )
         with open_dict(self.cfg.aux_ctc):
             if "feat_in" not in self.cfg.aux_ctc.decoder or (
-                not self.cfg.aux_ctc.decoder.feat_in and hasattr(self.encoder, '_feat_out')
+                not self.cfg.aux_ctc.decoder.feat_in
+                and hasattr(self.encoder, "_feat_out")
             ):
                 self.cfg.aux_ctc.decoder.feat_in = self.encoder._feat_out
-            if "feat_in" not in self.cfg.aux_ctc.decoder or not self.cfg.aux_ctc.decoder.feat_in:
+            if (
+                "feat_in" not in self.cfg.aux_ctc.decoder
+                or not self.cfg.aux_ctc.decoder.feat_in
+            ):
                 raise ValueError("param feat_in of the decoder's config is not set!")
 
-            if self.cfg.aux_ctc.decoder.num_classes < 1 and self.cfg.aux_ctc.decoder.vocabulary is not None:
+            if (
+                self.cfg.aux_ctc.decoder.num_classes < 1
+                and self.cfg.aux_ctc.decoder.vocabulary is not None
+            ):
                 logging.info(
                     "\nReplacing placeholder number of classes ({}) with actual number of classes - {}".format(
-                        self.cfg.aux_ctc.decoder.num_classes, len(self.cfg.aux_ctc.decoder.vocabulary)
+                        self.cfg.aux_ctc.decoder.num_classes,
+                        len(self.cfg.aux_ctc.decoder.vocabulary),
                     )
                 )
-                self.cfg.aux_ctc.decoder["num_classes"] = len(self.cfg.aux_ctc.decoder.vocabulary)
+                self.cfg.aux_ctc.decoder["num_classes"] = len(
+                    self.cfg.aux_ctc.decoder.vocabulary
+                )
 
         self.ctc_decoder = EncDecRNNTModel.from_config_dict(self.cfg.aux_ctc.decoder)
         self.ctc_loss_weight = self.cfg.aux_ctc.get("ctc_loss_weight", 0.5)
@@ -77,16 +89,18 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin, ASRT
             reduction=self.cfg.aux_ctc.get("ctc_reduction", "mean_batch"),
         )
 
-        ctc_decoding_cfg = self.cfg.aux_ctc.get('decoding', None)
+        ctc_decoding_cfg = self.cfg.aux_ctc.get("decoding", None)
         if ctc_decoding_cfg is None:
             ctc_decoding_cfg = OmegaConf.structured(CTCDecodingConfig)
             with open_dict(self.cfg.aux_ctc):
                 self.cfg.aux_ctc.decoding = ctc_decoding_cfg
 
-        self.ctc_decoding = CTCDecoding(self.cfg.aux_ctc.decoding, vocabulary=self.ctc_decoder.vocabulary)
+        self.ctc_decoding = CTCDecoding(
+            self.cfg.aux_ctc.decoding, vocabulary=self.ctc_decoder.vocabulary
+        )
         self.ctc_wer = WER(
             decoding=self.ctc_decoding,
-            use_cer=self.cfg.aux_ctc.get('use_cer', False),
+            use_cer=self.cfg.aux_ctc.get("use_cer", False),
             dist_sync_on_step=True,
             log_prediction=self.cfg.get("log_prediction", False),
         )
@@ -95,7 +109,9 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin, ASRT
         self.cur_decoder = "rnnt"
 
         # setting up interCTC loss (from InterCTCMixin)
-        self.setup_interctc(decoder_name='ctc_decoder', loss_name='ctc_loss', wer_name='ctc_wer')
+        self.setup_interctc(
+            decoder_name="ctc_decoder", loss_name="ctc_loss", wer_name="ctc_wer"
+        )
 
     @torch.no_grad()
     def transcribe(
@@ -103,7 +119,7 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin, ASRT
         audio: List[str],
         batch_size: int = 4,
         return_hypotheses: bool = False,
-        partial_hypothesis: Optional[List['Hypothesis']] = None,
+        partial_hypothesis: Optional[List["Hypothesis"]] = None,
         num_workers: int = 0,
         channel_selector: Optional[ChannelSelectorType] = None,
         augmentor: DictConfig = None,
@@ -146,8 +162,14 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin, ASRT
                 raise ValueError(
                     f"{self.cur_decoder} is not supported for cur_decoder. Supported values are ['ctc', 'rnnt']"
                 )
-            decoding_cfg = self.cfg.aux_ctc.decoding if self.cur_decoder == "ctc" else self.cfg.decoding
-            if timestamps or (override_config is not None and override_config.timestamps):
+            decoding_cfg = (
+                self.cfg.aux_ctc.decoding
+                if self.cur_decoder == "ctc"
+                else self.cfg.decoding
+            )
+            if timestamps or (
+                override_config is not None and override_config.timestamps
+            ):
                 logging.info(
                     "Timestamps requested, setting decoding timestamps to True. Capture them in Hypothesis object, \
                         with output[idx].timestep['word'/'segment'/'char']"
@@ -160,7 +182,9 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin, ASRT
                 with open_dict(decoding_cfg):
                     decoding_cfg.compute_timestamps = False
                     decoding_cfg.preserve_alignments = False
-            self.change_decoding_strategy(decoding_cfg, decoder_type=self.cur_decoder, verbose=False)
+            self.change_decoding_strategy(
+                decoding_cfg, decoder_type=self.cur_decoder, verbose=False
+            )
 
         return ASRTranscriptionMixin.transcribe(
             self,
@@ -179,13 +203,13 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin, ASRT
     def _transcribe_on_begin(self, audio, trcfg: TranscribeConfig):
         super()._transcribe_on_begin(audio, trcfg)
 
-        if hasattr(self, 'ctc_decoder'):
+        if hasattr(self, "ctc_decoder"):
             self.ctc_decoder.freeze()
 
     def _transcribe_on_end(self, trcfg: TranscribeConfig):
         super()._transcribe_on_end(trcfg)
 
-        if hasattr(self, 'ctc_decoder'):
+        if hasattr(self, "ctc_decoder"):
             self.ctc_decoder.unfreeze(partial=True)
 
     def _transcribe_forward(self, batch: Any, trcfg: TranscribeConfig):
@@ -193,7 +217,9 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin, ASRT
             return super()._transcribe_forward(batch, trcfg)
 
         # CTC Path
-        encoded, encoded_len = self.forward(input_signal=batch[0], input_signal_length=batch[1])
+        encoded, encoded_len = self.forward(
+            input_signal=batch[0], input_signal_length=batch[1]
+        )
 
         logits = self.ctc_decoder(encoder_output=encoded)
         output = dict(logits=logits, encoded_len=encoded_len)
@@ -203,13 +229,13 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin, ASRT
 
     def _transcribe_output_processing(
         self, outputs, trcfg: TranscribeConfig
-    ) -> Union[List['Hypothesis'], List[List['Hypothesis']]]:
+    ) -> Union[List["Hypothesis"], List[List["Hypothesis"]]]:
         if self.cur_decoder == "rnnt":
             return super()._transcribe_output_processing(outputs, trcfg)
 
         # CTC Path
-        logits = outputs.pop('logits')
-        encoded_len = outputs.pop('encoded_len')
+        logits = outputs.pop("logits")
+        encoded_len = outputs.pop("encoded_len")
 
         hypotheses = self.ctc_decoding.ctc_decoder_predictions_tensor(
             logits,
@@ -232,7 +258,9 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin, ASRT
 
         if trcfg.timestamps:
             hypotheses = process_timestamp_outputs(
-                hypotheses, self.encoder.subsampling_factor, self.cfg['preprocessor']['window_stride']
+                hypotheses,
+                self.encoder.subsampling_factor,
+                self.cfg["preprocessor"]["window_stride"],
             )
 
         del logits, encoded_len
@@ -262,24 +290,30 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin, ASRT
         Returns: None
 
         """
-        super().change_vocabulary(new_vocabulary=new_vocabulary, decoding_cfg=decoding_cfg)
+        super().change_vocabulary(
+            new_vocabulary=new_vocabulary, decoding_cfg=decoding_cfg
+        )
 
         # set up the new tokenizer for the CTC decoder
-        if hasattr(self, 'ctc_decoder'):
+        if hasattr(self, "ctc_decoder"):
             if self.ctc_decoder.vocabulary == new_vocabulary:
                 logging.warning(
                     f"Old {self.ctc_decoder.vocabulary} and new {new_vocabulary} match. Not changing anything."
                 )
             else:
                 if new_vocabulary is None or len(new_vocabulary) == 0:
-                    raise ValueError(f'New vocabulary must be non-empty list of chars. But I got: {new_vocabulary}')
+                    raise ValueError(
+                        f"New vocabulary must be non-empty list of chars. But I got: {new_vocabulary}"
+                    )
                 decoder_config = self.ctc_decoder.to_config_dict()
                 new_decoder_config = copy.deepcopy(decoder_config)
-                new_decoder_config['vocabulary'] = new_vocabulary
-                new_decoder_config['num_classes'] = len(new_vocabulary)
+                new_decoder_config["vocabulary"] = new_vocabulary
+                new_decoder_config["num_classes"] = len(new_vocabulary)
 
                 del self.ctc_decoder
-                self.ctc_decoder = EncDecHybridRNNTCTCModel.from_config_dict(new_decoder_config)
+                self.ctc_decoder = EncDecHybridRNNTCTCModel.from_config_dict(
+                    new_decoder_config
+                )
                 del self.ctc_loss
                 self.ctc_loss = CTCLoss(
                     num_classes=self.ctc_decoder.num_classes_with_blank - 1,
@@ -289,15 +323,22 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin, ASRT
 
                 if ctc_decoding_cfg is None:
                     # Assume same decoding config as before
-                    logging.info("No `ctc_decoding_cfg` passed when changing decoding strategy, using internal config")
+                    logging.info(
+                        "No `ctc_decoding_cfg` passed when changing decoding strategy, using internal config"
+                    )
                     ctc_decoding_cfg = self.cfg.aux_ctc.decoding
 
                 # Assert the decoding config with all hyper parameters
                 ctc_decoding_cls = OmegaConf.structured(CTCDecodingConfig)
-                ctc_decoding_cls = OmegaConf.create(OmegaConf.to_container(ctc_decoding_cls))
+                ctc_decoding_cls = OmegaConf.create(
+                    OmegaConf.to_container(ctc_decoding_cls)
+                )
                 ctc_decoding_cfg = OmegaConf.merge(ctc_decoding_cls, ctc_decoding_cfg)
 
-                self.ctc_decoding = CTCDecoding(decoding_cfg=ctc_decoding_cfg, vocabulary=self.ctc_decoder.vocabulary)
+                self.ctc_decoding = CTCDecoding(
+                    decoding_cfg=ctc_decoding_cfg,
+                    vocabulary=self.ctc_decoder.vocabulary,
+                )
 
                 self.ctc_wer = WER(
                     decoding=self.ctc_decoding,
@@ -313,16 +354,21 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin, ASRT
                 with open_dict(self.cfg.aux_ctc):
                     self.cfg.aux_ctc.decoder = new_decoder_config
 
-                ds_keys = ['train_ds', 'validation_ds', 'test_ds']
+                ds_keys = ["train_ds", "validation_ds", "test_ds"]
                 for key in ds_keys:
                     if key in self.cfg:
                         with open_dict(self.cfg[key]):
-                            self.cfg[key]['labels'] = OmegaConf.create(new_vocabulary)
+                            self.cfg[key]["labels"] = OmegaConf.create(new_vocabulary)
 
-                logging.info(f"Changed the tokenizer of the CTC decoder to {self.ctc_decoder.vocabulary} vocabulary.")
+                logging.info(
+                    f"Changed the tokenizer of the CTC decoder to {self.ctc_decoder.vocabulary} vocabulary."
+                )
 
     def change_decoding_strategy(
-        self, decoding_cfg: DictConfig = None, decoder_type: str = None, verbose: bool = True
+        self,
+        decoding_cfg: DictConfig = None,
+        decoder_type: str = None,
+        verbose: bool = True,
     ):
         """
         Changes decoding strategy used during RNNT decoding process.
@@ -335,14 +381,18 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin, ASRT
                 used. If set to 'ctc', it raises error if 'ctc_decoder' is not an attribute of the model.
             verbose: (bool) whether to display logging information
         """
-        if decoder_type is None or decoder_type == 'rnnt':
+        if decoder_type is None or decoder_type == "rnnt":
             self.cur_decoder = "rnnt"
-            return super().change_decoding_strategy(decoding_cfg=decoding_cfg, verbose=verbose)
+            return super().change_decoding_strategy(
+                decoding_cfg=decoding_cfg, verbose=verbose
+            )
 
-        assert decoder_type == 'ctc' and hasattr(self, 'ctc_decoder')
+        assert decoder_type == "ctc" and hasattr(self, "ctc_decoder")
         if decoding_cfg is None:
             # Assume same decoding config as before
-            logging.info("No `decoding_cfg` passed when changing decoding strategy, using internal config")
+            logging.info(
+                "No `decoding_cfg` passed when changing decoding strategy, using internal config"
+            )
             decoding_cfg = self.cfg.aux_ctc.decoding
 
         # Assert the decoding config with all hyper parameters
@@ -350,7 +400,9 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin, ASRT
         decoding_cls = OmegaConf.create(OmegaConf.to_container(decoding_cls))
         decoding_cfg = OmegaConf.merge(decoding_cls, decoding_cfg)
 
-        self.ctc_decoding = CTCDecoding(decoding_cfg=decoding_cfg, vocabulary=self.ctc_decoder.vocabulary)
+        self.ctc_decoding = CTCDecoding(
+            decoding_cfg=decoding_cfg, vocabulary=self.ctc_decoder.vocabulary
+        )
 
         self.ctc_wer = WER(
             decoding=self.ctc_decoding,
@@ -359,7 +411,7 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin, ASRT
             dist_sync_on_step=True,
         )
 
-        self.ctc_decoder.temperature = decoding_cfg.get('temperature', 1.0)
+        self.ctc_decoder.temperature = decoding_cfg.get("temperature", 1.0)
 
         # Update config
         with open_dict(self.cfg.aux_ctc):
@@ -367,7 +419,9 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin, ASRT
 
         self.cur_decoder = "ctc"
         if verbose:
-            logging.info(f"Changed decoding strategy to \n{OmegaConf.to_yaml(self.cfg.aux_ctc.decoding)}")
+            logging.info(
+                f"Changed decoding strategy to \n{OmegaConf.to_yaml(self.cfg.aux_ctc.decoding)}"
+            )
 
         return None
 
@@ -384,15 +438,21 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin, ASRT
 
         # forward() only performs encoder forward
         if isinstance(batch, DALIOutputs) and batch.has_processed_signal:
-            encoded, encoded_len = self.forward(processed_signal=signal, processed_signal_length=signal_len)
+            encoded, encoded_len = self.forward(
+                processed_signal=signal, processed_signal_length=signal_len
+            )
         else:
-            encoded, encoded_len = self.forward(input_signal=signal, input_signal_length=signal_len)
+            encoded, encoded_len = self.forward(
+                input_signal=signal, input_signal_length=signal_len
+            )
         del signal
 
         # During training, loss must be computed, so decoder forward is necessary
-        decoder, target_length, states = self.decoder(targets=transcript, target_length=transcript_len)
+        decoder, target_length, states = self.decoder(
+            targets=transcript, target_length=transcript_len
+        )
 
-        if hasattr(self, '_trainer') and self._trainer is not None:
+        if hasattr(self, "_trainer") and self._trainer is not None:
             log_every_n_steps = self._trainer.log_every_n_steps
             sample_id = self._trainer.global_step
         else:
@@ -409,15 +469,20 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin, ASRT
             # Compute full joint and loss
             joint = self.joint(encoder_outputs=encoded, decoder_outputs=decoder)
             loss_value = self.loss(
-                log_probs=joint, targets=transcript, input_lengths=encoded_len, target_lengths=target_length
+                log_probs=joint,
+                targets=transcript,
+                input_lengths=encoded_len,
+                target_lengths=target_length,
             )
 
             # Add auxiliary losses, if registered
             loss_value = self.add_auxiliary_losses(loss_value)
 
             tensorboard_logs = {
-                'learning_rate': self._optimizer.param_groups[0]['lr'],
-                'global_step': torch.tensor(self.trainer.global_step, dtype=torch.float32),
+                "learning_rate": self._optimizer.param_groups[0]["lr"],
+                "global_step": torch.tensor(
+                    self.trainer.global_step, dtype=torch.float32
+                ),
             }
 
             if compute_wer:
@@ -429,7 +494,7 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin, ASRT
                 )
                 _, scores, words = self.wer.compute()
                 self.wer.reset()
-                tensorboard_logs.update({'training_batch_wer': scores.float() / words})
+                tensorboard_logs.update({"training_batch_wer": scores.float() / words})
 
         else:  # If fused Joint-Loss-WER is used
             # Fused joint step
@@ -446,21 +511,28 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin, ASRT
             loss_value = self.add_auxiliary_losses(loss_value)
 
             tensorboard_logs = {
-                'learning_rate': self._optimizer.param_groups[0]['lr'],
-                'global_step': torch.tensor(self.trainer.global_step, dtype=torch.float32),
+                "learning_rate": self._optimizer.param_groups[0]["lr"],
+                "global_step": torch.tensor(
+                    self.trainer.global_step, dtype=torch.float32
+                ),
             }
 
             if compute_wer:
-                tensorboard_logs.update({'training_batch_wer': wer})
+                tensorboard_logs.update({"training_batch_wer": wer})
 
         if self.ctc_loss_weight > 0:
             log_probs = self.ctc_decoder(encoder_output=encoded)
             ctc_loss = self.ctc_loss(
-                log_probs=log_probs, targets=transcript, input_lengths=encoded_len, target_lengths=transcript_len
+                log_probs=log_probs,
+                targets=transcript,
+                input_lengths=encoded_len,
+                target_lengths=transcript_len,
             )
-            tensorboard_logs['train_rnnt_loss'] = loss_value
-            tensorboard_logs['train_ctc_loss'] = ctc_loss
-            loss_value = (1 - self.ctc_loss_weight) * loss_value + self.ctc_loss_weight * ctc_loss
+            tensorboard_logs["train_rnnt_loss"] = loss_value
+            tensorboard_logs["train_ctc_loss"] = ctc_loss
+            loss_value = (
+                1 - self.ctc_loss_weight
+            ) * loss_value + self.ctc_loss_weight * ctc_loss
             if compute_wer:
                 self.ctc_wer.update(
                     predictions=log_probs,
@@ -470,7 +542,7 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin, ASRT
                 )
                 ctc_wer, _, _ = self.ctc_wer.compute()
                 self.ctc_wer.reset()
-                tensorboard_logs.update({'training_batch_wer_ctc': ctc_wer})
+                tensorboard_logs.update({"training_batch_wer_ctc": ctc_wer})
 
         # note that we want to apply interctc independent of whether main ctc
         # loss is used or not (to allow rnnt + interctc training).
@@ -481,7 +553,7 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin, ASRT
             loss_value, transcript, transcript_len, compute_wer=compute_wer
         )
         tensorboard_logs.update(additional_logs)
-        tensorboard_logs['train_loss'] = loss_value
+        tensorboard_logs["train_loss"] = loss_value
         # Reset access registry
         if AccessMixin.is_access_enabled(self.model_guid):
             AccessMixin.reset_registry(self)
@@ -493,21 +565,27 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin, ASRT
         if self._optim_normalize_joint_txu:
             self._optim_normalize_txu = [encoded_len.max(), transcript_len.max()]
 
-        return {'loss': loss_value}
+        return {"loss": loss_value}
 
     def predict_step(self, batch, batch_idx, dataloader_idx=0):
         signal, signal_len, transcript, transcript_len, sample_id = batch
 
         # forward() only performs encoder forward
         if isinstance(batch, DALIOutputs) and batch.has_processed_signal:
-            encoded, encoded_len = self.forward(processed_signal=signal, processed_signal_length=signal_len)
+            encoded, encoded_len = self.forward(
+                processed_signal=signal, processed_signal_length=signal_len
+            )
         else:
-            encoded, encoded_len = self.forward(input_signal=signal, input_signal_length=signal_len)
+            encoded, encoded_len = self.forward(
+                input_signal=signal, input_signal_length=signal_len
+            )
         del signal
 
-        if self.cur_decoder == 'rnnt':
+        if self.cur_decoder == "rnnt":
             best_hyp = self.decoding.rnnt_decoder_predictions_tensor(
-                encoder_output=encoded, encoded_lengths=encoded_len, return_hypotheses=True
+                encoder_output=encoded,
+                encoded_lengths=encoded_len,
+                return_hypotheses=True,
             )
         else:
             logits = self.ctc_decoder(encoder_output=encoded)
@@ -529,9 +607,13 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin, ASRT
 
         # forward() only performs encoder forward
         if isinstance(batch, DALIOutputs) and batch.has_processed_signal:
-            encoded, encoded_len = self.forward(processed_signal=signal, processed_signal_length=signal_len)
+            encoded, encoded_len = self.forward(
+                processed_signal=signal, processed_signal_length=signal_len
+            )
         else:
-            encoded, encoded_len = self.forward(input_signal=signal, input_signal_length=signal_len)
+            encoded, encoded_len = self.forward(
+                input_signal=signal, input_signal_length=signal_len
+            )
         del signal
 
         tensorboard_logs = {}
@@ -540,13 +622,18 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin, ASRT
         # If experimental fused Joint-Loss-WER is not used
         if not self.joint.fuse_loss_wer:
             if self.compute_eval_loss:
-                decoder, target_length, states = self.decoder(targets=transcript, target_length=transcript_len)
+                decoder, target_length, states = self.decoder(
+                    targets=transcript, target_length=transcript_len
+                )
                 joint = self.joint(encoder_outputs=encoded, decoder_outputs=decoder)
 
                 loss_value = self.loss(
-                    log_probs=joint, targets=transcript, input_lengths=encoded_len, target_lengths=target_length
+                    log_probs=joint,
+                    targets=transcript,
+                    input_lengths=encoded_len,
+                    target_lengths=target_length,
                 )
-                tensorboard_logs['val_loss'] = loss_value
+                tensorboard_logs["val_loss"] = loss_value
 
             self.wer.update(
                 predictions=encoded,
@@ -557,16 +644,18 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin, ASRT
             wer, wer_num, wer_denom = self.wer.compute()
             self.wer.reset()
 
-            tensorboard_logs['val_wer_num'] = wer_num
-            tensorboard_logs['val_wer_denom'] = wer_denom
-            tensorboard_logs['val_wer'] = wer
+            tensorboard_logs["val_wer_num"] = wer_num
+            tensorboard_logs["val_wer_denom"] = wer_denom
+            tensorboard_logs["val_wer"] = wer
 
         else:
             # If experimental fused Joint-Loss-WER is used
             compute_wer = True
 
             if self.compute_eval_loss:
-                decoded, target_len, states = self.decoder(targets=transcript, target_length=transcript_len)
+                decoded, target_len, states = self.decoder(
+                    targets=transcript, target_length=transcript_len
+                )
             else:
                 decoded = None
                 target_len = transcript_len
@@ -581,21 +670,26 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin, ASRT
                 compute_wer=compute_wer,
             )
             if loss_value is not None:
-                tensorboard_logs['val_loss'] = loss_value
+                tensorboard_logs["val_loss"] = loss_value
 
-            tensorboard_logs['val_wer_num'] = wer_num
-            tensorboard_logs['val_wer_denom'] = wer_denom
-            tensorboard_logs['val_wer'] = wer
+            tensorboard_logs["val_wer_num"] = wer_num
+            tensorboard_logs["val_wer_denom"] = wer_denom
+            tensorboard_logs["val_wer"] = wer
 
         log_probs = self.ctc_decoder(encoder_output=encoded)
         if self.compute_eval_loss:
             ctc_loss = self.ctc_loss(
-                log_probs=log_probs, targets=transcript, input_lengths=encoded_len, target_lengths=transcript_len
+                log_probs=log_probs,
+                targets=transcript,
+                input_lengths=encoded_len,
+                target_lengths=transcript_len,
             )
-            tensorboard_logs['val_ctc_loss'] = ctc_loss
-            tensorboard_logs['val_rnnt_loss'] = loss_value
-            loss_value = (1 - self.ctc_loss_weight) * loss_value + self.ctc_loss_weight * ctc_loss
-            tensorboard_logs['val_loss'] = loss_value
+            tensorboard_logs["val_ctc_loss"] = ctc_loss
+            tensorboard_logs["val_rnnt_loss"] = loss_value
+            loss_value = (
+                1 - self.ctc_loss_weight
+            ) * loss_value + self.ctc_loss_weight * ctc_loss
+            tensorboard_logs["val_loss"] = loss_value
         self.ctc_wer.update(
             predictions=log_probs,
             targets=transcript,
@@ -604,11 +698,13 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin, ASRT
         )
         ctc_wer, ctc_wer_num, ctc_wer_denom = self.ctc_wer.compute()
         self.ctc_wer.reset()
-        tensorboard_logs['val_wer_num_ctc'] = ctc_wer_num
-        tensorboard_logs['val_wer_denom_ctc'] = ctc_wer_denom
-        tensorboard_logs['val_wer_ctc'] = ctc_wer
+        tensorboard_logs["val_wer_num_ctc"] = ctc_wer_num
+        tensorboard_logs["val_wer_denom_ctc"] = ctc_wer_denom
+        tensorboard_logs["val_wer_ctc"] = ctc_wer
 
-        self.log('global_step', torch.tensor(self.trainer.global_step, dtype=torch.float32))
+        self.log(
+            "global_step", torch.tensor(self.trainer.global_step, dtype=torch.float32)
+        )
 
         loss_value, additional_logs = self.add_interctc_losses(
             loss_value,
@@ -622,7 +718,7 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin, ASRT
         if self.compute_eval_loss:
             # overriding total loss value. Note that the previous
             # rnnt + ctc loss is available in metrics as "val_final_loss" now
-            tensorboard_logs['val_loss'] = loss_value
+            tensorboard_logs["val_loss"] = loss_value
         tensorboard_logs.update(additional_logs)
         # Reset access registry
         if AccessMixin.is_access_enabled(self.model_guid):
@@ -632,7 +728,10 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin, ASRT
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
         tensorboard_logs = self.validation_pass(batch, batch_idx, dataloader_idx)
-        if type(self.trainer.val_dataloaders) == list and len(self.trainer.val_dataloaders) > 1:
+        if (
+            type(self.trainer.val_dataloaders) == list
+            and len(self.trainer.val_dataloaders) > 1
+        ):
             self.validation_step_outputs[dataloader_idx].append(tensorboard_logs)
         else:
             self.validation_step_outputs.append(tensorboard_logs)
@@ -641,8 +740,13 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin, ASRT
 
     def test_step(self, batch, batch_idx, dataloader_idx=0):
         logs = self.validation_pass(batch, batch_idx, dataloader_idx=dataloader_idx)
-        test_logs = {name.replace("val_", "test_"): value for name, value in logs.items()}
-        if type(self.trainer.test_dataloaders) == list and len(self.trainer.test_dataloaders) > 1:
+        test_logs = {
+            name.replace("val_", "test_"): value for name, value in logs.items()
+        }
+        if (
+            type(self.trainer.test_dataloaders) == list
+            and len(self.trainer.test_dataloaders) > 1
+        ):
             self.test_step_outputs[dataloader_idx].append(test_logs)
         else:
             self.test_step_outputs.append(test_logs)
@@ -653,50 +757,52 @@ class EncDecHybridRNNTCTCModel(EncDecRNNTModel, ASRBPEMixin, InterCTCMixin, ASRT
             logging.warning("No outputs to process for validation_epoch_end")
             return {}
         if self.compute_eval_loss:
-            val_loss_mean = torch.stack([x['val_loss'] for x in outputs]).mean()
-            val_loss_log = {'val_loss': val_loss_mean}
+            val_loss_mean = torch.stack([x["val_loss"] for x in outputs]).mean()
+            val_loss_log = {"val_loss": val_loss_mean}
         else:
             val_loss_log = {}
-        wer_num = torch.stack([x['val_wer_num'] for x in outputs]).sum()
-        wer_denom = torch.stack([x['val_wer_denom'] for x in outputs]).sum()
-        tensorboard_logs = {**val_loss_log, 'val_wer': wer_num.float() / wer_denom}
+        wer_num = torch.stack([x["val_wer_num"] for x in outputs]).sum()
+        wer_denom = torch.stack([x["val_wer_denom"] for x in outputs]).sum()
+        tensorboard_logs = {**val_loss_log, "val_wer": wer_num.float() / wer_denom}
         if self.ctc_loss_weight > 0:
-            ctc_wer_num = torch.stack([x['val_wer_num_ctc'] for x in outputs]).sum()
-            ctc_wer_denom = torch.stack([x['val_wer_denom_ctc'] for x in outputs]).sum()
-            tensorboard_logs['val_wer_ctc'] = ctc_wer_num.float() / ctc_wer_denom
-        metrics = {**val_loss_log, 'log': tensorboard_logs}
+            ctc_wer_num = torch.stack([x["val_wer_num_ctc"] for x in outputs]).sum()
+            ctc_wer_denom = torch.stack([x["val_wer_denom_ctc"] for x in outputs]).sum()
+            tensorboard_logs["val_wer_ctc"] = ctc_wer_num.float() / ctc_wer_denom
+        metrics = {**val_loss_log, "log": tensorboard_logs}
         self.finalize_interctc_metrics(metrics, outputs, prefix="val_")
         return metrics
 
     def multi_test_epoch_end(self, outputs, dataloader_idx: int = 0):
         if self.compute_eval_loss:
-            test_loss_mean = torch.stack([x['test_loss'] for x in outputs]).mean()
-            test_loss_log = {'test_loss': test_loss_mean}
+            test_loss_mean = torch.stack([x["test_loss"] for x in outputs]).mean()
+            test_loss_log = {"test_loss": test_loss_mean}
         else:
             test_loss_log = {}
-        wer_num = torch.stack([x['test_wer_num'] for x in outputs]).sum()
-        wer_denom = torch.stack([x['test_wer_denom'] for x in outputs]).sum()
-        tensorboard_logs = {**test_loss_log, 'test_wer': wer_num.float() / wer_denom}
+        wer_num = torch.stack([x["test_wer_num"] for x in outputs]).sum()
+        wer_denom = torch.stack([x["test_wer_denom"] for x in outputs]).sum()
+        tensorboard_logs = {**test_loss_log, "test_wer": wer_num.float() / wer_denom}
 
         if self.ctc_loss_weight > 0:
-            ctc_wer_num = torch.stack([x['test_wer_num_ctc'] for x in outputs]).sum()
-            ctc_wer_denom = torch.stack([x['test_wer_denom_ctc'] for x in outputs]).sum()
-            tensorboard_logs['test_wer_ctc'] = ctc_wer_num.float() / ctc_wer_denom
+            ctc_wer_num = torch.stack([x["test_wer_num_ctc"] for x in outputs]).sum()
+            ctc_wer_denom = torch.stack(
+                [x["test_wer_denom_ctc"] for x in outputs]
+            ).sum()
+            tensorboard_logs["test_wer_ctc"] = ctc_wer_num.float() / ctc_wer_denom
 
-        metrics = {**test_loss_log, 'log': tensorboard_logs}
+        metrics = {**test_loss_log, "log": tensorboard_logs}
         self.finalize_interctc_metrics(metrics, outputs, prefix="test_")
         return metrics
 
     # EncDecRNNTModel is exported in 2 parts
     def list_export_subnets(self):
-        if self.cur_decoder == 'rnnt':
-            return ['encoder', 'decoder_joint']
+        if self.cur_decoder == "rnnt":
+            return ["encoder", "decoder_joint"]
         else:
-            return ['self']
+            return ["self"]
 
     @property
     def output_module(self):
-        if self.cur_decoder == 'rnnt':
+        if self.cur_decoder == "rnnt":
             return self.decoder
         else:
             return self.ctc_decoder

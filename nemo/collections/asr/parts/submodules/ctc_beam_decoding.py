@@ -39,8 +39,8 @@ def pack_hypotheses(
 ) -> List[rnnt_utils.NBestHypotheses]:
 
     if logitlen is not None:
-        if hasattr(logitlen, 'cpu'):
-            logitlen_cpu = logitlen.to('cpu')
+        if hasattr(logitlen, "cpu"):
+            logitlen_cpu = logitlen.to("cpu")
         else:
             logitlen_cpu = logitlen
 
@@ -58,17 +58,17 @@ def pack_hypotheses(
 
 
 def pack_wfst_hypotheses(
-    hypotheses: List['WfstNbestHypothesis'],
+    hypotheses: List["WfstNbestHypothesis"],
     logits: torch.Tensor,
     logitlen: torch.Tensor,
 ) -> List[rnnt_utils.NBestHypotheses]:
 
-    logitlen_cpu = logitlen.to('cpu')
+    logitlen_cpu = logitlen.to("cpu")
 
     new_hypotheses = []
     for idx, nbest_hyp in enumerate(hypotheses):  # type: WfstNbestHypothesis
         new_hyp = []
-        y_sequence = logits[idx, : logitlen[idx]].to('cpu')
+        y_sequence = logits[idx, : logitlen[idx]].to("cpu")
         length = logitlen_cpu[idx]
         for candidate_idx, cand in enumerate(nbest_hyp):
             cand_hyp = rnnt_utils.Hypothesis(
@@ -90,7 +90,7 @@ def pack_wfst_hypotheses(
     return new_hypotheses
 
 
-def _states_to_device(dec_state, device='cpu'):
+def _states_to_device(dec_state, device="cpu"):
     if torch.is_tensor(dec_state):
         dec_state = dec_state.to(device)
 
@@ -115,8 +115,8 @@ class AbstractBeamCTCInfer(Typing):
     def input_types(self):
         """Returns definitions of module input ports."""
         return {
-            "decoder_output": NeuralType(('B', 'T', 'D'), LogprobsType()),
-            "decoder_lengths": NeuralType(tuple('B'), LengthsType()),
+            "decoder_output": NeuralType(("B", "T", "D"), LogprobsType()),
+            "decoder_lengths": NeuralType(tuple("B"), LengthsType()),
         }
 
     @property
@@ -164,11 +164,12 @@ class AbstractBeamCTCInfer(Typing):
             decoding_type: Str corresponding to decoding type. Only supports "char" and "subword".
         """
         decoding_type = decoding_type.lower()
-        supported_types = ['char', 'subword']
+        supported_types = ["char", "subword"]
 
         if decoding_type not in supported_types:
             raise ValueError(
-                f"Unsupported decoding type. Supported types = {supported_types}.\n" f"Given = {decoding_type}"
+                f"Unsupported decoding type. Supported types = {supported_types}.\n"
+                f"Given = {decoding_type}"
             )
 
         self.decoding_type = decoding_type
@@ -232,8 +233,8 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
         beam_alpha: float = 1.0,
         beam_beta: float = 0.0,
         kenlm_path: str = None,
-        flashlight_cfg: Optional['FlashlightConfig'] = None,
-        pyctcdecode_cfg: Optional['PyCTCDecodeConfig'] = None,
+        flashlight_cfg: Optional["FlashlightConfig"] = None,
+        pyctcdecode_cfg: Optional["PyCTCDecodeConfig"] = None,
     ):
         super().__init__(blank_id=blank_id, beam_size=beam_size)
 
@@ -243,7 +244,9 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
         self.compute_timestamps = compute_timestamps
 
         if self.compute_timestamps:
-            raise ValueError("Currently this flag is not supported for beam search algorithms.")
+            raise ValueError(
+                "Currently this flag is not supported for beam search algorithms."
+            )
 
         self.vocab = None  # This must be set by specific method by user before calling forward() !
 
@@ -301,10 +304,14 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
             packed list containing batch number of sentences (Hypotheses).
         """
         if self.vocab is None:
-            raise RuntimeError("Please set the vocabulary with `set_vocabulary()` before calling this function.")
+            raise RuntimeError(
+                "Please set the vocabulary with `set_vocabulary()` before calling this function."
+            )
 
         if self.decoding_type is None:
-            raise ValueError("Please set the decoding type with `set_decoding_type()` before calling this function.")
+            raise ValueError(
+                "Please set the decoding type with `set_decoding_type()` before calling this function."
+            )
 
         with torch.no_grad(), torch.inference_mode():
             # Process each sequence independently
@@ -324,8 +331,12 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
             packed_result = pack_hypotheses(hypotheses, decoder_lengths)
 
             # Pack the result
-            if self.return_best_hypothesis and isinstance(packed_result[0], rnnt_utils.NBestHypotheses):
-                packed_result = [res.n_best_hypotheses[0] for res in packed_result]  # type: Hypothesis
+            if self.return_best_hypothesis and isinstance(
+                packed_result[0], rnnt_utils.NBestHypotheses
+            ):
+                packed_result = [
+                    res.n_best_hypotheses[0] for res in packed_result
+                ]  # type: Hypothesis
 
         return (packed_result,)
 
@@ -358,7 +369,7 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
                 )
 
             # perform token offset for subword models
-            if self.decoding_type == 'subword':
+            if self.decoding_type == "subword":
                 vocab = [chr(idx + self.token_offset) for idx in range(len(self.vocab))]
             else:
                 # char models
@@ -378,11 +389,16 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
                 input_tensor=False,
             )
 
-        x = x.to('cpu')
+        x = x.to("cpu")
 
         with typecheck.disable_checks():
-            data = [x[sample_id, : out_len[sample_id], :].softmax(dim=-1) for sample_id in range(len(x))]
-            beams_batch = self.default_beam_scorer.forward(log_probs=data, log_probs_length=None)
+            data = [
+                x[sample_id, : out_len[sample_id], :].softmax(dim=-1)
+                for sample_id in range(len(x))
+            ]
+            beams_batch = self.default_beam_scorer.forward(
+                log_probs=data, log_probs_length=None
+            )
 
         # For each sample in the batch
         nbest_hypotheses = []
@@ -391,7 +407,11 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
             hypotheses = []
             for candidate_idx, candidate in enumerate(beams):
                 hypothesis = rnnt_utils.Hypothesis(
-                    score=0.0, y_sequence=[], dec_state=None, timestamp=[], last_token=None
+                    score=0.0,
+                    y_sequence=[],
+                    dec_state=None,
+                    timestamp=[],
+                    last_token=None,
                 )
 
                 # For subword encoding, NeMo will double encode the subword (multiple tokens) into a
@@ -399,7 +419,7 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
                 # compress the size of the final KenLM ARPA / Binary file.
                 # In order to do double encoding, we shift the subword by some token offset.
                 # This step is ignored for character based models.
-                if self.decoding_type == 'subword':
+                if self.decoding_type == "subword":
                     pred_token_ids = [ord(c) - self.token_offset for c in candidate[1]]
                 else:
                     # Char models
@@ -454,10 +474,13 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
 
         if self.pyctcdecode_beam_scorer is None:
             self.pyctcdecode_beam_scorer = pyctcdecode.build_ctcdecoder(
-                labels=self.vocab, kenlm_model_path=self.kenlm_path, alpha=self.beam_alpha, beta=self.beam_beta
+                labels=self.vocab,
+                kenlm_model_path=self.kenlm_path,
+                alpha=self.beam_alpha,
+                beta=self.beam_beta,
             )  # type: pyctcdecode.BeamSearchDecoderCTC
 
-        x = x.to('cpu').numpy()
+        x = x.to("cpu").numpy()
 
         with typecheck.disable_checks():
             beams_batch = []
@@ -481,18 +504,26 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
             for candidate_idx, candidate in enumerate(beams):
                 # Candidate = (text, last_lm_state, text_frames, logit_score, lm_score)
                 hypothesis = rnnt_utils.Hypothesis(
-                    score=0.0, y_sequence=[], dec_state=None, timestamp=[], last_token=None
+                    score=0.0,
+                    y_sequence=[],
+                    dec_state=None,
+                    timestamp=[],
+                    last_token=None,
                 )
 
                 # TODO: Requires token ids to be returned rather than text.
-                if self.decoding_type == 'subword':
+                if self.decoding_type == "subword":
                     if self.tokenizer is None:
-                        raise ValueError("Tokenizer must be provided for subword decoding. Use set_tokenizer().")
+                        raise ValueError(
+                            "Tokenizer must be provided for subword decoding. Use set_tokenizer()."
+                        )
 
                     pred_token_ids = self.tokenizer.text_to_ids(candidate[0])
                 else:
                     if self.vocab is None:
-                        raise ValueError("Vocab must be provided for character decoding. Use set_vocab().")
+                        raise ValueError(
+                            "Vocab must be provided for character decoding. Use set_vocab()."
+                        )
 
                     chars = list(candidate[0])
                     pred_token_ids = [self.vocab_index_map[c] for c in chars]
@@ -505,7 +536,9 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
                 hypothesis.timestamp = candidate[2]  # text_frames
 
                 if self.preserve_alignments:
-                    hypothesis.alignments = torch.from_numpy(x[beams_idx][: out_len[beams_idx]])
+                    hypothesis.alignments = torch.from_numpy(
+                        x[beams_idx][: out_len[beams_idx]]
+                    )
 
                 hypotheses.append(hypothesis)
 
@@ -568,7 +601,7 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
                 sil_weight=self.flashlight_cfg.sil_weight,
             )
 
-        x = x.to('cpu')
+        x = x.to("cpu")
 
         with typecheck.disable_checks():
             beams_batch = self.flashlight_beam_scorer.forward(log_probs=x)
@@ -580,12 +613,16 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
             hypotheses = []
             for candidate_idx, candidate in enumerate(beams):
                 hypothesis = rnnt_utils.Hypothesis(
-                    score=0.0, y_sequence=[], dec_state=None, timestamp=[], last_token=None
+                    score=0.0,
+                    y_sequence=[],
+                    dec_state=None,
+                    timestamp=[],
+                    last_token=None,
                 )
 
                 # We preserve the token ids and the score for this hypothesis
-                hypothesis.y_sequence = candidate['tokens'].tolist()
-                hypothesis.score = candidate['score']
+                hypothesis.y_sequence = candidate["tokens"].tolist()
+                hypothesis.score = candidate["score"]
 
                 # If alignment must be preserved, we preserve a view of the output logprobs.
                 # Note this view is shared amongst all beams within the sample, be sure to clone it if you
@@ -607,7 +644,7 @@ class BeamCTCInfer(AbstractBeamCTCInfer):
 
         # Please check train_kenlm.py in scripts/asr_language_modeling/ to find out why we need
         # TOKEN_OFFSET for BPE-based models
-        if self.decoding_type == 'subword':
+        if self.decoding_type == "subword":
             self.token_offset = DEFAULT_TOKEN_OFFSET
 
 
@@ -629,15 +666,15 @@ class WfstCTCInfer(AbstractBeamCTCInfer):
         return_best_hypothesis: bool = True,
         preserve_alignments: bool = False,
         compute_timestamps: bool = False,
-        decoding_mode: str = 'nbest',  # 'nbest', 'mbr' ('mbr' works only for search_type == 'riva' and beam_size == 1)
+        decoding_mode: str = "nbest",  # 'nbest', 'mbr' ('mbr' works only for search_type == 'riva' and beam_size == 1)
         open_vocabulary_decoding: bool = False,
         beam_width: float = 10.0,
         lm_weight: float = 1.0,
         device: str = "cuda",
         arpa_lm_path: str = None,
         wfst_lm_path: str = None,
-        riva_decoding_cfg: Optional['RivaDecoderConfig'] = None,
-        k2_decoding_cfg: Optional['GraphIntersectDenseConfig'] = None,
+        riva_decoding_cfg: Optional["RivaDecoderConfig"] = None,
+        k2_decoding_cfg: Optional["GraphIntersectDenseConfig"] = None,
     ):
         super().__init__(blank_id=blank_id, beam_size=beam_size)
 
@@ -656,7 +693,7 @@ class WfstCTCInfer(AbstractBeamCTCInfer):
         logging.info(f"WFST beam search search_type: {search_type}")
         self.search_type = search_type
 
-        if beam_size > 1 and decoding_mode != 'nbest':
+        if beam_size > 1 and decoding_mode != "nbest":
             logging.warning(
                 f"`beam_size` > 1 is supported only for `decoding_mode` == `nbest`\n"
                 f"(provided: `{decoding_mode}`).\n"
@@ -700,14 +737,18 @@ class WfstCTCInfer(AbstractBeamCTCInfer):
             packed list containing batch number of sentences (Hypotheses).
         """
         if self.vocab is None:
-            raise RuntimeError("Please set the vocabulary with `set_vocabulary()` before calling this function.")
+            raise RuntimeError(
+                "Please set the vocabulary with `set_vocabulary()` before calling this function."
+            )
 
-        if self.decoding_type != 'subword':
+        if self.decoding_type != "subword":
             raise ValueError(
                 f"`decoding_type` other than `subword` is not supported. Provided: `{self.decoding_type}`"
             )
         elif self.tokenizer is None:
-            raise ValueError("Tokenizer must be provided for subword decoding. Use set_tokenizer().")
+            raise ValueError(
+                "Tokenizer must be provided for subword decoding. Use set_tokenizer()."
+            )
         if self.decoding_algorithm is None:
             raise NotImplementedError(
                 f"The decoding search_type ({self.search_type}) supplied is not supported!\n"
@@ -727,18 +768,30 @@ class WfstCTCInfer(AbstractBeamCTCInfer):
             hypotheses = self.decoding_algorithm(prediction_tensor, decoder_lengths)
 
             # Pack results into Hypotheses
-            packed_result = pack_wfst_hypotheses(hypotheses, prediction_tensor, decoder_lengths)
+            packed_result = pack_wfst_hypotheses(
+                hypotheses, prediction_tensor, decoder_lengths
+            )
 
             # Pack the result
-            if self.return_best_hypothesis and isinstance(packed_result[0], rnnt_utils.NBestHypotheses):
-                packed_result = [res.n_best_hypotheses[0] for res in packed_result]  # type: Hypothesis
+            if self.return_best_hypothesis and isinstance(
+                packed_result[0], rnnt_utils.NBestHypotheses
+            ):
+                packed_result = [
+                    res.n_best_hypotheses[0] for res in packed_result
+                ]  # type: Hypothesis
 
         return (packed_result,)
 
-    def _prepare_decoding_lm_wfst(self) -> Union[str, 'kaldifst.StdFst', 'k2.Fsa']:  # noqa: F821
+    def _prepare_decoding_lm_wfst(
+        self,
+    ) -> Union[str, "kaldifst.StdFst", "k2.Fsa"]:  # noqa: F821
         """TBD"""
-        arpa_lm_path_exists = self.arpa_lm_path is not None and os.path.exists(self.arpa_lm_path)
-        wfst_lm_path_exists = self.wfst_lm_path is not None and os.path.exists(self.wfst_lm_path)
+        arpa_lm_path_exists = self.arpa_lm_path is not None and os.path.exists(
+            self.arpa_lm_path
+        )
+        wfst_lm_path_exists = self.wfst_lm_path is not None and os.path.exists(
+            self.wfst_lm_path
+        )
         lm_fst = None
         if wfst_lm_path_exists:
             if self.search_type == "riva" and not self.wfst_lm_path.endswith(".fst"):
@@ -769,9 +822,13 @@ class WfstCTCInfer(AbstractBeamCTCInfer):
                 logging.info(f"WFST LM will be buffered at `{self.wfst_lm_path}`.")
                 write_tlg_path = self.wfst_lm_path
             else:
-                logging.warning("Consider providing a write-permitted `wfst_lm_path` for WFST LM buffering.")
+                logging.warning(
+                    "Consider providing a write-permitted `wfst_lm_path` for WFST LM buffering."
+                )
                 write_tlg_path = None
-            ctc_topology = "default"  # there is no way to indicate the need of other topologies
+            ctc_topology = (
+                "default"  # there is no way to indicate the need of other topologies
+            )
             target = "kaldi" if self.search_type == "riva" else "k2"
 
             from nemo.collections.asr.parts.utils.wfst_utils import \
@@ -790,7 +847,9 @@ class WfstCTCInfer(AbstractBeamCTCInfer):
         return lm_fst
 
     @torch.no_grad()
-    def _riva_decoding(self, x: torch.Tensor, out_len: torch.Tensor) -> List['WfstNbestHypothesis']:
+    def _riva_decoding(
+        self, x: torch.Tensor, out_len: torch.Tensor
+    ) -> List["WfstNbestHypothesis"]:
         """
         Riva Asrlib WFST decoder Algorithm.
 
@@ -821,7 +880,9 @@ class WfstCTCInfer(AbstractBeamCTCInfer):
                     )
                 self._tokenword_disambig_id = tokenword_disambig_id
             if not self.device.startswith("cuda"):
-                raise ValueError(f"Riva decoder does not support non-cuda device. Provided: `{self.device}`")
+                raise ValueError(
+                    f"Riva decoder does not support non-cuda device. Provided: `{self.device}`"
+                )
 
             from nemo.collections.asr.parts.submodules.wfst_decoder import \
                 RivaGpuWfstDecoder
@@ -836,10 +897,14 @@ class WfstCTCInfer(AbstractBeamCTCInfer):
                 nbest_size=self.beam_size,
             )
 
-        return self.riva_decoder.decode(x.to(device=self.device), out_len.to(device=self.device))
+        return self.riva_decoder.decode(
+            x.to(device=self.device), out_len.to(device=self.device)
+        )
 
     @torch.no_grad()
-    def _k2_decoding(self, x: torch.Tensor, out_len: torch.Tensor) -> List['WfstNbestHypothesis']:
+    def _k2_decoding(
+        self, x: torch.Tensor, out_len: torch.Tensor
+    ) -> List["WfstNbestHypothesis"]:
         """
         K2 WFST decoder Algorithm.
 
@@ -882,7 +947,9 @@ class WfstCTCInfer(AbstractBeamCTCInfer):
                 device=self.device,
             )
 
-        return self.k2_decoder.decode(x.to(device=self.device), out_len.to(device=self.device))
+        return self.k2_decoder.decode(
+            x.to(device=self.device), out_len.to(device=self.device)
+        )
 
 
 @dataclass
@@ -910,7 +977,7 @@ class FlashlightConfig:
 @dataclass
 class BeamCTCInferConfig:
     beam_size: int
-    search_type: str = 'default'
+    search_type: str = "default"
     preserve_alignments: bool = False
     compute_timestamps: bool = False
     return_best_hypothesis: bool = True
@@ -919,8 +986,12 @@ class BeamCTCInferConfig:
     beam_beta: float = 0.0
     kenlm_path: Optional[str] = None
 
-    flashlight_cfg: Optional[FlashlightConfig] = field(default_factory=lambda: FlashlightConfig())
-    pyctcdecode_cfg: Optional[PyCTCDecodeConfig] = field(default_factory=lambda: PyCTCDecodeConfig())
+    flashlight_cfg: Optional[FlashlightConfig] = field(
+        default_factory=lambda: FlashlightConfig()
+    )
+    pyctcdecode_cfg: Optional[PyCTCDecodeConfig] = field(
+        default_factory=lambda: PyCTCDecodeConfig()
+    )
 
 
 @dataclass
@@ -930,12 +1001,18 @@ class WfstCTCInferConfig:
     return_best_hypothesis: bool = True
     preserve_alignments: bool = False
     compute_timestamps: bool = False
-    decoding_mode: str = 'nbest'  # 'nbest', 'mbr' ('mbr' works only for search_type == 'riva' and beam_size == 1)
+    decoding_mode: str = (
+        "nbest"  # 'nbest', 'mbr' ('mbr' works only for search_type == 'riva' and beam_size == 1)
+    )
     open_vocabulary_decoding: bool = False
     beam_width: float = 10.0
     lm_weight: float = 1.0
     device: str = "cuda"
     arpa_lm_path: Optional[str] = None
     wfst_lm_path: Optional[str] = None
-    riva_decoding_cfg: Optional['RivaDecoderConfig'] = field(default_factory=lambda: RivaDecoderConfig())
-    k2_decoding_cfg: Optional['GraphIntersectDenseConfig'] = field(default_factory=lambda: GraphIntersectDenseConfig())
+    riva_decoding_cfg: Optional["RivaDecoderConfig"] = field(
+        default_factory=lambda: RivaDecoderConfig()
+    )
+    k2_decoding_cfg: Optional["GraphIntersectDenseConfig"] = field(
+        default_factory=lambda: GraphIntersectDenseConfig()
+    )

@@ -27,7 +27,7 @@ from nemo.collections.nlp.parts.nlp_overrides import (
     MegatronHalfPrecisionPlugin, NLPDDPStrategy)
 from nemo.utils import logging
 
-'''
+"""
 This script quantizes the weights of linear layers to NF4 precision, then saves them in BF16 precision.
 The resulting model will have the same format as the input, but have weights compatible with adapters trained
 with QLoRA. 
@@ -43,7 +43,7 @@ python scripts/checkpoint_converters/quantize_model_to_nf4.py \
 --input_name_or_path <base_nemo_model> \
 --output_path <quantized_nemo_model> \
 --target_modules linear_qkv,linear_proj,linear_fc1,linear_fc2
-'''
+"""
 
 
 def corrupt_linear_weight_(model: nn.Module, target_modules: List[str]):
@@ -68,7 +68,12 @@ def get_args():
         required=True,
         help="Path to .nemo base model checkpoint",
     )
-    parser.add_argument("--output_path", type=str, required=True, help="Path to output quantized .nemo file.")
+    parser.add_argument(
+        "--output_path",
+        type=str,
+        required=True,
+        help="Path to output quantized .nemo file.",
+    )
     parser.add_argument(
         "--target_modules",
         type=str,
@@ -79,16 +84,18 @@ def get_args():
     return args
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     args = get_args()
     dummy_trainer = Trainer(
         devices=1,
-        accelerator='gpu',
+        accelerator="gpu",
         strategy=NLPDDPStrategy(),
-        plugins=[MegatronHalfPrecisionPlugin(precision='bf16-mixed', device='cuda')],
+        plugins=[MegatronHalfPrecisionPlugin(precision="bf16-mixed", device="cuda")],
     )
-    model = MegatronGPTSFTModel.restore_from(args.input_name_or_path, trainer=dummy_trainer).to(torch.bfloat16)
-    corrupt_linear_weight_(model, args.target_modules.split(','))
+    model = MegatronGPTSFTModel.restore_from(
+        args.input_name_or_path, trainer=dummy_trainer
+    ).to(torch.bfloat16)
+    corrupt_linear_weight_(model, args.target_modules.split(","))
 
     model.save_to(args.output_path)
     logging.info(f"Quantized model saved to {args.output_path}")

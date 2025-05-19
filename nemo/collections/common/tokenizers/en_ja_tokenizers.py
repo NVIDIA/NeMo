@@ -58,12 +58,12 @@ class EnJaProcessor:
         Tokenizes text using Moses. Returns a string of tokens.
         """
         tokens = self.moses_tokenizer.tokenize(text)
-        return ' '.join(tokens)
+        return " ".join(tokens)
 
     def normalize(self, text) -> str:
         # Normalization doesn't handle Japanese periods correctly;
         # '。'becomes '.'.
-        if self.lang_id == 'en':
+        if self.lang_id == "en":
             return self.normalizer.normalize(text)
         else:
             return text
@@ -76,7 +76,9 @@ class JaMecabProcessor:
 
     def __init__(self):
         if not HAVE_MECAB or not HAVE_IPADIC:
-            raise ImportError("Please ensure that you have installed `MeCab` and `ipadic` to use JaMecabProcessor")
+            raise ImportError(
+                "Please ensure that you have installed `MeCab` and `ipadic` to use JaMecabProcessor"
+            )
 
         self.mecab_tokenizer = MeCab.Tagger(ipadic.MECAB_ARGS + " -Owakati")
 
@@ -84,11 +86,11 @@ class JaMecabProcessor:
         from pangu import spacing
 
         RE_WS_IN_FW = re.compile(
-            r'([\u2018\u2019\u201c\u201d\u2e80-\u312f\u3200-\u32ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff00-\uffef])\s+(?=[\u2018\u2019\u201c\u201d\u2e80-\u312f\u3200-\u32ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff00-\uffef])'
+            r"([\u2018\u2019\u201c\u201d\u2e80-\u312f\u3200-\u32ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff00-\uffef])\s+(?=[\u2018\u2019\u201c\u201d\u2e80-\u312f\u3200-\u32ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uff00-\uffef])"
         )
 
-        detokenize = lambda s: spacing(RE_WS_IN_FW.sub(r'\1', s)).strip()
-        return detokenize(' '.join(text))
+        detokenize = lambda s: spacing(RE_WS_IN_FW.sub(r"\1", s)).strip()
+        return detokenize(" ".join(text))
 
     def tokenize(self, text) -> str:
         """

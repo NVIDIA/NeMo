@@ -37,13 +37,15 @@ if TRITON_AVAILABLE:
 EPS_SM_INPUT = 1e-6
 EPS_L_INPUT = 1e-4
 
-DEVICES = ['cpu']
+DEVICES = ["cpu"]
 
 if K2_AVAILABLE and torch.cuda.is_available() and k2.with_cuda:
-    DEVICES.append('cuda')
+    DEVICES.append("cuda")
 
 
-@pytest.mark.skipif(not K2_AVAILABLE, reason="k2 is not installed, skipping Graph-RNNT tests.")
+@pytest.mark.skipif(
+    not K2_AVAILABLE, reason="k2 is not installed, skipping Graph-RNNT tests."
+)
 class TestGraphRnnt:
     @pytest.mark.unit
     @pytest.mark.parametrize("device", DEVICES)
@@ -66,16 +68,27 @@ class TestGraphRnnt:
                 else:
                     # self-loop
                     etalon_schema_fst.append([time_i, time_i, label_i, time_i, 0])
-        etalon_schema_fst.append([num_frames, num_frames + 1, -1, -1, 0])  # transition to final state
+        etalon_schema_fst.append(
+            [num_frames, num_frames + 1, -1, -1, 0]
+        )  # transition to final state
         etalon_schema_fst.append([num_frames + 1])  # final state
         etalon_schema_fst = sorted(etalon_schema_fst)  # required for k2.Fsa.from_str
-        etalon_schema_fst_str = "\n".join([" ".join(map(str, line)) for line in etalon_schema_fst])
-        etalon_temporal_schema = k2.Fsa.from_str(etalon_schema_fst_str, num_aux_labels=1)
+        etalon_schema_fst_str = "\n".join(
+            [" ".join(map(str, line)) for line in etalon_schema_fst]
+        )
+        etalon_temporal_schema = k2.Fsa.from_str(
+            etalon_schema_fst_str, num_aux_labels=1
+        )
 
         assert temporal_schema.num_arcs == etalon_temporal_schema.num_arcs
-        assert temporal_schema.shape == etalon_temporal_schema.shape  # (num_states, None)
+        assert (
+            temporal_schema.shape == etalon_temporal_schema.shape
+        )  # (num_states, None)
         assert k2.is_rand_equivalent(
-            temporal_schema, etalon_temporal_schema, log_semiring=True, treat_epsilons_specially=False
+            temporal_schema,
+            etalon_temporal_schema,
+            log_semiring=True,
+            treat_epsilons_specially=False,
         ), "Temporal schema mismatch"
         assert k2.is_rand_equivalent(
             temporal_schema.invert(),
@@ -96,37 +109,62 @@ class TestGraphRnnt:
             labels = [1, 1, 0, 1]
         loss = GraphRnntLoss(blank=blank_id)
         unit_schema = loss.get_unit_schema(
-            units_tensor=torch.tensor(labels, device=torch.device(device)), vocab_size=vocab_size
+            units_tensor=torch.tensor(labels, device=torch.device(device)),
+            vocab_size=vocab_size,
         )
 
         etalon_schema_fst: List[List[int]] = []
         for label_i, label in enumerate(labels):
-            etalon_schema_fst.append([label_i, label_i + 1, label, label, label_i, 0])  # forward: label
-            etalon_schema_fst.append([label_i, label_i, blank_id, blank_id, label_i, 0])  # self-loop: blank
-        etalon_schema_fst.append([len(labels), len(labels), blank_id, blank_id, len(labels), 0])
-        etalon_schema_fst.append([len(labels), len(labels) + 1, -1, -1, -1, 0])  # transition to final state
+            etalon_schema_fst.append(
+                [label_i, label_i + 1, label, label, label_i, 0]
+            )  # forward: label
+            etalon_schema_fst.append(
+                [label_i, label_i, blank_id, blank_id, label_i, 0]
+            )  # self-loop: blank
+        etalon_schema_fst.append(
+            [len(labels), len(labels), blank_id, blank_id, len(labels), 0]
+        )
+        etalon_schema_fst.append(
+            [len(labels), len(labels) + 1, -1, -1, -1, 0]
+        )  # transition to final state
         etalon_schema_fst.append([len(labels) + 1])  # final state
         etalon_schema_fst = sorted(etalon_schema_fst)  # required for k2.Fsa.from_str
-        etalon_schema_fst_str = "\n".join([" ".join(map(str, line)) for line in etalon_schema_fst])
-        etalon_unit_schema = k2.Fsa.from_str(etalon_schema_fst_str, aux_label_names=["aux_labels", "unit_positions"])
+        etalon_schema_fst_str = "\n".join(
+            [" ".join(map(str, line)) for line in etalon_schema_fst]
+        )
+        etalon_unit_schema = k2.Fsa.from_str(
+            etalon_schema_fst_str, aux_label_names=["aux_labels", "unit_positions"]
+        )
 
         assert unit_schema.num_arcs == etalon_unit_schema.num_arcs
         assert unit_schema.shape == etalon_unit_schema.shape  # (num_states, None)
         assert k2.is_rand_equivalent(
-            unit_schema, etalon_unit_schema, log_semiring=True, treat_epsilons_specially=False
+            unit_schema,
+            etalon_unit_schema,
+            log_semiring=True,
+            treat_epsilons_specially=False,
         ), "Unit schema input labels mismatch"
         assert k2.is_rand_equivalent(
-            unit_schema.invert(), etalon_unit_schema.invert(), log_semiring=True, treat_epsilons_specially=False
+            unit_schema.invert(),
+            etalon_unit_schema.invert(),
+            log_semiring=True,
+            treat_epsilons_specially=False,
         ), "Unit schema output labels mismatch"
 
         # swap aux_labels and unit positions to test unit_positions
-        unit_schema.aux_labels, unit_schema.unit_positions = unit_schema.unit_positions, unit_schema.aux_labels
+        unit_schema.aux_labels, unit_schema.unit_positions = (
+            unit_schema.unit_positions,
+            unit_schema.aux_labels,
+        )
         etalon_unit_schema.aux_labels, etalon_unit_schema.unit_positions = (
             etalon_unit_schema.unit_positions,
             etalon_unit_schema.aux_labels,
         )
         assert k2.is_rand_equivalent(
-            unit_schema.invert(), etalon_unit_schema.invert(), log_semiring=True, treat_epsilons_specially=False
+            unit_schema.invert(),
+            etalon_unit_schema.invert(),
+            log_semiring=True,
+            treat_epsilons_specially=False,
         ), "Unit schema unit positions mismatch"
 
     @pytest.mark.unit
@@ -155,39 +193,68 @@ class TestGraphRnnt:
                 if label_i < text_length:
                     next_state_label = state + 1
                     # next unit
-                    etalon_schema_fst.append([state, next_state_label, labels[label_i], frame_i, label_i, 0])
+                    etalon_schema_fst.append(
+                        [state, next_state_label, labels[label_i], frame_i, label_i, 0]
+                    )
                 if frame_i < num_frames - 1:
                     next_state_frame = (frame_i + 1) * (text_length + 1) + label_i
                     # next time frame (blank)
-                    etalon_schema_fst.append([state, next_state_frame, blank_id, frame_i, label_i, 0])
+                    etalon_schema_fst.append(
+                        [state, next_state_frame, blank_id, frame_i, label_i, 0]
+                    )
 
         last_grid_state = num_frames * (text_length + 1) - 1
-        etalon_schema_fst.append([last_grid_state, last_grid_state + 1, blank_id, num_frames - 1, text_length, 0])
+        etalon_schema_fst.append(
+            [
+                last_grid_state,
+                last_grid_state + 1,
+                blank_id,
+                num_frames - 1,
+                text_length,
+                0,
+            ]
+        )
         etalon_schema_fst.append(
             [last_grid_state + 1, last_grid_state + 2, -1, -1, -1, 0]
         )  # transition to final state
         etalon_schema_fst.append([last_grid_state + 2])  # final state
         etalon_schema_fst = sorted(etalon_schema_fst)  # required for k2.Fsa.from_str
-        etalon_schema_fst_str = "\n".join([" ".join(map(str, line)) for line in etalon_schema_fst])
-        etalon_grid_schema = k2.Fsa.from_str(etalon_schema_fst_str, aux_label_names=["aux_labels", "unit_positions"])
+        etalon_schema_fst_str = "\n".join(
+            [" ".join(map(str, line)) for line in etalon_schema_fst]
+        )
+        etalon_grid_schema = k2.Fsa.from_str(
+            etalon_schema_fst_str, aux_label_names=["aux_labels", "unit_positions"]
+        )
 
         assert grid_schema.num_arcs == etalon_grid_schema.num_arcs
         assert grid_schema.shape == etalon_grid_schema.shape  # (num_states, None)
         assert k2.is_rand_equivalent(
-            grid_schema, etalon_grid_schema, log_semiring=True, treat_epsilons_specially=False
+            grid_schema,
+            etalon_grid_schema,
+            log_semiring=True,
+            treat_epsilons_specially=False,
         ), "Grid schema input labels mismatch"
         assert k2.is_rand_equivalent(
-            grid_schema.invert(), etalon_grid_schema.invert(), log_semiring=True, treat_epsilons_specially=False
+            grid_schema.invert(),
+            etalon_grid_schema.invert(),
+            log_semiring=True,
+            treat_epsilons_specially=False,
         ), "Grid schema output labels mismatch"
 
         # swap aux_labels and unit positions to test unit_positions
-        grid_schema.aux_labels, grid_schema.unit_positions = grid_schema.unit_positions, grid_schema.aux_labels
+        grid_schema.aux_labels, grid_schema.unit_positions = (
+            grid_schema.unit_positions,
+            grid_schema.aux_labels,
+        )
         etalon_grid_schema.aux_labels, etalon_grid_schema.unit_positions = (
             etalon_grid_schema.unit_positions,
             etalon_grid_schema.aux_labels,
         )
         assert k2.is_rand_equivalent(
-            grid_schema.invert(), etalon_grid_schema.invert(), log_semiring=True, treat_epsilons_specially=False
+            grid_schema.invert(),
+            etalon_grid_schema.invert(),
+            log_semiring=True,
+            treat_epsilons_specially=False,
         ), "Grid schema unit positions mismatch"
 
     @pytest.mark.unit
@@ -195,54 +262,85 @@ class TestGraphRnnt:
     @pytest.mark.parametrize("connect_composed", [True, False])
     @pytest.mark.parametrize("blank_first", [True, False])
     def test_small_compose_transducer(
-        self, device, connect_composed, blank_first, rnnt_test_helper, rnn_loss_sample_data
+        self,
+        device,
+        connect_composed,
+        blank_first,
+        rnnt_test_helper,
+        rnn_loss_sample_data,
     ):
         if blank_first:
             sample_data = rnn_loss_sample_data.get_sample_small()
         else:
             sample_data = rnn_loss_sample_data.get_sample_small_blank_last()
         graph_rnnt = GraphRnntLoss(
-            blank=sample_data.blank_id, connect_composed=connect_composed, use_grid_implementation=False
+            blank=sample_data.blank_id,
+            connect_composed=connect_composed,
+            use_grid_implementation=False,
         )
         graph_cost, graph_grads = rnnt_test_helper.wrap_and_call(
             graph_rnnt, sample_data.logits, sample_data.targets, device
         )
-        assert np.allclose(graph_cost, sample_data.expected_cost.numpy(), rtol=EPS_SM_INPUT), "costs mismatch."
-        assert np.allclose(graph_grads, sample_data.expected_grads.numpy(), atol=1e-6), "gradient mismatch."
+        assert np.allclose(
+            graph_cost, sample_data.expected_cost.numpy(), rtol=EPS_SM_INPUT
+        ), "costs mismatch."
+        assert np.allclose(
+            graph_grads, sample_data.expected_grads.numpy(), atol=1e-6
+        ), "gradient mismatch."
 
     @pytest.mark.unit
     @pytest.mark.parametrize("device", DEVICES)
-    def test_small_grid_transducer(self, device, rnnt_test_helper, rnn_loss_sample_data):
+    def test_small_grid_transducer(
+        self, device, rnnt_test_helper, rnn_loss_sample_data
+    ):
         sample_data = rnn_loss_sample_data.get_sample_small()
         graph_rnnt = GraphRnntLoss(blank=0, use_grid_implementation=True)
         graph_cost, graph_grads = rnnt_test_helper.wrap_and_call(
             graph_rnnt, sample_data.logits, sample_data.targets, device
         )
-        assert np.allclose(graph_cost, sample_data.expected_cost.numpy(), rtol=EPS_SM_INPUT), "costs mismatch."
-        assert np.allclose(graph_grads, sample_data.expected_grads.numpy(), atol=1e-6), "gradient mismatch."
+        assert np.allclose(
+            graph_cost, sample_data.expected_cost.numpy(), rtol=EPS_SM_INPUT
+        ), "costs mismatch."
+        assert np.allclose(
+            graph_grads, sample_data.expected_grads.numpy(), atol=1e-6
+        ), "gradient mismatch."
 
     @pytest.mark.unit
     @pytest.mark.parametrize("device", DEVICES)
     @pytest.mark.parametrize("use_triton", [True, False])
-    def test_medium_grid_transducer(self, device, use_triton: bool, rnnt_test_helper, rnn_loss_sample_data):
+    def test_medium_grid_transducer(
+        self, device, use_triton: bool, rnnt_test_helper, rnn_loss_sample_data
+    ):
         if use_triton and device == "cpu":
             pytest.skip("Triton does not support CPU yet")
         sample_data = rnn_loss_sample_data.get_sample_medium()
-        graph_rnnt = GraphRnntLoss(blank=0, use_grid_implementation=True, use_triton=use_triton)
+        graph_rnnt = GraphRnntLoss(
+            blank=0, use_grid_implementation=True, use_triton=use_triton
+        )
         graph_cost, graph_grads = rnnt_test_helper.wrap_and_call(
             graph_rnnt, sample_data.logits, sample_data.targets, device
         )
-        assert np.allclose(graph_cost, sample_data.expected_cost.numpy(), rtol=EPS_SM_INPUT), "costs mismatch."
-        assert np.allclose(graph_grads, sample_data.expected_grads.numpy(), atol=1e-6), "gradient mismatch."
+        assert np.allclose(
+            graph_cost, sample_data.expected_cost.numpy(), rtol=EPS_SM_INPUT
+        ), "costs mismatch."
+        assert np.allclose(
+            graph_grads, sample_data.expected_grads.numpy(), atol=1e-6
+        ), "gradient mismatch."
 
     @pytest.mark.unit
     @pytest.mark.parametrize("device", DEVICES)
     @pytest.mark.parametrize("use_triton", [True, False])
-    def test_medium_random_var_size(self, device, use_triton: bool, rnnt_test_helper, rnn_loss_sample_data):
+    def test_medium_random_var_size(
+        self, device, use_triton: bool, rnnt_test_helper, rnn_loss_sample_data
+    ):
         if use_triton and device == "cpu":
             pytest.skip("Triton does not support CPU yet")
-        sample_data = rnn_loss_sample_data.get_sample_medium_random_var_size(blank_first=True)
-        graph_rnnt = GraphRnntLoss(blank=0, use_grid_implementation=True, use_triton=use_triton)
+        sample_data = rnn_loss_sample_data.get_sample_medium_random_var_size(
+            blank_first=True
+        )
+        graph_rnnt = GraphRnntLoss(
+            blank=0, use_grid_implementation=True, use_triton=use_triton
+        )
         graph_cost, graph_grads = rnnt_test_helper.wrap_and_call(
             graph_rnnt,
             sample_data.logits.detach(),
@@ -260,25 +358,43 @@ class TestGraphRnnt:
             input_lengths=sample_data.input_lengths,
             target_lengths=sample_data.target_lengths,
         )
-        assert np.allclose(graph_cost.sum(), etalon_cost, rtol=EPS_SM_INPUT), "costs mismatch."
+        assert np.allclose(
+            graph_cost.sum(), etalon_cost, rtol=EPS_SM_INPUT
+        ), "costs mismatch."
         assert np.allclose(graph_grads, etalon_grads, atol=1e-4), "gradient mismatch."
 
     @pytest.mark.unit
     @pytest.mark.parametrize("device", DEVICES)
     @pytest.mark.parametrize("blank_first", [True, False])
-    def test_small_random_grid_compose_equivalent(self, device: torch.device, blank_first: bool, rnn_loss_sample_data):
-        sample_data = rnn_loss_sample_data.get_sample_small_random(blank_first, device=device)
-        criterion = GraphRnntLoss(blank=sample_data.blank_id, connect_composed=True, use_grid_implementation=False)
+    def test_small_random_grid_compose_equivalent(
+        self, device: torch.device, blank_first: bool, rnn_loss_sample_data
+    ):
+        sample_data = rnn_loss_sample_data.get_sample_small_random(
+            blank_first, device=device
+        )
+        criterion = GraphRnntLoss(
+            blank=sample_data.blank_id,
+            connect_composed=True,
+            use_grid_implementation=False,
+        )
         text_tensor = sample_data.targets[0]
         num_frames = sample_data.logits.shape[1]
         graph_grid = criterion.get_grid(text_tensor, num_frames, sample_data.vocab_size)
-        graph_composed = criterion.get_composed_lattice(text_tensor, num_frames, sample_data.vocab_size)
+        graph_composed = criterion.get_composed_lattice(
+            text_tensor, num_frames, sample_data.vocab_size
+        )
         assert k2.is_rand_equivalent(
-            graph_grid, graph_composed, log_semiring=True, treat_epsilons_specially=False
+            graph_grid,
+            graph_composed,
+            log_semiring=True,
+            treat_epsilons_specially=False,
         ), "Grid and composed graphs are not equivalent."
 
 
-@pytest.mark.skipif(not TRITON_AVAILABLE, reason="Triton is not installed, skipping RNNT Log Probs tests")
+@pytest.mark.skipif(
+    not TRITON_AVAILABLE,
+    reason="Triton is not installed, skipping RNNT Log Probs tests",
+)
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA is unavailable")
 class TestRnntLogProbs:
     @pytest.mark.parametrize(
@@ -292,10 +408,20 @@ class TestRnntLogProbs:
     )
     @pytest.mark.parametrize(
         "float_dtype",
-        [torch.float32] + ([torch.bfloat16] if torch.cuda.is_available() and torch.cuda.is_bf16_supported() else []),
+        [torch.float32]
+        + (
+            [torch.bfloat16]
+            if torch.cuda.is_available() and torch.cuda.is_bf16_supported()
+            else []
+        ),
     )
     def test_rnnt_logprobs_random(
-        self, batch_size: int, num_frames: int, num_text_units: int, vocab_size: int, float_dtype: torch.dtype
+        self,
+        batch_size: int,
+        num_frames: int,
+        num_text_units: int,
+        vocab_size: int,
+        float_dtype: torch.dtype,
     ):
         """
         Test Triton-based implementation using etalon Torch-based implementation for RNN-T log-probs.
@@ -304,7 +430,10 @@ class TestRnntLogProbs:
         torch.manual_seed(777)
 
         targets = torch.tensor(
-            [[random.randrange(0, vocab_size - 1) for i in range(num_text_units)] for j in range(batch_size)],
+            [
+                [random.randrange(0, vocab_size - 1) for i in range(num_text_units)]
+                for j in range(batch_size)
+            ],
             device=device,
             dtype=torch.long,
         )
@@ -322,7 +451,9 @@ class TestRnntLogProbs:
         )
         logits2 = logits.clone().detach()
         logits2.requires_grad_(True)
-        target_scores, blank_scores = rnnt_logprobs_triton(logits=logits2, targets=targets, blank_id=vocab_size)
+        target_scores, blank_scores = rnnt_logprobs_triton(
+            logits=logits2, targets=targets, blank_id=vocab_size
+        )
         target_scores[..., -1:] = 0.0
         target_scores_etalon[..., -1:] = 0.0
         assert torch.allclose(blank_scores, blank_scores_etalon, atol=1e-5)
@@ -331,7 +462,9 @@ class TestRnntLogProbs:
         # test backward
         target_scales = torch.rand_like(target_scores, requires_grad=False)
         blank_scales = torch.rand_like(blank_scores, requires_grad=False)
-        loss_etalon = (target_scales * target_scores_etalon + blank_scales * blank_scores_etalon).sum()
+        loss_etalon = (
+            target_scales * target_scores_etalon + blank_scales * blank_scores_etalon
+        ).sum()
         loss = (target_scales * target_scores + blank_scales * blank_scores).sum()
         loss_etalon.backward()
         loss.backward()

@@ -102,15 +102,22 @@ def override_recipe_configs(
         recipe.data.tokenizer = hf_tokenizer(HF_MODEL_URI)
     else:
         recipe.data.tokenizer = run.Config(
-            get_nmt_tokenizer, library="null", model_name="NullTokenizer", vocab_size=128256
+            get_nmt_tokenizer,
+            library="null",
+            model_name="NullTokenizer",
+            vocab_size=128256,
         )
         recipe.model.tokenizer = recipe.data.tokenizer
-    if recipe.data.__fn_or_cls__ == SquadDataModule and not isfile_train_pack_metadata(HF_MODEL_URI, recipe.data):
+    if recipe.data.__fn_or_cls__ == SquadDataModule and not isfile_train_pack_metadata(
+        HF_MODEL_URI, recipe.data
+    ):
         # flag is valid only for SquadDataModule
         recipe.data.force_redownload = True
 
     comm_overlap_callback_idx = get_comm_overlap_callback_idx(recipe.trainer.callbacks)
-    assert comm_overlap_callback_idx is not None, "MegatronCommOverlapCallback missing. Required for performance."
+    assert (
+        comm_overlap_callback_idx is not None
+    ), "MegatronCommOverlapCallback missing. Required for performance."
 
     if (
         finetuning_scheme == "lora"
@@ -118,12 +125,20 @@ def override_recipe_configs(
         and args.compute_dtype.lower() == "fp8"
         and args.fp8_recipe.lower() != "mxfp8"
     ):
-        tp_comm_overlap_cfg = userbuffers_fp8_h100_h16384_tp4_mbs1_seqlen2048_lora if tp_size == 4 else None
+        tp_comm_overlap_cfg = (
+            userbuffers_fp8_h100_h16384_tp4_mbs1_seqlen2048_lora
+            if tp_size == 4
+            else None
+        )
         if tp_comm_overlap_cfg:
             # Enable TP comm overlap with the given config
             recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap = True
-            tp_comm_overlap_cfg = fdl.cast(run.Config, fdl_dc.convert_dataclasses_to_configs(tp_comm_overlap_cfg))
-            recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap_cfg = tp_comm_overlap_cfg
+            tp_comm_overlap_cfg = fdl.cast(
+                run.Config, fdl_dc.convert_dataclasses_to_configs(tp_comm_overlap_cfg)
+            )
+            recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap_cfg = (
+                tp_comm_overlap_cfg
+            )
 
             # Disable this overlap to allow skipping an all-gather which is redundant for LoRA
             recipe.model.config.tp_comm_overlap_disable_qkv = True
@@ -146,7 +161,9 @@ if __name__ == "__main__":
     args = parse_cli_args().parse_args()
     args_sanity_check(args)
 
-    kwargs = get_user_configs(args.gpu.lower(), args.finetuning, "llama31", "405b", args)
+    kwargs = get_user_configs(
+        args.gpu.lower(), args.finetuning, "llama31", "405b", args
+    )
     (
         num_nodes,
         mbs,
@@ -201,7 +218,7 @@ if __name__ == "__main__":
         PerfEnvPlugin(
             enable_vboost=True,
             nccl_pp_comm_chunksize=2097152 if pp_size > 1 else None,
-            gpu_sm100_or_newer=(args.gpu.lower() in ['b200', 'gb200']),
+            gpu_sm100_or_newer=(args.gpu.lower() in ["b200", "gb200"]),
         )
     ]
     if args.enable_nsys:
@@ -212,8 +229,14 @@ if __name__ == "__main__":
 
     with run.Experiment(exp_name) as exp:
         if not SKIP_IMPORT:
-            assert args.hf_token is not None, "HF token is required for importing checkpoint from HuggingFace"
-            exp.add(*import_ckpt_experiment(executor, model(), source=f"hf://{HF_MODEL_URI}"))
+            assert (
+                args.hf_token is not None
+            ), "HF token is required for importing checkpoint from HuggingFace"
+            exp.add(
+                *import_ckpt_experiment(
+                    executor, model(), source=f"hf://{HF_MODEL_URI}"
+                )
+            )
         exp.add(
             recipe,
             executor=executor,

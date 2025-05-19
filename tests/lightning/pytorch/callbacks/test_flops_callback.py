@@ -43,7 +43,9 @@ def test_flops_measurement_callback_bert():
 
     train_step_time = 1.23
     global_batch_size = 1
-    num_devices = torch.distributed.get_world_size() if torch.distributed.is_initialized() else 1
+    num_devices = (
+        torch.distributed.get_world_size() if torch.distributed.is_initialized() else 1
+    )
     model_name = "bert"
     data_module = MockDataModule(global_batch_size=global_batch_size, vocab_size=100)
     callback = FLOPsMeasurementCallback(model_config, data_module, model_name)

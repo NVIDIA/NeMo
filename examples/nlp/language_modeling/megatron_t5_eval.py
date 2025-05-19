@@ -36,12 +36,26 @@ assert torch.cuda.is_available()
 
 def main():
     parser = ArgumentParser()
-    parser.add_argument("--model_file", type=str, default="", required=True, help="Pass path to model's .nemo file")
     parser.add_argument(
-        "--prompt", type=str, default="", required=True, help="Prompt for the model (a text to complete)"
+        "--model_file",
+        type=str,
+        default="",
+        required=True,
+        help="Pass path to model's .nemo file",
     )
     parser.add_argument(
-        "--tokens_to_generate", type=int, default="16", required=False, help="How many tokens to add to prompt"
+        "--prompt",
+        type=str,
+        default="",
+        required=True,
+        help="Prompt for the model (a text to complete)",
+    )
+    parser.add_argument(
+        "--tokens_to_generate",
+        type=int,
+        default="16",
+        required=False,
+        help="How many tokens to add to prompt",
     )
     parser.add_argument(
         "--tensor_model_parallel_size",
@@ -61,9 +75,22 @@ def main():
         default=-1,
         required=False,
     )
-    parser.add_argument("--precision", default="16", type=str, help="PyTorch Lightning Trainer precision flag")
-    parser.add_argument("--decoder_starts_with_pad", action="store_true", help="Decoder starts with pad token")
-    parser.add_argument("--add_eos_to_encoder_input", action="store_true", help="Encoder input ends with EOS token")
+    parser.add_argument(
+        "--precision",
+        default="16",
+        type=str,
+        help="PyTorch Lightning Trainer precision flag",
+    )
+    parser.add_argument(
+        "--decoder_starts_with_pad",
+        action="store_true",
+        help="Decoder starts with pad token",
+    )
+    parser.add_argument(
+        "--add_eos_to_encoder_input",
+        action="store_true",
+        help="Encoder input ends with EOS token",
+    )
     args = parser.parse_args()
 
     # cast precision to int if 32 or 16
@@ -86,21 +113,29 @@ def main():
             save_restore_connector=save_restore_connector,
         )
 
-        args.tensor_model_parallel_size = model_config.get('tensor_model_parallel_size', 1)
-        args.pipeline_model_parallel_size = model_config.get('pipeline_model_parallel_size', 1)
-        args.pipeline_model_parallel_split_rank = model_config.get('pipeline_model_parallel_split_rank', 0)
+        args.tensor_model_parallel_size = model_config.get(
+            "tensor_model_parallel_size", 1
+        )
+        args.pipeline_model_parallel_size = model_config.get(
+            "pipeline_model_parallel_size", 1
+        )
+        args.pipeline_model_parallel_split_rank = model_config.get(
+            "pipeline_model_parallel_split_rank", 0
+        )
 
     # trainer required for restoring model parallel models
     trainer = Trainer(
         strategy=NLPDDPStrategy(),
         devices=args.tensor_model_parallel_size * args.pipeline_model_parallel_size,
-        accelerator='gpu',
+        accelerator="gpu",
         precision=args.precision,
     )
 
     app_state = AppState()
     if args.tensor_model_parallel_size > 1 or args.pipeline_model_parallel_size > 1:
-        app_state.model_parallel_size = args.tensor_model_parallel_size * args.pipeline_model_parallel_size
+        app_state.model_parallel_size = (
+            args.tensor_model_parallel_size * args.pipeline_model_parallel_size
+        )
         (
             app_state.tensor_model_parallel_rank,
             app_state.pipeline_model_parallel_rank,
@@ -138,7 +173,11 @@ def main():
     request = {
         "prompt": args.prompt,
         "tokens_to_generate": args.tokens_to_generate,
-        "bos_id": model.tokenizer.pad_id if args.decoder_starts_with_pad else model.tokenizer.bos_id,
+        "bos_id": (
+            model.tokenizer.pad_id
+            if args.decoder_starts_with_pad
+            else model.tokenizer.bos_id
+        ),
         "add_eos_to_encoder_input": args.add_eos_to_encoder_input,
     }
 
@@ -150,9 +189,9 @@ def main():
 
     print("***************************")
     print(response)
-    print(response[0]['completion']['text'])
+    print(response[0]["completion"]["text"])
     print("***************************")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()  # noqa pylint: disable=no-value-for-parameter

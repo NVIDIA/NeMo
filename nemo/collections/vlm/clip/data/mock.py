@@ -84,7 +84,9 @@ class MockDataModule(pl.LightningDataModule):
         self.image_processor = image_processor
 
         if tokenizer is None or image_processor is None:
-            logging.warning("Processor or tokenizer are not provided! Fall back to `openai/clip-vit-large-patch14`.")
+            logging.warning(
+                "Processor or tokenizer are not provided! Fall back to `openai/clip-vit-large-patch14`."
+            )
             from transformers import AutoProcessor
 
             from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import \
@@ -112,10 +114,18 @@ class MockDataModule(pl.LightningDataModule):
             task_encoder=self.task_encoder,
         )
         self._validation_ds = _MockClipDataset(
-            self.tokenizer, self.image_processor, "valid", self.num_val_samples, self.seq_length
+            self.tokenizer,
+            self.image_processor,
+            "valid",
+            self.num_val_samples,
+            self.seq_length,
         )
         self._test_ds = _MockClipDataset(
-            self.tokenizer, self.image_processor, "test", self.num_test_samples, self.seq_length
+            self.tokenizer,
+            self.image_processor,
+            "test",
+            self.num_test_samples,
+            self.seq_length,
         )
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
@@ -159,7 +169,9 @@ class MockDataModule(pl.LightningDataModule):
         Dict[str, Any]: A dictionary containing the state of the data module.
         """
 
-        logging.warning("trainer object not connected to data module object returning empty state")
+        logging.warning(
+            "trainer object not connected to data module object returning empty state"
+        )
         return {}
 
 
@@ -194,12 +206,20 @@ class _MockClipDataset(Dataset):
         # Generate data of the expected size and datatype (based on GPTDataset).
 
         np_gen = np.random.default_rng(seed=(self.seed + idx))
-        tokens = torch.from_numpy(np_gen.integers(self.vocab_size, size=[self.seq_length], dtype=np.int64))
-        images = torch.from_numpy(np_gen.random(size=[3, self.image_height, self.image_width], dtype=np.float32))
+        tokens = torch.from_numpy(
+            np_gen.integers(self.vocab_size, size=[self.seq_length], dtype=np.int64)
+        )
+        images = torch.from_numpy(
+            np_gen.random(
+                size=[3, self.image_height, self.image_width], dtype=np.float32
+            )
+        )
 
         if self.task_encoder is not None:
             # Use energon task encoder if provided
-            return self.task_encoder.encode_sample({"image": images, "txt": "This is Random Mock Text"})
+            return self.task_encoder.encode_sample(
+                {"image": images, "txt": "This is Random Mock Text"}
+            )
 
         return {
             "images": images,

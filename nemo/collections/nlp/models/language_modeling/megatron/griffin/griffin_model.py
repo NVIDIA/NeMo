@@ -47,7 +47,7 @@ class GriffinModel(LanguageModule):
         config: TransformerConfig,
         vocab_size: int = 256000,
         logits_soft_cap: float = 30.0,
-        position_embedding_type: str = 'rope',
+        position_embedding_type: str = "rope",
         max_sequence_length: int = 1024,
         rotary_percent: float = 0.5,
         rotary_base: int = 10000,
@@ -73,7 +73,7 @@ class GriffinModel(LanguageModule):
                 position_embedding_type=None,
             )
 
-        if self.position_embedding_type == 'rope':
+        if self.position_embedding_type == "rope":
             self.rotary_pos_emb = RotaryEmbedding(
                 kv_channels=config.kv_channels,
                 rotary_percent=rotary_percent,
@@ -92,7 +92,8 @@ class GriffinModel(LanguageModule):
                 init_method=config.init_method,
                 bias=False,
                 skip_bias_add=False,
-                skip_weight_param_allocation=self.pre_process and self.share_embeddings_and_output_weights,
+                skip_weight_param_allocation=self.pre_process
+                and self.share_embeddings_and_output_weights,
                 embedding_activation_buffer=None,
                 grad_output_buffer=None,
             )
@@ -114,7 +115,9 @@ class GriffinModel(LanguageModule):
 
     def allocate_inference_cache(self, batch_size, max_seqlen, dtype=None, **kwargs):
         return {
-            i: layer.allocate_inference_cache(batch_size, max_seqlen, dtype=dtype, **kwargs)
+            i: layer.allocate_inference_cache(
+                batch_size, max_seqlen, dtype=dtype, **kwargs
+            )
             for i, layer in enumerate(self.layers)
         }
 
@@ -131,7 +134,9 @@ class GriffinModel(LanguageModule):
     def griffin_position_ids(self, token_ids):
         # Create position ids
         seq_length = token_ids.size(1)
-        position_ids = torch.arange(seq_length, dtype=torch.long, device=token_ids.device)
+        position_ids = torch.arange(
+            seq_length, dtype=torch.long, device=token_ids.device
+        )
         position_ids = position_ids.unsqueeze(0).expand_as(token_ids)
 
         return position_ids
@@ -140,13 +145,17 @@ class GriffinModel(LanguageModule):
 
         position_ids = self.griffin_position_ids(input_ids)
         embeddings = self.embedding(input_ids, position_ids)
-        embeddings = embeddings * torch.tensor(math.sqrt(self.config.hidden_size)).type_as(embeddings)
+        embeddings = embeddings * torch.tensor(
+            math.sqrt(self.config.hidden_size)
+        ).type_as(embeddings)
 
         return embeddings
 
     @jit_fuser
     def _embedding_decode_(self, logits, transpose):
-        logits = nn.functional.tanh(logits / self.logits_soft_cap) * self.logits_soft_cap
+        logits = (
+            nn.functional.tanh(logits / self.logits_soft_cap) * self.logits_soft_cap
+        )
         if transpose:
             logits = logits.transpose(0, 1)
         return logits.contiguous()
@@ -166,13 +175,15 @@ class GriffinModel(LanguageModule):
 
         rotary_pos_emb = None
         self.decoder.input_tensor = None
-        if self.position_embedding_type == 'rope':
+        if self.position_embedding_type == "rope":
             rotary_seq_len = self.rotary_pos_emb.get_rotary_seq_len(
                 None, self.decoder, hidden_states, self.config, None
             )
             rotary_pos_emb = self.rotary_pos_emb(rotary_seq_len)
 
-        hidden_states = self.decoder(hidden_states, attention_mask=attention_mask, rotary_pos_emb=rotary_pos_emb)
+        hidden_states = self.decoder(
+            hidden_states, attention_mask=attention_mask, rotary_pos_emb=rotary_pos_emb
+        )
 
         if not self.post_process:
             return hidden_states

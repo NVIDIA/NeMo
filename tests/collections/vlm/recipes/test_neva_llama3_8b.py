@@ -84,20 +84,26 @@ class TestNevaLlama38B:
         recipe = recipe_module.finetune_recipe(performance_mode=True)
         # Verify performance optimizations are applied
         assert any(
-            isinstance(callback, run.Config) and callback.__fn_or_cls__ == MegatronCommOverlapCallback
+            isinstance(callback, run.Config)
+            and callback.__fn_or_cls__ == MegatronCommOverlapCallback
             for callback in recipe.trainer.callbacks
         )
         assert any(
-            isinstance(callback, run.Config) and callback.__fn_or_cls__ == GarbageCollectionCallback
+            isinstance(callback, run.Config)
+            and callback.__fn_or_cls__ == GarbageCollectionCallback
             for callback in recipe.trainer.callbacks
         )
 
     @pytest.mark.parametrize("num_nodes,num_gpus", [(1, 8), (2, 4)])
     def test_recipe_different_configurations(self, recipe_module, num_nodes, num_gpus):
-        recipe = recipe_module.finetune_recipe(num_nodes=num_nodes, num_gpus_per_node=num_gpus)
+        recipe = recipe_module.finetune_recipe(
+            num_nodes=num_nodes, num_gpus_per_node=num_gpus
+        )
         assert recipe.trainer.num_nodes == num_nodes
         assert recipe.trainer.devices == num_gpus
 
-        trainer_config = recipe_module.trainer(num_nodes=num_nodes, num_gpus_per_node=num_gpus)
+        trainer_config = recipe_module.trainer(
+            num_nodes=num_nodes, num_gpus_per_node=num_gpus
+        )
         assert trainer_config.num_nodes == num_nodes
         assert trainer_config.devices == num_gpus

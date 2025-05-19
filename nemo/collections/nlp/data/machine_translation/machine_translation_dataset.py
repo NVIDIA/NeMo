@@ -32,7 +32,7 @@ from nemo.core import Dataset
 from nemo.utils import logging
 from nemo.utils.distributed import webdataset_split_by_workers
 
-__all__ = ['TranslationDataset', 'TarredTranslationDataset']
+__all__ = ["TranslationDataset", "TarredTranslationDataset"]
 
 
 @dataclass
@@ -44,7 +44,7 @@ class TranslationDataConfig:
     metadata_file: Optional[Any] = None  # Any = str or List[str]
     lines_per_dataset_fragment: Optional[int] = 1000000
     num_batches_per_tarfile: Optional[int] = 1000
-    shard_strategy: Optional[str] = 'scatter'
+    shard_strategy: Optional[str] = "scatter"
     tokens_in_batch: int = 512
     clean: bool = False
     max_seq_length: int = 512
@@ -62,8 +62,8 @@ class TranslationDataConfig:
     metadata_path: Optional[str] = None
     tar_shuffle_n: int = 100
     n_preproc_jobs: int = -2
-    tar_file_prefix: str = 'parallel'
-    concat_sampling_technique: Optional[str] = 'temperature'
+    tar_file_prefix: str = "parallel"
+    concat_sampling_technique: Optional[str] = "temperature"
     concat_sampling_temperature: Optional[int] = 5
     concat_sampling_probabilities: Optional[List[float]] = None
 
@@ -102,9 +102,13 @@ class TranslationDataset(Dataset):
         self.add_bos_eos_to_encoder = add_bos_eos_to_encoder
 
         # deprecation warnings for cache_ids, use_cache, and cache_data_per_node
-        if self.cache_ids is True or self.use_cache is True or self.cache_data_per_node is True:
+        if (
+            self.cache_ids is True
+            or self.use_cache is True
+            or self.cache_data_per_node is True
+        ):
             logging.warning(
-                'Deprecation warning. self.cache_ids, self.use_cache, and self.cache_data_per_node will be removed. Data caching to be done with tarred datasets moving forward.'
+                "Deprecation warning. self.cache_ids, self.use_cache, and self.cache_data_per_node will be removed. Data caching to be done with tarred datasets moving forward."
             )
 
     def batchify(self, tokenizer_src, tokenizer_tgt):
@@ -284,10 +288,19 @@ class TranslationDataset(Dataset):
         for i in range(len(src_ids)):
             src_len, tgt_len = len(src_ids[i]), len(tgt_ids[i])
             if (
-                (max_tokens is not None and (src_len > max_tokens or tgt_len > max_tokens))
-                or (min_tokens is not None and (src_len < min_tokens or tgt_len < min_tokens))
+                (
+                    max_tokens is not None
+                    and (src_len > max_tokens or tgt_len > max_tokens)
+                )
+                or (
+                    min_tokens is not None
+                    and (src_len < min_tokens or tgt_len < min_tokens)
+                )
                 or (filter_equal_src_and_dest and src_ids[i] == tgt_ids[i])
-                or (max_tokens_diff is not None and np.abs(src_len - tgt_len) > max_tokens_diff)
+                or (
+                    max_tokens_diff is not None
+                    and np.abs(src_len - tgt_len) > max_tokens_diff
+                )
             ):
                 continue
             if max_tokens_ratio is not None:
@@ -370,7 +383,7 @@ class TarredTranslationDataset(IterableDataset):
         self.tgt_pad_id = decoder_tokenizer.pad_id
         self.prepend_id = prepend_id
 
-        valid_shard_strategies = ['scatter', 'replicate']
+        valid_shard_strategies = ["scatter", "replicate"]
         if shard_strategy not in valid_shard_strategies:
             raise ValueError(
                 f"Invalid shard strategy of type {type(shard_strategy)} "
@@ -378,20 +391,20 @@ class TarredTranslationDataset(IterableDataset):
                 f"Allowed values are: {valid_shard_strategies}."
             )
 
-        with open(metadata_path, 'r') as f:
+        with open(metadata_path, "r") as f:
             metadata = json.load(f)
 
         self.metadata = metadata
 
         if isinstance(text_tar_filepaths, str):
             # Replace '(', '[', '<' and '_OP_' with '{'
-            brace_keys_open = ['(', '[', '<', '_OP_']
+            brace_keys_open = ["(", "[", "<", "_OP_"]
             for bkey in brace_keys_open:
                 if bkey in text_tar_filepaths:
                     text_tar_filepaths = text_tar_filepaths.replace(bkey, "{")
 
             # Replace ')', ']', '>' and '_CL_' with '}'
-            brace_keys_close = [')', ']', '>', '_CL_']
+            brace_keys_close = [")", "]", ">", "_CL_"]
             for bkey in brace_keys_close:
                 if bkey in text_tar_filepaths:
                     text_tar_filepaths = text_tar_filepaths.replace(bkey, "}")
@@ -400,31 +413,40 @@ class TarredTranslationDataset(IterableDataset):
             # Brace expand
             text_tar_filepaths = list(braceexpand.braceexpand(text_tar_filepaths))
 
-        if shard_strategy == 'scatter':
-            logging.info("Tarred dataset shards will be scattered evenly across all nodes.")
+        if shard_strategy == "scatter":
+            logging.info(
+                "Tarred dataset shards will be scattered evenly across all nodes."
+            )
             if len(text_tar_filepaths) % world_size != 0:
                 logging.warning(
                     f"Number of shards in tarred dataset ({len(text_tar_filepaths)}) is not divisible "
                     f"by number of distributed workers ({world_size}). "
                     f"Some shards will not be used ({len(text_tar_filepaths) % world_size})."
                 )
-            batches_per_tar = self.metadata['num_batches'] // len(text_tar_filepaths)
+            batches_per_tar = self.metadata["num_batches"] // len(text_tar_filepaths)
             begin_idx = (len(text_tar_filepaths) // world_size) * global_rank
             end_idx = begin_idx + (len(text_tar_filepaths) // world_size)
-            logging.info('Begin Index : %d' % (begin_idx))
-            logging.info('End Index : %d' % (end_idx))
+            logging.info("Begin Index : %d" % (begin_idx))
+            logging.info("End Index : %d" % (end_idx))
             text_tar_filepaths = text_tar_filepaths[begin_idx:end_idx]
             logging.info(
-                "Partitioning tarred dataset: process (%d) taking shards [%d, %d)", global_rank, begin_idx, end_idx
+                "Partitioning tarred dataset: process (%d) taking shards [%d, %d)",
+                global_rank,
+                begin_idx,
+                end_idx,
             )
             self.length = batches_per_tar * len(text_tar_filepaths) * world_size
 
-        elif shard_strategy == 'replicate':
-            logging.info("All tarred dataset shards will be replicated across all nodes.")
-            self.length = self.metadata['num_batches']
+        elif shard_strategy == "replicate":
+            logging.info(
+                "All tarred dataset shards will be replicated across all nodes."
+            )
+            self.length = self.metadata["num_batches"]
 
         else:
-            raise ValueError(f"Invalid shard strategy ! Allowed values are : {valid_shard_strategies}")
+            raise ValueError(
+                f"Invalid shard strategy ! Allowed values are : {valid_shard_strategies}"
+            )
 
         self.tarpath = text_tar_filepaths
 
@@ -434,8 +456,8 @@ class TarredTranslationDataset(IterableDataset):
             webdataset_split_by_workers,
             wds.shuffle(shuffle_n),
             wds.tarfile_to_samples(),
-            wds.rename(pkl='pkl', key='__key__'),
-            wds.to_tuple('pkl', 'key'),
+            wds.rename(pkl="pkl", key="__key__"),
+            wds.to_tuple("pkl", "key"),
             wds.map(self._build_sample),
         )
 

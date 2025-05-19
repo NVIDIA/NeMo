@@ -43,7 +43,7 @@ class WhitelistNormalizer(Normalizer):
     def __init__(
         self,
         input_case: str,
-        lang: str = 'en',
+        lang: str = "en",
         deterministic: bool = True,
         cache_dir: str = None,
         overwrite_cache: bool = False,

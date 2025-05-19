@@ -62,7 +62,7 @@ class MixtralConfig(GPTConfig):
     moe_router_topk: int = 2
     moe_router_pre_softmax: bool = True
     moe_token_dispatcher_type: str = "alltoall"
-    moe_router_load_balancing_type: str = 'aux_loss'
+    moe_router_load_balancing_type: str = "aux_loss"
 
     init_method_std: float = 0.02
     layernorm_epsilon: float = 1e-5
@@ -135,7 +135,10 @@ class MixtralModel(GPTModel):
     ):
         """Mcore-based MixtralModel ctor"""
         super().__init__(
-            config or MixtralConfig8x7B(), optim=optim, tokenizer=tokenizer, model_transform=model_transform
+            config or MixtralConfig8x7B(),
+            optim=optim,
+            tokenizer=tokenizer,
+            model_transform=model_transform,
         )
 
 
@@ -151,7 +154,9 @@ class HFMixtralImporter(io.ModelConnector["MixtralForCausalLM", MixtralModel]):
         """Import model from HF"""
         from transformers import MixtralForCausalLM
 
-        source = MixtralForCausalLM.from_pretrained(str(self), torch_dtype='auto', use_safetensors=True)
+        source = MixtralForCausalLM.from_pretrained(
+            str(self), torch_dtype="auto", use_safetensors=True
+        )
         target = self.init()
         trainer = self.nemo_setup(target)
         self.convert_state(source, target)
@@ -196,7 +201,9 @@ class HFMixtralImporter(io.ModelConnector["MixtralForCausalLM", MixtralModel]):
             _import_embedding,
             _import_lm_head,
         ]
-        return io.apply_transforms(source, target, mapping=mapping, transforms=transforms)
+        return io.apply_transforms(
+            source, target, mapping=mapping, transforms=transforms
+        )
 
     @property
     def tokenizer(self) -> "AutoTokenizer":
@@ -215,7 +222,7 @@ class HFMixtralImporter(io.ModelConnector["MixtralForCausalLM", MixtralModel]):
         config = HfMixtralConfig.from_pretrained(str(self))
         generation_config = GenerationConfig.from_pretrained(str(self))
         config_cls = MixtralConfig8x7B
-        if '8x22b' in str(self).lower():
+        if "8x22b" in str(self).lower():
             config_cls = MixtralConfig8x22B
         return config_cls(
             bf16=getattr(config, "torch_dtype", None) == torch.bfloat16,
@@ -224,11 +231,13 @@ class HFMixtralImporter(io.ModelConnector["MixtralForCausalLM", MixtralModel]):
             num_layers=config.num_hidden_layers,
             hidden_size=config.hidden_size,
             ffn_hidden_size=config.intermediate_size,
-            kv_channels=getattr(config, 'head_dim', config.hidden_size // config.num_attention_heads),
+            kv_channels=getattr(
+                config, "head_dim", config.hidden_size // config.num_attention_heads
+            ),
             max_position_embeddings=config.max_position_embeddings,  # TODO
             seq_length=config.max_position_embeddings,
             # RoPE
-            position_embedding_type='rope',
+            position_embedding_type="rope",
             rotary_base=config.rope_theta,
             # Transformer config
             num_attention_heads=config.num_attention_heads,
@@ -237,7 +246,7 @@ class HFMixtralImporter(io.ModelConnector["MixtralForCausalLM", MixtralModel]):
             moe_router_topk=config.num_experts_per_tok,
             moe_router_pre_softmax=True,
             # norm
-            normalization='RMSNorm',
+            normalization="RMSNorm",
             layernorm_epsilon=config.rms_norm_eps,
             # Init
             init_method_std=config.initializer_range,
@@ -260,8 +269,10 @@ def _import_embedding(ctx: io.TransformCTX, embedding):
     """_import_embedding"""
     embedding_weight = ctx.source.model.embed_tokens.weight
     vocab_size = embedding_weight.shape[0]
-    ctx.target_state['embedding.word_embeddings.weight'][:vocab_size, :].copy_(embedding_weight)
-    return ctx.target_state['embedding.word_embeddings.weight']
+    ctx.target_state["embedding.word_embeddings.weight"][:vocab_size, :].copy_(
+        embedding_weight
+    )
+    return ctx.target_state["embedding.word_embeddings.weight"]
 
 
 @io.state_transform(
@@ -272,8 +283,8 @@ def _import_lm_head(ctx: io.TransformCTX, embedding):
     """import head"""
     lm_head_weight = ctx.source.lm_head.weight
     vocab_size = lm_head_weight.shape[0]
-    ctx.target_state['output_layer.weight'][:vocab_size, :].copy_(lm_head_weight)
-    return ctx.target_state['output_layer.weight']
+    ctx.target_state["output_layer.weight"][:vocab_size, :].copy_(lm_head_weight)
+    return ctx.target_state["output_layer.weight"]
 
 
 @io.model_exporter(MixtralModel, "hf")

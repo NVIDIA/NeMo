@@ -70,7 +70,9 @@ try:
         reconfigure_num_microbatches_calculator)
 
 except (ImportError, ModuleNotFoundError):
-    logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
+    logging.warning(
+        "Megatron num_microbatches_calculator not found, using Apex version."
+    )
     from apex.transformer.pipeline_parallel.utils import \
         _reconfigure_microbatch_calculator as \
         reconfigure_num_microbatches_calculator
@@ -94,8 +96,12 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         # All of the lines below need to be set when the parent class calls self._build_tokenizer()
-        self.encoder_tokenizer_library = cfg.encoder_tokenizer.get('library', 'sentencepiece')
-        self.decoder_tokenizer_library = cfg.decoder_tokenizer.get('library', 'sentencepiece')
+        self.encoder_tokenizer_library = cfg.encoder_tokenizer.get(
+            "library", "sentencepiece"
+        )
+        self.decoder_tokenizer_library = cfg.decoder_tokenizer.get(
+            "library", "sentencepiece"
+        )
         self.multilingual_lang_tokens = {}
         self.src_language = cfg.get("src_language", None)
         self.tgt_language = cfg.get("tgt_language", None)
@@ -106,7 +112,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
         self.validate_input_ids = cfg.get("validate_input_ids", True)
         self.objective = cfg.train_ds.get("objective", "nmt")
 
-        if self.objective == 'nmt-xlm':
+        if self.objective == "nmt-xlm":
             if not self.multilingual:
                 raise ValueError("nmt-xlm objective requires model.multilingual=True")
 
@@ -120,9 +126,11 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
 
     def _determine_multilingual_training_type(self):
         """Determines whether we are doing one-many, many-one, or many-many training based on the config."""
-        if self.objective == 'nmt-xlm':
+        if self.objective == "nmt-xlm":
             return MultilingualModelType.many_to_many
-        if isinstance(self.src_language, ListConfig) and isinstance(self.tgt_language, ListConfig):
+        if isinstance(self.src_language, ListConfig) and isinstance(
+            self.tgt_language, ListConfig
+        ):
             return MultilingualModelType.many_to_many
         elif isinstance(self.src_language, ListConfig):
             return MultilingualModelType.many_to_one
@@ -135,7 +143,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
 
     def _setup_multilingual_special_tokens(self):
         if self.multilingual_type == MultilingualModelType.many_to_many:
-            if self.objective == 'nmt-xlm':
+            if self.objective == "nmt-xlm":
                 unique_langs = set(self.src_language + self.tgt_language)
             else:
                 # We don't take a set() for tgt_language here because the same lang can appear multiple times.
@@ -149,19 +157,23 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
             for lng in self.tgt_language:
                 self.multilingual_lang_tokens["<" + lng + ">"] = "<" + lng + ">"
         else:
-            raise ValueError(f"Invalid multilingual training type: {self.multilingual_type}")
+            raise ValueError(
+                f"Invalid multilingual training type: {self.multilingual_type}"
+            )
 
     def setup(self, stage=None):
         # NOTE: super().__init__ will try and setup train/val/test datasets, but we sidestep this using a if self._train_ds is not None condition
         # We then set things up for real only once setup() of this class is called.
         resume_checkpoint_path = self.trainer.ckpt_path
         if resume_checkpoint_path:
-            init_consumed_samples = self._extract_consumed_samples_from_ckpt(resume_checkpoint_path)
+            init_consumed_samples = self._extract_consumed_samples_from_ckpt(
+                resume_checkpoint_path
+            )
         else:
             init_consumed_samples = 0
         self.init_consumed_samples = init_consumed_samples
 
-        if stage == 'predict':
+        if stage == "predict":
             return
 
         # If the user wants to manually override train and validation dataloaders before calling `.fit()`
@@ -170,7 +182,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
         self.build_train_valid_test_datasets()
         self.setup_training_data(self._cfg.train_ds)
         self.setup_validation_data(self._cfg.validation_ds)
-        if hasattr(self._cfg, 'test_ds'):
+        if hasattr(self._cfg, "test_ds"):
             self.setup_test_data(self._cfg.test_ds)
 
         # when using pipeline model parallel the final stage need to initialize word embeddings
@@ -183,19 +195,27 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
             ), "share_decoder_tokens_head_embeddings must be True when using pipeline model parallel > 1"
             self.enc_dec_model.sync_initial_word_embeddings()
             if (
-                self.cfg.encoder.get('position_embedding_type') != 'relative'
-                and self.cfg.decoder.get('position_embedding_type') != 'relative'
+                self.cfg.encoder.get("position_embedding_type") != "relative"
+                and self.cfg.decoder.get("position_embedding_type") != "relative"
             ):
                 self.enc_dec_model.sync_initial_position_embeddings()
             # Synchronize RPE embeddings across pipeline parallel ranks.
             else:
-                if self.cfg.encoder.get('position_embedding_type', 'learned_absolute') == 'relative':
+                if (
+                    self.cfg.encoder.get("position_embedding_type", "learned_absolute")
+                    == "relative"
+                ):
                     self.enc_dec_model.sync_initial_encoder_relative_position_embeddings()
-                if self.cfg.decoder.get('position_embedding_type', 'learned_absolute') == 'relative':
+                if (
+                    self.cfg.decoder.get("position_embedding_type", "learned_absolute")
+                    == "relative"
+                ):
                     self.enc_dec_model.sync_initial_decoder_relative_position_embeddings()
                 if self.cfg.decoder.get(
-                    'position_embedding_type', 'learned_absolute'
-                ) == 'relative' and not self.cfg.decoder.get('relative_position_bias_self_attention_only', True):
+                    "position_embedding_type", "learned_absolute"
+                ) == "relative" and not self.cfg.decoder.get(
+                    "relative_position_bias_self_attention_only", True
+                ):
                     self.enc_dec_model.sync_initial_decoder_cross_attention_relative_position_embeddings()
 
     def _build_tokenizer(self):
@@ -203,38 +223,49 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
         # After this call, there will be self.encoder_tokenizer and self.decoder_tokenizer
         # Which can convert between tokens and token_ids for SRC and TGT languages correspondingly.
         encoder_tokenizer_model = self.register_artifact(
-            "encoder_tokenizer.model", self._cfg.encoder_tokenizer.get('model')
+            "encoder_tokenizer.model", self._cfg.encoder_tokenizer.get("model")
         )
         decoder_tokenizer_model = self.register_artifact(
-            "decoder_tokenizer.model", self._cfg.decoder_tokenizer.get('model')
+            "decoder_tokenizer.model", self._cfg.decoder_tokenizer.get("model")
         )
 
-        self.encoder_tokenizer, self.decoder_tokenizer = MTEncDecModel.setup_enc_dec_tokenizers(
-            encoder_tokenizer_library=self.encoder_tokenizer_library,
-            encoder_tokenizer_model=encoder_tokenizer_model,
-            encoder_bpe_dropout=(
-                self._cfg.encoder_tokenizer.get('bpe_dropout', 0.0)
-                if self._cfg.encoder_tokenizer.get('bpe_dropout', 0.0) is not None
-                else 0.0
-            ),
-            encoder_model_name=self._cfg.encoder_tokenizer.get('type', None),
-            encoder_r2l=self._cfg.encoder_tokenizer.get('r2l', False),
-            decoder_tokenizer_library=self.decoder_tokenizer_library,
-            encoder_tokenizer_vocab_file=self._cfg.encoder_tokenizer.get('vocab_file', None),
-            decoder_tokenizer_model=decoder_tokenizer_model,
-            decoder_bpe_dropout=(
-                self._cfg.decoder_tokenizer.get('bpe_dropout', 0.0)
-                if self._cfg.decoder_tokenizer.get('bpe_dropout', 0.0) is not None
-                else 0.0
-            ),
-            decoder_model_name=self._cfg.encoder_tokenizer.get('type', None),
-            decoder_r2l=self._cfg.decoder_tokenizer.get('r2l', False),
-            encoder_sentencepiece_legacy=self._cfg.encoder_tokenizer.get('sentencepiece_legacy', False),
-            decoder_sentencepiece_legacy=self._cfg.decoder_tokenizer.get('sentencepiece_legacy', False),
+        self.encoder_tokenizer, self.decoder_tokenizer = (
+            MTEncDecModel.setup_enc_dec_tokenizers(
+                encoder_tokenizer_library=self.encoder_tokenizer_library,
+                encoder_tokenizer_model=encoder_tokenizer_model,
+                encoder_bpe_dropout=(
+                    self._cfg.encoder_tokenizer.get("bpe_dropout", 0.0)
+                    if self._cfg.encoder_tokenizer.get("bpe_dropout", 0.0) is not None
+                    else 0.0
+                ),
+                encoder_model_name=self._cfg.encoder_tokenizer.get("type", None),
+                encoder_r2l=self._cfg.encoder_tokenizer.get("r2l", False),
+                decoder_tokenizer_library=self.decoder_tokenizer_library,
+                encoder_tokenizer_vocab_file=self._cfg.encoder_tokenizer.get(
+                    "vocab_file", None
+                ),
+                decoder_tokenizer_model=decoder_tokenizer_model,
+                decoder_bpe_dropout=(
+                    self._cfg.decoder_tokenizer.get("bpe_dropout", 0.0)
+                    if self._cfg.decoder_tokenizer.get("bpe_dropout", 0.0) is not None
+                    else 0.0
+                ),
+                decoder_model_name=self._cfg.encoder_tokenizer.get("type", None),
+                decoder_r2l=self._cfg.decoder_tokenizer.get("r2l", False),
+                encoder_sentencepiece_legacy=self._cfg.encoder_tokenizer.get(
+                    "sentencepiece_legacy", False
+                ),
+                decoder_sentencepiece_legacy=self._cfg.decoder_tokenizer.get(
+                    "sentencepiece_legacy", False
+                ),
+            )
         )
 
     def _build_vocab(self):
-        if hasattr(self.cfg, "data") and self.cfg.train_ds.get('objective', 'nmt') != 'nmt-xlm':
+        if (
+            hasattr(self.cfg, "data")
+            and self.cfg.train_ds.get("objective", "nmt") != "nmt-xlm"
+        ):
             if hasattr(self.cfg.data, "dataset_type"):
                 # This happens only when restoring a pre-trained model. We need to add all of the special tokens that were added while pre-training to avoid a checkpoint shape mismatch while restoring.
                 MegatronT5Model.add_special_tokens_to_tokenizer(
@@ -248,24 +279,24 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
                     dataset_type=self.cfg.data.dataset_type,
                 )
 
-        if self.cfg.train_ds.get('objective', 'nmt') == 'nmt-xlm':
-            if self.cfg.encoder_tokenizer.library != 'sentencepiece':
+        if self.cfg.train_ds.get("objective", "nmt") == "nmt-xlm":
+            if self.cfg.encoder_tokenizer.library != "sentencepiece":
                 raise ValueError(
                     f"NMT-XLM objective requires sentencepiece tokenizer, but got encoder tokenizer library : {self.cfg.encoder_tokenizer.library}"
                 )
-            if self.cfg.decoder_tokenizer.library != 'sentencepiece':
+            if self.cfg.decoder_tokenizer.library != "sentencepiece":
                 raise ValueError(
                     f"NMT-XLM objective requires sentencepiece tokenizer, but got decoder tokenizer library : {self.cfg.decoder_tokenizer.library}"
                 )
             MegatronT5Model.add_special_tokens_to_tokenizer(
                 tokenizer=self.encoder_tokenizer,
                 tokenizer_cfg=self.cfg.encoder_tokenizer,
-                dataset_type='ul2',
+                dataset_type="ul2",
             )
             MegatronT5Model.add_special_tokens_to_tokenizer(
                 tokenizer=self.decoder_tokenizer,
                 tokenizer_cfg=self.cfg.decoder_tokenizer,
-                dataset_type='ul2',
+                dataset_type="ul2",
             )
 
         # Set up pre and post processors as well.
@@ -286,18 +317,22 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
             self.multilingual_ids = list(self.multilingual_lang_to_id.values())
         else:
             # After this call, the model will have  self.source_processor and self.target_processor objects
-            self.source_processor, self.target_processor = MTEncDecModel.setup_pre_and_post_processing_utils(
-                self.src_language,
-                self.tgt_language,
-                self.encoder_tokenizer_library,
-                self.decoder_tokenizer_library,
+            self.source_processor, self.target_processor = (
+                MTEncDecModel.setup_pre_and_post_processing_utils(
+                    self.src_language,
+                    self.tgt_language,
+                    self.encoder_tokenizer_library,
+                    self.decoder_tokenizer_library,
+                )
             )
             self.multilingual_ids = [None]
 
         self.padded_vocab_size = self._vocab_size_with_padding(
             orig_vocab_size=self.encoder_tokenizer.vocab_size,
-            make_vocab_size_divisible_by=self._cfg.get('make_vocab_size_divisible_by', 128),
-            tensor_model_parallel_size=self._cfg.get('tensor_model_parallel_size', 1),
+            make_vocab_size_divisible_by=self._cfg.get(
+                "make_vocab_size_divisible_by", 128
+            ),
+            tensor_model_parallel_size=self._cfg.get("tensor_model_parallel_size", 1),
         )
 
     def fwd_bwd_step(self, dataloader_iter, forward_only):
@@ -317,7 +352,11 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
         encoder_seq_length = batch[0].size(1)
         decoder_seq_length = batch[1].size(1)
 
-        tensor_shape = [encoder_seq_length, get_micro_batch_size(), self.cfg.encoder.hidden_size]
+        tensor_shape = [
+            encoder_seq_length,
+            get_micro_batch_size(),
+            self.cfg.encoder.hidden_size,
+        ]
         data_iter = get_iterator_k_split(batch, get_num_microbatches())
 
         return self._execute_fwd_bwd_function(
@@ -338,14 +377,19 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
         reconfigure_num_microbatches_calculator(
             rank=app_state.global_rank,
             rampup_batch_size=None,
-            global_batch_size=batch['text_enc'].size(0) * parallel_state.get_data_parallel_world_size(),
-            micro_batch_size=batch['text_enc'].size(0),
+            global_batch_size=batch["text_enc"].size(0)
+            * parallel_state.get_data_parallel_world_size(),
+            micro_batch_size=batch["text_enc"].size(0),
             data_parallel_size=parallel_state.get_data_parallel_world_size(),
         )
         # This returns the averaged loss across data-parallel groups.
         reduced_loss = self.fwd_bwd_step(itertools.chain([batch]), True)
 
-        tokens_enc, labels, enc_mask = batch['text_enc'], batch['labels'], batch['enc_mask']
+        tokens_enc, labels, enc_mask = (
+            batch["text_enc"],
+            batch["labels"],
+            batch["enc_mask"],
+        )
 
         predicted_tokens_ids, _ = self.decode(
             tokens_enc,
@@ -380,16 +424,19 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
         )
 
         loss_dict = {
-            'inputs': encoder_inputs,
-            'translations': preds,
-            'ground_truths': labels,
+            "inputs": encoder_inputs,
+            "translations": preds,
+            "ground_truths": labels,
         }
         if isinstance(reduced_loss, dict):
             loss_dict.update(reduced_loss)
         else:
-            loss_dict['loss'] = reduced_loss
+            loss_dict["loss"] = reduced_loss
 
-        if type(self.trainer.val_dataloaders) == list and len(self.trainer.val_dataloaders) > 1:
+        if (
+            type(self.trainer.val_dataloaders) == list
+            and len(self.trainer.val_dataloaders) > 1
+        ):
             self.validation_step_outputs[dataloader_idx].append(loss_dict)
         else:
             self.validation_step_outputs.append(loss_dict)
@@ -408,14 +455,18 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
                 item = item[:idx]
 
             # Legacy sentencepiece detokenization still preserves special tokens which messes up exact string match.
-            if hasattr(tokenizer, 'special_token_to_id'):
-                item = [id for id in item if id not in tokenizer.special_token_to_id.values()]
+            if hasattr(tokenizer, "special_token_to_id"):
+                item = [
+                    id
+                    for id in item
+                    if id not in tokenizer.special_token_to_id.values()
+                ]
 
             item = tokenizer.ids_to_text(item)
             results.append(item)
 
         if processor is not None:
-            results = [processor.detokenize(item.split(' ')) for item in results]
+            results = [processor.detokenize(item.split(" ")) for item in results]
 
         return results
 
@@ -450,10 +501,10 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
         return dataloaders
 
     def on_validation_epoch_end(self):
-        return self.eval_epoch_end(self.validation_step_outputs, 'val')
+        return self.eval_epoch_end(self.validation_step_outputs, "val")
 
     def on_test_epoch_end(self):
-        return self.eval_epoch_end(self.test_step_outputs, 'test')
+        return self.eval_epoch_end(self.test_step_outputs, "test")
 
     def eval_epoch_end(self, outputs, mode):
         if not outputs:
@@ -467,7 +518,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
         for dataloader_idx, output in enumerate(outputs):
             if parallel_state.is_pipeline_last_stage(ignore_virtual=False):
                 # only the last pipeline parallel stages return loss
-                averaged_loss = torch.stack([x['loss'] for x in output]).mean()
+                averaged_loss = torch.stack([x["loss"] for x in output]).mean()
             else:
                 averaged_loss = torch.tensor(0.0).to(self.device)
 
@@ -475,14 +526,16 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
             torch.distributed.broadcast(averaged_loss, get_last_rank())
 
             # averaged_loss = average_losses_across_data_parallel_group([x['loss'] for x in output])
-            inputs = list(itertools.chain(*[x['inputs'] for x in output]))
-            translations = list(itertools.chain(*[x['translations'] for x in output]))
-            ground_truths = list(itertools.chain(*[x['ground_truths'] for x in output]))
+            inputs = list(itertools.chain(*[x["inputs"] for x in output]))
+            translations = list(itertools.chain(*[x["translations"] for x in output]))
+            ground_truths = list(itertools.chain(*[x["ground_truths"] for x in output]))
             assert len(translations) == len(inputs)
             assert len(translations) == len(ground_truths)
 
             # Gather translations and ground truths from all workers
-            tr_gt_inp = [None for _ in range(parallel_state.get_data_parallel_world_size())]
+            tr_gt_inp = [
+                None for _ in range(parallel_state.get_data_parallel_world_size())
+            ]
             # we also need to drop pairs where ground truth is an empty string
             torch.distributed.all_gather_object(
                 tr_gt_inp,
@@ -505,27 +558,43 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
                             _ground_truths.append(g)
                             _inputs.append(i)
 
-                if self.tgt_language in ['ja']:
-                    sacre_bleu = corpus_bleu(_translations, [_ground_truths], tokenize="ja-mecab")
-                elif self.tgt_language in ['zh']:
-                    sacre_bleu = corpus_bleu(_translations, [_ground_truths], tokenize="zh")
+                if self.tgt_language in ["ja"]:
+                    sacre_bleu = corpus_bleu(
+                        _translations, [_ground_truths], tokenize="ja-mecab"
+                    )
+                elif self.tgt_language in ["zh"]:
+                    sacre_bleu = corpus_bleu(
+                        _translations, [_ground_truths], tokenize="zh"
+                    )
                 else:
-                    sacre_bleu = corpus_bleu(_translations, [_ground_truths], tokenize="13a")
+                    sacre_bleu = corpus_bleu(
+                        _translations, [_ground_truths], tokenize="13a"
+                    )
 
                 bleu_score = sacre_bleu.score
 
-                dataset_name = "Validation" if mode == 'val' else "Test"
-                logging.info(f"{dataset_name}, Dataloader index: {dataloader_idx}, Set size: {len(_translations)}")
-                logging.info(f"{dataset_name}, Dataloader index: {dataloader_idx}, SacreBLEU = {bleu_score}")
-                logging.info(f"{dataset_name}, Dataloader index: {dataloader_idx}, Translation Examples:")
-                logging.info('============================================================')
+                dataset_name = "Validation" if mode == "val" else "Test"
+                logging.info(
+                    f"{dataset_name}, Dataloader index: {dataloader_idx}, Set size: {len(_translations)}"
+                )
+                logging.info(
+                    f"{dataset_name}, Dataloader index: {dataloader_idx}, SacreBLEU = {bleu_score}"
+                )
+                logging.info(
+                    f"{dataset_name}, Dataloader index: {dataloader_idx}, Translation Examples:"
+                )
+                logging.info(
+                    "============================================================"
+                )
                 for example_idx in range(0, 3):
                     random_index = random.randint(0, len(_translations) - 1)
-                    logging.info("    " + '\u0332'.join(f"Example {example_idx}:"))
+                    logging.info("    " + "\u0332".join(f"Example {example_idx}:"))
                     logging.info(f"    Input:        {_inputs[random_index]}")
                     logging.info(f"    Prediction:   {_translations[random_index]}")
                     logging.info(f"    Ground Truth: {_ground_truths[random_index]}")
-                    logging.info('============================================================')
+                    logging.info(
+                        "============================================================"
+                    )
 
             else:
                 bleu_score = 0.0
@@ -538,20 +607,35 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
             bleu_score_list.append(bleu_score)
             if dataloader_idx == 0:
                 if self.multilingual:
-                    self._log_multilingual_bleu_and_loss(dataloader_idx, bleu_score, averaged_loss, mode)
+                    self._log_multilingual_bleu_and_loss(
+                        dataloader_idx, bleu_score, averaged_loss, mode
+                    )
                 else:
-                    self.log(f'{mode}_sacreBLEU', bleu_score, batch_size=1)
-                    self.log(f'{mode}_loss', averaged_loss, prog_bar=True, batch_size=1)
+                    self.log(f"{mode}_sacreBLEU", bleu_score, batch_size=1)
+                    self.log(f"{mode}_loss", averaged_loss, prog_bar=True, batch_size=1)
             else:
                 if self.multilingual:
-                    self._log_multilingual_bleu_and_loss(dataloader_idx, bleu_score, averaged_loss, mode)
+                    self._log_multilingual_bleu_and_loss(
+                        dataloader_idx, bleu_score, averaged_loss, mode
+                    )
                 else:
-                    self.log(f'{mode}_sacreBLEU_dl_index_{dataloader_idx}', bleu_score, batch_size=1)
-                    self.log(f'{mode}_loss_dl_index_{dataloader_idx}', averaged_loss, prog_bar=False, batch_size=1)
+                    self.log(
+                        f"{mode}_sacreBLEU_dl_index_{dataloader_idx}",
+                        bleu_score,
+                        batch_size=1,
+                    )
+                    self.log(
+                        f"{mode}_loss_dl_index_{dataloader_idx}",
+                        averaged_loss,
+                        prog_bar=False,
+                        batch_size=1,
+                    )
             outputs[dataloader_idx].clear()  # free memory
 
         if len(loss_list) > 1:
-            self.log(f"{mode}_loss_avg", np.mean(loss_list), sync_dist=True, batch_size=1)
+            self.log(
+                f"{mode}_loss_avg", np.mean(loss_list), sync_dist=True, batch_size=1
+            )
             self.log(f"{mode}_sacreBLEU_avg", np.mean(bleu_score_list), batch_size=1)
 
         app_state = AppState()
@@ -570,32 +654,47 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
         """
         # Check if one-many or many-one and log with lang ids instead of dataloader_idx
         if isinstance(self.src_language, ListConfig):
-            translation_lang_string = f'{self.src_language[dataloader_idx]}-{self.tgt_language}'
+            translation_lang_string = (
+                f"{self.src_language[dataloader_idx]}-{self.tgt_language}"
+            )
         else:
-            translation_lang_string = f'{self.src_language}-{self.tgt_language[dataloader_idx]}'
+            translation_lang_string = (
+                f"{self.src_language}-{self.tgt_language[dataloader_idx]}"
+            )
 
-        self.log(f'{mode}_sacreBLEU_{translation_lang_string}', bleu_score, sync_dist=True, batch_size=1)
-        self.log(f'{mode}_loss_{translation_lang_string}', loss, sync_dist=True, batch_size=1)
+        self.log(
+            f"{mode}_sacreBLEU_{translation_lang_string}",
+            bleu_score,
+            sync_dist=True,
+            batch_size=1,
+        )
+        self.log(
+            f"{mode}_loss_{translation_lang_string}", loss, sync_dist=True, batch_size=1
+        )
 
     def setup_validation_data(self, val_data_config: Optional[DictConfig]):
-        if hasattr(self, '_validation_ds'):
+        if hasattr(self, "_validation_ds"):
             self._validation_dl = self._setup_eval_dataloader_from_config(
                 cfg=val_data_config, dataset=self._validation_ds
             )
 
     def setup_test_data(self, test_data_config: Optional[DictConfig]):
-        if hasattr(self, '_test_ds'):
-            self._test_dl = self._setup_eval_dataloader_from_config(cfg=test_data_config, dataset=self._test_ds)
+        if hasattr(self, "_test_ds"):
+            self._test_dl = self._setup_eval_dataloader_from_config(
+                cfg=test_data_config, dataset=self._test_ds
+            )
 
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
-        if hasattr(self, '_train_ds'):
+        if hasattr(self, "_train_ds"):
             consumed_samples = self.compute_consumed_samples(0)
             self._train_dl = self._setup_megatron_dataloader_from_config(
-                cfg=train_data_config, dataset=self._train_ds, consumed_samples=consumed_samples
+                cfg=train_data_config,
+                dataset=self._train_ds,
+                consumed_samples=consumed_samples,
             )
 
     def _setup_megatron_dataloader_from_config(self, cfg, dataset, consumed_samples):
-        logging.info(f'Building dataloader with consumed samples: {consumed_samples}')
+        logging.info(f"Building dataloader with consumed samples: {consumed_samples}")
         if isinstance(dataset, BlendableDataset):
             collate_fn = dataset.datasets[0].collate_fn
         else:
@@ -624,34 +723,43 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
         # Convert each microbatch into a dictionary.
         src_ids, src_mask, tgt_ids, tgt_mask, labels = batch
         batch = {
-            'text_enc': src_ids,
-            'text_dec': tgt_ids,
-            'labels': labels,
-            'enc_mask': src_mask.long(),  # super().process_batch() expects torch.int64
-            'dec_mask': tgt_mask.long(),  # super().process_batch() expects torch.int64
-            'loss_mask': tgt_mask.long(),  # super().process_batch() expects torch.int64
+            "text_enc": src_ids,
+            "text_dec": tgt_ids,
+            "labels": labels,
+            "enc_mask": src_mask.long(),  # super().process_batch() expects torch.int64
+            "dec_mask": tgt_mask.long(),  # super().process_batch() expects torch.int64
+            "loss_mask": tgt_mask.long(),  # super().process_batch() expects torch.int64
         }
 
         # Parent function will pad microbatches to the same length.
-        return self._process_global_batch_without_megatron_batch_sampler([batch], tokenizer=self.encoder_tokenizer)
+        return self._process_global_batch_without_megatron_batch_sampler(
+            [batch], tokenizer=self.encoder_tokenizer
+        )
 
     def _build_eval_dataset(self, data_cfg):
         # Set up prepend IDs for validation datasets even if not multingual.
-        if self._cfg.train_ds.get('objective', 'nmt') == 'nmt-xlm' or (
-            self.multilingual and self.multilingual_type != MultilingualModelType.many_to_one
+        if self._cfg.train_ds.get("objective", "nmt") == "nmt-xlm" or (
+            self.multilingual
+            and self.multilingual_type != MultilingualModelType.many_to_one
         ):
-            multilingual_ids = [self.multilingual_lang_to_id[lang] for lang in self.cfg.tgt_language]
+            multilingual_ids = [
+                self.multilingual_lang_to_id[lang] for lang in self.cfg.tgt_language
+            ]
             dataset = MTEncDecModel._setup_eval_dataset_from_config(
                 cfg=data_cfg,
                 multilingual=True,
                 multilingual_ids=multilingual_ids,
                 encoder_tokenizer=self.encoder_tokenizer,
                 decoder_tokenizer=self.decoder_tokenizer,
-                add_bos_eos_to_encoder=self._cfg.train_ds.get('objective', 'nmt')
-                != 'nmt-xlm',  # nmt-xlm does not add bos/eos to encoder while training so make sure this happens for validation as well.
+                add_bos_eos_to_encoder=self._cfg.train_ds.get("objective", "nmt")
+                != "nmt-xlm",  # nmt-xlm does not add bos/eos to encoder while training so make sure this happens for validation as well.
             )
         else:
-            num_eval_datasets = len(data_cfg.src_file_name) if isinstance(data_cfg.src_file_name, ListConfig) else 1
+            num_eval_datasets = (
+                len(data_cfg.src_file_name)
+                if isinstance(data_cfg.src_file_name, ListConfig)
+                else 1
+            )
             multilingual_ids = [None] * num_eval_datasets
             dataset = MTEncDecModel._setup_eval_dataset_from_config(
                 cfg=data_cfg,
@@ -667,16 +775,25 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
         self._train_ds = self.build_memmap_dataset_from_config(self._cfg.train_ds)
 
         if self._cfg.validation_ds.get("dataset_type", "text") != "text":
-            raise ValueError(f"Validation dataset type must be 'text', found {self._cfg.validation_ds.dataset_type}")
+            raise ValueError(
+                f"Validation dataset type must be 'text', found {self._cfg.validation_ds.dataset_type}"
+            )
 
         self._validation_ds = self._build_eval_dataset(self._cfg.validation_ds)
-        if hasattr(self._cfg, 'test_ds'):
+        if hasattr(self._cfg, "test_ds"):
             self._test_ds = self._build_eval_dataset(self._cfg.test_ds)
 
     def _instantiate_memmap_dataset(
-        self, cfg, src_file, tgt_file, src_language, tgt_language, num_samples, prepend_id=None
+        self,
+        cfg,
+        src_file,
+        tgt_file,
+        src_language,
+        tgt_language,
+        num_samples,
+        prepend_id=None,
     ):
-        if cfg.dataset_type == 'bin_memmap':
+        if cfg.dataset_type == "bin_memmap":
             if cfg.get("objective", "nmt") == "nmt":
                 dataset = BinarizedMemmapSequenceToSequenceDataset(
                     src_dataset_prefix=src_file,
@@ -691,8 +808,14 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
                 )
             elif cfg.get("objective", "nmt") == "nmt-xlm":
                 # Pass sentinel tokens to the dataset after removing language tokens.
-                additional_special_ids = self.encoder_tokenizer.additional_special_tokens_ids
-                sentinel_tokens = [id for id in additional_special_ids if id not in self.multilingual_ids]
+                additional_special_ids = (
+                    self.encoder_tokenizer.additional_special_tokens_ids
+                )
+                sentinel_tokens = [
+                    id
+                    for id in additional_special_ids
+                    if id not in self.multilingual_ids
+                ]
                 dataset = BinarizedMemmapCrossLingualMLMAndTranslationDataset(
                     src_dataset_prefix=src_file,
                     tgt_dataset_prefix=tgt_file,
@@ -708,7 +831,7 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
                     sentinel_tokens=sentinel_tokens,
                     seed=self._cfg.seed,
                 )
-        elif cfg.dataset_type == 'text_memmap':
+        elif cfg.dataset_type == "text_memmap":
             if cfg.get("objective", "nmt") == "nmt":
                 dataset = TextMemmapSequenceToSequenceDataset(
                     src_file_name=src_file,
@@ -722,8 +845,14 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
                     prepend_id=prepend_id,
                 )
             elif cfg.get("objective", "nmt") == "nmt-xlm":
-                additional_special_ids = self.encoder_tokenizer.additional_special_tokens_ids
-                sentinel_tokens = [id for id in additional_special_ids if id not in self.multilingual_ids]
+                additional_special_ids = (
+                    self.encoder_tokenizer.additional_special_tokens_ids
+                )
+                sentinel_tokens = [
+                    id
+                    for id in additional_special_ids
+                    if id not in self.multilingual_ids
+                ]
                 dataset = TextMemmapCrossLingualMLMAndTranslationDataset(
                     src_file_name=src_file,
                     tgt_file_name=tgt_file,
@@ -752,14 +881,21 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
                 raise ValueError(
                     f"Multilingual datasets must be configured with a ListConfig for both src_file_name and tgt_file_name"
                 )
-        if is_src_listconfig and not is_tgt_listconfig or is_tgt_listconfig and not is_src_listconfig:
+        if (
+            is_src_listconfig
+            and not is_tgt_listconfig
+            or is_tgt_listconfig
+            and not is_src_listconfig
+        ):
             raise ValueError(
                 f"Datasets must be configured with a ListConfig for both src_file_name and tgt_file_name or neither. Found only one of them as listconfig."
             )
 
         if is_src_listconfig and is_tgt_listconfig:
             if len(cfg.src_file_name) != len(cfg.tgt_file_name):
-                raise ValueError(f"Datasets must have the same number of files in src_file_name and tgt_file_name")
+                raise ValueError(
+                    f"Datasets must have the same number of files in src_file_name and tgt_file_name"
+                )
 
             if cfg.concat_sampling_probabilities is None or not isinstance(
                 cfg.concat_sampling_probabilities, ListConfig
@@ -774,22 +910,33 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
 
             # Construct the data prefix list for `get_datasets_weights_and_num_samples()` that is of the format [weight1,file_name1,weight2,file_name2,...]
             data_prefix = []
-            for weight, prefix in zip(cfg.concat_sampling_probabilities, cfg.src_file_name):
+            for weight, prefix in zip(
+                cfg.concat_sampling_probabilities, cfg.src_file_name
+            ):
                 data_prefix.append(weight)
                 data_prefix.append(prefix)
 
             num_train_samples = [self.trainer.max_steps * self._cfg.global_batch_size]
-            _, _, num_train_samples_per_dataset = get_datasets_weights_and_num_samples(data_prefix, num_train_samples)
-            num_train_samples_after_blend = sum([x[0] for x in num_train_samples_per_dataset])
+            _, _, num_train_samples_per_dataset = get_datasets_weights_and_num_samples(
+                data_prefix, num_train_samples
+            )
+            num_train_samples_after_blend = sum(
+                [x[0] for x in num_train_samples_per_dataset]
+            )
 
             datasets = []
 
             # For many -> one multilingual or bilingual models, we don't need to prepend a language token ID
-            if not self.multilingual or self.multilingual_type == MultilingualModelType.many_to_one:
+            if (
+                not self.multilingual
+                or self.multilingual_type == MultilingualModelType.many_to_one
+            ):
                 multilingual_ids = [None] * len(cfg.src_file_name)
             # For one -> many and many -> many multilingual models, we need to prepend a language token ID
             else:
-                multilingual_ids = [self.multilingual_lang_to_id[lang] for lang in self.cfg.tgt_language]
+                multilingual_ids = [
+                    self.multilingual_lang_to_id[lang] for lang in self.cfg.tgt_language
+                ]
 
             for idx, (src_file, tgt_file, num_samples) in enumerate(
                 zip(cfg.src_file_name, cfg.tgt_file_name, num_train_samples_per_dataset)
@@ -801,15 +948,21 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
                     num_samples=num_samples,
                     prepend_id=multilingual_ids[idx],
                     src_language=(
-                        self.src_language if not isinstance(self.src_language, ListConfig) else self.src_language[idx]
+                        self.src_language
+                        if not isinstance(self.src_language, ListConfig)
+                        else self.src_language[idx]
                     ),
                     tgt_language=(
-                        self.tgt_language if not isinstance(self.tgt_language, ListConfig) else self.tgt_language[idx]
+                        self.tgt_language
+                        if not isinstance(self.tgt_language, ListConfig)
+                        else self.tgt_language[idx]
                     ),
                 )
                 datasets.append(dataset)
             dataset = BlendableDataset(
-                datasets=datasets, weights=cfg.concat_sampling_probabilities, size=num_train_samples_after_blend
+                datasets=datasets,
+                weights=cfg.concat_sampling_probabilities,
+                size=num_train_samples_after_blend,
             )
         else:
             dataset = self._instantiate_memmap_dataset(
@@ -859,20 +1012,32 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
         # __TODO__: This will reset both source and target processors even if you want to reset just one.
         # NOTE: This will also set up appropriate source and target processors for a given src/tgt language for multilingual models instead of creating a list of them.
         if source_lang is not None or target_lang is not None:
-            self.source_processor, self.target_processor = MTEncDecModel.setup_pre_and_post_processing_utils(
-                source_lang, target_lang, self.encoder_tokenizer_library, self.decoder_tokenizer_library
+            self.source_processor, self.target_processor = (
+                MTEncDecModel.setup_pre_and_post_processing_utils(
+                    source_lang,
+                    target_lang,
+                    self.encoder_tokenizer_library,
+                    self.decoder_tokenizer_library,
+                )
             )
 
         mode = self.training
         prepend_ids = []
-        if self.multilingual and self.multilingual_type != MultilingualModelType.many_to_one:
+        if (
+            self.multilingual
+            and self.multilingual_type != MultilingualModelType.many_to_one
+        ):
             if target_lang is None:
-                raise ValueError("target_lang needs to be specified to run inference for multilingual model.")
-            tgt_symbol = self.encoder_tokenizer.token_to_id('<' + target_lang + '>')
+                raise ValueError(
+                    "target_lang needs to be specified to run inference for multilingual model."
+                )
+            tgt_symbol = self.encoder_tokenizer.token_to_id("<" + target_lang + ">")
             if tgt_symbol in self.multilingual_ids:
                 prepend_ids = [tgt_symbol]
             else:
-                print("WARNING: Target language ID not found in multilingual model. Prepending nothing.")
+                print(
+                    "WARNING: Target language ID not found in multilingual model. Prepending nothing."
+                )
 
         if log_timing:
             timer = timers.NamedTimer()
@@ -905,7 +1070,9 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
                     tokenizer=self.decoder_tokenizer,
                 )
             best_translations = self.postprocess_outputs(
-                outputs=predicted_tokens_ids, tokenizer=self.decoder_tokenizer, processor=self.target_processor
+                outputs=predicted_tokens_ids,
+                tokenizer=self.decoder_tokenizer,
+                processor=self.target_processor,
             )
             return_val = best_translations
         finally:
@@ -962,7 +1129,12 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
         if inverse_normalizer is not None:
             text = [inverse_normalizer.normalize(example) for example in text]
         translations = self.translate(
-            text, source_lang, target_lang, return_beam_scores, log_timing, prepend_tgt_lang_id
+            text,
+            source_lang,
+            target_lang,
+            return_beam_scores,
+            log_timing,
+            prepend_tgt_lang_id,
         )
         if normalizer is not None:
             translations = [normalizer.normalize(example) for example in translations]
@@ -991,11 +1163,15 @@ class MegatronNMTModel(MegatronLMEncoderDecoderModel, Exportable):
 
     @property
     def log_softmax(self):
-        return TokensHeadEmb(self.enc_dec_model.decoder_embedding, self.enc_dec_model.tokens_head, self.device)
+        return TokensHeadEmb(
+            self.enc_dec_model.decoder_embedding,
+            self.enc_dec_model.tokens_head,
+            self.device,
+        )
 
     @property
     def input_module(self):
         return self.encoder
 
     def list_export_subnets(self):
-        return ['encoder', 'log_softmax', 'decoder']
+        return ["encoder", "log_softmax", "decoder"]

@@ -56,7 +56,9 @@ def trt_to_torch_dtype_dict():
     }
 
 
-def get_profile_shapes(input_shape: Sequence[int], dynamic_batchsize: Sequence[int] | None):
+def get_profile_shapes(
+    input_shape: Sequence[int], dynamic_batchsize: Sequence[int] | None
+):
     """
     Given a sample input shape, calculate min/opt/max shapes according to dynamic_batchsize.
     """
@@ -167,7 +169,10 @@ class TRTEngine:
 
         for i, binding in enumerate(self.output_names):
             shape = list(ctx.get_tensor_shape(binding))
-            if binding not in self.tensors or list(self.tensors[binding].shape) != shape:
+            if (
+                binding not in self.tensors
+                or list(self.tensors[binding].shape) != shape
+            ):
                 t = torch.empty(shape, dtype=self.dtypes[i], device=device).contiguous()
                 self.tensors[binding] = t
                 ctx.set_tensor_address(binding, t.data_ptr())
@@ -227,12 +232,15 @@ class TRTEngine:
                 # capture cuda graph
                 cuassert(
                     cudart.cudaStreamBeginCapture(
-                        stream, cudart.cudaStreamCaptureMode.cudaStreamCaptureModeThreadLocal
+                        stream,
+                        cudart.cudaStreamCaptureMode.cudaStreamCaptureModeThreadLocal,
                     )
                 )
                 self.context.execute_async_v3(stream)
                 graph = cuassert(cudart.cudaStreamEndCapture(stream))
-                self.cuda_graph_instance = cuassert(cudart.cudaGraphInstantiate(graph, 0))
+                self.cuda_graph_instance = cuassert(
+                    cudart.cudaGraphInstantiate(graph, 0)
+                )
                 self.logger.info("CUDA Graph captured!")
         else:
             noerror = self.context.execute_async_v3(stream)
@@ -372,10 +380,14 @@ class TrtCompiler:
 
         method_vals = ["onnx", "torch_trt"]
         if method not in method_vals:
-            raise ValueError(f"trt_compile(): 'method' should be one of {method_vals}, got: {method}.")
+            raise ValueError(
+                f"trt_compile(): 'method' should be one of {method_vals}, got: {method}."
+            )
         precision_vals = ["fp32", "tf32", "fp16", "bf16"]
         if precision not in precision_vals:
-            raise ValueError(f"trt_compile(): 'precision' should be one of {precision_vals}, got: {precision}.")
+            raise ValueError(
+                f"trt_compile(): 'precision' should be one of {precision_vals}, got: {precision}."
+            )
 
         self.plan_path = plan_path
         self.precision = precision
@@ -409,7 +421,11 @@ class TrtCompiler:
         self.old_forward = model.forward
 
         # Force engine rebuild if older than the timestamp
-        if timestamp is not None and os.path.exists(self.plan_path) and os.path.getmtime(self.plan_path) < timestamp:
+        if (
+            timestamp is not None
+            and os.path.exists(self.plan_path)
+            and os.path.getmtime(self.plan_path) < timestamp
+        ):
             os.remove(self.plan_path)
 
     def _inputs_to_dict(self, input_example):
@@ -488,11 +504,15 @@ class TrtCompiler:
                 with lock_sm:
                     device = torch.cuda.current_device()
                     stream = torch.cuda.Stream(device=device)
-                    self.engine.set_inputs(unroll_input(self.input_names, args), stream.cuda_stream)
+                    self.engine.set_inputs(
+                        unroll_input(self.input_names, args), stream.cuda_stream
+                    )
                     self.engine.allocate_buffers(device=device)
                     # Need this to synchronize with Torch stream
                     stream.wait_stream(torch.cuda.current_stream())
-                    ret = self.engine.infer(stream.cuda_stream, use_cuda_graph=self.use_cuda_graph)
+                    ret = self.engine.infer(
+                        stream.cuda_stream, use_cuda_graph=self.use_cuda_graph
+                    )
                     # if output_names is not None, return dictionary
                     if not self.return_dict:
                         ret = list(ret.values())
@@ -528,8 +548,12 @@ class TrtCompiler:
             build_args["bf16"] = True
 
         self.logger.info(f"Building TensorRT engine for {onnx_path}: {self.plan_path}")
-        network = network_from_onnx_path(onnx_path, flags=[trt.OnnxParserFlag.NATIVE_INSTANCENORM])
-        return engine_bytes_from_network(network, config=CreateConfig(profiles=profiles, **build_args))
+        network = network_from_onnx_path(
+            onnx_path, flags=[trt.OnnxParserFlag.NATIVE_INSTANCENORM]
+        )
+        return engine_bytes_from_network(
+            network, config=CreateConfig(profiles=profiles, **build_args)
+        )
 
     def _build_and_save(self, model, input_example):
         """
@@ -557,12 +581,18 @@ class TrtCompiler:
             inputs = list(input_example.values())
 
             def get_torch_trt_input(input_shape, dynamic_batchsize):
-                min_input_shape, opt_input_shape, max_input_shape = get_profile_shapes(input_shape, dynamic_batchsize)
+                min_input_shape, opt_input_shape, max_input_shape = get_profile_shapes(
+                    input_shape, dynamic_batchsize
+                )
                 return torch_tensorrt.Input(
-                    min_shape=min_input_shape, opt_shape=opt_input_shape, max_shape=max_input_shape
+                    min_shape=min_input_shape,
+                    opt_shape=opt_input_shape,
+                    max_shape=max_input_shape,
                 )
 
-            tt_inputs = [get_torch_trt_input(i.shape, self.dynamic_batchsize) for i in inputs]
+            tt_inputs = [
+                get_torch_trt_input(i.shape, self.dynamic_batchsize) for i in inputs
+            ]
             engine_bytes = torch_tensorrt.convert_method_to_trt_engine(
                 model,
                 "forward",
@@ -574,7 +604,9 @@ class TrtCompiler:
             dbs = self.dynamic_batchsize
             if dbs:
                 if len(self.profiles) > 0:
-                    raise ValueError("ERROR: Both dynamic_batchsize and input_profiles set for TrtCompiler!")
+                    raise ValueError(
+                        "ERROR: Both dynamic_batchsize and input_profiles set for TrtCompiler!"
+                    )
                 if len(dbs) != 3:
                     raise ValueError("dynamic_batchsize has to have len ==3 ")
                 profile = {}
@@ -603,7 +635,9 @@ class TrtCompiler:
                 if export_args.get("dynamo", False):
                     input_names = None
                 else:
-                    input_names = list(unroll_input(self.input_names, input_example).keys())
+                    input_names = list(
+                        unroll_input(self.input_names, input_example).keys()
+                    )
                 onnx_path = str(Path(tmpdir) / "model.onnx")
                 self.logger.info(
                     f"Exporting to {onnx_path}:\n"
@@ -622,7 +656,9 @@ class TrtCompiler:
                                                                 onnx_from_path,
                                                                 save_onnx)
 
-                    onnx_model = fold_constants(onnx_from_path(onnx_path), size_threshold=16 * 1000 * 1000)
+                    onnx_model = fold_constants(
+                        onnx_from_path(onnx_path), size_threshold=16 * 1000 * 1000
+                    )
                     save_onnx(onnx_model, onnx_path)
                 self.logger.info("Export to ONNX successful.")
                 engine_bytes = self._onnx_to_trt(onnx_path)
@@ -666,7 +702,10 @@ def trt_compile(
     default_args: Dict[str, Any] = {
         "method": "onnx",
         "precision": "fp16",
-        "build_args": {"builder_optimization_level": 5, "precision_constraints": "obey"},
+        "build_args": {
+            "builder_optimization_level": 5,
+            "precision_constraints": "obey",
+        },
     }
 
     default_args.update(args or {})
@@ -708,6 +747,8 @@ def trt_compile(
             wrap(model, base_path)
     else:
         logger = logger or getLogger("trt_compile")
-        logger.warning("TensorRT and/or polygraphy packages are not available! trt_compile() has no effect.")
+        logger.warning(
+            "TensorRT and/or polygraphy packages are not available! trt_compile() has no effect."
+        )
 
     return model

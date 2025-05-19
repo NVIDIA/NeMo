@@ -41,7 +41,7 @@ class OnesDataset(torch.utils.data.Dataset):
 class ExampleModel(ModelPT):
     def __init__(self, *args, **kwargs):
         cfg = OmegaConf.structured({})
-        super().__init__(cfg, trainer=kwargs.get('trainer', None))
+        super().__init__(cfg, trainer=kwargs.get("trainer", None))
         # dummy parameter in order to allow DDP to execute
         self.l1 = torch.nn.modules.Linear(in_features=2, out_features=1)
 
@@ -80,7 +80,9 @@ class ExampleModel(ModelPT):
     def on_validation_epoch_end(self):
         if not self.validation_step_outputs:
             return
-        self.log("val_loss", torch.stack(self.validation_step_outputs).mean(), sync_dist=True)
+        self.log(
+            "val_loss", torch.stack(self.validation_step_outputs).mean(), sync_dist=True
+        )
         self.validation_step_outputs.clear()  # free memory
 
 
@@ -96,13 +98,13 @@ class TestStatelessTimer:
             devices=1,
             val_check_interval=5,
             max_steps=10000,
-            accelerator='gpu',
-            strategy='ddp',
+            accelerator="gpu",
+            strategy="ddp",
             logger=False,
             enable_checkpointing=False,
         )
         exp_manager_cfg = ExpManagerConfig(
-            explicit_log_dir='./ptl_stateless_timer_check/',
+            explicit_log_dir="./ptl_stateless_timer_check/",
             use_datetime_version=False,
             version="",
             resume_ignore_no_checkpoint=True,
@@ -117,10 +119,10 @@ class TestStatelessTimer:
         return trainer
 
     def cleanup(self):
-        if os.path.exists('./ptl_stateless_timer_check'):
-            shutil.rmtree('./ptl_stateless_timer_check', ignore_errors=True)
+        if os.path.exists("./ptl_stateless_timer_check"):
+            shutil.rmtree("./ptl_stateless_timer_check", ignore_errors=True)
 
-    @pytest.mark.run_only_on('GPU')
+    @pytest.mark.run_only_on("GPU")
     @pytest.mark.unit
     def test_stateless_timer(self):
         self.cleanup()
@@ -130,6 +132,8 @@ class TestStatelessTimer:
         global_step_2 = trainer.global_step
         trainer = self.setup_model()
         global_step_3 = trainer.global_step
-        logging.info(f"Global steps : {global_step_1}, {global_step_2}, {global_step_3}")
+        logging.info(
+            f"Global steps : {global_step_1}, {global_step_2}, {global_step_3}"
+        )
         assert global_step_3 > global_step_2 > global_step_1
         self.cleanup()

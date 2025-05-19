@@ -28,7 +28,7 @@ from nemo.core.neural_types import (CategoricalValuesType, ChannelType,
 from nemo.utils import logging
 from nemo.utils.decorators import deprecated_warning
 
-__all__ = ['DialogueZeroShotIntentDataset']
+__all__ = ["DialogueZeroShotIntentDataset"]
 
 
 class DialogueZeroShotIntentDataset(GLUEDataset):
@@ -42,10 +42,10 @@ class DialogueZeroShotIntentDataset(GLUEDataset):
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         """Returns definitions of module output ports."""
         return {
-            'input_ids': NeuralType(('B', 'T'), ChannelType()),
-            'segment_ids': NeuralType(('B', 'T'), ChannelType()),
-            'input_mask': NeuralType(('B', 'T'), MaskType()),
-            'labels': NeuralType(tuple('B'), CategoricalValuesType()),
+            "input_ids": NeuralType(("B", "T"), ChannelType()),
+            "segment_ids": NeuralType(("B", "T"), ChannelType()),
+            "input_mask": NeuralType(("B", "T"), MaskType()),
+            "labels": NeuralType(tuple("B"), CategoricalValuesType()),
         }
 
     def __init__(self, dataset_split: str, dialogues_processor: object, tokenizer, cfg):
@@ -68,15 +68,17 @@ class DialogueZeroShotIntentDataset(GLUEDataset):
         self.label_list = (
             ["contradiction", "entailment", "neutral"]
             if self.cfg.num_classes == 3
-            else ['not_entailment', 'entailment']
+            else ["not_entailment", "entailment"]
         )
         token_params = {
-            'bos_token': None,
-            'eos_token': tokenizer.eos_token,
-            'pad_token': tokenizer.pad_token,
-            'cls_token': tokenizer.cls_token,
-            'sep_token_extra': (
-                tokenizer.eos_token if hasattr(tokenizer, 'name') and 'roberta' in tokenizer.name.lower() else None
+            "bos_token": None,
+            "eos_token": tokenizer.eos_token,
+            "pad_token": tokenizer.pad_token,
+            "cls_token": tokenizer.cls_token,
+            "sep_token_extra": (
+                tokenizer.eos_token
+                if hasattr(tokenizer, "name") and "roberta" in tokenizer.name.lower()
+                else None
             ),
         }
 
@@ -98,12 +100,16 @@ class DialogueZeroShotIntentDataset(GLUEDataset):
             ex = self.raw_features[idx].data
             user_utterance = ex["utterance"]
             intent = ex["labels"]["intent"]
-            for candidate_idx, candidate_intent in enumerate(ex["possible_labels"]["intent"]):
+            for candidate_idx, candidate_intent in enumerate(
+                ex["possible_labels"]["intent"]
+            ):
                 guid = "{}-{}-{}".format(dataset_split, idx, candidate_idx)
                 text_a = user_utterance
                 text_b = "{} {}".format(self.cfg.prompt_template, candidate_intent)
                 label = 1 if candidate_intent == intent else 0
-                examples.append(InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))
+                examples.append(
+                    InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label)
+                )
         return examples
 
     def convert_examples_to_features(
@@ -114,9 +120,9 @@ class DialogueZeroShotIntentDataset(GLUEDataset):
         tokenizer: TokenizerSpec,
         output_mode: str,
         bos_token: str = None,
-        eos_token: str = '[SEP]',
-        pad_token: str = '[PAD]',
-        cls_token: str = '[CLS]',
+        eos_token: str = "[SEP]",
+        pad_token: str = "[PAD]",
+        cls_token: str = "[CLS]",
         sep_token_extra: str = None,
         cls_token_at_end: bool = False,
         cls_token_segment_id: int = 0,
@@ -169,19 +175,21 @@ class DialogueZeroShotIntentDataset(GLUEDataset):
 
         features = []
         for ex_index, example in enumerate(examples):
-            if example.label == "-":  # skip examples without a consensus label (e.g. in SNLI data set)
+            if (
+                example.label == "-"
+            ):  # skip examples without a consensus label (e.g. in SNLI data set)
                 continue
             if ex_index % 10000 == 0:
                 logging.info("Writing example %d of %d" % (ex_index, len(examples)))
 
-            if hasattr(tokenizer, 'text_to_tokens'):
+            if hasattr(tokenizer, "text_to_tokens"):
                 tokens_a = tokenizer.text_to_tokens(example.text_a)
             else:
                 tokens_a = tokenizer.tokenize(example.text_a)
 
             tokens_b = None
             if example.text_b:
-                if hasattr(tokenizer, 'text_to_tokens'):
+                if hasattr(tokenizer, "text_to_tokens"):
                     tokens_b = tokenizer.text_to_tokens(example.text_b)
                 else:
                     tokens_b = tokenizer.tokenize(example.text_b)
@@ -190,7 +198,9 @@ class DialogueZeroShotIntentDataset(GLUEDataset):
                 special_tokens_count += 1 if sep_token_extra else 0
                 special_tokens_count += 2 if bos_token else 0
                 special_tokens_count += 1 if cls_token else 0
-                self._truncate_seq_pair(tokens_a, tokens_b, max_seq_length - special_tokens_count)
+                self._truncate_seq_pair(
+                    tokens_a, tokens_b, max_seq_length - special_tokens_count
+                )
             else:
                 special_tokens_count = 1 if eos_token else 0
                 special_tokens_count += 1 if sep_token_extra else 0
@@ -229,7 +239,7 @@ class DialogueZeroShotIntentDataset(GLUEDataset):
                 else:
                     tokens = [cls_token] + tokens
                     segment_ids = [cls_token_segment_id] + segment_ids
-            if hasattr(tokenizer, 'tokens_to_ids'):
+            if hasattr(tokenizer, "tokens_to_ids"):
                 input_ids = tokenizer.tokens_to_ids(tokens)
             else:
                 input_ids = tokenizer.convert_tokens_to_ids(tokens)
@@ -241,18 +251,22 @@ class DialogueZeroShotIntentDataset(GLUEDataset):
             # Zero-pad up to the sequence length.
             padding_length = max_seq_length - len(input_ids)
 
-            if hasattr(tokenizer, 'tokens_to_ids'):
+            if hasattr(tokenizer, "tokens_to_ids"):
                 pad_token_id = tokenizer.tokens_to_ids([pad_token])[0]
             else:
                 pad_token_id = tokenizer.convert_tokens_to_ids([pad_token])[0]
 
             if pad_on_left:
                 input_ids = ([pad_token_id] * padding_length) + input_ids
-                input_mask = ([0 if mask_padding_with_zero else 1] * padding_length) + input_mask
+                input_mask = (
+                    [0 if mask_padding_with_zero else 1] * padding_length
+                ) + input_mask
                 segment_ids = ([pad_token_segment_id] * padding_length) + segment_ids
             else:
                 input_ids = input_ids + ([pad_token_id] * padding_length)
-                input_mask = input_mask + ([0 if mask_padding_with_zero else 1] * padding_length)
+                input_mask = input_mask + (
+                    [0 if mask_padding_with_zero else 1] * padding_length
+                )
                 segment_ids = segment_ids + ([pad_token_segment_id] * padding_length)
             if len(input_ids) != max_seq_length:
                 raise ValueError("input_ids must be of length max_seq_length")
@@ -277,7 +291,12 @@ class DialogueZeroShotIntentDataset(GLUEDataset):
                 logging.info("label: %s (id = %d)" % (example.label, label_id))
 
             features.append(
-                InputFeatures(input_ids=input_ids, input_mask=input_mask, segment_ids=segment_ids, label_id=label_id)
+                InputFeatures(
+                    input_ids=input_ids,
+                    input_mask=input_mask,
+                    segment_ids=segment_ids,
+                    label_id=label_id,
+                )
             )
 
         return features
@@ -294,7 +313,11 @@ class InputFeatures(object):
     """
 
     def __init__(
-        self, input_ids: List[int], input_mask: List[int], segment_ids: List[int], label_id: Union[float, int]
+        self,
+        input_ids: List[int],
+        input_mask: List[int],
+        segment_ids: List[int],
+        label_id: Union[float, int],
     ):
         """Initialized InputFeatures."""
         self.input_ids = input_ids

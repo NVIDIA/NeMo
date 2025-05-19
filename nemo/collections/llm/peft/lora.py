@@ -50,7 +50,9 @@ class LoRALinear(AdapterWrapper):
 
     def forward(self, x, *args, **kwargs):
         # pylint: disable=C0115,C0116
-        linear_output, bias, layernorm_output = self.base_linear_forward(x, *args, **kwargs)
+        linear_output, bias, layernorm_output = self.base_linear_forward(
+            x, *args, **kwargs
+        )
         adapter_output = self.adapter(layernorm_output.contiguous())
         return linear_output + adapter_output, bias
 
@@ -82,8 +84,8 @@ if HAVE_TE:
             dim=8,
             alpha=32,
             dropout=0.0,
-            dropout_position='post',
-            lora_A_init_method='xavier',
+            dropout_position="post",
+            lora_A_init_method="xavier",
             lora_dtype=None,
         ):
             assert orig_linear.__class__ == te.Linear
@@ -118,8 +120,8 @@ if HAVE_TE:
             dim=8,
             alpha=32,
             dropout=0.0,
-            dropout_position='post',
-            lora_A_init_method='xavier',
+            dropout_position="post",
+            lora_A_init_method="xavier",
             lora_dtype=None,
         ):
             """Adds LoRA weights to obj. The obj is either a LinearAdapter or an nn.Module (when
@@ -148,26 +150,30 @@ if HAVE_TE:
             out_features = obj.out_features
             dtype = lora_dtype or obj.weight.dtype
 
-            obj.lora_a = nn.Linear(in_features, dim, bias=False, dtype=dtype, device=device)
-            obj.lora_b = nn.Linear(dim, out_features, bias=False, dtype=dtype, device=device)
-            if lora_A_init_method == 'xavier':
+            obj.lora_a = nn.Linear(
+                in_features, dim, bias=False, dtype=dtype, device=device
+            )
+            obj.lora_b = nn.Linear(
+                dim, out_features, bias=False, dtype=dtype, device=device
+            )
+            if lora_A_init_method == "xavier":
                 torch.nn.init.uniform_(obj.lora_a.weight.data)
             else:
                 nn.init.kaiming_uniform_(obj.lora_a.weight.data, a=math.sqrt(5))
             obj.lora_b.weight.data.fill_(0)
             obj.dropout = nn.Dropout(p=dropout)
-            assert dropout_position in ['pre', 'post'], dropout_position
+            assert dropout_position in ["pre", "post"], dropout_position
             obj.dropout_position = dropout_position
 
         def forward(self, x):
             # pylint: disable=C0115,C0116
             res = super(TELinearAdapter, self).forward(x)
-            if self.dropout_position == 'pre':
+            if self.dropout_position == "pre":
                 x = self.dropout(x)
             # LoRA fwd is performed in original precision regardless of FP8 enabled
             lora_res = self.lora_b(self.lora_a(x))
             lora_res = lora_res * self.scale
-            if self.dropout_position == 'post':
+            if self.dropout_position == "post":
                 lora_res = self.dropout(lora_res)
             return res + lora_res
 
@@ -197,8 +203,8 @@ class LinearAdapter(nn.Linear):
         dim=8,
         alpha=32,
         dropout=0.0,
-        dropout_position='post',
-        lora_A_init_method='xavier',
+        dropout_position="post",
+        lora_A_init_method="xavier",
         lora_dtype=None,
     ):
         assert isinstance(orig_linear, nn.Linear)
@@ -231,8 +237,8 @@ class LinearAdapter(nn.Linear):
         dim=8,
         alpha=32,
         dropout=0.0,
-        dropout_position='post',
-        lora_A_init_method='xavier',
+        dropout_position="post",
+        lora_A_init_method="xavier",
         lora_dtype=None,
     ):
         """Adds LoRA weights to obj. The obj is either a LinearAdapter or an nn.Module (when
@@ -262,14 +268,16 @@ class LinearAdapter(nn.Linear):
         dtype = lora_dtype or obj.weight.dtype
 
         obj.lora_a = nn.Linear(in_features, dim, bias=False, dtype=dtype, device=device)
-        obj.lora_b = nn.Linear(dim, out_features, bias=False, dtype=dtype, device=device)
-        if lora_A_init_method == 'xavier':
+        obj.lora_b = nn.Linear(
+            dim, out_features, bias=False, dtype=dtype, device=device
+        )
+        if lora_A_init_method == "xavier":
             torch.nn.init.uniform_(obj.lora_a.weight.data)
         else:
             nn.init.kaiming_uniform_(obj.lora_a.weight.data, a=math.sqrt(5))
         obj.lora_b.weight.data.fill_(0)
         obj.dropout = nn.Dropout(p=dropout)
-        assert dropout_position in ['pre', 'post'], dropout_position
+        assert dropout_position in ["pre", "post"], dropout_position
         obj.dropout_position = dropout_position
 
     def forward(self, x):
@@ -277,17 +285,17 @@ class LinearAdapter(nn.Linear):
         # If LinearAdapter is used to monkey-patch a nn.Linear module, we want to use nn.Linear's
         # forward in the case where it uses quantized weights. We store a reference to nn.Linear's
         # forward in `super_fwd` attribute. If the attribute does not exist we do the usual linear.
-        if (fwd := getattr(self, 'super_fwd', None)) is not None:
+        if (fwd := getattr(self, "super_fwd", None)) is not None:
             assert fwd != self.forward
             res = fwd(x)
         else:
             res = F.linear(x, self.weight, self.bias)
 
-        if self.dropout_position == 'pre':
+        if self.dropout_position == "pre":
             x = self.dropout(x)
         lora_res = self.lora_b(self.lora_a(x))
         lora_res = lora_res * self.scale
-        if self.dropout_position == 'post':
+        if self.dropout_position == "post":
             lora_res = self.dropout(lora_res)
         return res + lora_res
 
@@ -297,8 +305,8 @@ def patch_linear_module(
     dim=8,
     alpha=32,
     dropout=0.0,
-    dropout_position='post',
-    lora_A_init_method='xavier',
+    dropout_position="post",
+    lora_A_init_method="xavier",
     lora_dtype=None,
 ):
     """Monkey-patches a nn.Linear (orig_linear param) to be a LinearAdapter, for all purposes
@@ -329,24 +337,40 @@ def patch_linear_module(
     """
 
     assert isinstance(orig_linear, nn.Linear) or orig_linear.__class__ == te.Linear
-    assert not hasattr(orig_linear, 'super_fwd'), orig_linear.super_fwd
+    assert not hasattr(orig_linear, "super_fwd"), orig_linear.super_fwd
 
     if isinstance(orig_linear, nn.Linear):
-        LinearAdapter._init_adapter(orig_linear, dim, alpha, dropout, dropout_position, lora_A_init_method, lora_dtype)
-        cls = orig_linear.__class__
-        new_cls = type('PatchedLinearAdapter', (LinearAdapter, cls), {})
-    elif orig_linear.__class__ == te.Linear:
-        TELinearAdapter._init_adapter(
-            orig_linear, dim, alpha, dropout, dropout_position, lora_A_init_method, lora_dtype
+        LinearAdapter._init_adapter(
+            orig_linear,
+            dim,
+            alpha,
+            dropout,
+            dropout_position,
+            lora_A_init_method,
+            lora_dtype,
         )
         cls = orig_linear.__class__
-        new_cls = type('PatchedTELinearAdapter', (TELinearAdapter, cls), {})
+        new_cls = type("PatchedLinearAdapter", (LinearAdapter, cls), {})
+    elif orig_linear.__class__ == te.Linear:
+        TELinearAdapter._init_adapter(
+            orig_linear,
+            dim,
+            alpha,
+            dropout,
+            dropout_position,
+            lora_A_init_method,
+            lora_dtype,
+        )
+        cls = orig_linear.__class__
+        new_cls = type("PatchedTELinearAdapter", (TELinearAdapter, cls), {})
     else:
-        raise NotImplementedError("Expected isinstance(orig_linear, (nn.Linear, te.Linear))")
+        raise NotImplementedError(
+            "Expected isinstance(orig_linear, (nn.Linear, te.Linear))"
+        )
 
     # If the model uses quantized weights, we want to use orig_linear's forward
     if (
-        getattr(orig_linear, 'quant_state', None) is not None
+        getattr(orig_linear, "quant_state", None) is not None
         and orig_linear.quant_state.__class__ == bitsandbytes.functional.QuantState
     ):
         orig_linear.super_fwd = orig_linear.forward
@@ -403,12 +427,17 @@ class LoRA(PEFT, ModuleMatcher):
     """
 
     target_modules: List[str] = field(
-        default_factory=lambda: ['linear_qkv', 'linear_proj', 'linear_fc1', 'linear_fc2']
+        default_factory=lambda: [
+            "linear_qkv",
+            "linear_proj",
+            "linear_fc1",
+            "linear_fc2",
+        ]
     )
     dim: int = 32
     alpha: int = 32
     dropout: float = 0.0
-    dropout_position: Literal['pre', 'post'] = 'pre'
+    dropout_position: Literal["pre", "post"] = "pre"
     lora_A_init_method: str = "xavier"
     lora_B_init_method: str = "zero"
     a2a_experimental: bool = False
@@ -437,10 +466,11 @@ class LoRA(PEFT, ModuleMatcher):
                 # - has quant_state attribute
                 if (
                     self._add_via_setattr
-                    or hasattr(m.weight.data, '_local_tensor')
+                    or hasattr(m.weight.data, "_local_tensor")
                     or (
-                        getattr(m, 'quant_state', None) is not None
-                        and m.quant_state.__class__ == bitsandbytes.functional.QuantState
+                        getattr(m, "quant_state", None) is not None
+                        and m.quant_state.__class__
+                        == bitsandbytes.functional.QuantState
                     )
                 ):
                     lora_cls = patch_linear_module
@@ -458,14 +488,16 @@ class LoRA(PEFT, ModuleMatcher):
                     lora_dtype=self.lora_dtype,
                 )
 
-            input_is_parallel, in_features, out_features, disable_sp_comm = get_adapter_attributes_from_linear(m)
+            input_is_parallel, in_features, out_features, disable_sp_comm = (
+                get_adapter_attributes_from_linear(m)
+            )
             logging.info(f"Adding lora to: {full_name}")
             adapter = ParallelLinearAdapter(
                 in_features,
                 out_features,
                 self.dim,
                 base_linear_name=full_name,
-                activation='identity',
+                activation="identity",
                 norm_type=None,
                 column_init_method=self.lora_A_init_method,
                 row_init_method=self.lora_B_init_method,
@@ -510,7 +542,9 @@ class LoRAMerge(PEFT):
 
         if not isinstance(m, LoRALinear):
             return m
-        logging.info(f'merging {(prefix if prefix else "") + "." + (name if name else "")}')
+        logging.info(
+            f'merging {(prefix if prefix else "") + "." + (name if name else "")}'
+        )
         base_weight = m.to_wrap.weight
         lora_weight = (
             m.adapter.alpha

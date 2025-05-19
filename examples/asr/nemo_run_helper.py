@@ -77,7 +77,7 @@ def gather_mounts(cluster_cfg):
                 partition_name: 04:00:00 (max runtime for execution)
     """
     # Gather all mounts from the cluster config including ones which are disjoint from the cluster_cfg.mounts list.
-    mounts = cluster_cfg.get('mounts', [])
+    mounts = cluster_cfg.get("mounts", [])
     # Resolve any mounts in th cluster config that need user expansion
     mounts = [os.path.expanduser(m) for m in mounts]
 
@@ -86,11 +86,13 @@ def gather_mounts(cluster_cfg):
     with open_dict(cluster_cfg):
         for k in keys:
             if k.startswith("mount_"):  # Additional mount found
-                logging.info(f"Found additional mount flag in the cluster config `{k}`. Adding it to the mounts list.")
+                logging.info(
+                    f"Found additional mount flag in the cluster config `{k}`. Adding it to the mounts list."
+                )
                 mounts.append(cluster_cfg[k])
                 del cluster_cfg[k]  # Remove the key from the cluster config
 
-        cluster_cfg['mounts'] = mounts
+        cluster_cfg["mounts"] = mounts
         logging.info(f"Final Mounts: {mounts}")
 
 
@@ -116,7 +118,7 @@ def check_root_path(path, nemo_root):
     if not path.startswith(nemo_root):
         raise ValueError(f"Path {path} is not in the NeMo root directory.")
 
-    new_path = path.replace(nemo_root, '/nemo_run/code/')
+    new_path = path.replace(nemo_root, "/nemo_run/code/")
     return new_path
 
 
@@ -150,17 +152,17 @@ def merge_configs(script_config, cluster_cfg):
 
     # Check for any ??? missing values in result recursively and raise an error if found
     def check_missing_values(cfg):
-        if hasattr(cfg, 'items'):
+        if hasattr(cfg, "items"):
             for k, v in cfg.items():
-                if hasattr(v, 'items'):
+                if hasattr(v, "items"):
                     check_missing_values(v)
-                elif v == '???':
+                elif v == "???":
                     raise ValueError(f"Missing value for key {k} in the config file")
 
     check_missing_values(result)
 
     # Do name check as a special case
-    if 'name' in result and result['name'] == '':
+    if "name" in result and result["name"] == "":
         raise ValueError(
             f"Missing value for key 'name' in the merged config file (value={result['name']}).\n"
             f"Check if your ++ override is using single quote (') instead of double quote (\") for resolution.\n"
@@ -193,17 +195,21 @@ def check_config_mount_paths(script_config, cluster_config):
             nemo_run_utils.check_remote_mount_directories(unmounted_path, cluster_cfg)
 
     def check_mounted_path(cfg, cluster_cfg):
-        if hasattr(cfg, 'items'):  # if the object is a dictionary
+        if hasattr(cfg, "items"):  # if the object is a dictionary
             for k, v in cfg.items():
-                if hasattr(v, 'items'):  # if the value is a dictionary, recurse
+                if hasattr(v, "items"):  # if the value is a dictionary, recurse
                     check_mounted_path(v, cluster_cfg)
 
-                elif isinstance(v, list):  # if the value is a list, check if its items are an absolute path
+                elif isinstance(
+                    v, list
+                ):  # if the value is a list, check if its items are an absolute path
                     for item in v:
                         if isinstance(item, str):
                             filepath_check(item, cluster_cfg)
 
-                elif isinstance(v, str):  # if the value is a string, check if its an absolute a path
+                elif isinstance(
+                    v, str
+                ):  # if the value is a string, check if its an absolute a path
                     filepath_check(v, cluster_cfg)
 
     check_mounted_path(script_config, cluster_config)
@@ -217,13 +223,19 @@ def update_exp_manager_runtime(script_config, cluster_cfg):
         script_config: Script config dictionary that represents the Model training/inference config
         cluster_cfg: Cluster config dictionary that represents the cluster configuration
     """
-    if 'max_runtime' in cluster_cfg:
+    if "max_runtime" in cluster_cfg:
         with open_dict(script_config):
-            if 'exp_manager' not in script_config:
-                raise ValueError("exp_manager config not found in the script config file")
+            if "exp_manager" not in script_config:
+                raise ValueError(
+                    "exp_manager config not found in the script config file"
+                )
 
-            script_config['exp_manager']['max_time_per_run'] = cluster_cfg['max_runtime']
-            logging.info(f"Setting exp_manager.max_time_per_run to {cluster_cfg['max_runtime']}")
+            script_config["exp_manager"]["max_time_per_run"] = cluster_cfg[
+                "max_runtime"
+            ]
+            logging.info(
+                f"Setting exp_manager.max_time_per_run to {cluster_cfg['max_runtime']}"
+            )
 
 
 def get_execution_script_cmd(cluster_script_path, config_name, merged_cfg):
@@ -252,14 +264,21 @@ def get_execution_script_cmd(cluster_script_path, config_name, merged_cfg):
     ls -l;
     """
     # Get the wandb key from the environment variables
-    wandb_key = os.environ.get("WANDB", os.environ.get("WANDB_API_KEY", os.environ.get("WANDB_KEY", "")))
+    wandb_key = os.environ.get(
+        "WANDB", os.environ.get("WANDB_API_KEY", os.environ.get("WANDB_KEY", ""))
+    )
     if wandb_key == "":
         # Warn the user if WANDB key is not found
-        logging.warning("WANDB key not found in your local environment variables. WANDB logging will not work.")
+        logging.warning(
+            "WANDB key not found in your local environment variables. WANDB logging will not work."
+        )
 
         # Check if WANDB logging is enabled in the exp_manager config
-        if 'exp_manager' in merged_cfg and 'create_wandb_logger' in merged_cfg['exp_manager']:
-            if merged_cfg['exp_manager']['create_wandb_logger']:
+        if (
+            "exp_manager" in merged_cfg
+            and "create_wandb_logger" in merged_cfg["exp_manager"]
+        ):
+            if merged_cfg["exp_manager"]["create_wandb_logger"]:
                 # If WANDB logging is enabled, the user is expected to provide the key.
                 # Raise an error
                 raise ValueError(
@@ -271,7 +290,7 @@ def get_execution_script_cmd(cluster_script_path, config_name, merged_cfg):
         cluster_script_dir=os.path.dirname(cluster_script_path),
         cluster_script_path=os.path.basename(cluster_script_path),
         config_name=config_name,
-        HF_TOKEN=os.getenv('HF_TOKEN', ''),
+        HF_TOKEN=os.getenv("HF_TOKEN", ""),
         WANDB=wandb_key,
     )
 
@@ -279,7 +298,7 @@ def get_execution_script_cmd(cluster_script_path, config_name, merged_cfg):
     return cmd
 
 
-@hydra_runner(config_path='conf', config_name='run_local')
+@hydra_runner(config_path="conf", config_name="run_local")
 def main(cluster_cfg):
     # Process the required arguments from the cluster config
     script_path = cluster_cfg.script
@@ -293,13 +312,13 @@ def main(cluster_cfg):
     gather_mounts(cluster_cfg)
 
     # Add the results directory to the cluster config as a mount path
-    nemo_run_utils.add_mount_path(results_dir, '/results', cluster_cfg)
+    nemo_run_utils.add_mount_path(results_dir, "/results", cluster_cfg)
 
     # Check if the script path is in the NeMo root directory
     cluster_script_path = check_root_path(script_path, NEMO_ROOT)
 
     # Create results and logdir
-    log_dir = cluster_cfg.get('log_dir', os.path.join(results_dir, 'logs'))
+    log_dir = cluster_cfg.get("log_dir", os.path.join(results_dir, "logs"))
     nemo_run_utils.create_remote_directory([results_dir, log_dir], cluster_cfg)
 
     # Load the script config and merge it with the cluster config
@@ -315,8 +334,8 @@ def main(cluster_cfg):
     # Resolve experiment name; if not provided in the script config file, check the cluster config
     exp_name = cluster_cfg.exp_name
     if exp_name is None:
-        if 'exp_manager' in merged_config and 'name' in merged_config['exp_manager']:
-            exp_name = merged_config['exp_manager']['name']
+        if "exp_manager" in merged_config and "name" in merged_config["exp_manager"]:
+            exp_name = merged_config["exp_manager"]["name"]
         else:
             raise ValueError(
                 "Experiment name not provided in the run config file (`exp_name`)) or the cluster config (inside exp_manager.name)"
@@ -332,21 +351,27 @@ def main(cluster_cfg):
         cmd = get_execution_script_cmd(cluster_script_path, config_name, merged_config)
 
         # Copy the merged config file to remote location's /results/configs directory
-        config_dir = os.path.join(results_dir, 'configs')
-        nemo_run_utils.create_remote_config(merged_config, config_name, config_dir, cluster_cfg)
+        config_dir = os.path.join(results_dir, "configs")
+        nemo_run_utils.create_remote_config(
+            merged_config, config_name, config_dir, cluster_cfg
+        )
 
         # Prepare arguments for the slurm job
         job_name = f"{exp_name}_job"
 
         # Get run parameters from the config
         num_runs = cluster_cfg.num_runs  # Number of dependent jobs for this script
-        num_gpus = cluster_cfg.get('num_gpus', merged_config['trainer']['devices'])
+        num_gpus = cluster_cfg.get("num_gpus", merged_config["trainer"]["devices"])
         if isinstance(num_gpus, list):
             num_gpus = len(num_gpus)
         if num_gpus == -1:
-            num_gpus = 1 if cluster_cfg['executor'] == 'local' else 8
-            logging.warning(f"\n\nSetting num_gpus to {num_gpus} as it was set to -1\n\n")
-        num_nodes = cluster_cfg.get('num_nodes', merged_config['trainer'].get('num_nodes', 1))
+            num_gpus = 1 if cluster_cfg["executor"] == "local" else 8
+            logging.warning(
+                f"\n\nSetting num_gpus to {num_gpus} as it was set to -1\n\n"
+            )
+        num_nodes = cluster_cfg.get(
+            "num_nodes", merged_config["trainer"].get("num_nodes", 1)
+        )
 
         # Cast the cluster config to a dictionary for compatibility with NeMo Run
         cluster_cfg = OmegaConf.to_object(cluster_cfg)
@@ -365,12 +390,14 @@ def main(cluster_cfg):
                 cmd=cmd,
                 task_name=job_name,
                 cluster_config=cluster_cfg,
-                container=cluster_cfg['containers']['asr'],
-                num_tasks=cluster_cfg.get('num_tasks', cluster_cfg.get('num_tasks_per_node', 1)),
+                container=cluster_cfg["containers"]["asr"],
+                num_tasks=cluster_cfg.get(
+                    "num_tasks", cluster_cfg.get("num_tasks_per_node", 1)
+                ),
                 num_gpus=num_gpus,
                 num_nodes=num_nodes,
                 log_dir=nemo_run_utils.get_mounted_filepath(cluster_cfg, log_dir),
-                partition=cluster_cfg.get('partition', None),
+                partition=cluster_cfg.get("partition", None),
                 task_dependencies=task,
             )
 
@@ -378,5 +405,5 @@ def main(cluster_cfg):
         nemo_run_utils.run_exp(exp, cluster_cfg)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

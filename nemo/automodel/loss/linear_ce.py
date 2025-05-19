@@ -85,10 +85,14 @@ if HAVE_LINEAR_LOSS_CE:
         import pkg_resources
 
         try:
-            pytorch_triton_version = pkg_resources.get_distribution('pytorch-triton').version
+            pytorch_triton_version = pkg_resources.get_distribution(
+                "pytorch-triton"
+            ).version
             current = pkg_resources.parse_version(pytorch_triton_version)
             required = pkg_resources.parse_version(version_str)
-            print(f"Current pytorch-triton version: {pytorch_triton_version}, Required triton version: {version_str}")
+            print(
+                f"Current pytorch-triton version: {pytorch_triton_version}, Required triton version: {version_str}"
+            )
             return current >= required
         except pkg_resources.DistributionNotFound:
             print("pytorch-triton not found")
@@ -100,7 +104,7 @@ if HAVE_LINEAR_LOSS_CE:
         Returns:
             bool: True if pytorch-triton version >= 3.1.0
         """
-        return new_is_triton_greater_or_equal('3.1.0')
+        return new_is_triton_greater_or_equal("3.1.0")
 
     # Apply the monkey patches
     tl_utils.is_triton_greater_or_equal = new_is_triton_greater_or_equal

@@ -65,7 +65,7 @@ on how to convert WikiHomograph data for HeteronymClassificationModel training/e
 def main(cfg):
     # PTL 2.0 has find_unused_parameters as False by default, so its required to set it to True
     # when there are unused parameters like in this model
-    if cfg.trainer.strategy == 'ddp':
+    if cfg.trainer.strategy == "ddp":
         cfg.trainer.strategy = "ddp_find_unused_parameters_true"
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
@@ -81,38 +81,55 @@ def main(cfg):
 
     if cfg.do_testing:
         logging.info(
-            'During evaluation/testing, it is currently advisable to construct a new Trainer with single GPU and \
-				no DDP to obtain accurate results'
+            "During evaluation/testing, it is currently advisable to construct a new Trainer with single GPU and \
+				no DDP to obtain accurate results"
         )
         # setup GPU
         if torch.cuda.is_available():
             device = [0]  # use 0th CUDA device
-            accelerator = 'gpu'
+            accelerator = "gpu"
         else:
             device = 1
-            accelerator = 'cpu'
+            accelerator = "cpu"
 
-        map_location = torch.device('cuda:{}'.format(device[0]) if accelerator == 'gpu' else 'cpu')
-        trainer = pl.Trainer(devices=device, accelerator=accelerator, logger=False, enable_checkpointing=False)
+        map_location = torch.device(
+            "cuda:{}".format(device[0]) if accelerator == "gpu" else "cpu"
+        )
+        trainer = pl.Trainer(
+            devices=device,
+            accelerator=accelerator,
+            logger=False,
+            enable_checkpointing=False,
+        )
 
         if model is None:
             if os.path.exists(cfg.pretrained_model):
                 # restore model from .nemo file path
-                model = HeteronymClassificationModel.restore_from(restore_path=cfg.pretrained_model)
-            elif cfg.pretrained_model in HeteronymClassificationModel.get_available_model_names():
+                model = HeteronymClassificationModel.restore_from(
+                    restore_path=cfg.pretrained_model
+                )
+            elif (
+                cfg.pretrained_model
+                in HeteronymClassificationModel.get_available_model_names()
+            ):
                 # restore model by name
-                model = HeteronymClassificationModel.from_pretrained(cfg.pretrained_model, map_location=map_location)
+                model = HeteronymClassificationModel.from_pretrained(
+                    cfg.pretrained_model, map_location=map_location
+                )
             else:
                 raise ValueError(
-                    f'Provide path to the pre-trained .nemo checkpoint or choose from {HeteronymClassificationModel.list_available_models()}'
+                    f"Provide path to the pre-trained .nemo checkpoint or choose from {HeteronymClassificationModel.list_available_models()}"
                 )
 
-        if hasattr(cfg.model, "test_ds") and cfg.model.test_ds.dataset.manifest is not None:
+        if (
+            hasattr(cfg.model, "test_ds")
+            and cfg.model.test_ds.dataset.manifest is not None
+        ):
             model.setup_test_data(cfg.model.test_ds)
             trainer.test(model)
         else:
             logging.info("test_ds not found, skipping evaluation")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()  # noqa pylint: disable=no-value-for-parameter

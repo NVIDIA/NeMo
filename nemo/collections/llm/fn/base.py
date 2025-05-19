@@ -175,7 +175,12 @@ def forall(module: nn.Module, func: ModulePredicate, recurse: bool = False) -> b
 
 
 def _map_module(
-    module: _TModule, func: ModuleFunc, recurse=False, leaf_only=False, transformed_modules=None, **kwargs
+    module: _TModule,
+    func: ModuleFunc,
+    recurse=False,
+    leaf_only=False,
+    transformed_modules=None,
+    **kwargs,
 ) -> _TModule:
     """
     Applies a transformation function to a module and optionally to its child modules.
@@ -212,10 +217,14 @@ def _map_module(
     if not leaf_only or list(module.parameters(recurse=False)):
         new_module = func(new_module, **f_kwargs)
 
-    prefix = kwargs.get("name", "") if not kwargs.get("prefix", "") else f"{kwargs['prefix']}.{kwargs['name']}"
-    kwargs.pop('i', None)
-    kwargs.pop('name', None)
-    kwargs.pop('prefix', None)
+    prefix = (
+        kwargs.get("name", "")
+        if not kwargs.get("prefix", "")
+        else f"{kwargs['prefix']}.{kwargs['name']}"
+    )
+    kwargs.pop("i", None)
+    kwargs.pop("name", None)
+    kwargs.pop("prefix", None)
 
     for i, (name, child) in enumerate(module.named_children()):
         setattr(
@@ -240,7 +249,12 @@ def _map_module(
 
 
 def _map_module_list(
-    module_list: _TModule, func: ModuleFunc, recurse=False, leaf_only=False, transformed_modules=None, **kwargs
+    module_list: _TModule,
+    func: ModuleFunc,
+    recurse=False,
+    leaf_only=False,
+    transformed_modules=None,
+    **kwargs,
 ) -> _TModule:
     if transformed_modules is None:
         transformed_modules = set()
@@ -250,10 +264,14 @@ def _map_module_list(
         module_list = func(module_list, **f_kwargs)
 
     mapped_modules = []
-    prefix = kwargs.get("name", "") if not kwargs.get('prefix', "") else f"{kwargs['prefix']}.{kwargs['name']}"
-    kwargs.pop('i', None)
-    kwargs.pop('name', None)
-    kwargs.pop('prefix', None)
+    prefix = (
+        kwargs.get("name", "")
+        if not kwargs.get("prefix", "")
+        else f"{kwargs['prefix']}.{kwargs['name']}"
+    )
+    kwargs.pop("i", None)
+    kwargs.pop("name", None)
+    kwargs.pop("prefix", None)
     for i, module in enumerate(module_list):
         new_module = map(
             module,

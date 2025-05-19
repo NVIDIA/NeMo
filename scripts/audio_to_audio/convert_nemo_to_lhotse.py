@@ -23,9 +23,10 @@ def parse_args():
         description="Convert an audio-to-audio manifest from NeMo format to Lhotse format. "
         "This step enables the use of Lhotse datasets for audio-to-audio processing. "
     )
-    parser.add_argument("input", help='Path to the input NeMo manifest.')
+    parser.add_argument("input", help="Path to the input NeMo manifest.")
     parser.add_argument(
-        "output", help="Path where we'll write the output Lhotse manifest (supported extensions: .jsonl.gz and .jsonl)"
+        "output",
+        help="Path where we'll write the output Lhotse manifest (supported extensions: .jsonl.gz and .jsonl)",
     )
     parser.add_argument(
         "-i",
@@ -54,7 +55,7 @@ def parse_args():
     parser.add_argument(
         "-a",
         "--force_absolute_paths",
-        action='store_true',
+        action="store_true",
         default=False,
         help="Force absolute paths in the generated manifests.",
     )

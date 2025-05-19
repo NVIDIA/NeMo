@@ -32,13 +32,23 @@ class MultiSoftmaxDecoder(NeuralModule):
 
     @property
     def input_types(self):
-        return OrderedDict({"encoder_output": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation())})
+        return OrderedDict(
+            {
+                "encoder_output": NeuralType(
+                    ("B", "D", "T"), AcousticEncodedRepresentation()
+                )
+            }
+        )
 
     @property
     def output_types(self):
         if self.squeeze_single and self.num_decoders == 1:
-            return OrderedDict({"logprobs": NeuralType(('B', 'T', 'C'), LogprobsType())})
-        return OrderedDict({"logprobs": NeuralType(('B', 'T', 'C', 'H'), LogprobsType())})
+            return OrderedDict(
+                {"logprobs": NeuralType(("B", "T", "C"), LogprobsType())}
+            )
+        return OrderedDict(
+            {"logprobs": NeuralType(("B", "T", "C", "H"), LogprobsType())}
+        )
 
     def __init__(
         self,
@@ -65,7 +75,12 @@ class MultiSoftmaxDecoder(NeuralModule):
         self.squeeze_single = squeeze_single
 
         self.decoder_layers = torch.nn.Sequential(
-            torch.nn.Conv1d(self.feat_in, self.num_classes * self.num_decoders, kernel_size=1, bias=use_bias)
+            torch.nn.Conv1d(
+                self.feat_in,
+                self.num_classes * self.num_decoders,
+                kernel_size=1,
+                bias=use_bias,
+            )
         )
         self.apply(lambda x: init_weights(x, mode=init_mode))
 
@@ -78,7 +93,9 @@ class MultiSoftmaxDecoder(NeuralModule):
             logprobs: log probabilities of shape (B, T, C, H), or (B, T, C) if squeeze_single is True
         """
         logits = self.decoder_layers(encoder_output).transpose(1, 2)
-        logits = logits.reshape(logits.shape[0], logits.shape[1], self.num_classes, self.num_decoders)
+        logits = logits.reshape(
+            logits.shape[0], logits.shape[1], self.num_classes, self.num_decoders
+        )
         if self.squeeze_single and self.num_decoders == 1:
             logits = logits.squeeze(-1)
 

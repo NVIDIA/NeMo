@@ -107,71 +107,98 @@ from nemo.collections.common.tokenizers.sentencepiece_tokenizer import \
     create_spt_model
 from nemo.utils.data_utils import DataStoreObject
 
-parser = argparse.ArgumentParser(description='Create tokenizer')
+parser = argparse.ArgumentParser(description="Create tokenizer")
 group = parser.add_mutually_exclusive_group(required=True)
-group.add_argument("--manifest", default=None, type=str, help='Comma separated list of manifest files')
-group.add_argument("--data_file", default=None, help='data file from which to create tokenizer model')
-parser.add_argument("--data_root", required=True, default=None, type=str, help='Output directory')
-parser.add_argument("--vocab_size", default=1024, type=int, help='Vocabulary size')
-parser.add_argument("--tokenizer", default="wpe", choices=["spe", "wpe"], help='Type of tokenization to perform')
+group.add_argument(
+    "--manifest", default=None, type=str, help="Comma separated list of manifest files"
+)
+group.add_argument(
+    "--data_file", default=None, help="data file from which to create tokenizer model"
+)
+parser.add_argument(
+    "--data_root", required=True, default=None, type=str, help="Output directory"
+)
+parser.add_argument("--vocab_size", default=1024, type=int, help="Vocabulary size")
+parser.add_argument(
+    "--tokenizer",
+    default="wpe",
+    choices=["spe", "wpe"],
+    help="Type of tokenization to perform",
+)
 parser.add_argument(
     "--spe_type",
     default="bpe",
-    choices=['bpe', 'unigram', 'char', 'word'],
-    help='Type of the SentencePiece model. Can be `bpe`, `unigram`, `char` or `word`.'
-    'Used only if --tokenizer == `spe`',
+    choices=["bpe", "unigram", "char", "word"],
+    help="Type of the SentencePiece model. Can be `bpe`, `unigram`, `char` or `word`."
+    "Used only if --tokenizer == `spe`",
 )
 parser.add_argument(
-    '--spe_character_coverage',
+    "--spe_character_coverage",
     type=float,
     default=1.0,
     help="Character coverage percentage for SentencePiece tokenization. For languages "
     "with large vocabulary, should be close to 0.9995, otherwise kept as 1.0",
 )
-parser.add_argument('--spe_bos', action='store_true', help='Add <s> token to SentencePiece Tokenizer.')
-parser.add_argument('--spe_eos', action='store_true', help='Add </s> token to SentencePiece Tokenizer.')
-parser.add_argument('--spe_pad', action='store_true', help='Add <pad> token to SentencePiece Tokenizer.')
 parser.add_argument(
-    '--spe_user_defined_symbols', default=None, type=str, nargs='+', help='User defined symbols for SentencePiece'
+    "--spe_bos", action="store_true", help="Add <s> token to SentencePiece Tokenizer."
 )
 parser.add_argument(
-    '--spe_control_symbols', default=None, type=str, nargs='+', help='Control symbols for SentencePiece'
+    "--spe_eos", action="store_true", help="Add </s> token to SentencePiece Tokenizer."
 )
-parser.add_argument('--spe_split_digits', action='store_true', help='Split digits into separate tokens.')
 parser.add_argument(
-    '--spe_remove_extra_whitespaces',
-    action='store_true',
-    help='Remove leading, trailing, and duplicate internal whitespace.',
+    "--spe_pad", action="store_true", help="Add <pad> token to SentencePiece Tokenizer."
+)
+parser.add_argument(
+    "--spe_user_defined_symbols",
+    default=None,
+    type=str,
+    nargs="+",
+    help="User defined symbols for SentencePiece",
+)
+parser.add_argument(
+    "--spe_control_symbols",
+    default=None,
+    type=str,
+    nargs="+",
+    help="Control symbols for SentencePiece",
+)
+parser.add_argument(
+    "--spe_split_digits", action="store_true", help="Split digits into separate tokens."
+)
+parser.add_argument(
+    "--spe_remove_extra_whitespaces",
+    action="store_true",
+    help="Remove leading, trailing, and duplicate internal whitespace.",
 )
 
 parser.add_argument(
-    '--spe_sample_size',
+    "--spe_sample_size",
     type=int,
     default=-1,
     help="Samples the dataset by `sample_size` if positive integer, otherwise uses whole dataset",
 )
-parser.add_argument('--spe_train_extremely_large_corpus', action='store_true', help='')
+parser.add_argument("--spe_train_extremely_large_corpus", action="store_true", help="")
 parser.add_argument(
-    '--spe_max_sentencepiece_length',
+    "--spe_max_sentencepiece_length",
     type=int,
     default=-1,
-    help='Limit the maximum number of tokens in each SentencePiece subword. '
-    'Must be a positive integer > 0. By default places no limit on subword length.',
+    help="Limit the maximum number of tokens in each SentencePiece subword. "
+    "Must be a positive integer > 0. By default places no limit on subword length.",
 )
 parser.add_argument(
-    '--spe_no_split_by_unicode_script',
-    dest='spe_split_by_unicode_script',
-    action='store_false',
+    "--spe_no_split_by_unicode_script",
+    dest="spe_split_by_unicode_script",
+    action="store_false",
     help="Don't use Unicode script to split sentence pieces.",
 )
 parser.add_argument(
-    '--spe_byte_fallback',
-    dest='spe_byte_fallback',
-    action='store_true',
+    "--spe_byte_fallback",
+    dest="spe_byte_fallback",
+    action="store_true",
     help="If <unk>, fallback to a byte sequence of the characters.",
 )
-parser.add_argument('--no_lower_case', dest='lower_case', action='store_false')
-parser.add_argument("--log", action='store_true')
+parser.add_argument("--no_lower_case", dest="lower_case", action="store_false")
+parser.add_argument("--log", action="store_true")
 parser.set_defaults(log=False, lower_case=True, spe_train_extremely_large_corpus=False)
 args = parser.parse_args()
 
@@ -180,37 +207,41 @@ def __build_document_from_manifests(
     data_root: str,
     manifests: str,
 ):
-    if ',' in manifests:
-        manifests = manifests.split(',')
+    if "," in manifests:
+        manifests = manifests.split(",")
     else:
         manifests = [manifests]
 
-    document_dir = os.path.join(data_root, 'text_corpus')
+    document_dir = os.path.join(data_root, "text_corpus")
     if not os.path.exists(document_dir):
         os.makedirs(document_dir)
 
-    document_path = os.path.join(document_dir, 'document.txt')
+    document_path = os.path.join(document_dir, "document.txt")
 
     if os.path.exists(document_path):
-        logging.info('Corpus already exists at path : %s', document_path)
+        logging.info("Corpus already exists at path : %s", document_path)
         return document_path
 
     num_lines = 0
-    with open(document_path, 'w') as out_writer:
+    with open(document_path, "w") as out_writer:
         for manifest in manifests:
-            with open(DataStoreObject(manifest).get(), 'r') as in_reader:
+            with open(DataStoreObject(manifest).get(), "r") as in_reader:
                 for line in in_reader:
                     item = json.loads(line)
-                    text = item['text']
+                    text = item["text"]
 
-                    out_writer.write(text + '\n')
+                    out_writer.write(text + "\n")
                     out_writer.flush()
 
                     num_lines += 1
 
             logging.info(f"Finished extracting manifest : {manifest}")
 
-        logging.info("Finished extracting all manifests ! Number of sentences : {}".format(num_lines))
+        logging.info(
+            "Finished extracting all manifests ! Number of sentences : {}".format(
+                num_lines
+            )
+        )
     return document_path
 
 
@@ -265,31 +296,31 @@ def __process_data(
 
     Returns:
     """
-    if tokenizer_type == 'spe':
+    if tokenizer_type == "spe":
 
         # Prepare directory of tokenizer
         if spe_max_sentencepiece_length > 0:
-            tokenizer_dir = os.path.join(dst_folder, 'tokenizer_{}_{}_v{}_max_{}').format(
-                tokenizer_type, spe_type, vocab_size, spe_max_sentencepiece_length
-            )
+            tokenizer_dir = os.path.join(
+                dst_folder, "tokenizer_{}_{}_v{}_max_{}"
+            ).format(tokenizer_type, spe_type, vocab_size, spe_max_sentencepiece_length)
         else:
-            tokenizer_dir = os.path.join(dst_folder, 'tokenizer_{}_{}_v{}').format(
+            tokenizer_dir = os.path.join(dst_folder, "tokenizer_{}_{}_v{}").format(
                 tokenizer_type, spe_type, vocab_size
             )
 
         if spe_pad:
-            tokenizer_dir = f'{tokenizer_dir}_pad'
+            tokenizer_dir = f"{tokenizer_dir}_pad"
         if spe_bos:
-            tokenizer_dir = f'{tokenizer_dir}_bos'
+            tokenizer_dir = f"{tokenizer_dir}_bos"
         if spe_eos:
-            tokenizer_dir = f'{tokenizer_dir}_eos'
+            tokenizer_dir = f"{tokenizer_dir}_eos"
 
         if not os.path.exists(tokenizer_dir):
             os.makedirs(tokenizer_dir)
 
-        if os.path.exists(os.path.join(tokenizer_dir, 'tokenizer.model')):
+        if os.path.exists(os.path.join(tokenizer_dir, "tokenizer.model")):
             logging.warning("Model file already exists, overriding old model file !")
-            os.remove(os.path.join(tokenizer_dir, 'tokenizer.model'))
+            os.remove(os.path.join(tokenizer_dir, "tokenizer.model"))
 
         # Build tokenizer
         tokenizer_path, vocab_path = create_spt_model(
@@ -314,7 +345,9 @@ def __process_data(
         )
 
     else:
-        tokenizer_dir = os.path.join(dst_folder, 'tokenizer_{}_v{}').format(tokenizer_type, vocab_size)
+        tokenizer_dir = os.path.join(dst_folder, "tokenizer_{}_v{}").format(
+            tokenizer_type, vocab_size
+        )
 
         if not os.path.exists(tokenizer_dir):
             os.makedirs(tokenizer_dir)
@@ -380,7 +413,7 @@ def main():
     )
 
     print("Serialized tokenizer at location :", tokenizer_path)
-    logging.info('Done!')
+    logging.info("Done!")
 
 
 if __name__ == "__main__":

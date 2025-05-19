@@ -117,15 +117,15 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
 
     def training_step(self, batch, batch_idx):
         batch = self.batch_dict(batch)
-        mel = batch['log_mel']
-        speaker_ids = batch['speaker_id']
-        text = batch['text']
-        in_lens = batch['text_lens']
-        out_lens = batch['log_mel_lens']
-        attn_prior = batch['align_prior_matrix']
-        f0 = batch['pitch']
-        voiced_mask = batch['voiced_mask']
-        energy_avg = batch['energy']
+        mel = batch["log_mel"]
+        speaker_ids = batch["speaker_id"]
+        text = batch["text"]
+        in_lens = batch["text_lens"]
+        out_lens = batch["log_mel_lens"]
+        attn_prior = batch["align_prior_matrix"]
+        f0 = batch["pitch"]
+        voiced_mask = batch["voiced_mask"]
+        energy_avg = batch["energy"]
 
         if (
             self.train_config.binarization_start_iter >= 0
@@ -157,29 +157,31 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
                 loss = v * w if loss is None else loss + v * w
 
         if binarize and self.global_step >= self.train_config.kl_loss_start_iter:
-            binarization_loss = self.attention_kl_loss(outputs['attn'], outputs['attn_soft'])
+            binarization_loss = self.attention_kl_loss(
+                outputs["attn"], outputs["attn_soft"]
+            )
             loss += binarization_loss
         else:
             binarization_loss = torch.zeros_like(loss)
-        loss_outputs['binarization_loss'] = (binarization_loss, 1.0)
+        loss_outputs["binarization_loss"] = (binarization_loss, 1.0)
 
         for k, (v, w) in loss_outputs.items():
             self.log("train/" + k, loss_outputs[k][0], on_step=True)
 
-        return {'loss': loss}
+        return {"loss": loss}
 
     def validation_step(self, batch, batch_idx):
 
         batch = self.batch_dict(batch)
-        speaker_ids = batch['speaker_id']
-        text = batch['text']
-        in_lens = batch['text_lens']
-        out_lens = batch['log_mel_lens']
-        attn_prior = batch['align_prior_matrix']
-        f0 = batch['pitch']
-        voiced_mask = batch['voiced_mask']
-        energy_avg = batch['energy']
-        mel = batch['log_mel']
+        speaker_ids = batch["speaker_id"]
+        text = batch["text"]
+        in_lens = batch["text_lens"]
+        out_lens = batch["log_mel_lens"]
+        attn_prior = batch["align_prior_matrix"]
+        f0 = batch["pitch"]
+        voiced_mask = batch["voiced_mask"]
+        energy_avg = batch["energy"]
+        mel = batch["log_mel"]
         if (
             self.train_config.binarization_start_iter >= 0
             and self.global_step >= self.train_config.binarization_start_iter
@@ -213,11 +215,13 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
             and self.train_config.kl_loss_start_iter >= 0
             and self.global_step >= self.train_config.kl_loss_start_iter
         ):
-            binarization_loss = self.attention_kl_loss(outputs['attn'], outputs['attn_soft'])
+            binarization_loss = self.attention_kl_loss(
+                outputs["attn"], outputs["attn_soft"]
+            )
             loss += binarization_loss
         else:
             binarization_loss = torch.zeros_like(loss)
-        loss_outputs['binarization_loss'] = binarization_loss
+        loss_outputs["binarization_loss"] = binarization_loss
 
         val_outputs = {
             "loss_outputs": loss_outputs,
@@ -240,17 +244,19 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
         attn_soft = self.validation_step_outputs[0]["attn_soft"]
 
         self.tb_logger.add_image(
-            'attention_weights_mas',
+            "attention_weights_mas",
             plot_alignment_to_numpy(attn[0, 0].data.cpu().numpy().T, title="audio"),
             self.global_step,
-            dataformats='HWC',
+            dataformats="HWC",
         )
 
         self.tb_logger.add_image(
-            'attention_weights',
-            plot_alignment_to_numpy(attn_soft[0, 0].data.cpu().numpy().T, title="audio"),
+            "attention_weights",
+            plot_alignment_to_numpy(
+                attn_soft[0, 0].data.cpu().numpy().T, title="audio"
+            ),
             self.global_step,
-            dataformats='HWC',
+            dataformats="HWC",
         )
         self.log_train_images = True
         self.validation_step_outputs.clear()  # free memory
@@ -259,19 +265,30 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
         logging.info("Initializing %s optimizer" % (self.optim.name))
         if len(self.train_config.finetune_layers):
             for name, param in model.named_parameters():
-                if any([l in name for l in self.train_config.finetune_layers]):  # short list hack
+                if any(
+                    [l in name for l in self.train_config.finetune_layers]
+                ):  # short list hack
                     logging.info("Fine-tuning parameter", name)
                     param.requires_grad = True
                 else:
                     param.requires_grad = False
-        if self.optim.name == 'Adam':
+        if self.optim.name == "Adam":
             optimizer = torch.optim.Adam(
-                self.model.parameters(), lr=self.optim.lr, weight_decay=self.optim.weight_decay
+                self.model.parameters(),
+                lr=self.optim.lr,
+                weight_decay=self.optim.weight_decay,
             )
-        elif self.optim.name == 'RAdam':  # False for inference riva
-            optimizer = RAdam(self.model.parameters(), lr=self.optim.lr, weight_decay=self.optim.weight_decay)
+        elif self.optim.name == "RAdam":  # False for inference riva
+            optimizer = RAdam(
+                self.model.parameters(),
+                lr=self.optim.lr,
+                weight_decay=self.optim.weight_decay,
+            )
         else:
-            logging.info("Unrecognized optimizer %s! Please choose the right optimizer" % (self.optim.name))
+            logging.info(
+                "Unrecognized optimizer %s! Please choose the right optimizer"
+                % (self.optim.name)
+            )
             exit(1)
 
         return optimizer
@@ -307,22 +324,26 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
 
     @typecheck(
         input_types={
-            "tokens": NeuralType(('B', 'T_text'), TokenIndex(), optional=True),
-            "speaker": NeuralType(('B'), Index(), optional=True),
+            "tokens": NeuralType(("B", "T_text"), TokenIndex(), optional=True),
+            "speaker": NeuralType(("B"), Index(), optional=True),
             "sigma": NeuralType(optional=True),
         },
         output_types={
-            "spect": NeuralType(('B', 'D', 'T_spec'), MelSpectrogramType()),
+            "spect": NeuralType(("B", "D", "T_spec"), MelSpectrogramType()),
         },
     )
-    def generate_spectrogram(self, tokens: 'torch.tensor', speaker: int = 0, sigma: float = 1.0) -> torch.tensor:
+    def generate_spectrogram(
+        self, tokens: "torch.tensor", speaker: int = 0, sigma: float = 1.0
+    ) -> torch.tensor:
         self.eval()
         if self.training:
-            logging.warning("generate_spectrogram() is meant to be called in eval mode.")
+            logging.warning(
+                "generate_spectrogram() is meant to be called in eval mode."
+            )
         speaker = torch.tensor([speaker]).long().cuda().to(self.device)
         outputs = self.model.infer(speaker, tokens, sigma=sigma)
 
-        spect = outputs['mel']
+        spect = outputs["mel"]
         return spect
 
     @property
@@ -337,8 +358,10 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
             # for backward compatibility
             if (
                 self._is_model_being_restored()
-                and (cfg.text_tokenizer.g2p.get('_target_', None) is not None)
-                and cfg.text_tokenizer.g2p["_target_"].startswith("nemo_text_processing.g2p")
+                and (cfg.text_tokenizer.g2p.get("_target_", None) is not None)
+                and cfg.text_tokenizer.g2p["_target_"].startswith(
+                    "nemo_text_processing.g2p"
+                )
             ):
                 cfg.text_tokenizer.g2p["_target_"] = g2p_backward_compatible_support(
                     cfg.text_tokenizer.g2p["_target_"]
@@ -348,17 +371,19 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
 
             if "phoneme_dict" in cfg.text_tokenizer.g2p:
                 g2p_kwargs["phoneme_dict"] = self.register_artifact(
-                    'text_tokenizer.g2p.phoneme_dict',
+                    "text_tokenizer.g2p.phoneme_dict",
                     cfg.text_tokenizer.g2p.phoneme_dict,
                 )
 
             if "heteronyms" in cfg.text_tokenizer.g2p:
                 g2p_kwargs["heteronyms"] = self.register_artifact(
-                    'text_tokenizer.g2p.heteronyms',
+                    "text_tokenizer.g2p.heteronyms",
                     cfg.text_tokenizer.g2p.heteronyms,
                 )
 
-            text_tokenizer_kwargs["g2p"] = instantiate(cfg.text_tokenizer.g2p, **g2p_kwargs)
+            text_tokenizer_kwargs["g2p"] = instantiate(
+                cfg.text_tokenizer.g2p, **g2p_kwargs
+            )
 
         self.tokenizer = instantiate(cfg.text_tokenizer, **text_tokenizer_kwargs)
         if isinstance(self.tokenizer, BaseTokenizer):
@@ -366,10 +391,14 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
             self.tokens = self.tokenizer.tokens
         else:
             if text_tokenizer_pad_id is None:
-                raise ValueError(f"text_tokenizer_pad_id must be specified if text_tokenizer is not BaseTokenizer")
+                raise ValueError(
+                    f"text_tokenizer_pad_id must be specified if text_tokenizer is not BaseTokenizer"
+                )
 
             if tokens is None:
-                raise ValueError(f"tokens must be specified if text_tokenizer is not BaseTokenizer")
+                raise ValueError(
+                    f"tokens must be specified if text_tokenizer is not BaseTokenizer"
+                )
 
             self.text_tokenizer_pad_id = text_tokenizer_pad_id
             self.tokens = tokens
@@ -426,51 +455,57 @@ class RadTTSModel(SpectrogramGenerator, Exportable):
         self.model.remove_norms()
         super()._prepare_for_export(**kwargs)
 
-        tensor_shape = ('T') if self.export_config["enable_ragged_batches"] else ('B', 'T')
+        tensor_shape = (
+            ("T") if self.export_config["enable_ragged_batches"] else ("B", "T")
+        )
 
         # Define input_types and output_types as required by export()
         self._input_types = {
             "text": NeuralType(tensor_shape, TokenIndex()),
-            "batch_lengths": NeuralType(('B')),
-            "speaker_id": NeuralType(('B'), Index()),
-            "speaker_id_text": NeuralType(('B'), Index()),
-            "speaker_id_attributes": NeuralType(('B'), Index()),
+            "batch_lengths": NeuralType(("B")),
+            "speaker_id": NeuralType(("B"), Index()),
+            "speaker_id_text": NeuralType(("B"), Index()),
+            "speaker_id_attributes": NeuralType(("B"), Index()),
             "pitch": NeuralType(tensor_shape, RegressionValuesType()),
             "pace": NeuralType(tensor_shape),
         }
         self._output_types = {
-            "spect": NeuralType(('B', 'D', 'T_spec'), MelSpectrogramType()),
-            "num_frames": NeuralType(('B'), TokenDurationType()),
-            "durs_predicted": NeuralType(('B', 'T_text'), TokenDurationType()),
+            "spect": NeuralType(("B", "D", "T_spec"), MelSpectrogramType()),
+            "num_frames": NeuralType(("B"), TokenDurationType()),
+            "durs_predicted": NeuralType(("B", "T_text"), TokenDurationType()),
         }
         if self.export_config["enable_volume"]:
             self._input_types["volume"] = NeuralType(tensor_shape, optional=True)
-            self._output_types["volume_aligned"] = NeuralType(('B', 'T_spec'), RegressionValuesType())
+            self._output_types["volume_aligned"] = NeuralType(
+                ("B", "T_spec"), RegressionValuesType()
+            )
 
     def input_example(self, max_batch=1, max_dim=400):
         par = next(self.model.parameters())
-        inputs = sample_tts_input(self.export_config, par.device, max_batch=max_batch, max_dim=max_dim)
+        inputs = sample_tts_input(
+            self.export_config, par.device, max_batch=max_batch, max_dim=max_dim
+        )
         speaker = inputs.pop("speaker")
-        inp = inputs['text']
+        inp = inputs["text"]
         pad_id = self.tokenizer.pad
         inp[inp == pad_id] = pad_id - 1 if pad_id > 0 else pad_id + 1
 
         inputs.update(
             {
-                'speaker_id': speaker,
-                'speaker_id_text': speaker,
-                'speaker_id_attributes': speaker,
+                "speaker_id": speaker,
+                "speaker_id_text": speaker,
+                "speaker_id_attributes": speaker,
             }
         )
         new_inputs = {
-            'text': inp,
-            'batch_lengths': inputs['batch_lengths'],
-            'speaker_id': speaker,
-            'speaker_id_text': speaker,
-            'speaker_id_attributes': speaker,
-            'pitch': inputs['pitch'],
-            'pace': inputs['pace'],
-            'volume': inputs['volume'],
+            "text": inp,
+            "batch_lengths": inputs["batch_lengths"],
+            "speaker_id": speaker,
+            "speaker_id_text": speaker,
+            "speaker_id_attributes": speaker,
+            "pitch": inputs["pitch"],
+            "pace": inputs["pace"],
+            "volume": inputs["volume"],
         }
 
         return (new_inputs,)

@@ -55,7 +55,7 @@ class BlendableDataset(torch.utils.data.Dataset):
                 helpers
         except ImportError:
             raise ImportError(
-                f'Could not compile megatron dataset C++ helper functions and therefore cannot import helpers python file.'
+                f"Could not compile megatron dataset C++ helper functions and therefore cannot import helpers python file."
             )
 
         helpers.build_blending_indices(
@@ -67,7 +67,8 @@ class BlendableDataset(torch.utils.data.Dataset):
             torch.distributed.get_rank() == 0,
         )
         logging.info(
-            '> elapsed time for building blendable dataset indices: ' '{:.2f} (sec)'.format(time.time() - start_time)
+            "> elapsed time for building blendable dataset indices: "
+            "{:.2f} (sec)".format(time.time() - start_time)
         )
 
     def __len__(self):
@@ -79,7 +80,9 @@ class BlendableDataset(torch.utils.data.Dataset):
         dataset_size = len(self.datasets[dataset_idx])
         # Ensure the sample index doesn't exceed the dataset size
         if sample_idx >= dataset_size:
-            logging.warning(f"Index {sample_idx} out of bounds for dataset {dataset_idx}. Reusing existing examples.")
+            logging.warning(
+                f"Index {sample_idx} out of bounds for dataset {dataset_idx}. Reusing existing examples."
+            )
             sample_idx = sample_idx % dataset_size
             logging.warning(f"Reusing index {sample_idx} for dataset {dataset_idx}.")
 
@@ -128,7 +131,9 @@ class MemoryEfficientBlendableDataset(torch.utils.data.Dataset):
         ds_bias.extend(range(ds_bias[-1], ds_bias[-1] + n))
 
         self.ds_index = np.array(ds_index, dtype=np.uint32)
-        self.ds_index_size = np.array([(self.ds_index == i).sum() for i in range(num_datasets)], dtype=np.uint32)
+        self.ds_index_size = np.array(
+            [(self.ds_index == i).sum() for i in range(num_datasets)], dtype=np.uint32
+        )
         assert (
             self.ds_index_size > 0
         ).all(), f"Some datasets have no samples in the blendable dataset, increase weight_bins or the offending weight. ds_index_size = {self.ds_index_size}"
@@ -141,9 +146,9 @@ class MemoryEfficientBlendableDataset(torch.utils.data.Dataset):
 
         bin = idx % self.weight_bins
         ds_idx = self.ds_index[bin]
-        sample_idx = (self.ds_bias[bin] + (idx // self.weight_bins) * self.ds_index_size[ds_idx]) % self.ds_size[
-            ds_idx
-        ]
+        sample_idx = (
+            self.ds_bias[bin] + (idx // self.weight_bins) * self.ds_index_size[ds_idx]
+        ) % self.ds_size[ds_idx]
 
         return ds_idx, sample_idx
 
@@ -176,7 +181,10 @@ class MemoryEfficientBlendableDataset(torch.utils.data.Dataset):
 
         for weight_bins in [10, 100]:
             blend_ds = MemoryEfficientBlendableDataset(
-                [DS(10, "a"), DS(10, "b"), DS(10, "c")], [0.5, 0.3, 0.2], 50, weight_bins=weight_bins
+                [DS(10, "a"), DS(10, "b"), DS(10, "c")],
+                [0.5, 0.3, 0.2],
+                50,
+                weight_bins=weight_bins,
             )
 
             ds_sample_idx_list = [blend_ds.get_ds_sample_idx(i) for i in range(50)]

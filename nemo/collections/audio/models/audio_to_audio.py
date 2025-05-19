@@ -40,7 +40,7 @@ from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging, model_utils
 
-__all__ = ['AudioToAudioModel']
+__all__ = ["AudioToAudioModel"]
 
 
 class AudioToAudioModel(ModelPT, ABC):
@@ -58,23 +58,27 @@ class AudioToAudioModel(ModelPT, ABC):
 
     def _setup_loss(self):
         """Setup loss for this model."""
-        if 'loss' in self._cfg:
+        if "loss" in self._cfg:
             self.loss = AudioToAudioModel.from_config_dict(self._cfg.loss)
         else:
-            logging.warning('No loss function is defined in the config.')
+            logging.warning("No loss function is defined in the config.")
             self.loss = None
 
-    def _get_num_dataloaders(self, tag: str = 'val'):
-        if tag == 'val':
-            num_dataloaders = len(self._validation_dl) if isinstance(self._validation_dl, List) else 1
-        elif tag == 'test':
-            num_dataloaders = len(self._test_dl) if isinstance(self._test_dl, List) else 1
+    def _get_num_dataloaders(self, tag: str = "val"):
+        if tag == "val":
+            num_dataloaders = (
+                len(self._validation_dl) if isinstance(self._validation_dl, List) else 1
+            )
+        elif tag == "test":
+            num_dataloaders = (
+                len(self._test_dl) if isinstance(self._test_dl, List) else 1
+            )
         else:
-            raise ValueError(f'Unexpected tag {tag}.')
+            raise ValueError(f"Unexpected tag {tag}.")
 
         return num_dataloaders
 
-    def _setup_metrics(self, tag: str = 'val'):
+    def _setup_metrics(self, tag: str = "val"):
         """Setup metrics for this model for all available dataloaders.
 
         When using multiple DataLoaders, it is recommended to initialize separate modular
@@ -85,31 +89,35 @@ class AudioToAudioModel(ModelPT, ABC):
         """
         # Number of currently configured dataloaders
         num_dataloaders = self._get_num_dataloaders(tag)
-        logging.debug('Found %d dataloaders for %s', num_dataloaders, tag)
+        logging.debug("Found %d dataloaders for %s", num_dataloaders, tag)
 
-        if hasattr(self, 'metrics'):
+        if hasattr(self, "metrics"):
             if tag in self.metrics and len(self.metrics[tag]) == num_dataloaders:
                 # Exact number of metrics have already been configured, nothing else to do
-                logging.debug('Found %d metrics for tag %s, not necesary to initialize again', num_dataloaders, tag)
+                logging.debug(
+                    "Found %d metrics for tag %s, not necesary to initialize again",
+                    num_dataloaders,
+                    tag,
+                )
                 return
 
-        if self.cfg.get('metrics') is None:
+        if self.cfg.get("metrics") is None:
             # Metrics are not available in the configuration, nothing to do
-            logging.debug('No metrics configured in model.metrics')
+            logging.debug("No metrics configured in model.metrics")
             return
 
-        if (metrics_cfg := self.cfg['metrics'].get(tag)) is None:
+        if (metrics_cfg := self.cfg["metrics"].get(tag)) is None:
             # Metrics configuration is not available in the configuration, nothing to do
-            logging.debug('No metrics configured for %s in model.metrics', tag)
+            logging.debug("No metrics configured for %s in model.metrics", tag)
             return
 
-        if 'loss' in metrics_cfg:
+        if "loss" in metrics_cfg:
             raise ValueError(
-                f'Loss is automatically included in the metrics, it should not be specified in model.metrics.{tag}.'
+                f"Loss is automatically included in the metrics, it should not be specified in model.metrics.{tag}."
             )
 
         # Initialize metrics
-        if not hasattr(self, 'metrics'):
+        if not hasattr(self, "metrics"):
             self.metrics = torch.nn.ModuleDict()
 
         # Setup metrics for each dataloader
@@ -117,10 +125,12 @@ class AudioToAudioModel(ModelPT, ABC):
         for dataloader_idx in range(num_dataloaders):
             metrics_dataloader_idx = {}
             for name, cfg in metrics_cfg.items():
-                logging.debug('Initialize %s for dataloader_idx %s', name, dataloader_idx)
+                logging.debug(
+                    "Initialize %s for dataloader_idx %s", name, dataloader_idx
+                )
                 cfg_dict = OmegaConf.to_container(cfg)
-                cfg_channel = cfg_dict.pop('channel', None)
-                cfg_batch_averaging = cfg_dict.pop('metric_using_batch_averaging', None)
+                cfg_channel = cfg_dict.pop("channel", None)
+                cfg_batch_averaging = cfg_dict.pop("metric_using_batch_averaging", None)
                 metrics_dataloader_idx[name] = AudioMetricWrapper(
                     metric=hydra.utils.instantiate(cfg_dict),
                     channel=cfg_channel,
@@ -131,86 +141,104 @@ class AudioToAudioModel(ModelPT, ABC):
             self.metrics[tag].append(metrics_dataloader_idx.to(self.device))
 
             logging.info(
-                'Setup metrics for %s, dataloader %d: %s', tag, dataloader_idx, ', '.join(metrics_dataloader_idx)
+                "Setup metrics for %s, dataloader %d: %s",
+                tag,
+                dataloader_idx,
+                ", ".join(metrics_dataloader_idx),
             )
 
     @abstractmethod
-    def evaluation_step(self, batch, batch_idx, dataloader_idx: int = 0, tag: str = 'val'):
+    def evaluation_step(
+        self, batch, batch_idx, dataloader_idx: int = 0, tag: str = "val"
+    ):
         pass
 
     def on_validation_start(self):
-        self._setup_metrics('val')
+        self._setup_metrics("val")
         return super().on_validation_start()
 
     def on_test_start(self):
-        self._setup_metrics('test')
+        self._setup_metrics("test")
         return super().on_test_start()
 
     def validation_step(self, batch, batch_idx, dataloader_idx: int = 0):
-        output_dict = self.evaluation_step(batch, batch_idx, dataloader_idx, 'val')
-        if isinstance(self.trainer.val_dataloaders, (list, tuple)) and len(self.trainer.val_dataloaders) > 1:
+        output_dict = self.evaluation_step(batch, batch_idx, dataloader_idx, "val")
+        if (
+            isinstance(self.trainer.val_dataloaders, (list, tuple))
+            and len(self.trainer.val_dataloaders) > 1
+        ):
             self.validation_step_outputs[dataloader_idx].append(output_dict)
         else:
             self.validation_step_outputs.append(output_dict)
         return output_dict
 
     def test_step(self, batch, batch_idx, dataloader_idx=0):
-        output_dict = self.evaluation_step(batch, batch_idx, dataloader_idx, 'test')
-        if isinstance(self.trainer.test_dataloaders, (list, tuple)) and len(self.trainer.test_dataloaders) > 1:
+        output_dict = self.evaluation_step(batch, batch_idx, dataloader_idx, "test")
+        if (
+            isinstance(self.trainer.test_dataloaders, (list, tuple))
+            and len(self.trainer.test_dataloaders) > 1
+        ):
             self.test_step_outputs[dataloader_idx].append(output_dict)
         else:
             self.test_step_outputs.append(output_dict)
         return output_dict
 
-    def multi_evaluation_epoch_end(self, outputs, dataloader_idx: int = 0, tag: str = 'val'):
+    def multi_evaluation_epoch_end(
+        self, outputs, dataloader_idx: int = 0, tag: str = "val"
+    ):
         # Handle loss
-        loss_mean = torch.stack([x[f'{tag}_loss'] for x in outputs]).mean()
-        tensorboard_logs = {f'{tag}_loss': loss_mean}
+        loss_mean = torch.stack([x[f"{tag}_loss"] for x in outputs]).mean()
+        tensorboard_logs = {f"{tag}_loss": loss_mean}
 
         # Handle metrics for this tag and dataloader_idx
-        if hasattr(self, 'metrics') and tag in self.metrics:
+        if hasattr(self, "metrics") and tag in self.metrics:
             for name, metric in self.metrics[tag][dataloader_idx].items():
                 # Compute & reset the metric
                 value = metric.compute()
                 metric.reset()
                 # Store for logs
-                tensorboard_logs[f'{tag}_{name}'] = value
+                tensorboard_logs[f"{tag}_{name}"] = value
 
-        return {f'{tag}_loss': loss_mean, 'log': tensorboard_logs}
+        return {f"{tag}_loss": loss_mean, "log": tensorboard_logs}
 
     def multi_validation_epoch_end(self, outputs, dataloader_idx: int = 0):
-        return self.multi_evaluation_epoch_end(outputs, dataloader_idx, 'val')
+        return self.multi_evaluation_epoch_end(outputs, dataloader_idx, "val")
 
     def multi_test_epoch_end(self, outputs, dataloader_idx: int = 0):
-        return self.multi_evaluation_epoch_end(outputs, dataloader_idx, 'test')
+        return self.multi_evaluation_epoch_end(outputs, dataloader_idx, "test")
 
     def _setup_dataloader_from_config(self, config: Optional[Dict]):
         # TODO: Consider moving `inject` from `audio_to_text_dataset` to a utility module?
         # Automatically inject args from model config to dataloader config
-        inject_dataloader_value_from_model_config(self.cfg, config, key='sample_rate')
+        inject_dataloader_value_from_model_config(self.cfg, config, key="sample_rate")
 
         if config.get("use_lhotse", False):
             return get_lhotse_dataloader_from_config(
-                config, global_rank=self.global_rank, world_size=self.world_size, dataset=LhotseAudioToTargetDataset()
+                config,
+                global_rank=self.global_rank,
+                world_size=self.world_size,
+                dataset=LhotseAudioToTargetDataset(),
             )
 
-        is_concat = config.get('is_concat', False)
+        is_concat = config.get("is_concat", False)
         if is_concat:
-            raise NotImplementedError('Concat not implemented')
+            raise NotImplementedError("Concat not implemented")
 
         # Instantiate tarred dataset loader or normal dataset loader
-        if config.get('is_tarred', False):
-            raise NotImplementedError('Tarred datasets not supported')
+        if config.get("is_tarred", False):
+            raise NotImplementedError("Tarred datasets not supported")
 
-        if 'manifest_filepath' in config and config['manifest_filepath'] is None:
-            logging.warning(f"Could not load dataset as `manifest_filepath` was None. Provided config : {config}")
+        if "manifest_filepath" in config and config["manifest_filepath"] is None:
+            logging.warning(
+                f"Could not load dataset as `manifest_filepath` was None. Provided config : {config}"
+            )
             return None
 
         dataset = audio_to_audio_dataset.get_audio_to_target_dataset(config=config)
 
-        if hasattr(dataset, 'collate_fn'):
+        if hasattr(dataset, "collate_fn"):
             collate_fn = dataset.collate_fn
-        elif hasattr(dataset.datasets[0], 'collate_fn'):
+        elif hasattr(dataset.datasets[0], "collate_fn"):
             # support datasets that are lists of entries
             collate_fn = dataset.datasets[0].collate_fn
         else:
@@ -219,12 +247,12 @@ class AudioToAudioModel(ModelPT, ABC):
 
         return torch.utils.data.DataLoader(
             dataset=dataset,
-            batch_size=config['batch_size'],
+            batch_size=config["batch_size"],
             collate_fn=collate_fn,
-            drop_last=config.get('drop_last', False),
-            shuffle=config['shuffle'],
-            num_workers=config.get('num_workers', 0),
-            pin_memory=config.get('pin_memory', False),
+            drop_last=config.get("drop_last", False),
+            shuffle=config["shuffle"],
+            num_workers=config.get("num_workers", 0),
+            pin_memory=config.get("pin_memory", False),
         )
 
     def setup_training_data(self, train_data_config: Optional[Union[DictConfig, Dict]]):
@@ -238,16 +266,16 @@ class AudioToAudioModel(ModelPT, ABC):
         Supported Datasets:
             -   :class:`~nemo.collections.asr.data.audio_to_audio.AudioToTargetDataset`
         """
-        if 'shuffle' not in train_data_config:
-            train_data_config['shuffle'] = True
+        if "shuffle" not in train_data_config:
+            train_data_config["shuffle"] = True
 
         # preserve config
-        self._update_dataset_config(dataset_name='train', config=train_data_config)
+        self._update_dataset_config(dataset_name="train", config=train_data_config)
 
         self._train_dl = self._setup_dataloader_from_config(config=train_data_config)
 
-        if 'is_tarred' in train_data_config and train_data_config['is_tarred']:
-            raise NotImplementedError('Tarred datasets not supported')
+        if "is_tarred" in train_data_config and train_data_config["is_tarred"]:
+            raise NotImplementedError("Tarred datasets not supported")
 
     def setup_validation_data(self, val_data_config: Optional[Union[DictConfig, Dict]]):
         """
@@ -260,11 +288,11 @@ class AudioToAudioModel(ModelPT, ABC):
         Supported Datasets:
             -   :class:`~nemo.collections.asr.data.audio_to_audio.AudioToTargetDataset`
         """
-        if 'shuffle' not in val_data_config:
-            val_data_config['shuffle'] = False
+        if "shuffle" not in val_data_config:
+            val_data_config["shuffle"] = False
 
         # preserve config
-        self._update_dataset_config(dataset_name='validation', config=val_data_config)
+        self._update_dataset_config(dataset_name="validation", config=val_data_config)
 
         self._validation_dl = self._setup_dataloader_from_config(config=val_data_config)
 
@@ -279,15 +307,15 @@ class AudioToAudioModel(ModelPT, ABC):
         Supported Datasets:
             -   :class:`~nemo.collections.asr.data.audio_to_audio.AudioToTargetDataset`
         """
-        if 'shuffle' not in test_data_config:
-            test_data_config['shuffle'] = False
+        if "shuffle" not in test_data_config:
+            test_data_config["shuffle"] = False
 
         # preserve config
-        self._update_dataset_config(dataset_name='test', config=test_data_config)
+        self._update_dataset_config(dataset_name="test", config=test_data_config)
 
         self._test_dl = self._setup_dataloader_from_config(config=test_data_config)
 
-    def _setup_process_dataloader(self, config: Dict) -> 'torch.utils.data.DataLoader':
+    def _setup_process_dataloader(self, config: Dict) -> "torch.utils.data.DataLoader":
         """Prepare a dataloader for processing files.
 
         Args:
@@ -302,19 +330,23 @@ class AudioToAudioModel(ModelPT, ABC):
             A pytorch DataLoader for the given manifest filepath.
         """
         dl_config = {
-            'manifest_filepath': config['manifest_filepath'],
-            'sample_rate': self.sample_rate,
-            'input_key': config['input_key'],
-            'input_channel_selector': config.get('input_channel_selector', None),
-            'target_key': None,
-            'target_channel_selector': None,
-            'batch_size': config['batch_size'],
-            'shuffle': False,
-            'num_workers': config.get('num_workers', min(config['batch_size'], os.cpu_count() - 1)),
-            'pin_memory': True,
+            "manifest_filepath": config["manifest_filepath"],
+            "sample_rate": self.sample_rate,
+            "input_key": config["input_key"],
+            "input_channel_selector": config.get("input_channel_selector", None),
+            "target_key": None,
+            "target_channel_selector": None,
+            "batch_size": config["batch_size"],
+            "shuffle": False,
+            "num_workers": config.get(
+                "num_workers", min(config["batch_size"], os.cpu_count() - 1)
+            ),
+            "pin_memory": True,
         }
 
-        temporary_dataloader = self._setup_dataloader_from_config(config=DictConfig(dl_config))
+        temporary_dataloader = self._setup_dataloader_from_config(
+            config=DictConfig(dl_config)
+        )
         return temporary_dataloader
 
     @staticmethod
@@ -333,7 +365,7 @@ class AudioToAudioModel(ModelPT, ABC):
         pad_length = batch_length - input_length
         pad = (0, pad_length)
         # pad with zeros or crop
-        return torch.nn.functional.pad(input, pad, 'constant', 0)
+        return torch.nn.functional.pad(input, pad, "constant", 0)
 
     @torch.no_grad()
     def process(
@@ -386,18 +418,21 @@ class AudioToAudioModel(ModelPT, ABC):
             # Processing
             with tempfile.TemporaryDirectory() as tmpdir:
                 # Save temporary manifest
-                temporary_manifest_filepath = os.path.join(tmpdir, 'manifest.json')
-                with open(temporary_manifest_filepath, 'w', encoding='utf-8') as fp:
+                temporary_manifest_filepath = os.path.join(tmpdir, "manifest.json")
+                with open(temporary_manifest_filepath, "w", encoding="utf-8") as fp:
                     for audio_file in paths2audio_files:
-                        entry = {'input_filepath': audio_file, 'duration': librosa.get_duration(path=audio_file)}
-                        fp.write(json.dumps(entry) + '\n')
+                        entry = {
+                            "input_filepath": audio_file,
+                            "duration": librosa.get_duration(path=audio_file),
+                        }
+                        fp.write(json.dumps(entry) + "\n")
 
                 config = {
-                    'manifest_filepath': temporary_manifest_filepath,
-                    'input_key': 'input_filepath',
-                    'input_channel_selector': input_channel_selector,
-                    'batch_size': min(batch_size, len(paths2audio_files)),
-                    'num_workers': num_workers,
+                    "manifest_filepath": temporary_manifest_filepath,
+                    "input_key": "input_filepath",
+                    "input_channel_selector": input_channel_selector,
+                    "batch_size": min(batch_size, len(paths2audio_files)),
+                    "num_workers": num_workers,
                 }
 
                 # Create output dir if necessary
@@ -421,26 +456,37 @@ class AudioToAudioModel(ModelPT, ABC):
                         input_signal = input_signal.unsqueeze(1)
 
                     processed_batch, _ = self.forward(
-                        input_signal=input_signal.to(device), input_length=input_length.to(device)
+                        input_signal=input_signal.to(device),
+                        input_length=input_length.to(device),
                     )
 
                     for example_idx in range(processed_batch.size(0)):
                         # This assumes the data loader is not shuffling files
                         if input_dir is not None:
                             # Make sure the output has the same directory structure as the input
-                            filepath_relative = os.path.relpath(paths2audio_files[file_idx], start=input_dir)
+                            filepath_relative = os.path.relpath(
+                                paths2audio_files[file_idx], start=input_dir
+                            )
                         else:
                             # Input dir is not provided, save files in the output directory
-                            filepath_relative = os.path.basename(paths2audio_files[file_idx])
+                            filepath_relative = os.path.basename(
+                                paths2audio_files[file_idx]
+                            )
                         # Prepare output file
                         output_file = os.path.join(output_dir, filepath_relative)
                         # Create output dir if necessary
                         if not os.path.isdir(os.path.dirname(output_file)):
                             os.makedirs(os.path.dirname(output_file))
                         # Crop the output signal to the actual length
-                        output_signal = processed_batch[example_idx, :, : input_length[example_idx]].cpu().numpy()
+                        output_signal = (
+                            processed_batch[example_idx, :, : input_length[example_idx]]
+                            .cpu()
+                            .numpy()
+                        )
                         # Write audio
-                        sf.write(output_file, output_signal.T, self.sample_rate, 'float')
+                        sf.write(
+                            output_file, output_signal.T, self.sample_rate, "float"
+                        )
                         # Update the file counter
                         file_idx += 1
                         # Save processed file
@@ -459,7 +505,7 @@ class AudioToAudioModel(ModelPT, ABC):
         return paths2processed_files
 
     @classmethod
-    def list_available_models(cls) -> 'List[PretrainedModelInfo]':
+    def list_available_models(cls) -> "List[PretrainedModelInfo]":
         """
         This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
 
@@ -488,23 +534,29 @@ class AudioToAudioModel(ModelPT, ABC):
         """
         super().on_after_backward()
 
-        if hasattr(self, '_skip_nan_grad') and self._skip_nan_grad:
+        if hasattr(self, "_skip_nan_grad") and self._skip_nan_grad:
             device = next(self.parameters()).device
             valid_gradients = torch.tensor([1], device=device, dtype=torch.float32)
 
             # valid_gradients = True
             for param_name, param in self.named_parameters():
                 if param.grad is not None:
-                    is_not_nan_or_inf = not (torch.isnan(param.grad).any() or torch.isinf(param.grad).any())
+                    is_not_nan_or_inf = not (
+                        torch.isnan(param.grad).any() or torch.isinf(param.grad).any()
+                    )
                     if not is_not_nan_or_inf:
                         valid_gradients = valid_gradients * 0
                         break
 
             if torch.distributed.is_initialized():
-                torch.distributed.all_reduce(valid_gradients, op=torch.distributed.ReduceOp.MIN)
+                torch.distributed.all_reduce(
+                    valid_gradients, op=torch.distributed.ReduceOp.MIN
+                )
 
             if valid_gradients < 1:
-                logging.warning('detected inf or nan values in gradients! Setting gradients to zero.')
+                logging.warning(
+                    "detected inf or nan values in gradients! Setting gradients to zero."
+                )
                 self.zero_grad(set_to_none=False)
 
     def configure_callbacks(self):

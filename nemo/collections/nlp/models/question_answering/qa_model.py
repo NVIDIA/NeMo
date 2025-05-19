@@ -31,7 +31,7 @@ from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.utils import logging
 from nemo.utils.decorators import deprecated_warning
 
-__all__ = ['QAModel']
+__all__ = ["QAModel"]
 
 
 class QAModel(NLPModel):
@@ -60,7 +60,9 @@ class QAModel(NLPModel):
     def forward(self, input_ids, attention_mask, token_type_ids):
         with autocast():
             hidden_states = self.bert_model(
-                input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask
+                input_ids=input_ids,
+                token_type_ids=token_type_ids,
+                attention_mask=attention_mask,
             )
 
             if isinstance(hidden_states, tuple):
@@ -70,33 +72,61 @@ class QAModel(NLPModel):
         return logits
 
     def training_step(self, batch, batch_idx):
-        input_ids, input_type_ids, input_mask, unique_ids, start_positions, end_positions = batch
-        logits = self.forward(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
-        loss, _, _ = self.loss(logits=logits, start_positions=start_positions, end_positions=end_positions)
-        lr = self._optimizer.param_groups[0]['lr']
-        self.log('train_loss', loss)
-        self.log('lr', lr, prog_bar=True)
-        return {'loss': loss, 'lr': lr}
+        (
+            input_ids,
+            input_type_ids,
+            input_mask,
+            unique_ids,
+            start_positions,
+            end_positions,
+        ) = batch
+        logits = self.forward(
+            input_ids=input_ids,
+            token_type_ids=input_type_ids,
+            attention_mask=input_mask,
+        )
+        loss, _, _ = self.loss(
+            logits=logits, start_positions=start_positions, end_positions=end_positions
+        )
+        lr = self._optimizer.param_groups[0]["lr"]
+        self.log("train_loss", loss)
+        self.log("lr", lr, prog_bar=True)
+        return {"loss": loss, "lr": lr}
 
     def validation_step(self, batch, batch_idx):
         if self.trainer.testing:
-            prefix = 'test'
+            prefix = "test"
         else:
-            prefix = 'val'
+            prefix = "val"
 
-        input_ids, input_type_ids, input_mask, unique_ids, start_positions, end_positions = batch
-        logits = self.forward(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
+        (
+            input_ids,
+            input_type_ids,
+            input_mask,
+            unique_ids,
+            start_positions,
+            end_positions,
+        ) = batch
+        logits = self.forward(
+            input_ids=input_ids,
+            token_type_ids=input_type_ids,
+            attention_mask=input_mask,
+        )
         loss, start_logits, end_logits = self.loss(
             logits=logits, start_positions=start_positions, end_positions=end_positions
         )
 
         tensors = {
-            'unique_ids': unique_ids,
-            'start_logits': start_logits,
-            'end_logits': end_logits,
+            "unique_ids": unique_ids,
+            "start_logits": start_logits,
+            "end_logits": end_logits,
         }
-        loss = {f'{prefix}_loss': loss, f'{prefix}_tensors': tensors}
-        self.validation_step_outputs.append(loss) if prefix == 'val' else self.test_step_outputs.append(loss)
+        loss = {f"{prefix}_loss": loss, f"{prefix}_tensors": tensors}
+        (
+            self.validation_step_outputs.append(loss)
+            if prefix == "val"
+            else self.test_step_outputs.append(loss)
+        )
         return loss
 
     def test_step(self, batch, batch_idx):
@@ -104,17 +134,19 @@ class QAModel(NLPModel):
 
     def on_validation_epoch_end(self):
         if self.trainer.testing:
-            prefix = 'test'
+            prefix = "test"
             outputs = self.test_step_outputs
         else:
-            prefix = 'val'
+            prefix = "val"
             outputs = self.validation_step_outputs
 
-        avg_loss = torch.stack([x[f'{prefix}_loss'] for x in outputs]).mean()
+        avg_loss = torch.stack([x[f"{prefix}_loss"] for x in outputs]).mean()
 
-        unique_ids = torch.cat([x[f'{prefix}_tensors']['unique_ids'] for x in outputs])
-        start_logits = torch.cat([x[f'{prefix}_tensors']['start_logits'] for x in outputs])
-        end_logits = torch.cat([x[f'{prefix}_tensors']['end_logits'] for x in outputs])
+        unique_ids = torch.cat([x[f"{prefix}_tensors"]["unique_ids"] for x in outputs])
+        start_logits = torch.cat(
+            [x[f"{prefix}_tensors"]["start_logits"] for x in outputs]
+        )
+        end_logits = torch.cat([x[f"{prefix}_tensors"]["end_logits"] for x in outputs])
 
         all_unique_ids = []
         all_start_logits = []
@@ -146,7 +178,11 @@ class QAModel(NLPModel):
             for u in all_end_logits:
                 end_logits.extend(tensor2list(u))
 
-            eval_dataset = self._test_dl.dataset if self.trainer.testing else self._validation_dl.dataset
+            eval_dataset = (
+                self._test_dl.dataset
+                if self.trainer.testing
+                else self._validation_dl.dataset
+            )
             exact_match, f1, all_predictions, all_nbest = eval_dataset.evaluate(
                 unique_ids=unique_ids,
                 start_logits=start_logits,
@@ -161,10 +197,14 @@ class QAModel(NLPModel):
         logging.info(f"{prefix} exact match {exact_match}")
         logging.info(f"{prefix} f1 {f1}")
 
-        self.log(f'{prefix}_loss', avg_loss)
-        self.log(f'{prefix}_exact_match', exact_match)
-        self.log(f'{prefix}_f1', f1)
-        self.validation_step_outputs.clear() if prefix == 'val' else self.test_step_outputs.clear()  # free memory
+        self.log(f"{prefix}_loss", avg_loss)
+        self.log(f"{prefix}_exact_match", exact_match)
+        self.log(f"{prefix}_f1", f1)
+        (
+            self.validation_step_outputs.clear()
+            if prefix == "val"
+            else self.test_step_outputs.clear()
+        )  # free memory
 
     def on_test_epoch_end(self):
         return self.on_validation_epoch_end()
@@ -195,7 +235,7 @@ class QAModel(NLPModel):
         all_predictions = []
         all_nbest = []
         mode = self.training
-        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        device = "cuda" if torch.cuda.is_available() else "cpu"
         try:
             # Switch model to evaluation mode
             self.eval()
@@ -207,12 +247,14 @@ class QAModel(NLPModel):
                 "file": file,
                 "shuffle": False,
                 "num_samples": num_samples,
-                'num_workers': 2,
-                'pin_memory': False,
-                'drop_last': False,
+                "num_workers": 2,
+                "pin_memory": False,
+                "drop_last": False,
             }
             dataloader_cfg = OmegaConf.create(dataloader_cfg)
-            infer_datalayer = self._setup_dataloader_from_config(cfg=dataloader_cfg, mode=INFERENCE_MODE)
+            infer_datalayer = self._setup_dataloader_from_config(
+                cfg=dataloader_cfg, mode=INFERENCE_MODE
+            )
 
             all_logits = []
             all_unique_ids = []
@@ -230,27 +272,34 @@ class QAModel(NLPModel):
             s, e = logits.split(dim=-1, split_size=1)
             start_logits = tensor2list(s.squeeze(-1))
             end_logits = tensor2list(e.squeeze(-1))
-            (all_predictions, all_nbest, scores_diff) = infer_datalayer.dataset.get_predictions(
-                unique_ids=unique_ids,
-                start_logits=start_logits,
-                end_logits=end_logits,
-                n_best_size=self._cfg.dataset.n_best_size,
-                max_answer_length=self._cfg.dataset.max_answer_length,
-                version_2_with_negative=self._cfg.dataset.version_2_with_negative,
-                null_score_diff_threshold=self._cfg.dataset.null_score_diff_threshold,
-                do_lower_case=self._cfg.dataset.do_lower_case,
+            (all_predictions, all_nbest, scores_diff) = (
+                infer_datalayer.dataset.get_predictions(
+                    unique_ids=unique_ids,
+                    start_logits=start_logits,
+                    end_logits=end_logits,
+                    n_best_size=self._cfg.dataset.n_best_size,
+                    max_answer_length=self._cfg.dataset.max_answer_length,
+                    version_2_with_negative=self._cfg.dataset.version_2_with_negative,
+                    null_score_diff_threshold=self._cfg.dataset.null_score_diff_threshold,
+                    do_lower_case=self._cfg.dataset.do_lower_case,
+                )
             )
 
-            with open(file, 'r') as test_file_fp:
+            with open(file, "r") as test_file_fp:
                 test_data = json.load(test_file_fp)["data"]
                 id_to_question_mapping = {}
                 for title in test_data:
                     for par in title["paragraphs"]:
                         for question in par["qas"]:
-                            id_to_question_mapping[question["id"]] = question["question"]
+                            id_to_question_mapping[question["id"]] = question[
+                                "question"
+                            ]
 
             for question_id in all_predictions:
-                all_predictions[question_id] = (id_to_question_mapping[question_id], all_predictions[question_id])
+                all_predictions[question_id] = (
+                    id_to_question_mapping[question_id],
+                    all_predictions[question_id],
+                )
 
             if output_nbest_file is not None:
                 with open(output_nbest_file, "w") as writer:
@@ -273,7 +322,9 @@ class QAModel(NLPModel):
             )
             self._test_dl = None
             return
-        self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config, mode=TRAINING_MODE)
+        self._train_dl = self._setup_dataloader_from_config(
+            cfg=train_data_config, mode=TRAINING_MODE
+        )
 
     def setup_validation_data(self, val_data_config: Optional[DictConfig]):
         if not val_data_config or not val_data_config.file:
@@ -282,7 +333,9 @@ class QAModel(NLPModel):
             )
             self._test_dl = None
             return
-        self._validation_dl = self._setup_dataloader_from_config(cfg=val_data_config, mode=EVALUATION_MODE)
+        self._validation_dl = self._setup_dataloader_from_config(
+            cfg=val_data_config, mode=EVALUATION_MODE
+        )
 
     def setup_test_data(self, test_data_config: Optional[DictConfig]):
         if not test_data_config or test_data_config.file is None:
@@ -291,13 +344,15 @@ class QAModel(NLPModel):
             )
             self._test_dl = None
             return
-        self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config, mode=EVALUATION_MODE)
+        self._test_dl = self._setup_dataloader_from_config(
+            cfg=test_data_config, mode=EVALUATION_MODE
+        )
 
     def _setup_dataloader_from_config(self, cfg: DictConfig, mode: str):
         dataset = SquadDataset(
             tokenizer=self.tokenizer,
             data_file=cfg.file,
-            keep_doc_spans='all',  # self._cfg.dataset.keep_doc_spans,
+            keep_doc_spans="all",  # self._cfg.dataset.keep_doc_spans,
             doc_stride=self._cfg.dataset.doc_stride,
             max_query_length=self._cfg.dataset.max_query_length,
             max_seq_length=self._cfg.dataset.max_seq_length,

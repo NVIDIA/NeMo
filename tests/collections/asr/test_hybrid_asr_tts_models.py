@@ -54,7 +54,9 @@ def conformer_ctc_bpe_bn_model_path(conformer_ctc_bpe_bn_model, tmp_path_factory
 
 @pytest.fixture(scope="module")
 def conformer_rnnt_bpe_bn_model():
-    model = EncDecRNNTBPEModel.from_pretrained(model_name="stt_en_conformer_transducer_small")
+    model = EncDecRNNTBPEModel.from_pretrained(
+        model_name="stt_en_conformer_transducer_small"
+    )
     return model
 
 
@@ -67,43 +69,48 @@ def conformer_rnnt_bpe_bn_model_path(conformer_rnnt_bpe_bn_model, tmp_path_facto
 
 @pytest.fixture
 def asr_model_ctc_bpe_config(test_data_dir):
-    preprocessor = {'_target_': 'nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor'}
+    preprocessor = {
+        "_target_": "nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor"
+    }
     encoder = {
-        '_target_': 'nemo.collections.asr.modules.ConvASREncoder',
-        'feat_in': 64,
-        'activation': 'relu',
-        'conv_mask': True,
-        'jasper': [
+        "_target_": "nemo.collections.asr.modules.ConvASREncoder",
+        "feat_in": 64,
+        "activation": "relu",
+        "conv_mask": True,
+        "jasper": [
             {
-                'filters': 1024,
-                'repeat': 1,
-                'kernel': [1],
-                'stride': [1],
-                'dilation': [1],
-                'dropout': 0.0,
-                'residual': False,
-                'separable': True,
-                'se': True,
-                'se_context_size': -1,
+                "filters": 1024,
+                "repeat": 1,
+                "kernel": [1],
+                "stride": [1],
+                "dilation": [1],
+                "dropout": 0.0,
+                "residual": False,
+                "separable": True,
+                "se": True,
+                "se_context_size": -1,
             }
         ],
     }
 
     decoder = {
-        '_target_': 'nemo.collections.asr.modules.ConvASRDecoder',
-        'feat_in': 1024,
-        'num_classes': -1,
-        'vocabulary': None,
+        "_target_": "nemo.collections.asr.modules.ConvASRDecoder",
+        "feat_in": 1024,
+        "num_classes": -1,
+        "vocabulary": None,
     }
 
-    tokenizer = {'dir': str(Path(test_data_dir) / "asr/tokenizers/an4_wpe_128"), 'type': 'wpe'}
+    tokenizer = {
+        "dir": str(Path(test_data_dir) / "asr/tokenizers/an4_wpe_128"),
+        "type": "wpe",
+    }
 
     model_config = DictConfig(
         {
-            'preprocessor': DictConfig(preprocessor),
-            'encoder': DictConfig(encoder),
-            'decoder': DictConfig(decoder),
-            'tokenizer': DictConfig(tokenizer),
+            "preprocessor": DictConfig(preprocessor),
+            "encoder": DictConfig(encoder),
+            "decoder": DictConfig(decoder),
+            "tokenizer": DictConfig(tokenizer),
         }
     )
     return model_config
@@ -112,7 +119,9 @@ def asr_model_ctc_bpe_config(test_data_dir):
 @pytest.fixture
 def asr_tts_ctc_bpe_model(asr_model_ctc_bpe_config, fastpitch_model_path):
     model = ASRWithTTSModel.from_asr_config(
-        asr_cfg=asr_model_ctc_bpe_config, asr_model_type="ctc_bpe", tts_model_path=fastpitch_model_path,
+        asr_cfg=asr_model_ctc_bpe_config,
+        asr_model_type="ctc_bpe",
+        tts_model_path=fastpitch_model_path,
     )
     return model
 
@@ -120,18 +129,24 @@ def asr_tts_ctc_bpe_model(asr_model_ctc_bpe_config, fastpitch_model_path):
 class TestASRWithTTSModel:
     @pytest.mark.with_downloads
     @pytest.mark.unit
-    def test_from_pretrained_ctc_model(self, fastpitch_model_path, conformer_ctc_bpe_bn_model_path):
+    def test_from_pretrained_ctc_model(
+        self, fastpitch_model_path, conformer_ctc_bpe_bn_model_path
+    ):
         model = ASRWithTTSModel.from_pretrained_models(
-            asr_model_path=conformer_ctc_bpe_bn_model_path, tts_model_path=fastpitch_model_path
+            asr_model_path=conformer_ctc_bpe_bn_model_path,
+            tts_model_path=fastpitch_model_path,
         )
         assert isinstance(model.tts_model, FastPitchModel)
         assert isinstance(model.asr_model, EncDecCTCModelBPE)
 
     @pytest.mark.with_downloads
     @pytest.mark.unit
-    def test_from_pretrained_rnnt_model(self, fastpitch_model_path, conformer_rnnt_bpe_bn_model_path):
+    def test_from_pretrained_rnnt_model(
+        self, fastpitch_model_path, conformer_rnnt_bpe_bn_model_path
+    ):
         model = ASRWithTTSModel.from_pretrained_models(
-            asr_model_path=conformer_rnnt_bpe_bn_model_path, tts_model_path=fastpitch_model_path
+            asr_model_path=conformer_rnnt_bpe_bn_model_path,
+            tts_model_path=fastpitch_model_path,
         )
         assert isinstance(model.tts_model, FastPitchModel)
         assert isinstance(model.asr_model, EncDecRNNTBPEModel)
@@ -140,7 +155,9 @@ class TestASRWithTTSModel:
     @pytest.mark.unit
     def test_from_asr_config(self, asr_model_ctc_bpe_config, fastpitch_model_path):
         model = ASRWithTTSModel.from_asr_config(
-            asr_cfg=asr_model_ctc_bpe_config, asr_model_type="ctc_bpe", tts_model_path=fastpitch_model_path,
+            asr_cfg=asr_model_ctc_bpe_config,
+            asr_model_type="ctc_bpe",
+            tts_model_path=fastpitch_model_path,
         )
         assert isinstance(model.tts_model, FastPitchModel)
         assert isinstance(model.asr_model, EncDecCTCModelBPE)
@@ -170,7 +187,9 @@ class TestASRWithTTSModel:
 
     @pytest.mark.with_downloads
     @pytest.mark.unit
-    def test_from_pretrained_ctc_model_fused_bn(self, fastpitch_model_path, conformer_ctc_bpe_bn_model_path):
+    def test_from_pretrained_ctc_model_fused_bn(
+        self, fastpitch_model_path, conformer_ctc_bpe_bn_model_path
+    ):
         model = ASRWithTTSModel.from_pretrained_models(
             asr_model_path=conformer_ctc_bpe_bn_model_path,
             tts_model_path=fastpitch_model_path,

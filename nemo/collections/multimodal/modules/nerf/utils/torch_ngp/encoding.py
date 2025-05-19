@@ -42,7 +42,7 @@ class FreqEncoder_torch(nn.Module):
         if log_sampling:
             self.freq_bands = 2 ** torch.linspace(0, max_freq_log2, N_freqs)
         else:
-            self.freq_bands = torch.linspace(2 ** 0, 2 ** max_freq_log2, N_freqs)
+            self.freq_bands = torch.linspace(2**0, 2**max_freq_log2, N_freqs)
 
         self.freq_bands = self.freq_bands.numpy().tolist()
 
@@ -89,31 +89,34 @@ def get_encoder(
     log2_hashmap_size=19,
     desired_resolution=2048,
     align_corners=False,
-    interpolation='linear',
-    **kwargs
+    interpolation="linear",
+    **kwargs,
 ):
 
     if encoder_type is None:
         return lambda x, **kwargs: x, input_dim
 
-    elif encoder_type == 'frequency_torch':
+    elif encoder_type == "frequency_torch":
         encoder = FreqEncoder_torch(
-            input_dim=input_dim, max_freq_log2=multires - 1, N_freqs=multires, log_sampling=True
+            input_dim=input_dim,
+            max_freq_log2=multires - 1,
+            N_freqs=multires,
+            log_sampling=True,
         )
 
-    elif encoder_type == 'frequency':  # CUDA implementation, faster than torch.
+    elif encoder_type == "frequency":  # CUDA implementation, faster than torch.
         from nemo.collections.multimodal.modules.nerf.utils.torch_ngp.freqencoder import \
             FreqEncoder
 
         encoder = FreqEncoder(input_dim=input_dim, degree=multires)
 
-    elif encoder_type == 'sphere_harmonics':
+    elif encoder_type == "sphere_harmonics":
         from nemo.collections.multimodal.modules.nerf.utils.torch_ngp.shencoder import \
             SHEncoder
 
         encoder = SHEncoder(input_dim=input_dim, degree=degree)
 
-    elif encoder_type == 'hashgrid':
+    elif encoder_type == "hashgrid":
         from nemo.collections.multimodal.modules.nerf.utils.torch_ngp.gridencoder import \
             GridEncoder
 
@@ -124,12 +127,12 @@ def get_encoder(
             base_resolution=base_resolution,
             log2_hashmap_size=log2_hashmap_size,
             desired_resolution=desired_resolution,
-            gridtype='hash',
+            gridtype="hash",
             align_corners=align_corners,
             interpolation=interpolation,
         )
 
-    elif encoder_type == 'tiledgrid':
+    elif encoder_type == "tiledgrid":
         from nemo.collections.multimodal.modules.nerf.utils.torch_ngp.gridencoder import \
             GridEncoder
 
@@ -140,14 +143,14 @@ def get_encoder(
             base_resolution=base_resolution,
             log2_hashmap_size=log2_hashmap_size,
             desired_resolution=desired_resolution,
-            gridtype='tiled',
+            gridtype="tiled",
             align_corners=align_corners,
             interpolation=interpolation,
         )
 
     else:
         raise NotImplementedError(
-            'Unknown encoder type, choose from [None, frequency, sphere_harmonics, hashgrid, tiledgrid]'
+            "Unknown encoder type, choose from [None, frequency, sphere_harmonics, hashgrid, tiledgrid]"
         )
 
     return encoder, encoder.output_dim

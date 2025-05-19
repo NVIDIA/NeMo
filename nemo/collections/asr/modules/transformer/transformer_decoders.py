@@ -68,12 +68,16 @@ class TransformerDecoderBlock(nn.Module, AttentionAdapterModuleMixin):
             hidden_size, num_attention_heads, attn_score_dropout, attn_layer_dropout
         )
         self.layer_norm_3 = nn.LayerNorm(hidden_size, eps=1e-5)
-        self.third_sub_layer = PositionWiseFF(hidden_size, inner_size, ffn_dropout, hidden_act)
+        self.third_sub_layer = PositionWiseFF(
+            hidden_size, inner_size, ffn_dropout, hidden_act
+        )
 
         # Information for the adapter module mixin
         self.self_attention_model = "transf_abs"
 
-    def forward_preln(self, decoder_query, decoder_mask, decoder_keys, encoder_states, encoder_mask):
+    def forward_preln(
+        self, decoder_query, decoder_mask, decoder_keys, encoder_states, encoder_mask
+    ):
         """
         Pre-LayerNorm block
         Order of operations: LN -> Self-Attn -> Residual -> LN -> Cross-Attn -> Residual -> LN -> FFN
@@ -81,23 +85,27 @@ class TransformerDecoderBlock(nn.Module, AttentionAdapterModuleMixin):
         residual = decoder_query
         decoder_query = self.layer_norm_1(decoder_query)
         decoder_keys = self.layer_norm_1(decoder_keys)
-        self_attn_output = self.first_sub_layer(decoder_query, decoder_keys, decoder_keys, decoder_mask)
+        self_attn_output = self.first_sub_layer(
+            decoder_query, decoder_keys, decoder_keys, decoder_mask
+        )
         self_attn_output += residual
 
         if self.is_adapter_available():
             # Call the MHA adapters
             pack_input = {
-                'x': self_attn_output,
-                'loc': 'mha',
-                'att_mask': decoder_mask,
-                'pos_emb': None,
+                "x": self_attn_output,
+                "loc": "mha",
+                "att_mask": decoder_mask,
+                "pos_emb": None,
             }
             pack_input = self.forward_enabled_adapters(pack_input)
-            self_attn_output = pack_input['x']
+            self_attn_output = pack_input["x"]
 
         residual = self_attn_output
         self_attn_output = self.layer_norm_2(self_attn_output)
-        enc_dec_attn_output = self.second_sub_layer(self_attn_output, encoder_states, encoder_states, encoder_mask)
+        enc_dec_attn_output = self.second_sub_layer(
+            self_attn_output, encoder_states, encoder_states, encoder_mask
+        )
         enc_dec_attn_output += residual
 
         residual = enc_dec_attn_output
@@ -108,36 +116,42 @@ class TransformerDecoderBlock(nn.Module, AttentionAdapterModuleMixin):
         if self.is_adapter_available():
             # Call the Linear adapters
             pack_input = {
-                'x': output_states,
-                'loc': 'post',
+                "x": output_states,
+                "loc": "post",
             }
             pack_input = self.forward_enabled_adapters(pack_input)
-            output_states = pack_input['x']
+            output_states = pack_input["x"]
 
         return output_states
 
-    def forward_postln(self, decoder_query, decoder_mask, decoder_keys, encoder_states, encoder_mask):
+    def forward_postln(
+        self, decoder_query, decoder_mask, decoder_keys, encoder_states, encoder_mask
+    ):
         """
         Post-LayerNorm block
         Order of operations: Self-Attn -> Residual -> LN -> Cross-Attn -> Residual -> LN -> FFN -> Residual -> LN
         """
-        self_attn_output = self.first_sub_layer(decoder_query, decoder_keys, decoder_keys, decoder_mask)
+        self_attn_output = self.first_sub_layer(
+            decoder_query, decoder_keys, decoder_keys, decoder_mask
+        )
         self_attn_output += decoder_query
 
         if self.is_adapter_available():
             # Call the MHA adapters
             pack_ip = {
-                'x': self_attn_output,
-                'loc': 'mha',
-                'att_mask': decoder_mask,
-                'pos_emb': None,
+                "x": self_attn_output,
+                "loc": "mha",
+                "att_mask": decoder_mask,
+                "pos_emb": None,
             }
             pack_ip = self.forward_enabled_adapters(pack_ip)
-            self_attn_output = pack_ip['x']
+            self_attn_output = pack_ip["x"]
 
         self_attn_output = self.layer_norm_1(self_attn_output)
 
-        enc_dec_attn_output = self.second_sub_layer(self_attn_output, encoder_states, encoder_states, encoder_mask)
+        enc_dec_attn_output = self.second_sub_layer(
+            self_attn_output, encoder_states, encoder_states, encoder_mask
+        )
         enc_dec_attn_output += self_attn_output
         enc_dec_attn_output = self.layer_norm_2(enc_dec_attn_output)
 
@@ -147,19 +161,25 @@ class TransformerDecoderBlock(nn.Module, AttentionAdapterModuleMixin):
         if self.is_adapter_available():
             # Call the linear adapters
             pack_ip = {
-                'x': output_states,
-                'loc': 'post',
+                "x": output_states,
+                "loc": "post",
             }
             pack_ip = self.forward_enabled_adapters(pack_ip)
-            output_states = pack_ip['x']
+            output_states = pack_ip["x"]
 
         return self.layer_norm_3(output_states)
 
-    def forward(self, decoder_query, decoder_mask, decoder_keys, encoder_states, encoder_mask):
+    def forward(
+        self, decoder_query, decoder_mask, decoder_keys, encoder_states, encoder_mask
+    ):
         if self.pre_ln:
-            return self.forward_preln(decoder_query, decoder_mask, decoder_keys, encoder_states, encoder_mask)
+            return self.forward_preln(
+                decoder_query, decoder_mask, decoder_keys, encoder_states, encoder_mask
+            )
         else:
-            return self.forward_postln(decoder_query, decoder_mask, decoder_keys, encoder_states, encoder_mask)
+            return self.forward_postln(
+                decoder_query, decoder_mask, decoder_keys, encoder_states, encoder_mask
+            )
 
     def get_accepted_adapter_types(self) -> Set[type]:
         types = super().get_accepted_adapter_types()
@@ -213,7 +233,9 @@ class TransformerDecoder(nn.Module):
 
     def _get_memory_states(self, decoder_states, decoder_mems_list=None, i=0):
         if decoder_mems_list is not None:
-            inp1 = torch.transpose(decoder_mems_list[i], 1, 2)  # Putting seq_len to last dim to handle export cases
+            inp1 = torch.transpose(
+                decoder_mems_list[i], 1, 2
+            )  # Putting seq_len to last dim to handle export cases
             inp2 = torch.transpose(decoder_states, 1, 2)
             memory_states = torch.cat((inp1, inp2), dim=2)
             memory_states = torch.transpose(memory_states, 1, 2)  # Transposing back
@@ -254,22 +276,36 @@ class TransformerDecoder(nn.Module):
                 cached_mems_list = memory_states.unsqueeze(0)
 
         for i, layer in enumerate(self.layers):
-            decoder_states = layer(decoder_states, decoder_attn_mask, memory_states, encoder_states, encoder_attn_mask)
-            memory_states = self._get_memory_states(decoder_states, decoder_mems_list, i + 1)
+            decoder_states = layer(
+                decoder_states,
+                decoder_attn_mask,
+                memory_states,
+                encoder_states,
+                encoder_attn_mask,
+            )
+            memory_states = self._get_memory_states(
+                decoder_states, decoder_mems_list, i + 1
+            )
             if return_mems:
                 if return_mems_as_list:
                     cached_mems_list.append(memory_states)
                 else:
-                    cached_mems_list = torch.cat((cached_mems_list, memory_states.unsqueeze(0)), dim=0)
+                    cached_mems_list = torch.cat(
+                        (cached_mems_list, memory_states.unsqueeze(0)), dim=0
+                    )
 
         if self.final_layer_norm is not None:
             decoder_states = self.final_layer_norm(decoder_states)
-            memory_states = self._get_memory_states(decoder_states, decoder_mems_list, i + 2)
+            memory_states = self._get_memory_states(
+                decoder_states, decoder_mems_list, i + 2
+            )
             if return_mems:
                 if return_mems_as_list:
                     cached_mems_list.append(memory_states)
                 else:
-                    cached_mems_list = torch.cat((cached_mems_list, memory_states.unsqueeze(0)), dim=0)
+                    cached_mems_list = torch.cat(
+                        (cached_mems_list, memory_states.unsqueeze(0)), dim=0
+                    )
 
         if return_mems:
             return cached_mems_list
@@ -283,8 +319,12 @@ class TransformerDecoder(nn.Module):
             A tuple of input examples.
         """
         sample = next(self.parameters())
-        input_ids = torch.randint(low=0, high=2048, size=(max_batch, max_dim, 1024), device=sample.device)
-        encoder_mask = torch.randint(low=0, high=1, size=(max_batch, max_dim), device=sample.device)
+        input_ids = torch.randint(
+            low=0, high=2048, size=(max_batch, max_dim, 1024), device=sample.device
+        )
+        encoder_mask = torch.randint(
+            low=0, high=1, size=(max_batch, max_dim), device=sample.device
+        )
         return tuple([input_ids, encoder_mask, input_ids, encoder_mask])
 
 
@@ -297,7 +337,12 @@ class TransformerDecoderAdapter(TransformerDecoder, adapter_mixins.AdapterModule
             transformer_layer.add_adapter(name, cfg)
 
     def is_adapter_available(self) -> bool:
-        return any([transformer_layer.is_adapter_available() for transformer_layer in self.layers])
+        return any(
+            [
+                transformer_layer.is_adapter_available()
+                for transformer_layer in self.layers
+            ]
+        )
 
     def set_enabled_adapters(self, name: Optional[str] = None, enabled: bool = True):
         for transformer_layer in self.layers:  # type: adapter_mixins.AdapterModuleMixin
@@ -312,7 +357,9 @@ class TransformerDecoderAdapter(TransformerDecoder, adapter_mixins.AdapterModule
         return names
 
     def _update_adapter_cfg_input_dim(self, cfg: DictConfig):
-        cfg = adapter_utils.update_adapter_cfg_input_dim(self, cfg, module_dim=self.d_model)
+        cfg = adapter_utils.update_adapter_cfg_input_dim(
+            self, cfg, module_dim=self.d_model
+        )
         return cfg
 
 
@@ -320,4 +367,6 @@ class TransformerDecoderAdapter(TransformerDecoder, adapter_mixins.AdapterModule
 Register any additional information
 """
 if adapter_mixins.get_registered_adapter(TransformerDecoder) is None:
-    adapter_mixins.register_adapter(base_class=TransformerDecoder, adapter_class=TransformerDecoderAdapter)
+    adapter_mixins.register_adapter(
+        base_class=TransformerDecoder, adapter_class=TransformerDecoderAdapter
+    )

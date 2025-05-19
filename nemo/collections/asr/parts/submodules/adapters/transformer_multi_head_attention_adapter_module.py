@@ -26,7 +26,9 @@ from nemo.collections.common.parts import adapter_modules
 from nemo.core.classes.mixins import adapter_mixin_strategies, adapter_mixins
 
 
-class TransformerMultiHeadAttentionAdapter(transformer_modules.MultiHeadAttention, adapter_modules.AdapterModuleUtil):
+class TransformerMultiHeadAttentionAdapter(
+    transformer_modules.MultiHeadAttention, adapter_modules.AdapterModuleUtil
+):
     """Multi-Head Attention layer of Transformer Encoder.
 
     Args:
@@ -68,7 +70,9 @@ class TransformerMultiHeadAttentionAdapter(transformer_modules.MultiHeadAttentio
         # Recompute weights for projection dim
         if self.proj_dim is not None:
             if self.proj_dim % num_attention_heads != 0:
-                raise ValueError(f"proj_dim ({proj_dim}) is not divisible by n_head ({num_attention_heads})")
+                raise ValueError(
+                    f"proj_dim ({proj_dim}) is not divisible by n_head ({num_attention_heads})"
+                )
 
             self.attn_head_size = self.proj_dim // num_attention_heads
             self.attn_scale = math.sqrt(math.sqrt(self.attn_head_size))
@@ -109,7 +113,7 @@ class TransformerMultiHeadAttentionAdapter(transformer_modules.MultiHeadAttentio
             nn.init.zeros_(self.out_projection.weight)
             nn.init.zeros_(self.out_projection.bias)
 
-    def get_default_strategy_config(self) -> 'dataclass':
+    def get_default_strategy_config(self) -> "dataclass":
         return MHAResidualAddAdapterStrategyConfig()
 
 
@@ -120,7 +124,10 @@ class TransformerMultiHeadAttentionAdapterConfig:
     attn_score_dropout: float = 0.0
     attn_layer_dropout: float = 0.0
     proj_dim: Optional[int] = None
-    adapter_strategy: Optional[Any] = field(default_factory=lambda: MHAResidualAddAdapterStrategyConfig())
+    adapter_strategy: Optional[Any] = field(
+        default_factory=lambda: MHAResidualAddAdapterStrategyConfig()
+    )
     _target_: str = "{0}.{1}".format(
-        TransformerMultiHeadAttentionAdapter.__module__, TransformerMultiHeadAttentionAdapter.__name__
+        TransformerMultiHeadAttentionAdapter.__module__,
+        TransformerMultiHeadAttentionAdapter.__name__,
     )

@@ -90,14 +90,18 @@ class CustomRetrievalDataModule(FineTuningDataModule):
         self.force_redownload = force_redownload
         self.delete_raw = delete_raw
 
-        assert packed_sequence_specs is None, "RetrievalDataModule does not support packed sequences."
+        assert (
+            packed_sequence_specs is None
+        ), "RetrievalDataModule does not support packed sequences."
         if isinstance(data_root, str):
             data_root = [data_root]
         for directory in data_root:
             assert os.path.exists(directory), f"Data root {directory} does not exist."
 
         if val_root is not None:
-            assert os.path.exists(val_root), f"Validation root {val_root} does not exist."
+            assert os.path.exists(
+                val_root
+            ), f"Validation root {val_root} does not exist."
             self.val_ratio = 0  # Use val_root for all validation
         else:
             self.val_ratio = val_ratio
@@ -148,43 +152,52 @@ class CustomRetrievalDataModule(FineTuningDataModule):
         super().prepare_data()
 
     def _preprocess_and_split_data(self):
-        logging.info(f"Preprocessing {self.__class__.__name__} to jsonl format and splitting...")
+        logging.info(
+            f"Preprocessing {self.__class__.__name__} to jsonl format and splitting..."
+        )
 
         save_splits = {}
 
         train_datasets = []
         for data_dir in self.unprocessed_root:
-            train_datasets.append(Dataset.from_list(json.load(open(data_dir, 'r'))))
+            train_datasets.append(Dataset.from_list(json.load(open(data_dir, "r"))))
         train_dataset = concatenate_datasets(train_datasets)
 
         if self.val_ratio + self.test_ratio != 0:
-            split_dataset = train_dataset.train_test_split(test_size=self.val_ratio + self.test_ratio, seed=self.seed)
-            save_splits['training'] = split_dataset['train']
+            split_dataset = train_dataset.train_test_split(
+                test_size=self.val_ratio + self.test_ratio, seed=self.seed
+            )
+            save_splits["training"] = split_dataset["train"]
         else:
             # No split
-            save_splits['training'] = train_dataset
+            save_splits["training"] = train_dataset
 
         split_dataset2 = {}
         if self.val_ratio != 0 and self.test_ratio != 0:
             # split_dataset2['train'] is the actual validation set
             # split_dataset2['test'] is the actual test set
-            split_dataset2 = split_dataset['test'].train_test_split(
-                test_size=self.test_ratio / (self.val_ratio + self.test_ratio), seed=self.seed
+            split_dataset2 = split_dataset["test"].train_test_split(
+                test_size=self.test_ratio / (self.val_ratio + self.test_ratio),
+                seed=self.seed,
             )
         elif self.val_ratio == 0 and self.test_ratio != 0:
-            split_dataset2['test'] = split_dataset['test']
+            split_dataset2["test"] = split_dataset["test"]
         elif self.test_ratio == 0 and self.val_ratio != 0:
-            split_dataset2['train'] = split_dataset['test']
+            split_dataset2["train"] = split_dataset["test"]
 
         if self.val_root is not None:
-            save_splits['validation'] = Dataset.from_list(json.load(open(self.val_root, 'r')))
+            save_splits["validation"] = Dataset.from_list(
+                json.load(open(self.val_root, "r"))
+            )
         else:
-            save_splits['validation'] = split_dataset2['train']
+            save_splits["validation"] = split_dataset2["train"]
 
         if self.test_root is not None:
-            save_splits['test'] = Dataset.from_list(json.load(open(self.test_root, 'r')))
+            save_splits["test"] = Dataset.from_list(
+                json.load(open(self.test_root, "r"))
+            )
         else:
-            save_splits['test'] = split_dataset2['test']
+            save_splits["test"] = split_dataset2["test"]
 
         for split_name, dataset in save_splits.items():
             output_file = self.dataset_root / f"{split_name}.jsonl"
@@ -192,8 +205,25 @@ class CustomRetrievalDataModule(FineTuningDataModule):
                 for o in dataset:
                     # We only write one positive document for now
                     # All negative document are written
-                    pos_doc = o[self.pos_doc_key][0] if isinstance(o[self.pos_doc_key], list) else o[self.pos_doc_key]
-                    neg_doc = o[self.neg_doc_key] if isinstance(o[self.pos_doc_key], list) else [o[self.neg_doc_key]]
-                    f.write(json.dumps({"query": o[self.query_key], "pos_doc": pos_doc, "neg_doc": neg_doc}) + "\n")
+                    pos_doc = (
+                        o[self.pos_doc_key][0]
+                        if isinstance(o[self.pos_doc_key], list)
+                        else o[self.pos_doc_key]
+                    )
+                    neg_doc = (
+                        o[self.neg_doc_key]
+                        if isinstance(o[self.pos_doc_key], list)
+                        else [o[self.neg_doc_key]]
+                    )
+                    f.write(
+                        json.dumps(
+                            {
+                                "query": o[self.query_key],
+                                "pos_doc": pos_doc,
+                                "neg_doc": neg_doc,
+                            }
+                        )
+                        + "\n"
+                    )
 
             logging.info(f"{split_name} split saved to {output_file}")

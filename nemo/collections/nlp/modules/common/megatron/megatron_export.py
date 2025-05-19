@@ -52,12 +52,24 @@ class TokensHeadEmb(torch.nn.Module, Exportable):
             dec_output = dec_output[0]
 
         if self.tokens_head_bias is not None:
-            return F.linear(dec_output, self.decoder_embedding.word_embeddings.weight, self.tokens_head_bias).float()
-        return F.linear(dec_output, self.decoder_embedding.word_embeddings.weight).float()
+            return F.linear(
+                dec_output,
+                self.decoder_embedding.word_embeddings.weight,
+                self.tokens_head_bias,
+            ).float()
+        return F.linear(
+            dec_output, self.decoder_embedding.word_embeddings.weight
+        ).float()
 
     def input_example(self, max_batch=1, max_dim=768, seq_len=6):
         return [
-            torch.randint(low=-3, high=3, size=(max_batch, seq_len, max_dim), device=self.device, dtype=torch.float32)
+            torch.randint(
+                low=-3,
+                high=3,
+                size=(max_batch, seq_len, max_dim),
+                device=self.device,
+                dtype=torch.float32,
+            )
         ]
 
     def freeze(self):
@@ -67,20 +79,20 @@ class TokensHeadEmb(torch.nn.Module, Exportable):
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
         return {
-            "hidden_states": NeuralType(('B', 'T', 'D'), ChannelType()),
+            "hidden_states": NeuralType(("B", "T", "D"), ChannelType()),
         }
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        return {"log_probs": NeuralType(('B', 'T', 'D'), ChannelType())}
+        return {"log_probs": NeuralType(("B", "T", "D"), ChannelType())}
 
     @property
     def input_names(self) -> List[str]:
-        return ['hidden_states']
+        return ["hidden_states"]
 
     @property
     def output_names(self) -> List[str]:
-        return ['log_probs']
+        return ["log_probs"]
 
 
 class DecEmb(torch.nn.Module, Exportable):
@@ -105,13 +117,18 @@ class DecEmb(torch.nn.Module, Exportable):
     def modules(self):
         return (self.decoder_embedding, self.decoder)
 
-    def forward(self, input_ids, decoder_mask, encoder_mask, encoder_embeddings, decoder_mems):
+    def forward(
+        self, input_ids, decoder_mask, encoder_mask, encoder_embeddings, decoder_mems
+    ):
         position_ids = build_position_ids(input_ids)
         dec_input = self.decoder_embedding(input_ids, position_ids, token_type_ids=None)
 
         rpe = None
         if self.rpe is not None:
-            rpe = self.rpe(query_seq_length=input_ids.size(1), key_seq_length=input_ids.size(1),)
+            rpe = self.rpe(
+                query_seq_length=input_ids.size(1),
+                key_seq_length=input_ids.size(1),
+            )
 
         dec_out = (
             self.decoder(
@@ -126,7 +143,12 @@ class DecEmb(torch.nn.Module, Exportable):
         )
 
         zeros = torch.zeros(
-            (decoder_mems.shape[0], self.decoder.num_layers, dec_out.shape[1], decoder_mems.shape[-1])
+            (
+                decoder_mems.shape[0],
+                self.decoder.num_layers,
+                dec_out.shape[1],
+                decoder_mems.shape[-1],
+            )
         ).to(self.device)
 
         return torch.cat((zeros, dec_out.unsqueeze(1)), dim=1)
@@ -137,46 +159,63 @@ class DecEmb(torch.nn.Module, Exportable):
 
     def input_example(self, max_batch=1, max_dim=768, seq_len=6):
         enc_output = torch.randint(
-            low=-3, high=3, size=(max_batch, seq_len, max_dim), device=self.device, dtype=torch.float32
+            low=-3,
+            high=3,
+            size=(max_batch, seq_len, max_dim),
+            device=self.device,
+            dtype=torch.float32,
         )
         enc_attn_mask = torch.tensor([[1 for _ in range(seq_len)]]).to(self.device)
 
         dec_len = random.randint(10, 128)
-        dec_input = torch.randint(low=0, high=1000, size=(max_batch, dec_len), device=self.device)
+        dec_input = torch.randint(
+            low=0, high=1000, size=(max_batch, dec_len), device=self.device
+        )
         dec_attn_mask = torch.tensor([[1 for _ in range(dec_len)]]).to(self.device)
 
         # constant decoder_mems as placeholder for now
-        decoder_mems = torch.zeros([max_batch, self.decoder.num_layers + 1, seq_len, max_dim], dtype=torch.float32).to(
-            self.device
-        )
+        decoder_mems = torch.zeros(
+            [max_batch, self.decoder.num_layers + 1, seq_len, max_dim],
+            dtype=torch.float32,
+        ).to(self.device)
 
         # input_ids, decoder_mask, encoder_mask, encoder_embeddings
 
-        return tuple([dec_input, dec_attn_mask, enc_attn_mask, enc_output, decoder_mems])
+        return tuple(
+            [dec_input, dec_attn_mask, enc_attn_mask, enc_output, decoder_mems]
+        )
 
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
         return {
-            "input_ids": NeuralType(('B', 'T', 'D'), ChannelType()),
-            "decoder_mask": NeuralType(('B', 'T'), MaskType()),
-            "encoder_mask": NeuralType(('B', 'T', 'D'), ChannelType()),
-            "encoder_embeddings": NeuralType(('B', 'T'), MaskType()),
-            "decoder_mems": NeuralType(('B', 'S', 'T', 'D'), ChannelType()),
+            "input_ids": NeuralType(("B", "T", "D"), ChannelType()),
+            "decoder_mask": NeuralType(("B", "T"), MaskType()),
+            "encoder_mask": NeuralType(("B", "T", "D"), ChannelType()),
+            "encoder_embeddings": NeuralType(("B", "T"), MaskType()),
+            "decoder_mems": NeuralType(("B", "S", "T", "D"), ChannelType()),
         }
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         return {
-            "last_hidden_states": NeuralType(('B', 'S', 'T', 'D'), EncodedRepresentation()),
+            "last_hidden_states": NeuralType(
+                ("B", "S", "T", "D"), EncodedRepresentation()
+            ),
         }
 
     @property
     def input_names(self) -> List[str]:
-        return ['input_ids', 'decoder_mask', 'encoder_mask', 'encoder_embeddings', 'decoder_mems']
+        return [
+            "input_ids",
+            "decoder_mask",
+            "encoder_mask",
+            "encoder_embeddings",
+            "decoder_mems",
+        ]
 
     @property
     def output_names(self) -> List[str]:
-        return ['last_hidden_states']
+        return ["last_hidden_states"]
 
 
 class EncEmb(torch.nn.Module, Exportable):
@@ -214,11 +253,16 @@ class EncEmb(torch.nn.Module, Exportable):
 
         rpe = None
         if self.rpe is not None:
-            rpe = self.rpe(query_seq_length=enc_seq_length, key_seq_length=enc_seq_length,)
+            rpe = self.rpe(
+                query_seq_length=enc_seq_length,
+                key_seq_length=enc_seq_length,
+            )
 
         return (
             self.encoder(
-                enc_input=enc_input, enc_attn_mask=encoder_mask, enc_self_attention_relative_position_bias=rpe
+                enc_input=enc_input,
+                enc_attn_mask=encoder_mask,
+                enc_self_attention_relative_position_bias=rpe,
             )
             .permute(1, 0, 2)
             .float()
@@ -238,18 +282,18 @@ class EncEmb(torch.nn.Module, Exportable):
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
         return {
-            "input_ids": NeuralType(('B', 'T'), ChannelType()),
-            "encoder_mask": NeuralType(('B', 'T'), MaskType()),
+            "input_ids": NeuralType(("B", "T"), ChannelType()),
+            "encoder_mask": NeuralType(("B", "T"), MaskType()),
         }
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        return {"last_hidden_states": NeuralType(('B', 'T', 'D'), ChannelType())}
+        return {"last_hidden_states": NeuralType(("B", "T", "D"), ChannelType())}
 
     @property
     def input_names(self) -> List[str]:
-        return ['input_ids', 'encoder_mask']
+        return ["input_ids", "encoder_mask"]
 
     @property
     def output_names(self) -> List[str]:
-        return ['last_hidden_states']
+        return ["last_hidden_states"]

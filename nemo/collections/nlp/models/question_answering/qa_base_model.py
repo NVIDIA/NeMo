@@ -41,7 +41,9 @@ class BaseQAModel(NLPModel):
             self._test_dl = None
             return
 
-        self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config, mode=TRAINING_MODE)
+        self._train_dl = self._setup_dataloader_from_config(
+            cfg=train_data_config, mode=TRAINING_MODE
+        )
 
     def setup_validation_data(self, val_data_config: Optional[DictConfig]):
         if not val_data_config or not val_data_config.file:
@@ -51,7 +53,9 @@ class BaseQAModel(NLPModel):
             self._test_dl = None
             return
 
-        self._validation_dl = self._setup_dataloader_from_config(cfg=val_data_config, mode=EVALUATION_MODE)
+        self._validation_dl = self._setup_dataloader_from_config(
+            cfg=val_data_config, mode=EVALUATION_MODE
+        )
 
     def setup_test_data(self, test_data_config: Optional[DictConfig]):
         if not test_data_config or test_data_config.file is None:
@@ -61,20 +65,26 @@ class BaseQAModel(NLPModel):
             self._test_dl = None
             return
 
-        self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config, mode=EVALUATION_MODE)
+        self._test_dl = self._setup_dataloader_from_config(
+            cfg=test_data_config, mode=EVALUATION_MODE
+        )
 
-    def setup_inference_data(self, input_file, batch_size=1, num_samples=-1, num_workers=2):
+    def setup_inference_data(
+        self, input_file, batch_size=1, num_samples=-1, num_workers=2
+    ):
         dataloader_cfg = {
             "batch_size": batch_size,
             "file": input_file,
             "shuffle": False,
             "num_samples": num_samples,
-            'num_workers': num_workers,
-            'pin_memory': False,
-            'drop_last': False,
+            "num_workers": num_workers,
+            "pin_memory": False,
+            "drop_last": False,
         }
         dataloader_cfg = OmegaConf.create(dataloader_cfg)
-        inference_dl = self._setup_dataloader_from_config(cfg=dataloader_cfg, mode=INFERENCE_MODE)
+        inference_dl = self._setup_dataloader_from_config(
+            cfg=dataloader_cfg, mode=INFERENCE_MODE
+        )
 
         return inference_dl
 
@@ -85,13 +95,15 @@ class BaseQAModel(NLPModel):
     def _get_per_sample_perplexity(self, logits, labels):
         """Returns average perplexity for each sample in the batch"""
 
-        loss_fct = torch.nn.CrossEntropyLoss(ignore_index=-100, reduction='none')
+        loss_fct = torch.nn.CrossEntropyLoss(ignore_index=-100, reduction="none")
         unreduced_loss = loss_fct(
             logits.view(-1, logits.size(-1)),
             labels.view(-1),
         )
         unreduced_loss = unreduced_loss.reshape(labels.shape)
         mask_0 = unreduced_loss != 0
-        per_sample_perplexity = torch.exp((unreduced_loss * mask_0).sum(axis=1) / mask_0.sum(axis=1))
+        per_sample_perplexity = torch.exp(
+            (unreduced_loss * mask_0).sum(axis=1) / mask_0.sum(axis=1)
+        )
 
         return per_sample_perplexity

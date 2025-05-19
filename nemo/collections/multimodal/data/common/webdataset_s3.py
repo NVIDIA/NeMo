@@ -80,17 +80,21 @@ if HAVE_WEBDATASET:
         # then we would load from AWS.
         # In this case, you also need to specify s3_client and s3_bucket_name
         # in arguments.
-        if 'object_store' in kw and kw['object_store']:
+        if "object_store" in kw and kw["object_store"]:
             # Load from object store
             attempt = 0
 
             while attempt < _NUM_OBJECT_STORE_READ_ATTEMPTS:
                 try:
-                    s3_response_object = kw['s3_client'].get_object(Bucket=kw['s3_bucket_name'], Key=url)
-                    object_content = s3_response_object['Body'].read()
+                    s3_response_object = kw["s3_client"].get_object(
+                        Bucket=kw["s3_bucket_name"], Key=url
+                    )
+                    object_content = s3_response_object["Body"].read()
 
                     # This is a check to verify is the object is fully read.
-                    full_read = s3_response_object['ContentLength'] == len(object_content)
+                    full_read = s3_response_object["ContentLength"] == len(
+                        object_content
+                    )
                     if full_read:
                         return io.BytesIO(object_content)
                     else:
@@ -99,13 +103,15 @@ if HAVE_WEBDATASET:
                     # If there is an exception (usually connectivity error or protocol error), read again
                     attempt += 1
                     print(e)
-                    print('Retrying tar file download, attempt {}'.format(attempt))
+                    print("Retrying tar file download, attempt {}".format(attempt))
                     continue
-            raise ConnectionError('Unable to read {} from PBSS. {} attempts tried.'.format(url, attempt))
+            raise ConnectionError(
+                "Unable to read {} from PBSS. {} attempts tried.".format(url, attempt)
+            )
 
         # Append root path to the url if dataset is stored on local disk system
-        elif 'local_root_path' in kw and kw['local_root_path'] is not None:
-            url = os.path.join(kw['local_root_path'], url)
+        elif "local_root_path" in kw and kw["local_root_path"] is not None:
+            url = os.path.join(kw["local_root_path"], url)
 
         # For all other gopen schemes, use the native webdataset gopen functions.
         pr = urlparse(url)
@@ -219,8 +225,10 @@ if HAVE_WEBDATASET:
             if isinstance(urls, IterableDataset):
                 assert not resampled
                 self.append(urls)
-            elif isinstance(urls, str) and (urls.endswith(".yaml") or urls.endswith(".yml")):
-                with (open(urls)) as stream:
+            elif isinstance(urls, str) and (
+                urls.endswith(".yaml") or urls.endswith(".yml")
+            ):
+                with open(urls) as stream:
                     spec = yaml.safe_load(stream)
                 assert "datasets" in spec
                 self.append(shardlists.MultiShardSample(spec))
@@ -256,14 +264,18 @@ if HAVE_WEBDATASET:
                 assert cache_size == -1 or cache_size > 0
                 self.append(
                     cache.cached_tarfile_to_samples(
-                        handler=handler, verbose=verbose, cache_size=cache_size, cache_dir=cache_dir,
+                        handler=handler,
+                        verbose=verbose,
+                        cache_size=cache_size,
+                        cache_dir=cache_dir,
                     )
                 )
-
 
 else:
 
     class WebDataset(ApexGuardDefaults):
         def __init__(self):
             super().__init__()
-            logging.warning("Webdataset import failed! We recommend use `webdataset==0.2.48`.")
+            logging.warning(
+                "Webdataset import failed! We recommend use `webdataset==0.2.48`."
+            )

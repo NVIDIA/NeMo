@@ -65,10 +65,13 @@ def get_cleaned_base_path(output_dir: str, overwrite_output: bool = True) -> str
 
 
 def binary_search_alignments(
-    inds: List[int], max_audio_read_sec: float, min_alignment_count: int, alignments: List[float],
+    inds: List[int],
+    max_audio_read_sec: float,
+    min_alignment_count: int,
+    alignments: List[float],
 ) -> int:
     """
-    Binary search to find the index of the alignment that satisfies the maximum audio read duration, 
+    Binary search to find the index of the alignment that satisfies the maximum audio read duration,
     `max_audio_read_sec`. This is used to avoid reading the short audio files.
     NOTE: `offset_max` should be at least 1 to avoid feeding max=0 to random sampling function.
 
@@ -94,14 +97,20 @@ def binary_search_alignments(
             break
     mid_out = left + (right - left) // 2
     # If mid_out is on the boundary, move it to the left.
-    if alignments[-1 * min_alignment_count] - alignments[inds[mid_out]] < max_audio_read_sec:
+    if (
+        alignments[-1 * min_alignment_count] - alignments[inds[mid_out]]
+        < max_audio_read_sec
+    ):
         mid_out -= 1
     offset_max = max(mid_out, 1)
     return offset_max
 
 
 def get_subset_of_audio_manifest(
-    audio_manifest: dict, offset_index: int, max_audio_read_sec: float, min_alignment_count: int,
+    audio_manifest: dict,
+    offset_index: int,
+    max_audio_read_sec: float,
+    min_alignment_count: int,
 ) -> dict:
     """
     Get a subset of `audio_manifest` for faster audio-file reading.
@@ -116,8 +125,10 @@ def get_subset_of_audio_manifest(
     Returns:
         audio_manifest (dict): Subset of `audio_manifest` is returned for `words` and `alignments` keys.
     """
-    alignment_array = np.array(audio_manifest['alignments'])
-    alignment_array_pr = np.array(alignment_array[offset_index:]) - alignment_array[offset_index]
+    alignment_array = np.array(audio_manifest["alignments"])
+    alignment_array_pr = (
+        np.array(alignment_array[offset_index:]) - alignment_array[offset_index]
+    )
     subset_alignments = alignment_array_pr[alignment_array_pr < max_audio_read_sec]
     if len(subset_alignments) < min_alignment_count:
         # Cases where the word next to the offset is longer than the max_audio_read_sec.
@@ -129,13 +140,17 @@ def get_subset_of_audio_manifest(
             " Truncating the alignements."
         )
         # Attach the `_max_audio_read_sec` to the `subset_alignments` to truncate the alignment timestamp.
-        subset_alignments = np.concatenate([subset_alignments, np.array([max_audio_read_sec])])
-    audio_manifest['offset'], audio_manifest['duration'] = (
+        subset_alignments = np.concatenate(
+            [subset_alignments, np.array([max_audio_read_sec])]
+        )
+    audio_manifest["offset"], audio_manifest["duration"] = (
         alignment_array[offset_index],
         subset_alignments[-1] - subset_alignments[0],
     )
-    audio_manifest['alignments'] = subset_alignments.tolist()
-    audio_manifest['words'] = audio_manifest['words'][offset_index : offset_index + len(subset_alignments)]
+    audio_manifest["alignments"] = subset_alignments.tolist()
+    audio_manifest["words"] = audio_manifest["words"][
+        offset_index : offset_index + len(subset_alignments)
+    ]
     return audio_manifest
 
 
@@ -182,15 +197,24 @@ def read_audio_from_buffer(
                 min_alignment_count=min_alignment_count,
             )
             segment = AudioSegment.from_file(
-                audio_file=audio_manifest['audio_filepath'],
-                offset=audio_manifest['offset'],
-                duration=audio_manifest['duration'],
+                audio_file=audio_manifest["audio_filepath"],
+                offset=audio_manifest["offset"],
+                duration=audio_manifest["duration"],
             )
         else:
-            segment = AudioSegment.from_file(audio_file=audio_manifest['audio_filepath'])
-        audio_file, sr = torch.from_numpy(segment.samples).to(device), segment.sample_rate
-        if read_subset and segment.duration < (audio_manifest['alignments'][-1] - audio_manifest['alignments'][0]):
-            audio_manifest['alignments'][-1] = min(segment.duration, audio_manifest['alignments'][-1])
+            segment = AudioSegment.from_file(
+                audio_file=audio_manifest["audio_filepath"]
+            )
+        audio_file, sr = (
+            torch.from_numpy(segment.samples).to(device),
+            segment.sample_rate,
+        )
+        if read_subset and segment.duration < (
+            audio_manifest["alignments"][-1] - audio_manifest["alignments"][0]
+        ):
+            audio_manifest["alignments"][-1] = min(
+                segment.duration, audio_manifest["alignments"][-1]
+            )
         if audio_file.ndim > 1:
             audio_file = torch.mean(audio_file, 1, False).to(device)
         buffer_dict[audio_file_id] = (audio_file, sr, audio_manifest)
@@ -198,9 +222,11 @@ def read_audio_from_buffer(
 
 
 def perturb_audio(
-    audio: torch.Tensor, sr: int, augmentor: Optional[AudioAugmentor] = None, device: Optional[torch.device] = None
+    audio: torch.Tensor,
+    sr: int,
+    augmentor: Optional[AudioAugmentor] = None,
+    device: Optional[torch.device] = None,
 ) -> torch.Tensor:
-
     """
     Perturb the audio (segment or session) using audio augmentor.
 
@@ -215,7 +241,7 @@ def perturb_audio(
     """
     if augmentor is None:
         return audio
-    device = device if device is not None else torch.device('cpu')
+    device = device if device is not None else torch.device("cpu")
     if isinstance(audio, torch.Tensor):
         audio = audio.cpu().numpy()
     audio_segment = AudioSegment(audio, sample_rate=sr)
@@ -237,7 +263,9 @@ def normalize_audio(array: torch.Tensor) -> torch.Tensor:
     return array / (1.0 * torch.max(torch.abs(array)))
 
 
-def get_power_of_audio_file(audio_file: str, end_audio_file: int, running_len_samples: int, device: torch.device):
+def get_power_of_audio_file(
+    audio_file: str, end_audio_file: int, running_len_samples: int, device: torch.device
+):
     """
     Calculate the power of the audio signal.
 
@@ -250,7 +278,9 @@ def get_power_of_audio_file(audio_file: str, end_audio_file: int, running_len_sa
     Returns:
         (float): Power of the audio signal.
     """
-    return torch.mean(audio_file[: end_audio_file - running_len_samples] ** 2).to(device)
+    return torch.mean(audio_file[: end_audio_file - running_len_samples] ** 2).to(
+        device
+    )
 
 
 def get_scaled_audio_signal(
@@ -274,7 +304,10 @@ def get_scaled_audio_signal(
         scaled_audio_file (torch.Tensor): Scaled audio signal.
     """
     pow_audio_file = get_power_of_audio_file(
-        audio_file=audio_file, end_audio_file=end_audio_file, running_len_samples=running_len_samples, device=device
+        audio_file=audio_file,
+        end_audio_file=end_audio_file,
+        running_len_samples=running_len_samples,
+        device=device,
     )
     scaled_audio_file = audio_file[: end_audio_file - running_len_samples] * torch.sqrt(
         desired_avg_power_noise / pow_audio_file
@@ -283,7 +316,10 @@ def get_scaled_audio_signal(
 
 
 def get_desired_avg_power_noise(
-    power_array: float, snr_min: float, snr_max: float, background_noise_snr: float,
+    power_array: float,
+    snr_min: float,
+    snr_max: float,
+    background_noise_snr: float,
 ):
     """
     Calculate the desired average power of the noise.
@@ -330,7 +366,7 @@ def get_background_noise(
         background_noise_snr (float): SNR of the background noise.
         seed (int): Seed for random number generator.
         device (torch.device): Device to use.
-    
+
     Returns:
         bg_array (tensor): Tensor containing background noise.
         desired_snr (float): Desired SNR for adding background noise.
@@ -338,11 +374,16 @@ def get_background_noise(
     np.random.seed(seed)
     bg_array = torch.zeros(len_array).to(device)
     desired_avg_power_noise, desired_snr = get_desired_avg_power_noise(
-        power_array=power_array, snr_min=snr_min, snr_max=snr_max, background_noise_snr=background_noise_snr
+        power_array=power_array,
+        snr_min=snr_min,
+        snr_max=snr_max,
+        background_noise_snr=background_noise_snr,
     )
     running_len_samples = 0
 
-    while running_len_samples < len_array:  # build background audio stream (the same length as the full file)
+    while (
+        running_len_samples < len_array
+    ):  # build background audio stream (the same length as the full file)
         file_id = np.random.randint(len(noise_samples))
         audio_file, sr, audio_manifest = read_audio_from_buffer(
             audio_manifest=noise_samples[file_id],
@@ -377,7 +418,7 @@ def get_random_offset_index(
     min_alignment_count: int = 2,
 ) -> int:
     """
-    Get an index for randomly accessing the silence in alignment timestamps. 
+    Get an index for randomly accessing the silence in alignment timestamps.
 
     Args:
         audio_manifest (dict): Audio manifest dictionary.
@@ -387,10 +428,10 @@ def get_random_offset_index(
         max_audio_read_sec (float): Maximum audio read duration in seconds. (Default: 2.5)
         min_alignment_count (int): Minimum number of alignment timestamps. (Default: 2)
 
-    Returns: 
+    Returns:
         (int): Random offset index smaller than `offset_count`.
     """
-    if len(audio_manifest['alignments']) <= min_alignment_count:
+    if len(audio_manifest["alignments"]) <= min_alignment_count:
         raise ValueError(
             f"Audio file {audio_manifest['audio_filepath']} has less than {min_alignment_count} alignment timestamps."
         )
@@ -401,8 +442,11 @@ def get_random_offset_index(
         (sil_inds, offset_max) = audio_read_buffer_dict[index_file_id]
     else:
         # Find all silence indices
-        sil_inds = np.where((np.array(audio_manifest['words']) == '') == True)[0]
-        if audio_manifest['alignments'][-1] - audio_manifest['alignments'][0] < max_audio_read_sec:
+        sil_inds = np.where((np.array(audio_manifest["words"]) == "") == True)[0]
+        if (
+            audio_manifest["alignments"][-1] - audio_manifest["alignments"][0]
+            < max_audio_read_sec
+        ):
             # The total duration is already short, therefore skip range search.
             offset_max = 1
         else:
@@ -411,7 +455,7 @@ def get_random_offset_index(
                 inds=sil_inds,
                 max_audio_read_sec=max_audio_read_sec,
                 min_alignment_count=min_alignment_count,
-                alignments=audio_manifest['alignments'],
+                alignments=audio_manifest["alignments"],
             )
 
         audio_read_buffer_dict[index_file_id] = (sil_inds, offset_max)
@@ -419,7 +463,8 @@ def get_random_offset_index(
     # If the audio file is shorter than the max_audio_read_sec, then we don't need to read a subset of the audio file.
     if (
         len(sil_inds) <= min_alignment_count
-        or (audio_manifest['alignments'][-1] - audio_manifest['alignments'][0]) < max_audio_read_sec
+        or (audio_manifest["alignments"][-1] - audio_manifest["alignments"][0])
+        < max_audio_read_sec
     ):
         return offset_min
     else:
@@ -427,7 +472,9 @@ def get_random_offset_index(
         return sil_inds[offset_index]
 
 
-def get_speaker_ids(sess_idx: int, speaker_samples: dict, permutated_speaker_inds: list) -> List[str]:
+def get_speaker_ids(
+    sess_idx: int, speaker_samples: dict, permutated_speaker_inds: list
+) -> List[str]:
     """
     Randomly select speaker IDs from the loaded manifest file.
 
@@ -456,7 +503,7 @@ def build_speaker_samples_map(manifest: dict) -> dict:
     speaker_samples = defaultdict(list)
     logging.info("Building speaker to samples map...")
     for sample in tqdm(manifest, total=len(manifest)):
-        speaker_id = sample['speaker_id']
+        speaker_id = sample["speaker_id"]
         speaker_samples[speaker_id].append(sample)
     return speaker_samples
 
@@ -482,7 +529,9 @@ def read_noise_manifest(add_bg: bool, background_manifest: str):
                 if os.path.exists(background_manifest):
                     noise_manifest += read_manifest(background_manifest)
                 else:
-                    raise FileNotFoundError(f"Noise manifest file: {background_manifest} file not found.")
+                    raise FileNotFoundError(
+                        f"Noise manifest file: {background_manifest} file not found."
+                    )
         else:
             raise FileNotFoundError(
                 f"Noise manifest file is {background_manifest}. Please provide a valid noise manifest file/list if add_bg=True."
@@ -490,14 +539,16 @@ def read_noise_manifest(add_bg: bool, background_manifest: str):
     return noise_manifest
 
 
-def get_speaker_samples(speaker_ids: List[str], speaker_samples: dict) -> Dict[str, list]:
+def get_speaker_samples(
+    speaker_ids: List[str], speaker_samples: dict
+) -> Dict[str, list]:
     """
     Get a list of the samples for each of the specified speakers.
 
     Args:
         speaker_ids (list): LibriSpeech speaker IDs for each speaker in the current session.
         speaker_samples (dict): Dictionary mapping speaker ID to their list of samples.
-    
+
     Returns:
         speaker_wav_align_map (dict): Dictionary containing speaker IDs and their corresponding wav filepath and alignments.
     """
@@ -518,14 +569,17 @@ def add_silence_to_alignments(audio_manifest: dict):
     Returns:
         audio_manifest (dict): Audio manifest dictionary with silence added to the beginning.
     """
-    if type(audio_manifest['words'][0]) == str and len(audio_manifest['words'][0]) > 0:
-        audio_manifest['words'].insert(0, "")
-        audio_manifest['alignments'].insert(0, 0.0)
+    if type(audio_manifest["words"][0]) == str and len(audio_manifest["words"][0]) > 0:
+        audio_manifest["words"].insert(0, "")
+        audio_manifest["alignments"].insert(0, 0.0)
     return audio_manifest
 
 
 def load_speaker_sample(
-    speaker_wav_align_map: List[dict], speaker_ids: List[str], speaker_turn: int, min_alignment_count: int,
+    speaker_wav_align_map: List[dict],
+    speaker_ids: List[str],
+    speaker_turn: int,
+    min_alignment_count: int,
 ) -> str:
     """
     Load a sample for the selected speaker ID.
@@ -537,22 +591,24 @@ def load_speaker_sample(
         speaker_turn (int): Current speaker turn.
         output_precision (int): Precision of the output alignments in integer.
         min_alignment_count (int): Minimum number of alignments in the audio file.
-    
+
     Returns:
         audio_manifest (dict): Audio manifest dictionary containing the wav filepath, words and alignments.
     """
     speaker_id = speaker_ids[speaker_turn]
-    file_id = np.random.randint(0, max(len(speaker_wav_align_map[str(speaker_id)]) - 1, 1))
+    file_id = np.random.randint(
+        0, max(len(speaker_wav_align_map[str(speaker_id)]) - 1, 1)
+    )
     audio_manifest = speaker_wav_align_map[str(speaker_id)][file_id]
 
     # Check if the alignment file has at least 2 words.
-    if len(audio_manifest['alignments']) < min_alignment_count:
+    if len(audio_manifest["alignments"]) < min_alignment_count:
         raise ValueError(
             f"Alignment file {audio_manifest['audio_filepath']} has an inappropriate length of {len(audio_manifest['alignments'])} < 2."
         )
 
     # Check whether the first word is silence and insert a silence token if the first token is not silence.
-    if audio_manifest['words'][0] != "":
+    if audio_manifest["words"][0] != "":
         audio_manifest = add_silence_to_alignments(audio_manifest)
 
     audio_manifest = copy.deepcopy(audio_manifest)
@@ -589,7 +645,10 @@ def get_split_points_in_alignments(
             if silence_length > 2 * split_buffer:  # split utterance on silence
                 new_end = alignments[i - 1] + split_buffer
                 splits.append(
-                    [int(new_start * sr), int(new_end * sr),]
+                    [
+                        int(new_start * sr),
+                        int(new_end * sr),
+                    ]
                 )
                 new_start = alignments[i] - split_buffer
     # The last split point should be added
@@ -598,7 +657,11 @@ def get_split_points_in_alignments(
 
 
 def per_speaker_normalize(
-    sentence_audio: torch.Tensor, splits: List[List[int]], speaker_turn: int, volume: List[float], device: torch.device
+    sentence_audio: torch.Tensor,
+    splits: List[List[int]],
+    speaker_turn: int,
+    volume: List[float],
+    device: torch.device,
 ) -> torch.Tensor:
     """
     Normalize time-series audio signal per speaker.
@@ -628,12 +691,12 @@ class DataAnnotator(object):
     Class containing the functions that create RTTM, CTM, JSON files.
 
     Arguments in config:
-    
+
     data_simulator:
         session_config:
             num_speakers (int): Number of unique speakers per multispeaker audio session
             session_params:
-            split_buffer (float): Split RTTM labels if greater than twice this amount of silence (to avoid long gaps between 
+            split_buffer (float): Split RTTM labels if greater than twice this amount of silence (to avoid long gaps between
                                     utterances as being labelled as speech)
         outputs:
             output_dir (str): Output directory for audio sessions and corresponding label files
@@ -676,9 +739,13 @@ class DataAnnotator(object):
             self.annote_lists[file_type] = []
 
     def create_new_rttm_entry(
-        self, words: List[str], alignments: List[float], start: int, end: int, speaker_id: int
+        self,
+        words: List[str],
+        alignments: List[float],
+        start: int,
+        end: int,
+        speaker_id: int,
     ) -> List[str]:
-
         """
         Create new RTTM entries (to write to output rttm file)
 
@@ -688,7 +755,7 @@ class DataAnnotator(object):
             start (int): Current start of the audio file being inserted.
             end (int): End of the audio file being inserted.
             speaker_id (int): LibriSpeech speaker ID for the current entry.
-        
+
         Returns:
             rttm_list (list): List of rttm entries
         """
@@ -699,15 +766,32 @@ class DataAnnotator(object):
             if words[i] == "" and i != 0 and i != len(words) - 1:
                 silence_length = alignments[i] - alignments[i - 1]
                 if (
-                    silence_length > 2 * self._params.data_simulator.session_params.split_buffer
+                    silence_length
+                    > 2 * self._params.data_simulator.session_params.split_buffer
                 ):  # split utterance on silence
-                    new_end = start + alignments[i - 1] + self._params.data_simulator.session_params.split_buffer
-                    t_stt = round(float(new_start), self._params.data_simulator.outputs.output_precision)
-                    t_end = round(float(new_end), self._params.data_simulator.outputs.output_precision)
+                    new_end = (
+                        start
+                        + alignments[i - 1]
+                        + self._params.data_simulator.session_params.split_buffer
+                    )
+                    t_stt = round(
+                        float(new_start),
+                        self._params.data_simulator.outputs.output_precision,
+                    )
+                    t_end = round(
+                        float(new_end),
+                        self._params.data_simulator.outputs.output_precision,
+                    )
                     rttm_list.append(f"{t_stt} {t_end} {speaker_id}")
-                    new_start = start + alignments[i] - self._params.data_simulator.session_params.split_buffer
+                    new_start = (
+                        start
+                        + alignments[i]
+                        - self._params.data_simulator.session_params.split_buffer
+                    )
 
-        t_stt = round(float(new_start), self._params.data_simulator.outputs.output_precision)
+        t_stt = round(
+            float(new_start), self._params.data_simulator.outputs.output_precision
+        )
         t_end = round(float(end), self._params.data_simulator.outputs.output_precision)
         rttm_list.append(f"{t_stt} {t_end} {speaker_id}")
         return rttm_list
@@ -737,8 +821,12 @@ class DataAnnotator(object):
         Returns:
             meta (dict): JSON entry dictionary.
         """
-        start = round(float(start), self._params.data_simulator.outputs.output_precision)
-        length = round(float(length), self._params.data_simulator.outputs.output_precision)
+        start = round(
+            float(start), self._params.data_simulator.outputs.output_precision
+        )
+        length = round(
+            float(length), self._params.data_simulator.outputs.output_precision
+        )
         meta = {
             "audio_filepath": wav_filename,
             "offset": start,
@@ -753,7 +841,12 @@ class DataAnnotator(object):
         return meta
 
     def create_new_ctm_entry(
-        self, words: List[str], alignments: List[float], session_name: str, speaker_id: int, start: int
+        self,
+        words: List[str],
+        alignments: List[float],
+        session_name: str,
+        speaker_id: int,
+        start: int,
     ) -> List[str]:
         """
         Create new CTM entry (to write to output ctm file)
@@ -764,20 +857,28 @@ class DataAnnotator(object):
             session_name (str): Current session name.
             speaker_id (int): LibriSpeech speaker ID for the current entry.
             start (int): Current start of the audio file being inserted.
-        
+
         Returns:
             arr (list): List of ctm entries
         """
         arr = []
-        start = float(round(start, self._params.data_simulator.outputs.output_precision))
+        start = float(
+            round(start, self._params.data_simulator.outputs.output_precision)
+        )
         for i in range(len(words)):
             word = words[i]
             if (
                 word != ""
             ):  # note that using the current alignments the first word is always empty, so there is no error from indexing the array with i-1
                 prev_align = 0 if i == 0 else alignments[i - 1]
-                align1 = round(float(prev_align + start), self._params.data_simulator.outputs.output_precision)
-                align2 = round(float(alignments[i] - prev_align), self._params.data_simulator.outputs.output_precision)
+                align1 = round(
+                    float(prev_align + start),
+                    self._params.data_simulator.outputs.output_precision,
+                )
+                align2 = round(
+                    float(alignments[i] - prev_align),
+                    self._params.data_simulator.outputs.output_precision,
+                )
                 text = get_ctm_line(
                     source=session_name,
                     channel=1,
@@ -785,7 +886,7 @@ class DataAnnotator(object):
                     duration=align2,
                     token=word,
                     conf=None,
-                    type_of_token='lex',
+                    type_of_token="lex",
                     speaker=speaker_id,
                 )
                 arr.append((align1, text))
@@ -801,7 +902,9 @@ class DataAnnotator(object):
         """
         full_base_filepath = os.path.join(basepath, filename)
         for file_type in self._file_types:
-            self.annote_lists[f"{file_type}_list"].append(f"{full_base_filepath}.{file_type}")
+            self.annote_lists[f"{file_type}_list"].append(
+                f"{full_base_filepath}.{file_type}"
+            )
 
     def write_filelist_files(self, basepath):
         """
@@ -811,7 +914,9 @@ class DataAnnotator(object):
             basepath (str): Basepath for output files.
         """
         for file_type in self._file_types:
-            with open(f"{basepath}/{self._file_base_str}_{file_type}.list", "w") as list_file:
+            with open(
+                f"{basepath}/{self._file_base_str}_{file_type}.list", "w"
+            ) as list_file:
                 list_file.write("\n".join(self.annote_lists[f"{file_type}_list"]))
             list_file.close()
 
@@ -827,16 +932,22 @@ class DataAnnotator(object):
             json_list (list): List of JSON entries.
             ctm_list (list): List of CTM entries.
         """
-        labels_to_rttmfile(self.annote_lists['rttm'], filename, self._params.data_simulator.outputs.output_dir)
-        write_manifest(os.path.join(basepath, filename + '.json'), self.annote_lists['json'])
-        write_ctm(os.path.join(basepath, filename + '.ctm'), self.annote_lists['ctm'])
-        write_text(os.path.join(basepath, filename + '.txt'), self.annote_lists['ctm'])
-        write_manifest(os.path.join(basepath, filename + '.meta'), [meta_data])
+        labels_to_rttmfile(
+            self.annote_lists["rttm"],
+            filename,
+            self._params.data_simulator.outputs.output_dir,
+        )
+        write_manifest(
+            os.path.join(basepath, filename + ".json"), self.annote_lists["json"]
+        )
+        write_ctm(os.path.join(basepath, filename + ".ctm"), self.annote_lists["ctm"])
+        write_text(os.path.join(basepath, filename + ".txt"), self.annote_lists["ctm"])
+        write_manifest(os.path.join(basepath, filename + ".meta"), [meta_data])
 
 
 class SpeechSampler(object):
     """
-    Class for sampling speech samples for Multispeaker Audio Session Simulator 
+    Class for sampling speech samples for Multispeaker Audio Session Simulator
 
     Args:
         cfg: OmegaConf configuration loaded from yaml file.
@@ -854,23 +965,23 @@ class SpeechSampler(object):
         self.per_overlap_min_len (int): Minimum number of overlap samples in the overlap segment.
         self.per_overlap_max_len (int): Maximum number of overlap samples in the overlap segment.
 
-    data_simulator: 
-        session_params: 
+    data_simulator:
+        session_params:
             mean_silence (float): Mean proportion of silence to speaking time in the audio session. Should be in range [0, 1).
-            mean_silence_var (float): Variance for mean silence in all audio sessions. 
+            mean_silence_var (float): Variance for mean silence in all audio sessions.
                                     This value should be 0 <= mean_silence_var < mean_silence * (1 - mean_silence).
             per_silence_var (float):  Variance for each silence in an audio session, set large values (e.g., 20) for de-correlation.
             per_silence_min (float): Minimum duration for each silence, default to 0.
             per_silence_max (float): Maximum duration for each silence, default to -1 for no maximum.
-            
-            mean_overlap (float): Mean proportion of overlap in the overall non-silence duration. Should be in range [0, 1) and 
+
+            mean_overlap (float): Mean proportion of overlap in the overall non-silence duration. Should be in range [0, 1) and
                                 recommend [0, 0.15] range for accurate results.
-            mean_overlap_var (float): Variance for mean overlap in all audio sessions. 
+            mean_overlap_var (float): Variance for mean overlap in all audio sessions.
                                     This value should be 0 <= mean_overlap_var < mean_overlap * (1 - mean_overlap).
-            per_overlap_var (float): Variance for per overlap in each session, set large values to de-correlate silence lengths 
+            per_overlap_var (float): Variance for per overlap in each session, set large values to de-correlate silence lengths
                                     with the latest speech segment lengths
             per_overlap_min (float): Minimum per overlap duration in seconds
-            per_overlap_max (float): Maximum per overlap duration in seconds, set -1 for no maximum 
+            per_overlap_max (float): Maximum per overlap duration in seconds, set -1 for no maximum
     """
 
     def __init__(self, cfg):
@@ -892,16 +1003,30 @@ class SpeechSampler(object):
         self.per_overlap_min_len = 0
         self.per_overlap_max_len = 0
 
-        self.mean_overlap = float(self._params.data_simulator.session_params.mean_overlap)
-        self.mean_overlap_var = float(self._params.data_simulator.session_params.mean_overlap_var)
+        self.mean_overlap = float(
+            self._params.data_simulator.session_params.mean_overlap
+        )
+        self.mean_overlap_var = float(
+            self._params.data_simulator.session_params.mean_overlap_var
+        )
 
-        self.mean_silence = float(self._params.data_simulator.session_params.mean_silence)
-        self.mean_silence_var = float(self._params.data_simulator.session_params.mean_silence_var)
+        self.mean_silence = float(
+            self._params.data_simulator.session_params.mean_silence
+        )
+        self.mean_silence_var = float(
+            self._params.data_simulator.session_params.mean_silence_var
+        )
 
-        self.per_silence_var = float(self._params.data_simulator.session_params.per_silence_var)
-        self.per_overlap_var = float(self._params.data_simulator.session_params.per_overlap_var)
+        self.per_silence_var = float(
+            self._params.data_simulator.session_params.per_silence_var
+        )
+        self.per_overlap_var = float(
+            self._params.data_simulator.session_params.per_overlap_var
+        )
 
-        self.num_noise_files = int(self._params.data_simulator.background_noise.num_noise_files)
+        self.num_noise_files = int(
+            self._params.data_simulator.background_noise.num_noise_files
+        )
 
     def _mean_var_to_a_and_b(self, mean: float, var: float) -> Tuple[float, float]:
         """
@@ -914,7 +1039,7 @@ class SpeechSampler(object):
         Returns:
             Tuple[float, float]: a and b parameters for beta distribution.
         """
-        a = mean ** 2 * (1 - mean) / var - mean
+        a = mean**2 * (1 - mean) / var - mean
         b = mean * (1 - mean) ** 2 / var - (1 - mean)
         return a, b
 
@@ -926,15 +1051,18 @@ class SpeechSampler(object):
         self.running_silence_len_samples = 0
 
         self.per_silence_min_len = int(
-            max(0, self._params.data_simulator.session_params.per_silence_min) * self._params.data_simulator.sr
+            max(0, self._params.data_simulator.session_params.per_silence_min)
+            * self._params.data_simulator.sr
         )
         if self._params.data_simulator.session_params.per_silence_max > 0:
             self.per_silence_max_len = int(
-                self._params.data_simulator.session_params.per_silence_max * self._params.data_simulator.sr
+                self._params.data_simulator.session_params.per_silence_max
+                * self._params.data_simulator.sr
             )
         else:
             self.per_silence_max_len = int(
-                self._params.data_simulator.session_config.session_length * self._params.data_simulator.sr
+                self._params.data_simulator.session_config.session_length
+                * self._params.data_simulator.sr
             )
 
     def _init_overlap_params(self):
@@ -944,20 +1072,25 @@ class SpeechSampler(object):
         self.running_overlap_len_samples = 0
 
         self.per_overlap_min_len = int(
-            max(0, self._params.data_simulator.session_params.per_overlap_min) * self._params.data_simulator.sr
+            max(0, self._params.data_simulator.session_params.per_overlap_min)
+            * self._params.data_simulator.sr
         )
         if self._params.data_simulator.session_params.per_overlap_max > 0:
             self.per_overlap_max_len = int(
-                self._params.data_simulator.session_params.per_overlap_max * self._params.data_simulator.sr
+                self._params.data_simulator.session_params.per_overlap_max
+                * self._params.data_simulator.sr
             )
         else:
             self.per_overlap_max_len = int(
-                self._params.data_simulator.session_config.session_length * self._params.data_simulator.sr
+                self._params.data_simulator.session_config.session_length
+                * self._params.data_simulator.sr
             )
 
-    def silence_vs_overlap_selector(self, running_len_samples: int, non_silence_len_samples: int) -> bool:
+    def silence_vs_overlap_selector(
+        self, running_len_samples: int, non_silence_len_samples: int
+    ) -> bool:
         """
-        Compare the current silence ratio to the current overlap ratio. Switch to either silence or overlap mode according 
+        Compare the current silence ratio to the current overlap ratio. Switch to either silence or overlap mode according
         to the amount of the gap between current ratio and session mean in config.
 
         Args:
@@ -968,8 +1101,12 @@ class SpeechSampler(object):
             add_overlap (bool): True if the current silence ratio is less than the current overlap ratio, False otherwise.
         """
         if running_len_samples > 0:
-            self.current_silence_ratio = (running_len_samples - self.running_speech_len_samples) / running_len_samples
-            self.current_overlap_ratio = self.running_overlap_len_samples / non_silence_len_samples
+            self.current_silence_ratio = (
+                running_len_samples - self.running_speech_len_samples
+            ) / running_len_samples
+            self.current_overlap_ratio = (
+                self.running_overlap_len_samples / non_silence_len_samples
+            )
         else:
             self.current_silence_ratio, self.current_overlap_ratio = 0, 0
 
@@ -991,7 +1128,7 @@ class SpeechSampler(object):
             0 < mean_silence_var < mean_silence * (1 - mean_silence)
 
         Args:
-            silence_mean (float): 
+            silence_mean (float):
                 Target mean silence for the current session
         """
         self._init_silence_params()
@@ -1043,16 +1180,16 @@ class SpeechSampler(object):
         Sample from the silence model to determine the amount of silence to add between sentences.
         Gamma distribution is employed for modeling the highly skewed distribution of silence length distribution.
         When we add silence between sentences, we want to ensure that the proportion of silence meets the `sess_silence_mean`.
-        Thus, [Session Silence Mean] = [Total Running Silence Time] / [Total Running Session Time] equation holds. We employ the following 
+        Thus, [Session Silence Mean] = [Total Running Silence Time] / [Total Running Session Time] equation holds. We employ the following
         formula to determine the amount of silence to add, which is `silence_mean`:
 
             self.sess_silence_mean = (silence_mean + self.running_silence_len_samples) / (silence_mean + running_len_samples)
 
-        The above equation is setting `silence_mean` to yield the desired silence ratio `self.sess_silence_mean`. 
+        The above equation is setting `silence_mean` to yield the desired silence ratio `self.sess_silence_mean`.
         We use the above `silence_mean` value to sample silence-length for each silence occurrence.
 
         Args:
-            running_len_samples (int): 
+            running_len_samples (int):
                 Running length of the session (in terms of number of samples).
             session_len_samples (int):
                 Targeted total session length (in terms of number of samples).
@@ -1060,22 +1197,30 @@ class SpeechSampler(object):
         Returns:
             silence_amount (int): Amount of silence to add between sentences (in terms of number of samples).
         """
-        silence_mean = ((self.sess_silence_mean * running_len_samples) - self.running_silence_len_samples) / (
-            1 - self.sess_silence_mean
+        silence_mean = (
+            (self.sess_silence_mean * running_len_samples)
+            - self.running_silence_len_samples
+        ) / (1 - self.sess_silence_mean)
+        silence_mean = max(
+            self.per_silence_min_len, min(silence_mean, self.per_silence_max_len)
         )
-        silence_mean = max(self.per_silence_min_len, min(silence_mean, self.per_silence_max_len))
         if silence_mean > 0:
-            self.per_silence_var = self._params.data_simulator.session_params.per_silence_var
+            self.per_silence_var = (
+                self._params.data_simulator.session_params.per_silence_var
+            )
             silence_amount = (
                 int(
                     gamma(
-                        a=(silence_mean ** 2) / self.per_silence_var, scale=self.per_silence_var / silence_mean
+                        a=(silence_mean**2) / self.per_silence_var,
+                        scale=self.per_silence_var / silence_mean,
                     ).rvs()
                 )
                 if self.per_silence_var > 0
                 else int(silence_mean)
             )
-            silence_amount = max(self.per_silence_min_len, min(silence_amount, self.per_silence_max_len))
+            silence_amount = max(
+                self.per_silence_min_len, min(silence_amount, self.per_silence_max_len)
+            )
         else:
             silence_amount = 0
         return silence_amount
@@ -1090,30 +1235,40 @@ class SpeechSampler(object):
 
             self.sess_overlap_mean = (overlap_mean + self.running_overlap_len_samples) / (non_silence_len_samples - overlap_mean)
 
-        The above equation is setting `overlap_mean` to yield the desired overlap ratio `self.sess_overlap_mean`. 
+        The above equation is setting `overlap_mean` to yield the desired overlap ratio `self.sess_overlap_mean`.
         We use the above `overlap_mean` value to sample overlap-length for each overlap occurrence.
-        
+
         Args:
-            non_silence_len_samples (int): 
+            non_silence_len_samples (int):
                 The total amount of non-silence (speech) region regardless of overlap status
 
         Returns:
-            desired_overlap_amount (int): 
+            desired_overlap_amount (int):
                 Amount of overlap between segments (in terms of number of samples).
         """
-        overlap_mean = ((self.sess_overlap_mean * non_silence_len_samples) - self.running_overlap_len_samples) / (
-            1 + self.sess_overlap_mean
+        overlap_mean = (
+            (self.sess_overlap_mean * non_silence_len_samples)
+            - self.running_overlap_len_samples
+        ) / (1 + self.sess_overlap_mean)
+        overlap_mean = max(
+            self.per_overlap_min_len,
+            min(max(0, overlap_mean), self.per_overlap_max_len),
         )
-        overlap_mean = max(self.per_overlap_min_len, min(max(0, overlap_mean), self.per_overlap_max_len))
 
         if overlap_mean > 0:
             desired_overlap_amount = (
-                int(gamma(a=overlap_mean ** 2 / self.per_overlap_var, scale=self.per_overlap_var / overlap_mean).rvs())
+                int(
+                    gamma(
+                        a=overlap_mean**2 / self.per_overlap_var,
+                        scale=self.per_overlap_var / overlap_mean,
+                    ).rvs()
+                )
                 if self.per_overlap_var > 0
                 else int(overlap_mean)
             )
             desired_overlap_amount = max(
-                self.per_overlap_min_len, min(desired_overlap_amount, self.per_overlap_max_len)
+                self.per_overlap_min_len,
+                min(desired_overlap_amount, self.per_overlap_max_len),
             )
         else:
             desired_overlap_amount = 0
@@ -1124,7 +1279,7 @@ class SpeechSampler(object):
         Sample noise manifest to a specified count `num_noise_files` for the current simulated audio session.
 
         Args:
-            noise_manifest (list): 
+            noise_manifest (list):
                 List of noise source samples to be sampled from.
 
         Returns:
@@ -1134,7 +1289,9 @@ class SpeechSampler(object):
         num_noise_files = min(len(noise_manifest), self.num_noise_files)
         sampled_noise_manifest = []
         if num_noise_files > 0:
-            selected_noise_ids = np.random.choice(range(len(noise_manifest)), num_noise_files, replace=False)
+            selected_noise_ids = np.random.choice(
+                range(len(noise_manifest)), num_noise_files, replace=False
+            )
             for k in selected_noise_ids:
                 sampled_noise_manifest.append(noise_manifest[k])
         return sampled_noise_manifest

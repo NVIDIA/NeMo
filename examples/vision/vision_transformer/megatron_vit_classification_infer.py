@@ -54,7 +54,7 @@ class ImageFolderDataset(Dataset):
 
     def __getitem__(self, idx):
         image_path = self.image_paths[idx]
-        image = Image.open(image_path).convert('RGB')
+        image = Image.open(image_path).convert("RGB")
         if self.transform is not None:
             image = self.transform(image)
         return image
@@ -63,14 +63,14 @@ class ImageFolderDataset(Dataset):
 @hydra_runner(config_path="conf", config_name="megatron_vit_classification_infer")
 def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
-    logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
+    logging.info(f"\n{OmegaConf.to_yaml(cfg)}")
 
     plugins = []
     strategy = NLPDDPStrategy(
         no_ddp_communication_hook=True,
         find_unused_parameters=False,  # we don't use DDP for async grad allreduce
     )
-    if cfg.get('cluster_type', None) == 'BCP':
+    if cfg.get("cluster_type", None) == "BCP":
         plugins.append(TorchElasticEnvironment())
 
     # trainer required for restoring model parallel models
@@ -111,7 +111,9 @@ def main(cfg) -> None:
 
     model.eval()
 
-    test_transform = ClassificationTransform(cfg.model, (model_cfg.img_h, model_cfg.img_w), train=False)
+    test_transform = ClassificationTransform(
+        cfg.model, (model_cfg.img_h, model_cfg.img_w), train=False
+    )
     test_data = ImageFolderDataset(
         folder_path=cfg.data_path,
         transform=test_transform,
@@ -145,5 +147,5 @@ def main(cfg) -> None:
         print(f"Predicted classes: ", list(zip(filenames, class_names)))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

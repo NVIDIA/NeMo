@@ -77,15 +77,21 @@ def build_model(
         and virtual_pipeline_model_parallel_size is not None
     ):
         model = []
-        parallel_state.set_virtual_pipeline_model_parallel_world_size(virtual_pipeline_model_parallel_size)
+        parallel_state.set_virtual_pipeline_model_parallel_world_size(
+            virtual_pipeline_model_parallel_size
+        )
         for i in range(virtual_pipeline_model_parallel_size):
             parallel_state.set_virtual_pipeline_model_parallel_rank(i)
             model.append(
                 model_provider_func(
                     *args,
                     **kwargs,
-                    pre_process=parallel_state.is_pipeline_first_stage(ignore_virtual=False),
-                    post_process=parallel_state.is_pipeline_last_stage(ignore_virtual=False),
+                    pre_process=parallel_state.is_pipeline_first_stage(
+                        ignore_virtual=False
+                    ),
+                    post_process=parallel_state.is_pipeline_last_stage(
+                        ignore_virtual=False
+                    ),
                 )
             )
     else:
@@ -93,8 +99,12 @@ def build_model(
             model = model_provider_func(
                 *args,
                 **kwargs,
-                pre_process=parallel_state.is_pipeline_first_stage(ignore_virtual=False),
-                post_process=parallel_state.is_pipeline_last_stage(ignore_virtual=False),
+                pre_process=parallel_state.is_pipeline_first_stage(
+                    ignore_virtual=False
+                ),
+                post_process=parallel_state.is_pipeline_last_stage(
+                    ignore_virtual=False
+                ),
             )
         elif model_type == ModelType.encoder_and_decoder:
             pre_process = parallel_state.is_pipeline_first_stage(ignore_virtual=False)
@@ -104,7 +114,9 @@ def build_model(
             if parallel_state.get_pipeline_model_parallel_world_size() > 1:
                 split_rank = parallel_state.get_pipeline_model_parallel_split_rank()
                 if split_rank is None:
-                    raise RuntimeError("Split rank needs to be specified for model with both encoder and decoder.")
+                    raise RuntimeError(
+                        "Split rank needs to be specified for model with both encoder and decoder."
+                    )
                 rank = parallel_state.get_pipeline_model_parallel_rank()
                 world_size = parallel_state.get_pipeline_model_parallel_world_size()
                 pre_process = rank == 0 or rank == split_rank
@@ -137,7 +149,10 @@ def build_model(
             set_defaults_if_not_set_tensor_model_parallel_attributes(param)
 
     # Print number of parameters.
-    if parallel_state.model_parallel_is_initialized() and parallel_state.get_data_parallel_rank() == 0:
+    if (
+        parallel_state.model_parallel_is_initialized()
+        and parallel_state.get_data_parallel_rank() == 0
+    ):
         msg = " > number of parameters on (tensor, pipeline) model parallel rank ({}, {}): {}".format(
             parallel_state.get_tensor_model_parallel_rank(),
             parallel_state.get_pipeline_model_parallel_rank(),
@@ -157,7 +172,9 @@ def build_model(
                 model_module,
                 device_ids=[i],
                 output_device=i,
-                process_group=parallel_state.get_data_parallel_group(with_context_parallel=True),
+                process_group=parallel_state.get_data_parallel_group(
+                    with_context_parallel=True
+                ),
             )
             for model_module in model
         ]
@@ -166,4 +183,9 @@ def build_model(
 
 def _calc_number_of_params(model: List[torch.nn.Module]) -> int:
     assert isinstance(model, list)
-    return sum([sum([p.nelement() for p in model_module.parameters()]) for model_module in model])
+    return sum(
+        [
+            sum([p.nelement() for p in model_module.parameters()])
+            for model_module in model
+        ]
+    )

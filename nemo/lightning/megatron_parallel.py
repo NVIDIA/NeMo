@@ -50,7 +50,7 @@ except ImportError:
 
 DataT = TypeVar("DataT", Tensor, Dict[str, Tensor], Sequence[Tensor])
 ModelT = TypeVar("ModelT", bound=nn.Module)
-T = TypeVar('T')
+T = TypeVar("T")
 STEP_OUTPUT = Optional[Union[Tensor, Mapping[str, Any]]]
 
 if TYPE_CHECKING:
@@ -190,7 +190,10 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
             _pipeline = pipeline
 
         if vp_size is not None:
-            if len(_pipeline) == 1 and parallel_state.get_pipeline_model_parallel_world_size() > 1:
+            if (
+                len(_pipeline) == 1
+                and parallel_state.get_pipeline_model_parallel_world_size() > 1
+            ):
                 from nemo.lightning import io
 
                 parallel_state.set_virtual_pipeline_model_parallel_world_size(vp_size)
@@ -280,11 +283,17 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
 
         self.callbacks.event("on_megatron_microbatches_start", step=step)
         microbatch_outputs = step()
-        self.callbacks.event("on_megatron_microbatches_end", step=step, microbatch_outputs=microbatch_outputs)
+        self.callbacks.event(
+            "on_megatron_microbatches_end",
+            step=step,
+            microbatch_outputs=microbatch_outputs,
+        )
 
         if microbatch_outputs:
             self.callbacks.event(
-                "on_megatron_reduce_microbatches_start", step=step, microbatch_outputs=microbatch_outputs
+                "on_megatron_reduce_microbatches_start",
+                step=step,
+                microbatch_outputs=microbatch_outputs,
             )
 
             if isinstance(_loss_reduction, _ModuleStepFunction):
@@ -302,7 +311,12 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
             # we're not on the last pipeline stage so no losses
             reduced = torch.tensor(0.0, device=torch.cuda.current_device())
 
-        self.callbacks.event("on_megatron_step_end", step=step, microbatch_outputs=microbatch_outputs, reduced=reduced)
+        self.callbacks.event(
+            "on_megatron_step_end",
+            step=step,
+            microbatch_outputs=microbatch_outputs,
+            reduced=reduced,
+        )
 
         return reduced
 
@@ -425,9 +439,15 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         if not hasattr(self.module, f"{step_type}_step"):
             raise AttributeError(f"self.module must have a `{step_type}_step` method")
 
-        _data_step = data_step or _ModuleStepFunction.from_data_step(self.module, step_type)
-        _forward_step = forward_step or _ModuleStepFunction.from_forward_step(self.module, step_type)
-        _loss_reduction = loss_reduction or _ModuleStepFunction.from_loss_reduction(self.module, step_type)
+        _data_step = data_step or _ModuleStepFunction.from_data_step(
+            self.module, step_type
+        )
+        _forward_step = forward_step or _ModuleStepFunction.from_forward_step(
+            self.module, step_type
+        )
+        _loss_reduction = loss_reduction or _ModuleStepFunction.from_loss_reduction(
+            self.module, step_type
+        )
 
         return self.forward(
             data=data,
@@ -489,7 +509,9 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
                 forward_callback=forward_callback,
             )
 
-            if self.precision_plugin and parallel_state.is_pipeline_first_stage(ignore_virtual=False):
+            if self.precision_plugin and parallel_state.is_pipeline_first_stage(
+                ignore_virtual=False
+            ):
                 batch = self.precision_plugin.convert_input(batch)
 
             output_tensor = _forward_step(model, batch)
@@ -503,7 +525,9 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
                 tensor=output_tensor,
             )
 
-            if self.precision_plugin and parallel_state.is_pipeline_last_stage(ignore_virtual=False):
+            if self.precision_plugin and parallel_state.is_pipeline_last_stage(
+                ignore_virtual=False
+            ):
                 output_tensor = self.precision_plugin.convert_output(output_tensor)
 
             self.callbacks.event(
@@ -534,13 +558,18 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
             if hasattr(model_module, "configure_model"):
                 if not hasattr(model_module, "set_input_tensor"):
                     if hasattr(model_module.module, "set_input_tensor"):
-                        model_module.set_input_tensor = model_module.module.set_input_tensor
+                        model_module.set_input_tensor = (
+                            model_module.module.set_input_tensor
+                        )
                     else:
                         # TODO: What to do here?
                         pass
 
             # Print number of parameters.
-            if parallel_state.model_parallel_is_initialized() and parallel_state.get_data_parallel_rank() == 0:
+            if (
+                parallel_state.model_parallel_is_initialized()
+                and parallel_state.get_data_parallel_rank() == 0
+            ):
                 from nemo.utils import logging
 
                 num_params = _calc_number_of_params(list(self))
@@ -589,15 +618,25 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
 
             # Mcore DistributedDataParallel has to be called with grad. Normally this call is redundant, but for
             # PEFT with num_sanity_val_steps > 0 this is necessary.
-            init_ddp_context = nullcontext if all(x.requires_grad for x in module.parameters()) else torch.enable_grad
+            init_ddp_context = (
+                nullcontext
+                if all(x.requires_grad for x in module.parameters())
+                else torch.enable_grad
+            )
 
             # Turn off bucketing for model_chunk 2 onwards, since communication for these
             # model chunks is overlapped with compute anyway, or if using VP and overlapping
             # data parallel param gather with optimizer
             overlap_param_gather_with_optimizer_step = False
-            if hasattr(self, "optim") and isinstance(self.optim.config, OptimizerConfig):
-                overlap_param_gather_with_optimizer_step = self.optim.config.overlap_param_gather_with_optimizer_step
-            disable_bucketing = (model_chunk_idx > 0) or overlap_param_gather_with_optimizer_step
+            if hasattr(self, "optim") and isinstance(
+                self.optim.config, OptimizerConfig
+            ):
+                overlap_param_gather_with_optimizer_step = (
+                    self.optim.config.overlap_param_gather_with_optimizer_step
+                )
+            disable_bucketing = (
+                model_chunk_idx > 0
+            ) or overlap_param_gather_with_optimizer_step
 
             with init_ddp_context():
                 # Avoid rewrapping the module if it's already wrapped with FSDP
@@ -611,14 +650,22 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
 
                     if not getattr(module.config, "use_custom_fsdp", False):
                         setattr(module.config, "use_custom_fsdp", True)
-                        logging.warning("Setting module.config.use_custom_fsdp to True for MCore FSDP.")
+                        logging.warning(
+                            "Setting module.config.use_custom_fsdp to True for MCore FSDP."
+                        )
 
                     if getattr(module.config, "gradient_accumulation_fusion", True):
                         setattr(module.config, "gradient_accumulation_fusion", False)
-                        logging.warning("Setting module.config.gradient_accumulation_fusion to False for MCore FSDP.")
+                        logging.warning(
+                            "Setting module.config.gradient_accumulation_fusion to False for MCore FSDP."
+                        )
 
-                    assert module.config.use_custom_fsdp, "Custom FSDP is not enabled in module.config."
-                    assert self.ddp_config.use_custom_fsdp, "Custom FSDP is not enabled in ddp_config."
+                    assert (
+                        module.config.use_custom_fsdp
+                    ), "Custom FSDP is not enabled in module.config."
+                    assert (
+                        self.ddp_config.use_custom_fsdp
+                    ), "Custom FSDP is not enabled in ddp_config."
 
                     dist_module = FullyShardedDataParallel(
                         module.config,
@@ -631,7 +678,9 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
                         module.config,
                         self.ddp_config,
                         module,
-                        data_parallel_group=parallel_state.get_data_parallel_group(with_context_parallel=True),
+                        data_parallel_group=parallel_state.get_data_parallel_group(
+                            with_context_parallel=True
+                        ),
                         expert_data_parallel_group=parallel_state.get_data_modulo_expert_parallel_group(),
                         disable_bucketing=disable_bucketing,
                     )
@@ -653,7 +702,9 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
             )
 
             model_chunk.original_getattr = original_getattr
-            model_chunk.original_getattr.__dict__.update(model_chunk.__getattr__.__dict__)
+            model_chunk.original_getattr.__dict__.update(
+                model_chunk.__getattr__.__dict__
+            )
 
             model_chunk.__class__.__getattr__ = getattr_proxy  # type: ignore
 
@@ -694,7 +745,10 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         """
         sharded_state_dict = {}
         for index, module in enumerate(self):
-            if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
+            if (
+                parallel_state.get_virtual_pipeline_model_parallel_world_size()
+                is not None
+            ):
                 # virtual pipline rank must be set so that GPTModel returns the correct sharded state dict
                 parallel_state.set_virtual_pipeline_model_parallel_rank(index)
                 module_sharded_state_dict = self._module_sharded_state_dict(module)
@@ -714,26 +768,34 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
             return module.sharded_state_dict(*args, **kwargs)
         elif hasattr(module, "configure_model"):
             prefix = "".join([kwargs.pop("prefix", ""), "module."])
-            return self._module_sharded_state_dict(module.module, *args, prefix=prefix, **kwargs)
+            return self._module_sharded_state_dict(
+                module.module, *args, prefix=prefix, **kwargs
+            )
 
         raise ValueError("Could not find sharded state dict")
 
     def enable_forward_pre_hook(self):
         for model in self:
             model_chunk = model.module
-            assert isinstance(model_chunk, DDP) or isinstance(model_chunk, FullyShardedDataParallel)
+            assert isinstance(model_chunk, DDP) or isinstance(
+                model_chunk, FullyShardedDataParallel
+            )
             model_chunk.enable_forward_pre_hook()
 
     def disable_forward_pre_hook(self):
         for model in self:
             model_chunk = model.module
-            assert isinstance(model_chunk, DDP) or isinstance(model_chunk, FullyShardedDataParallel)
+            assert isinstance(model_chunk, DDP) or isinstance(
+                model_chunk, FullyShardedDataParallel
+            )
             model_chunk.disable_forward_pre_hook()
 
     def force_param_sync(self):
         for model in self:
             model_chunk = model.module
-            assert isinstance(model_chunk, DDP) or isinstance(model_chunk, FullyShardedDataParallel)
+            assert isinstance(model_chunk, DDP) or isinstance(
+                model_chunk, FullyShardedDataParallel
+            )
             model_chunk.start_param_sync(force_sync=True)
 
     @property
@@ -763,7 +825,9 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
             try:
                 return getattr(self._modules[self._get_abs_string_index(0)], item)
             except AttributeError:
-                raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{item}'")
+                raise AttributeError(
+                    f"'{self.__class__.__name__}' object has no attribute '{item}'"
+                )
 
 
 class _ModuleStepFunction:
@@ -772,13 +836,17 @@ class _ModuleStepFunction:
         making it possible to use PTL-compatible functions in Megatron core.
     """
 
-    def __init__(self, name: str, is_property: bool = False, includes_self: bool = False):
+    def __init__(
+        self, name: str, is_property: bool = False, includes_self: bool = False
+    ):
         self.name = name
         self.is_property = is_property
         self.includes_self = includes_self
 
     @classmethod
-    def from_data_step(cls, module: "pl.LightningModule", step_type: str) -> Optional["_ModuleStepFunction"]:
+    def from_data_step(
+        cls, module: "pl.LightningModule", step_type: str
+    ) -> Optional["_ModuleStepFunction"]:
         for fn_name in [f"{step_type}_data_step", "data_step"]:
             if hasattr(module, fn_name):
                 return _ModuleStepFunction(fn_name)
@@ -786,12 +854,16 @@ class _ModuleStepFunction:
         return None
 
     @classmethod
-    def from_forward_step(cls, module: "pl.LightningModule", step_type: str) -> Optional["_ModuleStepFunction"]:
+    def from_forward_step(
+        cls, module: "pl.LightningModule", step_type: str
+    ) -> Optional["_ModuleStepFunction"]:
         from megatron.core import parallel_state
 
         if parallel_state.is_pipeline_last_stage(ignore_virtual=False):
             if not hasattr(module, f"{step_type}_step"):
-                raise ValueError(f"LightningModule does not have {step_type}_step method")
+                raise ValueError(
+                    f"LightningModule does not have {step_type}_step method"
+                )
 
             return _ModuleStepFunction(f"{step_type}_step", includes_self=True)
 
@@ -802,7 +874,9 @@ class _ModuleStepFunction:
         return None
 
     @classmethod
-    def from_loss_reduction(cls, module: "pl.LightningModule", step_type: str) -> Optional["_ModuleStepFunction"]:
+    def from_loss_reduction(
+        cls, module: "pl.LightningModule", step_type: str
+    ) -> Optional["_ModuleStepFunction"]:
         for fn_name in [f"{step_type}_loss_reduction", "loss_reduction"]:
             if hasattr(module, fn_name):
                 return _ModuleStepFunction(fn_name, is_property=True)
@@ -833,12 +907,16 @@ def getattr_proxy(self, item: Any) -> Any:
     try:
         return super(self.__class__, self).__getattr__(item)
     except AttributeError as e:
-        if item == 'module':  ## this is a hacky WAR and may cause misleading error messages
+        if (
+            item == "module"
+        ):  ## this is a hacky WAR and may cause misleading error messages
             raise e
         try:
             return getattr(self.module, item)
         except AttributeError:
-            raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{item}'")
+            raise AttributeError(
+                f"'{self.__class__.__name__}' object has no attribute '{item}'"
+            )
 
 
 class DDP(McoreDDP):
@@ -863,7 +941,7 @@ class DDP(McoreDDP):
             **filtered_kwargs,
         )
 
-    def state_dict(self, prefix='', keep_vars=False, **kwargs):
+    def state_dict(self, prefix="", keep_vars=False, **kwargs):
         self.module.state_dict(prefix=prefix, keep_vars=keep_vars, **kwargs)
 
     def __getattr__(self, item: Any) -> Any:
@@ -924,7 +1002,11 @@ class CallbackConnector:
         except ImportError:
             pass
 
-        megatron_methods = {m for m in dir(CallbackMethods) if m.startswith("on") and not hasattr(_pl_callback, m)}
+        megatron_methods = {
+            m
+            for m in dir(CallbackMethods)
+            if m.startswith("on") and not hasattr(_pl_callback, m)
+        }
 
         for callback in callbacks:
             if isinstance(callback, CallbackConnector):
@@ -933,7 +1015,9 @@ class CallbackConnector:
                     self.callbacks[event_name].extend(event_callbacks)
             else:
                 for method in megatron_methods:
-                    if hasattr(callback, method) and callable(getattr(callback, method)):
+                    if hasattr(callback, method) and callable(
+                        getattr(callback, method)
+                    ):
                         self.callbacks[method].append(callback)
 
         return self
@@ -967,14 +1051,17 @@ class CallbackConnector:
                     callback_method(*args, **kwargs)
                 elif accepts_var_args:
                     # If only *args is accepted, filter kwargs
-                    filtered_kwargs = {k: v for k, v in kwargs.items() if k in sig.parameters}
+                    filtered_kwargs = {
+                        k: v for k, v in kwargs.items() if k in sig.parameters
+                    }
                     callback_method(*args, **filtered_kwargs)
                 elif accepts_var_kwargs:
                     # If only **kwargs is accepted, filter args
                     filtered_args = [
                         arg
                         for arg, param in zip(args, params)
-                        if param.kind in (param.POSITIONAL_ONLY, param.POSITIONAL_OR_KEYWORD)
+                        if param.kind
+                        in (param.POSITIONAL_ONLY, param.POSITIONAL_OR_KEYWORD)
                     ]
                     callback_method(*filtered_args, **kwargs)
                 else:
@@ -982,9 +1069,12 @@ class CallbackConnector:
                     filtered_args = [
                         arg
                         for arg, param in zip(args, params)
-                        if param.kind in (param.POSITIONAL_ONLY, param.POSITIONAL_OR_KEYWORD)
+                        if param.kind
+                        in (param.POSITIONAL_ONLY, param.POSITIONAL_OR_KEYWORD)
                     ]
-                    filtered_kwargs = {k: v for k, v in kwargs.items() if k in sig.parameters}
+                    filtered_kwargs = {
+                        k: v for k, v in kwargs.items() if k in sig.parameters
+                    }
                     callback_method(*filtered_args, **filtered_kwargs)
 
     def transform_event(self, name: str, obj: T, **kwargs) -> T:
@@ -1042,7 +1132,9 @@ class CallbackConnector:
         if not isinstance(other, CallbackConnector):
             raise ValueError("Can only add CallbackConnector instances")
         new_connector = CallbackConnector()
-        new_connector.callbacks = defaultdict(list, {**self.callbacks, **other.callbacks})
+        new_connector.callbacks = defaultdict(
+            list, {**self.callbacks, **other.callbacks}
+        )
         return new_connector
 
     def __iadd__(self, other) -> "CallbackConnector":
@@ -1091,7 +1183,9 @@ class CallbackConnector:
         ]
 
         # Check if the object has any method that's in CallbackMethods
-        has_any_callback_method = any(hasattr(callback_object, method) for method in callback_methods)
+        has_any_callback_method = any(
+            hasattr(callback_object, method) for method in callback_methods
+        )
 
         # If the object has none of the methods, it's not a callback
         if not has_any_callback_method:
@@ -1243,7 +1337,9 @@ class MegatronStep(Generic[ModelT, DataT]):
         """
         if isinstance(data, Iterator):
             return _make_data_iterator_list(self.model, data)
-        elif isinstance(data, list) and all(isinstance(item, Iterator) for item in data):
+        elif isinstance(data, list) and all(
+            isinstance(item, Iterator) for item in data
+        ):
             # If data is already a list of iterators, return it as is
             return cast(List[Iterator[DataT]], data)
 
@@ -1388,7 +1484,9 @@ class MegatronStep(Generic[ModelT, DataT]):
             self.forward_only,
         )
 
-    def get_data_iterator_and_seq_length(self) -> Tuple[List[Iterator[DataT]], Optional[int]]:
+    def get_data_iterator_and_seq_length(
+        self,
+    ) -> Tuple[List[Iterator[DataT]], Optional[int]]:
         """
         Converts the provided data into a list of iterators.
 
@@ -1408,7 +1506,7 @@ class MegatronStep(Generic[ModelT, DataT]):
                 batch, batch_idx, dataloader_idx = batch_data[0], None, None
 
             # finetuning can have dynamic sequence lengths
-            seq_length = batch['tokens'].size(1) if 'tokens' in batch else None
+            seq_length = batch["tokens"].size(1) if "tokens" in batch else None
             from nemo.collections.nlp.modules.common.megatron.utils import \
                 get_iterator_k_split
 
@@ -1431,7 +1529,9 @@ class MegatronStep(Generic[ModelT, DataT]):
         # The "batch" sampler is a nemo1 sampler. It requires some custom code here to use
         # (if use_global_batch_sampler), by default we shouldn't use this "batch" sampler probably.
         if getattr(self.trainer, "datamodule", None) is not None:
-            use_global_batch_sampler = self.trainer.datamodule.data_sampler.dataloader_type == 'batch'
+            use_global_batch_sampler = (
+                self.trainer.datamodule.data_sampler.dataloader_type == "batch"
+            )
         elif getattr(self.trainer, "predict_dataloaders", None) is not None:
             from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import \
                 MegatronPretrainingBatchSampler  # noqa: I001
@@ -1440,7 +1540,8 @@ class MegatronStep(Generic[ModelT, DataT]):
             # predict without a datamodule we can look inside the dataloader's batch_sampler to see
             # if it is the nemo1 style sampler that we need to handle specially below.
             use_global_batch_sampler = isinstance(
-                self.trainer.predict_dataloaders.batch_sampler, MegatronPretrainingBatchSampler
+                self.trainer.predict_dataloaders.batch_sampler,
+                MegatronPretrainingBatchSampler,
             )
         else:
             use_global_batch_sampler = False
@@ -1523,7 +1624,9 @@ class CallbackMethods:
         """
         ...
 
-    def on_megatron_microbatches_end(self, step: MegatronStep, microbatch_outputs: List[Any]) -> None:
+    def on_megatron_microbatches_end(
+        self, step: MegatronStep, microbatch_outputs: List[Any]
+    ) -> None:
         """
         Called after all microbatches in a step have been processed.
 
@@ -1612,17 +1715,23 @@ class MegatronLossReduction(nn.Module, Generic[DataT, ReductionT]):
     def _pre_forward_hook(self, module, x):
         return (self.batch,) + x
 
-    def forward(self, batch: DataT, forward_out: torch.Tensor) -> Tuple[torch.Tensor, ReductionT]:
+    def forward(
+        self, batch: DataT, forward_out: torch.Tensor
+    ) -> Tuple[torch.Tensor, ReductionT]:
         raise NotImplementedError("Must be implemented by subclass.")
 
     @abc.abstractmethod
-    def reduce(self, losses_reduced_per_micro_batch: Sequence[ReductionT]) -> torch.Tensor:
+    def reduce(
+        self, losses_reduced_per_micro_batch: Sequence[ReductionT]
+    ) -> torch.Tensor:
         raise NotImplementedError("Must be implemented by subclass.")
 
 
 @runtime_checkable
 class MegatronCallbackProtocol(Protocol):
-    def __call__(self, tensor: torch.Tensor) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]: ...
+    def __call__(
+        self, tensor: torch.Tensor
+    ) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]: ...
 
 
 @runtime_checkable
@@ -1645,13 +1754,23 @@ class MegatronStepProtocol(Protocol):
 def _calc_number_of_params(model: List[nn.Module]) -> int:
     assert isinstance(model, list)
 
-    return sum([sum([p.nelement() for p in model_module.parameters()]) for model_module in model])
+    return sum(
+        [
+            sum([p.nelement() for p in model_module.parameters()])
+            for model_module in model
+        ]
+    )
 
 
 def _calc_number_of_trainable_params(model: List[nn.Module]) -> int:
     assert isinstance(model, list)
 
-    return sum([sum([p.numel() for p in model_module.parameters() if p.requires_grad]) for model_module in model])
+    return sum(
+        [
+            sum([p.numel() for p in model_module.parameters() if p.requires_grad])
+            for model_module in model
+        ]
+    )
 
 
 def is_list_of_iterators(var) -> bool:
@@ -1723,7 +1842,9 @@ def _make_data_iterator_list(model, data_iterator: Iterator) -> List[Iterator]:
 
 
 class MaskedTokenLossReduction(MegatronLossReduction):
-    def __init__(self, validation_step: bool = False, val_drop_last: bool = True) -> None:
+    def __init__(
+        self, validation_step: bool = False, val_drop_last: bool = True
+    ) -> None:
         super().__init__()
         self.validation_step = validation_step
         self.val_drop_last = val_drop_last
@@ -1732,7 +1853,8 @@ class MaskedTokenLossReduction(MegatronLossReduction):
         self, batch: Dict[str, torch.Tensor], forward_out: torch.Tensor
     ) -> Tuple[torch.Tensor, torch.Tensor, Dict[str, torch.Tensor]]:
         """Taken from: https://github.com/NVIDIA/NeMo/blob/main
-        /nemo/collections/nlp/models/language_modeling/megatron_gpt_model.py#L951-L976 ."""
+        /nemo/collections/nlp/models/language_modeling/megatron_gpt_model.py#L951-L976 .
+        """
 
         # neva returns (logits, loss_mask)
         if isinstance(forward_out, tuple):
@@ -1746,12 +1868,19 @@ class MaskedTokenLossReduction(MegatronLossReduction):
             loss_sum = torch.zeros_like(num_valid_tokens)
 
         num_valid_tokens = num_valid_tokens.clone().detach().to(torch.int)
-        loss_sum_and_ub_size = torch.cat([loss_sum.clone().detach().view(1), num_valid_tokens.view(1)])
-        return loss_sum, num_valid_tokens, {"loss_sum_and_ub_size": loss_sum_and_ub_size}
+        loss_sum_and_ub_size = torch.cat(
+            [loss_sum.clone().detach().view(1), num_valid_tokens.view(1)]
+        )
+        return (
+            loss_sum,
+            num_valid_tokens,
+            {"loss_sum_and_ub_size": loss_sum_and_ub_size},
+        )
 
     def reduce(self, losses_reduced_per_micro_batch) -> torch.Tensor:
         """Taken from: https://github.com/NVIDIA/NeMo/blob/main
-        /nemo/collections/nlp/models/language_modeling/megatron_gpt_model.py#L535-L552 ."""
+        /nemo/collections/nlp/models/language_modeling/megatron_gpt_model.py#L535-L552 .
+        """
         if losses_reduced_per_micro_batch:
             if "avg" in losses_reduced_per_micro_batch[0]:
                 # legacy behavior, average over the number of microbatches
@@ -1762,7 +1891,9 @@ class MaskedTokenLossReduction(MegatronLossReduction):
             from megatron.core import parallel_state
 
             loss_sum_and_ub_size = [
-                x["loss_sum_and_ub_size"] for x in losses_reduced_per_micro_batch if x["loss_sum_and_ub_size"][1] > 0
+                x["loss_sum_and_ub_size"]
+                for x in losses_reduced_per_micro_batch
+                if x["loss_sum_and_ub_size"][1] > 0
             ]
             loss = (
                 torch.vstack(loss_sum_and_ub_size).sum(dim=0)
@@ -1771,7 +1902,9 @@ class MaskedTokenLossReduction(MegatronLossReduction):
             )
             torch.distributed.all_reduce(
                 loss,
-                group=parallel_state.get_data_parallel_group(with_context_parallel=True),
+                group=parallel_state.get_data_parallel_group(
+                    with_context_parallel=True
+                ),
             )
             # average over the total number of tokens across the global batch.
             loss = loss[0] / loss[1]
@@ -1821,7 +1954,7 @@ def moe_loss_tracker_ctx():
 def aggregate_moe_loss_stats(loss_scale=1.0):
     with moe_loss_tracker_ctx():
         tracker = parallel_state.get_moe_layer_wise_logging_tracker()
-        aux_losses = {k: v['values'].float() * loss_scale for k, v in tracker.items()}
+        aux_losses = {k: v["values"].float() * loss_scale for k, v in tracker.items()}
         total_loss_dict = {}
         for name, loss_list in aux_losses.items():
             if name not in total_loss_dict:

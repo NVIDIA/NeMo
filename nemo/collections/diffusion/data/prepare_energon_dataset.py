@@ -43,8 +43,12 @@ def initialize_text_encoder(t5_cache_dir):
     """
 
     # Load tokenizer and text encoder, save in cache directory
-    tokenizer = T5TokenizerFast.from_pretrained("google-t5/t5-11b", cache_dir=t5_cache_dir)
-    text_encoder = T5EncoderModel.from_pretrained("google-t5/t5-11b", cache_dir=t5_cache_dir)
+    tokenizer = T5TokenizerFast.from_pretrained(
+        "google-t5/t5-11b", cache_dir=t5_cache_dir
+    )
+    text_encoder = T5EncoderModel.from_pretrained(
+        "google-t5/t5-11b", cache_dir=t5_cache_dir
+    )
     text_encoder.to("cuda")
     text_encoder.eval()
 
@@ -52,11 +56,13 @@ def initialize_text_encoder(t5_cache_dir):
 
 
 # Load dataset from HuggingFace
-df = pd.read_parquet("hf://datasets/huggan/smithsonian_butterflies_subset/data/train-00000-of-00001.parquet")
+df = pd.read_parquet(
+    "hf://datasets/huggan/smithsonian_butterflies_subset/data/train-00000-of-00001.parquet"
+)
 # Load Cosmos tokenizer from HuggingFace
 autoencoder = CausalVideoTokenizer.from_pretrained("CosmosCausalCV_f4x8x8")
 # Load T5-XXL text encoder
-t5_cache_dir = ''  # Use your own custom cache path
+t5_cache_dir = ""  # Use your own custom cache path
 tokenizer, text_encoder = initialize_text_encoder(t5_cache_dir)
 
 
@@ -72,7 +78,13 @@ class EncodedSample:
         offset_mappings (np.ndarray): Mappings for offset positions.
     """
 
-    def __init__(self, encoded_text: np.ndarray, length: int, attn_mask: np.ndarray, offset_mappings: np.ndarray):
+    def __init__(
+        self,
+        encoded_text: np.ndarray,
+        length: int,
+        attn_mask: np.ndarray,
+        offset_mappings: np.ndarray,
+    ):
         self.encoded_text = encoded_text
         self.length = length
         self.attn_mask = attn_mask
@@ -85,12 +97,19 @@ class EncodedSample:
         self.encoded_text = self.encoded_text[0 : self.length].astype(np.float16)
         self.attn_mask = self.attn_mask[0 : self.length].astype(np.int32)
         if self.offset_mappings is not None:
-            self.offset_mappings = self.offset_mappings[0 : self.length].astype(np.int32)
+            self.offset_mappings = self.offset_mappings[0 : self.length].astype(
+                np.int32
+            )
 
 
 @torch.no_grad()
 def encode_for_batch(
-    tokenizer, encoder, prompts: list[str], truncate: bool = True, max_length=512, output_mapping=True
+    tokenizer,
+    encoder,
+    prompts: list[str],
+    truncate: bool = True,
+    max_length=512,
+    output_mapping=True,
 ):
     """
     Encodes a batch of text prompts into T5 embeddings.
@@ -145,7 +164,14 @@ def encode_for_batch(
         else:
             offsets = None
 
-        out.append(EncodedSample(encoded_text[idx].astype(np.float16), lengths[idx], attn_mask[idx], offsets))
+        out.append(
+            EncodedSample(
+                encoded_text[idx].astype(np.float16),
+                lengths[idx],
+                attn_mask[idx],
+                offsets,
+            )
+        )
     if truncate:
         for x in out:
             x.truncate()
@@ -213,7 +239,7 @@ def butterfly_process_func(index):
 
     # Process image
     video = read_image(image_url)
-    video = rearrange(video, 'h w (t c) -> t h w c', t=1)
+    video = rearrange(video, "h w (t c) -> t h w c", t=1)
     video = resize_video(video, short_size=512)
     batch_video = video[np.newaxis, ...]
 
@@ -238,7 +264,7 @@ def butterfly_process_func(index):
 
 @torch.no_grad()
 @run.cli.entrypoint
-def prepare(process_func: Callable, output_dir: str = 'output'):
+def prepare(process_func: Callable, output_dir: str = "output"):
     """
     Prepares a WebDataset using the specified processing function, for distributed settings.
 
@@ -269,12 +295,14 @@ def prepare_butterfly_dataset() -> run.Partial:
     Returns:
         run.Partial: Partially configured run for WebDataset preparation.
     """
-    recipe = run.Partial(prepare, process_func=butterfly_process_func, output_dir='butterfly_webdataset')
+    recipe = run.Partial(
+        prepare, process_func=butterfly_process_func, output_dir="butterfly_webdataset"
+    )
     return recipe
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     dist.init_process_group("nccl")
-    local_rank = int(os.environ['LOCAL_RANK'])
+    local_rank = int(os.environ["LOCAL_RANK"])
     torch.cuda.set_device(local_rank)
     run.cli.main(prepare, default_factory=prepare_butterfly_dataset)

@@ -47,8 +47,7 @@ class SmoothedCrossEntropyLoss(Loss):
 
     @property
     def input_types(self):
-        """Returns definitions of module input ports.
-        """
+        """Returns definitions of module input ports."""
         return {
             "log_probs": NeuralType(("B", "T", "D"), LogprobsType()),
             "labels": NeuralType(("B", "T"), LabelsType()),
@@ -57,8 +56,7 @@ class SmoothedCrossEntropyLoss(Loss):
 
     @property
     def output_types(self):
-        """Returns definitions of module output ports.
-        """
+        """Returns definitions of module output ports."""
         return {"loss": NeuralType(elements_type=LossType())}
 
     def __init__(
@@ -98,7 +96,9 @@ class SmoothedCrossEntropyLoss(Loss):
         target_log_probs = log_probs.gather(2, labels.unsqueeze(2)).squeeze(2)
 
         smoothing_log_probs = log_probs.mean(dim=-1)
-        neg_log_likelihood = (1.0 - smoothing) * target_log_probs + smoothing * smoothing_log_probs
+        neg_log_likelihood = (
+            1.0 - smoothing
+        ) * target_log_probs + smoothing * smoothing_log_probs
         neg_log_likelihood = neg_log_likelihood[:, -self._predict_last_k :]
         output_mask = output_mask[:, -self._predict_last_k :]
 
@@ -119,8 +119,7 @@ class SmoothedNLLLoss(NeuralModule, Exportable):
 
     @property
     def input_types(self):
-        """Returns definitions of module input ports.
-        """
+        """Returns definitions of module input ports."""
         return {
             "log_probs": NeuralType(("B", "T", "D"), LogprobsType()),
             "labels": NeuralType(("B", "T"), LabelsType()),
@@ -130,15 +129,14 @@ class SmoothedNLLLoss(NeuralModule, Exportable):
 
     @property
     def output_types(self):
-        """Returns definitions of module output ports.
-        """
+        """Returns definitions of module output ports."""
         return {"loss": NeuralType(elements_type=LossType())}
 
-    def __init__(self, reduction='mean', label_smoothing=0.0, eps=1e-8, **kwargs):
+    def __init__(self, reduction="mean", label_smoothing=0.0, eps=1e-8, **kwargs):
         super().__init__()
         self.reduction = reduction
         self.label_smoothing = label_smoothing
-        self.nll_loss = torch.nn.NLLLoss(reduction='none', **kwargs)
+        self.nll_loss = torch.nn.NLLLoss(reduction="none", **kwargs)
         self.eps = eps  # small constant to avoid divide by zero
 
     @typecheck()
@@ -154,7 +152,10 @@ class SmoothedNLLLoss(NeuralModule, Exportable):
         if output_mask is None and lengths is None:
             output_mask = torch.ones_like(log_probs).float()
         elif output_mask is None and lengths is not None:
-            output_mask = torch.arange(log_probs.size(1), device=log_probs.device)[None, :] < lengths[:, None]
+            output_mask = (
+                torch.arange(log_probs.size(1), device=log_probs.device)[None, :]
+                < lengths[:, None]
+            )
             output_mask = output_mask.float()
 
         log_probs = log_probs.transpose(1, 2)  # BxTxC -> BxCxT
@@ -166,7 +167,9 @@ class SmoothedNLLLoss(NeuralModule, Exportable):
         elif self.reduction == "batchmean":
             loss = loss.sum() / batch_size
         elif self.reduction == "batch":
-            loss = loss.reshape(batch_size, -1).sum(1) / (output_mask.reshape(batch_size, -1).sum(1) + self.eps)
+            loss = loss.reshape(batch_size, -1).sum(1) / (
+                output_mask.reshape(batch_size, -1).sum(1) + self.eps
+            )
 
         if self.label_smoothing == 0.0:
             return loss

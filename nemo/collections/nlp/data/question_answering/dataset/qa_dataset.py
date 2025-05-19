@@ -29,7 +29,7 @@ from nemo.utils.decorators import deprecated_warning
 
 
 class QADataset(Dataset):
-    '''Abstract base class for QA Datasets with common utility methods'''
+    """Abstract base class for QA Datasets with common utility methods"""
 
     def __init__(
         self,
@@ -79,7 +79,9 @@ class QADataset(Dataset):
 
     @staticmethod
     def dump_features_to_cache(cached_filename, features):
-        master_device = not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0
+        master_device = (
+            not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0
+        )
         if master_device:
             logging.info(f"Saving train features into cached file {cached_filename}")
             with open(cached_filename, "wb") as writer:
@@ -95,7 +97,9 @@ class QADataset(Dataset):
 
         percent_memory = psutil.virtual_memory().percent
         if percent_memory > 75:
-            raise ValueError('Please use a device with more CPU ram or a smaller dataset')
+            raise ValueError(
+                "Please use a device with more CPU ram or a smaller dataset"
+            )
 
     @staticmethod
     @lru_cache(maxsize=10000)
@@ -177,7 +181,9 @@ class QADataset(Dataset):
         return doc_spans
 
     @staticmethod
-    def get_average_dist_to_tok_start_and_end(doc_span, tok_start_position, tok_end_position):
+    def get_average_dist_to_tok_start_and_end(
+        doc_span, tok_start_position, tok_end_position
+    ):
         """
         Find distance between doc_span and answer_span to determine if doc_span is likely to be useful for the answer
         Helper function to filter out doc_spans that may not be helpful
@@ -216,9 +222,9 @@ class QADataset(Dataset):
             doc_spans: doc_spans after filtering
         """
 
-        if mode == 'all':
+        if mode == "all":
             return doc_spans
-        elif mode == 'only_positive':
+        elif mode == "only_positive":
             if tok_start_position in [-1, None] or tok_end_position in [-1, None]:
                 return []
             else:
@@ -228,7 +234,7 @@ class QADataset(Dataset):
                     if tok_start_position >= doc_span.start
                     and tok_end_position <= doc_span.start + doc_span.length - 1
                 ]
-        elif mode == 'limited_negative':
+        elif mode == "limited_negative":
             n_candidates = 10
             if tok_start_position in [-1, None] or tok_end_position in [-1, None]:
                 pass
@@ -240,7 +246,9 @@ class QADataset(Dataset):
                 )
             return doc_spans[:n_candidates]
         else:
-            raise ValueError('mode can only be in {all, only_positive and limited_negative')
+            raise ValueError(
+                "mode can only be in {all, only_positive and limited_negative"
+            )
 
     @staticmethod
     def split_into_words(context_text):
@@ -270,7 +278,11 @@ class QADataset(Dataset):
 
     @staticmethod
     def get_doc_tokens_and_offset_from_context_id(
-        context_id, start_position_character, is_impossible, answer_text, context_id_to_context_text
+        context_id,
+        start_position_character,
+        is_impossible,
+        answer_text,
+        context_id_to_context_text,
     ):
         start_position, end_position = 0, 0
         context_text = context_id_to_context_text[context_id]
@@ -282,10 +294,19 @@ class QADataset(Dataset):
             # start_position is index of word, end_position inclusive
             start_position = char_to_word_offset[start_position_character]
             end_position = char_to_word_offset[
-                min(start_position_character + len(answer_text) - 1, len(char_to_word_offset) - 1)
+                min(
+                    start_position_character + len(answer_text) - 1,
+                    len(char_to_word_offset) - 1,
+                )
             ]
 
-        return doc_tokens, char_to_word_offset, start_position, end_position, context_text
+        return (
+            doc_tokens,
+            char_to_word_offset,
+            start_position,
+            end_position,
+            context_text,
+        )
 
     @staticmethod
     def improve_answer_span(

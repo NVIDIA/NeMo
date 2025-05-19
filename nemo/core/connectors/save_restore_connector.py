@@ -86,7 +86,9 @@ class SaveRestoreConnector:
 
                 # Check if we are packing the folder into a nemo file
                 if self.pack_nemo_file:
-                    self._make_nemo_file_from_folder(filename=save_path, source_dir=tmpdir)
+                    self._make_nemo_file_from_folder(
+                        filename=save_path, source_dir=tmpdir
+                    )
                 else:
                     # Get the folder path from the save_path and move all values inside the tmpdir to the folder
                     folder_path = os.path.dirname(save_path)
@@ -135,18 +137,21 @@ class SaveRestoreConnector:
 
         if map_location is None:
             if torch.cuda.is_available():
-                map_location = torch.device('cuda')
+                map_location = torch.device("cuda")
             else:
-                map_location = torch.device('cpu')
+                map_location = torch.device("cpu")
 
         app_state = AppState()
         with tempfile.TemporaryDirectory() as tmpdir:
             try:
                 # Check if self.model_extracted_dir is set, and is a valid path
-                if self.model_extracted_dir is not None and os.path.isdir(self.model_extracted_dir):
+                if self.model_extracted_dir is not None and os.path.isdir(
+                    self.model_extracted_dir
+                ):
                     # Log that NeMo will use the provided `model_extracted_dir`
                     logging.info(
-                        f"Restoration will occur within pre-extracted directory : " f"`{self.model_extracted_dir}`."
+                        f"Restoration will occur within pre-extracted directory : "
+                        f"`{self.model_extracted_dir}`."
                     )
 
                     # Override `tmpdir` above with the pre-extracted `model_extracted_dir`
@@ -156,9 +161,11 @@ class SaveRestoreConnector:
                     # Extract the nemo file into the temporary directory
                     filter_fn = None
                     if return_config:
-                        filter_fn = lambda name: '.yaml' in name
+                        filter_fn = lambda name: ".yaml" in name
                     members = self._filtered_tar_info(restore_path, filter_fn=filter_fn)
-                    self._unpack_nemo_file(path2file=restore_path, out_folder=tmpdir, members=members)
+                    self._unpack_nemo_file(
+                        path2file=restore_path, out_folder=tmpdir, members=members
+                    )
 
                 # Change current working directory to
                 os.chdir(tmpdir)
@@ -176,27 +183,41 @@ class SaveRestoreConnector:
                         conf = OmegaConf.to_container(conf, resolve=True)
                         conf = OmegaConf.create(conf)
                 # If override is top level config, extract just `model` from it
-                if 'model' in conf:
+                if "model" in conf:
                     conf = conf.model
 
                 if return_config:
                     instance = conf
                     return instance
                 else:
-                    if app_state.model_parallel_size is not None and app_state.model_parallel_size > 1:
-                        model_weights = self._inject_model_parallel_rank_for_ckpt(tmpdir, self.model_weights_ckpt)
+                    if (
+                        app_state.model_parallel_size is not None
+                        and app_state.model_parallel_size > 1
+                    ):
+                        model_weights = self._inject_model_parallel_rank_for_ckpt(
+                            tmpdir, self.model_weights_ckpt
+                        )
                     else:
                         model_weights = os.path.join(tmpdir, self.model_weights_ckpt)
                 OmegaConf.set_struct(conf, True)
                 os.chdir(cwd)
                 # get the class
-                calling_cls._set_model_restore_state(is_being_restored=True, folder=tmpdir)
+                calling_cls._set_model_restore_state(
+                    is_being_restored=True, folder=tmpdir
+                )
                 instance = calling_cls.from_config_dict(config=conf, trainer=trainer)
                 instance = instance.to(map_location)
                 # add load_state_dict override
-                if app_state.model_parallel_size is not None and app_state.model_parallel_size > 1:
-                    model_weights = self._inject_model_parallel_rank_for_ckpt(tmpdir, self.model_weights_ckpt)
-                state_dict = self._load_state_dict_from_disk(model_weights, map_location=map_location)
+                if (
+                    app_state.model_parallel_size is not None
+                    and app_state.model_parallel_size > 1
+                ):
+                    model_weights = self._inject_model_parallel_rank_for_ckpt(
+                        tmpdir, self.model_weights_ckpt
+                    )
+                state_dict = self._load_state_dict_from_disk(
+                    model_weights, map_location=map_location
+                )
             finally:
                 os.chdir(cwd)
 
@@ -213,10 +234,10 @@ class SaveRestoreConnector:
         """
 
         # NOTE and TODO (sandeepsub) This is duplicated across save_restore_connector and nlp_save_restore_connector. This shouldn't be here.
-        if conf.get('megatron_amp_O2', False):
+        if conf.get("megatron_amp_O2", False):
             new_state_dict = {}
             for key in state_dict.keys():
-                new_key = key.replace('model.', 'model.module.', 1)
+                new_key = key.replace("model.", "model.module.", 1)
                 new_state_dict[new_key] = state_dict[key]
             state_dict = new_state_dict
         return state_dict
@@ -284,10 +305,14 @@ class SaveRestoreConnector:
         conf, instance, state_dict = loaded_params
         state_dict = self.modify_state_dict(conf, state_dict)
         self.load_instance_with_state_dict(instance, state_dict, strict)
-        logging.info(f'Model {instance.__class__.__name__} was successfully restored from {restore_path}.')
+        logging.info(
+            f"Model {instance.__class__.__name__} was successfully restored from {restore_path}."
+        )
         return instance
 
-    def extract_state_dict_from(self, restore_path: str, save_dir: str, split_by_module: bool = False):
+    def extract_state_dict_from(
+        self, restore_path: str, save_dir: str, split_by_module: bool = False
+    ):
         """
         Extract the state dict(s) from a provided .nemo tarfile and save it to a directory.
 
@@ -348,20 +373,29 @@ class SaveRestoreConnector:
                 else:
                     key_set = set([key.split(".")[0] for key in state_dict.keys()])
                     for primary_key in key_set:
-                        inner_keys = [key for key in state_dict.keys() if key.split(".")[0] == primary_key]
+                        inner_keys = [
+                            key
+                            for key in state_dict.keys()
+                            if key.split(".")[0] == primary_key
+                        ]
                         state_dict_subset = {
-                            ".".join(inner_key.split(".")[1:]): state_dict[inner_key] for inner_key in inner_keys
+                            ".".join(inner_key.split(".")[1:]): state_dict[inner_key]
+                            for inner_key in inner_keys
                         }
                         filepath = os.path.join(save_dir, f"{primary_key}.ckpt")
                         self._save_state_dict_to_disk(state_dict_subset, filepath)
 
-                logging.info(f'Checkpoints from {restore_path} were successfully extracted into {save_dir}.')
+                logging.info(
+                    f"Checkpoints from {restore_path} were successfully extracted into {save_dir}."
+                )
             finally:
                 os.chdir(cwd)
 
         return state_dict
 
-    def register_artifact(self, model, config_path: str, src: str, verify_src_exists: bool = True):
+    def register_artifact(
+        self, model, config_path: str, src: str, verify_src_exists: bool = True
+    ):
         """
         Register model artifacts with this function. These artifacts (files) will be included inside .nemo file
         when model.save_to("mymodel.nemo") is called.
@@ -403,7 +437,9 @@ class SaveRestoreConnector:
         # without its key having been overriden, this pathway will be used.
         src_obj_name = os.path.basename(src)
         if app_state.nemo_file_folder is not None:
-            src_obj_path = os.path.abspath(os.path.join(app_state.nemo_file_folder, src_obj_name))
+            src_obj_path = os.path.abspath(
+                os.path.join(app_state.nemo_file_folder, src_obj_name)
+            )
         else:
             src_obj_path = src_obj_name
 
@@ -415,7 +451,9 @@ class SaveRestoreConnector:
         # this is the case when artifact must be retried from the nemo file
         # we are assuming that the location of the right nemo file is available from _MODEL_RESTORE_PATH
         elif src.startswith("nemo:"):
-            return_path = os.path.abspath(os.path.join(app_state.nemo_file_folder, src[5:]))
+            return_path = os.path.abspath(
+                os.path.join(app_state.nemo_file_folder, src[5:])
+            )
             artifact_item.path_type = model_utils.ArtifactPathType.TAR_PATH
 
         # backward compatibility implementation
@@ -454,21 +492,32 @@ class SaveRestoreConnector:
             if module.has_artifacts():  # NeMo model with artifacts
                 artifacts_containers.append((config_path, module.artifacts))
 
-        if len(artifacts_containers) > 0 and (not hasattr(model, "artifacts") or model.artifacts is None):
+        if len(artifacts_containers) > 0 and (
+            not hasattr(model, "artifacts") or model.artifacts is None
+        ):
             # model has no artifacts, but submodules have some
             model.artifacts = dict()
         for config_path, artifacts in artifacts_containers:
             for subconf_path, artiitem in artifacts.items():
-                conf_path = f"{config_path}.{subconf_path}" if config_path else f"{subconf_path}"
+                conf_path = (
+                    f"{config_path}.{subconf_path}"
+                    if config_path
+                    else f"{subconf_path}"
+                )
                 if artiitem.path_type == model_utils.ArtifactPathType.LOCAL_PATH:
                     if not os.path.exists(artiitem.path):
-                        raise FileNotFoundError(f"Artifact {conf_path} not found at location: {artiitem.path}")
+                        raise FileNotFoundError(
+                            f"Artifact {conf_path} not found at location: {artiitem.path}"
+                        )
 
                     # Generate new uniq artifact name and copy it to nemo_file_folder
                     # Note uuid.uuid4().hex is guaranteed to be 32 character long
                     artifact_base_name = os.path.basename(artiitem.path)
                     artifact_uniq_name = f"{uuid.uuid4().hex}_{artifact_base_name}"
-                    shutil.copy2(artiitem.path, os.path.join(nemo_file_folder, artifact_uniq_name))
+                    shutil.copy2(
+                        artiitem.path,
+                        os.path.join(nemo_file_folder, artifact_uniq_name),
+                    )
 
                     # Update artifacts registry
                     artiitem.hashed_path = "nemo:" + artifact_uniq_name
@@ -481,31 +530,39 @@ class SaveRestoreConnector:
                         model.artifacts[conf_path] = artiitem
 
                 else:
-                    raise ValueError(f"Directly referencing artifacts from other nemo files isn't supported yet")
+                    raise ValueError(
+                        f"Directly referencing artifacts from other nemo files isn't supported yet"
+                    )
 
         # Process current tarfile artifacts by unpacking the previous tarfile and extract the artifacts
         # that are currently required.
         # artifacts can be native (from the model itself) and from submodules
-        restoration_paths: Set[str] = set()  # model + submodules restoration paths, handle only unique paths
+        restoration_paths: Set[str] = (
+            set()
+        )  # model + submodules restoration paths, handle only unique paths
         model_metadata = app_state.get_model_metadata_from_guid(model.model_guid)
         if model_metadata.restoration_path is not None:
             restoration_paths.add(model_metadata.restoration_path)
         # aggregate restoration paths for all submodules recursively
         for module in model.modules():
             if isinstance(module, nemo_classes.ModelPT):  # if NeMo model
-                submodule_restoration_path = app_state.get_model_metadata_from_guid(module.model_guid).restoration_path
+                submodule_restoration_path = app_state.get_model_metadata_from_guid(
+                    module.model_guid
+                ).restoration_path
                 if submodule_restoration_path is not None:
                     restoration_paths.add(submodule_restoration_path)
         if len(tarfile_artifacts) > 0 and len(restoration_paths) == 0:
             # TODO: see cases when this can occur, and if we can fix them
-            logging.warning("Model contains registered artifacts, but no restoration paths found")
+            logging.warning(
+                "Model contains registered artifacts, but no restoration paths found"
+            )
         if len(tarfile_artifacts) > 0 and len(restoration_paths) > 0:
 
             def check_artifact_and_query_basename_match(query_path: str) -> bool:
                 for _, artiitem in tarfile_artifacts:
                     # Get basename and copy it to nemo_file_folder
-                    if 'nemo:' in artiitem.path:
-                        artifact_base_name = artiitem.path.split('nemo:')[1]
+                    if "nemo:" in artiitem.path:
+                        artifact_base_name = artiitem.path.split("nemo:")[1]
                     else:
                         artifact_base_name = os.path.basename(artiitem.path)
 
@@ -539,18 +596,23 @@ class SaveRestoreConnector:
                                 shutil.copy2(src=rel_path, dst=archive_dir)
                         else:
                             self._unpack_nemo_file(
-                                path2file=path, out_folder=archive_dir, members=artifact_rel_paths[path]
+                                path2file=path,
+                                out_folder=archive_dir,
+                                members=artifact_rel_paths[path],
                             )
                     os.chdir(archive_dir)
                     for conf_path, artiitem in tarfile_artifacts:
                         # Get basename and copy it to nemo_file_folder
-                        if 'nemo:' in artiitem.path:
-                            artifact_base_name = artiitem.path.split('nemo:')[1]
+                        if "nemo:" in artiitem.path:
+                            artifact_base_name = artiitem.path.split("nemo:")[1]
                         else:
                             artifact_base_name = os.path.basename(artiitem.path)
                         # no need to hash here as we are in tarfile_artifacts which are already hashed
                         artifact_uniq_name = artifact_base_name
-                        shutil.copy2(artifact_base_name, os.path.join(nemo_file_folder, artifact_uniq_name))
+                        shutil.copy2(
+                            artifact_base_name,
+                            os.path.join(nemo_file_folder, artifact_uniq_name),
+                        )
 
                         # Update artifacts registry
                         new_artiitem = model_utils.ArtifactItem()
@@ -577,18 +639,22 @@ class SaveRestoreConnector:
             if not conf_path:  # self
                 continue
             OmegaConf.update(conf, conf_path, submodule.cfg)
-        with open(path2yaml_file, 'w', encoding='utf-8') as fout:
+        with open(path2yaml_file, "w", encoding="utf-8") as fout:
             OmegaConf.save(config=conf, f=fout, resolve=True)
 
     def _update_artifact_paths(self, model, path2yaml_file):
-        if hasattr(model, "artifacts") and model.artifacts is not None and len(model.artifacts) > 0:
+        if (
+            hasattr(model, "artifacts")
+            and model.artifacts is not None
+            and len(model.artifacts) > 0
+        ):
             conf = OmegaConf.load(path2yaml_file)
             for conf_path, item in model.artifacts.items():
                 if item.hashed_path is None:
                     OmegaConf.update(conf, conf_path, item.path)
                 else:
                     OmegaConf.update(conf, conf_path, item.hashed_path)
-            with open(path2yaml_file, 'w', encoding='utf-8') as fout:
+            with open(path2yaml_file, "w", encoding="utf-8") as fout:
                 OmegaConf.save(config=conf, f=fout, resolve=True)
 
     def _inject_model_parallel_rank_for_ckpt(self, dirname, basename):
@@ -598,10 +664,15 @@ class SaveRestoreConnector:
 
     @staticmethod
     def _make_nemo_file_from_folder(filename, source_dir):
-        is_multistorageclient_url = MULTISTORAGECLIENT_AVAILABLE and filename.startswith(MULTISTORAGECLIENT_PROTOCOL)
+        is_multistorageclient_url = (
+            MULTISTORAGECLIENT_AVAILABLE
+            and filename.startswith(MULTISTORAGECLIENT_PROTOCOL)
+        )
 
         if is_multistorageclient_url:
-            SaveRestoreConnector._make_nemo_file_from_folder_with_multistorageclient(filename, source_dir)
+            SaveRestoreConnector._make_nemo_file_from_folder_with_multistorageclient(
+                filename, source_dir
+            )
         else:
             dirname = os.path.dirname(filename)
             os.makedirs(dirname, exist_ok=True)
@@ -610,7 +681,9 @@ class SaveRestoreConnector:
 
     @staticmethod
     def _make_nemo_file_from_folder_with_multistorageclient(filename, source_dir):
-        filename_with_extension = filename.split("/")[-1]  # get the filename and extension
+        filename_with_extension = filename.split("/")[
+            -1
+        ]  # get the filename and extension
         with tempfile.TemporaryDirectory() as tmpdir:
             tar_file = os.path.join(tmpdir, filename_with_extension)
             with tarfile.open(tar_file, "w:") as tar:
@@ -650,7 +723,9 @@ class SaveRestoreConnector:
                 logging.warning(f"Skipping potentially unsafe member: {member.name}")
 
     @staticmethod
-    def _filtered_tar_info(tar_path: str, filter_fn: Optional[Callable[[str], bool]] = None) -> list[tarfile.TarInfo]:
+    def _filtered_tar_info(
+        tar_path: str, filter_fn: Optional[Callable[[str], bool]] = None
+    ) -> list[tarfile.TarInfo]:
         """
         Returns the members of the tarball filtered by a function
         """
@@ -662,7 +737,9 @@ class SaveRestoreConnector:
             return [x for x in members if filter_fn(x.name)]
 
     @staticmethod
-    def _filtered_recursive_walk(path: str, filter_fn: Optional[Callable[[str], bool]] = None) -> list[str]:
+    def _filtered_recursive_walk(
+        path: str, filter_fn: Optional[Callable[[str], bool]] = None
+    ) -> list[str]:
         """
         Returns the result of recursive walking a path and filtering each element
         """
@@ -700,10 +777,17 @@ class SaveRestoreConnector:
             tar.close()
 
     @staticmethod
-    def _unpack_nemo_file(path2file: str, out_folder: str, members: Optional[list[str]] = None) -> str:
-        is_multistorageclient_url = MULTISTORAGECLIENT_AVAILABLE and path2file.startswith(MULTISTORAGECLIENT_PROTOCOL)
+    def _unpack_nemo_file(
+        path2file: str, out_folder: str, members: Optional[list[str]] = None
+    ) -> str:
+        is_multistorageclient_url = (
+            MULTISTORAGECLIENT_AVAILABLE
+            and path2file.startswith(MULTISTORAGECLIENT_PROTOCOL)
+        )
         if is_multistorageclient_url:
-            out_folder = SaveRestoreConnector._unpack_nemo_file_with_multistorageclient(path2file, out_folder, members)
+            out_folder = SaveRestoreConnector._unpack_nemo_file_with_multistorageclient(
+                path2file, out_folder, members
+            )
         else:
             with SaveRestoreConnector._tar_open(path2file) as tar:
                 if members is None:
@@ -720,7 +804,9 @@ class SaveRestoreConnector:
             raise FileNotFoundError(f"{path2file} does not exist")
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            filename_with_extension = path2file.split("/")[-1]  # get the filename with extension
+            filename_with_extension = path2file.split("/")[
+                -1
+            ]  # get the filename with extension
             downloaded_file_path = os.path.join(tmpdir, filename_with_extension)
             start_time = time.time()
             multistorageclient.download_file(path2file, downloaded_file_path)
@@ -751,7 +837,7 @@ class SaveRestoreConnector:
 
     @staticmethod
     def _load_state_dict_from_disk(model_weights, map_location=None):
-        return torch.load(model_weights, map_location='cpu', weights_only=False)
+        return torch.load(model_weights, map_location="cpu", weights_only=False)
 
     @property
     def model_config_yaml(self) -> str:

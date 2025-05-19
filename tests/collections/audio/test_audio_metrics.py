@@ -52,12 +52,12 @@ class TestAudioMetricWrapper:
 
                 assert torch.allclose(
                     batch_value_wrapped, batch_value_ref
-                ), f'Metric forward not matching for batch {nb}, reset {nr}'
+                ), f"Metric forward not matching for batch {nb}, reset {nr}"
 
             # test compute (over num_batches)
             assert torch.allclose(
                 wrapped_metric.compute(), ref_metric.compute()
-            ), f'Metric compute not matching for batch {nb}, reset {nr}'
+            ), f"Metric compute not matching for batch {nb}, reset {nr}"
 
             ref_metric.reset()
             wrapped_metric.reset()
@@ -80,31 +80,38 @@ class TestAudioMetricWrapper:
                 target = torch.rand(*batch_shape)
                 preds = target + torch.rand(1) * torch.rand(*batch_shape)
 
-                input_length = torch.randint(low=num_samples // 2, high=num_samples, size=(batch_size,))
+                input_length = torch.randint(
+                    low=num_samples // 2, high=num_samples, size=(batch_size,)
+                )
 
                 # test forward for a single batch
-                batch_value_wrapped = wrapped_metric(preds=preds, target=target, input_length=input_length)
+                batch_value_wrapped = wrapped_metric(
+                    preds=preds, target=target, input_length=input_length
+                )
 
                 # compute reference value, assuming batch reduction using averaging
                 batch_value_ref = 0
                 for b_idx, b_len in enumerate(input_length):
-                    batch_value_ref += ref_metric(preds=preds[b_idx, ..., :b_len], target=target[b_idx, ..., :b_len])
+                    batch_value_ref += ref_metric(
+                        preds=preds[b_idx, ..., :b_len],
+                        target=target[b_idx, ..., :b_len],
+                    )
                 batch_value_ref /= batch_size  # average
 
                 assert torch.allclose(
                     batch_value_wrapped, batch_value_ref
-                ), f'Metric forward not matching for batch {nb}, reset {nr}'
+                ), f"Metric forward not matching for batch {nb}, reset {nr}"
 
             # test compute (over num_batches)
             assert torch.allclose(
                 wrapped_metric.compute(), ref_metric.compute()
-            ), f'Metric compute not matching for batch {nb}, reset {nr}'
+            ), f"Metric compute not matching for batch {nb}, reset {nr}"
 
             ref_metric.reset()
             wrapped_metric.reset()
 
     @pytest.mark.unit
-    @pytest.mark.parametrize('channel', [0, 1])
+    @pytest.mark.parametrize("channel", [0, 1])
     def test_channel(self, channel):
         """Test metric on a single channel from a batch."""
         ref_metric = SignalNoiseRatio()
@@ -125,27 +132,32 @@ class TestAudioMetricWrapper:
                 preds = target + torch.rand(1) * torch.rand(*batch_shape)
 
                 # varying length
-                input_length = torch.randint(low=num_samples // 2, high=num_samples, size=(batch_size,))
+                input_length = torch.randint(
+                    low=num_samples // 2, high=num_samples, size=(batch_size,)
+                )
 
                 # test forward for a single batch
-                batch_value_wrapped = wrapped_metric(preds=preds, target=target, input_length=input_length)
+                batch_value_wrapped = wrapped_metric(
+                    preds=preds, target=target, input_length=input_length
+                )
 
                 # compute reference value, assuming batch reduction using averaging
                 batch_value_ref = 0
                 for b_idx, b_len in enumerate(input_length):
                     batch_value_ref += ref_metric(
-                        preds=preds[b_idx, channel, :b_len], target=target[b_idx, channel, :b_len]
+                        preds=preds[b_idx, channel, :b_len],
+                        target=target[b_idx, channel, :b_len],
                     )
                 batch_value_ref /= batch_size  # average
 
                 assert torch.allclose(
                     batch_value_wrapped, batch_value_ref
-                ), f'Metric forward not matching for batch {nb}, reset {nr}'
+                ), f"Metric forward not matching for batch {nb}, reset {nr}"
 
             # test compute (over num_batches)
             assert torch.allclose(
                 wrapped_metric.compute(), ref_metric.compute()
-            ), f'Metric compute not matching for batch {nb}, reset {nr}'
+            ), f"Metric compute not matching for batch {nb}, reset {nr}"
 
             ref_metric.reset()
             wrapped_metric.reset()
@@ -153,7 +165,7 @@ class TestAudioMetricWrapper:
 
 class TestSquimMetrics:
     @pytest.mark.unit
-    @pytest.mark.parametrize('fs', [16000, 24000])
+    @pytest.mark.parametrize("fs", [16000, 24000])
     def test_squim_mos(self, fs: int):
         """Test Squim MOS metric"""
         if HAVE_TORCHAUDIO:
@@ -171,12 +183,14 @@ class TestSquimMetrics:
                 new_freq=16000,
                 lowpass_filter_width=64,
                 rolloff=0.9475937167399596,
-                resampling_method='sinc_interp_kaiser',
+                resampling_method="sinc_interp_kaiser",
                 beta=14.769656459379492,
             )
             squim_mos_model = torchaudio.pipelines.SQUIM_SUBJECTIVE.get_model()
 
-            def calculate_squim_mos(preds: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+            def calculate_squim_mos(
+                preds: torch.Tensor, target: torch.Tensor
+            ) -> torch.Tensor:
                 if fs != 16000:
                     preds = resampler(preds)
                     target = resampler(target)
@@ -202,15 +216,17 @@ class TestSquimMetrics:
 
             # Check the final value of the metric
             mos_golden_final = mos_sum / (num_batches * batch_size)
-            assert torch.allclose(squim_mos_metric.compute(), mos_golden_final, atol=atol), f'Comparison failed'
+            assert torch.allclose(
+                squim_mos_metric.compute(), mos_golden_final, atol=atol
+            ), f"Comparison failed"
 
         else:
             with pytest.raises(ModuleNotFoundError):
                 SquimMOSMetric(fs=fs)
 
     @pytest.mark.unit
-    @pytest.mark.parametrize('metric', ['stoi', 'pesq', 'si_sdr'])
-    @pytest.mark.parametrize('fs', [16000, 24000])
+    @pytest.mark.parametrize("metric", ["stoi", "pesq", "si_sdr"])
+    @pytest.mark.parametrize("fs", [16000, 24000])
     def test_squim_objective(self, metric: str, fs: int):
         """Test Squim objective metric"""
         if HAVE_TORCHAUDIO:
@@ -228,7 +244,7 @@ class TestSquimMetrics:
                 new_freq=16000,
                 lowpass_filter_width=64,
                 rolloff=0.9475937167399596,
-                resampling_method='sinc_interp_kaiser',
+                resampling_method="sinc_interp_kaiser",
                 beta=14.769656459379492,
             )
             squim_objective_model = torchaudio.pipelines.SQUIM_OBJECTIVE.get_model()
@@ -240,14 +256,14 @@ class TestSquimMetrics:
                 # Calculate metric
                 stoi_batch, pesq_batch, si_sdr_batch = squim_objective_model(preds)
 
-                if metric == 'stoi':
+                if metric == "stoi":
                     return stoi_batch
-                elif metric == 'pesq':
+                elif metric == "pesq":
                     return pesq_batch
-                elif metric == 'si_sdr':
+                elif metric == "si_sdr":
                     return si_sdr_batch
                 else:
-                    raise ValueError(f'Unknown metric {metric}')
+                    raise ValueError(f"Unknown metric {metric}")
 
             # Test
             metric_sum = torch.tensor(0.0)
@@ -267,7 +283,7 @@ class TestSquimMetrics:
             metric_golden_final = metric_sum / (num_batches * batch_size)
             assert torch.allclose(
                 squim_objective_metric.compute(), metric_golden_final, atol=atol
-            ), f'Comparison failed'
+            ), f"Comparison failed"
 
         else:
             with pytest.raises(ModuleNotFoundError):

@@ -69,7 +69,9 @@ def main(cfg) -> None:
     if cfg.checkpoint_dir:
         app_state = AppState()
         if cfg.tensor_model_parallel_size > 1 or cfg.pipeline_model_parallel_size > 1:
-            app_state.model_parallel_size = cfg.tensor_model_parallel_size * cfg.pipeline_model_parallel_size
+            app_state.model_parallel_size = (
+                cfg.tensor_model_parallel_size * cfg.pipeline_model_parallel_size
+            )
             (
                 app_state.tensor_model_parallel_rank,
                 app_state.pipeline_model_parallel_rank,
@@ -86,16 +88,22 @@ def main(cfg) -> None:
             )
         app_state.tensor_model_parallel_size = cfg.tensor_model_parallel_size
         app_state.pipeline_model_parallel_size = cfg.pipeline_model_parallel_size
-        checkpoint_path = inject_model_parallel_rank(os.path.join(cfg.checkpoint_dir, cfg.checkpoint_name))
+        checkpoint_path = inject_model_parallel_rank(
+            os.path.join(cfg.checkpoint_dir, cfg.checkpoint_name)
+        )
 
         # check model type
-        if cfg.model_type.lower() == 't5':
-            model: MegatronT5PromptLearningModel = MegatronT5PromptLearningModel.load_from_checkpoint(
-                checkpoint_path, hparams_file=cfg.hparams_file, trainer=trainer
+        if cfg.model_type.lower() == "t5":
+            model: MegatronT5PromptLearningModel = (
+                MegatronT5PromptLearningModel.load_from_checkpoint(
+                    checkpoint_path, hparams_file=cfg.hparams_file, trainer=trainer
+                )
             )
-        elif cfg.model_type.lower() == 'gpt':
-            model: MegatronGPTPromptLearningModel = MegatronGPTPromptLearningModel.load_from_checkpoint(
-                checkpoint_path, hparams_file=cfg.hparams_file, trainer=trainer
+        elif cfg.model_type.lower() == "gpt":
+            model: MegatronGPTPromptLearningModel = (
+                MegatronGPTPromptLearningModel.load_from_checkpoint(
+                    checkpoint_path, hparams_file=cfg.hparams_file, trainer=trainer
+                )
             )
         else:
             raise ValueError("Model Type Not Supported!")
@@ -115,5 +123,5 @@ def main(cfg) -> None:
     model.on_train_end()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()  # noqa pylint: disable=no-value-for-parameter

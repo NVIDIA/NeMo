@@ -47,9 +47,9 @@ class MAPLoss(MLLoss):
     """
     Maximum a Posteriori Probability criterion.
     It implements Lattice-Free Maximum Mutual Information (LF-MMI) and LF-boosted-MMI (LF-bMMI) losses.
-    
+
     Based on https://github.com/k2-fsa/snowfall/blob/master/snowfall/objectives/mmi.py
-    
+
     cfg takes precedence over all optional parameters
     We keep explicit parameter setting to be able to create an instance without the need of a config.
     """
@@ -63,7 +63,7 @@ class MAPLoss(MLLoss):
         cfg: Optional[DictConfig] = None,
         topo_type: str = "default",
         topo_with_self_loops: bool = True,
-        token_lm: Optional[Union['k2.Fsa', str]] = None,
+        token_lm: Optional[Union["k2.Fsa", str]] = None,
         intersect_pruned: bool = False,
         intersect_conf: GraphIntersectDenseConfig = GraphIntersectDenseConfig(),
         boost_coeff: float = 0.0,
@@ -83,7 +83,9 @@ class MAPLoss(MLLoss):
             boost_coeff = cfg.get("boost_coeff", boost_coeff)
         self.boost_coeff = boost_coeff
         self._intersect_calc_scores_impl = (
-            self._intersect_calc_scores_impl_pruned if intersect_pruned else self._intersect_calc_scores_impl_exact_opt
+            self._intersect_calc_scores_impl_pruned
+            if intersect_pruned
+            else self._intersect_calc_scores_impl_exact_opt
         )
         self.intersect_conf = intersect_conf
         self.graph_compiler = None  # expected to be initialized in .update_graph(...)
@@ -94,23 +96,29 @@ class MAPLoss(MLLoss):
                             Please call .update_graph(token_lm) before using."""
             )
         else:
-            self.lm_graph = load_graph(token_lm) if isinstance(token_lm, str) else token_lm
+            self.lm_graph = (
+                load_graph(token_lm) if isinstance(token_lm, str) else token_lm
+            )
             if self.lm_graph is None:
                 raise ValueError(f"""lm_graph is empty.""")
             else:
                 self.update_graph(self.lm_graph)
 
     @abstractmethod
-    def update_graph(self, graph: 'k2.Fsa'):
+    def update_graph(self, graph: "k2.Fsa"):
         # expected to be set in child classes
         raise NotImplementedError
 
     def _intersect_calc_scores_impl_exact_opt(
-        self, dense_fsa_vec: 'k2.DenseFsaVec', num_graphs: 'k2.Fsa', den_graph: 'k2.Fsa', return_lats: bool = True,
-    ) -> Tuple[torch.Tensor, torch.Tensor, Optional['k2.Fsa'], Optional['k2.Fsa']]:
+        self,
+        dense_fsa_vec: "k2.DenseFsaVec",
+        num_graphs: "k2.Fsa",
+        den_graph: "k2.Fsa",
+        return_lats: bool = True,
+    ) -> Tuple[torch.Tensor, torch.Tensor, Optional["k2.Fsa"], Optional["k2.Fsa"]]:
         """Inner intersection method.
         Does joint (simultaneous) exact intersection of dense_fsa_vec against num_graphs and den_graph.
-        
+
         Optiolally returns the numerator and the denominator lattices.
         """
         device = dense_fsa_vec.device
@@ -134,7 +142,12 @@ class MAPLoss(MLLoss):
         den_graph_indexes = torch.tensor([num_fsas] * num_fsas, dtype=torch.int32)
 
         # [0, num_fsas, 1, num_fsas, 2, num_fsas, ... ]
-        num_den_graphs_indexes = torch.stack([num_graphs_indexes, den_graph_indexes]).t().reshape(-1).to(device)
+        num_den_graphs_indexes = (
+            torch.stack([num_graphs_indexes, den_graph_indexes])
+            .t()
+            .reshape(-1)
+            .to(device)
+        )
 
         num_den_reordered_graphs = k2.index_fsa(num_den_graphs, num_den_graphs_indexes)
 
@@ -152,7 +165,9 @@ class MAPLoss(MLLoss):
             seqframe_idx_name="seqframe_idx" if return_lats else None,
         )
 
-        num_den_tot_scores = num_den_lats.get_tot_scores(log_semiring=True, use_double_scores=False)
+        num_den_tot_scores = num_den_lats.get_tot_scores(
+            log_semiring=True, use_double_scores=False
+        )
         num_tot_scores = num_den_tot_scores[::2]
         den_tot_scores = num_den_tot_scores[1::2]
 
@@ -168,11 +183,15 @@ class MAPLoss(MLLoss):
             return num_tot_scores, den_tot_scores, None, None
 
     def _intersect_calc_scores_impl_pruned(
-        self, dense_fsa_vec: 'k2.DenseFsaVec', num_graphs: 'k2.Fsa', den_graph: 'k2.Fsa', return_lats: bool = True,
-    ) -> Tuple[torch.Tensor, torch.Tensor, Optional['k2.Fsa'], Optional['k2.Fsa']]:
+        self,
+        dense_fsa_vec: "k2.DenseFsaVec",
+        num_graphs: "k2.Fsa",
+        den_graph: "k2.Fsa",
+        return_lats: bool = True,
+    ) -> Tuple[torch.Tensor, torch.Tensor, Optional["k2.Fsa"], Optional["k2.Fsa"]]:
         """Inner intersection method.
         Does exact intersection of dense_fsa_vec against num_graphs and pruned intersection against den_graph.
-        
+
         Optiolally returns the numerator and the denominator lattices.
         """
         device = dense_fsa_vec.device
@@ -197,8 +216,12 @@ class MAPLoss(MLLoss):
             seqframe_idx_name="seqframe_idx" if return_lats else None,
         )
 
-        num_tot_scores = num_lats.get_tot_scores(log_semiring=True, use_double_scores=False)
-        den_tot_scores = den_lats.get_tot_scores(log_semiring=True, use_double_scores=False)
+        num_tot_scores = num_lats.get_tot_scores(
+            log_semiring=True, use_double_scores=False
+        )
+        den_tot_scores = den_lats.get_tot_scores(
+            log_semiring=True, use_double_scores=False
+        )
 
         if return_lats:
             return num_tot_scores, den_tot_scores, num_lats, den_lats
@@ -206,7 +229,10 @@ class MAPLoss(MLLoss):
             return num_tot_scores, den_tot_scores, None, None
 
     def _intersect_calc_scores(
-        self, emissions_graphs: 'k2.DenseFsaVec', supervision_graphs: Any, supervisions: torch.Tensor,
+        self,
+        emissions_graphs: "k2.DenseFsaVec",
+        supervision_graphs: Any,
+        supervisions: torch.Tensor,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """Intersects emissions_graphs with supervision_graphs and calculates lattice scores.
         This version implicitly assumes supervision_graphs to be a pair of the numerator and the denominator FSAs.
@@ -216,14 +242,20 @@ class MAPLoss(MLLoss):
         Can be overridden.
         """
         boosted = self.boost_coeff != 0.0
-        num_tot_scores, den_tot_scores, num_lats, den_lats = self._intersect_calc_scores_impl(
-            emissions_graphs, supervision_graphs[0], supervision_graphs[1], boosted
+        num_tot_scores, den_tot_scores, num_lats, den_lats = (
+            self._intersect_calc_scores_impl(
+                emissions_graphs, supervision_graphs[0], supervision_graphs[1], boosted
+            )
         )
 
-        inverted_batch_order = invert_permutation(supervisions[:, 0].to(dtype=torch.long))
+        inverted_batch_order = invert_permutation(
+            supervisions[:, 0].to(dtype=torch.long)
+        )
         self.__batch_order = None
         tot_scores = (num_tot_scores - den_tot_scores)[inverted_batch_order]
-        mmi_tot_scores, mmi_valid_mask = get_tot_objf_and_finite_mask(tot_scores, self.reduction)
+        mmi_tot_scores, mmi_valid_mask = get_tot_objf_and_finite_mask(
+            tot_scores, self.reduction
+        )
 
         if boosted:
             assert num_lats is not None and den_lats is not None
@@ -235,33 +267,52 @@ class MAPLoss(MLLoss):
             )
             row_ids = emissions_graphs.emissions_graphs.shape().row_ids(1)
             num_sparse = create_sparse_wrapped(
-                indices=[k2.index_select(row_ids, num_lats.seqframe_idx), num_lats.seqframe_idx, num_lats.phones,],
+                indices=[
+                    k2.index_select(row_ids, num_lats.seqframe_idx),
+                    num_lats.seqframe_idx,
+                    num_lats.phones,
+                ],
                 values=num_lats.get_arc_post(False, True).exp(),
                 size=size,
                 min_col_index=0,
             )
             del num_lats
             den_sparse = create_sparse_wrapped(
-                indices=[k2.index_select(row_ids, den_lats.seqframe_idx), den_lats.seqframe_idx, den_lats.phones,],
+                indices=[
+                    k2.index_select(row_ids, den_lats.seqframe_idx),
+                    den_lats.seqframe_idx,
+                    den_lats.phones,
+                ],
                 values=den_lats.get_arc_post(False, True).exp(),
                 size=size,
                 min_col_index=0,
             )
             del den_lats
 
-            acc_loss = torch.sparse.sum((num_sparse - den_sparse).coalesce().abs(), (1, 2)).to_dense()
+            acc_loss = torch.sparse.sum(
+                (num_sparse - den_sparse).coalesce().abs(), (1, 2)
+            ).to_dense()
             del num_sparse, den_sparse
 
-            acc_tot_scores, acc_valid_mask = get_tot_objf_and_finite_mask(acc_loss, self.reduction)
+            acc_tot_scores, acc_valid_mask = get_tot_objf_and_finite_mask(
+                acc_loss, self.reduction
+            )
             valid_mask = mmi_valid_mask & acc_valid_mask
             total_loss = (
-                (self.boost_coeff * acc_tot_scores[inverted_batch_order][valid_mask] - mmi_tot_scores[valid_mask])
+                (
+                    self.boost_coeff * acc_tot_scores[inverted_batch_order][valid_mask]
+                    - mmi_tot_scores[valid_mask]
+                )
                 if self.reduction == "none"
                 else self.boost_coeff * acc_tot_scores - mmi_tot_scores
             )
         else:
             valid_mask = mmi_valid_mask
-            total_loss = -mmi_tot_scores[valid_mask] if self.reduction == "none" else -mmi_tot_scores
+            total_loss = (
+                -mmi_tot_scores[valid_mask]
+                if self.reduction == "none"
+                else -mmi_tot_scores
+            )
         return total_loss, valid_mask
 
 
@@ -285,7 +336,7 @@ class CtcMmiLoss(MAPLoss, CtcK2Mixin):
         cfg: Optional[DictConfig] = None,
         topo_type: str = "default",
         topo_with_self_loops: bool = True,
-        token_lm: Optional[Union['k2.Fsa', str]] = None,
+        token_lm: Optional[Union["k2.Fsa", str]] = None,
         intersect_pruned: bool = False,
         intersect_conf: GraphIntersectDenseConfig = GraphIntersectDenseConfig(),
         boost_coeff: float = 0.0,
@@ -303,17 +354,23 @@ class CtcMmiLoss(MAPLoss, CtcK2Mixin):
             boost_coeff=boost_coeff,
         )
 
-    def update_graph(self, graph: 'k2.Fsa'):
+    def update_graph(self, graph: "k2.Fsa"):
         self.lm_graph = graph
         lm_graph = self.lm_graph.clone()
         if hasattr(lm_graph, "aux_labels"):
             delattr(lm_graph, "aux_labels")
         labels = lm_graph.labels
         if labels.max() != self.num_classes - 1:
-            raise ValueError(f"lm_graph is not compatible with the num_classes: {labels.unique()}, {self.num_classes}")
+            raise ValueError(
+                f"lm_graph is not compatible with the num_classes: {labels.unique()}, {self.num_classes}"
+            )
         from nemo.collections.asr.parts.k2.graph_compilers import \
             MmiGraphCompiler as compiler
 
         self.graph_compiler = compiler(
-            self.num_classes, self.blank, self.topo_type, self.topo_with_self_loops, aux_graph=lm_graph
+            self.num_classes,
+            self.blank,
+            self.topo_type,
+            self.topo_with_self_loops,
+            aux_graph=lm_graph,
         )

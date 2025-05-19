@@ -41,7 +41,9 @@ class ResidualFSQuantizer(nn.Module):
     def __init__(self, levels: list[int], num_quantizers: int, **ignore_kwargs):
         super().__init__()
         self.dtype = ignore_kwargs.get("dtype", torch.float32)
-        self.layers = nn.ModuleList([FSQuantizer(levels=levels) for _ in range(num_quantizers)])
+        self.layers = nn.ModuleList(
+            [FSQuantizer(levels=levels) for _ in range(num_quantizers)]
+        )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         indices_stack = []
@@ -90,7 +92,9 @@ class FSQuantizer(nn.Module):
         _levels = torch.tensor(levels, dtype=torch.int32)
         self.register_buffer("_levels", _levels, persistent=False)
 
-        _basis = torch.cumprod(torch.tensor([1] + levels[:-1]), dim=0, dtype=torch.int32)
+        _basis = torch.cumprod(
+            torch.tensor([1] + levels[:-1]), dim=0, dtype=torch.int32
+        )
         self.register_buffer("_basis", _basis, persistent=False)
 
         self.scale = scale
@@ -109,13 +113,23 @@ class FSQuantizer(nn.Module):
         self.dim = default(dim, len(_levels) * num_codebooks)
 
         has_projections = self.dim != effective_codebook_dim
-        self.project_in = nn.Linear(self.dim, effective_codebook_dim) if has_projections else nn.Identity()
-        self.project_out = nn.Linear(effective_codebook_dim, self.dim) if has_projections else nn.Identity()
+        self.project_in = (
+            nn.Linear(self.dim, effective_codebook_dim)
+            if has_projections
+            else nn.Identity()
+        )
+        self.project_out = (
+            nn.Linear(effective_codebook_dim, self.dim)
+            if has_projections
+            else nn.Identity()
+        )
         self.has_projections = has_projections
 
         self.codebook_size = self._levels.prod().item()
 
-        implicit_codebook = self.indices_to_codes(torch.arange(self.codebook_size), project_out=False)
+        implicit_codebook = self.indices_to_codes(
+            torch.arange(self.codebook_size), project_out=False
+        )
         self.register_buffer("implicit_codebook", implicit_codebook, persistent=False)
 
     def bound(self, z: torch.Tensor, eps: float = 1e-3) -> torch.Tensor:
@@ -179,7 +193,9 @@ class FSQuantizer(nn.Module):
             z = rearrange(z, "b d ... -> b ... d")
             z, ps = pack_one(z, "b * d")
 
-        assert z.shape[-1] == self.dim, f"expected dimension of {self.dim} but found dimension of {z.shape[-1]}"
+        assert (
+            z.shape[-1] == self.dim
+        ), f"expected dimension of {self.dim} but found dimension of {z.shape[-1]}"
 
         z = self.project_in(z)
 
@@ -200,7 +216,9 @@ class FSQuantizer(nn.Module):
             indices = unpack_one(indices, ps, "b * c")
             dummy_loss = torch.zeros_like(out.mean(dim=[1, 2, 3], keepdim=True))
         else:
-            dummy_loss = torch.zeros_like(out.mean(dim=[1, 2], keepdim=True)).unsqueeze(1)
+            dummy_loss = torch.zeros_like(out.mean(dim=[1, 2], keepdim=True)).unsqueeze(
+                1
+            )
 
         if not self.keep_num_codebooks_dim:
             indices = rearrange(indices, "... 1 -> ...")
@@ -268,7 +286,9 @@ class VectorQuantizer(nn.Module):
         new = match.argmax(-1)
         unknown = match.sum(2) < 1
         if self.unknown_index == "random":
-            new[unknown] = torch.randint(0, self.re_embed, size=new[unknown].shape).to(device=new.device)
+            new[unknown] = torch.randint(0, self.re_embed, size=new[unknown].shape).to(
+                device=new.device
+            )
         else:
             new[unknown] = self.unknown_index
         return new.reshape(ishape)
@@ -326,12 +346,16 @@ class VectorQuantizer(nn.Module):
         z_q = rearrange(z_q, "b h w c -> b c h w").contiguous()
 
         if self.remap is not None:
-            min_encoding_indices = encoding_indices.squeeze(1).reshape(z.shape[0], -1)  # add batch axis
+            min_encoding_indices = encoding_indices.squeeze(1).reshape(
+                z.shape[0], -1
+            )  # add batch axis
             min_encoding_indices = self.remap_to_used(encoding_indices.squeeze(1))
             min_encoding_indices = min_encoding_indices.reshape(-1, 1)  # flatten
 
         if self.sane_index_shape:
-            min_encoding_indices = min_encoding_indices.reshape(z_q.shape[0], z_q.shape[2], z_q.shape[3])
+            min_encoding_indices = min_encoding_indices.reshape(
+                z_q.shape[0], z_q.shape[2], z_q.shape[3]
+            )
 
         # TODO: return (indices, z_q, loss)
         return (
@@ -405,13 +429,19 @@ class LFQuantizer(nn.Module):
         embed_dim = embed_dim or codebook_dim
 
         has_projections = embed_dim != codebook_dim
-        self.project_in = nn.Linear(embed_dim, codebook_dim) if has_projections else nn.Identity()
-        self.project_out = nn.Linear(codebook_dim, embed_dim) if has_projections else nn.Identity()
+        self.project_in = (
+            nn.Linear(embed_dim, codebook_dim) if has_projections else nn.Identity()
+        )
+        self.project_out = (
+            nn.Linear(codebook_dim, embed_dim) if has_projections else nn.Identity()
+        )
 
         self.dtype = ignore_kwargs.get("dtype", torch.float32)
 
         if entropy_loss:
-            assert 2**codebook_dim == codebook_size, "codebook size must be 2 ** codebook_dim"
+            assert (
+                2**codebook_dim == codebook_size
+            ), "codebook size must be 2 ** codebook_dim"
             self.codebook_size = codebook_size
 
             self.register_buffer(
@@ -425,7 +455,9 @@ class LFQuantizer(nn.Module):
             bits = ((all_codes[..., None].int() & self.mask) != 0).float()
             codebook = 2 * bits - 1.0
 
-            self.register_buffer("codebook", codebook, persistent=False)  # [codebook_size, codebook_dim]
+            self.register_buffer(
+                "codebook", codebook, persistent=False
+            )  # [codebook_size, codebook_dim]
 
     def forward(self, z: torch.Tensor, temp: float = None) -> torch.Tensor:
         temp = temp or self.default_temp

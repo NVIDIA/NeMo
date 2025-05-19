@@ -83,7 +83,7 @@ class BaseDecoder(object):
             self.decoding_graph = self.decoding_graph.to(device)
         self.device = device
 
-    def update_graph(self, graph: 'k2.Fsa'):
+    def update_graph(self, graph: "k2.Fsa"):
         raise NotImplementedError
 
     def _decode_impl(
@@ -93,7 +93,7 @@ class BaseDecoder(object):
         return_lattices: bool = False,
         return_ilabels: bool = False,
         output_aligned: bool = True,
-    ) -> Union['k2.Fsa', Tuple[List[torch.Tensor], List[torch.Tensor]]]:
+    ) -> Union["k2.Fsa", Tuple[List[torch.Tensor], List[torch.Tensor]]]:
         if self.decoding_graph is None:
             self.decoding_graph = self.base_graph
 
@@ -111,18 +111,24 @@ class BaseDecoder(object):
                 max_active_states=self.intersect_conf.max_active_states,
             )
         else:
-            indices = torch.zeros(emissions_graphs.dim0(), dtype=torch.int32, device=self.device)
+            indices = torch.zeros(
+                emissions_graphs.dim0(), dtype=torch.int32, device=self.device
+            )
             dec_graphs = (
                 k2.index_fsa(self.decoding_graph, indices)
                 if self.decoding_graph.shape[0] == 1
                 else self.decoding_graph
             )
-            lats = k2.intersect_dense(dec_graphs, emissions_graphs, self.intersect_conf.output_beam)
+            lats = k2.intersect_dense(
+                dec_graphs, emissions_graphs, self.intersect_conf.output_beam
+            )
         self.decoding_graph = None
 
         order = supervisions[:, 0]
         if return_lattices:
-            lats = k2.index_fsa(lats, invert_permutation(order).to(device=log_probs.device))
+            lats = k2.index_fsa(
+                lats, invert_permutation(order).to(device=log_probs.device)
+            )
             if self.blank != 0:
                 # change only ilabels
                 # suppose self.blank == self.num_classes - 1
@@ -133,7 +139,9 @@ class BaseDecoder(object):
                 k2.shortest_path(lats, True),
                 invert_permutation(order).to(device=log_probs.device),
             )
-            return self._extract_labels_and_probabilities(shortest_path_fsas, return_ilabels, output_aligned)
+            return self._extract_labels_and_probabilities(
+                shortest_path_fsas, return_ilabels, output_aligned
+            )
 
     def decode(
         self,
@@ -142,8 +150,10 @@ class BaseDecoder(object):
         return_lattices: bool = False,
         return_ilabels: bool = False,
         output_aligned: bool = True,
-    ) -> Union['k2.Fsa', Tuple[List[torch.Tensor], List[torch.Tensor]]]:
-        log_probs, supervisions, _, _ = self._prepare_log_probs_and_targets(log_probs, log_probs_length, None, None)
+    ) -> Union["k2.Fsa", Tuple[List[torch.Tensor], List[torch.Tensor]]]:
+        log_probs, supervisions, _, _ = self._prepare_log_probs_and_targets(
+            log_probs, log_probs_length, None, None
+        )
         return self._decode_impl(
             log_probs,
             supervisions,
@@ -162,11 +172,15 @@ class BaseDecoder(object):
         return_ilabels: bool = False,
         output_aligned: bool = True,
     ) -> Tuple[List[torch.Tensor], List[torch.Tensor]]:
-        log_probs, supervisions, targets, target_lengths = self._prepare_log_probs_and_targets(
-            log_probs, log_probs_length, targets, target_lengths
+        log_probs, supervisions, targets, target_lengths = (
+            self._prepare_log_probs_and_targets(
+                log_probs, log_probs_length, targets, target_lengths
+            )
         )
         order = supervisions[:, 0].to(dtype=torch.long)
-        self.decoding_graph = self.graph_compiler.compile(targets[order], target_lengths[order])
+        self.decoding_graph = self.graph_compiler.compile(
+            targets[order], target_lengths[order]
+        )
         return self._decode_impl(
             log_probs,
             supervisions,
@@ -199,15 +213,28 @@ class CtcDecoder(BaseDecoder, CtcK2Mixin):
         device: torch.device = torch.device("cpu"),
     ):
         super().__init__(
-            num_classes, blank, cfg, intersect_pruned, intersect_conf, topo_type, topo_with_self_loops, device
+            num_classes,
+            blank,
+            cfg,
+            intersect_pruned,
+            intersect_conf,
+            topo_type,
+            topo_with_self_loops,
+            device,
         )
         from nemo.collections.asr.parts.k2.graph_compilers import \
             CtcTopologyCompiler
 
         self.graph_compiler = CtcTopologyCompiler(
-            self.num_classes, self.blank, self.topo_type, self.topo_with_self_loops, self.device
+            self.num_classes,
+            self.blank,
+            self.topo_type,
+            self.topo_with_self_loops,
+            self.device,
         )
-        self.base_graph = k2.create_fsa_vec([self.graph_compiler.ctc_topo_inv.invert()]).to(self.device)
+        self.base_graph = k2.create_fsa_vec(
+            [self.graph_compiler.ctc_topo_inv.invert()]
+        ).to(self.device)
 
 
 class RnntAligner(BaseDecoder, RnntK2Mixin):
@@ -234,12 +261,23 @@ class RnntAligner(BaseDecoder, RnntK2Mixin):
     ):
         if cfg is not None:
             topo_type = cfg.get("topo_type", topo_type)
-            predictor_window_size = cfg.get("predictor_window_size", predictor_window_size)
+            predictor_window_size = cfg.get(
+                "predictor_window_size", predictor_window_size
+            )
             predictor_step_size = cfg.get("predictor_step_size", predictor_step_size)
         if topo_type != "minimal":
-            raise NotImplementedError(f"Only topo_type=`minimal` is supported at the moment.")
+            raise NotImplementedError(
+                f"Only topo_type=`minimal` is supported at the moment."
+            )
         super().__init__(
-            num_classes, blank, cfg, intersect_pruned, intersect_conf, topo_type, topo_with_self_loops, device
+            num_classes,
+            blank,
+            cfg,
+            intersect_pruned,
+            intersect_conf,
+            topo_type,
+            topo_with_self_loops,
+            device,
         )
         self.predictor_window_size = predictor_window_size
         self.predictor_step_size = predictor_step_size
@@ -263,8 +301,10 @@ class RnntAligner(BaseDecoder, RnntK2Mixin):
         return_lattices: bool = False,
         return_ilabels: bool = False,
         output_aligned: bool = True,
-    ) -> Union['k2.Fsa', Tuple[List[torch.Tensor], List[torch.Tensor]]]:
-        raise NotImplementedError("RNNT decoding is not implemented. Only .align(...) method is supported.")
+    ) -> Union["k2.Fsa", Tuple[List[torch.Tensor], List[torch.Tensor]]]:
+        raise NotImplementedError(
+            "RNNT decoding is not implemented. Only .align(...) method is supported."
+        )
 
     def align(
         self,
@@ -276,7 +316,10 @@ class RnntAligner(BaseDecoder, RnntK2Mixin):
         return_ilabels: bool = False,
         output_aligned: bool = True,
     ) -> Tuple[List[torch.Tensor], List[torch.Tensor]]:
-        assert self.predictor_window_size == 0 or log_probs.size(2) <= self.predictor_window_size + 1
+        assert (
+            self.predictor_window_size == 0
+            or log_probs.size(2) <= self.predictor_window_size + 1
+        )
 
         return super().align(
             log_probs,
@@ -308,7 +351,7 @@ class TokenLMDecoder(BaseDecoder):
         num_classes: int,
         blank: int,
         cfg: Optional[DictConfig] = None,
-        token_lm: Optional[Union['k2.Fsa', str]] = None,
+        token_lm: Optional[Union["k2.Fsa", str]] = None,
         intersect_pruned: bool = False,
         intersect_conf: GraphIntersectDenseConfig = GraphIntersectDenseConfig(),
         topo_type: str = "default",
@@ -316,12 +359,21 @@ class TokenLMDecoder(BaseDecoder):
         device: torch.device = torch.device("cpu"),
     ):
         super().__init__(
-            num_classes, blank, cfg, intersect_pruned, intersect_conf, topo_type, topo_with_self_loops, device
+            num_classes,
+            blank,
+            cfg,
+            intersect_pruned,
+            intersect_conf,
+            topo_type,
+            topo_with_self_loops,
+            device,
         )
         if cfg is not None:
             token_lm = cfg.get("token_lm", token_lm)
         if token_lm is not None:
-            self.token_lm = load_graph(token_lm) if isinstance(token_lm, str) else token_lm
+            self.token_lm = (
+                load_graph(token_lm) if isinstance(token_lm, str) else token_lm
+            )
             if self.token_lm is not None:
                 self.update_graph(self.token_lm)
             else:
@@ -336,18 +388,27 @@ class TokenLMDecoder(BaseDecoder):
             )
             self.token_lm = None
 
-    def update_graph(self, graph: 'k2.Fsa'):
+    def update_graph(self, graph: "k2.Fsa"):
         self.token_lm = graph
         token_lm = self.token_lm.clone()
         if hasattr(token_lm, "aux_labels"):
             delattr(token_lm, "aux_labels")
         labels = token_lm.labels
         if labels.max() != self.num_classes - 1:
-            raise ValueError(f"token_lm is not compatible with the num_classes: {labels.unique()}, {self.num_classes}")
+            raise ValueError(
+                f"token_lm is not compatible with the num_classes: {labels.unique()}, {self.num_classes}"
+            )
         self.graph_compiler = CtcNumGraphCompiler(
-            self.num_classes, self.blank, self.topo_type, self.topo_with_self_loops, self.device, token_lm
+            self.num_classes,
+            self.blank,
+            self.topo_type,
+            self.topo_with_self_loops,
+            self.device,
+            token_lm,
         )
-        self.base_graph = k2.create_fsa_vec([self.graph_compiler.base_graph]).to(self.device)
+        self.base_graph = k2.create_fsa_vec([self.graph_compiler.base_graph]).to(
+            self.device
+        )
 
 
 class K2WfstDecoder(AbstractWFSTDecoder):
@@ -382,8 +443,8 @@ class K2WfstDecoder(AbstractWFSTDecoder):
 
     def __init__(
         self,
-        lm_fst: Union['k2.Fsa', Path, str],
-        decoding_mode: str = 'nbest',
+        lm_fst: Union["k2.Fsa", Path, str],
+        decoding_mode: str = "nbest",
         beam_size: float = 10.0,
         config: Optional[GraphIntersectDenseConfig] = None,
         tokenword_disambig_id: int = -1,
@@ -393,7 +454,9 @@ class K2WfstDecoder(AbstractWFSTDecoder):
     ):
         self._nbest_size = nbest_size
         self._device = device
-        super().__init__(lm_fst, decoding_mode, beam_size, config, tokenword_disambig_id, lm_weight)
+        super().__init__(
+            lm_fst, decoding_mode, beam_size, config, tokenword_disambig_id, lm_weight
+        )
 
     def _set_decoder_config(self, config: Optional[GraphIntersectDenseConfig] = None):
         if config is None:
@@ -404,13 +467,17 @@ class K2WfstDecoder(AbstractWFSTDecoder):
         self._config = config
 
     def _set_decoding_mode(self, decoding_mode: str):
-        if decoding_mode not in ('nbest', 'lattice'):
+        if decoding_mode not in ("nbest", "lattice"):
             raise ValueError(f"Unsupported mode: {decoding_mode}")
         self._decoding_mode = decoding_mode
 
     @torch.inference_mode(False)
     def _init_decoder(self):
-        lm_fst = load_graph(self._lm_fst) if isinstance(self._lm_fst, (Path, str)) else self._lm_fst.clone()
+        lm_fst = (
+            load_graph(self._lm_fst)
+            if isinstance(self._lm_fst, (Path, str))
+            else self._lm_fst.clone()
+        )
         lm_fst.lm_scores = lm_fst.scores.clone()
         self._lm_fst = lm_fst.to(device=self._device)
 
@@ -426,7 +493,8 @@ class K2WfstDecoder(AbstractWFSTDecoder):
                 self._word2id[k] = v
         if self._id2token is None:
             self._id2token = {
-                int(line.split()[1]): line.split()[0] for line in self._lm_fst.labels_sym.to_str().strip().split("\n")
+                int(line.split()[1]): line.split()[0]
+                for line in self._lm_fst.labels_sym.to_str().strip().split("\n")
             }
             token2id = self._id2token.__class__(map(reversed, self._id2token.items()))
             token_unk_id = token2id["<unk>"]
@@ -460,7 +528,9 @@ class K2WfstDecoder(AbstractWFSTDecoder):
             self._set_decoding_mode(value)
 
     @torch.inference_mode(False)
-    def _decode_lattice(self, emissions_fsas: 'k2.DenseFsaVec', order: torch.Tensor) -> 'k2.Fsa':
+    def _decode_lattice(
+        self, emissions_fsas: "k2.DenseFsaVec", order: torch.Tensor
+    ) -> "k2.Fsa":
         """
         Decodes logprobs into k2-type lattices.
 
@@ -494,7 +564,7 @@ class K2WfstDecoder(AbstractWFSTDecoder):
     @torch.inference_mode(False)
     def decode(
         self, log_probs: torch.Tensor, log_probs_length: torch.Tensor
-    ) -> Union[List[WfstNbestHypothesis], List['k2.Fsa']]:
+    ) -> Union[List[WfstNbestHypothesis], List["k2.Fsa"]]:
         """
         Decodes logprobs into recognition hypotheses.
 
@@ -516,7 +586,9 @@ class K2WfstDecoder(AbstractWFSTDecoder):
         return hypotheses
 
     @torch.inference_mode(False)
-    def _post_decode(self, hypotheses: 'k2.Fsa') -> Union[List[WfstNbestHypothesis], List['k2.Fsa']]:
+    def _post_decode(
+        self, hypotheses: "k2.Fsa"
+    ) -> Union[List[WfstNbestHypothesis], List["k2.Fsa"]]:
         """
         Does various post-processing of the recognition hypotheses.
 
@@ -527,7 +599,7 @@ class K2WfstDecoder(AbstractWFSTDecoder):
         Returns:
           List of processed recognition hypotheses.
         """
-        if self._decoding_mode == 'nbest':
+        if self._decoding_mode == "nbest":
             hypotheses_fsa = hypotheses
             hypotheses = []
             if self._nbest_size == 1:
@@ -537,50 +609,76 @@ class K2WfstDecoder(AbstractWFSTDecoder):
                 for i in range(shortest_path_fsas.shape[0]):
                     fsa = shortest_path_fsas[i]
                     non_eps_mask = fsa.aux_labels > 0
-                    words = [self._id2word[l] for l in fsa.aux_labels[non_eps_mask].tolist()]
+                    words = [
+                        self._id2word[l] for l in fsa.aux_labels[non_eps_mask].tolist()
+                    ]
                     alignment = fsa.labels[fsa.labels > 0].tolist()
                     # some timesteps may be 0 if self.open_vocabulary_decoding
                     timesteps = fsa.frame_idx[non_eps_mask]
                     timesteps_left = timesteps[:-1]
                     timesteps_right = timesteps[1:]
                     timesteps_right_zero_mask = timesteps_right == 0
-                    timesteps_right[timesteps_right_zero_mask] = timesteps_left[timesteps_right_zero_mask]
+                    timesteps_right[timesteps_right_zero_mask] = timesteps_left[
+                        timesteps_right_zero_mask
+                    ]
                     timesteps[1:] = timesteps_right
                     timesteps = timesteps.tolist()
                     hypotheses.append(
                         WfstNbestHypothesis(
                             tuple(
                                 [
-                                    tuple([tuple(words), tuple(timesteps), tuple(alignment), -scores[i]]),
+                                    tuple(
+                                        [
+                                            tuple(words),
+                                            tuple(timesteps),
+                                            tuple(alignment),
+                                            -scores[i],
+                                        ]
+                                    ),
                                 ]
                             )
                         )
                     )
             else:
                 nbest_fsas = k2.Nbest.from_lattice(hypotheses_fsa, self._nbest_size)
-                nbest_fsas.fsa.frame_idx = k2.index_select(hypotheses_fsa.frame_idx, nbest_fsas.kept_path.values)
+                nbest_fsas.fsa.frame_idx = k2.index_select(
+                    hypotheses_fsa.frame_idx, nbest_fsas.kept_path.values
+                )
                 scores = nbest_fsas.fsa.get_tot_scores(True, False).tolist()
                 nbest_hypothesis_list = [[] for _ in range(nbest_fsas.shape.dim0)]
                 for i, j in enumerate(nbest_fsas.shape.row_ids(1)):
                     fsa = nbest_fsas.fsa[i]
                     non_eps_mask = fsa.aux_labels > 0
-                    words = [self._id2word[l] for l in fsa.aux_labels[non_eps_mask].tolist()]
+                    words = [
+                        self._id2word[l] for l in fsa.aux_labels[non_eps_mask].tolist()
+                    ]
                     alignment = fsa.labels[fsa.labels > 0].tolist()
                     # some timesteps may be 0 if self.open_vocabulary_decoding
                     timesteps = fsa.frame_idx[non_eps_mask]
                     timesteps_left = timesteps[:-1]
                     timesteps_right = timesteps[1:]
                     timesteps_right_zero_mask = timesteps_right == 0
-                    timesteps_right[timesteps_right_zero_mask] = timesteps_left[timesteps_right_zero_mask]
+                    timesteps_right[timesteps_right_zero_mask] = timesteps_left[
+                        timesteps_right_zero_mask
+                    ]
                     timesteps[1:] = timesteps_right
                     timesteps = timesteps.tolist()
                     nbest_hypothesis_list[j].append(
-                        tuple([tuple(words), tuple(timesteps), tuple(alignment), -scores[i]])
+                        tuple(
+                            [
+                                tuple(words),
+                                tuple(timesteps),
+                                tuple(alignment),
+                                -scores[i],
+                            ]
+                        )
                     )
                 for nbest_hypothesis in nbest_hypothesis_list:
                     hypotheses.append(WfstNbestHypothesis(tuple(nbest_hypothesis)))
             return (
-                collapse_tokenword_hypotheses(hypotheses, self._id2word[self._tokenword_disambig_id])
+                collapse_tokenword_hypotheses(
+                    hypotheses, self._id2word[self._tokenword_disambig_id]
+                )
                 if self._open_vocabulary_decoding
                 else hypotheses
             )
@@ -589,7 +687,10 @@ class K2WfstDecoder(AbstractWFSTDecoder):
 
     @torch.inference_mode(False)
     def calibrate_lm_weight(
-        self, log_probs: torch.Tensor, log_probs_length: torch.Tensor, reference_texts: List[str]
+        self,
+        log_probs: torch.Tensor,
+        log_probs_length: torch.Tensor,
+        reference_texts: List[str],
     ) -> Tuple[float, float]:
         """
         Calibrates LM weight to achieve the best WER for given logprob-text pairs.
@@ -613,7 +714,7 @@ class K2WfstDecoder(AbstractWFSTDecoder):
         nbest_size_backup = self.nbest_size
         self.decoding_mode = "lattice"
         lattices = self.decode(log_probs, log_probs_length)
-        best_lm_weight, best_wer = -1.0, float('inf')
+        best_lm_weight, best_wer = -1.0, float("inf")
         self.decoding_mode = "nbest"
         self.nbest_size = 1
         for lm_weight in range(1, 21):  # enough for most cases
@@ -621,7 +722,9 @@ class K2WfstDecoder(AbstractWFSTDecoder):
             for lat in lattices:
                 lat.scores = lat.am_scores + lm_weight_act * lat.lm_scores
             hypotheses = self._post_decode(lattices)
-            wer = word_error_rate([" ".join(h[0].words) for h in hypotheses], reference_texts)
+            wer = word_error_rate(
+                [" ".join(h[0].words) for h in hypotheses], reference_texts
+            )
             if wer < best_wer:
                 best_lm_weight, best_wer = lm_weight_act, wer
         self.nbest_size = nbest_size_backup
@@ -631,7 +734,10 @@ class K2WfstDecoder(AbstractWFSTDecoder):
 
     @torch.inference_mode(False)
     def calculate_oracle_wer(
-        self, log_probs: torch.Tensor, log_probs_length: torch.Tensor, reference_texts: List[str]
+        self,
+        log_probs: torch.Tensor,
+        log_probs_length: torch.Tensor,
+        reference_texts: List[str],
     ) -> Tuple[float, List[float]]:
         """
         Calculates the oracle (the best possible WER for given logprob-text pairs.
@@ -652,7 +758,9 @@ class K2WfstDecoder(AbstractWFSTDecoder):
         if self._open_vocabulary_decoding:
             raise NotImplementedError
         assert len(log_probs) == len(reference_texts)
-        word_ids = [[self._word2id[w] for w in text.split()] for text in reference_texts]
+        word_ids = [
+            [self._word2id[w] for w in text.split()] for text in reference_texts
+        ]
         counts = torch.tensor([len(wid) for wid in word_ids])
         decoding_mode_backup = self.decoding_mode
         self.decoding_mode = "lattice"
@@ -660,7 +768,7 @@ class K2WfstDecoder(AbstractWFSTDecoder):
         oracle_disambig = max(self._id2word.keys()) + 1
         lattices.aux_labels[lattices.aux_labels == 0] = oracle_disambig
         lattices = lattices.invert()
-        delattr(lattices, 'aux_labels')
+        delattr(lattices, "aux_labels")
         hyps = levenshtein_graph_k2(lattices).invert()
         refs = levenshtein_graph_k2(k2.linear_fsa(word_ids))
         refs, arc_map = k2.add_epsilon_self_loops(refs, ret_arc_map=True)

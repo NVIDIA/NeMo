@@ -22,7 +22,7 @@ from nemo.collections.audio.parts.submodules.multichannel import (
 
 class TestChannelAugment:
     @pytest.mark.unit
-    @pytest.mark.parametrize('num_channels', [1, 2, 6])
+    @pytest.mark.parametrize("num_channels", [1, 2, 6])
     def test_channel_selection(self, num_channels):
         """Test getting a fixed number of channels without randomization.
         The first few channels will always be selected.
@@ -31,7 +31,9 @@ class TestChannelAugment:
         batch_size = 4
         num_samples = 100
 
-        uut = ChannelAugment(permute_channels=False, num_channels_min=1, num_channels_max=num_channels)
+        uut = ChannelAugment(
+            permute_channels=False, num_channels_min=1, num_channels_max=num_channels
+        )
 
         for n in range(num_examples):
             input = torch.rand(batch_size, num_channels, num_samples)
@@ -41,12 +43,12 @@ class TestChannelAugment:
 
             assert torch.allclose(
                 output, input[:, :num_channels_out, :]
-            ), f'Failed for num_channels_out {num_channels_out}, example {n}'
+            ), f"Failed for num_channels_out {num_channels_out}, example {n}"
 
 
 class TestTAC:
     @pytest.mark.unit
-    @pytest.mark.parametrize('num_channels', [1, 2, 6])
+    @pytest.mark.parametrize("num_channels", [1, 2, 6])
     def test_average(self, num_channels):
         """Test transform-average-concatenate."""
         num_examples = 10
@@ -55,7 +57,9 @@ class TestTAC:
         out_features = 96
         num_frames = 20
 
-        uut = TransformAverageConcatenate(in_features=in_features, out_features=out_features)
+        uut = TransformAverageConcatenate(
+            in_features=in_features, out_features=out_features
+        )
 
         for n in range(num_examples):
             input = torch.rand(batch_size, num_channels, in_features, num_frames)
@@ -67,7 +71,7 @@ class TestTAC:
                 num_channels,
                 out_features,
                 num_frames,
-            ), f'Example {n}: output shape {output.shape} not matching the expected ({batch_size}, {num_channels}, {out_features}, {num_frames})'
+            ), f"Example {n}: output shape {output.shape} not matching the expected ({batch_size}, {num_channels}, {out_features}, {num_frames})"
 
             # Second half of features must be the same for all channels (concatenated average)
             if num_channels > 1:
@@ -76,10 +80,10 @@ class TestTAC:
                 for m in range(1, num_channels):
                     assert torch.allclose(
                         output[:, m, out_features // 2 :, :], avg_ref
-                    ), f'Example {n}: average not matching'
+                    ), f"Example {n}: average not matching"
 
     @pytest.mark.unit
-    @pytest.mark.parametrize('num_channels', [1, 2, 6])
+    @pytest.mark.parametrize("num_channels", [1, 2, 6])
     def test_attend(self, num_channels):
         """Test transform-attend-concatenate.
         Second half of features is different across channels, since we're using attention, so
@@ -91,7 +95,9 @@ class TestTAC:
         out_features = 96
         num_frames = 20
 
-        uut = TransformAttendConcatenate(in_features=in_features, out_features=out_features)
+        uut = TransformAttendConcatenate(
+            in_features=in_features, out_features=out_features
+        )
 
         for n in range(num_examples):
             input = torch.rand(batch_size, num_channels, in_features, num_frames)
@@ -103,12 +109,12 @@ class TestTAC:
                 num_channels,
                 out_features,
                 num_frames,
-            ), f'Example {n}: output shape {output.shape} not matching the expected ({batch_size}, {num_channels}, {out_features}, {num_frames})'
+            ), f"Example {n}: output shape {output.shape} not matching the expected ({batch_size}, {num_channels}, {out_features}, {num_frames})"
 
 
 class TestChannelPool:
     @pytest.mark.unit
-    @pytest.mark.parametrize('num_channels', [1, 2, 6])
+    @pytest.mark.parametrize("num_channels", [1, 2, 6])
     def test_average(self, num_channels):
         """Test average channel pooling."""
         num_examples = 10
@@ -125,10 +131,10 @@ class TestChannelPool:
             # Dimensions must match
             assert torch.allclose(
                 output, torch.mean(input, dim=1)
-            ), f'Example {n}: output not matching the expected average'
+            ), f"Example {n}: output not matching the expected average"
 
     @pytest.mark.unit
-    @pytest.mark.parametrize('num_channels', [2, 6])
+    @pytest.mark.parametrize("num_channels", [2, 6])
     def test_attention(self, num_channels):
         """Test attention for channel pooling."""
         num_examples = 10
@@ -147,4 +153,4 @@ class TestChannelPool:
                 batch_size,
                 in_features,
                 num_frames,
-            ), f'Example {n}: output shape {output.shape} not matching the expected ({batch_size}, {in_features}, {num_frames})'
+            ), f"Example {n}: output shape {output.shape} not matching the expected ({batch_size}, {in_features}, {num_frames})"

@@ -49,7 +49,7 @@ except (ImportError, ModuleNotFoundError):
     HAVE_MEGATRON_CORE = False
 
 
-__all__ = ['MegatronRetroFinetuneModel']
+__all__ = ["MegatronRetroFinetuneModel"]
 
 
 def build_all_datasets(
@@ -62,40 +62,40 @@ def build_all_datasets(
     Currently only supports one retrieval dataset.
     """
     train_dataset = RetroQAFineTuneDataset(
-        cfg.train_ds.get('file_name'),
+        cfg.train_ds.get("file_name"),
         tokenizer,
-        cfg.train_ds.get('answer_only_loss'),
+        cfg.train_ds.get("answer_only_loss"),
         tokenizer.pad_id,
-        cfg.train_ds.get('seq_length'),
-        cfg.train_ds.get('add_bos'),
-        cfg.train_ds.get('add_eos'),
+        cfg.train_ds.get("seq_length"),
+        cfg.train_ds.get("add_bos"),
+        cfg.train_ds.get("add_eos"),
         train_valid_test_num_samples[0],
-        cfg.train_ds.get('seed'),
-        cfg.train_ds.get('neighbors'),
+        cfg.train_ds.get("seed"),
+        cfg.train_ds.get("neighbors"),
     )
     val_dataset = RetroQAFineTuneDataset(
-        cfg.val_ds.get('file_name'),
+        cfg.val_ds.get("file_name"),
         tokenizer,
-        cfg.val_ds.get('answer_only_loss'),
+        cfg.val_ds.get("answer_only_loss"),
         tokenizer.pad_id,
-        cfg.val_ds.get('seq_length'),
-        cfg.val_ds.get('add_bos'),
-        cfg.val_ds.get('add_eos'),
+        cfg.val_ds.get("seq_length"),
+        cfg.val_ds.get("add_bos"),
+        cfg.val_ds.get("add_eos"),
         train_valid_test_num_samples[1],
-        cfg.val_ds.get('seed'),
-        cfg.val_ds.get('neighbors'),
+        cfg.val_ds.get("seed"),
+        cfg.val_ds.get("neighbors"),
     )
     test_dataset = RetroQAFineTuneDataset(
-        cfg.test_ds.get('file_name'),
+        cfg.test_ds.get("file_name"),
         tokenizer,
-        cfg.test_ds.get('answer_only_loss'),
+        cfg.test_ds.get("answer_only_loss"),
         tokenizer.pad_id,
-        cfg.test_ds.get('seq_length'),
-        cfg.test_ds.get('add_bos'),
-        cfg.test_ds.get('add_eos'),
+        cfg.test_ds.get("seq_length"),
+        cfg.test_ds.get("add_bos"),
+        cfg.test_ds.get("add_eos"),
         train_valid_test_num_samples[2],
-        cfg.test_ds.get('seed'),
-        cfg.test_ds.get('neighbors'),
+        cfg.test_ds.get("seed"),
+        cfg.test_ds.get("neighbors"),
     )
 
     return train_dataset, val_dataset, test_dataset
@@ -105,11 +105,17 @@ class MegatronRetroFinetuneModel(MegatronRetrievalModel):
     """Finetune RETRO Model"""
 
     def build_train_valid_test_datasets(self):
-        logging.info('Building RETRO datasets.')
-        global_batch_size = self.trainer.world_size * self.cfg.micro_batch_size // self.cfg.tensor_model_parallel_size
+        logging.info("Building RETRO datasets.")
+        global_batch_size = (
+            self.trainer.world_size
+            * self.cfg.micro_batch_size
+            // self.cfg.tensor_model_parallel_size
+        )
         # Compute trianing micro-batch steps: total_global_batch_steps x grad_acumms_per_global_batch
         max_train_steps = self.trainer.max_steps * self.trainer.accumulate_grad_batches
-        eval_iters = (max_train_steps // self.trainer.val_check_interval + 1) * self.trainer.limit_val_batches
+        eval_iters = (
+            max_train_steps // self.trainer.val_check_interval + 1
+        ) * self.trainer.limit_val_batches
         test_iters = int(self.trainer.limit_test_batches)
 
         train_valid_test_num_samples = [
@@ -124,12 +130,12 @@ class MegatronRetroFinetuneModel(MegatronRetrievalModel):
             train_valid_test_num_samples=train_valid_test_num_samples,
         )
         if self._train_ds is not None:
-            logging.info(f'Length of train dataset: {len(self._train_ds)}')
+            logging.info(f"Length of train dataset: {len(self._train_ds)}")
         if self._validation_ds is not None:
-            logging.info(f'Length of val dataset: {len(self._validation_ds)}')
+            logging.info(f"Length of val dataset: {len(self._validation_ds)}")
         if self._test_ds is not None:
-            logging.info(f'Length of test dataset: {len(self._test_ds)}')
-        logging.info(f'Finished building RETRO datasets.')
+            logging.info(f"Length of test dataset: {len(self._test_ds)}")
+        logging.info(f"Finished building RETRO datasets.")
         return self._train_ds, self._validation_ds, self._test_ds
 
     def build_pretraining_data_loader(self, dataset, consumed_samples):
@@ -139,7 +145,11 @@ class MegatronRetroFinetuneModel(MegatronRetrievalModel):
             collate_fun = dataset.collate_fn
 
         collate_fn = partial(collate_fun, tp_workers=0)
-        global_batch_size = self.trainer.world_size * self.cfg.micro_batch_size // self.cfg.tensor_model_parallel_size
+        global_batch_size = (
+            self.trainer.world_size
+            * self.cfg.micro_batch_size
+            // self.cfg.tensor_model_parallel_size
+        )
         batch_sampler = MegatronPretrainingBatchSampler(
             total_samples=len(dataset),
             consumed_samples=consumed_samples,

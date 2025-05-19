@@ -27,7 +27,9 @@ try:
     from nemo.deploy.nlp.megatronllm_deployable import \
         MegatronLLMDeployableNemo2
 except Exception as e:
-    LOGGER.warning(f"Cannot import MegatronLLMDeployable, it will not be available. {type(e).__name__}: {e}")
+    LOGGER.warning(
+        f"Cannot import MegatronLLMDeployable, it will not be available. {type(e).__name__}: {e}"
+    )
     megatron_llm_supported = False
 
 
@@ -37,19 +39,69 @@ def get_args(argv):
         description=f"Deploy nemo models to Triton",
     )
     parser.add_argument("-nc", "--nemo_checkpoint", type=str, help="Source .nemo file")
-    parser.add_argument("-tmn", "--triton_model_name", required=True, type=str, help="Name for the service")
-    parser.add_argument("-tmv", "--triton_model_version", default=1, type=int, help="Version for the service")
     parser.add_argument(
-        "-trp", "--triton_port", default=8000, type=int, help="Port for the Triton server to listen for requests"
+        "-tmn",
+        "--triton_model_name",
+        required=True,
+        type=str,
+        help="Name for the service",
     )
     parser.add_argument(
-        "-tha", "--triton_http_address", default="0.0.0.0", type=str, help="HTTP address for the Triton server"
+        "-tmv",
+        "--triton_model_version",
+        default=1,
+        type=int,
+        help="Version for the service",
     )
-    parser.add_argument("-ng", "--num_gpus", default=1, type=int, help="Number of GPUs for the deployment")
-    parser.add_argument("-nn", "--num_nodes", default=1, type=int, help="Number of GPUs for the deployment")
-    parser.add_argument("-tps", "--tensor_parallelism_size", default=1, type=int, help="Tensor parallelism size")
-    parser.add_argument("-pps", "--pipeline_parallelism_size", default=1, type=int, help="Pipeline parallelism size")
-    parser.add_argument("-cps", "--context_parallel_size", default=1, type=int, help="Pipeline parallelism size")
+    parser.add_argument(
+        "-trp",
+        "--triton_port",
+        default=8000,
+        type=int,
+        help="Port for the Triton server to listen for requests",
+    )
+    parser.add_argument(
+        "-tha",
+        "--triton_http_address",
+        default="0.0.0.0",
+        type=str,
+        help="HTTP address for the Triton server",
+    )
+    parser.add_argument(
+        "-ng",
+        "--num_gpus",
+        default=1,
+        type=int,
+        help="Number of GPUs for the deployment",
+    )
+    parser.add_argument(
+        "-nn",
+        "--num_nodes",
+        default=1,
+        type=int,
+        help="Number of GPUs for the deployment",
+    )
+    parser.add_argument(
+        "-tps",
+        "--tensor_parallelism_size",
+        default=1,
+        type=int,
+        help="Tensor parallelism size",
+    )
+    parser.add_argument(
+        "-pps",
+        "--pipeline_parallelism_size",
+        default=1,
+        type=int,
+        help="Pipeline parallelism size",
+    )
+    parser.add_argument(
+        "-cps",
+        "--context_parallel_size",
+        default=1,
+        type=int,
+        help="Pipeline parallelism size",
+    )
     parser.add_argument(
         "-emps",
         "--expert_model_parallel_size",
@@ -57,16 +109,33 @@ def get_args(argv):
         type=int,
         help="Distributes MoE Experts across sub data parallel dimension.",
     )
-    parser.add_argument("-mbs", "--max_batch_size", default=8, type=int, help="Max batch size of the model")
-    parser.add_argument("-dm", "--debug_mode", default=False, action='store_true', help="Enable debug mode")
+    parser.add_argument(
+        "-mbs",
+        "--max_batch_size",
+        default=8,
+        type=int,
+        help="Max batch size of the model",
+    )
+    parser.add_argument(
+        "-dm",
+        "--debug_mode",
+        default=False,
+        action="store_true",
+        help="Enable debug mode",
+    )
     parser.add_argument(
         "-fd",
-        '--enable_flash_decode',
+        "--enable_flash_decode",
         default=False,
-        action='store_true',
-        help='Enable flash decoding',
+        action="store_true",
+        help="Enable flash decoding",
     )
-    parser.add_argument("-lc", "--legacy_ckpt", action="store_true", help="Load checkpoint saved with TE < 1.14")
+    parser.add_argument(
+        "-lc",
+        "--legacy_ckpt",
+        action="store_true",
+        help="Load checkpoint saved with TE < 1.14",
+    )
     args = parser.parse_args(argv)
     return args
 
@@ -117,17 +186,25 @@ def nemo_deploy(argv):
                 LOGGER.info("Triton deploy function will be called.")
                 nm.deploy()
             except Exception as error:
-                LOGGER.error("Error message has occurred during deploy function. Error message: " + str(error))
+                LOGGER.error(
+                    "Error message has occurred during deploy function. Error message: "
+                    + str(error)
+                )
                 return
 
             try:
                 LOGGER.info("Model serving on Triton will be started.")
                 nm.serve()
             except Exception as error:
-                LOGGER.error("Error message has occurred during deploy function. Error message: " + str(error))
+                LOGGER.error(
+                    "Error message has occurred during deploy function. Error message: "
+                    + str(error)
+                )
                 return
 
-            torch.distributed.broadcast(torch.tensor([1], dtype=torch.long, device="cuda"), src=0)
+            torch.distributed.broadcast(
+                torch.tensor([1], dtype=torch.long, device="cuda"), src=0
+            )
 
             LOGGER.info("Model serving will be stopped.")
             nm.stop()
@@ -138,5 +215,5 @@ def nemo_deploy(argv):
         LOGGER.info("Torch distributed wasn't initialized.")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     nemo_deploy(sys.argv[1:])

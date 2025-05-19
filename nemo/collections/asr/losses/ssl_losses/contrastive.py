@@ -32,8 +32,10 @@ class ContrastiveLoss(Loss):
         return {
             "spectrograms": NeuralType(("B", "D", "T"), SpectrogramType()),
             "spec_masks": NeuralType(("B", "D", "T"), SpectrogramType()),
-            "decoder_outputs": NeuralType(("B", "T", "D"), AcousticEncodedRepresentation()),
-            "decoder_lengths": NeuralType(tuple('B'), LengthsType(), optional=True),
+            "decoder_outputs": NeuralType(
+                ("B", "T", "D"), AcousticEncodedRepresentation()
+            ),
+            "decoder_lengths": NeuralType(tuple("B"), LengthsType(), optional=True),
         }
 
     @property
@@ -101,7 +103,11 @@ class ContrastiveLoss(Loss):
         """
 
         super().__init__()
-        quantizer_temp = (quantizer_temp_start, quantizer_temp_min, quantizer_temp_decay)
+        quantizer_temp = (
+            quantizer_temp_start,
+            quantizer_temp_min,
+            quantizer_temp_decay,
+        )
         self.quantized_targets = quantized_targets
         self.num_negatives = num_negatives
         self.prob_ppl_weight = prob_ppl_weight
@@ -138,7 +144,9 @@ class ContrastiveLoss(Loss):
         # y - T'xBxC or T'xC
 
         high = y.shape[0]
-        neg_idxs = torch.multinomial(torch.ones((num, high), device=y.device), self.num_negatives)
+        neg_idxs = torch.multinomial(
+            torch.ones((num, high), device=y.device), self.num_negatives
+        )
 
         negs = y[neg_idxs.view(-1)]
         negs = negs.view((num, self.num_negatives) + y.shape[1:])
@@ -152,7 +160,13 @@ class ContrastiveLoss(Loss):
         targets = spectrograms.transpose(-2, -1)
         masks = spec_masks.transpose(-2, -1)
         # BxTxC
-        diff = int(ceil(targets.shape[1] / decoder_outputs.shape[1]) * decoder_outputs.shape[1]) - targets.shape[1]
+        diff = (
+            int(
+                ceil(targets.shape[1] / decoder_outputs.shape[1])
+                * decoder_outputs.shape[1]
+            )
+            - targets.shape[1]
+        )
 
         if diff > 0:
             targets = F.pad(targets, (0, 0, 0, diff))
@@ -164,11 +178,15 @@ class ContrastiveLoss(Loss):
         if self.quantized_targets:
             if self.store_ids:
                 # store ids for use by other losses
-                targets, prob_ppl_loss, cur_codebook_temp, self.target_ids = self.quantizer(targets, return_ids=True)
+                targets, prob_ppl_loss, cur_codebook_temp, self.target_ids = (
+                    self.quantizer(targets, return_ids=True)
+                )
 
                 if self.reduce_ids:
                     # reduce consecutive equivalent ids to a single occurence
-                    _, indices = torch.unique_consecutive(self.target_ids, return_inverse=True)
+                    _, indices = torch.unique_consecutive(
+                        self.target_ids, return_inverse=True
+                    )
                     indices -= indices.min(dim=1, keepdims=True)[0]
                     reduced_ids = torch.zeros_like(self.target_ids)
                     reduced_ids = reduced_ids.scatter_(1, indices, self.target_ids)
@@ -191,7 +209,9 @@ class ContrastiveLoss(Loss):
             out_masked_only = decoder_outputs[masks]
             targets_masked_only = targets[masks]
             out_masked_only = out_masked_only.reshape(bs, -1, out_masked_only.shape[-1])
-            targets_masked_only = targets_masked_only.reshape(bs, -1, targets_masked_only.shape[-1])
+            targets_masked_only = targets_masked_only.reshape(
+                bs, -1, targets_masked_only.shape[-1]
+            )
 
             # BxT'xC
             # number of masked time steps to predict (T')
@@ -209,11 +229,15 @@ class ContrastiveLoss(Loss):
                 )
             else:
                 # only sample from masked steps in utterance
-                negatives, _ = self.sample_negatives(targets_masked_only, targets_masked_only.size(0))  # T'xBxC  # T'
+                negatives, _ = self.sample_negatives(
+                    targets_masked_only, targets_masked_only.size(0)
+                )  # T'xBxC  # T'
             # NxT'xBxC
 
             out_masked_only = out_masked_only.reshape(-1, out_masked_only.shape[-1])
-            targets_masked_only = targets_masked_only.reshape(-1, targets_masked_only.shape[-1])
+            targets_masked_only = targets_masked_only.reshape(
+                -1, targets_masked_only.shape[-1]
+            )
             negatives = negatives.reshape(self.num_negatives, -1, negatives.shape[-1])
 
             # T'BxC and NxT'BxC
@@ -228,21 +252,33 @@ class ContrastiveLoss(Loss):
 
             if self.group_loss:
                 num_groups = self.quantizer.groups
-                negatives = self.quantizer.vars.reshape(num_groups, self.quantizer.num_vars, -1)
+                negatives = self.quantizer.vars.reshape(
+                    num_groups, self.quantizer.num_vars, -1
+                )
                 # GxNx(C//G)
                 negatives = negatives.transpose(0, 1)
                 # NxGx(C//G)
-                negatives = negatives.unsqueeze(1).expand(-1, out_masked_only.shape[0], -1, -1)
+                negatives = negatives.unsqueeze(1).expand(
+                    -1, out_masked_only.shape[0], -1, -1
+                )
                 # NxT'xGx(C//G)
-                negatives = negatives.reshape(negatives.shape[0], -1, negatives.shape[-1])
+                negatives = negatives.reshape(
+                    negatives.shape[0], -1, negatives.shape[-1]
+                )
                 # NxT'Gx(C//G)
 
-                out_masked_only = out_masked_only.reshape(-1, out_masked_only.shape[-1] // num_groups)
-                targets_masked_only = targets_masked_only.reshape(-1, targets_masked_only.shape[-1] // num_groups)
+                out_masked_only = out_masked_only.reshape(
+                    -1, out_masked_only.shape[-1] // num_groups
+                )
+                targets_masked_only = targets_masked_only.reshape(
+                    -1, targets_masked_only.shape[-1] // num_groups
+                )
                 # T'Gx(C//G)
             elif self.sample_from_codebook:
                 # sample from the full codebook
-                negatives = self.quantizer.sample_from_codebook(self.num_negatives, targets_masked_only.size(0))
+                negatives = self.quantizer.sample_from_codebook(
+                    self.num_negatives, targets_masked_only.size(0)
+                )
             elif self.sample_from_non_masked:
                 # sample from all steps in batch
                 negatives, _ = self.sample_negatives(
@@ -251,16 +287,22 @@ class ContrastiveLoss(Loss):
                 )  # T'
             else:
                 # only sample from masked steps
-                negatives, _ = self.sample_negatives(targets_masked_only, targets_masked_only.size(0))  # T'xC  # T'
+                negatives, _ = self.sample_negatives(
+                    targets_masked_only, targets_masked_only.size(0)
+                )  # T'xC  # T'
                 # NxT'xC
 
         # Calculate similarity between outputs and all targets
-        similarity_scores = self._calculate_similarity(out_masked_only, negatives, targets_masked_only)
+        similarity_scores = self._calculate_similarity(
+            out_masked_only, negatives, targets_masked_only
+        )
         # (1+N)xT'
         # cosine similarity of outs with targets + N negatives
 
         # Create targets of size T
-        similarity_targets = decoder_outputs.new_zeros(similarity_scores.size(1), dtype=torch.long)
+        similarity_targets = decoder_outputs.new_zeros(
+            similarity_scores.size(1), dtype=torch.long
+        )
         # T'
         # targets are 0, since it's the first, followed by N sampled negatives
 
@@ -268,7 +310,9 @@ class ContrastiveLoss(Loss):
         similarity_scores = similarity_scores.transpose(0, 1)
         # T'x(1+N)
 
-        loss = F.cross_entropy(similarity_scores, similarity_targets, reduction=self.reduce)
+        loss = F.cross_entropy(
+            similarity_scores, similarity_targets, reduction=self.reduce
+        )
 
         sample_size = similarity_targets.numel()
 
@@ -292,7 +336,9 @@ class ContrastiveLoss(Loss):
         targets = torch.cat([targets, negatives], dim=0)
         # (1+N)xT'XC
         logits = torch.cosine_similarity(
-            logits.float().unsqueeze(0).expand(targets.shape[0], -1, -1), targets.float(), dim=-1
+            logits.float().unsqueeze(0).expand(targets.shape[0], -1, -1),
+            targets.float(),
+            dim=-1,
         ).type_as(logits)
         # (1+N)xT'
         logits /= self.logit_temp

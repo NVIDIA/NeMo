@@ -30,12 +30,12 @@ class ValMetric(ABC):
 class AccuracyScore(ValMetric):
     def get_score(self, ground_truth, predicted_text):
         corrects = 0
-        for (pred, label) in zip(predicted_text, ground_truth):
+        for pred, label in zip(predicted_text, ground_truth):
             if pred == label:
                 corrects += 1
 
         val_acc = corrects / len(ground_truth)
-        return {'accuracy': torch.tensor(val_acc)}
+        return {"accuracy": torch.tensor(val_acc)}
 
 
 class BLEUScore(ValMetric):
@@ -44,13 +44,20 @@ class BLEUScore(ValMetric):
 
     def get_score(self, ground_truth, predicted_text):
         return {
-            'bleu_score': torch.tensor(self.scorer.corpus_score(predicted_text, [[i] for i in ground_truth],).score)
+            "bleu_score": torch.tensor(
+                self.scorer.corpus_score(
+                    predicted_text,
+                    [[i] for i in ground_truth],
+                ).score
+            )
         }
 
 
 class ROUGEScores(ValMetric):
     def __init__(self):
-        self.rscorers = rouge_scorer.RougeScorer(['rouge1', 'rouge2', 'rouge3', 'rougeL'], use_stemmer=True)
+        self.rscorers = rouge_scorer.RougeScorer(
+            ["rouge1", "rouge2", "rouge3", "rougeL"], use_stemmer=True
+        )
 
     def get_score(self, ground_truth, predicted_text):
         all_rouges = []
@@ -58,18 +65,18 @@ class ROUGEScores(ValMetric):
             scores = self.rscorers.score(predicted_text[i], ground_truth[i])
             all_rouges.append(
                 [
-                    scores['rouge1'].fmeasure,
-                    scores['rouge2'].fmeasure,
-                    scores['rouge3'].fmeasure,
-                    scores['rougeL'].fmeasure,
+                    scores["rouge1"].fmeasure,
+                    scores["rouge2"].fmeasure,
+                    scores["rouge3"].fmeasure,
+                    scores["rougeL"].fmeasure,
                 ]
             )
 
         all_rouges = np.mean(np.array(all_rouges), axis=0).tolist()
 
         return {
-            'rouge_1_score': torch.tensor(all_rouges[0]),
-            'rouge_2_score': torch.tensor(all_rouges[1]),
-            'rouge_3_score': torch.tensor(all_rouges[2]),
-            'rouge_L_score': torch.tensor(all_rouges[3]),
+            "rouge_1_score": torch.tensor(all_rouges[0]),
+            "rouge_2_score": torch.tensor(all_rouges[1]),
+            "rouge_3_score": torch.tensor(all_rouges[2]),
+            "rouge_L_score": torch.tensor(all_rouges[3]),
         }

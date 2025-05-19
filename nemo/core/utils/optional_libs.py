@@ -17,7 +17,14 @@ Module with guards for optional libraries, that cannot be listed in `requirement
 Provides helper constants and decorators to check if the library is available in the system.
 """
 
-__all__ = ["KENLM_AVAILABLE", "K2_AVAILABLE", "TRITON_AVAILABLE", "kenlm_required", "k2_required", "triton_required"]
+__all__ = [
+    "KENLM_AVAILABLE",
+    "K2_AVAILABLE",
+    "TRITON_AVAILABLE",
+    "kenlm_required",
+    "k2_required",
+    "triton_required",
+]
 
 import importlib.util
 from functools import wraps
@@ -70,7 +77,9 @@ def _lib_required(is_available: bool, name: str, message: str | None = None):
 
         @wraps(f)
         def wrapper(*args, **kwargs):
-            error_msg = f"Module {name} required for the function {f.__name__} is not found."
+            error_msg = (
+                f"Module {name} required for the function {f.__name__} is not found."
+            )
             if message:
                 error_msg += f" {message}"
             raise ModuleNotFoundError(error_msg)
@@ -80,6 +89,12 @@ def _lib_required(is_available: bool, name: str, message: str | None = None):
     return function_stub_with_error_decorator
 
 
-kenlm_required = _lib_required(is_available=KENLM_AVAILABLE, name="kenlm", message=KENLM_INSTALLATION_MESSAGE)
-triton_required = _lib_required(is_available=TRITON_AVAILABLE, name="triton", message=TRITON_INSTALLATION_MESSAGE)
-k2_required = _lib_required(is_available=K2_AVAILABLE, name="k2", message=K2_INSTALLATION_MESSAGE)
+kenlm_required = _lib_required(
+    is_available=KENLM_AVAILABLE, name="kenlm", message=KENLM_INSTALLATION_MESSAGE
+)
+triton_required = _lib_required(
+    is_available=TRITON_AVAILABLE, name="triton", message=TRITON_INSTALLATION_MESSAGE
+)
+k2_required = _lib_required(
+    is_available=K2_AVAILABLE, name="k2", message=K2_INSTALLATION_MESSAGE
+)

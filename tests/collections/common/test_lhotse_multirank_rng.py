@@ -82,7 +82,9 @@ def nemo_tarred_manifest_path(nemo_manifest_path: Path) -> tuple[str, str]:
     return f"{root}/manifest__OP_0..4_CL_.jsonl", f"{root}/audios__OP_0..4_CL_.tar"
 
 
-def test_dataloader_multiple_ranks_deterministic_rng(nemo_tarred_manifest_path: tuple[str, str]):
+def test_dataloader_multiple_ranks_deterministic_rng(
+    nemo_tarred_manifest_path: tuple[str, str]
+):
     json_mft, tar_mft = nemo_tarred_manifest_path
     config = OmegaConf.create(
         {
@@ -107,7 +109,9 @@ def test_dataloader_multiple_ranks_deterministic_rng(nemo_tarred_manifest_path: 
     )
 
     # Data parallel, rank 0
-    dp0 = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=2, dataset=_Identity())
+    dp0 = get_lhotse_dataloader_from_config(
+        config=config, global_rank=0, world_size=2, dataset=_Identity()
+    )
 
     # Data parallel, rank 0 copy (is the iteration deterministic? -> yes)
     dp0_cpy = get_lhotse_dataloader_from_config(
@@ -128,7 +132,9 @@ def test_dataloader_multiple_ranks_deterministic_rng(nemo_tarred_manifest_path: 
     )
 
     # Data parallel, rank 1 (is data different on each DP rank? -> yes)
-    dp1 = get_lhotse_dataloader_from_config(config=config, global_rank=1, world_size=2, dataset=_Identity())
+    dp1 = get_lhotse_dataloader_from_config(
+        config=config, global_rank=1, world_size=2, dataset=_Identity()
+    )
 
     dloaders = zip(*[iter(dl) for dl in (dp0, dp0_cpy, dp0_incrseed, dp1)])
 
@@ -171,7 +177,9 @@ def test_dataloader_multiple_ranks_trng(nemo_tarred_manifest_path: tuple[str, st
     )
 
     # Data parallel, rank 0
-    dp0 = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=2, dataset=_Identity())
+    dp0 = get_lhotse_dataloader_from_config(
+        config=config, global_rank=0, world_size=2, dataset=_Identity()
+    )
 
     # Data parallel, rank 0 copy (is the iteration deterministic? -> no, trng)
     dp0_cpy = get_lhotse_dataloader_from_config(
@@ -192,7 +200,9 @@ def test_dataloader_multiple_ranks_trng(nemo_tarred_manifest_path: tuple[str, st
     )
 
     # Data parallel, rank 1 (is data different on each DP rank? -> yes)
-    dp1 = get_lhotse_dataloader_from_config(config=config, global_rank=1, world_size=2, dataset=_Identity())
+    dp1 = get_lhotse_dataloader_from_config(
+        config=config, global_rank=1, world_size=2, dataset=_Identity()
+    )
 
     dloaders = zip(*[iter(dl) for dl in (dp0, dp0_cpy, dp0_incrseed, dp1)])
 

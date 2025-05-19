@@ -61,18 +61,29 @@ class FinalLayer(nn.Module):
     The final layer of DiT.
     """
 
-    def __init__(self, hidden_size, spatial_patch_size, temporal_patch_size, out_channels):
+    def __init__(
+        self, hidden_size, spatial_patch_size, temporal_patch_size, out_channels
+    ):
         super().__init__()
         self.norm_final = nn.LayerNorm(hidden_size, elementwise_affine=False, eps=1e-6)
         self.linear = nn.Linear(
-            hidden_size, spatial_patch_size * spatial_patch_size * temporal_patch_size * out_channels, bias=False
+            hidden_size,
+            spatial_patch_size
+            * spatial_patch_size
+            * temporal_patch_size
+            * out_channels,
+            bias=False,
         )
-        self.adaLN_modulation = nn.Sequential(nn.SiLU(), nn.Linear(hidden_size, 2 * hidden_size, bias=False))
+        self.adaLN_modulation = nn.Sequential(
+            nn.SiLU(), nn.Linear(hidden_size, 2 * hidden_size, bias=False)
+        )
 
     def forward(self, x_BT_HW_D, emb_B_D):
         shift_B_D, scale_B_D = self.adaLN_modulation(emb_B_D).chunk(2, dim=1)
         T = x_BT_HW_D.shape[0] // emb_B_D.shape[0]
-        shift_BT_D, scale_BT_D = repeat(shift_B_D, "b d -> (b t) d", t=T), repeat(scale_B_D, "b d -> (b t) d", t=T)
+        shift_BT_D, scale_BT_D = repeat(shift_B_D, "b d -> (b t) d", t=T), repeat(
+            scale_B_D, "b d -> (b t) d", t=T
+        )
         x_BT_HW_D = modulate(self.norm_final(x_BT_HW_D), shift_BT_D, scale_BT_D)
         x_BT_HW_D = self.linear(x_BT_HW_D)
         return x_BT_HW_D
@@ -142,7 +153,9 @@ class DiTCrossAttentionModel(VisionModule):
 
         self.config: TransformerConfig = config
 
-        self.transformer_decoder_layer_spec = transformer_decoder_layer_spec(attn_mask_type=config.attn_mask_type)
+        self.transformer_decoder_layer_spec = transformer_decoder_layer_spec(
+            attn_mask_type=config.attn_mask_type
+        )
         self.pre_process = pre_process
         self.post_process = post_process
         self.add_encoder = True
@@ -152,7 +165,7 @@ class DiTCrossAttentionModel(VisionModule):
         self.position_embedding_type = position_embedding_type
         self.share_embeddings_and_output_weights = False
         self.concat_padding_mask = True
-        self.pos_emb_cls = 'sincos'
+        self.pos_emb_cls = "sincos"
         self.patch_spatial = patch_spatial
         self.patch_temporal = patch_temporal
 
@@ -170,8 +183,12 @@ class DiTCrossAttentionModel(VisionModule):
         )
 
         self.t_embedder = torch.nn.Sequential(
-            Timesteps(self.config.hidden_size, flip_sin_to_cos=False, downscale_freq_shift=0),
-            dit_embeddings.ParallelTimestepEmbedding(self.config.hidden_size, self.config.hidden_size, seed=1234),
+            Timesteps(
+                self.config.hidden_size, flip_sin_to_cos=False, downscale_freq_shift=0
+            ),
+            dit_embeddings.ParallelTimestepEmbedding(
+                self.config.hidden_size, self.config.hidden_size, seed=1234
+            ),
         )
 
         self.fps_embedder = nn.Sequential(
@@ -180,7 +197,9 @@ class DiTCrossAttentionModel(VisionModule):
         )
 
         if self.pre_process:
-            self.x_embedder = torch.nn.Linear(in_channels * patch_spatial**2, self.config.hidden_size)
+            self.x_embedder = torch.nn.Linear(
+                in_channels * patch_spatial**2, self.config.hidden_size
+            )
 
         if pos_embedder is dit_embeddings.SinCosPosEmb3D:
             if self.pre_process:
@@ -233,7 +252,7 @@ class DiTCrossAttentionModel(VisionModule):
         """
         B = x.shape[0]
         fps = kwargs.get(
-            'fps',
+            "fps",
             torch.tensor(
                 [
                     30,
@@ -256,22 +275,30 @@ class DiTCrossAttentionModel(VisionModule):
         else:
             # intermediate stage of pipeline
             x_S_B_D = None  ### should it take encoder_hidden_states
-            if (not hasattr(self, "pos_embedder")) or isinstance(self.pos_embedder, dit_embeddings.SinCosPosEmb3D):
+            if (not hasattr(self, "pos_embedder")) or isinstance(
+                self.pos_embedder, dit_embeddings.SinCosPosEmb3D
+            ):
                 pos_emb = None
             else:
                 ## if transformer blocks need pos_emb, then pos_embedder should
                 ## be replicated across pp ranks.
-                pos_emb = rearrange(self.pos_embedder(pos_ids), "B S D -> S B D").contiguous()
+                pos_emb = rearrange(
+                    self.pos_embedder(pos_ids), "B S D -> S B D"
+                ).contiguous()
 
-        timesteps_B_D = self.t_embedder(timesteps.flatten()).to(torch.bfloat16)  # (b d_text_embedding)
+        timesteps_B_D = self.t_embedder(timesteps.flatten()).to(
+            torch.bfloat16
+        )  # (b d_text_embedding)
 
         affline_emb_B_D = timesteps_B_D
         fps_B_D = self.fps_embedder(fps)
-        fps_B_D = nn.functional.pad(fps_B_D, (0, self.config.hidden_size - fps_B_D.shape[1]))
+        fps_B_D = nn.functional.pad(
+            fps_B_D, (0, self.config.hidden_size - fps_B_D.shape[1])
+        )
         affline_emb_B_D += fps_B_D
         affline_emb_B_D = self.affline_norm(affline_emb_B_D)
 
-        crossattn_emb = rearrange(crossattn_emb, 'B S D -> S B D').contiguous()
+        crossattn_emb = rearrange(crossattn_emb, "B S D -> S B D").contiguous()
 
         if self.config.sequence_parallel:
             if self.pre_process:
@@ -280,7 +307,9 @@ class DiTCrossAttentionModel(VisionModule):
                 self.pos_embedder, dit_embeddings.FactorizedLearnable3DEmbedding
             ):
                 pos_emb = tensor_parallel.scatter_to_sequence_parallel_region(pos_emb)
-            crossattn_emb = tensor_parallel.scatter_to_sequence_parallel_region(crossattn_emb)
+            crossattn_emb = tensor_parallel.scatter_to_sequence_parallel_region(
+                crossattn_emb
+            )
             # `scatter_to_sequence_parallel_region` returns a view, which prevents
             # the original tensor from being garbage collected. Clone to facilitate GC.
             # Has a small runtime cost (~0.5%).
@@ -320,11 +349,16 @@ class DiTCrossAttentionModel(VisionModule):
         if not isinstance(input_tensor, list):
             input_tensor = [input_tensor]
 
-        assert len(input_tensor) == 1, 'input_tensor should only be length 1 for gpt/bert'
+        assert (
+            len(input_tensor) == 1
+        ), "input_tensor should only be length 1 for gpt/bert"
         self.decoder.set_input_tensor(input_tensor[0])
 
     def sharded_state_dict(
-        self, prefix: str = 'module.', sharded_offsets: tuple = (), metadata: Optional[Dict] = None
+        self,
+        prefix: str = "module.",
+        sharded_offsets: tuple = (),
+        metadata: Optional[Dict] = None,
     ) -> ShardedStateDict:
         """Sharded state dict implementation for GPTModel backward-compatibility (removing extra state).
 
@@ -336,16 +370,23 @@ class DiTCrossAttentionModel(VisionModule):
         Returns:
             ShardedStateDict: sharded state dict for the GPTModel
         """
-        sharded_state_dict = super().sharded_state_dict(prefix, sharded_offsets, metadata)
+        sharded_state_dict = super().sharded_state_dict(
+            prefix, sharded_offsets, metadata
+        )
 
-        for module in ['t_embedder']:
+        for module in ["t_embedder"]:
             for param_name, param in getattr(self, module).named_parameters():
-                weight_key = f'{prefix}{module}.{param_name}'
-                self._set_embedder_weights_replica_id(param, sharded_state_dict, weight_key)
+                weight_key = f"{prefix}{module}.{param_name}"
+                self._set_embedder_weights_replica_id(
+                    param, sharded_state_dict, weight_key
+                )
         return sharded_state_dict
 
     def _set_embedder_weights_replica_id(
-        self, tensor: Tensor, sharded_state_dict: ShardedStateDict, embedder_weight_key: str
+        self,
+        tensor: Tensor,
+        sharded_state_dict: ShardedStateDict,
+        embedder_weight_key: str,
     ) -> None:
         """set replica ids of the weights in t_embedder for sharded state dict.
 

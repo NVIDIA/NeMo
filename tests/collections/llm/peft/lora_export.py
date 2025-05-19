@@ -17,13 +17,20 @@ from nemo.collections import llm
 
 
 def get_args():
-    parser = argparse.ArgumentParser(description='Merge LoRA weights with base LLM')
-    parser.add_argument('--lora_checkpoint_path', type=str, required=True, help="Path to finetuned LORA checkpoint")
-    parser.add_argument('--output_path', type=str, required=True, help="Path to save merged checkpoint")
+    parser = argparse.ArgumentParser(description="Merge LoRA weights with base LLM")
+    parser.add_argument(
+        "--lora_checkpoint_path",
+        type=str,
+        required=True,
+        help="Path to finetuned LORA checkpoint",
+    )
+    parser.add_argument(
+        "--output_path", type=str, required=True, help="Path to save merged checkpoint"
+    )
     return parser.parse_args()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     args = get_args()
 
     llm.peft.export_lora(

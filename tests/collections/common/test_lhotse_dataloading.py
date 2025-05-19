@@ -114,7 +114,7 @@ def nemo_manifest_with_skipme_path(nemo_manifest_path: Path) -> Path:
     all_items = list(load_jsonl(nemo_manifest_path))
 
     for item in all_items[-2:]:
-        item['_skipme'] = True
+        item["_skipme"] = True
 
     p = nemo_manifest_path.parent / "nemo_manifest_with_skipme.json"
     save_to_jsonl(all_items, p)
@@ -131,7 +131,9 @@ def mc_cutset_path(tmp_path_factory) -> Path:
     num_channels = 2  # number of channels per example
 
     # create a dummy manifest with single-channel examples
-    sc_cuts = DummyManifest(CutSet, begin_id=0, end_id=num_examples * num_channels, with_data=True)
+    sc_cuts = DummyManifest(
+        CutSet, begin_id=0, end_id=num_examples * num_channels, with_data=True
+    )
     mc_cuts = []
 
     for n in range(num_examples):
@@ -145,7 +147,7 @@ def mc_cutset_path(tmp_path_factory) -> Path:
         # merge recordings
         rec = Recording(
             sources=mc_sources,
-            id=f'mc-dummy-recording-{n:02d}',
+            id=f"mc-dummy-recording-{n:02d}",
             num_samples=sc_cuts[0].num_samples,
             duration=sc_cuts[0].duration,
             sampling_rate=sc_cuts[0].sampling_rate,
@@ -153,7 +155,11 @@ def mc_cutset_path(tmp_path_factory) -> Path:
 
         # multi-channel cut
         cut = MultiCut(
-            recording=rec, id=f'mc-dummy-cut-{n:02d}', start=0, duration=1.0, channel=list(range(num_channels))
+            recording=rec,
+            id=f"mc-dummy-cut-{n:02d}",
+            start=0,
+            duration=1.0,
+            channel=list(range(num_channels)),
         )
         mc_cuts.append(cut)
 
@@ -189,7 +195,9 @@ def nemo_tarred_manifest_path(nemo_manifest_path: Path) -> Tuple[str, str]:
 
 
 @pytest.fixture(scope="session")
-def nemo_tarred_manifest_with_skipme_path(nemo_tarred_manifest_path: Path) -> Tuple[str, str]:
+def nemo_tarred_manifest_with_skipme_path(
+    nemo_tarred_manifest_path: Path,
+) -> Tuple[str, str]:
     """Create a nemo tarred manifest with last 2 utterances out of 10 with `_skipme` key enabled."""
     from lhotse.serialization import load_jsonl, save_to_jsonl
 
@@ -198,7 +206,7 @@ def nemo_tarred_manifest_with_skipme_path(nemo_tarred_manifest_path: Path) -> Tu
     all_items = list(load_jsonl(json_p))
 
     for item in all_items[-2:]:
-        item['_skipme'] = True
+        item["_skipme"] = True
 
     p = json_p.parent / "tarred_audio_filepaths_with_skipme.jsonl"
     save_to_jsonl(all_items, p)
@@ -207,7 +215,9 @@ def nemo_tarred_manifest_with_skipme_path(nemo_tarred_manifest_path: Path) -> Tu
 
 
 @pytest.fixture(scope="session")
-def nemo_tarred_manifest_path_multi(nemo_tarred_manifest_path: tuple[str, str]) -> Tuple[str, str]:
+def nemo_tarred_manifest_path_multi(
+    nemo_tarred_manifest_path: tuple[str, str]
+) -> Tuple[str, str]:
     """10 utterances of length 1s as a NeMo tarred manifest. Stored in one manifest per shard."""
     from lhotse.serialization import load_jsonl
     from lhotse.shar.writers import JsonlShardWriter
@@ -223,7 +233,9 @@ def nemo_tarred_manifest_path_multi(nemo_tarred_manifest_path: tuple[str, str]) 
 
 
 @pytest.fixture(scope="session")
-def nemo_tarred_manifest_subset_path(nemo_tarred_manifest_path: Tuple[str, str]) -> Tuple[str, str]:
+def nemo_tarred_manifest_subset_path(
+    nemo_tarred_manifest_path: Tuple[str, str]
+) -> Tuple[str, str]:
     """Create a shard manifests with randomly chosen 50% percent of tarred contents."""
     from lhotse.serialization import load_jsonl
     from lhotse.shar.writers import JsonlShardWriter
@@ -364,7 +376,9 @@ def test_dataloader_from_lhotse_cuts_pad_min_duration(cutset_path: Path):
         }
     )
 
-    dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=Identity())
+    dl = get_lhotse_dataloader_from_config(
+        config=config, global_rank=0, world_size=1, dataset=Identity()
+    )
 
     batch = next(iter(dl))
     (cut,) = batch
@@ -418,7 +432,10 @@ def test_dataloader_from_lhotse_cuts_channel_selector(mc_cutset_path: Path):
         )
 
         dl_cs = get_lhotse_dataloader_from_config(
-            config=config_cs, global_rank=0, world_size=1, dataset=UnsupervisedAudioDataset()
+            config=config_cs,
+            global_rank=0,
+            world_size=1,
+            dataset=UnsupervisedAudioDataset(),
         )
 
         for n, b_cs in enumerate(dl_cs):
@@ -427,7 +444,9 @@ def test_dataloader_from_lhotse_cuts_channel_selector(mc_cutset_path: Path):
                 assert torch.equal(b_cs["audio"], batches[n]["audio"])
             else:
                 # channel selector, needs to match the selected channel
-                assert torch.equal(b_cs["audio"], batches[n]["audio"][:, channel_selector, :])
+                assert torch.equal(
+                    b_cs["audio"], batches[n]["audio"][:, channel_selector, :]
+                )
 
 
 def test_dataloader_from_lhotse_shar_cuts(cutset_shar_path: Path):
@@ -493,7 +512,9 @@ def test_dataloader_from_lhotse_shar_cuts_via_fields(cutset_shar_path: Path):
         }
     )
 
-    dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=Identity())
+    dl = get_lhotse_dataloader_from_config(
+        config=config, global_rank=0, world_size=1, dataset=Identity()
+    )
 
     batch = next(iter(dl))
     assert len(batch) == 4
@@ -501,7 +522,9 @@ def test_dataloader_from_lhotse_shar_cuts_via_fields(cutset_shar_path: Path):
     assert isinstance(audio, np.ndarray)
 
 
-def test_dataloader_from_lhotse_shar_cuts_add_new_field(tmp_path_factory, cutset_shar_path: Path):
+def test_dataloader_from_lhotse_shar_cuts_add_new_field(
+    tmp_path_factory, cutset_shar_path: Path
+):
 
     # We're creating a new field called "wer" that will be dynamically attached to Lhotse Shar cuts.
     # Each "wer" shard is a jsonl manifest that has to match the "cuts" sharded manifest.
@@ -528,7 +551,9 @@ def test_dataloader_from_lhotse_shar_cuts_add_new_field(tmp_path_factory, cutset
         }
     )
 
-    dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=Identity())
+    dl = get_lhotse_dataloader_from_config(
+        config=config, global_rank=0, world_size=1, dataset=Identity()
+    )
 
     batch = next(iter(dl))
     assert len(batch) == 4
@@ -603,7 +628,9 @@ def test_dataloader_from_nemo_manifest_has_custom_fields(nemo_manifest_path: Pat
         }
     )
 
-    dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=_Identity())
+    dl = get_lhotse_dataloader_from_config(
+        config=config, global_rank=0, world_size=1, dataset=_Identity()
+    )
 
     batch = next(iter(dl))
     for cut in batch:
@@ -611,7 +638,9 @@ def test_dataloader_from_nemo_manifest_has_custom_fields(nemo_manifest_path: Pat
         assert "my-custom-field" in cut.custom
 
 
-def test_dataloader_from_tarred_nemo_manifest(nemo_tarred_manifest_path: tuple[str, str]):
+def test_dataloader_from_tarred_nemo_manifest(
+    nemo_tarred_manifest_path: tuple[str, str]
+):
     json_mft, tar_mft = nemo_tarred_manifest_path
     config = OmegaConf.create(
         {
@@ -659,7 +688,9 @@ def test_dataloader_from_tarred_nemo_manifest(nemo_tarred_manifest_path: tuple[s
     assert b["audio"].shape[0] == b["audio_lens"].shape[0] == 3
 
 
-def test_dataloader_from_tarred_nemo_manifest_weighted_combination(nemo_tarred_manifest_path: tuple[str, str]):
+def test_dataloader_from_tarred_nemo_manifest_weighted_combination(
+    nemo_tarred_manifest_path: tuple[str, str]
+):
     json_mft, tar_mft = nemo_tarred_manifest_path
     config = OmegaConf.create(
         {
@@ -692,7 +723,9 @@ def test_dataloader_from_tarred_nemo_manifest_weighted_combination(nemo_tarred_m
     assert b["audio"].shape[0] == b["audio_lens"].shape[0] == 3
 
 
-def test_dataloader_from_tarred_nemo_manifest_multi(nemo_tarred_manifest_path_multi: tuple[str, str]):
+def test_dataloader_from_tarred_nemo_manifest_multi(
+    nemo_tarred_manifest_path_multi: tuple[str, str]
+):
     json_mft, tar_mft = nemo_tarred_manifest_path_multi
     config = OmegaConf.create(
         {
@@ -740,7 +773,9 @@ def test_dataloader_from_tarred_nemo_manifest_multi(nemo_tarred_manifest_path_mu
     assert b["audio"].shape[0] == b["audio_lens"].shape[0] == 3
 
 
-def test_dataloader_from_tarred_nemo_manifest_multi_max_open_streams(nemo_tarred_manifest_path_multi: tuple[str, str]):
+def test_dataloader_from_tarred_nemo_manifest_multi_max_open_streams(
+    nemo_tarred_manifest_path_multi: tuple[str, str]
+):
     json_mft, tar_mft = nemo_tarred_manifest_path_multi
     config = OmegaConf.create(
         {
@@ -772,7 +807,9 @@ def test_dataloader_from_tarred_nemo_manifest_multi_max_open_streams(nemo_tarred
     _ = next(iter(dl))
 
 
-def test_dataloader_from_tarred_nemo_manifest_concat(nemo_tarred_manifest_path: tuple[str, str]):
+def test_dataloader_from_tarred_nemo_manifest_concat(
+    nemo_tarred_manifest_path: tuple[str, str]
+):
     json_mft, tar_mft = nemo_tarred_manifest_path
     config = OmegaConf.create(
         {
@@ -946,8 +983,12 @@ class TextDataset(torch.utils.data.Dataset):
         return [c.supervisions[0].text for c in cuts]
 
 
-@pytest.mark.parametrize(["text_field", "text_value"], [(None, "irrelevant"), ("text-other", "not relevant")])
-def test_dataloader_from_nemo_manifest_with_text_field(nemo_manifest_path: Path, text_field: str, text_value: str):
+@pytest.mark.parametrize(
+    ["text_field", "text_value"], [(None, "irrelevant"), ("text-other", "not relevant")]
+)
+def test_dataloader_from_nemo_manifest_with_text_field(
+    nemo_manifest_path: Path, text_field: str, text_value: str
+):
     kwarg = {"text_field": text_field} if text_field is not None else {}
     config = OmegaConf.create(
         {
@@ -963,7 +1004,9 @@ def test_dataloader_from_nemo_manifest_with_text_field(nemo_manifest_path: Path,
         }
     )
 
-    dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=TextDataset())
+    dl = get_lhotse_dataloader_from_config(
+        config=config, global_rank=0, world_size=1, dataset=TextDataset()
+    )
     b = next(iter(dl))
     assert b == [text_value] * 2
 
@@ -973,8 +1016,12 @@ class LangDataset(torch.utils.data.Dataset):
         return [c.supervisions[0].language for c in cuts]
 
 
-@pytest.mark.parametrize(["lang_field", "lang_value"], [(None, "en"), ("custom-lang", "pl")])
-def test_dataloader_from_nemo_manifest_with_lang_field(nemo_manifest_path: Path, lang_field: str, lang_value: str):
+@pytest.mark.parametrize(
+    ["lang_field", "lang_value"], [(None, "en"), ("custom-lang", "pl")]
+)
+def test_dataloader_from_nemo_manifest_with_lang_field(
+    nemo_manifest_path: Path, lang_field: str, lang_value: str
+):
     kwarg = {"lang_field": lang_field} if lang_field is not None else {}
     config = OmegaConf.create(
         {
@@ -990,7 +1037,9 @@ def test_dataloader_from_nemo_manifest_with_lang_field(nemo_manifest_path: Path,
         }
     )
 
-    dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=LangDataset())
+    dl = get_lhotse_dataloader_from_config(
+        config=config, global_rank=0, world_size=1, dataset=LangDataset()
+    )
     b = next(iter(dl))
     assert b == [lang_value] * 2
 
@@ -1004,15 +1053,30 @@ def test_lazy_nemo_iterator_with_offset_field(tmp_path: Path):
 
     # Have to generate as INT16 to avoid quantization error after saving to 16-bit WAV
     INT16MAX = 2**15
-    expected_audio = np.random.randint(low=-INT16MAX - 1, high=INT16MAX, size=(16000,)).astype(np.float32) / INT16MAX
+    expected_audio = (
+        np.random.randint(low=-INT16MAX - 1, high=INT16MAX, size=(16000,)).astype(
+            np.float32
+        )
+        / INT16MAX
+    )
     audio_path = str(tmp_path / "dummy.wav")
     sf.write(audio_path, expected_audio, 16000)
 
     manifest_path = str(tmp_path / "manifest.json")
     lhotse.serialization.save_to_jsonl(
         [
-            {"audio_filepath": audio_path, "offset": 0.0, "duration": 0.5, "text": "irrelevant"},
-            {"audio_filepath": audio_path, "offset": 0.5, "duration": 0.5, "text": "irrelevant"},
+            {
+                "audio_filepath": audio_path,
+                "offset": 0.0,
+                "duration": 0.5,
+                "text": "irrelevant",
+            },
+            {
+                "audio_filepath": audio_path,
+                "offset": 0.5,
+                "duration": 0.5,
+                "text": "irrelevant",
+            },
         ],
         manifest_path,
     )
@@ -1053,7 +1117,12 @@ def test_lazy_nemo_iterator_with_relative_paths(tmp_path: Path):
 
     # Have to generate as INT16 to avoid quantization error after saving to 16-bit WAV
     INT16MAX = 2**15
-    expected_audio = np.random.randint(low=-INT16MAX - 1, high=INT16MAX, size=(16000,)).astype(np.float32) / INT16MAX
+    expected_audio = (
+        np.random.randint(low=-INT16MAX - 1, high=INT16MAX, size=(16000,)).astype(
+            np.float32
+        )
+        / INT16MAX
+    )
     audio_path = str(tmp_path / "dummy.wav")
     sf.write(audio_path, expected_audio, 16000)
 
@@ -1061,7 +1130,12 @@ def test_lazy_nemo_iterator_with_relative_paths(tmp_path: Path):
     lhotse.serialization.save_to_jsonl(
         [
             # note: relative path
-            {"audio_filepath": "dummy.wav", "offset": 0.0, "duration": 0.5, "text": "irrelevant"},
+            {
+                "audio_filepath": "dummy.wav",
+                "offset": 0.0,
+                "duration": 0.5,
+                "text": "irrelevant",
+            },
         ],
         manifest_path,
     )
@@ -1107,7 +1181,9 @@ def test_lhotse_cuts_resolve_relative_paths(tmp_path: Path):
         }
     )
 
-    dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=_Identity())
+    dl = get_lhotse_dataloader_from_config(
+        config=config, global_rank=0, world_size=1, dataset=_Identity()
+    )
 
     batches = [batch for batch in dl]
     assert len(batches) == 1
@@ -1161,7 +1237,9 @@ def test_extended_data_input_cfg(cutset_shar_path, nemo_tarred_manifest_path_mul
         }
     )
 
-    dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=Identity())
+    dl = get_lhotse_dataloader_from_config(
+        config=config, global_rank=0, world_size=1, dataset=Identity()
+    )
 
     # Note: we use islice here because the dataloader will be infinite.
     batches = [batch for batch in islice(dl, 2)]
@@ -1181,7 +1259,9 @@ def test_extended_data_input_cfg(cutset_shar_path, nemo_tarred_manifest_path_mul
     assert sum(c.custom["dataset_name"] == "D2" for c in b) == 3
 
 
-def test_extended_data_input_cfg_subgroup(cutset_shar_path, nemo_tarred_manifest_path_multi):
+def test_extended_data_input_cfg_subgroup(
+    cutset_shar_path, nemo_tarred_manifest_path_multi
+):
     config = OmegaConf.create(
         {
             "input_cfg": [
@@ -1191,7 +1271,9 @@ def test_extended_data_input_cfg_subgroup(cutset_shar_path, nemo_tarred_manifest
                         {
                             "type": "nemo_tarred",
                             "manifest_filepath": nemo_tarred_manifest_path_multi[0],
-                            "tarred_audio_filepaths": nemo_tarred_manifest_path_multi[1],
+                            "tarred_audio_filepaths": nemo_tarred_manifest_path_multi[
+                                1
+                            ],
                             "weight": 0.5,
                             "tags": {
                                 "language": "en",
@@ -1222,7 +1304,9 @@ def test_extended_data_input_cfg_subgroup(cutset_shar_path, nemo_tarred_manifest
                         {
                             "type": "nemo_tarred",
                             "manifest_filepath": nemo_tarred_manifest_path_multi[0],
-                            "tarred_audio_filepaths": nemo_tarred_manifest_path_multi[1],
+                            "tarred_audio_filepaths": nemo_tarred_manifest_path_multi[
+                                1
+                            ],
                             "weight": 0.5,
                             "tags": {
                                 "language": "en",
@@ -1255,7 +1339,9 @@ def test_extended_data_input_cfg_subgroup(cutset_shar_path, nemo_tarred_manifest
         }
     )
 
-    dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=Identity())
+    dl = get_lhotse_dataloader_from_config(
+        config=config, global_rank=0, world_size=1, dataset=Identity()
+    )
 
     # Sample 100 mini-batches and test statistical properties
     group_occurrences = Counter()
@@ -1276,13 +1362,23 @@ def test_extended_data_input_cfg_subgroup(cutset_shar_path, nemo_tarred_manifest
 
     assert group_occurrences["G1"] == almost(0.2)  # group weight: 0.2
     assert group_occurrences["G2"] == almost(0.8)  # group weight: 0.8
-    assert dataset_occurrences["D1"] == almost(0.1)  # group weight: 0.2 * dataset weight 0.5 => 0.1
-    assert dataset_occurrences["D2"] == almost(0.1)  # group weight: 0.2 * dataset weight 0.5 => 0.1
-    assert dataset_occurrences["D3"] == almost(0.4)  # group weight: 0.8 * dataset weight 0.5 => 0.4
-    assert dataset_occurrences["D4"] == almost(0.4)  # group weight: 0.8 * dataset weight 0.5 => 0.4
+    assert dataset_occurrences["D1"] == almost(
+        0.1
+    )  # group weight: 0.2 * dataset weight 0.5 => 0.1
+    assert dataset_occurrences["D2"] == almost(
+        0.1
+    )  # group weight: 0.2 * dataset weight 0.5 => 0.1
+    assert dataset_occurrences["D3"] == almost(
+        0.4
+    )  # group weight: 0.8 * dataset weight 0.5 => 0.4
+    assert dataset_occurrences["D4"] == almost(
+        0.4
+    )  # group weight: 0.8 * dataset weight 0.5 => 0.4
 
 
-def test_extended_data_input_cfg_yaml_path(tmp_path, cutset_shar_path, nemo_tarred_manifest_path_multi):
+def test_extended_data_input_cfg_yaml_path(
+    tmp_path, cutset_shar_path, nemo_tarred_manifest_path_multi
+):
     input_cfg = [
         {
             "type": "nemo_tarred",
@@ -1322,7 +1418,9 @@ def test_extended_data_input_cfg_yaml_path(tmp_path, cutset_shar_path, nemo_tarr
         }
     )
 
-    dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=Identity())
+    dl = get_lhotse_dataloader_from_config(
+        config=config, global_rank=0, world_size=1, dataset=Identity()
+    )
 
     batch = next(iter(dl))
     assert isinstance(batch, lhotse.CutSet)
@@ -1380,7 +1478,9 @@ def test_text_file_input(txt_en_path, txt_es_path):
     )
 
     # Note: this test does not need to pass a tokenizer because we use static batch sizes
-    dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=Identity())
+    dl = get_lhotse_dataloader_from_config(
+        config=config, global_rank=0, world_size=1, dataset=Identity()
+    )
 
     # Note: we use islice here because the dataloader will be infinite.
     batches = [batch for batch in islice(dl, 2)]
@@ -1419,7 +1519,9 @@ def test_text_file_pairs_input(txt_en_path, txt_es_path, questions_path):
     )
 
     # Note: this test does not need to pass a tokenizer because we use static batch sizes
-    dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=Identity())
+    dl = get_lhotse_dataloader_from_config(
+        config=config, global_rank=0, world_size=1, dataset=Identity()
+    )
 
     # Note: we use islice here because the dataloader will be infinite.
     batches = [batch for batch in islice(dl, 2)]
@@ -1452,7 +1554,9 @@ def txt_pair_paths_shards(tmp_path_factory, txt_en_path, txt_es_path):
     return f"{tmp_path}/en__OP_0..1_CL_.txt", f"{tmp_path}/es__OP_0..1_CL_.txt"
 
 
-def test_text_file_pairs_shards_input(txt_pair_paths_shards: tuple[str, str], questions_path):
+def test_text_file_pairs_shards_input(
+    txt_pair_paths_shards: tuple[str, str], questions_path
+):
     en_paths, es_paths = txt_pair_paths_shards
 
     config = OmegaConf.create(
@@ -1477,7 +1581,9 @@ def test_text_file_pairs_shards_input(txt_pair_paths_shards: tuple[str, str], qu
     )
 
     # Note: this test does not need to pass a tokenizer because we use static batch sizes
-    dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=Identity())
+    dl = get_lhotse_dataloader_from_config(
+        config=config, global_rank=0, world_size=1, dataset=Identity()
+    )
 
     # Note: we use islice here because the dataloader will be infinite.
     batches = [batch for batch in islice(dl, 2)]
@@ -1496,11 +1602,19 @@ def test_text_file_pairs_shards_input(txt_pair_paths_shards: tuple[str, str], qu
 
 
 @pytest.fixture(scope="session")
-def en_es_tokenizer(tmp_path_factory, txt_en_path, txt_es_path) -> SentencePieceTokenizer:
+def en_es_tokenizer(
+    tmp_path_factory, txt_en_path, txt_es_path
+) -> SentencePieceTokenizer:
     tmpdir = tmp_path_factory.mktemp("en_es_tokenizer")
     text_path = tmpdir / "text.txt"
     text_path.write_text(txt_en_path.read_text() + "\n" + txt_es_path.read_text())
-    create_spt_model(text_path, vocab_size=128, sample_size=-1, do_lower_case=False, output_dir=str(tmpdir))
+    create_spt_model(
+        text_path,
+        vocab_size=128,
+        sample_size=-1,
+        do_lower_case=False,
+        output_dir=str(tmpdir),
+    )
     return SentencePieceTokenizer(str(tmpdir / "tokenizer.model"))
 
 
@@ -2032,7 +2146,9 @@ def test_dataloader_with_noise_lhotse_jsonl(cutset_path: Path):
     assert -5.0 < cut.tracks[1].snr < 5.0
 
 
-def test_dataloader_with_noise_nemo_tar(cutset_path: Path, nemo_tarred_manifest_path_multi: Path):
+def test_dataloader_with_noise_nemo_tar(
+    cutset_path: Path, nemo_tarred_manifest_path_multi: Path
+):
     noise_json, noise_tar = nemo_tarred_manifest_path_multi
     config = OmegaConf.create(
         {
@@ -2095,7 +2211,10 @@ def test_dataloader_with_synth_rir(cutset_path: Path):
     assert cut.recording.transforms is None
     cut = batch[2]
     assert isinstance(cut, MonoCut)
-    assert isinstance(cut.recording.transforms, list) and len(cut.recording.transforms) == 1
+    assert (
+        isinstance(cut.recording.transforms, list)
+        and len(cut.recording.transforms) == 1
+    )
     tfnm = cut.recording.transforms[0]
     if isinstance(tfnm, dict):  # lhotse<=1.23.0
         assert tfnm["name"] == "ReverbWithImpulseResponse"
@@ -2103,7 +2222,10 @@ def test_dataloader_with_synth_rir(cutset_path: Path):
         assert isinstance(tfnm, ReverbWithImpulseResponse)
     cut = batch[3]
     assert isinstance(cut, MonoCut)
-    assert isinstance(cut.recording.transforms, list) and len(cut.recording.transforms) == 1
+    assert (
+        isinstance(cut.recording.transforms, list)
+        and len(cut.recording.transforms) == 1
+    )
     tfnm = cut.recording.transforms[0]
     if isinstance(tfnm, dict):  # lhotse<=1.23.0
         assert tfnm["name"] == "ReverbWithImpulseResponse"
@@ -2135,13 +2257,17 @@ def test_dataloader_bucket_batch_size(nemo_tarred_manifest_path_multi: tuple[str
         }
     )
 
-    dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=Identity())
+    dl = get_lhotse_dataloader_from_config(
+        config=config, global_rank=0, world_size=1, dataset=Identity()
+    )
 
     for b in islice(dl, 10):
         assert len(b) == 2
 
 
-def test_dataloader_2d_bucketing(nemo_tarred_manifest_path_multi: tuple[str, str], en_es_tokenizer):
+def test_dataloader_2d_bucketing(
+    nemo_tarred_manifest_path_multi: tuple[str, str], en_es_tokenizer
+):
     json_mft, tar_mft = nemo_tarred_manifest_path_multi
     config = OmegaConf.create(
         {
@@ -2155,7 +2281,14 @@ def test_dataloader_2d_bucketing(nemo_tarred_manifest_path_multi: tuple[str, str
             "use_bucketing": True,
             "concurrent_bucketing": False,
             # Here each bin has the format: [audio_duration, token_sequence_length]
-            "bucket_duration_bins": [[0.5, 1], [0.5, 2], [2.0, 5], [2.0, 15], [4.0, 10], [4.0, 20]],
+            "bucket_duration_bins": [
+                [0.5, 1],
+                [0.5, 2],
+                [2.0, 5],
+                [2.0, 15],
+                [4.0, 10],
+                [4.0, 20],
+            ],
             "bucket_batch_size": [7, 6, 5, 4, 3, 2],
             "drop_last": False,
             "shuffle_buffer_size": 10,
@@ -2166,7 +2299,11 @@ def test_dataloader_2d_bucketing(nemo_tarred_manifest_path_multi: tuple[str, str
     )
 
     dl = get_lhotse_dataloader_from_config(
-        config=config, global_rank=0, world_size=1, dataset=Identity(), tokenizer=en_es_tokenizer
+        config=config,
+        global_rank=0,
+        world_size=1,
+        dataset=Identity(),
+        tokenizer=en_es_tokenizer,
     )
 
     # All of our data have duration 1.0 and 10 tokens so they will fall to bin[3] with batch_size=4
@@ -2210,7 +2347,9 @@ def test_dataloader_from_nemo_nontarred_manifest_with_extra_questions_field_iter
         }
     )
 
-    dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=Identity())
+    dl = get_lhotse_dataloader_from_config(
+        config=config, global_rank=0, world_size=1, dataset=Identity()
+    )
 
     b = next(iter(dl))
     c = b[0]
@@ -2251,7 +2390,9 @@ def test_dataloader_from_nemo_manifest_with_extra_questions_field_iter(
         }
     )
 
-    dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=Identity())
+    dl = get_lhotse_dataloader_from_config(
+        config=config, global_rank=0, world_size=1, dataset=Identity()
+    )
     b = next(iter(dl))
     c = b[0]
     assert isinstance(c, MonoCut)
@@ -2294,7 +2435,9 @@ def test_dataloader_from_nemo_manifest_with_extra_questions_field_sample(
     )
 
     # Note: despite shuffle=True, it is sampling lines from questions_path because of type: "text_sample"
-    dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=Identity())
+    dl = get_lhotse_dataloader_from_config(
+        config=config, global_rank=0, world_size=1, dataset=Identity()
+    )
     b = next(iter(dl))
     c = b[0]
     assert isinstance(c, MonoCut)
@@ -2370,7 +2513,9 @@ def nemo_tarred_manifest_path_with_offset(tmp_path_factory) -> Tuple[str, str]:
     return mft_writer.path, tar_writer.output_paths[0]
 
 
-def test_dataloader_from_tarred_nemo_manifest_with_offset(nemo_tarred_manifest_path_with_offset: tuple[str, str]):
+def test_dataloader_from_tarred_nemo_manifest_with_offset(
+    nemo_tarred_manifest_path_with_offset: tuple[str, str]
+):
     json_mft, tar_mft = nemo_tarred_manifest_path_with_offset
     config = OmegaConf.create(
         {
@@ -2386,7 +2531,9 @@ def test_dataloader_from_tarred_nemo_manifest_with_offset(nemo_tarred_manifest_p
         }
     )
 
-    dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=Identity())
+    dl = get_lhotse_dataloader_from_config(
+        config=config, global_rank=0, world_size=1, dataset=Identity()
+    )
 
     # Loads all three examples in a single mini-batch (that's why batch_size=3).
     batches = [b for b in dl]
@@ -2412,7 +2559,9 @@ def test_dataloader_from_tarred_nemo_manifest_with_offset(nemo_tarred_manifest_p
     audio = cut.load_audio()
     assert audio.shape[1] == cut.num_samples
     # Check the audio for the segment is identical to a slice of the full audio.
-    np.testing.assert_equal(audio, full_audio[:, : compute_num_samples(cut.duration, cut.sampling_rate)])
+    np.testing.assert_equal(
+        audio, full_audio[:, : compute_num_samples(cut.duration, cut.sampling_rate)]
+    )
 
     # Validate segment 4-9s.
     # Note: LazyNeMoTarredIterator removes the offset information, as it creates a new recording
@@ -2427,30 +2576,58 @@ def test_dataloader_from_tarred_nemo_manifest_with_offset(nemo_tarred_manifest_p
     assert audio.shape[1] == cut.num_samples
     # Check the audio for the segment is identical to a slice of the full audio.
     np.testing.assert_equal(
-        audio, full_audio[:, compute_num_samples(4.0, cut.sampling_rate) : compute_num_samples(9.0, cut.sampling_rate)]
+        audio,
+        full_audio[
+            :,
+            compute_num_samples(4.0, cut.sampling_rate) : compute_num_samples(
+                9.0, cut.sampling_rate
+            ),
+        ],
     )
 
 
 def test_force_iterable_dataset(cutset_path: Path):
-    config = OmegaConf.create({"cuts_path": cutset_path, "batch_size": 2, "num_workers": 2})
-    dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=Identity())
+    config = OmegaConf.create(
+        {"cuts_path": cutset_path, "batch_size": 2, "num_workers": 2}
+    )
+    dl = get_lhotse_dataloader_from_config(
+        config=config, global_rank=0, world_size=1, dataset=Identity()
+    )
     batches_map = [b for b in dl]
 
     config = OmegaConf.create(
-        {"cuts_path": cutset_path, "batch_size": 2, "num_workers": 2, "force_iterable_dataset": True}
+        {
+            "cuts_path": cutset_path,
+            "batch_size": 2,
+            "num_workers": 2,
+            "force_iterable_dataset": True,
+        }
     )
-    dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=Identity())
+    dl = get_lhotse_dataloader_from_config(
+        config=config, global_rank=0, world_size=1, dataset=Identity()
+    )
     batches_iter = [b for b in dl]
 
     # 2x duplicated data due to iterable dataset lack of deduplication
     assert len(batches_iter) == 2 * len(batches_map)
     # assertion that this is in fact the same data (same ids)
-    assert set(c.id for b in batches_iter for c in b) == set(c.id for b in batches_map for c in b)
+    assert set(c.id for b in batches_iter for c in b) == set(
+        c.id for b in batches_map for c in b
+    )
 
 
 def test_force_map_dataset(cutset_shar_path: Path):
-    config = OmegaConf.create({"shar_path": cutset_shar_path, "batch_size": 2, "num_workers": 2, "force_finite": True})
-    dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=Identity())
+    config = OmegaConf.create(
+        {
+            "shar_path": cutset_shar_path,
+            "batch_size": 2,
+            "num_workers": 2,
+            "force_finite": True,
+        }
+    )
+    dl = get_lhotse_dataloader_from_config(
+        config=config, global_rank=0, world_size=1, dataset=Identity()
+    )
     batches_iter = [b for b in dl]
 
     config = OmegaConf.create(
@@ -2462,16 +2639,22 @@ def test_force_map_dataset(cutset_shar_path: Path):
             "force_finite": True,
         }
     )
-    dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=Identity())
+    dl = get_lhotse_dataloader_from_config(
+        config=config, global_rank=0, world_size=1, dataset=Identity()
+    )
     batches_map = [b for b in dl]
 
     # 2x duplicated data due to iterable dataset lack of deduplication
     assert len(batches_iter) == 2 * len(batches_map)
     # assertion that this is in fact the same data (same ids)
-    assert set(c.id for b in batches_iter for c in b) == set(c.id for b in batches_map for c in b)
+    assert set(c.id for b in batches_iter for c in b) == set(
+        c.id for b in batches_map for c in b
+    )
 
 
-def test_dataloader_from_tarred_nemo_subset_manifest(nemo_tarred_manifest_subset_path: tuple[str, str]):
+def test_dataloader_from_tarred_nemo_subset_manifest(
+    nemo_tarred_manifest_subset_path: tuple[str, str]
+):
     json_mft, tar_mft, subset_items = nemo_tarred_manifest_subset_path
     config = OmegaConf.create(
         {
@@ -2504,13 +2687,17 @@ def test_dataloader_from_tarred_nemo_subset_manifest(nemo_tarred_manifest_subset
         current_ids = batch["ids"]
         seen_ids += current_ids
 
-    expected_ids = set([data['audio_filepath'] for data in subset_items])
+    expected_ids = set([data["audio_filepath"] for data in subset_items])
     seen_ids_set = set(seen_ids)
     assert len(seen_ids_set) == len(seen_ids), "Duplicate IDs found in the batch."
-    assert seen_ids_set == expected_ids, "The set of IDs in the batches does not match the input JSON manifests."
+    assert (
+        seen_ids_set == expected_ids
+    ), "The set of IDs in the batches does not match the input JSON manifests."
 
 
-def test_dataloader_from_nemo_manifest_with_skipme(nemo_manifest_with_skipme_path: Path):
+def test_dataloader_from_nemo_manifest_with_skipme(
+    nemo_manifest_with_skipme_path: Path,
+):
     config = OmegaConf.create(
         {
             "manifest_filepath": nemo_manifest_with_skipme_path,
@@ -2524,15 +2711,19 @@ def test_dataloader_from_nemo_manifest_with_skipme(nemo_manifest_with_skipme_pat
         }
     )
 
-    dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=_Identity())
+    dl = get_lhotse_dataloader_from_config(
+        config=config, global_rank=0, world_size=1, dataset=_Identity()
+    )
     batches = [batch for batch in dl]
-    skipme_s = [cut.custom.get('_skipme', 0) for batch in batches for cut in batch]
+    skipme_s = [cut.custom.get("_skipme", 0) for batch in batches for cut in batch]
 
     assert len(batches) == 8
     assert not any(skipme_s)
 
 
-def test_dataloader_from_tarred_nemo_manifest_with_skipme(nemo_tarred_manifest_with_skipme_path: tuple[Path, str]):
+def test_dataloader_from_tarred_nemo_manifest_with_skipme(
+    nemo_tarred_manifest_with_skipme_path: tuple[Path, str]
+):
     json_mft, tar_mft = nemo_tarred_manifest_with_skipme_path
     config = OmegaConf.create(
         {
@@ -2549,15 +2740,19 @@ def test_dataloader_from_tarred_nemo_manifest_with_skipme(nemo_tarred_manifest_w
         }
     )
 
-    dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=_Identity())
+    dl = get_lhotse_dataloader_from_config(
+        config=config, global_rank=0, world_size=1, dataset=_Identity()
+    )
     batches = [batch for batch in dl]
-    skipme_s = [cut.custom.get('_skipme', 0) for batch in batches for cut in batch]
+    skipme_s = [cut.custom.get("_skipme", 0) for batch in batches for cut in batch]
 
     assert len(batches) == 8
     assert not any(skipme_s)
 
 
-def test_dataloader_from_data_input_cfg_yaml_path_with_skipme(cutset_shar_path, nemo_tarred_manifest_with_skipme_path):
+def test_dataloader_from_data_input_cfg_yaml_path_with_skipme(
+    cutset_shar_path, nemo_tarred_manifest_with_skipme_path
+):
     config = OmegaConf.create(
         {
             "input_cfg": [
@@ -2593,8 +2788,10 @@ def test_dataloader_from_data_input_cfg_yaml_path_with_skipme(cutset_shar_path, 
         }
     )
 
-    dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=Identity())
+    dl = get_lhotse_dataloader_from_config(
+        config=config, global_rank=0, world_size=1, dataset=Identity()
+    )
     batches = [batch for batch in dl]
-    skipme_s = [cut.custom.get('_skipme', 0) for batch in batches for cut in batch]
+    skipme_s = [cut.custom.get("_skipme", 0) for batch in batches for cut in batch]
 
     assert not any(skipme_s)

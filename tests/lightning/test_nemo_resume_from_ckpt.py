@@ -18,7 +18,7 @@ import pytest
 
 
 def set_env():
-    os.environ['NVTE_APPLY_QK_LAYER_SCALING'] = '0'
+    os.environ["NVTE_APPLY_QK_LAYER_SCALING"] = "0"
 
 
 import sys
@@ -39,7 +39,9 @@ from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 from nemo.utils.exp_manager import TimingCallback
 
-DATA_PATH = "/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document"
+DATA_PATH = (
+    "/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document"
+)
 VOCAB_PATH = "/home/TestData/nlp/megatron_gpt/data/gpt/vocab.json"
 MERGES_PATH = "/home/TestData/nlp/megatron_gpt/data/gpt/merges.txt"
 
@@ -59,7 +61,7 @@ def load_dcp(ckpt_dir, torch_tensor=True):
     state_dict = {
         k: torch.empty(tp.size, dtype=tp.properties.dtype)
         for k, tp in metadata.state_dict_metadata.items()
-        if type(tp).__name__ == 'TensorStorageMetadata'
+        if type(tp).__name__ == "TensorStorageMetadata"
     }
     dcp.load(
         state_dict,
@@ -80,13 +82,17 @@ def compare_ckpts(a, b, path: Optional[List[str]] = None):
         assert isinstance(b, list)
         assert len(a) == len(b)
         for i, (aa, bb) in enumerate(zip(a, b)):
-            compare_ckpts(aa, bb, path + [f'[{i}]'])
+            compare_ckpts(aa, bb, path + [f"[{i}]"])
     elif isinstance(a, torch.Tensor):
-        skey = '.'.join(path)
-        assert a.dtype == b.dtype, f"mismatch\t{skey}: different dtypes {a.dtype} {b.dtype}"
-        assert a.shape == b.shape, f"mismatch\t{skey}: different shape {a.shape} {b.shape}"
+        skey = ".".join(path)
+        assert (
+            a.dtype == b.dtype
+        ), f"mismatch\t{skey}: different dtypes {a.dtype} {b.dtype}"
+        assert (
+            a.shape == b.shape
+        ), f"mismatch\t{skey}: different shape {a.shape} {b.shape}"
         assert torch.all(a == b), f"mismatch\t{skey}: different values\n{a}\n{b}"
-        print(f'match\t{skey}', file=sys.stderr)
+        print(f"match\t{skey}", file=sys.stderr)
     else:
         raise ValueError("Unexpected value type " + str(type(a)))
 
@@ -107,7 +113,7 @@ def setup_data(log_dir, n_steps, data_path, gbs=2, mbs=1):
         global_batch_size=gbs,
         seed=1234,
         tokenizer=tokenizer,
-        split='9999,1,1',
+        split="9999,1,1",
     )
     return data
 
@@ -125,7 +131,7 @@ def setup_model_optim(log_dir, n_steps, tokenizer, gbs=2, mbs=1):
         attention_dropout=0.0,
         layernorm_epsilon=1e-5,
         make_vocab_size_divisible_by=128,
-        normalization='RMSNorm',
+        normalization="RMSNorm",
         masked_softmax_fusion=False,
         attention_backend=AttnBackend.unfused,
     )
@@ -133,7 +139,7 @@ def setup_model_optim(log_dir, n_steps, tokenizer, gbs=2, mbs=1):
     model = llm.GPTModel(gpt_config, tokenizer=tokenizer)
 
     opt_config = OptimizerConfig(
-        optimizer='adam',
+        optimizer="adam",
         lr=1e-2,
         weight_decay=0.1,
         adam_beta1=0.9,
@@ -158,7 +164,7 @@ def setup_trainer_and_logger(log_dir):
         ckpt_parallel_load=True,
         ckpt_parallel_save_optim=False,
         ckpt_async_save=False,
-        save_ckpt_format='torch_dist',
+        save_ckpt_format="torch_dist",
         progress_interval=1,
     )
 
@@ -171,7 +177,7 @@ def setup_trainer_and_logger(log_dir):
         save_context_on_train_end=True,
         save_on_train_epoch_end=True,
         save_optim_on_train_end=True,
-        filename=f'{{step}}-{{epoch}}',
+        filename=f"{{step}}-{{epoch}}",
     )
 
     callbacks = [checkpoint_callback, TimingCallback()]
@@ -192,7 +198,7 @@ def setup_trainer_and_logger(log_dir):
 
     nemo_logger = nl.NeMoLogger(
         log_dir=log_dir,
-        version='v1',
+        version="v1",
         use_datetime_version=True,
         update_logger_directory=True,
         wandb=None,
@@ -210,19 +216,34 @@ def replace_first(x, old, new):
 def extract_model_keys(ckpt_keys):
     # should be a list or a set
     assert not isinstance(ckpt_keys, dict)
-    return list(filter(lambda x: x.startswith('module.'), ckpt_keys))
+    return list(filter(lambda x: x.startswith("module."), ckpt_keys))
 
 
 def prepend_exp_avg(model_keys):
-    return list(map(lambda x: replace_first(x, 'module.', 'optimizer.state.exp_avg.module.'), model_keys))
+    return list(
+        map(
+            lambda x: replace_first(x, "module.", "optimizer.state.exp_avg.module."),
+            model_keys,
+        )
+    )
 
 
 def prepend_exp_avg_sq(model_keys):
-    return list(map(lambda x: replace_first(x, 'module.', 'optimizer.state.exp_avg_sq.module.'), model_keys))
+    return list(
+        map(
+            lambda x: replace_first(x, "module.", "optimizer.state.exp_avg_sq.module."),
+            model_keys,
+        )
+    )
 
 
 def prepend_exp_avg_sq(model_keys):
-    return list(map(lambda x: replace_first(x, 'module.', 'optimizer.state.fp32_param.module.'), model_keys))
+    return list(
+        map(
+            lambda x: replace_first(x, "module.", "optimizer.state.fp32_param.module."),
+            model_keys,
+        )
+    )
 
 
 def has_all_keys(ckpt_keys, keys):
@@ -235,16 +256,16 @@ def teardown():
     for steps in [40, 10]:
         # if a directory does not exist, should not stop from removing another.
         try:
-            shutil.rmtree(f'/tmp/mcore_logs_{steps}steps/')
+            shutil.rmtree(f"/tmp/mcore_logs_{steps}steps/")
         except:
             continue
 
 
 class TestCkptStateRestoration:
-    @pytest.mark.run_only_on('GPU')
+    @pytest.mark.run_only_on("GPU")
     def test_resume_optim_state(self, tmp_path):
         def train(n_steps, resume):
-            log_dir = f'/tmp/mcore_logs_{n_steps}steps'
+            log_dir = f"/tmp/mcore_logs_{n_steps}steps"
             os.makedirs(log_dir, exist_ok=True)
             data_path = [DATA_PATH]
             data = setup_data(log_dir, n_steps, data_path, gbs=2, mbs=1)
@@ -259,7 +280,9 @@ class TestCkptStateRestoration:
                 1,  # mbs
                 data_parallel_size=1,
             ):
-                gpt_config, model, optim = setup_model_optim(log_dir, n_steps, data.tokenizer)
+                gpt_config, model, optim = setup_model_optim(
+                    log_dir, n_steps, data.tokenizer
+                )
                 trainer, nemo_logger = setup_trainer_and_logger(log_dir)
                 llm.train(
                     model=model,
@@ -267,13 +290,13 @@ class TestCkptStateRestoration:
                     trainer=trainer,
                     log=nemo_logger,
                     resume=resume,
-                    tokenizer='data',
+                    tokenizer="data",
                     optim=optim,
                 )
                 trainer._teardown()
 
         set_env()
-        assert os.environ['NVTE_APPLY_QK_LAYER_SCALING'] == '0'
+        assert os.environ["NVTE_APPLY_QK_LAYER_SCALING"] == "0"
 
         # Train for 40 steps
         train(
@@ -285,7 +308,7 @@ class TestCkptStateRestoration:
         )
 
         # Train for 10 steps, resume from the 30th step of previous run.
-        resume_path = '/tmp/mcore_logs_40steps/default/v1/checkpoints/step=29-epoch=0'
+        resume_path = "/tmp/mcore_logs_40steps/default/v1/checkpoints/step=29-epoch=0"
         assert Path(resume_path).exists()
         train(
             10,
@@ -298,8 +321,8 @@ class TestCkptStateRestoration:
 
         # Finally check everything matches.
         paths = [
-            '/tmp/mcore_logs_40steps/default/v1/checkpoints/step=39-epoch=0/weights',
-            '/tmp/mcore_logs_10steps/default/v1/checkpoints/step=39-epoch=0/weights',
+            "/tmp/mcore_logs_40steps/default/v1/checkpoints/step=39-epoch=0/weights",
+            "/tmp/mcore_logs_10steps/default/v1/checkpoints/step=39-epoch=0/weights",
         ]
         assert all(map(lambda x: Path(x).exists(), paths))
         ckpts = list(map(load_dcp, paths))

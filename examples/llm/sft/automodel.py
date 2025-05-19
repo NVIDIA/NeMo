@@ -38,12 +38,16 @@ from nemo.lightning.pytorch.callbacks import JitConfig, JitTransform
 
 def get_chat_template(tokenizer):
     # attempt to unwrap NeMo's tokenizer wrapper and check if wrapped tokenizer has chat_template
-    tmp_tokenizer = getattr(tokenizer, 'tokenizer', tokenizer)
-    has_chat_template = getattr(tmp_tokenizer, 'chat_template', None) is not None
+    tmp_tokenizer = getattr(tokenizer, "tokenizer", tokenizer)
+    has_chat_template = getattr(tmp_tokenizer, "chat_template", None) is not None
     if has_chat_template:
-        return tmp_tokenizer, getattr(tmp_tokenizer, 'eos_token_id', None), has_chat_template
+        return (
+            tmp_tokenizer,
+            getattr(tmp_tokenizer, "eos_token_id", None),
+            has_chat_template,
+        )
     else:
-        return tokenizer, getattr(tokenizer, 'eos_id', None), has_chat_template
+        return tokenizer, getattr(tokenizer, "eos_id", None), has_chat_template
 
 
 @FirstRankPerNode()
@@ -60,16 +64,19 @@ def make_squad_hf_dataset(
 
     def pad_to_seq_length(sample):
         seq_pad_len_ar = max(0, seq_length - len(next(iter(sample.values()))))
-        return {k: v + [eos_token_id if v != 'loss_mask' else 0] * seq_pad_len_ar for k, v in sample.items()}
+        return {
+            k: v + [eos_token_id if v != "loss_mask" else 0] * seq_pad_len_ar
+            for k, v in sample.items()
+        }
 
     def formatting_prompts_func(example):
         formatted_text = [
             f"{example['context']} {example['question']} ",
-            example['answers']['text'][0].strip(),
+            example["answers"]["text"][0].strip(),
         ]
         context_ids, answer_ids = list(map(tokenizer.text_to_ids, formatted_text))
-        bos_id = getattr(tokenizer, 'bos_id', None)
-        eos_id = getattr(tokenizer, 'eos_id', None)
+        bos_id = getattr(tokenizer, "bos_id", None)
+        eos_id = getattr(tokenizer, "eos_id", None)
         if len(context_ids) > 0 and bos_id is not None and context_ids[0] != bos_id:
             context_ids.insert(0, bos_id)
         if len(answer_ids) > 0 and eos_id is not None and answer_ids[-1] != eos_id:
@@ -84,27 +91,37 @@ def make_squad_hf_dataset(
 
     def formatting_prompts_func_with_chat_template(example, start_of_turn_token=None):
         formatted_text = [
-            {'role': 'user', 'content': f"{example['context']} {example['question']}"},
-            {'role': 'assistant', 'content': example['answers']['text'][0].strip()},
+            {"role": "user", "content": f"{example['context']} {example['question']}"},
+            {"role": "assistant", "content": example["answers"]["text"][0].strip()},
         ]
         input_ids = tokenizer.apply_chat_template(formatted_text)
         if isinstance(start_of_turn_token, str):
-            start_of_turn_token_id = tokenizer(start_of_turn_token, add_special_tokens=False)['input_ids'][0]
+            start_of_turn_token_id = tokenizer(
+                start_of_turn_token, add_special_tokens=False
+            )["input_ids"][0]
             first_start_of_turn_token_id = input_ids.index(start_of_turn_token_id)
-            response_start = input_ids.index(start_of_turn_token_id, first_start_of_turn_token_id + 1) + 1
+            response_start = (
+                input_ids.index(
+                    start_of_turn_token_id, first_start_of_turn_token_id + 1
+                )
+                + 1
+            )
         else:
             response_start = 0
         loss_mask = [0] * response_start + [1] * (len(input_ids) - response_start)
         return dict(
             input_ids=input_ids,
-            labels=input_ids[1:] + [getattr(tokenizer, 'eos_token_id', None) or input_ids[-1]],
+            labels=input_ids[1:]
+            + [getattr(tokenizer, "eos_token_id", None) or input_ids[-1]],
             loss_mask=loss_mask,
         )
 
-    splits = ['train', 'validation']
+    splits = ["train", "validation"]
     if limit_dataset_samples is not None:
-        assert isinstance(limit_dataset_samples, int), "Expected limit_dataset_samples to be an int"
-        splits = list(map(lambda x: f'{x}[:{limit_dataset_samples}]', splits))
+        assert isinstance(
+            limit_dataset_samples, int
+        ), "Expected limit_dataset_samples to be an int"
+        splits = list(map(lambda x: f"{x}[:{limit_dataset_samples}]", splits))
 
     if isinstance(packed_sequence_size, int) and packed_sequence_size > 0:
         # If packed_sequence_size > 0 instantiate HFDatasetDataModulePacked class
@@ -114,20 +131,26 @@ def make_squad_hf_dataset(
             split=splits,
             micro_batch_size=micro_batch_size,
             pad_token_id=tokenizer.eos_id if tokenizer.eos_id is not None else 0,
-            pad_seq_len_divisible=16 if fp8 else None,  # FP8 training requires seq length to be divisible by 16.
+            pad_seq_len_divisible=(
+                16 if fp8 else None
+            ),  # FP8 training requires seq length to be divisible by 16.
         )
     else:
         datamodule = llm.HFDatasetDataModule(
             "rajpurkar/squad",
             split=splits,
             micro_batch_size=micro_batch_size,
-            pad_token_id=getattr(tokenizer, 'eos_id', 0) or 0,
-            pad_seq_len_divisible=16 if fp8 else None,  # FP8 training requires seq length to be divisible by 16.
+            pad_token_id=getattr(tokenizer, "eos_id", 0) or 0,
+            pad_seq_len_divisible=(
+                16 if fp8 else None
+            ),  # FP8 training requires seq length to be divisible by 16.
         )
 
     fmt_fn = formatting_prompts_func
     if has_chat_template:
-        fmt_fn = lambda x: formatting_prompts_func_with_chat_template(x, start_of_turn_token)
+        fmt_fn = lambda x: formatting_prompts_func_with_chat_template(
+            x, start_of_turn_token
+        )
     if isinstance(seq_length, int):
         fmt_fn_ = fmt_fn
         fmt_fn = lambda x: pad_to_seq_length(fmt_fn_(x))
@@ -135,7 +158,7 @@ def make_squad_hf_dataset(
     datamodule.map(
         fmt_fn,
         batched=False,
-        remove_columns=["id", "title", "context", "question", 'answers'],
+        remove_columns=["id", "title", "context", "question", "answers"],
     )
     return datamodule
 
@@ -153,17 +176,17 @@ def make_strategy(
     sequence_parallel=False,
     use_hf_tp_plan=False,
 ):
-    if strategy == 'auto':
+    if strategy == "auto":
         return pl.strategies.SingleDeviceStrategy(
-            device='cuda:0',
+            device="cuda:0",
             checkpoint_io=model.make_checkpoint_io(adapter_only=adapter_only),
         )
-    elif strategy == 'ddp':
+    elif strategy == "ddp":
         return pl.strategies.DDPStrategy(
             checkpoint_io=model.make_checkpoint_io(adapter_only=adapter_only),
             find_unused_parameters=True,
         )
-    elif strategy == 'fsdp2':
+    elif strategy == "fsdp2":
 
         offload_policy = None
         if enable_cpu_offload:
@@ -215,100 +238,170 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', type=str, default='meta-llama/Llama-3.2-1B', help='Hugging Face model-id to use')
     parser.add_argument(
-        '--strategy',
+        "--model",
         type=str,
-        default='fsdp2',
-        choices=['auto', 'ddp', 'fsdp2'],
-        help='Training strategy e.g. ddp/fsdp2/single-gpu',
+        default="meta-llama/Llama-3.2-1B",
+        help="Hugging Face model-id to use",
     )
-    parser.add_argument('--devices', type=int, default=2, help='Number of GPUs to use')
-    parser.add_argument('--num-nodes', type=int, default=1, help='Number of Nodes to use; to be used with torchrun')
-    parser.add_argument('--dp-size', type=int, default=None, help='Data Parallel size; to be used with fsdp2')
-    parser.add_argument('--tp-size', type=int, default=1, help='Tensor Parallel size; to be used with fsdp2')
-    parser.add_argument('--cp-size', type=int, default=1, help='Context Parallel size; to be used with fsdp2')
     parser.add_argument(
-        '--sequence-parallel',
-        action='store_true',
-        help='Use Sequence Parallelism; to be used with fsdp2 and tp_size > 1',
+        "--strategy",
+        type=str,
+        default="fsdp2",
+        choices=["auto", "ddp", "fsdp2"],
+        help="Training strategy e.g. ddp/fsdp2/single-gpu",
     )
-    parser.add_argument('--use-hf-tp-plan', action='store_true', help='Use huggingface TP plan; to be used with TP')
-    parser.add_argument('--use-te-optimizer', action='store_true', help='Use TE optimizer')
-    parser.add_argument('--grad-clip', type=float, default=1.0, help='Grad clip value')
+    parser.add_argument("--devices", type=int, default=2, help="Number of GPUs to use")
     parser.add_argument(
-        '--accumulate-grad-batches',
-        '--accumulate_grad_batches',
+        "--num-nodes",
         type=int,
         default=1,
-        help='Number of batches to accumulate gradient over.',
+        help="Number of Nodes to use; to be used with torchrun",
     )
-    parser.add_argument('--max-steps', type=int, default=100, help='Maximum number of training steps')
-    parser.add_argument('--log-every-n-steps', type=int, default=1, help='Log every n steps')
-    parser.add_argument('--max-epochs', type=int, default=1, help='Maximum number of training epochs')
-    parser.add_argument('--wandb-project', type=str, default=None, help='Wandb project to use')
-    parser.add_argument('--use-torch-jit', action='store_true', help='Enables torch.compile on model')
-    parser.add_argument('--enable-cpu-offload', action='store_true', help='Enabled cpu offloading; requires FSDP2')
-    parser.add_argument('--auto-resume', action='store_true', help='Enables autoresume from a previous training job')
-    parser.add_argument('--liger', action='store_true', help='Enables Liger-Kernels')
     parser.add_argument(
-        '--attn-implementation',
+        "--dp-size",
+        type=int,
+        default=None,
+        help="Data Parallel size; to be used with fsdp2",
+    )
+    parser.add_argument(
+        "--tp-size",
+        type=int,
+        default=1,
+        help="Tensor Parallel size; to be used with fsdp2",
+    )
+    parser.add_argument(
+        "--cp-size",
+        type=int,
+        default=1,
+        help="Context Parallel size; to be used with fsdp2",
+    )
+    parser.add_argument(
+        "--sequence-parallel",
+        action="store_true",
+        help="Use Sequence Parallelism; to be used with fsdp2 and tp_size > 1",
+    )
+    parser.add_argument(
+        "--use-hf-tp-plan",
+        action="store_true",
+        help="Use huggingface TP plan; to be used with TP",
+    )
+    parser.add_argument(
+        "--use-te-optimizer", action="store_true", help="Use TE optimizer"
+    )
+    parser.add_argument("--grad-clip", type=float, default=1.0, help="Grad clip value")
+    parser.add_argument(
+        "--accumulate-grad-batches",
+        "--accumulate_grad_batches",
+        type=int,
+        default=1,
+        help="Number of batches to accumulate gradient over.",
+    )
+    parser.add_argument(
+        "--max-steps", type=int, default=100, help="Maximum number of training steps"
+    )
+    parser.add_argument(
+        "--log-every-n-steps", type=int, default=1, help="Log every n steps"
+    )
+    parser.add_argument(
+        "--max-epochs", type=int, default=1, help="Maximum number of training epochs"
+    )
+    parser.add_argument(
+        "--wandb-project", type=str, default=None, help="Wandb project to use"
+    )
+    parser.add_argument(
+        "--use-torch-jit", action="store_true", help="Enables torch.compile on model"
+    )
+    parser.add_argument(
+        "--enable-cpu-offload",
+        action="store_true",
+        help="Enabled cpu offloading; requires FSDP2",
+    )
+    parser.add_argument(
+        "--auto-resume",
+        action="store_true",
+        help="Enables autoresume from a previous training job",
+    )
+    parser.add_argument("--liger", action="store_true", help="Enables Liger-Kernels")
+    parser.add_argument(
+        "--attn-implementation",
         type=str,
         default="sdpa",
         choices=["flash_attention_2", "sdpa", "eager"],
-        help='Attention implementation to use. Default: sdpa',
+        help="Attention implementation to use. Default: sdpa",
     )
-    parser.add_argument('--enable-grad-ckpt', action='store_true', help='Enables gradient checkpoint')
     parser.add_argument(
-        '--ckpt-folder', type=str, default=tempfile.TemporaryDirectory().name, help='Directory to save checkpoints'
+        "--enable-grad-ckpt", action="store_true", help="Enables gradient checkpoint"
     )
-    parser.add_argument('--global-batch-size', default=32, type=int, help='Global batch size to use for training.')
     parser.add_argument(
-        '--batch-size',
-        '--micro-batch-size',
-        dest='batch_size',
+        "--ckpt-folder",
+        type=str,
+        default=tempfile.TemporaryDirectory().name,
+        help="Directory to save checkpoints",
+    )
+    parser.add_argument(
+        "--global-batch-size",
+        default=32,
+        type=int,
+        help="Global batch size to use for training.",
+    )
+    parser.add_argument(
+        "--batch-size",
+        "--micro-batch-size",
+        dest="batch_size",
         default=1,
         type=int,
-        help='Micro batch size to use for training.',
+        help="Micro batch size to use for training.",
     )
     parser.add_argument(
-        '--limit-val-batches',
+        "--limit-val-batches",
         default=0.0,
         type=float,
         help=(
-            'How much of validation dataset to check. Useful when debugging or testing '
-            'something that happens at the end of an epoch. Default to 0.0 (disabled)'
+            "How much of validation dataset to check. Useful when debugging or testing "
+            "something that happens at the end of an epoch. Default to 0.0 (disabled)"
         ),
     )
-    parser.add_argument('--seq-length', default=2048, type=int, help='Sequence length to use for training')
     parser.add_argument(
-        '--trust-remote-code',
-        action='store_true',
-        help='Enables trust_remote_code to load HF models with unverified sources',
+        "--seq-length",
+        default=2048,
+        type=int,
+        help="Sequence length to use for training",
     )
-    parser.add_argument('--fp8', action='store_true', help='Enables fp8 training')
-    parser.add_argument('--lr', type=float, default=3e-6, help='Learning rate for training.')
     parser.add_argument(
-        '--use-chunked-ce', action='store_true', help='Use chunked cross entropy loss instead of the standard CE loss.'
+        "--trust-remote-code",
+        action="store_true",
+        help="Enables trust_remote_code to load HF models with unverified sources",
     )
-    parser.add_argument('--no-lce', action='store_false', help='Disables LCE')
-    parser.add_argument('--mock-dataset', action='store_true', help='Use HFMockDataModule for training.')
+    parser.add_argument("--fp8", action="store_true", help="Enables fp8 training")
     parser.add_argument(
-        '--limit-dataset-samples',
+        "--lr", type=float, default=3e-6, help="Learning rate for training."
+    )
+    parser.add_argument(
+        "--use-chunked-ce",
+        action="store_true",
+        help="Use chunked cross entropy loss instead of the standard CE loss.",
+    )
+    parser.add_argument("--no-lce", action="store_false", help="Disables LCE")
+    parser.add_argument(
+        "--mock-dataset", action="store_true", help="Use HFMockDataModule for training."
+    )
+    parser.add_argument(
+        "--limit-dataset-samples",
         type=int,
         default=None,
-        help='If set will limit num of dataset samples. Default None (disabled)',
+        help="If set will limit num of dataset samples. Default None (disabled)",
     )
     parser.add_argument(
-        '--packed-sequence-size',
+        "--packed-sequence-size",
         type=int,
         default=-1,
-        help='If a positive integer, this arg enables training with sequence packing in case of HFDatasetDataModule'
-        'class and specifies the pack size. If less than or equal to 0, sequence packing is disabled. Packed sequences'
-        'are currently supported only with position_ids and not attention_mask. Hence packed sequences needs to be'
-        'run with --attn-implementation=flash_attention_2',
+        help="If a positive integer, this arg enables training with sequence packing in case of HFDatasetDataModule"
+        "class and specifies the pack size. If less than or equal to 0, sequence packing is disabled. Packed sequences"
+        "are currently supported only with position_ids and not attention_mask. Hence packed sequences needs to be"
+        "run with --attn-implementation=flash_attention_2",
     )
-    parser.add_argument('--start-of-turn-token', default=None, help='Chat turn token')
+    parser.add_argument("--start-of-turn-token", default=None, help="Chat turn token")
 
     args = parser.parse_args()
     if args.dp_size is None:
@@ -335,7 +428,7 @@ def main():
 
     wandb = None
     if args.wandb_project is not None:
-        model = '_'.join(args.model.split('/')[-2:])
+        model = "_".join(args.model.split("/")[-2:])
         from lightning.pytorch.loggers import WandbLogger
 
         wandb = WandbLogger(
@@ -345,7 +438,9 @@ def main():
 
     callbacks = []
     if args.use_torch_jit:
-        jit_config = JitConfig(use_torch=True, torch_kwargs={'dynamic': False}, use_thunder=False)
+        jit_config = JitConfig(
+            use_torch=True, torch_kwargs={"dynamic": False}, use_thunder=False
+        )
         callbacks = [JitTransform(jit_config)]
 
     if args.use_te_optimizer:
@@ -417,7 +512,7 @@ def main():
         )
     else:
         if args.packed_sequence_size > 0:
-            assert args.attn_implementation == 'flash_attention_2', (
+            assert args.attn_implementation == "flash_attention_2", (
                 "Packed sequences is currently supported only "
                 "with flash_attention_2. Please set --attn_implementation flash_attention_2"
             )
@@ -438,7 +533,7 @@ def main():
             num_nodes=args.num_nodes,
             max_steps=args.max_steps,
             max_epochs=args.max_epochs,
-            accelerator='gpu',
+            accelerator="gpu",
             strategy=strategy,
             log_every_n_steps=args.log_every_n_steps,
             num_sanity_val_steps=0,
@@ -456,5 +551,5 @@ def main():
     )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

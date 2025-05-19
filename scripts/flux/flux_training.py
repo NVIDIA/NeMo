@@ -84,7 +84,7 @@ def flux_training() -> run.Partial:
         trainer=run.Config(
             nl.Trainer,
             devices=1,
-            num_nodes=int(os.environ.get('SLURM_NNODES', 1)),
+            num_nodes=int(os.environ.get("SLURM_NNODES", 1)),
             accelerator="gpu",
             strategy=run.Config(
                 nl.MegatronStrategy,
@@ -97,7 +97,7 @@ def flux_training() -> run.Partial:
                 ddp=run.Config(
                     DistributedDataParallelConfig,
                     use_custom_fsdp=True,
-                    data_parallel_sharding_strategy='optim_grads_params',
+                    data_parallel_sharding_strategy="optim_grads_params",
                     check_for_nan_in_grad=True,
                     grad_reduce_in_fp32=True,
                     overlap_param_gather=True,
@@ -113,17 +113,19 @@ def flux_training() -> run.Partial:
             callbacks=[
                 run.Config(
                     nl.ModelCheckpoint,
-                    monitor='global_step',
-                    filename='{global_step}',
+                    monitor="global_step",
+                    filename="{global_step}",
                     every_n_train_steps=1000,
                     save_top_k=3,
-                    mode='max',
+                    mode="max",
                     save_last=False,
                 ),
                 run.Config(TimingCallback),
             ],
         ),
-        log=nl.NeMoLogger(wandb=(WandbLogger() if "WANDB_API_KEY" in os.environ else None)),
+        log=nl.NeMoLogger(
+            wandb=(WandbLogger() if "WANDB_API_KEY" in os.environ else None)
+        ),
         optim=run.Config(
             nl.MegatronOptimizerModule,
             config=run.Config(
@@ -147,24 +149,31 @@ def flux_training() -> run.Partial:
 
 @run.cli.factory(target=llm.train)
 def convergence_test() -> run.Partial:
-    '''
+    """
     A convergence recipe with real data loader.
     Image and text embedding calculated on the fly.
-    '''
+    """
     recipe = flux_training()
-    recipe.model.flux_params.t5_params = run.Config(T5Config, version='/ckpts/text_encoder_2')
-    recipe.model.flux_params.clip_params = run.Config(ClipConfig, version='/ckpts/text_encoder')
-    recipe.model.flux_params.vae_config = run.Config(
-        AutoEncoderConfig, ckpt='/ckpts/ae.safetensors', ch_mult=[1, 2, 4, 4], attn_resolutions=[]
+    recipe.model.flux_params.t5_params = run.Config(
+        T5Config, version="/ckpts/text_encoder_2"
     )
-    recipe.model.flux_params.device = 'cuda'
+    recipe.model.flux_params.clip_params = run.Config(
+        ClipConfig, version="/ckpts/text_encoder"
+    )
+    recipe.model.flux_params.vae_config = run.Config(
+        AutoEncoderConfig,
+        ckpt="/ckpts/ae.safetensors",
+        ch_mult=[1, 2, 4, 4],
+        attn_resolutions=[],
+    )
+    recipe.model.flux_params.device = "cuda"
     recipe.trainer.devices = 8
-    recipe.data = flux_datamodule('/dataset/fill50k/fill50k_tarfiles/')
+    recipe.data = flux_datamodule("/dataset/fill50k/fill50k_tarfiles/")
     recipe.trainer.max_steps = 30000
     recipe.trainer.strategy.ddp = run.Config(
         DistributedDataParallelConfig,
         use_custom_fsdp=True,
-        data_parallel_sharding_strategy='optim_grads_params',
+        data_parallel_sharding_strategy="optim_grads_params",
         check_for_nan_in_grad=True,
         grad_reduce_in_fp32=True,
         overlap_grad_reduce=True,
@@ -176,16 +185,18 @@ def convergence_test() -> run.Partial:
 
 @run.cli.factory(target=llm.train)
 def full_model_tp2_dp4_mock() -> run.Partial:
-    '''
+    """
     An example recipe uses tp 2 dp 4 with mock dataset.
-    '''
+    """
     recipe = flux_training()
-    recipe.model.flux_params.t5_params = None  # run.Config(T5Config, version='/ckpts/text_encoder_2')
-    recipe.model.flux_params.clip_params = None  # run.Config(ClipConfig, version='/ckpts/text_encoder')
-    recipe.model.flux_params.vae_config = (
-        None  # run.Config(AutoEncoderConfig, ckpt='/ckpts/ae.safetensors', ch_mult=[1,2,4,4], attn_resolutions=[])
+    recipe.model.flux_params.t5_params = (
+        None  # run.Config(T5Config, version='/ckpts/text_encoder_2')
     )
-    recipe.model.flux_params.device = 'cuda'
+    recipe.model.flux_params.clip_params = (
+        None  # run.Config(ClipConfig, version='/ckpts/text_encoder')
+    )
+    recipe.model.flux_params.vae_config = None  # run.Config(AutoEncoderConfig, ckpt='/ckpts/ae.safetensors', ch_mult=[1,2,4,4], attn_resolutions=[])
+    recipe.model.flux_params.device = "cuda"
     recipe.trainer.strategy.tensor_model_parallel_size = 2
     recipe.trainer.devices = 8
     recipe.data.global_batch_size = 8
@@ -195,19 +206,23 @@ def full_model_tp2_dp4_mock() -> run.Partial:
 
 @run.cli.factory(target=llm.train)
 def unit_test() -> run.Partial:
-    '''
+    """
     Basic functional test, with mock dataset,
     text/vae encoders not initialized, ddp strategy,
     frozen and trainable layers both set to 1
-    '''
+    """
     recipe = flux_training()
-    recipe.model.flux_params.t5_params = None  # run.Config(T5Config, version='/ckpts/text_encoder_2')
-    recipe.model.flux_params.clip_params = None  # run.Config(ClipConfig, version='/ckpts/text_encoder')
-    recipe.model.flux_params.vae_config = (
-        None  # run.Config(AutoEncoderConfig, ckpt='/ckpts/ae.safetensors', ch_mult=[1,2,4,4], attn_resolutions=[])
+    recipe.model.flux_params.t5_params = (
+        None  # run.Config(T5Config, version='/ckpts/text_encoder_2')
     )
-    recipe.model.flux_params.device = 'cuda'
-    recipe.model.flux_params.flux_config = run.Config(FluxConfig, num_joint_layers=1, num_single_layers=1)
+    recipe.model.flux_params.clip_params = (
+        None  # run.Config(ClipConfig, version='/ckpts/text_encoder')
+    )
+    recipe.model.flux_params.vae_config = None  # run.Config(AutoEncoderConfig, ckpt='/ckpts/ae.safetensors', ch_mult=[1,2,4,4], attn_resolutions=[])
+    recipe.model.flux_params.device = "cuda"
+    recipe.model.flux_params.flux_config = run.Config(
+        FluxConfig, num_joint_layers=1, num_single_layers=1
+    )
     recipe.data.global_batch_size = 1
     recipe.trainer.strategy.ddp = run.Config(
         DistributedDataParallelConfig,

@@ -37,7 +37,7 @@ except (ImportError, ModuleNotFoundError):
     PYNINI_AVAILABLE = False
 
 
-__all__ = ['DuplexTextNormalizationModel']
+__all__ = ["DuplexTextNormalizationModel"]
 
 
 class DuplexTextNormalizationModel(nn.Module):
@@ -55,9 +55,13 @@ class DuplexTextNormalizationModel(nn.Module):
         self.lang = lang
 
     def evaluate(
-        self, dataset: TextNormalizationTestDataset, batch_size: int, errors_log_fp: str, verbose: bool = True
+        self,
+        dataset: TextNormalizationTestDataset,
+        batch_size: int,
+        errors_log_fp: str,
+        verbose: bool = True,
     ):
-        """ Function for evaluating the performance of the model on a dataset
+        """Function for evaluating the performance of the model on a dataset
 
         Args:
             dataset: The dataset to be used for evaluation.
@@ -71,7 +75,7 @@ class DuplexTextNormalizationModel(nn.Module):
             results: A Dict containing the evaluation results (e.g., accuracy, running time)
         """
         results = {}
-        error_f = open(errors_log_fp, 'w+')
+        error_f = open(errors_log_fp, "w+")
 
         # Apply the model on the dataset
         (
@@ -136,7 +140,18 @@ class DuplexTextNormalizationModel(nn.Module):
                 cur_span_ends,
                 cur_output_spans,
             ) = ([], [], [], [], [], [], [], [], [], [])
-            for dir, _input, tag_pred, final_pred, target, cls, nb_spans, span_starts, span_ends, output_spans in zip(
+            for (
+                dir,
+                _input,
+                tag_pred,
+                final_pred,
+                target,
+                cls,
+                nb_spans,
+                span_starts,
+                span_ends,
+                output_spans,
+            ) in zip(
                 all_dirs,
                 all_inputs,
                 all_tag_preds,
@@ -177,56 +192,68 @@ class DuplexTextNormalizationModel(nn.Module):
                 cur_span_ends,
             )
             if verbose:
-                logging.info(f'\n============ Direction {direction} ============')
-                logging.info(f'Sentence Accuracy: {sent_accuracy}')
-                logging.info(f'nb_instances: {nb_instances}')
+                logging.info(f"\n============ Direction {direction} ============")
+                logging.info(f"Sentence Accuracy: {sent_accuracy}")
+                logging.info(f"nb_instances: {nb_instances}")
                 if not isinstance(class_accuracy, str):
                     log_class_accuracies = ""
                     for key, value in class_accuracy.items():
-                        log_class_accuracies += f"\n\t{key}:\t{value[0]}\t{value[1]}/{value[2]}"
+                        log_class_accuracies += (
+                            f"\n\t{key}:\t{value[0]}\t{value[1]}/{value[2]}"
+                        )
                 else:
                     log_class_accuracies = class_accuracy
-                logging.info(f'class accuracies: {log_class_accuracies}')
+                logging.info(f"class accuracies: {log_class_accuracies}")
             # Update results
             results[direction] = {
-                'sent_accuracy': sent_accuracy,
-                'nb_instances': nb_instances,
+                "sent_accuracy": sent_accuracy,
+                "nb_instances": nb_instances,
                 "class_accuracy": log_class_accuracies,
             }
             # Write errors to log file
             for _input, tag_pred, final_pred, target, classes in zip(
-                cur_inputs, cur_tag_preds, cur_final_preds, cur_targets_sent, cur_classes
+                cur_inputs,
+                cur_tag_preds,
+                cur_final_preds,
+                cur_targets_sent,
+                cur_classes,
             ):
-                if not TextNormalizationTestDataset.is_same(final_pred, target, direction):
+                if not TextNormalizationTestDataset.is_same(
+                    final_pred, target, direction
+                ):
                     if direction == constants.INST_BACKWARD:
-                        error_f.write('Backward Problem (ITN)\n')
+                        error_f.write("Backward Problem (ITN)\n")
                         itn_error_ctx += 1
                     elif direction == constants.INST_FORWARD:
-                        error_f.write('Forward Problem (TN)\n')
+                        error_f.write("Forward Problem (TN)\n")
                         tn_error_ctx += 1
 
-                    formatted_input_str = get_formatted_string(self.decoder.processor.tokenize(_input).split())
+                    formatted_input_str = get_formatted_string(
+                        self.decoder.processor.tokenize(_input).split()
+                    )
                     formatted_tag_pred_str = get_formatted_string(tag_pred)
                     class_str = " ".join(classes)
-                    error_f.write(f'Original Input : {_input}\n')
-                    error_f.write(f'Input          : {formatted_input_str}\n')
-                    error_f.write(f'Predicted Tags : {formatted_tag_pred_str}\n')
-                    error_f.write(f'Ground Classes : {class_str}\n')
-                    error_f.write(f'Predicted Str  : {final_pred}\n')
-                    error_f.write(f'Ground-Truth   : {target}\n')
-                    error_f.write('\n')
-            results['itn_error_ctx'] = itn_error_ctx
-            results['tn_error_ctx'] = tn_error_ctx
+                    error_f.write(f"Original Input : {_input}\n")
+                    error_f.write(f"Input          : {formatted_input_str}\n")
+                    error_f.write(f"Predicted Tags : {formatted_tag_pred_str}\n")
+                    error_f.write(f"Ground Classes : {class_str}\n")
+                    error_f.write(f"Predicted Str  : {final_pred}\n")
+                    error_f.write(f"Ground-Truth   : {target}\n")
+                    error_f.write("\n")
+            results["itn_error_ctx"] = itn_error_ctx
+            results["tn_error_ctx"] = tn_error_ctx
 
         # Running Time
         avg_running_time = np.average(all_run_times) / batch_size  # in ms
         if verbose:
-            logging.info(f'Average running time (normalized by batch size): {avg_running_time} ms')
-        results['running_time'] = avg_running_time
+            logging.info(
+                f"Average running time (normalized by batch size): {avg_running_time} ms"
+            )
+        results["running_time"] = avg_running_time
 
         # Close log file
         error_f.close()
-        logging.info(f'Errors are saved at {errors_log_fp}.')
+        logging.info(f"Errors are saved at {errors_log_fp}.")
         return results
 
     # Functions for inference
@@ -259,8 +286,12 @@ class DuplexTextNormalizationModel(nn.Module):
 
         # Tagging
         # span_ends included, returns index wrt to words in input without auxiliary words
-        tag_preds, nb_spans, span_starts, span_ends = self.tagger._infer(sents, inst_directions)
-        output_spans = self.decoder._infer(sents, nb_spans, span_starts, span_ends, inst_directions)
+        tag_preds, nb_spans, span_starts, span_ends = self.tagger._infer(
+            sents, inst_directions
+        )
+        output_spans = self.decoder._infer(
+            sents, nb_spans, span_starts, span_ends, inst_directions
+        )
 
         # Prepare final outputs
         final_outputs = []
@@ -277,7 +308,10 @@ class DuplexTextNormalizationModel(nn.Module):
                         jx += 1
                         cur_words.append(cur_spans[span_idx])
                         span_idx += 1
-                        while jx < len(sent) and tags[jx] == constants.I_PREFIX + constants.TRANSFORM_TAG:
+                        while (
+                            jx < len(sent)
+                            and tags[jx] == constants.I_PREFIX + constants.TRANSFORM_TAG
+                        ):
                             jx += 1
 
                 if processed:
@@ -288,7 +322,9 @@ class DuplexTextNormalizationModel(nn.Module):
                     # for interactive inference or inference from a file
                     cur_output_str = self.decoder.processor.detokenize(cur_words)
                     if PYNINI_AVAILABLE:
-                        cur_output_str = post_process_punct(input=original_sents[ix], normalized_text=cur_output_str)
+                        cur_output_str = post_process_punct(
+                            input=original_sents[ix], normalized_text=cur_output_str
+                        )
                     else:
                         logging.warning(
                             " `nemo_text_processing` is not installed in this environment. Please refer to"
@@ -297,6 +333,8 @@ class DuplexTextNormalizationModel(nn.Module):
                         )
                 final_outputs.append(cur_output_str)
             except IndexError:
-                logging.warning(f"Input sent is too long and will be skipped - {original_sents[ix]}")
+                logging.warning(
+                    f"Input sent is too long and will be skipped - {original_sents[ix]}"
+                )
                 final_outputs.append(original_sents[ix])
         return tag_preds, output_spans, final_outputs

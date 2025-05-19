@@ -40,7 +40,8 @@ class ManifestEN:
 
 
 def item_iter(
-    manifests_files: Union[str, List[str]], parse_func: Callable[[str, Optional[str]], Dict[str, Any]] = None
+    manifests_files: Union[str, List[str]],
+    parse_func: Callable[[str, Optional[str]], Dict[str, Any]] = None,
 ) -> Iterator[Dict[str, Any]]:
     """Iterate through json lines of provided manifests.
 
@@ -74,12 +75,12 @@ def item_iter(
 
     errors = defaultdict(list)
     k = -1
-    logging.debug('Manifest files: %s', str(manifests_files))
+    logging.debug("Manifest files: %s", str(manifests_files))
     for manifest_file in manifests_files:
-        logging.debug('Using manifest file: %s', str(manifest_file))
+        logging.debug("Using manifest file: %s", str(manifest_file))
         cached_manifest_file = DataStoreObject(manifest_file).get()
-        logging.debug('Cached at: %s', str(cached_manifest_file))
-        with open(expanduser(cached_manifest_file), 'r') as f:
+        logging.debug("Cached at: %s", str(cached_manifest_file))
+        with open(expanduser(cached_manifest_file), "r") as f:
             for line in f:
                 line = line.strip()
                 if not line:
@@ -90,37 +91,41 @@ def item_iter(
                 except json.JSONDecodeError:
                     errors[str(manifest_file)].append(line)
                     continue
-                item['id'] = k
+                item["id"] = k
 
                 yield item
 
     if len(errors) > 0:
         for filename, lines in errors.items():
             logging.error("=============================================")
-            logging.error(f"Failed to parse {len(lines)} lines from manifest file: {filename}")
+            logging.error(
+                f"Failed to parse {len(lines)} lines from manifest file: {filename}"
+            )
             for line in lines:
                 logging.error(f"-- Failed to parse line: `{line}`")
-        raise RuntimeError("Failed to parse some lines from manifest files. See logs for more details.")
+        raise RuntimeError(
+            "Failed to parse some lines from manifest files. See logs for more details."
+        )
 
 
 def __parse_item(line: str, manifest_file: str) -> Dict[str, Any]:
     item = json.loads(line)
 
     # Audio file
-    if 'audio_filename' in item:
-        item['audio_file'] = item.pop('audio_filename')
-    elif 'audio_filepath' in item:
-        item['audio_file'] = item.pop('audio_filepath')
-    elif 'context' in item:
-        item['audio_file'] = item['context']
+    if "audio_filename" in item:
+        item["audio_file"] = item.pop("audio_filename")
+    elif "audio_filepath" in item:
+        item["audio_file"] = item.pop("audio_filepath")
+    elif "context" in item:
+        item["audio_file"] = item["context"]
 
     # Video File
-    if 'video_filename' in item:
-        item['video_file'] = item.pop('video_filename')
-    elif 'video_filepath' in item:
-        item['video_file'] = item.pop('video_filepath')
+    if "video_filename" in item:
+        item["video_file"] = item.pop("video_filename")
+    elif "video_filepath" in item:
+        item["video_file"] = item.pop("video_filepath")
 
-    if 'video_file' not in item and 'audio_file' not in item:
+    if "video_file" not in item and "audio_file" not in item:
         raise ValueError(
             f"Manifest file {manifest_file} has invalid json line structure: {line} without proper audio/video file key."
         )
@@ -129,75 +134,83 @@ def __parse_item(line: str, manifest_file: str) -> Dict[str, Any]:
     # try to attach the parent directory of manifest to the audio path.
     # Revert to the original path if the new path still doesn't exist.
     # Assume that the audio path is like "wavs/xxxxxx.wav".
-    if 'audio_file' in item:
-        item['audio_file'] = get_full_path(audio_file=item['audio_file'], manifest_file=manifest_file)
-    if 'video_file' in item:
-        item['video_file'] = get_full_path(audio_file=item['video_file'], manifest_file=manifest_file)
+    if "audio_file" in item:
+        item["audio_file"] = get_full_path(
+            audio_file=item["audio_file"], manifest_file=manifest_file
+        )
+    if "video_file" in item:
+        item["video_file"] = get_full_path(
+            audio_file=item["video_file"], manifest_file=manifest_file
+        )
 
     # Duration.
-    if 'context_duration' in item and 'duration' not in item:
-        item['duration'] = item['context_duration']
-    elif 'duration' not in item:
+    if "context_duration" in item and "duration" not in item:
+        item["duration"] = item["context_duration"]
+    elif "duration" not in item:
         raise ValueError(
             f"Manifest file {manifest_file} has invalid json line structure: {line} without proper duration key."
         )
 
     # Text.
-    if 'text' in item:
+    if "text" in item:
         pass
-    elif 'text_filepath' in item:
-        with open(item.pop('text_filepath'), 'r') as f:
-            item['text'] = f.read().replace('\n', '')
-    elif 'normalized_text' in item:
-        item['text'] = item['normalized_text']
+    elif "text_filepath" in item:
+        with open(item.pop("text_filepath"), "r") as f:
+            item["text"] = f.read().replace("\n", "")
+    elif "normalized_text" in item:
+        item["text"] = item["normalized_text"]
     else:
-        item['text'] = ""
+        item["text"] = ""
 
     # Optional RTTM file
-    if 'rttm_file' in item:
+    if "rttm_file" in item:
         pass
-    elif 'rttm_filename' in item:
-        item['rttm_file'] = item.pop('rttm_filename')
-    elif 'rttm_filepath' in item:
-        item['rttm_file'] = item.pop('rttm_filepath')
+    elif "rttm_filename" in item:
+        item["rttm_file"] = item.pop("rttm_filename")
+    elif "rttm_filepath" in item:
+        item["rttm_file"] = item.pop("rttm_filepath")
     else:
-        item['rttm_file'] = None
-    if item['rttm_file'] is not None:
-        item['rttm_file'] = get_full_path(audio_file=item['rttm_file'], manifest_file=manifest_file)
+        item["rttm_file"] = None
+    if item["rttm_file"] is not None:
+        item["rttm_file"] = get_full_path(
+            audio_file=item["rttm_file"], manifest_file=manifest_file
+        )
 
     # Optional audio feature file
-    if 'feature_file' in item:
+    if "feature_file" in item:
         pass
-    elif 'feature_filename' in item:
-        item['feature_file'] = item.pop('feature_filename')
-    elif 'feature_filepath' in item:
-        item['feature_file'] = item.pop('feature_filepath')
+    elif "feature_filename" in item:
+        item["feature_file"] = item.pop("feature_filename")
+    elif "feature_filepath" in item:
+        item["feature_file"] = item.pop("feature_filepath")
     else:
-        item['feature_file'] = None
-    if item['feature_file'] is not None:
-        item['feature_file'] = get_full_path(audio_file=item['feature_file'], manifest_file=manifest_file)
+        item["feature_file"] = None
+    if item["feature_file"] is not None:
+        item["feature_file"] = get_full_path(
+            audio_file=item["feature_file"], manifest_file=manifest_file
+        )
 
     item = dict(
-        audio_file=item.get('audio_file', None),
-        video_file=item.get('video_file', None),
-        duration=item['duration'],
-        text=item['text'],
-        rttm_file=item['rttm_file'],
-        feature_file=item['feature_file'],
-        offset=item.get('offset', None),
-        speaker=item.get('speaker', None),
-        orig_sr=item.get('orig_sample_rate', None),
-        token_labels=item.get('token_labels', None),
-        lang=item.get('lang', None),
-        context=item.get('context', None),
-        context_type=item.get('context_type', None),
-        context_duration=item.get('context_duration', None),
-        answer=item.get('answer', None),
-        answer_type=item.get('answer_type', None),
-        answer_duration=item.get('answer_duration', None),
-        question=item.get('question', None),
-        question_type=item.get('question_type', None),
-        task=item.get('task', None),
+        audio_file=item.get("audio_file", None),
+        video_file=item.get("video_file", None),
+        duration=item["duration"],
+        text=item["text"],
+        rttm_file=item["rttm_file"],
+        feature_file=item["feature_file"],
+        offset=item.get("offset", None),
+        speaker=item.get("speaker", None),
+        orig_sr=item.get("orig_sample_rate", None),
+        token_labels=item.get("token_labels", None),
+        lang=item.get("lang", None),
+        context=item.get("context", None),
+        context_type=item.get("context_type", None),
+        context_duration=item.get("context_duration", None),
+        answer=item.get("answer", None),
+        answer_type=item.get("answer_type", None),
+        answer_duration=item.get("answer_duration", None),
+        question=item.get("question", None),
+        question_type=item.get("question_type", None),
+        task=item.get("task", None),
     )
     return item
 
@@ -209,7 +222,9 @@ def is_tarred_dataset(audio_file: str, manifest_file: Optional[str] = None) -> b
     if os.path.basename(manifest_file) == "tarred_audio_manifest.json":
         # the manifest file is a tarred manifest
         return True
-    if "/sharded_manifests/" in manifest_file and re.match(r'^manifest_(\d+)\.json$', os.path.basename(manifest_file)):
+    if "/sharded_manifests/" in manifest_file and re.match(
+        r"^manifest_(\d+)\.json$", os.path.basename(manifest_file)
+    ):
         # the manifest file is a sharded manifest
         return True
     return False
@@ -269,10 +284,12 @@ def get_full_path(
             # If audio_file is not available and the path is not absolute, the full path is assumed
             # to be relative to the manifest file parent directory or data directory.
             if manifest_file is None and data_dir is None:
-                raise ValueError('Use either manifest_file or data_dir to specify the data directory.')
+                raise ValueError(
+                    "Use either manifest_file or data_dir to specify the data directory."
+                )
             elif manifest_file is not None and data_dir is not None:
                 raise ValueError(
-                    f'Parameters manifest_file and data_dir cannot be used simultaneously. Currently manifest_file is {manifest_file} and data_dir is {data_dir}.'
+                    f"Parameters manifest_file and data_dir cannot be used simultaneously. Currently manifest_file is {manifest_file} and data_dir is {data_dir}."
                 )
 
             # resolve the data directory
@@ -285,7 +302,11 @@ def get_full_path(
             if is_datastore_path(audio_file_path):
                 # If audio was originally on an object store, use locally-cached path.
                 # If the file could not be found in the local cache, it will be downloaded.
-                audio_file_path = get_datastore_object(audio_file_path) if force_cache else audio_file_path
+                audio_file_path = (
+                    get_datastore_object(audio_file_path)
+                    if force_cache
+                    else audio_file_path
+                )
                 return audio_file_path
 
             if os.path.isfile(audio_file_path):
@@ -296,4 +317,6 @@ def get_full_path(
             audio_file = expanduser(audio_file)
         return audio_file
     else:
-        raise ValueError(f'Unexpected audio_file type {type(audio_file)}, audio_file {audio_file}.')
+        raise ValueError(
+            f"Unexpected audio_file type {type(audio_file)}, audio_file {audio_file}."
+        )

@@ -35,7 +35,7 @@ from nemo.collections.nlp.metrics.sgd_metrics import (
     get_slot_tagging_f1)
 from nemo.utils import logging
 
-__all__ = ['get_in_domain_services']
+__all__ = ["get_in_domain_services"]
 
 ALL_SERVICES = "#ALL_SERVICES"
 SEEN_SERVICES = "#SEEN_SERVICES"
@@ -67,7 +67,7 @@ def get_in_domain_services(schema_path: str, service_set: set) -> set:
     Args:
         schema_path: path to schema file
         service_set: set of services
-    Returns: 
+    Returns:
         joint_services: joint services between schema path file and service set
     """
     joint_services = get_service_set(schema_path) & service_set
@@ -77,7 +77,7 @@ def get_in_domain_services(schema_path: str, service_set: set) -> set:
 def get_dataset_as_dict(file_path_patterns) -> dict:
     """Read the DSTC8/SGD json dialogue data as dictionary with dialog ID as keys.
     Args:
-        file_path_patterns: list or directory of files 
+        file_path_patterns: list or directory of files
     Returns:
         dataset_dict: dataset dictionary with dialog ID as keys
     """
@@ -133,7 +133,9 @@ def get_metrics(
 
     # Ensure the dialogs in dataset_hyp also occur in dataset_ref.
     assert set(dataset_hyp.keys()).issubset(set(dataset_ref.keys()))
-    logging.debug("len(dataset_hyp)=%d, len(dataset_ref)=%d", len(dataset_hyp), len(dataset_ref))
+    logging.debug(
+        "len(dataset_hyp)=%d, len(dataset_ref)=%d", len(dataset_hyp), len(dataset_ref)
+    )
 
     # Store metrics for every frame for debugging.
     per_frame_metric = {}
@@ -148,10 +150,16 @@ def get_metrics(
             )
 
         joint_metrics = [JOINT_GOAL_ACCURACY, JOINT_CAT_ACCURACY, JOINT_NONCAT_ACCURACY]
-        for turn_id, (turn_ref, turn_hyp) in enumerate(zip(dial_ref["turns"], dial_hyp["turns"])):
-            metric_collections_per_turn = collections.defaultdict(lambda: collections.defaultdict(lambda: 1.0))
+        for turn_id, (turn_ref, turn_hyp) in enumerate(
+            zip(dial_ref["turns"], dial_hyp["turns"])
+        ):
+            metric_collections_per_turn = collections.defaultdict(
+                lambda: collections.defaultdict(lambda: 1.0)
+            )
             if turn_ref["speaker"] != turn_hyp["speaker"]:
-                raise ValueError("Speakers don't match in dialogue with id {}".format(dial_id))
+                raise ValueError(
+                    "Speakers don't match in dialogue with id {}".format(dial_id)
+                )
 
             # Skip system turns because metrics are only computed for user turns.
             if turn_ref["speaker"] != "USER":
@@ -160,22 +168,30 @@ def get_metrics(
             if turn_ref["utterance"] != turn_hyp["utterance"]:
                 logging.error("Ref utt: %s", turn_ref["utterance"])
                 logging.error("Hyp utt: %s", turn_hyp["utterance"])
-                raise ValueError("Utterances don't match for dialogue with id {}".format(dial_id))
+                raise ValueError(
+                    "Utterances don't match for dialogue with id {}".format(dial_id)
+                )
 
-            hyp_frames_by_service = {frame["service"]: frame for frame in turn_hyp["frames"]}
+            hyp_frames_by_service = {
+                frame["service"]: frame for frame in turn_hyp["frames"]
+            }
 
             # Calculate metrics for each frame in each user turn.
             for frame_ref in turn_ref["frames"]:
                 service_name = frame_ref["service"]
                 if service_name not in hyp_frames_by_service:
                     raise ValueError(
-                        "Frame for service {} not found in dialogue with id {}".format(service_name, dial_id)
+                        "Frame for service {} not found in dialogue with id {}".format(
+                            service_name, dial_id
+                        )
                     )
                 service = service_schemas[service_name]
                 frame_hyp = hyp_frames_by_service[service_name]
 
                 active_intent_acc = get_active_intent_accuracy(frame_ref, frame_hyp)
-                slot_tagging_f1_scores = get_slot_tagging_f1(frame_ref, frame_hyp, turn_ref["utterance"], service)
+                slot_tagging_f1_scores = get_slot_tagging_f1(
+                    frame_ref, frame_hyp, turn_ref["utterance"], service
+                )
                 requested_slots_f1_scores = get_requested_slots_f1(frame_ref, frame_hyp)
                 goal_accuracy_dict = get_average_and_joint_goal_accuracy(
                     frame_ref, frame_hyp, service, use_fuzzy_match
@@ -189,11 +205,15 @@ def get_metrics(
                 }
                 if slot_tagging_f1_scores is not None:
                     frame_metric[SLOT_TAGGING_F1] = slot_tagging_f1_scores.f1
-                    frame_metric[SLOT_TAGGING_PRECISION] = slot_tagging_f1_scores.precision
+                    frame_metric[SLOT_TAGGING_PRECISION] = (
+                        slot_tagging_f1_scores.precision
+                    )
                     frame_metric[SLOT_TAGGING_RECALL] = slot_tagging_f1_scores.recall
                 frame_metric.update(goal_accuracy_dict)
 
-                frame_id = "{:s}-{:03d}-{:s}".format(dial_id, turn_id, frame_hyp["service"])
+                frame_id = "{:s}-{:03d}-{:s}".format(
+                    dial_id, turn_id, frame_hyp["service"]
+                )
                 per_frame_metric[frame_id] = frame_metric
                 # Add the frame-level metric result back to dialogues.
                 frame_hyp["metrics"] = frame_metric
@@ -210,14 +230,20 @@ def get_metrics(
                     for metric_key, metric_value in frame_metric.items():
                         if metric_value != NAN_VAL:
                             if joint_acc_across_turn and metric_key in joint_metrics:
-                                metric_collections_per_turn[domain_key][metric_key] *= metric_value
+                                metric_collections_per_turn[domain_key][
+                                    metric_key
+                                ] *= metric_value
                             else:
-                                metric_collections[domain_key][metric_key].append(metric_value)
+                                metric_collections[domain_key][metric_key].append(
+                                    metric_value
+                                )
             if joint_acc_across_turn:
                 # Conduct multiwoz style evaluation that computes joint goal accuracy
                 # across all the slot values of all the domains for each turn.
                 for domain_key in metric_collections_per_turn:
-                    for metric_key, metric_value in metric_collections_per_turn[domain_key].items():
+                    for metric_key, metric_value in metric_collections_per_turn[
+                        domain_key
+                    ].items():
                         metric_collections[domain_key][metric_key].append(metric_value)
 
     all_metric_aggregate = {}
@@ -226,7 +252,9 @@ def get_metrics(
         for metric_key, value_list in domain_metric_vals.items():
             if value_list:
                 # Metrics are macro-averaged across all frames.
-                domain_metric_aggregate[metric_key] = round(float(np.mean(value_list)) * 100.0, 2)
+                domain_metric_aggregate[metric_key] = round(
+                    float(np.mean(value_list)) * 100.0, 2
+                )
             else:
                 domain_metric_aggregate[metric_key] = NAN_VAL
         all_metric_aggregate[domain_key] = domain_metric_aggregate
@@ -256,29 +284,46 @@ def evaluate(
         for various metrics for all dialogues and all services
     """
 
-    with open(os.path.join(data_dir, eval_dataset, "schema.json"), encoding="UTF-8") as f:
+    with open(
+        os.path.join(data_dir, eval_dataset, "schema.json"), encoding="UTF-8"
+    ) as f:
         eval_services = {}
         list_services = json.load(f)
         for service in list_services:
             eval_services[service["service_name"]] = service
         f.close()
 
-    dataset_ref = get_dataset_as_dict(os.path.join(data_dir, eval_dataset, "dialogues_*.json"))
+    dataset_ref = get_dataset_as_dict(
+        os.path.join(data_dir, eval_dataset, "dialogues_*.json")
+    )
     dataset_hyp = get_dataset_as_dict(os.path.join(prediction_dir, "*.json"))
 
     # has ALLSERVICE, SEEN_SERVICES, UNSEEN_SERVICES, SERVICE, DOMAIN
     all_metric_aggregate, _ = get_metrics(
-        dataset_ref, dataset_hyp, eval_services, in_domain_services, joint_acc_across_turn, use_fuzzy_match
+        dataset_ref,
+        dataset_hyp,
+        eval_services,
+        in_domain_services,
+        joint_acc_across_turn,
+        use_fuzzy_match,
     )
     if SEEN_SERVICES in all_metric_aggregate:
-        logging.info(f'Dialog metrics for {SEEN_SERVICES}  : {sorted(all_metric_aggregate[SEEN_SERVICES].items())}')
+        logging.info(
+            f"Dialog metrics for {SEEN_SERVICES}  : {sorted(all_metric_aggregate[SEEN_SERVICES].items())}"
+        )
     if UNSEEN_SERVICES in all_metric_aggregate:
-        logging.info(f'Dialog metrics for {UNSEEN_SERVICES}: {sorted(all_metric_aggregate[UNSEEN_SERVICES].items())}')
+        logging.info(
+            f"Dialog metrics for {UNSEEN_SERVICES}: {sorted(all_metric_aggregate[UNSEEN_SERVICES].items())}"
+        )
     if ALL_SERVICES in all_metric_aggregate:
-        logging.info(f'Dialog metrics for {ALL_SERVICES}   : {sorted(all_metric_aggregate[ALL_SERVICES].items())}')
+        logging.info(
+            f"Dialog metrics for {ALL_SERVICES}   : {sorted(all_metric_aggregate[ALL_SERVICES].items())}"
+        )
 
     # Write the per-frame metrics values with the corrresponding dialogue frames.
-    with open(os.path.join(prediction_dir, PER_FRAME_OUTPUT_FILENAME), "w", encoding="UTF-8") as f:
+    with open(
+        os.path.join(prediction_dir, PER_FRAME_OUTPUT_FILENAME), "w", encoding="UTF-8"
+    ) as f:
         json.dump(dataset_hyp, f, indent=2, separators=(",", ": "))
         f.close()
     return all_metric_aggregate[ALL_SERVICES]

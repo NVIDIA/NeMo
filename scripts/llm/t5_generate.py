@@ -26,35 +26,49 @@ from nemo.collections.llm import api
 
 
 def get_args():
-    parser = argparse.ArgumentParser(description='Train a small T5 model using NeMo 2.0')
-    parser.add_argument('--devices', type=int, help="Number of devices to use for training.")
-    parser.add_argument('--checkpoint-path', type=str, help="Path to trained model.")
-    parser.add_argument("--temperature", type=float, default=1.0, help='Sampling temperature.')
-    parser.add_argument("--top_k", type=int, default=1, help='Top k sampling.')
-    parser.add_argument("--top_p", type=float, default=0.0, help='Top p sampling.')
+    parser = argparse.ArgumentParser(
+        description="Train a small T5 model using NeMo 2.0"
+    )
     parser.add_argument(
-        '--no-space-before-mask',
-        action='store_true',
+        "--devices", type=int, help="Number of devices to use for training."
+    )
+    parser.add_argument("--checkpoint-path", type=str, help="Path to trained model.")
+    parser.add_argument(
+        "--temperature", type=float, default=1.0, help="Sampling temperature."
+    )
+    parser.add_argument("--top_k", type=int, default=1, help="Top k sampling.")
+    parser.add_argument("--top_p", type=float, default=0.0, help="Top p sampling.")
+    parser.add_argument(
+        "--no-space-before-mask",
+        action="store_true",
         help="Flag to not having space before <mask>. E.g., as in Tiktokenizer or sentencepiece case.",
     )
     parser.add_argument(
-        "--num-tokens-to-generate", type=int, default=30, help='Number of tokens to generate for each prompt.'
+        "--num-tokens-to-generate",
+        type=int,
+        default=30,
+        help="Number of tokens to generate for each prompt.",
     )
     parser.add_argument(
         "--prompts",
-        metavar='N',
+        metavar="N",
         type=str,
-        nargs='+',
-        help='Prompts with each prompt within quotes and seperated by space.',
+        nargs="+",
+        help="Prompts with each prompt within quotes and seperated by space.",
     )
     parser.add_argument(
         "--encoder-prompts",
-        metavar='N',
+        metavar="N",
         type=str,
-        nargs='+',
-        help='Encoder input prompts with each prompt within quotes and seperated by space.',
+        nargs="+",
+        help="Encoder input prompts with each prompt within quotes and seperated by space.",
     )
-    parser.add_argument("--max-batch-size", type=int, default=1, help='Max number of prompts to process at once.')
+    parser.add_argument(
+        "--max-batch-size",
+        type=int,
+        default=1,
+        help="Max number of prompts to process at once.",
+    )
 
     return parser.parse_args()
 
@@ -110,7 +124,9 @@ if __name__ == "__main__":
         trainer=trainer,
         add_BOS=True,
         inference_params=CommonInferenceParams(
-            temperature=args.temperature, top_k=args.top_k, num_tokens_to_generate=args.num_tokens_to_generate
+            temperature=args.temperature,
+            top_k=args.top_k,
+            num_tokens_to_generate=args.num_tokens_to_generate,
         ),
         text_only=True,
     )

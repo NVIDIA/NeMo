@@ -121,7 +121,11 @@ def calc_drop_extra_pre_encoded(asr_model, step_num, pad_and_drop_preencoded):
 
 
 def perform_streaming(
-    asr_model, streaming_buffer, compare_vs_offline=False, debug_mode=False, pad_and_drop_preencoded=False
+    asr_model,
+    streaming_buffer,
+    compare_vs_offline=False,
+    debug_mode=False,
+    pad_and_drop_preencoded=False,
 ):
     batch_size = len(streaming_buffer.streams_length)
     if compare_vs_offline:
@@ -129,7 +133,9 @@ def perform_streaming(
         # the output of the model in the offline and streaming mode should be exactly the same
         with torch.inference_mode():
             with autocast:
-                processed_signal, processed_signal_length = streaming_buffer.get_all_audios()
+                processed_signal, processed_signal_length = (
+                    streaming_buffer.get_all_audios()
+                )
                 with torch.no_grad():
                     (
                         pred_out_offline,
@@ -148,8 +154,8 @@ def perform_streaming(
     else:
         final_offline_tran = None
 
-    cache_last_channel, cache_last_time, cache_last_channel_len = asr_model.encoder.get_initial_cache_state(
-        batch_size=batch_size
+    cache_last_channel, cache_last_time, cache_last_channel_len = (
+        asr_model.encoder.get_initial_cache_state(batch_size=batch_size)
     )
 
     previous_hypotheses = None
@@ -185,7 +191,9 @@ def perform_streaming(
                     )
 
         if debug_mode:
-            logging.info(f"Streaming transcriptions: {extract_transcriptions(transcribed_texts)}")
+            logging.info(
+                f"Streaming transcriptions: {extract_transcriptions(transcribed_texts)}"
+            )
 
     final_streaming_tran = extract_transcriptions(transcribed_texts)
     logging.info(f"Final streaming transcriptions: {final_streaming_tran}")
@@ -196,7 +204,9 @@ def perform_streaming(
         pred_out_stream_cat = torch.cat(pred_out_stream)
         pred_out_offline_cat = torch.cat(pred_out_offline)
         if pred_out_stream_cat.size() == pred_out_offline_cat.size():
-            diff_num = torch.sum(pred_out_stream_cat != pred_out_offline_cat).cpu().numpy()
+            diff_num = (
+                torch.sum(pred_out_stream_cat != pred_out_offline_cat).cpu().numpy()
+            )
             logging.info(
                 f"Found {diff_num} differences in the outputs of the model in streaming mode vs offline mode."
             )
@@ -217,9 +227,17 @@ def main():
         help="Path to an ASR model .nemo file or name of a pretrained model.",
     )
     parser.add_argument(
-        "--device", type=str, help="The device to load the model onto and perform the streaming", default="cuda"
+        "--device",
+        type=str,
+        help="The device to load the model onto and perform the streaming",
+        default="cuda",
     )
-    parser.add_argument("--audio_file", type=str, help="Path to an audio file to perform streaming", default=None)
+    parser.add_argument(
+        "--audio_file",
+        type=str,
+        help="Path to an audio file to perform streaming",
+        default=None,
+    )
     parser.add_argument(
         "--manifest_file",
         type=str,
@@ -227,7 +245,11 @@ def main():
         default=None,
     )
     parser.add_argument("--use_amp", action="store_true", help="Whether to use AMP")
-    parser.add_argument("--debug_mode", action="store_true", help="Whether to print more detail in the output.")
+    parser.add_argument(
+        "--debug_mode",
+        action="store_true",
+        help="Whether to print more detail in the output.",
+    )
     parser.add_argument(
         "--compare_vs_offline",
         action="store_true",
@@ -261,11 +283,14 @@ def main():
     parser.add_argument(
         "--online_normalization",
         default=False,
-        action='store_true',
+        action="store_true",
         help="Perform normalization on the run per chunk.",
     )
     parser.add_argument(
-        "--output_path", type=str, help="path to output file when manifest is used as input", default=None
+        "--output_path",
+        type=str,
+        help="path to output file when manifest is used as input",
+        default=None,
     )
     parser.add_argument(
         "--pad_and_drop_preencoded",
@@ -293,7 +318,7 @@ def main():
     ):
         raise ValueError("One of the audio_file and manifest_file should be non-empty!")
 
-    if args.asr_model.endswith('.nemo'):
+    if args.asr_model.endswith(".nemo"):
         logging.info(f"Using local ASR model from {args.asr_model}")
         asr_model = nemo_asr.models.ASRModel.restore_from(restore_path=args.asr_model)
     else:
@@ -309,7 +334,9 @@ def main():
 
     if args.att_context_size is not None:
         if hasattr(asr_model.encoder, "set_default_att_context_size"):
-            asr_model.encoder.set_default_att_context_size(att_context_size=json.loads(args.att_context_size))
+            asr_model.encoder.set_default_att_context_size(
+                att_context_size=json.loads(args.att_context_size)
+            )
         else:
             raise ValueError("Model does not support multiple lookaheads.")
 
@@ -321,7 +348,7 @@ def main():
     with open_dict(decoding_cfg):
         decoding_cfg.strategy = "greedy"
         decoding_cfg.preserve_alignments = False
-        if hasattr(asr_model, 'joint'):  # if an RNNT model
+        if hasattr(asr_model, "joint"):  # if an RNNT model
             decoding_cfg.greedy.max_symbols = 10
             decoding_cfg.fused_batch_size = -1
         asr_model.change_decoding_strategy(decoding_cfg)
@@ -336,7 +363,9 @@ def main():
         else:
             shift_size = args.shift_size
         asr_model.encoder.setup_streaming_params(
-            chunk_size=args.chunk_size, left_chunks=args.left_chunks, shift_size=shift_size
+            chunk_size=args.chunk_size,
+            left_chunks=args.left_chunks,
+            shift_size=shift_size,
         )
 
     # In streaming, offline normalization is not feasible as we don't have access to the whole audio at the beginning
@@ -361,8 +390,8 @@ def main():
     )
     if args.audio_file is not None:
         # stream a single audio file
-        processed_signal, processed_signal_length, stream_id = streaming_buffer.append_audio_file(
-            args.audio_file, stream_id=-1
+        processed_signal, processed_signal_length, stream_id = (
+            streaming_buffer.append_audio_file(args.audio_file, stream_id=-1)
         )
         perform_streaming(
             asr_model=asr_model,
@@ -377,24 +406,32 @@ def main():
         all_offline_tran = []
         all_refs_text = []
 
-        with open(args.manifest_file, 'r') as f:
+        with open(args.manifest_file, "r") as f:
             for line in f:
                 item = json.loads(line)
                 samples.append(item)
 
-        logging.info(f"Loaded {len(samples)} from the manifest at {args.manifest_file}.")
+        logging.info(
+            f"Loaded {len(samples)} from the manifest at {args.manifest_file}."
+        )
 
         start_time = time.time()
         for sample_idx, sample in enumerate(samples):
-            processed_signal, processed_signal_length, stream_id = streaming_buffer.append_audio_file(
-                sample['audio_filepath'], stream_id=-1
+            processed_signal, processed_signal_length, stream_id = (
+                streaming_buffer.append_audio_file(
+                    sample["audio_filepath"], stream_id=-1
+                )
             )
             if "text" in sample:
                 all_refs_text.append(sample["text"])
             logging.info(f'Added this sample to the buffer: {sample["audio_filepath"]}')
 
-            if (sample_idx + 1) % args.batch_size == 0 or sample_idx == len(samples) - 1:
-                logging.info(f"Starting to stream samples {sample_idx - len(streaming_buffer) + 1} to {sample_idx}...")
+            if (sample_idx + 1) % args.batch_size == 0 or sample_idx == len(
+                samples
+            ) - 1:
+                logging.info(
+                    f"Starting to stream samples {sample_idx - len(streaming_buffer) + 1} to {sample_idx}..."
+                )
                 streaming_tran, offline_tran = perform_streaming(
                     asr_model=asr_model,
                     streaming_buffer=streaming_buffer,
@@ -408,17 +445,25 @@ def main():
                 streaming_buffer.reset_buffer()
 
         if args.compare_vs_offline and len(all_refs_text) == len(all_offline_tran):
-            offline_wer = word_error_rate(hypotheses=all_offline_tran, references=all_refs_text)
+            offline_wer = word_error_rate(
+                hypotheses=all_offline_tran, references=all_refs_text
+            )
             logging.info(f"WER% of offline mode: {round(offline_wer * 100, 2)}")
         if len(all_refs_text) == len(all_streaming_tran):
-            streaming_wer = word_error_rate(hypotheses=all_streaming_tran, references=all_refs_text)
+            streaming_wer = word_error_rate(
+                hypotheses=all_streaming_tran, references=all_refs_text
+            )
             logging.info(f"WER% of streaming mode: {round(streaming_wer*100, 2)}")
 
         end_time = time.time()
-        logging.info(f"The whole streaming process took: {round(end_time - start_time, 2)}s")
+        logging.info(
+            f"The whole streaming process took: {round(end_time - start_time, 2)}s"
+        )
 
         # stores the results including the transcriptions of the streaming inference in a json file
-        if args.output_path is not None and len(all_refs_text) == len(all_streaming_tran):
+        if args.output_path is not None and len(all_refs_text) == len(
+            all_streaming_tran
+        ):
             fname = (
                 "streaming_out_"
                 + os.path.splitext(os.path.basename(args.asr_model))[0]
@@ -434,10 +479,16 @@ def main():
                     record = {
                         "pred_text": hyp,
                         "text": all_refs_text[i],
-                        "wer": round(word_error_rate(hypotheses=[hyp], references=[all_refs_text[i]]) * 100, 2),
+                        "wer": round(
+                            word_error_rate(
+                                hypotheses=[hyp], references=[all_refs_text[i]]
+                            )
+                            * 100,
+                            2,
+                        ),
                     }
-                    out_f.write(json.dumps(record) + '\n')
+                    out_f.write(json.dumps(record) + "\n")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

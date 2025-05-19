@@ -46,7 +46,11 @@ class Sin(nn.Module):
         Sinusoidal activation function with (optionally learned) per-channel frequency
         """
         super().__init__()
-        self.freq = nn.Parameter(freq * torch.ones(1, dim)) if train_freq else freq * torch.ones(1, dim)
+        self.freq = (
+            nn.Parameter(freq * torch.ones(1, dim))
+            if train_freq
+            else freq * torch.ones(1, dim)
+        )
 
     def forward(self, x):
         return torch.sin(self.freq * x)
@@ -154,10 +158,14 @@ class HyenaFilter(nn.Module):
         act = build_module(submodules.activation, dim=mlp_width, freq=sine_freq)
         self.emb_dim = emb_dim
         if emb_dim % 2 == 0 or emb_dim < 3:
-            raise ValueError("emb_dim must be odd and greater or equal to 3 (time, sine and cosine)")
+            raise ValueError(
+                "emb_dim must be odd and greater or equal to 3 (time, sine and cosine)"
+            )
         self.seq_len = seq_len
 
-        self.pos_emb = build_module(submodules.positional_embedding, emb_dim, seq_len, learn_pos_emb_z)
+        self.pos_emb = build_module(
+            submodules.positional_embedding, emb_dim, seq_len, learn_pos_emb_z
+        )
 
         # uses a variable number of inner linear layers
         self.mlp = nn.Sequential(
@@ -170,7 +178,9 @@ class HyenaFilter(nn.Module):
         # final linear layer
         self.mlp.append(build_module(submodules.linear, mlp_width, d_model, bias=False))
 
-        self.modulation = build_module(submodules.modulation, d_model, **modulation_kwargs)
+        self.modulation = build_module(
+            submodules.modulation, d_model, **modulation_kwargs
+        )
 
         self.normalized = normalized
 

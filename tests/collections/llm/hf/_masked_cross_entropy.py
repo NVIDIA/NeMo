@@ -33,7 +33,9 @@ def test_no_mask():
     expected_loss = F.cross_entropy(logits, targets)
 
     # Use allclose to check they match.
-    assert torch.allclose(loss, expected_loss), "Loss without mask does not match expected cross_entropy loss."
+    assert torch.allclose(
+        loss, expected_loss
+    ), "Loss without mask does not match expected cross_entropy loss."
 
 
 def test_with_mask():
@@ -60,7 +62,9 @@ def test_with_mask():
     expected_loss = F.cross_entropy(logits, expected_targets)
 
     # Check that the loss matches.
-    assert torch.allclose(loss, expected_loss), "Loss with mask does not match expected masked cross_entropy loss."
+    assert torch.allclose(
+        loss, expected_loss
+    ), "Loss with mask does not match expected masked cross_entropy loss."
 
 
 def test_all_masked_out():

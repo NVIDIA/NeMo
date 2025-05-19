@@ -36,7 +36,7 @@ from nemo.utils import logging, model_utils
 class WaveGlowModel(GlowVocoder, Exportable):
     """WaveGlow model (https://arxiv.org/abs/1811.00002) that is used to generate audio from mel spectrogram."""
 
-    def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
+    def __init__(self, cfg: DictConfig, trainer: "Trainer" = None):
         # Convert to Hydra 1.0 compatible DictConfig
         cfg = model_utils.convert_model_config_to_dict_config(cfg)
         cfg = model_utils.maybe_update_config_version(cfg)
@@ -64,7 +64,9 @@ class WaveGlowModel(GlowVocoder, Exportable):
                 f"WaveGlowModel's mode {self.mode} does not match WaveGlowModule's mode {self.waveglow.mode}"
             )
         spec, spec_len = self.audio_to_melspec_precessor(audio, audio_len)
-        tensors = self.waveglow(spec=spec, audio=audio, run_inverse=run_inverse, sigma=self.sigma)
+        tensors = self.waveglow(
+            spec=spec, audio=audio, run_inverse=run_inverse, sigma=self.sigma
+        )
         if self.mode == OperationMode.training:
             return tensors[:-1]  # z, log_s_list, log_det_W_list
         elif self.mode == OperationMode.validation:
@@ -74,19 +76,25 @@ class WaveGlowModel(GlowVocoder, Exportable):
 
     @typecheck(
         input_types={
-            "spec": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
+            "spec": NeuralType(("B", "D", "T"), MelSpectrogramType()),
             "sigma": NeuralType(optional=True),
             "denoise": NeuralType(optional=True),
             "denoiser_strength": NeuralType(optional=True),
         },
-        output_types={"audio": NeuralType(('B', 'T'), AudioSignal())},
+        output_types={"audio": NeuralType(("B", "T"), AudioSignal())},
     )
     def convert_spectrogram_to_audio(
-        self, spec: torch.Tensor, sigma: float = 1.0, denoise: bool = True, denoiser_strength: float = 0.01
+        self,
+        spec: torch.Tensor,
+        sigma: float = 1.0,
+        denoise: bool = True,
+        denoiser_strength: float = 0.01,
     ) -> torch.Tensor:
         with self.nemo_infer():
             self.waveglow.remove_weightnorm()
-            audio = self.waveglow(spec=spec.to(self.waveglow.upsample.weight.dtype), sigma=sigma)
+            audio = self.waveglow(
+                spec=spec.to(self.waveglow.upsample.weight.dtype), sigma=sigma
+            )
             if denoise:
                 audio = self.denoise(audio=audio, strength=denoiser_strength)
 
@@ -95,13 +103,17 @@ class WaveGlowModel(GlowVocoder, Exportable):
     def training_step(self, batch, batch_idx):
         self.mode = OperationMode.training
         audio, audio_len = batch
-        z, log_s_list, log_det_W_list = self(audio=audio, audio_len=audio_len, run_inverse=False)
+        z, log_s_list, log_det_W_list = self(
+            audio=audio, audio_len=audio_len, run_inverse=False
+        )
 
-        loss = self.loss(z=z, log_s_list=log_s_list, log_det_W_list=log_det_W_list, sigma=self.sigma)
+        loss = self.loss(
+            z=z, log_s_list=log_s_list, log_det_W_list=log_det_W_list, sigma=self.sigma
+        )
         output = {
-            'loss': loss,
-            'progress_bar': {'training_loss': loss},
-            'log': {'loss': loss},
+            "loss": loss,
+            "progress_bar": {"training_loss": loss},
+            "log": {"loss": loss},
         }
         return output
 
@@ -111,7 +123,9 @@ class WaveGlowModel(GlowVocoder, Exportable):
         z, log_s_list, log_det_W_list, audio_pred, spec, spec_len = self(
             audio=audio, audio_len=audio_len, run_inverse=(batch_idx == 0)
         )
-        loss = self.loss(z=z, log_s_list=log_s_list, log_det_W_list=log_det_W_list, sigma=self.sigma)
+        loss = self.loss(
+            z=z, log_s_list=log_s_list, log_det_W_list=log_det_W_list, sigma=self.sigma
+        )
         loss = {
             "val_loss": loss,
             "audio_pred": audio_pred,
@@ -135,17 +149,23 @@ class WaveGlowModel(GlowVocoder, Exportable):
                 tag="eval",
                 mel_fb=self.audio_to_melspec_precessor.fb,
             )
-        avg_loss = torch.stack([x['val_loss'] for x in self.validation_step_outputs]).mean()
-        self.log('val_loss', avg_loss)
+        avg_loss = torch.stack(
+            [x["val_loss"] for x in self.validation_step_outputs]
+        ).mean()
+        self.log("val_loss", avg_loss)
         self.validation_step_outputs.clear()  # free memory
 
-    def __setup_dataloader_from_config(self, cfg, shuffle_should_be: bool = True, name: str = "train"):
+    def __setup_dataloader_from_config(
+        self, cfg, shuffle_should_be: bool = True, name: str = "train"
+    ):
         if "dataset" not in cfg or not isinstance(cfg.dataset, DictConfig):
             raise ValueError(f"No dataset for {name}")
-        if "dataloader_params" not in cfg or not isinstance(cfg.dataloader_params, DictConfig):
+        if "dataloader_params" not in cfg or not isinstance(
+            cfg.dataloader_params, DictConfig
+        ):
             raise ValueError(f"No dataloder_params for {name}")
         if shuffle_should_be:
-            if 'shuffle' not in cfg.dataloader_params:
+            if "shuffle" not in cfg.dataloader_params:
                 logging.warning(
                     f"Shuffle should be set to True for {self}'s {name} dataloader but was not found in its "
                     "config. Manually setting to True"
@@ -153,21 +173,29 @@ class WaveGlowModel(GlowVocoder, Exportable):
                 with open_dict(cfg["dataloader_params"]):
                     cfg.dataloader_params.shuffle = True
             elif not cfg.dataloader_params.shuffle:
-                logging.error(f"The {name} dataloader for {self} has shuffle set to False!!!")
+                logging.error(
+                    f"The {name} dataloader for {self} has shuffle set to False!!!"
+                )
         elif not shuffle_should_be and cfg.dataloader_params.shuffle:
-            logging.error(f"The {name} dataloader for {self} has shuffle set to True!!!")
+            logging.error(
+                f"The {name} dataloader for {self} has shuffle set to True!!!"
+            )
 
         dataset = instantiate(cfg.dataset)
-        return torch.utils.data.DataLoader(dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params)
+        return torch.utils.data.DataLoader(
+            dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params
+        )
 
     def setup_training_data(self, cfg):
         self._train_dl = self.__setup_dataloader_from_config(cfg)
 
     def setup_validation_data(self, cfg):
-        self._validation_dl = self.__setup_dataloader_from_config(cfg, shuffle_should_be=False, name="validation")
+        self._validation_dl = self.__setup_dataloader_from_config(
+            cfg, shuffle_should_be=False, name="validation"
+        )
 
     @classmethod
-    def list_available_models(cls) -> 'List[PretrainedModelInfo]':
+    def list_available_models(cls) -> "List[PretrainedModelInfo]":
         """
         This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
         Returns:
@@ -209,8 +237,8 @@ class WaveGlowModel(GlowVocoder, Exportable):
     @property
     def input_types(self):
         return {
-            "audio": NeuralType(('B', 'T'), AudioSignal()),
-            "audio_len": NeuralType(('B'), LengthsType()),
+            "audio": NeuralType(("B", "T"), AudioSignal()),
+            "audio_len": NeuralType(("B"), LengthsType()),
             "run_inverse": NeuralType(optional=True),
         }
 
@@ -218,17 +246,21 @@ class WaveGlowModel(GlowVocoder, Exportable):
     def output_types(self):
         if self.mode == OperationMode.training or self.mode == OperationMode.validation:
             output_dict = {
-                "pred_normal_dist": NeuralType(('B', 'flowgroup', 'T'), NormalDistributionSamplesType()),
-                "log_s_list": [NeuralType(('B', 'flowgroup', 'T'), VoidType())],  # TODO: Figure out a good typing
+                "pred_normal_dist": NeuralType(
+                    ("B", "flowgroup", "T"), NormalDistributionSamplesType()
+                ),
+                "log_s_list": [
+                    NeuralType(("B", "flowgroup", "T"), VoidType())
+                ],  # TODO: Figure out a good typing
                 "log_det_W_list": [NeuralType(elements_type=LogDeterminantType())],
             }
             if self.mode == OperationMode.validation:
-                output_dict["audio_pred"] = NeuralType(('B', 'T'), AudioSignal())
-                output_dict["spec"] = NeuralType(('B', 'T', 'D'), MelSpectrogramType())
-                output_dict["spec_len"] = NeuralType(('B'), LengthsType())
+                output_dict["audio_pred"] = NeuralType(("B", "T"), AudioSignal())
+                output_dict["spec"] = NeuralType(("B", "T", "D"), MelSpectrogramType())
+                output_dict["spec_len"] = NeuralType(("B"), LengthsType())
             return output_dict
         return {
-            "audio_pred": NeuralType(('B', 'T'), AudioSignal()),
+            "audio_pred": NeuralType(("B", "T"), AudioSignal()),
         }
 
     def forward_for_export(self, spec, z=None):

@@ -115,9 +115,9 @@ class TransformerLayerWithPostLNSupport(TransformerLayer):
         # TODO: could we move `bias_dropout_add_exec_handler` itself
         # inside the module provided in the `bias_dropout_add_spec` module?
         with self.bias_dropout_add_exec_handler():
-            hidden_states = self.self_attn_bda(self.training, self.config.bias_dropout_fusion)(
-                attention_output_with_bias, residual, self.hidden_dropout
-            )
+            hidden_states = self.self_attn_bda(
+                self.training, self.config.bias_dropout_fusion
+            )(attention_output_with_bias, residual, self.hidden_dropout)
 
         # Residual connection.
         residual = hidden_states
@@ -136,15 +136,18 @@ class TransformerLayerWithPostLNSupport(TransformerLayer):
             inference_params=inference_params,
         )
 
-        if isinstance(attention_output_with_bias, dict) and "context" in attention_output_with_bias:
+        if (
+            isinstance(attention_output_with_bias, dict)
+            and "context" in attention_output_with_bias
+        ):
             context = attention_output_with_bias["context"]
 
         # TODO: could we move `bias_dropout_add_exec_handler` itself
         # inside the module provided in the `bias_dropout_add_spec` module?
         with self.bias_dropout_add_exec_handler():
-            hidden_states = self.cross_attn_bda(self.training, self.config.bias_dropout_fusion)(
-                attention_output_with_bias, residual, self.hidden_dropout
-            )
+            hidden_states = self.cross_attn_bda(
+                self.training, self.config.bias_dropout_fusion
+            )(attention_output_with_bias, residual, self.hidden_dropout)
 
         # Residual connection.
         residual = hidden_states
@@ -158,9 +161,9 @@ class TransformerLayerWithPostLNSupport(TransformerLayer):
         # TODO: could we move `bias_dropout_add_exec_handler` itself
         # inside the module provided in the `bias_dropout_add_spec` module?
         with self.bias_dropout_add_exec_handler():
-            hidden_states = self.mlp_bda(self.training, self.config.bias_dropout_fusion)(
-                mlp_output_with_bias, residual, self.hidden_dropout
-            )
+            hidden_states = self.mlp_bda(
+                self.training, self.config.bias_dropout_fusion
+            )(mlp_output_with_bias, residual, self.hidden_dropout)
 
         # Post-LN after MLP
         hidden_states = self.post_mlp_layernorm(hidden_states)
@@ -171,7 +174,11 @@ class TransformerLayerWithPostLNSupport(TransformerLayer):
         # won't result in memory savings (like the data loader, or
         # p2p_communication), it serves to document the origin of this
         # 'view' tensor.
-        output = make_viewless_tensor(inp=hidden_states, requires_grad=hidden_states.requires_grad, keep_graph=True)
+        output = make_viewless_tensor(
+            inp=hidden_states,
+            requires_grad=hidden_states.requires_grad,
+            keep_graph=True,
+        )
 
         return output, context
 

@@ -103,10 +103,12 @@ class TestLlama31_405B:
         assert recipe.trainer.strategy.pipeline_model_parallel_size == 14
         assert recipe.data.global_batch_size == 6
         assert recipe.optim.config.lr == 5e-6
-        assert not hasattr(recipe, 'peft') or recipe.peft is None
+        assert not hasattr(recipe, "peft") or recipe.peft is None
 
     def test_pretrain_performance_optimizations(self, recipe_module):
-        recipe = recipe_module.pretrain_performance_optimizations(recipe_module.pretrain_recipe())
+        recipe = recipe_module.pretrain_performance_optimizations(
+            recipe_module.pretrain_recipe()
+        )
         assert recipe.trainer.plugins.grad_reduce_in_fp32 is False
 
         # Check callbacks
@@ -117,7 +119,8 @@ class TestLlama31_405B:
         comm_overlap_cb = next(
             cb
             for cb in recipe.trainer.callbacks
-            if isinstance(cb, run.Config) and cb.__fn_or_cls__.__name__ == "MegatronCommOverlapCallback"
+            if isinstance(cb, run.Config)
+            and cb.__fn_or_cls__.__name__ == "MegatronCommOverlapCallback"
         )
         assert comm_overlap_cb.tp_comm_overlap is True
         assert comm_overlap_cb.defer_embedding_wgrad_compute is True
@@ -138,8 +141,10 @@ class TestLlama31_405B:
         assert recipe.trainer.strategy.ddp.average_in_collective is True
 
     def test_finetune_performance_optimizations_with_peft(self, recipe_module):
-        recipe = recipe_module.finetune_recipe(performance_mode=True, peft_scheme='lora')
-        assert recipe.peft.target_modules == ['linear_qkv']
+        recipe = recipe_module.finetune_recipe(
+            performance_mode=True, peft_scheme="lora"
+        )
+        assert recipe.peft.target_modules == ["linear_qkv"]
         assert recipe.trainer.strategy.tensor_model_parallel_size == 4
         assert recipe.trainer.strategy.pipeline_model_parallel_size == 4
         assert recipe.trainer.strategy.virtual_pipeline_model_parallel_size == 4

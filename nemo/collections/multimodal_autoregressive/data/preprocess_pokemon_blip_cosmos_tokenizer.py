@@ -53,7 +53,8 @@ def to_imgstr(image_tokens_flattened):
     """
     image_tokens_flattened = image_tokens_flattened.cpu().numpy().tolist()
     visual_tokens = [
-        '<|visual token {token_id:0>6d}|>'.format(token_id=token_id) for token_id in image_tokens_flattened
+        "<|visual token {token_id:0>6d}|>".format(token_id=token_id)
+        for token_id in image_tokens_flattened
     ]
     visual_tokens_str = "".join(visual_tokens)
     return visual_tokens_str
@@ -64,45 +65,61 @@ def main(args):
 
     dataset = load_dataset(args.dataset)
 
-    text_tokenizer = CosmosMultiModalTokenizer.from_pretrained(args.multimodal_tokenizer_path)
+    text_tokenizer = CosmosMultiModalTokenizer.from_pretrained(
+        args.multimodal_tokenizer_path
+    )
     image_tokenizer = CausalVideoTokenizer.from_pretrained(
-        tokenizer_type=args.image_encoder, load_encoder=True, load_decoder=False, load_full_model=False
+        tokenizer_type=args.image_encoder,
+        load_encoder=True,
+        load_decoder=False,
+        load_full_model=False,
     )
 
     builders = {}
-    key = 'text'
+    key = "text"
     builders[key] = indexed_dataset.make_builder(
-        f'{args.output_prefix}.bin',
-        impl='mmap',
+        f"{args.output_prefix}.bin",
+        impl="mmap",
         chunk_size=64,
-        pad_id=text_tokenizer.pad_token if getattr(text_tokenizer, "pad_token", None) is not None else 0,
+        pad_id=(
+            text_tokenizer.pad_token
+            if getattr(text_tokenizer, "pad_token", None) is not None
+            else 0
+        ),
         retrieval_db=None,
         vocab_size=text_tokenizer.vocab_size,
         stride=64,
     )
 
-    dataset = dataset['train']
+    dataset = dataset["train"]
 
     for data in tqdm(dataset):
-        image, caption = data['image'], data['text']
+        image, caption = data["image"], data["text"]
         image = image.resize((512, 512))
         image_numpy_array = np.array(image)
-        image_numpy_array = rearrange(image_numpy_array, 'h w (t c) -> t h w c', t=1)
+        image_numpy_array = rearrange(image_numpy_array, "h w (t c) -> t h w c", t=1)
         batch_image_array = image_numpy_array[np.newaxis, ...]
         padded_input_image_batch, crop_region = pad_video_batch(batch_image_array)
         input_tensor = numpy2tensor(
-            padded_input_image_batch, dtype=image_tokenizer._dtype, device=image_tokenizer._device
+            padded_input_image_batch,
+            dtype=image_tokenizer._dtype,
+            device=image_tokenizer._device,
         )
         output_indices, output_latent_vectors = image_tokenizer.encode(input_tensor)
         output_indices_flattened = output_indices.reshape(-1)
 
         imgstr = to_imgstr(output_indices_flattened)
-        image_prompt = text_tokenizer.boi_token + text_tokenizer.img_token + imgstr + text_tokenizer.eoi_token
+        image_prompt = (
+            text_tokenizer.boi_token
+            + text_tokenizer.img_token
+            + imgstr
+            + text_tokenizer.eoi_token
+        )
 
         prompt = (
-            f'{text_tokenizer.bos_token}You are a helpful assistant. '
-            'Draw a picture for the caption given by the user. '
-            f'USER: {caption}. ASSISTANT: {image_prompt}{text_tokenizer.eos_token}'
+            f"{text_tokenizer.bos_token}You are a helpful assistant. "
+            "Draw a picture for the caption given by the user. "
+            f"USER: {caption}. ASSISTANT: {image_prompt}{text_tokenizer.eos_token}"
         )
 
         int_tokens = text_tokenizer(prompt).input_ids
@@ -110,12 +127,12 @@ def main(args):
         builders[key].end_document()
 
     builders[key].finalize(
-        f'{args.output_prefix}.idx',
+        f"{args.output_prefix}.idx",
     )
-    print(f' Output .bin and .idx files saved to {args.output_prefix}')
+    print(f" Output .bin and .idx files saved to {args.output_prefix}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
 
     parser = ArgumentParser()
     parser.add_argument(
@@ -129,10 +146,13 @@ if __name__ == '__main__':
         "--image_encoder",
         type=str,
         help="Discrete image encoder. Options are (Cosmos-Tokenizer-DV8x16x16/Cosmos-Tokenizer-DV4x8x8)",
-        default='Cosmos-Tokenizer-DV8x16x16',
+        default="Cosmos-Tokenizer-DV8x16x16",
     )
     parser.add_argument(
-        "--dataset", type=str, help="The hugging face dataset", default='reach-vb/pokemon-blip-captions'
+        "--dataset",
+        type=str,
+        help="The hugging face dataset",
+        default="reach-vb/pokemon-blip-captions",
     )
     parser.add_argument(
         "--multimodal_tokenizer_path",

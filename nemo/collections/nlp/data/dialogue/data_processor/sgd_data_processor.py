@@ -33,13 +33,25 @@ from nemo.utils import logging
 from nemo.utils.decorators import deprecated_warning
 from nemo.utils.get_rank import is_global_rank_zero
 
-__all__ = ['DialogueSGDDataProcessor']
+__all__ = ["DialogueSGDDataProcessor"]
 
 FILE_RANGES = {
-    "sgd_single_domain": {"train": range(1, 44), "dev": range(1, 8), "test": range(1, 12)},
-    "sgd_multi_domain": {"train": range(44, 128), "dev": range(8, 21), "test": range(12, 35)},
+    "sgd_single_domain": {
+        "train": range(1, 44),
+        "dev": range(1, 8),
+        "test": range(1, 12),
+    },
+    "sgd_multi_domain": {
+        "train": range(44, 128),
+        "dev": range(8, 21),
+        "test": range(12, 35),
+    },
     "sgd_all": {"train": range(1, 128), "dev": range(1, 21), "test": range(1, 35)},
-    "sgd_all_single": {"train": range(1, 128), "dev": range(1, 8), "test": range(1, 12)},
+    "sgd_all_single": {
+        "train": range(1, 128),
+        "dev": range(1, 8),
+        "test": range(1, 12),
+    },
     "multiwoz": {"train": range(1, 18), "dev": range(1, 3), "test": range(1, 3)},
     "debug_sample": {"train": range(1, 2), "dev": range(1, 2), "test": range(1, 2)},
 }
@@ -121,8 +133,10 @@ class DialogueSGDDataProcessor(DialogueDataProcessor):
         self._subsample = self.cfg.subsample
 
         all_schema_json_paths = []
-        for dataset_split in ['train', 'test', 'dev']:
-            all_schema_json_paths.append(os.path.join(self.cfg.data_dir, dataset_split, "schema.json"))
+        for dataset_split in ["train", "test", "dev"]:
+            all_schema_json_paths.append(
+                os.path.join(self.cfg.data_dir, dataset_split, "schema.json")
+            )
         self.schemas = Schema(all_schema_json_paths)
 
         self.schema_config = {
@@ -168,10 +182,12 @@ class DialogueSGDDataProcessor(DialogueDataProcessor):
             dial_file = os.path.join(dialogues_example_dir, dial_file)
             self.dial_files[(self._task_name, dataset)] = dial_file
 
-            dialog_paths = DialogueSGDDataProcessor.get_dialogue_files(data_dir, dataset, self._task_name)
+            dialog_paths = DialogueSGDDataProcessor.get_dialogue_files(
+                data_dir, dataset, self._task_name
+            )
             dialogs = DialogueSGDDataProcessor.load_dialogues(dialog_paths)
             for dialog in dialogs:
-                self._seen_services[dataset].update(set(dialog['services']))
+                self._seen_services[dataset].update(set(dialog["services"]))
 
         if is_global_rank_zero():
             overwrite_dial_files = not self.cfg.use_cache
@@ -186,7 +202,9 @@ class DialogueSGDDataProcessor(DialogueDataProcessor):
         for dataset in ["train", "dev", "test"]:
             dial_file = self.dial_files[(self._task_name, dataset)]
             if not os.path.exists(dial_file) or overwrite_dial_files:
-                logging.info(f"Start generating the dialogue examples for {dataset} dataset.")
+                logging.info(
+                    f"Start generating the dialogue examples for {dataset} dataset."
+                )
                 if not os.path.exists(self._dialogues_example_dir):
                     os.makedirs(self._dialogues_example_dir)
                 dial_examples, slots_relation_list = self._generate_dialog_examples(
@@ -199,10 +217,16 @@ class DialogueSGDDataProcessor(DialogueDataProcessor):
                 if dataset == "train":
                     with open(self.slots_relation_file, "wb") as f:
                         pickle.dump(slots_relation_list, f)
-                    logging.info(f"The slot carry-over list for train set is stored at {self.slots_relation_file}")
+                    logging.info(
+                        f"The slot carry-over list for train set is stored at {self.slots_relation_file}"
+                    )
 
-                logging.info(f"The dialogue examples for {dataset} dataset saved at {dial_file}")
-                logging.info(f"Finish generating the dialogue examples for {dataset} dataset.")
+                logging.info(
+                    f"The dialogue examples for {dataset} dataset saved at {dial_file}"
+                )
+                logging.info(
+                    f"Finish generating the dialogue examples for {dataset} dataset."
+                )
 
     # common interface for Data Processor
     def get_train_examples(self):
@@ -229,7 +253,10 @@ class DialogueSGDDataProcessor(DialogueDataProcessor):
         Returns:
             dial_examples:  list of InputExample's.
         """
-        if (self._task_name, dataset_split) not in self.dial_files or not os.path.exists(
+        if (
+            self._task_name,
+            dataset_split,
+        ) not in self.dial_files or not os.path.exists(
             self.dial_files[(self._task_name, dataset_split)]
         ):
             raise ValueError(
@@ -265,7 +292,9 @@ class DialogueSGDDataProcessor(DialogueDataProcessor):
         seen_services = self._seen_services[dataset_split]
         return seen_services
 
-    def _generate_dialog_examples(self, dataset_split: str, schemas: object, subsample: bool):
+    def _generate_dialog_examples(
+        self, dataset_split: str, schemas: object, subsample: bool
+    ):
         """
         Returns a list of `InputExample`s of the data splits' dialogues.
         Args:
@@ -275,9 +304,13 @@ class DialogueSGDDataProcessor(DialogueDataProcessor):
         Returns:
             examples: a list of `InputExample`s.
         """
-        logging.info(f'Creating examples and slot relation list from the dialogues started...')
+        logging.info(
+            f"Creating examples and slot relation list from the dialogues started..."
+        )
         dialog_paths = [
-            os.path.join(self.data_dir, dataset_split, "dialogues_{:03d}.json".format(i))
+            os.path.join(
+                self.data_dir, dataset_split, "dialogues_{:03d}.json".format(i)
+            )
             for i in self._file_ranges[dataset_split]
         ]
         dialogs = DialogueSGDDataProcessor.load_dialogues(dialog_paths)
@@ -286,9 +319,11 @@ class DialogueSGDDataProcessor(DialogueDataProcessor):
         slot_carryover_candlist = collections.defaultdict(int)
         for dialog_idx, dialog in enumerate(dialogs):
             if dialog_idx % 1000 == 0:
-                logging.info(f'Processed {dialog_idx} dialogues.')
+                logging.info(f"Processed {dialog_idx} dialogues.")
             examples.extend(
-                self._create_examples_from_dialog(dialog, schemas, dataset_split, slot_carryover_candlist, subsample)
+                self._create_examples_from_dialog(
+                    dialog, schemas, dataset_split, slot_carryover_candlist, subsample
+                )
             )
 
         slots_relation_list = collections.defaultdict(list)
@@ -304,7 +339,12 @@ class DialogueSGDDataProcessor(DialogueDataProcessor):
         return examples, slots_relation_list
 
     def _create_examples_from_dialog(
-        self, dialog: dict, schemas: object, dataset_split: str, slot_carryover_candlist: dict, subsample: bool
+        self,
+        dialog: dict,
+        schemas: object,
+        dataset_split: str,
+        slot_carryover_candlist: dict,
+        subsample: bool,
     ):
         """
         Create examples for every turn in the dialogue.
@@ -325,7 +365,7 @@ class DialogueSGDDataProcessor(DialogueDataProcessor):
             if turn["speaker"] == "USER":
                 user_utterance = turn["utterance"]
                 user_frames = {f["service"]: f for f in turn["frames"]}
-                if self.cfg.system_utterance == 'prev_turn':
+                if self.cfg.system_utterance == "prev_turn":
                     if turn_idx > 0:
                         system_turn = dialog["turns"][turn_idx - 1]
                         system_utterance = system_turn["utterance"]
@@ -339,15 +379,17 @@ class DialogueSGDDataProcessor(DialogueDataProcessor):
                     system_frames = {f["service"]: f for f in system_turn["frames"]}
 
                 turn_id = "{}-{}-{:02d}".format(dataset_split, dialog_id, turn_idx)
-                turn_examples, prev_states, slot_carryover_values = self._create_examples_from_turn(
-                    turn_id,
-                    system_utterance,
-                    user_utterance,
-                    system_frames,
-                    user_frames,
-                    prev_states,
-                    schemas,
-                    subsample,
+                turn_examples, prev_states, slot_carryover_values = (
+                    self._create_examples_from_turn(
+                        turn_id,
+                        system_utterance,
+                        user_utterance,
+                        system_frames,
+                        user_frames,
+                        prev_states,
+                        schemas,
+                        subsample,
+                    )
                 )
                 examples.extend(turn_examples)
 
@@ -362,7 +404,9 @@ class DialogueSGDDataProcessor(DialogueDataProcessor):
                                 if service1 > service2:
                                     service1, service2 = service2, service1
                                     slot1, slot2 = slot2, slot1
-                                slot_carryover_candlist[(service1, slot1, service2, slot2)] += 1
+                                slot_carryover_candlist[
+                                    (service1, slot1, service2, slot2)
+                                ] += 1
         return examples
 
     def _get_state_update(self, current_state: dict, prev_state: dict) -> dict:
@@ -387,19 +431,19 @@ class DialogueSGDDataProcessor(DialogueDataProcessor):
         if label.lower() == "none":
             return "none"
         label = label.split("_")[0]
-        tokens = re.findall('[A-Z][^A-Z]*', label)
-        return ' '.join([token.lower() for token in tokens])
+        tokens = re.findall("[A-Z][^A-Z]*", label)
+        return " ".join([token.lower() for token in tokens])
 
     def preprocess_intent(self, intent, schemas, service):
-        if self.cfg.preprocess_intent_function == 'default':
+        if self.cfg.preprocess_intent_function == "default":
             return intent
-        elif self.cfg.preprocess_intent_function == 'lowercase':
+        elif self.cfg.preprocess_intent_function == "lowercase":
             return DialogueSGDDataProcessor.convert_camelcase_to_lower(intent)
-        elif self.cfg.preprocess_intent_function == 'description':
+        elif self.cfg.preprocess_intent_function == "description":
             return schemas.get_service_schema(service).intent_descriptions[intent]
         else:
             raise ValueError(
-                'Only default, lowercase and description are allowed for model.dataset.preprocess_intent_function for SGD task'
+                "Only default, lowercase and description are allowed for model.dataset.preprocess_intent_function for SGD task"
             )
 
     def _create_examples_from_turn(
@@ -428,7 +472,7 @@ class DialogueSGDDataProcessor(DialogueDataProcessor):
             examples: a list of `InputExample`s.
             prev_states: updated dialogue state e.g. {'Restaurants_1': {'city': ['San Jose'], 'cuisine': ['American']}}
         """
-        system_user_utterance = system_utterance + ' ' + user_utterance
+        system_user_utterance = system_utterance + " " + user_utterance
         states = {}
 
         examples = []
@@ -440,8 +484,8 @@ class DialogueSGDDataProcessor(DialogueDataProcessor):
             state_update = self._get_state_update(state, prev_states.get(service, {}))
             states[service] = state
             system_frame = system_frames.get(service, None)
-            dataset_split, dialog_id, turn_id_ = turn_id.split('-')
-            dialog_id_1, dialog_id_2 = dialog_id.split('_')
+            dataset_split, dialog_id, turn_id_ = turn_id.split("-")
+            dialog_id_1, dialog_id_2 = dialog_id.split("_")
             example_id = f"{turn_id}-{service}"
             example_id_num = [
                 int(dialog_id_1),
@@ -449,7 +493,7 @@ class DialogueSGDDataProcessor(DialogueDataProcessor):
                 int(turn_id_),
                 schemas.get_service_id(service),
             ]
-            intent = user_frames[service]["state"]['active_intent']
+            intent = user_frames[service]["state"]["active_intent"]
             all_possible_slots = schemas.get_service_schema(service).slots
             categorical_slots = schemas.get_service_schema(service).categorical_slots
             one_example = {
@@ -458,15 +502,23 @@ class DialogueSGDDataProcessor(DialogueDataProcessor):
                 "utterance": user_utterance,
                 "system_utterance": system_utterance,
                 "system_slots": (
-                    {slot["slot"]: slot for slot in system_frame["slots"]} if system_frame is not None else None
+                    {slot["slot"]: slot for slot in system_frame["slots"]}
+                    if system_frame is not None
+                    else None
                 ),
-                "system_actions": system_frame["actions"] if system_frame is not None else None,
+                "system_actions": (
+                    system_frame["actions"] if system_frame is not None else None
+                ),
                 "labels": {
                     "service": service,
                     "intent": self.preprocess_intent(intent, schemas, service),
                     "slots": {slot: state[slot] for slot in state_update},
                 },
-                "label_positions": {"slots": {slot["slot"]: slot for slot in user_frames[service]["slots"]}},
+                "label_positions": {
+                    "slots": {
+                        slot["slot"]: slot for slot in user_frames[service]["slots"]
+                    }
+                },
                 "possible_labels": {
                     "service": schemas.services,
                     "intent": [
@@ -475,7 +527,9 @@ class DialogueSGDDataProcessor(DialogueDataProcessor):
                     ],
                     "slots": {
                         slot: (
-                            schemas.get_service_schema(service).get_categorical_slot_values(slot)
+                            schemas.get_service_schema(
+                                service
+                            ).get_categorical_slot_values(slot)
                             if slot in categorical_slots
                             else []
                         )
@@ -484,9 +538,14 @@ class DialogueSGDDataProcessor(DialogueDataProcessor):
                 },
                 "description": {
                     "service": schemas.get_service_schema(service).description,
-                    "intent": schemas.get_service_schema(service).intent_descriptions[intent],
+                    "intent": schemas.get_service_schema(service).intent_descriptions[
+                        intent
+                    ],
                     "slots": {
-                        slot: schemas.get_service_schema(service).slot_descriptions[slot] for slot in state_update
+                        slot: schemas.get_service_schema(service).slot_descriptions[
+                            slot
+                        ]
+                        for slot in state_update
                     },
                 },
             }
@@ -504,7 +563,9 @@ class DialogueSGDDataProcessor(DialogueDataProcessor):
                         prev_slot_value_list = state[prev_service]
                     for prev_slot_name, prev_values in prev_slot_value_list.items():
                         for prev_value in prev_values:
-                            slot_carryover_values[prev_value].append((prev_service, prev_slot_name))
+                            slot_carryover_values[prev_value].append(
+                                (prev_service, prev_slot_name)
+                            )
 
         return examples, states, slot_carryover_values
 
@@ -540,7 +601,10 @@ class DialogueSGDDataProcessor(DialogueDataProcessor):
                     end_tok_idx = alignments[slot_span["exclusive_end"] - 1]
                     if 0 <= start_tok_idx < len(subwords):
                         end_tok_idx = min(end_tok_idx, len(subwords) - 1)
-                        value_char_spans[value] = (start_tok_idx + bias, end_tok_idx + bias)
+                        value_char_spans[value] = (
+                            start_tok_idx + bias,
+                            end_tok_idx + bias,
+                        )
             for v in values:
                 if v in value_char_spans:
                     span_boundaries[slot] = value_char_spans[v]
@@ -558,7 +622,7 @@ class DialogueSGDDataProcessor(DialogueDataProcessor):
         """
         dialogs = []
         for dialog_json_filepath in sorted(dialog_json_filepaths):
-            with open(dialog_json_filepath, 'r', encoding="UTF-8") as f:
+            with open(dialog_json_filepath, "r", encoding="UTF-8") as f:
                 dialogs.extend(json.load(f))
                 f.close()
         return dialogs
@@ -575,6 +639,6 @@ class DialogueSGDDataProcessor(DialogueDataProcessor):
             dialog: the list of all dialogue json files paths
         """
         return [
-            os.path.join(data_dir, dataset_split, 'dialogues_{:03d}.json'.format(fid))
+            os.path.join(data_dir, dataset_split, "dialogues_{:03d}.json".format(fid))
             for fid in FILE_RANGES[task_name][dataset_split]
         ]

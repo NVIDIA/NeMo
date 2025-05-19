@@ -46,7 +46,7 @@ from nemo.core.neural_types import (AcousticEncodedRepresentation, BoolType,
                                     SpectrogramType)
 from nemo.utils import logging
 
-__all__ = ['ConformerEncoder']
+__all__ = ["ConformerEncoder"]
 
 
 class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
@@ -185,12 +185,20 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
                 else:
                     pre_encode_cache_size = self.streaming_cfg.pre_encode_cache_size
                 window_size = chunk_size + pre_encode_cache_size
-            input_example = torch.randn(max_batch, self._feat_in, window_size, device=dev)
-            input_example_length = torch.randint(
-                window_size // 4, window_size, (max_batch,), device=dev, dtype=torch.int64
+            input_example = torch.randn(
+                max_batch, self._feat_in, window_size, device=dev
             )
-            cache_last_channel, cache_last_time, cache_last_channel_len = self.get_initial_cache_state(
-                batch_size=max_batch, device=dev, max_dim=max_dim
+            input_example_length = torch.randint(
+                window_size // 4,
+                window_size,
+                (max_batch,),
+                device=dev,
+                dtype=torch.int64,
+            )
+            cache_last_channel, cache_last_time, cache_last_channel_len = (
+                self.get_initial_cache_state(
+                    batch_size=max_batch, device=dev, max_dim=max_dim
+                )
             )
             all_input_example = tuple(
                 [
@@ -203,7 +211,9 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             )
         else:
             input_example = torch.randn(max_batch, self._feat_in, max_dim, device=dev)
-            input_example_length = torch.randint(max_dim // 4, max_dim, (max_batch,), device=dev, dtype=torch.int64)
+            input_example_length = torch.randint(
+                max_dim // 4, max_dim, (max_batch,), device=dev, dtype=torch.int64
+            )
             all_input_example = tuple([input_example, input_example_length])
 
         return all_input_example
@@ -213,11 +223,17 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         """Returns definitions of module input ports."""
         return OrderedDict(
             {
-                "audio_signal": NeuralType(('B', 'D', 'T'), SpectrogramType()),
-                "length": NeuralType(tuple('B'), LengthsType()),
-                "cache_last_channel": NeuralType(('D', 'B', 'T', 'D'), ChannelType(), optional=True),
-                "cache_last_time": NeuralType(('D', 'B', 'D', 'T'), ChannelType(), optional=True),
-                "cache_last_channel_len": NeuralType(tuple('B'), LengthsType(), optional=True),
+                "audio_signal": NeuralType(("B", "D", "T"), SpectrogramType()),
+                "length": NeuralType(tuple("B"), LengthsType()),
+                "cache_last_channel": NeuralType(
+                    ("D", "B", "T", "D"), ChannelType(), optional=True
+                ),
+                "cache_last_time": NeuralType(
+                    ("D", "B", "D", "T"), ChannelType(), optional=True
+                ),
+                "cache_last_channel_len": NeuralType(
+                    tuple("B"), LengthsType(), optional=True
+                ),
                 "bypass_pre_encode": NeuralType(tuple(), BoolType(), optional=True),
             }
         )
@@ -227,11 +243,17 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         """Returns definitions of module input ports."""
         return OrderedDict(
             {
-                "audio_signal": NeuralType(('B', 'D', 'T'), SpectrogramType()),
-                "length": NeuralType(tuple('B'), LengthsType()),
-                "cache_last_channel": NeuralType(('B', 'D', 'T', 'D'), ChannelType(), optional=True),
-                "cache_last_time": NeuralType(('B', 'D', 'D', 'T'), ChannelType(), optional=True),
-                "cache_last_channel_len": NeuralType(tuple('B'), LengthsType(), optional=True),
+                "audio_signal": NeuralType(("B", "D", "T"), SpectrogramType()),
+                "length": NeuralType(tuple("B"), LengthsType()),
+                "cache_last_channel": NeuralType(
+                    ("B", "D", "T", "D"), ChannelType(), optional=True
+                ),
+                "cache_last_time": NeuralType(
+                    ("B", "D", "D", "T"), ChannelType(), optional=True
+                ),
+                "cache_last_channel_len": NeuralType(
+                    tuple("B"), LengthsType(), optional=True
+                ),
                 "bypass_pre_encode": NeuralType(tuple(), BoolType(), optional=True),
             }
         )
@@ -241,11 +263,17 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         """Returns definitions of module output ports."""
         return OrderedDict(
             {
-                "outputs": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
-                "encoded_lengths": NeuralType(tuple('B'), LengthsType()),
-                "cache_last_channel_next": NeuralType(('D', 'B', 'T', 'D'), ChannelType(), optional=True),
-                "cache_last_time_next": NeuralType(('D', 'B', 'D', 'T'), ChannelType(), optional=True),
-                "cache_last_channel_next_len": NeuralType(tuple('B'), LengthsType(), optional=True),
+                "outputs": NeuralType(("B", "D", "T"), AcousticEncodedRepresentation()),
+                "encoded_lengths": NeuralType(tuple("B"), LengthsType()),
+                "cache_last_channel_next": NeuralType(
+                    ("D", "B", "T", "D"), ChannelType(), optional=True
+                ),
+                "cache_last_time_next": NeuralType(
+                    ("D", "B", "D", "T"), ChannelType(), optional=True
+                ),
+                "cache_last_channel_next_len": NeuralType(
+                    tuple("B"), LengthsType(), optional=True
+                ),
             }
         )
 
@@ -254,25 +282,39 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         """Returns definitions of module output ports."""
         return OrderedDict(
             {
-                "outputs": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
-                "encoded_lengths": NeuralType(tuple('B'), LengthsType()),
-                "cache_last_channel_next": NeuralType(('B', 'D', 'T', 'D'), ChannelType(), optional=True),
-                "cache_last_time_next": NeuralType(('B', 'D', 'D', 'T'), ChannelType(), optional=True),
-                "cache_last_channel_next_len": NeuralType(tuple('B'), LengthsType(), optional=True),
+                "outputs": NeuralType(("B", "D", "T"), AcousticEncodedRepresentation()),
+                "encoded_lengths": NeuralType(tuple("B"), LengthsType()),
+                "cache_last_channel_next": NeuralType(
+                    ("B", "D", "T", "D"), ChannelType(), optional=True
+                ),
+                "cache_last_time_next": NeuralType(
+                    ("B", "D", "D", "T"), ChannelType(), optional=True
+                ),
+                "cache_last_channel_next_len": NeuralType(
+                    tuple("B"), LengthsType(), optional=True
+                ),
             }
         )
 
     @property
     def disabled_deployment_input_names(self):
         if not self.export_cache_support:
-            return set(["cache_last_channel", "cache_last_time", "cache_last_channel_len"])
+            return set(
+                ["cache_last_channel", "cache_last_time", "cache_last_channel_len"]
+            )
         else:
             return set()
 
     @property
     def disabled_deployment_output_names(self):
         if not self.export_cache_support:
-            return set(["cache_last_channel_next", "cache_last_time_next", "cache_last_channel_next_len"])
+            return set(
+                [
+                    "cache_last_channel_next",
+                    "cache_last_time_next",
+                    "cache_last_channel_next_len",
+                ]
+            )
         else:
             return set()
 
@@ -283,7 +325,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         d_model,
         feat_out=-1,
         causal_downsampling=False,
-        subsampling='striding',
+        subsampling="striding",
         subsampling_factor=4,
         subsampling_conv_chunking_factor=1,
         subsampling_conv_channels=-1,
@@ -291,16 +333,16 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         reduction_position=None,
         reduction_factor=1,
         ff_expansion_factor=4,
-        self_attention_model='rel_pos',
+        self_attention_model="rel_pos",
         n_heads=4,
         att_context_size=None,
         att_context_probs=None,
-        att_context_style='regular',
+        att_context_style="regular",
         xscaling=True,
         untie_biases=True,
         pos_emb_max_len=5000,
         conv_kernel_size=31,
-        conv_norm_type='batch_norm',
+        conv_norm_type="batch_norm",
         conv_context_size=None,
         use_bias=True,
         dropout=0.1,
@@ -359,13 +401,13 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         if subsampling_conv_channels == -1:
             subsampling_conv_channels = d_model
         if subsampling and subsampling_factor > 1:
-            if subsampling in ['stacking', 'stacking_norm']:
+            if subsampling in ["stacking", "stacking_norm"]:
                 # stacking_norm has an extra layer norm after stacking comparing to stacking
                 self.pre_encode = StackingSubsampling(
                     subsampling_factor=subsampling_factor,
                     feat_in=feat_in,
                     feat_out=d_model,
-                    norm=True if subsampling == 'stacking_norm' else False,
+                    norm=True if subsampling == "stacking_norm" else False,
                 )
             else:
                 self.pre_encode = ConvSubsampling(
@@ -417,9 +459,11 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
                 xscale=self.xscale,
                 dropout_rate_emb=dropout_emb,
             )
-        elif self_attention_model == 'rel_pos_local_attn':
+        elif self_attention_model == "rel_pos_local_attn":
             if max(att_context_size) <= 0:
-                raise ValueError("When using local attention, context size must be set > 0")
+                raise ValueError(
+                    "When using local attention, context size must be set > 0"
+                )
             self.pos_enc = LocalAttRelPositionalEncoding(
                 att_context_size=att_context_size,
                 d_model=d_model,
@@ -432,10 +476,15 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             pos_bias_u = None
             pos_bias_v = None
             self.pos_enc = PositionalEncoding(
-                d_model=d_model, dropout_rate=dropout_pre_encoder, max_len=pos_emb_max_len, xscale=self.xscale
+                d_model=d_model,
+                dropout_rate=dropout_pre_encoder,
+                max_len=pos_emb_max_len,
+                xscale=self.xscale,
             )
         else:
-            raise ValueError(f"Not valid self_attention_model: '{self_attention_model}'!")
+            raise ValueError(
+                f"Not valid self_attention_model: '{self_attention_model}'!"
+            )
 
         self.layers = nn.ModuleList()
         for i in range(n_layers):
@@ -474,13 +523,21 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         self.export_cache_support = False
 
         self.layer_drop_probs = compute_stochastic_depth_drop_probs(
-            len(self.layers), stochastic_depth_drop_prob, stochastic_depth_mode, stochastic_depth_start_layer
+            len(self.layers),
+            stochastic_depth_drop_prob,
+            stochastic_depth_mode,
+            stochastic_depth_start_layer,
         )
         # will be set in self.forward() if defined in AccessMixin config
         self.interctc_capture_at_layers = None
 
     def forward_for_export(
-        self, audio_signal, length, cache_last_channel=None, cache_last_time=None, cache_last_channel_len=None
+        self,
+        audio_signal,
+        length,
+        cache_last_channel=None,
+        cache_last_time=None,
+        cache_last_channel_len=None,
     ):
         """
         Forward function for model export. Please see `forward()` for more details.
@@ -521,19 +578,36 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         if len(rets) == 2:
             return rets[0], rets[1], None, None, None
 
-        (encoded, encoded_len, cache_last_channel_next, cache_last_time_next, cache_last_channel_next_len) = rets
+        (
+            encoded,
+            encoded_len,
+            cache_last_channel_next,
+            cache_last_time_next,
+            cache_last_channel_next_len,
+        ) = rets
 
-        if cache_last_channel_next is not None and self.streaming_cfg.last_channel_cache_size >= 0:
+        if (
+            cache_last_channel_next is not None
+            and self.streaming_cfg.last_channel_cache_size >= 0
+        ):
             if self.streaming_cfg.last_channel_cache_size > 0:
                 cache_last_channel_next = cache_last_channel_next[
                     :, :, -self.streaming_cfg.last_channel_cache_size :, :
                 ]
 
-        if self.streaming_cfg.valid_out_len > 0 and (not keep_all_outputs or self.att_context_style == "regular"):
+        if self.streaming_cfg.valid_out_len > 0 and (
+            not keep_all_outputs or self.att_context_style == "regular"
+        ):
             encoded = encoded[:, :, : self.streaming_cfg.valid_out_len]
             encoded_len = torch.clamp(encoded_len, max=self.streaming_cfg.valid_out_len)
 
-        return (encoded, encoded_len, cache_last_channel_next, cache_last_time_next, cache_last_channel_next_len)
+        return (
+            encoded,
+            encoded_len,
+            cache_last_channel_next,
+            cache_last_time_next,
+            cache_last_channel_next_len,
+        )
 
     @typecheck()
     def forward(
@@ -569,10 +643,13 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
 
         if bypass_pre_encode:
             self.update_max_seq_length(
-                seq_length=audio_signal.size(2) * self.subsampling_factor, device=audio_signal.device
+                seq_length=audio_signal.size(2) * self.subsampling_factor,
+                device=audio_signal.device,
             )
         else:
-            self.update_max_seq_length(seq_length=audio_signal.size(2), device=audio_signal.device)
+            self.update_max_seq_length(
+                seq_length=audio_signal.size(2), device=audio_signal.device
+            )
         return self.forward_internal(
             audio_signal,
             length,
@@ -606,13 +683,18 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         """
         if length is None:
             length = audio_signal.new_full(
-                (audio_signal.size(0),), audio_signal.size(-1), dtype=torch.int64, device=audio_signal.device
+                (audio_signal.size(0),),
+                audio_signal.size(-1),
+                dtype=torch.int64,
+                device=audio_signal.device,
             )
 
         # select a random att_context_size with the distribution specified by att_context_probs during training
         # for non-validation cases like test, validation or inference, it uses the first mode in self.att_context_size
         if self.training and len(self.att_context_size_all) > 1:
-            cur_att_context_size = random.choices(self.att_context_size_all, weights=self.att_context_probs)[0]
+            cur_att_context_size = random.choices(
+                self.att_context_size_all, weights=self.att_context_probs
+            )[0]
         else:
             cur_att_context_size = self.att_context_size
 
@@ -625,9 +707,16 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
                 audio_signal, length = self.pre_encode(x=audio_signal, lengths=length)
                 length = length.to(torch.int64)
                 # `self.streaming_cfg` is set by setup_streaming_cfg(), called in the init
-                if self.streaming_cfg.drop_extra_pre_encoded > 0 and cache_last_channel is not None:
-                    audio_signal = audio_signal[:, self.streaming_cfg.drop_extra_pre_encoded :, :]
-                    length = (length - self.streaming_cfg.drop_extra_pre_encoded).clamp(min=0)
+                if (
+                    self.streaming_cfg.drop_extra_pre_encoded > 0
+                    and cache_last_channel is not None
+                ):
+                    audio_signal = audio_signal[
+                        :, self.streaming_cfg.drop_extra_pre_encoded :, :
+                    ]
+                    length = (length - self.streaming_cfg.drop_extra_pre_encoded).clamp(
+                        min=0
+                    )
 
             if self.reduction_position is not None and cache_last_channel is not None:
                 raise ValueError("Caching with reduction feature is not supported yet!")
@@ -664,7 +753,9 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             cache_last_time_next = []
             cache_last_channel_next = []
 
-        for lth, (drop_prob, layer) in enumerate(zip(self.layer_drop_probs, self.layers)):
+        for lth, (drop_prob, layer) in enumerate(
+            zip(self.layer_drop_probs, self.layers)
+        ):
             original_signal = audio_signal
             if cache_last_channel is not None:
                 cache_last_channel_cur = cache_last_channel[lth]
@@ -682,7 +773,9 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             )
 
             if cache_last_channel_cur is not None:
-                (audio_signal, cache_last_channel_cur, cache_last_time_cur) = audio_signal
+                (audio_signal, cache_last_channel_cur, cache_last_time_cur) = (
+                    audio_signal
+                )
                 cache_last_channel_next.append(cache_last_channel_cur)
                 cache_last_time_next.append(cache_last_time_cur)
 
@@ -697,10 +790,14 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
                     audio_signal = audio_signal * 0.0 + original_signal
                 else:
                     # not doing this operation if drop prob is 0 as it's identity in that case
-                    audio_signal = (audio_signal - original_signal) / (1.0 - drop_prob) + original_signal
+                    audio_signal = (audio_signal - original_signal) / (
+                        1.0 - drop_prob
+                    ) + original_signal
 
             if self.reduction_position == lth:
-                audio_signal, length = self.reduction_subsampling(x=audio_signal, lengths=length)
+                audio_signal, length = self.reduction_subsampling(
+                    x=audio_signal, lengths=length
+                )
                 max_audio_length = audio_signal.size(1)
                 # Don't update the audio_signal here because then it will again scale the audio_signal
                 # and cause an increase in the WER
@@ -716,23 +813,30 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
             # saving tensors if required for interctc loss
             if self.is_access_enabled(getattr(self, "model_guid", None)):
                 if self.interctc_capture_at_layers is None:
-                    self.interctc_capture_at_layers = self.access_cfg.get('interctc', {}).get('capture_layers', [])
+                    self.interctc_capture_at_layers = self.access_cfg.get(
+                        "interctc", {}
+                    ).get("capture_layers", [])
                 if lth in self.interctc_capture_at_layers:
                     lth_audio_signal = audio_signal
                     if self.out_proj is not None:
                         lth_audio_signal = self.out_proj(audio_signal)
                     # shape is the same as the shape of audio_signal output, i.e. [B, D, T]
                     self.register_accessible_tensor(
-                        name=f'interctc/layer_output_{lth}', tensor=torch.transpose(lth_audio_signal, 1, 2)
+                        name=f"interctc/layer_output_{lth}",
+                        tensor=torch.transpose(lth_audio_signal, 1, 2),
                     )
-                    self.register_accessible_tensor(name=f'interctc/layer_length_{lth}', tensor=length)
+                    self.register_accessible_tensor(
+                        name=f"interctc/layer_length_{lth}", tensor=length
+                    )
 
         if self.out_proj is not None:
             audio_signal = self.out_proj(audio_signal)
 
         # Reduction
         if self.reduction_position == -1:
-            audio_signal, length = self.reduction_subsampling(x=audio_signal, lengths=length)
+            audio_signal, length = self.reduction_subsampling(
+                x=audio_signal, lengths=length
+            )
 
         audio_signal = torch.transpose(audio_signal, 1, 2)
         length = length.to(dtype=torch.int64)
@@ -760,10 +864,14 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         """
         # Find global max audio length across all nodes
         if self.sync_max_audio_length and torch.distributed.is_initialized():
-            global_max_len = torch.tensor([seq_length], dtype=torch.float32, device=device)
+            global_max_len = torch.tensor(
+                [seq_length], dtype=torch.float32, device=device
+            )
 
             # Update across all ranks in the distributed system
-            torch.distributed.all_reduce(global_max_len, op=torch.distributed.ReduceOp.MAX)
+            torch.distributed.all_reduce(
+                global_max_len, op=torch.distributed.ReduceOp.MAX
+            )
 
             seq_length = global_max_len.int().item()
 
@@ -783,9 +891,13 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         dtype = next(self.parameters()).dtype
         self.pos_enc.extend_pe(max_audio_length, device, dtype)
 
-    def _create_masks(self, att_context_size, padding_length, max_audio_length, offset, device):
+    def _create_masks(
+        self, att_context_size, padding_length, max_audio_length, offset, device
+    ):
         if self.self_attention_model != "rel_pos_local_attn":
-            att_mask = torch.ones(1, max_audio_length, max_audio_length, dtype=torch.bool, device=device)
+            att_mask = torch.ones(
+                1, max_audio_length, max_audio_length, dtype=torch.bool, device=device
+            )
 
             if self.att_context_style == "regular":
                 if att_context_size[0] >= 0:
@@ -805,13 +917,17 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
                     else:
                         left_chunks_num = 10000
 
-                    chunk_idx = torch.arange(0, max_audio_length, dtype=torch.int, device=att_mask.device)
+                    chunk_idx = torch.arange(
+                        0, max_audio_length, dtype=torch.int, device=att_mask.device
+                    )
                     chunk_idx = torch.div(chunk_idx, chunk_size, rounding_mode="trunc")
                     diff_chunks = chunk_idx.unsqueeze(1) - chunk_idx.unsqueeze(0)
                     chunked_limited_mask = torch.logical_and(
                         torch.le(diff_chunks, left_chunks_num), torch.ge(diff_chunks, 0)
                     )
-                    att_mask = torch.logical_and(att_mask, chunked_limited_mask.unsqueeze(0))
+                    att_mask = torch.logical_and(
+                        att_mask, chunked_limited_mask.unsqueeze(0)
+                    )
         else:
             att_mask = None
 
@@ -828,12 +944,18 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
 
         if att_mask is not None:
             # pad_mask_for_att_mask is the mask which helps to ignore paddings
-            pad_mask_for_att_mask = pad_mask.unsqueeze(1).repeat([1, max_audio_length, 1])
-            pad_mask_for_att_mask = torch.logical_and(pad_mask_for_att_mask, pad_mask_for_att_mask.transpose(1, 2))
+            pad_mask_for_att_mask = pad_mask.unsqueeze(1).repeat(
+                [1, max_audio_length, 1]
+            )
+            pad_mask_for_att_mask = torch.logical_and(
+                pad_mask_for_att_mask, pad_mask_for_att_mask.transpose(1, 2)
+            )
             # att_mask is the masking to be used by the MHA layers to ignore the tokens not supposed to be visible
             att_mask = att_mask[:, :max_audio_length, :max_audio_length]
             # paddings should also get ignored, so pad_mask_for_att_mask is used to ignore their corresponding scores
-            att_mask = torch.logical_and(pad_mask_for_att_mask, att_mask.to(pad_mask_for_att_mask.device))
+            att_mask = torch.logical_and(
+                pad_mask_for_att_mask, att_mask.to(pad_mask_for_att_mask.device)
+            )
             att_mask = ~att_mask
 
         pad_mask = ~pad_mask
@@ -852,7 +974,12 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         return mask
 
     def _calc_context_sizes(
-        self, att_context_size, att_context_probs, att_context_style, conv_context_size, conv_kernel_size
+        self,
+        att_context_size,
+        att_context_probs,
+        att_context_style,
+        conv_context_size,
+        conv_kernel_size,
     ):
         # convert att_context_size to a standard list of lists
         if att_context_size:
@@ -864,7 +991,9 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
                     att_context_size_all[i] = list(att_cs)
                 if att_context_style == "chunked_limited":
                     if att_cs[0] > 0 and att_cs[0] % (att_cs[1] + 1) > 0:
-                        raise ValueError(f"att_context_size[{i}][0] % (att_context_size[{i}][1] + 1) should be zero!")
+                        raise ValueError(
+                            f"att_context_size[{i}][0] % (att_context_size[{i}][1] + 1) should be zero!"
+                        )
                     if att_cs[1] < 0 and len(att_context_size_all) <= 1:
                         raise ValueError(
                             f"Right context (att_context_size[{i}][1]) can not be unlimited for chunked_limited style!"
@@ -874,19 +1003,25 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
 
         if att_context_probs:
             if len(att_context_probs) != len(att_context_size_all):
-                raise ValueError("The size of the att_context_probs should be the same as att_context_size.")
+                raise ValueError(
+                    "The size of the att_context_probs should be the same as att_context_size."
+                )
             att_context_probs = list(att_context_probs)
             if sum(att_context_probs) != 1:
                 raise ValueError(
                     "The sum of numbers in att_context_probs should be equal to one to be a distribution."
                 )
         else:
-            att_context_probs = [1.0 / len(att_context_size_all)] * len(att_context_size_all)
+            att_context_probs = [1.0 / len(att_context_size_all)] * len(
+                att_context_size_all
+            )
 
         if conv_context_size is not None:
             if isinstance(conv_context_size, ListConfig):
                 conv_context_size = list(conv_context_size)
-            if not isinstance(conv_context_size, list) and not isinstance(conv_context_size, str):
+            if not isinstance(conv_context_size, list) and not isinstance(
+                conv_context_size, str
+            ):
                 raise ValueError(
                     "Invalid conv_context_size! It should be the string 'causal' or a list of two integers."
                 )
@@ -894,10 +1029,20 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
                 conv_context_size = [conv_kernel_size - 1, 0]
             else:
                 if conv_context_size[0] + conv_context_size[1] + 1 != conv_kernel_size:
-                    raise ValueError(f"Invalid conv_context_size: {self.conv_context_size}!")
+                    raise ValueError(
+                        f"Invalid conv_context_size: {self.conv_context_size}!"
+                    )
         else:
-            conv_context_size = [(conv_kernel_size - 1) // 2, (conv_kernel_size - 1) // 2]
-        return att_context_size_all, att_context_size_all[0], att_context_probs, conv_context_size
+            conv_context_size = [
+                (conv_kernel_size - 1) // 2,
+                (conv_kernel_size - 1) // 2,
+            ]
+        return (
+            att_context_size_all,
+            att_context_size_all[0],
+            att_context_probs,
+            conv_context_size,
+        )
 
     def set_default_att_context_size(self, att_context_size):
         """
@@ -945,21 +1090,28 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
 
         if chunk_size is not None:
             if chunk_size < 1:
-                raise ValueError("chunk_size needs to be a number larger or equal to one.")
+                raise ValueError(
+                    "chunk_size needs to be a number larger or equal to one."
+                )
             lookahead_steps = chunk_size - 1
             streaming_cfg.cache_drop_size = chunk_size - shift_size
         elif self.att_context_style == "chunked_limited":
             lookahead_steps = att_context_size[1]
             streaming_cfg.cache_drop_size = 0
         elif self.att_context_style == "regular":
-            lookahead_steps = att_context_size[1] * self.n_layers + self.conv_context_size[1] * self.n_layers
+            lookahead_steps = (
+                att_context_size[1] * self.n_layers
+                + self.conv_context_size[1] * self.n_layers
+            )
             streaming_cfg.cache_drop_size = lookahead_steps
         else:
             streaming_cfg.cache_drop_size = 0
             lookahead_steps = None
 
         if chunk_size is None:
-            streaming_cfg.last_channel_cache_size = att_context_size[0] if att_context_size[0] >= 0 else max_context
+            streaming_cfg.last_channel_cache_size = (
+                att_context_size[0] if att_context_size[0] >= 0 else max_context
+            )
         else:
             if left_chunks is None:
                 streaming_cfg.last_channel_cache_size = (
@@ -986,33 +1138,47 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
 
         if isinstance(sampling_frames, list):
             streaming_cfg.shift_size = [
-                sampling_frames[0] + sampling_frames[1] * (lookahead_steps - streaming_cfg.cache_drop_size),
-                sampling_frames[1] + sampling_frames[1] * (lookahead_steps - streaming_cfg.cache_drop_size),
+                sampling_frames[0]
+                + sampling_frames[1]
+                * (lookahead_steps - streaming_cfg.cache_drop_size),
+                sampling_frames[1]
+                + sampling_frames[1]
+                * (lookahead_steps - streaming_cfg.cache_drop_size),
             ]
         else:
-            streaming_cfg.shift_size = sampling_frames * (1 + lookahead_steps - streaming_cfg.cache_drop_size)
+            streaming_cfg.shift_size = sampling_frames * (
+                1 + lookahead_steps - streaming_cfg.cache_drop_size
+            )
 
         if isinstance(streaming_cfg.shift_size, list):
             streaming_cfg.valid_out_len = (
                 streaming_cfg.shift_size[1] - sampling_frames[1]
             ) // self.subsampling_factor + 1
         else:
-            streaming_cfg.valid_out_len = streaming_cfg.shift_size // self.subsampling_factor
+            streaming_cfg.valid_out_len = (
+                streaming_cfg.shift_size // self.subsampling_factor
+            )
 
         if hasattr(self.pre_encode, "get_streaming_cache_size"):
-            streaming_cfg.pre_encode_cache_size = self.pre_encode.get_streaming_cache_size()
+            streaming_cfg.pre_encode_cache_size = (
+                self.pre_encode.get_streaming_cache_size()
+            )
         else:
             streaming_cfg.pre_encode_cache_size = 0
 
         if isinstance(streaming_cfg.pre_encode_cache_size, list):
             if streaming_cfg.pre_encode_cache_size[1] >= 1:
                 streaming_cfg.drop_extra_pre_encoded = (
-                    1 + (streaming_cfg.pre_encode_cache_size[1] - 1) // self.subsampling_factor
+                    1
+                    + (streaming_cfg.pre_encode_cache_size[1] - 1)
+                    // self.subsampling_factor
                 )
             else:
                 streaming_cfg.drop_extra_pre_encoded = 0
         else:
-            streaming_cfg.drop_extra_pre_encoded = streaming_cfg.pre_encode_cache_size // self.subsampling_factor
+            streaming_cfg.drop_extra_pre_encoded = (
+                streaming_cfg.pre_encode_cache_size // self.subsampling_factor
+            )
 
         for m in self.layers.modules():
             if hasattr(m, "_max_cache_len"):
@@ -1023,7 +1189,9 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
 
         self.streaming_cfg = streaming_cfg
 
-    def get_initial_cache_state(self, batch_size=1, dtype=torch.float32, device=None, max_dim=0):
+    def get_initial_cache_state(
+        self, batch_size=1, dtype=torch.float32, device=None, max_dim=0
+    ):
         if device is None:
             device = next(self.parameters()).device
         if max_dim > 0:
@@ -1060,7 +1228,9 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
                 if cache_last_channel_len[i] == 0:
                     cache_last_time[:, i, :, :] = 0
         else:
-            cache_last_channel_len = torch.zeros(batch_size, device=device, dtype=torch.int64)
+            cache_last_channel_len = torch.zeros(
+                batch_size, device=device, dtype=torch.int64
+            )
         return cache_last_channel, cache_last_time, cache_last_channel_len
 
     def change_attention_model(
@@ -1103,7 +1273,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         if self_attention_model is None:
             self_attention_model = self.self_attention_model
 
-        if self_attention_model == 'rel_pos_local_attn' and max(att_context_size) <= 0:
+        if self_attention_model == "rel_pos_local_attn" and max(att_context_size) <= 0:
             raise ValueError("When using local attention, context size must be set > 0")
 
         if self_attention_model == "rel_pos":
@@ -1114,7 +1284,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
                 xscale=self.xscale,
                 dropout_rate_emb=self._cfg.dropout_emb,
             )
-        elif self_attention_model == 'rel_pos_local_attn':
+        elif self_attention_model == "rel_pos_local_attn":
             new_pos_enc = LocalAttRelPositionalEncoding(
                 att_context_size=att_context_size,
                 d_model=self._cfg.d_model,
@@ -1131,7 +1301,9 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
                 xscale=self.xscale,
             )
         else:
-            raise ValueError(f"Not valid self_attention_model: '{self_attention_model}'!")
+            raise ValueError(
+                f"Not valid self_attention_model: '{self_attention_model}'!"
+            )
 
         if device is not None:
             new_pos_enc = new_pos_enc.to(device=device)
@@ -1143,7 +1315,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
 
         for _, m in self.named_modules():
             if type(m) == ConformerLayer:
-                if self_attention_model == 'rel_pos':
+                if self_attention_model == "rel_pos":
                     new_attn = RelPositionMultiHeadAttention(
                         n_head=self._cfg.n_heads,
                         n_feat=self._cfg.d_model,
@@ -1154,7 +1326,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
                         use_pytorch_sdpa=self.use_pytorch_sdpa,
                         use_pytorch_sdpa_backends=self.use_pytorch_sdpa_backends,
                     )
-                elif self_attention_model == 'rel_pos_local_attn':
+                elif self_attention_model == "rel_pos_local_attn":
                     new_attn = RelPositionMultiHeadAttentionLongformer(
                         n_head=self._cfg.n_heads,
                         n_feat=self._cfg.d_model,
@@ -1166,7 +1338,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
                         use_pytorch_sdpa=self.use_pytorch_sdpa,
                         use_pytorch_sdpa_backends=self.use_pytorch_sdpa_backends,
                     )
-                elif self_attention_model == 'abs_pos':
+                elif self_attention_model == "abs_pos":
                     new_attn = MultiHeadAttention(
                         n_head=self._cfg.n_heads,
                         n_feat=self._cfg.d_model,
@@ -1192,7 +1364,9 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
                 self._cfg.self_attention_model = self_attention_model
                 self._cfg.att_context_size = att_context_size
 
-    def change_subsampling_conv_chunking_factor(self, subsampling_conv_chunking_factor: int):
+    def change_subsampling_conv_chunking_factor(
+        self, subsampling_conv_chunking_factor: int
+    ):
         """
         Update the conv_chunking_factor (int)
         Default is 1 (auto)
@@ -1204,7 +1378,9 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         """
 
         if not hasattr(self.pre_encode, "change_subsampling_conv_chunking_factor"):
-            logging.info("Model pre_encoder doesn't have a change_subsampling_conv_chunking_factor method ")
+            logging.info(
+                "Model pre_encoder doesn't have a change_subsampling_conv_chunking_factor method "
+            )
             return
 
         self.pre_encode.change_subsampling_conv_chunking_factor(
@@ -1222,7 +1398,9 @@ class ConformerEncoderAdapter(ConformerEncoder, adapter_mixins.AdapterModuleMixi
             conformer_layer.add_adapter(name, cfg)
 
     def is_adapter_available(self) -> bool:
-        return any([conformer_layer.is_adapter_available() for conformer_layer in self.layers])
+        return any(
+            [conformer_layer.is_adapter_available() for conformer_layer in self.layers]
+        )
 
     def set_enabled_adapters(self, name: Optional[str] = None, enabled: bool = True):
         for conformer_layer in self.layers:  # type: adapter_mixins.AdapterModuleMixin
@@ -1237,7 +1415,9 @@ class ConformerEncoderAdapter(ConformerEncoder, adapter_mixins.AdapterModuleMixi
         return names
 
     def _update_adapter_cfg_input_dim(self, cfg: DictConfig):
-        cfg = adapter_utils.update_adapter_cfg_input_dim(self, cfg, module_dim=self.d_model)
+        cfg = adapter_utils.update_adapter_cfg_input_dim(
+            self, cfg, module_dim=self.d_model
+        )
         return cfg
 
     def get_accepted_adapter_types(
@@ -1279,7 +1459,9 @@ class ConformerMultiLayerFeatureExtractor(NeuralModule, Exportable, AccessMixin)
         self.layer_idx_list = [int(lyr_idx) for lyr_idx in layer_idx_list]
         for x in self.layer_idx_list:
             if x < 0 or x >= len(encoder.layers):
-                raise ValueError(f"layer index {x} out of range [0, {len(encoder.layers)})")
+                raise ValueError(
+                    f"layer index {x} out of range [0, {len(encoder.layers)})"
+                )
         self.enc_access_cfg = {
             "interctc": {
                 "capture_layers": self.layer_idx_list,
@@ -1290,12 +1472,21 @@ class ConformerMultiLayerFeatureExtractor(NeuralModule, Exportable, AccessMixin)
         self.aggregator = aggregator
 
     def forward(
-        self, audio_signal, length, cache_last_channel=None, cache_last_time=None, cache_last_channel_len=None
+        self,
+        audio_signal,
+        length,
+        cache_last_channel=None,
+        cache_last_time=None,
+        cache_last_channel_len=None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         # pylint: disable=missing-function-docstring
         old_access_flag = self.is_access_enabled(guid=getattr(self, "model_guid", None))
-        self.update_access_cfg(self.enc_access_cfg, guid=getattr(self, "model_guid", None))
-        self.set_access_enabled(access_enabled=True, guid=getattr(self, "model_guid", None))
+        self.update_access_cfg(
+            self.enc_access_cfg, guid=getattr(self, "model_guid", None)
+        )
+        self.set_access_enabled(
+            access_enabled=True, guid=getattr(self, "model_guid", None)
+        )
 
         _ = self.encoder(
             audio_signal=audio_signal,
@@ -1325,23 +1516,34 @@ class ConformerMultiLayerFeatureExtractor(NeuralModule, Exportable, AccessMixin)
                     "Check the layer index and the number of ConformerEncoder layers."
                 )
             if len(layer_outputs) > 1 or len(layer_lengths) > 1:
-                raise RuntimeError("Make sure encoder.forward is called exactly one time")
+                raise RuntimeError(
+                    "Make sure encoder.forward is called exactly one time"
+                )
             encoded_list.append(layer_outputs[0])  # [B, D, T]
             encoded_len_list.append(layer_lengths[0])  # [B]
 
         self.encoder.reset_registry()
-        self.set_access_enabled(access_enabled=old_access_flag, guid=getattr(self, "model_guid", None))
+        self.set_access_enabled(
+            access_enabled=old_access_flag, guid=getattr(self, "model_guid", None)
+        )
         # End of the adapted chunk
 
         if self.aggregator is not None:
-            return self.aggregator(encoded_list, encoded_len_list)  # Tensor[B,D*L,T], Tensor[B]
+            return self.aggregator(
+                encoded_list, encoded_len_list
+            )  # Tensor[B,D*L,T], Tensor[B]
         else:
-            return encoded_list, encoded_len_list  # List[Tensor[B,D,T]], List[Tensor[B]]
+            return (
+                encoded_list,
+                encoded_len_list,
+            )  # List[Tensor[B,D,T]], List[Tensor[B]]
 
 
 # Register any additional information
 if adapter_mixins.get_registered_adapter(ConformerEncoder) is None:
-    adapter_mixins.register_adapter(base_class=ConformerEncoder, adapter_class=ConformerEncoderAdapter)
+    adapter_mixins.register_adapter(
+        base_class=ConformerEncoder, adapter_class=ConformerEncoderAdapter
+    )
 
 
 @dataclass

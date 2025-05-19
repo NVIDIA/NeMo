@@ -23,9 +23,15 @@ from os import listdir
 from nemo.collections.nlp.data.text_normalization_as_tagging.utils import \
     spoken_preprocessing
 
-parser = ArgumentParser(description="Get reference vocabulary from corpus (it will be used in testing)")
-parser.add_argument("--data_dir", type=str, required=True, help="Path to folder with data")
-parser.add_argument("--out_filename", type=str, required=True, help="Path to output file")
+parser = ArgumentParser(
+    description="Get reference vocabulary from corpus (it will be used in testing)"
+)
+parser.add_argument(
+    "--data_dir", type=str, required=True, help="Path to folder with data"
+)
+parser.add_argument(
+    "--out_filename", type=str, required=True, help="Path to output file"
+)
 args = parser.parse_args()
 
 if __name__ == "__main__":
@@ -45,7 +51,11 @@ if __name__ == "__main__":
                     continue
                 if len(parts) != 3:
                     raise ValueError("Expect 3 parts, got " + str(len(parts)))
-                semiotic_class, written, spoken = parts[0], parts[1].strip().casefold(), parts[2].strip().casefold()
+                semiotic_class, written, spoken = (
+                    parts[0],
+                    parts[1].strip().casefold(),
+                    parts[2].strip().casefold(),
+                )
                 spoken = spoken_preprocessing(spoken)
                 if spoken == "<self>":
                     continue
@@ -61,5 +71,14 @@ if __name__ == "__main__":
     with open(args.out_filename, "w", encoding="utf-8") as out:
         for sem, spoken in vcb:
             for written in vcb[(sem, spoken)]:
-                out.write(sem + "\t" + spoken + "\t" + written + "\t" + str(vcb[(sem, spoken)][written]) + "\n")
+                out.write(
+                    sem
+                    + "\t"
+                    + spoken
+                    + "\t"
+                    + written
+                    + "\t"
+                    + str(vcb[(sem, spoken)][written])
+                    + "\n"
+                )
             out.write(sem + "\t" + spoken + "\t" + spoken + "\t1\n")

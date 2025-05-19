@@ -53,7 +53,7 @@ def get_forward_loop(fwd_bwd_step, dataloader, num_batches):
 @hydra_runner(config_path="conf", config_name="megatron_gpt_qat_config")
 def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
-    logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
+    logging.info(f"\n{OmegaConf.to_yaml(cfg)}")
 
     trainer = MegatronLMPPTrainerBuilder(cfg).create_trainer()
     exp_manager(trainer, cfg.exp_manager)
@@ -63,8 +63,12 @@ def main(cfg) -> None:
     model_cfg = MegatronGPTSFTModel.merge_cfg_with(cfg.model.restore_from_path, cfg)
     model_cfg = quantizer.modify_model_config(model_cfg)
 
-    model = MegatronGPTSFTModel.restore_from(cfg.model.restore_from_path, model_cfg, trainer=trainer)
-    assert model.mcore_gpt, "Only MCoreGPTModel is supported with nvidia-modelopt for QAT."
+    model = MegatronGPTSFTModel.restore_from(
+        cfg.model.restore_from_path, model_cfg, trainer=trainer
+    )
+    assert (
+        model.mcore_gpt
+    ), "Only MCoreGPTModel is supported with nvidia-modelopt for QAT."
 
     # Setup dataloaders
     model.setup()
@@ -76,7 +80,9 @@ def main(cfg) -> None:
         unwrapped_model = model_module_list[0]
 
         num_batches = cfg.quantization.num_calib_size // cfg.model.global_batch_size
-        forward_loop = get_forward_loop(model.fwd_bwd_step, model.train_dataloader(), num_batches)
+        forward_loop = get_forward_loop(
+            model.fwd_bwd_step, model.train_dataloader(), num_batches
+        )
         quantizer.quantize(unwrapped_model, forward_loop)
 
         logging.info("Validating model after PTQ...")
@@ -91,5 +97,5 @@ def main(cfg) -> None:
         quantizer.export(model)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

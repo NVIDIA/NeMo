@@ -83,7 +83,9 @@ class MultimodalSamplingConstraint(SamplingConstraint):
 
     def measure_length(self, example: Any) -> float:
         if isinstance(example, Cut):
-            audio_len_in_tokens = math.ceil(example.duration / self.token_equivalent_duration)
+            audio_len_in_tokens = math.ceil(
+                example.duration / self.token_equivalent_duration
+            )
             if self.measure_total_length:
                 # Total length of a Cut (audio+text example) is counted as the sum of:
                 # * num_tokens in each supervision segment ("utterance") in the Cut
@@ -97,7 +99,11 @@ class MultimodalSamplingConstraint(SamplingConstraint):
                 return audio_len_in_tokens
         elif isinstance(example, Formattable):
             try:
-                return example.total_length if self.measure_total_length else example.input_length
+                return (
+                    example.total_length
+                    if self.measure_total_length
+                    else example.input_length
+                )
             except (AttributeError, AssertionError) as e:
                 raise RuntimeError(
                     "Couldn't determine the length of a text example; "
@@ -127,7 +133,9 @@ class FixedBucketBatchSizeConstraint2D(FixedBucketBatchSizeConstraint):
         if isinstance(self.max_seq_len_buckets[0], Sequence):
             self.max_seq_len_buckets = np.asarray(self.max_seq_len_buckets)
         if self.max_ratio is not None:
-            assert isinstance(self.max_ratio, Sequence), f"self.max_ratio must be a list, but we got: {self.max_ratio}"
+            assert isinstance(
+                self.max_ratio, Sequence
+            ), f"self.max_ratio must be a list, but we got: {self.max_ratio}"
             assert len(self.max_ratio) == len(
                 self.max_seq_len_buckets
             ), f"{len(self.max_ratio)=} != {len(self.max_seq_len_buckets)=}"
@@ -142,11 +150,16 @@ class FixedBucketBatchSizeConstraint2D(FixedBucketBatchSizeConstraint):
         else:
             return example.duration
 
-    def select_bucket(self, buckets: Any, example: Any = None, example_len: Any = None) -> int:
+    def select_bucket(
+        self, buckets: Any, example: Any = None, example_len: Any = None
+    ) -> int:
         if example_len is None:
             example_len = self.measure_length(example)
         return find_smallest_bucket(
-            self.max_seq_len_buckets, example_len, strict=self.strict_2d, max_ratio=self.max_ratio
+            self.max_seq_len_buckets,
+            example_len,
+            strict=self.strict_2d,
+            max_ratio=self.max_ratio,
         )
 
 
@@ -181,7 +194,10 @@ def find_smallest_bucket(
             return None
         # Find the last 2D bucket that accepts this example
         dim0_end = dim0_begin
-        while dim0_end < buckets.shape[0] and buckets[dim0_end, 0] == buckets[dim0_begin, 0]:
+        while (
+            dim0_end < buckets.shape[0]
+            and buckets[dim0_end, 0] == buckets[dim0_begin, 0]
+        ):
             dim0_end += 1
         # Find the smallest 2D bucket in this range that accepts this example
         dim1_begin = bisect_left(buckets[dim0_begin:dim0_end, 1], example_lens[1])
@@ -189,7 +205,10 @@ def find_smallest_bucket(
             return None
         fit_idx = dim0_begin + dim1_begin
         # Apply max_ratio (token-per-second/token-per-token) filtering if requested
-        if max_ratio is not None and example_lens[1] / example_lens[0] > max_ratio[fit_idx]:
+        if (
+            max_ratio is not None
+            and example_lens[1] / example_lens[0] > max_ratio[fit_idx]
+        ):
             return None
         return fit_idx
 
@@ -226,7 +245,9 @@ class MultimodalFixedBucketBatchSizeConstraint2D(FixedBucketBatchSizeConstraint2
             # Total length of a Cut (audio+text example) is counted as the sum of:
             # * num_tokens in each supervision segment ("utterance") in the Cut
             # * num_frames of audio (frame=token) given a token-equivalent-duration (basically a frame shift)
-            audio_len_in_tokens = math.ceil(example.duration / self.token_equivalent_duration)
+            audio_len_in_tokens = math.ceil(
+                example.duration / self.token_equivalent_duration
+            )
             text_tokens = _measure_tokens(example)
 
             if self.bucketing_2d_enabled:
@@ -242,7 +263,11 @@ class MultimodalFixedBucketBatchSizeConstraint2D(FixedBucketBatchSizeConstraint2
             if self.bucketing_2d_enabled:
                 return example.input_length, example.output_length
             else:
-                return example.total_length if self.measure_total_length else example.input_length
+                return (
+                    example.total_length
+                    if self.measure_total_length
+                    else example.input_length
+                )
 
         raise RuntimeError(f"Unsupported example type: {type(example)}")
 
@@ -281,7 +306,9 @@ class TokenCountFilter:
     and enable ``TokenPerTokenFilter`` for additional filtering on the output sequence length.
     """
 
-    def __init__(self, t_min: float | None, t_max: float | None, measure_total_length: bool) -> None:
+    def __init__(
+        self, t_min: float | None, t_max: float | None, measure_total_length: bool
+    ) -> None:
         self.t_min = ifnone(t_min, -1)
         self.t_max = ifnone(t_max, float("inf"))
         self.measure_total_length = measure_total_length
@@ -296,7 +323,11 @@ class TokenCountFilter:
             f"allow us to select the right sequence length for filtering. We got: {example}"
         )
         try:
-            length = example.total_length if self.measure_total_length else example.input_length
+            length = (
+                example.total_length
+                if self.measure_total_length
+                else example.input_length
+            )
         except (AttributeError, AssertionError) as e:
             raise RuntimeError(
                 f"Cannot measure token count for example: {example} "
@@ -365,7 +396,10 @@ class BucketingFilter:
     def __call__(self, example) -> bool:
         if not self.enabled:
             return True
-        return self.constraint.select_bucket(self.constraint.max_seq_len_buckets, example) is not None
+        return (
+            self.constraint.select_bucket(self.constraint.max_seq_len_buckets, example)
+            is not None
+        )
 
 
 def _measure_tokens(cut: Cut) -> int:

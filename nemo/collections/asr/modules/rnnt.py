@@ -69,18 +69,18 @@ class StatelessTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
     def input_types(self):
         """Returns definitions of module input ports."""
         return {
-            "targets": NeuralType(('B', 'T'), LabelsType()),
-            "target_length": NeuralType(tuple('B'), LengthsType()),
-            "states": [NeuralType(('B', 'T'), LabelsType(), optional=True)],
+            "targets": NeuralType(("B", "T"), LabelsType()),
+            "target_length": NeuralType(tuple("B"), LengthsType()),
+            "states": [NeuralType(("B", "T"), LabelsType(), optional=True)],
         }
 
     @property
     def output_types(self):
         """Returns definitions of module output ports."""
         return {
-            "outputs": NeuralType(('B', 'D', 'T'), EmbeddedTextType()),
-            "prednet_lengths": NeuralType(tuple('B'), LengthsType()),
-            "states": [NeuralType(('B', 'T'), LabelsType(), optional=True)],
+            "outputs": NeuralType(("B", "D", "T"), EmbeddedTextType()),
+            "prednet_lengths": NeuralType(tuple("B"), LengthsType()),
+            "states": [NeuralType(("B", "T"), LabelsType(), optional=True)],
         }
 
     def input_example(self, max_batch=1, max_dim=1):
@@ -90,12 +90,12 @@ class StatelessTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
             A tuple of input examples.
         """
         length = max_dim
-        targets = torch.full(fill_value=self.blank_idx, size=(max_batch, length), dtype=torch.int32).to(
-            next(self.parameters()).device
-        )
-        target_length = torch.randint(0, length, size=(max_batch,), dtype=torch.int32).to(
-            next(self.parameters()).device
-        )
+        targets = torch.full(
+            fill_value=self.blank_idx, size=(max_batch, length), dtype=torch.int32
+        ).to(next(self.parameters()).device)
+        target_length = torch.randint(
+            0, length, size=(max_batch,), dtype=torch.int32
+        ).to(next(self.parameters()).device)
         states = tuple(self.initialize_state(targets.float()))
         return (targets, target_length, states)
 
@@ -111,15 +111,17 @@ class StatelessTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
         normalization_mode: Optional[str] = None,
     ):
         # Required arguments
-        self.pred_hidden = prednet['pred_hidden']
+        self.pred_hidden = prednet["pred_hidden"]
         self.blank_idx = vocab_size
         self.context_size = context_size
 
         # Initialize the model (blank token increases vocab size by 1)
-        super().__init__(vocab_size=vocab_size, blank_idx=self.blank_idx, blank_as_pad=True)
+        super().__init__(
+            vocab_size=vocab_size, blank_idx=self.blank_idx, blank_as_pad=True
+        )
 
         # Optional arguments
-        dropout = prednet.get('dropout', 0.0)
+        dropout = prednet.get("dropout", 0.0)
 
         self.prediction = self._predict_modules(
             **{
@@ -270,13 +272,21 @@ class StatelessTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
             device = _p.device
 
         # parse "blank" tokens in hypothesis
-        if len(hypothesis.y_sequence) > 0 and hypothesis.y_sequence[-1] == self.blank_idx:
+        if (
+            len(hypothesis.y_sequence) > 0
+            and hypothesis.y_sequence[-1] == self.blank_idx
+        ):
             blank_state = True
         else:
             blank_state = False
 
         # Convert last token of hypothesis to torch.Tensor
-        target = torch.full([1, 1], fill_value=hypothesis.y_sequence[-1], device=device, dtype=torch.long)
+        target = torch.full(
+            [1, 1],
+            fill_value=hypothesis.y_sequence[-1],
+            device=device,
+            dtype=torch.long,
+        )
         lm_token = target[:, -1]  # [1]
 
         # Convert current hypothesis into a tuple to preserve in cache
@@ -287,7 +297,9 @@ class StatelessTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
         else:
             # Obtain score for target token and new states
             if blank_state:
-                y, new_state = self.predict(None, state=None, add_sos=False, batch_size=1)  # [1, 1, H]
+                y, new_state = self.predict(
+                    None, state=None, add_sos=False, batch_size=1
+                )  # [1, 1, H]
 
             else:
                 y, new_state = self.predict(
@@ -304,7 +316,12 @@ class StatelessTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
         # state contains context_size - 1 elements for each utterance in batch,
         # consistent with the state returned from StatelessNet.forward
         state = [
-            torch.full([batch, self.context_size - 1], fill_value=self.blank_idx, dtype=torch.long, device=y.device)
+            torch.full(
+                [batch, self.context_size - 1],
+                fill_value=self.blank_idx,
+                dtype=torch.long,
+                device=y.device,
+            )
         ]
         return state
 
@@ -325,7 +342,9 @@ class StatelessTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
 
         return [new_state]
 
-    def batch_select_state(self, batch_states: List[torch.Tensor], idx: int) -> List[List[torch.Tensor]]:
+    def batch_select_state(
+        self, batch_states: List[torch.Tensor], idx: int
+    ) -> List[List[torch.Tensor]]:
         """Get decoder state from batch of states, for given id.
 
         Args:
@@ -347,7 +366,9 @@ class StatelessTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
         else:
             return None
 
-    def batch_concat_states(self, batch_states: List[List[torch.Tensor]]) -> List[torch.Tensor]:
+    def batch_concat_states(
+        self, batch_states: List[List[torch.Tensor]]
+    ) -> List[torch.Tensor]:
         """Concatenate a batch of decoder state to a packed state.
 
         Args:
@@ -375,7 +396,9 @@ class StatelessTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
         src_states: tuple[torch.Tensor, torch.Tensor] | list[torch.Tensor],
         dst_states: tuple[torch.Tensor, torch.Tensor] | list[torch.Tensor],
         mask: torch.Tensor,
-        other_src_states: Optional[tuple[torch.Tensor, torch.Tensor] | list[torch.Tensor]] = None,
+        other_src_states: Optional[
+            tuple[torch.Tensor, torch.Tensor] | list[torch.Tensor]
+        ] = None,
     ):
         """
         Replaces states in `dst_states` with states from `src_states` based on the given `mask`.
@@ -402,7 +425,9 @@ class StatelessTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
         """Replace states in dst_states with states from src_states"""
         dst_states[0].copy_(src_states[0])
 
-    def batch_split_states(self, batch_states: list[torch.Tensor]) -> list[list[torch.Tensor]]:
+    def batch_split_states(
+        self, batch_states: list[torch.Tensor]
+    ) -> list[list[torch.Tensor]]:
         """
         Split states into a list of states.
         Useful for splitting the final state for converting results of the decoding algorithm to Hypothesis class.
@@ -498,8 +523,12 @@ class StatelessTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
             batch = len(to_process)
 
             # convert list of tokens to torch.Tensor, then reshape.
-            tokens = torch.tensor(tokens, device=device, dtype=torch.long).view(batch, -1)
-            dec_states = self.batch_initialize_states([d_state for _, d_state in to_process])
+            tokens = torch.tensor(tokens, device=device, dtype=torch.long).view(
+                batch, -1
+            )
+            dec_states = self.batch_initialize_states(
+                [d_state for _, d_state in to_process]
+            )
 
             dec_outputs, dec_states = self.predict(
                 tokens, state=dec_states, add_sos=False, batch_size=batch
@@ -514,11 +543,16 @@ class StatelessTransducerDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable):
 
                     # Cache [1, H] scores of the current y_j, and its corresponding state
                     final[final_idx] = (dec_outputs[processed_idx], new_state)
-                    cache[to_process[processed_idx][0]] = (dec_outputs[processed_idx], new_state)
+                    cache[to_process[processed_idx][0]] = (
+                        dec_outputs[processed_idx],
+                        new_state,
+                    )
 
                     processed_idx += 1
 
-        return [dec_out for dec_out, _ in final], [dec_states for _, dec_states in final]
+        return [dec_out for dec_out, _ in final], [
+            dec_states for _, dec_states in final
+        ]
 
 
 class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMixin):
@@ -583,18 +617,22 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
     def input_types(self):
         """Returns definitions of module input ports."""
         return {
-            "targets": NeuralType(('B', 'T'), LabelsType()),
-            "target_length": NeuralType(tuple('B'), LengthsType()),
-            "states": [NeuralType(('D', 'B', 'D'), ElementType(), optional=True)],  # must always be last
+            "targets": NeuralType(("B", "T"), LabelsType()),
+            "target_length": NeuralType(tuple("B"), LengthsType()),
+            "states": [
+                NeuralType(("D", "B", "D"), ElementType(), optional=True)
+            ],  # must always be last
         }
 
     @property
     def output_types(self):
         """Returns definitions of module output ports."""
         return {
-            "outputs": NeuralType(('B', 'D', 'T'), EmbeddedTextType()),
-            "prednet_lengths": NeuralType(tuple('B'), LengthsType()),
-            "states": [NeuralType((('D', 'B', 'D')), ElementType(), optional=True)],  # must always be last
+            "outputs": NeuralType(("B", "D", "T"), EmbeddedTextType()),
+            "prednet_lengths": NeuralType(tuple("B"), LengthsType()),
+            "states": [
+                NeuralType((("D", "B", "D")), ElementType(), optional=True)
+            ],  # must always be last
         }
 
     def input_example(self, max_batch=1, max_dim=1):
@@ -604,12 +642,12 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
             A tuple of input examples.
         """
         length = max_dim
-        targets = torch.full(fill_value=self.blank_idx, size=(max_batch, length), dtype=torch.int32).to(
-            next(self.parameters()).device
-        )
-        target_length = torch.randint(0, length, size=(max_batch,), dtype=torch.int32).to(
-            next(self.parameters()).device
-        )
+        targets = torch.full(
+            fill_value=self.blank_idx, size=(max_batch, length), dtype=torch.int32
+        ).to(next(self.parameters()).device)
+        target_length = torch.randint(
+            0, length, size=(max_batch,), dtype=torch.int32
+        ).to(next(self.parameters()).device)
         states = tuple(self.initialize_state(targets.float()))
         return (targets, target_length, states)
 
@@ -626,19 +664,21 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
         blank_as_pad: bool = True,
     ):
         # Required arguments
-        self.pred_hidden = prednet['pred_hidden']
+        self.pred_hidden = prednet["pred_hidden"]
         self.pred_rnn_layers = prednet["pred_rnn_layers"]
         self.blank_idx = vocab_size
 
         # Initialize the model (blank token increases vocab size by 1)
-        super().__init__(vocab_size=vocab_size, blank_idx=self.blank_idx, blank_as_pad=blank_as_pad)
+        super().__init__(
+            vocab_size=vocab_size, blank_idx=self.blank_idx, blank_as_pad=blank_as_pad
+        )
 
         # Optional arguments
-        forget_gate_bias = prednet.get('forget_gate_bias', 1.0)
-        t_max = prednet.get('t_max', None)
-        weights_init_scale = prednet.get('weights_init_scale', 1.0)
-        hidden_hidden_bias_scale = prednet.get('hidden_hidden_bias_scale', 0.0)
-        dropout = prednet.get('dropout', 0.0)
+        forget_gate_bias = prednet.get("forget_gate_bias", 1.0)
+        t_max = prednet.get("t_max", None)
+        weights_init_scale = prednet.get("weights_init_scale", 1.0)
+        hidden_hidden_bias_scale = prednet.get("hidden_hidden_bias_scale", 0.0)
+        dropout = prednet.get("dropout", 0.0)
         self.random_state_sampling = random_state_sampling
 
         self.prediction = self._predict_modules(
@@ -814,7 +854,9 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
             rnn_hidden_size: the hidden size of the RNN, if not specified, pred_n_hidden would be used
         """
         if self.blank_as_pad:
-            embed = torch.nn.Embedding(vocab_size + 1, pred_n_hidden, padding_idx=self.blank_idx)
+            embed = torch.nn.Embedding(
+                vocab_size + 1, pred_n_hidden, padding_idx=self.blank_idx
+            )
         else:
             embed = torch.nn.Embedding(vocab_size, pred_n_hidden)
 
@@ -823,7 +865,9 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
                 "embed": embed,
                 "dec_rnn": rnn.rnn(
                     input_size=pred_n_hidden,
-                    hidden_size=rnn_hidden_size if rnn_hidden_size > 0 else pred_n_hidden,
+                    hidden_size=(
+                        rnn_hidden_size if rnn_hidden_size > 0 else pred_n_hidden
+                    ),
                     num_layers=pred_rnn_layers,
                     norm=norm,
                     forget_gate_bias=forget_gate_bias,
@@ -857,14 +901,38 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
         batch = y.size(0)
         if self.random_state_sampling and self.training:
             state = (
-                torch.randn(self.pred_rnn_layers, batch, self.pred_hidden, dtype=y.dtype, device=y.device),
-                torch.randn(self.pred_rnn_layers, batch, self.pred_hidden, dtype=y.dtype, device=y.device),
+                torch.randn(
+                    self.pred_rnn_layers,
+                    batch,
+                    self.pred_hidden,
+                    dtype=y.dtype,
+                    device=y.device,
+                ),
+                torch.randn(
+                    self.pred_rnn_layers,
+                    batch,
+                    self.pred_hidden,
+                    dtype=y.dtype,
+                    device=y.device,
+                ),
             )
 
         else:
             state = (
-                torch.zeros(self.pred_rnn_layers, batch, self.pred_hidden, dtype=y.dtype, device=y.device),
-                torch.zeros(self.pred_rnn_layers, batch, self.pred_hidden, dtype=y.dtype, device=y.device),
+                torch.zeros(
+                    self.pred_rnn_layers,
+                    batch,
+                    self.pred_hidden,
+                    dtype=y.dtype,
+                    device=y.device,
+                ),
+                torch.zeros(
+                    self.pred_rnn_layers,
+                    batch,
+                    self.pred_hidden,
+                    dtype=y.dtype,
+                    device=y.device,
+                ),
             )
         return state
 
@@ -892,13 +960,21 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
             device = _p.device
 
         # parse "blank" tokens in hypothesis
-        if len(hypothesis.y_sequence) > 0 and hypothesis.y_sequence[-1] == self.blank_idx:
+        if (
+            len(hypothesis.y_sequence) > 0
+            and hypothesis.y_sequence[-1] == self.blank_idx
+        ):
             blank_state = True
         else:
             blank_state = False
 
         # Convert last token of hypothesis to torch.Tensor
-        target = torch.full([1, 1], fill_value=hypothesis.y_sequence[-1], device=device, dtype=torch.long)
+        target = torch.full(
+            [1, 1],
+            fill_value=hypothesis.y_sequence[-1],
+            device=device,
+            dtype=torch.long,
+        )
         lm_token = target[:, -1]  # [1]
 
         # Convert current hypothesis into a tuple to preserve in cache
@@ -909,7 +985,9 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
         else:
             # Obtain score for target token and new states
             if blank_state:
-                y, new_state = self.predict(None, state=None, add_sos=False, batch_size=1)  # [1, 1, H]
+                y, new_state = self.predict(
+                    None, state=None, add_sos=False, batch_size=1
+                )  # [1, 1, H]
 
             else:
                 y, new_state = self.predict(
@@ -964,8 +1042,12 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
             batch = len(to_process)
 
             # convert list of tokens to torch.Tensor, then reshape.
-            tokens = torch.tensor(tokens, device=device, dtype=torch.long).view(batch, -1)
-            dec_states = self.batch_initialize_states([d_state for _, d_state in to_process])
+            tokens = torch.tensor(tokens, device=device, dtype=torch.long).view(
+                batch, -1
+            )
+            dec_states = self.batch_initialize_states(
+                [d_state for _, d_state in to_process]
+            )
 
             dec_out, dec_states = self.predict(
                 tokens, state=dec_states, add_sos=False, batch_size=batch
@@ -980,13 +1062,20 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
 
                     # Cache [1, H] scores of the current y_j, and its corresponding state
                     final[final_idx] = (dec_out[processed_idx], new_state)
-                    cache[to_process[processed_idx][0]] = (dec_out[processed_idx], new_state)
+                    cache[to_process[processed_idx][0]] = (
+                        dec_out[processed_idx],
+                        new_state,
+                    )
 
                     processed_idx += 1
 
-        return [dec_out for dec_out, _ in final], [dec_states for _, dec_states in final]
+        return [dec_out for dec_out, _ in final], [
+            dec_states for _, dec_states in final
+        ]
 
-    def batch_initialize_states(self, decoder_states: List[List[torch.Tensor]]) -> List[torch.Tensor]:
+    def batch_initialize_states(
+        self, decoder_states: List[List[torch.Tensor]]
+    ) -> List[torch.Tensor]:
         """
         Creates a stacked decoder states to be passed to prediction network
 
@@ -1004,12 +1093,16 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
         """
         # stack decoder states into tensor of shape [B x layers x L x H]
         # permute to the target shape [layers x L x B x H]
-        stacked_states = torch.stack([torch.stack(decoder_state) for decoder_state in decoder_states])
+        stacked_states = torch.stack(
+            [torch.stack(decoder_state) for decoder_state in decoder_states]
+        )
         permuted_states = stacked_states.permute(1, 2, 0, 3)
 
         return list(permuted_states.contiguous())
 
-    def batch_select_state(self, batch_states: List[torch.Tensor], idx: int) -> List[List[torch.Tensor]]:
+    def batch_select_state(
+        self, batch_states: List[torch.Tensor], idx: int
+    ) -> List[List[torch.Tensor]]:
         """Get decoder state from batch of states, for given id.
 
         Args:
@@ -1065,20 +1158,32 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
         if dst_states is not None:
             # Perform in-place gathering into dst_states
             torch.gather(
-                src_states[0].view(beam_shape), dim=2, index=indices_expanded, out=dst_states[0].view(beam_shape)
+                src_states[0].view(beam_shape),
+                dim=2,
+                index=indices_expanded,
+                out=dst_states[0].view(beam_shape),
             )
             torch.gather(
-                src_states[1].view(beam_shape), dim=2, index=indices_expanded, out=dst_states[1].view(beam_shape)
+                src_states[1].view(beam_shape),
+                dim=2,
+                index=indices_expanded,
+                out=dst_states[1].view(beam_shape),
             )
             return dst_states
 
         # Gather and reshape into the output format
         return (
-            torch.gather(src_states[0].view(beam_shape), dim=2, index=indices_expanded).view(flat_shape),
-            torch.gather(src_states[1].view(beam_shape), dim=2, index=indices_expanded).view(flat_shape),
+            torch.gather(
+                src_states[0].view(beam_shape), dim=2, index=indices_expanded
+            ).view(flat_shape),
+            torch.gather(
+                src_states[1].view(beam_shape), dim=2, index=indices_expanded
+            ).view(flat_shape),
         )
 
-    def batch_concat_states(self, batch_states: List[List[torch.Tensor]]) -> List[torch.Tensor]:
+    def batch_concat_states(
+        self, batch_states: List[List[torch.Tensor]]
+    ) -> List[torch.Tensor]:
         """Concatenate a batch of decoder state to a packed state.
 
         Args:
@@ -1133,8 +1238,18 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
 
         other = other_src_states if other_src_states is not None else dst_states
         dtype = dst_states[0].dtype
-        torch.where(mask.unsqueeze(0).unsqueeze(-1), src_states[0].to(dtype), other[0].to(dtype), out=dst_states[0])
-        torch.where(mask.unsqueeze(0).unsqueeze(-1), src_states[1].to(dtype), other[1].to(dtype), out=dst_states[1])
+        torch.where(
+            mask.unsqueeze(0).unsqueeze(-1),
+            src_states[0].to(dtype),
+            other[0].to(dtype),
+            out=dst_states[0],
+        )
+        torch.where(
+            mask.unsqueeze(0).unsqueeze(-1),
+            src_states[1].to(dtype),
+            other[1].to(dtype),
+            out=dst_states[1],
+        )
 
     @classmethod
     def batch_replace_states_all(
@@ -1153,7 +1268,9 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
         Split states into a list of states.
         Useful for splitting the final state for converting results of the decoding algorithm to Hypothesis class.
         """
-        return list(zip(batch_states[0].split(1, dim=1), batch_states[1].split(1, dim=1)))
+        return list(
+            zip(batch_states[0].split(1, dim=1), batch_states[1].split(1, dim=1))
+        )
 
     def batch_copy_states(
         self,
@@ -1211,7 +1328,9 @@ class RNNTDecoder(rnnt_abstract.AbstractRNNTDecoder, Exportable, AdapterModuleMi
         super().add_adapter(name=name, cfg=cfg)
 
     def _update_adapter_cfg_input_dim(self, cfg: DictConfig):
-        cfg = adapter_utils.update_adapter_cfg_input_dim(self, cfg, module_dim=self.pred_hidden)
+        cfg = adapter_utils.update_adapter_cfg_input_dim(
+            self, cfg, module_dim=self.pred_hidden
+        )
         return cfg
 
 
@@ -1290,11 +1409,13 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
     def input_types(self):
         """Returns definitions of module input ports."""
         return {
-            "encoder_outputs": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
-            "decoder_outputs": NeuralType(('B', 'D', 'T'), EmbeddedTextType()),
-            "encoder_lengths": NeuralType(tuple('B'), LengthsType(), optional=True),
-            "transcripts": NeuralType(('B', 'T'), LabelsType(), optional=True),
-            "transcript_lengths": NeuralType(tuple('B'), LengthsType(), optional=True),
+            "encoder_outputs": NeuralType(
+                ("B", "D", "T"), AcousticEncodedRepresentation()
+            ),
+            "decoder_outputs": NeuralType(("B", "D", "T"), EmbeddedTextType()),
+            "encoder_lengths": NeuralType(tuple("B"), LengthsType(), optional=True),
+            "transcripts": NeuralType(("B", "T"), LabelsType(), optional=True),
+            "transcript_lengths": NeuralType(tuple("B"), LengthsType(), optional=True),
             "compute_wer": NeuralType(optional=True),
         }
 
@@ -1303,7 +1424,7 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
         """Returns definitions of module output ports."""
         if not self._fuse_loss_wer:
             return {
-                "outputs": NeuralType(('B', 'T', 'T', 'D'), LogprobsType()),
+                "outputs": NeuralType(("B", "T", "T", "D"), LogprobsType()),
             }
 
         else:
@@ -1326,14 +1447,20 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
             A tuple of input examples.
         """
         B, T, U = max_batch, max_dim, max_batch
-        encoder_outputs = torch.randn(B, self.encoder_hidden, T).to(next(self.parameters()).device)
-        decoder_outputs = torch.randn(B, self.pred_hidden, U).to(next(self.parameters()).device)
+        encoder_outputs = torch.randn(B, self.encoder_hidden, T).to(
+            next(self.parameters()).device
+        )
+        decoder_outputs = torch.randn(B, self.pred_hidden, U).to(
+            next(self.parameters()).device
+        )
         return (encoder_outputs, decoder_outputs)
 
     @property
     def disabled_deployment_input_names(self):
         """Implement this method to return a set of input names disabled for export"""
-        return set(["encoder_lengths", "transcripts", "transcript_lengths", "compute_wer"])
+        return set(
+            ["encoder_lengths", "transcripts", "transcript_lengths", "compute_wer"]
+        )
 
     def __init__(
         self,
@@ -1368,7 +1495,9 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
         self._fused_batch_size = fused_batch_size
 
         if fuse_loss_wer and (fused_batch_size is None):
-            raise ValueError("If `fuse_loss_wer` is set, then `fused_batch_size` cannot be None!")
+            raise ValueError(
+                "If `fuse_loss_wer` is set, then `fused_batch_size` cannot be None!"
+            )
 
         self._loss = None
         self._wer = None
@@ -1385,13 +1514,13 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
             )
 
         # Required arguments
-        self.encoder_hidden = jointnet['encoder_hidden']
-        self.pred_hidden = jointnet['pred_hidden']
-        self.joint_hidden = jointnet['joint_hidden']
-        self.activation = jointnet['activation']
+        self.encoder_hidden = jointnet["encoder_hidden"]
+        self.pred_hidden = jointnet["pred_hidden"]
+        self.joint_hidden = jointnet["joint_hidden"]
+        self.activation = jointnet["activation"]
 
         # Optional arguments
-        dropout = jointnet.get('dropout', 0.0)
+        dropout = jointnet.get("dropout", 0.0)
 
         self.pred, self.enc, self.joint_net = self._joint_net_modules(
             num_classes=self._num_classes,  # add 1 for blank symbol
@@ -1438,16 +1567,21 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
         else:
             # At least the loss module must be supplied during fused joint
             if self._loss is None or self._wer is None:
-                raise ValueError("`fuse_loss_wer` flag is set, but `loss` and `wer` modules were not provided! ")
+                raise ValueError(
+                    "`fuse_loss_wer` flag is set, but `loss` and `wer` modules were not provided! "
+                )
 
             # If fused joint step is required, fused batch size is required as well
             if self._fused_batch_size is None:
-                raise ValueError("If `fuse_loss_wer` is set, then `fused_batch_size` cannot be None!")
+                raise ValueError(
+                    "If `fuse_loss_wer` is set, then `fused_batch_size` cannot be None!"
+                )
 
             # When using fused joint step, both encoder and transcript lengths must be provided
             if (encoder_lengths is None) or (transcript_lengths is None):
                 raise ValueError(
-                    "`fuse_loss_wer` is set, therefore encoder and target lengths " "must be provided as well!"
+                    "`fuse_loss_wer` is set, therefore encoder and target lengths "
+                    "must be provided as well!"
                 )
 
             losses = []
@@ -1463,8 +1597,12 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
                 # Extract the sub batch inputs
                 # sub_enc = encoder_outputs[begin:end, ...]
                 # sub_transcripts = transcripts[begin:end, ...]
-                sub_enc = encoder_outputs.narrow(dim=0, start=begin, length=int(end - begin))
-                sub_transcripts = transcripts.narrow(dim=0, start=begin, length=int(end - begin))
+                sub_enc = encoder_outputs.narrow(
+                    dim=0, start=begin, length=int(end - begin)
+                )
+                sub_transcripts = transcripts.narrow(
+                    dim=0, start=begin, length=int(end - begin)
+                )
 
                 sub_enc_lens = encoder_lengths[begin:end]
                 sub_transcript_lens = transcript_lengths[begin:end]
@@ -1478,15 +1616,21 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
                     # Reduce encoder length to preserve computation
                     # Encoder: [sub-batch, T, D] -> [sub-batch, T', D]; T' < T
                     if sub_enc.shape[1] != max_sub_enc_length:
-                        sub_enc = sub_enc.narrow(dim=1, start=0, length=int(max_sub_enc_length))
+                        sub_enc = sub_enc.narrow(
+                            dim=1, start=0, length=int(max_sub_enc_length)
+                        )
 
                     # sub_dec = decoder_outputs[begin:end, ...]  # [sub-batch, U, D]
-                    sub_dec = decoder_outputs.narrow(dim=0, start=begin, length=int(end - begin))  # [sub-batch, U, D]
+                    sub_dec = decoder_outputs.narrow(
+                        dim=0, start=begin, length=int(end - begin)
+                    )  # [sub-batch, U, D]
 
                     # Reduce decoder length to preserve computation
                     # Decoder: [sub-batch, U, D] -> [sub-batch, U', D]; U' < U
                     if sub_dec.shape[1] != max_sub_transcript_length + 1:
-                        sub_dec = sub_dec.narrow(dim=1, start=0, length=int(max_sub_transcript_length + 1))
+                        sub_dec = sub_dec.narrow(
+                            dim=1, start=0, length=int(max_sub_transcript_length + 1)
+                        )
 
                     # Perform joint => [sub-batch, T', U', V + 1]
                     sub_joint = self.joint(sub_enc, sub_dec)
@@ -1496,7 +1640,9 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
                     # Reduce transcript length to correct alignment
                     # Transcript: [sub-batch, L] -> [sub-batch, L']; L' <= L
                     if sub_transcripts.shape[1] != max_sub_transcript_length:
-                        sub_transcripts = sub_transcripts.narrow(dim=1, start=0, length=int(max_sub_transcript_length))
+                        sub_transcripts = sub_transcripts.narrow(
+                            dim=1, start=0, length=int(max_sub_transcript_length)
+                        )
 
                     # Compute sub batch loss
                     # preserve loss reduction type
@@ -1661,7 +1807,15 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
 
         return res
 
-    def _joint_net_modules(self, num_classes, pred_n_hidden, enc_n_hidden, joint_n_hidden, activation, dropout):
+    def _joint_net_modules(
+        self,
+        num_classes,
+        pred_n_hidden,
+        enc_n_hidden,
+        joint_n_hidden,
+        activation,
+        dropout,
+    ):
         """
         Prepare the trainable modules of the Joint Network
 
@@ -1676,16 +1830,19 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
         pred = torch.nn.Linear(pred_n_hidden, joint_n_hidden)
         enc = torch.nn.Linear(enc_n_hidden, joint_n_hidden)
 
-        if activation not in ['relu', 'sigmoid', 'tanh']:
-            raise ValueError("Unsupported activation for joint step - please pass one of " "[relu, sigmoid, tanh]")
+        if activation not in ["relu", "sigmoid", "tanh"]:
+            raise ValueError(
+                "Unsupported activation for joint step - please pass one of "
+                "[relu, sigmoid, tanh]"
+            )
 
         activation = activation.lower()
 
-        if activation == 'relu':
+        if activation == "relu":
             activation = torch.nn.ReLU(inplace=True)
-        elif activation == 'sigmoid':
+        elif activation == "sigmoid":
             activation = torch.nn.Sigmoid()
-        elif activation == 'tanh':
+        elif activation == "tanh":
             activation = torch.nn.Tanh()
 
         layers = (
@@ -1703,7 +1860,9 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
         super().add_adapter(name=name, cfg=cfg)
 
     def _update_adapter_cfg_input_dim(self, cfg: DictConfig):
-        cfg = adapter_utils.update_adapter_cfg_input_dim(self, cfg, module_dim=self.joint_hidden)
+        cfg = adapter_utils.update_adapter_cfg_input_dim(
+            self, cfg, module_dim=self.joint_hidden
+        )
         return cfg
 
     @property
@@ -1720,7 +1879,9 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
 
     def set_loss(self, loss):
         if not self._fuse_loss_wer:
-            raise ValueError("Attempting to set loss module even though `fuse_loss_wer` is not set!")
+            raise ValueError(
+                "Attempting to set loss module even though `fuse_loss_wer` is not set!"
+            )
 
         self._loss = loss
 
@@ -1730,7 +1891,9 @@ class RNNTJoint(rnnt_abstract.AbstractRNNTJoint, Exportable, AdapterModuleMixin)
 
     def set_wer(self, wer):
         if not self._fuse_loss_wer:
-            raise ValueError("Attempting to set WER module even though `fuse_loss_wer` is not set!")
+            raise ValueError(
+                "Attempting to set WER module even though `fuse_loss_wer` is not set!"
+            )
 
         self._wer = wer
 
@@ -1764,33 +1927,45 @@ class RNNTDecoderJoint(torch.nn.Module, Exportable):
 
     @property
     def input_types(self):
-        state_type = NeuralType(('D', 'B', 'D'), ElementType())
+        state_type = NeuralType(("D", "B", "D"), ElementType())
         mytypes = {
-            'encoder_outputs': NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
-            "targets": NeuralType(('B', 'T'), LabelsType()),
-            "target_length": NeuralType(tuple('B'), LengthsType()),
-            'input_states_1': state_type,
-            'input_states_2': state_type,
+            "encoder_outputs": NeuralType(
+                ("B", "D", "T"), AcousticEncodedRepresentation()
+            ),
+            "targets": NeuralType(("B", "T"), LabelsType()),
+            "target_length": NeuralType(tuple("B"), LengthsType()),
+            "input_states_1": state_type,
+            "input_states_2": state_type,
         }
 
         return mytypes
 
     def input_example(self, max_batch=1, max_dim=1):
-        decoder_example = self.decoder.input_example(max_batch=max_batch, max_dim=max_dim)
+        decoder_example = self.decoder.input_example(
+            max_batch=max_batch, max_dim=max_dim
+        )
         state1, state2 = decoder_example[-1]
-        return tuple([self.joint.input_example()[0]]) + decoder_example[:2] + (state1, state2)
+        return (
+            tuple([self.joint.input_example()[0]])
+            + decoder_example[:2]
+            + (state1, state2)
+        )
 
     @property
     def output_types(self):
         return {
-            "outputs": NeuralType(('B', 'T', 'T', 'D'), LogprobsType()),
-            "prednet_lengths": NeuralType(tuple('B'), LengthsType()),
-            "output_states_1": NeuralType((('D', 'B', 'D')), ElementType()),
-            "output_states_2": NeuralType((('D', 'B', 'D')), ElementType()),
+            "outputs": NeuralType(("B", "T", "T", "D"), LogprobsType()),
+            "prednet_lengths": NeuralType(tuple("B"), LengthsType()),
+            "output_states_1": NeuralType((("D", "B", "D")), ElementType()),
+            "output_states_2": NeuralType((("D", "B", "D")), ElementType()),
         }
 
-    def forward(self, encoder_outputs, targets, target_length, input_states_1, input_states_2):
-        decoder_outputs = self.decoder(targets, target_length, (input_states_1, input_states_2))
+    def forward(
+        self, encoder_outputs, targets, target_length, input_states_1, input_states_2
+    ):
+        decoder_outputs = self.decoder(
+            targets, target_length, (input_states_1, input_states_2)
+        )
         decoder_output = decoder_outputs[0]
         decoder_length = decoder_outputs[1]
         input_states_1, input_states_2 = decoder_outputs[2][0], decoder_outputs[2][1]
@@ -1811,18 +1986,22 @@ class RNNTDecoderJointSSL(torch.nn.Module):
     @property
     def input_types(self):
         return {
-            "encoder_output": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
-            "targets": NeuralType(('B', 'T'), LabelsType()),
-            "target_lengths": NeuralType(tuple('B'), LengthsType()),
+            "encoder_output": NeuralType(
+                ("B", "D", "T"), AcousticEncodedRepresentation()
+            ),
+            "targets": NeuralType(("B", "T"), LabelsType()),
+            "target_lengths": NeuralType(tuple("B"), LengthsType()),
         }
 
     @property
     def output_types(self):
-        return {"log_probs": NeuralType(('B', 'T', 'D'), SpectrogramType())}
+        return {"log_probs": NeuralType(("B", "T", "D"), SpectrogramType())}
 
     def forward(self, encoder_output, targets, target_lengths):
 
-        decoder, target_length, states = self.decoder(targets=targets, target_length=target_lengths)
+        decoder, target_length, states = self.decoder(
+            targets=targets, target_length=target_lengths
+        )
         log_probs = self.joint(encoder_outputs=encoder_output, decoder_outputs=decoder)
 
         return log_probs
@@ -1921,7 +2100,11 @@ class SampledRNNTJoint(RNNTJoint):
             fused_batch_size=fused_batch_size,
         )
         self.n_samples = n_samples
-        self.register_buffer('blank_id', torch.tensor([self.num_classes_with_blank - 1]), persistent=False)
+        self.register_buffer(
+            "blank_id",
+            torch.tensor([self.num_classes_with_blank - 1]),
+            persistent=False,
+        )
 
     @typecheck()
     def forward(
@@ -1965,16 +2148,21 @@ class SampledRNNTJoint(RNNTJoint):
 
         # At least the loss module must be supplied during fused joint
         if self._loss is None or self._wer is None:
-            raise ValueError("`fuse_loss_wer` flag is set, but `loss` and `wer` modules were not provided! ")
+            raise ValueError(
+                "`fuse_loss_wer` flag is set, but `loss` and `wer` modules were not provided! "
+            )
 
         # If fused joint step is required, fused batch size is required as well
         if self._fused_batch_size is None:
-            raise ValueError("If `fuse_loss_wer` is set, then `fused_batch_size` cannot be None!")
+            raise ValueError(
+                "If `fuse_loss_wer` is set, then `fused_batch_size` cannot be None!"
+            )
 
         # When using fused joint step, both encoder and transcript lengths must be provided
         if (encoder_lengths is None) or (transcript_lengths is None):
             raise ValueError(
-                "`fuse_loss_wer` is set, therefore encoder and target lengths " "must be provided as well!"
+                "`fuse_loss_wer` is set, therefore encoder and target lengths "
+                "must be provided as well!"
             )
 
         losses = []
@@ -1990,8 +2178,12 @@ class SampledRNNTJoint(RNNTJoint):
             # Extract the sub batch inputs
             # sub_enc = encoder_outputs[begin:end, ...]
             # sub_transcripts = transcripts[begin:end, ...]
-            sub_enc = encoder_outputs.narrow(dim=0, start=begin, length=int(end - begin))
-            sub_transcripts = transcripts.narrow(dim=0, start=begin, length=int(end - begin))
+            sub_enc = encoder_outputs.narrow(
+                dim=0, start=begin, length=int(end - begin)
+            )
+            sub_transcripts = transcripts.narrow(
+                dim=0, start=begin, length=int(end - begin)
+            )
 
             sub_enc_lens = encoder_lengths[begin:end]
             sub_transcript_lens = transcript_lengths[begin:end]
@@ -2005,24 +2197,35 @@ class SampledRNNTJoint(RNNTJoint):
                 # Reduce encoder length to preserve computation
                 # Encoder: [sub-batch, T, D] -> [sub-batch, T', D]; T' < T
                 if sub_enc.shape[1] != max_sub_enc_length:
-                    sub_enc = sub_enc.narrow(dim=1, start=0, length=int(max_sub_enc_length))
+                    sub_enc = sub_enc.narrow(
+                        dim=1, start=0, length=int(max_sub_enc_length)
+                    )
 
                 # sub_dec = decoder_outputs[begin:end, ...]  # [sub-batch, U, D]
-                sub_dec = decoder_outputs.narrow(dim=0, start=begin, length=int(end - begin))  # [sub-batch, U, D]
+                sub_dec = decoder_outputs.narrow(
+                    dim=0, start=begin, length=int(end - begin)
+                )  # [sub-batch, U, D]
 
                 # Reduce decoder length to preserve computation
                 # Decoder: [sub-batch, U, D] -> [sub-batch, U', D]; U' < U
                 if sub_dec.shape[1] != max_sub_transcript_length + 1:
-                    sub_dec = sub_dec.narrow(dim=1, start=0, length=int(max_sub_transcript_length + 1))
+                    sub_dec = sub_dec.narrow(
+                        dim=1, start=0, length=int(max_sub_transcript_length + 1)
+                    )
 
                 # Reduce transcript length to correct alignment
                 # Transcript: [sub-batch, L] -> [sub-batch, L']; L' <= L
                 if sub_transcripts.shape[1] != max_sub_transcript_length:
-                    sub_transcripts = sub_transcripts.narrow(dim=1, start=0, length=int(max_sub_transcript_length))
+                    sub_transcripts = sub_transcripts.narrow(
+                        dim=1, start=0, length=int(max_sub_transcript_length)
+                    )
 
                 # Perform sampled joint => [sub-batch, T', U', {V' < V} + 1}]
                 sub_joint, sub_transcripts_remapped = self.sampled_joint(
-                    sub_enc, sub_dec, transcript=sub_transcripts, transcript_lengths=sub_transcript_lens
+                    sub_enc,
+                    sub_dec,
+                    transcript=sub_transcripts,
+                    transcript_lengths=sub_transcript_lens,
                 )
 
                 del sub_dec
@@ -2144,7 +2347,11 @@ class SampledRNNTJoint(RNNTJoint):
             Logits / log softmaxed tensor of shape (B, T, U, V + 1).
         """
         # If under inference mode, ignore sampled joint and compute full joint.
-        if self.training is False or torch.is_grad_enabled() is False or torch.is_inference_mode_enabled():
+        if (
+            self.training is False
+            or torch.is_grad_enabled() is False
+            or torch.is_inference_mode_enabled()
+        ):
             # Simply call full tensor joint
             return super().joint(f=f, g=g)
 
@@ -2182,8 +2389,8 @@ class SampledRNNTJoint(RNNTJoint):
             # of the transcript tokens. We can skip this step for noise samples cause those are only used for softmax
             # estimation, not for computing actual label.
             # From `https://stackoverflow.com/a/68969697` - bucketize algo.
-            t_ids = torch.arange(transcript_vocab_ids.size(0), device='cpu')
-            mapping = {k: v for k, v in zip(transcript_vocab_ids.to('cpu'), t_ids)}
+            t_ids = torch.arange(transcript_vocab_ids.size(0), device="cpu")
+            mapping = {k: v for k, v in zip(transcript_vocab_ids.to("cpu"), t_ids)}
 
             # From `https://stackoverflow.com/questions/13572448`.
             palette, key = zip(*mapping.items())
@@ -2224,9 +2431,9 @@ class SampledRNNTJoint(RNNTJoint):
             # V_Samples = V (i.e., full vocabulary will be used in such a case).
             # Useful to debug cases where you expect sampled vocab to get exact same training curve as
             # full vocab.
-            sample_ids = torch.randperm(n=self.num_classes_with_blank - 1, device=transcript_scores.device)[
-                : self.n_samples
-            ]
+            sample_ids = torch.randperm(
+                n=self.num_classes_with_blank - 1, device=transcript_scores.device
+            )[: self.n_samples]
 
             # We need to compute the intersection(V_Pos, V_Neg), then eliminate the intersection arguments
             # from inside V_Neg.
@@ -2236,7 +2443,9 @@ class SampledRNNTJoint(RNNTJoint):
             # Note: It is important to ignore the hardcoded RNNT Blank token injected at id 0 of the transcript
             # vocab ids, otherwise the blank may occur twice, once for RNNT blank and once as negative sample,
             # doubling the gradient of the RNNT blank token.
-            reject_samples = torch.where(transcript_vocab_ids[1:, None] == sample_ids[None, :])
+            reject_samples = torch.where(
+                transcript_vocab_ids[1:, None] == sample_ids[None, :]
+            )
 
             # Let accept samples be a set of ids which is a subset of sample_ids
             # such that intersection(V_Pos, accept_samples) is a null set.
@@ -2287,4 +2496,6 @@ class SampledRNNTJoint(RNNTJoint):
 # Add the adapter compatible modules to the registry
 for cls in [RNNTDecoder, RNNTJoint, SampledRNNTJoint]:
     if adapter_mixins.get_registered_adapter(cls) is None:
-        adapter_mixins.register_adapter(cls, cls)  # base class is adapter compatible itself
+        adapter_mixins.register_adapter(
+            cls, cls
+        )  # base class is adapter compatible itself

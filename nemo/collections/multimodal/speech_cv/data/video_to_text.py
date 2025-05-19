@@ -128,11 +128,11 @@ class _VideoTextDataset(Dataset):
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         """Returns definitions of module output ports."""
         return {
-            'video_signal': NeuralType(('B', 'C', 'T', 'H', 'W'), VideoSignal()),
-            'video_sig_length': NeuralType(tuple('B'), LengthsType()),
-            'transcripts': NeuralType(('B', 'T'), LabelsType()),
-            'transcript_length': NeuralType(tuple('B'), LengthsType()),
-            'sample_id': NeuralType(tuple('B'), LengthsType(), optional=True),
+            "video_signal": NeuralType(("B", "C", "T", "H", "W"), VideoSignal()),
+            "video_sig_length": NeuralType(tuple("B"), LengthsType()),
+            "transcripts": NeuralType(("B", "T"), LabelsType()),
+            "transcript_length": NeuralType(tuple("B"), LengthsType()),
+            "sample_id": NeuralType(tuple("B"), LengthsType(), optional=True),
         }
 
     def __init__(
@@ -154,7 +154,9 @@ class _VideoTextDataset(Dataset):
             manifest_filepath = manifest_filepath.split(",")
 
         # If necessary, cache manifests and audio from object store
-        cache_datastore_manifests(manifest_filepaths=manifest_filepath, cache_audio=True)
+        cache_datastore_manifests(
+            manifest_filepaths=manifest_filepath, cache_audio=True
+        )
 
         self.manifest_processor = VSRManifestProcessor(
             manifest_filepath=manifest_filepath,
@@ -185,7 +187,9 @@ class _VideoTextDataset(Dataset):
             offset = 0
 
         # Load Video
-        video_features = self.video_featurizer.process(sample.video_file, offset=offset, duration=sample.duration)
+        video_features = self.video_featurizer.process(
+            sample.video_file, offset=offset, duration=sample.duration
+        )
         vf, vfl = video_features, torch.tensor(video_features.shape[0]).long()
 
         # Load Tokens
@@ -260,7 +264,9 @@ class VSRManifestProcessor:
         sample = self.collection[manifest_idx]
         return self.process_text_by_sample(sample)
 
-    def process_text_by_sample(self, sample: collections.ASRAudioText.OUTPUT_TYPE) -> Tuple[List[int], int]:
+    def process_text_by_sample(
+        self, sample: collections.ASRAudioText.OUTPUT_TYPE
+    ) -> Tuple[List[int], int]:
         t, tl = sample.text_tokens, len(sample.text_tokens)
 
         if self.bos_id is not None:
@@ -311,17 +317,17 @@ class VideoToBPEDataset(_VideoTextDataset):
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         """Returns definitions of module output ports."""
         return {
-            'video_signal': NeuralType(('B', 'C', 'T', 'H', 'W'), VideoSignal()),
-            'video_sig_length': NeuralType(tuple('B'), LengthsType()),
-            'transcripts': NeuralType(('B', 'T'), LabelsType()),
-            'transcript_length': NeuralType(tuple('B'), LengthsType()),
-            'sample_id': NeuralType(tuple('B'), LengthsType(), optional=True),
+            "video_signal": NeuralType(("B", "C", "T", "H", "W"), VideoSignal()),
+            "video_sig_length": NeuralType(tuple("B"), LengthsType()),
+            "transcripts": NeuralType(("B", "T"), LabelsType()),
+            "transcript_length": NeuralType(tuple("B"), LengthsType()),
+            "sample_id": NeuralType(tuple("B"), LengthsType(), optional=True),
         }
 
     def __init__(
         self,
         manifest_filepath: str,
-        tokenizer: 'nemo.collections.common.tokenizers.TokenizerSpec',
+        tokenizer: "nemo.collections.common.tokenizers.TokenizerSpec",
         int_values: bool = False,
         max_duration: Optional[int] = None,
         min_duration: Optional[int] = None,
@@ -331,12 +337,20 @@ class VideoToBPEDataset(_VideoTextDataset):
         return_sample_id: bool = False,
         channel_selector: Optional[ChannelSelectorType] = None,
     ):
-        if use_start_end_token and hasattr(tokenizer, "bos_id") and tokenizer.bos_id > 0:
+        if (
+            use_start_end_token
+            and hasattr(tokenizer, "bos_id")
+            and tokenizer.bos_id > 0
+        ):
             bos_id = tokenizer.bos_id
         else:
             bos_id = None
 
-        if use_start_end_token and hasattr(tokenizer, "eos_id") and tokenizer.eos_id > 0:
+        if (
+            use_start_end_token
+            and hasattr(tokenizer, "eos_id")
+            and tokenizer.eos_id > 0
+        ):
             eos_id = tokenizer.eos_id
         else:
             eos_id = None
@@ -348,7 +362,9 @@ class VideoToBPEDataset(_VideoTextDataset):
 
         class TokenizerWrapper:
             def __init__(self, tokenizer):
-                if isinstance(tokenizer, tokenizers.aggregate_tokenizer.AggregateTokenizer):
+                if isinstance(
+                    tokenizer, tokenizers.aggregate_tokenizer.AggregateTokenizer
+                ):
                     self.is_aggregate = True
                 else:
                     self.is_aggregate = False
@@ -358,7 +374,7 @@ class VideoToBPEDataset(_VideoTextDataset):
                 if isinstance(args[0], List) and self.is_aggregate:
                     t = []
                     for span in args[0]:
-                        t.extend(self._tokenizer.text_to_ids(span['str'], span['lang']))
+                        t.extend(self._tokenizer.text_to_ids(span["str"], span["lang"]))
                     return t
 
                 t = self._tokenizer.text_to_ids(*args)
@@ -414,11 +430,11 @@ class VideoToCharDataset(_VideoTextDataset):
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         """Returns definitions of module output ports."""
         return {
-            'video_signal': NeuralType(('B', 'C', 'T', 'H', 'W'), VideoSignal()),
-            'video_sig_length': NeuralType(tuple('B'), LengthsType()),
-            'transcripts': NeuralType(('B', 'T'), LabelsType()),
-            'transcript_length': NeuralType(tuple('B'), LengthsType()),
-            'sample_id': NeuralType(tuple('B'), LengthsType(), optional=True),
+            "video_signal": NeuralType(("B", "C", "T", "H", "W"), VideoSignal()),
+            "video_sig_length": NeuralType(tuple("B"), LengthsType()),
+            "transcripts": NeuralType(("B", "T"), LabelsType()),
+            "transcript_length": NeuralType(tuple("B"), LengthsType()),
+            "sample_id": NeuralType(tuple("B"), LengthsType(), optional=True),
         }
 
     def __init__(
@@ -436,14 +452,18 @@ class VideoToCharDataset(_VideoTextDataset):
         bos_id: Optional[int] = None,
         eos_id: Optional[int] = None,
         pad_id: int = 0,
-        parser: Union[str, Callable] = 'en',
+        parser: Union[str, Callable] = "en",
         return_sample_id: bool = False,
         channel_selector: Optional[ChannelSelectorType] = None,
     ):
         self.labels = labels
 
         parser = parsers.make_parser(
-            labels=labels, name=parser, unk_id=unk_index, blank_id=blank_index, do_normalize=normalize
+            labels=labels,
+            name=parser,
+            unk_id=unk_index,
+            blank_id=blank_index,
+            do_normalize=normalize,
         )
 
         super().__init__(
@@ -604,8 +624,8 @@ class _TarredVideoToTextDataset(IterableDataset):
             wds.shuffle(shuffle_n),
             wds.tarfile_to_samples(),
             wds.map(wds.autodecode.Decoder([wds.torch_video])),
-            wds.rename(video="mp4", key='__key__'),
-            wds.to_tuple('video', 'key'),
+            wds.rename(video="mp4", key="__key__"),
+            wds.to_tuple("video", "key"),
             self._filter,
             self._loop_offsets,
             wds.map(self._build_sample),
@@ -705,7 +725,13 @@ class _TarredVideoToTextDataset(IterableDataset):
             tl += 1
 
         if self.return_sample_id:
-            return vf, vfl, torch.tensor(t).long(), torch.tensor(tl).long(), manifest_idx
+            return (
+                vf,
+                vfl,
+                torch.tensor(t).long(),
+                torch.tensor(tl).long(),
+                manifest_idx,
+            )
         else:
             return vf, vfl, torch.tensor(t).long(), torch.tensor(tl).long()
 
@@ -800,7 +826,7 @@ class TarredVideoToBPEDataset(_TarredVideoToTextDataset):
         self,
         audio_tar_filepaths: Union[str, List[str]],
         manifest_filepath: str,
-        tokenizer: 'nemo.collections.common.tokenizers.TokenizerSpec',
+        tokenizer: "nemo.collections.common.tokenizers.TokenizerSpec",
         int_values: bool = False,
         shuffle_n: int = 0,
         min_duration: Optional[float] = None,
@@ -812,12 +838,20 @@ class TarredVideoToBPEDataset(_TarredVideoToTextDataset):
         world_size: int = 0,
         return_sample_id: bool = False,
     ):
-        if use_start_end_token and hasattr(tokenizer, "bos_id") and tokenizer.bos_id > 0:
+        if (
+            use_start_end_token
+            and hasattr(tokenizer, "bos_id")
+            and tokenizer.bos_id > 0
+        ):
             bos_id = tokenizer.bos_id
         else:
             bos_id = None
 
-        if use_start_end_token and hasattr(tokenizer, "eos_id") and tokenizer.eos_id > 0:
+        if (
+            use_start_end_token
+            and hasattr(tokenizer, "eos_id")
+            and tokenizer.eos_id > 0
+        ):
             eos_id = tokenizer.eos_id
         else:
             eos_id = None
@@ -829,7 +863,9 @@ class TarredVideoToBPEDataset(_TarredVideoToTextDataset):
 
         class TokenizerWrapper:
             def __init__(self, tokenizer):
-                if isinstance(tokenizer, tokenizers.aggregate_tokenizer.AggregateTokenizer):
+                if isinstance(
+                    tokenizer, tokenizers.aggregate_tokenizer.AggregateTokenizer
+                ):
                     self.is_aggregate = True
                 else:
                     self.is_aggregate = False
@@ -839,7 +875,7 @@ class TarredVideoToBPEDataset(_TarredVideoToTextDataset):
                 if isinstance(args[0], Iterable) and self.is_aggregate:
                     t = []
                     for span in args[0]:
-                        t.extend(self._tokenizer.text_to_ids(span['str'], span['lang']))
+                        t.extend(self._tokenizer.text_to_ids(span["str"], span["lang"]))
                     return t
 
                 t = self._tokenizer.text_to_ids(*args)

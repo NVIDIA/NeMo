@@ -131,7 +131,8 @@ class TestGPT3_175B:
             for cb in recipe.trainer.callbacks
         )
         assert any(
-            isinstance(cb, run.Config) and cb.__fn_or_cls__ == MegatronCommOverlapCallback
+            isinstance(cb, run.Config)
+            and cb.__fn_or_cls__ == MegatronCommOverlapCallback
             for cb in recipe.trainer.callbacks
         )
 
@@ -139,7 +140,8 @@ class TestGPT3_175B:
         comm_overlap_cb = next(
             cb
             for cb in recipe.trainer.callbacks
-            if isinstance(cb, run.Config) and cb.__fn_or_cls__ == MegatronCommOverlapCallback
+            if isinstance(cb, run.Config)
+            and cb.__fn_or_cls__ == MegatronCommOverlapCallback
         )
         assert comm_overlap_cb.tp_comm_overlap is True
         assert comm_overlap_cb.defer_embedding_wgrad_compute is True
@@ -158,7 +160,8 @@ class TestGPT3_175B:
             for cb in recipe.trainer.callbacks
         )
         assert any(
-            isinstance(cb, run.Config) and cb.__fn_or_cls__ == MegatronCommOverlapCallback
+            isinstance(cb, run.Config)
+            and cb.__fn_or_cls__ == MegatronCommOverlapCallback
             for cb in recipe.trainer.callbacks
         )
         assert recipe.trainer.plugins.grad_reduce_in_fp32 is False

@@ -66,7 +66,7 @@ def flux_data_step(dataloader_iter):
     else:
         _batch = batch
 
-    _batch['loss_mask'] = torch.Tensor([1.0]).cuda(non_blocking=True)
+    _batch["loss_mask"] = torch.Tensor([1.0]).cuda(non_blocking=True)
     return _batch
 
 
@@ -129,7 +129,9 @@ class ClipConfig:
     Clip Config
     """
 
-    version: Optional[str] = field(default_factory=lambda: "openai/clip-vit-large-patch14")
+    version: Optional[str] = field(
+        default_factory=lambda: "openai/clip-vit-large-patch14"
+    )
     max_length: Optional[int] = field(default_factory=lambda: 77)
     always_return_pooled: Optional[bool] = field(default_factory=lambda: True)
 
@@ -142,13 +144,15 @@ class FluxModelParams:
 
     flux_config: FluxConfig = field(default_factory=FluxConfig)
     vae_config: AutoEncoderConfig = field(
-        default_factory=lambda: AutoEncoderConfig(ch_mult=[1, 2, 4, 4], attn_resolutions=[])
+        default_factory=lambda: AutoEncoderConfig(
+            ch_mult=[1, 2, 4, 4], attn_resolutions=[]
+        )
     )
     clip_params: ClipConfig = field(default_factory=ClipConfig)
     t5_params: T5Config = field(default_factory=T5Config)
 
     scheduler_steps: int = 1000
-    device: str = 'cuda'
+    device: str = "cuda"
 
 
 # pylint: disable=C0116
@@ -196,11 +200,17 @@ class Flux(VisionModule):
         self.in_channels = config.in_channels
         self.guidance_embed = config.guidance_embed
 
-        self.pos_embed = EmbedND(dim=self.hidden_size, theta=10000, axes_dim=[16, 56, 56])
+        self.pos_embed = EmbedND(
+            dim=self.hidden_size, theta=10000, axes_dim=[16, 56, 56]
+        )
         self.img_embed = nn.Linear(config.in_channels, self.hidden_size)
         self.txt_embed = nn.Linear(config.context_dim, self.hidden_size)
-        self.timestep_embedding = TimeStepEmbedder(config.model_channels, self.hidden_size)
-        self.vector_embedding = MLPEmbedder(in_dim=config.vec_in_dim, hidden_dim=self.hidden_size)
+        self.timestep_embedding = TimeStepEmbedder(
+            config.model_channels, self.hidden_size
+        )
+        self.vector_embedding = MLPEmbedder(
+            in_dim=config.vec_in_dim, hidden_dim=self.hidden_size
+        )
         if config.guidance_embed:
             self.guidance_embedding = (
                 MLPEmbedder(in_dim=config.model_channels, hidden_dim=self.hidden_size)
@@ -231,8 +241,14 @@ class Flux(VisionModule):
             ]
         )
 
-        self.norm_out = AdaLNContinuous(config=config, conditioning_embedding_dim=self.hidden_size)
-        self.proj_out = nn.Linear(self.hidden_size, self.patch_size * self.patch_size * self.out_channels, bias=True)
+        self.norm_out = AdaLNContinuous(
+            config=config, conditioning_embedding_dim=self.hidden_size
+        )
+        self.proj_out = nn.Linear(
+            self.hidden_size,
+            self.patch_size * self.patch_size * self.out_channels,
+            bias=True,
+        )
         if self.config.ckpt_path is not None:
             self.load_from_pretrained(
                 self.config.ckpt_path,
@@ -286,7 +302,9 @@ class Flux(VisionModule):
         vec_emb = self.timestep_embedding(timesteps)
 
         if guidance is not None:
-            vec_emb = vec_emb + self.guidance_embedding(self.timestep_embedding.time_proj(guidance * 1000))
+            vec_emb = vec_emb + self.guidance_embedding(
+                self.timestep_embedding.time_proj(guidance * 1000)
+            )
         vec_emb = vec_emb + self.vector_embedding(y)
 
         ids = torch.cat((txt_ids, img_ids), dim=1)
@@ -300,9 +318,14 @@ class Flux(VisionModule):
             )
 
             if controlnet_double_block_samples is not None:
-                interval_control = len(self.double_blocks) / len(controlnet_double_block_samples)
+                interval_control = len(self.double_blocks) / len(
+                    controlnet_double_block_samples
+                )
                 interval_control = int(np.ceil(interval_control))
-                hidden_states = hidden_states + controlnet_double_block_samples[id_block // interval_control]
+                hidden_states = (
+                    hidden_states
+                    + controlnet_double_block_samples[id_block // interval_control]
+                )
 
         hidden_states = torch.cat([encoder_hidden_states, hidden_states], dim=0)
 
@@ -314,7 +337,9 @@ class Flux(VisionModule):
             )
 
             if controlnet_single_block_samples is not None:
-                interval_control = len(self.single_blocks) / len(controlnet_single_block_samples)
+                interval_control = len(self.single_blocks) / len(
+                    controlnet_single_block_samples
+                )
                 interval_control = int(np.ceil(interval_control))
                 hidden_states = torch.cat(
                     [
@@ -332,29 +357,42 @@ class Flux(VisionModule):
         return output
 
     def load_from_pretrained(
-        self, ckpt_path, do_convert_from_hf=False, save_converted_model_to=None, load_dist_ckpt=False
+        self,
+        ckpt_path,
+        do_convert_from_hf=False,
+        save_converted_model_to=None,
+        load_dist_ckpt=False,
     ):
         # pylint: disable=C0116
         if load_dist_ckpt:
             from megatron.core import dist_checkpointing
 
-            sharded_state_dict = dict(state_dict=self.sharded_state_dict(prefix="module."))
+            sharded_state_dict = dict(
+                state_dict=self.sharded_state_dict(prefix="module.")
+            )
             loaded_state_dict = dist_checkpointing.load(
                 sharded_state_dict=sharded_state_dict, checkpoint_dir=ckpt_path
             )
-            ckpt = {k.removeprefix("module."): v for k, v in loaded_state_dict["state_dict"].items()}
+            ckpt = {
+                k.removeprefix("module."): v
+                for k, v in loaded_state_dict["state_dict"].items()
+            }
         else:
             if do_convert_from_hf:
                 ckpt = flux_transformer_converter(ckpt_path, self.config)
                 if save_converted_model_to is not None:
                     os.makedirs(save_converted_model_to, exist_ok=True)
-                    save_path = os.path.join(save_converted_model_to, 'nemo_flux_transformer.safetensors')
+                    save_path = os.path.join(
+                        save_converted_model_to, "nemo_flux_transformer.safetensors"
+                    )
                     save_safetensors(ckpt, save_path)
-                    logging.info(f'saving converted transformer checkpoint to {save_path}')
+                    logging.info(
+                        f"saving converted transformer checkpoint to {save_path}"
+                    )
             else:
                 ckpt = load_safetensors(ckpt_path)
         missing, unexpected = self.load_state_dict(ckpt, strict=False)
-        missing = [k for k in missing if not k.endswith('_extra_state')]
+        missing = [k for k in missing if not k.endswith("_extra_state")]
         # These keys are mcore specific and should not affect the model performance
         if len(missing) > 0:
             logging.info(
@@ -364,51 +402,63 @@ class Flux(VisionModule):
             logging.info(f"Found unexepected keys: \n {unexpected}")
         logging.info(f"Restored flux model weights from {ckpt_path}")
 
-    def sharded_state_dict(self, prefix='', sharded_offsets: tuple = (), metadata: dict = None) -> ShardedStateDict:
+    def sharded_state_dict(
+        self, prefix="", sharded_offsets: tuple = (), metadata: dict = None
+    ) -> ShardedStateDict:
         sharded_state_dict = {}
-        layer_prefix = f'{prefix}double_blocks.'
+        layer_prefix = f"{prefix}double_blocks."
         for layer in self.double_blocks:
             offset = layer._get_layer_offset(self.config)
 
             global_layer_offset = layer.layer_number
-            state_dict_prefix = f'{layer_prefix}{global_layer_offset - offset}.'
-            sharded_prefix = f'{layer_prefix}{global_layer_offset}.'
+            state_dict_prefix = f"{layer_prefix}{global_layer_offset - offset}."
+            sharded_prefix = f"{layer_prefix}{global_layer_offset}."
             sharded_pp_offset = []
 
-            layer_sharded_state_dict = layer.sharded_state_dict(state_dict_prefix, sharded_pp_offset, metadata)
-            replace_prefix_for_sharding(layer_sharded_state_dict, state_dict_prefix, sharded_prefix)
+            layer_sharded_state_dict = layer.sharded_state_dict(
+                state_dict_prefix, sharded_pp_offset, metadata
+            )
+            replace_prefix_for_sharding(
+                layer_sharded_state_dict, state_dict_prefix, sharded_prefix
+            )
 
             sharded_state_dict.update(layer_sharded_state_dict)
 
-        layer_prefix = f'{prefix}single_blocks.'
+        layer_prefix = f"{prefix}single_blocks."
         for layer in self.single_blocks:
             offset = layer._get_layer_offset(self.config)
 
             global_layer_offset = layer.layer_number
-            state_dict_prefix = f'{layer_prefix}{global_layer_offset - offset}.'
-            sharded_prefix = f'{layer_prefix}{global_layer_offset}.'
+            state_dict_prefix = f"{layer_prefix}{global_layer_offset - offset}."
+            sharded_prefix = f"{layer_prefix}{global_layer_offset}."
             sharded_pp_offset = []
 
-            layer_sharded_state_dict = layer.sharded_state_dict(state_dict_prefix, sharded_pp_offset, metadata)
-            replace_prefix_for_sharding(layer_sharded_state_dict, state_dict_prefix, sharded_prefix)
+            layer_sharded_state_dict = layer.sharded_state_dict(
+                state_dict_prefix, sharded_pp_offset, metadata
+            )
+            replace_prefix_for_sharding(
+                layer_sharded_state_dict, state_dict_prefix, sharded_prefix
+            )
 
             sharded_state_dict.update(layer_sharded_state_dict)
 
         for name, module in self.named_children():
             if not (module is self.single_blocks or module is self.double_blocks):
                 sharded_state_dict.update(
-                    sharded_state_dict_default(module, f'{prefix}{name}.', sharded_offsets, metadata)
+                    sharded_state_dict_default(
+                        module, f"{prefix}{name}.", sharded_offsets, metadata
+                    )
                 )
         return sharded_state_dict
 
 
 class MegatronFluxModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
-    '''
+    """
     Megatron wrapper for flux.
 
     Args:
         flux_params (FluxModelParams): Parameters to configure the Flux model.
-    '''
+    """
 
     def __init__(
         self,
@@ -425,7 +475,9 @@ class MegatronFluxModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNM
         self.vae_config = self.params.vae_config
         self.clip_params = self.params.clip_params
         self.t5_params = self.params.t5_params
-        self.optim = optim or MegatronOptimizerModule(config=OptimizerConfig(lr=1e-4, use_distributed_optimizer=False))
+        self.optim = optim or MegatronOptimizerModule(
+            config=OptimizerConfig(lr=1e-4, use_distributed_optimizer=False)
+        )
         self.optim.connect(self)
         self.model_type = ModelType.encoder_or_decoder
         self.text_precached = self.t5_params is None or self.clip_params is None
@@ -440,11 +492,11 @@ class MegatronFluxModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNM
         self.configure_text_encoders(self.clip_params, self.t5_params)
         for name, param in self.module.named_parameters():
             if self.config.num_single_layers == 0:
-                if 'context' in name or 'added' in name:
+                if "context" in name or "added" in name:
                     param.requires_grad = False
             # When getting rid of concat, the projection bias in attention and mlp bias are identical
             # So this bias is skipped and not included in the computation graph
-            if 'single_blocks' in name and 'self_attention.linear_proj.bias' in name:
+            if "single_blocks" in name and "self_attention.linear_proj.bias" in name:
                 param.requires_grad = False
 
     def configure_scheduler(self):
@@ -482,7 +534,9 @@ class MegatronFluxModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNM
                 device=torch.cuda.current_device(),
             )
         else:
-            logging.info("CLIP encoder not provided, assuming the text embeddings is precached...")
+            logging.info(
+                "CLIP encoder not provided, assuming the text embeddings is precached..."
+            )
             self.clip = None
 
         if isinstance(t5, nn.Module):
@@ -495,7 +549,9 @@ class MegatronFluxModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNM
                 load_config_only=self.t5_params.load_config_only,
             )
         else:
-            logging.info("T5 encoder not provided, assuming the text embeddings is precached...")
+            logging.info(
+                "T5 encoder not provided, assuming the text embeddings is precached..."
+            )
             self.t5 = None
 
     # pylint: disable=C0116
@@ -525,19 +581,26 @@ class MegatronFluxModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNM
             self.autocast_dtype = torch.float32
 
         if self.image_precached:
-            latents = batch['latents'].cuda(non_blocking=True)
+            latents = batch["latents"].cuda(non_blocking=True)
         else:
-            img = batch['images'].cuda(non_blocking=True)
+            img = batch["images"].cuda(non_blocking=True)
             latents = self.vae.encode(img).to(dtype=self.autocast_dtype)
-        latents, noise, packed_noisy_model_input, latent_image_ids, guidance_vec, timesteps = (
-            self.prepare_image_latent(latents)
-        )
+        (
+            latents,
+            noise,
+            packed_noisy_model_input,
+            latent_image_ids,
+            guidance_vec,
+            timesteps,
+        ) = self.prepare_image_latent(latents)
         if self.text_precached:
-            prompt_embeds = batch['prompt_embeds'].cuda(non_blocking=True).transpose(0, 1)
-            pooled_prompt_embeds = batch['pooled_prompt_embeds'].cuda(non_blocking=True)
-            text_ids = batch['text_ids'].cuda(non_blocking=True)
+            prompt_embeds = (
+                batch["prompt_embeds"].cuda(non_blocking=True).transpose(0, 1)
+            )
+            pooled_prompt_embeds = batch["pooled_prompt_embeds"].cuda(non_blocking=True)
+            text_ids = batch["text_ids"].cuda(non_blocking=True)
         else:
-            txt = batch['txt']
+            txt = batch["txt"]
             prompt_embeds, pooled_prompt_embeds, text_ids = self.encode_prompt(
                 txt, device=latents.device, dtype=latents.dtype
             )
@@ -566,11 +629,13 @@ class MegatronFluxModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNM
         loss = F.mse_loss(noise_pred.float(), target.float(), reduction="mean")
         return loss
 
-    def encode_prompt(self, prompt, device='cuda', dtype=torch.float32):
+    def encode_prompt(self, prompt, device="cuda", dtype=torch.float32):
         # pylint: disable=C0116
         prompt_embeds = self.t5(prompt).transpose(0, 1)
         _, pooled_prompt_embeds = self.clip(prompt)
-        text_ids = torch.zeros(prompt_embeds.shape[1], prompt_embeds.shape[0], 3).to(device=device, dtype=dtype)
+        text_ids = torch.zeros(prompt_embeds.shape[1], prompt_embeds.shape[0], 3).to(
+            device=device, dtype=dtype
+        )
 
         return prompt_embeds, pooled_prompt_embeds.to(dtype=dtype), text_ids
 
@@ -591,7 +656,9 @@ class MegatronFluxModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNM
         """
         if weighting_scheme == "logit_normal":
             # See 3.1 in the SD3 paper ($rf/lognorm(0.00,1.00)$).
-            u = torch.normal(mean=logit_mean, std=logit_std, size=(batch_size,), device="cpu")
+            u = torch.normal(
+                mean=logit_mean, std=logit_std, size=(batch_size,), device="cpu"
+            )
             u = torch.nn.functional.sigmoid(u)
         elif weighting_scheme == "mode":
             u = torch.rand(size=(batch_size,), device="cpu")
@@ -666,32 +733,51 @@ class MegatronFluxModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNM
         latents = latents.view(batch_size, height, width, channels // 4, 2, 2)
         latents = latents.permute(0, 3, 1, 4, 2, 5)
 
-        latents = latents.reshape(batch_size, channels // (2 * 2), height * 2, width * 2)
+        latents = latents.reshape(
+            batch_size, channels // (2 * 2), height * 2, width * 2
+        )
 
         return latents
 
     def _prepare_latent_image_ids(
-        self, batch_size: int, height: int, width: int, device: torch.device, dtype: torch.dtype
+        self,
+        batch_size: int,
+        height: int,
+        width: int,
+        device: torch.device,
+        dtype: torch.dtype,
     ):
         # pylint: disable=C0116
         latent_image_ids = torch.zeros(height // 2, width // 2, 3)
-        latent_image_ids[..., 1] = latent_image_ids[..., 1] + torch.arange(height // 2)[:, None]
-        latent_image_ids[..., 2] = latent_image_ids[..., 2] + torch.arange(width // 2)[None, :]
+        latent_image_ids[..., 1] = (
+            latent_image_ids[..., 1] + torch.arange(height // 2)[:, None]
+        )
+        latent_image_ids[..., 2] = (
+            latent_image_ids[..., 2] + torch.arange(width // 2)[None, :]
+        )
 
-        latent_image_id_height, latent_image_id_width, latent_image_id_channels = latent_image_ids.shape
+        latent_image_id_height, latent_image_id_width, latent_image_id_channels = (
+            latent_image_ids.shape
+        )
 
         latent_image_ids = latent_image_ids[None, :].repeat(batch_size, 1, 1, 1)
         latent_image_ids = latent_image_ids.reshape(
-            batch_size, latent_image_id_height * latent_image_id_width, latent_image_id_channels
+            batch_size,
+            latent_image_id_height * latent_image_id_width,
+            latent_image_id_channels,
         )
 
         return latent_image_ids.to(device=device, dtype=dtype)
 
     def _pack_latents(self, latents, batch_size, num_channels_latents, height, width):
         # pylint: disable=C0116
-        latents = latents.view(batch_size, num_channels_latents, height // 2, 2, width // 2, 2)
+        latents = latents.view(
+            batch_size, num_channels_latents, height // 2, 2, width // 2, 2
+        )
         latents = latents.permute(0, 2, 4, 1, 3, 5)
-        latents = latents.reshape(batch_size, (height // 2) * (width // 2), num_channels_latents * 4)
+        latents = latents.reshape(
+            batch_size, (height // 2) * (width // 2), num_channels_latents * 4
+        )
 
         return latents
 
@@ -712,16 +798,18 @@ class MegatronFluxModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNM
         # pylint: disable=C0116
         # pylint: disable=C0116
         if not self._validation_loss_reduction:
-            self._validation_loss_reduction = MaskedTokenLossReduction(validation_step=True)
+            self._validation_loss_reduction = MaskedTokenLossReduction(
+                validation_step=True
+            )
 
         return self._validation_loss_reduction
 
 
 @io.model_importer(MegatronFluxModel, "hf")
 class HFFluxImporter(io.ModelConnector["FluxTransformer2DModel", MegatronFluxModel]):
-    '''
+    """
     Convert a HF ckpt into NeMo dist-ckpt compatible format.
-    '''
+    """
 
     # pylint: disable=C0116
     def init(self) -> MegatronFluxModel:
@@ -730,7 +818,9 @@ class HFFluxImporter(io.ModelConnector["FluxTransformer2DModel", MegatronFluxMod
     def apply(self, output_path: Path) -> Path:
         from diffusers import FluxTransformer2DModel
 
-        source = FluxTransformer2DModel.from_pretrained(str(self), subfolder="transformer")
+        source = FluxTransformer2DModel.from_pretrained(
+            str(self), subfolder="transformer"
+        )
         target = self.init()
         trainer = self.nemo_setup(target)
         self.convert_state(source, target)
@@ -748,13 +838,16 @@ class HFFluxImporter(io.ModelConnector["FluxTransformer2DModel", MegatronFluxMod
     def config(self) -> FluxConfig:
         from diffusers import FluxTransformer2DModel
 
-        source = FluxTransformer2DModel.from_pretrained(str(self), subfolder="transformer")
+        source = FluxTransformer2DModel.from_pretrained(
+            str(self), subfolder="transformer"
+        )
         source_config = source.config
         flux_config = FluxConfig(
             num_layers=1,  # dummy setting
             num_joint_layers=source_config.num_layers,
             num_single_layers=source_config.num_single_layers,
-            hidden_size=source_config.num_attention_heads * source_config.attention_head_dim,
+            hidden_size=source_config.num_attention_heads
+            * source_config.attention_head_dim,
             num_attention_heads=source_config.num_attention_heads,
             activation_func=openai_gelu,
             add_qkv_bias=True,
@@ -777,60 +870,60 @@ class HFFluxImporter(io.ModelConnector["FluxTransformer2DModel", MegatronFluxMod
             clip_params=None,
             t5_params=None,
             scheduler_steps=1000,
-            device='cuda',
+            device="cuda",
         )
         return output
 
     def convert_state(self, source, target):
         # pylint: disable=C0301
         mapping = {
-            'transformer_blocks.*.norm1.linear.weight': 'double_blocks.*.adaln.adaLN_modulation.1.weight',
-            'transformer_blocks.*.norm1.linear.bias': 'double_blocks.*.adaln.adaLN_modulation.1.bias',
-            'transformer_blocks.*.norm1_context.linear.weight': 'double_blocks.*.adaln_context.adaLN_modulation.1.weight',
-            'transformer_blocks.*.norm1_context.linear.bias': 'double_blocks.*.adaln_context.adaLN_modulation.1.bias',
-            'transformer_blocks.*.attn.norm_q.weight': 'double_blocks.*.self_attention.q_layernorm.weight',
-            'transformer_blocks.*.attn.norm_k.weight': 'double_blocks.*.self_attention.k_layernorm.weight',
-            'transformer_blocks.*.attn.norm_added_q.weight': 'double_blocks.*.self_attention.added_q_layernorm.weight',
-            'transformer_blocks.*.attn.norm_added_k.weight': 'double_blocks.*.self_attention.added_k_layernorm.weight',
-            'transformer_blocks.*.attn.to_out.0.weight': 'double_blocks.*.self_attention.linear_proj.weight',
-            'transformer_blocks.*.attn.to_out.0.bias': 'double_blocks.*.self_attention.linear_proj.bias',
-            'transformer_blocks.*.attn.to_add_out.weight': 'double_blocks.*.self_attention.added_linear_proj.weight',
-            'transformer_blocks.*.attn.to_add_out.bias': 'double_blocks.*.self_attention.added_linear_proj.bias',
-            'transformer_blocks.*.ff.net.0.proj.weight': 'double_blocks.*.mlp.linear_fc1.weight',
-            'transformer_blocks.*.ff.net.0.proj.bias': 'double_blocks.*.mlp.linear_fc1.bias',
-            'transformer_blocks.*.ff.net.2.weight': 'double_blocks.*.mlp.linear_fc2.weight',
-            'transformer_blocks.*.ff.net.2.bias': 'double_blocks.*.mlp.linear_fc2.bias',
-            'transformer_blocks.*.ff_context.net.0.proj.weight': 'double_blocks.*.context_mlp.linear_fc1.weight',
-            'transformer_blocks.*.ff_context.net.0.proj.bias': 'double_blocks.*.context_mlp.linear_fc1.bias',
-            'transformer_blocks.*.ff_context.net.2.weight': 'double_blocks.*.context_mlp.linear_fc2.weight',
-            'transformer_blocks.*.ff_context.net.2.bias': 'double_blocks.*.context_mlp.linear_fc2.bias',
-            'single_transformer_blocks.*.norm.linear.weight': 'single_blocks.*.adaln.adaLN_modulation.1.weight',
-            'single_transformer_blocks.*.norm.linear.bias': 'single_blocks.*.adaln.adaLN_modulation.1.bias',
-            'single_transformer_blocks.*.proj_mlp.weight': 'single_blocks.*.mlp.linear_fc1.weight',
-            'single_transformer_blocks.*.proj_mlp.bias': 'single_blocks.*.mlp.linear_fc1.bias',
-            'single_transformer_blocks.*.attn.norm_q.weight': 'single_blocks.*.self_attention.q_layernorm.weight',
-            'single_transformer_blocks.*.attn.norm_k.weight': 'single_blocks.*.self_attention.k_layernorm.weight',
-            'single_transformer_blocks.*.proj_out.bias': 'single_blocks.*.mlp.linear_fc2.bias',
-            'norm_out.linear.bias': 'norm_out.adaLN_modulation.1.bias',
-            'norm_out.linear.weight': 'norm_out.adaLN_modulation.1.weight',
-            'proj_out.bias': 'proj_out.bias',
-            'proj_out.weight': 'proj_out.weight',
-            'time_text_embed.guidance_embedder.linear_1.bias': 'guidance_embedding.in_layer.bias',
-            'time_text_embed.guidance_embedder.linear_1.weight': 'guidance_embedding.in_layer.weight',
-            'time_text_embed.guidance_embedder.linear_2.bias': 'guidance_embedding.out_layer.bias',
-            'time_text_embed.guidance_embedder.linear_2.weight': 'guidance_embedding.out_layer.weight',
-            'x_embedder.bias': 'img_embed.bias',
-            'x_embedder.weight': 'img_embed.weight',
-            'time_text_embed.timestep_embedder.linear_1.bias': 'timestep_embedding.time_embedder.in_layer.bias',
-            'time_text_embed.timestep_embedder.linear_1.weight': 'timestep_embedding.time_embedder.in_layer.weight',
-            'time_text_embed.timestep_embedder.linear_2.bias': 'timestep_embedding.time_embedder.out_layer.bias',
-            'time_text_embed.timestep_embedder.linear_2.weight': 'timestep_embedding.time_embedder.out_layer.weight',
-            'context_embedder.bias': 'txt_embed.bias',
-            'context_embedder.weight': 'txt_embed.weight',
-            'time_text_embed.text_embedder.linear_1.bias': 'vector_embedding.in_layer.bias',
-            'time_text_embed.text_embedder.linear_1.weight': 'vector_embedding.in_layer.weight',
-            'time_text_embed.text_embedder.linear_2.bias': 'vector_embedding.out_layer.bias',
-            'time_text_embed.text_embedder.linear_2.weight': 'vector_embedding.out_layer.weight',
+            "transformer_blocks.*.norm1.linear.weight": "double_blocks.*.adaln.adaLN_modulation.1.weight",
+            "transformer_blocks.*.norm1.linear.bias": "double_blocks.*.adaln.adaLN_modulation.1.bias",
+            "transformer_blocks.*.norm1_context.linear.weight": "double_blocks.*.adaln_context.adaLN_modulation.1.weight",
+            "transformer_blocks.*.norm1_context.linear.bias": "double_blocks.*.adaln_context.adaLN_modulation.1.bias",
+            "transformer_blocks.*.attn.norm_q.weight": "double_blocks.*.self_attention.q_layernorm.weight",
+            "transformer_blocks.*.attn.norm_k.weight": "double_blocks.*.self_attention.k_layernorm.weight",
+            "transformer_blocks.*.attn.norm_added_q.weight": "double_blocks.*.self_attention.added_q_layernorm.weight",
+            "transformer_blocks.*.attn.norm_added_k.weight": "double_blocks.*.self_attention.added_k_layernorm.weight",
+            "transformer_blocks.*.attn.to_out.0.weight": "double_blocks.*.self_attention.linear_proj.weight",
+            "transformer_blocks.*.attn.to_out.0.bias": "double_blocks.*.self_attention.linear_proj.bias",
+            "transformer_blocks.*.attn.to_add_out.weight": "double_blocks.*.self_attention.added_linear_proj.weight",
+            "transformer_blocks.*.attn.to_add_out.bias": "double_blocks.*.self_attention.added_linear_proj.bias",
+            "transformer_blocks.*.ff.net.0.proj.weight": "double_blocks.*.mlp.linear_fc1.weight",
+            "transformer_blocks.*.ff.net.0.proj.bias": "double_blocks.*.mlp.linear_fc1.bias",
+            "transformer_blocks.*.ff.net.2.weight": "double_blocks.*.mlp.linear_fc2.weight",
+            "transformer_blocks.*.ff.net.2.bias": "double_blocks.*.mlp.linear_fc2.bias",
+            "transformer_blocks.*.ff_context.net.0.proj.weight": "double_blocks.*.context_mlp.linear_fc1.weight",
+            "transformer_blocks.*.ff_context.net.0.proj.bias": "double_blocks.*.context_mlp.linear_fc1.bias",
+            "transformer_blocks.*.ff_context.net.2.weight": "double_blocks.*.context_mlp.linear_fc2.weight",
+            "transformer_blocks.*.ff_context.net.2.bias": "double_blocks.*.context_mlp.linear_fc2.bias",
+            "single_transformer_blocks.*.norm.linear.weight": "single_blocks.*.adaln.adaLN_modulation.1.weight",
+            "single_transformer_blocks.*.norm.linear.bias": "single_blocks.*.adaln.adaLN_modulation.1.bias",
+            "single_transformer_blocks.*.proj_mlp.weight": "single_blocks.*.mlp.linear_fc1.weight",
+            "single_transformer_blocks.*.proj_mlp.bias": "single_blocks.*.mlp.linear_fc1.bias",
+            "single_transformer_blocks.*.attn.norm_q.weight": "single_blocks.*.self_attention.q_layernorm.weight",
+            "single_transformer_blocks.*.attn.norm_k.weight": "single_blocks.*.self_attention.k_layernorm.weight",
+            "single_transformer_blocks.*.proj_out.bias": "single_blocks.*.mlp.linear_fc2.bias",
+            "norm_out.linear.bias": "norm_out.adaLN_modulation.1.bias",
+            "norm_out.linear.weight": "norm_out.adaLN_modulation.1.weight",
+            "proj_out.bias": "proj_out.bias",
+            "proj_out.weight": "proj_out.weight",
+            "time_text_embed.guidance_embedder.linear_1.bias": "guidance_embedding.in_layer.bias",
+            "time_text_embed.guidance_embedder.linear_1.weight": "guidance_embedding.in_layer.weight",
+            "time_text_embed.guidance_embedder.linear_2.bias": "guidance_embedding.out_layer.bias",
+            "time_text_embed.guidance_embedder.linear_2.weight": "guidance_embedding.out_layer.weight",
+            "x_embedder.bias": "img_embed.bias",
+            "x_embedder.weight": "img_embed.weight",
+            "time_text_embed.timestep_embedder.linear_1.bias": "timestep_embedding.time_embedder.in_layer.bias",
+            "time_text_embed.timestep_embedder.linear_1.weight": "timestep_embedding.time_embedder.in_layer.weight",
+            "time_text_embed.timestep_embedder.linear_2.bias": "timestep_embedding.time_embedder.out_layer.bias",
+            "time_text_embed.timestep_embedder.linear_2.weight": "timestep_embedding.time_embedder.out_layer.weight",
+            "context_embedder.bias": "txt_embed.bias",
+            "context_embedder.weight": "txt_embed.weight",
+            "time_text_embed.text_embedder.linear_1.bias": "vector_embedding.in_layer.bias",
+            "time_text_embed.text_embedder.linear_1.weight": "vector_embedding.in_layer.weight",
+            "time_text_embed.text_embedder.linear_2.bias": "vector_embedding.out_layer.bias",
+            "time_text_embed.text_embedder.linear_2.weight": "vector_embedding.out_layer.weight",
         }
         return io.apply_transforms(
             source,
@@ -927,8 +1020,11 @@ def import_single_block_qkv_bias(ctx: io.TransformCTX, qb, kb, vb):
 
 
 @io.state_transform(
-    source_key=('single_transformer_blocks.*.proj_out.weight'),
-    target_key=('single_blocks.*.mlp.linear_fc2.weight', 'single_blocks.*.self_attention.linear_proj.weight'),
+    source_key=("single_transformer_blocks.*.proj_out.weight"),
+    target_key=(
+        "single_blocks.*.mlp.linear_fc2.weight",
+        "single_blocks.*.self_attention.linear_proj.weight",
+    ),
 )
 def transform_single_proj_out(proj_weight):
     linear_fc2 = proj_weight.detach()[:, 3072:].clone()

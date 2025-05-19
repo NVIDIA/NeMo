@@ -35,7 +35,7 @@ from nemo.core.neural_types import (ChannelType, LogitsType, MaskType,
                                     NeuralType)
 from nemo.utils import logging
 
-__all__ = ['DuplexTaggerModel']
+__all__ = ["DuplexTaggerModel"]
 
 
 class DuplexTaggerModel(NLPModel):
@@ -46,13 +46,13 @@ class DuplexTaggerModel(NLPModel):
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
         return {
-            "input_ids": NeuralType(('B', 'T'), ChannelType()),
-            "attention_mask": NeuralType(('B', 'T'), MaskType(), optional=True),
+            "input_ids": NeuralType(("B", "T"), ChannelType()),
+            "attention_mask": NeuralType(("B", "T"), MaskType(), optional=True),
         }
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        return {"logits": NeuralType(('B', 'T', 'D'), LogitsType())}
+        return {"logits": NeuralType(("B", "T", "D"), LogitsType())}
 
     @property
     def input_module(self):
@@ -63,25 +63,31 @@ class DuplexTaggerModel(NLPModel):
         return self
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
-        self.tokenizer = AutoTokenizer.from_pretrained(cfg.tokenizer, add_prefix_space=True)
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            cfg.tokenizer, add_prefix_space=True
+        )
         super().__init__(cfg=cfg, trainer=trainer)
         self.num_labels = len(constants.ALL_TAG_LABELS)
-        self.mode = cfg.get('mode', 'joint')
+        self.mode = cfg.get("mode", "joint")
 
-        self.model = AutoModelForTokenClassification.from_pretrained(cfg.transformer, num_labels=self.num_labels)
+        self.model = AutoModelForTokenClassification.from_pretrained(
+            cfg.transformer, num_labels=self.num_labels
+        )
         self.transformer_name = cfg.transformer
-        self.max_sequence_len = cfg.get('max_sequence_len', self.tokenizer.model_max_length)
+        self.max_sequence_len = cfg.get(
+            "max_sequence_len", self.tokenizer.model_max_length
+        )
 
         # Loss Functions
         self.loss_fct = nn.CrossEntropyLoss(ignore_index=constants.LABEL_PAD_TOKEN_ID)
 
         # setup to track metrics
         self.classification_report = ClassificationReport(
-            self.num_labels, constants.LABEL_IDS, mode='micro', dist_sync_on_step=True
+            self.num_labels, constants.LABEL_IDS, mode="micro", dist_sync_on_step=True
         )
 
         # Language
-        self.lang = cfg.get('lang', None)
+        self.lang = cfg.get("lang", None)
 
     @typecheck()
     def forward(self, input_ids, attention_mask):
@@ -96,15 +102,19 @@ class DuplexTaggerModel(NLPModel):
         """
         num_labels = self.num_labels
         # Apply Transformer
-        tag_logits = self.forward(input_ids=batch['input_ids'], attention_mask=batch['attention_mask'])
+        tag_logits = self.forward(
+            input_ids=batch["input_ids"], attention_mask=batch["attention_mask"]
+        )
 
         # Loss
-        train_loss = self.loss_fct(tag_logits.view(-1, num_labels), batch['labels'].view(-1))
+        train_loss = self.loss_fct(
+            tag_logits.view(-1, num_labels), batch["labels"].view(-1)
+        )
 
-        lr = self._optimizer.param_groups[0]['lr']
-        self.log('train_loss', train_loss)
-        self.log('lr', lr, prog_bar=True)
-        return {'loss': train_loss, 'lr': lr}
+        lr = self._optimizer.param_groups[0]["lr"]
+        self.log("train_loss", train_loss)
+        self.log("lr", lr, prog_bar=True)
+        return {"loss": train_loss, "lr": lr}
 
     # Validation and Testing
     def validation_step(self, batch, batch_idx):
@@ -113,16 +123,27 @@ class DuplexTaggerModel(NLPModel):
         passed in as `batch`.
         """
         # Apply Transformer
-        tag_logits = self.forward(input_ids=batch['input_ids'], attention_mask=batch['attention_mask'])
+        tag_logits = self.forward(
+            input_ids=batch["input_ids"], attention_mask=batch["attention_mask"]
+        )
         tag_preds = torch.argmax(tag_logits, dim=2)
 
         # Update classification_report
-        predictions, labels = tag_preds.tolist(), batch['labels'].tolist()
+        predictions, labels = tag_preds.tolist(), batch["labels"].tolist()
         for prediction, label in zip(predictions, labels):
-            cur_preds = [p for (p, l) in zip(prediction, label) if l != constants.LABEL_PAD_TOKEN_ID]
-            cur_labels = [l for (p, l) in zip(prediction, label) if l != constants.LABEL_PAD_TOKEN_ID]
+            cur_preds = [
+                p
+                for (p, l) in zip(prediction, label)
+                if l != constants.LABEL_PAD_TOKEN_ID
+            ]
+            cur_labels = [
+                l
+                for (p, l) in zip(prediction, label)
+                if l != constants.LABEL_PAD_TOKEN_ID
+            ]
             self.classification_report(
-                torch.tensor(cur_preds).to(self.device), torch.tensor(cur_labels).to(self.device)
+                torch.tensor(cur_preds).to(self.device),
+                torch.tensor(cur_labels).to(self.device),
             )
 
     def on_validation_epoch_end(self):
@@ -135,7 +156,7 @@ class DuplexTaggerModel(NLPModel):
 
         logging.info(report)
 
-        self.log('val_token_precision', precision)
+        self.log("val_token_precision", precision)
 
         self.classification_report.reset()
 
@@ -180,7 +201,13 @@ class DuplexTaggerModel(NLPModel):
             texts.append([prefix] + sent)
 
         # Apply the model
-        encodings = self.tokenizer(texts, is_split_into_words=True, padding=True, truncation=True, return_tensors='pt')
+        encodings = self.tokenizer(
+            texts,
+            is_split_into_words=True,
+            padding=True,
+            truncation=True,
+            return_tensors="pt",
+        )
 
         inputs = encodings
         encodings_reduced = None
@@ -189,27 +216,32 @@ class DuplexTaggerModel(NLPModel):
         # if an input symbol is missing in the tokenizer's vocabulary (such as emoji or a Chinese character), it could be skipped
         len_texts = [len(x) for x in texts]
         len_ids = [
-            len(self.tokenizer.convert_ids_to_tokens(x, skip_special_tokens=True)) for x in encodings['input_ids']
+            len(self.tokenizer.convert_ids_to_tokens(x, skip_special_tokens=True))
+            for x in encodings["input_ids"]
         ]
-        idx_valid = [i for i, (t, enc) in enumerate(zip(len_texts, len_ids)) if enc >= t]
+        idx_valid = [
+            i for i, (t, enc) in enumerate(zip(len_texts, len_ids)) if enc >= t
+        ]
 
         if len(idx_valid) != len(texts):
             logging.warning(
-                'Some of the examples have symbols that were skipped during the tokenization. Such examples will be skipped.'
+                "Some of the examples have symbols that were skipped during the tokenization. Such examples will be skipped."
             )
             for i in range(len(texts)):
                 if i not in idx_valid:
-                    logging.warning(f'Invalid input: {texts[i]}')
+                    logging.warning(f"Invalid input: {texts[i]}")
             # skip these sentences and fall back to the input
             # exclude invalid examples from the encodings
-            encodings_reduced = {k: tensor[idx_valid, :] for k, tensor in encodings.items()}
+            encodings_reduced = {
+                k: tensor[idx_valid, :] for k, tensor in encodings.items()
+            }
             for k, tensor in encodings_reduced.items():
                 if tensor.ndim == 1:
                     encodings_reduced[k] = tensor.unsqueeze(dim=0)
             inputs = BatchEncoding(data=encodings_reduced)
 
         # skip the batch if no valid inputs are present
-        if encodings_reduced and encodings_reduced['input_ids'].numel() == 0:
+        if encodings_reduced and encodings_reduced["input_ids"].numel() == 0:
             # -1 to exclude tag for the prompt token
             all_tag_preds = [[constants.SAME_TAG] * (len(x) - 1) for x in texts]
             nb_spans = [0] * len(texts)
@@ -222,19 +254,23 @@ class DuplexTaggerModel(NLPModel):
 
         # Extract all_tag_preds for words
         all_tag_preds = []
-        batch_size, max_len = encodings['input_ids'].size()
+        batch_size, max_len = encodings["input_ids"].size()
         pred_idx = 0
         for ix in range(batch_size):
             if ix in idx_valid:
                 # remove first special token and task prefix token
-                raw_tag_preds = [constants.ALL_TAG_LABELS[p] for p in pred_indexes[pred_idx][2:]]
+                raw_tag_preds = [
+                    constants.ALL_TAG_LABELS[p] for p in pred_indexes[pred_idx][2:]
+                ]
                 tag_preds, previous_word_idx = [], None
                 word_ids = encodings.word_ids(batch_index=ix)[2:]
                 for jx, word_idx in enumerate(word_ids):
                     if word_idx is None:
                         continue
                     if word_idx != previous_word_idx:
-                        tag_preds.append(raw_tag_preds[jx])  # without special token at index 0
+                        tag_preds.append(
+                            raw_tag_preds[jx]
+                        )  # without special token at index 0
                     previous_word_idx = word_idx
                 pred_idx += 1
             else:
@@ -300,7 +336,7 @@ class DuplexTaggerModel(NLPModel):
         for i, preds in enumerate(tag_preds):
             cur_nb_spans, cur_span_start = 0, None
             cur_span_starts, cur_span_ends = [], []
-            for ix, pred in enumerate(preds + ['EOS']):
+            for ix, pred in enumerate(preds + ["EOS"]):
                 if pred != constants.I_PREFIX + constants.TRANSFORM_TAG:
                     if not cur_span_start is None:
                         cur_nb_spans += 1
@@ -322,7 +358,9 @@ class DuplexTaggerModel(NLPModel):
             )
             self._train_dl = None
             return
-        self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config, data_split="train")
+        self._train_dl = self._setup_dataloader_from_config(
+            cfg=train_data_config, data_split="train"
+        )
 
     def setup_validation_data(self, val_data_config: Optional[DictConfig]):
         if not val_data_config or not val_data_config.data_path:
@@ -331,7 +369,9 @@ class DuplexTaggerModel(NLPModel):
             )
             self._validation_dl = None
             return
-        self._validation_dl = self._setup_dataloader_from_config(cfg=val_data_config, data_split="val")
+        self._validation_dl = self._setup_dataloader_from_config(
+            cfg=val_data_config, data_split="val"
+        )
 
     def setup_test_data(self, test_data_config: Optional[DictConfig]):
         if not test_data_config or test_data_config.data_path is None:
@@ -340,13 +380,15 @@ class DuplexTaggerModel(NLPModel):
             )
             self._test_dl = None
             return
-        self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config, data_split="test")
+        self._test_dl = self._setup_dataloader_from_config(
+            cfg=test_data_config, data_split="test"
+        )
 
     def _setup_dataloader_from_config(self, cfg: DictConfig, data_split: str):
         start_time = perf_counter()
-        logging.info(f'Creating {data_split} dataset')
+        logging.info(f"Creating {data_split} dataset")
         input_file = cfg.data_path
-        tagger_data_augmentation = cfg.get('tagger_data_augmentation', False)
+        tagger_data_augmentation = cfg.get("tagger_data_augmentation", False)
         dataset = TextNormalizationTaggerDataset(
             input_file=input_file,
             tokenizer=self.tokenizer,
@@ -355,15 +397,18 @@ class DuplexTaggerModel(NLPModel):
             tagger_data_augmentation=tagger_data_augmentation,
             lang=self.lang,
             max_seq_length=self.max_sequence_len,
-            use_cache=cfg.get('use_cache', False),
-            max_insts=cfg.get('max_insts', -1),
+            use_cache=cfg.get("use_cache", False),
+            max_insts=cfg.get("max_insts", -1),
         )
         data_collator = DataCollatorForTokenClassification(self.tokenizer)
         dl = torch.utils.data.DataLoader(
-            dataset=dataset, batch_size=cfg.batch_size, shuffle=cfg.shuffle, collate_fn=data_collator
+            dataset=dataset,
+            batch_size=cfg.batch_size,
+            shuffle=cfg.shuffle,
+            collate_fn=data_collator,
         )
         running_time = perf_counter() - start_time
-        logging.info(f'Took {running_time} seconds')
+        logging.info(f"Took {running_time} seconds")
         return dl
 
     def input_example(self):
@@ -374,7 +419,9 @@ class DuplexTaggerModel(NLPModel):
         """
         sample = next(self.parameters())
         input_ids = torch.randint(low=0, high=2048, size=(2, 16), device=sample.device)
-        attention_mask = torch.randint(low=0, high=1, size=(2, 16), device=sample.device)
+        attention_mask = torch.randint(
+            low=0, high=1, size=(2, 16), device=sample.device
+        )
         return tuple([input_ids, attention_mask])
 
     @classmethod

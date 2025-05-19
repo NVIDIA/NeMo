@@ -100,11 +100,15 @@ class ParallelAlignmentConfig:
     predict_ds: ASRDatasetConfig = field(
         default_factory=lambda: ASRDatasetConfig(return_sample_id=True, num_workers=4)
     )
-    aligner_args: K2AlignerWrapperModelConfig = field(default_factory=lambda: K2AlignerWrapperModelConfig())
+    aligner_args: K2AlignerWrapperModelConfig = field(
+        default_factory=lambda: K2AlignerWrapperModelConfig()
+    )
     output_path: str = MISSING
     model_stride: int = 8
 
-    trainer: TrainerConfig = field(default_factory=lambda: TrainerConfig(devices=-1, accelerator="ddp"))
+    trainer: TrainerConfig = field(
+        default_factory=lambda: TrainerConfig(devices=-1, accelerator="ddp")
+    )
 
     # there arguments will be ignored
     return_predictions: bool = False
@@ -146,7 +150,9 @@ def main(cfg: ParallelAlignmentConfig):
         model = ASRModel.restore_from(restore_path=cfg.model, map_location="cpu")
     elif cfg.model.endswith(".ckpt"):
         logging.info("Attempting to initialize from .ckpt file")
-        model = ASRModel.load_from_checkpoint(checkpoint_path=cfg.model, map_location="cpu")
+        model = ASRModel.load_from_checkpoint(
+            checkpoint_path=cfg.model, map_location="cpu"
+        )
     else:
         logging.info(
             "Attempting to initialize from a pretrained model as the model name does not have the extension of .nemo or .ckpt"
@@ -158,24 +164,32 @@ def main(cfg: ParallelAlignmentConfig):
     cfg.predict_ds.return_sample_id = True
     cfg.return_predictions = False
     cfg.use_cer = False
-    cfg.predict_ds = match_train_config(predict_ds=cfg.predict_ds, train_ds=model._cfg.train_ds)
+    cfg.predict_ds = match_train_config(
+        predict_ds=cfg.predict_ds, train_ds=model._cfg.train_ds
+    )
     data_loader = model._setup_dataloader_from_config(cfg.predict_ds)
 
     os.makedirs(cfg.output_path, exist_ok=True)
     # trainer.global_rank is not valid before predict() is called. Need this hack to find the correct global_rank.
-    global_rank = trainer.node_rank * trainer.num_devices + int(os.environ.get("LOCAL_RANK", 0))
+    global_rank = trainer.node_rank * trainer.num_devices + int(
+        os.environ.get("LOCAL_RANK", 0)
+    )
     output_file = os.path.join(cfg.output_path, f"predictions_{global_rank}.json")
     output_ctm_dir = os.path.join(cfg.output_path, "ctm")
     predictor_writer = ASRCTMPredictionWriter(
         dataset=data_loader.dataset,
         output_file=output_file,
         output_ctm_dir=output_ctm_dir,
-        time_per_frame=cfg.model_stride * model._cfg.preprocessor['window_stride'],
+        time_per_frame=cfg.model_stride * model._cfg.preprocessor["window_stride"],
     )
     trainer.callbacks.extend([predictor_writer])
 
     aligner_wrapper = AlignerWrapperModel(model=model, cfg=cfg.aligner_args)
-    trainer.predict(model=aligner_wrapper, dataloaders=data_loader, return_predictions=cfg.return_predictions)
+    trainer.predict(
+        model=aligner_wrapper,
+        dataloaders=data_loader,
+        return_predictions=cfg.return_predictions,
+    )
     samples_num = predictor_writer.close_output_file()
 
     logging.info(
@@ -189,10 +203,10 @@ def main(cfg: ParallelAlignmentConfig):
     if is_global_rank_zero():
         output_file = os.path.join(cfg.output_path, f"predictions_all.json")
         logging.info(f"Prediction files are being aggregated in {output_file}.")
-        with open(output_file, 'tw', encoding="utf-8") as outf:
+        with open(output_file, "tw", encoding="utf-8") as outf:
             for rank in range(trainer.world_size):
                 input_file = os.path.join(cfg.output_path, f"predictions_{rank}.json")
-                with open(input_file, 'r', encoding="utf-8") as inpf:
+                with open(input_file, "r", encoding="utf-8") as inpf:
                     lines = inpf.readlines()
                     samples_num += len(lines)
                     outf.writelines(lines)
@@ -201,5 +215,5 @@ def main(cfg: ParallelAlignmentConfig):
         )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

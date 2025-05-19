@@ -26,7 +26,16 @@ from nemo.utils import logging
 
 
 class Aggregator(nn.Module):
-    AVAILABLE_POOLING = ["cat", "sum", "mean", "avg", "max", "min", "none", "weighted_sum"]
+    AVAILABLE_POOLING = [
+        "cat",
+        "sum",
+        "mean",
+        "avg",
+        "max",
+        "min",
+        "none",
+        "weighted_sum",
+    ]
 
     def __init__(self, mode, weights, layer_idx_list, channel_idx: int = 1):
         """
@@ -41,9 +50,13 @@ class Aggregator(nn.Module):
         self.channel_idx = channel_idx
         self.weights = weights
         if self.mode not in self.AVAILABLE_POOLING:
-            raise ValueError(f"Unknown mode `{self.mode}`, available modes are {self.AVAILABLE_POOLING}")
+            raise ValueError(
+                f"Unknown mode `{self.mode}`, available modes are {self.AVAILABLE_POOLING}"
+            )
         if self.mode == "weighted_sum" and self.weights is None:
-            self.weights = nn.Parameter(torch.ones(len(layer_idx_list)) / len(layer_idx_list))
+            self.weights = nn.Parameter(
+                torch.ones(len(layer_idx_list)) / len(layer_idx_list)
+            )
 
     def _forward_for_weighted_sum(
         self, encoded: List[torch.Tensor], encoded_len: List[torch.Tensor]
@@ -67,13 +80,25 @@ class Aggregator(nn.Module):
         if self.mode == "cat":
             return torch.cat(encoded, dim=self.channel_idx), encoded_len[0]
         elif self.mode == "sum":
-            return torch.cat([x.unsqueeze(-1) for x in encoded], dim=-1).sum(dim=-1), encoded_len[0]
+            return (
+                torch.cat([x.unsqueeze(-1) for x in encoded], dim=-1).sum(dim=-1),
+                encoded_len[0],
+            )
         elif self.mode == "mean" or self.mode == "avg":
-            return torch.cat([x.unsqueeze(-1) for x in encoded], dim=-1).mean(dim=-1), encoded_len[0]
+            return (
+                torch.cat([x.unsqueeze(-1) for x in encoded], dim=-1).mean(dim=-1),
+                encoded_len[0],
+            )
         elif self.mode == "max":
-            return torch.cat([x.unsqueeze(-1) for x in encoded], dim=-1).max(dim=-1), encoded_len[0]
+            return (
+                torch.cat([x.unsqueeze(-1) for x in encoded], dim=-1).max(dim=-1),
+                encoded_len[0],
+            )
         elif self.mode == "min":
-            return torch.cat([x.unsqueeze(-1) for x in encoded], dim=-1).min(dim=-1), encoded_len[0]
+            return (
+                torch.cat([x.unsqueeze(-1) for x in encoded], dim=-1).min(dim=-1),
+                encoded_len[0],
+            )
         elif self.mode == "none":
             return encoded, encoded_len
         elif self.mode == "weighted_sum":
@@ -83,7 +108,12 @@ class Aggregator(nn.Module):
 
 
 class ConformerMultiLayerFeatureExtractor(NeuralModule, Exportable):
-    def __init__(self, encoder, aggregator: Optional[Callable] = None, layer_idx_list: Optional[List[int]] = None):
+    def __init__(
+        self,
+        encoder,
+        aggregator: Optional[Callable] = None,
+        layer_idx_list: Optional[List[int]] = None,
+    ):
         """
         Args:
             encoder: ConformerEncoder instance.
@@ -100,7 +130,9 @@ class ConformerMultiLayerFeatureExtractor(NeuralModule, Exportable):
         )
         for x in self.layer_idx_list:
             if x < 0 or x >= len(self.encoder.layers):
-                raise ValueError(f"layer index {x} out of range [0, {len(self.encoder.layers)})")
+                raise ValueError(
+                    f"layer index {x} out of range [0, {len(self.encoder.layers)})"
+                )
         logging.info(f"Extracting features from layers {self.layer_idx_list}")
         self.access_cfg = {
             "interctc": {
@@ -112,7 +144,12 @@ class ConformerMultiLayerFeatureExtractor(NeuralModule, Exportable):
         self._is_access_enabled = False
 
     def forward(
-        self, audio_signal, length, cache_last_channel=None, cache_last_time=None, cache_last_channel_len=None
+        self,
+        audio_signal,
+        length,
+        cache_last_channel=None,
+        cache_last_time=None,
+        cache_last_channel_len=None,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Args:
@@ -120,8 +157,12 @@ class ConformerMultiLayerFeatureExtractor(NeuralModule, Exportable):
         Returns:
             tuple of aggregated features of shape [B, D, T] and lengths of shape [B]
         """
-        self.encoder.update_access_cfg(self.access_cfg, guid=getattr(self, "model_guid", None))
-        self.encoder.set_access_enabled(access_enabled=True, guid=getattr(self, "model_guid", None))
+        self.encoder.update_access_cfg(
+            self.access_cfg, guid=getattr(self, "model_guid", None)
+        )
+        self.encoder.set_access_enabled(
+            access_enabled=True, guid=getattr(self, "model_guid", None)
+        )
 
         _ = self.encoder(
             audio_signal=audio_signal,
@@ -150,7 +191,9 @@ class ConformerMultiLayerFeatureExtractor(NeuralModule, Exportable):
                     "ConformerEncoder layers."
                 )
             if len(layer_outputs) > 1 or len(layer_lengths) > 1:
-                raise RuntimeError("Make sure encoder.forward is called exactly one time")
+                raise RuntimeError(
+                    "Make sure encoder.forward is called exactly one time"
+                )
             encoded_list.append(layer_outputs[0])  # [B, D, T]
             encoded_len_list.append(layer_lengths[0])  # [B]
 
@@ -203,7 +246,11 @@ class ConformerMultiLayerFeaturePreprocessor(NeuralModule, Exportable, AccessMix
         )
 
         if self.spec_augmentation is not None and self.training:
-            processed_signal = self.spec_augmentation(input_spec=processed_signal, length=processed_signal_length)
+            processed_signal = self.spec_augmentation(
+                input_spec=processed_signal, length=processed_signal_length
+            )
 
-        encoded, encoded_len = self.feature_extractor(audio_signal=processed_signal, length=processed_signal_length)
+        encoded, encoded_len = self.feature_extractor(
+            audio_signal=processed_signal, length=processed_signal_length
+        )
         return encoded, encoded_len

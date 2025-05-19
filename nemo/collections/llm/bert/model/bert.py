@@ -36,11 +36,11 @@ if TYPE_CHECKING:
 class MegatronBertConfig(BertConfig):
     """Configs for training megatron-style Bert Model."""
 
-    bert_type: str = 'megatron'
+    bert_type: str = "megatron"
     add_pooler: bool = False
     init_method_std: float = 0.02
     hidden_dropout: float = 0.1
-    normalization: float = 'LayerNorm'
+    normalization: float = "LayerNorm"
     layernorm_epsilon: float = 1e-5
     apply_query_key_layer_scaling: bool = False
     position_embedding_type: str = "learned_absolute"
@@ -71,11 +71,11 @@ class MegatronBertBaseConfig(MegatronBertConfig):
 class HuggingFaceBertConfig(BertConfig):
     """Configs for models in https://huggingface.co/google-bert"""
 
-    bert_type: str = 'huggingface'
+    bert_type: str = "huggingface"
     add_pooler: bool = True
     init_method_std: float = 0.02
     hidden_dropout: float = 0.1
-    normalization: float = 'LayerNorm'
+    normalization: float = "LayerNorm"
     layernorm_epsilon: float = 1e-5
     apply_query_key_layer_scaling: bool = False
     position_embedding_type: str = "learned_absolute"
@@ -111,7 +111,12 @@ class HuggingFaceBertModel(BertModel):
         tokenizer: Optional["TokenizerSpec"] = None,
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
-        super().__init__(config or BertConfig(), optim=optim, tokenizer=tokenizer, model_transform=model_transform)
+        super().__init__(
+            config or BertConfig(),
+            optim=optim,
+            tokenizer=tokenizer,
+            model_transform=model_transform,
+        )
 
 
 @io.model_importer(HuggingFaceBertModel, "hf")
@@ -124,7 +129,7 @@ class HuggingFaceBertImporter(io.ModelConnector["BertForMaskedLM", BertModel]):
             # and do all their initialization in __new__/ helper methods.
             # Only need to call super().__init__ if version > 3.11
             super().__init__(*args)
-        self.type = kwargs.get('type', 'model')
+        self.type = kwargs.get("type", "model")
 
     def init(self) -> HuggingFaceBertModel:
         return HuggingFaceBertModel(self.config, tokenizer=self.tokenizer)
@@ -134,16 +139,18 @@ class HuggingFaceBertImporter(io.ModelConnector["BertForMaskedLM", BertModel]):
                                   BertForNextSentencePrediction,
                                   BertForPreTraining, BertModel)
 
-        source = BertForPreTraining.from_pretrained(str(self), torch_dtype='auto')
+        source = BertForPreTraining.from_pretrained(str(self), torch_dtype="auto")
         # Depending on add_lm_head, bert_binary_head, we initialize the bert model differently:
-        if self.type == 'model':
-            source = BertModel.from_pretrained(str(self), torch_dtype='auto')
-        elif self.type == 'pretraining':
-            source = BertForPreTraining.from_pretrained(str(self), torch_dtype='auto')
-        elif self.type == 'masked':
-            source = BertForMaskedLM.from_pretrained(str(self), torch_dtype='auto')
-        elif self.type == 'classification':
-            source = BertForNextSentencePrediction.from_pretrained(str(self), torch_dtype='auto')
+        if self.type == "model":
+            source = BertModel.from_pretrained(str(self), torch_dtype="auto")
+        elif self.type == "pretraining":
+            source = BertForPreTraining.from_pretrained(str(self), torch_dtype="auto")
+        elif self.type == "masked":
+            source = BertForMaskedLM.from_pretrained(str(self), torch_dtype="auto")
+        elif self.type == "classification":
+            source = BertForNextSentencePrediction.from_pretrained(
+                str(self), torch_dtype="auto"
+            )
 
         logging.info(
             f"Initializing Bert Model with pooler={self.config.add_pooler} "
@@ -190,18 +197,18 @@ class HuggingFaceBertImporter(io.ModelConnector["BertForMaskedLM", BertModel]):
 
         # When instantiated HF's BertModel, or BertModelForPretraining, BertForMaskedLM, BertForNextSentencePrediction
         # The prefix for state dict is slightly different, therefore we need different transforms to take care of.
-        if self.type == 'model':
+        if self.type == "model":
             transforms = [_import_qkv_2, _import_qkv_bias_2, _import_embedding_2]
         else:
             transforms = [_import_qkv, _import_qkv_bias, _import_embedding]
 
-        if self.type == 'pretraining' or self.type == 'masked':
+        if self.type == "pretraining" or self.type == "masked":
             # For models with output layers, we need to convert the bias weights
             transforms.append(_import_output_bias)
 
-        if self.type != 'model':
+        if self.type != "model":
             # adding the 'bert.' prefix so that the state dict matches.
-            mapping = {f'bert.{k}': v for k, v in mapping.items()}
+            mapping = {f"bert.{k}": v for k, v in mapping.items()}
 
         if self.config.add_lm_head:
             mapping.update(
@@ -219,7 +226,9 @@ class HuggingFaceBertImporter(io.ModelConnector["BertForMaskedLM", BertModel]):
                     "cls.seq_relationship.bias": "binary_head.bias",
                 }
             )
-        return io.apply_transforms(source, target, mapping=mapping, transforms=transforms)
+        return io.apply_transforms(
+            source, target, mapping=mapping, transforms=transforms
+        )
 
     @property
     def tokenizer(self) -> "AutoTokenizer":
@@ -237,7 +246,7 @@ class HuggingFaceBertImporter(io.ModelConnector["BertForMaskedLM", BertModel]):
         source = HFBertConfig.from_pretrained(str(self))
 
         output = HuggingFaceBertConfig(
-            bert_type='huggingface',
+            bert_type="huggingface",
             num_layers=source.num_hidden_layers,
             hidden_size=source.hidden_size,
             ffn_hidden_size=source.intermediate_size,
@@ -245,9 +254,10 @@ class HuggingFaceBertImporter(io.ModelConnector["BertForMaskedLM", BertModel]):
             init_method_std=source.initializer_range,
             layernorm_epsilon=source.layer_norm_eps,
             seq_length=source.max_position_embeddings,
-            add_lm_head=self.type == 'pretraining' or self.type == 'masked',
-            bert_binary_head=self.type == 'pretraining' or self.type == 'classification',
-            add_pooler=self.type != 'masked',
+            add_lm_head=self.type == "pretraining" or self.type == "masked",
+            bert_binary_head=self.type == "pretraining"
+            or self.type == "classification",
+            add_pooler=self.type != "masked",
             share_embeddings_and_output_weights=True,
             num_tokentypes=2,
         )
@@ -349,7 +359,9 @@ def _import_qkv(ctx: io.TransformCTX, q, k, v):
     head_num = megatron_config.num_attention_heads
     hidden_size = megatron_config.hidden_size
     head_size = getattr(
-        megatron_config, 'kv_channels', megatron_config.hidden_size // megatron_config.num_attention_heads
+        megatron_config,
+        "kv_channels",
+        megatron_config.hidden_size // megatron_config.num_attention_heads,
     )
 
     old_tensor_shape = q.size()
@@ -383,7 +395,9 @@ def _import_qkv_bias(ctx: io.TransformCTX, qb, kb, vb):
 
     head_num = megatron_config.num_attention_heads
     head_size = getattr(
-        megatron_config, 'kv_channels', megatron_config.hidden_size // megatron_config.num_attention_heads
+        megatron_config,
+        "kv_channels",
+        megatron_config.hidden_size // megatron_config.num_attention_heads,
     )
 
     new_q_tensor_shape_bias = (head_num, head_size)
@@ -458,7 +472,9 @@ def _import_qkv_2(ctx: io.TransformCTX, q, k, v):
     head_num = megatron_config.num_attention_heads
     hidden_size = megatron_config.hidden_size
     head_size = getattr(
-        megatron_config, 'kv_channels', megatron_config.hidden_size // megatron_config.num_attention_heads
+        megatron_config,
+        "kv_channels",
+        megatron_config.hidden_size // megatron_config.num_attention_heads,
     )
 
     old_tensor_shape = q.size()
@@ -492,7 +508,9 @@ def _import_qkv_bias_2(ctx: io.TransformCTX, qb, kb, vb):
 
     head_num = megatron_config.num_attention_heads
     head_size = getattr(
-        megatron_config, 'kv_channels', megatron_config.hidden_size // megatron_config.num_attention_heads
+        megatron_config,
+        "kv_channels",
+        megatron_config.hidden_size // megatron_config.num_attention_heads,
     )
 
     new_q_tensor_shape_bias = (head_num, head_size)
@@ -550,14 +568,18 @@ def _export_qkv(ctx: io.TransformCTX, linear_qkv):
     hidden_size = megatron_config.hidden_size
 
     head_size = getattr(
-        megatron_config, 'kv_channels', megatron_config.hidden_size // megatron_config.num_attention_heads
+        megatron_config,
+        "kv_channels",
+        megatron_config.hidden_size // megatron_config.num_attention_heads,
     )
     qkv_total_dim = head_num + 2 * num_query_groups
 
     linear_qkv = linear_qkv.reshape([qkv_total_dim, head_size, hidden_size])
     q_slice = torch.cat(
         [
-            torch.arange((heads_per_group + 2) * i, (heads_per_group + 2) * i + heads_per_group)
+            torch.arange(
+                (heads_per_group + 2) * i, (heads_per_group + 2) * i + heads_per_group
+            )
             for i in range(num_query_groups)
         ]
     )
@@ -586,14 +608,18 @@ def _export_qkv_bias(ctx: io.TransformCTX, qkv_bias):
     num_query_groups = head_num  # BERT does not use GQA
     heads_per_group = head_num // num_query_groups
     head_size = getattr(
-        megatron_config, 'kv_channels', megatron_config.hidden_size // megatron_config.num_attention_heads
+        megatron_config,
+        "kv_channels",
+        megatron_config.hidden_size // megatron_config.num_attention_heads,
     )
     qkv_total_dim = head_num + 2 * num_query_groups
 
     qkv_bias = qkv_bias.reshape([qkv_total_dim, head_size])
     q_slice = torch.cat(
         [
-            torch.arange((heads_per_group + 2) * i, (heads_per_group + 2) * i + heads_per_group)
+            torch.arange(
+                (heads_per_group + 2) * i, (heads_per_group + 2) * i + heads_per_group
+            )
             for i in range(num_query_groups)
         ]
     )

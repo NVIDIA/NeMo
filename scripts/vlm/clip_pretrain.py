@@ -43,7 +43,9 @@ def main(args):
     max_steps = args.max_steps
 
     train_task_encoder = ClipTaskEncoder(max_length=args.decoder_seq_length)
-    valid_task_encoder = ClipTaskEncoder(max_length=args.decoder_seq_length, is_train=False)
+    valid_task_encoder = ClipTaskEncoder(
+        max_length=args.decoder_seq_length, is_train=False
+    )
     if args.data_type == "energon":
         data = EnergonMultiModalDataModule(
             args.data_path,
@@ -117,7 +119,11 @@ def main(args):
     nemo_logger = nl.NeMoLogger(
         log_dir=args.log_dir,
         name=args.name,
-        wandb=WandbLogger(project=args.wandb_project, name=args.name) if args.wandb_project is not None else None,
+        wandb=(
+            WandbLogger(project=args.wandb_project, name=args.name)
+            if args.wandb_project is not None
+            else None
+        ),
     )
 
     # Auto resume setup
@@ -125,12 +131,16 @@ def main(args):
         resume_if_exists=False,
         resume_ignore_no_checkpoint=True,
         resume_from_directory=os.path.join(args.log_dir, args.name),
-        restore_config=nl.RestoreConfig(path=args.restore_path) if args.restore_path is not None else None,
+        restore_config=(
+            nl.RestoreConfig(path=args.restore_path)
+            if args.restore_path is not None
+            else None
+        ),
     )
 
     # Optimizer and scheduler setup
     opt_config = OptimizerConfig(
-        optimizer='adam',
+        optimizer="adam",
         lr=1e-3,
         adam_beta1=0.9,
         adam_beta2=0.98,
@@ -162,19 +172,43 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Clip Model Training Script")
 
     # Argument parsing
-    parser.add_argument("--data_type", type=str, required=False, default="energon", help="mock | energon")
-    parser.add_argument("--data_path", type=str, required=False, default=None, help="Path to the dataset director")
-
     parser.add_argument(
-        "--log_dir", type=str, required=False, default="/results", help="Directory for logging and checkpoints"
+        "--data_type",
+        type=str,
+        required=False,
+        default="energon",
+        help="mock | energon",
+    )
+    parser.add_argument(
+        "--data_path",
+        type=str,
+        required=False,
+        default=None,
+        help="Path to the dataset director",
     )
 
     parser.add_argument(
-        "--restore_path", type=str, required=False, default=None, help="Path to restore model from checkpoint"
+        "--log_dir",
+        type=str,
+        required=False,
+        default="/results",
+        help="Directory for logging and checkpoints",
     )
 
-    parser.add_argument("--mbs", type=int, required=False, default=32, help="Micro batch size")
-    parser.add_argument("--gbs", type=int, required=False, default=64, help="Global batch size")
+    parser.add_argument(
+        "--restore_path",
+        type=str,
+        required=False,
+        default=None,
+        help="Path to restore model from checkpoint",
+    )
+
+    parser.add_argument(
+        "--mbs", type=int, required=False, default=32, help="Micro batch size"
+    )
+    parser.add_argument(
+        "--gbs", type=int, required=False, default=64, help="Global batch size"
+    )
     parser.add_argument(
         "--decoder_seq_length",
         type=int,
@@ -193,8 +227,16 @@ if __name__ == "__main__":
     parser.add_argument("--encoder_pp_size", type=int, required=False, default=0)
     parser.add_argument("--name", type=str, required=False, default="clip_pretrain")
     parser.add_argument("--wandb_project", type=str, required=False, default=None)
-    parser.add_argument("--lr", type=float, required=False, default=2.0e-06, help="Learning rate")
-    parser.add_argument("--imagenet_val", type=str, required=False, default=None, help="imagenet path for val")
+    parser.add_argument(
+        "--lr", type=float, required=False, default=2.0e-06, help="Learning rate"
+    )
+    parser.add_argument(
+        "--imagenet_val",
+        type=str,
+        required=False,
+        default=None,
+        help="imagenet path for val",
+    )
 
     args = parser.parse_args()
     main(args)

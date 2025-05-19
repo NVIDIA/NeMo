@@ -118,7 +118,9 @@ class TTSDatasetResynthesizer:
 
         batch = to_device_recursive(batch, self.device)
 
-        mels, mel_lens = self.model.preprocessor(input_signal=batch["audio"], length=batch["audio_lens"])
+        mels, mel_lens = self.model.preprocessor(
+            input_signal=batch["audio"], length=batch["audio_lens"]
+        )
 
         reference_audio = batch.get("reference_audio", None)
         reference_audio_len = batch.get("reference_audio_lens", None)
@@ -152,7 +154,10 @@ class TTSDatasetResynthesizer:
         self.model.setup_training_data(self.model._cfg["train_ds"])
 
         for batch_tuple in iter(self.model._train_dl):
-            batch = process_batch(batch_tuple, sup_data_types_set=self.model._train_dl.dataset.sup_data_types)
+            batch = process_batch(
+                batch_tuple,
+                sup_data_types_set=self.model._train_dl.dataset.sup_data_types,
+            )
             yield self.resynthesize_batch(batch)
 
 
@@ -172,25 +177,39 @@ def prepare_paired_mel_spectrograms(
             "manifest_filepath": str(input_json_manifest.absolute()),
             "sup_data_path": str(input_sup_data_path.absolute()),
         },
-        "dataloader_params": {"batch_size": batch_size, "num_workers": num_workers, "shuffle": False},
+        "dataloader_params": {
+            "batch_size": batch_size,
+            "num_workers": num_workers,
+            "shuffle": False,
+        },
     }
-    model._cfg.train_ds = OmegaConf.merge(model._cfg.train_ds, DictConfig(dataset_config_overrides))
+    model._cfg.train_ds = OmegaConf.merge(
+        model._cfg.train_ds, DictConfig(dataset_config_overrides)
+    )
     resynthesizer = TTSDatasetResynthesizer(model, device)
 
     input_manifest = read_manifest(input_json_manifest)
 
     output_manifest = []
-    output_json_manifest = output_folder / f"{input_json_manifest.stem}_mel{input_json_manifest.suffix}"
+    output_json_manifest = (
+        output_folder / f"{input_json_manifest.stem}_mel{input_json_manifest.suffix}"
+    )
     output_mels_folder = output_folder / "mels"
     output_mels_folder.mkdir(exist_ok=True, parents=True)
     for batch, batch_manifest in tqdm(
-        zip(resynthesizer.resynthesized_batches(), chunks(input_manifest, size=batch_size)), desc="Batch #"
+        zip(
+            resynthesizer.resynthesized_batches(),
+            chunks(input_manifest, size=batch_size),
+        ),
+        desc="Batch #",
     ):
         pred_mels = batch["spect"].cpu()  # key from fastpitch.output_types
         true_mels = batch["spec"].cpu()  # key from code above
         mel_lens = batch["mel_lens"].cpu().flatten()  # key from code above
 
-        for i, (manifest_entry, length) in enumerate(zip(batch_manifest, mel_lens.tolist())):
+        for i, (manifest_entry, length) in enumerate(
+            zip(batch_manifest, mel_lens.tolist())
+        ):
             print(manifest_entry["audio_filepath"])
             filename = Path(manifest_entry["audio_filepath"]).stem
 
@@ -220,13 +239,22 @@ def argument_parser() -> argparse.ArgumentParser:
         description="Resynthesize TTS dataset using a pretrained text-to-spectrogram model",
     )
     parser.add_argument(
-        "--model-path", required=True, type=Path, help="Path to a checkpoint (either .nemo or .ckpt)",
+        "--model-path",
+        required=True,
+        type=Path,
+        help="Path to a checkpoint (either .nemo or .ckpt)",
     )
     parser.add_argument(
-        "--input-json-manifest", required=True, type=Path, help="Path to the input JSON manifest",
+        "--input-json-manifest",
+        required=True,
+        type=Path,
+        help="Path to the input JSON manifest",
     )
     parser.add_argument(
-        "--input-sup-data-path", required=True, type=Path, help="sup_data_path for the JSON manifest",
+        "--input-sup-data-path",
+        required=True,
+        type=Path,
+        help="sup_data_path for the JSON manifest",
     )
     parser.add_argument(
         "--output-folder",
@@ -234,9 +262,18 @@ def argument_parser() -> argparse.ArgumentParser:
         type=Path,
         help="Path to the output folder. Will contain updated manifest and mels/ folder with spectrograms in .npy files",
     )
-    parser.add_argument("--device", required=True, type=torch.device, help="Device ('cpu', 'cuda:0', ...)")
-    parser.add_argument("--batch-size", required=True, type=int, help="Batch size in the DataLoader")
-    parser.add_argument("--num-workers", required=True, type=int, help="Num workers in the DataLoader")
+    parser.add_argument(
+        "--device",
+        required=True,
+        type=torch.device,
+        help="Device ('cpu', 'cuda:0', ...)",
+    )
+    parser.add_argument(
+        "--batch-size", required=True, type=int, help="Batch size in the DataLoader"
+    )
+    parser.add_argument(
+        "--num-workers", required=True, type=int, help="Num workers in the DataLoader"
+    )
     return parser
 
 

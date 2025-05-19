@@ -24,12 +24,14 @@ from nemo.collections.multimodal.models.text_to_image.imagen.imagen_pipeline imp
 from nemo.core.config import hydra_runner
 
 
-@hydra_runner(config_path='conf', config_name='fid_inference.yaml')
+@hydra_runner(config_path="conf", config_name="fid_inference.yaml")
 def main(inference_config):
-    inference_config: ImagenPipelineConfig = OmegaConf.merge(ImagenPipelineConfig(), inference_config)
-    captions = pickle.load(open('coco_captions.pkl', 'rb'))
+    inference_config: ImagenPipelineConfig = OmegaConf.merge(
+        ImagenPipelineConfig(), inference_config
+    )
+    captions = pickle.load(open("coco_captions.pkl", "rb"))
     ntasks = 8
-    if os.environ.get('CUDA_VISIBLE_DEVICES'):
+    if os.environ.get("CUDA_VISIBLE_DEVICES"):
         # Multi-GPU
         task_id = int(os.environ.get("CUDA_VISIBLE_DEVICES", 0))
     else:
@@ -50,7 +52,7 @@ def main(inference_config):
     possible_res = [64, 256]  # [64, 256]
     outpaths = []
     for res in possible_res:
-        outpath = f'{inference_config.output_path}_RES{res}'
+        outpath = f"{inference_config.output_path}_RES{res}"
         os.makedirs(outpath, exist_ok=True)
         outpaths.append(outpath)
     while True:
@@ -59,7 +61,10 @@ def main(inference_config):
         batch_captions = captions[batch_idx * batch_size : (batch_idx + 1) * batch_size]
 
         # Different seed for every image
-        seeds = [task_id * chuncksize + batch_idx * batch_size + idx for idx in range(len(batch_captions))]
+        seeds = [
+            task_id * chuncksize + batch_idx * batch_size + idx
+            for idx in range(len(batch_captions))
+        ]
         seed = batch_idx + chuncksize
 
         with torch.no_grad():
@@ -71,11 +76,22 @@ def main(inference_config):
 
         for outpath, one_res in zip(outpaths, all_res_images):
             for idx, (caption, image) in enumerate(zip(batch_captions, one_res[0])):
-                image.save(os.path.join(outpath, f'image_{task_id*chuncksize+batch_idx*batch_size+idx}.png'))
-                with open(os.path.join(outpath, f'image_{task_id*chuncksize+batch_idx*batch_size+idx}.txt'), 'w') as f:
+                image.save(
+                    os.path.join(
+                        outpath,
+                        f"image_{task_id*chuncksize+batch_idx*batch_size+idx}.png",
+                    )
+                )
+                with open(
+                    os.path.join(
+                        outpath,
+                        f"image_{task_id*chuncksize+batch_idx*batch_size+idx}.txt",
+                    ),
+                    "w",
+                ) as f:
                     f.writelines(caption)
         batch_idx += 1
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

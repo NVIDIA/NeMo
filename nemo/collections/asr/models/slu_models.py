@@ -45,7 +45,9 @@ from nemo.utils import logging, model_utils
 __all__ = ["SLUIntentSlotBPEModel"]
 
 
-class SLUIntentSlotBPEModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, ASRBPEMixin, ASRTranscriptionMixin):
+class SLUIntentSlotBPEModel(
+    ASRModel, ExportableEncDecModel, ASRModuleMixin, ASRBPEMixin, ASRTranscriptionMixin
+):
     """Model for end-to-end speech intent classification and slot filling, which is formulated as a speech-to-sequence task"""
 
     def __init__(self, cfg: DictConfig, trainer=None):
@@ -53,8 +55,10 @@ class SLUIntentSlotBPEModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, ASR
         cfg = model_utils.convert_model_config_to_dict_config(cfg)
         cfg = model_utils.maybe_update_config_version(cfg)
 
-        if 'tokenizer' not in cfg:
-            raise ValueError("`cfg` must have `tokenizer` config to create a tokenizer !")
+        if "tokenizer" not in cfg:
+            raise ValueError(
+                "`cfg` must have `tokenizer` config to create a tokenizer !"
+            )
 
         # Setup the tokenizer
         self._setup_tokenizer(cfg.tokenizer)
@@ -65,7 +69,7 @@ class SLUIntentSlotBPEModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, ASR
         self.encoder = self.from_config_dict(self.cfg.encoder)
         self.decoder = self.from_config_dict(self.cfg.decoder)
 
-        if hasattr(self._cfg, 'spec_augment') and self._cfg.spec_augment is not None:
+        if hasattr(self._cfg, "spec_augment") and self._cfg.spec_augment is not None:
             self.spec_augmentation = self.from_config_dict(self._cfg.spec_augment)
         else:
             self.spec_augmentation = None
@@ -98,7 +102,7 @@ class SLUIntentSlotBPEModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, ASR
         )
 
         # Setup decoding objects
-        decoding_cfg = self.cfg.get('decoding', None)
+        decoding_cfg = self.cfg.get("decoding", None)
 
         # In case decoding config not found, use default config
         if decoding_cfg is None:
@@ -111,7 +115,7 @@ class SLUIntentSlotBPEModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, ASR
         # Setup metric with decoding strategy
         self.wer = WER(
             decoding=self.decoding,
-            use_cer=self._cfg.get('use_cer', False),
+            use_cer=self._cfg.get("use_cer", False),
             dist_sync_on_step=True,
             log_prediction=self._cfg.get("log_prediction", False),
             fold_consecutive=False,
@@ -119,31 +123,41 @@ class SLUIntentSlotBPEModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, ASR
 
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
-        if hasattr(self.preprocessor, '_sample_rate'):
+        if hasattr(self.preprocessor, "_sample_rate"):
             input_signal_eltype = AudioSignal(freq=self.preprocessor._sample_rate)
         else:
             input_signal_eltype = AudioSignal()
         return {
-            "input_signal": NeuralType(('B', 'T'), input_signal_eltype, optional=True),
-            "input_signal_length": NeuralType(tuple('B'), LengthsType(), optional=True),
-            "target_semantics": NeuralType(('B', 'T'), input_signal_eltype, optional=True),
-            "target_semantics_length": NeuralType(tuple('B'), LengthsType(), optional=True),
-            "processed_signal": NeuralType(('B', 'D', 'T'), SpectrogramType(), optional=True),
-            "processed_signal_length": NeuralType(tuple('B'), LengthsType(), optional=True),
-            "sample_id": NeuralType(tuple('B'), LengthsType(), optional=True),
+            "input_signal": NeuralType(("B", "T"), input_signal_eltype, optional=True),
+            "input_signal_length": NeuralType(tuple("B"), LengthsType(), optional=True),
+            "target_semantics": NeuralType(
+                ("B", "T"), input_signal_eltype, optional=True
+            ),
+            "target_semantics_length": NeuralType(
+                tuple("B"), LengthsType(), optional=True
+            ),
+            "processed_signal": NeuralType(
+                ("B", "D", "T"), SpectrogramType(), optional=True
+            ),
+            "processed_signal_length": NeuralType(
+                tuple("B"), LengthsType(), optional=True
+            ),
+            "sample_id": NeuralType(tuple("B"), LengthsType(), optional=True),
         }
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         return {
-            "log_probs": NeuralType(('B', 'T', 'D'), LogprobsType(), optional=True),
-            "lengths": NeuralType(tuple('B'), LengthsType(), optional=True),
-            "greedy_predictions": NeuralType(('B', 'T'), LabelsType(), optional=True),
+            "log_probs": NeuralType(("B", "T", "D"), LogprobsType(), optional=True),
+            "lengths": NeuralType(tuple("B"), LengthsType(), optional=True),
+            "greedy_predictions": NeuralType(("B", "T"), LabelsType(), optional=True),
         }
 
     def set_decoding_strategy(self, cfg: SequenceGeneratorConfig):
         cfg.max_sequence_length = self.sequence_generator.generator.max_seq_length
-        self.sequence_generator = SequenceGenerator(cfg, self.embedding, self.decoder, self.classifier, self.tokenizer)
+        self.sequence_generator = SequenceGenerator(
+            cfg, self.embedding, self.decoder, self.classifier, self.tokenizer
+        )
 
     @typecheck()
     def forward(
@@ -181,7 +195,9 @@ class SLUIntentSlotBPEModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, ASR
             3) The token predictions of the model of shape [B, T].
         """
         has_input_signal = input_signal is not None and input_signal_length is not None
-        has_processed_signal = processed_signal is not None and processed_signal_length is not None
+        has_processed_signal = (
+            processed_signal is not None and processed_signal_length is not None
+        )
         if (has_input_signal ^ has_processed_signal) == False:
             raise ValueError(
                 f"{self} Arguments ``input_signal`` and ``input_signal_length`` are mutually exclusive "
@@ -195,9 +211,13 @@ class SLUIntentSlotBPEModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, ASR
             )
 
         if self.spec_augmentation is not None and self.training:
-            processed_signal = self.spec_augmentation(input_spec=processed_signal, length=processed_signal_length)
+            processed_signal = self.spec_augmentation(
+                input_spec=processed_signal, length=processed_signal_length
+            )
 
-        encoded, encoded_len = self.encoder(audio_signal=processed_signal, length=processed_signal_length)
+        encoded, encoded_len = self.encoder(
+            audio_signal=processed_signal, length=processed_signal_length
+        )
         encoded = encoded.transpose(1, 2)  # BxDxT -> BxTxD
         encoded_mask = get_seq_mask(encoded, encoded_len)
 
@@ -239,16 +259,18 @@ class SLUIntentSlotBPEModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, ASR
         eos_semantics = semantics[:, 1:]
         eos_semantics_len = semantics_len - 1  # subtract 1 for eos tokens
 
-        loss_value = self.loss(log_probs=log_probs, labels=eos_semantics, lengths=eos_semantics_len)
+        loss_value = self.loss(
+            log_probs=log_probs, labels=eos_semantics, lengths=eos_semantics_len
+        )
 
-        tensorboard_logs = {'train_loss': loss_value.item()}
+        tensorboard_logs = {"train_loss": loss_value.item()}
         if len(self._optimizer.param_groups) == 1:
-            tensorboard_logs['learning_rate'] = self._optimizer.param_groups[0]['lr']
+            tensorboard_logs["learning_rate"] = self._optimizer.param_groups[0]["lr"]
         else:
             for i, group in enumerate(self._optimizer.param_groups):
-                tensorboard_logs[f'learning_rate_g{i}'] = group['lr']
+                tensorboard_logs[f"learning_rate_g{i}"] = group["lr"]
 
-        if hasattr(self, '_trainer') and self._trainer is not None:
+        if hasattr(self, "_trainer") and self._trainer is not None:
             log_every_n_steps = self._trainer.log_every_n_steps
         else:
             log_every_n_steps = 1
@@ -262,15 +284,22 @@ class SLUIntentSlotBPEModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, ASR
             )
             wer, _, _ = self.wer.compute()
             self.wer.reset()
-            tensorboard_logs.update({'training_batch_wer': wer})
+            tensorboard_logs.update({"training_batch_wer": wer})
 
-        return {'loss': loss_value, 'log': tensorboard_logs}
+        return {"loss": loss_value, "log": tensorboard_logs}
 
     def predict(
-        self, input_signal, input_signal_length, processed_signal=None, processed_signal_length=None, dataloader_idx=0
+        self,
+        input_signal,
+        input_signal_length,
+        processed_signal=None,
+        processed_signal_length=None,
+        dataloader_idx=0,
     ) -> List[str]:
         has_input_signal = input_signal is not None and input_signal_length is not None
-        has_processed_signal = processed_signal is not None and processed_signal_length is not None
+        has_processed_signal = (
+            processed_signal is not None and processed_signal_length is not None
+        )
         if (has_input_signal ^ has_processed_signal) == False:
             raise ValueError(
                 f"{self} Arguments ``input_signal`` and ``input_signal_length`` are mutually exclusive "
@@ -284,9 +313,13 @@ class SLUIntentSlotBPEModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, ASR
             )
 
         if self.spec_augmentation is not None and self.training:
-            processed_signal = self.spec_augmentation(input_spec=processed_signal, length=processed_signal_length)
+            processed_signal = self.spec_augmentation(
+                input_spec=processed_signal, length=processed_signal_length
+            )
 
-        encoded, encoded_len = self.encoder(audio_signal=processed_signal, length=processed_signal_length)
+        encoded, encoded_len = self.encoder(
+            audio_signal=processed_signal, length=processed_signal_length
+        )
         encoded = encoded.transpose(1, 2)  # BxDxT -> BxTxD
         encoded_mask = get_seq_mask(encoded, encoded_len)
 
@@ -318,7 +351,9 @@ class SLUIntentSlotBPEModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, ASR
         eos_semantics = semantics[:, 1:]
         eos_semantics_len = semantics_len - 1  # subtract 1 for bos&eos tokens
 
-        loss_value = self.loss(log_probs=log_probs, labels=eos_semantics, lengths=eos_semantics_len)
+        loss_value = self.loss(
+            log_probs=log_probs, labels=eos_semantics, lengths=eos_semantics_len
+        )
 
         self.wer.update(
             predictions=predictions,
@@ -330,15 +365,18 @@ class SLUIntentSlotBPEModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, ASR
         self.wer.reset()
 
         return {
-            'val_loss': loss_value,
-            'val_wer_num': wer_num,
-            'val_wer_denom': wer_denom,
-            'val_wer': wer,
+            "val_loss": loss_value,
+            "val_wer_num": wer_num,
+            "val_wer_denom": wer_denom,
+            "val_wer": wer,
         }
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
         metrics = self.validation_pass(batch, batch_idx, dataloader_idx)
-        if type(self.trainer.val_dataloaders) == list and len(self.trainer.val_dataloaders) > 1:
+        if (
+            type(self.trainer.val_dataloaders) == list
+            and len(self.trainer.val_dataloaders) > 1
+        ):
             self.validation_step_outputs[dataloader_idx].append(metrics)
         else:
             self.validation_step_outputs.append(metrics)
@@ -346,8 +384,13 @@ class SLUIntentSlotBPEModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, ASR
 
     def test_step(self, batch, batch_idx, dataloader_idx=0):
         logs = self.validation_pass(batch, batch_idx, dataloader_idx=dataloader_idx)
-        test_logs = {name.replace("val_", "test_"): value for name, value in logs.items()}
-        if type(self.trainer.test_dataloaders) == list and len(self.trainer.test_dataloaders) > 1:
+        test_logs = {
+            name.replace("val_", "test_"): value for name, value in logs.items()
+        }
+        if (
+            type(self.trainer.test_dataloaders) == list
+            and len(self.trainer.test_dataloaders) > 1
+        ):
             self.test_step_outputs[dataloader_idx].append(test_logs)
         else:
             self.test_step_outputs.append(test_logs)
@@ -361,15 +404,15 @@ class SLUIntentSlotBPEModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, ASR
         return self._test_dl
 
     def _setup_dataloader_from_config(self, config: Optional[Dict]):
-        if 'augmentor' in config:
-            augmentor = process_augmentations(config['augmentor'])
+        if "augmentor" in config:
+            augmentor = process_augmentations(config["augmentor"])
         else:
             augmentor = None
 
-        shuffle = config['shuffle']
-        device = 'gpu' if torch.cuda.is_available() else 'cpu'
-        if config.get('use_dali', False):
-            device_id = self.local_rank if device == 'gpu' else None
+        shuffle = config["shuffle"]
+        device = "gpu" if torch.cuda.is_available() else "cpu"
+        if config.get("use_dali", False):
+            device_id = self.local_rank if device == "gpu" else None
             dataset = audio_to_text_dataset.get_dali_bpe_dataset(
                 config=config,
                 tokenizer=self.tokenizer,
@@ -382,9 +425,12 @@ class SLUIntentSlotBPEModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, ASR
             return dataset
 
         # Instantiate tarred dataset loader or normal dataset loader
-        if config.get('is_tarred', False):
-            if ('tarred_audio_filepaths' in config and config['tarred_audio_filepaths'] is None) or (
-                'manifest_filepath' in config and config['manifest_filepath'] is None
+        if config.get("is_tarred", False):
+            if (
+                "tarred_audio_filepaths" in config
+                and config["tarred_audio_filepaths"] is None
+            ) or (
+                "manifest_filepath" in config and config["manifest_filepath"] is None
             ):
                 logging.warning(
                     "Could not load dataset as `manifest_filepath` was None or "
@@ -392,7 +438,9 @@ class SLUIntentSlotBPEModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, ASR
                 )
                 return None
 
-            shuffle_n = config.get('shuffle_n', 4 * config['batch_size']) if shuffle else 0
+            shuffle_n = (
+                config.get("shuffle_n", 4 * config["batch_size"]) if shuffle else 0
+            )
             dataset = audio_to_text_dataset.get_tarred_dataset(
                 config=config,
                 tokenizer=self.tokenizer,
@@ -403,16 +451,18 @@ class SLUIntentSlotBPEModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, ASR
             )
             shuffle = False
         else:
-            if 'manifest_filepath' in config and config['manifest_filepath'] is None:
-                logging.warning(f"Could not load dataset as `manifest_filepath` was None. Provided config : {config}")
+            if "manifest_filepath" in config and config["manifest_filepath"] is None:
+                logging.warning(
+                    f"Could not load dataset as `manifest_filepath` was None. Provided config : {config}"
+                )
                 return None
 
             dataset = audio_to_text_dataset.get_bpe_dataset(
                 config=config, tokenizer=self.tokenizer, augmentor=augmentor
             )
-        if hasattr(dataset, 'collate_fn'):
+        if hasattr(dataset, "collate_fn"):
             collate_fn = dataset.collate_fn
-        elif hasattr(dataset.datasets[0], 'collate_fn'):
+        elif hasattr(dataset.datasets[0], "collate_fn"):
             # support datasets that are lists of entries
             collate_fn = dataset.datasets[0].collate_fn
         else:
@@ -421,12 +471,12 @@ class SLUIntentSlotBPEModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, ASR
 
         return torch.utils.data.DataLoader(
             dataset=dataset,
-            batch_size=config['batch_size'],
+            batch_size=config["batch_size"],
             collate_fn=collate_fn,
-            drop_last=config.get('drop_last', False),
+            drop_last=config.get("drop_last", False),
             shuffle=shuffle,
-            num_workers=config.get('num_workers', 0),
-            pin_memory=config.get('pin_memory', False),
+            num_workers=config.get("num_workers", 0),
+            pin_memory=config.get("pin_memory", False),
         )
 
     def setup_training_data(self, train_data_config: Optional[Union[DictConfig, Dict]]):
@@ -444,11 +494,11 @@ class SLUIntentSlotBPEModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, ASR
             -   :class:`~nemo.collections.asr.data.audio_to_text.TarredAudioToBPEDataset`
             -   :class:`~nemo.collections.asr.data.audio_to_text_dali.AudioToCharDALIDataset`
         """
-        if 'shuffle' not in train_data_config:
-            train_data_config['shuffle'] = True
+        if "shuffle" not in train_data_config:
+            train_data_config["shuffle"] = True
 
         # preserve config
-        self._update_dataset_config(dataset_name='train', config=train_data_config)
+        self._update_dataset_config(dataset_name="train", config=train_data_config)
 
         self._train_dl = self._setup_dataloader_from_config(config=train_data_config)
 
@@ -457,16 +507,21 @@ class SLUIntentSlotBPEModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, ASR
         # So we set the number of steps manually (to the correct number) to fix this.
         if (
             self._train_dl is not None
-            and hasattr(self._train_dl, 'dataset')
+            and hasattr(self._train_dl, "dataset")
             and isinstance(self._train_dl.dataset, torch.utils.data.IterableDataset)
         ):
             # We also need to check if limit_train_batches is already set.
             # If it's an int, we assume that the user has set it to something sane, i.e. <= # training batches,
             # and don't change it. Otherwise, adjust batches accordingly if it's a float (including 1.0).
-            if self._trainer is not None and isinstance(self._trainer.limit_train_batches, float):
+            if self._trainer is not None and isinstance(
+                self._trainer.limit_train_batches, float
+            ):
                 self._trainer.limit_train_batches = int(
                     self._trainer.limit_train_batches
-                    * ceil((len(self._train_dl.dataset) / self.world_size) / train_data_config['batch_size'])
+                    * ceil(
+                        (len(self._train_dl.dataset) / self.world_size)
+                        / train_data_config["batch_size"]
+                    )
                 )
             elif self._trainer is None:
                 logging.warning(
@@ -489,11 +544,11 @@ class SLUIntentSlotBPEModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, ASR
             -   :class:`~nemo.collections.asr.data.audio_to_text.TarredAudioToBPEDataset`
             -   :class:`~nemo.collections.asr.data.audio_to_text_dali.AudioToCharDALIDataset`
         """
-        if 'shuffle' not in val_data_config:
-            val_data_config['shuffle'] = False
+        if "shuffle" not in val_data_config:
+            val_data_config["shuffle"] = False
 
         # preserve config
-        self._update_dataset_config(dataset_name='validation', config=val_data_config)
+        self._update_dataset_config(dataset_name="validation", config=val_data_config)
 
         self._validation_dl = self._setup_dataloader_from_config(config=val_data_config)
 
@@ -512,15 +567,17 @@ class SLUIntentSlotBPEModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, ASR
             -   :class:`~nemo.collections.asr.data.audio_to_text.TarredAudioToBPEDataset`
             -   :class:`~nemo.collections.asr.data.audio_to_text_dali.AudioToCharDALIDataset`
         """
-        if 'shuffle' not in test_data_config:
-            test_data_config['shuffle'] = False
+        if "shuffle" not in test_data_config:
+            test_data_config["shuffle"] = False
 
         # preserve config
-        self._update_dataset_config(dataset_name='test', config=test_data_config)
+        self._update_dataset_config(dataset_name="test", config=test_data_config)
 
         self._test_dl = self._setup_dataloader_from_config(config=test_data_config)
 
-    def _setup_transcribe_dataloader(self, config: Dict) -> 'torch.utils.data.DataLoader':
+    def _setup_transcribe_dataloader(
+        self, config: Dict
+    ) -> "torch.utils.data.DataLoader":
         """
         Setup function for a temporary data loader which wraps the provided audio file.
 
@@ -539,24 +596,30 @@ class SLUIntentSlotBPEModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, ASR
             A pytorch DataLoader for the given audio file(s).
         """
 
-        if 'manifest_filepath' in config:
-            manifest_filepath = config['manifest_filepath']
-            batch_size = config['batch_size']
+        if "manifest_filepath" in config:
+            manifest_filepath = config["manifest_filepath"]
+            batch_size = config["batch_size"]
         else:
-            manifest_filepath = os.path.join(config['temp_dir'], 'manifest.json')
-            batch_size = min(config['batch_size'], len(config['paths2audio_files']))
+            manifest_filepath = os.path.join(config["temp_dir"], "manifest.json")
+            batch_size = min(config["batch_size"], len(config["paths2audio_files"]))
 
         dl_config = {
-            'manifest_filepath': manifest_filepath,
-            'sample_rate': self.preprocessor._sample_rate,
-            'batch_size': batch_size,
-            'shuffle': False,
-            'num_workers': config.get('num_workers', min(batch_size, os.cpu_count() - 1)),
-            'pin_memory': True,
-            'use_start_end_token': self.cfg.validation_ds.get('use_start_end_token', False),
+            "manifest_filepath": manifest_filepath,
+            "sample_rate": self.preprocessor._sample_rate,
+            "batch_size": batch_size,
+            "shuffle": False,
+            "num_workers": config.get(
+                "num_workers", min(batch_size, os.cpu_count() - 1)
+            ),
+            "pin_memory": True,
+            "use_start_end_token": self.cfg.validation_ds.get(
+                "use_start_end_token", False
+            ),
         }
 
-        temporary_datalayer = self._setup_dataloader_from_config(config=DictConfig(dl_config))
+        temporary_datalayer = self._setup_dataloader_from_config(
+            config=DictConfig(dl_config)
+        )
         return temporary_datalayer
 
     @torch.no_grad()
@@ -599,11 +662,13 @@ class SLUIntentSlotBPEModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, ASR
 
     def _transcribe_forward(self, batch: Any, trcfg: TranscribeConfig):
         predictions = self.predict(input_signal=batch[0], input_signal_length=batch[1])
-        output = {'predictions': predictions}
+        output = {"predictions": predictions}
         return output
 
-    def _transcribe_output_processing(self, outputs, trcfg: TranscribeConfig) -> List[str]:
-        hypotheses = outputs.pop('predictions')
+    def _transcribe_output_processing(
+        self, outputs, trcfg: TranscribeConfig
+    ) -> List[str]:
+        hypotheses = outputs.pop("predictions")
         return hypotheses
 
     @classmethod

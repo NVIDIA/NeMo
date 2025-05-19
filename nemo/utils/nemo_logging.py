@@ -107,7 +107,9 @@ class Logger(metaclass=Singleton):
                 if is_global_rank_zero():
                     # Add a memoryhandler for error messages. Only logged on rank 0
                     self._handlers["memory_err"] = MemoryHandler(-1)
-                    self._handlers["memory_err"].addFilter(lambda record: record.levelno > _logging.INFO)
+                    self._handlers["memory_err"].addFilter(
+                        lambda record: record.levelno > _logging.INFO
+                    )
                     formatter = BaseNeMoFormatter
                     self._handlers["memory_err"].setFormatter(formatter())
                     self._logger.addHandler(self._handlers["memory_err"])
@@ -129,7 +131,9 @@ class Logger(metaclass=Singleton):
     def remove_stream_handlers(self):
         """Removes StreamHandler that log to stdout and stderr from the logger."""
         if self._logger is None:
-            raise RuntimeError("Impossible to set handlers if the Logger is not predefined")
+            raise RuntimeError(
+                "Impossible to set handlers if the Logger is not predefined"
+            )
 
         # ======== Remove Handler if already existing ========
 
@@ -151,7 +155,9 @@ class Logger(metaclass=Singleton):
         variable is set, all logs are sent to stderr instead.
         """
         if self._logger is None:
-            raise RuntimeError("Impossible to set handlers if the Logger is not predefined")
+            raise RuntimeError(
+                "Impossible to set handlers if the Logger is not predefined"
+            )
 
         # Add the output handler.
         if get_envbool(NEMO_ENV_VARNAME_REDIRECT_LOGS_TO_STDERR, False):
@@ -159,10 +165,14 @@ class Logger(metaclass=Singleton):
 
         else:
             self._handlers["stream_stdout"] = _logging.StreamHandler(sys.stdout)
-            self._handlers["stream_stdout"].addFilter(lambda record: record.levelno <= _logging.INFO)
+            self._handlers["stream_stdout"].addFilter(
+                lambda record: record.levelno <= _logging.INFO
+            )
 
             self._handlers["stream_stderr"] = _logging.StreamHandler(sys.stderr)
-            self._handlers["stream_stderr"].addFilter(lambda record: record.levelno > _logging.INFO)
+            self._handlers["stream_stderr"].addFilter(
+                lambda record: record.levelno > _logging.INFO
+            )
 
         self._handlers["stream_stdout"].setFormatter(formatter())
         self._logger.addHandler(self._handlers["stream_stdout"])
@@ -183,7 +193,9 @@ class Logger(metaclass=Singleton):
         self._handlers["memory_all"], those buffered messages are flushed to the new file, and the MemoryHandler is
         closed."""
         if self._logger is None:
-            raise RuntimeError("Impossible to set handlers if the Logger is not predefined")
+            raise RuntimeError(
+                "Impossible to set handlers if the Logger is not predefined"
+            )
 
         self._handlers["file"] = _logging.FileHandler(log_file)
         formatter = BaseNeMoFormatter
@@ -200,10 +212,14 @@ class Logger(metaclass=Singleton):
         MemoryHandler at self._handlers["memory_err"], those buffered messages are flushed to the new file, and the
         MemoryHandler is closed."""
         if self._logger is None:
-            raise RuntimeError("Impossible to set handlers if the Logger is not predefined")
+            raise RuntimeError(
+                "Impossible to set handlers if the Logger is not predefined"
+            )
 
         self._handlers["file_err"] = _logging.FileHandler(log_file)
-        self._handlers["file_err"].addFilter(lambda record: record.levelno > _logging.INFO)
+        self._handlers["file_err"].addFilter(
+            lambda record: record.levelno > _logging.INFO
+        )
 
         formatter = BaseNeMoFormatter
         self._handlers["file_err"].setFormatter(formatter())
@@ -254,7 +270,9 @@ class Logger(metaclass=Singleton):
 
                 yield stream
             except (KeyError, ValueError):
-                raise RuntimeError("Impossible to patch logging handlers if handler does not exist")
+                raise RuntimeError(
+                    "Impossible to patch logging handlers if handler does not exist"
+                )
             finally:
                 # Port backwards set_stream() from python 3.7
                 self._handlers["stream_stderr"].acquire()
@@ -265,7 +283,9 @@ class Logger(metaclass=Singleton):
                     self._handlers["stream_stderr"].release()
 
         else:
-            raise RuntimeError("Impossible to patch logging handlers if handler does not exist")
+            raise RuntimeError(
+                "Impossible to patch logging handlers if handler does not exist"
+            )
 
     @contextmanager
     def patch_stdout_handler(self, stream):
@@ -286,7 +306,9 @@ class Logger(metaclass=Singleton):
 
                 yield stream
             except (KeyError, ValueError):
-                raise RuntimeError("Impossible to patch logging handlers if handler does not exist")
+                raise RuntimeError(
+                    "Impossible to patch logging handlers if handler does not exist"
+                )
             finally:
                 # Port backwards set_stream() from python 3.7
                 self._handlers["stream_stdout"].acquire()
@@ -297,7 +319,9 @@ class Logger(metaclass=Singleton):
                     self._handlers["stream_stdout"].release()
 
         else:
-            raise RuntimeError("Impossible to patch logging handlers if handler does not exist")
+            raise RuntimeError(
+                "Impossible to patch logging handlers if handler does not exist"
+            )
 
     @contextmanager
     def temp_verbosity(self, verbosity_level):
@@ -346,7 +370,7 @@ class Logger(metaclass=Singleton):
         # Search the filters
         for action, msg, cat, mod, ln in filters:
             # least-common demoninator if multiple filters for the same class.
-            if cat == category and action == 'ignore':
+            if cat == category and action == "ignore":
                 return True
         return False
 
@@ -378,7 +402,11 @@ class Logger(metaclass=Singleton):
 
         logger.debug("Houston, we have a %s", "thorny problem", exc_info=1)
         """
-        if self._logger is not None and self._logger.isEnabledFor(Logger.DEBUG) and not self._logged_once(msg, mode):
+        if (
+            self._logger is not None
+            and self._logger.isEnabledFor(Logger.DEBUG)
+            and not self._logged_once(msg, mode)
+        ):
             self._logger._log(Logger.DEBUG, msg, args, **kwargs)
 
     def info(self, msg, *args, mode=LogMode.EACH, **kwargs):
@@ -390,7 +418,11 @@ class Logger(metaclass=Singleton):
 
         logger.info("Houston, we have a %s", "interesting problem", exc_info=1)
         """
-        if self._logger is not None and self._logger.isEnabledFor(Logger.INFO) and not self._logged_once(msg, mode):
+        if (
+            self._logger is not None
+            and self._logger.isEnabledFor(Logger.INFO)
+            and not self._logged_once(msg, mode)
+        ):
             self._logger._log(Logger.INFO, msg, args, **kwargs)
 
     def warning(self, msg, *args, mode=LogMode.EACH, **kwargs):
@@ -402,7 +434,11 @@ class Logger(metaclass=Singleton):
 
         logger.warning("Houston, we have a %s", "bit of a problem", exc_info=1)
         """
-        if self._logger is not None and self._logger.isEnabledFor(Logger.WARNING) and not self._logged_once(msg, mode):
+        if (
+            self._logger is not None
+            and self._logger.isEnabledFor(Logger.WARNING)
+            and not self._logged_once(msg, mode)
+        ):
             self._logger._log(Logger.WARNING, msg, args, **kwargs)
 
     def error(self, msg, *args, mode=LogMode.EACH, **kwargs):
@@ -414,7 +450,11 @@ class Logger(metaclass=Singleton):
 
         logger.error("Houston, we have a %s", "major problem", exc_info=1)
         """
-        if self._logger is not None and self._logger.isEnabledFor(Logger.ERROR) and not self._logged_once(msg, mode):
+        if (
+            self._logger is not None
+            and self._logger.isEnabledFor(Logger.ERROR)
+            and not self._logged_once(msg, mode)
+        ):
             self._logger._log(Logger.ERROR, msg, args, **kwargs)
 
     def critical(self, msg, *args, mode=LogMode.EACH, **kwargs):

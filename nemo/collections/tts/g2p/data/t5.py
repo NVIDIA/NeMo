@@ -68,7 +68,7 @@ class T5G2PDataset(Dataset):
         num_filtered = 0
 
         # Load grapheme/phoneme sequence pairs into self.data
-        with open(manifest_filepath, 'r') as f_in:
+        with open(manifest_filepath, "r") as f_in:
             logging.info(f"Loading dataset from: {manifest_filepath}")
             for line in f_in:
                 item = json.loads(line)
@@ -88,17 +88,25 @@ class T5G2PDataset(Dataset):
                         num_filtered += 1
                         logging.debug(f"dropping {target_len} longer max_target_len")
                         continue
-                    self.data.append({"graphemes": graphemes, "phonemes": item[phoneme_field]})
+                    self.data.append(
+                        {"graphemes": graphemes, "phonemes": item[phoneme_field]}
+                    )
                 else:
                     # truncate input graphemes for inference if the length exceeds max_source_len
                     graphemes_tokenized = self.tokenizer(graphemes)["input_ids"]
                     if len(graphemes_tokenized) > max_source_len:
                         # -1 for special token at the end, <\s>
-                        graphemes_tokenized_truncated = graphemes_tokenized[: max_source_len - 1]
-                        graphemes = self.tokenizer.batch_decode([graphemes_tokenized_truncated])[0]
+                        graphemes_tokenized_truncated = graphemes_tokenized[
+                            : max_source_len - 1
+                        ]
+                        graphemes = self.tokenizer.batch_decode(
+                            [graphemes_tokenized_truncated]
+                        )[0]
                     self.data.append({"graphemes": graphemes})
 
-        logging.info(f"Filtered {num_filtered} too long entries from {manifest_filepath}.")
+        logging.info(
+            f"Filtered {num_filtered} too long entries from {manifest_filepath}."
+        )
 
     def __len__(self):
         return len(self.data)
@@ -111,9 +119,16 @@ class T5G2PDataset(Dataset):
 
         # Encode inputs (graphemes)
         input_encoding = self.tokenizer(
-            graphemes_batch, padding='longest', max_length=self.max_source_len, truncation=True, return_tensors='pt',
+            graphemes_batch,
+            padding="longest",
+            max_length=self.max_source_len,
+            truncation=True,
+            return_tensors="pt",
         )
-        input_ids, attention_mask = input_encoding.input_ids, input_encoding.attention_mask
+        input_ids, attention_mask = (
+            input_encoding.input_ids,
+            input_encoding.attention_mask,
+        )
         output = (input_ids, attention_mask)
 
         # labels are available during training and evaluation but not inference
@@ -121,16 +136,26 @@ class T5G2PDataset(Dataset):
             # Encode targets (phonemes)
             phonemes_batch = [entry["phonemes"] for entry in batch]
             target_encoding = self.tokenizer(
-                phonemes_batch, padding='longest', max_length=self.max_target_len, truncation=True,
+                phonemes_batch,
+                padding="longest",
+                max_length=self.max_target_len,
+                truncation=True,
             )
             labels = target_encoding.input_ids
 
             # Need to replace padding tokens w/ -100 for loss to ignore them
             labels = [
-                [(label if label != self.tokenizer.pad_token_id else -100) for label in labels_example]
+                [
+                    (label if label != self.tokenizer.pad_token_id else -100)
+                    for label in labels_example
+                ]
                 for labels_example in labels
             ]
             labels = torch.tensor(labels)
-            output = (input_ids, attention_mask, labels)  # grapheme IDs, attention mask, phoneme IDs
+            output = (
+                input_ids,
+                attention_mask,
+                labels,
+            )  # grapheme IDs, attention mask, phoneme IDs
 
         return output

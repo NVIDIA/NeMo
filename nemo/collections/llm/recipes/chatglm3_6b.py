@@ -146,7 +146,11 @@ def trainer(
 
 @run.cli.factory(target=pretrain, name=NAME)
 def pretrain_recipe(
-    dir: Optional[str] = None, name: str = "default", num_nodes: int = 1, num_gpus_per_node: int = 8, fn=pretrain
+    dir: Optional[str] = None,
+    name: str = "default",
+    num_nodes: int = 1,
+    num_gpus_per_node: int = 8,
+    fn=pretrain,
 ) -> run.Partial:
     """
     Create a pre-training recipe for ChatGLM3 6B model.
@@ -181,8 +185,12 @@ def pretrain_recipe(
             num_gpus_per_node=num_gpus_per_node,
             callbacks=[run.Config(TimingCallback)],
         ),
-        data=run.Config(MockDataModule, seq_length=8192, global_batch_size=512, micro_batch_size=1),
-        log=default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
+        data=run.Config(
+            MockDataModule, seq_length=8192, global_batch_size=512, micro_batch_size=1
+        ),
+        log=default_log(
+            dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)
+        ),
         optim=distributed_fused_adam_with_cosine_annealing(max_lr=3e-4),
         resume=default_resume(),
     )
@@ -223,7 +231,13 @@ def pretrain_recipe_performance(
         Use this recipe with caution and only when you need maximum performance.
         It may not be suitable for all hardware configurations or use cases.
     """
-    recipe = pretrain_recipe(name=name, dir=dir, num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, fn=fn)
+    recipe = pretrain_recipe(
+        name=name,
+        dir=dir,
+        num_nodes=num_nodes,
+        num_gpus_per_node=num_gpus_per_node,
+        fn=fn,
+    )
 
     recipe.trainer.callbacks.append(
         run.Config(
@@ -240,7 +254,7 @@ def finetune_recipe(
     name: str = "default",
     num_nodes: int = 1,
     num_gpus_per_node: int = 8,
-    peft_scheme: Optional[str] = 'lora',
+    peft_scheme: Optional[str] = "lora",
     packed_sequence: bool = False,
 ) -> run.Partial:
     """
@@ -275,12 +289,18 @@ def finetune_recipe(
         This recipe uses the SQuAD dataset for fine-tuning.
     """
     recipe = default_finetune_recipe(
-        model(), "THUDM/chatglm3-6b", dir, name, num_nodes, num_gpus_per_node, packed_sequence
+        model(),
+        "THUDM/chatglm3-6b",
+        dir,
+        name,
+        num_nodes,
+        num_gpus_per_node,
+        packed_sequence,
     )
-    if peft_scheme is None or peft_scheme.lower() == 'none':
+    if peft_scheme is None or peft_scheme.lower() == "none":
         recipe.trainer.strategy.tensor_model_parallel_size = 2
         recipe.optim.config.lr = 5e-6
-    elif peft_scheme.lower() in ['lora', 'dora']:
+    elif peft_scheme.lower() in ["lora", "dora"]:
         recipe.peft = run.Config(PEFT_STR2CLS[peft_scheme.lower()])
         recipe.optim.config.lr = 1e-4
     else:

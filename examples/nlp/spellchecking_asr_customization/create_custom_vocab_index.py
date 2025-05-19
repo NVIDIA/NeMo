@@ -23,16 +23,31 @@ from argparse import ArgumentParser
 from nemo.collections.nlp.data.spellchecking_asr_customization.utils import (
     get_index, load_ngram_mappings)
 
-parser = ArgumentParser(description="Create an index of custom vocabulary and save it to file")
+parser = ArgumentParser(
+    description="Create an index of custom vocabulary and save it to file"
+)
 
 parser.add_argument(
-    "--input_name", required=True, type=str, help="Path to input file with custom vocabulary (plain text)"
+    "--input_name",
+    required=True,
+    type=str,
+    help="Path to input file with custom vocabulary (plain text)",
 )
 parser.add_argument(
-    "--ngram_mappings", required=True, type=str, help="Path to input file with n-gram mapping vocabulary"
+    "--ngram_mappings",
+    required=True,
+    type=str,
+    help="Path to input file with n-gram mapping vocabulary",
 )
-parser.add_argument("--output_name", required=True, type=str, help="Path to output file with custom vocabulary index")
-parser.add_argument("--min_log_prob", default=-4.0, type=float, help="Threshold on log probability")
+parser.add_argument(
+    "--output_name",
+    required=True,
+    type=str,
+    help="Path to output file with custom vocabulary index",
+)
+parser.add_argument(
+    "--min_log_prob", default=-4.0, type=float, help="Threshold on log probability"
+)
 parser.add_argument(
     "--max_phrases_per_ngram",
     default=500,
@@ -40,7 +55,10 @@ parser.add_argument(
     help="Threshold on number of phrases that can be stored for one n-gram key in index. Keys with more phrases are discarded.",
 )
 parser.add_argument(
-    "--max_misspelled_freq", default=125000, type=int, help="Threshold on maximum frequency of misspelled n-gram"
+    "--max_misspelled_freq",
+    default=125000,
+    type=int,
+    help="Threshold on maximum frequency of misspelled n-gram",
 )
 
 args = parser.parse_args()
@@ -54,7 +72,9 @@ with open(args.input_name, "r", encoding="utf-8") as f:
 print("Size of customization vocabulary:", len(custom_phrases))
 
 # Load n-gram mappings vocabulary
-ngram_mapping_vocab, ban_ngram = load_ngram_mappings(args.ngram_mappings, max_misspelled_freq=args.max_misspelled_freq)
+ngram_mapping_vocab, ban_ngram = load_ngram_mappings(
+    args.ngram_mappings, max_misspelled_freq=args.max_misspelled_freq
+)
 
 # Generate index of custom phrases
 phrases, ngram2phrases = get_index(
@@ -70,4 +90,15 @@ with open(args.output_name, "w", encoding="utf-8") as out:
     for ngram in ngram2phrases:
         for phrase_id, begin, size, logprob in ngram2phrases[ngram]:
             phrase = phrases[phrase_id]
-            out.write(ngram + "\t" + phrase + "\t" + str(begin) + "\t" + str(size) + "\t" + str(logprob) + "\n")
+            out.write(
+                ngram
+                + "\t"
+                + phrase
+                + "\t"
+                + str(begin)
+                + "\t"
+                + str(size)
+                + "\t"
+                + str(logprob)
+                + "\n"
+            )

@@ -55,18 +55,18 @@ class DefaultModuleAdapter(DefaultModule, AdapterModuleMixin):
         return x
 
 
-def get_adapter_cfg(in_features=50, dim=100, norm_pos='pre'):
+def get_adapter_cfg(in_features=50, dim=100, norm_pos="pre"):
     cfg = {
-        '_target_': 'nemo.collections.common.parts.adapter_modules.LinearAdapter',
-        'in_features': in_features,
-        'dim': dim,
-        'norm_position': norm_pos,
+        "_target_": "nemo.collections.common.parts.adapter_modules.LinearAdapter",
+        "in_features": in_features,
+        "dim": dim,
+        "norm_position": norm_pos,
     }
     return cfg
 
 
 def get_classpath(cls):
-    return f'{cls.__module__}.{cls.__name__}'
+    return f"{cls.__module__}.{cls.__name__}"
 
 
 if adapter_mixins.get_registered_adapter(DefaultModule) is None:
@@ -76,7 +76,7 @@ if adapter_mixins.get_registered_adapter(DefaultModule) is None:
 class TestAdapterStrategy:
     @pytest.mark.unit
     def test_ResidualAddAdapterStrategyConfig(self):
-        IGNORED_ARGS = ['_target_']
+        IGNORED_ARGS = ["_target_"]
 
         result = config_utils.assert_dataclass_signature_match(
             adapter_mixin_strategies.ResidualAddAdapterStrategy,
@@ -96,7 +96,7 @@ class TestAdapterStrategy:
         x = torch.randn(2, 50)
 
         module = DefaultModuleAdapter()
-        module.add_adapter(name='temp', cfg=get_adapter_cfg())
+        module.add_adapter(name="temp", cfg=get_adapter_cfg())
         adapter = module.adapter_layer[module.get_enabled_adapters()[0]]
 
         # update the strategy
@@ -109,13 +109,13 @@ class TestAdapterStrategy:
             assert (out - x).abs().mean() < 1e-5
 
     @pytest.mark.unit
-    @pytest.mark.parametrize('stochastic_depth', [0.0, 1.0])
+    @pytest.mark.parametrize("stochastic_depth", [0.0, 1.0])
     def test_strategy_stochasic_depth(self, stochastic_depth):
         torch.random.manual_seed(0)
         x = torch.randn(2, 50)
 
         module = DefaultModuleAdapter()
-        module.add_adapter(name='temp', cfg=get_adapter_cfg())
+        module.add_adapter(name="temp", cfg=get_adapter_cfg())
 
         # extract adapter
         adapter = module.adapter_layer[module.get_enabled_adapters()[0]]
@@ -123,18 +123,20 @@ class TestAdapterStrategy:
         adapter.module[-1].weight.data += 1
 
         # get just module output
-        module.set_enabled_adapters('temp', enabled=False)
+        module.set_enabled_adapters("temp", enabled=False)
         module_out = module(x)
 
         # get module + adapter output
-        module.set_enabled_adapters('temp', enabled=True)
+        module.set_enabled_adapters("temp", enabled=True)
         module_adapter_out = module(x)
 
         assert (
             module_out - module_adapter_out
         ).abs().sum() > 0  # results should not be the same after adapter forward now
 
-        adapter_strategy = adapter_mixin_strategies.ResidualAddAdapterStrategy(stochastic_depth=stochastic_depth)
+        adapter_strategy = adapter_mixin_strategies.ResidualAddAdapterStrategy(
+            stochastic_depth=stochastic_depth
+        )
         adapter.adapter_strategy = adapter_strategy
 
         module.eval()
@@ -145,7 +147,9 @@ class TestAdapterStrategy:
             assert (out - module_adapter_out).abs().mean() < 1e-5
 
         module.train()
-        with torch.inference_mode():  # stochastic depth enabled, but no grad tracking during training mode
+        with (
+            torch.inference_mode()
+        ):  # stochastic depth enabled, but no grad tracking during training mode
             out = adapter_strategy.forward(module_out, adapter, module=module)
 
             if stochastic_depth == 0.0:
@@ -160,12 +164,14 @@ class TestAdapterStrategy:
         x = torch.randn(2, 50)
 
         module = DefaultModuleAdapter()
-        module.add_adapter(name='temp', cfg=get_adapter_cfg())
+        module.add_adapter(name="temp", cfg=get_adapter_cfg())
         module.train()
         adapter = module.adapter_layer[module.get_enabled_adapters()[0]]
 
         # update the strategy
-        adapter_strategy = adapter_mixin_strategies.ResidualAddAdapterStrategy(l2_lambda=0.01)
+        adapter_strategy = adapter_mixin_strategies.ResidualAddAdapterStrategy(
+            l2_lambda=0.01
+        )
         adapter.adapter_strategy = adapter_strategy
 
         with torch.no_grad():
@@ -182,5 +188,7 @@ class TestAdapterStrategy:
             assert access_mixins.AccessMixin.is_access_enabled() is True
             auxiliary_losses = access_mixins.AccessMixin.get_module_registry(module)
             loss = list(auxiliary_losses.values())[0]
-            assert 'adapter_loss' in loss
-            assert loss['adapter_loss'][0] == torch.tensor(0.0)  # initially adapter is 0 init, no loss required.
+            assert "adapter_loss" in loss
+            assert loss["adapter_loss"][0] == torch.tensor(
+                0.0
+            )  # initially adapter is 0 init, no loss required.

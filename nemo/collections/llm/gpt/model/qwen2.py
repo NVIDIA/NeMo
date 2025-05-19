@@ -193,7 +193,12 @@ class Qwen2Model(GPTModel):
         tokenizer: Optional["TokenizerSpec"] = None,
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
-        super().__init__(config or Qwen2Config(), optim=optim, tokenizer=tokenizer, model_transform=model_transform)
+        super().__init__(
+            config or Qwen2Config(),
+            optim=optim,
+            tokenizer=tokenizer,
+            model_transform=model_transform,
+        )
 
 
 @io.model_importer(Qwen2Model, "hf")
@@ -205,7 +210,9 @@ class HFQwen2Importer(io.ModelConnector["AutoModelForCausalLM", Qwen2Model]):
     def apply(self, output_path: Path) -> Path:
         from transformers import AutoModelForCausalLM
 
-        source = AutoModelForCausalLM.from_pretrained(str(self), torch_dtype='auto', trust_remote_code=True)
+        source = AutoModelForCausalLM.from_pretrained(
+            str(self), torch_dtype="auto", trust_remote_code=True
+        )
         target = self.init()
         trainer = self.nemo_setup(target)
         self.convert_state(source, target)
@@ -249,19 +256,26 @@ class HFQwen2Importer(io.ModelConnector["AutoModelForCausalLM", Qwen2Model]):
                 fn=TransformFns.merge_qkv_bias,
             ),
             io.state_transform(
-                source_key=("model.layers.*.mlp.gate_proj.weight", "model.layers.*.mlp.up_proj.weight"),
+                source_key=(
+                    "model.layers.*.mlp.gate_proj.weight",
+                    "model.layers.*.mlp.up_proj.weight",
+                ),
                 target_key="decoder.layers.*.mlp.linear_fc1.weight",
                 fn=TransformFns.merge_fc1,
             ),
         ]
-        return io.apply_transforms(source, target, mapping=mapping, transforms=transforms)
+        return io.apply_transforms(
+            source, target, mapping=mapping, transforms=transforms
+        )
 
     @property
     def tokenizer(self) -> "AutoTokenizer":
         from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import \
             AutoTokenizer
 
-        return AutoTokenizer(self.save_hf_tokenizer_assets(str(self)), trust_remote_code=True)
+        return AutoTokenizer(
+            self.save_hf_tokenizer_assets(str(self)), trust_remote_code=True
+        )
 
     @property
     def config(self) -> Qwen2Config:
@@ -302,7 +316,9 @@ class HFQwen2Exporter(io.ModelConnector[Qwen2Model, "AutoModelForCausalLM"]):
         from transformers.modeling_utils import no_init_weights
 
         with no_init_weights():
-            return AutoModelForCausalLM.from_config(self.config, trust_remote_code=True, torch_dtype=dtype)
+            return AutoModelForCausalLM.from_config(
+                self.config, trust_remote_code=True, torch_dtype=dtype
+            )
 
     def apply(self, output_path: Path) -> Path:
         source, _ = self.nemo_load(str(self))
@@ -345,7 +361,10 @@ class HFQwen2Exporter(io.ModelConnector[Qwen2Model, "AutoModelForCausalLM"]):
             ),
             io.state_transform(
                 source_key="decoder.layers.*.mlp.linear_fc1.weight",
-                target_key=("model.layers.*.mlp.gate_proj.weight", "model.layers.*.mlp.up_proj.weight"),
+                target_key=(
+                    "model.layers.*.mlp.gate_proj.weight",
+                    "model.layers.*.mlp.up_proj.weight",
+                ),
                 fn=TransformFns.split_fc1,
             ),
             io.state_transform(
@@ -392,7 +411,7 @@ class HFQwen2Exporter(io.ModelConnector[Qwen2Model, "AutoModelForCausalLM"]):
             rms_norm_eps=source.layernorm_epsilon,
             num_key_value_heads=source.num_query_groups,
             rope_theta=source.rotary_base,
-            vocab_size=getattr(source, 'vocab_size', self.tokenizer.vocab_size),
+            vocab_size=getattr(source, "vocab_size", self.tokenizer.vocab_size),
             sliding_window=source.seq_length,
             tie_word_embeddings=False,
         )

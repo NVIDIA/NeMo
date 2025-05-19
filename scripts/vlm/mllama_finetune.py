@@ -181,7 +181,11 @@ def main(args):
     nemo_logger = nl.NeMoLogger(
         log_dir=args.log_dir,
         name=args.name,
-        wandb=WandbLogger(project=args.wandb_project, name=args.name) if args.wandb_project is not None else None,
+        wandb=(
+            WandbLogger(project=args.wandb_project, name=args.name)
+            if args.wandb_project is not None
+            else None
+        ),
     )
 
     # Auto resume setup
@@ -189,12 +193,16 @@ def main(args):
         resume_if_exists=True,
         resume_ignore_no_checkpoint=True,
         resume_from_directory=args.log_dir,
-        restore_config=nl.RestoreConfig(path=args.restore_path) if args.restore_path is not None else None,
+        restore_config=(
+            nl.RestoreConfig(path=args.restore_path)
+            if args.restore_path is not None
+            else None
+        ),
     )
 
     # Optimizer and scheduler setup
     opt_config = OptimizerConfig(
-        optimizer='adam',
+        optimizer="adam",
         lr=args.lr,
         adam_beta1=0.9,
         adam_beta2=0.95,
@@ -210,7 +218,7 @@ def main(args):
     opt = MegatronOptimizerModule(opt_config, sched)
 
     # PEFT setup
-    if args.peft == 'lora':
+    if args.peft == "lora":
         peft = vlm.peft.LoRA(
             freeze_vision_model=True,
             target_modules=[
@@ -241,11 +249,25 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Mllama Model Training Script")
 
     parser.add_argument(
-        "--restore_path", type=str, required=False, default=None, help="Path to restore model from checkpoint"
+        "--restore_path",
+        type=str,
+        required=False,
+        default=None,
+        help="Path to restore model from checkpoint",
     )
-    parser.add_argument("--data_type", type=str, required=False, default="mock", help="mock | llava | energon")
-    parser.add_argument("--data_path", type=str, required=False, help="Path to the dataset")
-    parser.add_argument("--image_folder", type=str, required=False, help="Path to the image folder")
+    parser.add_argument(
+        "--data_type",
+        type=str,
+        required=False,
+        default="mock",
+        help="mock | llava | energon",
+    )
+    parser.add_argument(
+        "--data_path", type=str, required=False, help="Path to the dataset"
+    )
+    parser.add_argument(
+        "--image_folder", type=str, required=False, help="Path to the image folder"
+    )
     parser.add_argument(
         "--log_dir",
         type=str,
@@ -261,11 +283,17 @@ if __name__ == "__main__":
     parser.add_argument("--pp_size", type=int, required=False, default=1)
     parser.add_argument("--encoder_pp_size", type=int, required=False, default=0)
     parser.add_argument("--name", type=str, required=False, default="neva_pretrain")
-    parser.add_argument("--peft", type=str, default='none', help="none | lora")
+    parser.add_argument("--peft", type=str, default="none", help="none | lora")
     parser.add_argument("--wandb_project", type=str, required=False, default=None)
-    parser.add_argument("--gbs", type=int, required=False, default=64, help="Global batch size")
-    parser.add_argument("--mbs", type=int, required=False, default=2, help="Micro batch size")
-    parser.add_argument("--lr", type=float, required=False, default=2.0e-06, help="Learning rate")
+    parser.add_argument(
+        "--gbs", type=int, required=False, default=64, help="Global batch size"
+    )
+    parser.add_argument(
+        "--mbs", type=int, required=False, default=2, help="Micro batch size"
+    )
+    parser.add_argument(
+        "--lr", type=float, required=False, default=2.0e-06, help="Learning rate"
+    )
     parser.add_argument(
         "--use_toy_model",
         action="store_true",

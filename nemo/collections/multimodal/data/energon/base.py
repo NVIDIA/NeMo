@@ -72,7 +72,9 @@ class EnergonMultiModalDataModule(pl.LightningDataModule, IOMixin):
         pin_memory: bool = True,
         shuffle_buffer_size: int = 100,
         max_samples_per_sequence: int | None = None,
-        multimodal_sample_config: Optional[MultiModalSampleConfig] = MultiModalSampleConfig(),
+        multimodal_sample_config: Optional[
+            MultiModalSampleConfig
+        ] = MultiModalSampleConfig(),
         task_encoder: Optional[MultiModalTaskEncoder] = None,
         decoder_seq_length: Optional[int] = None,
         packing_buffer_size: Optional[int] = None,
@@ -142,7 +144,7 @@ class EnergonMultiModalDataModule(pl.LightningDataModule, IOMixin):
         cfg_kwargs = {
             k: deepcopy(v)
             for k, v in kwargs.items()
-            if k not in ['image_processor', 'task_encoder', 'validation_task_encoder']
+            if k not in ["image_processor", "task_encoder", "validation_task_encoder"]
         }
 
         for val in cfg_kwargs.values():
@@ -151,7 +153,7 @@ class EnergonMultiModalDataModule(pl.LightningDataModule, IOMixin):
         cfg = fdl.Config(type(self), **cfg_kwargs)
         return cfg
 
-    def datasets_provider(self, worker_config, split: Literal['train', 'val'] = 'val'):
+    def datasets_provider(self, worker_config, split: Literal["train", "val"] = "val"):
         """
         Provide the dataset for training or validation.
 
@@ -166,8 +168,10 @@ class EnergonMultiModalDataModule(pl.LightningDataModule, IOMixin):
         Dataset: The dataset configured for the specified split.
         """
 
-        if split not in {'train', 'val'}:
-            raise ValueError("Invalid value for split. Allowed values are 'train' or 'val'.")
+        if split not in {"train", "val"}:
+            raise ValueError(
+                "Invalid value for split. Allowed values are 'train' or 'val'."
+            )
 
         if split == "train":
             task_encoder = self.task_encoder
@@ -202,7 +206,9 @@ class EnergonMultiModalDataModule(pl.LightningDataModule, IOMixin):
         if self.trainer:
             self.init_global_step = self.trainer.global_step
         self.data_sampler.init_global_step = self.init_global_step
-        logging.info(f"Multimodal train dataloader initializing with init_global_step {self.init_global_step}")
+        logging.info(
+            f"Multimodal train dataloader initializing with init_global_step {self.init_global_step}"
+        )
         if self.train_dataloader_object:
             return self.train_dataloader_object
         if not parallel_state.is_initialized():
@@ -227,8 +233,10 @@ class EnergonMultiModalDataModule(pl.LightningDataModule, IOMixin):
                 worker_debug_path=None,
                 worker_log_level=0,
             )
-        train_dataset = self.datasets_provider(worker_config, split='train')
-        energon_dataloader = get_savable_loader(train_dataset, worker_config=worker_config)
+        train_dataset = self.datasets_provider(worker_config, split="train")
+        energon_dataloader = get_savable_loader(
+            train_dataset, worker_config=worker_config
+        )
         self.train_dataloader_object = energon_dataloader
         return self.train_dataloader_object
 
@@ -256,7 +264,9 @@ class EnergonMultiModalDataModule(pl.LightningDataModule, IOMixin):
             world_size = parallel_state.get_data_parallel_world_size()
             data_parallel_group = parallel_state.get_data_parallel_group()
 
-            logging.info(f"rank {rank} world_size {world_size} data_parallel_group {data_parallel_group}")
+            logging.info(
+                f"rank {rank} world_size {world_size} data_parallel_group {data_parallel_group}"
+            )
             worker_config = WorkerConfig(
                 rank=rank,
                 world_size=world_size,
@@ -265,7 +275,7 @@ class EnergonMultiModalDataModule(pl.LightningDataModule, IOMixin):
                 worker_debug_path=None,
                 worker_log_level=0,
             )
-        val_dataset = self.datasets_provider(worker_config, split='val')
+        val_dataset = self.datasets_provider(worker_config, split="val")
         energon_loader = get_savable_loader(val_dataset, worker_config=worker_config)
         self.val_dataloader_object = energon_loader
         return self.val_dataloader_object
@@ -315,12 +325,18 @@ class EnergonMultiModalDataModule(pl.LightningDataModule, IOMixin):
             )
 
             if state is None:
-                state = []  # Megatron core requires all the states on all the ranks to have same python
+                state = (
+                    []
+                )  # Megatron core requires all the states on all the ranks to have same python
             # type. Energon sends the state as a list
-            logging.info(f"Multimodal data loader saving dataloader state dict consumed samples {consumed_samples}")
-            return {'dataloader_state': state, 'consumed_samples': consumed_samples}
+            logging.info(
+                f"Multimodal data loader saving dataloader state dict consumed samples {consumed_samples}"
+            )
+            return {"dataloader_state": state, "consumed_samples": consumed_samples}
 
-        logging.warning("trainer object not connected to data module object returning empty state")
+        logging.warning(
+            "trainer object not connected to data module object returning empty state"
+        )
         return {}
 
     def load_state_dict(self, state_dict: Dict[str, Any]) -> None:
@@ -333,14 +349,14 @@ class EnergonMultiModalDataModule(pl.LightningDataModule, IOMixin):
         Parameters:
         state_dict (Dict[str, Any]): The state dictionary containing the saved state of the data module.
         """
-        if not 'dataloader_state' in state_dict:
+        if not "dataloader_state" in state_dict:
             logging.warning(
                 f"Data loader state cannot be resumed from state_dict, "
                 f"it does not have the required key dataloader_state. It has {state_dict.keys()}"
             )
             return
 
-        state = state_dict['dataloader_state']
+        state = state_dict["dataloader_state"]
         try:
             if self.trainer:
                 self.trainer.datamodule.train_dataloader().restore_state_global(state)
@@ -362,14 +378,18 @@ class EnergonMultiModalDataModule(pl.LightningDataModule, IOMixin):
                 update_num_microbatches
 
         except (ImportError, ModuleNotFoundError):
-            logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
+            logging.warning(
+                "Megatron num_microbatches_calculator not found, using Apex version."
+            )
             from apex.transformer.pipeline_parallel.utils import \
                 update_num_microbatches
 
-        consumed_samples = state_dict['consumed_samples']
+        consumed_samples = state_dict["consumed_samples"]
         self.data_sampler.init_consumed_samples = consumed_samples
         self.data_sampler.prev_consumed_samples = consumed_samples
-        logging.info(f"Multimodal dataloader load state dict with consumed_samples {consumed_samples}")
+        logging.info(
+            f"Multimodal dataloader load state dict with consumed_samples {consumed_samples}"
+        )
         update_num_microbatches(
             consumed_samples=consumed_samples,
             consistency_check=False,

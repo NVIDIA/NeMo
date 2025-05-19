@@ -50,13 +50,20 @@ from nemo.collections.asr.parts.utils.manifest_utils import (read_manifest,
 
 def get_args():
     parser = argparse.ArgumentParser(
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter, description="Process and normalize text data.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+        description="Process and normalize text data.",
     )
     parser.add_argument(
-        "--input_manifest", required=True, type=Path, help="Path to input training manifest.",
+        "--input_manifest",
+        required=True,
+        type=Path,
+        help="Path to input training manifest.",
     )
     parser.add_argument(
-        "--output_manifest", required=True, type=Path, help="Path to output training manifest with processed text.",
+        "--output_manifest",
+        required=True,
+        type=Path,
+        help="Path to output training manifest with processed text.",
     )
     parser.add_argument(
         "--overwrite",
@@ -64,13 +71,21 @@ def get_args():
         help="Whether to overwrite the output manifest file if it exists.",
     )
     parser.add_argument(
-        "--text_key", default="text", type=str, help="Input text field to normalize.",
+        "--text_key",
+        default="text",
+        type=str,
+        help="Input text field to normalize.",
     )
     parser.add_argument(
-        "--normalized_text_key", default="normalized_text", type=str, help="Output field to save normalized text to.",
+        "--normalized_text_key",
+        default="normalized_text",
+        type=str,
+        help="Output field to save normalized text to.",
     )
     parser.add_argument(
-        "--lower_case", action=argparse.BooleanOptionalAction, help="Whether to convert the final text to lower case.",
+        "--lower_case",
+        action=argparse.BooleanOptionalAction,
+        help="Whether to convert the final text to lower case.",
     )
     parser.add_argument(
         "--normalizer_config_path",
@@ -79,13 +94,21 @@ def get_args():
         help="Path to config file for nemo_text_processing.text_normalization.normalize.Normalizer.",
     )
     parser.add_argument(
-        "--num_workers", default=1, type=int, help="Number of parallel threads to use. If -1 all CPUs are used."
+        "--num_workers",
+        default=1,
+        type=int,
+        help="Number of parallel threads to use. If -1 all CPUs are used.",
     )
     parser.add_argument(
-        "--joblib_batch_size", type=int, help="Batch size for joblib workers. Defaults to 'auto' if not provided."
+        "--joblib_batch_size",
+        type=int,
+        help="Batch size for joblib workers. Defaults to 'auto' if not provided.",
     )
     parser.add_argument(
-        "--max_entries", default=0, type=int, help="If provided, maximum number of entries in the manifest to process."
+        "--max_entries",
+        default=0,
+        type=int,
+        help="If provided, maximum number of entries in the manifest to process.",
     )
 
     args = parser.parse_args()
@@ -105,7 +128,9 @@ def _process_entry(
     if normalizer is not None:
         if lower_case_norm:
             text = text.lower()
-        text = normalizer.normalize(text, punct_pre_process=True, punct_post_process=True)
+        text = normalizer.normalize(
+            text, punct_pre_process=True, punct_post_process=True
+        )
 
     if lower_case:
         text = text.lower()
@@ -147,7 +172,7 @@ def main():
         entries = entries[:max_entries]
 
     if not batch_size:
-        batch_size = 'auto'
+        batch_size = "auto"
 
     output_entries = Parallel(n_jobs=num_workers, batch_size=batch_size)(
         delayed(_process_entry)(
@@ -161,7 +186,11 @@ def main():
         for entry in tqdm(entries)
     )
 
-    write_manifest(output_path=output_manifest_path, target_manifest=output_entries, ensure_ascii=False)
+    write_manifest(
+        output_path=output_manifest_path,
+        target_manifest=output_entries,
+        ensure_ascii=False,
+    )
 
 
 if __name__ == "__main__":

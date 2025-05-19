@@ -59,7 +59,12 @@ class ModuleMatcher:
     """
 
     target_modules: List[str] = field(
-        default_factory=lambda: ['linear_qkv', 'linear_proj', 'linear_fc1', 'linear_fc2']
+        default_factory=lambda: [
+            "linear_qkv",
+            "linear_proj",
+            "linear_fc1",
+            "linear_fc2",
+        ]
     )
     exclude_modules: List[str] = field(default_factory=list)
     canonical_mapping: Dict[str, Set] = field(default_factory=lambda: defaultdict(set))
@@ -124,7 +129,10 @@ class ModuleMatcher:
 
             if (
                 not name in self.exclude_modules
-                and not any(wildcard_match(pattern, full_name) for pattern in self.exclude_modules)
+                and not any(
+                    wildcard_match(pattern, full_name)
+                    for pattern in self.exclude_modules
+                )
                 and isinstance(m, linear_types)
             ):
                 return (name, full_name)

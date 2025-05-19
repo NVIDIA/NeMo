@@ -23,7 +23,7 @@ from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import
 from nemo.collections.nlp.models.language_modeling.megatron_mamba_model import \
     MegatronMambaModel
 
-__all__ = ['MegatronMambaSFTModel']
+__all__ = ["MegatronMambaSFTModel"]
 
 
 class MegatronMambaSFTModel(MegatronGPTSFTModel, MegatronMambaModel):
@@ -35,7 +35,9 @@ class MegatronMambaSFTModel(MegatronGPTSFTModel, MegatronMambaModel):
 
         super().__init__(cfg, trainer=trainer)
         self.mcore_gpt = True
-        self.validation_param_sync_overlap = self.cfg.get('validation_param_sync_overlap', False)
+        self.validation_param_sync_overlap = self.cfg.get(
+            "validation_param_sync_overlap", False
+        )
 
     def _reset_activation_checkpointing_args(self):
         pass

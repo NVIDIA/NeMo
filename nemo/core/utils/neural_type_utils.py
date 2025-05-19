@@ -20,7 +20,9 @@ import torch
 from nemo.core.neural_types import AxisKind, NeuralType
 
 
-def get_io_names(types: Optional[Dict[str, NeuralType]], disabled_names: List[str]) -> List[str]:
+def get_io_names(
+    types: Optional[Dict[str, NeuralType]], disabled_names: List[str]
+) -> List[str]:
     if types is None:
         return []
     names = list(types.keys())
@@ -57,7 +59,12 @@ def extract_dynamic_axes(name: str, ntype: NeuralType):
 
     if ntype.axes:
         for ind, axis in enumerate(ntype.axes):
-            if axis.kind in [AxisKind.Batch, AxisKind.Time, AxisKind.Width, AxisKind.Height]:
+            if axis.kind in [
+                AxisKind.Batch,
+                AxisKind.Time,
+                AxisKind.Width,
+                AxisKind.Height,
+            ]:
                 dynamic_axes[name].append(ind)
     return dynamic_axes
 
@@ -78,7 +85,7 @@ def get_dynamic_axes(types, names, use_dynamo=False):
                     ds[d] = batch
                 # this currently has issues: https://github.com/pytorch/pytorch/issues/126127
                 else:
-                    ds[d] = torch.export.Dim(name + '__' + str(d))
+                    ds[d] = torch.export.Dim(name + "__" + str(d))
             dynamic_shapes[name] = ds
         dynamic_axes = dynamic_shapes
     return dynamic_axes

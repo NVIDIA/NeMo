@@ -48,12 +48,16 @@ Example Output format (with include-options = False):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--source-dir", type=str, default="data/assistant/NLU-Evaluation-Data-master")
-    parser.add_argument("--nemo-format-dir", type=str, default="data/assistant/nemo-format")
+    parser.add_argument(
+        "--source-dir", type=str, default="data/assistant/NLU-Evaluation-Data-master"
+    )
+    parser.add_argument(
+        "--nemo-format-dir", type=str, default="data/assistant/nemo-format"
+    )
     parser.add_argument("--output-dir", type=str, default="data/assistant")
     parser.add_argument("--save-name-base", type=str, default="assistant")
-    parser.add_argument("--make-ground-truth", action='store_true')
-    parser.add_argument("--include-options", action='store_true')
+    parser.add_argument("--make-ground-truth", action="store_true")
+    parser.add_argument("--include-options", action="store_true")
     parser.add_argument("--random-seed", type=int, default=42)
     args = parser.parse_args()
 
@@ -73,7 +77,12 @@ def main():
     train_save_path = f"{args.output_dir}/{args.save_name_base}_train.jsonl"
 
     process_data_for_prompt_learning(
-        train_utterance_lines, train_slot_lines, intent_dict, slot_dict, train_save_path, args.include_options,
+        train_utterance_lines,
+        train_slot_lines,
+        intent_dict,
+        slot_dict,
+        train_save_path,
+        args.include_options,
     )
 
     # Split test set into validation and test sets
@@ -91,7 +100,12 @@ def main():
     val_save_path = f"{args.output_dir}/{args.save_name_base}_val.jsonl"
 
     process_data_for_prompt_learning(
-        val_utterance_lines, val_slot_lines, intent_dict, slot_dict, val_save_path, args.include_options,
+        val_utterance_lines,
+        val_slot_lines,
+        intent_dict,
+        slot_dict,
+        val_save_path,
+        args.include_options,
     )
 
     # Convert test set to prompt learning format
@@ -111,10 +125,16 @@ def main():
 
 
 def process_data_for_prompt_learning(
-    utterance_lines, slot_lines, intent_dict, slot_dict, save_path, include_options, make_ground_truth=False
+    utterance_lines,
+    slot_lines,
+    intent_dict,
+    slot_dict,
+    save_path,
+    include_options,
+    make_ground_truth=False,
 ):
     """
-    Formats each line in the utterance file as a json object 
+    Formats each line in the utterance file as a json object
     with intent and slot labels.
 
     """
@@ -159,9 +179,9 @@ def process_data_for_prompt_learning(
 
 def get_slots(slot_line, utterance, slot_dict):
     """
-    Formats slot labels for an utterance. Ensures the multiword 
+    Formats slot labels for an utterance. Ensures the multiword
     slot labels are grouped together. For example the words
-    'birthday party' should be grouped together under the 
+    'birthday party' should be grouped together under the
     same event_name label like event_name(birthday party)
     instead of event_name(birthday), event_name(party).
 
@@ -169,7 +189,7 @@ def get_slots(slot_line, utterance, slot_dict):
     # Get slots and their labels
     utterance_words = utterance.split()
     slots_and_labels = []
-    prev_slot_label = 'O'
+    prev_slot_label = "O"
     prev_word_idx = 0
     current_word = ""
 
@@ -181,7 +201,7 @@ def get_slots(slot_line, utterance, slot_dict):
         slot_label = slot_dict[int(slot_label_idx)].strip()
 
         # Only care about words with labels
-        if slot_label != 'O':
+        if slot_label != "O":
 
             # Keep multiword answers together
             if prev_slot_label == slot_label and prev_word_idx == word_idx - 1:
@@ -197,7 +217,7 @@ def get_slots(slot_line, utterance, slot_dict):
             prev_slot_label = slot_label.strip()
 
     # Add last labeled word to list of slots and labels if the utterance is over
-    if current_word != "" and prev_slot_label != 'O':
+    if current_word != "" and prev_slot_label != "O":
         slots_and_labels.append(f"{prev_slot_label}({current_word})")
 
     # Format slot labels

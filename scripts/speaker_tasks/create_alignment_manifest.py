@@ -36,7 +36,7 @@ def get_seg_info_from_ctm_line(
     Get time stamp information and speaker labels from CTM lines.
     This is following CTM format appeared in `Rich Transcription Meeting Eval Plan: RT09` document.
 
-    CTM Format: 
+    CTM Format:
         <SOURCE>< <CHANNEL> <BEG-TIME> <DURATION> <TOKEN> <CONF> <TYPE> <SPEAKER>
 
     Args:
@@ -78,7 +78,7 @@ def get_unaligned_files(unaligned_path: str) -> List[str]:
         skip_files (list): Unaligned file names to skip
     """
     skip_files = []
-    with open(unaligned_path, 'r', encoding='utf-8') as f:
+    with open(unaligned_path, "r", encoding="utf-8") as f:
         for line in f.readlines():
             line = line.strip()
             if not line:
@@ -88,7 +88,9 @@ def get_unaligned_files(unaligned_path: str) -> List[str]:
     return skip_files
 
 
-def create_new_ctm_entry(session_name, speaker_id, wordlist, alignments, output_precision=3):
+def create_new_ctm_entry(
+    session_name, speaker_id, wordlist, alignments, output_precision=3
+):
     """
     Create new CTM entry (to write to output ctm file)
 
@@ -107,7 +109,12 @@ def create_new_ctm_entry(session_name, speaker_id, wordlist, alignments, output_
         if word != "":
             # note that using the current alignments the first word is always empty, so there is no error from indexing the array with i-1
             align1 = float(round(alignments[i - 1], output_precision))
-            align2 = float(round(alignments[i] - alignments[i - 1], output_precision,))
+            align2 = float(
+                round(
+                    alignments[i] - alignments[i - 1],
+                    output_precision,
+                )
+            )
             text = get_ctm_line(
                 source=session_name,
                 channel=speaker_id,
@@ -115,7 +122,7 @@ def create_new_ctm_entry(session_name, speaker_id, wordlist, alignments, output_
                 duration=align2,
                 token=word,
                 conf=None,
-                type_of_token='lex',
+                type_of_token="lex",
                 speaker=speaker_id,
                 output_precision=output_precision,
             )
@@ -126,7 +133,7 @@ def create_new_ctm_entry(session_name, speaker_id, wordlist, alignments, output_
 def load_librispeech_alignment(alignment_filepath: str) -> dict:
     """
     Load alignment data for librispeech
-    
+
     Args:
         alignment_filepath (str): Path to the file containing alignments
     Returns:
@@ -144,10 +151,13 @@ def load_librispeech_alignment(alignment_filepath: str) -> dict:
 
 
 def create_librispeech_ctm_alignments(
-    input_manifest_filepath, base_alignment_path, ctm_output_directory, libri_dataset_split
+    input_manifest_filepath,
+    base_alignment_path,
+    ctm_output_directory,
+    libri_dataset_split,
 ):
     """
-    Create new CTM alignments using input LibriSpeech word alignments. 
+    Create new CTM alignments using input LibriSpeech word alignments.
 
     Args:
         input_manifest_filepath (str): Path to the input LibriSpeech manifest file
@@ -177,28 +187,34 @@ def create_librispeech_ctm_alignments(
         raise Exception(f"Input manifest is empty: {input_manifest_filepath}")
 
     for entry in manifest:
-        audio_file = entry['audio_filepath']
+        audio_file = entry["audio_filepath"]
         file_id = Path(audio_file).stem
 
         if file_id in unaligned_file_ids:
             continue
 
-        speaker_id = file_id.split('-')[0]
-        book_id = file_id.split('-')[1]
-        book_dir = os.path.join(base_alignment_path, "LibriSpeech", libri_dataset_split, speaker_id, book_id)
-        alignment_filepath = os.path.join(book_dir, f"{speaker_id}-{book_id}.alignment.txt")
+        speaker_id = file_id.split("-")[0]
+        book_id = file_id.split("-")[1]
+        book_dir = os.path.join(
+            base_alignment_path, "LibriSpeech", libri_dataset_split, speaker_id, book_id
+        )
+        alignment_filepath = os.path.join(
+            book_dir, f"{speaker_id}-{book_id}.alignment.txt"
+        )
 
         alignment_data = load_librispeech_alignment(alignment_filepath)
         if file_id not in alignment_data:
-            logging.warning(f"Cannot find alignment data for {audio_file} in {alignment_filepath}")
+            logging.warning(
+                f"Cannot find alignment data for {audio_file} in {alignment_filepath}"
+            )
             continue
 
         words, end_times = alignment_data[file_id]
-        words = words.replace('\"', '').lower().split(',')
-        end_times = [float(e) for e in end_times.replace('\"', '').split(',')]
+        words = words.replace('"', "").lower().split(",")
+        end_times = [float(e) for e in end_times.replace('"', "").split(",")]
 
         ctm_list = create_new_ctm_entry(file_id, speaker_id, words, end_times)
-        write_ctm(os.path.join(ctm_output_directory, file_id + '.ctm'), ctm_list)
+        write_ctm(os.path.join(ctm_output_directory, file_id + ".ctm"), ctm_list)
 
 
 def create_manifest_with_alignments(
@@ -225,21 +241,27 @@ def create_manifest_with_alignments(
     tgt_i = 0
     while src_i < len(manifest):
         f = manifest[src_i]
-        fn = f['audio_filepath'].split('/')[-1]
-        filename = fn.split('.')[0]  # assuming that there is only one period in the input filenames
+        fn = f["audio_filepath"].split("/")[-1]
+        filename = fn.split(".")[
+            0
+        ]  # assuming that there is only one period in the input filenames
         if "voxceleb" in data_format_style:
-            fn_split = f['audio_filepath'].split('/')
-            filename = fn_split[-3] + '-' + fn_split[-2] + '-' + fn_split[-1].split('.')[0]
-            ctm_filepath = os.path.join(ctm_source_dir, filename + '.ctm')
+            fn_split = f["audio_filepath"].split("/")
+            filename = (
+                fn_split[-3] + "-" + fn_split[-2] + "-" + fn_split[-1].split(".")[0]
+            )
+            ctm_filepath = os.path.join(ctm_source_dir, filename + ".ctm")
         else:
-            ctm_filepath = os.path.join(ctm_source_dir, filename + '.ctm')
+            ctm_filepath = os.path.join(ctm_source_dir, filename + ".ctm")
 
         if not os.path.isfile(ctm_filepath):
-            logging.info(f"Skipping {filename}.wav as there is no corresponding CTM file")
+            logging.info(
+                f"Skipping {filename}.wav as there is no corresponding CTM file"
+            )
             src_i += 1
             continue
 
-        with open(ctm_filepath, 'r') as ctm_file:
+        with open(ctm_filepath, "r") as ctm_file:
             lines = ctm_file.readlines()
 
         # One-word samples should be filtered out.
@@ -252,11 +274,15 @@ def create_manifest_with_alignments(
         i = 0
         prev_end = 0
         for i in range(len(lines)):
-            ctm = lines[i].split(' ')
-            start, end, speaker_id = get_seg_info_from_ctm_line(ctm_list=ctm, output_precision=output_precision)
+            ctm = lines[i].split(" ")
+            start, end, speaker_id = get_seg_info_from_ctm_line(
+                ctm_list=ctm, output_precision=output_precision
+            )
             interval = start - prev_end
 
-            if (i == 0 and interval > 0) or (i > 0 and interval > silence_dur_threshold):
+            if (i == 0 and interval > 0) or (
+                i > 0 and interval > silence_dur_threshold
+            ):
                 words.append("")
                 end_times.append(start)
             elif i > 0:
@@ -269,19 +295,19 @@ def create_manifest_with_alignments(
             prev_end = end
 
         # append last end
-        if f['duration'] > prev_end:
+        if f["duration"] > prev_end:
             words.append("")
-            end_times.append(f['duration'])
+            end_times.append(f["duration"])
 
         # build target manifest entry
         target_manifest.append(
             {
-                'audio_filepath': f['audio_filepath'],
-                'duration': f['duration'],
-                'text': f['text'],
-                'words': words,
-                'alignments': end_times,
-                'speaker_id': speaker_id,
+                "audio_filepath": f["audio_filepath"],
+                "duration": f["duration"],
+                "text": f["text"],
+                "words": words,
+                "alignments": end_times,
+                "speaker_id": speaker_id,
             }
         )
 
@@ -310,7 +336,10 @@ def main():
     # Case 2: args.base_alignment_path is containing *.lab style alignments for the dataset
     else:
         create_librispeech_ctm_alignments(
-            input_manifest_filepath, base_alignment_path, ctm_output_directory, libri_dataset_split
+            input_manifest_filepath,
+            base_alignment_path,
+            ctm_output_directory,
+            libri_dataset_split,
         )
         ctm_source_dir = ctm_output_directory
 
@@ -337,19 +366,36 @@ if __name__ == "__main__":
 
     Args:
         input_manifest_filepath (str): Path to input manifest file
-        base_alignment_path (str): Path to the base directory for the LibriSpeech alignment dataset 
-                                   (specifically to the LibriSpeech-Alignments directory containing 
-                                   both the LibriSpeech folder as well as the unaligned.txt file) 
+        base_alignment_path (str): Path to the base directory for the LibriSpeech alignment dataset
+                                   (specifically to the LibriSpeech-Alignments directory containing
+                                   both the LibriSpeech folder as well as the unaligned.txt file)
                                    or to a directory containing the requisite CTM files
         output_manifest_filepath (str): Path to output manifest file
         ctm_output_directory (str): Path to output CTM directory (only used for LibriSpeech)
         libri_dataset_split (str): Which dataset split to create a combined manifest file for
         use_ctm_alignment_source (bool): If true, base_alignment_path points to a directory containing ctm files
     """
-    parser = argparse.ArgumentParser(description="LibriSpeech Alignment Manifest Creator")
-    parser.add_argument("--input_manifest_filepath", help="path to input manifest file", type=str, required=True)
-    parser.add_argument("--base_alignment_path", help="path to alignments (LibriSpeech)", type=str, required=False)
-    parser.add_argument("--output_manifest_filepath", help="path to output manifest file", type=str, required=True)
+    parser = argparse.ArgumentParser(
+        description="LibriSpeech Alignment Manifest Creator"
+    )
+    parser.add_argument(
+        "--input_manifest_filepath",
+        help="path to input manifest file",
+        type=str,
+        required=True,
+    )
+    parser.add_argument(
+        "--base_alignment_path",
+        help="path to alignments (LibriSpeech)",
+        type=str,
+        required=False,
+    )
+    parser.add_argument(
+        "--output_manifest_filepath",
+        help="path to output manifest file",
+        type=str,
+        required=True,
+    )
     parser.add_argument(
         "--ctm_output_directory",
         help="path to output ctm directory for LibriSpeech (or to input CTM directory)",
@@ -366,7 +412,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--use_ctm_alignment_source",
         help="if true, base_alignment_path points to a directory containing ctm files",
-        action='store_true',
+        action="store_true",
         required=False,
     )
     parser.add_argument(
@@ -377,10 +423,18 @@ if __name__ == "__main__":
         required=False,
     )
     parser.add_argument(
-        "--output_precision", help="precision for output alignments", type=int, required=False, default=3
+        "--output_precision",
+        help="precision for output alignments",
+        type=int,
+        required=False,
+        default=3,
     )
     parser.add_argument(
-        "--silence_dur_threshold", help="threshold for inserting silence", type=float, required=False, default=0.1
+        "--silence_dur_threshold",
+        help="threshold for inserting silence",
+        type=float,
+        required=False,
+        default=0.1,
     )
     args = parser.parse_args()
 

@@ -97,16 +97,25 @@ class TestLlama31NemotronNano8B:
         assert recipe.peft.alpha == 16
 
     @pytest.mark.parametrize("num_nodes,num_gpus_per_node", [(1, 8), (2, 4), (4, 2)])
-    def test_pretrain_recipe_with_different_configurations(self, recipe_module, num_nodes, num_gpus_per_node):
-        recipe = recipe_module.pretrain_recipe(num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node)
+    def test_pretrain_recipe_with_different_configurations(
+        self, recipe_module, num_nodes, num_gpus_per_node
+    ):
+        recipe = recipe_module.pretrain_recipe(
+            num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node
+        )
         assert recipe.trainer.num_nodes == num_nodes
         assert recipe.trainer.devices == num_gpus_per_node
 
     def test_pretrain_performance_optimizations(self, recipe_module):
         recipe = recipe_module.pretrain_recipe(performance_mode=True)
-        assert any(cb.__fn_or_cls__.__name__ == "MegatronCommOverlapCallback" for cb in recipe.trainer.callbacks)
+        assert any(
+            cb.__fn_or_cls__.__name__ == "MegatronCommOverlapCallback"
+            for cb in recipe.trainer.callbacks
+        )
         comm_overlap_callback = next(
-            cb for cb in recipe.trainer.callbacks if cb.__fn_or_cls__.__name__ == "MegatronCommOverlapCallback"
+            cb
+            for cb in recipe.trainer.callbacks
+            if cb.__fn_or_cls__.__name__ == "MegatronCommOverlapCallback"
         )
         assert comm_overlap_callback.tp_comm_overlap is True
         assert comm_overlap_callback.defer_embedding_wgrad_compute is True
@@ -117,8 +126,14 @@ class TestLlama31NemotronNano8B:
     def test_finetune_performance_optimizations(self, recipe_module):
         recipe = recipe_module.finetune_recipe(performance_mode=True)
         assert recipe.trainer.strategy.tensor_model_parallel_size == 1
-        assert any(cb.__fn_or_cls__.__name__ == "TimingCallback" for cb in recipe.trainer.callbacks)
-        assert any(cb.__fn_or_cls__.__name__ == "GarbageCollectionCallback" for cb in recipe.trainer.callbacks)
+        assert any(
+            cb.__fn_or_cls__.__name__ == "TimingCallback"
+            for cb in recipe.trainer.callbacks
+        )
+        assert any(
+            cb.__fn_or_cls__.__name__ == "GarbageCollectionCallback"
+            for cb in recipe.trainer.callbacks
+        )
 
     def test_finetune_sequence_length_settings(self, recipe_module):
         # Test default sequence length for unpacked sequences
@@ -130,8 +145,8 @@ class TestLlama31NemotronNano8B:
         recipe = recipe_module.finetune_recipe(packed_sequence=True)
         assert recipe.model.config.seq_length == 4096
         assert recipe.data.seq_length == 4096
-        assert recipe.data.dataset_kwargs == {'pad_to_max_length': True}
-        assert hasattr(recipe.data, 'packed_sequence_specs')
+        assert recipe.data.dataset_kwargs == {"pad_to_max_length": True}
+        assert hasattr(recipe.data, "packed_sequence_specs")
 
     def test_invalid_peft_scheme(self, recipe_module):
         with pytest.raises(ValueError, match="Unrecognized peft scheme"):

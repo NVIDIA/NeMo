@@ -125,28 +125,36 @@ class BARTDataset(T5Dataset):
             (output_tokens, masked_positions, masked_labels, _, masked_spans) = lm_pred
 
         # Padding.
-        tokens_enc, tokens_dec_in, labels, enc_mask, dec_mask, loss_mask = self.pad_and_convert_to_numpy(
-            tokens=tokens,
-            output_tokens=output_tokens,
-            masked_positions=masked_positions,
-            masked_labels=masked_labels,
-            masked_spans=masked_spans,
-            np_rng=np_rng,
+        tokens_enc, tokens_dec_in, labels, enc_mask, dec_mask, loss_mask = (
+            self.pad_and_convert_to_numpy(
+                tokens=tokens,
+                output_tokens=output_tokens,
+                masked_positions=masked_positions,
+                masked_labels=masked_labels,
+                masked_spans=masked_spans,
+                np_rng=np_rng,
+            )
         )
 
         train_sample = {
-            'text_enc': tokens_enc,
-            'text_dec': tokens_dec_in,
-            'labels': labels,
-            'loss_mask': loss_mask,
-            'enc_mask': enc_mask,
-            'dec_mask': dec_mask,
+            "text_enc": tokens_enc,
+            "text_dec": tokens_dec_in,
+            "labels": labels,
+            "loss_mask": loss_mask,
+            "enc_mask": enc_mask,
+            "dec_mask": dec_mask,
         }
 
         return train_sample
 
     def pad_and_convert_to_numpy(
-        self, tokens, output_tokens, masked_positions, masked_labels, masked_spans=None, np_rng=None,
+        self,
+        tokens,
+        output_tokens,
+        masked_positions,
+        masked_labels,
+        masked_spans=None,
+        np_rng=None,
     ):
         """Pad sequences and convert them to numpy."""
         bart_decoder_in = [self.bos_id] + tokens

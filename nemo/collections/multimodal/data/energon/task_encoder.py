@@ -31,7 +31,9 @@ from nemo.utils import logging
 
 class MultiModalTaskEncoder(
     DefaultTaskEncoder[
-        Union[VQASample, CaptioningSample, InterleavedSample, SimilarityInterleavedSample],
+        Union[
+            VQASample, CaptioningSample, InterleavedSample, SimilarityInterleavedSample
+        ],
         ImageTextSample,
         ImageTextRawBatch,
         dict,
@@ -75,7 +77,9 @@ class MultiModalTaskEncoder(
         self.tokenizer = tokenizer
         self.sample_config = multimodal_sample_config
         self.packed_sequence = packed_sequence
-        self.num_image_embeddings_per_tile = num_image_embeddings_per_tile  # only used with seq packing
+        self.num_image_embeddings_per_tile = (
+            num_image_embeddings_per_tile  # only used with seq packing
+        )
         self.image_tag_type = image_tag_type
         self.packed_sequence_size = packed_sequence_size
         self.encoders: Dict[str, SampleEncoder] = {
@@ -113,7 +117,10 @@ class MultiModalTaskEncoder(
 
     @stateless
     def encode_sample(
-        self, sample: Union[VQASample, InterleavedSample, SimilarityInterleavedSample, CaptioningSample]
+        self,
+        sample: Union[
+            VQASample, InterleavedSample, SimilarityInterleavedSample, CaptioningSample
+        ],
     ) -> ImageTextSample:
         """
         Encode an individual sample based on its type.
@@ -134,8 +141,12 @@ class MultiModalTaskEncoder(
         sample_type = type(sample).__name__
         encoder = self.encoders.get(sample_type)
         if not encoder:
-            raise NotImplementedError(f"No encoder implemented for sample type {sample_type}")
-        encoded_sample = encoder.encode(input_sample=sample, output_sample=ImageTextSample())
+            raise NotImplementedError(
+                f"No encoder implemented for sample type {sample_type}"
+            )
+        encoded_sample = encoder.encode(
+            input_sample=sample, output_sample=ImageTextSample()
+        )
         return encoded_sample
 
     def batch(
@@ -222,18 +233,18 @@ class MultiModalTaskEncoder(
         dict: A dictionary containing the encoded batch data, ready for model input.
         """
         batch_dict = batch_data.__dict__
-        if 'images' in batch_dict:
-            batch_dict['media'] = batch_dict['images']
-            del batch_dict['images']
+        if "images" in batch_dict:
+            batch_dict["media"] = batch_dict["images"]
+            del batch_dict["images"]
         is_num_image_tiles_present = (
-            'num_image_tiles' in batch_dict
-            and batch_dict['num_image_tiles'] is not None
-            and batch_dict['num_image_tiles'] != 0
+            "num_image_tiles" in batch_dict
+            and batch_dict["num_image_tiles"] is not None
+            and batch_dict["num_image_tiles"] != 0
         )
         is_num_media_tiles_present = (
-            'num_media_tiles' in batch_dict
-            and batch_dict['num_media_tiles'] is not None
-            and batch_dict['num_media_tiles'] != 0
+            "num_media_tiles" in batch_dict
+            and batch_dict["num_media_tiles"] is not None
+            and batch_dict["num_media_tiles"] != 0
         )
 
         # Assert both should not be present
@@ -241,15 +252,15 @@ class MultiModalTaskEncoder(
             is_num_image_tiles_present and is_num_media_tiles_present
         ), "num_image_tiles and num_media_tiles should not be present at the same time"
         if is_num_image_tiles_present:
-            batch_dict['num_media_tiles'] = batch_dict['num_image_tiles']
-            del batch_dict['num_image_tiles']
-        micro_batch_size, seq_length = batch_dict['tokens'].size()
+            batch_dict["num_media_tiles"] = batch_dict["num_image_tiles"]
+            del batch_dict["num_image_tiles"]
+        micro_batch_size, seq_length = batch_dict["tokens"].size()
         # Position ids.
         position_ids = torch.arange(seq_length, dtype=torch.long)
         position_ids = position_ids.unsqueeze(0).repeat(micro_batch_size, 1)
-        batch_dict['position_ids'] = position_ids
-        if 'attention_mask' not in batch_dict:
-            batch_dict['attention_mask'] = None
+        batch_dict["position_ids"] = position_ids
+        if "attention_mask" not in batch_dict:
+            batch_dict["attention_mask"] = None
         return batch_dict
 
     def select_samples_to_pack(self, samples):
@@ -298,7 +309,13 @@ class MultiModalTaskEncoder(
 
         packed_images = torch.cat([sample.images for sample in samples], dim=0)
         media_token_id = self.sample_config.image_token.token_id
-        packed_tokens, packed_labels, packed_position_ids, packed_loss_mask, packed_seq_params = convert_to_packed(
+        (
+            packed_tokens,
+            packed_labels,
+            packed_position_ids,
+            packed_loss_mask,
+            packed_seq_params,
+        ) = convert_to_packed(
             tokens=[sample.tokens for sample in samples],
             labels=[sample.labels for sample in samples],
             num_image_embeddings_per_tile=self.num_image_embeddings_per_tile,

@@ -48,8 +48,8 @@ class ViterbiDecoderWithGraph(NeuralModule):
 
         backend: Which backend to use for decoding. Currently only `k2` is supported.
 
-        dec_type: Type of decoding graph to use. Choices: `topo` and `token_lm`, 
-            with `topo` standing for the loss topology graph only 
+        dec_type: Type of decoding graph to use. Choices: `topo` and `token_lm`,
+            with `topo` standing for the loss topology graph only
             and `token_lm` for the topology composed with a token_lm graph.
 
         return_type: Type of output. Choices: `1best` and `lattice`.
@@ -60,8 +60,8 @@ class ViterbiDecoderWithGraph(NeuralModule):
             Whether to return input labels of a lattice (otherwise output labels).
 
         output_aligned: For return_type=`1best`.
-            Whether the tensors length will correspond to log_probs_length 
-            and the labels will be aligned to the frames of emission 
+            Whether the tensors length will correspond to log_probs_length
+            and the labels will be aligned to the frames of emission
             (otherwise there will be only the necessary labels).
 
         split_batch_size: Local batch size. Used for memory consumption reduction at the cost of speed performance.
@@ -72,17 +72,18 @@ class ViterbiDecoderWithGraph(NeuralModule):
 
     @property
     def input_types(self):
-        """Returns definitions of module input ports.
-        """
+        """Returns definitions of module input ports."""
         return {
-            "log_probs": NeuralType(("B", "T", "D") if self._3d_input else ("B", "T", "T", "D"), LogprobsType()),
+            "log_probs": NeuralType(
+                ("B", "T", "D") if self._3d_input else ("B", "T", "T", "D"),
+                LogprobsType(),
+            ),
             "input_lengths": NeuralType(tuple("B"), LengthsType()),
         }
 
     @property
     def output_types(self):
-        """Returns definitions of module output ports.
-        """
+        """Returns definitions of module output ports."""
         return {"predictions": NeuralType(("B", "T"), PredictionsType())}
 
     def __init__(
@@ -107,7 +108,9 @@ class ViterbiDecoderWithGraph(NeuralModule):
         elif return_type == "lattice":
             self.return_lattices = True
         elif return_type == "nbest":
-            raise NotImplementedError(f"return_type {return_type} is not supported at the moment")
+            raise NotImplementedError(
+                f"return_type {return_type} is not supported at the moment"
+            )
         else:
             raise ValueError(f"Unsupported return_type: {return_type}")
 
@@ -125,11 +128,15 @@ class ViterbiDecoderWithGraph(NeuralModule):
             elif self.dec_type == "loose_ali":
                 raise NotImplementedError()
             elif self.dec_type == "tlg":
-                raise NotImplementedError(f"dec_type {self.dec_type} is not supported at the moment")
+                raise NotImplementedError(
+                    f"dec_type {self.dec_type} is not supported at the moment"
+                )
             else:
                 raise ValueError(f"Unsupported dec_type: {self.dec_type}")
 
-            self._decoder = Decoder(num_classes=self._blank + 1, blank=self._blank, cfg=graph_module_cfg)
+            self._decoder = Decoder(
+                num_classes=self._blank + 1, blank=self._blank, cfg=graph_module_cfg
+            )
         elif backend == "gtn":
             raise NotImplementedError("gtn-backed decoding is not implemented")
 
@@ -137,12 +144,18 @@ class ViterbiDecoderWithGraph(NeuralModule):
         super().__init__()
 
     def update_graph(self, graph):
-        """Updates graph of the backend graph decoder.
-        """
+        """Updates graph of the backend graph decoder."""
         self._decoder.update_graph(graph)
 
-    def _forward_impl(self, log_probs, log_probs_length, targets=None, target_length=None):
-        if targets is None and target_length is not None or targets is not None and target_length is None:
+    def _forward_impl(
+        self, log_probs, log_probs_length, targets=None, target_length=None
+    ):
+        if (
+            targets is None
+            and target_length is not None
+            or targets is not None
+            and target_length is None
+        ):
             raise RuntimeError(
                 f"Both targets and target_length have to be None or not None: {targets}, {target_length}"
             )
@@ -150,12 +163,22 @@ class ViterbiDecoderWithGraph(NeuralModule):
         if targets is None:
             align = False
             decode_func = lambda a, b: self._decoder.decode(
-                a, b, return_lattices=False, return_ilabels=self.return_ilabels, output_aligned=self.output_aligned
+                a,
+                b,
+                return_lattices=False,
+                return_ilabels=self.return_ilabels,
+                output_aligned=self.output_aligned,
             )
         else:
             align = True
             decode_func = lambda a, b, c, d: self._decoder.align(
-                a, b, c, d, return_lattices=False, return_ilabels=False, output_aligned=True
+                a,
+                b,
+                c,
+                d,
+                return_lattices=False,
+                return_ilabels=False,
+                output_aligned=True,
             )
         batch_size = log_probs.shape[0]
         if self.split_batch_size > 0 and self.split_batch_size <= batch_size:
@@ -170,11 +193,16 @@ class ViterbiDecoderWithGraph(NeuralModule):
                     target_length_part = target_length[begin:end]
                     targets_part = targets[begin:end, : target_length_part.max()]
                     predictions_part, probs_part = decode_func(
-                        log_probs_part, log_probs_length_part, targets_part, target_length_part
+                        log_probs_part,
+                        log_probs_length_part,
+                        targets_part,
+                        target_length_part,
                     )
                     del targets_part, target_length_part
                 else:
-                    predictions_part, probs_part = decode_func(log_probs_part, log_probs_length_part)
+                    predictions_part, probs_part = decode_func(
+                        log_probs_part, log_probs_length_part
+                    )
                 del log_probs_part, log_probs_length_part
                 predictions += predictions_part
                 probs += probs_part
@@ -190,13 +218,19 @@ class ViterbiDecoderWithGraph(NeuralModule):
     @torch.no_grad()
     def forward(self, log_probs, log_probs_length):
         if self.dec_type == "looseali":
-            raise RuntimeError(f"Decoder with dec_type=`{self.dec_type}` is not intended for regular decoding.")
+            raise RuntimeError(
+                f"Decoder with dec_type=`{self.dec_type}` is not intended for regular decoding."
+            )
         predictions, probs = self._forward_impl(log_probs, log_probs_length)
-        lengths = torch.tensor([len(pred) for pred in predictions], device=predictions[0].device)
-        predictions_tensor = torch.full((len(predictions), lengths.max()), self._blank).to(
+        lengths = torch.tensor(
+            [len(pred) for pred in predictions], device=predictions[0].device
+        )
+        predictions_tensor = torch.full(
+            (len(predictions), lengths.max()), self._blank
+        ).to(device=predictions[0].device)
+        probs_tensor = torch.full((len(probs), lengths.max()), 1.0).to(
             device=predictions[0].device
         )
-        probs_tensor = torch.full((len(probs), lengths.max()), 1.0).to(device=predictions[0].device)
         for i, (pred, prob) in enumerate(zip(predictions, probs)):
             predictions_tensor[i, : lengths[i]] = pred
             probs_tensor[i, : lengths[i]] = prob
@@ -206,10 +240,15 @@ class ViterbiDecoderWithGraph(NeuralModule):
     def align(self, log_probs, log_probs_length, targets, target_length):
         len_enough = (log_probs_length >= target_length) & (target_length > 0)
         if torch.all(len_enough) or self.dec_type == "looseali":
-            results = self._forward_impl(log_probs, log_probs_length, targets, target_length)
+            results = self._forward_impl(
+                log_probs, log_probs_length, targets, target_length
+            )
         else:
             results = self._forward_impl(
-                log_probs[len_enough], log_probs_length[len_enough], targets[len_enough], target_length[len_enough]
+                log_probs[len_enough],
+                log_probs_length[len_enough],
+                targets[len_enough],
+                target_length[len_enough],
             )
             for i, computed in enumerate(len_enough):
                 if not computed:

@@ -28,7 +28,7 @@ try:
 except (ImportError, ModuleNotFoundError):
     HAVE_APEX = False
 
-__all__ = ['MegatronGriffinSFTModel']
+__all__ = ["MegatronGriffinSFTModel"]
 
 
 class MegatronGriffinSFTModel(MegatronGPTSFTModel, MegatronGriffinModel):
@@ -44,7 +44,9 @@ class MegatronGriffinSFTModel(MegatronGPTSFTModel, MegatronGriffinModel):
 
         super().__init__(cfg, trainer=trainer)
         self.mcore_gpt = True
-        self.validation_param_sync_overlap = self.cfg.get('validation_param_sync_overlap', False)
+        self.validation_param_sync_overlap = self.cfg.get(
+            "validation_param_sync_overlap", False
+        )
 
     def _reset_activation_checkpointing_args(self):
         pass

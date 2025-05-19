@@ -25,22 +25,21 @@ from nemo.collections.nlp.data.dialogue.input_example.input_example import \
 from nemo.utils import logging
 
 __all__ = [
-    'SGDInputExample',
-    'STR_DONTCARE',
-    'STATUS_OFF',
-    'STATUS_ACTIVE',
-    'STATUS_DONTCARE',
+    "SGDInputExample",
+    "STR_DONTCARE",
+    "STATUS_OFF",
+    "STATUS_ACTIVE",
+    "STATUS_DONTCARE",
 ]
 
 
 class DialogueSGDInputExample(DialogueInputExample):
-
     """
     Template for DialogueSGDInputExample
 
     Meant as a descriptor rather than to be instantiated
 
-    Please instantiate using the base class 'DialogueInputExample' 
+    Please instantiate using the base class 'DialogueInputExample'
 
     {
         "example_id": <example_id>,
@@ -68,7 +67,7 @@ class DialogueSGDInputExample(DialogueInputExample):
             "intent": <intent>,
             "slots": {
                 #only non-empty slots
-                #most slot values are list of length 1 
+                #most slot values are list of length 1
                 #but there are some of length 2 as both are accepted
                 #e.g. 1930 and 7:30 pm
                 "<slot-name1>": [<slot-value1>, <slot-value2>],
@@ -150,8 +149,8 @@ class SGDInputExample(object):
         if self._tokenizer is None:
             raise ValueError("Must specify tokenizer")
 
-        self.user_utterance = ''
-        self.system_utterance = ''
+        self.user_utterance = ""
+        self.system_utterance = ""
         # The id of each subword in the vocabulary for BERT.
         self.utterance_ids = [0] * self._max_seq_length
         # Denotes the identity of the sequence. Takes values 0 (schema description) and 1 (system and user utterance).
@@ -208,21 +207,29 @@ class SGDInputExample(object):
         utt_toks = self._tokenizer.ids_to_tokens(self.utterance_ids[:seq_length])
         utt_tok_mask_pairs = list(zip(utt_toks, self.utterance_segment[:seq_length]))
         active_intent = (
-            self.service_schema.get_intent_from_id(self.intent_id) if self.intent_status == STATUS_ACTIVE else ""
+            self.service_schema.get_intent_from_id(self.intent_id)
+            if self.intent_status == STATUS_ACTIVE
+            else ""
         )
         slot_values_in_state = {}
         if self.categorical_slot_status == STATUS_ACTIVE:
             slot_values_in_state[
-                self.service_schema.get_categorical_slot_from_id(self.categorical_slot_id)
+                self.service_schema.get_categorical_slot_from_id(
+                    self.categorical_slot_id
+                )
             ] = self.service_schema.get_categorical_slot_value_from_id(
                 self.categorical_slot_id, self.categorical_slot_value_id
             )
         elif self.categorical_slot_status == STATUS_DONTCARE:
             slot_values_in_state[
-                self.service_schema.get_categorical_slot_from_id(self.categorical_slot_id)
+                self.service_schema.get_categorical_slot_from_id(
+                    self.categorical_slot_id
+                )
             ] = STR_DONTCARE
         if self.noncategorical_slot_status == STATUS_ACTIVE:
-            slot = self.service_schema.get_non_categorical_slot_from_id(self.noncategorical_slot_id)
+            slot = self.service_schema.get_non_categorical_slot_from_id(
+                self.noncategorical_slot_id
+            )
             start_id = self.noncategorical_slot_value_start[slot]
             end_id = self.noncategorical_slot_value_end[slot]
             # Token list is consisted of the subwords that may start with "##". We
@@ -230,10 +237,14 @@ class SGDInputExample(object):
             # strict restoration of the original string. It's primarily used for
             # debugging.
             # ex. ["san", "j", "##ose"] --> "san jose"
-            readable_value = " ".join(utt_toks[start_id : end_id + 1]).replace(" ##", "")
+            readable_value = " ".join(utt_toks[start_id : end_id + 1]).replace(
+                " ##", ""
+            )
             slot_values_in_state[slot] = readable_value
         elif self.noncategorical_slot_status == STATUS_DONTCARE:
-            slot = self.service_schema.get_non_categorical_slot_from_id(self.noncategorical_slot_id)
+            slot = self.service_schema.get_non_categorical_slot_from_id(
+                self.noncategorical_slot_id
+            )
             slot_values_in_state[slot] = STR_DONTCARE
 
         summary_dict = {
@@ -249,7 +260,13 @@ class SGDInputExample(object):
         return summary_dict
 
     def add_utterance_features(
-        self, system_tokens, system_inv_alignments, user_tokens, user_inv_alignments, system_utterance, user_utterance
+        self,
+        system_tokens,
+        system_inv_alignments,
+        user_tokens,
+        user_inv_alignments,
+        system_utterance,
+        user_utterance,
     ):
         """Add utterance related features input to InputExample.
 
@@ -274,7 +291,7 @@ class SGDInputExample(object):
         is_too_long = truncate_seq_pair(system_tokens, user_tokens, max_utt_len - 3)
         if is_too_long:
             logging.debug(
-                f'Utterance sequence truncated in example id - {self.example_id} from {len(system_tokens) + len(user_tokens)}.'
+                f"Utterance sequence truncated in example id - {self.example_id} from {len(system_tokens) + len(user_tokens)}."
             )
 
         # Construct the tokens, segment mask and valid token mask which will be
@@ -369,7 +386,9 @@ class SGDInputExample(object):
         new_example.user_utterance = self.user_utterance
         new_example.system_utterance = self.system_utterance
         new_example.noncategorical_slot_status = self.noncategorical_slot_status
-        new_example.noncategorical_slot_value_start = self.noncategorical_slot_value_start
+        new_example.noncategorical_slot_value_start = (
+            self.noncategorical_slot_value_start
+        )
         new_example.noncategorical_slot_value_end = self.noncategorical_slot_value_end
         return new_example
 
@@ -392,15 +411,21 @@ class SGDInputExample(object):
         else:
             self.categorical_slot_status = STATUS_ACTIVE
             self.categorical_slot_value_status = (
-                self.categorical_slot_value_id == self.service_schema.get_categorical_slot_value_id(slot, values[0])
+                self.categorical_slot_value_id
+                == self.service_schema.get_categorical_slot_value_id(slot, values[0])
             )
 
-    def add_noncategorical_slots(self, state_update: dict, system_span_boundaries: dict, user_span_boundaries: dict):
+    def add_noncategorical_slots(
+        self,
+        state_update: dict,
+        system_span_boundaries: dict,
+        user_span_boundaries: dict,
+    ):
         """Add features for non-categorical slots.
         Args:
             state_update: slot value pairs of state update
             system_span_boundaries: span boundaries of schema description
-            user_span_boundaries: span boundaries of utterance 
+            user_span_boundaries: span boundaries of utterance
         """
 
         noncategorical_slots = self.service_schema.non_categorical_slots
@@ -456,7 +481,9 @@ class SGDInputExample(object):
 
 # Modified from run_classifier._truncate_seq_pair in the public bert model repo.
 # https://github.com/google-research/bert/blob/master/run_classifier.py.
-def truncate_seq_pair(tokens_a: List[int], tokens_b: List[int], max_length: int) -> bool:
+def truncate_seq_pair(
+    tokens_a: List[int], tokens_b: List[int], max_length: int
+) -> bool:
     """Truncate a seq pair in place so that their total length <= max_length.
     Args:
         tokens_a: first token sequence

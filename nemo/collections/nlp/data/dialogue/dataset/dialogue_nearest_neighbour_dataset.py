@@ -20,7 +20,7 @@ from nemo.collections.nlp.data.dialogue.dataset.dialogue_dataset import \
     DialogueDataset
 from nemo.utils.decorators import deprecated_warning
 
-__all__ = ['DialogueNearestNeighbourDataset']
+__all__ = ["DialogueNearestNeighbourDataset"]
 
 
 class DialogueNearestNeighbourDataset(DialogueDataset):
@@ -77,12 +77,18 @@ class DialogueNearestNeighbourDataset(DialogueDataset):
 
             encoded_input = self.tokenizer.tokenizer(
                 sentences,
-                padding='max_length',
+                padding="max_length",
                 truncation=True,
-                return_tensors='pt',
+                return_tensors="pt",
                 max_length=self.cfg.max_seq_length,
             )
-            examples.append((encoded_input['input_ids'], encoded_input['attention_mask'], torch.tensor(labels)))
+            examples.append(
+                (
+                    encoded_input["input_ids"],
+                    encoded_input["attention_mask"],
+                    torch.tensor(labels),
+                )
+            )
         return examples
 
     def __len__(self):

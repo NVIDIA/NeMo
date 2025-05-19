@@ -27,17 +27,30 @@ from nemo.collections.llm.gpt.model.megatron.hyena.hyena_utils import \
 class Evo2Dataset(GPTDataset):
     """Dataset for training Evo2."""
 
-    CONTROL_TAGS: ClassVar[list[int]] = [64, 35]  # '@' tag for splice splits/windows, '#' for contig splits
+    CONTROL_TAGS: ClassVar[list[int]] = [
+        64,
+        35,
+    ]  # '@' tag for splice splits/windows, '#' for contig splits
     TAG_BOUNDS = 124  # start and end delim: '|'
-    TAG_CHARS: ClassVar[set[int]] = {95, 59, 32}  # chars only found in control tags: _, ;, space
+    TAG_CHARS: ClassVar[set[int]] = {
+        95,
+        59,
+        32,
+    }  # chars only found in control tags: _, ;, space
     DEFAULT_EOD = 0
-    TO_UPPER_TOKENS: bool = True  # If set, do an in-place transform to make all tokens capital letters
-    RESET_PAD_EOD_MASK: bool = True  # If set, unset the mask for [pad] and [eod] tokens (matches Evo2 paper).
+    TO_UPPER_TOKENS: bool = (
+        True  # If set, do an in-place transform to make all tokens capital letters
+    )
+    RESET_PAD_EOD_MASK: bool = (
+        True  # If set, unset the mask for [pad] and [eod] tokens (matches Evo2 paper).
+    )
 
     def _get_gpt_batch(self, idx: Optional[int]) -> dict[str, torch.Tensor]:
         return super().__getitem__(idx)
 
-    def _modify_gpt_batch(self, databatch: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
+    def _modify_gpt_batch(
+        self, databatch: dict[str, torch.Tensor]
+    ) -> dict[str, torch.Tensor]:
         loss_mask = databatch.get("loss_mask", None)
         if self.RESET_PAD_EOD_MASK and loss_mask is not None:
             # Reset the mask for 'pad', '[eod]', '[pad token]', which will lower the loss, but matches Evo2 pub.
@@ -48,13 +61,19 @@ class Evo2Dataset(GPTDataset):
             return databatch
 
         # Mask special label tags in loss.
-        control_mask = torch.isin(labels, torch.tensor(self.CONTROL_TAGS, device=labels.device))
+        control_mask = torch.isin(
+            labels, torch.tensor(self.CONTROL_TAGS, device=labels.device)
+        )
         loss_mask[control_mask] = 0
         phylotag_mask = self.mask_phylogenetic_tags(
             labels,
             self.TAG_BOUNDS,
             self.TAG_CHARS,
-            self.config.tokenizer.eod if self.config.tokenizer is not None else self.DEFAULT_EOD,
+            (
+                self.config.tokenizer.eod
+                if self.config.tokenizer is not None
+                else self.DEFAULT_EOD
+            ),
         )
         databatch["loss_mask"] = loss_mask * phylotag_mask
         if self.TO_UPPER_TOKENS:
@@ -158,14 +177,18 @@ class Evo2Dataset(GPTDataset):
             if region.numel() == 0:
                 return True
             # Using torch's all() over the token values.
-            return bool(torch.all(torch.isin(region, valid_dna_or_control_tensor)).cpu().item())
+            return bool(
+                torch.all(torch.isin(region, valid_dna_or_control_tensor)).cpu().item()
+            )
 
         # Process one EOD-free segment using the O1 logic.
         def process_segment(seg_seq: torch.Tensor) -> torch.Tensor:
             seg_len = seg_seq.size(0)
             seg_mask = torch.ones(seg_len, device=device, dtype=torch.int)
             # Identify positions of terminal tag (pipe)
-            pipe_pos = (seg_seq == terminal_tag_char).nonzero(as_tuple=True)[0].cpu().tolist()
+            pipe_pos = (
+                (seg_seq == terminal_tag_char).nonzero(as_tuple=True)[0].cpu().tolist()
+            )
             if len(pipe_pos) == 0:
                 # If no pipe exists and any token is a known tag char or not valid DNA,
                 # mask the entire segment.
@@ -215,7 +238,9 @@ class Evo2Dataset(GPTDataset):
         for b in range(batch_size):
             row = tokenized_sequence[b]
             # Get indices of EOD tokens.
-            eod_positions = (row == eod_token_id).nonzero(as_tuple=True)[0].cpu().tolist()
+            eod_positions = (
+                (row == eod_token_id).nonzero(as_tuple=True)[0].cpu().tolist()
+            )
             start_idx = 0
             for pos in eod_positions:
                 if pos > start_idx:

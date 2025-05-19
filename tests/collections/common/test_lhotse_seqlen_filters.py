@@ -28,7 +28,9 @@ from nemo.collections.common.data.lhotse.text_adapters import (
 
 @pytest.fixture
 def cut():
-    c = dummy_cut(0, duration=1.0, supervisions=[SupervisionSegment("", "", 0, 1.0, text="dummy")])
+    c = dummy_cut(
+        0, duration=1.0, supervisions=[SupervisionSegment("", "", 0, 1.0, text="dummy")]
+    )
     c.supervisions[0].tokens = [1, 37, 12, 2]
     return c
 

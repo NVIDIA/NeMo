@@ -50,23 +50,30 @@ class SpeechLLMAdapterMixin(NLPAdapterModelMixin):
         # Determine device
         if map_location is None:
             if torch.cuda.is_available():
-                map_location = 'cuda'
+                map_location = "cuda"
             else:
-                map_location = 'cpu'
+                map_location = "cpu"
 
-        if filepath.endswith('.nemo'):
-            conf, state_dict = self._get_config_and_state_dict_from_nemo(filepath, map_location)
-        elif filepath.endswith('.ckpt'):
-            state_dict = torch.load(filepath, map_location, weights_only=False)['state_dict']
+        if filepath.endswith(".nemo"):
+            conf, state_dict = self._get_config_and_state_dict_from_nemo(
+                filepath, map_location
+            )
+        elif filepath.endswith(".ckpt"):
+            state_dict = torch.load(filepath, map_location, weights_only=False)[
+                "state_dict"
+            ]
         else:
             raise RuntimeError(f"{filepath} is not nemo file or ckpt file")
         if not peft_cfgs:
             assert filepath.endswith(
-                '.nemo'
+                ".nemo"
             ), "Inferring peft scheme is only supported for .nemo checkpoints. Please supply the `peft_cfgs` argument."
             peft_cfgs = [PEFT_CONFIG_MAP[conf.peft.peft_scheme](conf)]
         if self.cfg.megatron_amp_O2:
-            state_dict = {replace_prefix(k, 'model.', 'model.module.'): v for k, v in state_dict.items()}
+            state_dict = {
+                replace_prefix(k, "model.", "model.module."): v
+                for k, v in state_dict.items()
+            }
         self.add_adapter(peft_cfgs)
         if not self.ptuning_only_and_non_first_stage:
             target_keys = self.adapter_keys.union(self.tunable_base_param_keys)
@@ -79,7 +86,9 @@ class SpeechLLMAdapterMixin(NLPAdapterModelMixin):
             if i not in state_dict:
                 i_no_model = i.replace("model.", "")
                 if i_no_model in state_dict:
-                    logging.warning(f"Key {i} not found in state_dict, trying {i_no_model}")
+                    logging.warning(
+                        f"Key {i} not found in state_dict, trying {i_no_model}"
+                    )
                     state_dict[i] = state_dict[i_no_model]
                     del state_dict[i_no_model]
 
@@ -91,5 +100,7 @@ class SpeechLLMAdapterMixin(NLPAdapterModelMixin):
         Add prefix "model." to the keys.
         """
         peft_state_dict = super().get_peft_state_dict()
-        peft_state_dict_with_prefix = {"model." + k: v for k, v in peft_state_dict.items()}
+        peft_state_dict_with_prefix = {
+            "model." + k: v for k, v in peft_state_dict.items()
+        }
         return peft_state_dict_with_prefix

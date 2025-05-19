@@ -37,9 +37,9 @@ class PosEmb3D:
         """Generates the positional ID grid based on max_t, max_h, and max_w."""
         self.grid = torch.stack(
             torch.meshgrid(
-                torch.arange(self.max_t, device='cpu'),
-                torch.arange(self.max_h, device='cpu'),
-                torch.arange(self.max_w, device='cpu'),
+                torch.arange(self.max_t, device="cpu"),
+                torch.arange(self.max_h, device="cpu"),
+                torch.arange(self.max_w, device="cpu"),
             ),
             dim=-1,
         )
@@ -106,16 +106,20 @@ class DiTVideoLatentFakeDataset(torch.utils.data.Dataset):
         c = self.in_channels
 
         video_latent = torch.ones(self.seq_length, c * p**2, dtype=torch.bfloat16) * 0.5
-        text_embedding = torch.randn(self.text_seqlen, self.text_dim, dtype=torch.bfloat16)
+        text_embedding = torch.randn(
+            self.text_seqlen, self.text_dim, dtype=torch.bfloat16
+        )
         pos_emb = pos_id_3d.get_pos_id_3d(t=t, h=h // p, w=w // p).reshape(-1, 3)
 
         return {
-            'video': video_latent,
-            't5_text_embeddings': text_embedding,
-            'seq_len_q': torch.tensor([video_latent.shape[0]], dtype=torch.int32).squeeze(),
-            'seq_len_kv': torch.tensor([self.text_seqlen], dtype=torch.int32).squeeze(),
-            'pos_ids': torch.zeros((self.seq_length, 3), dtype=torch.int32),
-            'loss_mask': torch.ones(video_latent.shape[0], dtype=torch.bfloat16),
+            "video": video_latent,
+            "t5_text_embeddings": text_embedding,
+            "seq_len_q": torch.tensor(
+                [video_latent.shape[0]], dtype=torch.int32
+            ).squeeze(),
+            "seq_len_kv": torch.tensor([self.text_seqlen], dtype=torch.int32).squeeze(),
+            "pos_ids": torch.zeros((self.seq_length, 3), dtype=torch.int32),
+            "loss_mask": torch.ones(video_latent.shape[0], dtype=torch.bfloat16),
         }
 
     def _collate_fn(self, batch):

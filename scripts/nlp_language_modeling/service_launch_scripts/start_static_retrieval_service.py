@@ -31,9 +31,11 @@ def get_tokenizer(args):
         delimiter=args.delimiter,
     )
     if not hasattr(tokenizer, "pad_id"):
-        tokenizer.add_special_tokens({'pad_token': '<pad>'})
-    elif hasattr(tokenizer, "pad_id") and (tokenizer.pad_id is None or tokenizer.pad_id < 0):
-        tokenizer.add_special_tokens({'pad_token': '<pad>'})
+        tokenizer.add_special_tokens({"pad_token": "<pad>"})
+    elif hasattr(tokenizer, "pad_id") and (
+        tokenizer.pad_id is None or tokenizer.pad_id < 0
+    ):
+        tokenizer.add_special_tokens({"pad_token": "<pad>"})
     return tokenizer
 
 

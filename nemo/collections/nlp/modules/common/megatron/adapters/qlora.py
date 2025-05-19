@@ -47,14 +47,18 @@ class NF4Weight(nn.Parameter):
         self.scale_block_size = scale_block_size
         return self
 
-    def quantize(self, device='cuda') -> torch.Tensor:
+    def quantize(self, device="cuda") -> torch.Tensor:
         from modelopt.torch.quantization.nn import TensorQuantizer
         from modelopt.torch.quantization.tensor_quant import QuantDescriptor
 
         # initialize the quantizer
         nf4_desc = QuantDescriptor(
             num_bits=4,
-            block_sizes={-1: self.block_size, "scale_bits": 8, "scale_block_sizes": {-1: self.scale_block_size}},
+            block_sizes={
+                -1: self.block_size,
+                "scale_bits": 8,
+                "scale_block_sizes": {-1: self.scale_block_size},
+            },
             fake_quant=False,
         )
         self._nf4_quantizer = TensorQuantizer(nf4_desc)
@@ -66,14 +70,20 @@ class NF4Weight(nn.Parameter):
         return self
 
     def dequantize(self):
-        assert self.is_nf4_quantized, "NF4 Tensor is not yet quantized, cannot dequantize."
+        assert (
+            self.is_nf4_quantized
+        ), "NF4 Tensor is not yet quantized, cannot dequantize."
         return self._nf4_quantizer(self.quantized_data)
 
     def cuda(self, device=None, non_blocking=False):
-        return self.to(device="cuda" if device is None else device, non_blocking=non_blocking)
+        return self.to(
+            device="cuda" if device is None else device, non_blocking=non_blocking
+        )
 
     def to(self, *args, **kwargs):
-        device, dtype, non_blocking, convert_to_format = torch._C._nn._parse_to(*args, **kwargs)
+        device, dtype, non_blocking, convert_to_format = torch._C._nn._parse_to(
+            *args, **kwargs
+        )
 
         if device is not None and device.type == "cuda":
             # Note: self.data remains on CPU. Only self.quantized_data is on GPU
@@ -88,7 +98,9 @@ class NF4Weight(nn.Parameter):
 
     def __repr__(self, *, tensor_contents=None):
         if self.is_nf4_quantized:
-            return f"NF4Weight(is_nf4_quantized=True, quantized_data={self.quantized_data}"
+            return (
+                f"NF4Weight(is_nf4_quantized=True, quantized_data={self.quantized_data}"
+            )
         else:
             return f"NF4Weight(is_nf4_quantized=False, data={self.data}"
 
@@ -175,16 +187,20 @@ class NF4LayerNormLinearWrapper(NF4LinearWrapper):
         self.te_return_bias = False
 
     def _create_layer_norm_fn(self):
-        '''
+        """
         create the layernorm function signature in TE. Assume this layer is already running without gradients
         since this is for QLoRA.
-        '''
-        if self.normalization == 'LayerNorm':
-            _LayerNorm, _ = safe_import_from("transformer_engine.pytorch.module.layernorm", "_LayerNorm")
+        """
+        if self.normalization == "LayerNorm":
+            _LayerNorm, _ = safe_import_from(
+                "transformer_engine.pytorch.module.layernorm", "_LayerNorm"
+            )
 
             layer_norm_fn = _LayerNorm.apply
-        elif self.normalization == 'RMSNorm':
-            _RMSNorm, _ = safe_import_from("transformer_engine.pytorch.module.layernorm", "_RMSNorm")
+        elif self.normalization == "RMSNorm":
+            _RMSNorm, _ = safe_import_from(
+                "transformer_engine.pytorch.module.layernorm", "_RMSNorm"
+            )
 
             layer_norm_fn = _RMSNorm.apply
         else:
@@ -212,10 +228,13 @@ class NF4LayerNormLinearWrapper(NF4LinearWrapper):
         return (linear_output, layernorm_output), None
 
 
-def qlora_load_model(model: 'MCoreGPTModel', model_cfg: 'DictConfig', checkpoint: Dict[str, Tensor]):
+def qlora_load_model(
+    model: "MCoreGPTModel", model_cfg: "DictConfig", checkpoint: Dict[str, Tensor]
+):
     # swap linear layer and cast weight to nf4
     qlora_targets = [
-        LORA_CONFIG_TO_MCORE_MAP[x] for x in get_target_modules(model_cfg.peft.lora_tuning, default=('all',))
+        LORA_CONFIG_TO_MCORE_MAP[x]
+        for x in get_target_modules(model_cfg.peft.lora_tuning, default=("all",))
     ]
 
     # if not load directly on device, need to load the rest of the model
@@ -224,26 +243,34 @@ def qlora_load_model(model: 'MCoreGPTModel', model_cfg: 'DictConfig', checkpoint
         checkpoint_state_dict = {}
         for key, value in checkpoint.items():
             if not any(qlora_target in key for qlora_target in qlora_targets):
-                checkpoint_state_dict[key.replace('model.', '')] = value
+                checkpoint_state_dict[key.replace("model.", "")] = value
         model.load_state_dict(checkpoint_state_dict, strict=False)
 
     def replace_linear(module: nn.Module, prefix=""):
         for name, child in module.named_children():
             if name in qlora_targets:
                 bf16_weight = checkpoint[f"{prefix}.{name}.weight"].to(torch.bfloat16)
-                logging.info(f'QLoRA: Quantizing linear layer: {prefix}.{name}')
-                layer_norm_weight = checkpoint.get(f"{prefix}.{name}.layer_norm_weight", None)
+                logging.info(f"QLoRA: Quantizing linear layer: {prefix}.{name}")
+                layer_norm_weight = checkpoint.get(
+                    f"{prefix}.{name}.layer_norm_weight", None
+                )
                 if layer_norm_weight is None:
                     setattr(module, name, NF4LinearWrapper(bf16_weight))
                 else:
-                    layer_norm_bias = checkpoint.get(f"{prefix}.{name}.layer_norm_bias", None)
+                    layer_norm_bias = checkpoint.get(
+                        f"{prefix}.{name}.layer_norm_bias", None
+                    )
                     normalization = module.config.normalization
                     zero_centered_gamma = module.config.layernorm_zero_centered_gamma
                     setattr(
                         module,
                         name,
                         NF4LayerNormLinearWrapper(
-                            bf16_weight, layer_norm_weight, layer_norm_bias, normalization, zero_centered_gamma
+                            bf16_weight,
+                            layer_norm_weight,
+                            layer_norm_bias,
+                            normalization,
+                            zero_centered_gamma,
                         ),
                     )
             else:

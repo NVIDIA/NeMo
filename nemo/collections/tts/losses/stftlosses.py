@@ -62,12 +62,14 @@ def stft(x, fft_size, hop_size, win_length, window):
     Returns:
         Tensor: Magnitude spectrogram (B, #frames, fft_size // 2 + 1).
     """
-    x_stft = torch.view_as_real(torch.stft(x, fft_size, hop_size, win_length, window, return_complex=True))
+    x_stft = torch.view_as_real(
+        torch.stft(x, fft_size, hop_size, win_length, window, return_complex=True)
+    )
     real = x_stft[..., 0]
     imag = x_stft[..., 1]
 
     # NOTE(kan-bayashi): clamp is needed to avoid nan or inf
-    return torch.sqrt(torch.clamp(real ** 2 + imag ** 2, min=1e-7)).transpose(2, 1)
+    return torch.sqrt(torch.clamp(real**2 + imag**2, min=1e-7)).transpose(2, 1)
 
 
 class SpectralConvergenceLoss(Loss):
@@ -76,8 +78,8 @@ class SpectralConvergenceLoss(Loss):
     @property
     def input_types(self):
         return {
-            "x_mag": NeuralType(('B', 'T', 'D'), SpectrogramType()),
-            "y_mag": NeuralType(('B', 'T', 'D'), SpectrogramType()),
+            "x_mag": NeuralType(("B", "T", "D"), SpectrogramType()),
+            "y_mag": NeuralType(("B", "T", "D"), SpectrogramType()),
         }
 
     @property
@@ -98,7 +100,9 @@ class SpectralConvergenceLoss(Loss):
             Tensor: Spectral convergence loss value.
         """
         # Mean across time and freq_bins first
-        loss = torch.norm(y_mag - x_mag, p="fro", dim=(1, 2)) / torch.norm(y_mag, p="fro", dim=(1, 2))
+        loss = torch.norm(y_mag - x_mag, p="fro", dim=(1, 2)) / torch.norm(
+            y_mag, p="fro", dim=(1, 2)
+        )
         # Mean across batches
         loss = torch.mean(loss)
         return loss
@@ -110,9 +114,9 @@ class LogSTFTMagnitudeLoss(Loss):
     @property
     def input_types(self):
         return {
-            "x_mag": NeuralType(('B', 'T', 'D'), SpectrogramType()),
-            "y_mag": NeuralType(('B', 'T', 'D'), SpectrogramType()),
-            "input_lengths": NeuralType(('B'), LengthsType(), optional=True),
+            "x_mag": NeuralType(("B", "T", "D"), SpectrogramType()),
+            "y_mag": NeuralType(("B", "T", "D"), SpectrogramType()),
+            "input_lengths": NeuralType(("B"), LengthsType(), optional=True),
         }
 
     @property
@@ -134,7 +138,7 @@ class LogSTFTMagnitudeLoss(Loss):
         if input_lengths is None:
             # During training, we used fixed sequence length, so just average across all dimensions
             return F.l1_loss(torch.log(y_mag), torch.log(x_mag))
-        loss = F.l1_loss(torch.log(y_mag), torch.log(x_mag), reduction='none')
+        loss = F.l1_loss(torch.log(y_mag), torch.log(x_mag), reduction="none")
         # First sum and average across time and freq bins
         loss = loss / loss.shape[2]
         loss = torch.sum(loss, dim=[1, 2])
@@ -146,7 +150,9 @@ class LogSTFTMagnitudeLoss(Loss):
 class STFTLoss(Loss):
     """STFT loss module."""
 
-    def __init__(self, fft_size=1024, shift_size=120, win_length=600, window="hann_window"):
+    def __init__(
+        self, fft_size=1024, shift_size=120, win_length=600, window="hann_window"
+    ):
         """Initialize STFT loss module."""
         super(STFTLoss, self).__init__()
         self.fft_size = fft_size
@@ -159,9 +165,9 @@ class STFTLoss(Loss):
     @property
     def input_types(self):
         return {
-            "x": NeuralType(('B', 'T'), AudioSignal()),
-            "y": NeuralType(('B', 'T'), AudioSignal()),
-            "input_lengths": NeuralType(('B'), LengthsType(), optional=True),
+            "x": NeuralType(("B", "T"), AudioSignal()),
+            "y": NeuralType(("B", "T"), AudioSignal()),
+            "input_lengths": NeuralType(("B"), LengthsType(), optional=True),
         }
 
     @property
@@ -189,8 +195,12 @@ class STFTLoss(Loss):
         sc_loss = self.spectral_convergence_loss(x_mag=x_mag, y_mag=y_mag)
         if input_lengths is not None:
             input_lengths = torch.floor(input_lengths / float(self.shift_size)) + 1
-            assert max(input_lengths) == x_mag.shape[1], f"{max(input_lengths)} != {x_mag.shape[1]}"
-        mag_loss = self.log_stft_magnitude_loss(x_mag=x_mag, y_mag=y_mag, input_lengths=input_lengths)
+            assert (
+                max(input_lengths) == x_mag.shape[1]
+            ), f"{max(input_lengths)} != {x_mag.shape[1]}"
+        mag_loss = self.log_stft_magnitude_loss(
+            x_mag=x_mag, y_mag=y_mag, input_lengths=input_lengths
+        )
 
         return sc_loss, mag_loss
 
@@ -215,9 +225,9 @@ class MultiResolutionSTFTLoss(Loss):
     @property
     def input_types(self):
         return {
-            "x": NeuralType(('B', 'T'), AudioSignal()),
-            "y": NeuralType(('B', 'T'), AudioSignal()),
-            "input_lengths": NeuralType(('B'), LengthsType(), optional=True),
+            "x": NeuralType(("B", "T"), AudioSignal()),
+            "y": NeuralType(("B", "T"), AudioSignal()),
+            "input_lengths": NeuralType(("B"), LengthsType(), optional=True),
         }
 
     @property

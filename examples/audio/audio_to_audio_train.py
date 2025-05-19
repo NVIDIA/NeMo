@@ -45,12 +45,12 @@ from nemo.utils.exp_manager import exp_manager
 class ModelType(str, Enum):
     """Enumeration with the available model types."""
 
-    MaskBased = 'mask_based'
-    Predictive = 'predictive'
-    ScoreBased = 'score_based'
-    SchroedingerBridge = 'schroedinger_bridge'
-    FlowMatching = 'flow_matching'
-    BNR2 = 'bnr'
+    MaskBased = "mask_based"
+    Predictive = "predictive"
+    ScoreBased = "score_based"
+    SchroedingerBridge = "schroedinger_bridge"
+    FlowMatching = "flow_matching"
+    BNR2 = "bnr"
 
 
 def get_model_class(model_type: ModelType):
@@ -68,36 +68,38 @@ def get_model_class(model_type: ModelType):
     elif model_type == ModelType.BNR2:
         return BNR2
     else:
-        raise ValueError(f'Unknown model type: {model_type}')
+        raise ValueError(f"Unknown model type: {model_type}")
 
 
 @hydra_runner(config_path="./conf", config_name="masking")
 def main(cfg):
-    logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg, resolve=True)}')
+    logging.info(f"Hydra config: {OmegaConf.to_yaml(cfg, resolve=True)}")
 
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
 
     # Get model class
-    model_type = cfg.model.get('type')
+    model_type = cfg.model.get("type")
     if model_type is None:
         model_type = ModelType.MaskBased
-        logging.warning('model_type not found in config. Using default: %s', model_type)
+        logging.warning("model_type not found in config. Using default: %s", model_type)
 
-    logging.info('Get class for model type: %s', model_type)
+    logging.info("Get class for model type: %s", model_type)
     model_class = get_model_class(model_type)
 
-    logging.info('Instantiate model %s', model_class.__name__)
+    logging.info("Instantiate model %s", model_class.__name__)
     model = model_class(cfg=cfg.model, trainer=trainer)
 
-    logging.info('Initialize the weights of the model from another model, if provided via config')
+    logging.info(
+        "Initialize the weights of the model from another model, if provided via config"
+    )
     model.maybe_init_from_pretrained_checkpoint(cfg)
 
     # Train the model
     trainer.fit(model)
 
     # Run on test data, if available
-    if hasattr(cfg.model, 'test_ds'):
+    if hasattr(cfg.model, "test_ds"):
         if trainer.is_global_zero:
             # Destroy the current process group and let the trainer initialize it again with a single device.
             if torch.distributed.is_initialized():
@@ -109,5 +111,5 @@ def main(cfg):
                 trainer.test(model)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()  # noqa pylint: disable=no-value-for-parameter

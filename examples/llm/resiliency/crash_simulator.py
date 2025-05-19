@@ -40,7 +40,8 @@ class CrashSimulationCallback(Callback):
         self.crash_step = crash_step
         self.has_simulated_crash_happened = False
         logging.info(
-            f"Setup to simulate a crash if step == {self.crash_step} " "and a crash hasn't been simulated before"
+            f"Setup to simulate a crash if step == {self.crash_step} "
+            "and a crash hasn't been simulated before"
         )
 
     def on_train_batch_end(
@@ -51,7 +52,11 @@ class CrashSimulationCallback(Callback):
         batch: Optional[Any] = None,
         batch_idx: Optional[int] = None,
     ) -> None:
-        if self.crash_step and trainer.global_step == self.crash_step and not self.has_simulated_crash_happened:
+        if (
+            self.crash_step
+            and trainer.global_step == self.crash_step
+            and not self.has_simulated_crash_happened
+        ):
             raise RuntimeError(f"Simulating a crash at step {self.crash_step}!")
 
     def on_load_checkpoint(
@@ -62,4 +67,6 @@ class CrashSimulationCallback(Callback):
     ) -> None:
         if not self.has_simulated_crash_happened:
             self.has_simulated_crash_happened = True
-            logging.info("Resuming from checkpoint, setting has_simulated_crash_happened to True!")
+            logging.info(
+                "Resuming from checkpoint, setting has_simulated_crash_happened to True!"
+            )

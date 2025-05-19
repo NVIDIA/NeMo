@@ -71,32 +71,34 @@ def max_symbols_setup():
                     [0] * self.vocab_size + [1], dtype=torch.float32
                 )[None, None, :].expand([batch_size, 1, -1])
             if y is not None and state is not None:
-                return (output + state[0].transpose(0, 1)) / 2, [output.transpose(0, 1) * state[0]]
+                return (output + state[0].transpose(0, 1)) / 2, [
+                    output.transpose(0, 1) * state[0]
+                ]
             elif state is not None:
                 return (
-                    torch.tensor([0] * self.vocab_size + [1], dtype=torch.float32)[None, None, :].expand(
-                        [batch_size, 1, -1]
-                    ),
+                    torch.tensor([0] * self.vocab_size + [1], dtype=torch.float32)[
+                        None, None, :
+                    ].expand([batch_size, 1, -1]),
                     state,
                 )
             elif y is not None:
                 return (
                     output,
                     [
-                        torch.tensor([0] * self.vocab_size + [1], dtype=torch.float32)[None, None, :].expand(
-                            [1, batch_size, -1]
-                        )
+                        torch.tensor([0] * self.vocab_size + [1], dtype=torch.float32)[
+                            None, None, :
+                        ].expand([1, batch_size, -1])
                     ],
                 )
             # y, state - None (initial call)
             return (
-                torch.tensor([0] * self.vocab_size + [1], dtype=torch.float32)[None, None, :].expand(
-                    [batch_size, 1, -1]
-                ),
+                torch.tensor([0] * self.vocab_size + [1], dtype=torch.float32)[
+                    None, None, :
+                ].expand([batch_size, 1, -1]),
                 [
-                    torch.tensor([0] * self.vocab_size + [1], dtype=torch.float32)[None, None, :].expand(
-                        [1, batch_size, -1]
-                    )
+                    torch.tensor([0] * self.vocab_size + [1], dtype=torch.float32)[
+                        None, None, :
+                    ].expand([1, batch_size, -1])
                 ],
             )
 
@@ -106,7 +108,9 @@ def max_symbols_setup():
             # (replacing elements), and this requires the state to be a real full tensor
             # (not an expanded view, in which different elements can refer to the same memory location)
             return [
-                torch.tensor([0] * self.vocab_size + [1], dtype=torch.float32)[None, None, :]
+                torch.tensor([0] * self.vocab_size + [1], dtype=torch.float32)[
+                    None, None, :
+                ]
                 .expand([1, batch_size, -1])
                 .clone()
             ]
@@ -116,7 +120,9 @@ def max_symbols_setup():
         ) -> Tuple[torch.Tensor, List[torch.Tensor], torch.Tensor]:
             return torch.tensor(), [torch.tensor()], torch.tensor()
 
-        def batch_select_state(self, batch_states: List[torch.Tensor], idx: int) -> Optional[List[List[torch.Tensor]]]:
+        def batch_select_state(
+            self, batch_states: List[torch.Tensor], idx: int
+        ) -> Optional[List[List[torch.Tensor]]]:
             states = [batch_states[0][:, idx]]
             return [states]
 
@@ -148,10 +154,17 @@ def max_symbols_setup():
         ):
             """Replace states in dst_states with states from src_states using the mask"""
             for src_substate, dst_substate in zip(src_states, dst_states):
-                torch.where(mask.unsqueeze(0).unsqueeze(-1), src_substate, dst_substate, out=dst_substate)
+                torch.where(
+                    mask.unsqueeze(0).unsqueeze(-1),
+                    src_substate,
+                    dst_substate,
+                    out=dst_substate,
+                )
 
         @classmethod
-        def batch_split_states(cls, batch_states: list[torch.Tensor]) -> list[list[torch.Tensor]]:
+        def batch_split_states(
+            cls, batch_states: list[torch.Tensor]
+        ) -> list[list[torch.Tensor]]:
             """
             Split states into a list of states.
             Useful for splitting the final state for converting results of the decoding algorithm to Hypothesis class.
@@ -173,17 +186,22 @@ def max_symbols_setup():
         def project_prednet(self, prednet_output: torch.Tensor) -> torch.Tensor:
             return prednet_output
 
-        def joint_after_projection(self, f: torch.Tensor, g: torch.Tensor) -> torch.Tensor:
+        def joint_after_projection(
+            self, f: torch.Tensor, g: torch.Tensor
+        ) -> torch.Tensor:
             return f.unsqueeze(dim=2) + g.unsqueeze(dim=1)
 
     setup = {}
     setup["decoder"] = DummyRNNTDecoder(vocab_size=2, blank_idx=2, blank_as_pad=True)
-    setup["decoder_masked"] = DummyRNNTDecoder(vocab_size=2, blank_idx=2, blank_as_pad=False)
+    setup["decoder_masked"] = DummyRNNTDecoder(
+        vocab_size=2, blank_idx=2, blank_as_pad=False
+    )
     setup["joint"] = DummyRNNTJoint(num_outputs=3)
     # expected timestamps for max_symbols_per_step=5 are [[0, 0, 0, 0, 0, 1, 1], [1, 1, 1, 1, 1]],
     # so we have both looped and regular iteration on the second frame
     setup["encoder_output"] = torch.tensor(
-        [[[1, 0, 0], [0, 1, 0], [0, 0, 1]], [[0, 0, 1], [2, 0, 0], [0, 0, 0]]], dtype=torch.float32
+        [[[1, 0, 0], [0, 1, 0], [0, 0, 1]], [[0, 0, 1], [2, 0, 0], [0, 0, 0]]],
+        dtype=torch.float32,
     ).transpose(1, 2)
     setup["encoded_lengths"] = torch.tensor([3, 2])
     return setup
@@ -191,7 +209,10 @@ def max_symbols_setup():
 
 @pytest.fixture()
 def asr_model():
-    preprocessor = {'cls': 'nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor', 'params': dict({})}
+    preprocessor = {
+        "cls": "nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor",
+        "params": dict({}),
+    }
 
     # fmt: off
     labels = [' ', 'a', 'b', 'c', 'd', 'e', 'f',
@@ -201,55 +222,55 @@ def asr_model():
               ]
     # fmt: on
 
-    model_defaults = {'enc_hidden': 1024, 'pred_hidden': 64}
+    model_defaults = {"enc_hidden": 1024, "pred_hidden": 64}
 
     encoder = {
-        'cls': 'nemo.collections.asr.modules.ConvASREncoder',
-        'params': {
-            'feat_in': 64,
-            'activation': 'relu',
-            'conv_mask': True,
-            'jasper': [
+        "cls": "nemo.collections.asr.modules.ConvASREncoder",
+        "params": {
+            "feat_in": 64,
+            "activation": "relu",
+            "conv_mask": True,
+            "jasper": [
                 {
-                    'filters': model_defaults['enc_hidden'],
-                    'repeat': 1,
-                    'kernel': [1],
-                    'stride': [1],
-                    'dilation': [1],
-                    'dropout': 0.0,
-                    'residual': False,
-                    'separable': True,
-                    'se': True,
-                    'se_context_size': -1,
+                    "filters": model_defaults["enc_hidden"],
+                    "repeat": 1,
+                    "kernel": [1],
+                    "stride": [1],
+                    "dilation": [1],
+                    "dropout": 0.0,
+                    "residual": False,
+                    "separable": True,
+                    "se": True,
+                    "se_context_size": -1,
                 }
             ],
         },
     }
 
     decoder = {
-        '_target_': 'nemo.collections.asr.modules.RNNTDecoder',
-        'prednet': {'pred_hidden': model_defaults['pred_hidden'], 'pred_rnn_layers': 1},
+        "_target_": "nemo.collections.asr.modules.RNNTDecoder",
+        "prednet": {"pred_hidden": model_defaults["pred_hidden"], "pred_rnn_layers": 1},
     }
 
     joint = {
-        '_target_': 'nemo.collections.asr.modules.RNNTJoint',
-        'jointnet': {'joint_hidden': 32, 'activation': 'relu'},
+        "_target_": "nemo.collections.asr.modules.RNNTJoint",
+        "jointnet": {"joint_hidden": 32, "activation": "relu"},
     }
 
-    decoding = {'strategy': 'greedy_batch', 'greedy': {'max_symbols': 30}}
+    decoding = {"strategy": "greedy_batch", "greedy": {"max_symbols": 30}}
 
-    loss = {'loss_name': 'default', 'warprnnt_numba_kwargs': {'fastemit_lambda': 0.001}}
+    loss = {"loss_name": "default", "warprnnt_numba_kwargs": {"fastemit_lambda": 0.001}}
 
     modelConfig = DictConfig(
         {
-            'labels': ListConfig(labels),
-            'preprocessor': DictConfig(preprocessor),
-            'model_defaults': DictConfig(model_defaults),
-            'encoder': DictConfig(encoder),
-            'decoder': DictConfig(decoder),
-            'joint': DictConfig(joint),
-            'decoding': DictConfig(decoding),
-            'loss': DictConfig(loss),
+            "labels": ListConfig(labels),
+            "preprocessor": DictConfig(preprocessor),
+            "model_defaults": DictConfig(model_defaults),
+            "encoder": DictConfig(encoder),
+            "decoder": DictConfig(decoder),
+            "joint": DictConfig(joint),
+            "decoding": DictConfig(decoding),
+            "loss": DictConfig(loss),
         }
     )
 
@@ -260,7 +281,7 @@ def asr_model():
 class TestEncDecRNNTModel:
     @pytest.mark.skipif(
         not NUMBA_RNNT_LOSS_AVAILABLE,
-        reason='RNNTLoss has not been compiled with appropriate numba version.',
+        reason="RNNTLoss has not been compiled with appropriate numba version.",
     )
     @pytest.mark.unit
     def test_constructor(self, asr_model):
@@ -273,7 +294,7 @@ class TestEncDecRNNTModel:
 
     @pytest.mark.skipif(
         not NUMBA_RNNT_LOSS_AVAILABLE,
-        reason='RNNTLoss has not been compiled with appropriate numba version.',
+        reason="RNNTLoss has not been compiled with appropriate numba version.",
     )
     @pytest.mark.unit
     def test_forward(self, asr_model):
@@ -292,13 +313,16 @@ class TestEncDecRNNTModel:
             logprobs_instance = []
             for i in range(input_signal.size(0)):
                 logprobs_ins, _ = asr_model.forward(
-                    input_signal=input_signal[i : i + 1], input_signal_length=length[i : i + 1]
+                    input_signal=input_signal[i : i + 1],
+                    input_signal_length=length[i : i + 1],
                 )
                 logprobs_instance.append(logprobs_ins)
             logprobs_instance = torch.cat(logprobs_instance, 0)
 
             # batch size 4
-            logprobs_batch, _ = asr_model.forward(input_signal=input_signal, input_signal_length=length)
+            logprobs_batch, _ = asr_model.forward(
+                input_signal=input_signal, input_signal_length=length
+            )
 
         assert logprobs_instance.shape == logprobs_batch.shape
         diff = torch.mean(torch.abs(logprobs_instance - logprobs_batch))
@@ -311,7 +335,9 @@ class TestEncDecRNNTModel:
         token_list = [" ", "a", "b", "c"]
         asr_model = asr_model.eval()
         cuts = DummyManifest(CutSet, begin_id=0, end_id=1, with_data=True)
-        dataset = LhotseSpeechToTextBpeDataset(tokenizer=make_parser(labels=token_list), return_cuts=True)
+        dataset = LhotseSpeechToTextBpeDataset(
+            tokenizer=make_parser(labels=token_list), return_cuts=True
+        )
         batch = dataset[cuts]
         outputs = asr_model.predict_step(batch, 0)
         assert len(outputs) == 1
@@ -321,7 +347,7 @@ class TestEncDecRNNTModel:
 
     @pytest.mark.skipif(
         not NUMBA_RNNT_LOSS_AVAILABLE,
-        reason='RNNTLoss has not been compiled with appropriate numba version.',
+        reason="RNNTLoss has not been compiled with appropriate numba version.",
     )
     @pytest.mark.unit
     def test_vocab_change(self, asr_model):
@@ -331,9 +357,9 @@ class TestEncDecRNNTModel:
         # No change
         assert nw1 == asr_model.num_weights
         new_vocab = copy.deepcopy(old_vocab)
-        new_vocab.append('!')
-        new_vocab.append('$')
-        new_vocab.append('@')
+        new_vocab.append("!")
+        new_vocab.append("$")
+        new_vocab.append("@")
         asr_model.change_vocabulary(new_vocabulary=new_vocab)
         # fully connected + bias
         # rnn embedding + joint + bias
@@ -343,76 +369,82 @@ class TestEncDecRNNTModel:
 
     @pytest.mark.skipif(
         not NUMBA_RNNT_LOSS_AVAILABLE,
-        reason='RNNTLoss has not been compiled with appropriate numba version.',
+        reason="RNNTLoss has not been compiled with appropriate numba version.",
     )
     @pytest.mark.unit
     def test_change_conv_asr_se_context_window(self, asr_model):
         old_cfg = copy.deepcopy(asr_model.cfg)
-        asr_model.change_conv_asr_se_context_window(context_window=32)  # 32 * 0.01s context
+        asr_model.change_conv_asr_se_context_window(
+            context_window=32
+        )  # 32 * 0.01s context
         new_config = asr_model.cfg
 
         assert old_cfg.encoder.jasper[0].se_context_size == -1
         assert new_config.encoder.jasper[0].se_context_size == 32
 
         for name, m in asr_model.encoder.named_modules():
-            if type(m).__class__.__name__ == 'SqueezeExcite':
+            if type(m).__class__.__name__ == "SqueezeExcite":
                 assert m.context_window == 32
 
     @pytest.mark.skipif(
         not NUMBA_RNNT_LOSS_AVAILABLE,
-        reason='RNNTLoss has not been compiled with appropriate numba version.',
+        reason="RNNTLoss has not been compiled with appropriate numba version.",
     )
     @pytest.mark.unit
     def test_change_conv_asr_se_context_window_no_config_update(self, asr_model):
         old_cfg = copy.deepcopy(asr_model.cfg)
-        asr_model.change_conv_asr_se_context_window(context_window=32, update_config=False)  # 32 * 0.01s context
+        asr_model.change_conv_asr_se_context_window(
+            context_window=32, update_config=False
+        )  # 32 * 0.01s context
         new_config = asr_model.cfg
 
         assert old_cfg.encoder.jasper[0].se_context_size == -1
         assert new_config.encoder.jasper[0].se_context_size == -1  # no change
 
         for name, m in asr_model.encoder.named_modules():
-            if type(m).__class__.__name__ == 'SqueezeExcite':
+            if type(m).__class__.__name__ == "SqueezeExcite":
                 assert m.context_window == 32
 
     @pytest.mark.skipif(
         not NUMBA_RNNT_LOSS_AVAILABLE,
-        reason='RNNTLoss has not been compiled with appropriate numba version.',
+        reason="RNNTLoss has not been compiled with appropriate numba version.",
     )
     @pytest.mark.unit
     def test_decoding_change(self, asr_model):
-        assert isinstance(asr_model.decoding.decoding, greedy_decode.GreedyBatchedRNNTInfer)
+        assert isinstance(
+            asr_model.decoding.decoding, greedy_decode.GreedyBatchedRNNTInfer
+        )
 
         new_strategy = DictConfig({})
-        new_strategy.strategy = 'greedy'
-        new_strategy.greedy = DictConfig({'max_symbols': 10})
+        new_strategy.strategy = "greedy"
+        new_strategy.greedy = DictConfig({"max_symbols": 10})
         asr_model.change_decoding_strategy(decoding_cfg=new_strategy)
         assert isinstance(asr_model.decoding.decoding, greedy_decode.GreedyRNNTInfer)
 
         new_strategy = DictConfig({})
-        new_strategy.strategy = 'beam'
-        new_strategy.beam = DictConfig({'beam_size': 1})
+        new_strategy.strategy = "beam"
+        new_strategy.beam = DictConfig({"beam_size": 1})
         asr_model.change_decoding_strategy(decoding_cfg=new_strategy)
         assert isinstance(asr_model.decoding.decoding, beam_decode.BeamRNNTInfer)
         assert asr_model.decoding.decoding.search_type == "default"
 
         new_strategy = DictConfig({})
-        new_strategy.strategy = 'beam'
-        new_strategy.beam = DictConfig({'beam_size': 2})
+        new_strategy.strategy = "beam"
+        new_strategy.beam = DictConfig({"beam_size": 2})
         asr_model.change_decoding_strategy(decoding_cfg=new_strategy)
         assert isinstance(asr_model.decoding.decoding, beam_decode.BeamRNNTInfer)
         assert asr_model.decoding.decoding.search_type == "default"
 
         new_strategy = DictConfig({})
-        new_strategy.strategy = 'tsd'
-        new_strategy.beam = DictConfig({'beam_size': 2})
+        new_strategy.strategy = "tsd"
+        new_strategy.beam = DictConfig({"beam_size": 2})
         asr_model.change_decoding_strategy(decoding_cfg=new_strategy)
         assert isinstance(asr_model.decoding.decoding, beam_decode.BeamRNNTInfer)
         assert asr_model.decoding.decoding.search_type == "tsd"
 
         new_strategy = DictConfig({})
-        new_strategy.strategy = 'alsd'
-        new_strategy.beam = DictConfig({'beam_size': 2})
+        new_strategy.strategy = "alsd"
+        new_strategy.beam = DictConfig({"beam_size": 2})
         asr_model.change_decoding_strategy(decoding_cfg=new_strategy)
         assert isinstance(asr_model.decoding.decoding, beam_decode.BeamRNNTInfer)
         assert asr_model.decoding.decoding.search_type == "alsd"
@@ -420,15 +452,17 @@ class TestEncDecRNNTModel:
     @pytest.mark.unit
     def test_GreedyRNNTInferConfig(self):
         IGNORE_ARGS = [
-            'decoder_model',
-            'joint_model',
-            'blank_index',
-            'tdt_include_duration_confidence',
-            'tdt_include_token_duration',
+            "decoder_model",
+            "joint_model",
+            "blank_index",
+            "tdt_include_duration_confidence",
+            "tdt_include_token_duration",
         ]
 
         result = assert_dataclass_signature_match(
-            greedy_decode.GreedyRNNTInfer, greedy_decode.GreedyRNNTInferConfig, ignore_args=IGNORE_ARGS
+            greedy_decode.GreedyRNNTInfer,
+            greedy_decode.GreedyRNNTInferConfig,
+            ignore_args=IGNORE_ARGS,
         )
 
         signatures_match, cls_subset, dataclass_subset = result
@@ -440,15 +474,17 @@ class TestEncDecRNNTModel:
     @pytest.mark.unit
     def test_GreedyBatchedRNNTInferConfig(self):
         IGNORE_ARGS = [
-            'decoder_model',
-            'joint_model',
-            'blank_index',
-            'tdt_include_duration_confidence',
-            'tdt_include_token_duration',
+            "decoder_model",
+            "joint_model",
+            "blank_index",
+            "tdt_include_duration_confidence",
+            "tdt_include_token_duration",
         ]
 
         result = assert_dataclass_signature_match(
-            greedy_decode.GreedyBatchedRNNTInfer, greedy_decode.GreedyBatchedRNNTInferConfig, ignore_args=IGNORE_ARGS
+            greedy_decode.GreedyBatchedRNNTInfer,
+            greedy_decode.GreedyBatchedRNNTInferConfig,
+            ignore_args=IGNORE_ARGS,
         )
 
         signatures_match, cls_subset, dataclass_subset = result
@@ -459,10 +495,12 @@ class TestEncDecRNNTModel:
 
     @pytest.mark.unit
     def test_BeamRNNTInferConfig(self):
-        IGNORE_ARGS = ['decoder_model', 'joint_model', 'blank_index']
+        IGNORE_ARGS = ["decoder_model", "joint_model", "blank_index"]
 
         result = assert_dataclass_signature_match(
-            beam_decode.BeamRNNTInfer, beam_decode.BeamRNNTInferConfig, ignore_args=IGNORE_ARGS
+            beam_decode.BeamRNNTInfer,
+            beam_decode.BeamRNNTInferConfig,
+            ignore_args=IGNORE_ARGS,
         )
 
         signatures_match, cls_subset, dataclass_subset = result
@@ -473,7 +511,7 @@ class TestEncDecRNNTModel:
 
     @pytest.mark.skipif(
         not NUMBA_RNNT_LOSS_AVAILABLE,
-        reason='RNNTLoss has not been compiled with appropriate numba version.',
+        reason="RNNTLoss has not been compiled with appropriate numba version.",
     )
     @pytest.mark.unit
     @pytest.mark.parametrize(
@@ -492,19 +530,21 @@ class TestEncDecRNNTModel:
         decoder_output_size = 4
         joint_output_shape = 4
 
-        prednet_cfg = {'pred_hidden': decoder_output_size, 'pred_rnn_layers': 1}
+        prednet_cfg = {"pred_hidden": decoder_output_size, "pred_rnn_layers": 1}
         jointnet_cfg = {
-            'encoder_hidden': encoder_output_size,
-            'pred_hidden': decoder_output_size,
-            'joint_hidden': joint_output_shape,
-            'activation': 'relu',
+            "encoder_hidden": encoder_output_size,
+            "pred_hidden": decoder_output_size,
+            "joint_hidden": joint_output_shape,
+            "activation": "relu",
         }
 
         decoder = RNNTDecoder(prednet_cfg, vocab_size)
         for joint_type in [RNNTJoint, HATJoint]:
             joint_net = joint_type(jointnet_cfg, vocab_size, vocabulary=token_list)
 
-            additional_decoding_kwargs = {} if loop_labels is None else {"loop_labels": loop_labels}
+            additional_decoding_kwargs = (
+                {} if loop_labels is None else {"loop_labels": loop_labels}
+            )
             greedy = greedy_class(
                 decoder,
                 joint_net,
@@ -522,12 +562,15 @@ class TestEncDecRNNTModel:
 
     @pytest.mark.skipif(
         not NUMBA_RNNT_LOSS_AVAILABLE,
-        reason='RNNTLoss has not been compiled with appropriate numba version.',
+        reason="RNNTLoss has not been compiled with appropriate numba version.",
     )
     @pytest.mark.unit
     @pytest.mark.parametrize(
         "greedy_class",
-        [greedy_decode.GreedyMultiblankRNNTInfer, greedy_decode.GreedyBatchedMultiblankRNNTInfer],
+        [
+            greedy_decode.GreedyMultiblankRNNTInfer,
+            greedy_decode.GreedyBatchedMultiblankRNNTInfer,
+        ],
     )
     def test_multiblank_rnnt_greedy_decoding(self, greedy_class):
         token_list = [" ", "a", "b", "c"]
@@ -538,18 +581,21 @@ class TestEncDecRNNTModel:
         decoder_output_size = 4
         joint_output_shape = 4
 
-        prednet_cfg = {'pred_hidden': decoder_output_size, 'pred_rnn_layers': 1}
+        prednet_cfg = {"pred_hidden": decoder_output_size, "pred_rnn_layers": 1}
         jointnet_cfg = {
-            'encoder_hidden': encoder_output_size,
-            'pred_hidden': decoder_output_size,
-            'joint_hidden': joint_output_shape,
-            'activation': 'relu',
+            "encoder_hidden": encoder_output_size,
+            "pred_hidden": decoder_output_size,
+            "joint_hidden": joint_output_shape,
+            "activation": "relu",
         }
 
         decoder = RNNTDecoder(prednet_cfg, vocab_size)
         for joint_type in [RNNTJoint, HATJoint]:
             joint_net = joint_type(
-                jointnet_cfg, vocab_size, vocabulary=token_list, num_extra_outputs=len(big_blank_durations)
+                jointnet_cfg,
+                vocab_size,
+                vocabulary=token_list,
+                num_extra_outputs=len(big_blank_durations),
             )
 
             greedy = greedy_class(
@@ -569,12 +615,15 @@ class TestEncDecRNNTModel:
 
     @pytest.mark.skipif(
         not NUMBA_RNNT_LOSS_AVAILABLE,
-        reason='RNNTLoss has not been compiled with appropriate numba version.',
+        reason="RNNTLoss has not been compiled with appropriate numba version.",
     )
     @pytest.mark.unit
     @pytest.mark.parametrize(
         "greedy_class",
-        [greedy_decode.GreedyMultiblankRNNTInfer, greedy_decode.GreedyBatchedMultiblankRNNTInfer],
+        [
+            greedy_decode.GreedyMultiblankRNNTInfer,
+            greedy_decode.GreedyBatchedMultiblankRNNTInfer,
+        ],
     )
     def test_multiblank_rnnt_greedy_decoding(self, greedy_class):
         token_list = [" ", "a", "b", "c"]
@@ -585,17 +634,20 @@ class TestEncDecRNNTModel:
         decoder_output_size = 4
         joint_output_shape = 4
 
-        prednet_cfg = {'pred_hidden': decoder_output_size, 'pred_rnn_layers': 1}
+        prednet_cfg = {"pred_hidden": decoder_output_size, "pred_rnn_layers": 1}
         jointnet_cfg = {
-            'encoder_hidden': encoder_output_size,
-            'pred_hidden': decoder_output_size,
-            'joint_hidden': joint_output_shape,
-            'activation': 'relu',
+            "encoder_hidden": encoder_output_size,
+            "pred_hidden": decoder_output_size,
+            "joint_hidden": joint_output_shape,
+            "activation": "relu",
         }
 
         decoder = RNNTDecoder(prednet_cfg, vocab_size)
         joint_net = RNNTJoint(
-            jointnet_cfg, vocab_size, vocabulary=token_list, num_extra_outputs=len(big_blank_durations)
+            jointnet_cfg,
+            vocab_size,
+            vocabulary=token_list,
+            num_extra_outputs=len(big_blank_durations),
         )
 
         greedy = greedy_class(
@@ -615,12 +667,15 @@ class TestEncDecRNNTModel:
 
     @pytest.mark.skipif(
         not NUMBA_RNNT_LOSS_AVAILABLE,
-        reason='RNNTLoss has not been compiled with appropriate numba version.',
+        reason="RNNTLoss has not been compiled with appropriate numba version.",
     )
     @pytest.mark.unit
     @pytest.mark.parametrize(
         "greedy_class",
-        [greedy_decode.GreedyMultiblankRNNTInfer, greedy_decode.GreedyBatchedMultiblankRNNTInfer],
+        [
+            greedy_decode.GreedyMultiblankRNNTInfer,
+            greedy_decode.GreedyBatchedMultiblankRNNTInfer,
+        ],
     )
     def test_multiblank_rnnt_greedy_decoding(self, greedy_class):
         token_list = [" ", "a", "b", "c"]
@@ -631,18 +686,21 @@ class TestEncDecRNNTModel:
         decoder_output_size = 4
         joint_output_shape = 4
 
-        prednet_cfg = {'pred_hidden': decoder_output_size, 'pred_rnn_layers': 1}
+        prednet_cfg = {"pred_hidden": decoder_output_size, "pred_rnn_layers": 1}
         jointnet_cfg = {
-            'encoder_hidden': encoder_output_size,
-            'pred_hidden': decoder_output_size,
-            'joint_hidden': joint_output_shape,
-            'activation': 'relu',
+            "encoder_hidden": encoder_output_size,
+            "pred_hidden": decoder_output_size,
+            "joint_hidden": joint_output_shape,
+            "activation": "relu",
         }
 
         decoder = RNNTDecoder(prednet_cfg, vocab_size)
         for joint_type in [RNNTJoint, HATJoint]:
             joint_net = joint_type(
-                jointnet_cfg, vocab_size, vocabulary=token_list, num_extra_outputs=len(big_blank_durations)
+                jointnet_cfg,
+                vocab_size,
+                vocabulary=token_list,
+                num_extra_outputs=len(big_blank_durations),
             )
 
             greedy = greedy_class(
@@ -662,7 +720,7 @@ class TestEncDecRNNTModel:
 
     @pytest.mark.skipif(
         not NUMBA_RNNT_LOSS_AVAILABLE,
-        reason='RNNTLoss has not been compiled with appropriate numba version.',
+        reason="RNNTLoss has not been compiled with appropriate numba version.",
     )
     @pytest.mark.unit
     @pytest.mark.parametrize(
@@ -677,19 +735,24 @@ class TestEncDecRNNTModel:
         decoder_output_size = 4
         joint_output_shape = 4
 
-        prednet_cfg = {'pred_hidden': decoder_output_size, 'pred_rnn_layers': 1}
+        prednet_cfg = {"pred_hidden": decoder_output_size, "pred_rnn_layers": 1}
         jointnet_cfg = {
-            'encoder_hidden': encoder_output_size,
-            'pred_hidden': decoder_output_size,
-            'joint_hidden': joint_output_shape,
-            'activation': 'relu',
+            "encoder_hidden": encoder_output_size,
+            "pred_hidden": decoder_output_size,
+            "joint_hidden": joint_output_shape,
+            "activation": "relu",
         }
 
         decoder = RNNTDecoder(prednet_cfg, vocab_size)
         for joint_type in [RNNTJoint, HATJoint]:
             joint_net = joint_type(jointnet_cfg, vocab_size, vocabulary=token_list)
 
-            greedy = greedy_class(decoder, joint_net, blank_index=len(token_list) - 1, max_symbols_per_step=5)
+            greedy = greedy_class(
+                decoder,
+                joint_net,
+                blank_index=len(token_list) - 1,
+                max_symbols_per_step=5,
+            )
 
             # (B, D, T)
             enc_out = torch.randn(1, encoder_output_size, 30)
@@ -698,11 +761,15 @@ class TestEncDecRNNTModel:
             with torch.no_grad():
                 (partial_hyp) = greedy(encoder_output=enc_out, encoded_lengths=enc_len)
                 partial_hyp = partial_hyp[0]
-                _ = greedy(encoder_output=enc_out, encoded_lengths=enc_len, partial_hypotheses=partial_hyp)
+                _ = greedy(
+                    encoder_output=enc_out,
+                    encoded_lengths=enc_len,
+                    partial_hypotheses=partial_hyp,
+                )
 
     @pytest.mark.skipif(
         not NUMBA_RNNT_LOSS_AVAILABLE,
-        reason='RNNTLoss has not been compiled with appropriate numba version.',
+        reason="RNNTLoss has not been compiled with appropriate numba version.",
     )
     @pytest.mark.unit
     @pytest.mark.parametrize(
@@ -714,7 +781,9 @@ class TestEncDecRNNTModel:
         ],
     )
     @pytest.mark.parametrize("context_size", [1, 2])
-    def test_greedy_decoding_stateless_decoder(self, greedy_class, loop_labels: Optional[bool], context_size: int):
+    def test_greedy_decoding_stateless_decoder(
+        self, greedy_class, loop_labels: Optional[bool], context_size: int
+    ):
         token_list = [" ", "a", "b", "c"]
         vocab_size = len(token_list)
 
@@ -722,18 +791,24 @@ class TestEncDecRNNTModel:
         decoder_output_size = 4
         joint_output_shape = 4
 
-        prednet_cfg = {'pred_hidden': decoder_output_size, 'pred_rnn_layers': 1, 'context_size': context_size}
+        prednet_cfg = {
+            "pred_hidden": decoder_output_size,
+            "pred_rnn_layers": 1,
+            "context_size": context_size,
+        }
         jointnet_cfg = {
-            'encoder_hidden': encoder_output_size,
-            'pred_hidden': decoder_output_size,
-            'joint_hidden': joint_output_shape,
-            'activation': 'relu',
+            "encoder_hidden": encoder_output_size,
+            "pred_hidden": decoder_output_size,
+            "joint_hidden": joint_output_shape,
+            "activation": "relu",
         }
 
         decoder = StatelessTransducerDecoder(prednet_cfg, vocab_size)
         for joint_type in [RNNTJoint, HATJoint]:
             joint_net = joint_type(jointnet_cfg, vocab_size, vocabulary=token_list)
-            additional_decoding_kwargs = {} if loop_labels is None else {"loop_labels": loop_labels}
+            additional_decoding_kwargs = (
+                {} if loop_labels is None else {"loop_labels": loop_labels}
+            )
             greedy = greedy_class(
                 decoder,
                 joint_net,
@@ -751,7 +826,7 @@ class TestEncDecRNNTModel:
 
     @pytest.mark.skipif(
         not NUMBA_RNNT_LOSS_AVAILABLE,
-        reason='RNNTLoss has not been compiled with appropriate numba version.',
+        reason="RNNTLoss has not been compiled with appropriate numba version.",
     )
     @pytest.mark.unit
     @pytest.mark.parametrize(
@@ -766,19 +841,24 @@ class TestEncDecRNNTModel:
         decoder_output_size = 4
         joint_output_shape = 4
 
-        prednet_cfg = {'pred_hidden': decoder_output_size, 'pred_rnn_layers': 1}
+        prednet_cfg = {"pred_hidden": decoder_output_size, "pred_rnn_layers": 1}
         jointnet_cfg = {
-            'encoder_hidden': encoder_output_size,
-            'pred_hidden': decoder_output_size,
-            'joint_hidden': joint_output_shape,
-            'activation': 'relu',
+            "encoder_hidden": encoder_output_size,
+            "pred_hidden": decoder_output_size,
+            "joint_hidden": joint_output_shape,
+            "activation": "relu",
         }
 
         decoder = StatelessTransducerDecoder(prednet_cfg, vocab_size)
         for joint_type in [RNNTJoint, HATJoint]:
             joint_net = joint_type(jointnet_cfg, vocab_size, vocabulary=token_list)
 
-            greedy = greedy_class(decoder, joint_net, blank_index=len(token_list) - 1, max_symbols_per_step=5)
+            greedy = greedy_class(
+                decoder,
+                joint_net,
+                blank_index=len(token_list) - 1,
+                max_symbols_per_step=5,
+            )
 
             # (B, D, T)
             enc_out = torch.randn(1, encoder_output_size, 30)
@@ -787,12 +867,16 @@ class TestEncDecRNNTModel:
             with torch.no_grad():
                 (partial_hyp) = greedy(encoder_output=enc_out, encoded_lengths=enc_len)
                 partial_hyp = partial_hyp[0]
-                _ = greedy(encoder_output=enc_out, encoded_lengths=enc_len, partial_hypotheses=partial_hyp)
+                _ = greedy(
+                    encoder_output=enc_out,
+                    encoded_lengths=enc_len,
+                    partial_hypotheses=partial_hyp,
+                )
 
     @pytest.mark.pleasefixme
     @pytest.mark.skipif(
         not NUMBA_RNNT_LOSS_AVAILABLE,
-        reason='RNNTLoss has not been compiled with appropriate numba version.',
+        reason="RNNTLoss has not been compiled with appropriate numba version.",
     )
     @pytest.mark.unit
     @pytest.mark.parametrize(
@@ -803,7 +887,9 @@ class TestEncDecRNNTModel:
             (greedy_decode.GreedyBatchedRNNTInfer, False),
         ],
     )
-    def test_greedy_decoding_preserve_alignment(self, greedy_class, loop_labels: Optional[bool]):
+    def test_greedy_decoding_preserve_alignment(
+        self, greedy_class, loop_labels: Optional[bool]
+    ):
         token_list = [" ", "a", "b", "c"]
         vocab_size = len(token_list)
 
@@ -811,12 +897,12 @@ class TestEncDecRNNTModel:
         decoder_output_size = 4
         joint_output_shape = 4
 
-        prednet_cfg = {'pred_hidden': decoder_output_size, 'pred_rnn_layers': 1}
+        prednet_cfg = {"pred_hidden": decoder_output_size, "pred_rnn_layers": 1}
         jointnet_cfg = {
-            'encoder_hidden': encoder_output_size,
-            'pred_hidden': decoder_output_size,
-            'joint_hidden': joint_output_shape,
-            'activation': 'relu',
+            "encoder_hidden": encoder_output_size,
+            "pred_hidden": decoder_output_size,
+            "joint_hidden": joint_output_shape,
+            "activation": "relu",
         }
 
         decoder = RNNTDecoder(prednet_cfg, vocab_size)
@@ -824,7 +910,9 @@ class TestEncDecRNNTModel:
         max_symbols_per_step = 5
         for joint_type in [RNNTJoint, HATJoint]:
             joint_net = joint_type(jointnet_cfg, vocab_size, vocabulary=token_list)
-            additional_decoding_kwargs = {} if loop_labels is None else {"loop_labels": loop_labels}
+            additional_decoding_kwargs = (
+                {} if loop_labels is None else {"loop_labels": loop_labels}
+            )
             greedy = greedy_class(
                 decoder,
                 joint_net,
@@ -839,11 +927,16 @@ class TestEncDecRNNTModel:
             enc_len = torch.tensor([30], dtype=torch.int32)
 
             with torch.no_grad():
-                hyp = greedy(encoder_output=enc_out, encoded_lengths=enc_len)[0][0]  # type: rnnt_utils.Hypothesis
+                hyp = greedy(encoder_output=enc_out, encoded_lengths=enc_len)[0][
+                    0
+                ]  # type: rnnt_utils.Hypothesis
                 assert hyp.alignments is not None
 
                 timestamp_count = {
-                    u.item(): c.item() for u, c in zip(*torch.unique(torch.tensor(hyp.timestamp), return_counts=True))
+                    u.item(): c.item()
+                    for u, c in zip(
+                        *torch.unique(torch.tensor(hyp.timestamp), return_counts=True)
+                    )
                 }
                 for t in range(len(hyp.alignments)):
 
@@ -851,7 +944,9 @@ class TestEncDecRNNTModel:
                     alignment_len = len(hyp.alignments[t])
                     assert alignment_len <= max_symbols_per_step
                     if t in timestamp_count:  # non-blank
-                        assert alignment_len == timestamp_count[t] + (1 if alignment_len < max_symbols_per_step else 0)
+                        assert alignment_len == timestamp_count[t] + (
+                            1 if alignment_len < max_symbols_per_step else 0
+                        )
                     else:  # blank
                         assert alignment_len == 1
 
@@ -863,7 +958,7 @@ class TestEncDecRNNTModel:
     @pytest.mark.pleasefixme
     @pytest.mark.skipif(
         not NUMBA_RNNT_LOSS_AVAILABLE,
-        reason='RNNTLoss has not been compiled with appropriate numba version.',
+        reason="RNNTLoss has not been compiled with appropriate numba version.",
     )
     @pytest.mark.unit
     @pytest.mark.parametrize(
@@ -874,7 +969,9 @@ class TestEncDecRNNTModel:
             (greedy_decode.GreedyBatchedRNNTInfer, False),
         ],
     )
-    def test_greedy_decoding_preserve_frame_confidence(self, greedy_class, loop_labels: Optional[bool]):
+    def test_greedy_decoding_preserve_frame_confidence(
+        self, greedy_class, loop_labels: Optional[bool]
+    ):
         token_list = [" ", "a", "b", "c"]
         vocab_size = len(token_list)
 
@@ -882,12 +979,12 @@ class TestEncDecRNNTModel:
         decoder_output_size = 4
         joint_output_shape = 4
 
-        prednet_cfg = {'pred_hidden': decoder_output_size, 'pred_rnn_layers': 1}
+        prednet_cfg = {"pred_hidden": decoder_output_size, "pred_rnn_layers": 1}
         jointnet_cfg = {
-            'encoder_hidden': encoder_output_size,
-            'pred_hidden': decoder_output_size,
-            'joint_hidden': joint_output_shape,
-            'activation': 'relu',
+            "encoder_hidden": encoder_output_size,
+            "pred_hidden": decoder_output_size,
+            "joint_hidden": joint_output_shape,
+            "activation": "relu",
         }
 
         decoder = RNNTDecoder(prednet_cfg, vocab_size)
@@ -896,7 +993,9 @@ class TestEncDecRNNTModel:
         for joint_type in [RNNTJoint, HATJoint]:
             joint_net = joint_type(jointnet_cfg, vocab_size, vocabulary=token_list)
 
-            additional_decoding_kwargs = {} if loop_labels is None else {"loop_labels": loop_labels}
+            additional_decoding_kwargs = (
+                {} if loop_labels is None else {"loop_labels": loop_labels}
+            )
             greedy = greedy_class(
                 decoder,
                 joint_net,
@@ -911,11 +1010,16 @@ class TestEncDecRNNTModel:
             enc_len = torch.tensor([30], dtype=torch.int32)
 
             with torch.no_grad():
-                hyp = greedy(encoder_output=enc_out, encoded_lengths=enc_len)[0][0]  # type: rnnt_utils.Hypothesis
+                hyp = greedy(encoder_output=enc_out, encoded_lengths=enc_len)[0][
+                    0
+                ]  # type: rnnt_utils.Hypothesis
                 assert hyp.frame_confidence is not None
 
                 timestamp_count = {
-                    u.item(): c.item() for u, c in zip(*torch.unique(torch.tensor(hyp.timestamp), return_counts=True))
+                    u.item(): c.item()
+                    for u, c in zip(
+                        *torch.unique(torch.tensor(hyp.timestamp), return_counts=True)
+                    )
                 }
                 for t in range(len(hyp.frame_confidence)):
 
@@ -938,7 +1042,7 @@ class TestEncDecRNNTModel:
 
     @pytest.mark.skipif(
         not NUMBA_RNNT_LOSS_AVAILABLE,
-        reason='RNNTLoss has not been compiled with appropriate numba version.',
+        reason="RNNTLoss has not been compiled with appropriate numba version.",
     )
     @pytest.mark.unit
     @pytest.mark.parametrize(
@@ -951,7 +1055,11 @@ class TestEncDecRNNTModel:
     )
     @pytest.mark.parametrize("max_symbols_per_step", [1, 5])
     def test_greedy_decoding_max_symbols_alignment(
-        self, max_symbols_setup, greedy_class, max_symbols_per_step: int, loop_labels: Optional[bool]
+        self,
+        max_symbols_setup,
+        greedy_class,
+        max_symbols_per_step: int,
+        loop_labels: Optional[bool],
     ):
         decoders = [max_symbols_setup["decoder"]]
         if greedy_class is greedy_decode.GreedyBatchedRNNTInfer:
@@ -961,7 +1069,9 @@ class TestEncDecRNNTModel:
         encoded_lengths = max_symbols_setup["encoded_lengths"]
 
         for decoder in decoders:
-            additional_decoding_kwargs = {} if loop_labels is None else {"loop_labels": loop_labels}
+            additional_decoding_kwargs = (
+                {} if loop_labels is None else {"loop_labels": loop_labels}
+            )
             greedy = greedy_class(
                 decoder_model=decoder,
                 joint_model=joint,
@@ -972,11 +1082,16 @@ class TestEncDecRNNTModel:
             )
 
             with torch.no_grad():
-                hyp = greedy(encoder_output=encoder_output, encoded_lengths=encoded_lengths)[0][0]
+                hyp = greedy(
+                    encoder_output=encoder_output, encoded_lengths=encoded_lengths
+                )[0][0]
                 assert hyp.alignments is not None
 
                 timestamp_count = {
-                    u.item(): c.item() for u, c in zip(*torch.unique(torch.tensor(hyp.timestamp), return_counts=True))
+                    u.item(): c.item()
+                    for u, c in zip(
+                        *torch.unique(torch.tensor(hyp.timestamp), return_counts=True)
+                    )
                 }
                 for t in range(len(hyp.alignments)):
 
@@ -984,13 +1099,15 @@ class TestEncDecRNNTModel:
                     alignment_len = len(hyp.alignments[t])
                     assert alignment_len <= max_symbols_per_step
                     if t in timestamp_count:  # non-blank
-                        assert alignment_len == timestamp_count[t] + (1 if alignment_len < max_symbols_per_step else 0)
+                        assert alignment_len == timestamp_count[t] + (
+                            1 if alignment_len < max_symbols_per_step else 0
+                        )
                     else:  # blank or max_symbols_per_step == 0
                         assert alignment_len <= 1
 
     @pytest.mark.skipif(
         not NUMBA_RNNT_LOSS_AVAILABLE,
-        reason='RNNTLoss has not been compiled with appropriate numba version.',
+        reason="RNNTLoss has not been compiled with appropriate numba version.",
     )
     @pytest.mark.unit
     @pytest.mark.parametrize(
@@ -1003,7 +1120,11 @@ class TestEncDecRNNTModel:
     )
     @pytest.mark.parametrize("max_symbols_per_step", [-1, 0])
     def test_greedy_decoding_max_symbols_confidence_incorrect_max_symbols(
-        self, max_symbols_setup, greedy_class, max_symbols_per_step: int, loop_labels: Optional[bool]
+        self,
+        max_symbols_setup,
+        greedy_class,
+        max_symbols_per_step: int,
+        loop_labels: Optional[bool],
     ):
         """Test ValueError for max_symbols_per_step <= 0"""
         decoders = [max_symbols_setup["decoder"]]
@@ -1012,7 +1133,9 @@ class TestEncDecRNNTModel:
         joint = max_symbols_setup["joint"]
 
         for decoder in decoders:
-            additional_decoding_kwargs = {} if loop_labels is None else {"loop_labels": loop_labels}
+            additional_decoding_kwargs = (
+                {} if loop_labels is None else {"loop_labels": loop_labels}
+            )
             with pytest.raises(ValueError):
                 _ = greedy_class(
                     decoder_model=decoder,
@@ -1025,7 +1148,7 @@ class TestEncDecRNNTModel:
 
     @pytest.mark.skipif(
         not NUMBA_RNNT_LOSS_AVAILABLE,
-        reason='RNNTLoss has not been compiled with appropriate numba version.',
+        reason="RNNTLoss has not been compiled with appropriate numba version.",
     )
     @pytest.mark.unit
     @pytest.mark.parametrize(
@@ -1038,7 +1161,11 @@ class TestEncDecRNNTModel:
     )
     @pytest.mark.parametrize("max_symbols_per_step", [1, 5])
     def test_greedy_decoding_max_symbols_confidence(
-        self, max_symbols_setup, greedy_class, max_symbols_per_step: int, loop_labels: Optional[bool]
+        self,
+        max_symbols_setup,
+        greedy_class,
+        max_symbols_per_step: int,
+        loop_labels: Optional[bool],
     ):
         decoders = [max_symbols_setup["decoder"]]
         if greedy_class is greedy_decode.GreedyBatchedRNNTInfer:
@@ -1048,7 +1175,9 @@ class TestEncDecRNNTModel:
         encoded_lengths = max_symbols_setup["encoded_lengths"]
 
         for decoder in decoders:
-            additional_decoding_kwargs = {} if loop_labels is None else {"loop_labels": loop_labels}
+            additional_decoding_kwargs = (
+                {} if loop_labels is None else {"loop_labels": loop_labels}
+            )
             greedy = greedy_class(
                 decoder_model=decoder,
                 joint_model=joint,
@@ -1059,11 +1188,16 @@ class TestEncDecRNNTModel:
             )
 
             with torch.no_grad():
-                hyp = greedy(encoder_output=encoder_output, encoded_lengths=encoded_lengths)[0][0]
+                hyp = greedy(
+                    encoder_output=encoder_output, encoded_lengths=encoded_lengths
+                )[0][0]
                 assert hyp.frame_confidence is not None
 
                 timestamp_count = {
-                    u.item(): c.item() for u, c in zip(*torch.unique(torch.tensor(hyp.timestamp), return_counts=True))
+                    u.item(): c.item()
+                    for u, c in zip(
+                        *torch.unique(torch.tensor(hyp.timestamp), return_counts=True)
+                    )
                 }
                 for t in range(len(hyp.frame_confidence)):
 
@@ -1079,18 +1213,40 @@ class TestEncDecRNNTModel:
 
     @pytest.mark.skipif(
         not NUMBA_RNNT_LOSS_AVAILABLE,
-        reason='RNNTLoss has not been compiled with appropriate numba version.',
+        reason="RNNTLoss has not been compiled with appropriate numba version.",
     )
     @pytest.mark.unit
     @pytest.mark.parametrize(
         "beam_config",
         [
             {"search_type": "greedy"},
-            {"search_type": "default", "score_norm": False, "return_best_hypothesis": False},
-            {"search_type": "alsd", "alsd_max_target_len": 20, "return_best_hypothesis": False},
-            {"search_type": "tsd", "tsd_max_sym_exp_per_step": 3, "return_best_hypothesis": False},
-            {"search_type": "maes", "maes_num_steps": 2, "maes_expansion_beta": 2, "return_best_hypothesis": False},
-            {"search_type": "maes", "maes_num_steps": 3, "maes_expansion_beta": 1, "return_best_hypothesis": False},
+            {
+                "search_type": "default",
+                "score_norm": False,
+                "return_best_hypothesis": False,
+            },
+            {
+                "search_type": "alsd",
+                "alsd_max_target_len": 20,
+                "return_best_hypothesis": False,
+            },
+            {
+                "search_type": "tsd",
+                "tsd_max_sym_exp_per_step": 3,
+                "return_best_hypothesis": False,
+            },
+            {
+                "search_type": "maes",
+                "maes_num_steps": 2,
+                "maes_expansion_beta": 2,
+                "return_best_hypothesis": False,
+            },
+            {
+                "search_type": "maes",
+                "maes_num_steps": 3,
+                "maes_expansion_beta": 1,
+                "return_best_hypothesis": False,
+            },
         ],
     )
     def test_beam_decoding(self, beam_config):
@@ -1102,12 +1258,12 @@ class TestEncDecRNNTModel:
         decoder_output_size = 4
         joint_output_shape = 4
 
-        prednet_cfg = {'pred_hidden': decoder_output_size, 'pred_rnn_layers': 1}
+        prednet_cfg = {"pred_hidden": decoder_output_size, "pred_rnn_layers": 1}
         jointnet_cfg = {
-            'encoder_hidden': encoder_output_size,
-            'pred_hidden': decoder_output_size,
-            'joint_hidden': joint_output_shape,
-            'activation': 'relu',
+            "encoder_hidden": encoder_output_size,
+            "pred_hidden": decoder_output_size,
+            "joint_hidden": joint_output_shape,
+            "activation": "relu",
         }
 
         decoder = RNNTDecoder(prednet_cfg, vocab_size)
@@ -1131,14 +1287,18 @@ class TestEncDecRNNTModel:
 
     @pytest.mark.skipif(
         not NUMBA_RNNT_LOSS_AVAILABLE,
-        reason='RNNTLoss has not been compiled with appropriate numba version.',
+        reason="RNNTLoss has not been compiled with appropriate numba version.",
     )
     @pytest.mark.unit
     @pytest.mark.parametrize(
         "beam_config",
         [
             {"search_type": "greedy"},
-            {"search_type": "default", "score_norm": False, "return_best_hypothesis": False},
+            {
+                "search_type": "default",
+                "score_norm": False,
+                "return_best_hypothesis": False,
+            },
         ],
     )
     def test_beam_decoding_preserve_alignments(self, beam_config):
@@ -1150,12 +1310,12 @@ class TestEncDecRNNTModel:
         decoder_output_size = 4
         joint_output_shape = 4
 
-        prednet_cfg = {'pred_hidden': decoder_output_size, 'pred_rnn_layers': 1}
+        prednet_cfg = {"pred_hidden": decoder_output_size, "pred_rnn_layers": 1}
         jointnet_cfg = {
-            'encoder_hidden': encoder_output_size,
-            'pred_hidden': decoder_output_size,
-            'joint_hidden': joint_output_shape,
-            'activation': 'relu',
+            "encoder_hidden": encoder_output_size,
+            "pred_hidden": decoder_output_size,
+            "joint_hidden": joint_output_shape,
+            "activation": "relu",
         }
 
         decoder = RNNTDecoder(prednet_cfg, vocab_size)
@@ -1163,7 +1323,11 @@ class TestEncDecRNNTModel:
             joint_net = joint_type(jointnet_cfg, vocab_size, vocabulary=token_list)
 
             beam = beam_decode.BeamRNNTInfer(
-                decoder, joint_net, beam_size=beam_size, **beam_config, preserve_alignments=True
+                decoder,
+                joint_net,
+                beam_size=beam_size,
+                **beam_config,
+                preserve_alignments=True,
             )
 
             # (B, D, T)
@@ -1171,7 +1335,9 @@ class TestEncDecRNNTModel:
             enc_len = torch.tensor([30], dtype=torch.int32)
 
             with torch.no_grad():
-                hyp = beam(encoder_output=enc_out, encoded_lengths=enc_len)[0][0]  # type: rnnt_utils.Hypothesis
+                hyp = beam(encoder_output=enc_out, encoded_lengths=enc_len)[0][
+                    0
+                ]  # type: rnnt_utils.Hypothesis
 
                 if isinstance(hyp, rnnt_utils.NBestHypotheses):
                     hyp = hyp.n_best_hypotheses[0]  # select top hypothesis only
@@ -1186,7 +1352,7 @@ class TestEncDecRNNTModel:
 
     @pytest.mark.skipif(
         not NUMBA_RNNT_LOSS_AVAILABLE,
-        reason='RNNTLoss has not been compiled with appropriate numba version.',
+        reason="RNNTLoss has not been compiled with appropriate numba version.",
     )
     @pytest.mark.unit
     @pytest.mark.parametrize(
@@ -1197,7 +1363,9 @@ class TestEncDecRNNTModel:
             (greedy_decode.GreedyBatchedRNNTInfer, False),
         ],
     )
-    def test_greedy_decoding_SampledRNNTJoint(self, greedy_class, loop_labels: Optional[bool]):
+    def test_greedy_decoding_SampledRNNTJoint(
+        self, greedy_class, loop_labels: Optional[bool]
+    ):
         token_list = [" ", "a", "b", "c"]
         vocab_size = len(token_list)
 
@@ -1205,20 +1373,28 @@ class TestEncDecRNNTModel:
         decoder_output_size = 4
         joint_output_shape = 4
 
-        prednet_cfg = {'pred_hidden': decoder_output_size, 'pred_rnn_layers': 1}
+        prednet_cfg = {"pred_hidden": decoder_output_size, "pred_rnn_layers": 1}
         jointnet_cfg = {
-            'encoder_hidden': encoder_output_size,
-            'pred_hidden': decoder_output_size,
-            'joint_hidden': joint_output_shape,
-            'activation': 'relu',
+            "encoder_hidden": encoder_output_size,
+            "pred_hidden": decoder_output_size,
+            "joint_hidden": joint_output_shape,
+            "activation": "relu",
         }
 
         decoder = RNNTDecoder(prednet_cfg, vocab_size)
-        joint_net = SampledRNNTJoint(jointnet_cfg, vocab_size, n_samples=2, vocabulary=token_list)
+        joint_net = SampledRNNTJoint(
+            jointnet_cfg, vocab_size, n_samples=2, vocabulary=token_list
+        )
 
-        additional_decoding_kwargs = {} if loop_labels is None else {"loop_labels": loop_labels}
+        additional_decoding_kwargs = (
+            {} if loop_labels is None else {"loop_labels": loop_labels}
+        )
         greedy = greedy_class(
-            decoder, joint_net, blank_index=len(token_list) - 1, max_symbols_per_step=5, **additional_decoding_kwargs
+            decoder,
+            joint_net,
+            blank_index=len(token_list) - 1,
+            max_symbols_per_step=5,
+            **additional_decoding_kwargs,
         )
 
         # (B, D, T)
@@ -1230,18 +1406,40 @@ class TestEncDecRNNTModel:
 
     @pytest.mark.skipif(
         not NUMBA_RNNT_LOSS_AVAILABLE,
-        reason='RNNTLoss has not been compiled with appropriate numba version.',
+        reason="RNNTLoss has not been compiled with appropriate numba version.",
     )
     @pytest.mark.unit
     @pytest.mark.parametrize(
         "beam_config",
         [
             {"search_type": "greedy"},
-            {"search_type": "default", "score_norm": False, "return_best_hypothesis": False},
-            {"search_type": "alsd", "alsd_max_target_len": 20, "return_best_hypothesis": False},
-            {"search_type": "tsd", "tsd_max_sym_exp_per_step": 3, "return_best_hypothesis": False},
-            {"search_type": "maes", "maes_num_steps": 2, "maes_expansion_beta": 2, "return_best_hypothesis": False},
-            {"search_type": "maes", "maes_num_steps": 3, "maes_expansion_beta": 1, "return_best_hypothesis": False},
+            {
+                "search_type": "default",
+                "score_norm": False,
+                "return_best_hypothesis": False,
+            },
+            {
+                "search_type": "alsd",
+                "alsd_max_target_len": 20,
+                "return_best_hypothesis": False,
+            },
+            {
+                "search_type": "tsd",
+                "tsd_max_sym_exp_per_step": 3,
+                "return_best_hypothesis": False,
+            },
+            {
+                "search_type": "maes",
+                "maes_num_steps": 2,
+                "maes_expansion_beta": 2,
+                "return_best_hypothesis": False,
+            },
+            {
+                "search_type": "maes",
+                "maes_num_steps": 3,
+                "maes_expansion_beta": 1,
+                "return_best_hypothesis": False,
+            },
         ],
     )
     def test_beam_decoding_SampledRNNTJoint(self, beam_config):
@@ -1253,16 +1451,18 @@ class TestEncDecRNNTModel:
         decoder_output_size = 4
         joint_output_shape = 4
 
-        prednet_cfg = {'pred_hidden': decoder_output_size, 'pred_rnn_layers': 1}
+        prednet_cfg = {"pred_hidden": decoder_output_size, "pred_rnn_layers": 1}
         jointnet_cfg = {
-            'encoder_hidden': encoder_output_size,
-            'pred_hidden': decoder_output_size,
-            'joint_hidden': joint_output_shape,
-            'activation': 'relu',
+            "encoder_hidden": encoder_output_size,
+            "pred_hidden": decoder_output_size,
+            "joint_hidden": joint_output_shape,
+            "activation": "relu",
         }
 
         decoder = RNNTDecoder(prednet_cfg, vocab_size)
-        joint_net = SampledRNNTJoint(jointnet_cfg, vocab_size, n_samples=2, vocabulary=token_list)
+        joint_net = SampledRNNTJoint(
+            jointnet_cfg, vocab_size, n_samples=2, vocabulary=token_list
+        )
 
         beam = beam_decode.BeamRNNTInfer(
             decoder,

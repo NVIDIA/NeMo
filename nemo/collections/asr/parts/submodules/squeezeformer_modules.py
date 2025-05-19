@@ -24,7 +24,7 @@ from nemo.collections.asr.parts.submodules.multi_head_attention import (
     MultiHeadAttention, RelPositionMultiHeadAttention)
 from nemo.core.classes.mixins import AccessMixin
 
-__all__ = ['SqueezeformerLayer', 'ConformerFeedForward', 'SqueezeformerLayer']
+__all__ = ["SqueezeformerLayer", "ConformerFeedForward", "SqueezeformerLayer"]
 
 
 class ScaleBiasLayer(torch.nn.Module):
@@ -47,8 +47,8 @@ class ScaleBiasLayer(torch.nn.Module):
             self.scale = nn.Parameter(torch.ones(d_model))
             self.bias = nn.Parameter(torch.zeros(d_model))
         else:
-            self.register_buffer('scale', torch.ones(d_model), persistent=True)
-            self.register_buffer('bias', torch.zeros(d_model), persistent=True)
+            self.register_buffer("scale", torch.ones(d_model), persistent=True)
+            self.register_buffer("bias", torch.zeros(d_model), persistent=True)
 
     def forward(self, x):
         scale = self.scale.view(1, 1, -1)
@@ -74,10 +74,10 @@ class SqueezeformerLayer(torch.nn.Module, AttentionAdapterModuleMixin, AccessMix
         self,
         d_model,
         d_ff,
-        self_attention_model='rel_pos',
+        self_attention_model="rel_pos",
         n_heads=4,
         conv_kernel_size=31,
-        conv_norm_type='batch_norm',
+        conv_norm_type="batch_norm",
         dropout=0.1,
         dropout_att=0.1,
         pos_bias_u=None,
@@ -93,35 +93,54 @@ class SqueezeformerLayer(torch.nn.Module, AttentionAdapterModuleMixin, AccessMix
 
         # first feed forward module
         self.norm_feed_forward1 = LayerNorm(d_model)
-        self.feed_forward1 = ConformerFeedForward(d_model=d_model, d_ff=d_ff, dropout=dropout)
-        self.feed_forward1_scale = ScaleBiasLayer(d_model=d_model, adaptive_scale=adaptive_scale)
+        self.feed_forward1 = ConformerFeedForward(
+            d_model=d_model, d_ff=d_ff, dropout=dropout
+        )
+        self.feed_forward1_scale = ScaleBiasLayer(
+            d_model=d_model, adaptive_scale=adaptive_scale
+        )
 
         # convolution module
         self.norm_conv = LayerNorm(d_model)
         self.conv = ConformerConvolution(
-            d_model=d_model, kernel_size=conv_kernel_size, norm_type=conv_norm_type, pointwise_activation='swish'
+            d_model=d_model,
+            kernel_size=conv_kernel_size,
+            norm_type=conv_norm_type,
+            pointwise_activation="swish",
         )
         self.conv_scale = ScaleBiasLayer(d_model=d_model, adaptive_scale=adaptive_scale)
 
         # multi-headed self-attention module
         self.norm_self_att = LayerNorm(d_model)
-        if self_attention_model == 'rel_pos':
+        if self_attention_model == "rel_pos":
             self.self_attn = RelPositionMultiHeadAttention(
-                n_head=n_heads, n_feat=d_model, dropout_rate=dropout_att, pos_bias_u=pos_bias_u, pos_bias_v=pos_bias_v
+                n_head=n_heads,
+                n_feat=d_model,
+                dropout_rate=dropout_att,
+                pos_bias_u=pos_bias_u,
+                pos_bias_v=pos_bias_v,
             )
-        elif self_attention_model == 'abs_pos':
-            self.self_attn = MultiHeadAttention(n_head=n_heads, n_feat=d_model, dropout_rate=dropout_att)
+        elif self_attention_model == "abs_pos":
+            self.self_attn = MultiHeadAttention(
+                n_head=n_heads, n_feat=d_model, dropout_rate=dropout_att
+            )
         else:
             raise ValueError(
                 f"'{self_attention_model}' is not not a valid value for 'self_attention_model', "
                 f"valid values can be from ['rel_pos', 'abs_pos']"
             )
-        self.self_attn_scale = ScaleBiasLayer(d_model=d_model, adaptive_scale=adaptive_scale)
+        self.self_attn_scale = ScaleBiasLayer(
+            d_model=d_model, adaptive_scale=adaptive_scale
+        )
 
         # second feed forward module
         self.norm_feed_forward2 = LayerNorm(d_model)
-        self.feed_forward2 = ConformerFeedForward(d_model=d_model, d_ff=d_ff, dropout=dropout)
-        self.feed_forward2_scale = ScaleBiasLayer(d_model=d_model, adaptive_scale=adaptive_scale)
+        self.feed_forward2 = ConformerFeedForward(
+            d_model=d_model, d_ff=d_ff, dropout=dropout
+        )
+        self.feed_forward2_scale = ScaleBiasLayer(
+            d_model=d_model, adaptive_scale=adaptive_scale
+        )
 
         self.dropout = nn.Dropout(dropout)
         # self.norm_out = LayerNorm(d_model)
@@ -142,9 +161,9 @@ class SqueezeformerLayer(torch.nn.Module, AttentionAdapterModuleMixin, AccessMix
         residual = x
 
         x = self.self_attn_scale(x)
-        if self.self_attention_model == 'rel_pos':
+        if self.self_attention_model == "rel_pos":
             x = self.self_attn(query=x, key=x, value=x, mask=att_mask, pos_emb=pos_emb)
-        elif self.self_attention_model == 'abs_pos':
+        elif self.self_attention_model == "abs_pos":
             x = self.self_attn(query=x, key=x, value=x, mask=att_mask)
         else:
             x = None
@@ -155,13 +174,13 @@ class SqueezeformerLayer(torch.nn.Module, AttentionAdapterModuleMixin, AccessMix
         if self.is_adapter_available():
             # Call the MHA adapters
             pack_ip = {
-                'x': residual,
-                'loc': 'mha',
-                'att_mask': att_mask,
-                'pos_emb': pos_emb,
+                "x": residual,
+                "loc": "mha",
+                "att_mask": att_mask,
+                "pos_emb": pos_emb,
             }
             pack_ip = self.forward_enabled_adapters(pack_ip)
-            x = pack_ip['x']
+            x = pack_ip["x"]
 
         x = self.feed_forward1_scale(x)
         x = self.feed_forward1(x)
@@ -183,16 +202,16 @@ class SqueezeformerLayer(torch.nn.Module, AttentionAdapterModuleMixin, AccessMix
         if self.is_adapter_available():
             # Call the adapters
             pack_ip = {
-                'x': x,
-                'loc': 'post',
+                "x": x,
+                "loc": "post",
             }
             pack_ip = self.forward_enabled_adapters(pack_ip)
-            x = pack_ip['x']
+            x = pack_ip["x"]
 
-        if self.is_access_enabled(getattr(self, "model_guid", None)) and self.access_cfg.get(
-            'save_encoder_tensors', False
-        ):
-            self.register_accessible_tensor(name='encoder', tensor=x)
+        if self.is_access_enabled(
+            getattr(self, "model_guid", None)
+        ) and self.access_cfg.get("save_encoder_tensors", False):
+            self.register_accessible_tensor(name="encoder", tensor=x)
 
         return x
 

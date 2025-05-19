@@ -29,20 +29,28 @@ from nemo.collections.nlp.data.dialogue.dataset.dialogue_dataset import \
 from nemo.collections.nlp.data.dialogue.input_example.sgd_input_example import \
     SGDInputExample
 
-__all__ = ['DialogueSGDBERTDataset']
+__all__ = ["DialogueSGDBERTDataset"]
 
 
 class DialogueSGDBERTDataset(DialogueDataset):
-    '''
-    Dataset Class 
+    """
+    Dataset Class
         1. Performs Model-dependent (but Data-independent) operations (tokenization etc)
         2. This can allow the same model preprocessing for multiple datasources
-        3. Users can configurate which labels to use for modelling 
+        3. Users can configurate which labels to use for modelling
             (e.g. intent classification, slot filling or both together etc)
-    '''
+    """
 
-    def __init__(self, dataset_split: str, dialogues_processor: object, tokenizer, schemas, schema_config, cfg):
-        """ Constructor
+    def __init__(
+        self,
+        dataset_split: str,
+        dialogues_processor: object,
+        tokenizer,
+        schemas,
+        schema_config,
+        cfg,
+    ):
+        """Constructor
         Args:
             dataset_split: dataset split
             dialogues_processor: Data generator for SGD dialogues
@@ -59,7 +67,9 @@ class DialogueSGDBERTDataset(DialogueDataset):
         self.cfg = cfg
         self.subsample = self.dialogues_processor._subsample
 
-        dial_file = f"{dialogues_processor._task_name}_{dataset_split}_examples_bert.processed"
+        dial_file = (
+            f"{dialogues_processor._task_name}_{dataset_split}_examples_bert.processed"
+        )
         self.dial_file = os.path.join(self.cfg.data_dir, dial_file)
         if self.cfg.use_cache and os.path.exists(self.dial_file):
             self.load_features()
@@ -73,7 +83,9 @@ class DialogueSGDBERTDataset(DialogueDataset):
 
     def process_features(self):
         self.features = []
-        self.raw_features = self.dialogues_processor.get_dialog_examples(self.dataset_split)
+        self.raw_features = self.dialogues_processor.get_dialog_examples(
+            self.dataset_split
+        )
         for idx in range(len(self.raw_features)):
             self.bert_process_one_sample(idx)
 
@@ -197,13 +209,21 @@ class DialogueSGDBERTDataset(DialogueDataset):
         state_update = ex["labels"]["slots"]
         system_slots = ex["system_slots"]
 
-        user_tokens, user_alignments, user_inv_alignments = self._tokenize(user_utterance)
-        system_tokens, system_alignments, system_inv_alignments = self._tokenize(system_utterance)
-        system_user_utterance = system_utterance + ' ' + user_utterance
-        system_user_tokens, system_user_alignments, system_user_inv_alignments = self._tokenize(system_user_utterance)
+        user_tokens, user_alignments, user_inv_alignments = self._tokenize(
+            user_utterance
+        )
+        system_tokens, system_alignments, system_inv_alignments = self._tokenize(
+            system_utterance
+        )
+        system_user_utterance = system_utterance + " " + user_utterance
+        system_user_tokens, system_user_alignments, system_user_inv_alignments = (
+            self._tokenize(system_user_utterance)
+        )
         examples = []
 
-        base_example = SGDInputExample(schema_config=self.schema_config, tokenizer=self.tokenizer)
+        base_example = SGDInputExample(
+            schema_config=self.schema_config, tokenizer=self.tokenizer
+        )
         base_example.service_schema = self.schemas.get_service_schema(service)
         base_example.service_id = example_id_num[-1]
 
@@ -212,16 +232,24 @@ class DialogueSGDBERTDataset(DialogueDataset):
 
         for model_task in range(self.schema_config["NUM_TASKS"]):
             if model_task == 0:
-                for intent_id, intent in enumerate(schemas.get_service_schema(service).intents):
+                for intent_id, intent in enumerate(
+                    schemas.get_service_schema(service).intents
+                ):
                     task_example = base_example.make_copy()
                     task_example.task_mask[model_task] = 1
                     task_example.intent_id = intent_id
                     task_example.example_id += f"-{model_task}-{intent_id}-0"
                     task_example.example_id_num.extend([model_task, intent_id, 0])
                     intent_description = (
-                        intent + " " + self.schemas.get_service_schema(service).intent_descriptions[intent]
+                        intent
+                        + " "
+                        + self.schemas.get_service_schema(service).intent_descriptions[
+                            intent
+                        ]
                     )
-                    intent_tokens, intent_alignments, intent_inv_alignments = self._tokenize(intent_description)
+                    intent_tokens, intent_alignments, intent_inv_alignments = (
+                        self._tokenize(intent_description)
+                    )
                     task_example.add_utterance_features(
                         intent_tokens,
                         intent_inv_alignments,
@@ -235,14 +263,24 @@ class DialogueSGDBERTDataset(DialogueDataset):
                     examples.append(task_example)
 
             if model_task == 1:
-                for slot_id, slot in enumerate(schemas.get_service_schema(service).slots):
+                for slot_id, slot in enumerate(
+                    schemas.get_service_schema(service).slots
+                ):
                     task_example = base_example.make_copy()
                     task_example.task_mask[model_task] = 1
                     task_example.requested_slot_id = slot_id
                     task_example.example_id += f"-{model_task}-{slot_id}-0"
                     task_example.example_id_num.extend([model_task, slot_id, 0])
-                    slot_description = slot + " " + self.schemas.get_service_schema(service).slot_descriptions[slot]
-                    slot_tokens, slot_alignments, slot_inv_alignments = self._tokenize(slot_description)
+                    slot_description = (
+                        slot
+                        + " "
+                        + self.schemas.get_service_schema(service).slot_descriptions[
+                            slot
+                        ]
+                    )
+                    slot_tokens, slot_alignments, slot_inv_alignments = self._tokenize(
+                        slot_description
+                    )
                     task_example.add_utterance_features(
                         slot_tokens,
                         slot_inv_alignments,
@@ -258,7 +296,9 @@ class DialogueSGDBERTDataset(DialogueDataset):
             if model_task == 2:
                 off_slots = []
                 on_slots = []
-                for slot_id, slot in enumerate(schemas.get_service_schema(service).categorical_slots):
+                for slot_id, slot in enumerate(
+                    schemas.get_service_schema(service).categorical_slots
+                ):
                     task_example = base_example.make_copy()
                     task_example.task_mask[model_task] = 1
 
@@ -266,8 +306,14 @@ class DialogueSGDBERTDataset(DialogueDataset):
                     task_example.categorical_slot_id = slot_id
                     task_example.example_id += f"-{model_task}-{slot_id}-0"
                     task_example.example_id_num.extend([model_task, slot_id, 0])
-                    slot_description = slot + " " + schemas.get_service_schema(service).slot_descriptions[slot]
-                    slot_tokens, slot_alignments, slot_inv_alignments = self._tokenize(slot_description)
+                    slot_description = (
+                        slot
+                        + " "
+                        + schemas.get_service_schema(service).slot_descriptions[slot]
+                    )
+                    slot_tokens, slot_alignments, slot_inv_alignments = self._tokenize(
+                        slot_description
+                    )
                     task_example.add_utterance_features(
                         slot_tokens,
                         slot_inv_alignments,
@@ -286,18 +332,33 @@ class DialogueSGDBERTDataset(DialogueDataset):
                     old_example = task_example
 
                     for value_id, value in enumerate(
-                        schemas.get_service_schema(service).get_categorical_slot_values(slot)
+                        schemas.get_service_schema(service).get_categorical_slot_values(
+                            slot
+                        )
                     ):
-                        if self.dataset_split != 'train' or task_example.categorical_slot_status == 1:
-                            task_example = old_example.make_copy_of_categorical_features()
+                        if (
+                            self.dataset_split != "train"
+                            or task_example.categorical_slot_status == 1
+                        ):
+                            task_example = (
+                                old_example.make_copy_of_categorical_features()
+                            )
                             task_example.task_mask[3] = 1
                             # assert task_example.task_mask == [0, 0, 0, 1, 0, 0]
                             task_example.categorical_slot_id = slot_id
                             task_example.categorical_slot_value_id = value_id
-                            task_example.example_id = base_example.example_id + f"-3-{slot_id}-{value_id}"
-                            task_example.example_id_num = base_example.example_id_num + [3, slot_id, value_id]
-                            slot_description = slot + " " + value  # add slot description
-                            slot_tokens, slot_alignments, slot_inv_alignments = self._tokenize(slot_description)
+                            task_example.example_id = (
+                                base_example.example_id + f"-3-{slot_id}-{value_id}"
+                            )
+                            task_example.example_id_num = (
+                                base_example.example_id_num + [3, slot_id, value_id]
+                            )
+                            slot_description = (
+                                slot + " " + value
+                            )  # add slot description
+                            slot_tokens, slot_alignments, slot_inv_alignments = (
+                                self._tokenize(slot_description)
+                            )
                             task_example.add_utterance_features(
                                 slot_tokens,
                                 slot_inv_alignments,
@@ -307,13 +368,20 @@ class DialogueSGDBERTDataset(DialogueDataset):
                                 system_user_utterance,
                             )
                             task_example.add_categorical_slots(state_update)
-                            assert task_example.categorical_slot_status == old_example.categorical_slot_status
+                            assert (
+                                task_example.categorical_slot_status
+                                == old_example.categorical_slot_status
+                            )
                             examples.append(task_example)
 
-                if self.dataset_split == 'train' and self.subsample:
+                if self.dataset_split == "train" and self.subsample:
                     num_on_slots = len(on_slots)
                     examples.extend(
-                        np.random.choice(off_slots, replace=False, size=min(max(num_on_slots, 1), len(off_slots)))
+                        np.random.choice(
+                            off_slots,
+                            replace=False,
+                            size=min(max(num_on_slots, 1), len(off_slots)),
+                        )
                     )
                 else:
                     examples.extend(off_slots)
@@ -321,15 +389,23 @@ class DialogueSGDBERTDataset(DialogueDataset):
             if model_task == 4:  # noncat slot status
                 off_slots = []
                 on_slots = []
-                for slot_id, slot in enumerate(schemas.get_service_schema(service).non_categorical_slots):
+                for slot_id, slot in enumerate(
+                    schemas.get_service_schema(service).non_categorical_slots
+                ):
                     task_example = base_example.make_copy()
                     task_example.task_mask[model_task] = 1
                     # assert task_example.task_mask == [0, 0, 0, 0, 1, 0]
                     task_example.noncategorical_slot_id = slot_id
                     task_example.example_id += f"-{model_task}-{slot_id}-0"
                     task_example.example_id_num.extend([model_task, slot_id, 0])
-                    slot_description = slot + " " + schemas.get_service_schema(service).slot_descriptions[slot]
-                    slot_tokens, slot_alignments, slot_inv_alignments = self._tokenize(slot_description)
+                    slot_description = (
+                        slot
+                        + " "
+                        + schemas.get_service_schema(service).slot_descriptions[slot]
+                    )
+                    slot_tokens, slot_alignments, slot_inv_alignments = self._tokenize(
+                        slot_description
+                    )
                     task_example.add_utterance_features(
                         slot_tokens,
                         slot_inv_alignments,
@@ -360,25 +436,42 @@ class DialogueSGDBERTDataset(DialogueDataset):
                     else:
                         system_span_boundaries = {}
 
-                    task_example.add_noncategorical_slots(state_update, user_span_boundaries, system_span_boundaries)
+                    task_example.add_noncategorical_slots(
+                        state_update, user_span_boundaries, system_span_boundaries
+                    )
                     if task_example.noncategorical_slot_status == 0:
                         off_slots.append(task_example)
                     else:
                         on_slots.append(task_example)
                         examples.append(task_example)
 
-                    if self.dataset_split != 'train' or task_example.noncategorical_slot_status == 1:
-                        task_example = task_example.make_copy_of_non_categorical_features()
+                    if (
+                        self.dataset_split != "train"
+                        or task_example.noncategorical_slot_status == 1
+                    ):
+                        task_example = (
+                            task_example.make_copy_of_non_categorical_features()
+                        )
                         task_example.task_mask[5] = 1
                         # assert task_example.task_mask == [0, 0, 0, 0, 0, 1]
-                        task_example.example_id = base_example.example_id + f"-5-{slot_id}-0"
-                        task_example.example_id_num = base_example.example_id_num + [5, slot_id, 0]
+                        task_example.example_id = (
+                            base_example.example_id + f"-5-{slot_id}-0"
+                        )
+                        task_example.example_id_num = base_example.example_id_num + [
+                            5,
+                            slot_id,
+                            0,
+                        ]
                         examples.append(task_example)
 
-                if self.dataset_split == 'train' and self.subsample:
+                if self.dataset_split == "train" and self.subsample:
                     num_on_slots = len(on_slots)
                     examples.extend(
-                        np.random.choice(off_slots, replace=False, size=min(max(num_on_slots, 1), len(off_slots)))
+                        np.random.choice(
+                            off_slots,
+                            replace=False,
+                            size=min(max(num_on_slots, 1), len(off_slots)),
+                        )
                     )
                 else:
                     examples.extend(off_slots)
@@ -419,7 +512,10 @@ class DialogueSGDBERTDataset(DialogueDataset):
                     end_tok_idx = alignments[slot_span["exclusive_end"] - 1]
                     if 0 <= start_tok_idx < len(subwords):
                         end_tok_idx = min(end_tok_idx, len(subwords) - 1)
-                        value_char_spans[value] = (start_tok_idx + bias, end_tok_idx + bias)
+                        value_char_spans[value] = (
+                            start_tok_idx + bias,
+                            end_tok_idx + bias,
+                        )
             for v in values:
                 if v in value_char_spans:
                     span_boundaries[slot] = value_char_spans[v]

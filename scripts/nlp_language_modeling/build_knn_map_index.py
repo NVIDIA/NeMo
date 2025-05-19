@@ -115,7 +115,9 @@ def build_map(chunk_start, result, total_chunks, start_id, end_id):
 @njit(parallel=True)
 def _dedup(chunk_id_to_range, I, tmp_neighbors, chunk_id_start, offset):
     for cid in prange(len(I)):
-        if chunk_id_start + cid - offset >= 0 and chunk_id_start + cid - offset < len(chunk_id_to_range):
+        if chunk_id_start + cid - offset >= 0 and chunk_id_start + cid - offset < len(
+            chunk_id_to_range
+        ):
             beg, end = chunk_id_to_range[chunk_id_start + cid - offset]
         position = 0
         for target_chunk_id in I[cid]:
@@ -137,8 +139,10 @@ def dedup(chunk_id_to_range, I, tmp_neighbors, chunk_id_start, offset):
     filtered KNN will be stored in the tmp_neighbors
 
     """
-    if chunk_id_start < offset or chunk_id_start + len(I) - offset > len(chunk_id_to_range):
-        raise ValueError('chunk_id_start out side the range')
+    if chunk_id_start < offset or chunk_id_start + len(I) - offset > len(
+        chunk_id_to_range
+    ):
+        raise ValueError("chunk_id_start out side the range")
     _dedup(chunk_id_to_range, I, tmp_neighbors, chunk_id_start, offset)
 
 
@@ -152,9 +156,11 @@ def get_tokenizer(args):
         delimiter=args.delimiter,
     )
     if not hasattr(tokenizer, "pad_id"):
-        tokenizer.add_special_tokens({'pad_token': '<pad>'})
-    elif hasattr(tokenizer, "pad_id") and (tokenizer.pad_id is None or tokenizer.pad_id < 0):
-        tokenizer.add_special_tokens({'pad_token': '<pad>'})
+        tokenizer.add_special_tokens({"pad_token": "<pad>"})
+    elif hasattr(tokenizer, "pad_id") and (
+        tokenizer.pad_id is None or tokenizer.pad_id < 0
+    ):
+        tokenizer.add_special_tokens({"pad_token": "<pad>"})
     return tokenizer
 
 
@@ -168,7 +174,7 @@ def calculate_start_end(total_chunks, total_shards, shard_id):
         start = splits[shard_id]
         total_chunks = total_chunks
     else:
-        raise ValueError(f'{shard_id} bigger than {total_shards}')
+        raise ValueError(f"{shard_id} bigger than {total_shards}")
     return start, total_chunks
 
 
@@ -183,7 +189,7 @@ def process_sentence_chunks(
 ):
     """
     This function takes chunked tokens from the retrieval dataset and map it back to text.
-    In stage 1, it divides the total work into `total_shards`, and process only at the `shard_id`.  
+    In stage 1, it divides the total work into `total_shards`, and process only at the `shard_id`.
     If the stage is None, it process all the chunks.
     """
     total_chunks = ds.chunks
@@ -194,7 +200,9 @@ def process_sentence_chunks(
         start, total_chunks = calculate_start_end(
             total_chunks=total_chunks, total_shards=total_shards, shard_id=shard_id
         )
-        logging.info(f'shard_id {shard_id}, create index from chunk {start} to {total_chunks}')
+        logging.info(
+            f"shard_id {shard_id}, create index from chunk {start} to {total_chunks}"
+        )
 
     with Pool(workers) as p:
         while start < total_chunks:
@@ -224,7 +232,9 @@ def calculate_embedding(pool, batch_size):
         if sentences is None:
             break
         beg = time.time()
-        emb = model.encode_multi_process(sentences=sentences, pool=pool, batch_size=batch_size)
+        emb = model.encode_multi_process(
+            sentences=sentences, pool=pool, batch_size=batch_size
+        )
         end = time.time()
         logging.info(f"one embedding {len(emb)} batch size takes {end-beg}")
         emb_queue.put((emb, slice_id))
@@ -236,84 +246,136 @@ def get_emb():
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="build Faiss index",)
-    parser.add_argument(
-        '--input_file', type=str, required=False, help='Input file',
-    )
-    parser.add_argument("--faiss_index", type=str, required=False, help='faiss index file for retrieval dataset')
-    parser.add_argument(
-        '--process_chunk_size',
-        type=int,
-        default=10000,
-        help='The sentences in chunks that is queries to build map index',
+    parser = argparse.ArgumentParser(
+        description="build Faiss index",
     )
     parser.add_argument(
-        '--remove_duplicate',
-        action='store_true',
-        help='Remove the knn neighbors that is from the same document as the data.',
-    )
-    parser.add_argument(
-        '--K_neighbors', type=int, default=16, help='The number of neighbors to query',
-    )
-    parser.add_argument(
-        '--dedup_margin',
-        type=int,
-        default=2,
-        help='extra neighbors to fill the spaces of the chunks in the duplicated documents',
-    )
-    parser.add_argument(
-        '--sentence_transformer_model',
-        type=str,
-        default='bert-base-nli-mean-tokens',
-        help='sentence transformer to load',
-    )
-    parser.add_argument('--shard_id', type=int, default=None, help='run the job to create the shard_id index')
-    parser.add_argument('--total_shards', type=int, default=None, help='total number of knn index shards')
-    parser.add_argument(
-        '--output_file', type=str, required=True, help='Output KNN Map index file',
-    )
-    parser.add_argument(
-        '--devices', type=str, default=None, help='delimited list input with cuda devices. Specify like 0,1,2'
-    )
-    parser.add_argument(
-        "--batch_size", type=int, default=4000, help="Batch size for encoding. Use max according to GPU MEM"
-    )
-    group = parser.add_argument_group(title='tokenizer')
-    group.add_argument(
-        '--tokenizer-library',
+        "--input_file",
         type=str,
         required=False,
-        choices=['yttm', 'sentencepiece', 'megatron', 'huggingface', 'tabular'],
-        help='What tokenizer library to use.',
+        help="Input file",
     )
-    group.add_argument(
-        '--tokenizer-type', type=str, default=None, help='What type of tokenizer to use.',
+    parser.add_argument(
+        "--faiss_index",
+        type=str,
+        required=False,
+        help="faiss index file for retrieval dataset",
     )
-    group.add_argument(
-        '--tokenizer-model', type=str, default=None, help='Path to tokenizer model.',
+    parser.add_argument(
+        "--process_chunk_size",
+        type=int,
+        default=10000,
+        help="The sentences in chunks that is queries to build map index",
     )
-    group.add_argument('--vocab-file', type=str, default=None, help='Path to the vocab file')
-    group.add_argument('--merge-file', type=str, default=None, help='Path to the BPE merge file (if necessary).')
-    group.add_argument('--delimiter', type=str, default=None, help='delimiter used for tabular tokenizer')
-    group.add_argument(
-        '--stage',
+    parser.add_argument(
+        "--remove_duplicate",
+        action="store_true",
+        help="Remove the knn neighbors that is from the same document as the data.",
+    )
+    parser.add_argument(
+        "--K_neighbors",
+        type=int,
+        default=16,
+        help="The number of neighbors to query",
+    )
+    parser.add_argument(
+        "--dedup_margin",
+        type=int,
+        default=2,
+        help="extra neighbors to fill the spaces of the chunks in the duplicated documents",
+    )
+    parser.add_argument(
+        "--sentence_transformer_model",
+        type=str,
+        default="bert-base-nli-mean-tokens",
+        help="sentence transformer to load",
+    )
+    parser.add_argument(
+        "--shard_id",
         type=int,
         default=None,
-        help='used for building the large knn index in multiple stages',
-        choices=[1, 2],
+        help="run the job to create the shard_id index",
     )
-    group.add_argument('--workers', type=int, default=None, help='number of workers to run tokenizer')
-    group.add_argument(
-        '--nprobe',
+    parser.add_argument(
+        "--total_shards",
         type=int,
-        default=10,
-        help='number of probes, higher number of probes renders better results but runs slower',
+        default=None,
+        help="total number of knn index shards",
     )
-    group.add_argument(
-        '--shard_index_input',
+    parser.add_argument(
+        "--output_file",
+        type=str,
+        required=True,
+        help="Output KNN Map index file",
+    )
+    parser.add_argument(
+        "--devices",
         type=str,
         default=None,
-        help='the knn sharding index files, which are created at stage 1',
+        help="delimited list input with cuda devices. Specify like 0,1,2",
+    )
+    parser.add_argument(
+        "--batch_size",
+        type=int,
+        default=4000,
+        help="Batch size for encoding. Use max according to GPU MEM",
+    )
+    group = parser.add_argument_group(title="tokenizer")
+    group.add_argument(
+        "--tokenizer-library",
+        type=str,
+        required=False,
+        choices=["yttm", "sentencepiece", "megatron", "huggingface", "tabular"],
+        help="What tokenizer library to use.",
+    )
+    group.add_argument(
+        "--tokenizer-type",
+        type=str,
+        default=None,
+        help="What type of tokenizer to use.",
+    )
+    group.add_argument(
+        "--tokenizer-model",
+        type=str,
+        default=None,
+        help="Path to tokenizer model.",
+    )
+    group.add_argument(
+        "--vocab-file", type=str, default=None, help="Path to the vocab file"
+    )
+    group.add_argument(
+        "--merge-file",
+        type=str,
+        default=None,
+        help="Path to the BPE merge file (if necessary).",
+    )
+    group.add_argument(
+        "--delimiter",
+        type=str,
+        default=None,
+        help="delimiter used for tabular tokenizer",
+    )
+    group.add_argument(
+        "--stage",
+        type=int,
+        default=None,
+        help="used for building the large knn index in multiple stages",
+        choices=[1, 2],
+    )
+    group.add_argument(
+        "--workers", type=int, default=None, help="number of workers to run tokenizer"
+    )
+    group.add_argument(
+        "--nprobe",
+        type=int,
+        default=10,
+        help="number of probes, higher number of probes renders better results but runs slower",
+    )
+    group.add_argument(
+        "--shard_index_input",
+        type=str,
+        default=None,
+        help="the knn sharding index files, which are created at stage 1",
     )
 
     args = parser.parse_args()
@@ -330,13 +392,13 @@ if __name__ == "__main__":
         input_file = pathlib.Path(args.shard_index_input)
         path = input_file.parent
         fname = input_file.name
-        all_files = [str(i) for i in pathlib.Path(path).glob(fname + '*')]
+        all_files = [str(i) for i in pathlib.Path(path).glob(fname + "*")]
         merge_knn_files(all_files, args.output_file)
         f = KNNIndex(args.output_file)
-        logging.info(f'Write to {args.output_file},  Size of Index : {f.len}')
-        logging.info(f'Index neighbors: {f.K}')
-        logging.info(f'Index chunk start id: {f.chunk_start_id}')
-        logging.info(f'Index chunk end id: {f.chunk_end_id}')
+        logging.info(f"Write to {args.output_file},  Size of Index : {f.len}")
+        logging.info(f"Index neighbors: {f.K}")
+        logging.info(f"Index chunk start id: {f.chunk_start_id}")
+        logging.info(f"Index chunk end id: {f.chunk_end_id}")
         sys.exit(0)
 
     model = SentenceTransformer(args.sentence_transformer_model)
@@ -346,7 +408,7 @@ if __name__ == "__main__":
     if args.devices is None or not torch.cuda.is_available():
         device_list = None
     else:
-        device_list = ['cuda:' + str(device) for device in args.devices.split(',')]
+        device_list = ["cuda:" + str(device) for device in args.devices.split(",")]
 
     index = faiss.read_index(args.faiss_index)
     if has_gpu:
@@ -362,18 +424,30 @@ if __name__ == "__main__":
     total_chunks = ds.chunks
     if args.stage == 1:
         start, total_chunks = calculate_start_end(
-            total_chunks=total_chunks, total_shards=args.total_shards, shard_id=args.shard_id
+            total_chunks=total_chunks,
+            total_shards=args.total_shards,
+            shard_id=args.shard_id,
         )
 
     process = multiprocessing.Process(
         target=process_sentence_chunks,
-        args=(ds, tokenizer, args.process_chunk_size, args.stage, args.workers, args.shard_id, args.total_shards),
+        args=(
+            ds,
+            tokenizer,
+            args.process_chunk_size,
+            args.stage,
+            args.workers,
+            args.shard_id,
+            args.total_shards,
+        ),
     )
     process.start()
 
     pool = model.start_multi_process_pool(device_list)
 
-    emb_process = multiprocessing.Process(target=calculate_embedding, args=(pool, args.batch_size))
+    emb_process = multiprocessing.Process(
+        target=calculate_embedding, args=(pool, args.batch_size)
+    )
     emb_process.start()
 
     if ds._index.retrieval_db and args.remove_duplicate:
@@ -394,7 +468,7 @@ if __name__ == "__main__":
             beg = time.time()
             D, I = index.search(emb, neighbors)
             end = time.time()
-            logging.info(f'search {slice_id[0]} - {slice_id[1]} takes {end-beg}')
+            logging.info(f"search {slice_id[0]} - {slice_id[1]} takes {end-beg}")
             assert chunk_id_start == slice_id[0]
             if ds._index.retrieval_db and args.remove_duplicate:
                 beg = time.time()
@@ -402,11 +476,11 @@ if __name__ == "__main__":
                 dedup(chunk_id_to_doc_id_map, I, tmp_neighbors, chunk_id_start, start)
                 I = tmp_neighbors[:, : args.K_neighbors]
                 end = time.time()
-                logging.info(f'dedup {slice_id[0]} - {slice_id[1]} takes {end-beg}')
+                logging.info(f"dedup {slice_id[0]} - {slice_id[1]} takes {end-beg}")
             beg = time.time()
             w.write(I)
             end = time.time()
-            logging.info(f'write {slice_id[0]} - {slice_id[1]} takes {end-beg}')
+            logging.info(f"write {slice_id[0]} - {slice_id[1]} takes {end-beg}")
             chunk_id_start += len(I)
 
     process.join()

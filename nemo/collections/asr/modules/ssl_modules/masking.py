@@ -56,7 +56,9 @@ class RandomBlockMasking(NeuralModule):
             self.mask_embedding = nn.Parameter(torch.FloatTensor(feat_in))
             nn.init.normal_(self.mask_embedding, mean=0.0, std=0.1)
         else:
-            self.mask_embedding = nn.Parameter(torch.ones(feat_in) * mask_value, requires_grad=False)
+            self.mask_embedding = nn.Parameter(
+                torch.ones(feat_in) * mask_value, requires_grad=False
+            )
         if freeze:
             self.freeze()
 
@@ -64,16 +66,18 @@ class RandomBlockMasking(NeuralModule):
     def input_types(self):
         """Returns definitions of module input types"""
         return {
-            "input_feats": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
-            "input_lengths": NeuralType(tuple('B'), LengthsType()),
+            "input_feats": NeuralType(("B", "D", "T"), AcousticEncodedRepresentation()),
+            "input_lengths": NeuralType(tuple("B"), LengthsType()),
         }
 
     @property
     def output_types(self):
         """Returns definitions of module output types"""
         return {
-            "maksed_feats": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
-            "masks": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
+            "maksed_feats": NeuralType(
+                ("B", "D", "T"), AcousticEncodedRepresentation()
+            ),
+            "masks": NeuralType(("B", "D", "T"), AcousticEncodedRepresentation()),
         }
 
     def forward(self, input_feats: torch.Tensor, input_lengths: torch.Tensor):
@@ -90,7 +94,9 @@ class RandomBlockMasking(NeuralModule):
         else:
             return self.forward_without_overlap(input_feats, input_lengths)
 
-    def forward_without_overlap(self, input_feats: torch.Tensor, input_lengths: torch.Tensor):
+    def forward_without_overlap(
+        self, input_feats: torch.Tensor, input_lengths: torch.Tensor
+    ):
         """
         Args:
             input_feats (Tensor): input sequence features, shape=(batch, features, time)
@@ -110,13 +116,23 @@ class RandomBlockMasking(NeuralModule):
                 num_patches = 1
                 patch_idx = [0]
             else:
-                num_patches = torch.ceil(input_lengths[i] * self.mask_prob / self.block_size).int()
-                offset = torch.randint(0, self.block_size, (1,), device=input_feats.device)[0]
+                num_patches = torch.ceil(
+                    input_lengths[i] * self.mask_prob / self.block_size
+                ).int()
+                offset = torch.randint(
+                    0, self.block_size, (1,), device=input_feats.device
+                )[0]
                 block_size = self.block_size
                 if (num_patches + 1) * self.block_size > input_lengths[i]:
-                    block_size = torch.div(input_lengths[i], (num_patches + 1), rounding_mode='trunc')
-                max_num_patches = torch.div(input_lengths[i], block_size, rounding_mode='trunc')
-                patch_idx = torch.randperm(max_num_patches - 1, device=input_feats.device)[:num_patches]
+                    block_size = torch.div(
+                        input_lengths[i], (num_patches + 1), rounding_mode="trunc"
+                    )
+                max_num_patches = torch.div(
+                    input_lengths[i], block_size, rounding_mode="trunc"
+                )
+                patch_idx = torch.randperm(
+                    max_num_patches - 1, device=input_feats.device
+                )[:num_patches]
             for j in range(num_patches):
                 start = patch_idx[j] * block_size + offset
                 end = start + block_size
@@ -124,7 +140,9 @@ class RandomBlockMasking(NeuralModule):
                 maksed_feats[i, :, start:end] = mask_value
         return maksed_feats, masks
 
-    def forward_with_overlap(self, input_feats: torch.Tensor, input_lengths: torch.Tensor):
+    def forward_with_overlap(
+        self, input_feats: torch.Tensor, input_lengths: torch.Tensor
+    ):
         """
         Args:
             input_feats (Tensor): input sequence features, shape=(batch, features, time)
@@ -146,8 +164,12 @@ class RandomBlockMasking(NeuralModule):
             else:
                 curr_block_size = self.block_size
                 curr_len = input_lengths[i].detach().cpu().numpy()
-                num_patches = np.random.binomial(max(0, curr_len - self.block_size), self.mask_prob)
-                patch_idices = torch.randperm(max(0, curr_len - self.block_size), device=input_feats.device)
+                num_patches = np.random.binomial(
+                    max(0, curr_len - self.block_size), self.mask_prob
+                )
+                patch_idices = torch.randperm(
+                    max(0, curr_len - self.block_size), device=input_feats.device
+                )
                 patch_idices = patch_idices[:num_patches]
             for j in range(num_patches):
                 start = patch_idices[j]
@@ -162,7 +184,11 @@ class ConvFeatureMaksingWrapper(NeuralModule):
     A wrapper module that applies masking to the features after subsampling layer of ConformerEncoder.
     """
 
-    def __init__(self, pre_encode_module: nn.Module, masking_module: Union[nn.Module, NeuralModule]) -> None:
+    def __init__(
+        self,
+        pre_encode_module: nn.Module,
+        masking_module: Union[nn.Module, NeuralModule],
+    ) -> None:
         """
         Args:
             pre_encode_module: the pre_encode module of the ConformerEncoder instance
@@ -183,7 +209,9 @@ class ConvFeatureMaksingWrapper(NeuralModule):
         self.curr_feat = feats.detach()
         if self.apply_mask:
             feats = feats.transpose(1, 2)
-            masked_feats, self.curr_mask = self.masking(input_feats=feats, input_lengths=lengths)
+            masked_feats, self.curr_mask = self.masking(
+                input_feats=feats, input_lengths=lengths
+            )
             masked_feats = masked_feats.transpose(1, 2).detach()
         else:
             masked_feats = feats

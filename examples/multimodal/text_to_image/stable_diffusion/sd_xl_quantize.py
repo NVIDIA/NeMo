@@ -41,16 +41,21 @@ def do_calibrate(base, calibration_prompts, **kwargs):
         if i_th >= kwargs["calib_size"]:
             return
         base.text_to_image(
-            params=kwargs['param_dict'],
+            params=kwargs["param_dict"],
             prompt=prompts,
             negative_prompt="",
-            samples=kwargs['num_samples'],
+            samples=kwargs["num_samples"],
             return_latents=False,
         )
 
 
 def get_input_profile_unet(
-    batch_size, static_batch=False, min_batch_size=1, max_batch_size=8, latent_dim=32, adm_in_channels=1280
+    batch_size,
+    static_batch=False,
+    min_batch_size=1,
+    max_batch_size=8,
+    latent_dim=32,
+    adm_in_channels=1280,
 ):
     assert batch_size >= min_batch_size and batch_size <= max_batch_size
     if static_batch:
@@ -58,7 +63,10 @@ def get_input_profile_unet(
         max_batch_size = batch_size if static_batch else max_batch_size
     input_profile = {}
     dummy_input = generate_dummy_inputs(
-        sd_version="nemo", device='cuda', latent_dim=latent_dim, adm_in_channels=adm_in_channels
+        sd_version="nemo",
+        device="cuda",
+        latent_dim=latent_dim,
+        adm_in_channels=adm_in_channels,
     )
     for key, value in dummy_input.items():
         input_profile[key] = [
@@ -69,7 +77,7 @@ def get_input_profile_unet(
     return input_profile
 
 
-@hydra_runner(config_path='conf', config_name='sd_xl_quantize')
+@hydra_runner(config_path="conf", config_name="sd_xl_quantize")
 def main(cfg):
     def model_cfg_modifier(model_cfg):
         model_cfg.precision = cfg.trainer.precision
@@ -77,18 +85,22 @@ def main(cfg):
         model_cfg.inductor = False
         model_cfg.unet_config.from_pretrained = None
         model_cfg.first_stage_config.from_pretrained = None
-        model_cfg.first_stage_config._target_ = 'nemo.collections.multimodal.models.text_to_image.stable_diffusion.ldm.autoencoder.AutoencoderKLInferenceWrapper'
+        model_cfg.first_stage_config._target_ = "nemo.collections.multimodal.models.text_to_image.stable_diffusion.ldm.autoencoder.AutoencoderKLInferenceWrapper"
         model_cfg.fsdp = False
 
     trainer, megatron_diffusion_model = setup_trainer_and_model_for_inference(
-        model_provider=MegatronDiffusionEngine, cfg=cfg, model_cfg_modifier=model_cfg_modifier
+        model_provider=MegatronDiffusionEngine,
+        cfg=cfg,
+        model_cfg_modifier=model_cfg_modifier,
     )
 
     model = megatron_diffusion_model.model
     model.cuda()
     base = SamplingPipeline(model, use_fp16=cfg.use_fp16, is_legacy=cfg.model.is_legacy)
 
-    QuantModuleRegistry.register({LinearWrapper: "nemo_linear_wrapper"})(_QuantNeMoLinearWrapper)
+    QuantModuleRegistry.register({LinearWrapper: "nemo_linear_wrapper"})(
+        _QuantNeMoLinearWrapper
+    )
 
     if cfg.run_quantization:
         # Start quantization with ModelOpt
@@ -131,12 +143,14 @@ def main(cfg):
         output = Path(f"{cfg.onnx_export.onnx_dir}/unet.onnx")
         # Export quantized model to ONNX
         if not cfg.run_quantization:
-            mto.restore(base.model.model.diffusion_model, cfg.onnx_export.quantized_ckpt)
+            mto.restore(
+                base.model.model.diffusion_model, cfg.onnx_export.quantized_ckpt
+            )
         quantize_lvl(base.model.model.diffusion_model, cfg.quantize.quant_level)
 
         # QDQ needs to be in FP32
         base.model.model.diffusion_model.to(torch.float32).to("cpu")
-        base.device = 'cpu'
+        base.device = "cpu"
 
         input_names = [
             "x",
@@ -151,7 +165,10 @@ def main(cfg):
         latent_dim = int(cfg.sampling.base.width // 8)
         adm_in_channels = base.model.model.diffusion_model.adm_in_channels
         dummy_inputs = generate_dummy_inputs(
-            sd_version, base.device, latent_dim=latent_dim, adm_in_channels=adm_in_channels
+            sd_version,
+            base.device,
+            latent_dim=latent_dim,
+            adm_in_channels=adm_in_channels,
         )
         do_constant_folding = True
         opset_version = 17
@@ -169,11 +186,11 @@ def main(cfg):
 
     if cfg.run_trt_export:
         torch.cuda.empty_cache()
-        batch_size = cfg.infer.get('num_samples', 1)
+        batch_size = cfg.infer.get("num_samples", 1)
         min_batch_size = cfg.trt_export.min_batch_size
         max_batch_size = cfg.trt_export.max_batch_size
         static_batch = cfg.trt_export.static_batch
-        fp16 = cfg.trainer.precision in ['16', '16-mixed', 16]
+        fp16 = cfg.trainer.precision in ["16", "16-mixed", 16]
         build_engine(
             f"{cfg.onnx_export.onnx_dir}/unet.onnx",
             f"{cfg.trt_export.trt_engine}",

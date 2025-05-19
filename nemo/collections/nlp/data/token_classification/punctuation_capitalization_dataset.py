@@ -13,18 +13,18 @@
 # limitations under the License.
 
 __all__ = [
-    'BertPunctuationCapitalizationDataset',
-    'LABEL_ID_DIR_FOR_NEMO_CHECKPOINT',
-    'Progress',
-    'PunctuationCapitalizationEvalDataConfig',
-    'PunctuationCapitalizationTrainDataConfig',
-    'create_label_ids',
-    'create_masks_and_segment_ids',
-    'is_legacy_data_config',
-    'legacy_data_config_to_new_data_config',
-    'load_label_ids',
-    'raise_not_equal_labels_error',
-    'save_label_ids',
+    "BertPunctuationCapitalizationDataset",
+    "LABEL_ID_DIR_FOR_NEMO_CHECKPOINT",
+    "Progress",
+    "PunctuationCapitalizationEvalDataConfig",
+    "PunctuationCapitalizationTrainDataConfig",
+    "create_label_ids",
+    "create_masks_and_segment_ids",
+    "is_legacy_data_config",
+    "legacy_data_config_to_new_data_config",
+    "load_label_ids",
+    "raise_not_equal_labels_error",
+    "save_label_ids",
 ]
 
 import itertools
@@ -63,10 +63,10 @@ except (ImportError, ModuleNotFoundError):
     ASR_AVAILABLE = False
 
 
-MAX_NUM_QUERIES_IN_SPLIT = 10 ** 4
-TOKENIZATION_PROGRESS_REPORT_PERIOD = 10 ** 3
-BATCH_MARK_UP_PROGRESS_REPORT_PERIOD = 10 ** 4
-BATCH_BUILDING_PROGRESS_REPORT_PERIOD = 10 ** 4
+MAX_NUM_QUERIES_IN_SPLIT = 10**4
+TOKENIZATION_PROGRESS_REPORT_PERIOD = 10**3
+BATCH_MARK_UP_PROGRESS_REPORT_PERIOD = 10**4
+BATCH_BUILDING_PROGRESS_REPORT_PERIOD = 10**4
 
 LABEL_ID_DIR_FOR_NEMO_CHECKPOINT = "label_id_files_for_nemo_checkpoint"
 
@@ -187,7 +187,7 @@ class PunctuationCapitalizationDataConfigBase:
     tar_shuffle_n: int = 1
     """The size of shuffle buffer of `webdataset`. The number of batches which are permuted."""
 
-    shard_strategy: Optional[str] = 'scatter'
+    shard_strategy: Optional[str] = "scatter"
     """Tarred dataset shard distribution strategy chosen as a str value during ddp. Accepted values are `scatter` and `replicate`.
     `scatter`: The default shard strategy applied by WebDataset, where each node gets a unique set of shards, which are permanently
     pre-allocated and never changed at runtime. `replicate` is an optional shard strategy, where each node gets the entire set of shards
@@ -241,7 +241,7 @@ class PunctuationCapitalizationEvalDataConfig(PunctuationCapitalizationDataConfi
 
 
 def is_legacy_data_config(ds_section: DictConfig) -> bool:
-    return 'use_tarred_dataset' not in ds_section
+    return "use_tarred_dataset" not in ds_section
 
 
 def legacy_data_config_to_new_data_config(
@@ -261,11 +261,11 @@ def legacy_data_config_to_new_data_config(
     """
     if train:
         cls = PunctuationCapitalizationTrainDataConfig
-        ds_item = legacy_dataset_section.get('data_dir')
+        ds_item = legacy_dataset_section.get("data_dir")
     else:
         cls = PunctuationCapitalizationEvalDataConfig
-        ds_item = ds_section.get('ds_item')
-        ds_item = legacy_dataset_section.get('data_dir') if ds_item is None else ds_item
+        ds_item = ds_section.get("ds_item")
+        ds_item = legacy_dataset_section.get("data_dir") if ds_item is None else ds_item
     if ds_item is None:
         raise ValueError(
             f"Data directory was not found in legacy config.\nspecific dataset configuration:\n"
@@ -278,7 +278,7 @@ def legacy_data_config_to_new_data_config(
             labels_file=ds_section.labels_file,
             ds_item=ds_item,
             max_seq_length=legacy_dataset_section.get(
-                'max_seq_length', PunctuationCapitalizationDataConfigBase.max_seq_length
+                "max_seq_length", PunctuationCapitalizationDataConfigBase.max_seq_length
             ),
         )
     )
@@ -309,7 +309,12 @@ def _check_number_of_labels(
         )
 
 
-def _show_prog(queues: Tuple[mp.Queue, ...], totals: List[int], descriptions: List[str], units: List[str]) -> None:
+def _show_prog(
+    queues: Tuple[mp.Queue, ...],
+    totals: List[int],
+    descriptions: List[str],
+    units: List[str],
+) -> None:
     """
     Show several ``tqdm`` progress bars.
     Args:
@@ -404,7 +409,12 @@ class Progress:
     Progress bars and progress process are closed when ``finish`` or ``__exit__`` methods are called.
     """
 
-    def __init__(self, total: Union[int, List[int]], desc: Union[str, List[str]], unit: Union[str, List[str]]) -> None:
+    def __init__(
+        self,
+        total: Union[int, List[int]],
+        desc: Union[str, List[str]],
+        unit: Union[str, List[str]],
+    ) -> None:
         """
         Starts progress process and creates queues for passing information to the progress process. Number of progress
         bars is equal to the max length of lists ``total``, ``desc``, ``unit``. If none of these parameters is a list,
@@ -439,7 +449,9 @@ class Progress:
                 param *= num_processes
         manager = mp.Manager()
         self.progress_queues = tuple(manager.Queue() for _ in range(num_processes))
-        self.progress_process = mp.Process(target=_show_prog, args=(self.progress_queues, total, desc, unit))
+        self.progress_process = mp.Process(
+            target=_show_prog, args=(self.progress_queues, total, desc, unit)
+        )
         self.progress_process.start()
 
     def __enter__(self) -> Tuple[mp.Queue, ...]:
@@ -535,8 +547,15 @@ class TokenizeCreateMasksClipWorker:
             capit_labels: a list of 1D int32 arrays. Encoded capitalization labels for every token in a query. Tokens
                 in one word have identical labels
         """
-        all_input_ids, all_subtokens_mask, punct_all_labels, capit_all_labels = [], [], [], []
-        dummy = [None] * len(queries)  # Needed to avoid code duplication with different values of `self.use_audio`
+        all_input_ids, all_subtokens_mask, punct_all_labels, capit_all_labels = (
+            [],
+            [],
+            [],
+            [],
+        )
+        dummy = [None] * len(
+            queries
+        )  # Needed to avoid code duplication with different values of `self.use_audio`
         all_audio_waveforms = [] if preload_audios else dummy
         audio_lengths = [] if preload_audios else dummy
         audio_filepaths = [] if not preload_audios else dummy
@@ -545,12 +564,18 @@ class TokenizeCreateMasksClipWorker:
         for i, (query, audio_query) in enumerate(queries):
             words = query.split()
             input_ids, subtokens_mask = [self.tokenizer.cls_id], [0]
-            _check_number_of_labels(words, query, i, split_i, punct_label_lines[i], capit_label_lines[i])
+            _check_number_of_labels(
+                words, query, i, split_i, punct_label_lines[i], capit_label_lines[i]
+            )
             pad_id = self.punct_label_ids[self.pad_label]
             punct_labels = [pad_id]
-            punct_query_labels = [self.punct_label_ids[lab] for lab in punct_label_lines[i]]
+            punct_query_labels = [
+                self.punct_label_ids[lab] for lab in punct_label_lines[i]
+            ]
             capit_labels = [pad_id]
-            capit_query_labels = [self.capit_label_ids[lab] for lab in capit_label_lines[i]]
+            capit_query_labels = [
+                self.capit_label_ids[lab] for lab in capit_label_lines[i]
+            ]
             for j, word in enumerate(words):
                 word_ids = self.tokenizer.text_to_ids(word)
                 if not word_ids and len(word):
@@ -567,21 +592,33 @@ class TokenizeCreateMasksClipWorker:
             input_ids.append(self.tokenizer.sep_id)
             subtokens_mask.append(0)
 
-            all_input_ids.append(np.array(self._maybe_clip(input_ids, self.tokenizer.sep_id), dtype=np.int32))
-            all_subtokens_mask.append(np.array(self._maybe_clip(subtokens_mask, 0), dtype=bool))
+            all_input_ids.append(
+                np.array(
+                    self._maybe_clip(input_ids, self.tokenizer.sep_id), dtype=np.int32
+                )
+            )
+            all_subtokens_mask.append(
+                np.array(self._maybe_clip(subtokens_mask, 0), dtype=bool)
+            )
 
             punct_labels.append(pad_id)
-            punct_all_labels.append(np.array(self._maybe_clip(punct_labels, pad_id), dtype=np.int32))
+            punct_all_labels.append(
+                np.array(self._maybe_clip(punct_labels, pad_id), dtype=np.int32)
+            )
             capit_labels.append(pad_id)
-            capit_all_labels.append(np.array(self._maybe_clip(capit_labels, pad_id), dtype=np.int32))
+            capit_all_labels.append(
+                np.array(self._maybe_clip(capit_labels, pad_id), dtype=np.int32)
+            )
             if preload_audios and audio_query:
                 if ASR_AVAILABLE:
-                    segment = AudioSegment.from_file(audio_query.strip(), target_sr=sample_rate)
+                    segment = AudioSegment.from_file(
+                        audio_query.strip(), target_sr=sample_rate
+                    )
                     all_audio_waveforms.append(segment.samples)
                     audio_lengths.append(segment.num_samples)
                 else:
                     raise ModuleNotFoundError(
-                        'Nemo ASR was not installed, see https://github.com/NVIDIA/NeMo#installation for installation instructions'
+                        "Nemo ASR was not installed, see https://github.com/NVIDIA/NeMo#installation for installation instructions"
                     )
 
             elif audio_query:
@@ -615,7 +652,7 @@ def _get_features(
     tokenizer: TokenizerSpec,
     punct_label_ids: Dict[str, int] = None,
     capit_label_ids: Dict[str, int] = None,
-    pad_label: str = 'O',
+    pad_label: str = "O",
     verbose: bool = True,
     n_jobs: Optional[int] = 0,
     progress_queue: Optional[mp.Queue] = None,
@@ -672,21 +709,31 @@ def _get_features(
     # Number of queries in split
     split_size = min(len(queries) // max(n_jobs, 1), MAX_NUM_QUERIES_IN_SPLIT)
     n_split = len(queries) // split_size
-    split_queries = [queries[split_size * i : split_size * (i + 1)] for i in range(n_split - 1)] + [
-        queries[split_size * (n_split - 1) :]
-    ]
+    split_queries = [
+        queries[split_size * i : split_size * (i + 1)] for i in range(n_split - 1)
+    ] + [queries[split_size * (n_split - 1) :]]
     split_punct_labels_lines = [
-        punct_label_lines[split_size * i : split_size * (i + 1)] for i in range(n_split - 1)
+        punct_label_lines[split_size * i : split_size * (i + 1)]
+        for i in range(n_split - 1)
     ] + [punct_label_lines[split_size * (n_split - 1) :]]
     split_capit_labels_lines = [
-        capit_label_lines[split_size * i : split_size * (i + 1)] for i in range(n_split - 1)
+        capit_label_lines[split_size * i : split_size * (i + 1)]
+        for i in range(n_split - 1)
     ] + [capit_label_lines[split_size * (n_split - 1) :]]
 
-    args = list(zip(split_queries, split_punct_labels_lines, split_capit_labels_lines, range(n_split)))
+    args = list(
+        zip(
+            split_queries,
+            split_punct_labels_lines,
+            split_capit_labels_lines,
+            range(n_split),
+        )
+    )
     if audio_queries:
-        split_audio_queries = [audio_queries[split_size * i : split_size * (i + 1)] for i in range(n_split - 1)] + [
-            audio_queries[split_size * (n_split - 1) :]
-        ]
+        split_audio_queries = [
+            audio_queries[split_size * i : split_size * (i + 1)]
+            for i in range(n_split - 1)
+        ] + [audio_queries[split_size * (n_split - 1) :]]
 
         args = list(
             zip(
@@ -706,7 +753,13 @@ def _get_features(
         with mp.Pool(n_jobs) as pool:
             result = pool.starmap(
                 TokenizeCreateMasksClipWorker(
-                    max_seq_length, tokenizer, punct_label_ids, capit_label_ids, pad_label, verbose, progress_queue,
+                    max_seq_length,
+                    tokenizer,
+                    punct_label_ids,
+                    capit_label_ids,
+                    pad_label,
+                    verbose,
+                    progress_queue,
                 ),
                 args,
             )
@@ -715,15 +768,27 @@ def _get_features(
         for x in args:
             result.append(
                 TokenizeCreateMasksClipWorker(
-                    max_seq_length, tokenizer, punct_label_ids, capit_label_ids, pad_label, verbose, progress_queue,
+                    max_seq_length,
+                    tokenizer,
+                    punct_label_ids,
+                    capit_label_ids,
+                    pad_label,
+                    verbose,
+                    progress_queue,
                 )(*x)
             )
     if create_progress_process:
         progress.finish()
 
-    input_ids, subtokens_mask, punct_labels, capit_labels, waveforms, audio_lengths, audio_filepaths = tuple(
-        list(itertools.chain(*e)) for e in zip(*result)
-    )
+    (
+        input_ids,
+        subtokens_mask,
+        punct_labels,
+        capit_labels,
+        waveforms,
+        audio_lengths,
+        audio_filepaths,
+    ) = tuple(list(itertools.chain(*e)) for e in zip(*result))
     if verbose:
         logging.info("Finished initial tokenization.")
         get_stats([len(inp) for inp in input_ids])
@@ -732,7 +797,9 @@ def _get_features(
             logging.info("*** Example ***")
             logging.info("i: %s" % i)
             logging.info("subtokens: %s" % " ".join(list(map(str, input_ids[i]))))
-            logging.info("subtokens_mask: %s" % " ".join(list(map(str, subtokens_mask[i]))))
+            logging.info(
+                "subtokens_mask: %s" % " ".join(list(map(str, subtokens_mask[i])))
+            )
             logging.info("punct_labels: %s" % " ".join(list(map(str, punct_labels[i]))))
             logging.info("capit_labels: %s" % " ".join(list(map(str, capit_labels[i]))))
 
@@ -819,7 +886,7 @@ def create_label_ids(unique_labels: Set[str], pad_label: str) -> Dict[str, int]:
 
 def load_label_ids(file_path: Union[str, os.PathLike]) -> Dict[str, int]:
     ids = {}
-    with open(file_path, encoding='utf_8') as f:
+    with open(file_path, encoding="utf_8") as f:
         for i, line in enumerate(f):
             ids[line.strip()] = i
     return ids
@@ -835,13 +902,16 @@ def save_label_ids(label_ids: Dict[str, int], file_path: Path) -> None:
         file_path: path to a file where labels will be saved
     """
     file_path.parent.mkdir(parents=True, exist_ok=True)
-    with file_path.open('w', encoding='utf_8', newline='\n') as out:
+    with file_path.open("w", encoding="utf_8", newline="\n") as out:
         labels, _ = zip(*sorted(label_ids.items(), key=lambda x: x[1]))
-        out.write('\n'.join(labels))
+        out.write("\n".join(labels))
 
 
 def raise_not_equal_labels_error(
-    first_labels: Dict[str, int], second_labels: Dict[str, int], first_labels_desc: str, second_labels_desc: str
+    first_labels: Dict[str, int],
+    second_labels: Dict[str, int],
+    first_labels_desc: str,
+    second_labels_desc: str,
 ) -> None:
     """
     A helper function for raising comprehensible error if labels from 2 sources are different.
@@ -861,10 +931,14 @@ def raise_not_equal_labels_error(
         first_labels_desc: a description of first labels
         second_labels_desc: a description of second labels
     """
-    missing_in_first = {k: second_labels[k] for k in set(second_labels) - set(first_labels)}
-    missing_in_second = {k: first_labels[k] for k in set(first_labels) - set(second_labels)}
+    missing_in_first = {
+        k: second_labels[k] for k in set(second_labels) - set(first_labels)
+    }
+    missing_in_second = {
+        k: first_labels[k] for k in set(first_labels) - set(second_labels)
+    }
     not_equal = {
-        k: {'FIRST LABELS': first_labels[k], 'SECOND LABELS': second_labels[k]}
+        k: {"FIRST LABELS": first_labels[k], "SECOND LABELS": second_labels[k]}
         for k in set(first_labels) & set(second_labels)
         if first_labels[k] != second_labels[k]
     }
@@ -890,7 +964,9 @@ def raise_not_equal_labels_error(
     raise ValueError(msg)
 
 
-def pad(vectors: List[np.ndarray], length: int, value: Union[int, float, bool]) -> np.ndarray:
+def pad(
+    vectors: List[np.ndarray], length: int, value: Union[int, float, bool]
+) -> np.ndarray:
     """
     Pad vectors to length ``length`` and then stack.
     Args:
@@ -904,7 +980,9 @@ def pad(vectors: List[np.ndarray], length: int, value: Union[int, float, bool]) 
     """
     result = []
     for v in vectors:
-        result.append(np.concatenate([v, np.full([length - v.shape[0]], value, dtype=v.dtype)]))
+        result.append(
+            np.concatenate([v, np.full([length - v.shape[0]], value, dtype=v.dtype)])
+        )
     return np.stack(result)
 
 
@@ -1009,27 +1087,27 @@ class BertPunctuationCapitalizationDataset(Dataset):
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        """Returns definitions of module output ports. """
+        """Returns definitions of module output ports."""
         if self.use_audio:
             return {
-                'input_ids': NeuralType(('B', 'T'), ChannelType()),
-                'segment_ids': NeuralType(('B', 'T'), ChannelType()),
-                'input_mask': NeuralType(('B', 'T'), MaskType()),
-                'subtokens_mask': NeuralType(('B', 'T'), MaskType()),
-                'loss_mask': NeuralType(('B', 'T'), MaskType()),
-                'punct_labels': NeuralType(('B', 'T'), LabelsType()),
-                'capit_labels': NeuralType(('B', 'T'), LabelsType()),
-                'features': NeuralType(('B', 'T'), AudioSignal()),
-                'features_length': NeuralType(('B', 'T'), LengthsType()),
+                "input_ids": NeuralType(("B", "T"), ChannelType()),
+                "segment_ids": NeuralType(("B", "T"), ChannelType()),
+                "input_mask": NeuralType(("B", "T"), MaskType()),
+                "subtokens_mask": NeuralType(("B", "T"), MaskType()),
+                "loss_mask": NeuralType(("B", "T"), MaskType()),
+                "punct_labels": NeuralType(("B", "T"), LabelsType()),
+                "capit_labels": NeuralType(("B", "T"), LabelsType()),
+                "features": NeuralType(("B", "T"), AudioSignal()),
+                "features_length": NeuralType(("B", "T"), LengthsType()),
             }
         return {
-            'input_ids': NeuralType(('B', 'T'), ChannelType()),
-            'segment_ids': NeuralType(('B', 'T'), ChannelType()),
-            'input_mask': NeuralType(('B', 'T'), MaskType()),
-            'subtokens_mask': NeuralType(('B', 'T'), MaskType()),
-            'loss_mask': NeuralType(('B', 'T'), MaskType()),
-            'punct_labels': NeuralType(('B', 'T'), LabelsType()),
-            'capit_labels': NeuralType(('B', 'T'), LabelsType()),
+            "input_ids": NeuralType(("B", "T"), ChannelType()),
+            "segment_ids": NeuralType(("B", "T"), ChannelType()),
+            "input_mask": NeuralType(("B", "T"), MaskType()),
+            "subtokens_mask": NeuralType(("B", "T"), MaskType()),
+            "loss_mask": NeuralType(("B", "T"), MaskType()),
+            "punct_labels": NeuralType(("B", "T"), LabelsType()),
+            "capit_labels": NeuralType(("B", "T"), LabelsType()),
         }
 
     def __init__(
@@ -1040,7 +1118,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
         tokenizer: TokenizerSpec,
         num_samples: int = -1,
         tokens_in_batch: int = 5000,
-        pad_label: str = 'O',
+        pad_label: str = "O",
         punct_label_ids: Optional[Union[Dict[str, int], DictConfig]] = None,
         capit_label_ids: Optional[Union[Dict[str, int], DictConfig]] = None,
         ignore_extra_tokens: bool = False,
@@ -1065,7 +1143,7 @@ class BertPunctuationCapitalizationDataset(Dataset):
         use_bucketing: Optional[bool] = True,
         preload_audios: Optional[bool] = True,
     ) -> None:
-        """ Initializes BertPunctuationCapitalizationDataset. """
+        """Initializes BertPunctuationCapitalizationDataset."""
         if isinstance(punct_label_ids, DictConfig):
             punct_label_ids = OmegaConf.to_container(punct_label_ids)
         if isinstance(capit_label_ids, DictConfig):
@@ -1092,7 +1170,10 @@ class BertPunctuationCapitalizationDataset(Dataset):
         if capit_label_vocab_file is not None:
             capit_label_vocab_file = Path(capit_label_vocab_file).expanduser()
             capit_label_ids = load_label_ids(capit_label_vocab_file)
-        self.text_file, self.labels_file = Path(text_file).expanduser(), Path(labels_file).expanduser()
+        self.text_file, self.labels_file = (
+            Path(text_file).expanduser(),
+            Path(labels_file).expanduser(),
+        )
         if label_info_save_dir is None:
             self.label_info_save_dir = self.text_file.parent
         else:
@@ -1121,7 +1202,8 @@ class BertPunctuationCapitalizationDataset(Dataset):
         if master_device and not (self.features_pkl.is_file() and use_cache):
             if verbose:
                 logging.info(
-                    f'Processing {self.text_file}' + f' {self.audio_file if self.audio_file else ""} '.rstrip()
+                    f"Processing {self.text_file}"
+                    + f' {self.audio_file if self.audio_file else ""} '.rstrip()
                 )
 
             (
@@ -1131,17 +1213,27 @@ class BertPunctuationCapitalizationDataset(Dataset):
                 punct_unique_labels,
                 capit_unique_labels,
                 audio_lines,
-            ) = self._read_dataset(self.text_file, self.labels_file, num_samples, self.audio_file)
+            ) = self._read_dataset(
+                self.text_file, self.labels_file, num_samples, self.audio_file
+            )
 
             if punct_label_ids:
                 self._check_label_ids_vs_unique_labels(
-                    punct_label_ids, punct_unique_labels, 'punct', 'punctuation', self.labels_file
+                    punct_label_ids,
+                    punct_unique_labels,
+                    "punct",
+                    "punctuation",
+                    self.labels_file,
                 )
             else:
                 punct_label_ids = create_label_ids(punct_unique_labels, self.pad_label)
             if capit_label_ids:
                 self._check_label_ids_vs_unique_labels(
-                    capit_label_ids, capit_unique_labels, 'capit', 'capitalization', self.labels_file
+                    capit_label_ids,
+                    capit_unique_labels,
+                    "capit",
+                    "capitalization",
+                    self.labels_file,
                 )
             else:
                 capit_label_ids = create_label_ids(capit_unique_labels, self.pad_label)
@@ -1166,15 +1258,19 @@ class BertPunctuationCapitalizationDataset(Dataset):
             # save features to a temp file first to make sure that non-master processes don't start reading the file
             # until the master process is done with writing
             ofd, tmp_features_pkl = tempfile.mkstemp(
-                suffix='.pkl', prefix=os.path.basename(self.features_pkl), dir=os.path.dirname(self.features_pkl)
+                suffix=".pkl",
+                prefix=os.path.basename(self.features_pkl),
+                dir=os.path.dirname(self.features_pkl),
             )
-            with os.fdopen(ofd, 'wb') as temp_f:
-                pickle.dump(tuple(list(features) + [punct_label_ids, capit_label_ids]), temp_f)
+            with os.fdopen(ofd, "wb") as temp_f:
+                pickle.dump(
+                    tuple(list(features) + [punct_label_ids, capit_label_ids]), temp_f
+                )
 
             os.rename(tmp_features_pkl, self.features_pkl)
 
             if self.verbose:
-                logging.info(f'Features saved to {self.features_pkl}')
+                logging.info(f"Features saved to {self.features_pkl}")
 
         # wait until the master process writes to the processed data files
         if not master_device:
@@ -1182,16 +1278,20 @@ class BertPunctuationCapitalizationDataset(Dataset):
                 sleep(10)
 
         if features is None:
-            features = pickle.load(self.features_pkl.open('rb'))
+            features = pickle.load(self.features_pkl.open("rb"))
             li = features[-2:]
             self._check_label_ids_loaded_from_pkl(
-                punct_label_ids, capit_label_ids, *li, punct_label_vocab_file, capit_label_vocab_file
+                punct_label_ids,
+                capit_label_ids,
+                *li,
+                punct_label_vocab_file,
+                capit_label_vocab_file,
             )
             punct_label_ids, capit_label_ids = li[-2], li[-1]
             if tokenization_progress_queue is not None:
                 tokenization_progress_queue.put(len(features[0]))
             if self.verbose:
-                logging.info(f'Features restored from {self.features_pkl}')
+                logging.info(f"Features restored from {self.features_pkl}")
             features = features[:-2]
 
         (
@@ -1205,10 +1305,16 @@ class BertPunctuationCapitalizationDataset(Dataset):
         ) = features
         self.punct_label_ids, self.capit_label_ids = punct_label_ids, capit_label_ids
         self.number_of_batches_is_multiple_of = number_of_batches_is_multiple_of
-        self.batch_shuffling_random_state = np.random.RandomState(batch_shuffling_random_seed)
+        self.batch_shuffling_random_state = np.random.RandomState(
+            batch_shuffling_random_seed
+        )
         if get_label_frequencies:
-            self.punct_label_frequencies = self._calculate_and_save_label_frequencies(self.punct_labels, 'punct')
-            self.capit_label_frequencies = self._calculate_and_save_label_frequencies(self.capit_labels, 'capit')
+            self.punct_label_frequencies = self._calculate_and_save_label_frequencies(
+                self.punct_labels, "punct"
+            )
+            self.capit_label_frequencies = self._calculate_and_save_label_frequencies(
+                self.capit_labels, "capit"
+            )
         if self.use_bucketing:
             self.batches = self._pack_into_batches(
                 input_ids=self.input_ids,
@@ -1243,12 +1349,15 @@ class BertPunctuationCapitalizationDataset(Dataset):
         else:
             cache_dir = Path(cache_dir).expanduser()
         vocab_size = getattr(self.tokenizer, "vocab_size", 0)
-        features_pkl = cache_dir / "cached.{}.{}.max_seq_length{}.vocab{}.{}.punctuation_capitalization.pkl".format(
-            '__' + text_file.name + '__' + labels_file.name + '__',
-            self.tokenizer.name,
-            max_seq_length,
-            vocab_size,
-            f'num_samples{num_samples}' if num_samples > 0 else 'all_samples',
+        features_pkl = (
+            cache_dir
+            / "cached.{}.{}.max_seq_length{}.vocab{}.{}.punctuation_capitalization.pkl".format(
+                "__" + text_file.name + "__" + labels_file.name + "__",
+                self.tokenizer.name,
+                max_seq_length,
+                vocab_size,
+                f"num_samples{num_samples}" if num_samples > 0 else "all_samples",
+            )
         )
         return features_pkl
 
@@ -1267,7 +1376,11 @@ class BertPunctuationCapitalizationDataset(Dataset):
         audio_file: Optional[Union[str, os.PathLike]] = None,
         sample_rate: Optional[int] = None,
     ) -> None:
-        if torch.distributed.is_initialized() and torch.distributed.get_world_size() > 1 and not use_cache:
+        if (
+            torch.distributed.is_initialized()
+            and torch.distributed.get_world_size() > 1
+            and not use_cache
+        ):
             raise ValueError(
                 f"If you already created process group and the world size is greater than 1, then `use_cache` "
                 f"parameter has to be `True`. Only master process prepares features and if `use_cache=False`, then "
@@ -1277,18 +1390,20 @@ class BertPunctuationCapitalizationDataset(Dataset):
             )
         if not (os.path.exists(text_file) and os.path.exists(labels_file)):
             raise FileNotFoundError(
-                f'{text_file} or {labels_file} not found. The data should be split into 2 files: text.txt and '
-                f'labels.txt. Each line of the text.txt file contains text sequences, where words are separated with '
-                f'spaces. The labels.txt file contains corresponding labels for each word in text.txt, the labels are '
-                f'separated with spaces. Each line of the files should follow the format:\n'
-                f'   [WORD] [SPACE] [WORD] [SPACE] [WORD] (for text.txt) and '
-                f'   [LABEL] [SPACE] [LABEL] [SPACE] [LABEL] (for labels.txt).'
+                f"{text_file} or {labels_file} not found. The data should be split into 2 files: text.txt and "
+                f"labels.txt. Each line of the text.txt file contains text sequences, where words are separated with "
+                f"spaces. The labels.txt file contains corresponding labels for each word in text.txt, the labels are "
+                f"separated with spaces. Each line of the files should follow the format:\n"
+                f"   [WORD] [SPACE] [WORD] [SPACE] [WORD] (for text.txt) and "
+                f"   [LABEL] [SPACE] [LABEL] [SPACE] [LABEL] (for labels.txt)."
             )
         if not use_audio and audio_file:
-            raise ValueError(f"Audio file {audio_file} was passed but use_audio was set to False")
+            raise ValueError(
+                f"Audio file {audio_file} was passed but use_audio was set to False"
+            )
         if use_audio and audio_file and not os.path.exists(audio_file):
             raise FileNotFoundError(
-                f'use_audio was set to True but {audio_file} not found. Audio data should be listed in .txt file with one path per line'
+                f"use_audio was set to True but {audio_file} not found. Audio data should be listed in .txt file with one path per line"
             )
         if punct_label_ids is not None and punct_label_vocab_file is not None:
             punct_label_vocab_file = Path(punct_label_vocab_file).expanduser()
@@ -1297,10 +1412,10 @@ class BertPunctuationCapitalizationDataset(Dataset):
                 raise_not_equal_labels_error(
                     first_labels=punct_label_ids,
                     second_labels=file_punct_label_ids,
-                    first_labels_desc='Punctuation labels passed to the `PunctuationCapitalizationDataset` '
-                    'constructor in parameter `punct_label_ids`',
-                    second_labels_desc=f'Punctuation labels loaded from file {punct_label_vocab_file} path to which '
-                    f'is passed in parameter `punct_label_vocab_file`',
+                    first_labels_desc="Punctuation labels passed to the `PunctuationCapitalizationDataset` "
+                    "constructor in parameter `punct_label_ids`",
+                    second_labels_desc=f"Punctuation labels loaded from file {punct_label_vocab_file} path to which "
+                    f"is passed in parameter `punct_label_vocab_file`",
                 )
         if capit_label_ids is not None and capit_label_vocab_file is not None:
             capit_vocab_file = Path(capit_label_vocab_file).expanduser()
@@ -1309,27 +1424,31 @@ class BertPunctuationCapitalizationDataset(Dataset):
                 raise_not_equal_labels_error(
                     first_labels=capit_label_ids,
                     second_labels=file_capit_label_ids,
-                    first_labels_desc='Capitalization labels passed to the `PunctuationCapitalizationDataset` '
-                    'constructor in parameter `capit_label_ids`',
-                    second_labels_desc=f'Capitalization labels loaded from file {capit_label_vocab_file} path to '
-                    f'which is passed in parameter `capit_label_vocab_file`',
+                    first_labels_desc="Capitalization labels passed to the `PunctuationCapitalizationDataset` "
+                    "constructor in parameter `capit_label_ids`",
+                    second_labels_desc=f"Capitalization labels loaded from file {capit_label_vocab_file} path to "
+                    f"which is passed in parameter `capit_label_vocab_file`",
                 )
         if num_samples == 0:
             raise ValueError(
                 f"Parameter `num_samples` has to be positive or negative whereas `num_samples={num_samples}`. "
                 f"Negative `num_samples` is for using all samples in a dataset."
             )
-        if number_of_batches_is_multiple_of < 1 or not isinstance(number_of_batches_is_multiple_of, int):
+        if number_of_batches_is_multiple_of < 1 or not isinstance(
+            number_of_batches_is_multiple_of, int
+        ):
             raise ValueError(
                 f"Parameter `number_of_batches_is_multiple_of` has to be positive integer whereas "
                 f"{number_of_batches_is_multiple_of} is given."
             )
 
         if use_audio and not isinstance(sample_rate, int):
-            raise TypeError(f'use_audio was set to True but sample_rate was not set')
+            raise TypeError(f"use_audio was set to True but sample_rate was not set")
 
         if use_audio and sample_rate < 1:
-            raise ValueError(f'sample_rate set to {sample_rate} but it cannot be less than 1')
+            raise ValueError(
+                f"sample_rate set to {sample_rate} but it cannot be less than 1"
+            )
 
     def _check_label_ids_loaded_from_pkl(
         self,
@@ -1350,9 +1469,11 @@ class BertPunctuationCapitalizationDataset(Dataset):
                 raise_not_equal_labels_error(
                     first_labels=parameter_punct_label_ids,
                     second_labels=pkl_punct_label_ids,
-                    first_labels_desc="Punctuation labels passed in parameter `punct_label_ids`"
-                    if punct_label_vocab_file is None
-                    else f"Punctuation labels loaded from file {punct_label_vocab_file}",
+                    first_labels_desc=(
+                        "Punctuation labels passed in parameter `punct_label_ids`"
+                        if punct_label_vocab_file is None
+                        else f"Punctuation labels loaded from file {punct_label_vocab_file}"
+                    ),
                     second_labels_desc=f"Punctuation label ids loaded from features file {self.features_pkl}",
                 )
         if not isinstance(pkl_capit_label_ids, dict):
@@ -1365,15 +1486,21 @@ class BertPunctuationCapitalizationDataset(Dataset):
                 raise_not_equal_labels_error(
                     first_labels=parameter_capit_label_ids,
                     second_labels=pkl_capit_label_ids,
-                    first_labels_desc="Capitalization labels passed in parameter `capit_label_ids`"
-                    if capit_label_vocab_file is None
-                    else f"Capitalization labels loaded from file {capit_label_vocab_file}",
+                    first_labels_desc=(
+                        "Capitalization labels passed in parameter `capit_label_ids`"
+                        if capit_label_vocab_file is None
+                        else f"Capitalization labels loaded from file {capit_label_vocab_file}"
+                    ),
                     second_labels_desc=f"Capitalization label ids loaded from features file {self.features_pkl}",
                 )
 
     @staticmethod
     def _check_label_ids_vs_unique_labels(
-        label_ids: Dict[str, int], unique_labels: Set[str], label_type: str, task: str, label_file: Path
+        label_ids: Dict[str, int],
+        unique_labels: Set[str],
+        label_type: str,
+        task: str,
+        label_file: Path,
     ) -> None:
         if unique_labels - set(label_ids):
             not_present_labels = list(unique_labels - set(label_ids))
@@ -1384,13 +1511,19 @@ class BertPunctuationCapitalizationDataset(Dataset):
 
     @staticmethod
     def _read_dataset(
-        text_file: Path, labels_file: Path, num_samples: int, audio_file: Optional[Path] = None
-    ) -> Union[Tuple[Any, Any, Any, Set[Any], Set[Any], Any], Tuple[Any, Any, Any, Set[Any], Set[Any]]]:
-        with open(text_file, 'r', encoding='utf_8') as f:
+        text_file: Path,
+        labels_file: Path,
+        num_samples: int,
+        audio_file: Optional[Path] = None,
+    ) -> Union[
+        Tuple[Any, Any, Any, Set[Any], Set[Any], Any],
+        Tuple[Any, Any, Any, Set[Any], Set[Any]],
+    ]:
+        with open(text_file, "r", encoding="utf_8") as f:
             text_lines = f.readlines()
         punct_unique_labels, capit_unique_labels = set(), set()
         punct_labels_lines, capit_labels_lines = [], []
-        with labels_file.open(encoding='utf_8') as f:
+        with labels_file.open(encoding="utf_8") as f:
             for i, line in enumerate(f):
                 pairs = line.split()
                 if not all([len(p) == 2 for p in pairs]):
@@ -1416,22 +1549,28 @@ class BertPunctuationCapitalizationDataset(Dataset):
             )
 
         if audio_file:
-            with open(audio_file, 'r') as f:
+            with open(audio_file, "r") as f:
                 audio_lines = f.readlines()
             if len(audio_lines) != len(text_lines):
                 raise ValueError(
-                    f'Number of lines in {audio_file} equals {len(audio_lines)} which is not equal to '
-                    f'number of lines in {text_file} which is {len(text_lines)}'
+                    f"Number of lines in {audio_file} equals {len(audio_lines)} which is not equal to "
+                    f"number of lines in {text_file} which is {len(text_lines)}"
                 )
-            dataset = list(zip(text_lines, punct_labels_lines, capit_labels_lines, audio_lines))
+            dataset = list(
+                zip(text_lines, punct_labels_lines, capit_labels_lines, audio_lines)
+            )
         else:
             dataset = list(zip(text_lines, punct_labels_lines, capit_labels_lines))
         if len(dataset) == 0:
-            raise ValueError(f"Dataset loaded from files {text_file} and {labels_file} is empty.")
+            raise ValueError(
+                f"Dataset loaded from files {text_file} and {labels_file} is empty."
+            )
         if num_samples > 0:
             dataset = dataset[:num_samples]
         if audio_file:
-            text_lines, punct_labels_lines, capit_labels_lines, audio_lines = zip(*dataset)
+            text_lines, punct_labels_lines, capit_labels_lines, audio_lines = zip(
+                *dataset
+            )
             return (
                 text_lines,
                 punct_labels_lines,
@@ -1442,11 +1581,23 @@ class BertPunctuationCapitalizationDataset(Dataset):
             )
         else:
             text_lines, punct_labels_lines, capit_labels_lines = zip(*dataset)
-            return text_lines, punct_labels_lines, capit_labels_lines, punct_unique_labels, capit_unique_labels, None
+            return (
+                text_lines,
+                punct_labels_lines,
+                capit_labels_lines,
+                punct_unique_labels,
+                capit_unique_labels,
+                None,
+            )
 
     @staticmethod
-    def calc_batch_seq_length(queries: List[np.ndarray], length_is_multiple_of: int) -> int:
-        return ceil(max([len(elem) for elem in queries]) / length_is_multiple_of) * length_is_multiple_of
+    def calc_batch_seq_length(
+        queries: List[np.ndarray], length_is_multiple_of: int
+    ) -> int:
+        return (
+            ceil(max([len(elem) for elem in queries]) / length_is_multiple_of)
+            * length_is_multiple_of
+        )
 
     def _adjust_number_of_batches(
         self,
@@ -1485,7 +1636,8 @@ class BertPunctuationCapitalizationDataset(Dataset):
         batch_beginnings, batch_sizes = batch_beginnings.copy(), batch_sizes.copy()
         batch_seq_lengths = batch_seq_lengths.copy()
         num_missing_batches = (
-            self.number_of_batches_is_multiple_of - len(batch_sizes) % self.number_of_batches_is_multiple_of
+            self.number_of_batches_is_multiple_of
+            - len(batch_sizes) % self.number_of_batches_is_multiple_of
         )
         if num_missing_batches == 0:
             return batch_beginnings, batch_sizes, batch_seq_lengths
@@ -1507,34 +1659,50 @@ class BertPunctuationCapitalizationDataset(Dataset):
             # batches which size is not multiple of 8 can be reduced by 1.
             original_batch_index = old_num_batches - 1
             while original_batch_index >= 0 and num_cut < num_missing_batches:
-                bs, bb = batch_sizes[original_batch_index], batch_beginnings[original_batch_index]
+                bs, bb = (
+                    batch_sizes[original_batch_index],
+                    batch_beginnings[original_batch_index],
+                )
                 rb = 0  # an index of sliced first element of sliced batch in original batch (relative beginning)
                 if rb < bs - ss:
                     while rb < bs - ss and num_cut < num_missing_batches:
                         batch_sizes.append(ss)
                         batch_beginnings.append(bb + rb)
                         batch_seq_lengths.append(
-                            self.calc_batch_seq_length(input_ids[bb + rb : bb + rb + ss], length_is_multiple_of=8)
+                            self.calc_batch_seq_length(
+                                input_ids[bb + rb : bb + rb + ss],
+                                length_is_multiple_of=8,
+                            )
                         )
                         rb += ss
                         num_cut += 1
                     assert len(input_ids[bb + rb : bb + bs]) > 0
                     batch_sizes[original_batch_index] = bs - rb
                     batch_beginnings[original_batch_index] = bb + rb
-                    batch_seq_lengths[original_batch_index] = self.calc_batch_seq_length(
-                        input_ids[bb + rb : bb + bs], length_is_multiple_of=8
+                    batch_seq_lengths[original_batch_index] = (
+                        self.calc_batch_seq_length(
+                            input_ids[bb + rb : bb + bs], length_is_multiple_of=8
+                        )
                     )
                 original_batch_index -= 1
             # Keeping order of batches.
             batch_beginnings, batch_sizes, batch_seq_lengths = map(
-                list, zip(*sorted(zip(batch_beginnings, batch_sizes, batch_seq_lengths), key=lambda x: x[0]))
+                list,
+                zip(
+                    *sorted(
+                        zip(batch_beginnings, batch_sizes, batch_seq_lengths),
+                        key=lambda x: x[0],
+                    )
+                ),
             )
         assert len(batch_beginnings) % self.number_of_batches_is_multiple_of == 0
         assert len(batch_sizes) % self.number_of_batches_is_multiple_of == 0
         assert len(batch_seq_lengths) % self.number_of_batches_is_multiple_of == 0
         return batch_beginnings, batch_sizes, batch_seq_lengths
 
-    def _mark_up_batches(self, input_ids: List[np.ndarray]) -> Tuple[List[int], List[int], List[int]]:
+    def _mark_up_batches(
+        self, input_ids: List[np.ndarray]
+    ) -> Tuple[List[int], List[int], List[int]]:
         """
         Computes indices of first samples in batch, batch sizes, seq lengths for batches. ``input_ids`` has to be
         sorted by number of tokens in ascending order.
@@ -1560,7 +1728,12 @@ class BertPunctuationCapitalizationDataset(Dataset):
         current_max_length = 0
         start = 0
         if self.batch_mark_up_progress_queue is None:
-            inp_iterator = tqdm(enumerate(input_ids), total=len(input_ids), desc="Batch mark up", unit="query")
+            inp_iterator = tqdm(
+                enumerate(input_ids),
+                total=len(input_ids),
+                desc="Batch mark up",
+                unit="query",
+            )
         else:
             inp_iterator = enumerate(input_ids)
             progress_made = 0
@@ -1586,33 +1759,46 @@ class BertPunctuationCapitalizationDataset(Dataset):
                         start = i
                         current_max_length = ceil(len(inp) / 8) * 8
                         continue
-                seq_length = self.calc_batch_seq_length(input_ids[start : start + batch_size], length_is_multiple_of=8)
+                seq_length = self.calc_batch_seq_length(
+                    input_ids[start : start + batch_size], length_is_multiple_of=8
+                )
                 batch_beginnings.append(start)
                 batch_sizes.append(batch_size)
                 batch_seq_lengths.append(seq_length)
                 start += batch_size
-                current_max_length = self.calc_batch_seq_length(input_ids[start : i + 1], length_is_multiple_of=8)
+                current_max_length = self.calc_batch_seq_length(
+                    input_ids[start : i + 1], length_is_multiple_of=8
+                )
             if self.batch_mark_up_progress_queue is not None:
                 progress_made += 1
                 if progress_made >= BATCH_MARK_UP_PROGRESS_REPORT_PERIOD:
                     self.batch_mark_up_progress_queue.put(progress_made)
                     progress_made = 0
         if start < len(input_ids):
-            seq_length = self.calc_batch_seq_length(input_ids[start:], length_is_multiple_of=8)
+            seq_length = self.calc_batch_seq_length(
+                input_ids[start:], length_is_multiple_of=8
+            )
             batch_beginnings.append(start)
             batch_sizes.append(len(input_ids) - start)
             batch_seq_lengths.append(seq_length)
             if self.batch_mark_up_progress_queue is not None:
                 self.batch_mark_up_progress_queue.put(progress_made)
         if len(batch_beginnings) % self.number_of_batches_is_multiple_of:
-            batch_beginnings, batch_sizes, batch_seq_lengths = self._adjust_number_of_batches(
-                input_ids, batch_beginnings, batch_sizes, batch_seq_lengths
+            batch_beginnings, batch_sizes, batch_seq_lengths = (
+                self._adjust_number_of_batches(
+                    input_ids, batch_beginnings, batch_sizes, batch_seq_lengths
+                )
             )
         assert sum(batch_sizes) == len(input_ids)
         for i in range(len(batch_beginnings) - 1):
             assert batch_beginnings[i] + batch_sizes[i] == batch_beginnings[i + 1]
             assert batch_seq_lengths[i] >= max(
-                [len(inp) for inp in input_ids[batch_beginnings[i] : batch_beginnings[i] + batch_sizes[i]]]
+                [
+                    len(inp)
+                    for inp in input_ids[
+                        batch_beginnings[i] : batch_beginnings[i] + batch_sizes[i]
+                    ]
+                ]
             )
         return batch_beginnings, batch_sizes, batch_seq_lengths
 
@@ -1679,10 +1865,10 @@ class BertPunctuationCapitalizationDataset(Dataset):
                 "capit_labels": item[3].astype(np.int64),
             }
             if self.use_audio and self.preload_audios:
-                batch['features'] = item[4].astype(np.float64)
-                batch['features_length'] = item[5]
+                batch["features"] = item[4].astype(np.float64)
+                batch["features_length"] = item[5]
             elif self.use_audio and not self.preload_audios:
-                batch['audio_filepaths'] = item[6]
+                batch["audio_filepaths"] = item[6]
             batches.append(batch)
         return batches
 
@@ -1755,10 +1941,18 @@ class BertPunctuationCapitalizationDataset(Dataset):
 
         dim_sort = 4 if self.use_audio and self.preload_audios else 0
 
-        input_ids, subtokens_mask, punct_labels, capit_labels, waveforms, audio_lengths, audio_filepaths = zip(
-            *sorted(zipped, key=lambda x: x[dim_sort].shape[0])
+        (
+            input_ids,
+            subtokens_mask,
+            punct_labels,
+            capit_labels,
+            waveforms,
+            audio_lengths,
+            audio_filepaths,
+        ) = zip(*sorted(zipped, key=lambda x: x[dim_sort].shape[0]))
+        batch_beginnings, batch_sizes, batch_seq_lengths = self._mark_up_batches(
+            input_ids
         )
-        batch_beginnings, batch_sizes, batch_seq_lengths = self._mark_up_batches(input_ids)
         batches = []
         if self.batch_building_progress_queue is None:
             inp_iterator = tqdm(
@@ -1772,39 +1966,51 @@ class BertPunctuationCapitalizationDataset(Dataset):
             inp_iterator = zip(batch_beginnings, batch_sizes, batch_seq_lengths)
             progress_made = 0
         for start, size, length in inp_iterator:
-            batch_input_ids = pad(input_ids[start : start + size], length, self.tokenizer.pad_id)
-            batch_subtokens_mask = pad(subtokens_mask[start : start + size], length, False)
+            batch_input_ids = pad(
+                input_ids[start : start + size], length, self.tokenizer.pad_id
+            )
+            batch_subtokens_mask = pad(
+                subtokens_mask[start : start + size], length, False
+            )
             batch = {
                 "input_ids": batch_input_ids,
                 "subtokens_mask": batch_subtokens_mask,
                 "punct_labels": pad(
-                    punct_labels[start : start + size], length, self.punct_label_ids[self.pad_label]
+                    punct_labels[start : start + size],
+                    length,
+                    self.punct_label_ids[self.pad_label],
                 ).astype(np.int64),
                 "capit_labels": pad(
-                    capit_labels[start : start + size], length, self.capit_label_ids[self.pad_label]
+                    capit_labels[start : start + size],
+                    length,
+                    self.capit_label_ids[self.pad_label],
                 ).astype(np.int64),
             }
             if self.use_audio and self.preload_audios:
-                batch['features'] = pad(
-                    waveforms[start : start + size], max(audio_lengths[start : start + size]), 0.0
+                batch["features"] = pad(
+                    waveforms[start : start + size],
+                    max(audio_lengths[start : start + size]),
+                    0.0,
                 ).astype(np.float64)
-                batch['features_length'] = audio_lengths[start : start + size]
+                batch["features_length"] = audio_lengths[start : start + size]
             elif self.use_audio and not self.preload_audios:
-                batch['audio_filepaths'] = audio_filepaths[start : start + size]
+                batch["audio_filepaths"] = audio_filepaths[start : start + size]
 
             if self.add_masks_and_segment_ids_to_batch:
-                batch_segment_ids, batch_input_mask, batch_loss_mask = create_masks_and_segment_ids(
-                    batch_input_ids,
-                    batch_subtokens_mask,
-                    self.tokenizer.pad_id,
-                    self.tokenizer.cls_id,
-                    self.tokenizer.sep_id,
-                    self.ignore_start_end,
-                    self.ignore_extra_tokens,
+                batch_segment_ids, batch_input_mask, batch_loss_mask = (
+                    create_masks_and_segment_ids(
+                        batch_input_ids,
+                        batch_subtokens_mask,
+                        self.tokenizer.pad_id,
+                        self.tokenizer.cls_id,
+                        self.tokenizer.sep_id,
+                        self.ignore_start_end,
+                        self.ignore_extra_tokens,
+                    )
                 )
-                batch['segment_ids'] = batch_segment_ids
-                batch['input_mask'] = batch_input_mask
-                batch['loss_mask'] = batch_loss_mask
+                batch["segment_ids"] = batch_segment_ids
+                batch["input_mask"] = batch_input_mask
+                batch["loss_mask"] = batch_loss_mask
             batches.append(batch)
             if self.batch_building_progress_queue is not None:
                 progress_made += size
@@ -1831,14 +2037,16 @@ class BertPunctuationCapitalizationDataset(Dataset):
             self.audio_filepaths,
         )
 
-    def _calculate_and_save_label_frequencies(self, all_labels: List[np.ndarray], name: str) -> Dict[str, float]:
+    def _calculate_and_save_label_frequencies(
+        self, all_labels: List[np.ndarray], name: str
+    ) -> Dict[str, float]:
         """Calculates and saves labels frequencies in :attr:`label_info_save_dir`."""
         merged_labels = itertools.chain.from_iterable(all_labels)
         if self.verbose:
-            logging.info('Three most popular labels')
+            logging.info("Three most popular labels")
         self.label_info_save_dir.mkdir(parents=True, exist_ok=True)
         _, label_frequencies, _ = get_label_stats(
-            merged_labels, str(self.label_info_save_dir / f'label_count_{name}.tsv')
+            merged_labels, str(self.label_info_save_dir / f"label_count_{name}.tsv")
         )
         return label_frequencies
 
@@ -1873,7 +2081,9 @@ class BertPunctuationCapitalizationDataset(Dataset):
     def __len__(self) -> int:
         return len(self.batches)
 
-    def collate_fn(self, batches: List[Dict[str, np.ndarray]]) -> Dict[str, torch.Tensor]:
+    def collate_fn(
+        self, batches: List[Dict[str, np.ndarray]]
+    ) -> Dict[str, torch.Tensor]:
         """
         If ``self.use_bucketing`` set to ``True`` returns zeroth batch from ``batches`` list passed for collating and casts ``'segment_ids'``, ``'punct_labels'``,
         ``'capit_labels'`` to types supported by
@@ -1902,63 +2112,100 @@ class BertPunctuationCapitalizationDataset(Dataset):
               - ``'features_length'`` (:obj:`torch.Tensor`): :obj:`torch.long` tensor.
         """
         if self.use_bucketing:
-            batch = {k: torch.as_tensor(v) for k, v in batches[0].items() if k != 'audio_filepaths'}
-            batch['segment_ids'] = batch['segment_ids'].int()
-            batch['punct_labels'] = batch['punct_labels'].long()
-            batch['capit_labels'] = batch['capit_labels'].long()
+            batch = {
+                k: torch.as_tensor(v)
+                for k, v in batches[0].items()
+                if k != "audio_filepaths"
+            }
+            batch["segment_ids"] = batch["segment_ids"].int()
+            batch["punct_labels"] = batch["punct_labels"].long()
+            batch["capit_labels"] = batch["capit_labels"].long()
             if self.use_audio and self.preload_audios:
-                batch['features'] = batch['features'].to(torch.float32)
+                batch["features"] = batch["features"].to(torch.float32)
             return batch
         else:
             for batch in batches:
-                batch_segment_ids, batch_input_mask, batch_loss_mask = create_masks_and_segment_ids(
-                    batch['input_ids'],
-                    batch['subtokens_mask'],
-                    self.tokenizer.pad_id,
-                    self.tokenizer.cls_id,
-                    self.tokenizer.sep_id,
-                    self.ignore_start_end,
-                    self.ignore_extra_tokens,
+                batch_segment_ids, batch_input_mask, batch_loss_mask = (
+                    create_masks_and_segment_ids(
+                        batch["input_ids"],
+                        batch["subtokens_mask"],
+                        self.tokenizer.pad_id,
+                        self.tokenizer.cls_id,
+                        self.tokenizer.sep_id,
+                        self.ignore_start_end,
+                        self.ignore_extra_tokens,
+                    )
                 )
-                batch['segment_ids'] = torch.as_tensor(batch_segment_ids, dtype=torch.int)
-                batch['input_mask'] = torch.as_tensor(batch_input_mask)
-                batch['loss_mask'] = torch.as_tensor(batch_loss_mask)
-                batch['input_ids'] = torch.as_tensor(batch['input_ids'], dtype=torch.int)
-                batch['subtokens_mask'] = torch.as_tensor(batch['subtokens_mask'])
-                batch['punct_labels'] = torch.as_tensor(batch['punct_labels'], dtype=torch.long)
-                batch['capit_labels'] = torch.as_tensor(batch['capit_labels'], dtype=torch.long)
-                if 'features' in batch:
-                    batch['features'] = torch.as_tensor(batch['features'], dtype=torch.float)
-                    batch['features_length'] = torch.as_tensor(batch['features_length'], dtype=torch.long)
+                batch["segment_ids"] = torch.as_tensor(
+                    batch_segment_ids, dtype=torch.int
+                )
+                batch["input_mask"] = torch.as_tensor(batch_input_mask)
+                batch["loss_mask"] = torch.as_tensor(batch_loss_mask)
+                batch["input_ids"] = torch.as_tensor(
+                    batch["input_ids"], dtype=torch.int
+                )
+                batch["subtokens_mask"] = torch.as_tensor(batch["subtokens_mask"])
+                batch["punct_labels"] = torch.as_tensor(
+                    batch["punct_labels"], dtype=torch.long
+                )
+                batch["capit_labels"] = torch.as_tensor(
+                    batch["capit_labels"], dtype=torch.long
+                )
+                if "features" in batch:
+                    batch["features"] = torch.as_tensor(
+                        batch["features"], dtype=torch.float
+                    )
+                    batch["features_length"] = torch.as_tensor(
+                        batch["features_length"], dtype=torch.long
+                    )
                 elif self.use_audio:
                     if ASR_AVAILABLE:
-                        waveform = AudioSegment.from_file(batch['audio_filepaths'], target_sr=self.sample_rate)
-                        batch['features'] = torch.as_tensor(waveform.samples, dtype=torch.float)
-                        batch['features_length'] = torch.as_tensor(waveform.num_samples, dtype=torch.long)
+                        waveform = AudioSegment.from_file(
+                            batch["audio_filepaths"], target_sr=self.sample_rate
+                        )
+                        batch["features"] = torch.as_tensor(
+                            waveform.samples, dtype=torch.float
+                        )
+                        batch["features_length"] = torch.as_tensor(
+                            waveform.num_samples, dtype=torch.long
+                        )
                     else:
                         raise ModuleNotFoundError(
-                            'Nemo ASR was not installed, see https://github.com/NVIDIA/NeMo#installation for installation instructions'
+                            "Nemo ASR was not installed, see https://github.com/NVIDIA/NeMo#installation for installation instructions"
                         )
 
-            segment_ids = pad_sequence([batch['segment_ids'] for batch in batches])
-            input_mask = pad_sequence([batch['input_mask'] for batch in batches])
-            loss_mask = pad_sequence([batch['loss_mask'] for batch in batches])
-            input_ids = pad_sequence([batch['input_ids'] for batch in batches], padding_value=self.tokenizer.pad_id)
-            subtokens_mask = pad_sequence([batch['subtokens_mask'] for batch in batches], padding_value=False)
-            punct_labels = pad_sequence([batch['punct_labels'] for batch in batches], padding_value=0)
-            capit_labels = pad_sequence([batch['capit_labels'] for batch in batches], padding_value=0)
-            features = pad_sequence([batch['features'] for batch in batches], padding_value=0.0)
-            features_length = torch.tensor([batch['features_length'] for batch in batches])
+            segment_ids = pad_sequence([batch["segment_ids"] for batch in batches])
+            input_mask = pad_sequence([batch["input_mask"] for batch in batches])
+            loss_mask = pad_sequence([batch["loss_mask"] for batch in batches])
+            input_ids = pad_sequence(
+                [batch["input_ids"] for batch in batches],
+                padding_value=self.tokenizer.pad_id,
+            )
+            subtokens_mask = pad_sequence(
+                [batch["subtokens_mask"] for batch in batches], padding_value=False
+            )
+            punct_labels = pad_sequence(
+                [batch["punct_labels"] for batch in batches], padding_value=0
+            )
+            capit_labels = pad_sequence(
+                [batch["capit_labels"] for batch in batches], padding_value=0
+            )
+            features = pad_sequence(
+                [batch["features"] for batch in batches], padding_value=0.0
+            )
+            features_length = torch.tensor(
+                [batch["features_length"] for batch in batches]
+            )
             return {
-                'input_ids': input_ids.T,
-                'subtokens_mask': subtokens_mask.T,
-                'punct_labels': punct_labels.T,
-                'capit_labels': capit_labels.T,
-                'features': features.T,
-                'features_length': features_length,
-                'segment_ids': segment_ids.T,
-                'input_mask': input_mask.T,
-                'loss_mask': loss_mask.T,
+                "input_ids": input_ids.T,
+                "subtokens_mask": subtokens_mask.T,
+                "punct_labels": punct_labels.T,
+                "capit_labels": capit_labels.T,
+                "features": features.T,
+                "features_length": features_length,
+                "segment_ids": segment_ids.T,
+                "input_mask": input_mask.T,
+                "loss_mask": loss_mask.T,
             }
 
     def __getitem__(self, idx: int) -> Dict[str, np.ndarray]:

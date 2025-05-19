@@ -92,8 +92,12 @@ class Llama33NemotronSuper49BConfig(Llama31Config70B, HeterogeneousTransformerCo
     num_attention_heads: int = 64
     num_layers: int = 80
     heterogeneous_layers_config_path: str = None
-    heterogeneous_layers_config_encoded_json: str = LLAMA_33_NEMOTRON_SUPER_49B_HETEROGENEOUS_CONFIG
-    transformer_layer_spec: Union[ModuleSpec, Callable[["GPTConfig"], ModuleSpec]] = heterogeneous_layer_spec
+    heterogeneous_layers_config_encoded_json: str = (
+        LLAMA_33_NEMOTRON_SUPER_49B_HETEROGENEOUS_CONFIG
+    )
+    transformer_layer_spec: Union[ModuleSpec, Callable[["GPTConfig"], ModuleSpec]] = (
+        heterogeneous_layer_spec
+    )
 
 
 @dataclass
@@ -104,8 +108,12 @@ class Llama31NemotronUltra253BConfig(Llama31Config405B, HeterogeneousTransformer
     num_attention_heads: int = 128
     num_layers: int = 162
     heterogeneous_layers_config_path: str = None
-    heterogeneous_layers_config_encoded_json: str = LLAMA_31_NEMOTRON_ULTRA_253B_HETEROGENEOUS_CONFIG
-    transformer_layer_spec: Union[ModuleSpec, Callable[["GPTConfig"], ModuleSpec]] = heterogeneous_layer_spec
+    heterogeneous_layers_config_encoded_json: str = (
+        LLAMA_31_NEMOTRON_ULTRA_253B_HETEROGENEOUS_CONFIG
+    )
+    transformer_layer_spec: Union[ModuleSpec, Callable[["GPTConfig"], ModuleSpec]] = (
+        heterogeneous_layer_spec
+    )
 
 
 class LlamaNemotronModel(GPTModel):
@@ -123,12 +131,17 @@ class LlamaNemotronModel(GPTModel):
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
         super().__init__(
-            config or Llama31NemotronNano8BConfig(), optim=optim, tokenizer=tokenizer, model_transform=model_transform
+            config or Llama31NemotronNano8BConfig(),
+            optim=optim,
+            tokenizer=tokenizer,
+            model_transform=model_transform,
         )
 
 
 @io.model_importer(LlamaNemotronModel, "hf")
-class HFLlamaNemotronImporter(io.ModelConnector["LlamaForCausalLM", LlamaNemotronModel]):
+class HFLlamaNemotronImporter(
+    io.ModelConnector["LlamaForCausalLM", LlamaNemotronModel]
+):
     """Importer for converting Hugging Face Llama-Nemotron models to NeMo format.
 
     This class handles the conversion of Hugging Face's LlamaForCausalLM models
@@ -155,18 +168,22 @@ class HFLlamaNemotronImporter(io.ModelConnector["LlamaForCausalLM", LlamaNemotro
         """
         from transformers import AutoModelForCausalLM, LlamaForCausalLM
 
-        logging.info(f'Load HF model {str(self)}')
-        if 'Nano' in str(self):
-            source = LlamaForCausalLM.from_pretrained(str(self), torch_dtype='auto')
+        logging.info(f"Load HF model {str(self)}")
+        if "Nano" in str(self):
+            source = LlamaForCausalLM.from_pretrained(str(self), torch_dtype="auto")
         else:
-            source = AutoModelForCausalLM.from_pretrained(str(self), trust_remote_code=True, torch_dtype='auto')
-        logging.info('Initialize NeMo Nemotron-Llama model')
+            source = AutoModelForCausalLM.from_pretrained(
+                str(self), trust_remote_code=True, torch_dtype="auto"
+            )
+        logging.info("Initialize NeMo Nemotron-Llama model")
         target = self.init()
         trainer = self.nemo_setup(target)
         self.convert_state(source, target)
         self.nemo_save(output_path, trainer)
 
-        print(f"Converted Llama-Nemotron model to Nemo, model saved to {output_path} in {source.dtype}.")
+        print(
+            f"Converted Llama-Nemotron model to Nemo, model saved to {output_path} in {source.dtype}."
+        )
 
         teardown(trainer, target)
         del trainer, target
@@ -209,12 +226,17 @@ class HFLlamaNemotronImporter(io.ModelConnector["LlamaForCausalLM", LlamaNemotro
                 fn=TransformFns.merge_qkv,
             ),
             io.state_transform(
-                source_key=("model.layers.*.mlp.gate_proj.weight", "model.layers.*.mlp.up_proj.weight"),
+                source_key=(
+                    "model.layers.*.mlp.gate_proj.weight",
+                    "model.layers.*.mlp.up_proj.weight",
+                ),
                 target_key="decoder.layers.*.mlp.linear_fc1.weight",
                 fn=TransformFns.merge_fc1,
             ),
         ]
-        return io.apply_transforms(source, target, mapping=mapping, transforms=transforms)
+        return io.apply_transforms(
+            source, target, mapping=mapping, transforms=transforms
+        )
 
     @property
     def tokenizer(self) -> "AutoTokenizer":
@@ -226,7 +248,9 @@ class HFLlamaNemotronImporter(io.ModelConnector["LlamaForCausalLM", LlamaNemotro
         from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import \
             AutoTokenizer
 
-        return AutoTokenizer(self.save_hf_tokenizer_assets(str(self)), trust_remote_code=True)
+        return AutoTokenizer(
+            self.save_hf_tokenizer_assets(str(self)), trust_remote_code=True
+        )
 
     @property
     def config(self) -> LlamaConfig:
@@ -252,11 +276,15 @@ class HFLlamaNemotronImporter(io.ModelConnector["LlamaForCausalLM", LlamaNemotro
                 base //= 2
             return base
 
-        assert getattr(source, 'rope_scaling', None), 'Llama-Nemotron model should have rope scaling'
-        if getattr(source, 'block_configs') is not None:
+        assert getattr(
+            source, "rope_scaling", None
+        ), "Llama-Nemotron model should have rope scaling"
+        if getattr(source, "block_configs") is not None:
             # Convert heterogeneous model (Llama-Nemotron Super/Ultra)
             target_class = (
-                Llama33NemotronSuper49BConfig if source.num_hidden_layers == 80 else Llama31NemotronUltra253BConfig
+                Llama33NemotronSuper49BConfig
+                if source.num_hidden_layers == 80
+                else Llama31NemotronUltra253BConfig
             )
             cls = partial(
                 target_class,
@@ -267,11 +295,16 @@ class HFLlamaNemotronImporter(io.ModelConnector["LlamaForCausalLM", LlamaNemotro
                 # Llama-Nemotron has the same GQA across all non no-op attention layers.
                 # We expose it to config.num_query_groups to make the merge_qkv work.
                 # Here we assume block 0 is non no-ops for the attention
-                num_query_groups=source.num_attention_heads // source.block_configs[0].attention.n_heads_in_group,
+                num_query_groups=source.num_attention_heads
+                // source.block_configs[0].attention.n_heads_in_group,
             )
         else:
             # Convert homogeneous model (Llama-Nemotron Nano/70B)
-            target_class = Llama31NemotronNano8BConfig if source.num_hidden_layers == 32 else Llama31Nemotron70BConfig
+            target_class = (
+                Llama31NemotronNano8BConfig
+                if source.num_hidden_layers == 32
+                else Llama31Nemotron70BConfig
+            )
             cls = partial(target_class, num_query_groups=source.num_key_value_heads)
 
         output = cls(
@@ -280,14 +313,18 @@ class HFLlamaNemotronImporter(io.ModelConnector["LlamaForCausalLM", LlamaNemotro
             ffn_hidden_size=source.intermediate_size,
             num_attention_heads=source.num_attention_heads,
             kv_channels=getattr(source, "head_dim", None),
-            scale_factor=source.rope_scaling.get('factor', 8.0),
+            scale_factor=source.rope_scaling.get("factor", 8.0),
             init_method_std=source.initializer_range,
             layernorm_epsilon=source.rms_norm_eps,
             seq_length=source.max_position_embeddings,
             rotary_base=source.rope_theta,
             gated_linear_unit=True,
-            make_vocab_size_divisible_by=make_vocab_size_divisible_by(source.vocab_size),
-            share_embeddings_and_output_weights=getattr(source, "tie_word_embeddings", False),
+            make_vocab_size_divisible_by=make_vocab_size_divisible_by(
+                source.vocab_size
+            ),
+            share_embeddings_and_output_weights=getattr(
+                source, "tie_word_embeddings", False
+            ),
             fp16=(dtype_from_hf(source) == torch.float16),
             bf16=(dtype_from_hf(source) == torch.bfloat16),
             params_dtype=dtype_from_hf(source),
@@ -298,7 +335,9 @@ class HFLlamaNemotronImporter(io.ModelConnector["LlamaForCausalLM", LlamaNemotro
 
 
 @io.model_exporter(LlamaNemotronModel, "hf")
-class HFLlamaNemotronExporter(io.ModelConnector[LlamaNemotronModel, "LlamaForCausalLM"]):
+class HFLlamaNemotronExporter(
+    io.ModelConnector[LlamaNemotronModel, "LlamaForCausalLM"]
+):
     """Exporter for converting NeMo Llama-Nemotron models to Hugging Face format.
 
     This class handles the conversion of NeMo's LlamaNemotronModel to Hugging Face's
@@ -321,7 +360,9 @@ class HFLlamaNemotronExporter(io.ModelConnector[LlamaNemotronModel, "LlamaForCau
         convert_state: Convert model weights from NeMo to Hugging Face format
     """
 
-    def init(self, dtype=torch.bfloat16, from_config=False, model_name=None) -> "LlamaForCausalLM":
+    def init(
+        self, dtype=torch.bfloat16, from_config=False, model_name=None
+    ) -> "LlamaForCausalLM":
         """Initialize a Hugging Face LlamaForCausalLM model instance.
 
         This method creates a new Hugging Face model instance with the appropriate configuration
@@ -394,13 +435,13 @@ class HFLlamaNemotronExporter(io.ModelConnector[LlamaNemotronModel, "LlamaForCau
             if is_heterogeneous:
                 num_layers = source.config.num_layers
                 if num_layers == 80:
-                    target_model_name = 'nvidia/Llama-3_3-Nemotron-Super-49B-v1'
+                    target_model_name = "nvidia/Llama-3_3-Nemotron-Super-49B-v1"
                 elif num_layers == 162:
-                    target_model_name = 'nvidia/Llama-3_1-Nemotron-Ultra-253B-v1'
+                    target_model_name = "nvidia/Llama-3_1-Nemotron-Ultra-253B-v1"
                 else:
                     raise ValueError(
-                        'Unknown target model. '
-                        'Currently only support exporting Llama-Nemotron Nano/Super/Ultra models.'
+                        "Unknown target model. "
+                        "Currently only support exporting Llama-Nemotron Nano/Super/Ultra models."
                     )
 
         target = self.init(
@@ -449,7 +490,10 @@ class HFLlamaNemotronExporter(io.ModelConnector[LlamaNemotronModel, "LlamaForCau
             ),
             io.state_transform(
                 source_key="decoder.layers.*.mlp.linear_fc1.weight",
-                target_key=("model.layers.*.mlp.gate_proj.weight", "model.layers.*.mlp.up_proj.weight"),
+                target_key=(
+                    "model.layers.*.mlp.gate_proj.weight",
+                    "model.layers.*.mlp.up_proj.weight",
+                ),
                 fn=TransformFns.split_fc1,
             ),
             io.state_transform(
@@ -501,11 +545,11 @@ class HFLlamaNemotronExporter(io.ModelConnector[LlamaNemotronModel, "LlamaForCau
         # For Llama 3.1 and Llama 3.2, rope_scaling is used and thus needed to parsed to the config
         if isinstance(source, Llama31Config):
             rope_scaling = {
-                'factor': source.scale_factor,
-                'low_freq_factor': source.low_freq_factor,
-                'high_freq_factor': source.high_freq_factor,
-                'original_max_position_embeddings': source.old_context_len,
-                'rope_type': 'llama3',
+                "factor": source.scale_factor,
+                "low_freq_factor": source.low_freq_factor,
+                "high_freq_factor": source.high_freq_factor,
+                "original_max_position_embeddings": source.old_context_len,
+                "rope_type": "llama3",
             }
         return HFLlamaConfig(
             num_hidden_layers=source.num_layers,
@@ -548,10 +592,12 @@ class HFLlamaNemotronPEFTExporter(HFLlamaNemotronExporter):
         model = super().init(dtype=dtype)
 
         # Infer base model checkpoint from checkpoint metadata file
-        adapter_meta_path = ckpt_to_weights_subdir(str(self), is_saving=False) / ADAPTER_META_FILENAME
+        adapter_meta_path = (
+            ckpt_to_weights_subdir(str(self), is_saving=False) / ADAPTER_META_FILENAME
+        )
         with open(adapter_meta_path, "r") as f:
-            model_ckpt_path = json.load(f)['model_ckpt_path']
-        model.name_or_path = '/'.join(model_ckpt_path.split("/")[-2:])
+            model_ckpt_path = json.load(f)["model_ckpt_path"]
+        model.name_or_path = "/".join(model_ckpt_path.split("/")[-2:])
 
         return get_peft_model(model, self.peft_config, autocast_adapter_dtype=False)
 
@@ -566,7 +612,9 @@ class HFLlamaNemotronPEFTExporter(HFLlamaNemotronExporter):
         """
         from nemo.collections.llm.peft import CanonicalLoRA, DoRA, LoRA
 
-        self.peft_obj: Union[LoRA, DoRA, CanonicalLoRA] = io.load_context(str(self)).model.model_transform
+        self.peft_obj: Union[LoRA, DoRA, CanonicalLoRA] = io.load_context(
+            str(self)
+        ).model.model_transform
 
         source, _ = self.nemo_load(str(self))
         target = self.init(torch_dtype_from_mcore_config(source.config))
@@ -694,19 +742,19 @@ class HFLlamaNemotronPEFTExporter(HFLlamaNemotronExporter):
         from nemo.collections.llm.peft import DoRA
 
         assert (
-            not self.peft_obj.dropout or self.peft_obj.dropout_position == 'pre'
+            not self.peft_obj.dropout or self.peft_obj.dropout_position == "pre"
         ), "LoRA dropout_position must be 'pre' to convert to HF."
 
         NEMO2HF = {
-            'linear_q': ['q_proj'],
-            'linear_k': ['k_proj'],
-            'linear_v': ['v_proj'],
-            'linear_qkv': ['q_proj', 'k_proj', 'v_proj'],
-            'linear_proj': ['o_proj'],
-            'linear_fc1_up': ['up_proj'],
-            'linear_fc1_gate': ['gate_proj'],
-            'linear_fc1': ['up_proj', 'gate_proj'],
-            'linear_fc2': ['down_proj'],
+            "linear_q": ["q_proj"],
+            "linear_k": ["k_proj"],
+            "linear_v": ["v_proj"],
+            "linear_qkv": ["q_proj", "k_proj", "v_proj"],
+            "linear_proj": ["o_proj"],
+            "linear_fc1_up": ["up_proj"],
+            "linear_fc1_gate": ["gate_proj"],
+            "linear_fc1": ["up_proj", "gate_proj"],
+            "linear_fc2": ["down_proj"],
         }
 
         # Infer HF target modules from NeMo target modules

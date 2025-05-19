@@ -32,7 +32,7 @@ from nemo.core.neural_types import (ChannelType, LabelsType, MaskType,
 from nemo.utils import logging
 from nemo.utils.env_var_parsing import get_envint
 
-__all__ = ['TextClassificationDataset', 'calc_class_weights']
+__all__ = ["TextClassificationDataset", "calc_class_weights"]
 
 
 class TextClassificationDataset(Dataset):
@@ -52,13 +52,12 @@ class TextClassificationDataset(Dataset):
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        """Returns definitions of module output ports.
-               """
+        """Returns definitions of module output ports."""
         return {
-            'input_ids': NeuralType(('B', 'T'), ChannelType()),
-            'segment_ids': NeuralType(('B', 'T'), ChannelType()),
-            'input_mask': NeuralType(('B', 'T'), MaskType()),
-            'label': NeuralType(('B',), LabelsType()),
+            "input_ids": NeuralType(("B", "T"), ChannelType()),
+            "segment_ids": NeuralType(("B", "T"), ChannelType()),
+            "input_mask": NeuralType(("B", "T"), MaskType()),
+            "label": NeuralType(("B",), LabelsType()),
         }
 
     def __init__(
@@ -72,13 +71,15 @@ class TextClassificationDataset(Dataset):
         use_cache: bool = False,
     ):
         if not input_file and not queries:
-            raise ValueError("Either input_file or queries should be passed to the text classification dataset.")
+            raise ValueError(
+                "Either input_file or queries should be passed to the text classification dataset."
+            )
 
         if input_file and not os.path.exists(input_file):
             raise FileNotFoundError(
-                f'Data file `{input_file}` not found! Each line of the data file should contain text sequences, where '
-                f'words are separated with spaces and the label separated by [TAB] following this format: '
-                f'[WORD][SPACE][WORD][SPACE][WORD][TAB][LABEL]'
+                f"Data file `{input_file}` not found! Each line of the data file should contain text sequences, where "
+                f"words are separated with spaces and the label separated by [TAB] following this format: "
+                f"[WORD][SPACE][WORD][SPACE][WORD][TAB][LABEL]"
             )
 
         self.input_file = input_file
@@ -114,7 +115,7 @@ class TextClassificationDataset(Dataset):
                 else:
                     with open(input_file, "r") as f:
                         lines = f.readlines()
-                        logging.info(f'Read {len(lines)} examples from {input_file}.')
+                        logging.info(f"Read {len(lines)} examples from {input_file}.")
                         if num_samples > 0:
                             lines = lines[:num_samples]
                             logging.warning(
@@ -145,15 +146,21 @@ class TextClassificationDataset(Dataset):
                         labels=labels,
                         verbose=verbose,
                     )
-                    with open(cached_features_file, 'wb') as out_file:
-                        pickle.dump(self.features, out_file, protocol=pickle.HIGHEST_PROTOCOL)
+                    with open(cached_features_file, "wb") as out_file:
+                        pickle.dump(
+                            self.features, out_file, protocol=pickle.HIGHEST_PROTOCOL
+                        )
         else:
             for query in queries:
                 all_sents.append(query.strip().split())
             labels = [-1] * len(all_sents)
             verbose = False
             self.features = self.get_features(
-                all_sents=all_sents, tokenizer=tokenizer, max_seq_length=max_seq_length, labels=labels, verbose=verbose
+                all_sents=all_sents,
+                tokenizer=tokenizer,
+                max_seq_length=max_seq_length,
+                labels=labels,
+                verbose=verbose,
             )
 
         # wait until the master process writes to the processed data files
@@ -187,9 +194,25 @@ class TextClassificationDataset(Dataset):
         for input_ids, segment_ids, input_mask, label in batch:
             if len(input_ids) < max_length:
                 pad_width = max_length - len(input_ids)
-                padded_input_ids.append(np.pad(input_ids, pad_width=[0, pad_width], constant_values=self.pad_id))
-                padded_segment_ids.append(np.pad(segment_ids, pad_width=[0, pad_width], constant_values=self.pad_id))
-                padded_input_mask.append(np.pad(input_mask, pad_width=[0, pad_width], constant_values=self.pad_id))
+                padded_input_ids.append(
+                    np.pad(
+                        input_ids, pad_width=[0, pad_width], constant_values=self.pad_id
+                    )
+                )
+                padded_segment_ids.append(
+                    np.pad(
+                        segment_ids,
+                        pad_width=[0, pad_width],
+                        constant_values=self.pad_id,
+                    )
+                )
+                padded_input_mask.append(
+                    np.pad(
+                        input_mask,
+                        pad_width=[0, pad_width],
+                        constant_values=self.pad_id,
+                    )
+                )
             else:
                 padded_input_ids.append(input_ids)
                 padded_segment_ids.append(segment_ids)
@@ -238,15 +261,24 @@ class TextClassificationDataset(Dataset):
                 logging.info("input_ids: %s" % list2str(input_ids))
                 logging.info("segment_ids: %s" % list2str(segment_ids))
                 logging.info("input_mask: %s" % list2str(input_mask))
-                logging.info("label: %s" % labels[sent_id] if labels else "**Not Provided**")
+                logging.info(
+                    "label: %s" % labels[sent_id] if labels else "**Not Provided**"
+                )
 
             label = labels[sent_id] if labels else -1
-            features.append([np.asarray(input_ids), np.asarray(segment_ids), np.asarray(input_mask), label])
+            features.append(
+                [
+                    np.asarray(input_ids),
+                    np.asarray(segment_ids),
+                    np.asarray(input_mask),
+                    label,
+                ]
+            )
 
         if max_seq_length > -1 and too_long_count > 0:
             logging.warning(
-                f'Found {too_long_count} out of {len(all_sents)} sentences with more than {max_seq_length} subtokens. '
-                f'Truncated long sentences from the end.'
+                f"Found {too_long_count} out of {len(all_sents)} sentences with more than {max_seq_length} subtokens. "
+                f"Truncated long sentences from the end."
             )
         if verbose:
             get_stats(sent_lengths)
@@ -262,9 +294,11 @@ def calc_class_weights(file_path: str, num_classes: int):
     """
 
     if not os.path.exists(file_path):
-        raise FileNotFoundError(f"Could not find data file {file_path} to calculate the class weights!")
+        raise FileNotFoundError(
+            f"Could not find data file {file_path} to calculate the class weights!"
+        )
 
-    with open(file_path, 'r') as f:
+    with open(file_path, "r") as f:
         input_lines = f.readlines()
 
     labels = []
@@ -274,21 +308,27 @@ def calc_class_weights(file_path: str, num_classes: int):
             label = int(parts[-1])
         except ValueError:
             raise ValueError(
-                f'No numerical labels found for {file_path}. Labels should be integers and separated by [TAB] at the end of each line.'
+                f"No numerical labels found for {file_path}. Labels should be integers and separated by [TAB] at the end of each line."
             )
         labels.append(label)
 
-    logging.info(f'Calculating stats of {file_path}...')
-    total_sents, sent_label_freq, max_id = get_label_stats(labels, f'{file_path}_sentence_stats.tsv', verbose=False)
+    logging.info(f"Calculating stats of {file_path}...")
+    total_sents, sent_label_freq, max_id = get_label_stats(
+        labels, f"{file_path}_sentence_stats.tsv", verbose=False
+    )
     if max_id >= num_classes:
-        raise ValueError(f'Found an invalid label in {file_path}! Labels should be from [0, num_classes-1].')
+        raise ValueError(
+            f"Found an invalid label in {file_path}! Labels should be from [0, num_classes-1]."
+        )
 
     class_weights_dict = get_freq_weights(sent_label_freq)
 
-    logging.info(f'Total Sentence: {total_sents}')
-    logging.info(f'Sentence class frequencies: {sent_label_freq}')
+    logging.info(f"Total Sentence: {total_sents}")
+    logging.info(f"Sentence class frequencies: {sent_label_freq}")
 
-    logging.info(f'Class Weights: {class_weights_dict}')
-    class_weights = fill_class_weights(weights=class_weights_dict, max_id=num_classes - 1)
+    logging.info(f"Class Weights: {class_weights_dict}")
+    class_weights = fill_class_weights(
+        weights=class_weights_dict, max_id=num_classes - 1
+    )
 
     return class_weights

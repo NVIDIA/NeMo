@@ -24,14 +24,18 @@ class SpeechLMDataSampler(MegatronDataSampler):
     Overwrite the default MegatronDataSampler to not add batch sampler when iteralbe dataset is used.
     """
 
-    def transform_dataloader(self, dataloader: DataLoader, consumed_samples: int = 0) -> DataLoader:
+    def transform_dataloader(
+        self, dataloader: DataLoader, consumed_samples: int = 0
+    ) -> DataLoader:
         """
         Overwrites the MegatronDataSampler.transform_dataloader() function
         """
-        sampler = getattr(dataloader, 'sampler', None)
+        sampler = getattr(dataloader, "sampler", None)
 
         if isinstance(sampler, lhotse.dataset.sampling.base.CutSampler):
-            logging.info(f"Using Lhotse sampler for dataloader {dataloader}. Skipping Megatron data sampler.")
+            logging.info(
+                f"Using Lhotse sampler for dataloader {dataloader}. Skipping Megatron data sampler."
+            )
             return dataloader
 
         try:
@@ -41,11 +45,15 @@ class SpeechLMDataSampler(MegatronDataSampler):
             has_len = False
 
         if not has_len:
-            logging.info(f"Dataset {dataloader.dataset} does not have __len__ method. Skipping Megatron data sampler.")
+            logging.info(
+                f"Dataset {dataloader.dataset} does not have __len__ method. Skipping Megatron data sampler."
+            )
             return dataloader
 
         if isinstance(dataloader.dataset, IterableDataset):
-            logging.info(f"Dataset {dataloader.dataset} is an IterableDataset. Skipping Megatron data sampler.")
+            logging.info(
+                f"Dataset {dataloader.dataset} is an IterableDataset. Skipping Megatron data sampler."
+            )
             return dataloader
 
         return super().transform_dataloader(dataloader, consumed_samples)

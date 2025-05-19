@@ -42,7 +42,14 @@ if not isinstance(torch_home, str):
 MEGATRON_CACHE = os.path.join(torch_home, "megatron")
 
 
-CONFIGS = {"345m": {"hidden_size": 1024, "num_attention_heads": 16, "num_layers": 24, "max_position_embeddings": 512}}
+CONFIGS = {
+    "345m": {
+        "hidden_size": 1024,
+        "num_attention_heads": 16,
+        "num_layers": 24,
+        "max_position_embeddings": 512,
+    }
+}
 
 MEGATRON_CONFIG_MAP = {
     "megatron-gpt-345m": {
@@ -124,7 +131,8 @@ def get_megatron_pretrained_bert_models() -> List[str]:
         MegatronBertModel
 
     all_pretrained_megatron_bert_models = [
-        model.pretrained_model_name for model in MegatronBertModel.list_available_models()
+        model.pretrained_model_name
+        for model in MegatronBertModel.list_available_models()
     ]
     return all_pretrained_megatron_bert_models
 
@@ -153,7 +161,9 @@ def get_megatron_config(pretrained_model_name: str) -> Dict[str, int]:
 def _check_megatron_name(pretrained_model_name: str) -> None:
     megatron_model_list = get_megatron_lm_models_list()
     if pretrained_model_name not in megatron_model_list:
-        raise ValueError(f'For Megatron-LM models, choose from the following list: {megatron_model_list}')
+        raise ValueError(
+            f"For Megatron-LM models, choose from the following list: {megatron_model_list}"
+        )
 
 
 def get_megatron_vocab_file(pretrained_model_name: str) -> str:
@@ -184,7 +194,7 @@ def get_megatron_merges_file(pretrained_model_name: str) -> str:
     Returns:
         path: path to the vocab file
     """
-    if 'gpt' not in pretrained_model_name.lower():
+    if "gpt" not in pretrained_model_name.lower():
         return None
     _check_megatron_name(pretrained_model_name)
     url = MEGATRON_CONFIG_MAP[pretrained_model_name]["merges_file"]
@@ -221,7 +231,9 @@ def _download(path: str, url: str):
     if url is None:
         return None
 
-    if (not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0) and not os.path.exists(path):
+    if (
+        not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0
+    ) and not os.path.exists(path):
         os.makedirs(MEGATRON_CACHE, exist_ok=True)
         logging.info(f"Downloading from {url} to {path}")
         downloaded_path = wget.download(url)

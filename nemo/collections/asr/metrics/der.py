@@ -28,10 +28,10 @@ from nemo.collections.asr.parts.utils.optimization_utils import \
 from nemo.utils import logging
 
 __all__ = [
-    'score_labels',
-    'calculate_session_cpWER',
-    'calculate_session_cpWER_bruteforce',
-    'concat_perm_word_error_rate',
+    "score_labels",
+    "calculate_session_cpWER",
+    "calculate_session_cpWER_bruteforce",
+    "concat_perm_word_error_rate",
 ]
 
 
@@ -103,16 +103,24 @@ def get_online_DER_stats(
         "FA": round(100 * FA, deci),
         "MISS": round(100 * MISS, deci),
     }
-    der_stat_dict['cum_DER'] += DER
-    der_stat_dict['cum_CER'] += CER
-    der_stat_dict['avg_DER'] = round(100 * der_stat_dict['cum_DER'] / diar_eval_count, deci)
-    der_stat_dict['avg_CER'] = round(100 * der_stat_dict['cum_CER'] / diar_eval_count, deci)
-    der_stat_dict['max_DER'] = round(max(der_dict['DER'], der_stat_dict['max_DER']), deci)
-    der_stat_dict['max_CER'] = round(max(der_dict['CER'], der_stat_dict['max_CER']), deci)
+    der_stat_dict["cum_DER"] += DER
+    der_stat_dict["cum_CER"] += CER
+    der_stat_dict["avg_DER"] = round(
+        100 * der_stat_dict["cum_DER"] / diar_eval_count, deci
+    )
+    der_stat_dict["avg_CER"] = round(
+        100 * der_stat_dict["cum_CER"] / diar_eval_count, deci
+    )
+    der_stat_dict["max_DER"] = round(
+        max(der_dict["DER"], der_stat_dict["max_DER"]), deci
+    )
+    der_stat_dict["max_CER"] = round(
+        max(der_dict["CER"], der_stat_dict["max_CER"]), deci
+    )
     return der_dict, der_stat_dict
 
 
-def uem_timeline_from_file(uem_file, uniq_name=''):
+def uem_timeline_from_file(uem_file, uniq_name=""):
     """
     Generate pyannote timeline segments for uem file
 
@@ -120,7 +128,7 @@ def uem_timeline_from_file(uem_file, uniq_name=''):
      UNIQ_SPEAKER_ID CHANNEL START_TIME END_TIME
     """
     timeline = Timeline(uri=uniq_name)
-    with open(uem_file, 'r') as f:
+    with open(uem_file, "r") as f:
         lines = f.readlines()
         for line in lines:
             line = line.strip()
@@ -174,7 +182,9 @@ def score_labels(
         metric = DiarizationErrorRate(collar=2 * collar, skip_overlap=ignore_overlap)
 
         mapping_dict, correct_spk_count = {}, 0
-        for idx, (reference, hypothesis) in enumerate(zip(all_reference, all_hypothesis)):
+        for idx, (reference, hypothesis) in enumerate(
+            zip(all_reference, all_hypothesis)
+        ):
             ref_key, ref_labels = reference
             _, hyp_labels = hypothesis
             if len(ref_labels.labels()) == len(hyp_labels.labels()):
@@ -187,8 +197,8 @@ def score_labels(
             uem_obj = None
             if all_uem is not None:
                 metric(ref_labels, hyp_labels, uem=all_uem[idx], detailed=True)
-            elif AUDIO_RTTM_MAP[ref_key].get('uem_filepath', None) is not None:
-                uem_file = AUDIO_RTTM_MAP[ref_key].get('uem_filepath', None)
+            elif AUDIO_RTTM_MAP[ref_key].get("uem_filepath", None) is not None:
+                uem_file = AUDIO_RTTM_MAP[ref_key].get("uem_filepath", None)
                 uem_obj = uem_timeline_from_file(uem_file=uem_file, uniq_name=ref_key)
                 metric(ref_labels, hyp_labels, uem=uem_obj, detailed=True)
             else:
@@ -197,19 +207,21 @@ def score_labels(
 
         spk_count_acc = correct_spk_count / len(all_reference)
         DER = abs(metric)
-        if metric['total'] == 0:
+        if metric["total"] == 0:
             raise ValueError("Total evaluation time is 0. Abort.")
-        CER = metric['confusion'] / metric['total']
-        FA = metric['false alarm'] / metric['total']
-        MISS = metric['missed detection'] / metric['total']
+        CER = metric["confusion"] / metric["total"]
+        FA = metric["false alarm"] / metric["total"]
+        MISS = metric["missed detection"] / metric["total"]
 
         itemized_errors = (DER, CER, FA, MISS)
 
         if verbose:
-            pd.set_option('display.max_rows', None)  # Show all rows
-            pd.set_option('display.max_columns', None)  # Show all columns
-            pd.set_option('display.width', None)  # Adjust width to avoid line wrapping
-            pd.set_option('display.max_colwidth', None)  # Show full content of each cell
+            pd.set_option("display.max_rows", None)  # Show all rows
+            pd.set_option("display.max_columns", None)  # Show all columns
+            pd.set_option("display.width", None)  # Adjust width to avoid line wrapping
+            pd.set_option(
+                "display.max_colwidth", None
+            )  # Show full content of each cell
             logging.info(f"\n{metric.report()}")
         logging.info(
             f"Cumulative Results for collar {collar} sec and ignore_overlap {ignore_overlap}: \n"
@@ -226,7 +238,9 @@ def score_labels(
     return None
 
 
-def evaluate_der(audio_rttm_map_dict, all_reference, all_hypothesis, diar_eval_mode='all'):
+def evaluate_der(
+    audio_rttm_map_dict, all_reference, all_hypothesis, diar_eval_mode="all"
+):
     """
     Evaluate with a selected diarization evaluation scheme
 
@@ -274,7 +288,9 @@ def evaluate_der(audio_rttm_map_dict, all_reference, all_hypothesis, diar_eval_m
     return diar_score
 
 
-def calculate_session_cpWER_bruteforce(spk_hypothesis: List[str], spk_reference: List[str]) -> Tuple[float, str, str]:
+def calculate_session_cpWER_bruteforce(
+    spk_hypothesis: List[str], spk_reference: List[str]
+) -> Tuple[float, str, str]:
     """
     Calculate cpWER with actual permutations in brute-force way when LSA algorithm cannot deliver the correct result.
 
@@ -398,18 +414,24 @@ def calculate_session_cpWER(
 
     if not use_lsa_only and num_ref_spks < num_hyp_spks:
         # Brute force algorithm when there are more speakers in the hypothesis
-        cpWER, min_perm_hyp_trans, ref_trans = calculate_session_cpWER_bruteforce(spk_hypothesis, spk_reference)
+        cpWER, min_perm_hyp_trans, ref_trans = calculate_session_cpWER_bruteforce(
+            spk_hypothesis, spk_reference
+        )
     else:
         # Calculate WER for each speaker in hypothesis with reference
         # There are (number of hyp speakers) x (number of ref speakers) combinations
         lsa_wer_list = []
         for spk_hyp_trans, spk_ref_trans in all_pairs:
-            spk_wer = word_error_rate(hypotheses=[spk_hyp_trans], references=[spk_ref_trans])
+            spk_wer = word_error_rate(
+                hypotheses=[spk_hyp_trans], references=[spk_ref_trans]
+            )
             lsa_wer_list.append(spk_wer)
 
         # Make a cost matrix and calculate a linear sum assignment on the cost matrix.
         # Row is hypothesis index and column is reference index
-        cost_wer = torch.tensor(lsa_wer_list).reshape([len(spk_hypothesis), len(spk_reference)])
+        cost_wer = torch.tensor(lsa_wer_list).reshape(
+            [len(spk_hypothesis), len(spk_reference)]
+        )
         row_hyp_ind, col_ref_ind = linear_sum_assignment(cost_wer)
 
         # In case where hypothesis has more speakers, add words from residual speakers
@@ -458,7 +480,9 @@ def concat_perm_word_error_rate(
         )
     cpWER_values, hyps_spk, refs_spk = [], [], []
     for spk_hypothesis, spk_reference in zip(spk_hypotheses, spk_references):
-        cpWER, min_hypothesis, concat_reference = calculate_session_cpWER(spk_hypothesis, spk_reference)
+        cpWER, min_hypothesis, concat_reference = calculate_session_cpWER(
+            spk_hypothesis, spk_reference
+        )
         cpWER_values.append(cpWER)
         hyps_spk.append(min_hypothesis)
         refs_spk.append(concat_reference)

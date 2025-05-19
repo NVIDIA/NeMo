@@ -146,7 +146,11 @@ def trainer(
 
 @run.cli.factory(target=pretrain, name=NAME)
 def pretrain_recipe(
-    dir: Optional[str] = None, name: str = "default", num_nodes: int = 20, num_gpus_per_node: int = 8, fn=pretrain
+    dir: Optional[str] = None,
+    name: str = "default",
+    num_nodes: int = 20,
+    num_gpus_per_node: int = 8,
+    fn=pretrain,
 ) -> run.Partial:
     """
     Create a pre-training recipe for T5 11b model.
@@ -176,7 +180,7 @@ def pretrain_recipe(
 
     opt_config = run.Config(
         OptimizerConfig,
-        optimizer='adam',
+        optimizer="adam",
         lr=0.0001,
         use_distributed_optimizer=True,
         bf16=True,
@@ -200,10 +204,18 @@ def pretrain_recipe(
             callbacks=[run.Config(TimingCallback)],
         ),
         data=run.Config(
-            MockDataModule, seq_length=512, seq_length_dec=128, global_batch_size=1920, micro_batch_size=24
+            MockDataModule,
+            seq_length=512,
+            seq_length_dec=128,
+            global_batch_size=1920,
+            micro_batch_size=24,
         ),
-        log=default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
-        optim=run.Config(MegatronOptimizerModule, config=opt_config, lr_scheduler=lr_scheduler),
+        log=default_log(
+            dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)
+        ),
+        optim=run.Config(
+            MegatronOptimizerModule, config=opt_config, lr_scheduler=lr_scheduler
+        ),
         resume=default_resume(),
     )
 
@@ -215,7 +227,7 @@ def finetune_recipe(
     name: str = "default",
     num_nodes: int = 1,
     num_gpus_per_node: int = 8,
-    peft_scheme: Optional[str] = 'lora',
+    peft_scheme: Optional[str] = "lora",
 ) -> run.Partial:
     """
     Create a fine-tuning recipe for T5 11B model.
@@ -249,7 +261,7 @@ def finetune_recipe(
     """
     opt_config = run.Config(
         OptimizerConfig,
-        optimizer='adam',
+        optimizer="adam",
         lr=0.0001,
         use_distributed_optimizer=True,
         bf16=True,
@@ -271,17 +283,25 @@ def finetune_recipe(
             num_gpus_per_node=num_gpus_per_node,
         ),
         data=run.Config(
-            SquadDataModule, seq_length=512, seq_length_dec=128, global_batch_size=128, micro_batch_size=1
+            SquadDataModule,
+            seq_length=512,
+            seq_length_dec=128,
+            global_batch_size=128,
+            micro_batch_size=1,
         ),
-        log=default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
-        optim=run.Config(MegatronOptimizerModule, config=opt_config, lr_scheduler=lr_scheduler),
+        log=default_log(
+            dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)
+        ),
+        optim=run.Config(
+            MegatronOptimizerModule, config=opt_config, lr_scheduler=lr_scheduler
+        ),
         resume=nemo_resume(checkpoint_path),
     )
 
-    if peft_scheme is None or peft_scheme.lower() == 'none':
+    if peft_scheme is None or peft_scheme.lower() == "none":
         recipe.trainer.strategy.tensor_model_parallel_size = 4
         recipe.optim.config.lr = 5e-6
-    elif peft_scheme.lower() in ['lora', 'dora']:
+    elif peft_scheme.lower() in ["lora", "dora"]:
         recipe.peft = run.Config(PEFT_STR2CLS[peft_scheme.lower()])
         recipe.optim.config.lr = 1e-4
     else:

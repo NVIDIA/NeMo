@@ -122,7 +122,9 @@ def pretrain_recipe(
             image_processor=None,
             num_workers=4,
         ),
-        log=llm.default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
+        log=llm.default_log(
+            dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)
+        ),
         optim=distributed_fused_adam_with_cosine_annealing(
             max_lr=1e-3,
             min_lr=1e-5,

@@ -75,7 +75,9 @@ class BlockDiagonalLinear(nn.Module):
         self.block_width = self.width // self.num_blocks
 
         # Parameters.
-        self.w = nn.Parameter(torch.zeros([self.num_blocks, self.block_width, self.block_width]))
+        self.w = nn.Parameter(
+            torch.zeros([self.num_blocks, self.block_width, self.block_width])
+        )
         self.b = nn.Parameter(torch.zeros([self.num_blocks, self.block_width]))
 
         # Initialization.
@@ -97,7 +99,9 @@ class BlockDiagonalLinear(nn.Module):
 
     @jit_fuser
     def _post_add_reshape_sigmoid_(self, x, bs, seq_l):
-        x = (x.permute(1, 0, 2) + self.b).reshape(bs, seq_l, self.num_blocks * self.block_width)
+        x = (x.permute(1, 0, 2) + self.b).reshape(
+            bs, seq_l, self.num_blocks * self.block_width
+        )
         x = torch.sigmoid(x)
         return x
 
@@ -229,7 +233,9 @@ class RGLRU(nn.Module):
             w_init_variance_scale=w_init_variance_scale,
         )
         self.a_gate = BlockDiagonalLinear(
-            width=self.width, num_blocks=self.num_heads, w_init_variance_scale=self.w_init_variance_scale
+            width=self.width,
+            num_blocks=self.num_heads,
+            w_init_variance_scale=self.w_init_variance_scale,
         )
 
     @property
@@ -383,33 +389,53 @@ class RecurrentLayer(MegatronModule):
         )
 
         self.conv_1d = build_module(
-            submodules.conv_1d, config=self.config, width=self.config.hidden_size, temporal_width=4
+            submodules.conv_1d,
+            config=self.config,
+            width=self.config.hidden_size,
+            temporal_width=4,
         )
 
         self.rg_lru = build_module(
-            submodules.rg_lru, width=self.config.hidden_size, num_heads=self.config.num_attention_heads
+            submodules.rg_lru,
+            width=self.config.hidden_size,
+            num_heads=self.config.num_attention_heads,
         )
 
     def checkpoint_handler(self, forward_func, x, segment_pos, prev_x):
         return tensor_parallel.checkpoint(
-            forward_func, self.config.distribute_saved_activations, x, segment_pos, prev_x
+            forward_func,
+            self.config.distribute_saved_activations,
+            x,
+            segment_pos,
+            prev_x,
         )
 
     def forward(self, hidden_states, attention_mask=None, rotary_pos_emb=None):
 
-        segment_pos = torch.arange(hidden_states.shape[0]).unsqueeze(0).repeat(hidden_states.shape[1], 1).cuda()
+        segment_pos = (
+            torch.arange(hidden_states.shape[0])
+            .unsqueeze(0)
+            .repeat(hidden_states.shape[1], 1)
+            .cuda()
+        )
         in_intermidiate_parallel, in_bias_parallel = self.linear_in(hidden_states)
 
         x_bias_parallel, y_bias_parallel = in_bias_parallel.chunk(2, dim=-1)
-        x_intermidiate_parallel, y_intermidiate_parallel = in_intermidiate_parallel.chunk(2, dim=-1)
+        x_intermidiate_parallel, y_intermidiate_parallel = (
+            in_intermidiate_parallel.chunk(2, dim=-1)
+        )
 
         y = bias_gelu_impl(y_intermidiate_parallel, y_bias_parallel)
 
         x = _fused_permute_add_(x_intermidiate_parallel, x_bias_parallel)
 
         if self.config.activations_checkpoint_recurrent and self.training:
-            x, _ = self.checkpoint_handler(self.conv_1d, x=x, segment_pos=segment_pos, prev_x=None)
-            x, _ = self.checkpoint_handler(self.rg_lru, x=x, segment_pos=segment_pos, prev_x=None)
+            x, _ = self.checkpoint_handler(
+                self.conv_1d, x=x, segment_pos=segment_pos, prev_x=None
+            )
+            x, _ = self.checkpoint_handler(
+                self.rg_lru, x=x, segment_pos=segment_pos, prev_x=None
+            )
 
         else:
             x, _ = self.conv_1d(x=x, segment_pos=segment_pos, prev_x=None)

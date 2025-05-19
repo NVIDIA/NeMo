@@ -47,14 +47,22 @@ try:
     from megatron.core.num_microbatches_calculator import get_num_microbatches
 
 except (ImportError, ModuleNotFoundError):
-    logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
+    logging.warning(
+        "Megatron num_microbatches_calculator not found, using Apex version."
+    )
     from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 
 
 class ContentFilteringModel(MegatronModule):
     """Clip based content filtering model for NSFW."""
 
-    def __init__(self, model_cfg: DictConfig, model_parallel_config, padded_vocab_size: int, tokenizer: Optional):
+    def __init__(
+        self,
+        model_cfg: DictConfig,
+        model_parallel_config,
+        padded_vocab_size: int,
+        tokenizer: Optional,
+    ):
         super(ContentFilteringModel, self).__init__()
         self.cfg = model_cfg
         self.config = model_parallel_config
@@ -69,7 +77,11 @@ class ContentFilteringModel(MegatronModule):
 
         if "text" in model_cfg and model_cfg.text is not None:
             self.text_encoder = CLIPTextTransformer(
-                model_cfg.text, model_parallel_config, padded_vocab_size, pre_process=True, post_process=True
+                model_cfg.text,
+                model_parallel_config,
+                padded_vocab_size,
+                pre_process=True,
+                post_process=True,
             )
         else:
             self.text_encoder = None
@@ -81,12 +93,16 @@ class ContentFilteringModel(MegatronModule):
         )
 
         self.nn_classifier = nn.Sequential(
-            nn.Linear(self.concept_count * 2 + model_cfg.output_dim, model_cfg.cls_hidden_dim),
+            nn.Linear(
+                self.concept_count * 2 + model_cfg.output_dim, model_cfg.cls_hidden_dim
+            ),
             nn.ReLU(),
             nn.Linear(model_cfg.cls_hidden_dim, 1),
         )
 
-        self.register_buffer("concepts", torch.zeros(self.concept_count, model_cfg.output_dim))
+        self.register_buffer(
+            "concepts", torch.zeros(self.concept_count, model_cfg.output_dim)
+        )
 
     def initialize_concept_embeddings(self, concepts: torch.Tensor):
         if self.text_encoder is None:
@@ -96,7 +112,9 @@ class ContentFilteringModel(MegatronModule):
         del self.text_encoder
         self.text_encoder = None
 
-    def forward(self, image: torch.Tensor, mlp_factor: float = 1.0, emb_factor: float = 1.0) -> torch.Tensor:
+    def forward(
+        self, image: torch.Tensor, mlp_factor: float = 1.0, emb_factor: float = 1.0
+    ) -> torch.Tensor:
         """Perform model forward pass for given image and factor.
         While inferencing, factors should be equal to default value
         """
@@ -106,11 +124,16 @@ class ContentFilteringModel(MegatronModule):
         cos_similarity = self.cosine_similarity(embedding, self.concepts)
         mlp_similarity = self.mlp_similarity(embedding, self.concepts)
 
-        features = torch.cat([cos_similarity, mlp_similarity * mlp_factor, embedding * emb_factor], dim=-1)
+        features = torch.cat(
+            [cos_similarity, mlp_similarity * mlp_factor, embedding * emb_factor],
+            dim=-1,
+        )
 
         return self.nn_classifier(features)
 
-    def cosine_similarity(self, prediction: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+    def cosine_similarity(
+        self, prediction: torch.Tensor, target: torch.Tensor
+    ) -> torch.Tensor:
         """Compute cosine similarity between prediction tensor and target tensor
         Args:
             prediction: Tensor of shape [X, H] for prediction embedding
@@ -123,7 +146,9 @@ class ContentFilteringModel(MegatronModule):
 
         return torch.matmul(normalized_prediction, normalized_target.t())
 
-    def mlp_similarity(self, prediction: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+    def mlp_similarity(
+        self, prediction: torch.Tensor, target: torch.Tensor
+    ) -> torch.Tensor:
         """Compute mlp based similarity between prediction tensor and target tensor
         Args:
             prediction: Tensor of shape [X, H] for prediction embedding
@@ -132,7 +157,9 @@ class ContentFilteringModel(MegatronModule):
             Similarity matrix of shape [X, Y] and value range [-1, 1]
         """
 
-        prediction, target = torch.broadcast_tensors(prediction.unsqueeze(1), target.unsqueeze(0))
+        prediction, target = torch.broadcast_tensors(
+            prediction.unsqueeze(1), target.unsqueeze(0)
+        )
 
         combined = torch.cat([prediction, target], dim=-1)
 
@@ -169,16 +196,24 @@ class MegatronContentFilteringModel(MegatronBaseModel):
         if self.megatron_amp_O2:
             if isinstance(self.model, list):
                 self.model = [
-                    Float16Module(config=self.model_parallel_config, module=x, precision=cfg.precision)
+                    Float16Module(
+                        config=self.model_parallel_config,
+                        module=x,
+                        precision=cfg.precision,
+                    )
                     for x in self.model
                 ]
             else:
                 self.model = Float16Module(
-                    config=self.model_parallel_config, module=self.model, precision=cfg.precision
+                    config=self.model_parallel_config,
+                    module=self.model,
+                    precision=cfg.precision,
                 )
 
         self.autocast_dtype = torch_dtype_from_precision(self.trainer.precision)
-        self.enable_autocast = (not self.megatron_amp_O2) and (self.autocast_dtype in [torch.float16, torch.bfloat16])
+        self.enable_autocast = (not self.megatron_amp_O2) and (
+            self.autocast_dtype in [torch.float16, torch.bfloat16]
+        )
 
         self.init_consumed_samples = 0
         self.mlp_factor = 1.0
@@ -193,9 +228,13 @@ class MegatronContentFilteringModel(MegatronBaseModel):
             return [self.model]
 
     def model_provider_func(self, pre_process, post_process):
-        return ContentFilteringModel(self.cfg, self.model_parallel_config, self.padded_vocab_size, self.tokenizer)
+        return ContentFilteringModel(
+            self.cfg, self.model_parallel_config, self.padded_vocab_size, self.tokenizer
+        )
 
-    def forward(self, image: torch.Tensor, mlp_factor: float = 1.0, emb_factor: float = 1.0) -> torch.Tensor:
+    def forward(
+        self, image: torch.Tensor, mlp_factor: float = 1.0, emb_factor: float = 1.0
+    ) -> torch.Tensor:
         return self.model(image, mlp_factor, emb_factor)
 
     def get_forward_output_and_loss_func(self, with_accuracy: bool = False):
@@ -219,32 +258,44 @@ class MegatronContentFilteringModel(MegatronBaseModel):
         def forward_step(dataloader_iter, model):
             images, labels = next(dataloader_iter)
 
-            if parallel_state.get_pipeline_model_parallel_world_size() == 1 or parallel_state.is_pipeline_first_stage(
-                ignore_virtual=False
+            if (
+                parallel_state.get_pipeline_model_parallel_world_size() == 1
+                or parallel_state.is_pipeline_first_stage(ignore_virtual=False)
             ):
                 images = images.cuda(non_blocking=True)
                 labels = labels.cuda(non_blocking=True)
             else:
                 images, labels = None, None
 
-            classification = model(images, mlp_factor=self.mlp_factor, emb_factor=self.emb_factor)
+            classification = model(
+                images, mlp_factor=self.mlp_factor, emb_factor=self.emb_factor
+            )
 
-            return classification.squeeze(-1), functools.partial(loss_fn, target=labels.float())
+            return classification.squeeze(-1), functools.partial(
+                loss_fn, target=labels.float()
+            )
 
         return forward_step
 
     def get_forward_embedding_func(self):
         def forward_step(dataloader_iter, model):
             concepts = next(dataloader_iter)
-            concepts = tokenize(concepts, self.tokenizer, self.cfg.text.max_position_embeddings)
-            return (model.text_encoder(concepts.cuda(non_blocking=True)), lambda x: (0.0, {"concepts": x}))
+            concepts = tokenize(
+                concepts, self.tokenizer, self.cfg.text.max_position_embeddings
+            )
+            return (
+                model.text_encoder(concepts.cuda(non_blocking=True)),
+                lambda x: (0.0, {"concepts": x}),
+            )
 
         return forward_step
 
     def fwd_bwd_step(self, dataloader_iter, batch_idx: int, forward_only: bool):
         fwd_bwd_function = get_forward_backward_func()
         losses_reduced_per_micro_batch = fwd_bwd_function(
-            forward_step_func=self.get_forward_output_and_loss_func(with_accuracy=forward_only),
+            forward_step_func=self.get_forward_output_and_loss_func(
+                with_accuracy=forward_only
+            ),
             data_iterator=dataloader_iter,
             model=self.model,
             num_microbatches=get_num_microbatches(),
@@ -255,9 +306,13 @@ class MegatronContentFilteringModel(MegatronBaseModel):
 
         metrics = None
         if losses_reduced_per_micro_batch:
-            loss_mean = torch.stack([l["loss"] for l in losses_reduced_per_micro_batch]).mean()
+            loss_mean = torch.stack(
+                [l["loss"] for l in losses_reduced_per_micro_batch]
+            ).mean()
             if forward_only:
-                metrics = torch.stack([l["accuracy"] for l in losses_reduced_per_micro_batch]).sum(dim=0)
+                metrics = torch.stack(
+                    [l["accuracy"] for l in losses_reduced_per_micro_batch]
+                ).sum(dim=0)
         else:
             loss_mean = 0.0
 
@@ -279,13 +334,27 @@ class MegatronContentFilteringModel(MegatronBaseModel):
             if loss_scale is not None:
                 self.log("loss_scale", loss_scale, batch_size=1, prog_bar=True)
 
-        self.log('reduced_train_loss', loss_mean, prog_bar=True, rank_zero_only=True, batch_size=1)
-        lr = self._optimizer.param_groups[0]['lr']
-        self.log('lr', lr, rank_zero_only=True, batch_size=1, prog_bar=True)
-        self.log('global_step', self.trainer.global_step + 1, prog_bar=True, rank_zero_only=True, batch_size=1)
         self.log(
-            'consumed_samples',
-            self.compute_consumed_samples(self.trainer.global_step + 1 - self.init_global_step),
+            "reduced_train_loss",
+            loss_mean,
+            prog_bar=True,
+            rank_zero_only=True,
+            batch_size=1,
+        )
+        lr = self._optimizer.param_groups[0]["lr"]
+        self.log("lr", lr, rank_zero_only=True, batch_size=1, prog_bar=True)
+        self.log(
+            "global_step",
+            self.trainer.global_step + 1,
+            prog_bar=True,
+            rank_zero_only=True,
+            batch_size=1,
+        )
+        self.log(
+            "consumed_samples",
+            self.compute_consumed_samples(
+                self.trainer.global_step + 1 - self.init_global_step
+            ),
             prog_bar=True,
             rank_zero_only=True,
             batch_size=1,
@@ -304,15 +373,25 @@ class MegatronContentFilteringModel(MegatronBaseModel):
         return loss
 
     def on_validation_epoch_end(self):
-        torch.distributed.all_reduce(self.validation_metrics, op=torch.distributed.ReduceOp.SUM)
-        accuracy = (self.validation_metrics[0] + self.validation_metrics[1]) / self.validation_metrics.sum()
+        torch.distributed.all_reduce(
+            self.validation_metrics, op=torch.distributed.ReduceOp.SUM
+        )
+        accuracy = (
+            self.validation_metrics[0] + self.validation_metrics[1]
+        ) / self.validation_metrics.sum()
         self.validation_metrics = None
 
         averaged_metrics = 0
         if parallel_state.is_pipeline_last_stage(ignore_virtual=False):
             averaged_metrics = torch.stack(self.validation_step_outputs).mean()
             torch.distributed.broadcast(averaged_metrics, get_last_rank())
-        self.log("val_loss", averaged_metrics, prog_bar=True, rank_zero_only=True, batch_size=1)
+        self.log(
+            "val_loss",
+            averaged_metrics,
+            prog_bar=True,
+            rank_zero_only=True,
+            batch_size=1,
+        )
         self.log("accuracy", accuracy, prog_bar=True, rank_zero_only=True, batch_size=1)
 
         logging.info(f"Current evaluation accuracy: {accuracy}")
@@ -341,14 +420,18 @@ class MegatronContentFilteringModel(MegatronBaseModel):
                 micro_batch_size=self.model.concept_count,
             )
 
-            concepts = torch.cat([x["concepts"] for x in losses_reduced_per_micro_batch], dim=0)
+            concepts = torch.cat(
+                [x["concepts"] for x in losses_reduced_per_micro_batch], dim=0
+            )
             self.model.initialize_concept_embeddings(concepts)
         self._cfg["text"] = None
 
     def setup(self, stage):
         resume_checkpoint_path = self.trainer.ckpt_path
         self.init_consumed_samples = (
-            self._extract_consumed_samples_from_ckpt(resume_checkpoint_path) if resume_checkpoint_path else 0
+            self._extract_consumed_samples_from_ckpt(resume_checkpoint_path)
+            if resume_checkpoint_path
+            else 0
         )
         self.setup_training_data(self.cfg)
         self.setup_validation_data(self.cfg)
@@ -358,7 +441,10 @@ class MegatronContentFilteringModel(MegatronBaseModel):
         train_ds = build_dataset(cfg, self.compute_consumed_samples(0), is_train=True)
 
         sampler = torch.utils.data.distributed.DistributedSampler(
-            train_ds, num_replicas=self.trainer.world_size, rank=self.trainer.global_rank, shuffle=True
+            train_ds,
+            num_replicas=self.trainer.world_size,
+            rank=self.trainer.global_rank,
+            shuffle=True,
         )
 
         self._train_dl = torch.utils.data.DataLoader(
@@ -376,7 +462,10 @@ class MegatronContentFilteringModel(MegatronBaseModel):
         val_ds = build_dataset(cfg, self.compute_consumed_samples(0), is_train=False)
 
         sampler = torch.utils.data.distributed.DistributedSampler(
-            val_ds, num_replicas=self.trainer.world_size, rank=self.trainer.global_rank, shuffle=True
+            val_ds,
+            num_replicas=self.trainer.world_size,
+            rank=self.trainer.global_rank,
+            shuffle=True,
         )
 
         self._validation_dl = torch.utils.data.DataLoader(
@@ -390,7 +479,10 @@ class MegatronContentFilteringModel(MegatronBaseModel):
         )
 
     def parameters(self):
-        return itertools.chain(self.model.mlp_similarity_model.parameters(), self.model.nn_classifier.parameters())
+        return itertools.chain(
+            self.model.mlp_similarity_model.parameters(),
+            self.model.nn_classifier.parameters(),
+        )
 
     def on_load_checkpoint(self, checkpoint) -> None:
         if "model.concepts" in checkpoint["state_dict"]:

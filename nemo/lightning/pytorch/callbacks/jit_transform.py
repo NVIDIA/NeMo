@@ -33,10 +33,10 @@ def extract_module_attr_name(pl_module: "pl.LightningModule") -> str:
     Returns:
         str: the attr-name of the nn.Module
     """
-    if hasattr(pl_module, 'module'):
-        return 'module'
-    elif hasattr(pl_module, 'model'):
-        return 'model'
+    if hasattr(pl_module, "module"):
+        return "module"
+    elif hasattr(pl_module, "model"):
+        return "model"
     else:
         raise ValueError("Expected lightning_module to have a .model or .module attr.")
 
@@ -70,25 +70,27 @@ def get_modules_from_selector(model, module_selector):
     Yields:
         Iterator(nn.Module): iterator over modules whose FQN matches module_selector
     """
-    if module_selector is None or module_selector == '' or module_selector == '*':
+    if module_selector is None or module_selector == "" or module_selector == "*":
         yield model
         return
 
     assert isinstance(module_selector, str), module_selector
-    atoms: List[str] = module_selector.split('.')
+    atoms: List[str] = module_selector.split(".")
     tmp = model
 
     for i, item in enumerate(atoms):
-        if '*' in item:
+        if "*" in item:
             # handle wildcard selector
             # TODO(@akoumparouli): support more complex selectors e.g. net_b.*.net_c.*.conv
             for name, module in tmp.named_children():
-                if re.match(item.replace('*', '.*'), name):
+                if re.match(item.replace("*", ".*"), name):
                     yield module
             return
 
         if not hasattr(tmp, item):
-            raise AttributeError(tmp._get_name() + " has no " "attribute `" + item + "`")
+            raise AttributeError(
+                tmp._get_name() + " has no " "attribute `" + item + "`"
+            )
         tmp = getattr(tmp, item)
 
         if not isinstance(tmp, torch.nn.Module):
@@ -142,14 +144,16 @@ class JitConfig:
     - profile_thunder (bool): toggle for thunder's profiler.
     """
 
-    module_selector: str = ''
+    module_selector: str = ""
     use_torch: bool = False
     torch_kwargs: dict = field(default_factory=dict)
     use_thunder: bool = False
     profile_thunder: bool = False
 
     def __post_init__(self):
-        assert not (self.use_torch and self.use_thunder), "use_torch cannot be used at the same time with use_thunder"
+        assert not (
+            self.use_torch and self.use_thunder
+        ), "use_torch cannot be used at the same time with use_thunder"
 
 
 class JitTransform(Callback, IOMixin):
@@ -169,7 +173,9 @@ class JitTransform(Callback, IOMixin):
         self.config = config
         assert not (self.config.use_torch and self.config.use_thunder)
 
-    def on_train_epoch_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
+    def on_train_epoch_start(
+        self, trainer: "pl.Trainer", pl_module: "pl.LightningModule"
+    ) -> None:
         """Jit-compiles the model at the start of the epoch.
         While other events such as on_train_start are more suitable, we use on_train_epoch_start
         since that is what is used in peft (we want to jit after adding the adapters).
@@ -186,7 +192,7 @@ class JitTransform(Callback, IOMixin):
         attr_name = extract_module_attr_name(pl_module)
         model = getattr(pl_module, attr_name)
 
-        if getattr(pl_module, '_compiled', False) == True:
+        if getattr(pl_module, "_compiled", False) == True:
             return
 
         # TODO(@akoumparouli): you want to concatenate (via regex OR-operator) all expressions
@@ -196,4 +202,4 @@ class JitTransform(Callback, IOMixin):
             for module in get_modules_from_selector(model, config.module_selector):
                 compiled |= compile_module(config, module)
 
-        setattr(pl_module, '_compiled', compiled)
+        setattr(pl_module, "_compiled", compiled)

@@ -42,7 +42,9 @@ from nemo.utils.callbacks.dist_ckpt_io import (AsyncCompatibleCheckpointIO,
 logger = logging.getLogger(__name__)
 
 
-class MCoreHierarchicalCheckpointIO(HierarchicalCheckpointIO, AsyncCompatibleCheckpointIO):
+class MCoreHierarchicalCheckpointIO(
+    HierarchicalCheckpointIO, AsyncCompatibleCheckpointIO
+):
     """HierarchicalCheckpointIO implementation compatible with MCore distributed checkpointing.
 
     Args:
@@ -71,13 +73,20 @@ class MCoreHierarchicalCheckpointIO(HierarchicalCheckpointIO, AsyncCompatibleChe
         parallelization_group: Optional[torch.distributed.ProcessGroup] = None,
         allow_cache: bool = False,
     ):
-        super().__init__(wrapped_checkpoint_io, local_ckpt_manager, get_global_ckpt_iteration_fn, async_save)
+        super().__init__(
+            wrapped_checkpoint_io,
+            local_ckpt_manager,
+            get_global_ckpt_iteration_fn,
+            async_save,
+        )
         self.local_ckpt_algo = local_ckpt_algo
         self.parallelization_group = parallelization_group
         self.cached_metadata = None
         self.allow_cache = allow_cache
 
-    def to_tensor_aware_state_dict(self, checkpoint: Dict[str, Any]) -> TensorAwareStateDict:
+    def to_tensor_aware_state_dict(
+        self, checkpoint: Dict[str, Any]
+    ) -> TensorAwareStateDict:
         """Specialized implementation using MCoreTensorAwareStateDict.
 
         Wraps the state dict in MCoreTensorAwareStateDict and makes sure
@@ -102,14 +111,19 @@ class MCoreHierarchicalCheckpointIO(HierarchicalCheckpointIO, AsyncCompatibleChe
         return state_dict_for_save
 
     def from_tensor_aware_state_dict(
-        self, tensor_aware_checkpoint: TensorAwareStateDict, sharded_state_dict=None, strict=None
+        self,
+        tensor_aware_checkpoint: TensorAwareStateDict,
+        sharded_state_dict=None,
+        strict=None,
     ):
         """Unwraps MCoreTensorAwareStateDict to a plain state dict."""
         assert isinstance(
             tensor_aware_checkpoint, MCoreTensorAwareStateDict
         ), f"Unexpected tensor aware state dict type: {type(tensor_aware_checkpoint)}"
         if strict is not None:
-            logger.warning("MCoreTensorAwareStateDict does not yet support the 'strict' argument.")
+            logger.warning(
+                "MCoreTensorAwareStateDict does not yet support the 'strict' argument."
+            )
 
         return tensor_aware_checkpoint.to_state_dict(
             sharded_state_dict,
@@ -148,7 +162,9 @@ def update_trainer_local_checkpoint_io(
     async_save = getattr(trainer.strategy, "async_save", False)
     if async_save:
         # Access inner checkpoint IO
-        assert isinstance(checkpoint_io, AsyncFinalizableCheckpointIO), type(checkpoint_io)
+        assert isinstance(checkpoint_io, AsyncFinalizableCheckpointIO), type(
+            checkpoint_io
+        )
         checkpoint_io = checkpoint_io.checkpoint_io
 
     if trainer.num_nodes > 1:
@@ -170,6 +186,8 @@ def update_trainer_local_checkpoint_io(
     )
 
     if async_save:
-        hierarchical_checkpointing_io = AsyncFinalizableCheckpointIO(hierarchical_checkpointing_io)
+        hierarchical_checkpointing_io = AsyncFinalizableCheckpointIO(
+            hierarchical_checkpointing_io
+        )
 
     trainer.strategy.checkpoint_io = hierarchical_checkpointing_io

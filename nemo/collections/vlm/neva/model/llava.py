@@ -53,12 +53,18 @@ class Llava15Config7B(LlavaConfig):
 
     from transformers import PretrainedConfig
 
-    language_transformer_config: TransformerConfig = field(default_factory=lambda: Llama2Config7B())
+    language_transformer_config: TransformerConfig = field(
+        default_factory=lambda: Llama2Config7B()
+    )
     vision_transformer_config: Union[TransformerConfig, PretrainedConfig] = field(
-        default_factory=lambda: HFCLIPVisionConfig(pretrained_model_name_or_path="openai/clip-vit-large-patch14-336")
+        default_factory=lambda: HFCLIPVisionConfig(
+            pretrained_model_name_or_path="openai/clip-vit-large-patch14-336"
+        )
     )
     vision_projection_config: TransformerConfig = field(
-        default_factory=lambda: MultimodalProjectorConfig(input_size=1024, hidden_size=4096, ffn_hidden_size=4096)
+        default_factory=lambda: MultimodalProjectorConfig(
+            input_size=1024, hidden_size=4096, ffn_hidden_size=4096
+        )
     )
 
 
@@ -68,12 +74,18 @@ class Llava15Config13B(LlavaConfig):
 
     from transformers import PretrainedConfig
 
-    language_transformer_config: TransformerConfig = field(default_factory=lambda: Llama2Config13B())
+    language_transformer_config: TransformerConfig = field(
+        default_factory=lambda: Llama2Config13B()
+    )
     vision_transformer_config: Union[TransformerConfig, PretrainedConfig] = field(
-        default_factory=lambda: HFCLIPVisionConfig(pretrained_model_name_or_path="openai/clip-vit-large-patch14-336")
+        default_factory=lambda: HFCLIPVisionConfig(
+            pretrained_model_name_or_path="openai/clip-vit-large-patch14-336"
+        )
     )
     vision_projection_config: TransformerConfig = field(
-        default_factory=lambda: MultimodalProjectorConfig(input_size=1024, hidden_size=5120, ffn_hidden_size=5120)
+        default_factory=lambda: MultimodalProjectorConfig(
+            input_size=1024, hidden_size=5120, ffn_hidden_size=5120
+        )
     )
 
 
@@ -87,7 +99,12 @@ class LlavaModel(NevaModel):
         tokenizer: Optional["TokenizerSpec"] = None,
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
-        super().__init__(config or LlavaConfig(), optim=optim, tokenizer=tokenizer, model_transform=model_transform)
+        super().__init__(
+            config or LlavaConfig(),
+            optim=optim,
+            tokenizer=tokenizer,
+            model_transform=model_transform,
+        )
 
 
 @io.model_importer(LlavaModel, "hf")
@@ -128,7 +145,10 @@ class HFLlavaImporter(io.ModelConnector["LlavaForConditionalGeneration", LlavaMo
             "language_model.model.norm.weight": "language_model.decoder.final_layernorm.weight",
             "language_model.lm_head.weight": "language_model.output_layer.weight",
         }
-        if "vision_projection.encoder.linear_fc1.weight" in target.module.state_dict().keys():
+        if (
+            "vision_projection.encoder.linear_fc1.weight"
+            in target.module.state_dict().keys()
+        ):
             mapping.update(
                 {
                     "multi_modal_projector.linear_1.weight": "vision_projection.encoder.linear_fc1.weight",
@@ -152,7 +172,10 @@ class HFLlavaImporter(io.ModelConnector["LlavaForConditionalGeneration", LlavaMo
         if image_newline:
             mapping.update({"image_newline": "image_newline"})
 
-        if "vision_model.vision_model.embeddings.class_embedding" in target.module.state_dict().keys():
+        if (
+            "vision_model.vision_model.embeddings.class_embedding"
+            in target.module.state_dict().keys()
+        ):
             mapping.update(
                 {
                     "vision_tower.vision_model.**": "vision_model.vision_model.**",
@@ -225,13 +248,17 @@ class HFLlavaImporter(io.ModelConnector["LlavaForConditionalGeneration", LlavaMo
             num_query_groups=text_conifg.num_key_value_heads,
             rotary_base=text_conifg.rope_theta,
             gated_linear_unit=True,
-            make_vocab_size_divisible_by=make_vocab_size_divisible_by(text_conifg.vocab_size),
+            make_vocab_size_divisible_by=make_vocab_size_divisible_by(
+                text_conifg.vocab_size
+            ),
             share_embeddings_and_output_weights=False,
         )
         vision_transformer_config = HFCLIPVisionConfig(
             pretrained_model_name_or_path="openai/clip-vit-large-patch14-336"
         )
-        vision_projection_config = MultimodalProjectorConfig(input_size=1024, hidden_size=4096, ffn_hidden_size=4096)
+        vision_projection_config = MultimodalProjectorConfig(
+            input_size=1024, hidden_size=4096, ffn_hidden_size=4096
+        )
 
         output = LlavaConfig(
             language_transformer_config=language_transformer_config,
@@ -243,7 +270,9 @@ class HFLlavaImporter(io.ModelConnector["LlavaForConditionalGeneration", LlavaMo
         return output
 
 
-def import_qkv(q, k, v, head_num, num_query_groups, heads_per_group, hidden_size, head_size):
+def import_qkv(
+    q, k, v, head_num, num_query_groups, heads_per_group, hidden_size, head_size
+):
     # pylint: disable=C0115,C0116
     old_tensor_shape = q.size()
     new_q_tensor_shape = (head_num, head_size) + old_tensor_shape[1:]
@@ -260,16 +289,22 @@ def import_qkv(q, k, v, head_num, num_query_groups, heads_per_group, hidden_size
         qkv_weights_l.append(v[i : i + 1, :, :])
     qkv_weights = torch.cat(qkv_weights_l)
     assert qkv_weights.ndim == 3, qkv_weights.shape
-    assert qkv_weights.shape[0] == (heads_per_group + 2) * num_query_groups, qkv_weights.shape
+    assert (
+        qkv_weights.shape[0] == (heads_per_group + 2) * num_query_groups
+    ), qkv_weights.shape
     assert qkv_weights.shape[1] == head_size, qkv_weights.shape
     assert qkv_weights.shape[2] == old_tensor_shape[1], qkv_weights.shape
 
-    qkv_weights = qkv_weights.reshape([head_size * (head_num + 2 * num_query_groups), hidden_size])
+    qkv_weights = qkv_weights.reshape(
+        [head_size * (head_num + 2 * num_query_groups), hidden_size]
+    )
 
     return qkv_weights
 
 
-def export_qkv(linear_qkv, head_num, num_query_groups, heads_per_group, hidden_size, head_size):
+def export_qkv(
+    linear_qkv, head_num, num_query_groups, heads_per_group, hidden_size, head_size
+):
     # pylint: disable=C0115,C0116
     qkv_total_dim = head_num + 2 * num_query_groups
 
@@ -277,7 +312,9 @@ def export_qkv(linear_qkv, head_num, num_query_groups, heads_per_group, hidden_s
     hidden_size = linear_qkv.size(-1)
     q_slice = torch.cat(
         [
-            torch.arange((heads_per_group + 2) * i, (heads_per_group + 2) * i + heads_per_group)
+            torch.arange(
+                (heads_per_group + 2) * i, (heads_per_group + 2) * i + heads_per_group
+            )
             for i in range(num_query_groups)
         ]
     )
@@ -291,7 +328,9 @@ def export_qkv(linear_qkv, head_num, num_query_groups, heads_per_group, hidden_s
     return q_proj, k_proj, v_proj
 
 
-def export_qkv_bias(qkv_bias: torch.Tensor, head_num, num_query_groups, heads_per_group, head_size):
+def export_qkv_bias(
+    qkv_bias: torch.Tensor, head_num, num_query_groups, heads_per_group, head_size
+):
     """
     Split interleave-concatenated qkv bias to separate q, k, v bias
 
@@ -302,7 +341,9 @@ def export_qkv_bias(qkv_bias: torch.Tensor, head_num, num_query_groups, heads_pe
     qkv_bias = qkv_bias.reshape([qkv_total_dim, head_size])
     q_slice = torch.cat(
         [
-            torch.arange((heads_per_group + 2) * i, (heads_per_group + 2) * i + heads_per_group)
+            torch.arange(
+                (heads_per_group + 2) * i, (heads_per_group + 2) * i + heads_per_group
+            )
             for i in range(num_query_groups)
         ]
     )
@@ -333,7 +374,8 @@ def _import_language_qkv(ctx: io.TransformCTX, q, k, v):
         v,
         head_num=megatron_config.num_attention_heads,
         num_query_groups=megatron_config.num_query_groups,
-        heads_per_group=megatron_config.num_attention_heads // megatron_config.num_query_groups,
+        heads_per_group=megatron_config.num_attention_heads
+        // megatron_config.num_query_groups,
         hidden_size=megatron_config.hidden_size,
         head_size=megatron_config.kv_channels,
     )
@@ -356,7 +398,8 @@ def _import_vision_qkv(ctx: io.TransformCTX, q, k, v):
         v,
         head_num=megatron_config.num_attention_heads,
         num_query_groups=megatron_config.num_query_groups,
-        heads_per_group=megatron_config.num_attention_heads // megatron_config.num_query_groups,
+        heads_per_group=megatron_config.num_attention_heads
+        // megatron_config.num_query_groups,
         hidden_size=megatron_config.hidden_size,
         head_size=megatron_config.kv_channels,
     )
@@ -379,7 +422,8 @@ def _import_vision_qkv_bias(ctx: io.TransformCTX, q_bias, k_bias, v_bias):
         v_bias.unsqueeze(-1),
         head_num=megatron_config.num_attention_heads,
         num_query_groups=megatron_config.num_query_groups,
-        heads_per_group=megatron_config.num_attention_heads // megatron_config.num_query_groups,
+        heads_per_group=megatron_config.num_attention_heads
+        // megatron_config.num_query_groups,
         hidden_size=1,
         head_size=megatron_config.kv_channels,
     ).squeeze(-1)

@@ -32,9 +32,17 @@ python3 export_zh_cpp_data_to_manifest.py --data_folder g2pM/data/ --output_fold
 
 def parse_args():
     parser = ArgumentParser()
-    parser.add_argument('--data_folder', help="Path to data folder with the CPP data files", type=str, required=True)
     parser.add_argument(
-        "--output_folder", help="Path to data folder with output .json file to store the data", type=str, required=True
+        "--data_folder",
+        help="Path to data folder with the CPP data files",
+        type=str,
+        required=True,
+    )
+    parser.add_argument(
+        "--output_folder",
+        help="Path to data folder with output .json file to store the data",
+        type=str,
+        required=True,
     )
     return parser.parse_args()
 
@@ -48,16 +56,20 @@ def convert_cpp_data_to_manifest(data_folder: str, output_folder: str):
         output_folder: path to output folder
     """
     wordid_dict = defaultdict(set)
-    for key in ['train', 'dev', 'test']:
+    for key in ["train", "dev", "test"]:
         output_manifest = f"{output_folder}/{key}.json"
         sent_file = f"{data_folder}/{key}.sent"
         label_file = f"{data_folder}/{key}.lb"
 
-        with open(output_manifest, "w") as f_out, open(sent_file, 'r') as f_sent, open(label_file, 'r') as f_label:
+        with (
+            open(output_manifest, "w") as f_out,
+            open(sent_file, "r") as f_sent,
+            open(label_file, "r") as f_label,
+        ):
             lines_sent, lines_label = f_sent.readlines(), f_label.readlines()
-            lines_label = [line.strip('\n') for line in lines_label]
-            lines_idx = [line.index('\u2581') for line in lines_sent]
-            lines_sent = [line.strip('\n').replace('\u2581', '') for line in lines_sent]
+            lines_label = [line.strip("\n") for line in lines_label]
+            lines_idx = [line.index("\u2581") for line in lines_sent]
+            lines_sent = [line.strip("\n").replace("\u2581", "") for line in lines_sent]
 
             for i, index in enumerate(lines_idx):
                 wordid_dict[lines_sent[i][index]].add(lines_label[i])
@@ -75,13 +87,13 @@ def convert_cpp_data_to_manifest(data_folder: str, output_folder: str):
         print(f"Data saved at {output_manifest}")
 
     word_id_file = f"{output_folder}/wordid.tsv"
-    with open(word_id_file, 'w') as f_wordid:
+    with open(word_id_file, "w") as f_wordid:
         f_wordid.write(f"homograph\twordid\tlabel\tpronunciation\n")
         for key, pronunciations in wordid_dict.items():
             for value in pronunciations:
                 f_wordid.write(f"{key}\t{key}_{value}\tNone\t{value}\n")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     args = parse_args()
     convert_cpp_data_to_manifest(args.data_folder, args.output_folder)

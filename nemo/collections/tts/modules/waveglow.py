@@ -53,7 +53,9 @@ class WaveGlowModule(NeuralModule, Exportable):
         """
         super().__init__()
 
-        self.upsample = torch.nn.ConvTranspose1d(n_mel_channels, n_mel_channels, 1024, stride=256)
+        self.upsample = torch.nn.ConvTranspose1d(
+            n_mel_channels, n_mel_channels, 1024, stride=256
+        )
         self.n_mel_channels = n_mel_channels
         assert n_group % 2 == 0
         self.n_flows = n_flows
@@ -108,12 +110,15 @@ class WaveGlowModule(NeuralModule, Exportable):
 
     @typecheck()
     def forward(self, spec, z=None, audio=None, run_inverse=True, sigma=1.0):
-        """ TODO
-        """
+        """TODO"""
         if self.training and self.mode != OperationMode.training:
-            raise ValueError(f"{self} has self.training set to True but self.OperationMode was not set to training")
+            raise ValueError(
+                f"{self} has self.training set to True but self.OperationMode was not set to training"
+            )
         if not self.training and self.mode == OperationMode.training:
-            raise ValueError(f"{self} has self.training set to False but self.OperationMode was set to training")
+            raise ValueError(
+                f"{self} has self.training set to False but self.OperationMode was set to training"
+            )
 
         audio_pred = torch.zeros((1, 1))
         if run_inverse:
@@ -123,7 +128,9 @@ class WaveGlowModule(NeuralModule, Exportable):
 
         if audio is not None and self.mode != OperationMode.infer:
             # audio_to_normal_dist is used to calculate loss so only run this in train or val model
-            z1, log_s_list, log_det_W_list = self.audio_to_normal_dist(spec=spec, audio=audio)
+            z1, log_s_list, log_det_W_list = self.audio_to_normal_dist(
+                spec=spec, audio=audio
+            )
             return z1, log_s_list, log_det_W_list, audio_pred
 
         return audio_pred
@@ -132,15 +139,15 @@ class WaveGlowModule(NeuralModule, Exportable):
     def input_types(self):
         if self.mode == OperationMode.infer:
             return {
-                "spec": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
-                "z": NeuralType(('B', 'D', 'T'), MelSpectrogramType(), optional=True),
+                "spec": NeuralType(("B", "D", "T"), MelSpectrogramType()),
+                "z": NeuralType(("B", "D", "T"), MelSpectrogramType(), optional=True),
                 "sigma": NeuralType(optional=True),
             }
         else:
             return {
-                "spec": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
-                "z": NeuralType(('B', 'D', 'T'), MelSpectrogramType(), optional=True),
-                "audio": NeuralType(('B', 'T'), AudioSignal(), optional=True),
+                "spec": NeuralType(("B", "D", "T"), MelSpectrogramType()),
+                "z": NeuralType(("B", "D", "T"), MelSpectrogramType(), optional=True),
+                "audio": NeuralType(("B", "T"), AudioSignal(), optional=True),
                 "run_inverse": NeuralType(elements_type=IntType(), optional=True),
                 "sigma": NeuralType(optional=True),
             }
@@ -149,14 +156,20 @@ class WaveGlowModule(NeuralModule, Exportable):
     def output_types(self):
         if self.mode == OperationMode.training or self.mode == OperationMode.validation:
             return {
-                "pred_normal_dist": NeuralType(('B', 'flowgroup', 'T'), NormalDistributionSamplesType()),
-                "log_s_list": [NeuralType(('B', 'flowgroup', 'T'), VoidType())],  # TODO: Figure out a good typing
-                "log_det_W_list": [NeuralType(elements_type=VoidType())],  # TODO: Figure out a good typing
-                "audio_pred": NeuralType(('B', 'T'), AudioSignal()),
+                "pred_normal_dist": NeuralType(
+                    ("B", "flowgroup", "T"), NormalDistributionSamplesType()
+                ),
+                "log_s_list": [
+                    NeuralType(("B", "flowgroup", "T"), VoidType())
+                ],  # TODO: Figure out a good typing
+                "log_det_W_list": [
+                    NeuralType(elements_type=VoidType())
+                ],  # TODO: Figure out a good typing
+                "audio_pred": NeuralType(("B", "T"), AudioSignal()),
             }
         else:
             return {
-                "audio": NeuralType(('B', 'T'), AudioSignal()),
+                "audio": NeuralType(("B", "T"), AudioSignal()),
             }
 
     def input_example(self, max_batch=1, max_dim=256):
@@ -166,15 +179,25 @@ class WaveGlowModule(NeuralModule, Exportable):
             A tuple of input examples.
         """
         par = next(self.parameters())
-        mel = torch.randn((max_batch, self.n_mel_channels, max_dim), device=par.device, dtype=par.dtype)
+        mel = torch.randn(
+            (max_batch, self.n_mel_channels, max_dim),
+            device=par.device,
+            dtype=par.dtype,
+        )
         z = torch.randn(
-            (max_batch, self.n_mel_channels, max_dim * self.upsample.stride[0] // self.n_group),
+            (
+                max_batch,
+                self.n_mel_channels,
+                max_dim * self.upsample.stride[0] // self.n_group,
+            ),
             device=par.device,
             dtype=par.dtype,
         )
         return {"spec": mel, "z": z}
 
-    def audio_to_normal_dist(self, *, spec: torch.Tensor, audio: torch.Tensor) -> Tuple[torch.Tensor, list, list]:
+    def audio_to_normal_dist(
+        self, *, spec: torch.Tensor, audio: torch.Tensor
+    ) -> Tuple[torch.Tensor, list, list]:
         #  Upsample spectrogram to size of audio
         spec = self.upsample(spec)
         assert spec.size(2) >= audio.size(1)
@@ -229,7 +252,9 @@ class WaveGlowModule(NeuralModule, Exportable):
         if z is None:
             z = sigma * torch.randn(z_size, device=spec.device).to(spec.dtype)
 
-        audio, z = torch.split(z, [self.n_remaining_channels, z.size(1) - self.n_remaining_channels], 1)
+        audio, z = torch.split(
+            z, [self.n_remaining_channels, z.size(1) - self.n_remaining_channels], 1
+        )
 
         for k in reversed(range(self.n_flows)):
             n_half = self.n_halves[k]
@@ -245,7 +270,9 @@ class WaveGlowModule(NeuralModule, Exportable):
 
             audio = self.convinv[k](audio, reverse=True)
             if k % self.n_early_every == 0 and k > 0:
-                z1, z = torch.split(z, [self.n_early_size, z.size(1) - self.n_early_size], 1)
+                z1, z = torch.split(
+                    z, [self.n_early_size, z.size(1) - self.n_early_size], 1
+                )
                 audio = torch.cat((z1, audio), 1)
         return audio.permute(0, 2, 1).contiguous().view(audio.size(0), -1)
 

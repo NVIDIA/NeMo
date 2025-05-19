@@ -107,7 +107,7 @@ def main(cfg) -> None:
             trainer=trainer,
             override_config_path=pretrained_cfg,
             save_restore_connector=save_restore_connector,
-            map_location=f'cuda:{trainer.local_rank}',  # map_location is needed for converted models
+            map_location=f"cuda:{trainer.local_rank}",  # map_location is needed for converted models
         )
     elif cfg.checkpoint_dir:
         logging.info(
@@ -115,10 +115,14 @@ def main(cfg) -> None:
         )
         app_state = AppState()
         if cfg.tensor_model_parallel_size > 1 or cfg.pipeline_model_parallel_size > 1:
-            app_state.model_parallel_size = cfg.tensor_model_parallel_size * cfg.pipeline_model_parallel_size
+            app_state.model_parallel_size = (
+                cfg.tensor_model_parallel_size * cfg.pipeline_model_parallel_size
+            )
             app_state.tensor_model_parallel_size = cfg.tensor_model_parallel_size
             app_state.pipeline_model_parallel_size = cfg.pipeline_model_parallel_size
-            app_state.virtual_pipeline_model_parallel_size = cfg.virtual_pipeline_model_parallel_size
+            app_state.virtual_pipeline_model_parallel_size = (
+                cfg.virtual_pipeline_model_parallel_size
+            )
             (
                 app_state.tensor_model_parallel_rank,
                 app_state.pipeline_model_parallel_rank,
@@ -133,10 +137,12 @@ def main(cfg) -> None:
                 pipeline_model_parallel_size_=cfg.pipeline_model_parallel_size,
                 virtual_pipeline_model_parallel_size_=cfg.virtual_pipeline_model_parallel_size,
             )
-        checkpoint_path = inject_model_parallel_rank(os.path.join(cfg.checkpoint_dir, cfg.checkpoint_name))
+        checkpoint_path = inject_model_parallel_rank(
+            os.path.join(cfg.checkpoint_dir, cfg.checkpoint_name)
+        )
         pretrained_cfg = OmegaConf.load(cfg.hparams_file)
         pretrained_cfg = modify_pretrained_cfg(pretrained_cfg.cfg, trainer, cfg)
-        with tempfile.NamedTemporaryFile(suffix='.yaml') as f:
+        with tempfile.NamedTemporaryFile(suffix=".yaml") as f:
             OmegaConf.save(config=pretrained_cfg, f=f.name)
             model = MegatronGPTModel.load_from_checkpoint(
                 checkpoint_path=checkpoint_path,
@@ -147,10 +153,10 @@ def main(cfg) -> None:
         raise ValueError("need at least a nemo file or checkpoint dir")
 
     logging.info("\n\n**************  Model configuration ***********")
-    logging.info(f'\n{OmegaConf.to_yaml(model.cfg)}')
+    logging.info(f"\n{OmegaConf.to_yaml(model.cfg)}")
 
     trainer.validate(model=model)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()  # noqa pylint: disable=no-value-for-parameter

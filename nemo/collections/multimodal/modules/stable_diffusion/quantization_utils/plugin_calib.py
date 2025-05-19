@@ -18,7 +18,9 @@ from modelopt.torch.quantization.calib.max import MaxCalibrator
 
 
 class PercentileCalibrator(MaxCalibrator):
-    def __init__(self, num_bits=8, axis=None, unsigned=False, track_amax=False, **kwargs):
+    def __init__(
+        self, num_bits=8, axis=None, unsigned=False, track_amax=False, **kwargs
+    ):
         super().__init__(num_bits, axis, unsigned, track_amax)
         self.percentile = kwargs["percentile"]
         self.total_step = kwargs["total_step"]

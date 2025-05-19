@@ -34,50 +34,50 @@ from package_info import __version__
 templates_path = ["_templates"]
 
 autodoc_mock_imports = [
-    'torch',
-    'torch.nn',
-    'torch.utils',
-    'torch.optim',
-    'torch.utils.data',
-    'torch.utils.data.sampler',
-    'torchtext',
-    'torchvision',
-    'ruamel.yaml',  # ruamel.yaml has ., which is troublesome for this regex
-    'hydra',  # hydra-core in requirements, hydra during import
-    'dateutil',  # part of core python
-    'transformers.tokenization_bert',  # has ., troublesome for this regex
-    'sklearn',  # scikit_learn in requirements, sklearn in import
-    'nemo_text_processing.inverse_text_normalization',  # Not installed automatically
-    'nemo_text_processing.text_normalization',  # Not installed automatically
-    'attr',  # attrdict in requirements, attr in import
-    'torchmetrics',  # inherited from PTL
-    'lightning_utilities',  # inherited from PTL
-    'lightning_fabric',
-    'apex',
-    'megatron.core',
-    'transformer_engine',
-    'joblib',  # inherited from optional code
-    'IPython',
-    'ipadic',
-    'psutil',
-    'pytorch_lightning',
-    'regex',
-    'PIL',
-    'boto3',
-    'taming',
-    'cytoolz',  # for adapters
-    'megatron',  # for nlp
+    "torch",
+    "torch.nn",
+    "torch.utils",
+    "torch.optim",
+    "torch.utils.data",
+    "torch.utils.data.sampler",
+    "torchtext",
+    "torchvision",
+    "ruamel.yaml",  # ruamel.yaml has ., which is troublesome for this regex
+    "hydra",  # hydra-core in requirements, hydra during import
+    "dateutil",  # part of core python
+    "transformers.tokenization_bert",  # has ., troublesome for this regex
+    "sklearn",  # scikit_learn in requirements, sklearn in import
+    "nemo_text_processing.inverse_text_normalization",  # Not installed automatically
+    "nemo_text_processing.text_normalization",  # Not installed automatically
+    "attr",  # attrdict in requirements, attr in import
+    "torchmetrics",  # inherited from PTL
+    "lightning_utilities",  # inherited from PTL
+    "lightning_fabric",
+    "apex",
+    "megatron.core",
+    "transformer_engine",
+    "joblib",  # inherited from optional code
+    "IPython",
+    "ipadic",
+    "psutil",
+    "pytorch_lightning",
+    "regex",
+    "PIL",
+    "boto3",
+    "taming",
+    "cytoolz",  # for adapters
+    "megatron",  # for nlp
     "open_clip",
 ]
 
-_skipped_autodoc_mock_imports = ['wrapt', 'numpy']
+_skipped_autodoc_mock_imports = ["wrapt", "numpy"]
 
 for req_path in sorted(list(glob.glob("../../requirements/*.txt"))):
     if "docs.txt" in req_path:
         continue
 
     req_file = os.path.abspath(os.path.expanduser(req_path))
-    with open(req_file, 'r') as f:
+    with open(req_file, "r") as f:
         for line in f:
             line = line.replace("\n", "")
             req = re.search(r"([a-zA-Z0-9-_]*)", line)
@@ -91,9 +91,13 @@ for req_path in sorted(list(glob.glob("../../requirements/*.txt"))):
                         continue
 
                     autodoc_mock_imports.append(req)
-                    print(f"Adding req : `{req}` to autodoc mock requirements (lib {line})")
+                    print(
+                        f"Adding req : `{req}` to autodoc mock requirements (lib {line})"
+                    )
                 else:
-                    print(f"`{req}` already added to autodoc mock requirements (lib {line})")
+                    print(
+                        f"`{req}` already added to autodoc mock requirements (lib {line})"
+                    )
 
 #
 # -- General configuration ------------------------------------------------
@@ -124,27 +128,31 @@ extensions = [
 ]
 
 bibtex_bibfiles = [
-    'asr/asr_all.bib',
-    'nlp/nlp_all.bib',
-    'nlp/text_normalization/tn_itn_all.bib',
-    'tools/tools_all.bib',
-    'tts/tts_all.bib',
-    'text_processing/text_processing_all.bib',
-    'core/adapters/adapter_bib.bib',
-    'multimodal/mm_all.bib',
-    'vision/vision_all.bib',
-    'audio/audio_all.bib',
+    "asr/asr_all.bib",
+    "nlp/nlp_all.bib",
+    "nlp/text_normalization/tn_itn_all.bib",
+    "tools/tools_all.bib",
+    "tts/tts_all.bib",
+    "text_processing/text_processing_all.bib",
+    "core/adapters/adapter_bib.bib",
+    "multimodal/mm_all.bib",
+    "vision/vision_all.bib",
+    "audio/audio_all.bib",
 ]
 
 intersphinx_mapping = {
-    'pytorch': ('https://pytorch.org/docs/stable', None),
-    'pytorch-lightning': ('https://pytorch-lightning.readthedocs.io/en/latest/', None),
+    "pytorch": ("https://pytorch.org/docs/stable", None),
+    "pytorch-lightning": ("https://pytorch-lightning.readthedocs.io/en/latest/", None),
 }
 
 # Set default flags for all classes.
-autodoc_default_options = {'members': None, 'undoc-members': None, 'show-inheritance': True}
+autodoc_default_options = {
+    "members": None,
+    "undoc-members": None,
+    "show-inheritance": True,
+}
 
-locale_dirs = ['locale/']  # path is example but recommended.
+locale_dirs = ["locale/"]  # path is example but recommended.
 gettext_compact = False  # optional.
 
 # The suffix(es) of source filenames.
@@ -232,26 +240,26 @@ htmlhelp_basename = "nemodoc"
 # html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
 
 html_theme = "sphinx_book_theme"
-html_logo = os.path.join('nv_logo.png')
-html_title = 'NVIDIA NeMo'
+html_logo = os.path.join("nv_logo.png")
+html_title = "NVIDIA NeMo"
 
 html_theme_options = {
-    'logo_only': False,
-    'display_version': True,
+    "logo_only": False,
+    "display_version": True,
     # 'prev_next_buttons_location': 'bottom',
     # 'style_external_links': False,
     # 'style_nav_header_background': '#000000',
     # Toc options
-    'collapse_navigation': False,
+    "collapse_navigation": False,
     # 'sticky_navigation': False,
-    'navigation_depth': 10,
+    "navigation_depth": 10,
     # 'includehidden': False,
     # 'titles_only': False,
     # Sphinx Book theme,
-    'repository_url': 'https://github.com/NVIDIA/NeMo',
-    'use_repository_button': True,
-    'show_navbar_depth': 1,
-    'show_toc_level': 10,
+    "repository_url": "https://github.com/NVIDIA/NeMo",
+    "use_repository_button": True,
+    "show_navbar_depth": 1,
+    "show_toc_level": 10,
 }
 
 
@@ -259,16 +267,16 @@ html_theme_options = {
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
 
-html_favicon = 'favicon.ico'
+html_favicon = "favicon.ico"
 
-html_static_path = ['_static']
+html_static_path = ["_static"]
 
-html_last_updated_fmt = ''
+html_last_updated_fmt = ""
 
 
 def setup(app):
-    app.add_css_file('css/custom.css')
-    app.add_js_file('js/pk_scripts.js')
+    app.add_css_file("css/custom.css")
+    app.add_js_file("js/pk_scripts.js")
 
 
 # html_css_files = [
@@ -280,9 +288,11 @@ def setup(app):
 # ]
 
 # OpenGraph settings
-ogp_site_url = 'https://nvidia.github.io/NeMo/'
-ogp_image = 'https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/_static/nv_logo.png'
+ogp_site_url = "https://nvidia.github.io/NeMo/"
+ogp_image = "https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/_static/nv_logo.png"
 
 # MathJax CDN
 # follow recommendation here https://www.sphinx-doc.org/en/master/usage/extensions/math.html#module-sphinx.ext.mathjax
-mathjax_path = "https://cdn.jsdelivr.net/npm/mathjax@2/MathJax.js?config=TeX-AMS-MML_HTMLorMML"
+mathjax_path = (
+    "https://cdn.jsdelivr.net/npm/mathjax@2/MathJax.js?config=TeX-AMS-MML_HTMLorMML"
+)

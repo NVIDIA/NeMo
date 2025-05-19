@@ -47,7 +47,9 @@ class FlowMatchEulerDiscreteScheduler(ABC):
         base_image_seq_len: Optional[int] = 256,
         max_image_seq_len: Optional[int] = 4096,
     ):
-        timesteps = np.linspace(1, num_train_timesteps, num_train_timesteps, dtype=np.float32)[::-1].copy()
+        timesteps = np.linspace(
+            1, num_train_timesteps, num_train_timesteps, dtype=np.float32
+        )[::-1].copy()
         timesteps = torch.from_numpy(timesteps).to(dtype=torch.float32)
 
         sigmas = timesteps / num_train_timesteps
@@ -129,7 +131,9 @@ class FlowMatchEulerDiscreteScheduler(ABC):
 
         # self.begin_index is None when scheduler is used for training, or pipeline does not implement set_begin_index
         if self.begin_index is None:
-            step_indices = [self.index_for_timestep(t, schedule_timesteps) for t in timestep]
+            step_indices = [
+                self.index_for_timestep(t, schedule_timesteps) for t in timestep
+            ]
         elif self.step_index is not None:
             # add_noise is called after first denoising step (for inpainting)
             step_indices = [self.step_index] * timestep.shape[0]
@@ -169,12 +173,16 @@ class FlowMatchEulerDiscreteScheduler(ABC):
         """
 
         if self.use_dynamic_shifting and mu is None:
-            raise ValueError(" you have a pass a value for `mu` when `use_dynamic_shifting` is set to be `True`")
+            raise ValueError(
+                " you have a pass a value for `mu` when `use_dynamic_shifting` is set to be `True`"
+            )
 
         if sigmas is None:
             self.num_inference_steps = num_inference_steps
             timesteps = np.linspace(
-                self._sigma_to_t(self.sigma_max), self._sigma_to_t(self.sigma_min), num_inference_steps
+                self._sigma_to_t(self.sigma_max),
+                self._sigma_to_t(self.sigma_min),
+                num_inference_steps,
             )
 
             sigmas = timesteps / self.num_train_timesteps

@@ -54,7 +54,9 @@ def rand_poses(
     jitter_up: float = 0.02,
     return_dirs: bool = False,
     device: torch.device = "cuda",
-) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, Optional[torch.Tensor]]:
+) -> Tuple[
+    torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, Optional[torch.Tensor]
+]:
     """
     Generate random poses from an orbit camera.
 
@@ -89,14 +91,23 @@ def rand_poses(
     angle_front = np.radians(angle_front)
 
     # Generate radius for each pose
-    radius = torch.rand(size, device=device) * (radius_range[1] - radius_range[0]) + radius_range[0]
+    radius = (
+        torch.rand(size, device=device) * (radius_range[1] - radius_range[0])
+        + radius_range[0]
+    )
 
     # Generate camera center positions
     if random.random() < uniform_sphere_rate:
-        centers, thetas, phis = sample_uniform_sphere(size=size, radius=radius, device=device)
+        centers, thetas, phis = sample_uniform_sphere(
+            size=size, radius=radius, device=device
+        )
     else:
         centers, thetas, phis = sample_orbit(
-            size=size, radius=radius, theta_range=theta_range, phi_range=phi_range, device=device
+            size=size,
+            radius=radius,
+            theta_range=theta_range,
+            phi_range=phi_range,
+            device=device,
         )
 
     # Initialize targets to 0 (assuming 0 is a point in 3D space that cameras are looking at)
@@ -114,11 +125,19 @@ def rand_poses(
 
     # Construct the 4x4 pose matrices
     poses = construct_poses(
-        centers=centers, right_vector=right_vector, up_vector=up_vector, forward_vector=forward_vector, device=device
+        centers=centers,
+        right_vector=right_vector,
+        up_vector=up_vector,
+        forward_vector=forward_vector,
+        device=device,
     )
 
     # Optionally compute view directions
-    dirs = get_view_direction(thetas, phis, angle_overhead, angle_front) if return_dirs else None
+    dirs = (
+        get_view_direction(thetas, phis, angle_overhead, angle_front)
+        if return_dirs
+        else None
+    )
 
     # Convert back to degrees for thetas and phis
     thetas, phis = torch.rad2deg(thetas), torch.rad2deg(phis)
@@ -167,7 +186,11 @@ def sample_uniform_sphere(
 
 
 def sample_orbit(
-    size: int, radius: torch.Tensor, theta_range: np.ndarray, phi_range: np.ndarray, device: torch.device = "cuda"
+    size: int,
+    radius: torch.Tensor,
+    theta_range: np.ndarray,
+    phi_range: np.ndarray,
+    device: torch.device = "cuda",
 ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """
     Sample points on a spherical orbit.
@@ -185,8 +208,13 @@ def sample_orbit(
             - thetas (torch.Tensor): Elevation angles in radians.
             - phis (torch.Tensor): Azimuth angles in radians.
     """
-    thetas = torch.rand(size, device=device) * (theta_range[1] - theta_range[0]) + theta_range[0]
-    phis = torch.rand(size, device=device) * (phi_range[1] - phi_range[0]) + phi_range[0]
+    thetas = (
+        torch.rand(size, device=device) * (theta_range[1] - theta_range[0])
+        + theta_range[0]
+    )
+    phis = (
+        torch.rand(size, device=device) * (phi_range[1] - phi_range[0]) + phi_range[0]
+    )
     phis[phis < 0] += 2 * np.pi
 
     x = radius * torch.sin(thetas) * torch.sin(phis)
@@ -227,7 +255,7 @@ class RandomPosesDataset(IterableDataset):
         uniform_sphere_rate: float = 0.0,
         near: float = 0.01,
         far: float = 1000.0,
-        device: torch.device = 'cpu',
+        device: torch.device = "cpu",
     ) -> None:
         """
         Initializes a new RandomPosesDataset instance.
@@ -302,7 +330,11 @@ class RandomPosesDataset(IterableDataset):
 
         # TODO(ahmadki): make camera type a parameter
         self.camera = PinholeCamera(
-            width=self.width, height=self.height, near=self.near, far=self.far, device=self.device
+            width=self.width,
+            height=self.height,
+            near=self.near,
+            far=self.far,
+            device=self.device,
         )
 
     def update_step(self, epoch: int, global_step: int) -> None:
@@ -326,7 +358,9 @@ class RandomPosesDataset(IterableDataset):
         """
         # TODO(ahmadki): support non-linear progressive_views
         r = linear_normalization(
-            x=global_step, lower_bound=self.progressive_view_start_step, upper_bound=self.progressive_view_end_step
+            x=global_step,
+            lower_bound=self.progressive_view_start_step,
+            upper_bound=self.progressive_view_end_step,
         )
         self.current_phi_range = [
             (1 - r) * self.default_azimuth + r * self.phi_range[0],
@@ -359,13 +393,13 @@ class RandomPosesDataset(IterableDataset):
             for i in range(self.internal_batch_size):
                 # Yield one sample at a time from the internal batch
                 yield {
-                    'height': self.height,
-                    'width': self.width,
-                    'rays_o': rays_o[i].unsqueeze(0),
-                    'rays_d': rays_d[i].unsqueeze(0),
-                    'dir': dirs[i].unsqueeze(0),
-                    'mvp': mvp[i].unsqueeze(0),
-                    'azimuth': delta_azimuth[i].unsqueeze(0),
+                    "height": self.height,
+                    "width": self.width,
+                    "rays_o": rays_o[i].unsqueeze(0),
+                    "rays_d": rays_d[i].unsqueeze(0),
+                    "dir": dirs[i].unsqueeze(0),
+                    "mvp": mvp[i].unsqueeze(0),
+                    "azimuth": delta_azimuth[i].unsqueeze(0),
                 }
 
     def generate_samples(self):
@@ -404,19 +438,31 @@ class RandomPosesDataset(IterableDataset):
         else:
             fovx_random = random.random()
             fovy_random = random.random()
-        fovx = fovx_random * (self.current_fovx_range[1] - self.current_fovx_range[0]) + self.current_fovx_range[0]
-        fovy = fovy_random * (self.current_fovy_range[1] - self.current_fovy_range[0]) + self.current_fovy_range[0]
+        fovx = (
+            fovx_random * (self.current_fovx_range[1] - self.current_fovx_range[0])
+            + self.current_fovx_range[0]
+        )
+        fovy = (
+            fovy_random * (self.current_fovy_range[1] - self.current_fovy_range[0])
+            + self.current_fovy_range[0]
+        )
 
         # Compute camera intrinsics
         intrinsics = self.camera.compute_intrinsics(fovx=fovx, fovy=fovy)
 
         # Compute projection matrix
-        projection = self.camera.compute_projection_matrix(focal_x=intrinsics[0], focal_y=intrinsics[1])
+        projection = self.camera.compute_projection_matrix(
+            focal_x=intrinsics[0], focal_y=intrinsics[1]
+        )
         mvp = projection @ torch.inverse(poses)  # [internal batch size, 4, 4]
 
         # Sample rays
         rays_o, rays_d = get_rays(
-            poses=poses, intrinsics=intrinsics, height=self.height, width=self.width, device=poses.device
+            poses=poses,
+            intrinsics=intrinsics,
+            height=self.height,
+            width=self.width,
+            device=poses.device,
         )
 
         # Compute azimuth delta
@@ -436,11 +482,11 @@ class RandomPosesDataset(IterableDataset):
             Dict: A dictionary containing the collated batch.
         """
         return {
-            'height': self.height,
-            'width': self.width,
-            'rays_o': torch.cat([item['rays_o'] for item in batch], dim=0),
-            'rays_d': torch.cat([item['rays_d'] for item in batch], dim=0),
-            'mvp': torch.cat([item['mvp'] for item in batch], dim=0),
-            'dir': torch.cat([item['dir'] for item in batch], dim=0),
-            'azimuth': torch.cat([item['azimuth'] for item in batch], dim=0),
+            "height": self.height,
+            "width": self.width,
+            "rays_o": torch.cat([item["rays_o"] for item in batch], dim=0),
+            "rays_d": torch.cat([item["rays_d"] for item in batch], dim=0),
+            "mvp": torch.cat([item["mvp"] for item in batch], dim=0),
+            "dir": torch.cat([item["dir"] for item in batch], dim=0),
+            "azimuth": torch.cat([item["azimuth"] for item in batch], dim=0),
         }

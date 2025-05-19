@@ -22,7 +22,7 @@ from nemo.collections.multimodal.models.text_to_image.imagen.imagen_pipeline imp
 from nemo.core.config import hydra_runner
 
 
-@hydra_runner(config_path='conf', config_name='imagen_fid_images')
+@hydra_runner(config_path="conf", config_name="imagen_fid_images")
 def main(cfg):
     # Read configuration parameters
     nnodes_per_cfg = cfg.fid.nnodes_per_cfg
@@ -43,23 +43,35 @@ def main(cfg):
     caption_files = sorted(os.listdir(path))
     assert len(caption_files) >= num_images_to_eval
     for file in caption_files[:num_images_to_eval]:
-        with open(os.path.join(path, file), 'r') as f:
+        with open(os.path.join(path, file), "r") as f:
             captions += f.readlines()
     print(f"The total number of captions to generate is: {len(captions)}")
 
     # Calculate partition sizes and select the partition for the current node
     partition_size_per_node = num_images_to_eval // nnodes_per_cfg
     start_idx = node_id_per_cfg * partition_size_per_node
-    end_idx = (node_id_per_cfg + 1) * partition_size_per_node if node_id_per_cfg != nnodes_per_cfg - 1 else None
+    end_idx = (
+        (node_id_per_cfg + 1) * partition_size_per_node
+        if node_id_per_cfg != nnodes_per_cfg - 1
+        else None
+    )
     captions = captions[start_idx:end_idx]
     print(f"Current node {node_id} will generate images from {start_idx} to {end_idx}")
 
-    local_task_id = int(local_task_id) if local_task_id is not None else int(os.environ.get("SLURM_LOCALID", 0))
+    local_task_id = (
+        int(local_task_id)
+        if local_task_id is not None
+        else int(os.environ.get("SLURM_LOCALID", 0))
+    )
     partition_size_per_task = int(len(captions) // ntasks_per_node)
 
     # Select the partition for the current task
     start_idx = local_task_id * partition_size_per_task
-    end_idx = (local_task_id + 1) * partition_size_per_task if local_task_id != ntasks_per_node - 1 else None
+    end_idx = (
+        (local_task_id + 1) * partition_size_per_task
+        if local_task_id != ntasks_per_node - 1
+        else None
+    )
     input = captions[start_idx:end_idx]
     chunk_size = len(input)
 
@@ -67,7 +79,9 @@ def main(cfg):
     os.makedirs(save_path, exist_ok=True)
 
     trainer = Trainer()
-    pipeline = ImagenPipeline.from_pretrained(cfg=cfg.infer, trainer=trainer, megatron_loading=True, megatron_cfg=cfg)
+    pipeline = ImagenPipeline.from_pretrained(
+        cfg=cfg.infer, trainer=trainer, megatron_loading=True, megatron_cfg=cfg
+    )
 
     # Generate images using the model and save them
     batch_idx = 0
@@ -77,7 +91,10 @@ def main(cfg):
             break
         batch_captions = input[batch_idx * batch_size : (batch_idx + 1) * batch_size]
         # Different seed for every image
-        seeds = [local_task_id * chunk_size + batch_idx * batch_size + idx for idx in range(len(batch_captions))]
+        seeds = [
+            local_task_id * chunk_size + batch_idx * batch_size + idx
+            for idx in range(len(batch_captions))
+        ]
         with torch.no_grad():
             images, all_res_images, *_ = pipeline(
                 prompts=batch_captions,
@@ -87,31 +104,37 @@ def main(cfg):
             )
 
         if cfg.fid.save_all_res:
-            all_res = [f'_RES{model.image_size}' for model in pipeline.models]
+            all_res = [f"_RES{model.image_size}" for model in pipeline.models]
             outpaths = []
             # for the highest resolution we save as its original name so that
             # we can automate the CLIP & FID calculation process from Megatron-Launcher
-            all_res[-1] = ''
+            all_res[-1] = ""
             for res in all_res:
                 outpath = f"{save_path}{res}"
                 os.makedirs(outpath, exist_ok=True)
                 outpaths.append(outpath)
             for outpath, one_res in zip(outpaths, all_res_images):
                 for idx, (caption, image) in enumerate(zip(batch_captions, one_res[0])):
-                    image_idx = local_task_id * chunk_size + batch_idx * batch_size + idx
-                    image.save(os.path.join(outpath, f'image{image_idx:06d}.png'))
+                    image_idx = (
+                        local_task_id * chunk_size + batch_idx * batch_size + idx
+                    )
+                    image.save(os.path.join(outpath, f"image{image_idx:06d}.png"))
                     if save_text:
-                        with open(os.path.join(outpath, f'image{image_idx:06d}.txt'), 'w') as f:
+                        with open(
+                            os.path.join(outpath, f"image{image_idx:06d}.txt"), "w"
+                        ) as f:
                             f.writelines(caption)
         else:
             for idx, (caption, image) in enumerate(zip(batch_captions, images[0])):
                 image_idx = local_task_id * chunk_size + batch_idx * batch_size + idx
-                image.save(os.path.join(save_path, f'image{image_idx:06d}.png'))
+                image.save(os.path.join(save_path, f"image{image_idx:06d}.png"))
                 if save_text:
-                    with open(os.path.join(save_path, f'image{image_idx:06d}.txt'), 'w') as f:
+                    with open(
+                        os.path.join(save_path, f"image{image_idx:06d}.txt"), "w"
+                    ) as f:
                         f.writelines(caption)
         print(
-            f'Save {len(images[0])} images to {save_path} with name from image{(local_task_id*chunk_size+batch_idx*batch_size):06d}.png to image{image_idx:06d}.png'
+            f"Save {len(images[0])} images to {save_path} with name from image{(local_task_id*chunk_size+batch_idx*batch_size):06d}.png to image{image_idx:06d}.png"
         )
         batch_idx += 1
 

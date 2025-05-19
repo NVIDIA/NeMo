@@ -40,7 +40,9 @@ class TestHyena1B:
         assert model_config.config.seq_length == 8192
         assert model_config.config.tp_comm_overlap is False
 
-    @pytest.mark.parametrize("tp_comm_overlap,seq_length", [(True, 4096), (False, 16384)])
+    @pytest.mark.parametrize(
+        "tp_comm_overlap,seq_length", [(True, 4096), (False, 16384)]
+    )
     def test_model_with_parameters(self, tp_comm_overlap, seq_length):
         """
         Test the model factory function with different parameter values.
@@ -64,7 +66,9 @@ class TestHyena1B:
         """
         Test the pretrain_recipe factory function with different configurations.
         """
-        recipe = pretrain_recipe(num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node)
+        recipe = pretrain_recipe(
+            num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node
+        )
         assert recipe.trainer.num_nodes == num_nodes
         assert recipe.trainer.devices == num_gpus_per_node
 

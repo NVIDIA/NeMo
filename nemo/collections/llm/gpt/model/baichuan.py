@@ -83,7 +83,10 @@ class Baichuan2Model(GPTModel):
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
         super().__init__(
-            config or Baichuan2Config(), optim=optim, tokenizer=tokenizer, model_transform=model_transform
+            config or Baichuan2Config(),
+            optim=optim,
+            tokenizer=tokenizer,
+            model_transform=model_transform,
         )
 
 
@@ -118,7 +121,9 @@ class HFBaichuan2Importer(io.ModelConnector["AutoModelForCausalLM", Baichuan2Mod
         """
         from transformers import AutoModelForCausalLM
 
-        source = AutoModelForCausalLM.from_pretrained(str(self), trust_remote_code=True, torch_dtype='auto')
+        source = AutoModelForCausalLM.from_pretrained(
+            str(self), trust_remote_code=True, torch_dtype="auto"
+        )
         target = self.init()
         trainer = self.nemo_setup(target)
         self.convert_state(source, target)
@@ -158,12 +163,17 @@ class HFBaichuan2Importer(io.ModelConnector["AutoModelForCausalLM", Baichuan2Mod
         transforms = [
             _import_qkv,
             io.state_transform(
-                source_key=("model.layers.*.mlp.gate_proj.weight", "model.layers.*.mlp.up_proj.weight"),
+                source_key=(
+                    "model.layers.*.mlp.gate_proj.weight",
+                    "model.layers.*.mlp.up_proj.weight",
+                ),
                 target_key="decoder.layers.*.mlp.linear_fc1.weight",
                 fn=TransformFns.merge_fc1,
             ),
         ]
-        return io.apply_transforms(source, target, mapping=mapping, transforms=transforms)
+        return io.apply_transforms(
+            source, target, mapping=mapping, transforms=transforms
+        )
 
     @property
     def tokenizer(self) -> "AutoTokenizer":
@@ -176,7 +186,9 @@ class HFBaichuan2Importer(io.ModelConnector["AutoModelForCausalLM", Baichuan2Mod
         from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import \
             AutoTokenizer
 
-        return AutoTokenizer(self.save_hf_tokenizer_assets(str(self)), trust_remote_code=True)
+        return AutoTokenizer(
+            self.save_hf_tokenizer_assets(str(self)), trust_remote_code=True
+        )
 
     @property
     def config(self) -> Baichuan2Config:
@@ -207,9 +219,13 @@ class HFBaichuan2Importer(io.ModelConnector["AutoModelForCausalLM", Baichuan2Mod
             init_method_std=source.initializer_range,
             layernorm_epsilon=source.rms_norm_eps,
             gated_linear_unit=True,
-            make_vocab_size_divisible_by=make_vocab_size_divisible_by(source.vocab_size),
+            make_vocab_size_divisible_by=make_vocab_size_divisible_by(
+                source.vocab_size
+            ),
             share_embeddings_and_output_weights=False,
-            position_embedding_type="rope" if source.num_hidden_layers == 32 else "alibi",
+            position_embedding_type=(
+                "rope" if source.num_hidden_layers == 32 else "alibi"
+            ),
             fp16=(dtype_from_hf(source) == torch.float16),
             bf16=(dtype_from_hf(source) == torch.bfloat16),
             params_dtype=dtype_from_hf(source),
@@ -258,7 +274,9 @@ class HFBaichuan2Exporter(io.ModelConnector[Baichuan2Model, "AutoModelForCausalL
 
     def apply(self, output_path: Path, target_model_name=None) -> Path:
         source, _ = self.nemo_load(str(self))
-        target = self.init(torch_dtype_from_mcore_config(source.config), model_name=target_model_name)
+        target = self.init(
+            torch_dtype_from_mcore_config(source.config), model_name=target_model_name
+        )
         target = self.convert_state(source, target)
 
         target = target.cpu()
@@ -295,11 +313,16 @@ class HFBaichuan2Exporter(io.ModelConnector[Baichuan2Model, "AutoModelForCausalL
             _export_qkv,
             io.state_transform(
                 source_key="decoder.layers.*.mlp.linear_fc1.weight",
-                target_key=("model.layers.*.mlp.gate_proj.weight", "model.layers.*.mlp.up_proj.weight"),
+                target_key=(
+                    "model.layers.*.mlp.gate_proj.weight",
+                    "model.layers.*.mlp.up_proj.weight",
+                ),
                 fn=TransformFns.split_fc1,
             ),
         ]
-        return io.apply_transforms(source, target, mapping=mapping, transforms=transforms)
+        return io.apply_transforms(
+            source, target, mapping=mapping, transforms=transforms
+        )
 
     @property
     def tokenizer(self):
@@ -332,13 +355,19 @@ def _import_qkv(ctx: io.TransformCTX, qkv_weights):
     q = qkv_weights[0].squeeze().view(*new_q_tensor_shape)
     k = qkv_weights[1].squeeze().view(*new_kv_tensor_shape)
     v = qkv_weights[2].squeeze().view(*new_kv_tensor_shape)
-    qkv_weights = torch.empty((0, head_size) + old_tensor_shape[1:]).type_as(qkv_weights)
+    qkv_weights = torch.empty((0, head_size) + old_tensor_shape[1:]).type_as(
+        qkv_weights
+    )
     for i in range(num_query_groups):
-        qkv_weights = torch.cat((qkv_weights, q[i * heads_per_group : (i + 1) * heads_per_group, :, :]))
+        qkv_weights = torch.cat(
+            (qkv_weights, q[i * heads_per_group : (i + 1) * heads_per_group, :, :])
+        )
         qkv_weights = torch.cat((qkv_weights, k[i : i + 1, :, :]))
         qkv_weights = torch.cat((qkv_weights, v[i : i + 1, :, :]))
 
-    qkv_weights = qkv_weights.reshape([head_size * (head_num + 2 * num_query_groups), hidden_size])
+    qkv_weights = qkv_weights.reshape(
+        [head_size * (head_num + 2 * num_query_groups), hidden_size]
+    )
     return qkv_weights
 
 
@@ -360,7 +389,9 @@ def _export_qkv(ctx: io.TransformCTX, qkv_weights):
 
     q_slice = torch.cat(
         [
-            torch.arange((heads_per_group + 2) * i, (heads_per_group + 2) * i + heads_per_group)
+            torch.arange(
+                (heads_per_group + 2) * i, (heads_per_group + 2) * i + heads_per_group
+            )
             for i in range(num_query_groups)
         ]
     )

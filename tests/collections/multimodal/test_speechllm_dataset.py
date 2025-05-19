@@ -97,7 +97,9 @@ def cuts():
 
 
 def test_speechllm_dataset(tokenizer, cuts):
-    text_processor = PromptFormatterTextProcessing(tokenizer=tokenizer, prompt_format="plain")
+    text_processor = PromptFormatterTextProcessing(
+        tokenizer=tokenizer, prompt_format="plain"
+    )
     dataset = LhotseAudioQuestionAnswerDataset(
         text_processor=text_processor,
         default_context="do this task",
@@ -126,17 +128,21 @@ def test_speechllm_dataset(tokenizer, cuts):
     }
     missing_keys = expected_keys - set(batch)
     unexpected_keys = set(batch) - expected_keys
-    assert not missing_keys and not unexpected_keys, f"{missing_keys=} {unexpected_keys=}"
+    assert (
+        not missing_keys and not unexpected_keys
+    ), f"{missing_keys=} {unexpected_keys=}"
 
     assert batch["sample_ids"] == ["ex0"]
-    assert batch["metadata"] == [{'audio_filepath': 'ex0.wav'}]
+    assert batch["metadata"] == [{"audio_filepath": "ex0.wav"}]
     torch.testing.assert_close(batch["audio_ratio"], tensor([1.0]))
     torch.testing.assert_close(batch["max_length"], tensor([64]))
 
     assert torch.is_tensor(batch["audio_signal"])
     assert torch.is_floating_point(batch["audio_signal"])
     assert batch["audio_signal"].shape == (1, 80000)
-    torch.testing.assert_close(batch["audio_signal_length"], tensor([80000], dtype=torch.int32))
+    torch.testing.assert_close(
+        batch["audio_signal_length"], tensor([80000], dtype=torch.int32)
+    )
 
     # fmt: off
     expected = tensor([[  1,  78,   9,   1,  64,  80,   5,  75,  15,   6,   1,  12,  24,  14,
@@ -238,7 +244,9 @@ def llama_tokenizer(capsys, tmp_path_factory):
 
 def test_speechllm_dataset_prompt_template(llama_tokenizer, cuts):
     tokenizer = llama_tokenizer
-    text_processor = PromptFormatterTextProcessing(tokenizer=tokenizer, prompt_format="llama2")
+    text_processor = PromptFormatterTextProcessing(
+        tokenizer=tokenizer, prompt_format="llama2"
+    )
     dataset = LhotseAudioQuestionAnswerDataset(
         text_processor=text_processor,
         default_context="do this task",
@@ -268,17 +276,21 @@ def test_speechllm_dataset_prompt_template(llama_tokenizer, cuts):
     }
     missing_keys = expected_keys - set(batch)
     unexpected_keys = set(batch) - expected_keys
-    assert not missing_keys and not unexpected_keys, f"{missing_keys=} {unexpected_keys=}"
+    assert (
+        not missing_keys and not unexpected_keys
+    ), f"{missing_keys=} {unexpected_keys=}"
 
     assert batch["sample_ids"] == ["ex0"]
-    assert batch["metadata"] == [{'audio_filepath': 'ex0.wav'}]
+    assert batch["metadata"] == [{"audio_filepath": "ex0.wav"}]
     torch.testing.assert_close(batch["audio_ratio"], tensor([1.0]))
     torch.testing.assert_close(batch["max_length"], tensor([128]))
 
     assert torch.is_tensor(batch["audio_signal"])
     assert torch.is_floating_point(batch["audio_signal"])
     assert batch["audio_signal"].shape == (1, 80000)
-    torch.testing.assert_close(batch["audio_signal_length"], tensor([80000], dtype=torch.int32))
+    torch.testing.assert_close(
+        batch["audio_signal_length"], tensor([80000], dtype=torch.int32)
+    )
 
     for k in ("tokens", "contexts", "answers", "labels"):
         print(f"batch['{k}']=", tokenizer.ids_to_text(batch[k][0]))
@@ -367,7 +379,9 @@ def test_speechllm_dataset_prompt_template(llama_tokenizer, cuts):
 
 def test_speechllm_dataset_tokens_to_generate_increases_seq_len(llama_tokenizer, cuts):
     tokenizer = llama_tokenizer
-    text_processor = PromptFormatterTextProcessing(tokenizer=tokenizer, prompt_format="llama2")
+    text_processor = PromptFormatterTextProcessing(
+        tokenizer=tokenizer, prompt_format="llama2"
+    )
 
     dataset = LhotseAudioQuestionAnswerDataset(
         text_processor=text_processor,

@@ -39,7 +39,8 @@ class TestEnergonMultiModalDataModuleWithDummyData(unittest.TestCase):
 
     def setUp(self):
         self.config = MultiModalSampleConfig(
-            image_token=ImageToken(token_str="<image>", token_id=-200), ignore_place_holder=-100
+            image_token=ImageToken(token_str="<image>", token_id=-200),
+            ignore_place_holder=-100,
         )
 
         self.temp_dir = tempfile.TemporaryDirectory()
@@ -63,21 +64,29 @@ class TestEnergonMultiModalDataModuleWithDummyData(unittest.TestCase):
 
     def decode_vqa_tokens_to_text(self, tokens):
         placeholder = self.data_module.multimodal_sample_config.image_token.token_id
-        placeholder_text = self.data_module.multimodal_sample_config.image_token.token_str
+        placeholder_text = (
+            self.data_module.multimodal_sample_config.image_token.token_str
+        )
         current_chunk = []
         decoded_text = []
         for token in tokens:
             if token == placeholder:
                 # Decode the current chunk if there are any tokens in it
                 if current_chunk:
-                    decoded_text.append(self.tokenizer.decode(current_chunk, clean_up_tokenization_spaces=True))
+                    decoded_text.append(
+                        self.tokenizer.decode(
+                            current_chunk, clean_up_tokenization_spaces=True
+                        )
+                    )
                     current_chunk = []
                     # Append the placeholder text
                     decoded_text.append(placeholder_text)
             else:
                 current_chunk.append(token)
         if current_chunk:
-            decoded_text.append(self.tokenizer.decode(current_chunk, clean_up_tokenization_spaces=True))
+            decoded_text.append(
+                self.tokenizer.decode(current_chunk, clean_up_tokenization_spaces=True)
+            )
         return "".join(decoded_text)
 
     def test_data_module(self):
@@ -87,48 +96,60 @@ class TestEnergonMultiModalDataModuleWithDummyData(unittest.TestCase):
         train_loader = self.data_module.train_dataloader()
         for batch in train_loader:
             self.assertIsInstance(batch, dict)
-            self.assertIn('position_ids', batch)
-            self.assertIn('tokens', batch)
-            self.assertIn('labels', batch)
-            self.assertIn('loss_mask', batch)
-            self.assertIn('attention_mask', batch)
+            self.assertIn("position_ids", batch)
+            self.assertIn("tokens", batch)
+            self.assertIn("labels", batch)
+            self.assertIn("loss_mask", batch)
+            self.assertIn("attention_mask", batch)
             print(batch)
-            decoded_text = self.decode_vqa_tokens_to_text(batch['tokens'][0].tolist())
+            decoded_text = self.decode_vqa_tokens_to_text(batch["tokens"][0].tolist())
             # system_message = re.escape(self.data_module.multimodal_sample_config.conversation_template_config.system)
-            user_context = re.escape(self.vqa_json[0]['value'])
-            assistant_answer = re.escape(self.vqa_json[1]['value'])
+            user_context = re.escape(self.vqa_json[0]["value"])
+            assistant_answer = re.escape(self.vqa_json[1]["value"])
             # self.assertRegex(
             #     decoded_text,
             #     rf"{system_message}",
             #     msg="System message block does not match the expected format.",
             # )
-            self.assertRegex(decoded_text, user_context, msg="User context did not match in decoded text")
             self.assertRegex(
-                decoded_text, assistant_answer, msg="Assistant answer block did not match in decoded text"
+                decoded_text,
+                user_context,
+                msg="User context did not match in decoded text",
+            )
+            self.assertRegex(
+                decoded_text,
+                assistant_answer,
+                msg="Assistant answer block did not match in decoded text",
             )
             break
         # Test val dataloader
         val_loader = self.data_module.val_dataloader()
         for batch in val_loader:
             self.assertIsInstance(batch, dict)
-            self.assertIn('position_ids', batch)
-            self.assertIn('tokens', batch)
-            self.assertIn('labels', batch)
-            self.assertIn('loss_mask', batch)
-            self.assertIn('attention_mask', batch)
+            self.assertIn("position_ids", batch)
+            self.assertIn("tokens", batch)
+            self.assertIn("labels", batch)
+            self.assertIn("loss_mask", batch)
+            self.assertIn("attention_mask", batch)
             print(batch)
-            decoded_text = self.decode_vqa_tokens_to_text(batch['tokens'][0].tolist())
+            decoded_text = self.decode_vqa_tokens_to_text(batch["tokens"][0].tolist())
             # system_message = re.escape(self.data_module.multimodal_sample_config.conversation_template_config.system)
-            user_context = re.escape(self.vqa_json[0]['value'])
-            assistant_answer = re.escape(self.vqa_json[1]['value'])
+            user_context = re.escape(self.vqa_json[0]["value"])
+            assistant_answer = re.escape(self.vqa_json[1]["value"])
             # self.assertRegex(
             #     decoded_text,
             #     rf"{system_message}",
             #     msg="System message block does not match the expected format.",
             # )
-            self.assertRegex(decoded_text, user_context, msg="User context did not match in decoded text")
             self.assertRegex(
-                decoded_text, assistant_answer, msg="Assistant answer block did not match in decoded text"
+                decoded_text,
+                user_context,
+                msg="User context did not match in decoded text",
+            )
+            self.assertRegex(
+                decoded_text,
+                assistant_answer,
+                msg="Assistant answer block did not match in decoded text",
             )
             break
 
@@ -137,8 +158,14 @@ class TestEnergonMultiModalDataModuleWithDummyData(unittest.TestCase):
         main_folder_path = path / main_folder_name
         main_folder_path.mkdir(exist_ok=True, parents=True)
         self.vqa_json = [
-            {"from": "human", "value": "<image>\nRender a clear and concise summary of the photo."},
-            {"from": "gpt", "value": "a spartan helmet, laurels and laurel wreath, silhouette logo, emblem"},
+            {
+                "from": "human",
+                "value": "<image>\nRender a clear and concise summary of the photo.",
+            },
+            {
+                "from": "gpt",
+                "value": "a spartan helmet, laurels and laurel wreath, silhouette logo, emblem",
+            },
         ]
         with wds.ShardWriter(f"{path}/data-%d.tar", maxcount=5) as shard_writer:
             for idx in range(num_samples):
@@ -180,5 +207,5 @@ class TestEnergonMultiModalDataModuleWithDummyData(unittest.TestCase):
             f.write(dataset_yaml_content)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

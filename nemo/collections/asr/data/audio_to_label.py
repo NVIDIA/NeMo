@@ -32,10 +32,14 @@ from nemo.utils import logging
 from nemo.utils.distributed import webdataset_split_by_workers
 
 # List of valid file formats (prioritized by order of importance)
-VALID_FILE_FORMATS = ';'.join(['wav', 'mp3', 'flac', 'opus'] + [fmt.lower() for fmt in valid_sf_formats.keys()])
+VALID_FILE_FORMATS = ";".join(
+    ["wav", "mp3", "flac", "opus"] + [fmt.lower() for fmt in valid_sf_formats.keys()]
+)
 
 
-def repeat_signal(signal: torch.Tensor, sig_len: int, required_length: int) -> torch.Tensor:
+def repeat_signal(
+    signal: torch.Tensor, sig_len: int, required_length: int
+) -> torch.Tensor:
     """repeat signal to make short signal to have required_length
     Args:
         signal (Tensor): input signal
@@ -190,7 +194,7 @@ def _vad_frame_seq_collate_fn(self, batch):
         sig_len += slice_length
 
         if has_audio:
-            slices = torch.div(sig_len - slice_length, shift, rounding_mode='trunc')
+            slices = torch.div(sig_len - slice_length, shift, rounding_mode="trunc")
             for slice_id in range(slices):
                 start_idx = slice_id * shift
                 end_idx = start_idx + slice_length
@@ -246,30 +250,30 @@ target_label_n, "offset": offset_in_sec_n}
         """Returns definitions of module output ports."""
 
         output_types = {
-            'audio_signal': NeuralType(
-                ('B', 'T'),
+            "audio_signal": NeuralType(
+                ("B", "T"),
                 (
                     AudioSignal(freq=self._sample_rate)
-                    if self is not None and hasattr(self, '_sample_rate')
+                    if self is not None and hasattr(self, "_sample_rate")
                     else AudioSignal()
                 ),
             ),
-            'a_sig_length': NeuralType(tuple('B'), LengthsType()),
+            "a_sig_length": NeuralType(tuple("B"), LengthsType()),
         }
 
         if self.is_regression_task:
             output_types.update(
                 {
-                    'targets': NeuralType(tuple('B'), RegressionValuesType()),
-                    'targets_length': NeuralType(tuple('B'), LengthsType()),
+                    "targets": NeuralType(tuple("B"), RegressionValuesType()),
+                    "targets_length": NeuralType(tuple("B"), LengthsType()),
                 }
             )
         else:
 
             output_types.update(
                 {
-                    'label': NeuralType(tuple('B'), LabelsType()),
-                    'label_length': NeuralType(tuple('B'), LengthsType()),
+                    "label": NeuralType(tuple("B"), LabelsType()),
+                    "label_length": NeuralType(tuple("B"), LengthsType()),
                 }
             )
 
@@ -290,8 +294,10 @@ target_label_n, "offset": offset_in_sec_n}
     ):
         super().__init__()
         if isinstance(manifest_filepath, str):
-            manifest_filepath = manifest_filepath.split(',')
-        cache_datastore_manifests(manifest_filepaths=manifest_filepath, cache_audio=True)
+            manifest_filepath = manifest_filepath.split(",")
+        cache_datastore_manifests(
+            manifest_filepaths=manifest_filepath, cache_audio=True
+        )
         self.collection = collections.ASRSpeechLabel(
             manifests_files=manifest_filepath,
             min_duration=min_duration,
@@ -315,13 +321,21 @@ target_label_n, "offset": offset_in_sec_n}
                 self.label2id[label] = label_id
                 self.id2label[label_id] = label
                 if cal_labels_occurrence:
-                    self.id2occurrence[label_id] = self.collection.labels_occurrence[label]
+                    self.id2occurrence[label_id] = self.collection.labels_occurrence[
+                        label
+                    ]
 
             if cal_labels_occurrence:
-                self.labels_occurrence = [self.id2occurrence[k] for k in sorted(self.id2occurrence)]
+                self.labels_occurrence = [
+                    self.id2occurrence[k] for k in sorted(self.id2occurrence)
+                ]
 
             for idx in range(len(self.labels[:5])):
-                logging.debug(" label id {} and its mapped label {}".format(idx, self.id2label[idx]))
+                logging.debug(
+                    " label id {} and its mapped label {}".format(
+                        idx, self.id2label[idx]
+                    )
+                )
 
         else:
             self.labels = []
@@ -446,8 +460,16 @@ class AudioToSpeechLabelDataset(_AudioLabelDataset):
         self.shift_length_in_sec = shift_length_in_sec
         self.normalize_audio = normalize_audio
 
-        logging.debug("Window/slice length considered for collate func is {}".format(self.window_length_in_sec))
-        logging.debug("Shift length considered for collate func is {}".format(self.shift_length_in_sec))
+        logging.debug(
+            "Window/slice length considered for collate func is {}".format(
+                self.window_length_in_sec
+            )
+        )
+        logging.debug(
+            "Shift length considered for collate func is {}".format(
+                self.shift_length_in_sec
+            )
+        )
 
         super().__init__(
             manifest_filepath=manifest_filepath,
@@ -583,7 +605,9 @@ class _TarredAudioLabelDataset(IterableDataset):
             self.id2label[label_id] = label
 
         for idx in range(len(self.labels[:5])):
-            logging.debug(" label id {} and its mapped label {}".format(idx, self.id2label[idx]))
+            logging.debug(
+                " label id {} and its mapped label {}".format(idx, self.id2label[idx])
+            )
 
         audio_tar_filepaths = expand_sharded_filepaths(
             sharded_filepaths=audio_tar_filepaths,
@@ -597,8 +621,8 @@ class _TarredAudioLabelDataset(IterableDataset):
             webdataset_split_by_workers,
             wds.shuffle(shuffle_n),
             wds.tarfile_to_samples(),
-            wds.rename(audio=VALID_FILE_FORMATS, key='__key__'),
-            wds.to_tuple('audio', 'key'),
+            wds.rename(audio=VALID_FILE_FORMATS, key="__key__"),
+            wds.to_tuple("audio", "key"),
             self._filter,
             wds.map(self._build_sample),
         )
@@ -853,8 +877,14 @@ class TarredAudioToSpeechLabelDataset(_TarredAudioLabelDataset):
         global_rank: int = 0,
         world_size: int = 0,
     ):
-        logging.info("Window/slice length considered for collate func is {}".format(window_length_in_sec))
-        logging.info("Shift length considered for collate func is {}".format(shift_length_in_sec))
+        logging.info(
+            "Window/slice length considered for collate func is {}".format(
+                window_length_in_sec
+            )
+        )
+        logging.info(
+            "Shift length considered for collate func is {}".format(shift_length_in_sec)
+        )
         self.window_length_in_sec = window_length_in_sec
         self.shift_length_in_sec = shift_length_in_sec
         self.normalize_audio = normalize_audio
@@ -930,29 +960,29 @@ class AudioToMultiLabelDataset(Dataset):
         """Returns definitions of module output ports."""
 
         output_types = {
-            'audio_signal': NeuralType(
-                ('B', 'T'),
+            "audio_signal": NeuralType(
+                ("B", "T"),
                 (
                     AudioSignal(freq=self._sample_rate)
-                    if self is not None and hasattr(self, '_sample_rate')
+                    if self is not None and hasattr(self, "_sample_rate")
                     else AudioSignal()
                 ),
             ),
-            'a_sig_length': NeuralType(tuple('B'), LengthsType()),
+            "a_sig_length": NeuralType(tuple("B"), LengthsType()),
         }
 
         if self.is_regression_task:
             output_types.update(
                 {
-                    'targets': NeuralType(tuple('B, T'), RegressionValuesType()),
-                    'targets_length': NeuralType(tuple('B'), LengthsType()),
+                    "targets": NeuralType(tuple("B, T"), RegressionValuesType()),
+                    "targets_length": NeuralType(tuple("B"), LengthsType()),
                 }
             )
         else:
             output_types.update(
                 {
-                    'label': NeuralType(('B', 'T'), LabelsType()),
-                    'label_length': NeuralType(tuple('B'), LengthsType()),
+                    "label": NeuralType(("B", "T"), LabelsType()),
+                    "label_length": NeuralType(tuple("B"), LengthsType()),
                 }
             )
 
@@ -965,7 +995,7 @@ class AudioToMultiLabelDataset(Dataset):
         sample_rate: int,
         labels: Optional[List[str]] = None,
         int_values: bool = False,
-        augmentor: 'nemo.collections.asr.parts.perturb.AudioAugmentor' = None,
+        augmentor: "nemo.collections.asr.parts.perturb.AudioAugmentor" = None,
         min_duration: Optional[float] = 0.1,
         max_duration: Optional[float] = None,
         trim_silence: bool = False,
@@ -977,7 +1007,7 @@ class AudioToMultiLabelDataset(Dataset):
     ):
         super().__init__()
         if isinstance(manifest_filepath, str):
-            manifest_filepath = manifest_filepath.split(',')
+            manifest_filepath = manifest_filepath.split(",")
 
         self.delimiter = delimiter
         self.normalize_audio_db = normalize_audio_db
@@ -991,7 +1021,9 @@ class AudioToMultiLabelDataset(Dataset):
             delimiter=delimiter,
         )
 
-        self.featurizer = WaveformFeaturizer(sample_rate=sample_rate, int_values=int_values, augmentor=augmentor)
+        self.featurizer = WaveformFeaturizer(
+            sample_rate=sample_rate, int_values=int_values, augmentor=augmentor
+        )
         self.trim = trim_silence
         self.channel_selector = channel_selector
         self.is_regression_task = is_regression_task
@@ -1006,11 +1038,17 @@ class AudioToMultiLabelDataset(Dataset):
                 self.label2id[label] = label_id
                 self.id2label[label_id] = label
                 if cal_labels_occurrence:
-                    self.id2occurrence[label_id] = self.collection.labels_occurrence[label]
+                    self.id2occurrence[label_id] = self.collection.labels_occurrence[
+                        label
+                    ]
                     self.labels_occurrence.append(self.id2occurrence[label_id])
 
             for idx in range(len(self.labels[:5])):
-                logging.debug(" label id {} and its mapped label {}".format(idx, self.id2label[idx]))
+                logging.debug(
+                    " label id {} and its mapped label {}".format(
+                        idx, self.id2label[idx]
+                    )
+                )
         else:
             self.labels = []
             self.num_classes = 1
@@ -1020,12 +1058,18 @@ class AudioToMultiLabelDataset(Dataset):
         for sample in self.collection:
             label_str = sample.label
             if label_str:
-                label_str_list = label_str.split(self.delimiter) if self.delimiter else label_str.split()
+                label_str_list = (
+                    label_str.split(self.delimiter)
+                    if self.delimiter
+                    else label_str.split()
+                )
                 labels.extend(label_str_list)
         return sorted(set(labels))
 
     def _label_str_to_tensor(self, label_str: str):
-        labels = label_str.split(self.delimiter) if self.delimiter else label_str.split()
+        labels = (
+            label_str.split(self.delimiter) if self.delimiter else label_str.split()
+        )
 
         if self.is_regression_task:
             labels = [float(s) for s in labels]
@@ -1147,7 +1191,7 @@ class TarredAudioToMultiLabelDataset(IterableDataset):
         labels: Optional[List[str]] = None,
         shuffle_n: int = 0,
         int_values: bool = False,
-        augmentor: 'nemo.collections.asr.parts.perturb.AudioAugmentor' = None,
+        augmentor: "nemo.collections.asr.parts.perturb.AudioAugmentor" = None,
         min_duration: Optional[float] = 0.1,
         max_duration: Optional[float] = None,
         trim_silence: bool = False,
@@ -1160,7 +1204,7 @@ class TarredAudioToMultiLabelDataset(IterableDataset):
     ):
         super().__init__()
         if isinstance(manifest_filepath, str):
-            manifest_filepath = manifest_filepath.split(',')
+            manifest_filepath = manifest_filepath.split(",")
 
         self.trim = trim_silence
         self.is_regression_task = is_regression_task
@@ -1176,7 +1220,9 @@ class TarredAudioToMultiLabelDataset(IterableDataset):
         )
         self.file_occurence = count_occurence(self.collection.mapping)
 
-        self.featurizer = WaveformFeaturizer(sample_rate=sample_rate, int_values=int_values, augmentor=augmentor)
+        self.featurizer = WaveformFeaturizer(
+            sample_rate=sample_rate, int_values=int_values, augmentor=augmentor
+        )
 
         if not is_regression_task:
             self.labels = labels if labels else self._get_label_set()
@@ -1186,7 +1232,11 @@ class TarredAudioToMultiLabelDataset(IterableDataset):
                 self.label2id[label] = label_id
                 self.id2label[label_id] = label
             for idx in range(len(self.labels[:5])):
-                logging.debug(" label id {} and its mapped label {}".format(idx, self.id2label[idx]))
+                logging.debug(
+                    " label id {} and its mapped label {}".format(
+                        idx, self.id2label[idx]
+                    )
+                )
         else:
             self.labels = []
             self.num_classes = 1
@@ -1203,8 +1253,8 @@ class TarredAudioToMultiLabelDataset(IterableDataset):
             webdataset_split_by_workers,
             wds.shuffle(shuffle_n),
             wds.tarfile_to_samples(),
-            wds.rename(audio=VALID_FILE_FORMATS, key='__key__'),
-            wds.to_tuple('audio', 'key'),
+            wds.rename(audio=VALID_FILE_FORMATS, key="__key__"),
+            wds.to_tuple("audio", "key"),
             self._filter,
             wds.map(self._build_sample),
         )
@@ -1214,12 +1264,18 @@ class TarredAudioToMultiLabelDataset(IterableDataset):
         for sample in self.collection:
             label_str = sample.label
             if label_str:
-                label_str_list = label_str.split(self.delimiter) if self.delimiter else label_str.split()
+                label_str_list = (
+                    label_str.split(self.delimiter)
+                    if self.delimiter
+                    else label_str.split()
+                )
                 labels.extend(label_str_list)
         return sorted(set(labels))
 
     def _label_str_to_tensor(self, label_str: str):
-        labels = label_str.split(self.delimiter) if self.delimiter else label_str.split()
+        labels = (
+            label_str.split(self.delimiter) if self.delimiter else label_str.split()
+        )
 
         if self.is_regression_task:
             labels = [float(s) for s in labels]
@@ -1346,26 +1402,26 @@ class AudioPairToLabelDataset(AudioToSpeechLabelDataset):
         """Returns definitions of module output ports."""
 
         output_types = {
-            'audio_signal': NeuralType(
-                ('B', 'T'),
+            "audio_signal": NeuralType(
+                ("B", "T"),
                 (
                     AudioSignal(freq=self._sample_rate)
-                    if self is not None and hasattr(self, '_sample_rate')
+                    if self is not None and hasattr(self, "_sample_rate")
                     else AudioSignal()
                 ),
             ),
-            'a_sig_length': NeuralType(tuple('B'), LengthsType()),
-            'audio_signal_2': NeuralType(
-                ('B', 'T'),
+            "a_sig_length": NeuralType(tuple("B"), LengthsType()),
+            "audio_signal_2": NeuralType(
+                ("B", "T"),
                 (
                     AudioSignal(freq=self._sample_rate)
-                    if self is not None and hasattr(self, '_sample_rate')
+                    if self is not None and hasattr(self, "_sample_rate")
                     else AudioSignal()
                 ),
             ),
-            'a_sig_length_2': NeuralType(tuple('B'), LengthsType()),
-            'label': NeuralType(tuple('B'), LabelsType()),
-            'label_length': NeuralType(tuple('B'), LengthsType()),
+            "a_sig_length_2": NeuralType(tuple("B"), LengthsType()),
+            "label": NeuralType(tuple("B"), LabelsType()),
+            "label_length": NeuralType(tuple("B"), LengthsType()),
         }
 
         return output_types
@@ -1403,10 +1459,14 @@ class AudioPairToLabelDataset(AudioToSpeechLabelDataset):
 
         audio_pair = sample.audio_file
 
-        features = self.featurizer.process(audio_pair[0], offset=0, duration=None, trim=self.trim)
+        features = self.featurizer.process(
+            audio_pair[0], offset=0, duration=None, trim=self.trim
+        )
         f, fl = features, torch.tensor(features.shape[0]).long()
 
-        features2 = self.featurizer.process(audio_pair[1], offset=0, duration=None, trim=self.trim)
+        features2 = self.featurizer.process(
+            audio_pair[1], offset=0, duration=None, trim=self.trim
+        )
         f2, fl2 = features2, torch.tensor(features2.shape[0]).long()
 
         t = torch.tensor(self.label2id[sample.label]).long()
@@ -1418,7 +1478,9 @@ class AudioPairToLabelDataset(AudioToSpeechLabelDataset):
         audio1, audio_len1, audio2, audio_len2, label, label_len = zip(*batch)
 
         batch1 = list(zip(audio1, audio_len1, label, label_len))
-        a_sig1, a_sig_len1, pair_label, pair_label_len = _fixed_seq_collate_fn(self, batch1)
+        a_sig1, a_sig_len1, pair_label, pair_label_len = _fixed_seq_collate_fn(
+            self, batch1
+        )
         batch2 = list(zip(audio2, audio_len2, label, label_len))
         a_sig2, a_sig_len2, _, _ = _fixed_seq_collate_fn(self, batch2)
         return a_sig1, a_sig_len1, a_sig2, a_sig_len2, pair_label, pair_label_len

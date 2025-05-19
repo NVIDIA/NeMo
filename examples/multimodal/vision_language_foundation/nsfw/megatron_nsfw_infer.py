@@ -40,7 +40,7 @@ def _get_autocast_dtype(precision: str):
 @hydra_runner(config_path="conf", config_name="megatron_nsfw_infer")
 def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
-    logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
+    logging.info(f"\n{OmegaConf.to_yaml(cfg)}")
 
     # These configs are required to be off during inference.
     def model_cfg_modifier(model_cfg):
@@ -53,7 +53,9 @@ def main(cfg) -> None:
         model_cfg.activations_checkpoint_method = None
 
     trainer, model = setup_trainer_and_model_for_inference(
-        model_provider=MegatronContentFilteringModel, cfg=cfg, model_cfg_modifier=model_cfg_modifier,
+        model_provider=MegatronContentFilteringModel,
+        cfg=cfg,
+        model_cfg_modifier=model_cfg_modifier,
     )
     image_transform_fn = image_transform(
         (model.cfg.vision.img_h, model.cfg.vision.img_w),
@@ -64,9 +66,13 @@ def main(cfg) -> None:
     )
 
     autocast_dtype = _get_autocast_dtype(trainer.precision)
-    image = Image.open(cfg.image_path).convert('RGB')
-    with torch.no_grad(), torch.cuda.amp.autocast(
-        enabled=autocast_dtype in (torch.half, torch.bfloat16), dtype=autocast_dtype,
+    image = Image.open(cfg.image_path).convert("RGB")
+    with (
+        torch.no_grad(),
+        torch.cuda.amp.autocast(
+            enabled=autocast_dtype in (torch.half, torch.bfloat16),
+            dtype=autocast_dtype,
+        ),
     ):
         image = image_transform_fn(image).unsqueeze(0).cuda()
         probability = model(image).sigmoid()
@@ -75,5 +81,5 @@ def main(cfg) -> None:
         print("Given image's NSFW probability: ", probability.cpu().item())
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

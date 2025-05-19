@@ -59,13 +59,17 @@ class ImageTaskBatch(Batch):
 
 
 # Required for energon, https://nvidia.github.io/Megatron-Energon/task_encoders.html
-class TaskEncoder(DefaultTaskEncoder[VQASample, InterleavedSample, ImageTaskBatch, dict]):
+class TaskEncoder(
+    DefaultTaskEncoder[VQASample, InterleavedSample, ImageTaskBatch, dict]
+):
     """A task encoder for data samples for captioning, pretraining, sft and interleaved multimodal tasks.
     It defines how the data is processed after it is loaded from the dataset.
     Currently, it supports captioning, pretraining, sft and interleaved multimodal tasks and datasets.
     """
 
-    def __init__(self, tokenizer, image_processor, multimodal_cfg: dict, data_cfg: dict):
+    def __init__(
+        self, tokenizer, image_processor, multimodal_cfg: dict, data_cfg: dict
+    ):
         super().__init__(batch_type=ImageTaskBatch)
         self.tokenizer = tokenizer
         self.image_processor = image_processor
@@ -83,7 +87,13 @@ class TaskEncoder(DefaultTaskEncoder[VQASample, InterleavedSample, ImageTaskBatc
 
     def encode_sample(
         self,
-        sample: Union[ImageTaskSample, CaptioningSample, VQASample, InterleavedSample, SimilarityInterleavedSample],
+        sample: Union[
+            ImageTaskSample,
+            CaptioningSample,
+            VQASample,
+            InterleavedSample,
+            SimilarityInterleavedSample,
+        ],
     ) -> dict:
         if isinstance(sample, InterleavedSample):
             return self.encode_interleaved(sample)
@@ -91,7 +101,10 @@ class TaskEncoder(DefaultTaskEncoder[VQASample, InterleavedSample, ImageTaskBatc
             return self.encode_pretrain(sample)
         elif isinstance(sample, CaptioningSample):
             return self.encode_captioning(sample)
-        elif isinstance(sample, SimilarityInterleavedSample) and self.conv_template == "interleaved":
+        elif (
+            isinstance(sample, SimilarityInterleavedSample)
+            and self.conv_template == "interleaved"
+        ):
             return self.encode_similarity_interleaved(sample)
         else:
             return self.encode_sft(sample)
@@ -108,20 +121,28 @@ class TaskEncoder(DefaultTaskEncoder[VQASample, InterleavedSample, ImageTaskBatc
 
         caption = sample.caption.strip()
 
-        conversation = [{"from": "human", "value": prompt}, {"from": "gpt", "value": caption}]
+        conversation = [
+            {"from": "human", "value": prompt},
+            {"from": "gpt", "value": caption},
+        ]
 
         processed_sample = {"conversations": conversation, "image": processed_image}
 
-        if self.multimodal_cfg['is_multimodal']:
+        if self.multimodal_cfg["is_multimodal"]:
             cur_token_len = self.calculate_token_length(processed_sample["image"])
             processed_sample = preprocess_multimodal(
-                [processed_sample], self.multimodal_cfg, cur_token_len, use_plain=(self.conv_template == "plain")
+                [processed_sample],
+                self.multimodal_cfg,
+                cur_token_len,
+                use_plain=(self.conv_template == "plain"),
             )[0]
 
         processed = preprocess_conversations(self, [processed_sample])
         tokens = processed["tokens"]
         labels = processed["labels"]
-        attention_mask, loss_mask, position_ids = self.get_masks_and_position_ids(tokens, labels)
+        attention_mask, loss_mask, position_ids = self.get_masks_and_position_ids(
+            tokens, labels
+        )
 
         return ImageTaskSample(
             __key__=sample.__key__,
@@ -140,21 +161,29 @@ class TaskEncoder(DefaultTaskEncoder[VQASample, InterleavedSample, ImageTaskBatc
         See Energon codebase for more details on VQASample.
         https://github.com/NVIDIA/Megatron-Energon/blob/develop/src/megatron/energon/flavors/vqa.py
         """
-        conversations = [{"from": "human", "value": sample.context}, {"from": "gpt", "value": sample.answers}]
+        conversations = [
+            {"from": "human", "value": sample.context},
+            {"from": "gpt", "value": sample.answers},
+        ]
         processed_sample = {"conversations": conversations}
 
-        if self.multimodal_cfg['is_multimodal']:
-            if hasattr(sample, 'image') and sample.image is not None:
+        if self.multimodal_cfg["is_multimodal"]:
+            if hasattr(sample, "image") and sample.image is not None:
                 processed_sample["image"] = self.process_images(sample.image)
                 cur_token_len = self.calculate_token_length(processed_sample["image"])
                 processed_sample = preprocess_multimodal(
-                    [processed_sample], self.multimodal_cfg, cur_token_len, use_plain=(self.conv_template == "plain")
+                    [processed_sample],
+                    self.multimodal_cfg,
+                    cur_token_len,
+                    use_plain=(self.conv_template == "plain"),
                 )[0]
 
         processed = preprocess_conversations(self, [processed_sample])
         tokens = processed["tokens"]
         labels = processed["labels"]
-        attention_mask, loss_mask, position_ids = self.get_masks_and_position_ids(tokens, labels)
+        attention_mask, loss_mask, position_ids = self.get_masks_and_position_ids(
+            tokens, labels
+        )
 
         return ImageTaskSample(
             __key__=sample.__key__,
@@ -169,24 +198,28 @@ class TaskEncoder(DefaultTaskEncoder[VQASample, InterleavedSample, ImageTaskBatc
             position_ids=position_ids,
         )
 
-    def encode_sft(self, sample: Union[ImageTaskSample, VQASample, InterleavedSample]) -> dict:
+    def encode_sft(
+        self, sample: Union[ImageTaskSample, VQASample, InterleavedSample]
+    ) -> dict:
         """Preprocessing function for datasets like LLaVA-Instruct, conversational multimodal instruction-following data.
         See Energon codebase for more details on VQASample.
         https://github.com/NVIDIA/Megatron-Energon/blob/develop/src/megatron/energon/flavors/vqa.py
         """
-        conversations = sample.texts if hasattr(sample, 'texts') else sample.conversations
+        conversations = (
+            sample.texts if hasattr(sample, "texts") else sample.conversations
+        )
         processed_sample = {"conversations": conversations}
         image_present = False
 
-        if self.multimodal_cfg['is_multimodal']:
+        if self.multimodal_cfg["is_multimodal"]:
             image_present = False
-            if hasattr(sample, 'image') and sample.image is not None:
+            if hasattr(sample, "image") and sample.image is not None:
                 processed_sample["image"] = self.process_images(sample.image)
                 image_present = True
-            elif hasattr(sample, 'images') and sample.images:
+            elif hasattr(sample, "images") and sample.images:
                 processed_sample["image"] = self.process_images(sample.images[0])
                 image_present = True
-            elif hasattr(sample, 'video') and sample.video:
+            elif hasattr(sample, "video") and sample.video:
                 # Implement video processing if needed
                 pass
 
@@ -201,11 +234,16 @@ class TaskEncoder(DefaultTaskEncoder[VQASample, InterleavedSample, ImageTaskBatc
         processed = preprocess_conversations(self, [processed_sample])
         tokens = processed["tokens"]
         labels = processed["labels"]
-        attention_mask, loss_mask, position_ids = self.get_masks_and_position_ids(tokens, labels)
+        attention_mask, loss_mask, position_ids = self.get_masks_and_position_ids(
+            tokens, labels
+        )
 
         if not image_present:
             processed_sample["image"] = torch.zeros(
-                1, 3, self.multimodal_cfg["crop_size"][0], self.multimodal_cfg["crop_size"][1]
+                1,
+                3,
+                self.multimodal_cfg["crop_size"][0],
+                self.multimodal_cfg["crop_size"][1],
             )
 
         return ImageTaskSample(
@@ -221,7 +259,9 @@ class TaskEncoder(DefaultTaskEncoder[VQASample, InterleavedSample, ImageTaskBatc
             position_ids=position_ids,
         )
 
-    def encode_similarity_interleaved(self, sample: SimilarityInterleavedSample) -> dict:
+    def encode_similarity_interleaved(
+        self, sample: SimilarityInterleavedSample
+    ) -> dict:
         """Preprocessing function for datasets like MMC4, where text and images are interleaved via a similarity matrix or matched_text_indices.
         See Energon codebase for more details on SimilarityInterleavedSample.
         https://github.com/NVIDIA/Megatron-Energon/blob/develop/src/megatron/energon/flavors/similarity_interleaved.py
@@ -267,26 +307,36 @@ class TaskEncoder(DefaultTaskEncoder[VQASample, InterleavedSample, ImageTaskBatc
 
         processed_sample = {"conversations": text, "image": processed_images}
 
-        if self.multimodal_cfg['is_multimodal']:
+        if self.multimodal_cfg["is_multimodal"]:
             if images:
                 cur_token_len = self.calculate_token_length(processed_sample["image"])
                 processed_sample = preprocess_multimodal(
-                    [processed_sample], self.multimodal_cfg, cur_token_len, use_plain=(self.conv_template == "plain")
+                    [processed_sample],
+                    self.multimodal_cfg,
+                    cur_token_len,
+                    use_plain=(self.conv_template == "plain"),
                 )[0]
 
         processed = preprocess_conversations(self, [processed_sample])
 
         tokens = processed["tokens"]
         labels = processed["labels"]
-        attention_mask, loss_mask, position_ids = self.get_masks_and_position_ids(tokens, labels)
+        attention_mask, loss_mask, position_ids = self.get_masks_and_position_ids(
+            tokens, labels
+        )
 
         # pad images
         if images:
-            processed_sample["image"] = self.pad_images(processed_sample["image"], self.max_num_images)
+            processed_sample["image"] = self.pad_images(
+                processed_sample["image"], self.max_num_images
+            )
         else:
             # add extra dummy images
             processed_sample["image"] = torch.zeros(
-                self.max_num_images, 3, self.multimodal_cfg["crop_size"][0], self.multimodal_cfg["crop_size"][1]
+                self.max_num_images,
+                3,
+                self.multimodal_cfg["crop_size"][0],
+                self.multimodal_cfg["crop_size"][1],
             )
 
         return ImageTaskSample(
@@ -315,14 +365,18 @@ class TaskEncoder(DefaultTaskEncoder[VQASample, InterleavedSample, ImageTaskBatc
                 interleaved_text.append(DEFAULT_IMAGE_TOKEN)
                 images.append(item)
             else:
-                raise ValueError(f"Unsupported type in interleaved sequence: {type(item)}")
+                raise ValueError(
+                    f"Unsupported type in interleaved sequence: {type(item)}"
+                )
 
         # constrain max num images
         max_num_images = self.max_num_images
 
         n_im_patch = interleaved_text.count(DEFAULT_IMAGE_TOKEN)
         if n_im_patch > max_num_images:
-            interleaved_text, kept_image_indices = self.remove_excess_image_tokens(interleaved_text, max_num_images)
+            interleaved_text, kept_image_indices = self.remove_excess_image_tokens(
+                interleaved_text, max_num_images
+            )
             images = [images[i] for i in kept_image_indices]
 
         if len(images) > max_num_images:
@@ -333,15 +387,18 @@ class TaskEncoder(DefaultTaskEncoder[VQASample, InterleavedSample, ImageTaskBatc
         else:
             processed_images = None
 
-        combined_text = ' '.join(interleaved_text)
+        combined_text = " ".join(interleaved_text)
 
         processed_sample = {"conversations": combined_text, "image": processed_images}
 
-        if self.multimodal_cfg['is_multimodal']:
+        if self.multimodal_cfg["is_multimodal"]:
             if images:
                 cur_token_len = self.calculate_token_length(processed_sample["image"])
                 processed_sample = preprocess_multimodal(
-                    [processed_sample], self.multimodal_cfg, cur_token_len, use_plain=(self.conv_template == "plain")
+                    [processed_sample],
+                    self.multimodal_cfg,
+                    cur_token_len,
+                    use_plain=(self.conv_template == "plain"),
                 )[0]
 
         processed = preprocess_conversations(self, [processed_sample])
@@ -349,14 +406,21 @@ class TaskEncoder(DefaultTaskEncoder[VQASample, InterleavedSample, ImageTaskBatc
         tokens = processed["tokens"]
         labels = processed["labels"]
 
-        attention_mask, loss_mask, position_ids = self.get_masks_and_position_ids(tokens, labels)
+        attention_mask, loss_mask, position_ids = self.get_masks_and_position_ids(
+            tokens, labels
+        )
 
         # pad images
         if images:
-            processed_sample["image"] = self.pad_images(processed_sample["image"], self.max_num_images)
+            processed_sample["image"] = self.pad_images(
+                processed_sample["image"], self.max_num_images
+            )
         else:
             processed_sample["image"] = torch.zeros(
-                self.max_num_images, 3, self.multimodal_cfg["crop_size"][0], self.multimodal_cfg["crop_size"][1]
+                self.max_num_images,
+                3,
+                self.multimodal_cfg["crop_size"][0],
+                self.multimodal_cfg["crop_size"][1],
             )
 
         return ImageTaskSample(
@@ -375,7 +439,11 @@ class TaskEncoder(DefaultTaskEncoder[VQASample, InterleavedSample, ImageTaskBatc
         if interleaved_text[-1] == DEFAULT_IMAGE_TOKEN:
             interleaved_text = interleaved_text[:-1]
 
-        image_indices = [i for i, token in enumerate(interleaved_text) if token == DEFAULT_IMAGE_TOKEN]
+        image_indices = [
+            i
+            for i, token in enumerate(interleaved_text)
+            if token == DEFAULT_IMAGE_TOKEN
+        ]
 
         if len(image_indices) <= max_num_images:
             return interleaved_text, list(range(len(image_indices)))
@@ -383,9 +451,12 @@ class TaskEncoder(DefaultTaskEncoder[VQASample, InterleavedSample, ImageTaskBatc
         # we keep the images that are close to the text tokens
         importance = []
         for i, img_idx in enumerate(image_indices):
-            has_text_before = img_idx > 0 and interleaved_text[img_idx - 1] != DEFAULT_IMAGE_TOKEN
+            has_text_before = (
+                img_idx > 0 and interleaved_text[img_idx - 1] != DEFAULT_IMAGE_TOKEN
+            )
             has_text_after = (
-                img_idx < len(interleaved_text) - 1 and interleaved_text[img_idx + 1] != DEFAULT_IMAGE_TOKEN
+                img_idx < len(interleaved_text) - 1
+                and interleaved_text[img_idx + 1] != DEFAULT_IMAGE_TOKEN
             )
 
             if has_text_before and has_text_after:
@@ -399,10 +470,14 @@ class TaskEncoder(DefaultTaskEncoder[VQASample, InterleavedSample, ImageTaskBatc
         kept_indices = {idx for _, idx in importance[:max_num_images]}
 
         # update idx to map correctly to the original images array
-        kept_image_indices = [image_indices.index(i) for i in kept_indices if i in image_indices]
+        kept_image_indices = [
+            image_indices.index(i) for i in kept_indices if i in image_indices
+        ]
 
         new_interleaved_text = [
-            token for i, token in enumerate(interleaved_text) if token != DEFAULT_IMAGE_TOKEN or i in kept_indices
+            token
+            for i, token in enumerate(interleaved_text)
+            if token != DEFAULT_IMAGE_TOKEN or i in kept_indices
         ]
 
         return new_interleaved_text, kept_image_indices
@@ -412,14 +487,20 @@ class TaskEncoder(DefaultTaskEncoder[VQASample, InterleavedSample, ImageTaskBatc
             images = [images]
         processed_images = []
         for image in images:
-            image = process_image(self.image_processor, image, self.multimodal_cfg['image_aspect_ratio'])
+            image = process_image(
+                self.image_processor, image, self.multimodal_cfg["image_aspect_ratio"]
+            )
             processed_images.append(image)
-        return torch.stack(processed_images)  # make it always 4D, otherwise has problem when len(images) > 1
+        return torch.stack(
+            processed_images
+        )  # make it always 4D, otherwise has problem when len(images) > 1
 
     def pad_images(self, images, max_num_images):
         if len(images) < max_num_images:
             pad_size = max_num_images - len(images)
-            padded_images = torch.cat([images, torch.zeros(pad_size, *images.size()[1:])], dim=0)
+            padded_images = torch.cat(
+                [images, torch.zeros(pad_size, *images.size()[1:])], dim=0
+            )
             return padded_images
         return images
 
@@ -433,7 +514,7 @@ class TaskEncoder(DefaultTaskEncoder[VQASample, InterleavedSample, ImageTaskBatc
             position_ids=batch_pad_stack([s.position_ids for s in samples]),
             media=(
                 torch.stack([s.image for s in samples if s.image is not None])
-                if self.multimodal_cfg['is_multimodal']
+                if self.multimodal_cfg["is_multimodal"]
                 else None
             ),
         )
@@ -458,15 +539,21 @@ class TaskEncoder(DefaultTaskEncoder[VQASample, InterleavedSample, ImageTaskBatc
         elif self.conv_template == "llama_3":
             return preprocess_llama_3(sources, self.tokenizer, self.multimodal_cfg)
         elif self.conv_template == "mistral":
-            return preprocess_llama_2(sources, self.tokenizer, self.multimodal_cfg, is_mistral=True)
+            return preprocess_llama_2(
+                sources, self.tokenizer, self.multimodal_cfg, is_mistral=True
+            )
         elif self.conv_template == "yi_34b":
             return preprocess_yi_34b(sources, self.tokenizer, self.multimodal_cfg)
         elif self.conv_template == "plain":
             return preprocess_plain(sources, self.tokenizer, self.multimodal_cfg)
         elif self.conv_template == "interleaved":
-            return preprocess_interleaved_prompt(sources, self.tokenizer, self.multimodal_cfg)
+            return preprocess_interleaved_prompt(
+                sources, self.tokenizer, self.multimodal_cfg
+            )
         else:
-            raise ValueError(f"Conversation template `{self.conv_template}` is not supported in Neva now.")
+            raise ValueError(
+                f"Conversation template `{self.conv_template}` is not supported in Neva now."
+            )
 
     def encode_batch(self, batch: ImageTaskBatch) -> dict:
         raw = dataclasses.asdict(batch)
@@ -478,10 +565,10 @@ class TaskEncoder(DefaultTaskEncoder[VQASample, InterleavedSample, ImageTaskBatc
             width = media_tensor.shape[3]
         else:
             raise ValueError("Media tensor must be 4-dimensional")
-        patch_dim = self.multimodal_cfg['patch_dim']
+        patch_dim = self.multimodal_cfg["patch_dim"]
         height_num_patches = height // patch_dim
         width_num_patches = width // patch_dim
-        if self.multimodal_cfg['mm_mlp_adapter_type'] == 'mlp_downsample':
+        if self.multimodal_cfg["mm_mlp_adapter_type"] == "mlp_downsample":
             height_num_patches = (height_num_patches + 1) // 2 * 2
             width_num_patches = (width_num_patches + 1) // 2 * 2
 

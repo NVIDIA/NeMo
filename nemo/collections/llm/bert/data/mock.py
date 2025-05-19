@@ -141,7 +141,9 @@ class BERTMockDataModule(pl.LightningDataModule):
             _reconfigure_limit_batches
 
         # Override limit_train_batches in terms of num of microbatches
-        self.trainer.limit_train_batches = _reconfigure_limit_batches(self.trainer.limit_train_batches, self._train_ds)
+        self.trainer.limit_train_batches = _reconfigure_limit_batches(
+            self.trainer.limit_train_batches, self._train_ds
+        )
         # Override limit_val_batches to be a multiple of num microbatches to prevent val_step from exiting
         #   in between a step
         self.trainer.limit_val_batches = _reconfigure_limit_batches(
@@ -188,8 +190,12 @@ class _MockBERTDataset(Dataset):
     def __getitem__(self, idx) -> Dict[str, torch.Tensor]:
         # Generate data of the expected size and datatype (based on GPTDataset).
         np_gen = np.random.default_rng(seed=(self.seed + idx))
-        tokens = torch.from_numpy(np_gen.integers(self.vocab_size, size=[self.seq_length], dtype=np.int64))
-        labels = torch.from_numpy(np_gen.integers(self.vocab_size, size=[self.seq_length], dtype=np.int64))
+        tokens = torch.from_numpy(
+            np_gen.integers(self.vocab_size, size=[self.seq_length], dtype=np.int64)
+        )
+        labels = torch.from_numpy(
+            np_gen.integers(self.vocab_size, size=[self.seq_length], dtype=np.int64)
+        )
         assignments = torch.zeros(self.seq_length, dtype=torch.int64)
         is_next_random = np_gen.random() < 0.5
         mask_pads = torch.from_numpy(np.ones([self.seq_length], dtype=np.int64))

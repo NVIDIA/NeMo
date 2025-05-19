@@ -81,7 +81,11 @@ class ChatDataModule(FineTuningDataModule):
         return create_sft_dataset(
             path,
             tokenizer=self.tokenizer,
-            seq_length=(self.seq_length if is_test or self.packed_sequence_size <= 0 else self.packed_sequence_size),
+            seq_length=(
+                self.seq_length
+                if is_test or self.packed_sequence_size <= 0
+                else self.packed_sequence_size
+            ),
             memmap_workers=self.memmap_workers,
             seed=self.seed,
             chat=True,

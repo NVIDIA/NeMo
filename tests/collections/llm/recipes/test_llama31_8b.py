@@ -93,21 +93,25 @@ class TestLlama31_8B:
     def test_finetune_recipe_with_packed_sequence(self, recipe_module):
         recipe = recipe_module.finetune_recipe(packed_sequence=True)
         assert recipe.data.seq_length == 4096
-        assert recipe.data.dataset_kwargs == {'pad_to_max_length': True}
-        assert hasattr(recipe.data, 'packed_sequence_specs')
+        assert recipe.data.dataset_kwargs == {"pad_to_max_length": True}
+        assert hasattr(recipe.data, "packed_sequence_specs")
         assert recipe.data.packed_sequence_specs.packed_sequence_size == 4096
 
     def test_pretrain_performance_optimizations(self, recipe_module):
-        recipe = recipe_module.pretrain_performance_optimizations(recipe_module.pretrain_recipe())
+        recipe = recipe_module.pretrain_performance_optimizations(
+            recipe_module.pretrain_recipe()
+        )
         assert any(
-            isinstance(cb, run.Config) and cb.__fn_or_cls__.__name__ == "MegatronCommOverlapCallback"
+            isinstance(cb, run.Config)
+            and cb.__fn_or_cls__.__name__ == "MegatronCommOverlapCallback"
             for cb in recipe.trainer.callbacks
         )
         # Check specific MegatronCommOverlapCallback settings
         comm_overlap_cb = next(
             cb
             for cb in recipe.trainer.callbacks
-            if isinstance(cb, run.Config) and cb.__fn_or_cls__.__name__ == "MegatronCommOverlapCallback"
+            if isinstance(cb, run.Config)
+            and cb.__fn_or_cls__.__name__ == "MegatronCommOverlapCallback"
         )
         assert comm_overlap_cb.tp_comm_overlap is True
         assert comm_overlap_cb.defer_embedding_wgrad_compute is True
@@ -119,17 +123,20 @@ class TestLlama31_8B:
         recipe = recipe_module.finetune_recipe(peft_scheme=None)
         assert recipe.trainer.strategy.tensor_model_parallel_size == 2
         assert recipe.optim.config.lr == 5e-6
-        assert not hasattr(recipe, 'peft') or recipe.peft is None
+        assert not hasattr(recipe, "peft") or recipe.peft is None
 
     def test_finetune_recipe_with_invalid_peft(self, recipe_module):
-        with pytest.raises(ValueError, match="Unrecognized peft scheme: invalid_scheme"):
+        with pytest.raises(
+            ValueError, match="Unrecognized peft scheme: invalid_scheme"
+        ):
             recipe_module.finetune_recipe(peft_scheme="invalid_scheme")
 
     def test_finetune_performance_optimizations(self, recipe_module):
         recipe = recipe_module.finetune_recipe(performance_mode=True)
         assert recipe.trainer.strategy.tensor_model_parallel_size == 1
         assert any(
-            isinstance(cb, run.Config) and cb.__fn_or_cls__ == TimingCallback for cb in recipe.trainer.callbacks
+            isinstance(cb, run.Config) and cb.__fn_or_cls__ == TimingCallback
+            for cb in recipe.trainer.callbacks
         )
         assert any(
             isinstance(cb, run.Config) and cb.__fn_or_cls__ == GarbageCollectionCallback

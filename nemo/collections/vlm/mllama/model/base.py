@@ -95,7 +95,11 @@ def mllama_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
         )
 
     _batch = {
-        key: val.cuda(non_blocking=True) if key in required_keys and isinstance(val, torch.Tensor) else val
+        key: (
+            val.cuda(non_blocking=True)
+            if key in required_keys and isinstance(val, torch.Tensor)
+            else val
+        )
         for key, val in _batch.items()
     }
     # slice batch along sequence dimension for context parallelism
@@ -116,8 +120,8 @@ def mllama_forward_step(model, batch) -> torch.Tensor:
         "labels": batch.get("labels", None),
     }
 
-    if 'cu_seqlens' in batch:
-        forward_config['packed_seq_params'] = get_packed_seq_params(batch)
+    if "cu_seqlens" in batch:
+        forward_config["packed_seq_params"] = get_packed_seq_params(batch)
 
     return model(**forward_config)
 
@@ -196,7 +200,9 @@ class CrossAttentionTextConfig(Llama31Config):
 
     def configure_model(self, tokenizer, pre_process=True, post_process=True):
         """Configure mllama text model."""
-        self.fusion_schedule = self._init_fusion_schedule(self.num_cross_attention_layers)
+        self.fusion_schedule = self._init_fusion_schedule(
+            self.num_cross_attention_layers
+        )
         vp_size = self.virtual_pipeline_model_parallel_size
         if vp_size:
             p_size = self.pipeline_model_parallel_size
@@ -208,14 +214,16 @@ class CrossAttentionTextConfig(Llama31Config):
         if not isinstance(transformer_layer_spec, ModuleSpec):
             transformer_layer_spec = transformer_layer_spec(self)
 
-        if hasattr(self, 'vocab_size'):
+        if hasattr(self, "vocab_size"):
             vocab_size = self.vocab_size
             logging.info(
                 f"Use preset vocab_size: {vocab_size}, original vocab_size: {tokenizer.vocab_size}, dummy tokens:"
                 f" {vocab_size - tokenizer.vocab_size}."
             )
         else:
-            vocab_size = get_vocab_size(self, tokenizer.vocab_size, self.make_vocab_size_divisible_by)
+            vocab_size = get_vocab_size(
+                self, tokenizer.vocab_size, self.make_vocab_size_divisible_by
+            )
 
         model = CrossAttentionTextModel(
             self,
@@ -270,26 +278,42 @@ class MLlamaModelConfig(TransformerConfig, io.IOMixin):
         """Configure mllama model."""
         from megatron.core import parallel_state as ps
 
-        self.language_model_config.tensor_model_parallel_size = self.tensor_model_parallel_size
-        self.vision_model_config.tensor_model_parallel_size = self.tensor_model_parallel_size
-        self.language_model_config.pipeline_model_parallel_size = self.pipeline_model_parallel_size
+        self.language_model_config.tensor_model_parallel_size = (
+            self.tensor_model_parallel_size
+        )
+        self.vision_model_config.tensor_model_parallel_size = (
+            self.tensor_model_parallel_size
+        )
+        self.language_model_config.pipeline_model_parallel_size = (
+            self.pipeline_model_parallel_size
+        )
 
         if self.encoder_pipeline_model_parallel_size > 0:
-            assert self.encoder_pipeline_model_parallel_size == 1, "ViT can only live on 1 pipeline stage."
-            self.vision_model_config.pipeline_model_parallel_size = self.encoder_pipeline_model_parallel_size
-            self.language_model_config.encoder_pipeline_model_parallel_size = self.encoder_pipeline_model_parallel_size
+            assert (
+                self.encoder_pipeline_model_parallel_size == 1
+            ), "ViT can only live on 1 pipeline stage."
+            self.vision_model_config.pipeline_model_parallel_size = (
+                self.encoder_pipeline_model_parallel_size
+            )
+            self.language_model_config.encoder_pipeline_model_parallel_size = (
+                self.encoder_pipeline_model_parallel_size
+            )
             if self.encoder_tensor_model_parallel_size > 0:
-                self.vision_model_config.tensor_model_parallel_size = self.encoder_tensor_model_parallel_size
+                self.vision_model_config.tensor_model_parallel_size = (
+                    self.encoder_tensor_model_parallel_size
+                )
 
         model = MLlamaBaseModel(
             config=self,
             tokenizer=tokenizer,
             pre_process=ps.is_pipeline_first_stage(ignore_virtual=False)
-            or ps.get_pipeline_model_parallel_rank() == self.encoder_pipeline_model_parallel_size,
+            or ps.get_pipeline_model_parallel_rank()
+            == self.encoder_pipeline_model_parallel_size,
             post_process=ps.is_pipeline_last_stage(ignore_virtual=False),
             add_encoder=ps.is_pipeline_first_stage(ignore_virtual=False),
             add_decoder=ps.is_pipeline_last_stage(ignore_virtual=False)
-            or ps.get_pipeline_model_parallel_rank() >= self.encoder_pipeline_model_parallel_size,
+            or ps.get_pipeline_model_parallel_rank()
+            >= self.encoder_pipeline_model_parallel_size,
         )
 
         return model
@@ -306,7 +330,9 @@ class CrossAttentionVisionModel(MegatronModule):
         self.max_num_chunks = config.vision_max_num_chunks
         if return_intermediate is not None:
             return_intermediate = [int(l_no) for l_no in return_intermediate.split(",")]
-            self.vision_input_dim = (len(return_intermediate) + 1) * self.vision_input_dim
+            self.vision_input_dim = (
+                len(return_intermediate) + 1
+            ) * self.vision_input_dim
         self.patch_size = 14
         self.vision_encoder = VisionEncoder(
             config=config,
@@ -317,23 +343,33 @@ class CrossAttentionVisionModel(MegatronModule):
 
         projection_config = copy.deepcopy(config)
         projection_config.hidden_size = config.text_hidden_size
-        affine_layer_spec = MLPSubmodules(linear_fc1=ColumnParallelLinear, linear_fc2=None)
+        affine_layer_spec = MLPSubmodules(
+            linear_fc1=ColumnParallelLinear, linear_fc2=None
+        )
         self.vision_projection = MultimodalProjector(
             config=projection_config,
             submodules=affine_layer_spec,
             projector_type="affine",
             input_size=self.vision_input_dim,
         )
-        self.vision_projection.encoder.skip_bias_add = False  # Temporary fix for a MCore side bug
+        self.vision_projection.encoder.skip_bias_add = (
+            False  # Temporary fix for a MCore side bug
+        )
 
-    def forward(self, images: torch.Tensor, aspect_ratio_ids: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self, images: torch.Tensor, aspect_ratio_ids: torch.Tensor
+    ) -> torch.Tensor:
         """Forward."""
         # vision_tokens: (B, T, D)
         # aspect_ratio_ids: (B, 1)
         # h: (B, T, D)
-        vision_tokens = self.vision_encoder(images.to(dtype=torch.bfloat16), aspect_ratio_ids)
+        vision_tokens = self.vision_encoder(
+            images.to(dtype=torch.bfloat16), aspect_ratio_ids
+        )
         vision_shape = vision_tokens.shape
-        vision_tokens = self.vision_projection(vision_tokens.reshape(-1, *vision_shape[-2:]))
+        vision_tokens = self.vision_projection(
+            vision_tokens.reshape(-1, *vision_shape[-2:])
+        )
         vision_tokens = vision_tokens.reshape(*vision_shape[:-1], -1)
         return vision_tokens
 
@@ -373,7 +409,9 @@ class MLlamaBaseModel(MegatronModule):
             self.language_model = language_model_config.configure_model(
                 tokenizer=tokenizer, pre_process=pre_process, post_process=post_process
             )
-            self.share_embeddings_and_output_weights = self.language_model.share_embeddings_and_output_weights
+            self.share_embeddings_and_output_weights = (
+                self.language_model.share_embeddings_and_output_weights
+            )
 
         if self.add_encoder:
             self.vision_model = vision_model_config.configure_model()
@@ -397,7 +435,8 @@ class MLlamaBaseModel(MegatronModule):
         bsz, nimg, nchunk, ntok, image_token_dim = vision_orig_shape
 
         xattn_caches = [
-            layer.compute_xattn_kv_cache(vision_tokens) for layer in self.language_model.decoder.xattn_layers
+            layer.compute_xattn_kv_cache(vision_tokens)
+            for layer in self.language_model.decoder.xattn_layers
         ]
 
         padded_masks = _pad_attention_masks(
@@ -408,14 +447,20 @@ class MLlamaBaseModel(MegatronModule):
             vision_tokens.device,
         )
         vision_tokens = rearrange(
-            vision_tokens, "(nimg nchk ntok) b dim -> b nimg nchk ntok dim", nimg=nimg, nchk=nchunk, ntok=ntok
+            vision_tokens,
+            "(nimg nchk ntok) b dim -> b nimg nchk ntok dim",
+            nimg=nimg,
+            nchk=nchunk,
+            ntok=ntok,
         )
-        cross_attention_masks, full_text_row_masked_out_mask = _generate_cross_attention_mask(
-            text_token_count=total_len,
-            text_device="cuda",
-            text_dtype=next(self.language_model.parameters()).dtype,
-            vision_tokens=vision_tokens,
-            cross_attention_masks=padded_masks,
+        cross_attention_masks, full_text_row_masked_out_mask = (
+            _generate_cross_attention_mask(
+                text_token_count=total_len,
+                text_device="cuda",
+                text_dtype=next(self.language_model.parameters()).dtype,
+                vision_tokens=vision_tokens,
+                cross_attention_masks=padded_masks,
+            )
         )
 
         return (xattn_caches, cross_attention_masks, full_text_row_masked_out_mask)
@@ -467,12 +512,14 @@ class MLlamaBaseModel(MegatronModule):
             if not self.add_decoder:
                 return vision_tokens
 
-            xattn_caches, cross_attention_masks, full_text_row_masked_out_mask = self.compute_xattn_caches_masks(
-                vision_tokens=vision_tokens,
-                vision_orig_shape=vision_orig_shape,
-                batch_masks=batch_masks,
-                num_chunks=num_chunks,
-                total_len=position_ids.shape[1],
+            xattn_caches, cross_attention_masks, full_text_row_masked_out_mask = (
+                self.compute_xattn_caches_masks(
+                    vision_tokens=vision_tokens,
+                    vision_orig_shape=vision_orig_shape,
+                    batch_masks=batch_masks,
+                    num_chunks=num_chunks,
+                    total_len=position_ids.shape[1],
+                )
             )
 
             xattn_mask_index = position_ids[0]
@@ -480,18 +527,26 @@ class MLlamaBaseModel(MegatronModule):
             if inference_params is not None:
                 inference_params.xattn_caches = xattn_caches
                 inference_params.cross_attention_masks = cross_attention_masks
-                inference_params.full_text_row_masked_out_mask = full_text_row_masked_out_mask
+                inference_params.full_text_row_masked_out_mask = (
+                    full_text_row_masked_out_mask
+                )
         else:
             xattn_mask_index = [cross_attention_masks.shape[2] - 1]
 
         assert self.add_decoder, "Language model required for forward pass."
         language_embeddings = None
         if self.pre_process:
-            language_embeddings = self.language_model.get_partially_trainable_embedding(tokens)
-            language_embeddings = language_embeddings.transpose(1, 0).contiguous()  # [text_seq_len, b, h_language]
+            language_embeddings = self.language_model.get_partially_trainable_embedding(
+                tokens
+            )
+            language_embeddings = language_embeddings.transpose(
+                1, 0
+            ).contiguous()  # [text_seq_len, b, h_language]
 
         full_text_row_masked_out_mask = (
-            full_text_row_masked_out_mask[:, :, xattn_mask_index].permute(2, 0, 1, 3).squeeze(2)
+            full_text_row_masked_out_mask[:, :, xattn_mask_index]
+            .permute(2, 0, 1, 3)
+            .squeeze(2)
             if cross_attention_masks is not None
             else None
         )
@@ -502,7 +557,9 @@ class MLlamaBaseModel(MegatronModule):
             decoder_input=language_embeddings,
             attention_mask=None,
             cross_attention_masks=(
-                cross_attention_masks[:, :, xattn_mask_index] if cross_attention_masks is not None else None
+                cross_attention_masks[:, :, xattn_mask_index]
+                if cross_attention_masks is not None
+                else None
             ),
             full_text_row_masked_out_mask=full_text_row_masked_out_mask,
             xattn_caches=xattn_caches,
@@ -520,7 +577,7 @@ class MLlamaBaseModel(MegatronModule):
         elif self.add_decoder and self.pre_process:
             self.encoder_hidden_state = input_tensor[0]
         else:
-            assert len(input_tensor) == 2, 'input_tensor should contain encoder output.'
+            assert len(input_tensor) == 2, "input_tensor should contain encoder output."
             self.language_model.set_input_tensor(input_tensor[0])
             self.encoder_hidden_state = input_tensor[1]
 
@@ -538,7 +595,9 @@ class MLlamaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         super().__init__()
         self.config = config
         self.tokenizer = tokenizer
-        self.optim = optim or MegatronOptimizerModule(config=OptimizerConfig(lr=1e-4, use_distributed_optimizer=True))
+        self.optim = optim or MegatronOptimizerModule(
+            config=OptimizerConfig(lr=1e-4, use_distributed_optimizer=True)
+        )
         self.optim.connect(self)  # This will bind the `configure_optimizers` method
         self.model_transform = model_transform
         self._training_loss_reduction = None
@@ -608,7 +667,9 @@ class MLlamaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
     def validation_loss_reduction(self) -> MaskedTokenLossReduction:
         # pylint: disable=C0115,C0116
         if not self._validation_loss_reduction:
-            self._validation_loss_reduction = MaskedTokenLossReduction(validation_step=True)
+            self._validation_loss_reduction = MaskedTokenLossReduction(
+                validation_step=True
+            )
 
         return self._validation_loss_reduction
 

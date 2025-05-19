@@ -29,7 +29,7 @@ class MegatronGriffinModel(MegatronGPTModel):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
 
-        self.vocab_size = cfg.get('vocab_size', 256000)
+        self.vocab_size = cfg.get("vocab_size", 256000)
         self.cfg = cfg
         super().__init__(cfg=cfg, trainer=trainer)
         self.mcore_gpt = True
@@ -37,12 +37,12 @@ class MegatronGriffinModel(MegatronGPTModel):
     def model_provider_func(self, pre_process, post_process):
         model = GriffinModel(
             config=self.transformer_config,
-            max_sequence_length=self.cfg.get('encoder_seq_length', 512),
-            vocab_size=self.cfg.get('vocab_size', 256000),
-            position_embedding_type=self.cfg.get('position_embedding_type', 'rope'),
-            logits_soft_cap=self.cfg.get('logits_soft_cap', 30.0),
-            rotary_percent=self.cfg.get('rotary_percentage', 0.5),
-            rotary_base=self.cfg.get('rotary_base', 10000),
+            max_sequence_length=self.cfg.get("encoder_seq_length", 512),
+            vocab_size=self.cfg.get("vocab_size", 256000),
+            position_embedding_type=self.cfg.get("position_embedding_type", "rope"),
+            logits_soft_cap=self.cfg.get("logits_soft_cap", 30.0),
+            rotary_percent=self.cfg.get("rotary_percentage", 0.5),
+            rotary_base=self.cfg.get("rotary_base", 10000),
         )
 
         return model
@@ -50,17 +50,25 @@ class MegatronGriffinModel(MegatronGPTModel):
     def forward(self, input_ids, position_ids=None, attention_mask=None, labels=None):
 
         output_tensor = self.model(
-            input_ids=input_ids, position_ids=position_ids, attention_mask=attention_mask, labels=labels
+            input_ids=input_ids,
+            position_ids=position_ids,
+            attention_mask=attention_mask,
+            labels=labels,
         )
         return output_tensor
 
     def build_transformer_config(self):
         transformer_config = super().build_transformer_config()
-        transformer_config.activations_checkpoint_recurrent = self.cfg.get('activations_checkpoint_recurrent', False)
-        transformer_config.gated_linear_unit = self.cfg.get('gated_linear_unit', True)
-        transformer_config.layernorm_zero_centered_gamma = self.cfg.get('layernorm_zero_centered_gamma', True)
+        transformer_config.activations_checkpoint_recurrent = self.cfg.get(
+            "activations_checkpoint_recurrent", False
+        )
+        transformer_config.gated_linear_unit = self.cfg.get("gated_linear_unit", True)
+        transformer_config.layernorm_zero_centered_gamma = self.cfg.get(
+            "layernorm_zero_centered_gamma", True
+        )
         assert (
-            not transformer_config.activations_checkpoint_recurrent or not transformer_config.recompute_granularity
+            not transformer_config.activations_checkpoint_recurrent
+            or not transformer_config.recompute_granularity
         ), "Either the recurrent checkpoiting or the full/custom checkpointing should be set"
 
         return transformer_config
@@ -70,7 +78,7 @@ class MegatronGriffinModel(MegatronGPTModel):
         averaged_loss = torch.tensor(0.0, dtype=torch.float32).cuda()
         return averaged_loss
 
-    def sharded_state_dict(self, prefix: str = ''):
+    def sharded_state_dict(self, prefix: str = ""):
         return None
 
     def _reset_activation_checkpointing_args(self):

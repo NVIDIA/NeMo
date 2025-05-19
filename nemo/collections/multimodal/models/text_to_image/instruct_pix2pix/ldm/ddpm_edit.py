@@ -87,9 +87,13 @@ class LatentDiffusionEdit(LatentDiffusion):
                     print("Deleting key {} from state_dict.".format(k))
                     del sd[k]
         missing, unexpected = (
-            self.load_state_dict(sd, strict=False) if not only_model else self.model.load_state_dict(sd, strict=False)
+            self.load_state_dict(sd, strict=False)
+            if not only_model
+            else self.model.load_state_dict(sd, strict=False)
         )
-        print(f"Restored from {path} with {len(missing)} missing and {len(unexpected)} unexpected keys")
+        print(
+            f"Restored from {path} with {len(missing)} missing and {len(unexpected)} unexpected keys"
+        )
         if len(missing) > 0:
             print(f"Missing Keys: {missing}")
         if len(unexpected) > 0:
@@ -123,13 +127,20 @@ class LatentDiffusionEdit(LatentDiffusion):
         # To support classifier-free guidance, randomly drop out only text conditioning 5%, only image conditioning 5%, and both 5%.
         random = torch.rand(x.size(0), device=x.device)
         prompt_mask = rearrange(random < 2 * uncond, "n -> n 1 1")
-        input_mask = 1 - rearrange((random >= uncond).float() * (random < 3 * uncond).float(), "n -> n 1 1 1")
+        input_mask = 1 - rearrange(
+            (random >= uncond).float() * (random < 3 * uncond).float(), "n -> n 1 1 1"
+        )
 
         null_prompt = self.get_learned_conditioning([""])
         cond["c_crossattn"] = torch.where(
-            prompt_mask, null_prompt, self.get_learned_conditioning(xc["c_crossattn"]).detach()
+            prompt_mask,
+            null_prompt,
+            self.get_learned_conditioning(xc["c_crossattn"]).detach(),
         )
-        cond["c_concat"] = input_mask * self.encode_first_stage((xc["c_concat"].to(x.device))).mode().detach()
+        cond["c_concat"] = (
+            input_mask
+            * self.encode_first_stage((xc["c_concat"].to(x.device))).mode().detach()
+        )
 
         out = [z, cond]
         if return_first_stage_outputs:
@@ -143,7 +154,9 @@ class LatentDiffusionEdit(LatentDiffusion):
 class MegatronLatentDiffusionEdit(MegatronLatentDiffusion):
     def model_provider_func(self, pre_process=True, post_process=True):
         """Model depends on pipeline paralellism."""
-        model = LatentDiffusionEdit(cfg=self.cfg, model_parallel_config=self.model_parallel_config)
+        model = LatentDiffusionEdit(
+            cfg=self.cfg, model_parallel_config=self.model_parallel_config
+        )
         return model
 
     def setup(self, stage=None):
@@ -153,31 +166,44 @@ class MegatronLatentDiffusionEdit(MegatronLatentDiffusion):
         Args:
             stage (str, optional): Can be 'fit', 'validate', 'test' or 'predict'. Defaults to None.
         """
-        self.model.rng.manual_seed(self.cfg.seed + 100 * parallel_state.get_data_parallel_rank())
+        self.model.rng.manual_seed(
+            self.cfg.seed + 100 * parallel_state.get_data_parallel_rank()
+        )
 
         # log number of parameters
         if isinstance(self.model, list):
             num_parameters_on_device = sum(
-                [sum([p.nelement() for p in model_module.parameters()]) for model_module in self.model]
+                [
+                    sum([p.nelement() for p in model_module.parameters()])
+                    for model_module in self.model
+                ]
             )
         else:
-            num_parameters_on_device = sum([p.nelement() for p in self.model.parameters()])
+            num_parameters_on_device = sum(
+                [p.nelement() for p in self.model.parameters()]
+            )
 
         # to be summed across data parallel group
-        total_num_parameters = torch.tensor(num_parameters_on_device).cuda(non_blocking=True)
+        total_num_parameters = torch.tensor(num_parameters_on_device).cuda(
+            non_blocking=True
+        )
 
-        torch.distributed.all_reduce(total_num_parameters, group=parallel_state.get_model_parallel_group())
+        torch.distributed.all_reduce(
+            total_num_parameters, group=parallel_state.get_model_parallel_group()
+        )
 
         logging.info(
-            f'Pipeline model parallel rank: {parallel_state.get_pipeline_model_parallel_rank()}, '
-            f'Tensor model parallel rank: {parallel_state.get_tensor_model_parallel_rank()}, '
-            f'Number of model parameters on device: {num_parameters_on_device:.2e}. '
-            f'Total number of model parameters: {total_num_parameters:.2e}.'
+            f"Pipeline model parallel rank: {parallel_state.get_pipeline_model_parallel_rank()}, "
+            f"Tensor model parallel rank: {parallel_state.get_tensor_model_parallel_rank()}, "
+            f"Number of model parameters on device: {num_parameters_on_device:.2e}. "
+            f"Total number of model parameters: {total_num_parameters:.2e}."
         )
 
         resume_checkpoint_path = self.trainer.ckpt_path
         if resume_checkpoint_path:
-            init_consumed_samples = self._extract_consumed_samples_from_ckpt(resume_checkpoint_path)
+            init_consumed_samples = self._extract_consumed_samples_from_ckpt(
+                resume_checkpoint_path
+            )
         else:
             init_consumed_samples = 0
         self.init_consumed_samples = init_consumed_samples
@@ -191,52 +217,63 @@ class MegatronLatentDiffusionEdit(MegatronLatentDiffusion):
     def build_train_valid_test_datasets(self):
         # TODO (yuya): set up splits ratio and other params
         if self.cfg.data.data_path is not None:
-            self._train_ds = EditDataset(path=self.cfg.data.data_path, split="train", flip_prob=0.5)
+            self._train_ds = EditDataset(
+                path=self.cfg.data.data_path, split="train", flip_prob=0.5
+            )
             self._validation_ds = EditDataset(path=self.cfg.data.data_path, split="val")
             self._test_ds = EditDataset(path=self.cfg.data.data_path, split="test")
 
     def setup_training_data(self, cfg):
-        if hasattr(self, '_train_ds') and self._train_ds is not None:
+        if hasattr(self, "_train_ds") and self._train_ds is not None:
             consumed_samples = self.compute_consumed_samples(0)
             logging.info(
-                f'Setting up train dataloader with len(len(self._train_ds)): {len(self._train_ds)} and consumed samples: {consumed_samples}'
+                f"Setting up train dataloader with len(len(self._train_ds)): {len(self._train_ds)} and consumed samples: {consumed_samples}"
             )
-            self._train_dl = self.build_pretraining_data_loader(self._train_ds, consumed_samples)
+            self._train_dl = self.build_pretraining_data_loader(
+                self._train_ds, consumed_samples
+            )
 
     def setup_validation_data(self, cfg):
-        if hasattr(self, '_validation_ds') and self._validation_ds is not None:
+        if hasattr(self, "_validation_ds") and self._validation_ds is not None:
             consumed_samples = 0
             logging.info(
-                f'Setting up validation dataloader with len(len(self._validation_ds)): {len(self._validation_ds)} and consumed samples: {consumed_samples}'
+                f"Setting up validation dataloader with len(len(self._validation_ds)): {len(self._validation_ds)} and consumed samples: {consumed_samples}"
             )
             drop_last = True
-            if not self.cfg.get('validation_drop_last', True):
-                logging.info(f'Drop last in validation dataset is set to False')
+            if not self.cfg.get("validation_drop_last", True):
+                logging.info(f"Drop last in validation dataset is set to False")
                 drop_last = False
-            self._validation_dl = self.build_pretraining_data_loader(self._validation_ds, consumed_samples, drop_last)
+            self._validation_dl = self.build_pretraining_data_loader(
+                self._validation_ds, consumed_samples, drop_last
+            )
 
     def setup_test_data(self, cfg):
-        if hasattr(self, '_test_ds') and self._test_ds is not None:
+        if hasattr(self, "_test_ds") and self._test_ds is not None:
             consumed_samples = 0
             logging.info(
-                f'Setting up test dataloader with len(len(self._test_ds)): {len(self._test_ds)} and consumed samples: {consumed_samples}'
+                f"Setting up test dataloader with len(len(self._test_ds)): {len(self._test_ds)} and consumed samples: {consumed_samples}"
             )
             drop_last = True
-            if not self.cfg.get('validation_drop_last', True):
-                logging.info(f'Drop last in validation dataset is set to False')
+            if not self.cfg.get("validation_drop_last", True):
+                logging.info(f"Drop last in validation dataset is set to False")
                 drop_last = False
-            self._test_dl = self.build_pretraining_data_loader(self._test_ds, consumed_samples, drop_last)
+            self._test_dl = self.build_pretraining_data_loader(
+                self._test_ds, consumed_samples, drop_last
+            )
 
     def build_pretraining_data_loader(self, dataset, consumed_samples, drop_last=True):
         """Build dataloader given an input dataset."""
 
         if dataset is None:
             return None
-        logging.info(f'Building dataloader with consumed samples: {consumed_samples}')
+        logging.info(f"Building dataloader with consumed samples: {consumed_samples}")
         # Megatron sampler
-        if hasattr(self._cfg.data, 'dataloader_type') and self._cfg.data.dataloader_type is not None:
+        if (
+            hasattr(self._cfg.data, "dataloader_type")
+            and self._cfg.data.dataloader_type is not None
+        ):
             # TODO (yuya): fix this
-            if self._cfg.data.dataloader_type == 'single':
+            if self._cfg.data.dataloader_type == "single":
                 batch_sampler = MegatronPretrainingSampler(
                     total_samples=len(dataset),
                     consumed_samples=consumed_samples,
@@ -246,7 +283,7 @@ class MegatronLatentDiffusionEdit(MegatronLatentDiffusion):
                     data_parallel_size=parallel_state.get_data_parallel_world_size(),
                     drop_last=drop_last,
                 )
-            elif self._cfg.data.dataloader_type == 'cyclic':
+            elif self._cfg.data.dataloader_type == "cyclic":
                 batch_sampler = MegatronPretrainingRandomSampler(
                     total_samples=len(dataset),
                     consumed_samples=consumed_samples,
@@ -257,9 +294,13 @@ class MegatronLatentDiffusionEdit(MegatronLatentDiffusion):
                     drop_last=drop_last,
                 )
             else:
-                raise Exception(f'{self._cfg.dataloader_type} dataloader type is not supported.')
+                raise Exception(
+                    f"{self._cfg.dataloader_type} dataloader type is not supported."
+                )
         else:
-            raise ValueError('cfg.data.dataloader_type not found. Must be "single" or "cyclic"')
+            raise ValueError(
+                'cfg.data.dataloader_type not found. Must be "single" or "cyclic"'
+            )
 
         # Torch dataloader.
         return torch.utils.data.DataLoader(

@@ -68,11 +68,15 @@ class TorchNGPNerf(NeRFBase):
         )
 
         # Build the Torch-NGP encoder
-        self.encoder_max_level = encoder_cfg.get('encoder_max_level', None)
-        self.encoder, self.encoder_output_dims = get_encoder(input_dim=num_input_dims, **encoder_cfg)
+        self.encoder_max_level = encoder_cfg.get("encoder_max_level", None)
+        self.encoder, self.encoder_output_dims = get_encoder(
+            input_dim=num_input_dims, **encoder_cfg
+        )
 
         # Build the sigma network
-        assert sigma_net_num_output_dims == 1, "sigma_net_num_output_dims must be equal to 1"
+        assert (
+            sigma_net_num_output_dims == 1
+        ), "sigma_net_num_output_dims must be equal to 1"
         self.sigma_mlp = MLP(
             num_input_dims=self.encoder_output_dims,
             num_output_dims=sigma_net_num_output_dims,
@@ -102,7 +106,9 @@ class TorchNGPNerf(NeRFBase):
         Returns:
             torch.Tensor: The encoded positions tensor.
         """
-        return self.encoder(positions, bound=self.bound, max_level=self.encoder_max_level)
+        return self.encoder(
+            positions, bound=self.bound, max_level=self.encoder_max_level
+        )
 
     def sigma_net(self, positions_encoding: torch.Tensor) -> torch.Tensor:
         """

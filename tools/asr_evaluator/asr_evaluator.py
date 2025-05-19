@@ -38,12 +38,12 @@ Check out parameters in ./conf/eval.yaml
 @hydra_runner(config_path="conf", config_name="eval.yaml")
 def main(cfg):
     report = {}
-    logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
+    logging.info(f"Hydra config: {OmegaConf.to_yaml(cfg)}")
 
     # Store git hash for reproducibility
     if cfg.env.save_git_hash:
         repo = git.Repo(search_parent_directories=True)
-        report['git_hash'] = repo.head.object.hexsha
+        report["git_hash"] = repo.head.object.hexsha
 
     ## Engine
     # Could skip run_asr_inference and use the generated manifest by
@@ -61,35 +61,57 @@ def main(cfg):
             f"Use generated prediction manifest {cfg.analyst.metric_calculator.exist_pred_manifest} and skip enigneer"
         )
         with open_dict(cfg):
-            cfg.engine.output_filename = cfg.analyst.metric_calculator.exist_pred_manifest
+            cfg.engine.output_filename = (
+                cfg.analyst.metric_calculator.exist_pred_manifest
+            )
 
     ## Analyst
     if cfg.analyst.metric_calculator.get("metric", "wer") == "wer":
         output_manifest_w_wer, total_res, eval_metric = cal_write_wer(
             pred_manifest=cfg.engine.output_filename,
-            gt_text_attr_name=cfg.analyst.metric_calculator.get("gt_text_attr_name", "text"),
-            pred_text_attr_name=cfg.analyst.metric_calculator.get("pred_text_attr_name", "pred_text"),
+            gt_text_attr_name=cfg.analyst.metric_calculator.get(
+                "gt_text_attr_name", "text"
+            ),
+            pred_text_attr_name=cfg.analyst.metric_calculator.get(
+                "pred_text_attr_name", "pred_text"
+            ),
             clean_groundtruth_text=cfg.analyst.metric_calculator.clean_groundtruth_text,
             langid=cfg.analyst.metric_calculator.langid,
             use_cer=cfg.analyst.metric_calculator.use_cer,
             output_filename=cfg.analyst.metric_calculator.output_filename,
-            ignore_capitalization=cfg.analyst.metric_calculator.get("ignore_capitalization", False),
-            ignore_punctuation=cfg.analyst.metric_calculator.get("ignore_punctuation", False),
+            ignore_capitalization=cfg.analyst.metric_calculator.get(
+                "ignore_capitalization", False
+            ),
+            ignore_punctuation=cfg.analyst.metric_calculator.get(
+                "ignore_punctuation", False
+            ),
             punctuations=cfg.analyst.metric_calculator.get("punctuations", None),
-            strip_punc_space=cfg.analyst.metric_calculator.get("strip_punc_space", False),
+            strip_punc_space=cfg.analyst.metric_calculator.get(
+                "strip_punc_space", False
+            ),
         )
     else:
         output_manifest_w_wer, total_res, eval_metric = cal_write_text_metric(
             pred_manifest=cfg.engine.output_filename,
-            gt_text_attr_name=cfg.analyst.metric_calculator.get("gt_text_attr_name", "text"),
-            pred_text_attr_name=cfg.analyst.metric_calculator.get("pred_text_attr_name", "pred_text"),
+            gt_text_attr_name=cfg.analyst.metric_calculator.get(
+                "gt_text_attr_name", "text"
+            ),
+            pred_text_attr_name=cfg.analyst.metric_calculator.get(
+                "pred_text_attr_name", "pred_text"
+            ),
             output_filename=cfg.analyst.metric_calculator.output_filename,
-            ignore_capitalization=cfg.analyst.metric_calculator.get("ignore_capitalization", False),
-            ignore_punctuation=cfg.analyst.metric_calculator.get("ignore_punctuation", False),
+            ignore_capitalization=cfg.analyst.metric_calculator.get(
+                "ignore_capitalization", False
+            ),
+            ignore_punctuation=cfg.analyst.metric_calculator.get(
+                "ignore_punctuation", False
+            ),
             punctuations=cfg.analyst.metric_calculator.get("punctuations", None),
             metric=cfg.analyst.metric_calculator.get("metric", "bleu"),
             metric_args=cfg.analyst.metric_calculator.get("metric_args", None),
-            strip_punc_space=cfg.analyst.metric_calculator.get("strip_punc_space", False),
+            strip_punc_space=cfg.analyst.metric_calculator.get(
+                "strip_punc_space", False
+            ),
         )
 
     with open_dict(cfg):
@@ -125,7 +147,7 @@ def main(cfg):
 
     with open(report_file, "a") as fout:
         json.dump(report, fout)
-        fout.write('\n')
+        fout.write("\n")
         fout.flush()
 
 

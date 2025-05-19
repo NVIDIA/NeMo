@@ -58,7 +58,9 @@ class TransformerEncoderBlock(nn.Module):
             hidden_size, num_attention_heads, attn_score_dropout, attn_layer_dropout
         )
         self.layer_norm_2 = nn.LayerNorm(hidden_size, eps=1e-5)
-        self.second_sub_layer = PositionWiseFF(hidden_size, inner_size, ffn_dropout, hidden_act)
+        self.second_sub_layer = PositionWiseFF(
+            hidden_size, inner_size, ffn_dropout, hidden_act
+        )
 
     def forward_preln(self, encoder_query, encoder_mask, encoder_keys):
         """
@@ -68,7 +70,9 @@ class TransformerEncoderBlock(nn.Module):
         residual = encoder_query
         encoder_query = self.layer_norm_1(encoder_query)
         encoder_keys = self.layer_norm_1(encoder_keys)
-        self_attn_output = self.first_sub_layer(encoder_query, encoder_keys, encoder_keys, encoder_mask)
+        self_attn_output = self.first_sub_layer(
+            encoder_query, encoder_keys, encoder_keys, encoder_mask
+        )
         self_attn_output += residual
 
         residual = self_attn_output
@@ -83,7 +87,9 @@ class TransformerEncoderBlock(nn.Module):
         Post-LayerNorm block
         Order of operations: Self-Attn -> Residual -> LN -> Cross-Attn -> Residual -> LN -> FFN -> Residual -> LN
         """
-        self_attn_output = self.first_sub_layer(encoder_query, encoder_keys, encoder_keys, encoder_mask)
+        self_attn_output = self.first_sub_layer(
+            encoder_query, encoder_keys, encoder_keys, encoder_mask
+        )
         self_attn_output += encoder_query
         self_attn_output = self.layer_norm_1(self_attn_output)
 
@@ -142,7 +148,9 @@ class TransformerEncoder(nn.Module):
             memory_states = encoder_states
         return memory_states
 
-    def forward(self, encoder_states, encoder_mask, encoder_mems_list=None, return_mems=False):
+    def forward(
+        self, encoder_states, encoder_mask, encoder_mems_list=None, return_mems=False
+    ):
         """
         Args:
             encoder_states: output of the embedding_layer (B x L_enc x H)
@@ -161,12 +169,16 @@ class TransformerEncoder(nn.Module):
 
         for i, layer in enumerate(self.layers):
             encoder_states = layer(encoder_states, encoder_attn_mask, memory_states)
-            memory_states = self._get_memory_states(encoder_states, encoder_mems_list, i + 1)
+            memory_states = self._get_memory_states(
+                encoder_states, encoder_mems_list, i + 1
+            )
             cached_mems_list.append(memory_states)
 
         if self.final_layer_norm is not None:
             encoder_states = self.final_layer_norm(encoder_states)
-            memory_states = self._get_memory_states(encoder_states, encoder_mems_list, i + 1)
+            memory_states = self._get_memory_states(
+                encoder_states, encoder_mems_list, i + 1
+            )
             cached_mems_list.append(memory_states)
 
         if return_mems:

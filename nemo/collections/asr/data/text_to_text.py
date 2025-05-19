@@ -57,12 +57,26 @@ class TextToTextBatch(NamedTuple):
     speakers: torch.Tensor  # speaker ids for multi-speaker TTS
 
     @staticmethod
-    def collate_fn(batch: List[TextToTextItem], asr_pad_id: int, tts_text_pad_id: int) -> TextToTextBatch:
+    def collate_fn(
+        batch: List[TextToTextItem], asr_pad_id: int, tts_text_pad_id: int
+    ) -> TextToTextBatch:
         return TextToTextBatch(
-            tts_texts=pad_sequence([item.tts_text for item in batch], batch_first=True, padding_value=tts_text_pad_id),
-            tts_text_lengths=torch.tensor([item.tts_text.shape[0] for item in batch]).long(),
-            transcripts=pad_sequence([item.transcript for item in batch], batch_first=True, padding_value=asr_pad_id),
-            transcript_lengths=torch.tensor([item.transcript.shape[0] for item in batch]).long(),
+            tts_texts=pad_sequence(
+                [item.tts_text for item in batch],
+                batch_first=True,
+                padding_value=tts_text_pad_id,
+            ),
+            tts_text_lengths=torch.tensor(
+                [item.tts_text.shape[0] for item in batch]
+            ).long(),
+            transcripts=pad_sequence(
+                [item.transcript for item in batch],
+                batch_first=True,
+                padding_value=asr_pad_id,
+            ),
+            transcript_lengths=torch.tensor(
+                [item.transcript.shape[0] for item in batch]
+            ).long(),
             speakers=torch.tensor([item.speaker for item in batch]).long(),
         )
 
@@ -84,7 +98,9 @@ class TextOrAudioToTextBatch(NamedTuple):
         Collate function for dataloader
         Can accept mixed batch of text-to-text items and audio-text items (typical for ASR)
         """
-        text_items: List[TextToTextItem] = [item for item in batch if isinstance(item, TextToTextItem)]
+        text_items: List[TextToTextItem] = [
+            item for item in batch if isinstance(item, TextToTextItem)
+        ]
         if not text_items:
             # pure audio-text batch
             return _speech_collate_fn(batch=batch, pad_id=asr_pad_id)
@@ -93,19 +109,27 @@ class TextOrAudioToTextBatch(NamedTuple):
 
         if not asr_items:
             # pure text-to-text batch
-            return TextToTextBatch.collate_fn(batch=text_items, asr_pad_id=asr_pad_id, tts_text_pad_id=tts_text_pad_id)
+            return TextToTextBatch.collate_fn(
+                batch=text_items, asr_pad_id=asr_pad_id, tts_text_pad_id=tts_text_pad_id
+            )
 
         # mixed batch
 
         # each asr item is a tuple:
         # audio_signal (0), audio_length (1), transcript (2), transcript_length (3), sample_id (4, optional)
-        audio_signals = pad_sequence([item[0] for item in asr_items], batch_first=True, padding_value=0.0)
+        audio_signals = pad_sequence(
+            [item[0] for item in asr_items], batch_first=True, padding_value=0.0
+        )
         audio_signal_lengths = torch.tensor([item[1] for item in asr_items]).long()
 
         tts_texts = pad_sequence(
-            [item.tts_text for item in text_items], batch_first=True, padding_value=tts_text_pad_id
+            [item.tts_text for item in text_items],
+            batch_first=True,
+            padding_value=tts_text_pad_id,
         )
-        tts_text_lengths = torch.tensor([item.tts_text.shape[0] for item in text_items]).long()
+        tts_text_lengths = torch.tensor(
+            [item.tts_text.shape[0] for item in text_items]
+        ).long()
         speakers = torch.tensor([item.speaker for item in text_items]).long()
 
         transcripts = pad_sequence(
@@ -114,7 +138,8 @@ class TextOrAudioToTextBatch(NamedTuple):
             padding_value=asr_pad_id,
         )
         transcript_lengths = torch.tensor(
-            [item.transcript.shape[0] for item in text_items] + [item[3] for item in asr_items]
+            [item.transcript.shape[0] for item in text_items]
+            + [item[3] for item in asr_items]
         ).long()
 
         return TextOrAudioToTextBatch(
@@ -191,13 +216,13 @@ class TextToTextDatasetBase:
     ):
         super().__init__()
         # ASR tokenizer setup
-        if asr_use_start_end_token and hasattr(asr_tokenizer, 'bos_token'):
+        if asr_use_start_end_token and hasattr(asr_tokenizer, "bos_token"):
             self.asr_bos_id = asr_tokenizer.bos_id
 
-        if asr_use_start_end_token and hasattr(asr_tokenizer, 'eos_token'):
+        if asr_use_start_end_token and hasattr(asr_tokenizer, "eos_token"):
             self.asr_eos_id = asr_tokenizer.eos_id
 
-        if hasattr(asr_tokenizer, 'pad_token'):
+        if hasattr(asr_tokenizer, "pad_token"):
             self.asr_pad_id = asr_tokenizer.pad_id
         else:
             self.asr_pad_id = 0
@@ -253,10 +278,15 @@ class TextToTextDatasetBase:
                     need_normalization = True
 
         if need_normalization:
-            logging.warning("TTS normalization is extremely slow! It is recommended to normalize TTS text")
+            logging.warning(
+                "TTS normalization is extremely slow! It is recommended to normalize TTS text"
+            )
 
         if num_skipped_utterances:
-            logging.warning(f"Skipped {num_skipped_utterances} utterances " f"with {num_skipped_words}")
+            logging.warning(
+                f"Skipped {num_skipped_utterances} utterances "
+                f"with {num_skipped_words}"
+            )
 
         num_utterances = len(asr_texts)
         # preprocessing is very costly, if we need only part - remove unnecessary utterances
@@ -285,7 +315,10 @@ class TextToTextDatasetBase:
                 "Prefer tokenizer_workers=(num_cpu_cores/num_gpus_per_node)"
             )
             for i, tokenized_text in enumerate(
-                tqdm((self._asr_text_to_tokens(text) for text in asr_texts), total=len(asr_texts))
+                tqdm(
+                    (self._asr_text_to_tokens(text) for text in asr_texts),
+                    total=len(asr_texts),
+                )
             ):
                 self.data[i]["asr_text_tokens"] = tokenized_text
         else:
@@ -304,7 +337,10 @@ class TextToTextDatasetBase:
             ) as pool:
                 # chunk size for pool map is empirically chosen as a trade-off between speed and responsiveness
                 for i, tokenized_text in enumerate(
-                    tqdm(pool.map(_asr_text_to_tokens, asr_texts, chunksize=1000), total=len(asr_texts))
+                    tqdm(
+                        pool.map(_asr_text_to_tokens, asr_texts, chunksize=1000),
+                        total=len(asr_texts),
+                    )
                 ):
                     self.data[i]["asr_text_tokens"] = tokenized_text
         # force free memory
@@ -318,7 +354,10 @@ class TextToTextDatasetBase:
             )
             for i, tokenized_text in enumerate(
                 tqdm(
-                    (self._tts_text_to_tokens(text, normalize=need_normalization) for text in tts_texts),
+                    (
+                        self._tts_text_to_tokens(text, normalize=need_normalization)
+                        for text in tts_texts
+                    ),
                     total=len(tts_texts),
                 )
             ):
@@ -336,11 +375,16 @@ class TextToTextDatasetBase:
                 tts_tokenizer_global = copy.deepcopy(tokenizer)
 
             with concurrent.futures.ProcessPoolExecutor(
-                initializer=_init_tts_tokenize_process, initargs=(tts_parser,), max_workers=tokenizer_workers,
+                initializer=_init_tts_tokenize_process,
+                initargs=(tts_parser,),
+                max_workers=tokenizer_workers,
             ) as pool:
                 # chunk size for pool map is empirically chosen as a trade-off between speed and responsiveness
                 for i, tokenized_text in enumerate(
-                    tqdm(pool.map(_tts_text_to_tokens, tts_texts, chunksize=1000), total=len(tts_texts))
+                    tqdm(
+                        pool.map(_tts_text_to_tokens, tts_texts, chunksize=1000),
+                        total=len(tts_texts),
+                    )
                 ):
                     self.data[i]["tts_text_tokens"] = tokenized_text
         # force free memory
@@ -413,7 +457,9 @@ class TextToTextDataset(TextToTextDatasetBase, Dataset):
         Can accept mixed batch of text-to-text items and audio-text items (typical for ASR)
         """
         return TextOrAudioToTextBatch.collate_fn(
-            batch=batch, asr_pad_id=self.asr_pad_id, tts_text_pad_id=self.tts_text_pad_id
+            batch=batch,
+            asr_pad_id=self.asr_pad_id,
+            tts_text_pad_id=self.tts_text_pad_id,
         )
 
 
@@ -479,5 +525,7 @@ class TextToTextIterableDataset(TextToTextDatasetBase, IterableDataset):
         Can accept mixed batch of text-to-text items and audio-text items (typical for ASR)
         """
         return TextOrAudioToTextBatch.collate_fn(
-            batch=batch, asr_pad_id=self.asr_pad_id, tts_text_pad_id=self.tts_text_pad_id
+            batch=batch,
+            asr_pad_id=self.asr_pad_id,
+            tts_text_pad_id=self.tts_text_pad_id,
         )

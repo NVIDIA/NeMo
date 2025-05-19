@@ -51,8 +51,7 @@ __all__ = ["MegatronPerceiverEncoderModule"]
 
 
 class MegatronPerceiverEncoderModule(MegatronModule):
-    """Transformer encoder model.
-    """
+    """Transformer encoder model."""
 
     def __init__(
         self,
@@ -83,10 +82,10 @@ class MegatronPerceiverEncoderModule(MegatronModule):
         persist_layer_norm=False,
         openai_gelu=False,
         onnx_safe=False,
-        activation='gelu',
+        activation="gelu",
         bias=True,
-        normalization='layernorm',
-        transformer_block_type='pre_ln',
+        normalization="layernorm",
+        transformer_block_type="pre_ln",
         headscale=False,
         parent_model_type=ModelType.encoder_or_decoder,
         hidden_steps=32,
@@ -109,7 +108,9 @@ class MegatronPerceiverEncoderModule(MegatronModule):
         self.normalization = normalization
         self.transformer_block_type = transformer_block_type
         self.hidden_steps = hidden_steps
-        self.num_self_attention_per_cross_attention = num_self_attention_per_cross_attention
+        self.num_self_attention_per_cross_attention = (
+            num_self_attention_per_cross_attention
+        )
         self.num_attention_heads = num_attention_heads
         self.apply_query_key_layer_scaling = apply_query_key_layer_scaling
         self.kv_channels = kv_channels
@@ -141,17 +142,25 @@ class MegatronPerceiverEncoderModule(MegatronModule):
         assert self.num_self_attention_per_cross_attention >= 1
         assert self.hidden_steps >= 1
 
-        self.init_hidden = torch.nn.Parameter(torch.nn.init.xavier_normal_(torch.empty(hidden_steps, hidden_size)))
+        self.init_hidden = torch.nn.Parameter(
+            torch.nn.init.xavier_normal_(torch.empty(hidden_steps, hidden_size))
+        )
 
-        self.cross_attn_layers = torch.nn.ModuleList([self._build_cross_attn_layer() for _ in range(self.num_layers)])
+        self.cross_attn_layers = torch.nn.ModuleList(
+            [self._build_cross_attn_layer() for _ in range(self.num_layers)]
+        )
         self.self_attn_layers = torch.nn.ModuleList(
             [
                 self._build_self_attn_layer()
-                for _ in range(self.num_layers * self.num_self_attention_per_cross_attention)
+                for _ in range(
+                    self.num_layers * self.num_self_attention_per_cross_attention
+                )
             ]
         )
-        if normalization == 'layernorm':
-            self.final_layernorm = get_layer_norm(hidden_size, layernorm_epsilon, persist_layer_norm)
+        if normalization == "layernorm":
+            self.final_layernorm = get_layer_norm(
+                hidden_size, layernorm_epsilon, persist_layer_norm
+            )
         else:
             self.final_layernorm = MixedFusedRMSNorm(hidden_size, layernorm_epsilon)
 
@@ -236,7 +245,7 @@ class MegatronPerceiverEncoderModule(MegatronModule):
         )
 
     def set_input_tensor(self, input_tensor):
-        """ See megatron.model.transformer.set_input_tensor()"""
+        """See megatron.model.transformer.set_input_tensor()"""
         # TODO: Fix this when adding support for Pipeline Parallel.
         pass
 
@@ -254,7 +263,9 @@ class MegatronPerceiverEncoderModule(MegatronModule):
             )
 
         # convert to Megatron mask
-        latent_attention_mask = torch.ones(enc_input.size(1), self.hidden_steps).to(enc_input.device)
+        latent_attention_mask = torch.ones(enc_input.size(1), self.hidden_steps).to(
+            enc_input.device
+        )
 
         # First convert from 2D (B x T) to 3D (B x T x T)
         # Next convert to 4D (B x 1 x T x T) - unsqueeze(1) is for the head dim.
@@ -267,13 +278,19 @@ class MegatronPerceiverEncoderModule(MegatronModule):
         )
         enc_dec_attn_mask_4d = attn_mask_postprocess(
             build_attention_mask_3d(
-                source_mask=latent_attention_mask, target_mask=enc_attn_mask, attn_mask_type=AttnMaskType.padding,
+                source_mask=latent_attention_mask,
+                target_mask=enc_attn_mask,
+                attn_mask_type=AttnMaskType.padding,
             )
         )
 
         # 1. Expand latent hidden states to B x S_perceiver x H
         # 2. Transpose to S_perceiver x B x H
-        hidden_states = self.init_hidden.unsqueeze(0).expand(enc_input.size(1), -1, -1).transpose(1, 0)
+        hidden_states = (
+            self.init_hidden.unsqueeze(0)
+            .expand(enc_input.size(1), -1, -1)
+            .transpose(1, 0)
+        )
         for i in range(self.num_layers):
             residual = hidden_states
             hidden_states = self.cross_attn_layers[i](
@@ -283,10 +300,15 @@ class MegatronPerceiverEncoderModule(MegatronModule):
                 encoder_output=enc_input,
             )
             for j in range(self.num_self_attention_per_cross_attention):
-                hidden_states = self.self_attn_layers[i * self.num_self_attention_per_cross_attention + j](
-                    hidden_states=hidden_states, attention_mask=latent_attention_mask_4d,
+                hidden_states = self.self_attn_layers[
+                    i * self.num_self_attention_per_cross_attention + j
+                ](
+                    hidden_states=hidden_states,
+                    attention_mask=latent_attention_mask_4d,
                 )
 
             hidden_states += residual
 
-        return self.final_layernorm(hidden_states)  # Need to transpose at the end becase pre-process is False
+        return self.final_layernorm(
+            hidden_states
+        )  # Need to transpose at the end becase pre-process is False

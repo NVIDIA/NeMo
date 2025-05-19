@@ -57,9 +57,13 @@ def _fuse_bn_in_conformer(asr_model: ASRModel):
     """
     logging.info("Replacing BatchNorm with Fused BatchNorm")
     if not hasattr(asr_model, "encoder"):
-        raise NotImplementedError("No encoder found in ASR Model, replacement not supported")
+        raise NotImplementedError(
+            "No encoder found in ASR Model, replacement not supported"
+        )
     if not isinstance(asr_model.encoder, ConformerEncoder):
-        raise NotImplementedError(f"Unsupported encoder type: {type(asr_model.encoder)}")
+        raise NotImplementedError(
+            f"Unsupported encoder type: {type(asr_model.encoder)}"
+        )
     replace_bn_with_fused_bn_all(asr_model.encoder)
     if "conv_norm_type" not in asr_model.cfg.encoder:
         # old CTC models from NGC don't have such param
@@ -76,7 +80,9 @@ class TextDataConfig:
     Text dataset subconfig for text-only dataset
     """
 
-    manifest_filepath: Any = MISSING  # actual Union[str, List[str]], but this type is not supported by OmegaConf
+    manifest_filepath: Any = (
+        MISSING  # actual Union[str, List[str]], but this type is not supported by OmegaConf
+    )
     speakers_filepath: Any = MISSING
     min_words: int = 1
     max_words: int = 45  # 45 - recommended value, ~16.7 sec for LibriSpeech
@@ -150,7 +156,9 @@ class ASRWithTTSModel(ASRModel):
         ]
         for field in expected_fields:
             if field not in cfg:
-                raise NeMoBaseException(f"Field {field} is required in config (possibly should be None/null)")
+                raise NeMoBaseException(
+                    f"Field {field} is required in config (possibly should be None/null)"
+                )
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         self._full_init_guard = False
@@ -170,29 +178,45 @@ class ASRWithTTSModel(ASRModel):
 
         # tts model
         if cfg.tts_model is not None:
-            self.register_nemo_submodule("tts_model", config_field="tts_model", model=FastPitchModel(cfg.tts_model))
-        else:
-            if cfg.tts_model_path is None:
-                raise NeMoBaseException("Either tts_model or tts_model_path should be provided")
             self.register_nemo_submodule(
                 "tts_model",
                 config_field="tts_model",
-                model=FastPitchModel.restore_from(f"{cfg.tts_model_path}", map_location=torch.device("cpu")),
+                model=FastPitchModel(cfg.tts_model),
+            )
+        else:
+            if cfg.tts_model_path is None:
+                raise NeMoBaseException(
+                    "Either tts_model or tts_model_path should be provided"
+                )
+            self.register_nemo_submodule(
+                "tts_model",
+                config_field="tts_model",
+                model=FastPitchModel.restore_from(
+                    f"{cfg.tts_model_path}", map_location=torch.device("cpu")
+                ),
             )
         self.tts_model.freeze()  # tts model should be always frozen
 
         if cfg.asr_model is not None:
-            self.asr_model_type = self.ASRModelTypes(cfg.asr_model_type)  # convert to enum
-            self.register_nemo_submodule(
-                "asr_model", config_field="asr_model", model=self.asr_model_type.get_asr_cls()(cfg.asr_model)
-            )
-        else:
-            if cfg.asr_model_path is None:
-                raise NeMoBaseException("Either asr_model or asr_model_path should be provided")
+            self.asr_model_type = self.ASRModelTypes(
+                cfg.asr_model_type
+            )  # convert to enum
             self.register_nemo_submodule(
                 "asr_model",
                 config_field="asr_model",
-                model=ASRModel.restore_from(f"{cfg.asr_model_path}", map_location=torch.device("cpu")),
+                model=self.asr_model_type.get_asr_cls()(cfg.asr_model),
+            )
+        else:
+            if cfg.asr_model_path is None:
+                raise NeMoBaseException(
+                    "Either asr_model or asr_model_path should be provided"
+                )
+            self.register_nemo_submodule(
+                "asr_model",
+                config_field="asr_model",
+                model=ASRModel.restore_from(
+                    f"{cfg.asr_model_path}", map_location=torch.device("cpu")
+                ),
             )
             self.asr_model_type = self.ASRModelTypes.from_asr_model(self.asr_model)
             self.cfg.asr_model_type = f"{self.asr_model_type}"  # save to config
@@ -204,13 +228,17 @@ class ASRWithTTSModel(ASRModel):
 
         if cfg.enhancer_model is not None:
             self.register_nemo_submodule(
-                "enhancer_model", config_field="enhancer_model", model=SpectrogramEnhancerModel(cfg.enhancer_model)
+                "enhancer_model",
+                config_field="enhancer_model",
+                model=SpectrogramEnhancerModel(cfg.enhancer_model),
             )
         elif cfg.enhancer_model_path is not None:
             self.register_nemo_submodule(
                 "enhancer_model",
                 config_field="enhancer_model",
-                model=SpectrogramEnhancerModel.restore_from(cfg.enhancer_model_path, map_location=torch.device("cpu")),
+                model=SpectrogramEnhancerModel.restore_from(
+                    cfg.enhancer_model_path, map_location=torch.device("cpu")
+                ),
             )
         else:
             self.enhancer_model = None
@@ -256,7 +284,11 @@ class ASRWithTTSModel(ASRModel):
                 asr_model_fuse_bn=False,  # for training from scratch always should be False
                 tts_model_path=f"{tts_model_path}",
                 tts_model=None,
-                enhancer_model_path=f"{enhancer_model_path}" if enhancer_model_path is not None else None,
+                enhancer_model_path=(
+                    f"{enhancer_model_path}"
+                    if enhancer_model_path is not None
+                    else None
+                ),
                 enhancer_model=None,
                 train_ds=None,
                 validation_ds=None,
@@ -303,7 +335,11 @@ class ASRWithTTSModel(ASRModel):
                     asr_model=None,
                     tts_model_path=f"{tts_model_path}",
                     tts_model=None,
-                    enhancer_model_path=f"{enhancer_model_path}" if enhancer_model_path is not None else None,
+                    enhancer_model_path=(
+                        f"{enhancer_model_path}"
+                        if enhancer_model_path is not None
+                        else None
+                    ),
                     enhancer_model=None,
                     asr_model_type=None,
                     asr_model_fuse_bn=asr_model_fuse_bn,
@@ -317,13 +353,17 @@ class ASRWithTTSModel(ASRModel):
             cfg = copy.deepcopy(cfg)  # copy to avoid modifying original config
             cfg.tts_model_path = f"{tts_model_path}"
             cfg.asr_model_path = f"{asr_model_path}"
-            cfg.enhancer_model_path = f"{enhancer_model_path}" if enhancer_model_path is not None else None
+            cfg.enhancer_model_path = (
+                f"{enhancer_model_path}" if enhancer_model_path is not None else None
+            )
         return ASRWithTTSModel(cfg, trainer=trainer)
 
     def __setattr__(self, name, value):
         # pytorch-lightning magic, allows to call *_step on asr_model
         if name == "_current_fx_name" and self._full_init_guard:
-            self.asr_model._current_fx_name = value  # need to make logging inside asr_model work
+            self.asr_model._current_fx_name = (
+                value  # need to make logging inside asr_model work
+            )
         return super().__setattr__(name, value)
 
     def setup_optimization(
@@ -336,7 +376,9 @@ class ASRWithTTSModel(ASRModel):
         Add optimizer and scheduler to asr model, to allow `train_step` on ASR model
         """
         self.tts_model.freeze()
-        optimizer, scheduler = super().setup_optimization(optim_config=optim_config, optim_kwargs=optim_kwargs)
+        optimizer, scheduler = super().setup_optimization(
+            optim_config=optim_config, optim_kwargs=optim_kwargs
+        )
         # set ASR model optimizer/scheduler to allow training_step on asr_model
         self.asr_model._optimizer = optimizer
         self.asr_model._scheduler = scheduler
@@ -348,15 +390,23 @@ class ASRWithTTSModel(ASRModel):
 
     def multi_validation_epoch_end(self, outputs, dataloader_idx: int = 0):
         """Validation epoch end hook for ASR model"""
-        return self.asr_model.multi_validation_epoch_end(outputs=outputs, dataloader_idx=dataloader_idx)
+        return self.asr_model.multi_validation_epoch_end(
+            outputs=outputs, dataloader_idx=dataloader_idx
+        )
 
     def multi_test_epoch_end(self, outputs, dataloader_idx: int = 0):
         """Test epoch end hook for ASR model"""
-        return self.asr_model.multi_test_epoch_end(outputs=outputs, dataloader_idx=dataloader_idx)
+        return self.asr_model.multi_test_epoch_end(
+            outputs=outputs, dataloader_idx=dataloader_idx
+        )
 
-    def transcribe(self, audio: List[str], batch_size: int = 4, verbose: bool = True) -> List[str]:
+    def transcribe(
+        self, audio: List[str], batch_size: int = 4, verbose: bool = True
+    ) -> List[str]:
         """Transcribe audio data using ASR model"""
-        return self.asr_model.transcribe(audio=audio, batch_size=batch_size, verbose=verbose)
+        return self.asr_model.transcribe(
+            audio=audio, batch_size=batch_size, verbose=verbose
+        )
 
     def setup_multiple_validation_data(self, val_data_config: Union[DictConfig, Dict]):
         """Setup multiple validation data for ASR model"""
@@ -376,8 +426,13 @@ class ASRWithTTSModel(ASRModel):
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
         """Validation step, forward to ASR model"""
-        loss = self.asr_model.validation_step(batch=batch, batch_idx=batch_idx, dataloader_idx=dataloader_idx)
-        if type(self.trainer.val_dataloaders) == list and len(self.trainer.val_dataloaders) > 1:
+        loss = self.asr_model.validation_step(
+            batch=batch, batch_idx=batch_idx, dataloader_idx=dataloader_idx
+        )
+        if (
+            type(self.trainer.val_dataloaders) == list
+            and len(self.trainer.val_dataloaders) > 1
+        ):
             self.validation_step_outputs[dataloader_idx].append(loss)
         else:
             self.validation_step_outputs.append(loss)
@@ -416,24 +471,36 @@ class ASRWithTTSModel(ASRModel):
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """Get TTS spectrogram from text and speaker ids"""
         with torch.no_grad():
-            spectrogram, spectrogram_len, *_ = self.tts_model(text=tts_texts, durs=None, pitch=None, speaker=speakers)
+            spectrogram, spectrogram_len, *_ = self.tts_model(
+                text=tts_texts, durs=None, pitch=None, speaker=speakers
+            )
             if self.enhancer_model is not None:
                 # apply enhancer
                 with typecheck.disable_checks():
                     # spectrogram_len are of TokenDurationType, enhancer requires LengthsType
                     # TODO: fix FastPitch model to return LengthsType
-                    spectrogram = self.enhancer_model.forward(input_spectrograms=spectrogram, lengths=spectrogram_len)
-            spectrogram, *_ = normalize_batch(spectrogram, spectrogram_len, self.asr_model.cfg.preprocessor.normalize)
+                    spectrogram = self.enhancer_model.forward(
+                        input_spectrograms=spectrogram, lengths=spectrogram_len
+                    )
+            spectrogram, *_ = normalize_batch(
+                spectrogram, spectrogram_len, self.asr_model.cfg.preprocessor.normalize
+            )
             return spectrogram, spectrogram_len
 
-    def _get_batch_spect(self, batch: Union[TextToTextBatch, TextOrAudioToTextBatch, tuple]):
+    def _get_batch_spect(
+        self, batch: Union[TextToTextBatch, TextOrAudioToTextBatch, tuple]
+    ):
         """Get batch with spectrograms from text-only, audio-text or mixed batch data"""
         if isinstance(batch, TextToTextBatch):
-            spectrogram, spectrogram_len = self._get_tts_spectrogram(batch.tts_texts, batch.speakers)
+            spectrogram, spectrogram_len = self._get_tts_spectrogram(
+                batch.tts_texts, batch.speakers
+            )
             transcript = batch.transcripts
             transcript_len = batch.transcript_lengths
         elif isinstance(batch, TextOrAudioToTextBatch):
-            tts_spectrogram, tts_spectrogram_len = self._get_tts_spectrogram(batch.tts_texts, batch.speakers)
+            tts_spectrogram, tts_spectrogram_len = self._get_tts_spectrogram(
+                batch.tts_texts, batch.speakers
+            )
             asr_spectrogram, asr_spectrogram_len = self.asr_model.preprocessor(
                 input_signal=batch.audio_signals,
                 length=batch.audio_signal_lengths,
@@ -443,24 +510,37 @@ class ASRWithTTSModel(ASRModel):
                 [
                     x.squeeze(0)
                     for x in itertools.chain(
-                        torch.tensor_split(tts_spectrogram.transpose(1, 2), tts_spectrogram.size(0)),
-                        torch.tensor_split(asr_spectrogram.transpose(1, 2), asr_spectrogram.size(0)),
+                        torch.tensor_split(
+                            tts_spectrogram.transpose(1, 2), tts_spectrogram.size(0)
+                        ),
+                        torch.tensor_split(
+                            asr_spectrogram.transpose(1, 2), asr_spectrogram.size(0)
+                        ),
                     )
                 ],
                 batch_first=True,
                 padding_value=0.0,
             ).transpose(1, 2)
-            spectrogram_len = torch.cat([tts_spectrogram_len, asr_spectrogram_len], dim=0)
+            spectrogram_len = torch.cat(
+                [tts_spectrogram_len, asr_spectrogram_len], dim=0
+            )
 
             transcript = batch.transcripts
             transcript_len = batch.transcript_lengths
         else:
-            audio_signal, audio_signal_len, transcript, transcript_len, *_ = batch  # audio batch: 4 or 5 elements
+            audio_signal, audio_signal_len, transcript, transcript_len, *_ = (
+                batch  # audio batch: 4 or 5 elements
+            )
             spectrogram, spectrogram_len = self.asr_model.preprocessor(
                 input_signal=audio_signal, length=audio_signal_len
             )
         spectrogram = clean_spectrogram_batch(spectrogram, spectrogram_len)
-        return spectrogram.detach(), spectrogram_len.detach(), transcript, transcript_len
+        return (
+            spectrogram.detach(),
+            spectrogram_len.detach(),
+            transcript,
+            transcript_len,
+        )
 
     def setup_training_data(self, train_data_config: Optional[Union[DictConfig, Dict]]):
         """
@@ -470,7 +550,7 @@ class ASRWithTTSModel(ASRModel):
             logging.warning("No training data")
             return
 
-        self._update_dataset_config(dataset_name='train', config=train_data_config)
+        self._update_dataset_config(dataset_name="train", config=train_data_config)
         asr_dataset = get_audio_to_text_bpe_dataset_from_config(
             train_data_config,
             local_rank=self.local_rank,
@@ -485,26 +565,41 @@ class ASRWithTTSModel(ASRModel):
             # asr_dataset is map-style, for mixing datasets use map-style text-to-text dataset
             dataset_iterable = False
         if train_data_config.get("text_data") is not None:
-            tts_dataset = self._setup_text_dataset_from_config(train_data_config, iterable=dataset_iterable)
+            tts_dataset = self._setup_text_dataset_from_config(
+                train_data_config, iterable=dataset_iterable
+            )
         else:
             tts_dataset = None
 
         if tts_dataset and asr_dataset:
             text_data_config: TextDataConfig = cast(
-                TextDataConfig, OmegaConf.merge(OmegaConf.structured(TextDataConfig), train_data_config.text_data)
+                TextDataConfig,
+                OmegaConf.merge(
+                    OmegaConf.structured(TextDataConfig), train_data_config.text_data
+                ),
             )
             concat_kwargs = dict()
             if text_data_config.asr_tts_sampling_technique is not None:
-                concat_kwargs["sampling_technique"] = text_data_config.asr_tts_sampling_technique
+                concat_kwargs["sampling_technique"] = (
+                    text_data_config.asr_tts_sampling_technique
+                )
             if text_data_config.asr_tts_sampling_temperature is not None:
-                concat_kwargs["sampling_temperature"] = text_data_config.asr_tts_sampling_temperature
+                concat_kwargs["sampling_temperature"] = (
+                    text_data_config.asr_tts_sampling_temperature
+                )
             if text_data_config.asr_tts_sampling_probabilities:
-                concat_kwargs["sampling_probabilities"] = text_data_config.asr_tts_sampling_probabilities
+                concat_kwargs["sampling_probabilities"] = (
+                    text_data_config.asr_tts_sampling_probabilities
+                )
 
             if dataset_iterable:
-                dataset = ConcatDataset(datasets=[asr_dataset, tts_dataset], **concat_kwargs)
+                dataset = ConcatDataset(
+                    datasets=[asr_dataset, tts_dataset], **concat_kwargs
+                )
             else:
-                dataset = ConcatMapDataset(datasets=[asr_dataset, tts_dataset], **concat_kwargs)
+                dataset = ConcatMapDataset(
+                    datasets=[asr_dataset, tts_dataset], **concat_kwargs
+                )
         else:
             dataset = tts_dataset or asr_dataset
 
@@ -514,9 +609,9 @@ class ASRWithTTSModel(ASRModel):
         if tts_dataset:
             collate_fn = tts_dataset.collate_fn
         else:
-            if hasattr(asr_dataset, 'collate_fn'):
+            if hasattr(asr_dataset, "collate_fn"):
                 collate_fn = asr_dataset.collate_fn
-            elif hasattr(asr_dataset.datasets[0], 'collate_fn'):
+            elif hasattr(asr_dataset.datasets[0], "collate_fn"):
                 # support datasets that are lists of entries
                 collate_fn = asr_dataset.datasets[0].collate_fn
             else:
@@ -526,12 +621,12 @@ class ASRWithTTSModel(ASRModel):
         shuffle = train_data_config.get("shuffle", True) and not dataset_iterable
         self._train_dl = torch.utils.data.DataLoader(
             dataset=dataset,
-            batch_size=train_data_config['batch_size'],
+            batch_size=train_data_config["batch_size"],
             collate_fn=collate_fn,
-            drop_last=train_data_config.get('drop_last', False),
+            drop_last=train_data_config.get("drop_last", False),
             shuffle=shuffle,
-            num_workers=train_data_config.get('num_workers', 0),
-            pin_memory=train_data_config.get('pin_memory', False),
+            num_workers=train_data_config.get("num_workers", 0),
+            pin_memory=train_data_config.get("pin_memory", False),
         )
 
     def _setup_text_dataset_from_config(
@@ -548,14 +643,19 @@ class ASRWithTTSModel(ASRModel):
             text-to-text dataset of TextToTextDataset or TextToTextIterableDataset type
         """
         text_data_config: TextDataConfig = cast(
-            TextDataConfig, OmegaConf.merge(OmegaConf.structured(TextDataConfig), train_data_config.text_data)
+            TextDataConfig,
+            OmegaConf.merge(
+                OmegaConf.structured(TextDataConfig), train_data_config.text_data
+            ),
         )
         if iterable:
             textonly_ds = TextToTextIterableDataset(
                 manifest_filepath=text_data_config.manifest_filepath,
                 speakers_filepath=text_data_config.speakers_filepath,
                 asr_tokenizer=self.asr_model.tokenizer,
-                asr_use_start_end_token=train_data_config.get("use_start_end_token", False),
+                asr_use_start_end_token=train_data_config.get(
+                    "use_start_end_token", False
+                ),
                 tts_parser=self.tts_model.parser,
                 tts_text_pad_id=self.tts_model.vocab.pad,
                 tts_text_normalizer=self.tts_model.normalizer,
@@ -571,7 +671,9 @@ class ASRWithTTSModel(ASRModel):
                 manifest_filepath=text_data_config.manifest_filepath,
                 speakers_filepath=text_data_config.speakers_filepath,
                 asr_tokenizer=self.asr_model.tokenizer,
-                asr_use_start_end_token=train_data_config.get("use_start_end_token", False),
+                asr_use_start_end_token=train_data_config.get(
+                    "use_start_end_token", False
+                ),
                 tts_parser=self.tts_model.parser,
                 tts_text_pad_id=self.tts_model.vocab.pad,
                 tts_text_normalizer=self.tts_model.normalizer,
@@ -582,7 +684,11 @@ class ASRWithTTSModel(ASRModel):
             )
         return textonly_ds
 
-    def training_step(self, batch: Union[TextOrAudioToTextBatch, TextToTextBatch, DALIOutputs, tuple], batch_nb: int):
+    def training_step(
+        self,
+        batch: Union[TextOrAudioToTextBatch, TextToTextBatch, DALIOutputs, tuple],
+        batch_nb: int,
+    ):
         """
         Training step for ASR-TTS model.
         - construct spectrogram for the batch (from text - using TTS model, from audio - using ASR preprocessor)
@@ -592,7 +698,9 @@ class ASRWithTTSModel(ASRModel):
         if isinstance(batch, DALIOutputs):
             return self.asr_model.training_step(batch=batch, batch_nb=batch_nb)
         with torch.no_grad():
-            spectrogram, spectrogram_len, transcript, transcript_len = self._get_batch_spect(batch)
+            spectrogram, spectrogram_len, transcript, transcript_len = (
+                self._get_batch_spect(batch)
+            )
         # TODO: maybe support precomputed without DALIOutputs
         return self.asr_model.training_step(
             batch=DALIOutputs(

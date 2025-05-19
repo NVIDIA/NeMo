@@ -32,7 +32,9 @@ class DirectoryBasedDataset(torch.utils.data.Dataset):
         super(DirectoryBasedDataset, self).__init__()
 
         self._transform = transform
-        self._samples = self._get_files(path, "nsfw", 1) + self._get_files(path, "safe", 0)
+        self._samples = self._get_files(path, "nsfw", 1) + self._get_files(
+            path, "safe", 0
+        )
 
     def __getitem__(self, index: int) -> Tuple[torch.Tensor, int]:
         if index >= len(self):
@@ -50,7 +52,9 @@ class DirectoryBasedDataset(torch.utils.data.Dataset):
     def __len__(self) -> int:
         return len(self._samples)
 
-    def _get_files(self, path: str, subdir: str, category: int) -> List[Tuple[str, int]]:
+    def _get_files(
+        self, path: str, subdir: str, category: int
+    ) -> List[Tuple[str, int]]:
         globpath = pathlib.Path(path) / subdir
         return [(x, category) for x in globpath.glob("*.*")]
 

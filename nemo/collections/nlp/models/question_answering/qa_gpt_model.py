@@ -47,40 +47,54 @@ class GPTQAModel(BaseQAModel):
         super().__init__(cfg=cfg, trainer=trainer, no_lm_init=True)
 
         if self.cfg.library == "huggingface":
-            self.language_model = AutoModelForCausalLM.from_pretrained(cfg.language_model.pretrained_model_name)
+            self.language_model = AutoModelForCausalLM.from_pretrained(
+                cfg.language_model.pretrained_model_name
+            )
             self.language_model.resize_token_embeddings(len(self.tokenizer.tokenizer))
             if self.cfg.language_model.lm_checkpoint:
-                self.language_model.load_state_dict(torch.load(self.cfg.language_model.lm_checkpoint))
+                self.language_model.load_state_dict(
+                    torch.load(self.cfg.language_model.lm_checkpoint)
+                )
         elif self.cfg.library == "megatron":
-            self.language_model = MegatronGPTModel.restore_from(cfg.language_model.lm_checkpoint, trainer=trainer)
+            self.language_model = MegatronGPTModel.restore_from(
+                cfg.language_model.lm_checkpoint, trainer=trainer
+            )
 
     def training_step(self, batch, batch_idx):
         input_ids, input_attn_mask, _, _, labels = batch
         loss, _ = self(input_ids, input_attn_mask, labels)
-        lr = self._optimizer.param_groups[0]['lr']
+        lr = self._optimizer.param_groups[0]["lr"]
 
-        self.log('lr', lr, prog_bar=True)
-        self.log("train_loss", loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
+        self.log("lr", lr, prog_bar=True)
+        self.log(
+            "train_loss", loss, on_step=True, on_epoch=True, prog_bar=True, logger=True
+        )
 
-        return {'loss': loss}
+        return {"loss": loss}
 
     def validation_step(self, batch, batch_idx):
         prefix = "test" if self.trainer.testing else "val"
 
         input_ids, input_attn_mask, unique_ids, training_mask_end, labels = batch
         loss, per_sample_perplexity = self.forward(input_ids, input_attn_mask, labels)
-        generated_answers = self._generate_candidates(input_ids, input_attn_mask, training_mask_end)
+        generated_answers = self._generate_candidates(
+            input_ids, input_attn_mask, training_mask_end
+        )
         labels[labels == -100] = self.tokenizer.tokenizer.pad_token_id
 
         loss = {
             "unique_ids": unique_ids,
             f"{prefix}_loss": loss,
             "per_sample_perplexity": per_sample_perplexity,
-            "input": self.tokenizer.tokenizer.batch_decode(input_ids, skip_special_tokens=True),
-            "ground_truth_answers": self.tokenizer.tokenizer.batch_decode(labels, skip_special_tokens=True),
+            "input": self.tokenizer.tokenizer.batch_decode(
+                input_ids, skip_special_tokens=True
+            ),
+            "ground_truth_answers": self.tokenizer.tokenizer.batch_decode(
+                labels, skip_special_tokens=True
+            ),
             "generated_answers": generated_answers,
         }
-        if prefix == 'val':
+        if prefix == "val":
             self.validation_step_outputs.append(loss)
         else:
             self.test_step_outputs.append(loss)
@@ -93,22 +107,32 @@ class GPTQAModel(BaseQAModel):
     def on_validation_epoch_end(self):
         prefix = "test" if self.trainer.testing else "val"
 
-        if prefix == 'val':
+        if prefix == "val":
             loss_terms = [x[f"{prefix}_loss"] for x in self.validation_step_outputs]
-            generated_answers, unique_ids, per_sample_perplexity = QAMetrics.convert_dict_outputs_to_lists(
-                self.validation_step_outputs, ["generated_answers", "unique_ids", "per_sample_perplexity"]
+            generated_answers, unique_ids, per_sample_perplexity = (
+                QAMetrics.convert_dict_outputs_to_lists(
+                    self.validation_step_outputs,
+                    ["generated_answers", "unique_ids", "per_sample_perplexity"],
+                )
             )
             self.validation_step_outputs.clear()  # free memory
         else:
             loss_terms = [x[f"{prefix}_loss"] for x in self.test_step_outputs]
-            generated_answers, unique_ids, per_sample_perplexity = QAMetrics.convert_dict_outputs_to_lists(
-                self.test_step_outputs, ["generated_answers", "unique_ids", "per_sample_perplexity"]
+            generated_answers, unique_ids, per_sample_perplexity = (
+                QAMetrics.convert_dict_outputs_to_lists(
+                    self.test_step_outputs,
+                    ["generated_answers", "unique_ids", "per_sample_perplexity"],
+                )
             )
             self.test_step_outputs.clear()  # free memory
 
         avg_loss = torch.stack(loss_terms).mean()
 
-        eval_dataset = self._test_dl.dataset if self.trainer.testing else self._validation_dl.dataset
+        eval_dataset = (
+            self._test_dl.dataset
+            if self.trainer.testing
+            else self._validation_dl.dataset
+        )
         eval_results, _, _ = self.evaluate(
             eval_dataset.features,
             eval_dataset.examples,
@@ -117,7 +141,7 @@ class GPTQAModel(BaseQAModel):
             generated_answers,
         )
 
-        self.log(f'{prefix}_loss', avg_loss)
+        self.log(f"{prefix}_loss", avg_loss)
         for eval_key in eval_results:
             logging.info(f"{prefix} {eval_key}: {eval_results[eval_key]}")
             self.log(f"{prefix}_{eval_key}", eval_results[eval_key])
@@ -129,11 +153,15 @@ class GPTQAModel(BaseQAModel):
     def forward(self, input_ids, input_attn_mask, labels):
         loss, per_sample_perplexity = None, None
         if self.cfg.library == "huggingface":
-            output = self.language_model(input_ids=input_ids, attention_mask=input_attn_mask, labels=labels)
-            loss, lm_logits = output['loss'], output['logits']
+            output = self.language_model(
+                input_ids=input_ids, attention_mask=input_attn_mask, labels=labels
+            )
+            loss, lm_logits = output["loss"], output["logits"]
             shift_logits = lm_logits[..., :-1, :].contiguous()
             shift_labels = labels[..., 1:].contiguous()
-            per_sample_perplexity = self._get_per_sample_perplexity(shift_logits, shift_labels)
+            per_sample_perplexity = self._get_per_sample_perplexity(
+                shift_logits, shift_labels
+            )
 
         elif self.cfg.library == "megatron":
             raise NotImplementedError()
@@ -159,11 +187,16 @@ class GPTQAModel(BaseQAModel):
                 logging_level = logging.get_verbosity()
                 logging.set_verbosity(logging.WARNING)
 
-                inference_dl = self.setup_inference_data(file, batch_size=batch_size, num_samples=num_samples)
+                inference_dl = self.setup_inference_data(
+                    file, batch_size=batch_size, num_samples=num_samples
+                )
 
                 outputs = self._inference(inference_dl, device)
-                generated_answers, unique_ids, per_sample_perplexity = QAMetrics.convert_dict_outputs_to_lists(
-                    outputs, ["generated_answers", "unique_ids", "per_sample_perplexity"]
+                generated_answers, unique_ids, per_sample_perplexity = (
+                    QAMetrics.convert_dict_outputs_to_lists(
+                        outputs,
+                        ["generated_answers", "unique_ids", "per_sample_perplexity"],
+                    )
                 )
                 all_predictions, all_nbest_perdictions = self._get_predictions(
                     inference_dl.dataset.features,
@@ -175,7 +208,9 @@ class GPTQAModel(BaseQAModel):
 
                 if output_prediction_file:
                     QAMetrics.dump_predicted_answers_to_file(
-                        output_prediction_file, inference_dl.dataset.examples, all_predictions
+                        output_prediction_file,
+                        inference_dl.dataset.examples,
+                        all_predictions,
                     )
 
                 if output_nbest_file:
@@ -191,7 +226,7 @@ class GPTQAModel(BaseQAModel):
                 self.train(mode=mode)
                 logging.set_verbosity(logging_level)
 
-        elif self.cfg.library == 'megatron':
+        elif self.cfg.library == "megatron":
             raise ValueError("Megatron Inference is not supported by GPTQAModel")
 
         return all_predictions, all_nbest_perdictions
@@ -280,12 +315,16 @@ class GPTQAModel(BaseQAModel):
                 pos = unique_id_to_pos[feature.unique_id]
                 curr_perplexity = per_sample_perplexity[pos]
                 curr_generated_text = generated_texts[pos]
-                prelim_prediction = _PrelimPrediction(feature_index, curr_perplexity, curr_generated_text)
+                prelim_prediction = _PrelimPrediction(
+                    feature_index, curr_perplexity, curr_generated_text
+                )
                 prelim_predictions.append(prelim_prediction)
 
             prelim_predictions = sorted(prelim_predictions, key=lambda x: x.perplexity)
             all_predictions[example.qas_id] = prelim_predictions[0].generated_text
-            all_nbest_json[example.qas_id] = [pred._asdict() for pred in prelim_predictions]
+            all_nbest_json[example.qas_id] = [
+                pred._asdict() for pred in prelim_predictions
+            ]
 
         return all_predictions, all_nbest_json
 
@@ -294,10 +333,13 @@ class GPTQAModel(BaseQAModel):
         for i, batch in enumerate(inference_dl):
             input_ids, input_attn_mask, unique_ids, training_mask_end = batch
             input_ids, input_attn_mask, training_mask_end = (
-                tensor.to(device) for tensor in [input_ids, input_attn_mask, training_mask_end]
+                tensor.to(device)
+                for tensor in [input_ids, input_attn_mask, training_mask_end]
             )
-            input_ids, input_attn_mask, labels, generated_texts = self._prep_inference_labels(
-                input_ids, input_attn_mask, training_mask_end, device
+            input_ids, input_attn_mask, labels, generated_texts = (
+                self._prep_inference_labels(
+                    input_ids, input_attn_mask, training_mask_end, device
+                )
             )
 
             _, per_sample_perplexity = self.forward(input_ids, input_attn_mask, labels)
@@ -313,13 +355,23 @@ class GPTQAModel(BaseQAModel):
 
         return outputs
 
-    def _prep_inference_labels(self, input_ids, input_attn_mask, training_mask_end, device):
+    def _prep_inference_labels(
+        self, input_ids, input_attn_mask, training_mask_end, device
+    ):
 
         # generate answers by decoding inputs and format into ipnut template
-        decoded_inputs = self.tokenizer.tokenizer.batch_decode(input_ids, skip_special_tokens=True)
-        generated_texts = self._generate_candidates(input_ids, input_attn_mask, training_mask_end)
+        decoded_inputs = self.tokenizer.tokenizer.batch_decode(
+            input_ids, skip_special_tokens=True
+        )
+        generated_texts = self._generate_candidates(
+            input_ids, input_attn_mask, training_mask_end
+        )
         inputs_with_answer = [
-            f"{inp}{ans}{self.tokenizer.tokenizer.eos_token}" if ans else f"{inp}{self.tokenizer.tokenizer.eos_token}"
+            (
+                f"{inp}{ans}{self.tokenizer.tokenizer.eos_token}"
+                if ans
+                else f"{inp}{self.tokenizer.tokenizer.eos_token}"
+            )
             for inp, ans in zip(decoded_inputs, generated_texts)
         ]
 
@@ -332,9 +384,12 @@ class GPTQAModel(BaseQAModel):
             return_tensors="pt",
         )
         input_ids, input_attn_mask = (
-            tensor.to(device) for tensor in [encoded_dict["input_ids"], encoded_dict["attention_mask"]]
+            tensor.to(device)
+            for tensor in [encoded_dict["input_ids"], encoded_dict["attention_mask"]]
         )
-        labels = GPTQADataset.update_labels_for_no_pad_loss(input_ids, training_mask_end, input_attn_mask)
+        labels = GPTQADataset.update_labels_for_no_pad_loss(
+            input_ids, training_mask_end, input_attn_mask
+        )
         if len(labels.shape) == 1:
             labels = torch.unsqueeze(labels, 0)
         labels = labels.to(device)
@@ -358,7 +413,11 @@ class GPTQAModel(BaseQAModel):
             # pad each generated to ensure they are of same length in dim 1, therefore stack-able
             generated_token_ids = [
                 torch.cat(
-                    [i, torch.ones((1, max_length - i.size(1))).to(i.device) * self.tokenizer.tokenizer.pad_token_id],
+                    [
+                        i,
+                        torch.ones((1, max_length - i.size(1))).to(i.device)
+                        * self.tokenizer.tokenizer.pad_token_id,
+                    ],
                     axis=-1,
                 )
                 for i in generated_token_ids
@@ -368,7 +427,7 @@ class GPTQAModel(BaseQAModel):
                 generated_token_ids, training_mask_end=training_mask_end
             )
 
-        elif self.cfg.library == 'megatron':
+        elif self.cfg.library == "megatron":
             raise ValueError("Megatron Generation is not supported by GPTQAModel")
 
         return generated_answers
@@ -376,7 +435,9 @@ class GPTQAModel(BaseQAModel):
     def _get_answers_from_generated_tokens(self, token_ids, training_mask_end=None):
         answers = []
         for i in range(token_ids.size(0)):
-            start_point = 0 if training_mask_end is None else training_mask_end[i].item()
+            start_point = (
+                0 if training_mask_end is None else training_mask_end[i].item()
+            )
             stop_point = token_ids.size(1)
 
             for j in range(start_point, stop_point):

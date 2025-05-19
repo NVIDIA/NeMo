@@ -21,7 +21,7 @@ from nemo.collections.nlp.data.dialogue.input_example.input_example import \
     DialogueInputExample
 from nemo.utils.decorators import deprecated_warning
 
-__all__ = ['DialogueAssistantDataProcessor']
+__all__ = ["DialogueAssistantDataProcessor"]
 
 
 class DialogueAssistantDataProcessor(DialogueDataProcessor):
@@ -41,28 +41,35 @@ class DialogueAssistantDataProcessor(DialogueDataProcessor):
         self._tokenizer = tokenizer
         self.cfg = cfg
         self.intents = self.open_file("dict.intents.csv")
-        if self.cfg.preprocess_intent_function == 'remove_domain':
+        if self.cfg.preprocess_intent_function == "remove_domain":
             self.intents = [
-                DialogueAssistantDataProcessor.normalize_zero_shot_intent(intent) for intent in self.intents
+                DialogueAssistantDataProcessor.normalize_zero_shot_intent(intent)
+                for intent in self.intents
             ]
         self.slots = self.open_file("dict.slots.csv")
         (
             bio_slot_ids_to_unified_slot_ids,
             unified_slots,
-        ) = DialogueAssistantDataProcessor.map_bio_format_slots_to_unified_slots(self.slots)
+        ) = DialogueAssistantDataProcessor.map_bio_format_slots_to_unified_slots(
+            self.slots
+        )
         self.slots = unified_slots
 
         self.bio_slot_ids_to_unified_slot_ids = bio_slot_ids_to_unified_slot_ids
-        self.services = sorted(list(set([intent.split('_')[0] for intent in self.intents])))
-        self.empty_slot_id = [str(idx) for idx, slot_name in enumerate(self.slots) if slot_name == "O"][0]
+        self.services = sorted(
+            list(set([intent.split("_")[0] for intent in self.intents]))
+        )
+        self.empty_slot_id = [
+            str(idx) for idx, slot_name in enumerate(self.slots) if slot_name == "O"
+        ][0]
 
     @staticmethod
     def normalize_zero_shot_intent(label):
-        label = label.split('.')[1]
-        if label == 'nomatch':
-            return 'no match'
+        label = label.split(".")[1]
+        if label == "nomatch":
+            return "no match"
         else:
-            return label.replace('_', ' ')
+            return label.replace("_", " ")
 
     def open_file(self, filename):
         """
@@ -120,9 +127,9 @@ class DialogueAssistantDataProcessor(DialogueDataProcessor):
         unified_slots = []
         unified_idx = -1
         for idx, slot in enumerate(slots):
-            if slot.replace('I-', '').replace('B-', '') not in unified_slots:
+            if slot.replace("I-", "").replace("B-", "") not in unified_slots:
                 unified_idx += 1
-                unified_slots.append(slot.replace('I-', '').replace('B-', ''))
+                unified_slots.append(slot.replace("I-", "").replace("B-", ""))
             bio_slot_ids_to_unified_slot_ids[str(idx)] = str(unified_idx)
         return bio_slot_ids_to_unified_slot_ids, unified_slots
 
@@ -140,10 +147,14 @@ class DialogueAssistantDataProcessor(DialogueDataProcessor):
 
         dataset_split_print = {"train": "train", "dev": "train", "test": "test"}
 
-        raw_examples_intent = self.open_file("{}.tsv".format(dataset_split_print[dataset_split]))
+        raw_examples_intent = self.open_file(
+            "{}.tsv".format(dataset_split_print[dataset_split])
+        )
         # removes header of tsv file
         raw_examples_intent = raw_examples_intent[1:]
-        raw_examples_slots = self.open_file("{}_slots.tsv".format(dataset_split_print[dataset_split]))
+        raw_examples_slots = self.open_file(
+            "{}_slots.tsv".format(dataset_split_print[dataset_split])
+        )
 
         if dataset_split in ["train", "dev"]:
             train_idx = []
@@ -162,24 +173,31 @@ class DialogueAssistantDataProcessor(DialogueDataProcessor):
             raw_examples_slots = [raw_examples_slots[idx] for idx in dev_idx]
 
         for i in range(len(raw_examples_intent)):
-            utterance, intent_id = raw_examples_intent[i].split('\t')
+            utterance, intent_id = raw_examples_intent[i].split("\t")
             slot_ids = raw_examples_slots[i].split()
             utterance_tokens = utterance.split()
             intent = self.intents[int(intent_id)]
-            slot_id_to_start_and_exclusive_end = DialogueAssistantDataProcessor.get_continuous_slots(
-                slot_ids, self.empty_slot_id, self.bio_slot_ids_to_unified_slot_ids
+            slot_id_to_start_and_exclusive_end = (
+                DialogueAssistantDataProcessor.get_continuous_slots(
+                    slot_ids, self.empty_slot_id, self.bio_slot_ids_to_unified_slot_ids
+                )
             )
 
             slot_to_start_and_exclusive_end = {
-                self.slots[int(slot_id)]: position for slot_id, position in slot_id_to_start_and_exclusive_end.items()
+                self.slots[int(slot_id)]: position
+                for slot_id, position in slot_id_to_start_and_exclusive_end.items()
             }
             slot_to_words = {
-                slot: ' '.join(utterance_tokens[position[0] : position[1]])
+                slot: " ".join(utterance_tokens[position[0] : position[1]])
                 for slot, position in slot_to_start_and_exclusive_end.items()
             }
             input_example = {
                 "utterance": utterance,
-                "labels": {"service": intent.split('_')[0], "intent": intent, "slots": slot_to_words},
+                "labels": {
+                    "service": intent.split("_")[0],
+                    "intent": intent,
+                    "slots": slot_to_words,
+                },
                 "label_positions": {
                     "slots": {
                         slot: {

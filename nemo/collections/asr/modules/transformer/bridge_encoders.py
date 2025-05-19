@@ -52,12 +52,17 @@ class BridgeEncoder(torch.nn.Module):
         if self.hidden_init_method not in self.supported_init_methods:
             raise ValueError(
                 "Unknown hidden_init_method = {hidden_init_method}, supported methods are {supported_init_methods}".format(
-                    hidden_init_method=self.hidden_init_method, supported_init_methods=self.supported_init_methods,
+                    hidden_init_method=self.hidden_init_method,
+                    supported_init_methods=self.supported_init_methods,
                 )
             )
 
         # attention bridge
-        self.att_bridge = AttentionBridge(hidden_size=hidden_size, k=hidden_steps, bridge_size=inner_size,)
+        self.att_bridge = AttentionBridge(
+            hidden_size=hidden_size,
+            k=hidden_steps,
+            bridge_size=inner_size,
+        )
 
         if self.hidden_init_method == "enc":
             self.init_hidden_enc = TransformerEncoder(
@@ -114,14 +119,18 @@ class BridgeEncoder(torch.nn.Module):
         # self-attention over input
         if self.hidden_init_method == "enc_shared":
             residual = encoder_states
-            hidden_states = self.hidden_enc(encoder_states=encoder_states, encoder_mask=encoder_mask)
+            hidden_states = self.hidden_enc(
+                encoder_states=encoder_states, encoder_mask=encoder_mask
+            )
             # residual connection
             hidden_states += residual
         elif self.hidden_init_method == "identity":
             hidden_states = encoder_states
         elif self.hidden_init_method == "enc":
             residual = encoder_states
-            hidden_states = self.init_hidden_enc(encoder_states=encoder_states, encoder_mask=encoder_mask)
+            hidden_states = self.init_hidden_enc(
+                encoder_states=encoder_states, encoder_mask=encoder_mask
+            )
             # residual connection
             hidden_states += residual
 
@@ -130,13 +139,18 @@ class BridgeEncoder(torch.nn.Module):
 
         # all hidden values are active
         hidden_mask = torch.ones(
-            encoder_states.shape[0], self._hidden_steps, dtype=encoder_mask.dtype, device=encoder_mask.device
+            encoder_states.shape[0],
+            self._hidden_steps,
+            dtype=encoder_mask.dtype,
+            device=encoder_mask.device,
         )
 
         # apply self-attention over fixed-size hidden_states
         for block in range(self._hidden_blocks):
             residual = hidden_states
-            hidden_states = self.hidden_enc(encoder_states=hidden_states, encoder_mask=hidden_mask)
+            hidden_states = self.hidden_enc(
+                encoder_states=hidden_states, encoder_mask=hidden_mask
+            )
             # residual connection
             hidden_states += residual
 

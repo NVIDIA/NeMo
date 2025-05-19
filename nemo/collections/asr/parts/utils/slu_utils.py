@@ -71,7 +71,9 @@ class SequenceGenerator:
             "batch_size": cfg.get("batch_size", 1),
         }
         if self._type == self.TYPE_GREEDY:
-            self.generator = GreedySequenceGenerator(embedding, decoder, log_softmax, **common_args)
+            self.generator = GreedySequenceGenerator(
+                embedding, decoder, log_softmax, **common_args
+            )
         elif self._type == self.TYPE_TOPK:
             beam_size = cfg.get("beam_size", 1)
             temperature = cfg.get("temperature", 1.0)
@@ -186,7 +188,9 @@ def pad_sequence(seq: torch.Tensor, max_len: int, pad_token: int = 0) -> torch.T
     if curr_len >= max_len:
         return seq
 
-    padding = torch.zeros(batch, max_len - curr_len, dtype=seq.dtype, device=seq.device).fill_(pad_token)
+    padding = torch.zeros(
+        batch, max_len - curr_len, dtype=seq.dtype, device=seq.device
+    ).fill_(pad_token)
     return torch.cat([seq, padding], dim=1)
 
 

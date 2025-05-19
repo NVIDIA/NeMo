@@ -24,7 +24,9 @@ try:
         MCoreSequentialMLPMixin, MCoreTransformerBlockMixin,
         MCoreTransformerLayerMixin)
 except (ImportError, ModuleNotFoundError):
-    MCoreGPTEmbeddingMixin = MCoreSelfAttentionMixin = MCoreTransformerLayerMixin = MCoreMLPMixin = None
+    MCoreGPTEmbeddingMixin = MCoreSelfAttentionMixin = MCoreTransformerLayerMixin = (
+        MCoreMLPMixin
+    ) = None
 
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
     AdapterName, InfusedAdapterConfig, Lora4HtoHAdapterConfig,
@@ -59,21 +61,21 @@ def get_target_modules(lora_cfg, default=("attention_qkv",)):
 
     for module in original_target_modules:
         if module == PEFT_MODULE_MAP["attention"]:
-            if PEFT_MODULE_MAP['qkv_module'] not in target_modules:
-                target_modules.append(PEFT_MODULE_MAP['qkv_module'])
-            if PEFT_MODULE_MAP['dense_module'] not in target_modules:
-                target_modules.append(PEFT_MODULE_MAP['dense_module'])
+            if PEFT_MODULE_MAP["qkv_module"] not in target_modules:
+                target_modules.append(PEFT_MODULE_MAP["qkv_module"])
+            if PEFT_MODULE_MAP["dense_module"] not in target_modules:
+                target_modules.append(PEFT_MODULE_MAP["dense_module"])
         elif module == PEFT_MODULE_MAP["mlp"]:
-            if PEFT_MODULE_MAP['hto4h_module'] not in target_modules:
-                target_modules.append(PEFT_MODULE_MAP['hto4h_module'])
-            if PEFT_MODULE_MAP['4htoh_module'] not in target_modules:
-                target_modules.append(PEFT_MODULE_MAP['4htoh_module'])
+            if PEFT_MODULE_MAP["hto4h_module"] not in target_modules:
+                target_modules.append(PEFT_MODULE_MAP["hto4h_module"])
+            if PEFT_MODULE_MAP["4htoh_module"] not in target_modules:
+                target_modules.append(PEFT_MODULE_MAP["4htoh_module"])
         elif module == PEFT_MODULE_MAP["all"]:
             for sub_module in [
-                PEFT_MODULE_MAP['qkv_module'],
-                PEFT_MODULE_MAP['dense_module'],
-                PEFT_MODULE_MAP['hto4h_module'],
-                PEFT_MODULE_MAP['4htoh_module'],
+                PEFT_MODULE_MAP["qkv_module"],
+                PEFT_MODULE_MAP["dense_module"],
+                PEFT_MODULE_MAP["hto4h_module"],
+                PEFT_MODULE_MAP["4htoh_module"],
             ]:
                 if sub_module not in target_modules:
                     target_modules.append(sub_module)
@@ -101,7 +103,7 @@ class PEFTConfig:
         if cfg.get("kv_channels", None) is None:
             assert (
                 cfg.hidden_size % cfg.num_attention_heads == 0
-            ), 'hidden_size must be divisible by num_attention_heads if kv_channels is None'
+            ), "hidden_size must be divisible by num_attention_heads if kv_channels is None"
             kv_channels = cfg.hidden_size // cfg.num_attention_heads
         else:
             kv_channels = cfg.kv_channels
@@ -112,12 +114,17 @@ class SelectivePEFTConfig(PEFTConfig):
     def __init__(self, cfg):
         selective_cfg = cfg.peft.selective_tuning
         super().__init__(selective_cfg, name_key_to_cfg={})
-        self.tunable_base_param_names = selective_cfg.get("tunable_base_param_names", [])
+        self.tunable_base_param_names = selective_cfg.get(
+            "tunable_base_param_names", []
+        )
 
 
 class MLPHeadPEFTConfig(PEFTConfig):
     def __init__(self, cfg):
-        config_args = {"in_features": cfg.hidden_size, "out_features": cfg.peft.mlp_head_tuning.out_features}
+        config_args = {
+            "in_features": cfg.hidden_size,
+            "out_features": cfg.peft.mlp_head_tuning.out_features,
+        }
         mlp_head_cfg = MLPHeadAdapterConfig(**config_args)
 
         name_key_to_cfg = {
@@ -142,7 +149,11 @@ class LoraPEFTConfig(PEFTConfig):
 
         qkv_projection_size = projection_size + (2 * kv_channels * num_query_groups)
 
-        fast_glu_activation = cfg.get('activation', 'gelu') in ['fast-geglu', 'fast-swiglu', 'fast-reglu']
+        fast_glu_activation = cfg.get("activation", "gelu") in [
+            "fast-geglu",
+            "fast-swiglu",
+            "fast-reglu",
+        ]
 
         target_modules = get_target_modules(lora_cfg)
         name_key_to_cfg = {}
@@ -166,14 +177,24 @@ class LoraPEFTConfig(PEFTConfig):
                     _adapter_name = AdapterName.LORA_KQV_ADAPTER
                     _adapter_cfg_cls = LoraKQVAdapterConfig
                     adapter_cfg = self._create_lora_config(
-                        cfg, lora_cfg, cfg.hidden_size, qkv_projection_size, _adapter_cfg_cls
+                        cfg,
+                        lora_cfg,
+                        cfg.hidden_size,
+                        qkv_projection_size,
+                        _adapter_cfg_cls,
                     )
                 name_key_to_cfg[_adapter_name] = adapter_cfg
-                name_key_to_mcore_mixins[_adapter_name] = [("self_attention", MCoreSelfAttentionMixin)]
+                name_key_to_mcore_mixins[_adapter_name] = [
+                    ("self_attention", MCoreSelfAttentionMixin)
+                ]
 
             elif module == PEFT_MODULE_MAP["dense_module"]:
                 adapter_cfg = self._create_lora_config(
-                    cfg, lora_cfg, projection_size, cfg.hidden_size, LoraDenseAttentionAdapterConfig
+                    cfg,
+                    lora_cfg,
+                    projection_size,
+                    cfg.hidden_size,
+                    LoraDenseAttentionAdapterConfig,
                 )
                 name_key_to_cfg[AdapterName.LORA_DENSE_ATTENTION_ADAPTER] = adapter_cfg
                 name_key_to_mcore_mixins[AdapterName.LORA_DENSE_ATTENTION_ADAPTER] = [
@@ -181,8 +202,12 @@ class LoraPEFTConfig(PEFTConfig):
                 ]
 
             elif module == PEFT_MODULE_MAP["hto4h_module"]:
-                hto4h_projection_size = cfg.ffn_hidden_size * 2 if fast_glu_activation else cfg.ffn_hidden_size
-                if cfg.get('num_moe_experts', None):
+                hto4h_projection_size = (
+                    cfg.ffn_hidden_size * 2
+                    if fast_glu_activation
+                    else cfg.ffn_hidden_size
+                )
+                if cfg.get("num_moe_experts", None):
                     _adapter_name = AdapterName.LORA_MOE_Hto4H_ADAPTER
                     _adapter_cfg_cls = LoraMoeHto4HAdapterConfig
                 elif lora_cfg.get("variant", "nemo") == "canonical":
@@ -193,11 +218,17 @@ class LoraPEFTConfig(PEFTConfig):
                     _adapter_cfg_cls = LoraHto4HAdapterConfig
 
                 adapter_cfg = self._create_lora_config(
-                    cfg, lora_cfg, cfg.hidden_size, hto4h_projection_size, _adapter_cfg_cls
+                    cfg,
+                    lora_cfg,
+                    cfg.hidden_size,
+                    hto4h_projection_size,
+                    _adapter_cfg_cls,
                 )
                 name_key_to_cfg[_adapter_name] = adapter_cfg
                 if _adapter_name == AdapterName.LORA_MOE_Hto4H_ADAPTER:
-                    name_key_to_mcore_mixins[_adapter_name] = [("mlp.experts", MCoreSequentialMLPMixin)]
+                    name_key_to_mcore_mixins[_adapter_name] = [
+                        ("mlp.experts", MCoreSequentialMLPMixin)
+                    ]
                     for i in range(int(cfg.num_moe_experts)):
                         name_key_to_mcore_mixins[_adapter_name].append(
                             (f"mlp.experts.local_experts.{i}", MCoreMLPMixin)
@@ -206,7 +237,7 @@ class LoraPEFTConfig(PEFTConfig):
                     name_key_to_mcore_mixins[_adapter_name] = [("mlp", MCoreMLPMixin)]
 
             elif module == PEFT_MODULE_MAP["4htoh_module"]:
-                if cfg.get('num_moe_experts', None):
+                if cfg.get("num_moe_experts", None):
                     _adapter_name = AdapterName.LORA_MOE_4HtoH_ADAPTER
                     _adapter_cfg_cls = LoraMoe4HtoHAdapterConfig
                 else:
@@ -214,11 +245,17 @@ class LoraPEFTConfig(PEFTConfig):
                     _adapter_cfg_cls = Lora4HtoHAdapterConfig
 
                 adapter_cfg = self._create_lora_config(
-                    cfg, lora_cfg, cfg.ffn_hidden_size, cfg.hidden_size, _adapter_cfg_cls
+                    cfg,
+                    lora_cfg,
+                    cfg.ffn_hidden_size,
+                    cfg.hidden_size,
+                    _adapter_cfg_cls,
                 )
                 name_key_to_cfg[_adapter_name] = adapter_cfg
                 if _adapter_name == AdapterName.LORA_MOE_4HtoH_ADAPTER:
-                    name_key_to_mcore_mixins[_adapter_name] = [("mlp.experts", MCoreSequentialMLPMixin)]
+                    name_key_to_mcore_mixins[_adapter_name] = [
+                        ("mlp.experts", MCoreSequentialMLPMixin)
+                    ]
                     for i in range(int(cfg.num_moe_experts)):
                         name_key_to_mcore_mixins[_adapter_name].append(
                             (f"mlp.experts.local_experts.{i}", MCoreMLPMixin)
@@ -236,7 +273,14 @@ class LoraPEFTConfig(PEFTConfig):
         super().__init__(lora_cfg, name_key_to_cfg)
 
     def _create_lora_config(
-        self, cfg, lora_cfg, in_features, out_features, adapter_cfg_cls, num_query_groups=None, kv_channels=None
+        self,
+        cfg,
+        lora_cfg,
+        in_features,
+        out_features,
+        adapter_cfg_cls,
+        num_query_groups=None,
+        kv_channels=None,
     ):
         config_args = {
             "in_features": in_features,
@@ -255,15 +299,23 @@ class LoraPEFTConfig(PEFTConfig):
         }
 
         if adapter_cfg_cls == LoraUnfusedKQVAdapterConfig:
-            assert num_query_groups is not None, "num_query_groups must be provided for canonical Lora"
-            assert kv_channels is not None, "kv_channels must be provided for canonical Lora"
-            config_args.update({"num_query_groups": num_query_groups, "kv_channels": kv_channels})
+            assert (
+                num_query_groups is not None
+            ), "num_query_groups must be provided for canonical Lora"
+            assert (
+                kv_channels is not None
+            ), "kv_channels must be provided for canonical Lora"
+            config_args.update(
+                {"num_query_groups": num_query_groups, "kv_channels": kv_channels}
+            )
             config_args.pop("out_features")
         elif adapter_cfg_cls in (LoraMoeHto4HAdapterConfig, LoraMoe4HtoHAdapterConfig):
-            config_args.update({'num_moe_experts': cfg.num_moe_experts})
+            config_args.update({"num_moe_experts": cfg.num_moe_experts})
 
         if lora_cfg.weight_tying:
-            position_embedding_strategy = lora_cfg.get("position_embedding_strategy", None)
+            position_embedding_strategy = lora_cfg.get(
+                "position_embedding_strategy", None
+            )
             if position_embedding_strategy is None:
                 dim_position_embeddings = 0
             elif position_embedding_strategy == "add":
@@ -304,7 +356,9 @@ class IA3PEFTConfig(PEFTConfig):
         kv_channels = self._calculate_kv_channels(cfg)
         num_query_groups = cfg.get("num_query_groups", cfg.num_attention_heads)
         kv_projection_size = kv_channels * num_query_groups
-        infused_adapter_cfg = InfusedAdapterConfig(in_features=kv_projection_size // cfg.tensor_model_parallel_size)
+        infused_adapter_cfg = InfusedAdapterConfig(
+            in_features=kv_projection_size // cfg.tensor_model_parallel_size
+        )
 
         name_key_to_cfg = {
             AdapterName.KEY_INFUSED: infused_adapter_cfg,
@@ -330,7 +384,9 @@ class PtuningPEFTConfig(PEFTConfig):
             cfg.hidden_size,
         )
         name_key_to_cfg = {AdapterName.PTUNING_ADAPTER: adapter_cfg}
-        self.name_key_to_mcore_mixins = {AdapterName.PTUNING_ADAPTER: [('embedding', MCoreGPTEmbeddingMixin)]}
+        self.name_key_to_mcore_mixins = {
+            AdapterName.PTUNING_ADAPTER: [("embedding", MCoreGPTEmbeddingMixin)]
+        }
         self.virtual_tokens = cfg.peft.p_tuning.virtual_tokens
 
         super().__init__(cfg.peft.p_tuning, name_key_to_cfg)
@@ -346,7 +402,9 @@ class CanonicalAdaptersPEFTConfig(PEFTConfig):
             "dim": adapter_tuning_cfg.adapter_dim,
             "norm_position": adapter_tuning_cfg.get("norm_position", "pre"),
             "norm_type": adapter_tuning_cfg.get("norm_type", "mixedfusedlayernorm"),
-            "column_init_method": adapter_tuning_cfg.get("column_init_method", "xavier"),
+            "column_init_method": adapter_tuning_cfg.get(
+                "column_init_method", "xavier"
+            ),
             "row_init_method": adapter_tuning_cfg.get("row_init_method", "zero"),
             "dropout": adapter_tuning_cfg.adapter_dropout,
         }
@@ -356,7 +414,9 @@ class CanonicalAdaptersPEFTConfig(PEFTConfig):
                 {
                     "num_position_embeddings": cfg.num_layers * 2,
                     "dim_position_embeddings": cfg.hidden_size,
-                    "position_embedding_strategy": adapter_tuning_cfg.get("position_embedding_strategy", None),
+                    "position_embedding_strategy": adapter_tuning_cfg.get(
+                        "position_embedding_strategy", None
+                    ),
                 }
             )
             adapter_cfg = ParallelLinearAdapterWeightTyingConfig(**config_args)
@@ -394,7 +454,11 @@ class SDLoraPEFTConfig(PEFTConfig):
             "network_alpha": lora_cfg.network_alpha,
         }
 
-        name_key_to_cfg = {AdapterName.PARALLEL_LINEAR_ADAPTER: ParallelLinearAdapterConfig(**config_args)}
+        name_key_to_cfg = {
+            AdapterName.PARALLEL_LINEAR_ADAPTER: ParallelLinearAdapterConfig(
+                **config_args
+            )
+        }
         self.name_key_to_mcore_mixins = None
         super().__init__(lora_cfg, name_key_to_cfg)
 
@@ -407,7 +471,7 @@ PEFT_CONFIG_MAP = {
     "mlp_head": MLPHeadPEFTConfig,
     "qlora": QLoraPEFTConfig,
     "selective": SelectivePEFTConfig,
-    'none': None,
+    "none": None,
     None: None,
     "sdlora": SDLoraPEFTConfig,
 }

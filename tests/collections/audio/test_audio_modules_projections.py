@@ -21,8 +21,8 @@ from nemo.collections.audio.modules.projections import \
 
 class TestMixtureConsistencyProjection:
     @pytest.mark.unit
-    @pytest.mark.parametrize('weighting', [None, 'power'])
-    @pytest.mark.parametrize('num_sources', [1, 3])
+    @pytest.mark.parametrize("weighting", [None, "power"])
+    @pytest.mark.parametrize("num_sources", [1, 3])
     def test_mixture_consistency(self, weighting: str, num_sources: int):
         batch_size = 4
         num_subbands = 33
@@ -38,10 +38,22 @@ class TestMixtureConsistencyProjection:
 
         for n in range(num_examples):
             # single-channel mixture
-            mixture = torch.randn(batch_size, 1, num_subbands, num_samples, generator=rng, dtype=torch.cfloat)
+            mixture = torch.randn(
+                batch_size,
+                1,
+                num_subbands,
+                num_samples,
+                generator=rng,
+                dtype=torch.cfloat,
+            )
             # source estimates
             estimate = torch.randn(
-                batch_size, num_sources, num_subbands, num_samples, generator=rng, dtype=torch.cfloat
+                batch_size,
+                num_sources,
+                num_subbands,
+                num_samples,
+                generator=rng,
+                dtype=torch.cfloat,
             )
 
             # project
@@ -52,11 +64,11 @@ class TestMixtureConsistencyProjection:
 
             if weighting is None:
                 weight = 1 / num_sources
-            elif weighting == 'power':
+            elif weighting == "power":
                 weight = estimate.abs().pow(2)
                 weight = weight / (weight.sum(dim=1, keepdim=True) + uut.eps)
             else:
-                raise ValueError(f'Weighting {weighting} not implemented')
+                raise ValueError(f"Weighting {weighting} not implemented")
             correction = weight * (mixture - estimated_mixture)
             ref_projected = estimate + correction
 
@@ -67,11 +79,11 @@ class TestMixtureConsistencyProjection:
     def test_unsupported_weighting(self):
         # Initialize with unsupported weighting
         with pytest.raises(NotImplementedError):
-            MixtureConsistencyProjection(weighting='not-implemented')
+            MixtureConsistencyProjection(weighting="not-implemented")
 
         # Initialize with None and change later
         uut = MixtureConsistencyProjection(weighting=None)
-        uut.weighting = 'not-implemented'
+        uut.weighting = "not-implemented"
         with pytest.raises(NotImplementedError):
             uut(
                 mixture=torch.randn(1, 1, 1, 1, dtype=torch.cfloat),
@@ -94,4 +106,7 @@ class TestMixtureConsistencyProjection:
             uut(mixture=torch.randn(1, 2, 1), estimate=torch.randn(1, 2, 1))
         # It is expected that the estimate has shape (B, num_sources, F, N)
         with pytest.raises(TypeError):
-            uut(mixture=torch.randn(1, 1, 1, 1, dtype=torch.cfloat), estimate=torch.randn(1, 2, 1))
+            uut(
+                mixture=torch.randn(1, 1, 1, 1, dtype=torch.cfloat),
+                estimate=torch.randn(1, 2, 1),
+            )

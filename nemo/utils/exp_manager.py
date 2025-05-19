@@ -208,11 +208,13 @@ class FaultToleranceParams:
     rank_heartbeat_timeout: Optional[float] = 45.0 * 60.0
     calculate_timeouts: bool = True
     safety_factor: float = 5.0
-    rank_termination_signal: signal.Signals = signal.SIGKILL if os.name != 'nt' else signal.SIGTERM
-    log_level: str = 'INFO'
+    rank_termination_signal: signal.Signals = (
+        signal.SIGKILL if os.name != "nt" else signal.SIGTERM
+    )
+    log_level: str = "INFO"
     max_rank_restarts: int = 0
     max_subsequent_job_failures: int = 0
-    additional_ft_launcher_args: str = ''
+    additional_ft_launcher_args: str = ""
     simulated_fault: Optional[Any] = None
 
 
@@ -236,16 +238,24 @@ class ExpManagerConfig:
     create_wandb_logger: Optional[bool] = False
     wandb_logger_kwargs: Optional[Dict[Any, Any]] = None
     create_mlflow_logger: Optional[bool] = False
-    mlflow_logger_kwargs: Optional[MLFlowParams] = field(default_factory=lambda: MLFlowParams())
+    mlflow_logger_kwargs: Optional[MLFlowParams] = field(
+        default_factory=lambda: MLFlowParams()
+    )
     create_dllogger_logger: Optional[bool] = False
-    dllogger_logger_kwargs: Optional[DLLoggerParams] = field(default_factory=lambda: DLLoggerParams())
+    dllogger_logger_kwargs: Optional[DLLoggerParams] = field(
+        default_factory=lambda: DLLoggerParams()
+    )
     create_clearml_logger: Optional[bool] = False
-    clearml_logger_kwargs: Optional[ClearMLParams] = field(default_factory=lambda: ClearMLParams())
+    clearml_logger_kwargs: Optional[ClearMLParams] = field(
+        default_factory=lambda: ClearMLParams()
+    )
     create_neptune_logger: Optional[bool] = False
     neptune_logger_kwargs: Optional[Dict[Any, Any]] = None
     # Checkpointing parameters
     create_checkpoint_callback: Optional[bool] = True
-    checkpoint_callback_params: Optional[CallbackParams] = field(default_factory=lambda: CallbackParams())
+    checkpoint_callback_params: Optional[CallbackParams] = field(
+        default_factory=lambda: CallbackParams()
+    )
     create_early_stopping_callback: Optional[bool] = False
     early_stopping_callback_params: Optional[EarlyStoppingParams] = field(
         default_factory=lambda: EarlyStoppingParams()
@@ -257,7 +267,9 @@ class ExpManagerConfig:
     log_step_timing: Optional[bool] = True
     # log step time with nemo logger instead of lightning logger to avoid lightning logger overhead
     log_delta_step_timing: Optional[bool] = False
-    step_timing_kwargs: Optional[StepTimingParams] = field(default_factory=lambda: StepTimingParams())
+    step_timing_kwargs: Optional[StepTimingParams] = field(
+        default_factory=lambda: StepTimingParams()
+    )
     # Configures creation of log files for different ranks
     log_local_rank_0_only: Optional[bool] = False
     log_global_rank_0_only: Optional[bool] = False
@@ -270,10 +282,14 @@ class ExpManagerConfig:
     seconds_to_sleep: float = 5
     # Straggler detection
     create_straggler_detection_callback: Optional[bool] = False
-    straggler_detection_params: Optional[StragglerDetectionParams] = field(default_factory=StragglerDetectionParams)
+    straggler_detection_params: Optional[StragglerDetectionParams] = field(
+        default_factory=StragglerDetectionParams
+    )
     # Fault tolrance
     create_fault_tolerance_callback: Optional[bool] = False
-    fault_tolerance: Optional[FaultToleranceParams] = field(default_factory=FaultToleranceParams)
+    fault_tolerance: Optional[FaultToleranceParams] = field(
+        default_factory=FaultToleranceParams
+    )
     # logs TFLOPs per sec per gpu
     log_tflops_per_sec_per_gpu: Optional[bool] = True
 
@@ -322,7 +338,7 @@ class TimingCallback(Callback):
         self.timer.stop(name)
         # Set the `batch_size=1` as WAR for `dataloader_iter`, which is not used for any metric
         pl_module.log(
-            name + ' in s',
+            name + " in s",
             torch.as_tensor(self.timer[name]),
             on_step=True,
             on_epoch=False,
@@ -354,7 +370,7 @@ class TimingCallback(Callback):
         self._on_batch_end("train_step_timing", pl_module)
         if self.log_tokens_per_sec:
             if "text" in batch:
-                batch['tokens'] = batch['text']
+                batch["tokens"] = batch["text"]
             tokens_per_gpu = (
                 (get_current_global_batch_size() // trainer.accumulate_grad_batches)
                 * batch["tokens"].shape[1]
@@ -369,19 +385,27 @@ class TimingCallback(Callback):
                 prog_bar=True,
             )
 
-    def on_validation_batch_start(self, trainer, pl_module, batch, batch_idx, dataloader_idx=0):
+    def on_validation_batch_start(
+        self, trainer, pl_module, batch, batch_idx, dataloader_idx=0
+    ):
         """on_validation_batch_start"""
         self._on_batch_start("validation_step_timing")
 
-    def on_validation_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx=0):
+    def on_validation_batch_end(
+        self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx=0
+    ):
         """on_validation_batch_end"""
         self._on_batch_end("validation_step_timing", pl_module)
 
-    def on_test_batch_start(self, trainer, pl_module, batch, batch_idx, dataloader_idx=0):
+    def on_test_batch_start(
+        self, trainer, pl_module, batch, batch_idx, dataloader_idx=0
+    ):
         """on_test_batch_start"""
         self._on_batch_start("test_step_timing")
 
-    def on_test_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx=0):
+    def on_test_batch_end(
+        self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx=0
+    ):
         """on_test_batch_end"""
         self._on_batch_end("test_step_timing", pl_module)
 
@@ -452,7 +476,9 @@ class DeltaTimingCallback(Callback):
         self._on_batch_end("validation_step_timing in s", trainer, pl_module)
 
 
-def exp_manager(trainer: 'lightning.pytorch.Trainer', cfg: Optional[Union[DictConfig, Dict]] = None) -> Optional[Path]:
+def exp_manager(
+    trainer: "lightning.pytorch.Trainer", cfg: Optional[Union[DictConfig, Dict]] = None
+) -> Optional[Path]:
     """
     exp_manager is a helper function used to manage folders for experiments. It follows the pytorch
     lightning paradigm of exp_dir/model_or_experiment_name/version. If the lightning trainer
@@ -565,22 +591,28 @@ def exp_manager(trainer: 'lightning.pytorch.Trainer', cfg: Optional[Union[DictCo
     logging.rank = global_rank
 
     if cfg is None:
-        logging.error("exp_manager did not receive a cfg argument. It will be disabled.")
+        logging.error(
+            "exp_manager did not receive a cfg argument. It will be disabled."
+        )
         return
     if trainer.fast_dev_run:
-        logging.info("Trainer was called with fast_dev_run. exp_manager will return without any functionality.")
+        logging.info(
+            "Trainer was called with fast_dev_run. exp_manager will return without any functionality."
+        )
         return
 
     # Ensure passed cfg is compliant with ExpManagerConfig
     schema = OmegaConf.structured(ExpManagerConfig)
     # TODO: remove this check
     if is_global_rank_zero():
-        logging.info('ExpManager schema')
+        logging.info("ExpManager schema")
         logging.info(schema)
     if isinstance(cfg, dict):
         cfg = OmegaConf.create(cfg)
     elif not isinstance(cfg, DictConfig):
-        raise ValueError(f"cfg was type: {type(cfg)}. Expected either a dict or a DictConfig")
+        raise ValueError(
+            f"cfg was type: {type(cfg)}. Expected either a dict or a DictConfig"
+        )
     cfg = OmegaConf.create(OmegaConf.to_container(cfg, resolve=True))
     cfg = OmegaConf.merge(schema, cfg)  # type: ExpManagerConfig
 
@@ -609,14 +641,16 @@ def exp_manager(trainer: 'lightning.pytorch.Trainer', cfg: Optional[Union[DictCo
 
     checkpoint_name = name
     # If name returned from get_log_dir is "", use cfg.name for checkpointing
-    if checkpoint_name is None or checkpoint_name == '':
+    if checkpoint_name is None or checkpoint_name == "":
         checkpoint_name = cfg.name or "default"
 
     # Set mlflow name if it's not set, before the main name is erased
-    if cfg.create_mlflow_logger and (not cfg.mlflow_logger_kwargs.get("experiment_name", None)):
+    if cfg.create_mlflow_logger and (
+        not cfg.mlflow_logger_kwargs.get("experiment_name", None)
+    ):
         cfg.mlflow_logger_kwargs.experiment_name = cfg.name
         logging.warning(
-            'mlflow logger specified but no experiment name set. Using the same as Tensorboard: %s',
+            "mlflow logger specified but no experiment name set. Using the same as Tensorboard: %s",
             cfg.mlflow_logger_kwargs.experiment_name,
         )
 
@@ -636,7 +670,7 @@ def exp_manager(trainer: 'lightning.pytorch.Trainer', cfg: Optional[Union[DictCo
     # Create the logging directory if it does not exist
     # Cannot limit creation to global zero as all ranks write to own log file
     os.makedirs(log_dir, exist_ok=True)
-    logging.info(f'Experiments will be logged at {log_dir}')
+    logging.info(f"Experiments will be logged at {log_dir}")
     trainer._default_root_dir = log_dir
 
     if cfg.log_local_rank_0_only is True and cfg.log_global_rank_0_only is True:
@@ -649,7 +683,7 @@ def exp_manager(trainer: 'lightning.pytorch.Trainer', cfg: Optional[Union[DictCo
     nemo_testing = get_envbool(NEMO_ENV_VARNAME_TESTING, False)
 
     # Handle logging to file
-    log_file = log_dir / f'nemo_log_globalrank-{global_rank}_localrank-{local_rank}.txt'
+    log_file = log_dir / f"nemo_log_globalrank-{global_rank}_localrank-{local_rank}.txt"
     if cfg.log_local_rank_0_only is True and not nemo_testing:
         if local_rank == 0:
             logging.add_file_handler(log_file)
@@ -737,8 +771,8 @@ def exp_manager(trainer: 'lightning.pytorch.Trainer', cfg: Optional[Union[DictCo
                 # If only `exp_manager.max_time_per_run` is set - it behaves as a StateLessTimer.
                 # If both are set, it also behaves as a StateLessTimer.
                 logging.warning(
-                    'Found a PTL Timer callback, replacing with a StatelessTimer callback. '
-                    'This will happen if you set trainer.max_time as well as exp_manager.max_time_per_run.'
+                    "Found a PTL Timer callback, replacing with a StatelessTimer callback. "
+                    "This will happen if you set trainer.max_time as well as exp_manager.max_time_per_run."
                 )
                 trainer.callbacks[idx] = StatelessTimer(cfg.max_time_per_run)
                 found_ptl_timer = True
@@ -752,11 +786,14 @@ def exp_manager(trainer: 'lightning.pytorch.Trainer', cfg: Optional[Union[DictCo
         if HAVE_STRAGGLER_DET:
             logging.info("Enabling straggler detection...")
             straggler_det_args_dict = dict(cfg.straggler_detection_params)
-            straggler_det_callback = StragglerDetectionCallback(**straggler_det_args_dict)
+            straggler_det_callback = StragglerDetectionCallback(
+                **straggler_det_args_dict
+            )
             trainer.callbacks.append(straggler_det_callback)
         else:
             raise ValueError(
-                "`create_straggler_detection_callback` is True, but there is no Straggler Det. " "package installed."
+                "`create_straggler_detection_callback` is True, but there is no Straggler Det. "
+                "package installed."
             )
 
     if cfg.create_fault_tolerance_callback:
@@ -776,8 +813,8 @@ def exp_manager(trainer: 'lightning.pytorch.Trainer', cfg: Optional[Union[DictCo
             trainer.callbacks.append(fault_tol_callback)
         else:
             raise ValueError(
-                'FaultToleranceCallback was enabled with create_fault_tolerance_callback, '
-                'but fault_tolerance package is not installed.'
+                "FaultToleranceCallback was enabled with create_fault_tolerance_callback, "
+                "but fault_tolerance package is not installed."
             )
 
     if cfg.log_tflops_per_sec_per_gpu:
@@ -793,21 +830,23 @@ def exp_manager(trainer: 'lightning.pytorch.Trainer', cfg: Optional[Union[DictCo
                 copy(Path(_file), log_dir)
 
         # Create files for cmd args and git info
-        with open(log_dir / 'cmd-args.log', 'w', encoding='utf-8') as _file:
+        with open(log_dir / "cmd-args.log", "w", encoding="utf-8") as _file:
             _file.write(" ".join(sys.argv))
 
         # Try to get git hash
         git_repo, git_hash = get_git_hash()
         if git_repo:
-            with open(log_dir / 'git-info.log', 'a', encoding='utf-8') as _file:
-                _file.write(f'commit hash: {git_hash}')
+            with open(log_dir / "git-info.log", "a", encoding="utf-8") as _file:
+                _file.write(f"commit hash: {git_hash}")
                 _file.write(get_git_diff())
 
         # Add err_file logging to global_rank zero
-        logging.add_err_file_handler(log_dir / 'nemo_error_log.txt')
+        logging.add_err_file_handler(log_dir / "nemo_error_log.txt")
 
         # Add lightning file logging to global_rank zero
-        add_filehandlers_to_pl_logger(log_dir / 'lightning_logs.txt', log_dir / 'nemo_error_log.txt')
+        add_filehandlers_to_pl_logger(
+            log_dir / "lightning_logs.txt", log_dir / "nemo_error_log.txt"
+        )
 
     elif trainer.num_nodes * trainer.num_devices > 1:
         # sleep other ranks so rank 0 can finish
@@ -819,7 +858,9 @@ def exp_manager(trainer: 'lightning.pytorch.Trainer', cfg: Optional[Union[DictCo
     return log_dir
 
 
-def error_checks(trainer: 'lightning.pytorch.Trainer', cfg: Optional[Union[DictConfig, Dict]] = None):
+def error_checks(
+    trainer: "lightning.pytorch.Trainer", cfg: Optional[Union[DictConfig, Dict]] = None
+):
     """
     Checks that the passed trainer is compliant with NeMo and exp_manager's passed configuration.
     Checks that:
@@ -836,7 +877,9 @@ def error_checks(trainer: 'lightning.pytorch.Trainer', cfg: Optional[Union[DictC
             " Please pass hydra.run.dir=. to your python script."
         )
     if trainer.logger is not None and (
-        cfg.create_tensorboard_logger or cfg.create_wandb_logger or cfg.create_mlflow_logger
+        cfg.create_tensorboard_logger
+        or cfg.create_wandb_logger
+        or cfg.create_mlflow_logger
     ):
         raise LoggerMisconfigurationError(
             "The pytorch lightning trainer that was passed to exp_manager contained a logger, "
@@ -858,13 +901,16 @@ def error_checks(trainer: 'lightning.pytorch.Trainer', cfg: Optional[Union[DictC
         )
 
 
-def _filter_out_unfinished_checkpoints(checkpoint_paths: Collection[Union[Path, str]]) -> Collection[Union[Path, str]]:
+def _filter_out_unfinished_checkpoints(
+    checkpoint_paths: Collection[Union[Path, str]]
+) -> Collection[Union[Path, str]]:
     """_filter_out_unfinished_checkpoints"""
     res = []
     for chkpt_path in checkpoint_paths:
         if NeMoModelCheckpoint.is_checkpoint_unfinished(chkpt_path):
             logging.warning(
-                f'Checkpoint {chkpt_path} has the unfinished marker set - skipped while looking ' 'for the last one.'
+                f"Checkpoint {chkpt_path} has the unfinished marker set - skipped while looking "
+                "for the last one."
             )
         else:
             res.append(chkpt_path)
@@ -872,7 +918,7 @@ def _filter_out_unfinished_checkpoints(checkpoint_paths: Collection[Union[Path, 
 
 
 def check_resume(
-    trainer: 'lightning.pytorch.Trainer',
+    trainer: "lightning.pytorch.Trainer",
     log_dir: str,
     resume_if_exists: bool = False,
     resume_past_end: bool = False,
@@ -896,7 +942,9 @@ def check_resume(
     """
 
     if not log_dir:
-        raise ValueError(f"Resuming requires the log_dir {log_dir} to be passed to exp_manager")
+        raise ValueError(
+            f"Resuming requires the log_dir {log_dir} to be passed to exp_manager"
+        )
 
     # is_s3_url from here has no dependency requirements
     from nemo.utils.s3_dirpath_utils import is_s3_url
@@ -906,35 +954,44 @@ def check_resume(
         if dirpath is not None and is_s3_url(dirpath):
             from nemo.utils.s3_utils import S3Utils
     except ImportError as err:
-        return False, "Detected S3 dirpath while missing required dependencies.\n{}\n".format(
-            err.output.decode("utf-8")
+        return (
+            False,
+            "Detected S3 dirpath while missing required dependencies.\n{}\n".format(
+                err.output.decode("utf-8")
+            ),
         )
 
     checkpoint = None
     if resume_from_checkpoint:
         checkpoint = resume_from_checkpoint
     if resume_if_exists:
-        '''
+        """
         attach valid checkpoint path to trainer if current rank is rank zero of any
         data parallel groups this limit to only global rank 0 process calling s3,
         instead of all processes calling s3
-        '''
+        """
 
         # If we are using S3 checkpointing, we want check_resume to only execute on a single rank
         # to avoid throttling S3.
 
-        if is_global_rank_zero() or not (is_s3_url(dirpath) and is_multistorageclient_url(dirpath)):
+        if is_global_rank_zero() or not (
+            is_s3_url(dirpath) and is_multistorageclient_url(dirpath)
+        ):
             checkpoint_dir_exists = False
             if is_s3_url(dirpath):
                 checkpoint_dir = dirpath
-                checkpoint_dir_exists = S3Utils.s3_path_exists(checkpoint_dir, match_directory=True)
+                checkpoint_dir_exists = S3Utils.s3_path_exists(
+                    checkpoint_dir, match_directory=True
+                )
 
                 if checkpoint_dir_exists:
                     # max number of last.ckpt files: save_last_k_checkpoints * tp * pp = 5*8*40.
                     # If optim states is saved distributedly, multiply by dp_size
-                    all_keys = S3Utils.find_files_with_suffix(checkpoint_dir, suffix=None, return_key_only=False)
-                    end_checkpoints = [k for k in all_keys if k.endswith('end.ckpt')]
-                    last_checkpoints = [k for k in all_keys if k.endswith('last.ckpt')]
+                    all_keys = S3Utils.find_files_with_suffix(
+                        checkpoint_dir, suffix=None, return_key_only=False
+                    )
+                    end_checkpoints = [k for k in all_keys if k.endswith("end.ckpt")]
+                    last_checkpoints = [k for k in all_keys if k.endswith("last.ckpt")]
                 else:
                     end_checkpoints = []
                     last_checkpoints = []
@@ -943,24 +1000,36 @@ def check_resume(
                 all_keys = multistorageclient.glob(f"{dirpath}**/*.ckpt")
                 checkpoint_dir_exists = True if all_keys else False
                 if all_keys:
-                    end_checkpoints = sorted([k for k in all_keys if k.endswith('end.ckpt')], reverse=True)
-                    last_checkpoints = sorted([k for k in all_keys if k.endswith('last.ckpt')], reverse=True)
+                    end_checkpoints = sorted(
+                        [k for k in all_keys if k.endswith("end.ckpt")], reverse=True
+                    )
+                    last_checkpoints = sorted(
+                        [k for k in all_keys if k.endswith("last.ckpt")], reverse=True
+                    )
                 else:
                     end_checkpoints = []
                     last_checkpoints = []
             else:  # default non-s3 implementation
                 # Use <log_dir>/checkpoints/ unless `dirpath` is set
-                checkpoint_dir = Path(dirpath) if dirpath else Path(Path(log_dir) / "checkpoints")
+                checkpoint_dir = (
+                    Path(dirpath) if dirpath else Path(Path(log_dir) / "checkpoints")
+                )
                 checkpoint_dir_exists = checkpoint_dir.exists()
 
                 # when using distributed checkpointing, checkpoint_dir is a directory of directories
                 # we check for this here
-                dist_checkpoints = [d for d in list(checkpoint_dir.glob("*")) if d.is_dir()]
+                dist_checkpoints = [
+                    d for d in list(checkpoint_dir.glob("*")) if d.is_dir()
+                ]
                 end_dist_checkpoints = [d for d in dist_checkpoints if d.match("*end")]
-                last_dist_checkpoints = [d for d in dist_checkpoints if d.match("*last")]
+                last_dist_checkpoints = [
+                    d for d in dist_checkpoints if d.match("*last")
+                ]
 
                 end_checkpoints = (
-                    end_dist_checkpoints if end_dist_checkpoints else list(checkpoint_dir.rglob("*end.ckpt"))
+                    end_dist_checkpoints
+                    if end_dist_checkpoints
+                    else list(checkpoint_dir.rglob("*end.ckpt"))
                 )
                 end_chkpt_cnt = len(end_checkpoints)
                 end_checkpoints = _filter_out_unfinished_checkpoints(end_checkpoints)
@@ -973,7 +1042,9 @@ def check_resume(
                     )
 
                 last_checkpoints = (
-                    last_dist_checkpoints if last_dist_checkpoints else list(checkpoint_dir.rglob("*last.ckpt"))
+                    last_dist_checkpoints
+                    if last_dist_checkpoints
+                    else list(checkpoint_dir.rglob("*last.ckpt"))
                 )
                 last_chkpt_cnt = len(last_checkpoints)
                 last_checkpoints = _filter_out_unfinished_checkpoints(last_checkpoints)
@@ -988,7 +1059,9 @@ def check_resume(
                         " resume from."
                     )
 
-            if not checkpoint_dir_exists or (not len(end_checkpoints) > 0 and not len(last_checkpoints) > 0):
+            if not checkpoint_dir_exists or (
+                not len(end_checkpoints) > 0 and not len(last_checkpoints) > 0
+            ):
                 if resume_ignore_no_checkpoint:
                     warn = (
                         f"There were no checkpoints found in checkpoint_dir or no checkpoint "
@@ -1007,27 +1080,37 @@ def check_resume(
             elif len(end_checkpoints) > 0:
                 if resume_past_end:
                     if len(end_checkpoints) > 1:
-                        if 'mp_rank' in str(end_checkpoints[0]):
+                        if "mp_rank" in str(end_checkpoints[0]):
                             checkpoint = end_checkpoints[0]
                         else:
-                            raise ValueError(f"Multiple checkpoints {end_checkpoints} that matches *end.ckpt.")
+                            raise ValueError(
+                                f"Multiple checkpoints {end_checkpoints} that matches *end.ckpt."
+                            )
                 else:
                     raise ValueError(
                         f"Found {end_checkpoints[0]} indicating that the last training run has already completed."
                     )
             elif len(last_checkpoints) > 1:
-                if any([s for s in ['mp_rank', 'tp_rank', 'fsdp_shard'] if s in str(last_checkpoints[0])]):
+                if any(
+                    [
+                        s
+                        for s in ["mp_rank", "tp_rank", "fsdp_shard"]
+                        if s in str(last_checkpoints[0])
+                    ]
+                ):
                     checkpoint = last_checkpoints[0]
                     checkpoint = uninject_model_parallel_rank(checkpoint)
                 else:
-                    raise ValueError(f"Multiple checkpoints {last_checkpoints} that matches *last.ckpt.")
+                    raise ValueError(
+                        f"Multiple checkpoints {last_checkpoints} that matches *last.ckpt."
+                    )
             else:
                 checkpoint = last_checkpoints[0]
 
     # PTL 2.0 supports ckpt_path instead of resume_from_checkpoint as the trainer flag
     if checkpoint is not None:
         trainer.ckpt_path = str(checkpoint)
-        logging.info(f'Resuming training from checkpoint: {trainer.ckpt_path}')
+        logging.info(f"Resuming training from checkpoint: {trainer.ckpt_path}")
 
     if is_global_rank_zero():
         # Check to see if any files exist that need to be moved
@@ -1051,7 +1134,11 @@ def check_resume(
 
 
 def check_explicit_log_dir(
-    trainer: 'lightning.pytorch.Trainer', explicit_log_dir: Union[Path, str], exp_dir: str, name: str, version: str
+    trainer: "lightning.pytorch.Trainer",
+    explicit_log_dir: Union[Path, str],
+    exp_dir: str,
+    name: str,
+    version: str,
 ) -> Tuple[Path, str, str, str]:
     """Checks that the passed arguments are compatible with explicit_log_dir.
 
@@ -1080,12 +1167,14 @@ def check_explicit_log_dir(
             f"or version: {version}. Please note that exp_dir, name, and version will be ignored."
         )
     if is_global_rank_zero() and Path(explicit_log_dir).exists():
-        logging.warning(f"Exp_manager is logging to {explicit_log_dir}, but it already exists.")
+        logging.warning(
+            f"Exp_manager is logging to {explicit_log_dir}, but it already exists."
+        )
     return Path(explicit_log_dir), str(explicit_log_dir), "", ""
 
 
 def get_log_dir(
-    trainer: 'lightning.pytorch.Trainer',
+    trainer: "lightning.pytorch.Trainer",
     exp_dir: str = None,
     name: str = None,
     version: str = None,
@@ -1119,7 +1208,7 @@ def get_log_dir(
     # Default exp_dir to ./nemo_experiments if None was passed
     _exp_dir = exp_dir
     if exp_dir is None:
-        _exp_dir = str(Path.cwd() / 'nemo_experiments')
+        _exp_dir = str(Path.cwd() / "nemo_experiments")
 
     # If the user has already defined a logger for the trainer,
     # use the logger defaults for logging directory
@@ -1154,18 +1243,25 @@ def get_log_dir(
         if not version:
             if resume_if_exists:
                 logging.warning(
-                    "No version folders would be created under the log folder as " "'resume_if_exists' is enabled."
+                    "No version folders would be created under the log folder as "
+                    "'resume_if_exists' is enabled."
                 )
                 version = None
             elif is_global_rank_zero():
                 if use_datetime_version:
-                    version = time.strftime('%Y-%m-%d_%H-%M-%S')
+                    version = time.strftime("%Y-%m-%d_%H-%M-%S")
                 else:
-                    tensorboard_logger = TensorBoardLogger(save_dir=Path(_exp_dir), name=name, version=version)
+                    tensorboard_logger = TensorBoardLogger(
+                        save_dir=Path(_exp_dir), name=name, version=version
+                    )
                     version = f"version_{tensorboard_logger.version}"
-                os.environ[NEMO_ENV_VARNAME_VERSION] = "" if version is None else version
+                os.environ[NEMO_ENV_VARNAME_VERSION] = (
+                    "" if version is None else version
+                )
 
-    log_dir = Path(_exp_dir) / Path(str(name)) / Path("" if version is None else str(version))
+    log_dir = (
+        Path(_exp_dir) / Path(str(name)) / Path("" if version is None else str(version))
+    )
     return log_dir, str(_exp_dir), name, version
 
 
@@ -1180,7 +1276,9 @@ def get_git_hash():
     try:
         return (
             True,
-            subprocess.check_output(['git', 'rev-parse', 'HEAD'], stderr=subprocess.STDOUT).decode(),
+            subprocess.check_output(
+                ["git", "rev-parse", "HEAD"], stderr=subprocess.STDOUT
+            ).decode(),
         )
     except (subprocess.CalledProcessError, FileNotFoundError) as err:
         return False, "{}\n".format(err)
@@ -1195,13 +1293,15 @@ def get_git_diff():
         str: git subprocess output or error message
     """
     try:
-        return subprocess.check_output(['git', 'diff'], stderr=subprocess.STDOUT).decode()
+        return subprocess.check_output(
+            ["git", "diff"], stderr=subprocess.STDOUT
+        ).decode()
     except subprocess.CalledProcessError as err:
         return "{}\n".format(err.output.decode("utf-8"))
 
 
 def configure_loggers(
-    trainer: 'lightning.pytorch.Trainer',
+    trainer: "lightning.pytorch.Trainer",
     exp_dir: [Path, str],
     log_dir: [Path, str],
     name: str,
@@ -1236,7 +1336,9 @@ def configure_loggers(
                 "is handled by lightning's "
                 "TensorBoardLogger logger."
             )
-        tensorboard_logger = TensorBoardLogger(save_dir=exp_dir, name=name, version=version, **summary_writer_kwargs)
+        tensorboard_logger = TensorBoardLogger(
+            save_dir=exp_dir, name=name, version=version, **summary_writer_kwargs
+        )
         logger_list.append(tensorboard_logger)
         logging.info("TensorboardLogger has been set up")
 
@@ -1247,9 +1349,9 @@ def configure_loggers(
             raise ValueError("name and project are required for wandb_logger")
 
         # Update the wandb save_dir
-        if wandb_kwargs.get('save_dir', None) is None:
-            wandb_kwargs['save_dir'] = exp_dir
-        os.makedirs(wandb_kwargs['save_dir'], exist_ok=True)
+        if wandb_kwargs.get("save_dir", None) is None:
+            wandb_kwargs["save_dir"] = exp_dir
+        os.makedirs(wandb_kwargs["save_dir"], exist_ok=True)
         wandb_logger = WandbLogger(version=version, **wandb_kwargs)
 
         logger_list.append(wandb_logger)
@@ -1306,23 +1408,25 @@ class NeMoCheckpointConnector(_CheckpointConnector):
         """resume_start"""
         checkpoint_path = self.trainer.ckpt_path
         if checkpoint_path is not None:
-            logging.info(f'Resuming from checkpoint {checkpoint_path}, rank {torch.distributed.get_rank()}')
+            logging.info(
+                f"Resuming from checkpoint {checkpoint_path}, rank {torch.distributed.get_rank()}"
+            )
         start_time = time.perf_counter()
         super().resume_start(checkpoint_path)
         if checkpoint_path is not None:
             logging.info(
-                'Time elapsed loading checkpoint/optimizer states: '
-                f'{(time.perf_counter() - start_time):.2f} seconds, '
-                f'rank {torch.distributed.get_rank()}'
+                "Time elapsed loading checkpoint/optimizer states: "
+                f"{(time.perf_counter() - start_time):.2f} seconds, "
+                f"rank {torch.distributed.get_rank()}"
             )
 
 
 def configure_checkpointing(
-    trainer: 'lightning.pytorch.Trainer',
+    trainer: "lightning.pytorch.Trainer",
     log_dir: Path,
     name: str,
     resume: bool,
-    params: 'DictConfig',
+    params: "DictConfig",
     create_preemption_callback: bool,
 ):
     """Adds ModelCheckpoint to trainer. Raises CheckpointMisconfigurationError if trainer
@@ -1340,7 +1444,9 @@ def configure_checkpointing(
     # Create the callback and attach it to trainer
     if "filepath" in params:
         if params.filepath is not None:
-            logging.warning("filepath is deprecated. Please switch to dirpath and filename instead")
+            logging.warning(
+                "filepath is deprecated. Please switch to dirpath and filename instead"
+            )
             if params.dirpath is None:
                 params.dirpath = Path(params.filepath).parent
             if params.filename is None:
@@ -1348,17 +1454,26 @@ def configure_checkpointing(
         with open_dict(params):
             del params["filepath"]
     if params.dirpath is None:
-        params.dirpath = Path(log_dir / 'checkpoints')
+        params.dirpath = Path(log_dir / "checkpoints")
     if params.filename is None:
-        params.filename = f'{name}--{{{params.monitor}:.4f}}-{{epoch}}'
+        params.filename = f"{name}--{{{params.monitor}:.4f}}-{{epoch}}"
     if params.prefix is None:
         params.prefix = name
     if params.always_save_nemo:
         app_state = AppState()
         if (
-            (app_state.tensor_model_parallel_size is not None and app_state.tensor_model_parallel_size > 1)
-            or (app_state.pipeline_model_parallel_size is not None and app_state.pipeline_model_parallel_size > 1)
-            or (app_state.context_parallel_size is not None and app_state.context_parallel_size > 1)
+            (
+                app_state.tensor_model_parallel_size is not None
+                and app_state.tensor_model_parallel_size > 1
+            )
+            or (
+                app_state.pipeline_model_parallel_size is not None
+                and app_state.pipeline_model_parallel_size > 1
+            )
+            or (
+                app_state.context_parallel_size is not None
+                and app_state.context_parallel_size > 1
+            )
         ):
             raise LoggerMisconfigurationError(
                 "always_save_nemo is set to True, please ensure that model parallel is not used."
@@ -1367,7 +1482,7 @@ def configure_checkpointing(
                 f"context_parallel_size: {app_state.context_parallel_size},"
             )
 
-    NeMoModelCheckpoint.CHECKPOINT_NAME_LAST = params.filename + '-last'
+    NeMoModelCheckpoint.CHECKPOINT_NAME_LAST = params.filename + "-last"
 
     logging.debug(params.dirpath)
     logging.debug(params.filename)
@@ -1399,8 +1514,13 @@ def configure_checkpointing(
 
     checkpoint_callback = NeMoModelCheckpoint(n_resume=resume, **params)
     checkpoint_callback.last_model_path = trainer.ckpt_path or ""
-    if 'mp_rank' in checkpoint_callback.last_model_path or 'tp_rank' in checkpoint_callback.last_model_path:
-        checkpoint_callback.last_model_path = uninject_model_parallel_rank(checkpoint_callback.last_model_path)
+    if (
+        "mp_rank" in checkpoint_callback.last_model_path
+        or "tp_rank" in checkpoint_callback.last_model_path
+    ):
+        checkpoint_callback.last_model_path = uninject_model_parallel_rank(
+            checkpoint_callback.last_model_path
+        )
     trainer.callbacks.append(checkpoint_callback)
     if create_preemption_callback:
         # Check if cuda is avialable as preemption is supported only on GPUs
@@ -1454,7 +1574,9 @@ class StatelessTimer(Timer):
         """_check_time_remaining"""
         super()._check_time_remaining(trainer)
         if trainer.should_stop:
-            checkpoint_callback: Optional[NeMoModelCheckpoint] = trainer.checkpoint_callback
+            checkpoint_callback: Optional[NeMoModelCheckpoint] = (
+                trainer.checkpoint_callback
+            )
             if checkpoint_callback:
                 monitor_candidates = checkpoint_callback._monitor_candidates(trainer)
                 checkpoint_callback._save_last_checkpoint(trainer, monitor_candidates)
@@ -1465,13 +1587,20 @@ class StatelessTimer(Timer):
             raise _TunerExitException()
 
 
-def configure_no_restart_validation_training_loop(trainer: lightning.pytorch.Trainer) -> None:
+def configure_no_restart_validation_training_loop(
+    trainer: lightning.pytorch.Trainer,
+) -> None:
     """configure_no_restart_validation_training_loop"""
     if type(trainer.fit_loop.epoch_loop) != _TrainingEpochLoop:
-        warnings.warn("Detected custom epoch loop. Skipping no validation on restart support.", UserWarning)
+        warnings.warn(
+            "Detected custom epoch loop. Skipping no validation on restart support.",
+            UserWarning,
+        )
         return
     # Pass trainer object to avoid trainer getting overwritten as None
-    loop = SkipResumeTrainingValidationLoop(trainer, trainer.min_steps, trainer.max_steps)
+    loop = SkipResumeTrainingValidationLoop(
+        trainer, trainer.min_steps, trainer.max_steps
+    )
     trainer.fit_loop.epoch_loop = loop
 
 
@@ -1489,7 +1618,9 @@ class SkipResumeTrainingValidationLoop(_TrainingEpochLoop):
         return super()._should_check_val_fx(data_fetcher)
 
 
-def clean_exp_ckpt(exp_log_dir: Union[str, Path], remove_ckpt: bool = True, remove_nemo: bool = False):
+def clean_exp_ckpt(
+    exp_log_dir: Union[str, Path], remove_ckpt: bool = True, remove_nemo: bool = False
+):
     """
     Helper method that removes Pytorch Lightning .ckpt files or NeMo .nemo files from the
     checkpoint directory
@@ -1517,4 +1648,8 @@ def clean_exp_ckpt(exp_log_dir: Union[str, Path], remove_ckpt: bool = True, remo
 
 
 def is_multistorageclient_url(dirpath):
-    return MUTLISTORAGECLIENT_AVAILABLE and dirpath and dirpath.startswith(MUTLISTORAGECLIENT_PROTOCOL)
+    return (
+        MUTLISTORAGECLIENT_AVAILABLE
+        and dirpath
+        and dirpath.startswith(MUTLISTORAGECLIENT_PROTOCOL)
+    )

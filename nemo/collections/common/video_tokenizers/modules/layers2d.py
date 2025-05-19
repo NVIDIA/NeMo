@@ -40,7 +40,9 @@ from nemo.collections.common.video_tokenizers.modules.utils import (
 class Upsample(nn.Module):
     def __init__(self, in_channels: int):
         super().__init__()
-        self.conv = nn.Conv2d(in_channels, in_channels, kernel_size=3, stride=1, padding=1)
+        self.conv = nn.Conv2d(
+            in_channels, in_channels, kernel_size=3, stride=1, padding=1
+        )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = x.repeat_interleave(2, dim=2).repeat_interleave(2, dim=3)
@@ -50,7 +52,9 @@ class Upsample(nn.Module):
 class Downsample(nn.Module):
     def __init__(self, in_channels: int):
         super().__init__()
-        self.conv = nn.Conv2d(in_channels, in_channels, kernel_size=3, stride=2, padding=0)
+        self.conv = nn.Conv2d(
+            in_channels, in_channels, kernel_size=3, stride=2, padding=0
+        )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         pad = (0, 1, 0, 1)
@@ -72,10 +76,14 @@ class ResnetBlock(nn.Module):
         out_channels = in_channels if out_channels is None else out_channels
 
         self.norm1 = Normalize(in_channels)
-        self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=1, padding=1)
+        self.conv1 = nn.Conv2d(
+            in_channels, out_channels, kernel_size=3, stride=1, padding=1
+        )
         self.norm2 = Normalize(out_channels)
         self.dropout = nn.Dropout(dropout)
-        self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=3, stride=1, padding=1)
+        self.conv2 = nn.Conv2d(
+            out_channels, out_channels, kernel_size=3, stride=1, padding=1
+        )
         self.nin_shortcut = (
             nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=1, padding=0)
             if in_channels != out_channels
@@ -106,7 +114,9 @@ class AttnBlock(nn.Module):
         self.q = nn.Conv2d(in_channels, in_channels, kernel_size=1, stride=1, padding=0)
         self.k = nn.Conv2d(in_channels, in_channels, kernel_size=1, stride=1, padding=0)
         self.v = nn.Conv2d(in_channels, in_channels, kernel_size=1, stride=1, padding=0)
-        self.proj_out = nn.Conv2d(in_channels, in_channels, kernel_size=1, stride=1, padding=0)
+        self.proj_out = nn.Conv2d(
+            in_channels, in_channels, kernel_size=1, stride=1, padding=0
+        )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # TODO (freda): Consider reusing implementations in Attn `imaginaire`,
@@ -158,17 +168,23 @@ class Encoder(nn.Module):
 
         # Patcher.
         patch_size = ignore_kwargs.get("patch_size", 1)
-        self.patcher = Patcher(patch_size, ignore_kwargs.get("patch_method", "rearrange"))
+        self.patcher = Patcher(
+            patch_size, ignore_kwargs.get("patch_method", "rearrange")
+        )
         in_channels = in_channels * patch_size * patch_size
 
         # calculate the number of downsample operations
-        self.num_downsamples = int(math.log2(spatial_compression)) - int(math.log2(patch_size))
+        self.num_downsamples = int(math.log2(spatial_compression)) - int(
+            math.log2(patch_size)
+        )
         assert (
             self.num_downsamples <= self.num_resolutions
         ), f"we can only downsample {self.num_resolutions} times at most"
 
         # downsampling
-        self.conv_in = torch.nn.Conv2d(in_channels, channels, kernel_size=3, stride=1, padding=1)
+        self.conv_in = torch.nn.Conv2d(
+            in_channels, channels, kernel_size=3, stride=1, padding=1
+        )
 
         curr_res = resolution // patch_size
         in_ch_mult = (1,) + tuple(channels_mult)
@@ -200,13 +216,19 @@ class Encoder(nn.Module):
 
         # middle
         self.mid = nn.Module()
-        self.mid.block_1 = ResnetBlock(in_channels=block_in, out_channels=block_in, dropout=dropout)
+        self.mid.block_1 = ResnetBlock(
+            in_channels=block_in, out_channels=block_in, dropout=dropout
+        )
         self.mid.attn_1 = AttnBlock(block_in)
-        self.mid.block_2 = ResnetBlock(in_channels=block_in, out_channels=block_in, dropout=dropout)
+        self.mid.block_2 = ResnetBlock(
+            in_channels=block_in, out_channels=block_in, dropout=dropout
+        )
 
         # end
         self.norm_out = Normalize(block_in)
-        self.conv_out = torch.nn.Conv2d(block_in, z_channels, kernel_size=3, stride=1, padding=1)
+        self.conv_out = torch.nn.Conv2d(
+            block_in, z_channels, kernel_size=3, stride=1, padding=1
+        )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.patcher(x)
@@ -255,25 +277,37 @@ class Decoder(nn.Module):
 
         # UnPatcher.
         patch_size = ignore_kwargs.get("patch_size", 1)
-        self.unpatcher = UnPatcher(patch_size, ignore_kwargs.get("patch_method", "rearrange"))
+        self.unpatcher = UnPatcher(
+            patch_size, ignore_kwargs.get("patch_method", "rearrange")
+        )
         out_ch = out_channels * patch_size * patch_size
 
         # calculate the number of upsample operations
-        self.num_upsamples = int(math.log2(spatial_compression)) - int(math.log2(patch_size))
-        assert self.num_upsamples <= self.num_resolutions, f"we can only upsample {self.num_resolutions} times at most"
+        self.num_upsamples = int(math.log2(spatial_compression)) - int(
+            math.log2(patch_size)
+        )
+        assert (
+            self.num_upsamples <= self.num_resolutions
+        ), f"we can only upsample {self.num_resolutions} times at most"
 
         block_in = channels * channels_mult[self.num_resolutions - 1]
         curr_res = (resolution // patch_size) // 2 ** (self.num_resolutions - 1)
         self.z_shape = (1, z_channels, curr_res, curr_res)
 
         # z to block_in
-        self.conv_in = torch.nn.Conv2d(z_channels, block_in, kernel_size=3, stride=1, padding=1)
+        self.conv_in = torch.nn.Conv2d(
+            z_channels, block_in, kernel_size=3, stride=1, padding=1
+        )
 
         # middle
         self.mid = nn.Module()
-        self.mid.block_1 = ResnetBlock(in_channels=block_in, out_channels=block_in, dropout=dropout)
+        self.mid.block_1 = ResnetBlock(
+            in_channels=block_in, out_channels=block_in, dropout=dropout
+        )
         self.mid.attn_1 = AttnBlock(block_in)
-        self.mid.block_2 = ResnetBlock(in_channels=block_in, out_channels=block_in, dropout=dropout)
+        self.mid.block_2 = ResnetBlock(
+            in_channels=block_in, out_channels=block_in, dropout=dropout
+        )
 
         # upsampling
         self.up = nn.ModuleList()
@@ -302,7 +336,9 @@ class Decoder(nn.Module):
 
         # end
         self.norm_out = Normalize(block_in)
-        self.conv_out = torch.nn.Conv2d(block_in, out_ch, kernel_size=3, stride=1, padding=1)
+        self.conv_out = torch.nn.Conv2d(
+            block_in, out_ch, kernel_size=3, stride=1, padding=1
+        )
 
     def forward(self, z: torch.Tensor) -> torch.Tensor:
         h = self.conv_in(z)

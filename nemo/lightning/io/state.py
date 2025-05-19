@@ -57,7 +57,9 @@ class _ModelState:
         # pylint: disable=C0115,C0116
         for k, v in self._state_dict.items():
             if v.dtype != dtype:
-                logging.warning(f"Converting {k} from {v.dtype} (source model) to {dtype} (target model)")
+                logging.warning(
+                    f"Converting {k} from {v.dtype} (source model) to {dtype} (target model)"
+                )
             self._state_dict[k] = v.to(dtype)
 
 
@@ -168,7 +170,9 @@ def apply_transforms(
                     f"converted source shape {target_param.shape}"
                 )
 
-            _params[name] = nn.Parameter(target_param, requires_grad=param.requires_grad)
+            _params[name] = nn.Parameter(
+                target_param, requires_grad=param.requires_grad
+            )
             target_state.pop(name)
         else:
             print(f"Unexpected key: {name} not in checkpoint but in model.")
@@ -186,7 +190,9 @@ def apply_transforms(
     for name, buffer in _target.named_buffers():
         if name in target_state:
             if buffer.shape != target_state[name].shape:
-                raise ValueError(f"Shape mismatch for buffer {name}: {buffer.shape} vs {target_state[name].shape}")
+                raise ValueError(
+                    f"Shape mismatch for buffer {name}: {buffer.shape} vs {target_state[name].shape}"
+                )
 
             _buffers[name] = nn.Parameter(target_state[name], requires_grad=False)
             target_state.pop(name)
@@ -200,7 +206,12 @@ def apply_transforms(
 
         _module.register_buffer(_key, val)
 
-    keys = list(filter(lambda x: x is not None and not x.endswith("_extra_state"), target_state.keys()))
+    keys = list(
+        filter(
+            lambda x: x is not None and not x.endswith("_extra_state"),
+            target_state.keys(),
+        )
+    )
     keys = [key for key in keys if key not in state_dict_ignored_entries]
     if len(keys) != 0:
         raise RuntimeError(f"Additional keys: {keys} in checkpoint but not in model.")
@@ -284,24 +295,38 @@ class StateDictTransform(Generic[F]):
 
         if isinstance(source_key, (dict, tuple)):
             if isinstance(source_key, tuple):
-                source_key_dict = {param: source_key[i] for i, param in enumerate(fn_params)}
+                source_key_dict = {
+                    param: source_key[i] for i, param in enumerate(fn_params)
+                }
             else:
                 source_key_dict = source_key
-            source_matches_dict = {k: _match_keys(list(source_dict.keys()), v) for k, v in source_key_dict.items()}
+            source_matches_dict = {
+                k: _match_keys(list(source_dict.keys()), v)
+                for k, v in source_key_dict.items()
+            }
             target_matches = _match_keys(list(target_dict.keys()), target_key)
             param_names = list(filter(lambda x: x in source_matches_dict, fn_params))
             source_matches = [
-                source_matches_dict[v] if source_matches_dict[v].ndim > 0 else [source_matches_dict[v].item()]
+                (
+                    source_matches_dict[v]
+                    if source_matches_dict[v].ndim > 0
+                    else [source_matches_dict[v].item()]
+                )
                 for v in param_names
             ]
-            target_matches = [target_matches if target_matches.ndim > 0 else [target_matches.item()]]
+            target_matches = [
+                target_matches if target_matches.ndim > 0 else [target_matches.item()]
+            ]
             for layer_names_group in zip(*(source_matches + target_matches)):
                 # Wrap in a list if it's a single layer (ie non-expert)
                 if isinstance(layer_names_group[0], str):
                     layer_names_group = [[x] for x in layer_names_group]
                 for layer_names in zip(*layer_names_group):
                     target_dict[layer_names[-1]] = self.call_transform(
-                        ctx, **dict(zip(param_names, [source_dict[x] for x in layer_names[:-1]]))
+                        ctx,
+                        **dict(
+                            zip(param_names, [source_dict[x] for x in layer_names[:-1]])
+                        ),
                     )
         else:
             source_keys = list(source_dict.keys())
@@ -317,14 +342,17 @@ class StateDictTransform(Generic[F]):
                     raise ValueError(f"No matches found for target key: {target_key}")
             else:
                 if isinstance(target_key, dict):
-                    raise ValueError("Target key must be a string or a tuple of strings.")
+                    raise ValueError(
+                        "Target key must be a string or a tuple of strings."
+                    )
                 _matches = [_match_keys(target_keys, key) for key in target_key]
                 target_matches = np.stack(_matches, axis=-1)
 
             # Determine if we are dealing with multiple source matches or multiple target matches
             multiple_sources = source_matches.ndim >= target_matches.ndim
             accepts_var_args = any(
-                param.kind == param.VAR_POSITIONAL for param in inspect.signature(self.transform).parameters.values()
+                param.kind == param.VAR_POSITIONAL
+                for param in inspect.signature(self.transform).parameters.values()
             )
 
             if multiple_sources:
@@ -332,21 +360,34 @@ class StateDictTransform(Generic[F]):
                     try:
                         source_match = source_matches[target_index]
                     except IndexError as e:
-                        logging.error(f"Enountered IndexError during transform.\n{source_matches=}\n{target_matches=}")
+                        logging.error(
+                            f"Enountered IndexError during transform.\n{source_matches=}\n{target_matches=}"
+                        )
                         raise e
                     if accepts_var_args:
                         source_values = [source_dict[k] for k in source_match]
-                        target_dict[target_match] = self.call_transform(ctx, *source_values)
+                        target_dict[target_match] = self.call_transform(
+                            ctx, *source_values
+                        )
                     else:
-                        _source_match_list = [source_match] if isinstance(source_match, str) else list(source_match)
+                        _source_match_list = (
+                            [source_match]
+                            if isinstance(source_match, str)
+                            else list(source_match)
+                        )
                         if len(fn_params) != len(_source_match_list):
                             raise ValueError(
                                 f"Mismatch between source and target keys: {source_match} vs {target_match}"
                             )
 
-                        kwargs = {param: source_dict[k] for param, k in zip(fn_params, _source_match_list)}
+                        kwargs = {
+                            param: source_dict[k]
+                            for param, k in zip(fn_params, _source_match_list)
+                        }
                         target_dict[target_match] = self.call_transform(ctx, **kwargs)
-                    logging.debug(f"Matched (multi source)! {target_match=} {source_match=}")
+                    logging.debug(
+                        f"Matched (multi source)! {target_match=} {source_match=}"
+                    )
             else:
                 for source_index, source_match in np.ndenumerate(source_matches):
                     target_match = target_matches[source_index]
@@ -358,7 +399,9 @@ class StateDictTransform(Generic[F]):
                     if accepts_var_args:
                         outputs = self.call_transform(ctx, *source_values)
                     else:
-                        kwargs = {param: val for param, val in zip(fn_params, source_values)}
+                        kwargs = {
+                            param: val for param, val in zip(fn_params, source_values)
+                        }
                         outputs = self.call_transform(ctx, **kwargs)
 
                     if isinstance(target_match, str):
@@ -366,44 +409,48 @@ class StateDictTransform(Generic[F]):
                     else:
                         for i, t in enumerate(outputs):
                             target_dict[target_match[i]] = t
-                    logging.debug(f"Matched (single source)! {target_match=} {source_match=}")
+                    logging.debug(
+                        f"Matched (single source)! {target_match=} {source_match=}"
+                    )
 
         return ctx
 
     def call_transform(self, ctx: TransformCTX, *args, **kwargs):
         """Perform transform and check if the given args valid."""
         func_params = inspect.signature(self.transform).parameters
-        expected_num_args = len([p for p in func_params if p not in ['self', 'ctx']])
+        expected_num_args = len([p for p in func_params if p not in ["self", "ctx"]])
         provided_num_args = len(args) + len(kwargs)
-        accepts_var_args = any(param.kind == param.VAR_POSITIONAL for param in func_params.values())
+        accepts_var_args = any(
+            param.kind == param.VAR_POSITIONAL for param in func_params.values()
+        )
 
         if not accepts_var_args and provided_num_args != expected_num_args:
             raise ValueError(
                 f"Expected {expected_num_args} arguments for the transformation function, but got {provided_num_args}."
             )
 
-        if 'ctx' in func_params:
+        if "ctx" in func_params:
             return self.transform(ctx, *args, **kwargs)
 
         return self.transform(*args, **kwargs)
 
 
 def _match_keys(keys: List[str], pattern: str) -> np.ndarray:
-    escaped_pattern = ''
+    escaped_pattern = ""
     i = 0
     wildcard_positions = []
     while i < len(pattern):
-        if pattern[i : i + 2] == '**':
-            escaped_pattern += r'(.+)'  # Match any characters including dots
-            wildcard_positions.append('**')
+        if pattern[i : i + 2] == "**":
+            escaped_pattern += r"(.+)"  # Match any characters including dots
+            wildcard_positions.append("**")
             i += 2
-        elif pattern[i] == '*':
-            escaped_pattern += r'([^.]+)'  # Match any characters except dots
-            wildcard_positions.append('*')
+        elif pattern[i] == "*":
+            escaped_pattern += r"([^.]+)"  # Match any characters except dots
+            wildcard_positions.append("*")
             i += 1
         else:
-            if pattern[i] == '.':
-                escaped_pattern += r'\.'  # Escape the dot
+            if pattern[i] == ".":
+                escaped_pattern += r"\."  # Escape the dot
             else:
                 escaped_pattern += pattern[i]
             i += 1
@@ -437,8 +484,13 @@ def _match_keys(keys: List[str], pattern: str) -> np.ndarray:
         match = regex_pattern.match(key)
         if match:
             # Convert match groups to indices based on their position in wildcard_matches
-            indices = [wildcard_matches[i].index(group) for i, group in enumerate(match.groups())]
-            output_array[tuple(indices)] = key  # Place the key in the array based on the indices
+            indices = [
+                wildcard_matches[i].index(group)
+                for i, group in enumerate(match.groups())
+            ]
+            output_array[tuple(indices)] = (
+                key  # Place the key in the array based on the indices
+            )
 
     return output_array
 
@@ -452,7 +504,9 @@ def state_transform(
 
 @overload
 def state_transform(
-    source_key: Union[str, Tuple[str, ...], Dict[str, str]], target_key: Union[str, Tuple[str, ...]], fn: F
+    source_key: Union[str, Tuple[str, ...], Dict[str, str]],
+    target_key: Union[str, Tuple[str, ...]],
+    fn: F,
 ) -> StateDictTransform[F]: ...
 
 
@@ -525,12 +579,17 @@ class TransformFns:
         hidden_size = linear_qkv.size(-1)
         q_slice = torch.cat(
             [
-                torch.arange((heads_per_group + 2) * i, (heads_per_group + 2) * i + heads_per_group)
+                torch.arange(
+                    (heads_per_group + 2) * i,
+                    (heads_per_group + 2) * i + heads_per_group,
+                )
                 for i in range(num_query_groups)
             ]
         )
         k_slice = torch.arange(heads_per_group, qkv_total_dim, (heads_per_group + 2))
-        v_slice = torch.arange(heads_per_group + 1, qkv_total_dim, (heads_per_group + 2))
+        v_slice = torch.arange(
+            heads_per_group + 1, qkv_total_dim, (heads_per_group + 2)
+        )
 
         q_proj = linear_qkv[q_slice].reshape(-1, hidden_size).cpu()
         k_proj = linear_qkv[k_slice].reshape(-1, hidden_size).cpu()
@@ -556,12 +615,17 @@ class TransformFns:
         qkv_bias = qkv_bias.reshape([qkv_total_dim, head_size])
         q_slice = torch.cat(
             [
-                torch.arange((heads_per_group + 2) * i, (heads_per_group + 2) * i + heads_per_group)
+                torch.arange(
+                    (heads_per_group + 2) * i,
+                    (heads_per_group + 2) * i + heads_per_group,
+                )
                 for i in range(num_query_groups)
             ]
         )
         k_slice = torch.arange(heads_per_group, qkv_total_dim, (heads_per_group + 2))
-        v_slice = torch.arange(heads_per_group + 1, qkv_total_dim, (heads_per_group + 2))
+        v_slice = torch.arange(
+            heads_per_group + 1, qkv_total_dim, (heads_per_group + 2)
+        )
 
         q_bias = qkv_bias[q_slice].reshape(-1).cpu()
         k_bias = qkv_bias[k_slice].reshape(-1).cpu()
@@ -593,21 +657,29 @@ class TransformFns:
 
         qkv_weights_l = []
         for i in range(num_query_groups):
-            qkv_weights_l.append(q[i * heads_per_group : (i + 1) * heads_per_group, :, :])
+            qkv_weights_l.append(
+                q[i * heads_per_group : (i + 1) * heads_per_group, :, :]
+            )
             qkv_weights_l.append(k[i : i + 1, :, :])
             qkv_weights_l.append(v[i : i + 1, :, :])
         qkv_weights = torch.cat(qkv_weights_l)
         assert qkv_weights.ndim == 3, qkv_weights.shape
-        assert qkv_weights.shape[0] == (heads_per_group + 2) * num_query_groups, qkv_weights.shape
+        assert (
+            qkv_weights.shape[0] == (heads_per_group + 2) * num_query_groups
+        ), qkv_weights.shape
         assert qkv_weights.shape[1] == head_size, qkv_weights.shape
         assert qkv_weights.shape[2] == old_tensor_shape[1], qkv_weights.shape
 
-        qkv_weights = qkv_weights.reshape([head_size * (head_num + 2 * num_query_groups), hidden_size])
+        qkv_weights = qkv_weights.reshape(
+            [head_size * (head_num + 2 * num_query_groups), hidden_size]
+        )
 
         return qkv_weights
 
     @staticmethod
-    def merge_qkv_bias(ctx: TransformCTX, qb: torch.Tensor, kb: torch.Tensor, vb: torch.Tensor):
+    def merge_qkv_bias(
+        ctx: TransformCTX, qb: torch.Tensor, kb: torch.Tensor, vb: torch.Tensor
+    ):
         """
         Merge q, k, v bias to interleave-concatenated qkv bias.
 
@@ -629,7 +701,9 @@ class TransformFns:
 
         qkv_bias = torch.empty((0, head_size)).type_as(qb)
         for i in range(num_query_groups):
-            qkv_bias = torch.cat((qkv_bias, qb[i * heads_per_group : (i + 1) * heads_per_group, :]))
+            qkv_bias = torch.cat(
+                (qkv_bias, qb[i * heads_per_group : (i + 1) * heads_per_group, :])
+            )
             qkv_bias = torch.cat((qkv_bias, kb[i : i + 1, :]))
             qkv_bias = torch.cat((qkv_bias, vb[i : i + 1, :]))
         qkv_bias = qkv_bias.reshape(

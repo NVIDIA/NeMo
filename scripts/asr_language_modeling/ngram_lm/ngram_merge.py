@@ -60,7 +60,15 @@ class NgramMerge:
     def __init__(self, ngram_bin_path):
         self.ngram_bin_path = ngram_bin_path
 
-    def ngrammerge(self, arpa_a: str, alpha: float, arpa_b: str, beta: float, arpa_c: str, force: bool) -> str:
+    def ngrammerge(
+        self,
+        arpa_a: str,
+        alpha: float,
+        arpa_b: str,
+        beta: float,
+        arpa_c: str,
+        force: bool,
+    ) -> str:
         """
         Merge two ARPA n-gram language models using the ngrammerge command-line tool and output the result in ARPA format.
 
@@ -136,7 +144,13 @@ class NgramMerge:
             )
 
     def merge(
-        self, arpa_a: str, alpha: float, arpa_b: str, beta: float, out_path: str, force: bool
+        self,
+        arpa_a: str,
+        alpha: float,
+        arpa_b: str,
+        beta: float,
+        out_path: str,
+        force: bool,
     ) -> Tuple[str, str]:
         """
         Merges two ARPA language models using the ngrammerge tool.
@@ -187,7 +201,9 @@ class NgramMerge:
             ngram_mod,
             test_far,
         ]
-        ps = subprocess.Popen(sh_args, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        ps = subprocess.Popen(
+            sh_args, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        )
         stdout, stderr = ps.communicate()
         exit_code = ps.wait()
         command = " ".join(sh_args)
@@ -231,7 +247,14 @@ class NgramMerge:
                 stderr=sys.stderr,
             )
 
-    def test_perplexity(self, mod_c: str, symbols: str, test_txt: str, nemo_model_file: str, tmp_path: str) -> str:
+    def test_perplexity(
+        self,
+        mod_c: str,
+        symbols: str,
+        test_txt: str,
+        nemo_model_file: str,
+        tmp_path: str,
+    ) -> str:
         """
         Tests the perplexity of a given ngram model on a test file.
 
@@ -256,7 +279,9 @@ class NgramMerge:
         return res_p
 
 
-def farcompile(symbols: str, text_file: str, tmp_path: str, nemo_model_file: str) -> str:
+def farcompile(
+    symbols: str, text_file: str, tmp_path: str, nemo_model_file: str
+) -> str:
     """
     Compiles a text file into a FAR file using the given symbol table or tokenizer.
 
@@ -285,7 +310,9 @@ def farcompile(symbols: str, text_file: str, tmp_path: str, nemo_model_file: str
         test_far,
     ]
 
-    tokenizer, encoding_level, is_aggregate_tokenizer, _ = kenlm_utils.setup_tokenizer(nemo_model_file)
+    tokenizer, encoding_level, is_aggregate_tokenizer, _ = kenlm_utils.setup_tokenizer(
+        nemo_model_file
+    )
 
     ps = subprocess.Popen(
         " ".join(sh_args),
@@ -308,7 +335,9 @@ def farcompile(symbols: str, text_file: str, tmp_path: str, nemo_model_file: str
     exit_code = ps.returncode
 
     command = " ".join(sh_args)
-    assert exit_code == 0, f"Exit_code must be 0.\n bash command: {command} \n stdout: {stdout} \n stderr: {stderr}"
+    assert (
+        exit_code == 0
+    ), f"Exit_code must be 0.\n bash command: {command} \n stdout: {stdout} \n stderr: {stderr}"
     return test_far
 
 
@@ -330,7 +359,13 @@ def make_kenlm(kenlm_bin_path: str, ngram_arpa: str, force: bool):
         logging.info("File " + ngram_kenlm + " exists. Skipping.")
         return None
     else:
-        sh_args = [os.path.join(kenlm_bin_path, "build_binary"), "trie", "-i", ngram_arpa, ngram_kenlm]
+        sh_args = [
+            os.path.join(kenlm_bin_path, "build_binary"),
+            "trie",
+            "-i",
+            ngram_arpa,
+            ngram_kenlm,
+        ]
         return subprocess.run(
             sh_args,
             capture_output=False,
@@ -360,13 +395,17 @@ def make_symbol_list(nemo_model_file, symbols, force):
     if os.path.isfile(symbols) and not force:
         logging.info("File " + symbols + " exists. Skipping.")
     else:
-        if nemo_model_file.endswith('.nemo'):
-            asr_model = nemo_asr.models.ASRModel.restore_from(nemo_model_file, map_location=torch.device('cpu'))
+        if nemo_model_file.endswith(".nemo"):
+            asr_model = nemo_asr.models.ASRModel.restore_from(
+                nemo_model_file, map_location=torch.device("cpu")
+            )
         else:
             logging.warning(
                 "nemo_model_file does not end with .nemo, therefore trying to load a pretrained model with this name."
             )
-            asr_model = nemo_asr.models.ASRModel.from_pretrained(nemo_model_file, map_location=torch.device('cpu'))
+            asr_model = nemo_asr.models.ASRModel.from_pretrained(
+                nemo_model_file, map_location=torch.device("cpu")
+            )
 
         if isinstance(asr_model.decoder, RNNTDecoder):
             vocab_size = asr_model.decoder.blank_idx
@@ -416,10 +455,14 @@ def main(
 
     if test_file and nemo_model_file:
         if not symbols:
-            symbols = os.path.join(out_path, os.path.split(nemo_model_file)[1] + ".syms")
+            symbols = os.path.join(
+                out_path, os.path.split(nemo_model_file)[1] + ".syms"
+            )
             make_symbol_list(nemo_model_file, symbols, force)
         for test_f in test_file.split(","):
-            test_p = nm.test_perplexity(mod_c, symbols, test_f, nemo_model_file, out_path)
+            test_p = nm.test_perplexity(
+                mod_c, symbols, test_f, nemo_model_file, out_path
+            )
             logging.info("Perplexity summary " + test_f + " : " + test_p)
 
     logging.info("Making ARPA and Kenlm model " + arpa_c)
@@ -479,7 +522,12 @@ def _parse_args():
         default=None,
         help="The path to '.nemo' file of the ASR model, or name of a pretrained NeMo model",
     )
-    parser.add_argument("--force", "-f", action="store_true", help="Whether to recompile and rewrite all files")
+    parser.add_argument(
+        "--force",
+        "-f",
+        action="store_true",
+        help="Whether to recompile and rewrite all files",
+    )
     return parser.parse_args()
 
 

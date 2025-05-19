@@ -60,7 +60,9 @@ def get_gpt_layer_modelopt_spec(num_experts: Optional[int] = None) -> ModuleSpec
     if not HAVE_MEGATRON_CORE:
         raise IMPORT_ERROR
 
-    mlp = _get_mlp_module_spec(use_te=False, num_experts=num_experts, moe_grouped_gemm=False)
+    mlp = _get_mlp_module_spec(
+        use_te=False, num_experts=num_experts, moe_grouped_gemm=False
+    )
 
     return ModuleSpec(
         module=TransformerLayer,
@@ -83,8 +85,12 @@ def get_gpt_layer_modelopt_spec(num_experts: Optional[int] = None) -> ModuleSpec
             mlp_bda=get_bias_dropout_add,
             # Map TE-layernorm-fusion keys back
             sharded_state_dict_keys_map={
-                'input_layernorm.': 'self_attention.linear_qkv.layer_norm_',
-                **({'pre_mlp_layernorm.': 'mlp.linear_fc1.layer_norm_'} if num_experts is None else {}),
+                "input_layernorm.": "self_attention.linear_qkv.layer_norm_",
+                **(
+                    {"pre_mlp_layernorm.": "mlp.linear_fc1.layer_norm_"}
+                    if num_experts is None
+                    else {}
+                ),
             },
         ),
     )

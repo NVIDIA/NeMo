@@ -25,7 +25,10 @@ from megatron.core.transformer.spec_utils import import_module
 try:
     import megatron.training
 except ImportError:
-    pytest.skip("Skipping test because 'megatron.training' is not available.", allow_module_level=True)
+    pytest.skip(
+        "Skipping test because 'megatron.training' is not available.",
+        allow_module_level=True,
+    )
 
 
 from megatron.training import get_args, get_model, print_rank_0
@@ -58,13 +61,18 @@ torchrun --nproc-per-node 1 /opt/NeMo/tests/collections/llm/gpt/model/test_nm5_n
 
 
 def add_test_args(parser):
-    group = parser.add_argument_group(title='more test args')
-    group.add_argument("--nemo-model-path", type=str, required=True, help='Path to the NeMo2 checkpoint.')
+    group = parser.add_argument_group(title="more test args")
+    group.add_argument(
+        "--nemo-model-path",
+        type=str,
+        required=True,
+        help="Path to the NeMo2 checkpoint.",
+    )
     group.add_argument(
         "--sequence-length",
         type=int,
         default=512,
-        help='Maximum sequence length for the model input.',
+        help="Maximum sequence length for the model input.",
     )
 
     return parser
@@ -83,7 +91,7 @@ def megatron_model_provider(pre_process=True, post_process=True) -> MambaModel:
     """
     args = get_args()
 
-    print_rank_0('building Mamba model ...')
+    print_rank_0("building Mamba model ...")
     config = core_transformer_config_from_args(get_args())
 
     assert args.use_legacy_models == False, "Mamba only supported in Mcore!"
@@ -119,8 +127,8 @@ if __name__ == "__main__":
     initialize_megatron(
         extra_args_provider=add_test_args,
         args_defaults={
-            'no_load_rng': True,
-            'no_load_optim': True,
+            "no_load_rng": True,
+            "no_load_optim": True,
         },
     )
 
@@ -129,8 +137,12 @@ if __name__ == "__main__":
 
     ##########
     data = [random.randint(0, 100000) for _ in range(args.sequence_length)]
-    input_ids = torch.tensor(data, dtype=torch.int64).repeat((args.micro_batch_size, 1)).cuda()
-    position_ids = torch.tensor(data, dtype=torch.int64).repeat((args.micro_batch_size, 1)).cuda()
+    input_ids = (
+        torch.tensor(data, dtype=torch.int64).repeat((args.micro_batch_size, 1)).cuda()
+    )
+    position_ids = (
+        torch.tensor(data, dtype=torch.int64).repeat((args.micro_batch_size, 1)).cuda()
+    )
     attention_mask = None
     ##########
 
@@ -176,9 +188,13 @@ if __name__ == "__main__":
     nemo_model: nl.io.TrainerContext = nl.io.load_context(
         path=ckpt_to_context_subdir(args.nemo_model_path), subpath="model"
     )
-    _setup_trainer_and_restore_model(path=args.nemo_model_path, trainer=trainer, model=nemo_model)
+    _setup_trainer_and_restore_model(
+        path=args.nemo_model_path, trainer=trainer, model=nemo_model
+    )
     nemo_model.eval()
-    nemo_out = nemo_model.forward(input_ids=input_ids, position_ids=position_ids, attention_mask=attention_mask)
+    nemo_out = nemo_model.forward(
+        input_ids=input_ids, position_ids=position_ids, attention_mask=attention_mask
+    )
 
     assert (
         abs(megatron_out - nemo_out).sum().item() == 0

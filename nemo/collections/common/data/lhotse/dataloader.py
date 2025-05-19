@@ -65,7 +65,9 @@ class LhotseDataLoadingConfig:
     shar_path: Any = None  # str | list[str | tuple[str, float | int]] | None = None
     #  Enable this to support dataloading from JSON manifests that reference subsets of audio tar files.
     skip_missing_manifest_entries: bool = False
-    tarred_random_access: bool = False  # deprecated, replaced by: skip_missing_manifest_entries
+    tarred_random_access: bool = (
+        False  # deprecated, replaced by: skip_missing_manifest_entries
+    )
     # 2. Batch size.
     #   a. Existing NeMo options.
     batch_size: int | None = None
@@ -80,7 +82,9 @@ class LhotseDataLoadingConfig:
     bucket_duration_bins: Any = None  # list[float] | list[list[float]] | None = None
     bucket_buffer_size: int = 10000
     concurrent_bucketing: bool = True  # fetches data in a background thread
-    bucketing_2d_strict_mode: bool = True  # reduces padding by discarding significant outliers
+    bucketing_2d_strict_mode: bool = (
+        True  # reduces padding by discarding significant outliers
+    )
     #   d. Other Lhotse sampling options.
     shuffle_buffer_size: int | None = 10000
     drop_last: bool = False
@@ -92,11 +96,15 @@ class LhotseDataLoadingConfig:
     #    create a separate sampler for each, and fuse the samplers according to sampler_fusion.
     multi_config: bool = False
     sampler_fusion: str = "round_robin"  # round_robin | randomized_round_robin | zip
-    sampler_weights: dict[str, float] | None = None  # only applicable to randomized_round_robin
+    sampler_weights: dict[str, float] | None = (
+        None  # only applicable to randomized_round_robin
+    )
 
     # 2.1 Multimodal sampling override options
     pretokenize: bool = True  # should we apply tokenizer before data sampling
-    prompt_format: str | None = None  # when provided, we'll apply the prompt in addition to the tokenizer
+    prompt_format: str | None = (
+        None  # when provided, we'll apply the prompt in addition to the tokenizer
+    )
     use_multimodal_sampling: bool = False
     token_equivalent_duration: float | None = None
     batch_tokens: int | None = None
@@ -144,7 +152,9 @@ class LhotseDataLoadingConfig:
     #   d. On-the-fly cut truncation or window slicing
     #       I) truncate: select one chunk of a fixed duration for each cut
     truncate_duration: Optional[float] = None  # set this to enable
-    truncate_offset_type: str = "random"  # "random" | "start" (fixed) | "end" (fixed, counted back)
+    truncate_offset_type: str = (
+        "random"  # "random" | "start" (fixed) | "end" (fixed, counted back)
+    )
     #       II) cut_into_windows: convert each cut to smaller cut using a sliding window
     #           (define hop for overlapping windows)
     cut_into_windows_duration: Optional[float] = None  # set this to enable
@@ -191,12 +201,16 @@ class LhotseDataLoadingConfig:
     force_iterable_dataset: bool = False
 
 
-def determine_use_iterable_dataset(use_iterable_dataset: bool, config: DictConfig) -> bool:
+def determine_use_iterable_dataset(
+    use_iterable_dataset: bool, config: DictConfig
+) -> bool:
     """Determine whether to use iterable dataset for a given configuration."""
     assert not (
         config.force_map_dataset and config.force_iterable_dataset
     ), "Conflicting options: force_map_dataset=True and force_iterable_dataset=True"
-    use_iterable_dataset = (use_iterable_dataset or config.force_iterable_dataset) and not config.force_map_dataset
+    use_iterable_dataset = (
+        use_iterable_dataset or config.force_iterable_dataset
+    ) and not config.force_map_dataset
     return use_iterable_dataset
 
 
@@ -230,7 +244,9 @@ def get_lhotse_dataloader_from_config(
         config = OmegaConf.create(config)
 
     # Providing default value because we haven't filled the config defaults yet.
-    maybe_set_cuda_expandable_segments(enabled=config.get("cuda_expandable_segments", True))
+    maybe_set_cuda_expandable_segments(
+        enabled=config.get("cuda_expandable_segments", True)
+    )
 
     if config.get("multi_config", False):
         return get_lhotse_dataloader_from_multi_config(
@@ -242,7 +258,11 @@ def get_lhotse_dataloader_from_config(
         )
     else:
         return get_lhotse_dataloader_from_single_config(
-            config=config, global_rank=global_rank, world_size=world_size, dataset=dataset, tokenizer=tokenizer
+            config=config,
+            global_rank=global_rank,
+            world_size=world_size,
+            dataset=dataset,
+            tokenizer=tokenizer,
         )
 
 
@@ -282,7 +302,10 @@ def get_lhotse_dataloader_from_single_config(
     fix_random_seed(config.seed)
 
     sampler, use_iterable_dataset = get_lhotse_sampler_from_config(
-        config=config, global_rank=global_rank, world_size=world_size, tokenizer=tokenizer
+        config=config,
+        global_rank=global_rank,
+        world_size=world_size,
+        tokenizer=tokenizer,
     )
 
     # 4. Creating dataloader.
@@ -296,8 +319,11 @@ def get_lhotse_dataloader_from_single_config(
         # This together with infinite datasets removes the need to split data across nodes/workers.
         dloader_kwargs = dict(
             dataset=IterableDatasetWrapper(dataset=dataset, sampler=sampler),
-            worker_init_fn=make_worker_init_fn(rank=global_rank, world_size=world_size, seed=config.seed),
-            persistent_workers=config.num_workers > 0,  # helps Lhotse Shar maintain shuffling state
+            worker_init_fn=make_worker_init_fn(
+                rank=global_rank, world_size=world_size, seed=config.seed
+            ),
+            persistent_workers=config.num_workers
+            > 0,  # helps Lhotse Shar maintain shuffling state
         )
     else:
         # For non-tarred data, the sampler resides in the training loop process and
@@ -358,7 +384,9 @@ def get_lhotse_dataloader_from_multi_config(
         ]
         defaults = OmegaConf.structured(LhotseDataLoadingConfig)
         top_level_config["seed"] = resolve_seed(top_level_config["seed"])
-        return OmegaConf.create({k: top_level_config.get(k, defaults[k]) for k in overwriting_opts})
+        return OmegaConf.create(
+            {k: top_level_config.get(k, defaults[k]) for k in overwriting_opts}
+        )
 
     shared_opts = gather_shared_opts()
     fix_random_seed(shared_opts.seed)
@@ -366,7 +394,8 @@ def get_lhotse_dataloader_from_multi_config(
     configs = {
         name: c
         for name, c in top_level_config.items()
-        if isinstance(c, DictConfig) and name not in ("sampler_weights",)  # exclude dict opts
+        if isinstance(c, DictConfig)
+        and name not in ("sampler_weights",)  # exclude dict opts
     }
 
     source_samplers, source_use_iterable_dataset = {}, []
@@ -376,7 +405,10 @@ def get_lhotse_dataloader_from_multi_config(
             for k, v in shared_opts.items():
                 expanded_config[k] = v
             s, t = get_lhotse_sampler_from_config(
-                config=expanded_config, global_rank=global_rank, world_size=world_size, tokenizer=tokenizer
+                config=expanded_config,
+                global_rank=global_rank,
+                world_size=world_size,
+                tokenizer=tokenizer,
             )
         except IncompleteConfigError as e:
             raise IncompleteConfigError(
@@ -386,7 +418,9 @@ def get_lhotse_dataloader_from_multi_config(
         source_samplers[name] = s
         source_use_iterable_dataset.append(t)
 
-    assert all(st == source_use_iterable_dataset[0] for st in source_use_iterable_dataset[1:]), (
+    assert all(
+        st == source_use_iterable_dataset[0] for st in source_use_iterable_dataset[1:]
+    ), (
         "When using multiple input_cfg sources ensure they are all tarred or non-tarred (can't mix). "
         "You can provide force_iterable_dataset=True to each namespace to fix."
     )
@@ -407,7 +441,9 @@ def get_lhotse_dataloader_from_multi_config(
             seed=shared_opts.seed,
         )
     else:
-        raise RuntimeError(f"Unsupported sampler fusion strategy: {shared_opts.sampler_fusion}")
+        raise RuntimeError(
+            f"Unsupported sampler fusion strategy: {shared_opts.sampler_fusion}"
+        )
 
     # 4. Creating dataloader.
     if use_iterable_dataset:
@@ -420,8 +456,11 @@ def get_lhotse_dataloader_from_multi_config(
         # This together with infinite datasets removes the need to split data across nodes/workers.
         dloader_kwargs = dict(
             dataset=IterableDatasetWrapper(dataset=dataset, sampler=sampler),
-            worker_init_fn=make_worker_init_fn(rank=global_rank, world_size=world_size, seed=shared_opts.seed),
-            persistent_workers=shared_opts.num_workers > 0,  # helps Lhotse Shar maintain shuffling state
+            worker_init_fn=make_worker_init_fn(
+                rank=global_rank, world_size=world_size, seed=shared_opts.seed
+            ),
+            persistent_workers=shared_opts.num_workers
+            > 0,  # helps Lhotse Shar maintain shuffling state
         )
     else:
         # For non-tarred data, the sampler resides in the training loop process and
@@ -438,7 +477,9 @@ def get_lhotse_dataloader_from_multi_config(
     return dloader
 
 
-def get_lhotse_sampler_from_config(config, global_rank, world_size, tokenizer=None) -> tuple[CutSampler, bool]:
+def get_lhotse_sampler_from_config(
+    config, global_rank, world_size, tokenizer=None
+) -> tuple[CutSampler, bool]:
     """Create a CutSampler from a dataloader config."""
     # 1. Load a manifest as a Lhotse CutSet.
     cuts, use_iterable_dataset = read_cutset_from_config(config)
@@ -446,8 +487,10 @@ def get_lhotse_sampler_from_config(config, global_rank, world_size, tokenizer=No
 
     # Apply channel selector
     if config.channel_selector is not None:
-        logging.info('Using channel selector %s.', config.channel_selector)
-        cuts = cuts.map(partial(_select_channel, channel_selector=config.channel_selector))
+        logging.info("Using channel selector %s.", config.channel_selector)
+        cuts = cuts.map(
+            partial(_select_channel, channel_selector=config.channel_selector)
+        )
 
     # Resample as a safeguard; it's a no-op when SR is already OK
     cuts = cuts.resample(config.sample_rate)
@@ -473,7 +516,12 @@ def get_lhotse_sampler_from_config(config, global_rank, world_size, tokenizer=No
 
         if config.prompt_format is not None:
             cuts = cuts.map(
-                partial(tokenize_with_prompt, tokenizer=tokenizer, prompt_format=config.prompt_format), apply_fn=None
+                partial(
+                    tokenize_with_prompt,
+                    tokenizer=tokenizer,
+                    prompt_format=config.prompt_format,
+                ),
+                apply_fn=None,
             )
         else:
             if not isinstance(tokenizer, TokenizerWrapper):
@@ -518,13 +566,21 @@ def get_lhotse_sampler_from_config(config, global_rank, world_size, tokenizer=No
         )
 
     if config.pad_min_duration is not None:
-        cuts = cuts.pad(duration=config.pad_min_duration, direction=config.pad_direction, preserve_id=True)
+        cuts = cuts.pad(
+            duration=config.pad_min_duration,
+            direction=config.pad_direction,
+            preserve_id=True,
+        )
 
     # Duration filtering, same as native NeMo dataloaders.
     # We can filter after the augmentations because they are applied only when calling load_audio().
     cuts = cuts.filter(DurationFilter(config.min_duration, config.max_duration))
     cuts = cuts.filter(
-        TokenCountFilter(config.min_tokens, config.max_tokens, measure_total_length=config.measure_total_length)
+        TokenCountFilter(
+            config.min_tokens,
+            config.max_tokens,
+            measure_total_length=config.measure_total_length,
+        )
     )
 
     if tokenizer is not None and config.pretokenize:
@@ -603,7 +659,11 @@ def get_lhotse_sampler_from_config(config, global_rank, world_size, tokenizer=No
     if config.rir_enabled:
         sampler = sampler.map(
             ReverbWithImpulseResponse(
-                rir_recordings=RecordingSet.from_file(config.rir_path) if config.rir_path is not None else None,
+                rir_recordings=(
+                    RecordingSet.from_file(config.rir_path)
+                    if config.rir_path is not None
+                    else None
+                ),
                 p=config.rir_prob,
                 randgen=random.Random(config.seed),
             )
@@ -612,7 +672,9 @@ def get_lhotse_sampler_from_config(config, global_rank, world_size, tokenizer=No
     return sampler, use_iterable_dataset
 
 
-def determine_sampling_constraint(cuts: CutSet, bucket_duration_bins, config) -> tuple[CutSet, SamplingConstraint]:
+def determine_sampling_constraint(
+    cuts: CutSet, bucket_duration_bins, config
+) -> tuple[CutSet, SamplingConstraint]:
     """
     Select an appropriate sampling strategy (constraint) for Lhotse samplers based on the configuration.
     Sampling constraint affects the batch size (static/dynamic) and bucketing behaviour (1D/2D).
@@ -634,7 +696,9 @@ def determine_sampling_constraint(cuts: CutSet, bucket_duration_bins, config) ->
                 batch_sizes=config.bucket_batch_size,
                 token_equivalent_duration=config.token_equivalent_duration,
                 strict_2d=config.bucketing_2d_strict_mode,
-                max_ratio=config.max_tpt if isinstance(config.max_tpt, Sequence) else None,
+                max_ratio=(
+                    config.max_tpt if isinstance(config.max_tpt, Sequence) else None
+                ),
             )
             cuts = cuts.filter(BucketingFilter(constraint))
         else:
@@ -653,7 +717,9 @@ def determine_sampling_constraint(cuts: CutSet, bucket_duration_bins, config) ->
                 max_seq_len_buckets=bucket_duration_bins,
                 batch_sizes=config.bucket_batch_size,
                 strict_2d=config.bucketing_2d_strict_mode,
-                max_ratio=config.max_tps if isinstance(config.max_tps, Sequence) else None,
+                max_ratio=(
+                    config.max_tps if isinstance(config.max_tps, Sequence) else None
+                ),
             )
             cuts = cuts.filter(BucketingFilter(constraint))
         else:
@@ -690,7 +756,11 @@ def determine_bucket_duration_bins(config):
     elif config.max_duration is not None and config.max_duration < float("inf"):
         # If max duration is provided, we can use that to compute uniformly distant bucket bins.
         # This is not optimal but should be close enough for users who didn't want to estimate these up-front.
-        begin = config.min_duration if config.min_duration is not None and config.min_duration > 0 else 0.0
+        begin = (
+            config.min_duration
+            if config.min_duration is not None and config.min_duration > 0
+            else 0.0
+        )
         end = config.max_duration
         return np.linspace(begin, end, config.num_buckets + 1)[1:-1].tolist()
     else:
@@ -778,16 +848,28 @@ def _merge_supervisions(cuts: CutSet) -> CutSet:
 
 def _flatten_alt_text(cut) -> list:
     ans = [cut]
-    if not isinstance(cut, Cut) or cut.custom is None or cut.custom.get("alt_text") is None:
+    if (
+        not isinstance(cut, Cut)
+        or cut.custom is None
+        or cut.custom.get("alt_text") is None
+    ):
         return ans
-    cut = cut.move_to_memory(audio_format="wav")  # performs I/O once and holds audio in memory from now on
+    cut = cut.move_to_memory(
+        audio_format="wav"
+    )  # performs I/O once and holds audio in memory from now on
     # Popping to ease eyesight on debug.
     paired_text = cut.custom.pop("alt_text")
     for data in paired_text.values():
         # Copy to avoid lazy dataloading issues
         data = data.copy()
-        text_instance = cut.map_supervisions(lambda s: fastcopy(s, text=data["text"], language=data["lang"]))
-        text_instance.custom = {"text": data.pop("text"), "lang": data.pop("lang"), **data}
+        text_instance = cut.map_supervisions(
+            lambda s: fastcopy(s, text=data["text"], language=data["lang"])
+        )
+        text_instance.custom = {
+            "text": data.pop("text"),
+            "lang": data.pop("lang"),
+            **data,
+        }
         ans.append(text_instance)
     return ans
 
@@ -830,7 +912,9 @@ def _select_channel(cut, channel_selector: int | str) -> list:
         if channel_selector in cut.custom:
             channel_idx = cut.custom[channel_selector]
         else:
-            raise ValueError(f"Channel selector {channel_selector} not found in cut.custom")
+            raise ValueError(
+                f"Channel selector {channel_selector} not found in cut.custom"
+            )
 
     if channel_idx >= cut.num_channels:
         raise ValueError(

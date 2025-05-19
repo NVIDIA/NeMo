@@ -54,11 +54,11 @@ def parse_args():
     )
     parser.add_argument(
         "input",
-        help='Data input. Options: '
+        help="Data input. Options: "
         '1) "path.json" - any single NeMo manifest; '
         '2) "[[path1.json],[path2.json],...]" - any collection of NeMo manifests; '
         '3) "[[path1.json,weight1],[path2.json,weight2],...]" - any collection of weighted NeMo manifests; '
-        '4) "input_cfg.yaml" - a new option supporting input configs, same as in model training \'input_cfg\' arg; '
+        "4) \"input_cfg.yaml\" - a new option supporting input configs, same as in model training 'input_cfg' arg; "
         '5) "path/to/shar_data" - a path to Lhotse Shar data directory; '
         '6) "key=val" - in case none of the previous variants cover your case: "key" is the key you\'d use in NeMo training config with its corresponding value ',
     )
@@ -70,7 +70,10 @@ def parse_args():
         help="Path to one or more SPE tokenizers. More than one means we'll use AggregateTokenizer and --langs argument must also be used. When provided, we'll estimate a 2D distribution for input and output sequence lengths.",
     )
     parser.add_argument(
-        "-a", "--langs", nargs="+", help="Language names for each of AggregateTokenizer sub-tokenizers."
+        "-a",
+        "--langs",
+        nargs="+",
+        help="Language names for each of AggregateTokenizer sub-tokenizers.",
     )
     parser.add_argument(
         "-b",
@@ -86,8 +89,16 @@ def parse_args():
         default=2,
         help="The desired number of sub-buckets (dim1 => covers output sequence length / num_tokens).",
     )
-    parser.add_argument("--text-field", default="text", help="The key in manifests to read transcripts from.")
-    parser.add_argument("--lang-field", default="lang", help="The key in manifests to read language from.")
+    parser.add_argument(
+        "--text-field",
+        default="text",
+        help="The key in manifests to read transcripts from.",
+    )
+    parser.add_argument(
+        "--lang-field",
+        default="lang",
+        help="The key in manifests to read language from.",
+    )
     parser.add_argument(
         "-n",
         "--num_examples",
@@ -111,7 +122,10 @@ def parse_args():
         help="If specified, we'll filter out utterances longer than this.",
     )
     parser.add_argument(
-        "--max_tps", type=float, default=None, help="Deprecated. TPS is automatically determined per bucket."
+        "--max_tps",
+        type=float,
+        default=None,
+        help="Deprecated. TPS is automatically determined per bucket.",
     )
     parser.add_argument(
         "--token_outlier_threshold",
@@ -121,7 +135,11 @@ def parse_args():
         "By default allow token counts at 4 sigma away from distribution mean, computed separately for every bucket.",
     )
     parser.add_argument(
-        "-q", "--quiet", type=bool, default=False, help="When specified, only print the estimated duration bins."
+        "-q",
+        "--quiet",
+        type=bool,
+        default=False,
+        help="When specified, only print the estimated duration bins.",
     )
     parser.add_argument(
         "-f",
@@ -181,16 +199,36 @@ def estimate_duration_buckets(
 
     if not quiet:
         print("Duration distribution:")
-        print(pd.Series(sizes).describe(percentiles=[0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99, 0.995, 0.999]))
+        print(
+            pd.Series(sizes).describe(
+                percentiles=[
+                    0.01,
+                    0.05,
+                    0.1,
+                    0.25,
+                    0.5,
+                    0.75,
+                    0.9,
+                    0.95,
+                    0.99,
+                    0.995,
+                    0.999,
+                ]
+            )
+        )
     if math.isinf(max_duration):
-        max_duration = round(sizes[-1], 3)  # Round to 3 decimal places to be consistent for the output format.
+        max_duration = round(
+            sizes[-1], 3
+        )  # Round to 3 decimal places to be consistent for the output format.
 
     bins = []
     tps_thresholds = []
     bin_indexes = [0]
     tot = 0.0
 
-    def _estimate_token_buckets(max_bucket_duration, start_idx, end_idx, corr_subbuckets=None):
+    def _estimate_token_buckets(
+        max_bucket_duration, start_idx, end_idx, corr_subbuckets=None
+    ):
         # Since this is 2D bucketing, apply the same bin creation logic
         # for the second dimension (i.e. token count) as for the first dimension (duration).
         # That means we aim to have each bucket contain roughly the same number of tokens.
@@ -213,15 +251,22 @@ def estimate_duration_buckets(
         num_tokens_bucket = num_tokens_bucket_all[non_outlier_indexes]
         sizes_bucket = sizes_bucket_all[non_outlier_indexes]
         max_tps_bucket = (num_tokens_bucket / sizes_bucket).max()
-        num_tokens_bucket, sizes_bucket = sort_two_arrays(num_tokens_bucket, sizes_bucket)
+        num_tokens_bucket, sizes_bucket = sort_two_arrays(
+            num_tokens_bucket, sizes_bucket
+        )
         if not quiet:
-            outlier_tps = np.delete(num_tokens_bucket_all / sizes_bucket_all, non_outlier_indexes)
+            outlier_tps = np.delete(
+                num_tokens_bucket_all / sizes_bucket_all, non_outlier_indexes
+            )
             print(
                 f"[bucket <= {max_bucket_duration:.2f}s] [{num_tokens_bucket.min()} - {num_tokens_bucket.max()}] [approx-max-tps: {max_tps_bucket:.2f}] Discarded {end_idx - start_idx - len(num_tokens_bucket)} max token outliers",
                 end=" ",
             )
             if len(outlier_tps) > 0:
-                print(f"min-outlier: {outlier_tps.min():.2f}, max-outlier: {outlier_tps.max():.2f}).", end="")
+                print(
+                    f"min-outlier: {outlier_tps.min():.2f}, max-outlier: {outlier_tps.max():.2f}).",
+                    end="",
+                )
             print()
 
         tokens_per_subbucket = num_tokens_bucket.sum() / corr_subbuckets
@@ -242,7 +287,9 @@ def estimate_duration_buckets(
     # Iterate over data, and whenever we hit size_per_bucket, register it as a new duration bucket.
     for binidx, size in enumerate(sizes):
         if tot > size_per_bucket:
-            size = round(size, 3)  # Round to 3 decimal places to be consistent for the output format.
+            size = round(
+                size, 3
+            )  # Round to 3 decimal places to be consistent for the output format.
             duration_bins.append(size)
             bin_indexes.append(binidx)
             tot = 0.0
@@ -299,7 +346,9 @@ def find_non_outliers_z_score(data, threshold=4):
     return np.where(z_scores <= threshold)
 
 
-def load_tokenizer(paths: list[str], langs: list[str] = None, is_canary: bool = True) -> TokenizerSpec:
+def load_tokenizer(
+    paths: list[str], langs: list[str] = None, is_canary: bool = True
+) -> TokenizerSpec:
     if len(paths) == 1:
         tok = SentencePieceTokenizer(paths[0])
     else:
@@ -348,7 +397,7 @@ def main():
     args = parse_args()
 
     if not args.quiet:
-        pd.set_option('display.float_format', lambda x: '%.2f' % x)
+        pd.set_option("display.float_format", lambda x: "%.2f" % x)
 
     if args.max_tps is not None:
         warnings.warn(
@@ -362,15 +411,17 @@ def main():
         tokenizer = load_tokenizer(
             paths=args.tokenizer,
             langs=args.langs,
-            is_canary=args.prompt_format is not None and 'canary' in args.prompt_format,
+            is_canary=args.prompt_format is not None and "canary" in args.prompt_format,
         )
         if args.prompt_format is not None:
             prompt_defaults = None
             if args.prompt is not None:
                 prompt_defaults = ast.literal_eval(args.prompt)
-            prompt = PromptFormatter.resolve(args.prompt_format)(tokenizer, defaults=prompt_defaults)
+            prompt = PromptFormatter.resolve(args.prompt_format)(
+                tokenizer, defaults=prompt_defaults
+            )
 
-    if '=' in args.input:
+    if "=" in args.input:
         inp_arg = args.input
     elif args.input.endswith(".yaml"):
         inp_arg = f"input_cfg={args.input}"
@@ -381,11 +432,18 @@ def main():
     config = OmegaConf.merge(
         OmegaConf.structured(LhotseDataLoadingConfig),
         OmegaConf.from_dotlist(
-            [inp_arg, "metadata_only=true", f"text_field={args.text_field}", f"lang_field={args.lang_field}"]
+            [
+                inp_arg,
+                "metadata_only=true",
+                f"text_field={args.text_field}",
+                f"lang_field={args.lang_field}",
+            ]
         ),
     )
     cuts, _ = read_cutset_from_config(config)
-    duration_filter = RejectionsCounter(DurationFilter(args.min_duration, args.max_duration), "Duration filtering")
+    duration_filter = RejectionsCounter(
+        DurationFilter(args.min_duration, args.max_duration), "Duration filtering"
+    )
     cuts = cuts.filter(duration_filter)
     cuts = cuts.map(partial(apply_tokenizer, tokenizer=tokenizer, prompt=prompt))
     if (N := args.num_examples) > 0:
@@ -400,7 +458,7 @@ def main():
         token_outlier_threshold=args.token_outlier_threshold,
         quiet=args.quiet,
     )
-    duration_bins = "[" + ','.join(f"[{b:.3f},{sb:d}]" for b, sb in duration_bins) + "]"
+    duration_bins = "[" + ",".join(f"[{b:.3f},{sb:d}]" for b, sb in duration_bins) + "]"
     tps_thresholds = "[" + ",".join(f"{t:.2f}" for t in tps_thresholds) + "]"
     if not args.quiet:
         duration_filter.print_report()
@@ -408,7 +466,9 @@ def main():
     print(f"\tuse_bucketing=1")
     print(f"\tnum_buckets={args.buckets}")
     print(f"\tbucket_duration_bins={duration_bins}")
-    print(f"The max_tps setting below is optional, use it if your data has low quality long transcript outliers:")
+    print(
+        f"The max_tps setting below is optional, use it if your data has low quality long transcript outliers:"
+    )
     print(f"\tmax_tps={tps_thresholds}")
 
 

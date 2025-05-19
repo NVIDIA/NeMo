@@ -86,9 +86,11 @@ class InternViTRMSNorm(torch.nn.Module):
         self.weight = torch.nn.Parameter(torch.ones(hidden_size))
         self._compute_var = compute_var
 
-        assert not sequence_parallel, "Sequence parallelism is not supported with InternViT."
+        assert (
+            not sequence_parallel
+        ), "Sequence parallelism is not supported with InternViT."
 
-        setattr(self.weight, 'sequence_parallel', sequence_parallel)
+        setattr(self.weight, "sequence_parallel", sequence_parallel)
 
     def _norm(self, x, var):
         """RMSNorm"""
@@ -111,7 +113,10 @@ class InternViTRMSNorm(torch.nn.Module):
                 valid_heads = 16
             else:
                 raise ValueError("Cannot infer number of heads.")
-            var = self._gather_var(x.float().pow(2), max_dim, valid_heads, total_heads) / unpadded_hidden_size
+            var = (
+                self._gather_var(x.float().pow(2), max_dim, valid_heads, total_heads)
+                / unpadded_hidden_size
+            )
 
         output = self._norm(x.float(), var).type_as(x)
         output = output * self.weight
@@ -147,7 +152,9 @@ class InternViTRMSNorm(torch.nn.Module):
 
         tensor_list = [torch.empty_like(var) for _ in range(world_size)]
         tensor_list[rank] = var
-        torch.distributed.all_gather(tensor_list, var, group=get_tensor_model_parallel_group())
+        torch.distributed.all_gather(
+            tensor_list, var, group=get_tensor_model_parallel_group()
+        )
 
         output = torch.cat(tensor_list, dim=last_dim).contiguous()
 
@@ -186,7 +193,9 @@ def bias_dropout_add_unfused_internvit(ls, training):
 
     def _bias_dropout_add(x_with_bias, residual, prob):
         #
-        return _bias_dropout_add_func_internvit(ls, x_with_bias, residual, prob, training)
+        return _bias_dropout_add_func_internvit(
+            ls, x_with_bias, residual, prob, training
+        )
 
     return _bias_dropout_add
 
@@ -213,7 +222,13 @@ class InternViTTransformerLayer(TransformerLayer):
 class InternViTSelfAttention(SelfAttention):
     """Override a few things that are special in InternViT and not supported by the SelfAttention class."""
 
-    def __init__(self, config: TransformerConfig, submodules: SelfAttentionSubmodules, *args, **kwargs):
+    def __init__(
+        self,
+        config: TransformerConfig,
+        submodules: SelfAttentionSubmodules,
+        *args,
+        **kwargs,
+    ):
         # pylint: disable=C0115,C0116
         super().__init__(config=config, submodules=submodules, *args, **kwargs)
 
@@ -230,7 +245,7 @@ class InternViTSelfAttention(SelfAttention):
             bias=qkv_bias,
             skip_bias_add=False,
             is_expert=False,
-            tp_comm_buffer_name='qkv',
+            tp_comm_buffer_name="qkv",
         )
 
         qk_layernorm_hidden_size = (
@@ -275,11 +290,13 @@ class InternViTTEDotProductAttention(TEDotProductAttention):
         return out
 
 
-def get_internvit_layer_spec(use_te, add_qk_norm=True, norm_type="RMSNorm") -> ModuleSpec:
+def get_internvit_layer_spec(
+    use_te, add_qk_norm=True, norm_type="RMSNorm"
+) -> ModuleSpec:
     """Get InterViT's MCore layer spec"""
     NORM2FN = {
-        'RMSNorm': InternViTRMSNorm,
-        'LayerNorm': TENorm,
+        "RMSNorm": InternViTRMSNorm,
+        "LayerNorm": TENorm,
     }
 
     mlp = get_mlp_module_spec(use_te)  # no norm
@@ -292,8 +309,12 @@ def get_internvit_layer_spec(use_te, add_qk_norm=True, norm_type="RMSNorm") -> M
                 module=InternViTSelfAttention,
                 params={"attn_mask_type": AttnMaskType.no_mask},
                 submodules=SelfAttentionSubmodules(
-                    linear_qkv=TEColumnParallelLinear if use_te else ColumnParallelLinear,
-                    core_attention=TEDotProductAttention if use_te else DotProductAttention,
+                    linear_qkv=(
+                        TEColumnParallelLinear if use_te else ColumnParallelLinear
+                    ),
+                    core_attention=(
+                        TEDotProductAttention if use_te else DotProductAttention
+                    ),
                     linear_proj=TERowParallelLinear if use_te else RowParallelLinear,
                     q_layernorm=NORM2FN[norm_type] if add_qk_norm else IdentityOp,
                     k_layernorm=NORM2FN[norm_type] if add_qk_norm else IdentityOp,
@@ -332,10 +353,12 @@ class InternViTConfig(CLIPViTConfig):
     bias_activation_fusion: bool = False
     bias_dropout_fusion: bool = False
     attention_softmax_in_fp32: bool = True
-    normalization: str = 'RMSNorm'
+    normalization: str = "RMSNorm"
     layernorm_epsilon: float = 1e-6
     apply_rope_fusion: bool = False
-    transformer_layer_spec: ModuleSpec = field(default_factory=lambda: get_internvit_layer_spec(use_te=True))
+    transformer_layer_spec: ModuleSpec = field(
+        default_factory=lambda: get_internvit_layer_spec(use_te=True)
+    )
 
 
 @dataclass
@@ -360,12 +383,12 @@ class InternViT_300M_448px_Config(InternViTConfig):
     hidden_dropout: float = 0.0
     attention_dropout: float = 0.0
     ffn_hidden_size: int = 4096
-    normalization: str = 'LayerNorm'
+    normalization: str = "LayerNorm"
     transformer_layer_spec: ModuleSpec = field(
         default_factory=lambda: get_internvit_layer_spec(
             use_te=True,
             add_qk_norm=False,
-            norm_type='LayerNorm',
+            norm_type="LayerNorm",
         )
     )
 
@@ -486,7 +509,9 @@ def _import_position_embedding(ctx: io.TransformCTX, pos_emb):
     return pos_emb.squeeze(0)
 
 
-def import_qkv(q, k, v, head_num, num_query_groups, heads_per_group, hidden_size, head_size):
+def import_qkv(
+    q, k, v, head_num, num_query_groups, heads_per_group, hidden_size, head_size
+):
     # pylint: disable=C0115,C0116
     old_tensor_shape = q.size()
     new_q_tensor_shape = (head_num, head_size) + old_tensor_shape[1:]
@@ -503,11 +528,15 @@ def import_qkv(q, k, v, head_num, num_query_groups, heads_per_group, hidden_size
         qkv_weights_l.append(v[i : i + 1, :, :])
     qkv_weights = torch.cat(qkv_weights_l)
     assert qkv_weights.ndim == 3, qkv_weights.shape
-    assert qkv_weights.shape[0] == (heads_per_group + 2) * num_query_groups, qkv_weights.shape
+    assert (
+        qkv_weights.shape[0] == (heads_per_group + 2) * num_query_groups
+    ), qkv_weights.shape
     assert qkv_weights.shape[1] == head_size, qkv_weights.shape
     assert qkv_weights.shape[2] == old_tensor_shape[1], qkv_weights.shape
 
-    qkv_weights = qkv_weights.reshape([head_size * (head_num + 2 * num_query_groups), hidden_size])
+    qkv_weights = qkv_weights.reshape(
+        [head_size * (head_num + 2 * num_query_groups), hidden_size]
+    )
 
     return qkv_weights
 
@@ -526,7 +555,8 @@ def _import_qkv(ctx: io.TransformCTX, qkv):
         v,
         head_num=megatron_config.num_attention_heads,
         num_query_groups=megatron_config.num_query_groups,
-        heads_per_group=megatron_config.num_attention_heads // megatron_config.num_query_groups,
+        heads_per_group=megatron_config.num_attention_heads
+        // megatron_config.num_query_groups,
         hidden_size=megatron_config.hidden_size,
         head_size=megatron_config.kv_channels,
     )
@@ -546,7 +576,8 @@ def _import_qkv_bias(ctx: io.TransformCTX, qkv_bias):
         v_bias.unsqueeze(-1),
         head_num=megatron_config.num_attention_heads,
         num_query_groups=megatron_config.num_query_groups,
-        heads_per_group=megatron_config.num_attention_heads // megatron_config.num_query_groups,
+        heads_per_group=megatron_config.num_attention_heads
+        // megatron_config.num_query_groups,
         hidden_size=1,
         head_size=megatron_config.kv_channels,
     ).squeeze(-1)

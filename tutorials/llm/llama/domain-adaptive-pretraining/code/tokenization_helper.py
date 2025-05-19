@@ -35,7 +35,9 @@ from transformers import PreTrainedTokenizerFast
 def check_parent_directory_exists(directory_path):
     parent_directory = os.path.dirname(directory_path)
     if not os.path.exists(parent_directory):
-        raise FileNotFoundError(f"Parent directory '{parent_directory}' does not exist. Please create it.")
+        raise FileNotFoundError(
+            f"Parent directory '{parent_directory}' does not exist. Please create it."
+        )
     else:
         print(f"Parent directory '{parent_directory}' exists.")
 
@@ -156,7 +158,7 @@ def extend_tokenizer_llama(
     keys = ["text"]
     occur_limit = 3
 
-    token_pattern = '[a-zA-Z]'  # or [a-zA-Z0-9]
+    token_pattern = "[a-zA-Z]"  # or [a-zA-Z0-9]
 
     # Read data from data path and store
     readers = []
@@ -186,8 +188,8 @@ def extend_tokenizer_llama(
     print("Num of added tokens and dropped tokens", len(tokens), len(drop_tokens))
 
     m = model.ModelProto()
-    m.ParseFromString(open(original_tokenizer_path, 'rb').read())
-    print(f'Original model pieces: {len(m.pieces)}')
+    m.ParseFromString(open(original_tokenizer_path, "rb").read())
+    print(f"Original model pieces: {len(m.pieces)}")
     print(m.trainer_spec)
     ori_vol = []
     for piece in m.pieces:
@@ -231,7 +233,9 @@ def extend_tokenizer_llama(
         new_sym.piece = sym
         new_sym.score = 0.0  # default score for USER_DEFINED
         new_sym.type = 4  # type value for USER_DEFINED
-        m.pieces.insert(N + i, new_sym)  # position after default control symbols ("<unk>", "<s>", "</s>")
+        m.pieces.insert(
+            N + i, new_sym
+        )  # position after default control symbols ("<unk>", "<s>", "</s>")
         record.append([sym, N + i])
 
     N = len(m.pieces)
@@ -240,10 +244,12 @@ def extend_tokenizer_llama(
         new_sym.piece = sym
         new_sym.score = 0.0  # default score for USER_DEFINED
         new_sym.type = 4  # type value for USER_DEFINED
-        m.pieces.insert(N + i, new_sym)  # position after default control symbols ("<unk>", "<s>", "</s>")
+        m.pieces.insert(
+            N + i, new_sym
+        )  # position after default control symbols ("<unk>", "<s>", "</s>")
         record.append([sym, N + i])
 
-    print(f'New model pieces: {len(m.pieces)}')
+    print(f"New model pieces: {len(m.pieces)}")
     print(m.trainer_spec)
 
     check_parent_directory_exists(new_vocab_path)
@@ -251,7 +257,7 @@ def extend_tokenizer_llama(
         json.dump(record, fp)
 
     check_parent_directory_exists(new_model_path)
-    with open(new_model_path, 'wb') as f:
+    with open(new_model_path, "wb") as f:
         f.write(m.SerializeToString())
 
     if split > 1:
@@ -267,8 +273,8 @@ def extend_tokenizer_llama(
         output_layers = []
         for f in old_ebd_paths:
             temp = torch.load(f)
-            word_embeddings.append(temp['word_embeddings'])
-            output_layers.append(temp['output_layer'])
+            word_embeddings.append(temp["word_embeddings"])
+            output_layers.append(temp["output_layer"])
         word_embedding = torch.cat(word_embeddings, dim=1)
         output_layer = torch.cat(output_layers, dim=0)
         print("word_embedding shape: ", word_embedding.shape)
@@ -279,18 +285,20 @@ def extend_tokenizer_llama(
         word_embedding = torch.cat((word_embedding, add_weight), 0)
     else:
         old_ebd = torch.load(old_ebd_path)
-        _, N = old_ebd['word_embeddings'].shape
+        _, N = old_ebd["word_embeddings"].shape
         add_weight = torch.zeros(add_cnt, N)
-        old_ebd['word_embeddings'] = torch.cat((old_ebd['word_embeddings'], add_weight), 0)
+        old_ebd["word_embeddings"] = torch.cat(
+            (old_ebd["word_embeddings"], add_weight), 0
+        )
 
     if split > 1:
         _, M = output_layer.shape
         add_out = torch.zeros(add_cnt, M)
         output_layer = torch.cat((output_layer, add_out), 0)
     else:
-        _, M = old_ebd['output_layer'].shape
+        _, M = old_ebd["output_layer"].shape
         add_out = torch.zeros(add_cnt, M)
-        old_ebd['output_layer'] = torch.cat((old_ebd['output_layer'], add_out), 0)
+        old_ebd["output_layer"] = torch.cat((old_ebd["output_layer"], add_out), 0)
 
     sp = spm.SentencePieceProcessor()
     sp.load(original_tokenizer_path)
@@ -303,8 +311,12 @@ def extend_tokenizer_llama(
             word_embedding[idx] = torch.mean(word_embedding[ids], dim=0)
             output_layer[idx] = torch.mean(output_layer[ids], dim=0)
         else:
-            old_ebd['word_embeddings'][idx] = torch.mean(old_ebd['word_embeddings'][ids], dim=0)
-            old_ebd['output_layer'][idx] = torch.mean(old_ebd['output_layer'][ids], dim=0)
+            old_ebd["word_embeddings"][idx] = torch.mean(
+                old_ebd["word_embeddings"][ids], dim=0
+            )
+            old_ebd["output_layer"][idx] = torch.mean(
+                old_ebd["output_layer"][ids], dim=0
+            )
 
     if split > 1:
         vocab_size, dimension = word_embedding.shape
@@ -318,8 +330,10 @@ def extend_tokenizer_llama(
             ed = (i + 1) * split_vocab_size
             save_name = prefix + f"{i}" + ".pt"
             temp = {}
-            temp['word_embeddings'] = word_embedding[:, start:end]  # split word_embedding
-            temp['output_layer'] = output_layer[st:ed, :]  # split output_layer
+            temp["word_embeddings"] = word_embedding[
+                :, start:end
+            ]  # split word_embedding
+            temp["output_layer"] = output_layer[st:ed, :]  # split output_layer
             check_parent_directory_exists(save_name)
             torch.save(temp, save_name)
     else:
@@ -392,9 +406,13 @@ def analyze_token_usage(data_root, tokenizer_path, batchsize, keys, save_path):
                 break
             id = indices[i]
             if flag[i]:
-                new_freq.append([int(id), str(sp.id_to_piece(int(id))), int(flag[i]), int(cnts[i])])
+                new_freq.append(
+                    [int(id), str(sp.id_to_piece(int(id))), int(flag[i]), int(cnts[i])]
+                )
             else:
-                old_freq.append([int(id), str(sp.id_to_piece(int(id))), int(flag[i]), int(cnts[i])])
+                old_freq.append(
+                    [int(id), str(sp.id_to_piece(int(id))), int(flag[i]), int(cnts[i])]
+                )
         results[name] = {}
         results[name]["ori_cnt"] = [int(ori_cnt), float(ori_cnt / total_cnt)]
         results[name]["new_cnt"] = [int(new_cnt), float(new_cnt / total_cnt)]

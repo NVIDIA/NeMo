@@ -25,8 +25,7 @@ from nemo.collections.multimodal.speech_cv.parts.submodules.resnet_bottleneck_bl
 
 
 class ResNet(nn.Module):
-
-    """ ResNet (ResNet18, ResNet34, ResNet50, ResNet101, ResNet152)
+    """ResNet (ResNet18, ResNet34, ResNet50, ResNet101, ResNet152)
     Models: 224 x 224
     ResNet18: 11,689,512 Params
     ResNet34: 21,797,672 Params
@@ -37,7 +36,14 @@ class ResNet(nn.Module):
     https://arxiv.org/abs/1512.03385
     """
 
-    def __init__(self, dim_input=3, dim_output=1000, model="ResNet50", include_stem=True, include_head=True):
+    def __init__(
+        self,
+        dim_input=3,
+        dim_output=1000,
+        model="ResNet50",
+        include_stem=True,
+        include_head=True,
+    ):
         super(ResNet, self).__init__()
 
         assert model in ["ResNet18", "ResNet34", "ResNet50", "ResNet101", "ResNet152"]
@@ -132,9 +138,11 @@ class ResNet(nn.Module):
         self.head = (
             nn.Sequential(
                 GlobalAvgPool2d(),
-                nn.Linear(in_features=dim_blocks[-1], out_features=dim_output)
-                if dim_output is not None
-                else nn.Identity(),
+                (
+                    nn.Linear(in_features=dim_blocks[-1], out_features=dim_output)
+                    if dim_output is not None
+                    else nn.Identity()
+                ),
             )
             if include_head
             else nn.Identity()
@@ -174,6 +182,8 @@ class ResNet(nn.Module):
 
             # (B * T, D4, H//32, W//32) -> (B, D4, T, H//32, W//32)
             else:
-                x = x.reshape(batch_size, video_frames, x.shape[1], x.shape[2], x.shape[3]).transpose(1, 2)
+                x = x.reshape(
+                    batch_size, video_frames, x.shape[1], x.shape[2], x.shape[3]
+                ).transpose(1, 2)
 
         return x

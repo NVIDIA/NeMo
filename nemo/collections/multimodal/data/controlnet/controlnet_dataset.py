@@ -25,9 +25,9 @@ class ControlNetSyntheticDataset(NeMoDataset):
         image_H,
         image_W,
         fake_len=100000,
-        image_key='images',
-        txt_key='txt',
-        control_key='hint',
+        image_key="images",
+        txt_key="txt",
+        control_key="hint",
         seq_len=80,
         context_dim=768,
     ):
@@ -44,7 +44,7 @@ class ControlNetSyntheticDataset(NeMoDataset):
     def __getitem__(self, index):
         item = {}
         item[self.image_key] = torch.randn(self.H, self.W, 3)
-        item[self.txt_key] = f'This is meaningless fake text No.{index}'
+        item[self.txt_key] = f"This is meaningless fake text No.{index}"
         item[self.control_key] = torch.randn(self.H, self.W, 3)
         return item
 
@@ -53,7 +53,8 @@ class ControlNetSyntheticDataset(NeMoDataset):
 
 
 def build_train_valid_datasets(
-    model_cfg, consumed_samples,
+    model_cfg,
+    consumed_samples,
 ):
     data_cfg = model_cfg.data
 
@@ -61,21 +62,23 @@ def build_train_valid_datasets(
     def tuple_to_dict(inp):
         for input in inp:
             out_dict = dict()
-            out_dict['images'] = input[0].permute(1, 2, 0)
-            out_dict['captions'] = input[1]
-            out_dict['hint'] = input[2].permute(1, 2, 0)
+            out_dict["images"] = input[0].permute(1, 2, 0)
+            out_dict["captions"] = input[1]
+            out_dict["hint"] = input[2].permute(1, 2, 0)
             yield out_dict
 
     def transform_fn(sample):
 
         image, text, hint = sample["jpg"], sample["txt"], sample["png"]
         # TODO : If no agumentations just return the image ?
-        img_transform = construct_image_augmentations(data_cfg.train.get("augmentations", None))
+        img_transform = construct_image_augmentations(
+            data_cfg.train.get("augmentations", None)
+        )
         text_transform = identical_transform
         return img_transform(image), text_transform(text), img_transform(hint)
 
-    if data_cfg.get('synthetic_data', False):
-        H, W = data_cfg.train.augmentations.center_crop_h_w.split(',')
+    if data_cfg.get("synthetic_data", False):
+        H, W = data_cfg.train.augmentations.center_crop_h_w.split(",")
         train_data = ControlNetSyntheticDataset(
             int(H),
             int(W),
@@ -107,7 +110,8 @@ def build_train_valid_datasets(
 
 
 def build_train_valid_precached_datasets(
-    model_cfg, consumed_samples,
+    model_cfg,
+    consumed_samples,
 ):
     data_cfg = model_cfg.data
 
@@ -115,12 +119,16 @@ def build_train_valid_precached_datasets(
     def tuple_to_dict(inp):
         for input in inp:
             out_dict = dict()
-            out_dict[model_cfg.first_stage_key] = torch.tensor(input['autoencoderkl_image'])
-            out_dict[model_cfg.cond_stage_key] = torch.tensor(input['clip-vit-large-patch14_text'])
+            out_dict[model_cfg.first_stage_key] = torch.tensor(
+                input["autoencoderkl_image"]
+            )
+            out_dict[model_cfg.cond_stage_key] = torch.tensor(
+                input["clip-vit-large-patch14_text"]
+            )
             yield out_dict
 
     def transform_fn(sample):
-        return sample['pickle']
+        return sample["pickle"]
 
     train_data = WebDatasetCommon(
         dataset_cfg=data_cfg,

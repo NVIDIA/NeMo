@@ -70,15 +70,15 @@ def flux_controlnet_data_step(dataloader_iter):
     else:
         _batch = batch
 
-    _batch['loss_mask'] = torch.Tensor([1.0]).cuda(non_blocking=True)
+    _batch["loss_mask"] = torch.Tensor([1.0]).cuda(non_blocking=True)
     return _batch
 
 
 @dataclass
 class FluxControlNetConfig(TransformerConfig, io.IOMixin):
-    '''
+    """
     Flux config inherits from TransformerConfig class.
-    '''
+    """
 
     num_layers: int = 1  # dummy setting
     patch_size: int = 1
@@ -129,11 +129,17 @@ class FluxControlNet(VisionModule):
         self.hidden_size = config.hidden_size
         self.patch_size = config.patch_size
 
-        self.pos_embed = EmbedND(dim=self.hidden_size, theta=10000, axes_dim=[16, 56, 56])
+        self.pos_embed = EmbedND(
+            dim=self.hidden_size, theta=10000, axes_dim=[16, 56, 56]
+        )
         self.img_embed = nn.Linear(config.in_channels, self.hidden_size)
         self.txt_embed = nn.Linear(config.context_dim, self.hidden_size)
-        self.timestep_embedding = TimeStepEmbedder(config.model_channels, self.hidden_size)
-        self.vector_embedding = MLPEmbedder(in_dim=config.vec_in_dim, hidden_dim=self.hidden_size)
+        self.timestep_embedding = TimeStepEmbedder(
+            config.model_channels, self.hidden_size
+        )
+        self.vector_embedding = MLPEmbedder(
+            in_dim=config.vec_in_dim, hidden_dim=self.hidden_size
+        )
         if config.guidance_embed:
             self.guidance_embedding = (
                 MLPEmbedder(in_dim=config.model_channels, hidden_dim=self.hidden_size)
@@ -197,10 +203,14 @@ class FluxControlNet(VisionModule):
                 conditioning_embedding_channels=config.conditioning_embedding_channels,
                 block_out_channels=(16, 16, 16, 16),
             )
-            self.controlnet_x_embedder = torch.nn.Linear(config.in_channels, self.hidden_size)
+            self.controlnet_x_embedder = torch.nn.Linear(
+                config.in_channels, self.hidden_size
+            )
         else:
             self.input_hint_block = None
-            self.controlnet_x_embedder = zero_module(torch.nn.Linear(config.in_channels, self.hidden_size))
+            self.controlnet_x_embedder = zero_module(
+                torch.nn.Linear(config.in_channels, self.hidden_size)
+            )
 
     def load_from_flux_transformer(self, flux):
         """
@@ -215,8 +225,12 @@ class FluxControlNet(VisionModule):
         self.txt_embed.load_state_dict(flux.txt_embed.state_dict())
         self.timestep_embedding.load_state_dict(flux.timestep_embedding.state_dict())
         self.vector_embedding.load_state_dict(flux.vector_embedding.state_dict())
-        self.double_blocks.load_state_dict(flux.double_blocks.state_dict(), strict=False)
-        self.single_blocks.load_state_dict(flux.single_blocks.state_dict(), strict=False)
+        self.double_blocks.load_state_dict(
+            flux.double_blocks.state_dict(), strict=False
+        )
+        self.single_blocks.load_state_dict(
+            flux.single_blocks.state_dict(), strict=False
+        )
 
     def forward(
         self,
@@ -265,7 +279,9 @@ class FluxControlNet(VisionModule):
         timesteps = timesteps.to(img.dtype) * 1000
         vec_emb = self.timestep_embedding(timesteps)
         if guidance is not None:
-            vec_emb = vec_emb + self.guidance_embedding(self.timestep_embedding.time_proj(guidance * 1000))
+            vec_emb = vec_emb + self.guidance_embedding(
+                self.timestep_embedding.time_proj(guidance * 1000)
+            )
         vec_emb = vec_emb + self.vector_embedding(y)
 
         ids = torch.cat((txt_ids, img_ids), dim=1)
@@ -290,42 +306,62 @@ class FluxControlNet(VisionModule):
                 rotary_pos_emb=rotary_pos_emb,
                 emb=vec_emb,
             )
-            single_block_samples = single_block_samples + (hidden_states[encoder_hidden_states.shape[0] :, ...],)
+            single_block_samples = single_block_samples + (
+                hidden_states[encoder_hidden_states.shape[0] :, ...],
+            )
 
         controlnet_double_block_samples = ()
-        for double_block_sample, control_block in zip(double_block_samples, self.controlnet_double_blocks):
+        for double_block_sample, control_block in zip(
+            double_block_samples, self.controlnet_double_blocks
+        ):
             double_block_sample, bias = control_block(double_block_sample)
-            double_block_sample = double_block_sample + bias if bias else double_block_sample
+            double_block_sample = (
+                double_block_sample + bias if bias else double_block_sample
+            )
             controlnet_double_block_samples += (double_block_sample,)
 
         controlnet_single_block_samples = ()
-        for single_block_sample, control_block in zip(single_block_samples, self.controlnet_single_blocks):
+        for single_block_sample, control_block in zip(
+            single_block_samples, self.controlnet_single_blocks
+        ):
             single_block_sample, bias = control_block(single_block_sample)
-            single_block_sample = single_block_sample + bias if bias else single_block_sample
+            single_block_sample = (
+                single_block_sample + bias if bias else single_block_sample
+            )
             controlnet_single_block_samples += (single_block_sample,)
 
-        controlnet_double_block_samples = [sample * conditioning_scale for sample in controlnet_double_block_samples]
-        controlnet_single_block_samples = [sample * conditioning_scale for sample in controlnet_single_block_samples]
+        controlnet_double_block_samples = [
+            sample * conditioning_scale for sample in controlnet_double_block_samples
+        ]
+        controlnet_single_block_samples = [
+            sample * conditioning_scale for sample in controlnet_single_block_samples
+        ]
 
         controlnet_double_block_samples = (
-            None if len(controlnet_double_block_samples) == 0 else controlnet_double_block_samples
+            None
+            if len(controlnet_double_block_samples) == 0
+            else controlnet_double_block_samples
         )
         controlnet_single_block_samples = (
-            None if len(controlnet_single_block_samples) == 0 else controlnet_single_block_samples
+            None
+            if len(controlnet_single_block_samples) == 0
+            else controlnet_single_block_samples
         )
 
         return controlnet_double_block_samples, controlnet_single_block_samples
 
 
 class FluxControlnetForwardWrapper(VisionModule):
-    '''
+    """
     A wrapper combines flux and flux controlnet forward pass for easier initialization.
-    '''
+    """
 
-    def __init__(self, flux_config: FluxConfig, flux_controlnet_config: FluxControlNetConfig):
-        '''
+    def __init__(
+        self, flux_config: FluxConfig, flux_controlnet_config: FluxControlNetConfig
+    ):
+        """
         Create flux and flux controlnet instances by their config.
-        '''
+        """
         super().__init__(flux_config)
 
         self.flux = self.config.configure_model()
@@ -362,17 +398,21 @@ class MegatronFluxControlNetModel(MegatronFluxModel):
             image.
     """
 
-    def __init__(self, flux_params: FluxModelParams, flux_controlnet_config: FluxControlNetConfig):
+    def __init__(
+        self, flux_params: FluxModelParams, flux_controlnet_config: FluxControlNetConfig
+    ):
         super().__init__(flux_params)
         self.flux_controlnet_config = flux_controlnet_config
         self.optim.connect(self)
 
     def configure_model(self):
-        '''
+        """
         Initialize flux and controlnet modules, vae, scheduler, and text encoders with given configs.
-        '''
+        """
         if not hasattr(self, "module"):
-            self.module = FluxControlnetForwardWrapper(self.config, self.flux_controlnet_config)
+            self.module = FluxControlnetForwardWrapper(
+                self.config, self.flux_controlnet_config
+            )
 
             self.configure_vae(self.vae_config)
             self.configure_scheduler()
@@ -381,37 +421,40 @@ class MegatronFluxControlNetModel(MegatronFluxModel):
             # when there is no single layer, encoder_hidden_states related params are not included in computation graph
             for name, param in self.module.named_parameters():
                 if self.flux_controlnet_config.num_single_layers == 0:
-                    if 'context' in name or 'added' in name:
+                    if "context" in name or "added" in name:
                         param.requires_grad = False
                 # When getting rid of concat, the projection bias in attention and mlp bias are identical
                 # So this bias is skipped and not included in the computation graph
-                if 'single_blocks' in name and 'self_attention.linear_proj.bias' in name:
+                if (
+                    "single_blocks" in name
+                    and "self_attention.linear_proj.bias" in name
+                ):
                     param.requires_grad = False
 
     def data_step(self, dataloader_iter):
-        '''
+        """
         Retrive data batch from dataloader iterator and do necessary processing before feeding into train steps.
-        '''
+        """
         return self.flux_controlnet_config.data_step_fn(dataloader_iter)
 
     def forward(self, *args, **kwargs):
-        '''
+        """
         Calling the controlnet forward pass.
-        '''
+        """
         # FSDP module -> Bfloat16 module -> ForwardWrapper -> flux controlnet
         return self.module.module.module.flux_controlnet(*args, **kwargs)
 
     def training_step(self, batch, batch_idx=None) -> torch.Tensor:
-        '''
+        """
         A wrapper method takes data batch and returns the results of forward_step.
-        '''
+        """
         # In mcore the loss-function is part of the forward-pass (when labels are provided)
         return self.forward_step(batch)
 
     def forward_step(self, batch) -> torch.Tensor:
-        '''
+        """
         The main forward step function.
-        '''
+        """
         if self.optim.config.bf16:
             self.autocast_dtype = torch.bfloat16
         elif self.optim.config.fp16:
@@ -420,12 +463,12 @@ class MegatronFluxControlNetModel(MegatronFluxModel):
             self.autocast_dtype = torch.float32
 
         if self.image_precached:
-            latents = batch['latents'].cuda(non_blocking=True)
-            control_latents = batch['control_latents'].cuda(non_blocking=True)
+            latents = batch["latents"].cuda(non_blocking=True)
+            control_latents = batch["control_latents"].cuda(non_blocking=True)
         else:
-            img = batch['images'].cuda(non_blocking=True)
+            img = batch["images"].cuda(non_blocking=True)
             latents = self.vae.encode(img).to(dtype=self.autocast_dtype)
-            hint = batch['hint'].cuda(non_blocking=True)
+            hint = batch["hint"].cuda(non_blocking=True)
             control_latents = self.vae.encode(hint).to(dtype=self.autocast_dtype)
 
         latent_image_ids = self._prepare_latent_image_ids(
@@ -481,11 +524,13 @@ class MegatronFluxControlNetModel(MegatronFluxModel):
         else:
             guidance_vec = None
         if self.text_precached:
-            prompt_embeds = batch['prompt_embeds'].cuda(non_blocking=True).transpose(0, 1)
-            pooled_prompt_embeds = batch['pooled_prompt_embeds'].cuda(non_blocking=True)
-            text_ids = batch['text_ids'].cuda(non_blocking=True)
+            prompt_embeds = (
+                batch["prompt_embeds"].cuda(non_blocking=True).transpose(0, 1)
+            )
+            pooled_prompt_embeds = batch["pooled_prompt_embeds"].cuda(non_blocking=True)
+            text_ids = batch["text_ids"].cuda(non_blocking=True)
         else:
-            txt = batch['txt']
+            txt = batch["txt"]
             prompt_embeds, pooled_prompt_embeds, text_ids = self.encode_prompt(
                 txt, device=latents.device, dtype=latents.dtype
             )
@@ -494,15 +539,17 @@ class MegatronFluxControlNetModel(MegatronFluxModel):
             self.autocast_dtype in (torch.half, torch.bfloat16),
             dtype=self.autocast_dtype,
         ):
-            controlnet_double_block_samples, controlnet_single_block_samples = self.forward(
-                img=packed_noisy_model_input,
-                controlnet_cond=control_image,
-                txt=prompt_embeds,
-                y=pooled_prompt_embeds,
-                timesteps=timesteps / 1000,
-                img_ids=latent_image_ids,
-                txt_ids=text_ids,
-                guidance=guidance_vec,
+            controlnet_double_block_samples, controlnet_single_block_samples = (
+                self.forward(
+                    img=packed_noisy_model_input,
+                    controlnet_cond=control_image,
+                    txt=prompt_embeds,
+                    y=pooled_prompt_embeds,
+                    timesteps=timesteps / 1000,
+                    img_ids=latent_image_ids,
+                    txt_ids=text_ids,
+                    guidance=guidance_vec,
+                )
             )
             noise_pred = self.module.module.module.flux(
                 img=packed_noisy_model_input,
@@ -521,11 +568,11 @@ class MegatronFluxControlNetModel(MegatronFluxModel):
             return loss
 
     def validation_step(self, batch, batch_idx=None):
-        '''
+        """
         Initialize flux controlnet pipeline with current model components.
 
         Saves the inference results together with the hint image to log folder.
-        '''
+        """
         logging.info("Start validation step")
         from nemo.collections.diffusion.models.flux.pipeline import \
             FluxControlNetInferencePipeline
@@ -542,10 +589,12 @@ class MegatronFluxControlNetModel(MegatronFluxModel):
         )
 
         if self.image_precached and self.text_precached:
-            latents = batch['latents'].cuda(non_blocking=True)
-            control_latents = batch['control_latents'].cuda(non_blocking=True)
-            prompt_embeds = batch['prompt_embeds'].cuda(non_blocking=True).transpose(0, 1)
-            pooled_prompt_embeds = batch['pooled_prompt_embeds'].cuda(non_blocking=True)
+            latents = batch["latents"].cuda(non_blocking=True)
+            control_latents = batch["control_latents"].cuda(non_blocking=True)
+            prompt_embeds = (
+                batch["prompt_embeds"].cuda(non_blocking=True).transpose(0, 1)
+            )
+            pooled_prompt_embeds = batch["pooled_prompt_embeds"].cuda(non_blocking=True)
             log_images = pipe(
                 latents=latents,
                 control_image=control_latents,
@@ -559,11 +608,13 @@ class MegatronFluxControlNetModel(MegatronFluxModel):
                 dtype=self.autocast_dtype,
                 save_to_disk=False,
             )
-            log_images[0].save(f"{self.logger.log_dir}/step={self.global_step}_rank{self.local_rank}.png")
+            log_images[0].save(
+                f"{self.logger.log_dir}/step={self.global_step}_rank{self.local_rank}.png"
+            )
         else:
-            img = batch['images'].cuda(non_blocking=True)
-            hint = batch['hint'].cuda(non_blocking=True)
-            text = batch['txt']
+            img = batch["images"].cuda(non_blocking=True)
+            hint = batch["hint"].cuda(non_blocking=True)
+            text = batch["txt"]
             log_images = pipe(
                 text,
                 control_image=hint,
@@ -575,8 +626,12 @@ class MegatronFluxControlNetModel(MegatronFluxModel):
                 dtype=self.autocast_dtype,
                 save_to_disk=False,
             )
-            log_images[0].save(f"{self.logger.log_dir}/step={self.global_step}_rank{self.local_rank}_{text}.png")
+            log_images[0].save(
+                f"{self.logger.log_dir}/step={self.global_step}_rank{self.local_rank}_{text}.png"
+            )
             hint = pipe.torch_to_numpy(hint)
             hint = pipe.numpy_to_pil(hint)
-            hint[0].save(f"{self.logger.log_dir}/step={self.global_step}_rank{self.local_rank}_control.png")
+            hint[0].save(
+                f"{self.logger.log_dir}/step={self.global_step}_rank{self.local_rank}_control.png"
+            )
         return torch.tensor([0.0], device=torch.cuda.current_device())

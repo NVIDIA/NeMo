@@ -19,7 +19,7 @@ from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import \
     AutoTokenizer
 from nemo.collections.llm.gpt.data.hf_dataset import SquadHFDataModule
 
-DATA_PATH = '/home/TestData/lite/hf_cache/squad/'
+DATA_PATH = "/home/TestData/lite/hf_cache/squad/"
 
 
 def local_executor_torchrun(nodes: int = 1, devices: int = 2) -> run.LocalExecutor:
@@ -29,21 +29,25 @@ def local_executor_torchrun(nodes: int = 1, devices: int = 2) -> run.LocalExecut
         "NCCL_NVLS_ENABLE": "0",  # Disable NVLink SHARP to save memory
     }
 
-    executor = run.LocalExecutor(ntasks_per_node=devices, launcher="torchrun", env_vars=env_vars)
+    executor = run.LocalExecutor(
+        ntasks_per_node=devices, launcher="torchrun", env_vars=env_vars
+    )
 
     return executor
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', default='meta-llama/Llama-3.2-1B')
-    parser.add_argument('--strategy', type=str, default='auto', choices=['auto', 'ddp', 'fsdp'])
-    parser.add_argument('--devices', default=1)
-    parser.add_argument('--accelerator', default='gpu', choices=['gpu'])
-    parser.add_argument('--max-steps', type=int, default=100)
-    parser.add_argument('--disable-ckpt', action='store_false')
+    parser.add_argument("--model", default="meta-llama/Llama-3.2-1B")
+    parser.add_argument(
+        "--strategy", type=str, default="auto", choices=["auto", "ddp", "fsdp"]
+    )
+    parser.add_argument("--devices", default=1)
+    parser.add_argument("--accelerator", default="gpu", choices=["gpu"])
+    parser.add_argument("--max-steps", type=int, default=100)
+    parser.add_argument("--disable-ckpt", action="store_false")
     args = parser.parse_args()
 
     recipe = llm.hf_auto_model_for_causal_lm.finetune_recipe(
@@ -51,7 +55,7 @@ if __name__ == '__main__':
         name="peft",
         num_nodes=1,
         num_gpus_per_node=args.devices,
-        peft_scheme='lora',
+        peft_scheme="lora",
         max_steps=args.max_steps,
     )
     recipe.trainer.val_check_interval = 0.0
@@ -67,5 +71,7 @@ if __name__ == '__main__':
     )
     recipe.log = None
     recipe.trainer.enable_checkpointing = args.disable_ckpt
-    executor = local_executor_torchrun(nodes=recipe.trainer.num_nodes, devices=recipe.trainer.devices)
+    executor = local_executor_torchrun(
+        nodes=recipe.trainer.num_nodes, devices=recipe.trainer.devices
+    )
     run.run(recipe, executor=executor, direct=True)

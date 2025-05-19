@@ -53,17 +53,22 @@ class PoolingEncoder(torch.nn.Module):
         self._pooling_type = pooling_type
 
         if self._hidden_steps < 2:
-            raise ValueError("Expected hidden_steps >= 2 but received hidden_steps = {self._hidden_steps}")
+            raise ValueError(
+                "Expected hidden_steps >= 2 but received hidden_steps = {self._hidden_steps}"
+            )
 
         if self.hidden_init_method not in self.supported_init_methods:
             raise ValueError(
                 "Unknown hidden_init_method = {hidden_init_method}, supported methods are {supported_init_methods}".format(
-                    hidden_init_method=self.hidden_init_method, supported_init_methods=self.supported_init_methods,
+                    hidden_init_method=self.hidden_init_method,
+                    supported_init_methods=self.supported_init_methods,
                 )
             )
 
         if self._pooling_type not in self.supported_arch:
-            raise ValueError(f"Unknown pooling_type = {pooling_type}. Available values = {self.supported_arch}")
+            raise ValueError(
+                f"Unknown pooling_type = {pooling_type}. Available values = {self.supported_arch}"
+            )
 
         # self-attention encoder
         layer = TransformerEncoder(
@@ -79,7 +84,9 @@ class PoolingEncoder(torch.nn.Module):
             pre_ln=pre_ln,
             pre_ln_final_layer_norm=pre_ln_final_layer_norm,
         )
-        self.self_att_layers = torch.nn.ModuleList([copy.deepcopy(layer) for _ in range(hidden_blocks)])
+        self.self_att_layers = torch.nn.ModuleList(
+            [copy.deepcopy(layer) for _ in range(hidden_blocks)]
+        )
 
         self.pooling = self._build_pooling_module()
 
@@ -130,7 +137,9 @@ class PoolingEncoder(torch.nn.Module):
             residual = hidden_states
 
             # self-attention over hidden
-            hidden_states = self_att(encoder_states=hidden_states, encoder_mask=hidden_mask)
+            hidden_states = self_att(
+                encoder_states=hidden_states, encoder_mask=hidden_mask
+            )
 
             hidden_states += residual
 
@@ -143,7 +152,9 @@ class PoolingEncoder(torch.nn.Module):
 
                 # max pool mask
                 hidden_mask = (
-                    self.pooling(hidden_mask.unsqueeze(0).type_as(hidden_states)).squeeze(0).type_as(hidden_mask)
+                    self.pooling(hidden_mask.unsqueeze(0).type_as(hidden_states))
+                    .squeeze(0)
+                    .type_as(hidden_mask)
                 )
 
         return hidden_states, hidden_mask

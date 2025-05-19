@@ -52,22 +52,25 @@ def dit_data_step(module, dataloader_iter):
     """DiT data batch preparation."""
     batch = next(dataloader_iter)[0]
     batch = get_batch_on_this_cp_rank(batch)
-    batch = {k: v.to(device='cuda', non_blocking=True) if torch.is_tensor(v) else v for k, v in batch.items()}
+    batch = {
+        k: v.to(device="cuda", non_blocking=True) if torch.is_tensor(v) else v
+        for k, v in batch.items()
+    }
 
-    cu_seqlens = batch['seq_len_q'].cumsum(dim=0).to(torch.int32)
+    cu_seqlens = batch["seq_len_q"].cumsum(dim=0).to(torch.int32)
     zero = torch.zeros(1, dtype=torch.int32, device="cuda")
     cu_seqlens = torch.cat((zero, cu_seqlens))
 
-    cu_seqlens_kv = batch['seq_len_kv'].cumsum(dim=0).to(torch.int32)
+    cu_seqlens_kv = batch["seq_len_kv"].cumsum(dim=0).to(torch.int32)
     cu_seqlens_kv = torch.cat((zero, cu_seqlens_kv))
 
-    batch['packed_seq_params'] = {
-        'self_attention': PackedSeqParams(
+    batch["packed_seq_params"] = {
+        "self_attention": PackedSeqParams(
             cu_seqlens_q=cu_seqlens,
             cu_seqlens_kv=cu_seqlens,
             qkv_format=module.qkv_format,
         ),
-        'cross_attention': PackedSeqParams(
+        "cross_attention": PackedSeqParams(
             cu_seqlens_q=cu_seqlens,
             cu_seqlens_kv=cu_seqlens_kv,
             qkv_format=module.qkv_format,
@@ -86,25 +89,31 @@ def get_batch_on_this_cp_rank(data: Dict):
 
     if cp_size > 1:
         num_valid_tokens_in_ub = None
-        if 'loss_mask' in data and data['loss_mask'] is not None:
-            num_valid_tokens_in_ub = data['loss_mask'].sum()
+        if "loss_mask" in data and data["loss_mask"] is not None:
+            num_valid_tokens_in_ub = data["loss_mask"].sum()
 
         for key, value in data.items():
-            if (value is not None) and (key in ['video', 'video_latent', 'noise_latent', 'pos_ids']):
+            if (value is not None) and (
+                key in ["video", "video_latent", "noise_latent", "pos_ids"]
+            ):
                 if len(value.shape) > 5:
                     value = value.squeeze(0)
                 if len(value.shape) == 5:
                     B, C, T, H, W = value.shape
-                    data[key] = value.view(B, C, cp_size, T // cp_size, H, W)[:, :, cp_rank, ...].contiguous()
+                    data[key] = value.view(B, C, cp_size, T // cp_size, H, W)[
+                        :, :, cp_rank, ...
+                    ].contiguous()
                 else:
                     B, S, D = value.shape
-                    data[key] = value.view(B, cp_size, S // cp_size, D)[:, cp_rank, ...].contiguous()
+                    data[key] = value.view(B, cp_size, S // cp_size, D)[
+                        :, cp_rank, ...
+                    ].contiguous()
                 # TODO: sequence packing
         loss_mask = data["loss_mask"]
-        data["loss_mask"] = loss_mask.view(loss_mask.shape[0], cp_size, loss_mask.shape[1] // cp_size)[
-            :, cp_rank, ...
-        ].contiguous()
-        data['num_valid_tokens_in_ub'] = num_valid_tokens_in_ub
+        data["loss_mask"] = loss_mask.view(
+            loss_mask.shape[0], cp_size, loss_mask.shape[1] // cp_size
+        )[:, cp_rank, ...].contiguous()
+        data["num_valid_tokens_in_ub"] = num_valid_tokens_in_ub
     return data
 
 
@@ -142,7 +151,7 @@ class DiTConfig(TransformerConfig, io.IOMixin):
     bf16: bool = True
     params_dtype: torch.dtype = torch.bfloat16
 
-    vae_module: str = 'nemo.collections.diffusion.vae.diffusers_vae.AutoencoderKLVAE'
+    vae_module: str = "nemo.collections.diffusion.vae.diffusers_vae.AutoencoderKLVAE"
     vae_path: str = None
     sigma_data: float = 0.5
 
@@ -155,7 +164,7 @@ class DiTConfig(TransformerConfig, io.IOMixin):
 
     seq_length: int = 2048
 
-    qkv_format: str = 'sbhd'
+    qkv_format: str = "sbhd"
     attn_mask_type: AttnMaskType = AttnMaskType.no_mask
 
     @override
@@ -277,8 +286,8 @@ class DiTLlama1BConfig(DiTLlama30BConfig):
 @dataclass
 class ECDiTLlama1BConfig(DiTLlama1BConfig):
     "EC-DiT 1B"
-    moe_router_load_balancing_type: str = 'expert_choice'
-    moe_token_dispatcher_type: str = 'alltoall'
+    moe_router_load_balancing_type: str = "expert_choice"
+    moe_token_dispatcher_type: str = "alltoall"
     moe_grouped_gemm: bool = True
     moe_expert_capacity_factor: float = 8
     moe_pad_expert_input_to_capacity: bool = True
@@ -299,14 +308,18 @@ class DiTModel(GPTModel):
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
         tokenizer: Optional[Any] = None,
     ):
-        super().__init__(config or DiTConfig(), optim=optim, model_transform=model_transform)
+        super().__init__(
+            config or DiTConfig(), optim=optim, model_transform=model_transform
+        )
 
         self.vae = None
 
         self._training_loss_reduction = None
         self._validation_loss_reduction = None
 
-        self.diffusion_pipeline = EDMPipeline(net=self, sigma_data=self.config.sigma_data)
+        self.diffusion_pipeline = EDMPipeline(
+            net=self, sigma_data=self.config.sigma_data
+        )
 
         self._noise_generator = None
         self.seed = 42
@@ -338,36 +351,36 @@ class DiTModel(GPTModel):
     def on_validation_start(self):
         if self.vae is None:
             if self.config.vae_path is None:
-                warnings.warn('vae_path not specified skipping validation')
+                warnings.warn("vae_path not specified skipping validation")
                 return None
             self.vae = self.config.configure_vae()
-        self.vae.to('cuda')
+        self.vae.to("cuda")
 
     def on_validation_end(self):
         """Move video tokenizer to CPU after validation."""
         if self.vae is not None:
-            self.vae.to('cpu')
+            self.vae.to("cpu")
 
     def validation_step(self, batch, batch_idx=None) -> torch.Tensor:
         """Generated validation video sample and logs to wandb."""
         # In mcore the loss-function is part of the forward-pass (when labels are provided)
-        state_shape = batch['video'].shape
+        state_shape = batch["video"].shape
         sample = self.diffusion_pipeline.generate_samples_from_batch(
             batch,
             guidance=7,
             state_shape=state_shape,
             num_steps=35,
-            is_negative_prompt=True if 'neg_t5_text_embeddings' in batch else False,
+            is_negative_prompt=True if "neg_t5_text_embeddings" in batch else False,
         )
 
         # TODO visualize more than 1 sample
         sample = sample[0, None]
-        C, T, H, W = batch['latent_shape'][0]
-        seq_len_q = batch['seq_len_q'][0]
+        C, T, H, W = batch["latent_shape"][0]
+        seq_len_q = batch["seq_len_q"][0]
 
         sample = rearrange(
             sample[0, None, :seq_len_q],
-            'B (T H W) (ph pw pt C) -> B C (T pt) (H ph) (W pw)',
+            "B (T H W) (ph pw pt C) -> B C (T pt) (H ph) (W pw)",
             ph=self.config.patch_spatial,
             pw=self.config.patch_spatial,
             C=C,
@@ -376,32 +389,39 @@ class DiTModel(GPTModel):
             W=W // self.config.patch_spatial,
         )
 
-        video = (1.0 + self.vae.decode(sample / self.config.sigma_data)).clamp(0, 2) / 2  # [B, 3, T, H, W]
+        video = (1.0 + self.vae.decode(sample / self.config.sigma_data)).clamp(
+            0, 2
+        ) / 2  # [B, 3, T, H, W]
 
         video = (video * 255).to(torch.uint8).cpu().numpy().astype(np.uint8)
 
-        result = rearrange(video, 'b c t h w -> (b t) c h w')
+        result = rearrange(video, "b c t h w -> (b t) c h w")
 
         # wandb is on the last rank for megatron, first rank for nemo
         wandb_rank = 0
 
         if parallel_state.get_data_parallel_src_rank() == wandb_rank:
             if torch.distributed.get_rank() == wandb_rank:
-                gather_list = [None for _ in range(parallel_state.get_data_parallel_world_size())]
+                gather_list = [
+                    None for _ in range(parallel_state.get_data_parallel_world_size())
+                ]
             else:
                 gather_list = None
             torch.distributed.gather_object(
-                result, gather_list, wandb_rank, group=parallel_state.get_data_parallel_group()
+                result,
+                gather_list,
+                wandb_rank,
+                group=parallel_state.get_data_parallel_group(),
             )
             if gather_list is not None:
                 videos = []
                 for video in gather_list:
                     try:
-                        videos.append(wandb.Video(video, fps=24, format='mp4'))
+                        videos.append(wandb.Video(video, fps=24, format="mp4"))
                     except Exception as e:
-                        warnings.warn(f'Error saving video as mp4: {e}')
+                        warnings.warn(f"Error saving video as mp4: {e}")
                         videos.append(wandb.Video(video, fps=24))
-                wandb.log({'prediction': videos})
+                wandb.log({"prediction": videos})
 
         return None
 
@@ -420,13 +440,15 @@ class DiTModel(GPTModel):
         return self._validation_loss_reduction
 
     def on_validation_model_zero_grad(self) -> None:
-        '''
+        """
         Small hack to avoid first validation on resume.
         This will NOT work if the gradient accumulation step should be performed at this point.
         https://github.com/Lightning-AI/pytorch-lightning/discussions/18110
-        '''
+        """
         super().on_validation_model_zero_grad()
-        if self.trainer.ckpt_path is not None and getattr(self, '_restarting_skip_val_flag', True):
+        if self.trainer.ckpt_path is not None and getattr(
+            self, "_restarting_skip_val_flag", True
+        ):
             self.trainer.sanity_checking = True
             self._restarting_skip_val_flag = False
 
@@ -436,7 +458,9 @@ class DummyLossReduction(MegatronLossReduction):
     Diffusion Loss Reduction
     """
 
-    def __init__(self, validation_step: bool = False, val_drop_last: bool = True) -> None:
+    def __init__(
+        self, validation_step: bool = False, val_drop_last: bool = True
+    ) -> None:
         super().__init__()
         self.validation_step = validation_step
         self.val_drop_last = val_drop_last
@@ -463,7 +487,7 @@ def dynamic_import(full_path):
     """
     try:
         # Split the full path into module path and attribute name
-        module_path, attribute_name = full_path.rsplit('.', 1)
+        module_path, attribute_name = full_path.rsplit(".", 1)
     except ValueError as e:
         raise ImportError(
             f"Invalid full path '{full_path}'. It should contain both module and attribute names."
@@ -479,6 +503,8 @@ def dynamic_import(full_path):
     try:
         attribute = getattr(module, attribute_name)
     except AttributeError as e:
-        raise AttributeError(f"Module '{module_path}' does not have an attribute '{attribute_name}'.") from e
+        raise AttributeError(
+            f"Module '{module_path}' does not have an attribute '{attribute_name}'."
+        ) from e
 
     return attribute

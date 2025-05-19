@@ -101,9 +101,15 @@ class FrozenCLIPEmbedder(AbstractEmbModel):
         always_return_pooled=False,
         dtype=torch.float,
     ):
-        super().__init__(enable_lora_finetune, target_block=["CLIPAttention", "CLIPMLP"], target_module=["Linear"])
+        super().__init__(
+            enable_lora_finetune,
+            target_block=["CLIPAttention", "CLIPMLP"],
+            target_module=["Linear"],
+        )
         self.tokenizer = CLIPTokenizer.from_pretrained("openai/clip-vit-large-patch14")
-        self.transformer = CLIPTextModel.from_pretrained(version, torch_dtype=dtype).to(device)
+        self.transformer = CLIPTextModel.from_pretrained(version, torch_dtype=dtype).to(
+            device
+        )
         self.device = device
         self.max_length = max_length
         self.freeze()
@@ -133,8 +139,12 @@ class FrozenCLIPEmbedder(AbstractEmbModel):
             padding="max_length",
             return_tensors="pt",
         )
-        tokens = batch_encoding["input_ids"].to(self.transformer.device, non_blocking=True)
-        outputs = self.transformer(input_ids=tokens, output_hidden_states=(self.layer == "hidden"))
+        tokens = batch_encoding["input_ids"].to(
+            self.transformer.device, non_blocking=True
+        )
+        outputs = self.transformer(
+            input_ids=tokens, output_hidden_states=(self.layer == "hidden")
+        )
 
         if self.layer == "last":
             z = outputs.last_hidden_state
@@ -155,22 +165,31 @@ class FrozenCLIPEmbedder(AbstractEmbModel):
 
 
 class FrozenT5Embedder(AbstractEmbModel):
-    '''
+    """
     FrozenT5 encoder model from HF
-    '''
+    """
 
     def __init__(
-        self, version="google/t5-v1_1-xxl", max_length=512, device="cuda", dtype=torch.float, load_config_only=False
+        self,
+        version="google/t5-v1_1-xxl",
+        max_length=512,
+        device="cuda",
+        dtype=torch.float,
+        load_config_only=False,
     ):
         super().__init__()
-        self.tokenizer = T5Tokenizer.from_pretrained("google/t5-v1_1-xxl", max_length=max_length)
+        self.tokenizer = T5Tokenizer.from_pretrained(
+            "google/t5-v1_1-xxl", max_length=max_length
+        )
         if load_config_only:
             print("T5 will be randomly initialized for testing purpose only!")
 
             config = T5Config.from_pretrained(version)
             self.transformer = T5EncoderModel(config)
         else:
-            self.transformer = T5EncoderModel.from_pretrained(version, torch_dtype=dtype).to(device)
+            self.transformer = T5EncoderModel.from_pretrained(
+                version, torch_dtype=dtype
+            ).to(device)
         self.max_length = max_length
         self.freeze()
         self.device = device
@@ -192,7 +211,9 @@ class FrozenT5Embedder(AbstractEmbModel):
             return_tensors="pt",
         )
 
-        tokens = batch_encoding["input_ids"].to(self.transformer.device, non_blocking=True)
+        tokens = batch_encoding["input_ids"].to(
+            self.transformer.device, non_blocking=True
+        )
         outputs = self.transformer(input_ids=tokens, output_hidden_states=None)
 
         return outputs.last_hidden_state

@@ -89,7 +89,7 @@ Note:
 """
 
 
-def tokenize_dataset(cfg: 'DictConfig'):
+def tokenize_dataset(cfg: "DictConfig"):
     """
     Tokenizes a dataset using the same configuration file as finetuninng with GPTSFTDataset.
 
@@ -116,9 +116,13 @@ def tokenize_dataset(cfg: 'DictConfig'):
 
     if os.path.isdir(cfg.tokenizer_path):
         # pass in a Hugging Face folder which contains tokenizer.json
-        tokenizer = get_nmt_tokenizer(library="huggingface", model_name=cfg.tokenizer_path, use_fast=True)
+        tokenizer = get_nmt_tokenizer(
+            library="huggingface", model_name=cfg.tokenizer_path, use_fast=True
+        )
     else:
-        tokenizer = get_nmt_tokenizer(library="sentencepiece", tokenizer_model=cfg.tokenizer_path)
+        tokenizer = get_nmt_tokenizer(
+            library="sentencepiece", tokenizer_model=cfg.tokenizer_path
+        )
 
     dataset = GPTSFTDataset(
         file_path=data_cfg.file_names[0],
@@ -126,24 +130,24 @@ def tokenize_dataset(cfg: 'DictConfig'):
         max_seq_length=data_cfg.max_seq_length,
         min_seq_length=data_cfg.min_seq_length,
         pad_seq_length_to_mult=pad_seq_length_to_mult,
-        add_bos=data_cfg.get('add_bos', False),
-        add_eos=data_cfg.get('add_eos', True),
-        add_sep=data_cfg.get('add_sep', False),
-        sep_id=cfg.get('sep_id', 49704),
+        add_bos=data_cfg.get("add_bos", False),
+        add_eos=data_cfg.get("add_eos", True),
+        add_sep=data_cfg.get("add_sep", False),
+        sep_id=cfg.get("sep_id", 49704),
         max_num_samples=None,
-        seed=data_cfg.get('seed', 1234),
-        label_key=data_cfg.get('label_key', 'answer'),
-        answer_only_loss=cfg.get('answer_only_loss', True),
-        truncation_field=data_cfg.get('truncation_field', 'text'),
-        pad_to_max_length=data_cfg.get('pad_to_max_length', False),
-        index_mapping_dir=data_cfg.get('index_mapping_dir', None),
-        prompt_template=data_cfg.get('prompt_template', None),
+        seed=data_cfg.get("seed", 1234),
+        label_key=data_cfg.get("label_key", "answer"),
+        answer_only_loss=cfg.get("answer_only_loss", True),
+        truncation_field=data_cfg.get("truncation_field", "text"),
+        pad_to_max_length=data_cfg.get("pad_to_max_length", False),
+        index_mapping_dir=data_cfg.get("index_mapping_dir", None),
+        prompt_template=data_cfg.get("prompt_template", None),
         virtual_tokens=0,
-        tokens_to_generate=data_cfg.get('tokens_to_generate', 0),
-        memmap_workers=data_cfg.get('memmap_workers', None),
-        hf_dataset=data_cfg.get('hf_dataset', False),
-        truncation_method=data_cfg.get('truncation_method', 'right'),
-        special_tokens=data_cfg.get('chat_prompt_tokens', None),
+        tokens_to_generate=data_cfg.get("tokens_to_generate", 0),
+        memmap_workers=data_cfg.get("memmap_workers", None),
+        hf_dataset=data_cfg.get("hf_dataset", False),
+        truncation_method=data_cfg.get("truncation_method", "right"),
+        special_tokens=data_cfg.get("chat_prompt_tokens", None),
         is_test=True,
     )
 
@@ -155,12 +159,12 @@ def tokenize_dataset(cfg: 'DictConfig'):
     if cp_size > 1:
 
         def pre_pad_dataset(data, max_seq_length, max_length_to_pad, pad_id):
-            '''
+            """
             pad each individual data point to the length of max_length
-            '''
+            """
             assert max_seq_length >= max_length_to_pad
             for key, val in data.items():
-                if key in {'input_ids', 'context_ids'}:
+                if key in {"input_ids", "context_ids"}:
                     if len(val) <= max_length_to_pad:
                         # because input_ids are truncated by 1 for inputs and labels,
                         # we add 1 extra padding here to make sure padded inputs and labels
@@ -179,7 +183,10 @@ def tokenize_dataset(cfg: 'DictConfig'):
 
         ceil_to_nearest = lambda n, m: (n + m - 1) // m * m
         for data in dataset:
-            max_length_to_pad = min(max_seq_length, ceil_to_nearest(len(data['input_ids']), pad_seq_length_to_mult))
+            max_length_to_pad = min(
+                max_seq_length,
+                ceil_to_nearest(len(data["input_ids"]), pad_seq_length_to_mult),
+            )
             pre_pad_dataset(data, max_seq_length, max_length_to_pad, pad_id)
     return dataset, tokenizer
 
@@ -191,8 +198,8 @@ class PackingArgs:
     packing_algorithm: str = "first_fit_shuffle"
     seed: int = 0
 
-    def from_config(self, cfg: 'DictConfig'):
-        for required_arg in ('output_dir', 'pack_sizes'):
+    def from_config(self, cfg: "DictConfig"):
+        for required_arg in ("output_dir", "pack_sizes"):
             assert cfg.get(required_arg, None), f"Please specify +{required_arg}=..."
         self.output_dir = cfg.output_dir
         self.pack_sizes = cfg.pack_sizes
@@ -202,19 +209,26 @@ class PackingArgs:
 
 
 @hydra_runner(
-    config_path="../../examples/nlp/language_modeling/tuning/conf", config_name="megatron_gpt_finetuning_config"
+    config_path="../../examples/nlp/language_modeling/tuning/conf",
+    config_name="megatron_gpt_finetuning_config",
 )
-def main(cfg: 'DictConfig') -> None:
+def main(cfg: "DictConfig") -> None:
     args = PackingArgs().from_config(cfg)
     dataset, tokenizer = tokenize_dataset(cfg)
     sequences, histogram = create_hist(dataset, cfg.model.data.train_ds.max_seq_length)
     for pack_size in args.pack_sizes:
-        assignments, _ = create_packing_strategy(histogram, pack_size, args.packing_algorithm)
-        output_data = fill_packing_strategy(assignments, sequences, pack_size, tokenizer.eos_id)
+        assignments, _ = create_packing_strategy(
+            histogram, pack_size, args.packing_algorithm
+        )
+        output_data = fill_packing_strategy(
+            assignments, sequences, pack_size, tokenizer.eos_id
+        )
 
         # save output data
         os.makedirs(args.output_dir, exist_ok=True)
-        output_path = os.path.join(args.output_dir, f'packed_{pack_size}_seed{args.seed}.npy')
+        output_path = os.path.join(
+            args.output_dir, f"packed_{pack_size}_seed{args.seed}.npy"
+        )
         np.save(output_path, output_data)
         logging.info(f"Done, output written to {output_path}")
 
@@ -227,5 +241,5 @@ for more details: <https://docs.nvidia.com/nemo-framework/user-guide/latest/nemo
     )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

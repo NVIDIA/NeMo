@@ -23,7 +23,7 @@ from nemo.core.classes.module import NeuralModule
 from nemo.core.neural_types import (AcousticEncodedRepresentation,
                                     LogprobsType, NeuralType)
 
-__all__ = ['LSTMDecoder']
+__all__ = ["LSTMDecoder"]
 
 
 class LSTMDecoder(NeuralModule, Exportable):
@@ -40,13 +40,27 @@ class LSTMDecoder(NeuralModule, Exportable):
 
     @property
     def input_types(self):
-        return OrderedDict({"encoder_output": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation())})
+        return OrderedDict(
+            {
+                "encoder_output": NeuralType(
+                    ("B", "D", "T"), AcousticEncodedRepresentation()
+                )
+            }
+        )
 
     @property
     def output_types(self):
-        return OrderedDict({"logprobs": NeuralType(('B', 'T', 'D'), LogprobsType())})
+        return OrderedDict({"logprobs": NeuralType(("B", "T", "D"), LogprobsType())})
 
-    def __init__(self, feat_in, num_classes, lstm_hidden_size, vocabulary=None, bidirectional=False, num_layers=1):
+    def __init__(
+        self,
+        feat_in,
+        num_classes,
+        lstm_hidden_size,
+        vocabulary=None,
+        bidirectional=False,
+        num_layers=1,
+    ):
         super().__init__()
 
         if vocabulary is not None:
@@ -68,7 +82,9 @@ class LSTMDecoder(NeuralModule, Exportable):
             bidirectional=bidirectional,
         )
         lstm_hidden_size = 2 * lstm_hidden_size if bidirectional else lstm_hidden_size
-        self.linear_layer = torch.nn.Linear(in_features=lstm_hidden_size, out_features=self._num_classes)
+        self.linear_layer = torch.nn.Linear(
+            in_features=lstm_hidden_size, out_features=self._num_classes
+        )
 
     @typecheck()
     def forward(self, encoder_output):
@@ -83,7 +99,9 @@ class LSTMDecoder(NeuralModule, Exportable):
         Returns:
             A tuple of input examples.
         """
-        input_example = torch.randn(max_batch, self._feat_in, max_dim).to(next(self.parameters()).device)
+        input_example = torch.randn(max_batch, self._feat_in, max_dim).to(
+            next(self.parameters()).device
+        )
         return tuple([input_example])
 
     @property

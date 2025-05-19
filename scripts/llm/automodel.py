@@ -31,15 +31,15 @@ from nemo.collections.llm.gpt.data.hf_dataset import SquadHFDataModule
 from nemo.utils import logging
 
 # TODO: Set your SQuaD dataset path, remember to add the path in custom_mounts if using slurm executor
-DATA_PATH = ''
+DATA_PATH = ""
 
 
 def get_parser():
     parser = argparse.ArgumentParser(description="NeMo2.0 Pretraining")
-    parser.add_argument('--model', default='nvidia/Llama-3_3-Nemotron-Super-49B-v1')
-    parser.add_argument('--nodes', type=int, default=4)
-    parser.add_argument('--devices', type=int, default=8)
-    parser.add_argument('--max-steps', type=int, default=200)
+    parser.add_argument("--model", default="nvidia/Llama-3_3-Nemotron-Super-49B-v1")
+    parser.add_argument("--nodes", type=int, default=4)
+    parser.add_argument("--devices", type=int, default=8)
+    parser.add_argument("--max-steps", type=int, default=200)
     parser.add_argument(
         "--tag",
         type=str,
@@ -83,7 +83,9 @@ def slurm_executor(
     container_image: str = "nvcr.io/nvidia/nemo:25.02",
     retries: int = 0,
 ) -> run.SlurmExecutor:
-    if not (user and host and remote_job_dir and account and partition and nodes and devices):
+    if not (
+        user and host and remote_job_dir and account and partition and nodes and devices
+    ):
         raise RuntimeError(
             "Please set user, host, remote_job_dir, account, partition, nodes and devices args for using this ",
             "function.",
@@ -139,7 +141,9 @@ def local_executor_torchrun(nodes: int = 1, devices: int = 2) -> run.LocalExecut
         "NVTE_FUSED_ATTN": "0",
     }
 
-    executor = run.LocalExecutor(ntasks_per_node=devices, launcher="torchrun", env_vars=env_vars)
+    executor = run.LocalExecutor(
+        ntasks_per_node=devices, launcher="torchrun", env_vars=env_vars
+    )
 
     return executor
 
@@ -157,11 +161,11 @@ def main():
         name=exp_name,
         num_nodes=args.nodes,
         num_gpus_per_node=args.devices,
-        peft_scheme='none',
+        peft_scheme="none",
         dir="/nemo_run/checkpoints",
         max_steps=args.max_steps,
         trust_remote_code=True,
-        attn_implementation='eager',
+        attn_implementation="eager",
     )
 
     recipe.trainer.val_check_interval = 50
@@ -214,7 +218,9 @@ def main():
             custom_env_vars=custom_env_vars,
         )
     else:
-        executor = local_executor_torchrun(nodes=recipe.trainer.num_nodes, devices=recipe.trainer.devices)
+        executor = local_executor_torchrun(
+            nodes=recipe.trainer.num_nodes, devices=recipe.trainer.devices
+        )
 
     with run.Experiment(f"{exp_name}{args.tag}") as exp:
         for i in range(1):

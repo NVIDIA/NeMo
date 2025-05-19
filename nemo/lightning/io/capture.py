@@ -32,7 +32,7 @@ def capture(to_capture: Optional[Callable] = None):
             return to_capture(*args, **kwargs)
 
         output = to_capture(*args, **kwargs)
-        if not hasattr(output, '__dict__'):
+        if not hasattr(output, "__dict__"):
             try:
                 if isinstance(output, (int, float, str, tuple)):
                     new_output = type_factory(type(output), base_value=output)
@@ -69,8 +69,10 @@ def reinit(configurable: IOProtocol[SelfT]) -> SelfT:
     if isinstance(configurable, ReInitProtocol):
         return configurable.reinit()
 
-    if not hasattr(configurable, '__io__'):
-        raise ValueError(f"Cannot reinit {configurable} because it does not have a __io__ attribute")
+    if not hasattr(configurable, "__io__"):
+        raise ValueError(
+            f"Cannot reinit {configurable} because it does not have a __io__ attribute"
+        )
 
     return fdl.build(configurable.__io__)
 
@@ -104,7 +106,9 @@ def type_factory(original_type, base_value=None):
         try:
             instance = NewType(base_value)
         except TypeError:
-            logging.warning(f"Could not instantiate type {NewType.__name__} with base value.")
+            logging.warning(
+                f"Could not instantiate type {NewType.__name__} with base value."
+            )
             instance = NewType()
         return instance
 

@@ -31,16 +31,22 @@ class _TokensWrapper:
         self.tokenizer = tokenizer
 
         if tokenizer is None:
-            self.reverse_map = {self.vocabulary[i]: i for i in range(len(self.vocabulary))}
+            self.reverse_map = {
+                self.vocabulary[i]: i for i in range(len(self.vocabulary))
+            }
 
         self.vocab_len = len(self.vocabulary)
 
-        if (self.tokenizer is not None) and hasattr(self.tokenizer, 'unk_id') and self.tokenizer.unk_id is not None:
+        if (
+            (self.tokenizer is not None)
+            and hasattr(self.tokenizer, "unk_id")
+            and self.tokenizer.unk_id is not None
+        ):
             self.unknown_id = self.tokenizer.unk_id
-        elif ' ' in self.vocabulary:
-            self.unknown_id = self.token_to_id(' ')
-        elif '<unk>' in self.vocabulary:
-            self.unknown_id = self.token_to_id('<unk>')
+        elif " " in self.vocabulary:
+            self.unknown_id = self.token_to_id(" ")
+        elif "<unk>" in self.vocabulary:
+            self.unknown_id = self.token_to_id("<unk>")
         else:
             self.unknown_id = -1
 
@@ -138,8 +144,8 @@ class FlashLightKenLMBeamSearchDecoder(NeuralModule):
 
             # loads in the boosted words if given via a file
             if boost_path is not None:
-                with open(boost_path, 'r', encoding='utf_8') as fr:
-                    boost_words = [line.strip().split('\t') for line in fr]
+                with open(boost_path, "r", encoding="utf_8") as fr:
+                    boost_words = [line.strip().split("\t") for line in fr]
                     boost_words = {w[0]: w[1] for w in boost_words}
             else:
                 boost_words = {}
@@ -161,21 +167,33 @@ class FlashLightKenLMBeamSearchDecoder(NeuralModule):
                 word_idx = self.word_dict.get_index(word)
                 _, score = self.lm.score(start_state, word_idx)
                 for spelling in spellings:
-                    spelling_idxs = [self.tokenizer_wrapper.token_to_id(token) for token in spelling]
+                    spelling_idxs = [
+                        self.tokenizer_wrapper.token_to_id(token) for token in spelling
+                    ]
                     if self.tokenizer_wrapper.unk_id in spelling_idxs:
-                        print(f'tokenizer has unknown id for word[ {word} ] {spelling} {spelling_idxs}', flush=True)
+                        print(
+                            f"tokenizer has unknown id for word[ {word} ] {spelling} {spelling_idxs}",
+                            flush=True,
+                        )
                         continue
                     self.trie.insert(
-                        spelling_idxs, word_idx, score if word not in boost_words else float(boost_words[word])
+                        spelling_idxs,
+                        word_idx,
+                        score if word not in boost_words else float(boost_words[word]),
                     )
             # handle OOV boosted words
             for word, boost in boost_words.items():
                 if word not in self.lexicon:
                     word_idx = self.word_dict.get_index(word)
                     spelling = self.tokenizer_wrapper.text_to_tokens(word)
-                    spelling_idxs = [self.tokenizer_wrapper.token_to_id(token) for token in spelling]
+                    spelling_idxs = [
+                        self.tokenizer_wrapper.token_to_id(token) for token in spelling
+                    ]
                     if self.tokenizer_wrapper.unk_id in spelling_idxs:
-                        print(f'tokenizer has unknown id for word[ {word} ] {spelling} {spelling_idxs}', flush=True)
+                        print(
+                            f"tokenizer has unknown id for word[ {word} ] {spelling} {spelling_idxs}",
+                            flush=True,
+                        )
                         continue
                     self.trie.insert(spelling_idxs, word_idx, float(boost))
             self.trie.smear(SmearingMode.MAX)
@@ -193,7 +211,14 @@ class FlashLightKenLMBeamSearchDecoder(NeuralModule):
             )
 
             self.decoder = LexiconDecoder(
-                self.decoder_opts, self.trie, self.lm, self.silence, self.blank, self.unk_word, [], False,
+                self.decoder_opts,
+                self.trie,
+                self.lm,
+                self.silence,
+                self.blank,
+                self.unk_word,
+                [],
+                False,
             )
         else:
             from flashlight.lib.text.decoder import (LexiconFreeDecoder,
@@ -201,7 +226,8 @@ class FlashLightKenLMBeamSearchDecoder(NeuralModule):
 
             d = {
                 w: [[w]]
-                for w in self.tokenizer_wrapper.vocab + ([] if '<unk>' in self.tokenizer_wrapper.vocab else ['<unk>'])
+                for w in self.tokenizer_wrapper.vocab
+                + ([] if "<unk>" in self.tokenizer_wrapper.vocab else ["<unk>"])
             }
             self.word_dict = create_word_dict(d)
             self.lm = KenLM(lm_path, self.word_dict)
@@ -214,7 +240,9 @@ class FlashLightKenLMBeamSearchDecoder(NeuralModule):
                 log_add=False,
                 criterion_type=self.criterion_type,
             )
-            self.decoder = LexiconFreeDecoder(self.decoder_opts, self.lm, self.silence, self.blank, [])
+            self.decoder = LexiconFreeDecoder(
+                self.decoder_opts, self.lm, self.silence, self.blank, []
+            )
 
     def _get_tokens(self, idxs: List[int]):
         """Normalize tokens by handling CTC blank, ASG replabels, etc."""
@@ -279,7 +307,9 @@ class FlashLightKenLMBeamSearchDecoder(NeuralModule):
                         "tokens": self._get_tokens(result.tokens),
                         "score": result.score,
                         "timesteps": self._get_timesteps(result.tokens),
-                        "words": [self.word_dict.get_entry(x) for x in result.words if x >= 0],
+                        "words": [
+                            self.word_dict.get_entry(x) for x in result.words if x >= 0
+                        ],
                     }
                     for result in results
                 ]

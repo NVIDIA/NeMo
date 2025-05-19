@@ -41,7 +41,9 @@ def main(cfg):
     # model_utils.resolve_test_dataloaders(model=self) (used for multi data loader support).
     # In general, any operation that tries to use a DictConfig with MISSING in it will fail,
     # other than explicit update operations to change MISSING to some actual value.
-    asr_model_config = update_model_config(asr_model_config, cfg, drop_missing_subconfigs=True)
+    asr_model_config = update_model_config(
+        asr_model_config, cfg, drop_missing_subconfigs=True
+    )
 
     # From here on out, its a general OmegaConf DictConfig, directly usable by our code.
     trainer = pl.Trainer(**asr_model_config.trainer)
@@ -51,5 +53,5 @@ def main(cfg):
     trainer.fit(asr_model)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()  # noqa pylint: disable=no-value-for-parameter

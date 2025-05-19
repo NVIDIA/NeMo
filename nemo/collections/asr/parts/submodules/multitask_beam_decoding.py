@@ -31,7 +31,9 @@ from nemo.utils import logging
 
 
 def pack_hypotheses(
-    hypotheses: List[Hypothesis], beam_hypotheses: torch.Tensor, scores: List[Optional[float]]
+    hypotheses: List[Hypothesis],
+    beam_hypotheses: torch.Tensor,
+    scores: List[Optional[float]],
 ) -> List[Hypothesis]:
 
     for idx, hyp in enumerate(hypotheses):  # type: Hypothesis
@@ -50,7 +52,7 @@ def pack_hypotheses(
     return hypotheses
 
 
-def _states_to_device(dec_state, device='cpu'):
+def _states_to_device(dec_state, device="cpu"):
     if torch.is_tensor(dec_state):
         dec_state = dec_state.to(device)
 
@@ -66,7 +68,7 @@ class AEDBeamInfer(ABC):
         transformer_decoder: torch.nn.Module,
         log_softmax_module: torch.nn.Module,
         tokenizer: TokenizerSpec,
-        search_type: str = 'default',
+        search_type: str = "default",
         return_best_hypothesis: bool = True,
         preserve_alignments: bool = False,
     ):
@@ -111,9 +113,9 @@ class TransformerAEDBeamInfer(AEDBeamInfer, Typing):
         # ('B', 'T', 'D') [Log probs] or ('B', 'T') [Labels]
 
         return {
-            "encoder_hidden_states": NeuralType(tuple(('B', 'T', 'D')), ChannelType()),
-            "encoder_input_mask": NeuralType(tuple(('B', 'T')), MaskType()),
-            "decoder_input_ids": NeuralType(('B', 'T'), LabelsType()),
+            "encoder_hidden_states": NeuralType(tuple(("B", "T", "D")), ChannelType()),
+            "encoder_input_mask": NeuralType(tuple(("B", "T")), MaskType()),
+            "decoder_input_ids": NeuralType(("B", "T"), LabelsType()),
             "partial_hypotheses": NeuralType(optional=True),
         }
 
@@ -127,7 +129,7 @@ class TransformerAEDBeamInfer(AEDBeamInfer, Typing):
         transformer_decoder: torch.nn.Module,
         log_softmax_module: torch.nn.Module,
         tokenizer: TokenizerSpec,
-        search_type: str = 'default',
+        search_type: str = "default",
         beam_size: int = 1,
         length_penalty: float = 0.0,
         max_generation_delta: int = 50,
@@ -213,20 +215,30 @@ class TransformerAEDBeamInfer(AEDBeamInfer, Typing):
             )
 
             if not self.return_best_hypothesis:
-                topk_hypotheses = [x.detach().cpu() for x in topk_hypotheses]  # each item is [beam, seq_len]
-                beam_scores = [x.detach().cpu() for x in beam_scores]  # each item is [beam,]
+                topk_hypotheses = [
+                    x.detach().cpu() for x in topk_hypotheses
+                ]  # each item is [beam, seq_len]
+                beam_scores = [
+                    x.detach().cpu() for x in beam_scores
+                ]  # each item is [beam,]
                 packed_result = []
                 for i in range(len(topk_hypotheses)):
-                    hypotheses = [Hypothesis(score=0.0, y_sequence=[], timestamp=[]) for _ in range(self.beam_size)]
+                    hypotheses = [
+                        Hypothesis(score=0.0, y_sequence=[], timestamp=[])
+                        for _ in range(self.beam_size)
+                    ]
                     # Pack results into Hypotheses
-                    hypotheses = pack_hypotheses(hypotheses, topk_hypotheses[i], beam_scores[i])
+                    hypotheses = pack_hypotheses(
+                        hypotheses, topk_hypotheses[i], beam_scores[i]
+                    )
                     packed_result.append(NBestHypotheses(hypotheses))
                 self.format_hypotheses(packed_result, decoder_input_ids)
             else:
                 beam_scores = [None for _ in range(len(best_hypo))]
                 best_hypo = best_hypo.detach().cpu()
                 hypotheses = [
-                    Hypothesis(score=0.0, y_sequence=[], timestamp=[]) for _ in range(encoder_hidden_states.shape[0])
+                    Hypothesis(score=0.0, y_sequence=[], timestamp=[])
+                    for _ in range(encoder_hidden_states.shape[0])
                 ]
                 # Pack results into Hypotheses
                 packed_result = pack_hypotheses(hypotheses, best_hypo, beam_scores)
@@ -235,7 +247,9 @@ class TransformerAEDBeamInfer(AEDBeamInfer, Typing):
         return (packed_result,)
 
     def format_hypotheses(
-        self, packed_result: List[Hypothesis | NBestHypotheses], decoder_input_ids: Union[torch.Tensor, None]
+        self,
+        packed_result: List[Hypothesis | NBestHypotheses],
+        decoder_input_ids: Union[torch.Tensor, None],
     ) -> None:
         """
         For each hypothesis in the mini-batch:
@@ -250,7 +264,9 @@ class TransformerAEDBeamInfer(AEDBeamInfer, Typing):
             decoder_input_ids = decoder_input_ids.detach().cpu()
 
             for h, prefix in zip(packed_result, decoder_input_ids):
-                hypotheses = h.n_best_hypotheses if isinstance(h, NBestHypotheses) else [h]
+                hypotheses = (
+                    h.n_best_hypotheses if isinstance(h, NBestHypotheses) else [h]
+                )
                 for hyp in hypotheses:
                     assert (hyp.y_sequence[: prefix.shape[0]] == prefix).all(), (
                         f"The decoder input IDs were not found at the beginning of prediction: "
@@ -275,7 +291,7 @@ class TransformerAEDBeamInfer(AEDBeamInfer, Typing):
 @dataclass
 class AEDBeamInferConfig:
     beam_size: int = 1
-    search_type: str = 'default'
+    search_type: str = "default"
     len_pen: float = 1.0
     max_generation_delta: int = -1  # -1 means up to the max length of the decoder
     return_best_hypothesis: bool = True

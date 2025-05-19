@@ -59,7 +59,7 @@ def decode_chars(tokens, token_length, mapping):
         text.append(text_token)
 
     text = text[:token_length]
-    text = ''.join(text)
+    text = "".join(text)
     return text
 
 
@@ -104,12 +104,19 @@ class TestASRDatasets:
 
     @pytest.mark.unit
     def test_tarred_dataset(self, test_data_dir):
-        manifest_path = os.path.abspath(os.path.join(test_data_dir, 'asr/tarred_an4/tarred_audio_manifest.json'))
+        manifest_path = os.path.abspath(
+            os.path.join(test_data_dir, "asr/tarred_an4/tarred_audio_manifest.json")
+        )
 
         # Test braceexpand loading
-        tarpath = os.path.abspath(os.path.join(test_data_dir, 'asr/tarred_an4/audio_{0..1}.tar'))
+        tarpath = os.path.abspath(
+            os.path.join(test_data_dir, "asr/tarred_an4/audio_{0..1}.tar")
+        )
         ds_braceexpand = TarredAudioToCharDataset(
-            audio_tar_filepaths=tarpath, manifest_filepath=manifest_path, labels=self.labels, sample_rate=16000
+            audio_tar_filepaths=tarpath,
+            manifest_filepath=manifest_path,
+            labels=self.labels,
+            sample_rate=16000,
         )
         assert len(ds_braceexpand) == 32
         count = 0
@@ -118,9 +125,17 @@ class TestASRDatasets:
         assert count == 32
 
         # Test loading via list
-        tarpath = [os.path.abspath(os.path.join(test_data_dir, f'asr/tarred_an4/audio_{i}.tar')) for i in range(2)]
+        tarpath = [
+            os.path.abspath(
+                os.path.join(test_data_dir, f"asr/tarred_an4/audio_{i}.tar")
+            )
+            for i in range(2)
+        ]
         ds_list_load = TarredAudioToCharDataset(
-            audio_tar_filepaths=tarpath, manifest_filepath=manifest_path, labels=self.labels, sample_rate=16000
+            audio_tar_filepaths=tarpath,
+            manifest_filepath=manifest_path,
+            labels=self.labels,
+            sample_rate=16000,
         )
         count = 0
         for _ in ds_list_load:
@@ -136,13 +151,20 @@ class TestASRDatasets:
 
         """
         manifest_path = os.path.abspath(
-            os.path.join(test_data_dir, 'asr/tarred_an4/tarred_duplicate_audio_manifest.json')
+            os.path.join(
+                test_data_dir, "asr/tarred_an4/tarred_duplicate_audio_manifest.json"
+            )
         )
 
         # Test braceexpand loading
-        tarpath = os.path.abspath(os.path.join(test_data_dir, 'asr/tarred_an4/audio_{0..1}.tar'))
+        tarpath = os.path.abspath(
+            os.path.join(test_data_dir, "asr/tarred_an4/audio_{0..1}.tar")
+        )
         ds_braceexpand = TarredAudioToCharDataset(
-            audio_tar_filepaths=tarpath, manifest_filepath=manifest_path, labels=self.labels, sample_rate=16000
+            audio_tar_filepaths=tarpath,
+            manifest_filepath=manifest_path,
+            labels=self.labels,
+            sample_rate=16000,
         )
         assert len(ds_braceexpand) == 6
         count = 0
@@ -158,7 +180,9 @@ class TestASRDatasets:
         model_cfg = OmegaConf.create(dict(labels=OmegaConf.create(["a", "b", "c"])))
         dataloader_cfg = OmegaConf.create(dict(labels=copy.deepcopy(self.labels)))
 
-        inject_dataloader_value_from_model_config(model_cfg, dataloader_cfg, key='labels')
+        inject_dataloader_value_from_model_config(
+            model_cfg, dataloader_cfg, key="labels"
+        )
 
         assert (
             """`labels` is explicitly provided to the data loader, and is different from the `labels` provided at the model level config."""
@@ -170,15 +194,26 @@ class TestASRDatasets:
     @pytest.mark.with_downloads()
     @pytest.mark.unit
     def test_tarred_bpe_dataset(self, test_data_dir):
-        manifest_path = os.path.abspath(os.path.join(test_data_dir, 'asr/tarred_an4/tarred_audio_manifest.json'))
+        manifest_path = os.path.abspath(
+            os.path.join(test_data_dir, "asr/tarred_an4/tarred_audio_manifest.json")
+        )
 
-        tokenizer_path = os.path.join(test_data_dir, "asr", "tokenizers", "an4_wpe_128", 'vocab.txt')
-        tokenizer = tokenizers.AutoTokenizer(pretrained_model_name='bert-base-cased', vocab_file=tokenizer_path)
+        tokenizer_path = os.path.join(
+            test_data_dir, "asr", "tokenizers", "an4_wpe_128", "vocab.txt"
+        )
+        tokenizer = tokenizers.AutoTokenizer(
+            pretrained_model_name="bert-base-cased", vocab_file=tokenizer_path
+        )
 
         # Test braceexpand loading
-        tarpath = os.path.abspath(os.path.join(test_data_dir, 'asr/tarred_an4/audio_{0..1}.tar'))
+        tarpath = os.path.abspath(
+            os.path.join(test_data_dir, "asr/tarred_an4/audio_{0..1}.tar")
+        )
         ds_braceexpand = TarredAudioToBPEDataset(
-            audio_tar_filepaths=tarpath, manifest_filepath=manifest_path, tokenizer=tokenizer, sample_rate=16000
+            audio_tar_filepaths=tarpath,
+            manifest_filepath=manifest_path,
+            tokenizer=tokenizer,
+            sample_rate=16000,
         )
         assert len(ds_braceexpand) == 32
         count = 0
@@ -187,27 +222,37 @@ class TestASRDatasets:
         assert count == 32
 
         # Test loading via list
-        tarpath = [os.path.abspath(os.path.join(test_data_dir, f'asr/tarred_an4/audio_{i}.tar')) for i in range(2)]
+        tarpath = [
+            os.path.abspath(
+                os.path.join(test_data_dir, f"asr/tarred_an4/audio_{i}.tar")
+            )
+            for i in range(2)
+        ]
         ds_list_load = TarredAudioToBPEDataset(
-            audio_tar_filepaths=tarpath, manifest_filepath=manifest_path, tokenizer=tokenizer, sample_rate=16000
+            audio_tar_filepaths=tarpath,
+            manifest_filepath=manifest_path,
+            tokenizer=tokenizer,
+            sample_rate=16000,
         )
         count = 0
         for _ in ds_list_load:
             count += 1
         assert count == 32
 
-    @pytest.mark.skipif(not HAVE_DALI, reason="NVIDIA DALI is not installed or incompatible version")
+    @pytest.mark.skipif(
+        not HAVE_DALI, reason="NVIDIA DALI is not installed or incompatible version"
+    )
     @pytest.mark.unit
     def test_dali_char_dataset(self, test_data_dir):
-        manifest_path = os.path.abspath(os.path.join(test_data_dir, 'asr/an4_val.json'))
+        manifest_path = os.path.abspath(os.path.join(test_data_dir, "asr/an4_val.json"))
 
         num_samples = 10
         batch_size = 2
-        device = 'gpu' if torch.cuda.is_available() else 'cpu'
+        device = "gpu" if torch.cuda.is_available() else "cpu"
         texts = []
 
-        with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8') as f:
-            with open(manifest_path, 'r', encoding='utf-8') as m:
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8") as f:
+            with open(manifest_path, "r", encoding="utf-8") as m:
                 for ix, line in enumerate(m):
                     if ix >= num_samples:
                         break
@@ -216,7 +261,7 @@ class TestASRDatasets:
                     f.write(f"{line}\n")
 
                     data = json.loads(line)
-                    texts.append(data['text'])
+                    texts.append(data["text"])
 
             f.seek(0)
 
@@ -226,7 +271,7 @@ class TestASRDatasets:
                 batch_size=batch_size,
                 labels=self.labels,
                 max_duration=16.0,
-                parser='en',
+                parser="en",
                 shuffle=False,
             )
 
@@ -238,7 +283,9 @@ class TestASRDatasets:
                 transcripts_lengths = batch[3]  # transcript length index in DALIOutputs
                 transcripts = [
                     decode_chars(transcript, transcripts_length, mapping=self.labels)
-                    for transcript, transcripts_length in zip(transcripts, transcripts_lengths)
+                    for transcript, transcripts_length in zip(
+                        transcripts, transcripts_lengths
+                    )
                 ]
                 original_transcripts.extend(transcripts)
                 count += len(transcripts)
@@ -257,7 +304,7 @@ class TestASRDatasets:
                 batch_size=batch_size,
                 labels=self.labels,
                 max_duration=16.0,
-                parser='en',
+                parser="en",
                 shuffle=True,
             )
 
@@ -269,7 +316,9 @@ class TestASRDatasets:
                 transcripts_lengths = batch[3]  # transcript length index in DALIOutputs
                 transcripts = [
                     decode_chars(transcript, transcripts_length, mapping=self.labels)
-                    for transcript, transcripts_length in zip(transcripts, transcripts_lengths)
+                    for transcript, transcripts_length in zip(
+                        transcripts, transcripts_lengths
+                    )
                 ]
                 shuffled_transcripts.extend(transcripts)
                 count += len(transcripts)
@@ -279,26 +328,36 @@ class TestASRDatasets:
             for orig, shuffled in zip(original_transcripts, shuffled_transcripts):
                 if orig != shuffled:
                     samples_changed += 1
-            assert samples_changed > 1  # assume after shuffling at least 1 sample was displaced
+            assert (
+                samples_changed > 1
+            )  # assume after shuffling at least 1 sample was displaced
 
-            for og_transcript, shuffled_transcript in zip(sorted(original_transcripts), sorted(shuffled_transcripts)):
+            for og_transcript, shuffled_transcript in zip(
+                sorted(original_transcripts), sorted(shuffled_transcripts)
+            ):
                 assert og_transcript == shuffled_transcript
 
-    @pytest.mark.skipif(not HAVE_DALI, reason="NVIDIA DALI is not installed or incompatible version")
+    @pytest.mark.skipif(
+        not HAVE_DALI, reason="NVIDIA DALI is not installed or incompatible version"
+    )
     @pytest.mark.unit
     def test_dali_bpe_dataset(self, test_data_dir):
-        manifest_path = os.path.abspath(os.path.join(test_data_dir, 'asr/an4_val.json'))
+        manifest_path = os.path.abspath(os.path.join(test_data_dir, "asr/an4_val.json"))
 
         num_samples = 10
         batch_size = 2
-        device = 'gpu' if torch.cuda.is_available() else 'cpu'
+        device = "gpu" if torch.cuda.is_available() else "cpu"
         texts = []
 
-        tokenizer_path = os.path.join(test_data_dir, "asr", "tokenizers", "an4_wpe_128", 'vocab.txt')
-        tokenizer = tokenizers.AutoTokenizer(pretrained_model_name='bert-base-cased', vocab_file=tokenizer_path)
+        tokenizer_path = os.path.join(
+            test_data_dir, "asr", "tokenizers", "an4_wpe_128", "vocab.txt"
+        )
+        tokenizer = tokenizers.AutoTokenizer(
+            pretrained_model_name="bert-base-cased", vocab_file=tokenizer_path
+        )
 
-        with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8') as f:
-            with open(manifest_path, 'r', encoding='utf-8') as m:
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8") as f:
+            with open(manifest_path, "r", encoding="utf-8") as m:
                 for ix, line in enumerate(m):
                     if ix >= num_samples:
                         break
@@ -307,7 +366,7 @@ class TestASRDatasets:
                     f.write(f"{line}\n")
 
                     data = json.loads(line)
-                    texts.append(data['text'])
+                    texts.append(data["text"])
 
             f.seek(0)
 
@@ -328,7 +387,9 @@ class TestASRDatasets:
                 transcripts_lengths = batch[3]  # transcript length index in DALIOutputs
                 transcripts = [
                     decode_subwords(transcript, transcripts_length, tokenizer=tokenizer)
-                    for transcript, transcripts_length in zip(transcripts, transcripts_lengths)
+                    for transcript, transcripts_length in zip(
+                        transcripts, transcripts_lengths
+                    )
                 ]
                 original_transcripts.extend(transcripts)
                 count += len(transcripts)
@@ -358,7 +419,9 @@ class TestASRDatasets:
                 transcripts_lengths = batch[3]  # transcript length index in DALIOutputs
                 transcripts = [
                     decode_subwords(transcript, transcripts_length, tokenizer=tokenizer)
-                    for transcript, transcripts_length in zip(transcripts, transcripts_lengths)
+                    for transcript, transcripts_length in zip(
+                        transcripts, transcripts_lengths
+                    )
                 ]
                 shuffled_transcripts.extend(transcripts)
                 count += len(transcripts)
@@ -368,22 +431,28 @@ class TestASRDatasets:
             for orig, shuffled in zip(original_transcripts, shuffled_transcripts):
                 if orig != shuffled:
                     samples_changed += 1
-            assert samples_changed > 1  # assume after shuffling at least 1 sample was displaced
+            assert (
+                samples_changed > 1
+            )  # assume after shuffling at least 1 sample was displaced
 
-            for og_transcript, shuffled_transcript in zip(sorted(original_transcripts), sorted(shuffled_transcripts)):
+            for og_transcript, shuffled_transcript in zip(
+                sorted(original_transcripts), sorted(shuffled_transcripts)
+            ):
                 assert og_transcript == shuffled_transcript
 
-    @pytest.mark.skipif(not HAVE_DALI, reason="NVIDIA DALI is not installed or incompatible version")
+    @pytest.mark.skipif(
+        not HAVE_DALI, reason="NVIDIA DALI is not installed or incompatible version"
+    )
     @pytest.mark.unit
     def test_dali_char_vs_ref_dataset(self, test_data_dir):
-        manifest_path = os.path.abspath(os.path.join(test_data_dir, 'asr/an4_val.json'))
+        manifest_path = os.path.abspath(os.path.join(test_data_dir, "asr/an4_val.json"))
 
         num_samples = 10
         batch_size = 1
         texts = []
 
-        with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8') as f:
-            with open(manifest_path, 'r') as m:
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8") as f:
+            with open(manifest_path, "r") as m:
                 for ix, line in enumerate(m):
                     if ix >= num_samples:
                         break
@@ -392,25 +461,25 @@ class TestASRDatasets:
                     f.write(f"{line}\n")
 
                     data = json.loads(line)
-                    texts.append(data['text'])
+                    texts.append(data["text"])
 
             f.seek(0)
 
             preprocessor = {
-                '_target_': 'nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor',
-                'dither': 0.0,
+                "_target_": "nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor",
+                "dither": 0.0,
             }
             preprocessor_cfg = DictConfig(preprocessor)
 
             dataset_cfg = {
-                'manifest_filepath': f.name,
-                'sample_rate': 16000,
-                'labels': self.labels,
-                'batch_size': batch_size,
-                'trim_silence': False,
-                'max_duration': 16.7,
-                'shuffle': False,
-                'is_tarred': False,
+                "manifest_filepath": f.name,
+                "sample_rate": 16000,
+                "labels": self.labels,
+                "batch_size": batch_size,
+                "trim_silence": False,
+                "max_duration": 16.7,
+                "shuffle": False,
+                "is_tarred": False,
             }
             dali_dataset = audio_to_text_dataset.get_dali_char_dataset(
                 config=dataset_cfg,
@@ -436,7 +505,9 @@ class TestASRDatasets:
 
             for ref_data, dali_data in zip(ref_dataloader, dali_dataset):
                 ref_audio, ref_audio_len, _, _ = ref_data
-                ref_features, ref_features_len = ref_preprocessor(input_signal=ref_audio, length=ref_audio_len)
+                ref_features, ref_features_len = ref_preprocessor(
+                    input_signal=ref_audio, length=ref_audio_len
+                )
 
                 dali_features, dali_features_len, _, _ = dali_data
 
@@ -447,25 +518,36 @@ class TestASRDatasets:
                 assert np.mean(err) < 0.0001
                 assert np.max(err) < 0.01
 
-    @pytest.mark.skipif(not HAVE_DALI, reason="NVIDIA DALI is not installed or incompatible version")
+    @pytest.mark.skipif(
+        not HAVE_DALI, reason="NVIDIA DALI is not installed or incompatible version"
+    )
     @pytest.mark.unit
     def test_tarred_dali_char_dataset(self, test_data_dir):
-        manifest_path = os.path.abspath(os.path.join(test_data_dir, 'asr/tarred_an4/tarred_audio_manifest.json'))
+        manifest_path = os.path.abspath(
+            os.path.join(test_data_dir, "asr/tarred_an4/tarred_audio_manifest.json")
+        )
         audio_tar_filepaths = [
-            os.path.abspath(os.path.join(test_data_dir, f'asr/tarred_an4/audio_{idx}.tar')) for idx in range(2)
+            os.path.abspath(
+                os.path.join(test_data_dir, f"asr/tarred_an4/audio_{idx}.tar")
+            )
+            for idx in range(2)
         ]
         audio_tar_index_filepaths = [
-            os.path.abspath(os.path.join(test_data_dir, f'asr/tarred_an4/dali_index/audio_{idx}.index'))
+            os.path.abspath(
+                os.path.join(
+                    test_data_dir, f"asr/tarred_an4/dali_index/audio_{idx}.index"
+                )
+            )
             for idx in range(2)
         ]
 
         batch_size = 8
-        device = 'gpu' if torch.cuda.is_available() else 'cpu'
+        device = "gpu" if torch.cuda.is_available() else "cpu"
         texts = []
 
-        with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8') as f:
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8") as f:
             num_samples = 0
-            with open(manifest_path, 'r') as m:
+            with open(manifest_path, "r") as m:
                 num_samples = len(m.readlines())
 
             dataset = AudioToCharDALIDataset(
@@ -476,7 +558,7 @@ class TestASRDatasets:
                 batch_size=batch_size,
                 labels=self.labels,
                 max_duration=16.0,
-                parser='en',
+                parser="en",
                 shuffle=False,
             )
 
@@ -488,7 +570,9 @@ class TestASRDatasets:
                 transcripts_lengths = batch[3]  # transcript length index in DALIOutputs
                 transcripts = [
                     decode_chars(transcript, transcripts_length, mapping=self.labels)
-                    for transcript, transcripts_length in zip(transcripts, transcripts_lengths)
+                    for transcript, transcripts_length in zip(
+                        transcripts, transcripts_lengths
+                    )
                 ]
                 original_transcripts.extend(transcripts)
                 count += len(transcripts)
@@ -506,7 +590,7 @@ class TestASRDatasets:
                 batch_size=batch_size,
                 labels=self.labels,
                 max_duration=16.0,
-                parser='en',
+                parser="en",
                 shuffle=True,
             )
 
@@ -518,7 +602,9 @@ class TestASRDatasets:
                 transcripts_lengths = batch[3]  # transcript length index in DALIOutputs
                 transcripts = [
                     decode_chars(transcript, transcripts_length, mapping=self.labels)
-                    for transcript, transcripts_length in zip(transcripts, transcripts_lengths)
+                    for transcript, transcripts_length in zip(
+                        transcripts, transcripts_lengths
+                    )
                 ]
                 shuffled_transcripts.extend(transcripts)
                 count += len(transcripts)
@@ -528,51 +614,66 @@ class TestASRDatasets:
             for orig, shuffled in zip(original_transcripts, shuffled_transcripts):
                 if orig != shuffled:
                     samples_changed += 1
-            assert samples_changed > 1  # assume after shuffling at least 1 sample was displaced
+            assert (
+                samples_changed > 1
+            )  # assume after shuffling at least 1 sample was displaced
 
-            for og_transcript, shuffled_transcript in zip(sorted(original_transcripts), sorted(shuffled_transcripts)):
+            for og_transcript, shuffled_transcript in zip(
+                sorted(original_transcripts), sorted(shuffled_transcripts)
+            ):
                 assert og_transcript == shuffled_transcript
 
-    @pytest.mark.skipif(not HAVE_DALI, reason="NVIDIA DALI is not installed or incompatible version")
+    @pytest.mark.skipif(
+        not HAVE_DALI, reason="NVIDIA DALI is not installed or incompatible version"
+    )
     @pytest.mark.unit
     def test_dali_tarred_char_vs_ref_dataset(self, test_data_dir):
-        manifest_path = os.path.abspath(os.path.join(test_data_dir, 'asr/tarred_an4/tarred_audio_manifest.json'))
+        manifest_path = os.path.abspath(
+            os.path.join(test_data_dir, "asr/tarred_an4/tarred_audio_manifest.json")
+        )
         audio_tar_filepaths = [
-            os.path.abspath(os.path.join(test_data_dir, f'asr/tarred_an4/audio_{idx}.tar')) for idx in range(2)
+            os.path.abspath(
+                os.path.join(test_data_dir, f"asr/tarred_an4/audio_{idx}.tar")
+            )
+            for idx in range(2)
         ]
         audio_tar_index_filepaths = [
-            os.path.abspath(os.path.join(test_data_dir, f'asr/tarred_an4/dali_index/audio_{idx}.index'))
+            os.path.abspath(
+                os.path.join(
+                    test_data_dir, f"asr/tarred_an4/dali_index/audio_{idx}.index"
+                )
+            )
             for idx in range(2)
         ]
 
         batch_size = 8
         texts = []
 
-        with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8') as f:
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8") as f:
             num_samples = 0
-            with open(manifest_path, 'r') as m:
+            with open(manifest_path, "r") as m:
                 for ix, line in enumerate(m):
                     data = json.loads(line)
-                    texts.append(data['text'])
+                    texts.append(data["text"])
                     num_samples = ix
 
             preprocessor = {
-                '_target_': 'nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor',
-                'dither': 0.0,
+                "_target_": "nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor",
+                "dither": 0.0,
             }
             preprocessor_cfg = DictConfig(preprocessor)
 
             dataset_cfg = {
-                'manifest_filepath': f.name,
-                'tarred_audio_filepaths': audio_tar_filepaths,
-                'tarred_audio_index_filepaths': audio_tar_index_filepaths,
-                'sample_rate': 16000,
-                'labels': self.labels,
-                'batch_size': batch_size,
-                'trim_silence': False,
-                'max_duration': 16.7,
-                'shuffle': False,
-                'is_tarred': False,
+                "manifest_filepath": f.name,
+                "tarred_audio_filepaths": audio_tar_filepaths,
+                "tarred_audio_index_filepaths": audio_tar_index_filepaths,
+                "sample_rate": 16000,
+                "labels": self.labels,
+                "batch_size": batch_size,
+                "trim_silence": False,
+                "max_duration": 16.7,
+                "shuffle": False,
+                "is_tarred": False,
             }
             dali_dataset = audio_to_text_dataset.get_dali_char_dataset(
                 config=dataset_cfg,
@@ -598,7 +699,9 @@ class TestASRDatasets:
 
             for ref_data, dali_data in zip(ref_dataloader, dali_dataset):
                 ref_audio, ref_audio_len, _, _ = ref_data
-                ref_features, ref_features_len = ref_preprocessor(input_signal=ref_audio, length=ref_audio_len)
+                ref_features, ref_features_len = ref_preprocessor(
+                    input_signal=ref_audio, length=ref_audio_len
+                )
 
                 dali_features, dali_features_len, _, _ = dali_data
 
@@ -614,13 +717,18 @@ class TestASRDatasets:
         num_samples = 5
         golden_feat_shape = (80, 5)
         with tempfile.TemporaryDirectory() as tmpdir:
-            manifest_path = os.path.join(tmpdir, 'manifest_input.json')
-            with open(manifest_path, 'w', encoding='utf-8') as fp:
+            manifest_path = os.path.join(tmpdir, "manifest_input.json")
+            with open(manifest_path, "w", encoding="utf-8") as fp:
                 for i in range(num_samples):
                     feat_file = os.path.join(tmpdir, f"feat_{i}.pt")
                     torch.save(torch.randn(80, 5), feat_file)
-                    entry = {'audio_filepath': "", 'feature_file': feat_file, 'duration': 100000, "text": "a b c"}
-                    fp.write(json.dumps(entry) + '\n')
+                    entry = {
+                        "audio_filepath": "",
+                        "feature_file": feat_file,
+                        "duration": 100000,
+                        "text": "a b c",
+                    }
+                    fp.write(json.dumps(entry) + "\n")
 
             dataset = FeatureToCharDataset(manifest_path, labels=self.labels)
             cnt = 0
@@ -636,16 +744,25 @@ class TestASRDatasets:
     def test_feature_to_text_bpe_dataset(self, test_data_dir):
         num_samples = 5
         golden_feat_shape = (80, 5)
-        tokenizer_path = os.path.join(test_data_dir, "asr", "tokenizers", "an4_wpe_128", 'vocab.txt')
-        tokenizer = tokenizers.AutoTokenizer(pretrained_model_name='bert-base-cased', vocab_file=tokenizer_path)
+        tokenizer_path = os.path.join(
+            test_data_dir, "asr", "tokenizers", "an4_wpe_128", "vocab.txt"
+        )
+        tokenizer = tokenizers.AutoTokenizer(
+            pretrained_model_name="bert-base-cased", vocab_file=tokenizer_path
+        )
         with tempfile.TemporaryDirectory() as tmpdir:
-            manifest_path = os.path.join(tmpdir, 'manifest_input.json')
-            with open(manifest_path, 'w', encoding='utf-8') as fp:
+            manifest_path = os.path.join(tmpdir, "manifest_input.json")
+            with open(manifest_path, "w", encoding="utf-8") as fp:
                 for i in range(num_samples):
                     feat_file = os.path.join(tmpdir, f"feat_{i}.pt")
                     torch.save(torch.randn(80, 5), feat_file)
-                    entry = {'audio_filepath': "", 'feature_file': feat_file, 'duration': 100000, "text": "a b c"}
-                    fp.write(json.dumps(entry) + '\n')
+                    entry = {
+                        "audio_filepath": "",
+                        "feature_file": feat_file,
+                        "duration": 100000,
+                        "text": "a b c",
+                    }
+                    fp.write(json.dumps(entry) + "\n")
 
             dataset = FeatureToBPEDataset(manifest_path, tokenizer=tokenizer)
             cnt = 0
@@ -664,8 +781,8 @@ class TestASRDatasets:
         sample = torch.ones(80, 10)
         masked_sample = sample * FeatureToCharDataset.ZERO_LEVEL_SPEC_DB_VAL
         with tempfile.TemporaryDirectory() as tmpdir:
-            manifest_path = os.path.join(tmpdir, 'manifest_input.json')
-            with open(manifest_path, 'w', encoding='utf-8') as fp:
+            manifest_path = os.path.join(tmpdir, "manifest_input.json")
+            with open(manifest_path, "w", encoding="utf-8") as fp:
                 feat_file = os.path.join(tmpdir, f"feat_0.pt")
                 torch.save(sample, feat_file)
 
@@ -674,13 +791,13 @@ class TestASRDatasets:
                     fout.write(f"SPEAKER <NA> 1 0 1 <NA> <NA> speech <NA> <NA>\n")
 
                 entry = {
-                    'audio_filepath': "",
-                    'feature_file': feat_file,
-                    'rttm_file': rttm_file,
-                    'duration': 100000,
+                    "audio_filepath": "",
+                    "feature_file": feat_file,
+                    "rttm_file": rttm_file,
+                    "duration": 100000,
                     "text": "a b c",
                 }
-                fp.write(json.dumps(entry) + '\n')
+                fp.write(json.dumps(entry) + "\n")
 
                 # second sample where all frames are not masked
                 feat_file = os.path.join(tmpdir, f"feat_1.pt")
@@ -691,15 +808,17 @@ class TestASRDatasets:
                     fout.write(f"SPEAKER <NA> 1 0 0 <NA> <NA> speech <NA> <NA>\n")
 
                 entry = {
-                    'audio_filepath': "",
-                    'feature_file': feat_file,
-                    'rttm_file': rttm_file,
-                    'duration': 100000,
+                    "audio_filepath": "",
+                    "feature_file": feat_file,
+                    "rttm_file": rttm_file,
+                    "duration": 100000,
                     "text": "a b c",
                 }
-                fp.write(json.dumps(entry) + '\n')
+                fp.write(json.dumps(entry) + "\n")
 
-            dataset = FeatureToCharDataset(manifest_path, labels=self.labels, normalize=None, use_rttm=True)
+            dataset = FeatureToCharDataset(
+                manifest_path, labels=self.labels, normalize=None, use_rttm=True
+            )
             cnt = 0
             for item in dataset:
                 cnt += 1
@@ -717,15 +836,19 @@ class TestASRDatasets:
 
     @pytest.mark.unit
     def test_feature_with_rttm_to_text_bpe_dataset(self, test_data_dir):
-        tokenizer_path = os.path.join(test_data_dir, "asr", "tokenizers", "an4_wpe_128", 'vocab.txt')
-        tokenizer = tokenizers.AutoTokenizer(pretrained_model_name='bert-base-cased', vocab_file=tokenizer_path)
+        tokenizer_path = os.path.join(
+            test_data_dir, "asr", "tokenizers", "an4_wpe_128", "vocab.txt"
+        )
+        tokenizer = tokenizers.AutoTokenizer(
+            pretrained_model_name="bert-base-cased", vocab_file=tokenizer_path
+        )
         num_samples = 2
         golden_feat_shape = (80, 10)
         sample = torch.ones(80, 10)
         masked_sample = sample * FeatureToCharDataset.ZERO_LEVEL_SPEC_DB_VAL
         with tempfile.TemporaryDirectory() as tmpdir:
-            manifest_path = os.path.join(tmpdir, 'manifest_input.json')
-            with open(manifest_path, 'w', encoding='utf-8') as fp:
+            manifest_path = os.path.join(tmpdir, "manifest_input.json")
+            with open(manifest_path, "w", encoding="utf-8") as fp:
                 feat_file = os.path.join(tmpdir, f"feat_0.pt")
                 torch.save(sample, feat_file)
 
@@ -734,13 +857,13 @@ class TestASRDatasets:
                     fout.write(f"SPEAKER <NA> 1 0 1 <NA> <NA> speech <NA> <NA>\n")
 
                 entry = {
-                    'audio_filepath': "",
-                    'feature_file': feat_file,
-                    'rttm_file': rttm_file,
-                    'duration': 100000,
+                    "audio_filepath": "",
+                    "feature_file": feat_file,
+                    "rttm_file": rttm_file,
+                    "duration": 100000,
                     "text": "a b c",
                 }
-                fp.write(json.dumps(entry) + '\n')
+                fp.write(json.dumps(entry) + "\n")
 
                 # second sample where all frames are not masked
                 feat_file = os.path.join(tmpdir, f"feat_1.pt")
@@ -751,15 +874,17 @@ class TestASRDatasets:
                     fout.write(f"SPEAKER <NA> 1 0 0 <NA> <NA> speech <NA> <NA>\n")
 
                 entry = {
-                    'audio_filepath': "",
-                    'feature_file': feat_file,
-                    'rttm_file': rttm_file,
-                    'duration': 100000,
+                    "audio_filepath": "",
+                    "feature_file": feat_file,
+                    "rttm_file": rttm_file,
+                    "duration": 100000,
                     "text": "a b c",
                 }
-                fp.write(json.dumps(entry) + '\n')
+                fp.write(json.dumps(entry) + "\n")
 
-            dataset = FeatureToBPEDataset(manifest_path, tokenizer=tokenizer, normalize=None, use_rttm=True)
+            dataset = FeatureToBPEDataset(
+                manifest_path, tokenizer=tokenizer, normalize=None, use_rttm=True
+            )
             cnt = 0
             for item in dataset:
                 cnt += 1
@@ -778,7 +903,7 @@ class TestASRDatasets:
 
 class TestUtilityFunctions:
     @pytest.mark.unit
-    @pytest.mark.parametrize('cache_audio', [False, True])
+    @pytest.mark.parametrize("cache_audio", [False, True])
     def test_cache_datastore_manifests(self, cache_audio: bool):
         """Test caching of manifest and audio files."""
         # Data setup
@@ -795,30 +920,32 @@ class TestUtilityFunctions:
         data_duration_samples = int(data_duration * sample_rate)
 
         with tempfile.TemporaryDirectory() as test_dir:
-            test_store_dir = os.path.join(test_dir, 'store')
+            test_store_dir = os.path.join(test_dir, "store")
             os.mkdir(test_store_dir)
 
             # Prepare metadata and audio files
             manifest_filepaths = []
             audio_files = []
             for m in range(num_manifests):
-                manifest_dir = os.path.join(test_store_dir, f'manifest_{m}')
+                manifest_dir = os.path.join(test_store_dir, f"manifest_{m}")
                 os.mkdir(manifest_dir)
-                manifest_filepath = os.path.join(manifest_dir, 'manifest.json')
+                manifest_filepath = os.path.join(manifest_dir, "manifest.json")
 
                 metadata = []
-                data = _rng.uniform(low=-0.5, high=0.5, size=(data_duration_samples, num_examples))
+                data = _rng.uniform(
+                    low=-0.5, high=0.5, size=(data_duration_samples, num_examples)
+                )
                 for n in range(num_examples):
-                    audio_filepath = f'manifest_{m}_audio_{n:02d}.wav'
+                    audio_filepath = f"manifest_{m}_audio_{n:02d}.wav"
                     audio_file = os.path.join(manifest_dir, audio_filepath)
                     # Write audio file
-                    sf.write(audio_file, data[:, n], sample_rate, 'float')
+                    sf.write(audio_file, data[:, n], sample_rate, "float")
                     # Update metadata
                     metadata.append(
                         {
-                            'audio_filepath': audio_filepath,
-                            'duration': data_duration,
-                            'text': f'text for example {n:02d}',
+                            "audio_filepath": audio_filepath,
+                            "duration": data_duration,
+                            "text": f"text for example {n:02d}",
                         }
                     )
                     # Update audio files
@@ -829,7 +956,7 @@ class TestUtilityFunctions:
                 manifest_filepaths.append(manifest_filepath)
 
             # Cache location
-            test_cache_dir = os.path.join(test_dir, 'cache')
+            test_cache_dir = os.path.join(test_dir, "cache")
 
             # Instead of using AIS, copy object from store dir to cache dir
             def fake_get(self):
@@ -843,11 +970,16 @@ class TestUtilityFunctions:
                 return self.local_path
 
             with (
-                mock.patch('nemo.collections.asr.data.audio_to_text.is_datastore_path', lambda x: True),
-                mock.patch.object(DataStoreObject, 'get', fake_get),
+                mock.patch(
+                    "nemo.collections.asr.data.audio_to_text.is_datastore_path",
+                    lambda x: True,
+                ),
+                mock.patch.object(DataStoreObject, "get", fake_get),
             ):
                 # Use a single worker for this test to avoid failure with mock & multiprocessing (#5607)
-                cache_datastore_manifests(manifest_filepaths, cache_audio=cache_audio, num_workers=1)
+                cache_datastore_manifests(
+                    manifest_filepaths, cache_audio=cache_audio, num_workers=1
+                )
 
             # Manifests need to be compared
             store_files_to_compare = manifest_filepaths
@@ -857,5 +989,9 @@ class TestUtilityFunctions:
 
             # Compare files
             for f_store in store_files_to_compare:
-                f_cache = os.path.join(test_cache_dir, os.path.relpath(f_store, test_store_dir))
-                assert filecmp.cmp(f_store, f_cache, shallow=False), f'Files {f_store} and {f_cache} do not match.'
+                f_cache = os.path.join(
+                    test_cache_dir, os.path.relpath(f_store, test_store_dir)
+                )
+                assert filecmp.cmp(
+                    f_store, f_cache, shallow=False
+                ), f"Files {f_store} and {f_cache} do not match."

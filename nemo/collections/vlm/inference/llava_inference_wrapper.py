@@ -45,7 +45,7 @@ class LlavaInferenceWrapper(AbstractModelInferenceWrapper):
         image_dict: List[Dict] = None,
     ):
         # pylint: disable=C0115,C0116
-        media = default_collate(image_dict)['pixel_values'].cuda(non_blocking=True)
+        media = default_collate(image_dict)["pixel_values"].cuda(non_blocking=True)
         media = media.reshape(media.size(0), 3, 336, 336)
 
         batch_size = prompts_tokens.size(0)
@@ -56,7 +56,9 @@ class LlavaInferenceWrapper(AbstractModelInferenceWrapper):
             .expand_as(prompts_tokens)
         )
 
-        self.inference_params = InferenceParams(batch_size, seq_length + self._img_seq_len)
+        self.inference_params = InferenceParams(
+            batch_size, seq_length + self._img_seq_len
+        )
 
         return {
             "input_ids": prompts_tokens,
@@ -71,17 +73,23 @@ class LlavaInferenceWrapper(AbstractModelInferenceWrapper):
         context_end_position: int,
     ) -> Dict[str, Any]:
         # pylint: disable=C0115,C0116
-        tokens2use = inference_input["input_ids"][:, context_start_position:context_end_position]
-        positions2use = inference_input["position_ids"][:, context_start_position:context_end_position]
+        tokens2use = inference_input["input_ids"][
+            :, context_start_position:context_end_position
+        ]
+        positions2use = inference_input["position_ids"][
+            :, context_start_position:context_end_position
+        ]
         self.img_token_offset = (context_start_position == 0) * (self._img_seq_len - 1)
 
         return {
             "input_ids": tokens2use,
             "position_ids": positions2use,
-            "images": inference_input['images'],
+            "images": inference_input["images"],
         }
 
-    def forward_pass_without_pipeline_parallel(self, inference_input: Dict[str, Any]) -> torch.Tensor:
+    def forward_pass_without_pipeline_parallel(
+        self, inference_input: Dict[str, Any]
+    ) -> torch.Tensor:
         """Utility to carry out simple forward pass for TP or no model parallel models
 
         Runs a very simple forward pass for model. Used  in the case of models without
@@ -94,8 +102,14 @@ class LlavaInferenceWrapper(AbstractModelInferenceWrapper):
         Returns:
             torch.Tensor: The output logits of shape [batch_size, seq_len, padded_vocab_size]
         """
-        logits = self.model(attention_mask=None, inference_params=self.inference_params, **inference_input)
+        logits = self.model(
+            attention_mask=None,
+            inference_params=self.inference_params,
+            **inference_input,
+        )
         logits = tensor_parallel.gather_from_tensor_model_parallel_region(logits)
-        self.inference_params.sequence_len_offset += inference_input["input_ids"].size(1) + self.img_token_offset
+        self.inference_params.sequence_len_offset += (
+            inference_input["input_ids"].size(1) + self.img_token_offset
+        )
 
         return logits

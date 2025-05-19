@@ -89,7 +89,10 @@ class StarcoderModel(GPTModel):
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
         super().__init__(
-            config or StarcoderConfig(), optim=optim, tokenizer=tokenizer, model_transform=model_transform
+            config or StarcoderConfig(),
+            optim=optim,
+            tokenizer=tokenizer,
+            model_transform=model_transform,
         )
 
 
@@ -124,7 +127,7 @@ class HFStarcoderImporter(io.ModelConnector["GPTBigCodeForCausalLM", StarcoderMo
         """
         from transformers import GPTBigCodeForCausalLM
 
-        source = GPTBigCodeForCausalLM.from_pretrained(str(self), torch_dtype='auto')
+        source = GPTBigCodeForCausalLM.from_pretrained(str(self), torch_dtype="auto")
         target = self.init()
         trainer = self.nemo_setup(target)
         self.convert_state(source, target)
@@ -216,7 +219,9 @@ class HFStarcoderImporter(io.ModelConnector["GPTBigCodeForCausalLM", StarcoderMo
             seq_length=source.n_positions,
             layernorm_epsilon=source.layer_norm_epsilon,
             num_query_groups=1,
-            make_vocab_size_divisible_by=make_vocab_size_divisible_by(source.vocab_size),
+            make_vocab_size_divisible_by=make_vocab_size_divisible_by(
+                source.vocab_size
+            ),
             share_embeddings_and_output_weights=False,
             fp16=(dtype_from_hf(source) == torch.float16),
             bf16=(dtype_from_hf(source) == torch.bfloat16),
@@ -306,7 +311,9 @@ class HFStarcoderExporter(io.ModelConnector[StarcoderModel, "GPTBigCodeForCausal
                 fn=TransformFns.prune_padding,
             ),
         ]
-        return io.apply_transforms(source, target, mapping=mapping, transforms=transforms)
+        return io.apply_transforms(
+            source, target, mapping=mapping, transforms=transforms
+        )
 
     @property
     def tokenizer(self):

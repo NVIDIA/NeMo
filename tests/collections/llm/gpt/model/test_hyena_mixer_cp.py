@@ -41,11 +41,19 @@ from nemo.collections.llm.gpt.model.megatron.hyena.hyena_mixer import \
 from nemo.utils import logging
 
 
-def init_parallel_state(tensor_model_parallel_size=1, pipeline_model_parallel_size=1, context_parallel_size=1):
+def init_parallel_state(
+    tensor_model_parallel_size=1,
+    pipeline_model_parallel_size=1,
+    context_parallel_size=1,
+):
     """Initialize distributed training and megatron parallel state."""
 
     num_gpus = torch.cuda.device_count()
-    required_world_size = tensor_model_parallel_size * pipeline_model_parallel_size * context_parallel_size
+    required_world_size = (
+        tensor_model_parallel_size
+        * pipeline_model_parallel_size
+        * context_parallel_size
+    )
     assert (
         num_gpus == required_world_size
     ), f"World size {num_gpus} != TP={tensor_model_parallel_size} x PP={pipeline_model_parallel_size} x CP={context_parallel_size}"
@@ -66,7 +74,9 @@ def init_parallel_state(tensor_model_parallel_size=1, pipeline_model_parallel_si
 
     # Initialize process group if not already initialized
     if not dist.is_initialized():
-        dist.init_process_group(backend="nccl", init_method="env://", timeout=timeout_timedelta)
+        dist.init_process_group(
+            backend="nccl", init_method="env://", timeout=timeout_timedelta
+        )
         logging.info(f"Initialized distributed training with local rank {local_rank}")
 
     # Initialize parallel state
@@ -119,7 +129,9 @@ def zigzag_split_across_group_ranks(data, group, seq_dim=0):
     second_chunk_idx = total_chunks - 1 - current_rank
 
     # Combine the appropriate chunks for this rank
-    rank_data = torch.cat([tensor_chunks[first_chunk_idx], tensor_chunks[second_chunk_idx]], dim=seq_dim)
+    rank_data = torch.cat(
+        [tensor_chunks[first_chunk_idx], tensor_chunks[second_chunk_idx]], dim=seq_dim
+    )
 
     return rank_data.contiguous()
 
@@ -171,11 +183,15 @@ def zigzag_gather_from_group_ranks(data, group, seq_dim=0):
 
 
 class B2BConv1d(torch.nn.Module):
-    def __init__(self, hyena_config, hyena_test_config, seq_len, use_b2b_causal_conv1d=False):
+    def __init__(
+        self, hyena_config, hyena_test_config, seq_len, use_b2b_causal_conv1d=False
+    ):
         super().__init__()
 
         # Create necessary submodules - use the mixer submodules like in the regular mixer fixture
-        submodules = hyena_stack_spec_no_te.submodules.hyena_layer.submodules.mixer.submodules
+        submodules = (
+            hyena_stack_spec_no_te.submodules.hyena_layer.submodules.mixer.submodules
+        )
 
         logging.info("Creating HyenaMixer...")
         self.mixer = HyenaMixer(
@@ -190,7 +206,10 @@ class B2BConv1d(torch.nn.Module):
     def forward(self, x, _use_cp=True):
         features = self.mixer.hyena_proj_conv(x, _use_cp=_use_cp)
         x1, x2, v = rearrange(
-            features, "b (g dg p) l -> b (g dg) p l", p=3, g=self.mixer.num_groups_per_tp_rank
+            features,
+            "b (g dg p) l -> b (g dg) p l",
+            p=3,
+            g=self.mixer.num_groups_per_tp_rank,
         ).unbind(dim=2)
         z = self.mixer.mixer(x1, x2, v, _hyena_use_cp=_use_cp)
         return z
@@ -198,7 +217,9 @@ class B2BConv1d(torch.nn.Module):
 
 if __name__ == "__main__":
     # Parse command line arguments
-    parser = argparse.ArgumentParser(description="Test hyena mixer with context parallelism")
+    parser = argparse.ArgumentParser(
+        description="Test hyena mixer with context parallelism"
+    )
     parser.add_argument(
         "--use_b2b_causal_conv1d",
         action="store_true",
@@ -253,7 +274,11 @@ if __name__ == "__main__":
         model_parallel_cuda_manual_seed(42)
 
         # Your model initialization and other code here
-        hyena_config = HyenaConfig(num_groups_hyena=4096, num_groups_hyena_short=256, num_groups_hyena_medium=256)
+        hyena_config = HyenaConfig(
+            num_groups_hyena=4096,
+            num_groups_hyena_short=256,
+            num_groups_hyena_medium=256,
+        )
         hyena_test_config = HyenaTestConfig(params_dtype=torch.float32)
 
         batch_size = 2
@@ -270,7 +295,9 @@ if __name__ == "__main__":
 
         ddp_b2b_conv1d = DDP(
             b2b_conv1d,
-            process_group=parallel_state.get_data_parallel_group(with_context_parallel=True),
+            process_group=parallel_state.get_data_parallel_group(
+                with_context_parallel=True
+            ),
             find_unused_parameters=True,
         )
 
@@ -282,7 +309,9 @@ if __name__ == "__main__":
 
         # Broadcast within each group
         cp_group = parallel_state.get_context_parallel_group()
-        dist.broadcast(input_features, min(dist.get_process_group_ranks(cp_group)), group=cp_group)
+        dist.broadcast(
+            input_features, min(dist.get_process_group_ranks(cp_group)), group=cp_group
+        )
 
         logging.info("Running without context parallel")
         output_features = ddp_b2b_conv1d(input_features, _use_cp=False)
@@ -314,7 +343,9 @@ if __name__ == "__main__":
 
         logging.info("Running with context parallel")
         # Split the input features across the context parallel group
-        input_features_cp = zigzag_split_across_group_ranks(input_features, group=cp_group, seq_dim=2)
+        input_features_cp = zigzag_split_across_group_ranks(
+            input_features, group=cp_group, seq_dim=2
+        )
 
         output_features_cp = ddp_b2b_conv1d(input_features_cp, _use_cp=True)
         if dist.get_rank() == 0:
@@ -330,7 +361,9 @@ if __name__ == "__main__":
                 raise
 
         # Gather from all ranks according to zigzag splitting.
-        output_features_cp_gathered = zigzag_gather_from_group_ranks(output_features_cp, group=cp_group, seq_dim=2)
+        output_features_cp_gathered = zigzag_gather_from_group_ranks(
+            output_features_cp, group=cp_group, seq_dim=2
+        )
         if dist.get_rank() == 0:
             try:
                 # Verify shapes are correct
@@ -339,9 +372,13 @@ if __name__ == "__main__":
                     b2b_conv1d.mixer.hidden_size,
                     seq_len,
                 ), f"output_features_cp_gathered.shape: {output_features_cp_gathered.shape}, batch_size: {batch_size}, b2b_conv1d.mixer.hidden_size: {b2b_conv1d.mixer.hidden_size}, seq_len: {seq_len}"
-                logging.info(f"Output features CP gathered shape: {output_features_cp_gathered.shape}")
+                logging.info(
+                    f"Output features CP gathered shape: {output_features_cp_gathered.shape}"
+                )
             except AssertionError as e:
-                logging.error(f"Assertion error for output features CP gathered shape: {e}")
+                logging.error(
+                    f"Assertion error for output features CP gathered shape: {e}"
+                )
                 raise
 
         loss_with_cp = output_features_cp_gathered.float().mean()
@@ -359,7 +396,9 @@ if __name__ == "__main__":
 
         # Only perform comparison on rank 0
         if dist.get_rank() == 0:
-            logging.info(f"Comparing loss values: without CP = {loss.item()}, with CP = {loss_with_cp.item()}")
+            logging.info(
+                f"Comparing loss values: without CP = {loss.item()}, with CP = {loss_with_cp.item()}"
+            )
             try:
                 torch.testing.assert_close(loss, loss_with_cp)
                 logging.info("Loss comparison successful")
@@ -383,7 +422,9 @@ if __name__ == "__main__":
                 raise
 
             gradient_mismatch = False
-            for (n_without_cp, g_without_cp), (n_with_cp, g_with_cp) in zip(grads_without_cp, grads_with_cp):
+            for (n_without_cp, g_without_cp), (n_with_cp, g_with_cp) in zip(
+                grads_without_cp, grads_with_cp
+            ):
                 try:
                     torch.testing.assert_close(g_without_cp, g_with_cp)
                 except AssertionError as e:

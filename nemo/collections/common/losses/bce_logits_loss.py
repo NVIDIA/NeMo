@@ -33,18 +33,22 @@ class BCEWithLogitsLoss(nn.BCEWithLogitsLoss, Serialization, Typing):
 
     @property
     def input_types(self):
-        """Returns definitions of module input ports.
-        """
+        """Returns definitions of module input ports."""
         return {
-            "logits": NeuralType(["B"] + ["ANY"] * (self._logits_dim - 1), LogitsType()),
-            "labels": [NeuralType(["B"] + ["ANY"] * (self._logits_dim - 2), LabelsType())],
-            "loss_mask": NeuralType(["B"] + ["ANY"] * (self._logits_dim - 2), MaskType(), optional=True),
+            "logits": NeuralType(
+                ["B"] + ["ANY"] * (self._logits_dim - 1), LogitsType()
+            ),
+            "labels": [
+                NeuralType(["B"] + ["ANY"] * (self._logits_dim - 2), LabelsType())
+            ],
+            "loss_mask": NeuralType(
+                ["B"] + ["ANY"] * (self._logits_dim - 2), MaskType(), optional=True
+            ),
         }
 
     @property
     def output_types(self):
-        """Returns definitions of module output ports.
-        """
+        """Returns definitions of module output ports."""
         return {"loss": NeuralType(elements_type=LossType())}
 
     def __init__(

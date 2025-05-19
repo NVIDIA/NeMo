@@ -35,18 +35,30 @@ parser.add_argument(
     default="outputs",
     help="Path to TensorRT engine",
 )
-parser.add_argument("--min_shape", type=int, nargs='+', help="min input shape for inference")
-parser.add_argument("--opt_shape", type=int, nargs='+', help="opt input shape for inference")
 parser.add_argument(
-    "--max_shape", type=int, nargs='+', default=[1, 3, 9, 512, 512], help="max input shape for inference"
+    "--min_shape", type=int, nargs="+", help="min input shape for inference"
 )
-parser.add_argument("--clean", action="store_true", help="Clean all files in engine_path before export")
+parser.add_argument(
+    "--opt_shape", type=int, nargs="+", help="opt input shape for inference"
+)
+parser.add_argument(
+    "--max_shape",
+    type=int,
+    nargs="+",
+    default=[1, 3, 9, 512, 512],
+    help="max input shape for inference",
+)
+parser.add_argument(
+    "--clean", action="store_true", help="Clean all files in engine_path before export"
+)
 
 args = parser.parse_args()
 
 
 def main():
-    model = CausalVideoTokenizer.from_pretrained(args.tokenizer_name, use_pytorch=True, dtype="float")
+    model = CausalVideoTokenizer.from_pretrained(
+        args.tokenizer_name, use_pytorch=True, dtype="float"
+    )
 
     class VaeWrapper(torch.nn.Module):
         def __init__(self, vae):
@@ -86,9 +98,9 @@ def main():
         },
     )
 
-    input_tensor = torch.randn(max_shape).to('cuda').to(torch.float)
+    input_tensor = torch.randn(max_shape).to("cuda").to(torch.float)
     output = model_wrapper(input_tensor)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

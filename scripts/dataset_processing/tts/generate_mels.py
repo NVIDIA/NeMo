@@ -69,25 +69,34 @@ def get_args():
         help="Specify the max number of concurrently Python workers processes. "
         "If -1 all CPUs are used. If 1 no parallel computing is used.",
     )
-    parser.add_argument("--cpu", action='store_true', default=False, help="Generate mel spectrograms using CPUs.")
+    parser.add_argument(
+        "--cpu",
+        action="store_true",
+        default=False,
+        help="Generate mel spectrograms using CPUs.",
+    )
     args = parser.parse_args()
     return args
 
 
 def __load_wav(audio_file):
-    with sf.SoundFile(audio_file, 'r') as f:
-        samples = f.read(dtype='float32')
+    with sf.SoundFile(audio_file, "r") as f:
+        samples = f.read(dtype="float32")
     return samples.transpose()
 
 
-def __generate_mels(entry, spec_model, device, use_beta_binomial_interpolator, mel_root):
+def __generate_mels(
+    entry, spec_model, device, use_beta_binomial_interpolator, mel_root
+):
     # Generate a spectrograms (we need to use ground truth alignment for correct matching between audio and mels)
     audio = __load_wav(entry["audio_filepath"])
     audio = torch.from_numpy(audio).unsqueeze(0).to(device)
-    audio_len = torch.tensor(audio.shape[1], dtype=torch.long, device=device).unsqueeze(0)
+    audio_len = torch.tensor(audio.shape[1], dtype=torch.long, device=device).unsqueeze(
+        0
+    )
 
     if spec_model.fastpitch.speaker_emb is not None and "speaker" in entry:
-        speaker = torch.tensor([entry['speaker']]).to(device)
+        speaker = torch.tensor([entry["speaker"]]).to(device)
     else:
         speaker = None
 
@@ -95,32 +104,43 @@ def __generate_mels(entry, spec_model, device, use_beta_binomial_interpolator, m
         if "normalized_text" in entry:
             text = spec_model.parse(entry["normalized_text"], normalize=False)
         else:
-            text = spec_model.parse(entry['text'])
+            text = spec_model.parse(entry["text"])
 
-        text_len = torch.tensor(text.shape[-1], dtype=torch.long, device=device).unsqueeze(0)
+        text_len = torch.tensor(
+            text.shape[-1], dtype=torch.long, device=device
+        ).unsqueeze(0)
         spect, spect_len = spec_model.preprocessor(input_signal=audio, length=audio_len)
 
         # Generate attention prior and spectrogram inputs for HiFi-GAN
         if use_beta_binomial_interpolator:
             beta_binomial_interpolator = BetaBinomialInterpolator()
             attn_prior = (
-                torch.from_numpy(beta_binomial_interpolator(spect_len.item(), text_len.item()))
+                torch.from_numpy(
+                    beta_binomial_interpolator(spect_len.item(), text_len.item())
+                )
                 .unsqueeze(0)
                 .to(text.device)
             )
         else:
             attn_prior = (
-                torch.from_numpy(beta_binomial_prior_distribution(text_len.item(), spect_len.item()))
+                torch.from_numpy(
+                    beta_binomial_prior_distribution(text_len.item(), spect_len.item())
+                )
                 .unsqueeze(0)
                 .to(text.device)
             )
 
         spectrogram = spec_model.forward(
-            text=text, input_lens=text_len, spec=spect, mel_lens=spect_len, attn_prior=attn_prior, speaker=speaker,
+            text=text,
+            input_lens=text_len,
+            spec=spect,
+            mel_lens=spect_len,
+            attn_prior=attn_prior,
+            speaker=speaker,
         )[0]
 
         save_path = mel_root / f"{Path(entry['audio_filepath']).stem}.npy"
-        np.save(save_path, spectrogram[0].to('cpu').numpy())
+        np.save(save_path, spectrogram[0].to("cpu").numpy())
         entry["mel_filepath"] = str(save_path)
 
     return entry
@@ -147,7 +167,9 @@ def main():
         spec_model.cuda()
     device = spec_model.device
 
-    use_beta_binomial_interpolator = spec_model.cfg.train_ds.dataset.get("use_beta_binomial_interpolator", False)
+    use_beta_binomial_interpolator = spec_model.cfg.train_ds.dataset.get(
+        "use_beta_binomial_interpolator", False
+    )
 
     for manifest in input_manifest_filepaths:
         logging.info(f"Processing {manifest}.")
@@ -158,16 +180,22 @@ def main():
 
         if device == "cpu":
             new_entries = Parallel(n_jobs=args.num_workers)(
-                delayed(__generate_mels)(entry, spec_model, device, use_beta_binomial_interpolator, mel_root)
+                delayed(__generate_mels)(
+                    entry, spec_model, device, use_beta_binomial_interpolator, mel_root
+                )
                 for entry in entries
             )
         else:
             new_entries = []
             for entry in tqdm(entries):
-                new_entry = __generate_mels(entry, spec_model, device, use_beta_binomial_interpolator, mel_root)
+                new_entry = __generate_mels(
+                    entry, spec_model, device, use_beta_binomial_interpolator, mel_root
+                )
                 new_entries.append(new_entry)
 
-        mel_manifest_path = output_json_manifest_root / f"{manifest.stem}_mel{manifest.suffix}"
+        mel_manifest_path = (
+            output_json_manifest_root / f"{manifest.stem}_mel{manifest.suffix}"
+        )
         with open(mel_manifest_path, "w") as fmel:
             for entry in new_entries:
                 fmel.write(json.dumps(entry) + "\n")

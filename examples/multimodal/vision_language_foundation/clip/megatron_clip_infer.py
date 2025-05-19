@@ -31,7 +31,7 @@ from nemo.utils.get_rank import is_global_rank_zero
 @hydra_runner(config_path="conf", config_name="megatron_clip_infer")
 def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
-    logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
+    logging.info(f"\n{OmegaConf.to_yaml(cfg)}")
 
     # These configs are required to be off during inference.
     def model_cfg_modifier(model_cfg):
@@ -45,7 +45,9 @@ def main(cfg) -> None:
         model_cfg.activations_checkpoint_method = None
 
     trainer, model = setup_trainer_and_model_for_inference(
-        model_provider=MegatronCLIPModel, cfg=cfg, model_cfg_modifier=model_cfg_modifier,
+        model_provider=MegatronCLIPModel,
+        cfg=cfg,
+        model_cfg_modifier=model_cfg_modifier,
     )
 
     if model.cfg.get("megatron_amp_O2", False):
@@ -55,13 +57,21 @@ def main(cfg) -> None:
         vision_encoder = model.model.vision_encoder.eval()
         text_encoder = model.model.text_encoder.eval()
 
-    val_image_transform, text_transform = get_preprocess_fns(model.cfg, model.tokenizer, is_train=False,)
+    val_image_transform, text_transform = get_preprocess_fns(
+        model.cfg,
+        model.tokenizer,
+        is_train=False,
+    )
 
     autocast_dtype = torch_dtype_from_precision(trainer.precision)
 
-    image = Image.open(cfg.image_path).convert('RGB')
-    with torch.no_grad(), torch.cuda.amp.autocast(
-        enabled=autocast_dtype in (torch.half, torch.bfloat16), dtype=autocast_dtype,
+    image = Image.open(cfg.image_path).convert("RGB")
+    with (
+        torch.no_grad(),
+        torch.cuda.amp.autocast(
+            enabled=autocast_dtype in (torch.half, torch.bfloat16),
+            dtype=autocast_dtype,
+        ),
     ):
         image = val_image_transform(image).unsqueeze(0).cuda()
         texts = text_transform(cfg.texts).cuda()
@@ -73,8 +83,11 @@ def main(cfg) -> None:
         text_probs = (100.0 * image_features @ text_features.T).softmax(dim=-1)
 
     if is_global_rank_zero:
-        print(f"Given image's CLIP text probability: ", list(zip(cfg.texts, text_probs[0].cpu().numpy())))
+        print(
+            f"Given image's CLIP text probability: ",
+            list(zip(cfg.texts, text_probs[0].cpu().numpy())),
+        )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

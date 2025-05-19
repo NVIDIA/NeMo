@@ -53,24 +53,37 @@ class StandardDiffusionLoss(nn.Module):
 
     def __call__(self, network, denoiser, conditioner, input, batch, rng=None):
         cond = conditioner(batch)
-        additional_model_inputs = {key: batch[key] for key in self.batch2model_keys.intersection(batch)}
+        additional_model_inputs = {
+            key: batch[key] for key in self.batch2model_keys.intersection(batch)
+        }
 
-        rand = torch.randint(0, self.sigma_sampler.num_idx, (input.shape[0],), generator=rng, device=rng.device).to(
-            self.sigma_sampler.sigmas.device
-        )
+        rand = torch.randint(
+            0,
+            self.sigma_sampler.num_idx,
+            (input.shape[0],),
+            generator=rng,
+            device=rng.device,
+        ).to(self.sigma_sampler.sigmas.device)
         sigmas = self.sigma_sampler(input.shape[0], rand=rand).to(input.device)
         noise = randn_like(input, generator=rng)
         if self.offset_noise_level > 0.0:
             noise = noise + self.offset_noise_level * append_dims(
-                torch.randn(input.shape[0], device=input.device, generator=rng), input.ndim
+                torch.randn(input.shape[0], device=input.device, generator=rng),
+                input.ndim,
             )
         noised_input = input + noise * append_dims(sigmas, input.ndim)
-        model_output = denoiser(network, noised_input, sigmas, cond, **additional_model_inputs)
+        model_output = denoiser(
+            network, noised_input, sigmas, cond, **additional_model_inputs
+        )
         w = append_dims(denoiser.w(sigmas), input.ndim)
         return self.get_loss(model_output, input, w)
 
     def get_loss(self, model_output, target, w):
         if self.type == "l2":
-            return torch.mean((w * (model_output - target) ** 2).reshape(target.shape[0], -1), 1)
+            return torch.mean(
+                (w * (model_output - target) ** 2).reshape(target.shape[0], -1), 1
+            )
         elif self.type == "l1":
-            return torch.mean((w * (model_output - target).abs()).reshape(target.shape[0], -1), 1)
+            return torch.mean(
+                (w * (model_output - target).abs()).reshape(target.shape[0], -1), 1
+            )

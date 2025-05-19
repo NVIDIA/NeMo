@@ -33,7 +33,7 @@ from nemo.collections.nlp.modules.common.transformer.transformer_utils import (
     get_huggingface_transformer, get_nemo_transformer)
 from nemo.utils import AppState, logging
 
-__all__ = ['get_pretrained_lm_models_list', 'get_lm_model', 'pad_batch']
+__all__ = ["get_pretrained_lm_models_list", "get_lm_model", "pad_batch"]
 
 
 def pad_batch(batch, pad_id, max_len):
@@ -81,14 +81,15 @@ def get_lm_model(
     """
 
     # check valid model type
-    if cfg.language_model.get('pretrained_model_name'):
+    if cfg.language_model.get("pretrained_model_name"):
         if (
             not cfg.language_model.pretrained_model_name
-            or cfg.language_model.pretrained_model_name not in get_pretrained_lm_models_list(include_external=False)
+            or cfg.language_model.pretrained_model_name
+            not in get_pretrained_lm_models_list(include_external=False)
         ):
             logging.warning(
-                f'{cfg.language_model.pretrained_model_name} is not in get_pretrained_lm_models_list(include_external=False), '
-                f'will be using AutoModel from HuggingFace.'
+                f"{cfg.language_model.pretrained_model_name} is not in get_pretrained_lm_models_list(include_external=False), "
+                f"will be using AutoModel from HuggingFace."
             )
 
     # warning when user passes both configuration dict and file
@@ -97,9 +98,11 @@ def get_lm_model(
             f"Both config_dict and config_file were found, defaulting to use config_file: {config_file} will be used."
         )
 
-    pretrain_model_name = ''
-    if cfg.get('language_model') and cfg.language_model.get('pretrained_model_name', ''):
-        pretrain_model_name = cfg.language_model.get('pretrained_model_name', '')
+    pretrain_model_name = ""
+    if cfg.get("language_model") and cfg.language_model.get(
+        "pretrained_model_name", ""
+    ):
+        pretrain_model_name = cfg.language_model.get("pretrained_model_name", "")
 
     from nemo.collections.nlp.models.language_modeling.megatron_bert_model import \
         MegatronBertModel
@@ -107,7 +110,8 @@ def get_lm_model(
     def get_megatron_pretrained_bert_models() -> List[str]:
 
         all_pretrained_megatron_bert_models = [
-            model.pretrained_model_name for model in MegatronBertModel.list_available_models()
+            model.pretrained_model_name
+            for model in MegatronBertModel.list_available_models()
         ]
         return all_pretrained_megatron_bert_models
 
@@ -130,9 +134,13 @@ def get_lm_model(
                 return x
 
         if cfg.language_model.get("lm_checkpoint"):
-            model = MegatronBertModel.restore_from(restore_path=cfg.language_model.lm_checkpoint, trainer=trainer)
+            model = MegatronBertModel.restore_from(
+                restore_path=cfg.language_model.lm_checkpoint, trainer=trainer
+            )
         else:
-            model = MegatronBertModel.from_pretrained(cfg.language_model.get('pretrained_model_name'), trainer=trainer)
+            model = MegatronBertModel.from_pretrained(
+                cfg.language_model.get("pretrained_model_name"), trainer=trainer
+            )
         # remove the headers that are only revelant for pretraining
         model.model.lm_head = Identity()
         model.model.binary_head = Identity()
@@ -147,8 +155,10 @@ def get_lm_model(
 
         if cfg.language_model.get("lm_checkpoint"):
             app_state = AppState()
-            if not app_state.is_model_being_restored and not os.path.exists(cfg.language_model.lm_checkpoint):
-                raise ValueError(f'{cfg.language_model.lm_checkpoint} not found')
+            if not app_state.is_model_being_restored and not os.path.exists(
+                cfg.language_model.lm_checkpoint
+            ):
+                raise ValueError(f"{cfg.language_model.lm_checkpoint} not found")
             model.restore_weights(restore_path=cfg.language_model.lm_checkpoint)
 
     return model
@@ -165,7 +175,7 @@ def get_lm_model(
 
 
 def get_transformer(
-    library: str = 'nemo',
+    library: str = "nemo",
     model_name: Optional[str] = None,
     pretrained: bool = False,
     config_dict: Optional[dict] = None,
@@ -204,7 +214,7 @@ def get_transformer(
 
     model = None
 
-    if library == 'nemo':
+    if library == "nemo":
         if isinstance(config_dict, NeMoTransformerConfig):
             config_dict = asdict(config_dict)
         model = get_nemo_transformer(
@@ -218,16 +228,21 @@ def get_transformer(
 
         if checkpoint_file is not None:
             if os.path.isfile(checkpoint_file):
-                raise ValueError(f'Loading transformer weights from checkpoint file has not been implemented yet.')
+                raise ValueError(
+                    f"Loading transformer weights from checkpoint file has not been implemented yet."
+                )
 
-    elif library == 'huggingface':
+    elif library == "huggingface":
         model = get_huggingface_transformer(
-            model_name=model_name, pretrained=pretrained, config_dict=config_dict, encoder=encoder
+            model_name=model_name,
+            pretrained=pretrained,
+            config_dict=config_dict,
+            encoder=encoder,
         )
 
-    elif library == 'megatron':
+    elif library == "megatron":
         raise ValueError(
-            f'megatron-lm bert support has been deprecated in NeMo 1.5+. Please use NeMo 1.4 for support.'
+            f"megatron-lm bert support has been deprecated in NeMo 1.5+. Please use NeMo 1.4 for support."
         )
         # TODO: enable megatron bert in nemo
         # model = get_megatron_transformer(

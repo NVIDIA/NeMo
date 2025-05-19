@@ -22,7 +22,9 @@ from nemo.collections.asr.parts.utils.manifest_utils import get_ctm_line
 
 
 def make_ctm_files(
-    utt_obj, output_dir_root, ctm_file_config,
+    utt_obj,
+    output_dir_root,
+    ctm_file_config,
 ):
     """
     Function to save CTM files for all the utterances in the incoming batch.
@@ -40,15 +42,37 @@ def make_ctm_files(
     else:
         audio_file_duration = None
 
-    utt_obj = make_ctm("tokens", utt_obj, output_dir_root, audio_file_duration, ctm_file_config,)
-    utt_obj = make_ctm("words", utt_obj, output_dir_root, audio_file_duration, ctm_file_config,)
-    utt_obj = make_ctm("segments", utt_obj, output_dir_root, audio_file_duration, ctm_file_config,)
+    utt_obj = make_ctm(
+        "tokens",
+        utt_obj,
+        output_dir_root,
+        audio_file_duration,
+        ctm_file_config,
+    )
+    utt_obj = make_ctm(
+        "words",
+        utt_obj,
+        output_dir_root,
+        audio_file_duration,
+        ctm_file_config,
+    )
+    utt_obj = make_ctm(
+        "segments",
+        utt_obj,
+        output_dir_root,
+        audio_file_duration,
+        ctm_file_config,
+    )
 
     return utt_obj
 
 
 def make_ctm(
-    alignment_level, utt_obj, output_dir_root, audio_file_duration, ctm_file_config,
+    alignment_level,
+    utt_obj,
+    output_dir_root,
+    audio_file_duration,
+    ctm_file_config,
 ):
     output_dir = os.path.join(output_dir_root, "ctm", alignment_level)
     os.makedirs(output_dir, exist_ok=True)
@@ -91,14 +115,21 @@ def make_ctm(
 
                 if (
                     ctm_file_config.minimum_timestamp_duration > 0
-                    and ctm_file_config.minimum_timestamp_duration > end_time - start_time
+                    and ctm_file_config.minimum_timestamp_duration
+                    > end_time - start_time
                 ):
                     # make the predicted duration of the token/word/segment longer, growing it outwards equal
                     # amounts from the predicted center of the token/word/segment
                     token_mid_point = (start_time + end_time) / 2
-                    start_time = max(token_mid_point - ctm_file_config.minimum_timestamp_duration / 2, 0.0)
+                    start_time = max(
+                        token_mid_point
+                        - ctm_file_config.minimum_timestamp_duration / 2,
+                        0.0,
+                    )
                     end_time = min(
-                        token_mid_point + ctm_file_config.minimum_timestamp_duration / 2, audio_file_duration
+                        token_mid_point
+                        + ctm_file_config.minimum_timestamp_duration / 2,
+                        audio_file_duration,
                     )
 
                 if not (
@@ -114,7 +145,7 @@ def make_ctm(
                         duration=end_time - start_time,
                         token=text,
                         conf=None,
-                        type_of_token='lex',
+                        type_of_token="lex",
                         speaker=None,
                     )
                     f_ctm.write(ctm_line)

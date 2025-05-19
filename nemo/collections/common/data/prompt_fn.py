@@ -42,7 +42,9 @@ def registered_prompt_format_fn(example_type: Type, formatter_type: Type = None)
         ... prompt_fn = get_prompt_format_fn(SourceTargetTextExample, Llama2PromptFormatter)
     """
 
-    def _decorator(prompt_fn: Callable[[object, object], dict[str, list[torch.Tensor]]]):
+    def _decorator(
+        prompt_fn: Callable[[object, object], dict[str, list[torch.Tensor]]]
+    ):
         global PROMPT_FORMAT_FNS
         if formatter_type is None:
             PROMPT_FORMAT_FNS[example_type] = prompt_fn
@@ -53,7 +55,9 @@ def registered_prompt_format_fn(example_type: Type, formatter_type: Type = None)
     return _decorator
 
 
-def get_prompt_format_fn(example: Type | object, prompt: Type | object = None) -> PromptFormatSignature:
+def get_prompt_format_fn(
+    example: Type | object, prompt: Type | object = None
+) -> PromptFormatSignature:
     """See the documentation of ``text_prompt_formatter`` above."""
 
     # If the user provided objects, resolve their types.
@@ -81,7 +85,9 @@ def get_prompt_format_fn(example: Type | object, prompt: Type | object = None) -
     )
 
 
-def apply_prompt_format_fn(example: object | Type, prompt: object | Type) -> PromptFormatFnReturnType:
+def apply_prompt_format_fn(
+    example: object | Type, prompt: object | Type
+) -> PromptFormatFnReturnType:
     """
     Utility for resolving the prompt format function and applying it to an example in one go.
     See the documentation of ``text_prompt_formatter`` above.

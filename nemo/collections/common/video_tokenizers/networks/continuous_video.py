@@ -28,16 +28,22 @@ NetworkEval = namedtuple("NetworkEval", ["reconstructions", "posteriors", "laten
 
 
 class CausalContinuousVideoTokenizer(nn.Module):
-    def __init__(self, z_channels: int, z_factor: int, latent_channels: int, **kwargs) -> None:
+    def __init__(
+        self, z_channels: int, z_factor: int, latent_channels: int, **kwargs
+    ) -> None:
         super().__init__()
         self.name = kwargs.get("name", "CausalContinuousVideoTokenizer")
         self.latent_channels = latent_channels
 
         encoder_name = kwargs.get("encoder", Encoder3DType.BASE.name)
-        self.encoder = Encoder3DType[encoder_name].value(z_channels=z_factor * z_channels, **kwargs)
+        self.encoder = Encoder3DType[encoder_name].value(
+            z_channels=z_factor * z_channels, **kwargs
+        )
 
         decoder_name = kwargs.get("decoder", Decoder3DType.BASE.name)
-        self.decoder = Decoder3DType[decoder_name].value(z_channels=z_channels, **kwargs)
+        self.decoder = Decoder3DType[decoder_name].value(
+            z_channels=z_channels, **kwargs
+        )
 
         self.quant_conv = CausalConv3d(
             z_factor * z_channels,
@@ -45,7 +51,9 @@ class CausalContinuousVideoTokenizer(nn.Module):
             kernel_size=1,
             padding=0,
         )
-        self.post_quant_conv = CausalConv3d(latent_channels, z_channels, kernel_size=1, padding=0)
+        self.post_quant_conv = CausalConv3d(
+            latent_channels, z_channels, kernel_size=1, padding=0
+        )
 
         formulation_name = kwargs.get("formulation", ContinuousFormulation.AE.name)
         self.distribution = ContinuousFormulation[formulation_name].value()

@@ -35,11 +35,21 @@ from nemo.utils import logging
 
 
 def translate_text(
-    models, args, src_text, tgt_text, tgt_text_all, src_texts, all_scores, all_timing, ensemble_generator
+    models,
+    args,
+    src_text,
+    tgt_text,
+    tgt_text_all,
+    src_texts,
+    all_scores,
+    all_timing,
+    ensemble_generator,
 ):
     if len(models) > 1:
         src_ids, src_mask = models[0].prepare_inference_batch(src_text)
-        best_translations = ensemble_generator(src_ids, src_mask, return_beam_scores=args.write_scores)
+        best_translations = ensemble_generator(
+            src_ids, src_mask, return_beam_scores=args.write_scores
+        )
         if args.write_scores:
             all_results, scores, best_translations = (
                 best_translations[0],
@@ -98,16 +108,27 @@ def main():
         required=True,
         help="Path to .nemo model file(s). If ensembling, provide comma separated paths to multiple models.",
     )
-    parser.add_argument("--srctext", type=str, required=True, help="Path to the file to translate.")
     parser.add_argument(
-        "--tgtout", type=str, required=True, help="Path to the file where translations are to be written."
+        "--srctext", type=str, required=True, help="Path to the file to translate."
     )
     parser.add_argument(
-        "--batch_size", type=int, default=256, help="Number of sentences to batch together while translatiing."
+        "--tgtout",
+        type=str,
+        required=True,
+        help="Path to the file where translations are to be written.",
+    )
+    parser.add_argument(
+        "--batch_size",
+        type=int,
+        default=256,
+        help="Number of sentences to batch together while translatiing.",
     )
     parser.add_argument("--beam_size", type=int, default=4, help="Beam size.")
     parser.add_argument(
-        "--len_pen", type=float, default=0.6, help="Length Penalty. Ref: https://arxiv.org/abs/1609.08144"
+        "--len_pen",
+        type=float,
+        default=0.6,
+        help="Length Penalty. Ref: https://arxiv.org/abs/1609.08144",
     )
     parser.add_argument(
         "--max_delta_length",
@@ -153,17 +174,24 @@ def main():
         help="Optional path to an LM model that has the same tokenizer as NMT models for shallow fuison. Note: If using --write_scores, it will add LM scores as well.",
     )
     parser.add_argument(
-        "--fusion_coef", type=float, default=0.07, help="Weight assigned to LM scores during shallow fusion."
+        "--fusion_coef",
+        type=float,
+        default=0.07,
+        help="Weight assigned to LM scores during shallow fusion.",
     )
 
     args = parser.parse_args()
     torch.set_grad_enabled(False)
     logging.info("Attempting to initialize from .nemo file")
     models = []
-    for model_path in args.model.split(','):
-        if not model_path.endswith('.nemo'):
-            raise NotImplementedError(f"Only support .nemo files, but got: {model_path}")
-        model = nemo_nlp.models.machine_translation.MTEncDecModel.restore_from(restore_path=model_path).eval()
+    for model_path in args.model.split(","):
+        if not model_path.endswith(".nemo"):
+            raise NotImplementedError(
+                f"Only support .nemo files, but got: {model_path}"
+            )
+        model = nemo_nlp.models.machine_translation.MTEncDecModel.restore_from(
+            restore_path=model_path
+        ).eval()
         models.append(model)
 
     if (len(models) > 1) and (args.write_timing):
@@ -180,7 +208,9 @@ def main():
         models = [model.cuda() for model in models]
 
     if args.lm_model is not None:
-        lm_model = nemo_nlp.models.language_modeling.TransformerLMModel.restore_from(restore_path=args.lm_model).eval()
+        lm_model = nemo_nlp.models.language_modeling.TransformerLMModel.restore_from(
+            restore_path=args.lm_model
+        ).eval()
     else:
         lm_model = None
 
@@ -234,7 +264,7 @@ def main():
 
     logging.info(f"Translating: {args.srctext}")
 
-    with open(args.srctext, 'r') as src_f:
+    with open(args.srctext, "r") as src_f:
         for line in src_f:
             src_text.append(line.strip())
             if len(src_text) == args.batch_size:
@@ -278,12 +308,12 @@ def main():
                 ensemble_generator=ensemble_generator,
             )
 
-    with open(args.tgtout, 'w') as tgt_f:
+    with open(args.tgtout, "w") as tgt_f:
         for line in tgt_text:
             tgt_f.write(line + "\n")
 
     if args.write_scores:
-        with open(args.tgtout + '.score', 'w') as tgt_f_scores:
+        with open(args.tgtout + ".score", "w") as tgt_f_scores:
             for line, score, inp in zip(tgt_text_all, all_scores, src_texts):
                 tgt_f_scores.write(inp + "\t" + line + "\t" + str(score) + "\n")
 
@@ -294,9 +324,9 @@ def main():
             for k in all_timing[0].keys():
                 timing_dict[k] = [t[k] for t in all_timing]
 
-        with open(args.tgtout + '.timing.json', 'w') as timing_fh:
+        with open(args.tgtout + ".timing.json", "w") as timing_fh:
             json.dump(timing_dict, timing_fh)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()  # noqa pylint: disable=no-value-for-parameter

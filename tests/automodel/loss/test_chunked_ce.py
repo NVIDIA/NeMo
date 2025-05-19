@@ -106,7 +106,9 @@ def test_chunked_cross_entropy_ignore_index_and_mask():
 
     # Now compute chunked CE with mask
     chunk_len = 3  # just an arbitrary small chunk size
-    loss_chunked = chunked_cross_entropy(logits, targets, mask=mask, chunk_len=chunk_len, ignore_index=ignore_idx)
+    loss_chunked = chunked_cross_entropy(
+        logits, targets, mask=mask, chunk_len=chunk_len, ignore_index=ignore_idx
+    )
 
     assert torch.allclose(
         loss_chunked, loss_ref, atol=1e-6

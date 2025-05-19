@@ -52,7 +52,10 @@ class DenseLayer(nn.Module):
         super(DenseLayer, self).__init__()
         in_sizes = [in_dim] + sizes[:-1]
         self.layers = nn.ModuleList(
-            [LinearNorm(in_size, out_size, bias=True) for (in_size, out_size) in zip(in_sizes, sizes)]
+            [
+                LinearNorm(in_size, out_size, bias=True)
+                for (in_size, out_size) in zip(in_sizes, sizes)
+            ]
         )
 
     def forward(self, x):
@@ -62,30 +65,49 @@ class DenseLayer(nn.Module):
 
 
 class BiLSTM(nn.Module):
-    def __init__(self, input_size, hidden_size, num_layers=1, lstm_norm_fn="spectral", max_batch_size=64):
+    def __init__(
+        self,
+        input_size,
+        hidden_size,
+        num_layers=1,
+        lstm_norm_fn="spectral",
+        max_batch_size=64,
+    ):
         super().__init__()
-        self.bilstm = nn.LSTM(input_size, hidden_size, num_layers, batch_first=True, bidirectional=True)
+        self.bilstm = nn.LSTM(
+            input_size, hidden_size, num_layers, batch_first=True, bidirectional=True
+        )
         if lstm_norm_fn is not None:
-            if 'spectral' in lstm_norm_fn:
+            if "spectral" in lstm_norm_fn:
                 print("Applying spectral norm to LSTM")
                 lstm_norm_fn_pntr = torch.nn.utils.spectral_norm
-            elif 'weight' in lstm_norm_fn:
+            elif "weight" in lstm_norm_fn:
                 print("Applying weight norm to LSTM")
                 lstm_norm_fn_pntr = torch.nn.utils.weight_norm
 
-        lstm_norm_fn_pntr(self.bilstm, 'weight_hh_l0')
-        lstm_norm_fn_pntr(self.bilstm, 'weight_hh_l0_reverse')
+        lstm_norm_fn_pntr(self.bilstm, "weight_hh_l0")
+        lstm_norm_fn_pntr(self.bilstm, "weight_hh_l0_reverse")
 
-        self.real_hidden_size: int = self.bilstm.proj_size if self.bilstm.proj_size > 0 else self.bilstm.hidden_size
+        self.real_hidden_size: int = (
+            self.bilstm.proj_size
+            if self.bilstm.proj_size > 0
+            else self.bilstm.hidden_size
+        )
 
         self.bilstm.flatten_parameters()
 
-    def lstm_sorted(self, context: Tensor, lens: Tensor, hx: Optional[Tuple[Tensor, Tensor]] = None) -> Tensor:
-        seq = nn.utils.rnn.pack_padded_sequence(context, lens.long().cpu(), batch_first=True, enforce_sorted=True)
+    def lstm_sorted(
+        self, context: Tensor, lens: Tensor, hx: Optional[Tuple[Tensor, Tensor]] = None
+    ) -> Tensor:
+        seq = nn.utils.rnn.pack_padded_sequence(
+            context, lens.long().cpu(), batch_first=True, enforce_sorted=True
+        )
         ret, _ = self.bilstm(seq, hx)
         return nn.utils.rnn.pad_packed_sequence(ret, batch_first=True)[0]
 
-    def lstm(self, context: Tensor, lens: Tensor, hx: Optional[Tuple[Tensor, Tensor]] = None) -> Tensor:
+    def lstm(
+        self, context: Tensor, lens: Tensor, hx: Optional[Tuple[Tensor, Tensor]] = None
+    ) -> Tensor:
         # To be ONNX-exportable, we need to sort here rather that while packing
         context, lens, unsort_ids = sort_tensor(context, lens)
         ret = self.lstm_sorted(context, lens, hx=hx)
@@ -142,7 +164,7 @@ class ConvLSTMLinear(nn.Module):
                 stride=1,
                 padding=int((kernel_size - 1) / 2),
                 dilation=1,
-                w_init_gain='relu',
+                w_init_gain="relu",
                 use_weight_norm=use_weight_norm,
                 use_partial_padding=use_partial_padding,
                 norm_fn=norm_fn,
@@ -196,26 +218,28 @@ class Invertible1x1ConvLUS(torch.nn.Module):
             W[:, 0] = -1 * W[:, 0]
         p, lower, upper = torch.lu_unpack(*torch.lu(W))
 
-        self.register_buffer('p', p)
+        self.register_buffer("p", p)
         # diagonals of lower will always be 1s anyway
         lower = torch.tril(lower, -1)
         lower_diag = torch.diag(torch.eye(c, c))
-        self.register_buffer('lower_diag', lower_diag)
+        self.register_buffer("lower_diag", lower_diag)
         self.lower = nn.Parameter(lower)
         self.upper_diag = nn.Parameter(torch.diag(upper))
         self.upper = nn.Parameter(torch.triu(upper, 1))
 
-    @torch.amp.autocast(device_type='cuda', enabled=False)
+    @torch.amp.autocast(device_type="cuda", enabled=False)
     def forward(self, z, inverse=False):
         U = torch.triu(self.upper, 1) + torch.diag(self.upper_diag)
         L = torch.tril(self.lower, -1) + torch.diag(self.lower_diag)
         W = torch.mm(self.p, torch.mm(L, U))
         if inverse:
-            if not hasattr(self, 'W_inverse'):
+            if not hasattr(self, "W_inverse"):
                 # inverse computation
                 W_inverse = W.float().inverse().to(dtype=z.dtype)
                 self.W_inverse = W_inverse[..., None]
-            z = F.conv1d(z, self.W_inverse.to(dtype=z.dtype), bias=None, stride=1, padding=0)
+            z = F.conv1d(
+                z, self.W_inverse.to(dtype=z.dtype), bias=None, stride=1, padding=0
+            )
             return z
         else:
             W = W[..., None]
@@ -233,7 +257,9 @@ class Invertible1x1Conv(torch.nn.Module):
 
     def __init__(self, c):
         super(Invertible1x1Conv, self).__init__()
-        self.conv = torch.nn.Conv1d(c, c, kernel_size=1, stride=1, padding=0, bias=False)
+        self.conv = torch.nn.Conv1d(
+            c, c, kernel_size=1, stride=1, padding=0, bias=False
+        )
 
         # Sample a random orthonormal matrix to initialize weights
         W = torch.qr(torch.FloatTensor(c, c).normal_())[0]
@@ -249,7 +275,7 @@ class Invertible1x1Conv(torch.nn.Module):
         W = self.conv.weight.squeeze()
 
         if inverse:
-            if not hasattr(self, 'W_inverse'):
+            if not hasattr(self, "W_inverse"):
                 # Inverse computation
                 W_inverse = W.float().inverse().to(dtype=z.dtype)
                 self.W_inverse = W_inverse[..., None]
@@ -294,13 +320,15 @@ class SimpleConvNet(torch.nn.Module):
                     padding=padding,
                     dilation=dilation,
                     bias=True,
-                    w_init_gain='relu',
+                    w_init_gain="relu",
                     use_partial_padding=use_partial_padding,
                 )
             )
             in_channels = out_channels
 
-        self.last_layer = torch.nn.Conv1d(out_channels, final_out_channels, kernel_size=1)
+        self.last_layer = torch.nn.Conv1d(
+            out_channels, final_out_channels, kernel_size=1
+        )
 
         if zero_init:
             self.last_layer.weight.data *= 0
@@ -310,7 +338,11 @@ class SimpleConvNet(torch.nn.Module):
         # seq_lens: tensor array of sequence sequence lengths
         # output should be b x n_mel_channels x z_w_context.shape(2)
 
-        mask = get_mask_from_lengths(seq_lens, z_w_context).unsqueeze(1).to(dtype=z_w_context.dtype)
+        mask = (
+            get_mask_from_lengths(seq_lens, z_w_context)
+            .unsqueeze(1)
+            .to(dtype=z_w_context.dtype)
+        )
 
         for i in range(self.n_layers):
             z_w_context = self.layers[i](z_w_context, mask)
@@ -332,7 +364,7 @@ class WN(torch.nn.Module):
         n_layers,
         n_channels,
         kernel_size=5,
-        affine_activation='softplus',
+        affine_activation="softplus",
         use_partial_padding=True,
     ):
         super(WN, self).__init__()
@@ -343,7 +375,7 @@ class WN(torch.nn.Module):
         self.in_layers = torch.nn.ModuleList()
         self.res_skip_layers = torch.nn.ModuleList()
         start = torch.nn.Conv1d(n_in_channels + n_context_dim, n_channels, 1)
-        start = torch.nn.utils.weight_norm(start, name='weight')
+        start = torch.nn.utils.weight_norm(start, name="weight")
         self.start = start
         self.softplus = torch.nn.Softplus()
         self.affine_activation = affine_activation
@@ -381,7 +413,7 @@ class WN(torch.nn.Module):
         if self.use_partial_padding:
             mask = get_mask_from_lengths(seq_lens).unsqueeze(1).float()
         non_linearity = torch.relu
-        if self.affine_activation == 'softplus':
+        if self.affine_activation == "softplus":
             non_linearity = self.softplus
 
         for i in range(self.n_layers):
@@ -400,10 +432,10 @@ class SplineTransformationLayerAR(torch.nn.Module):
         n_in_channels,
         n_context_dim,
         n_layers,
-        affine_model='simple_conv',
+        affine_model="simple_conv",
         kernel_size=1,
-        scaling_fn='exp',
-        affine_activation='softplus',
+        scaling_fn="exp",
+        affine_activation="softplus",
         n_channels=1024,
         n_bins=8,
         left=-6,
@@ -466,7 +498,7 @@ class SplineTransformationLayerAR(torch.nn.Module):
         z = self.normalize(z, inverse)
 
         if z.min() < 0.0 or z.max() > 1.0:
-            print('spline z scaled beyond [0, 1]', z.min(), z.max())
+            print("spline z scaled beyond [0, 1]", z.min(), z.max())
 
         z_reshaped = z.permute(0, 2, 1).reshape(b_s * t_s, -1)
         affine_params = self.param_predictor(context)
@@ -475,7 +507,9 @@ class SplineTransformationLayerAR(torch.nn.Module):
             if self.use_quadratic:
                 w = q_tilde[:, :, : self.n_bins // 2]
                 v = q_tilde[:, :, self.n_bins // 2 :]
-                z_tformed, log_s = self.spline_fn(z_reshaped.float(), w.float(), v.float(), inverse=inverse)
+                z_tformed, log_s = self.spline_fn(
+                    z_reshaped.float(), w.float(), v.float(), inverse=inverse
+                )
             else:
                 z_tformed, log_s = self.spline_fn(z_reshaped.float(), q_tilde.float())
 
@@ -486,7 +520,9 @@ class SplineTransformationLayerAR(torch.nn.Module):
 
         log_s = log_s.reshape(b_s, t_s, -1)
         log_s = log_s.permute(0, 2, 1)
-        log_s = log_s + c_s * (np.log(self.top - self.bottom) - np.log(self.right - self.left))
+        log_s = log_s + c_s * (
+            np.log(self.top - self.bottom) - np.log(self.right - self.left)
+        )
         return z, log_s
 
 
@@ -498,8 +534,8 @@ class SplineTransformationLayer(torch.nn.Module):
         n_layers,
         with_dilation=True,
         kernel_size=5,
-        scaling_fn='exp',
-        affine_activation='softplus',
+        scaling_fn="exp",
+        affine_activation="softplus",
         n_channels=1024,
         n_bins=8,
         left=-4,
@@ -560,14 +596,20 @@ class SplineTransformationLayer(torch.nn.Module):
             if self.use_quadratic:
                 w = q_tilde[:, :, : self.n_bins // 2]
                 v = q_tilde[:, :, self.n_bins // 2 :]
-                z_1_tformed, log_s = self.spline_fn(z_1_reshaped.float(), w.float(), v.float(), inverse=inverse)
+                z_1_tformed, log_s = self.spline_fn(
+                    z_1_reshaped.float(), w.float(), v.float(), inverse=inverse
+                )
                 if not inverse:
                     log_s = torch.sum(log_s, 1)
             else:
                 if inverse:
-                    z_1_tformed, _dc = self.inv_spline_fn(z_1_reshaped.float(), q_tilde.float(), False)
+                    z_1_tformed, _dc = self.inv_spline_fn(
+                        z_1_reshaped.float(), q_tilde.float(), False
+                    )
                 else:
-                    z_1_tformed, log_s = self.spline_fn(z_1_reshaped.float(), q_tilde.float())
+                    z_1_tformed, log_s = self.spline_fn(
+                        z_1_reshaped.float(), q_tilde.float()
+                    )
 
         z_1 = z_1_tformed.reshape(b_s, t_s, -1).permute(0, 2, 1)
 
@@ -591,11 +633,11 @@ class AffineTransformationLayer(torch.nn.Module):
         n_mel_channels,
         n_context_dim,
         n_layers,
-        affine_model='simple_conv',
+        affine_model="simple_conv",
         with_dilation=True,
         kernel_size=5,
-        scaling_fn='exp',
-        affine_activation='softplus',
+        scaling_fn="exp",
+        affine_activation="softplus",
         n_channels=1024,
         use_partial_padding=False,
     ):
@@ -603,7 +645,9 @@ class AffineTransformationLayer(torch.nn.Module):
         if affine_model not in ("wavenet", "simple_conv"):
             raise Exception("{} affine model not supported".format(affine_model))
         if isinstance(scaling_fn, list):
-            if not all([x in ("translate", "exp", "tanh", "sigmoid") for x in scaling_fn]):
+            if not all(
+                [x in ("translate", "exp", "tanh", "sigmoid") for x in scaling_fn]
+            ):
                 raise Exception("{} scaling fn not supported".format(scaling_fn))
         else:
             if scaling_fn not in ("translate", "exp", "tanh", "sigmoid"):
@@ -611,7 +655,7 @@ class AffineTransformationLayer(torch.nn.Module):
 
         self.affine_model = affine_model
         self.scaling_fn = scaling_fn
-        if affine_model == 'wavenet':
+        if affine_model == "wavenet":
             self.affine_param_predictor = WN(
                 int(n_mel_channels / 2),
                 n_context_dim,
@@ -620,7 +664,7 @@ class AffineTransformationLayer(torch.nn.Module):
                 affine_activation=affine_activation,
                 use_partial_padding=use_partial_padding,
             )
-        elif affine_model == 'simple_conv':
+        elif affine_model == "simple_conv":
             self.affine_param_predictor = SimpleConvNet(
                 int(n_mel_channels / 2),
                 n_context_dim,
@@ -640,32 +684,32 @@ class AffineTransformationLayer(torch.nn.Module):
 
     def get_scaling_and_logs(self, scale_unconstrained):
         # (rvalle) re-write this
-        if self.scaling_fn == 'translate':
+        if self.scaling_fn == "translate":
             s = torch.exp(scale_unconstrained * 0)
             log_s = scale_unconstrained * 0
-        elif self.scaling_fn == 'exp':
+        elif self.scaling_fn == "exp":
             s = torch.exp(scale_unconstrained)
             log_s = scale_unconstrained  # log(exp
-        elif self.scaling_fn == 'tanh':
+        elif self.scaling_fn == "tanh":
             s = torch.tanh(scale_unconstrained) + 1 + 1e-6
             log_s = torch.log(s)
-        elif self.scaling_fn == 'sigmoid':
+        elif self.scaling_fn == "sigmoid":
             s = torch.sigmoid(scale_unconstrained + 10) + 1e-6
             log_s = torch.log(s)
         elif isinstance(self.scaling_fn, list):
             s_list, log_s_list = [], []
             for i in range(scale_unconstrained.shape[1]):
                 scaling_i = self.scaling_fn[i]
-                if scaling_i == 'translate':
+                if scaling_i == "translate":
                     s_i = torch.exp(scale_unconstrained[:i] * 0)
                     log_s_i = scale_unconstrained[:, i] * 0
-                elif scaling_i == 'exp':
+                elif scaling_i == "exp":
                     s_i = torch.exp(scale_unconstrained[:, i])
                     log_s_i = scale_unconstrained[:, i]
-                elif scaling_i == 'tanh':
+                elif scaling_i == "tanh":
                     s_i = torch.tanh(scale_unconstrained[:, i]) + 1 + 1e-6
                     log_s_i = torch.log(s_i)
-                elif scaling_i == 'sigmoid':
+                elif scaling_i == "sigmoid":
                     s_i = torch.sigmoid(scale_unconstrained[:, i]) + 1e-6
                     log_s_i = torch.log(s_i)
                 s_list.append(s_i[:, None])
@@ -682,9 +726,11 @@ class AffineTransformationLayer(torch.nn.Module):
     def forward(self, z, context, inverse=False, seq_lens=None):
         n_half = int(self.n_mel_channels / 2)
         z_0, z_1 = z[:, :n_half], z[:, n_half:]
-        if self.affine_model == 'wavenet':
-            affine_params = self.affine_param_predictor((z_0, context), seq_lens=seq_lens)
-        elif self.affine_model == 'simple_conv':
+        if self.affine_model == "wavenet":
+            affine_params = self.affine_param_predictor(
+                (z_0, context), seq_lens=seq_lens
+            )
+        elif self.affine_model == "simple_conv":
             z_w_context = torch.cat((z_0, context), 1)
             affine_params = self.affine_param_predictor(z_w_context, seq_lens=seq_lens)
         else:
@@ -708,7 +754,14 @@ class AffineTransformationLayer(torch.nn.Module):
 
 
 class ConvAttention(torch.nn.Module):
-    def __init__(self, n_mel_channels=80, n_speaker_dim=128, n_text_channels=512, n_att_channels=80, temperature=1.0):
+    def __init__(
+        self,
+        n_mel_channels=80,
+        n_speaker_dim=128,
+        n_text_channels=512,
+        n_att_channels=80,
+        temperature=1.0,
+    ):
         super(ConvAttention, self).__init__()
         self.temperature = temperature
         self.softmax = torch.nn.Softmax(dim=3)
@@ -716,20 +769,34 @@ class ConvAttention(torch.nn.Module):
         self.query_proj = Invertible1x1ConvLUS(n_mel_channels)
 
         self.key_proj = nn.Sequential(
-            ConvNorm(n_text_channels, n_text_channels * 2, kernel_size=3, bias=True, w_init_gain='relu'),
+            ConvNorm(
+                n_text_channels,
+                n_text_channels * 2,
+                kernel_size=3,
+                bias=True,
+                w_init_gain="relu",
+            ),
             torch.nn.ReLU(),
             ConvNorm(n_text_channels * 2, n_att_channels, kernel_size=1, bias=True),
         )
 
         self.query_proj = nn.Sequential(
-            ConvNorm(n_mel_channels, n_mel_channels * 2, kernel_size=3, bias=True, w_init_gain='relu'),
+            ConvNorm(
+                n_mel_channels,
+                n_mel_channels * 2,
+                kernel_size=3,
+                bias=True,
+                w_init_gain="relu",
+            ),
             torch.nn.ReLU(),
             ConvNorm(n_mel_channels * 2, n_mel_channels, kernel_size=1, bias=True),
             torch.nn.ReLU(),
             ConvNorm(n_mel_channels, n_att_channels, kernel_size=1, bias=True),
         )
 
-    def forward(self, queries, keys, query_lens, mask=None, key_lens=None, attn_prior=None):
+    def forward(
+        self, queries, keys, query_lens, mask=None, key_lens=None, attn_prior=None
+    ):
         """Attention mechanism for radtts. Unlike in Flowtron, we have no
         restrictions such as causality etc, since we only need this during
         training.
@@ -790,6 +857,8 @@ class GaussianDropout(torch.nn.Module):
         if not self.training:
             return inputs
 
-        noise = torch.normal(mean=1.0, std=self.stdev, size=inputs.shape, device=inputs.device)
+        noise = torch.normal(
+            mean=1.0, std=self.stdev, size=inputs.shape, device=inputs.device
+        )
         out = noise * inputs
         return out

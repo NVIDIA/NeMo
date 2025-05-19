@@ -47,7 +47,7 @@ from nemo.core.neural_types import *
 from nemo.utils import logging, model_utils
 from nemo.utils.cast_utils import cast_all
 
-__all__ = ['EncDecClassificationModel', 'EncDecRegressionModel']
+__all__ = ["EncDecClassificationModel", "EncDecRegressionModel"]
 
 
 @dataclass
@@ -55,7 +55,9 @@ class ClassificationInferConfig:
     batch_size: int = 4
     logprobs: bool = False
 
-    _internal: InternalTranscribeConfig = field(default_factory=lambda: InternalTranscribeConfig())
+    _internal: InternalTranscribeConfig = field(
+        default_factory=lambda: InternalTranscribeConfig()
+    )
 
 
 @dataclass
@@ -63,7 +65,9 @@ class RegressionInferConfig:
     batch_size: int = 4
     logprobs: bool = True
 
-    _internal: InternalTranscribeConfig = field(default_factory=lambda: InternalTranscribeConfig())
+    _internal: InternalTranscribeConfig = field(
+        default_factory=lambda: InternalTranscribeConfig()
+    )
 
 
 class _EncDecBaseModel(ASRModel, ExportableEncDecModel, TranscriptionMixin):
@@ -82,16 +86,19 @@ class _EncDecBaseModel(ASRModel, ExportableEncDecModel, TranscriptionMixin):
         # Convert config to support Hydra 1.0+ instantiation
         cfg = model_utils.maybe_update_config_version(cfg)
 
-        self.is_regression_task = cfg.get('is_regression_task', False)
+        self.is_regression_task = cfg.get("is_regression_task", False)
         # Change labels if needed
         self._update_decoder_config(cfg.labels, cfg.decoder)
         super().__init__(cfg=cfg, trainer=trainer)
 
-        if hasattr(self._cfg, 'spec_augment') and self._cfg.spec_augment is not None:
+        if hasattr(self._cfg, "spec_augment") and self._cfg.spec_augment is not None:
             self.spec_augmentation = ASRModel.from_config_dict(self._cfg.spec_augment)
         else:
             self.spec_augmentation = None
-        if hasattr(self._cfg, 'crop_or_pad_augment') and self._cfg.crop_or_pad_augment is not None:
+        if (
+            hasattr(self._cfg, "crop_or_pad_augment")
+            and self._cfg.crop_or_pad_augment is not None
+        ):
             self.crop_or_pad = ASRModel.from_config_dict(self._cfg.crop_or_pad_augment)
         else:
             self.crop_or_pad = None
@@ -147,15 +154,19 @@ class _EncDecBaseModel(ASRModel, ExportableEncDecModel, TranscriptionMixin):
 
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
-        if hasattr(self.preprocessor, '_sample_rate'):
+        if hasattr(self.preprocessor, "_sample_rate"):
             audio_eltype = AudioSignal(freq=self.preprocessor._sample_rate)
         else:
             audio_eltype = AudioSignal()
         return {
-            "input_signal": NeuralType(('B', 'T'), audio_eltype, optional=True),
-            "input_signal_length": NeuralType(tuple('B'), LengthsType(), optional=True),
-            "processed_signal": NeuralType(('B', 'D', 'T'), SpectrogramType(), optional=True),
-            "processed_signal_length": NeuralType(tuple('B'), LengthsType(), optional=True),
+            "input_signal": NeuralType(("B", "T"), audio_eltype, optional=True),
+            "input_signal_length": NeuralType(tuple("B"), LengthsType(), optional=True),
+            "processed_signal": NeuralType(
+                ("B", "D", "T"), SpectrogramType(), optional=True
+            ),
+            "processed_signal_length": NeuralType(
+                tuple("B"), LengthsType(), optional=True
+            ),
         }
 
     @property
@@ -164,10 +175,16 @@ class _EncDecBaseModel(ASRModel, ExportableEncDecModel, TranscriptionMixin):
         pass
 
     def forward(
-        self, input_signal=None, input_signal_length=None, processed_signal=None, processed_signal_length=None
+        self,
+        input_signal=None,
+        input_signal_length=None,
+        processed_signal=None,
+        processed_signal_length=None,
     ):
         has_input_signal = input_signal is not None and input_signal_length is not None
-        has_processed_signal = processed_signal is not None and processed_signal_length is not None
+        has_processed_signal = (
+            processed_signal is not None and processed_signal_length is not None
+        )
         if (has_input_signal ^ has_processed_signal) == False:
             raise ValueError(
                 f"{self} Arguments ``input_signal`` and ``input_signal_length`` are mutually exclusive "
@@ -186,25 +203,31 @@ class _EncDecBaseModel(ASRModel, ExportableEncDecModel, TranscriptionMixin):
             )
         # Spec augment is not applied during evaluation/testing
         if self.spec_augmentation is not None and self.training:
-            processed_signal = self.spec_augmentation(input_spec=processed_signal, length=processed_signal_length)
-        encoded, encoded_len = self.encoder(audio_signal=processed_signal, length=processed_signal_length)
+            processed_signal = self.spec_augmentation(
+                input_spec=processed_signal, length=processed_signal_length
+            )
+        encoded, encoded_len = self.encoder(
+            audio_signal=processed_signal, length=processed_signal_length
+        )
         logits = self.decoder(encoder_output=encoded)
         return logits
 
     def setup_training_data(self, train_data_config: Optional[Union[DictConfig, Dict]]):
-        if 'shuffle' not in train_data_config:
-            train_data_config['shuffle'] = True
+        if "shuffle" not in train_data_config:
+            train_data_config["shuffle"] = True
         # preserve config
-        self._update_dataset_config(dataset_name='train', config=train_data_config)
+        self._update_dataset_config(dataset_name="train", config=train_data_config)
 
-        self._train_dl = self._setup_dataloader_from_config(config=DictConfig(train_data_config))
+        self._train_dl = self._setup_dataloader_from_config(
+            config=DictConfig(train_data_config)
+        )
 
         # Need to set this because if using an IterableDataset, the length of the dataloader is the total number
         # of samples rather than the number of batches, and this messes up the tqdm progress bar.
         # So we set the number of steps manually (to the correct number) to fix this.
         if (
             self._train_dl is not None
-            and hasattr(self._train_dl, 'dataset')
+            and hasattr(self._train_dl, "dataset")
             and isinstance(self._train_dl.dataset, torch.utils.data.IterableDataset)
         ):
             # We also need to check if limit_train_batches is already set.
@@ -213,29 +236,42 @@ class _EncDecBaseModel(ASRModel, ExportableEncDecModel, TranscriptionMixin):
             if isinstance(self._trainer.limit_train_batches, float):
                 self._trainer.limit_train_batches = int(
                     self._trainer.limit_train_batches
-                    * ceil((len(self._train_dl.dataset) / self.world_size) / train_data_config['batch_size'])
+                    * ceil(
+                        (len(self._train_dl.dataset) / self.world_size)
+                        / train_data_config["batch_size"]
+                    )
                 )
 
     def setup_validation_data(self, val_data_config: Optional[Union[DictConfig, Dict]]):
-        if 'shuffle' not in val_data_config:
-            val_data_config['shuffle'] = False
+        if "shuffle" not in val_data_config:
+            val_data_config["shuffle"] = False
 
         # preserve config
-        self._update_dataset_config(dataset_name='validation', config=val_data_config)
+        self._update_dataset_config(dataset_name="validation", config=val_data_config)
 
-        self._validation_dl = self._setup_dataloader_from_config(config=DictConfig(val_data_config))
+        self._validation_dl = self._setup_dataloader_from_config(
+            config=DictConfig(val_data_config)
+        )
 
-    def setup_test_data(self, test_data_config: Optional[Union[DictConfig, Dict]], use_feat: bool = False):
-        if 'shuffle' not in test_data_config:
-            test_data_config['shuffle'] = False
+    def setup_test_data(
+        self,
+        test_data_config: Optional[Union[DictConfig, Dict]],
+        use_feat: bool = False,
+    ):
+        if "shuffle" not in test_data_config:
+            test_data_config["shuffle"] = False
 
         # preserve config
-        self._update_dataset_config(dataset_name='test', config=test_data_config)
+        self._update_dataset_config(dataset_name="test", config=test_data_config)
 
-        if use_feat and hasattr(self, '_setup_feature_label_dataloader'):
-            self._test_dl = self._setup_feature_label_dataloader(config=DictConfig(test_data_config))
+        if use_feat and hasattr(self, "_setup_feature_label_dataloader"):
+            self._test_dl = self._setup_feature_label_dataloader(
+                config=DictConfig(test_data_config)
+            )
         else:
-            self._test_dl = self._setup_dataloader_from_config(config=DictConfig(test_data_config))
+            self._test_dl = self._setup_dataloader_from_config(
+                config=DictConfig(test_data_config)
+            )
 
     def test_dataloader(self):
         if self._test_dl is not None:
@@ -247,20 +283,25 @@ class _EncDecBaseModel(ASRModel, ExportableEncDecModel, TranscriptionMixin):
         config.is_regression_task = self.is_regression_task
         OmegaConf.set_struct(config, True)
 
-        if 'augmentor' in config:
-            augmentor = process_augmentations(config['augmentor'])
+        if "augmentor" in config:
+            augmentor = process_augmentations(config["augmentor"])
         else:
             augmentor = None
 
         featurizer = WaveformFeaturizer(
-            sample_rate=config['sample_rate'], int_values=config.get('int_values', False), augmentor=augmentor
+            sample_rate=config["sample_rate"],
+            int_values=config.get("int_values", False),
+            augmentor=augmentor,
         )
-        shuffle = config['shuffle']
+        shuffle = config["shuffle"]
 
         # Instantiate tarred dataset loader or normal dataset loader
-        if config.get('is_tarred', False):
-            if ('tarred_audio_filepaths' in config and config['tarred_audio_filepaths'] is None) or (
-                'manifest_filepath' in config and config['manifest_filepath'] is None
+        if config.get("is_tarred", False):
+            if (
+                "tarred_audio_filepaths" in config
+                and config["tarred_audio_filepaths"] is None
+            ) or (
+                "manifest_filepath" in config and config["manifest_filepath"] is None
             ):
                 logging.warning(
                     "Could not load dataset as `manifest_filepath` is None or "
@@ -268,11 +309,13 @@ class _EncDecBaseModel(ASRModel, ExportableEncDecModel, TranscriptionMixin):
                 )
                 return None
 
-            if 'vad_stream' in config and config['vad_stream']:
+            if "vad_stream" in config and config["vad_stream"]:
                 logging.warning("VAD inference does not support tarred dataset now")
                 return None
 
-            shuffle_n = config.get('shuffle_n', 4 * config['batch_size']) if shuffle else 0
+            shuffle_n = (
+                config.get("shuffle_n", 4 * config["batch_size"]) if shuffle else 0
+            )
             dataset = audio_to_label_dataset.get_tarred_classification_label_dataset(
                 featurizer=featurizer,
                 config=config,
@@ -281,10 +324,10 @@ class _EncDecBaseModel(ASRModel, ExportableEncDecModel, TranscriptionMixin):
                 world_size=self.world_size,
             )
             shuffle = False
-            batch_size = config['batch_size']
-            if hasattr(dataset, 'collate_fn'):
+            batch_size = config["batch_size"]
+            if hasattr(dataset, "collate_fn"):
                 collate_fn = dataset.collate_fn
-            elif hasattr(dataset.datasets[0], 'collate_fn'):
+            elif hasattr(dataset.datasets[0], "collate_fn"):
                 # support datasets that are lists of entries
                 collate_fn = dataset.datasets[0].collate_fn
             else:
@@ -292,21 +335,27 @@ class _EncDecBaseModel(ASRModel, ExportableEncDecModel, TranscriptionMixin):
                 collate_fn = dataset.datasets[0].datasets[0].collate_fn
 
         else:
-            if 'manifest_filepath' in config and config['manifest_filepath'] is None:
-                logging.warning(f"Could not load dataset as `manifest_filepath` is None. Provided config : {config}")
+            if "manifest_filepath" in config and config["manifest_filepath"] is None:
+                logging.warning(
+                    f"Could not load dataset as `manifest_filepath` is None. Provided config : {config}"
+                )
                 return None
 
-            if 'vad_stream' in config and config['vad_stream']:
+            if "vad_stream" in config and config["vad_stream"]:
                 logging.info("Perform streaming frame-level VAD")
-                dataset = audio_to_label_dataset.get_speech_label_dataset(featurizer=featurizer, config=config)
+                dataset = audio_to_label_dataset.get_speech_label_dataset(
+                    featurizer=featurizer, config=config
+                )
                 batch_size = 1
                 collate_fn = dataset.vad_frame_seq_collate_fn
             else:
-                dataset = audio_to_label_dataset.get_classification_label_dataset(featurizer=featurizer, config=config)
-                batch_size = config['batch_size']
-                if hasattr(dataset, 'collate_fn'):
+                dataset = audio_to_label_dataset.get_classification_label_dataset(
+                    featurizer=featurizer, config=config
+                )
+                batch_size = config["batch_size"]
+                if hasattr(dataset, "collate_fn"):
                     collate_fn = dataset.collate_fn
-                elif hasattr(dataset.datasets[0], 'collate_fn'):
+                elif hasattr(dataset.datasets[0], "collate_fn"):
                     # support datasets that are lists of entries
                     collate_fn = dataset.datasets[0].collate_fn
                 else:
@@ -317,13 +366,15 @@ class _EncDecBaseModel(ASRModel, ExportableEncDecModel, TranscriptionMixin):
             dataset=dataset,
             batch_size=batch_size,
             collate_fn=collate_fn,
-            drop_last=config.get('drop_last', False),
+            drop_last=config.get("drop_last", False),
             shuffle=shuffle,
-            num_workers=config.get('num_workers', 0),
-            pin_memory=config.get('pin_memory', False),
+            num_workers=config.get("num_workers", 0),
+            pin_memory=config.get("pin_memory", False),
         )
 
-    def _setup_feature_label_dataloader(self, config: DictConfig) -> torch.utils.data.DataLoader:
+    def _setup_feature_label_dataloader(
+        self, config: DictConfig
+    ) -> torch.utils.data.DataLoader:
         """
         setup dataloader for VAD inference with audio features as input
         """
@@ -332,32 +383,36 @@ class _EncDecBaseModel(ASRModel, ExportableEncDecModel, TranscriptionMixin):
         config.is_regression_task = self.is_regression_task
         OmegaConf.set_struct(config, True)
 
-        if 'augmentor' in config:
-            augmentor = process_augmentations(config['augmentor'])
+        if "augmentor" in config:
+            augmentor = process_augmentations(config["augmentor"])
         else:
             augmentor = None
-        if 'manifest_filepath' in config and config['manifest_filepath'] is None:
-            logging.warning(f"Could not load dataset as `manifest_filepath` is None. Provided config : {config}")
+        if "manifest_filepath" in config and config["manifest_filepath"] is None:
+            logging.warning(
+                f"Could not load dataset as `manifest_filepath` is None. Provided config : {config}"
+            )
             return None
 
-        dataset = feature_to_label_dataset.get_feature_label_dataset(config=config, augmentor=augmentor)
-        if 'vad_stream' in config and config['vad_stream']:
+        dataset = feature_to_label_dataset.get_feature_label_dataset(
+            config=config, augmentor=augmentor
+        )
+        if "vad_stream" in config and config["vad_stream"]:
             collate_func = dataset._vad_segment_collate_fn
             batch_size = 1
             shuffle = False
         else:
             collate_func = dataset._collate_fn
-            batch_size = config['batch_size']
-            shuffle = config['shuffle']
+            batch_size = config["batch_size"]
+            shuffle = config["shuffle"]
 
         return torch.utils.data.DataLoader(
             dataset=dataset,
             batch_size=batch_size,
             collate_fn=collate_func,
-            drop_last=config.get('drop_last', False),
+            drop_last=config.get("drop_last", False),
             shuffle=shuffle,
-            num_workers=config.get('num_workers', 0),
-            pin_memory=config.get('pin_memory', False),
+            num_workers=config.get("num_workers", 0),
+            pin_memory=config.get("pin_memory", False),
         )
 
     @torch.no_grad()
@@ -366,7 +421,9 @@ class _EncDecBaseModel(ASRModel, ExportableEncDecModel, TranscriptionMixin):
         audio: Union[List[str], DataLoader],
         batch_size: int = 4,
         logprobs=None,
-        override_config: Optional[ClassificationInferConfig] | Optional[RegressionInferConfig] = None,
+        override_config: (
+            Optional[ClassificationInferConfig] | Optional[RegressionInferConfig]
+        ) = None,
     ) -> TranscriptionReturnType:
         """
         Generate class labels for provided audio files. Use this method for debugging and prototyping.
@@ -390,15 +447,18 @@ class _EncDecBaseModel(ASRModel, ExportableEncDecModel, TranscriptionMixin):
 
         if override_config is None:
             if not self.is_regression_task:
-                trcfg = ClassificationInferConfig(batch_size=batch_size, logprobs=logprobs)
+                trcfg = ClassificationInferConfig(
+                    batch_size=batch_size, logprobs=logprobs
+                )
             else:
                 trcfg = RegressionInferConfig(batch_size=batch_size, logprobs=logprobs)
         else:
-            if not isinstance(override_config, ClassificationInferConfig) and not isinstance(
-                override_config, RegressionInferConfig
-            ):
+            if not isinstance(
+                override_config, ClassificationInferConfig
+            ) and not isinstance(override_config, RegressionInferConfig):
                 raise ValueError(
-                    f"override_config must be of type {ClassificationInferConfig}, " f"but got {type(override_config)}"
+                    f"override_config must be of type {ClassificationInferConfig}, "
+                    f"but got {type(override_config)}"
                 )
             trcfg = override_config
 
@@ -409,13 +469,21 @@ class _EncDecBaseModel(ASRModel, ExportableEncDecModel, TranscriptionMixin):
     def _transcribe_input_manifest_processing(
         self, audio_files: List[str], temp_dir: str, trcfg: ClassificationInferConfig
     ):
-        with open(os.path.join(temp_dir, 'manifest.json'), 'w', encoding='utf-8') as fp:
+        with open(os.path.join(temp_dir, "manifest.json"), "w", encoding="utf-8") as fp:
             for audio_file in audio_files:
                 label = 0.0 if self.is_regression_task else self.cfg.labels[0]
-                entry = {'audio_filepath': audio_file, 'duration': 100000.0, 'label': label}
-                fp.write(json.dumps(entry) + '\n')
+                entry = {
+                    "audio_filepath": audio_file,
+                    "duration": 100000.0,
+                    "label": label,
+                }
+                fp.write(json.dumps(entry) + "\n")
 
-        config = {'paths2audio_files': audio_files, 'batch_size': trcfg.batch_size, 'temp_dir': temp_dir}
+        config = {
+            "paths2audio_files": audio_files,
+            "batch_size": trcfg.batch_size,
+            "temp_dir": temp_dir,
+        }
         return config
 
     def _transcribe_forward(self, batch: Any, trcfg: ClassificationInferConfig):
@@ -426,7 +494,7 @@ class _EncDecBaseModel(ASRModel, ExportableEncDecModel, TranscriptionMixin):
     def _transcribe_output_processing(
         self, outputs, trcfg: ClassificationInferConfig
     ) -> Union[List[str], List[torch.Tensor]]:
-        logits = outputs.pop('logits')
+        logits = outputs.pop("logits")
         labels = []
 
         if trcfg.logprobs:
@@ -454,7 +522,9 @@ class _EncDecBaseModel(ASRModel, ExportableEncDecModel, TranscriptionMixin):
 
         return labels
 
-    def _setup_transcribe_dataloader(self, config: Dict) -> 'torch.utils.data.DataLoader':
+    def _setup_transcribe_dataloader(
+        self, config: Dict
+    ) -> "torch.utils.data.DataLoader":
         """
         Setup function for a temporary data loader which wraps the provided audio file.
 
@@ -465,15 +535,17 @@ class _EncDecBaseModel(ASRModel, ExportableEncDecModel, TranscriptionMixin):
             A pytorch DataLoader for the given audio file(s).
         """
         dl_config = {
-            'manifest_filepath': os.path.join(config['temp_dir'], 'manifest.json'),
-            'sample_rate': self.preprocessor._sample_rate,
-            'labels': self.cfg.labels,
-            'batch_size': min(config['batch_size'], len(config['paths2audio_files'])),
-            'trim_silence': False,
-            'shuffle': False,
+            "manifest_filepath": os.path.join(config["temp_dir"], "manifest.json"),
+            "sample_rate": self.preprocessor._sample_rate,
+            "labels": self.cfg.labels,
+            "batch_size": min(config["batch_size"], len(config["paths2audio_files"])),
+            "trim_silence": False,
+            "shuffle": False,
         }
 
-        temporary_datalayer = self._setup_dataloader_from_config(config=DictConfig(dl_config))
+        temporary_datalayer = self._setup_dataloader_from_config(
+            config=DictConfig(dl_config)
+        )
         return temporary_datalayer
 
     @abstractmethod
@@ -492,19 +564,29 @@ class _EncDecBaseModel(ASRModel, ExportableEncDecModel, TranscriptionMixin):
 
 class EncDecClassificationModel(EncDecSpeakerLabelModel, TranscriptionMixin):
 
-    def setup_test_data(self, test_data_config: Optional[Union[DictConfig, Dict]], use_feat: bool = False):
-        if 'shuffle' not in test_data_config:
-            test_data_config['shuffle'] = False
+    def setup_test_data(
+        self,
+        test_data_config: Optional[Union[DictConfig, Dict]],
+        use_feat: bool = False,
+    ):
+        if "shuffle" not in test_data_config:
+            test_data_config["shuffle"] = False
 
         # preserve config
-        self._update_dataset_config(dataset_name='test', config=test_data_config)
+        self._update_dataset_config(dataset_name="test", config=test_data_config)
 
-        if use_feat and hasattr(self, '_setup_feature_label_dataloader'):
-            self._test_dl = self._setup_feature_label_dataloader(config=DictConfig(test_data_config))
+        if use_feat and hasattr(self, "_setup_feature_label_dataloader"):
+            self._test_dl = self._setup_feature_label_dataloader(
+                config=DictConfig(test_data_config)
+            )
         else:
-            self._test_dl = self._setup_dataloader_from_config(config=DictConfig(test_data_config))
+            self._test_dl = self._setup_dataloader_from_config(
+                config=DictConfig(test_data_config)
+            )
 
-    def _setup_feature_label_dataloader(self, config: DictConfig) -> torch.utils.data.DataLoader:
+    def _setup_feature_label_dataloader(
+        self, config: DictConfig
+    ) -> torch.utils.data.DataLoader:
         """
         setup dataloader for VAD inference with audio features as input
         """
@@ -513,32 +595,36 @@ class EncDecClassificationModel(EncDecSpeakerLabelModel, TranscriptionMixin):
         config.is_regression_task = self.is_regression_task
         OmegaConf.set_struct(config, True)
 
-        if 'augmentor' in config:
-            augmentor = process_augmentations(config['augmentor'])
+        if "augmentor" in config:
+            augmentor = process_augmentations(config["augmentor"])
         else:
             augmentor = None
-        if 'manifest_filepath' in config and config['manifest_filepath'] is None:
-            logging.warning(f"Could not load dataset as `manifest_filepath` is None. Provided config : {config}")
+        if "manifest_filepath" in config and config["manifest_filepath"] is None:
+            logging.warning(
+                f"Could not load dataset as `manifest_filepath` is None. Provided config : {config}"
+            )
             return None
 
-        dataset = feature_to_label_dataset.get_feature_label_dataset(config=config, augmentor=augmentor)
-        if 'vad_stream' in config and config['vad_stream']:
+        dataset = feature_to_label_dataset.get_feature_label_dataset(
+            config=config, augmentor=augmentor
+        )
+        if "vad_stream" in config and config["vad_stream"]:
             collate_func = dataset._vad_segment_collate_fn
             batch_size = 1
             shuffle = False
         else:
             collate_func = dataset._collate_fn
-            batch_size = config['batch_size']
-            shuffle = config['shuffle']
+            batch_size = config["batch_size"]
+            shuffle = config["shuffle"]
 
         return torch.utils.data.DataLoader(
             dataset=dataset,
             batch_size=batch_size,
             collate_fn=collate_func,
-            drop_last=config.get('drop_last', False),
+            drop_last=config.get("drop_last", False),
             shuffle=shuffle,
-            num_workers=config.get('num_workers', 0),
-            pin_memory=config.get('pin_memory', False),
+            num_workers=config.get("num_workers", 0),
+            pin_memory=config.get("pin_memory", False),
         )
 
     def _setup_dataloader_from_config(self, config: DictConfig):
@@ -546,20 +632,25 @@ class EncDecClassificationModel(EncDecSpeakerLabelModel, TranscriptionMixin):
         config.is_regression_task = self.is_regression_task
         OmegaConf.set_struct(config, True)
 
-        if 'augmentor' in config:
-            augmentor = process_augmentations(config['augmentor'])
+        if "augmentor" in config:
+            augmentor = process_augmentations(config["augmentor"])
         else:
             augmentor = None
 
         featurizer = WaveformFeaturizer(
-            sample_rate=config['sample_rate'], int_values=config.get('int_values', False), augmentor=augmentor
+            sample_rate=config["sample_rate"],
+            int_values=config.get("int_values", False),
+            augmentor=augmentor,
         )
-        shuffle = config['shuffle']
+        shuffle = config["shuffle"]
 
         # Instantiate tarred dataset loader or normal dataset loader
-        if config.get('is_tarred', False):
-            if ('tarred_audio_filepaths' in config and config['tarred_audio_filepaths'] is None) or (
-                'manifest_filepath' in config and config['manifest_filepath'] is None
+        if config.get("is_tarred", False):
+            if (
+                "tarred_audio_filepaths" in config
+                and config["tarred_audio_filepaths"] is None
+            ) or (
+                "manifest_filepath" in config and config["manifest_filepath"] is None
             ):
                 logging.warning(
                     "Could not load dataset as `manifest_filepath` is None or "
@@ -567,11 +658,13 @@ class EncDecClassificationModel(EncDecSpeakerLabelModel, TranscriptionMixin):
                 )
                 return None
 
-            if 'vad_stream' in config and config['vad_stream']:
+            if "vad_stream" in config and config["vad_stream"]:
                 logging.warning("VAD inference does not support tarred dataset now")
                 return None
 
-            shuffle_n = config.get('shuffle_n', 4 * config['batch_size']) if shuffle else 0
+            shuffle_n = (
+                config.get("shuffle_n", 4 * config["batch_size"]) if shuffle else 0
+            )
             dataset = audio_to_label_dataset.get_tarred_classification_label_dataset(
                 featurizer=featurizer,
                 config=config,
@@ -580,10 +673,10 @@ class EncDecClassificationModel(EncDecSpeakerLabelModel, TranscriptionMixin):
                 world_size=self.world_size,
             )
             shuffle = False
-            batch_size = config['batch_size']
-            if hasattr(dataset, 'collate_fn'):
+            batch_size = config["batch_size"]
+            if hasattr(dataset, "collate_fn"):
                 collate_fn = dataset.collate_fn
-            elif hasattr(dataset.datasets[0], 'collate_fn'):
+            elif hasattr(dataset.datasets[0], "collate_fn"):
                 # support datasets that are lists of entries
                 collate_fn = dataset.datasets[0].collate_fn
             else:
@@ -591,21 +684,27 @@ class EncDecClassificationModel(EncDecSpeakerLabelModel, TranscriptionMixin):
                 collate_fn = dataset.datasets[0].datasets[0].collate_fn
 
         else:
-            if 'manifest_filepath' in config and config['manifest_filepath'] is None:
-                logging.warning(f"Could not load dataset as `manifest_filepath` is None. Provided config : {config}")
+            if "manifest_filepath" in config and config["manifest_filepath"] is None:
+                logging.warning(
+                    f"Could not load dataset as `manifest_filepath` is None. Provided config : {config}"
+                )
                 return None
 
-            if 'vad_stream' in config and config['vad_stream']:
+            if "vad_stream" in config and config["vad_stream"]:
                 logging.info("Perform streaming frame-level VAD")
-                dataset = audio_to_label_dataset.get_speech_label_dataset(featurizer=featurizer, config=config)
+                dataset = audio_to_label_dataset.get_speech_label_dataset(
+                    featurizer=featurizer, config=config
+                )
                 batch_size = 1
                 collate_fn = dataset.vad_frame_seq_collate_fn
             else:
-                dataset = audio_to_label_dataset.get_classification_label_dataset(featurizer=featurizer, config=config)
-                batch_size = config['batch_size']
-                if hasattr(dataset, 'collate_fn'):
+                dataset = audio_to_label_dataset.get_classification_label_dataset(
+                    featurizer=featurizer, config=config
+                )
+                batch_size = config["batch_size"]
+                if hasattr(dataset, "collate_fn"):
                     collate_fn = dataset.collate_fn
-                elif hasattr(dataset.datasets[0], 'collate_fn'):
+                elif hasattr(dataset.datasets[0], "collate_fn"):
                     # support datasets that are lists of entries
                     collate_fn = dataset.datasets[0].collate_fn
                 else:
@@ -616,10 +715,10 @@ class EncDecClassificationModel(EncDecSpeakerLabelModel, TranscriptionMixin):
             dataset=dataset,
             batch_size=batch_size,
             collate_fn=collate_fn,
-            drop_last=config.get('drop_last', False),
+            drop_last=config.get("drop_last", False),
             shuffle=shuffle,
-            num_workers=config.get('num_workers', 0),
-            pin_memory=config.get('pin_memory', False),
+            num_workers=config.get("num_workers", 0),
+            pin_memory=config.get("pin_memory", False),
         )
 
     def forward_for_export(self, audio_signal, length):
@@ -636,7 +735,7 @@ class EncDecClassificationModel(EncDecSpeakerLabelModel, TranscriptionMixin):
             cfg: The config of the decoder which will be updated.
         """
         OmegaConf.set_struct(cfg, False)
-        if 'params' in cfg:
+        if "params" in cfg:
             cfg.params.num_classes = len(labels)
         cfg.num_classes = len(labels)
 
@@ -647,12 +746,12 @@ class EncDecClassificationModel(EncDecSpeakerLabelModel, TranscriptionMixin):
             "Please use the EncDecSpeakerLabelModel instead of this model. EncDecClassificationModel model is kept for backward compatibility with older models."
         )
         self._update_decoder_config(cfg.labels, cfg.decoder)
-        if hasattr(cfg, 'is_regression_task') and cfg.is_regression_task is not None:
+        if hasattr(cfg, "is_regression_task") and cfg.is_regression_task is not None:
             self.is_regression_task = cfg.is_regression_task
         else:
             self.is_regression_task = False
         super().__init__(cfg, trainer)
-        if hasattr(cfg, 'crop_or_pad_augment') and cfg.crop_or_pad_augment is not None:
+        if hasattr(cfg, "crop_or_pad_augment") and cfg.crop_or_pad_augment is not None:
             self.crop_or_pad = ASRModel.from_config_dict(cfg.crop_or_pad_augment)
         else:
             self.crop_or_pad = None
@@ -682,7 +781,9 @@ class EncDecClassificationModel(EncDecSpeakerLabelModel, TranscriptionMixin):
             )
         else:
             if new_labels is None or len(new_labels) == 0:
-                raise ValueError(f'New labels must be non-empty list of labels. But I got: {new_labels}')
+                raise ValueError(
+                    f"New labels must be non-empty list of labels. But I got: {new_labels}"
+                )
 
             # Update config
             self._cfg.labels = new_labels
@@ -691,22 +792,26 @@ class EncDecClassificationModel(EncDecSpeakerLabelModel, TranscriptionMixin):
             new_decoder_config = copy.deepcopy(decoder_config)
             self._update_decoder_config(new_labels, new_decoder_config)
             del self.decoder
-            self.decoder = EncDecClassificationModel.from_config_dict(new_decoder_config)
+            self.decoder = EncDecClassificationModel.from_config_dict(
+                new_decoder_config
+            )
 
             OmegaConf.set_struct(self._cfg.decoder, False)
             self._cfg.decoder = new_decoder_config
             OmegaConf.set_struct(self._cfg.decoder, True)
 
-            if 'train_ds' in self._cfg and self._cfg.train_ds is not None:
+            if "train_ds" in self._cfg and self._cfg.train_ds is not None:
                 self._cfg.train_ds.labels = new_labels
 
-            if 'validation_ds' in self._cfg and self._cfg.validation_ds is not None:
+            if "validation_ds" in self._cfg and self._cfg.validation_ds is not None:
                 self._cfg.validation_ds.labels = new_labels
 
-            if 'test_ds' in self._cfg and self._cfg.test_ds is not None:
+            if "test_ds" in self._cfg and self._cfg.test_ds is not None:
                 self._cfg.test_ds.labels = new_labels
 
-            logging.info(f"Changed decoder output to {self.decoder.num_classes} labels.")
+            logging.info(
+                f"Changed decoder output to {self.decoder.num_classes} labels."
+            )
 
     @classmethod
     def list_available_models(cls) -> Optional[List[PretrainedModelInfo]]:
@@ -782,7 +887,9 @@ class EncDecClassificationModel(EncDecSpeakerLabelModel, TranscriptionMixin):
         results.append(model)
         return results
 
-    def _setup_transcribe_dataloader(self, config: Dict) -> 'torch.utils.data.DataLoader':
+    def _setup_transcribe_dataloader(
+        self, config: Dict
+    ) -> "torch.utils.data.DataLoader":
         """
         Setup function for a temporary data loader which wraps the provided audio file.
 
@@ -793,15 +900,17 @@ class EncDecClassificationModel(EncDecSpeakerLabelModel, TranscriptionMixin):
             A pytorch DataLoader for the given audio file(s).
         """
         dl_config = {
-            'manifest_filepath': os.path.join(config['temp_dir'], 'manifest.json'),
-            'sample_rate': self.preprocessor._sample_rate,
-            'labels': self.cfg.labels,
-            'batch_size': min(config['batch_size'], len(config['paths2audio_files'])),
-            'trim_silence': False,
-            'shuffle': False,
+            "manifest_filepath": os.path.join(config["temp_dir"], "manifest.json"),
+            "sample_rate": self.preprocessor._sample_rate,
+            "labels": self.cfg.labels,
+            "batch_size": min(config["batch_size"], len(config["paths2audio_files"])),
+            "trim_silence": False,
+            "shuffle": False,
         }
 
-        temporary_datalayer = self._setup_dataloader_from_config(config=DictConfig(dl_config))
+        temporary_datalayer = self._setup_dataloader_from_config(
+            config=DictConfig(dl_config)
+        )
         return temporary_datalayer
 
     @torch.no_grad()
@@ -810,7 +919,9 @@ class EncDecClassificationModel(EncDecSpeakerLabelModel, TranscriptionMixin):
         audio: Union[List[str], DataLoader],
         batch_size: int = 4,
         logprobs=None,
-        override_config: Optional[ClassificationInferConfig] | Optional[RegressionInferConfig] = None,
+        override_config: (
+            Optional[ClassificationInferConfig] | Optional[RegressionInferConfig]
+        ) = None,
     ) -> TranscriptionReturnType:
         """
         Generate class labels for provided audio files. Use this method for debugging and prototyping.
@@ -834,15 +945,18 @@ class EncDecClassificationModel(EncDecSpeakerLabelModel, TranscriptionMixin):
 
         if override_config is None:
             if not self.is_regression_task:
-                trcfg = ClassificationInferConfig(batch_size=batch_size, logprobs=logprobs)
+                trcfg = ClassificationInferConfig(
+                    batch_size=batch_size, logprobs=logprobs
+                )
             else:
                 trcfg = RegressionInferConfig(batch_size=batch_size, logprobs=logprobs)
         else:
-            if not isinstance(override_config, ClassificationInferConfig) and not isinstance(
-                override_config, RegressionInferConfig
-            ):
+            if not isinstance(
+                override_config, ClassificationInferConfig
+            ) and not isinstance(override_config, RegressionInferConfig):
                 raise ValueError(
-                    f"override_config must be of type {ClassificationInferConfig}, " f"but got {type(override_config)}"
+                    f"override_config must be of type {ClassificationInferConfig}, "
+                    f"but got {type(override_config)}"
                 )
             trcfg = override_config
 
@@ -853,13 +967,21 @@ class EncDecClassificationModel(EncDecSpeakerLabelModel, TranscriptionMixin):
     def _transcribe_input_manifest_processing(
         self, audio_files: List[str], temp_dir: str, trcfg: ClassificationInferConfig
     ):
-        with open(os.path.join(temp_dir, 'manifest.json'), 'w', encoding='utf-8') as fp:
+        with open(os.path.join(temp_dir, "manifest.json"), "w", encoding="utf-8") as fp:
             for audio_file in audio_files:
                 label = 0.0 if self.is_regression_task else self.cfg.labels[0]
-                entry = {'audio_filepath': audio_file, 'duration': 100000.0, 'label': label}
-                fp.write(json.dumps(entry) + '\n')
+                entry = {
+                    "audio_filepath": audio_file,
+                    "duration": 100000.0,
+                    "label": label,
+                }
+                fp.write(json.dumps(entry) + "\n")
 
-        config = {'paths2audio_files': audio_files, 'batch_size': trcfg.batch_size, 'temp_dir': temp_dir}
+        config = {
+            "paths2audio_files": audio_files,
+            "batch_size": trcfg.batch_size,
+            "temp_dir": temp_dir,
+        }
         return config
 
     def _transcribe_forward(self, batch: Any, trcfg: ClassificationInferConfig):
@@ -870,7 +992,7 @@ class EncDecClassificationModel(EncDecSpeakerLabelModel, TranscriptionMixin):
     def _transcribe_output_processing(
         self, outputs, trcfg: ClassificationInferConfig
     ) -> Union[List[str], List[torch.Tensor]]:
-        logits = outputs.pop('logits')
+        logits = outputs.pop("logits")
         labels = []
 
         if trcfg.logprobs:
@@ -921,8 +1043,10 @@ class EncDecRegressionModel(_EncDecBaseModel):
         return result
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
-        if not cfg.get('is_regression_task', False):
-            raise ValueError("EndDecRegressionModel requires the flag is_regression_task to be set as true")
+        if not cfg.get("is_regression_task", False):
+            raise ValueError(
+                "EndDecRegressionModel requires the flag is_regression_task to be set as true"
+            )
         super().__init__(cfg=cfg, trainer=trainer)
 
     def _setup_preprocessor(self):
@@ -943,71 +1067,102 @@ class EncDecRegressionModel(_EncDecBaseModel):
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        return {"preds": NeuralType(tuple('B'), RegressionValuesType())}
+        return {"preds": NeuralType(tuple("B"), RegressionValuesType())}
 
     @typecheck()
     def forward(self, input_signal, input_signal_length):
-        logits = super().forward(input_signal=input_signal, input_signal_length=input_signal_length)
+        logits = super().forward(
+            input_signal=input_signal, input_signal_length=input_signal_length
+        )
         return logits.view(-1)
 
     # PTL-specific methods
     def training_step(self, batch, batch_idx):
         audio_signal, audio_signal_len, targets, targets_len = batch
-        logits = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
+        logits = self.forward(
+            input_signal=audio_signal, input_signal_length=audio_signal_len
+        )
         loss = self.loss(preds=logits, labels=targets)
         train_mse = self._mse(preds=logits, target=targets)
         train_mae = self._mae(preds=logits, target=targets)
 
         self.log_dict(
             {
-                'train_loss': loss,
-                'train_mse': train_mse,
-                'train_mae': train_mae,
-                'learning_rate': self._optimizer.param_groups[0]['lr'],
+                "train_loss": loss,
+                "train_mse": train_mse,
+                "train_mae": train_mae,
+                "learning_rate": self._optimizer.param_groups[0]["lr"],
             },
         )
 
-        return {'loss': loss}
+        return {"loss": loss}
 
     def validation_step(self, batch, batch_idx, dataloader_idx: int = 0):
         audio_signal, audio_signal_len, targets, targets_len = batch
-        logits = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
+        logits = self.forward(
+            input_signal=audio_signal, input_signal_length=audio_signal_len
+        )
         loss_value = self.loss(preds=logits, labels=targets)
         val_mse = self._mse(preds=logits, target=targets)
         val_mae = self._mae(preds=logits, target=targets)
 
-        return {'val_loss': loss_value, 'val_mse': val_mse, 'val_mae': val_mae}
+        return {"val_loss": loss_value, "val_mse": val_mse, "val_mae": val_mae}
 
     def test_step(self, batch, batch_idx, dataloader_idx: int = 0):
         logs = self.validation_step(batch, batch_idx, dataloader_idx)
 
-        return {'test_loss': logs['val_loss'], 'test_mse': logs['test_mse'], 'test_mae': logs['val_mae']}
+        return {
+            "test_loss": logs["val_loss"],
+            "test_mse": logs["test_mse"],
+            "test_mae": logs["val_mae"],
+        }
 
     def multi_validation_epoch_end(self, outputs, dataloader_idx: int = 0):
-        val_loss_mean = torch.stack([x['val_loss'] for x in outputs]).mean()
+        val_loss_mean = torch.stack([x["val_loss"] for x in outputs]).mean()
         val_mse = self._mse.compute()
         self._mse.reset()
         val_mae = self._mae.compute()
         self._mae.reset()
 
-        tensorboard_logs = {'val_loss': val_loss_mean, 'val_mse': val_mse, 'val_mae': val_mae}
+        tensorboard_logs = {
+            "val_loss": val_loss_mean,
+            "val_mse": val_mse,
+            "val_mae": val_mae,
+        }
 
-        return {'val_loss': val_loss_mean, 'val_mse': val_mse, 'val_mae': val_mae, 'log': tensorboard_logs}
+        return {
+            "val_loss": val_loss_mean,
+            "val_mse": val_mse,
+            "val_mae": val_mae,
+            "log": tensorboard_logs,
+        }
 
     def multi_test_epoch_end(self, outputs, dataloader_idx: int = 0):
-        test_loss_mean = torch.stack([x['test_loss'] for x in outputs]).mean()
+        test_loss_mean = torch.stack([x["test_loss"] for x in outputs]).mean()
         test_mse = self._mse.compute()
         self._mse.reset()
         test_mae = self._mae.compute()
         self._mae.reset()
 
-        tensorboard_logs = {'test_loss': test_loss_mean, 'test_mse': test_mse, 'test_mae': test_mae}
+        tensorboard_logs = {
+            "test_loss": test_loss_mean,
+            "test_mse": test_mse,
+            "test_mae": test_mae,
+        }
 
-        return {'test_loss': test_loss_mean, 'test_mse': test_mse, 'test_mae': test_mae, 'log': tensorboard_logs}
+        return {
+            "test_loss": test_loss_mean,
+            "test_mse": test_mse,
+            "test_mae": test_mae,
+            "log": tensorboard_logs,
+        }
 
     @torch.no_grad()
     def transcribe(
-        self, audio: List[str], batch_size: int = 4, override_config: Optional[RegressionInferConfig] = None
+        self,
+        audio: List[str],
+        batch_size: int = 4,
+        override_config: Optional[RegressionInferConfig] = None,
     ) -> List[float]:
         """
         Generate class labels for provided audio files. Use this method for debugging and prototyping.
@@ -1027,7 +1182,8 @@ class EncDecRegressionModel(_EncDecBaseModel):
         else:
             if not isinstance(override_config, RegressionInferConfig):
                 raise ValueError(
-                    f"override_config must be of type {RegressionInferConfig}, " f"but got {type(override_config)}"
+                    f"override_config must be of type {RegressionInferConfig}, "
+                    f"but got {type(override_config)}"
                 )
             trcfg = override_config
 
@@ -1038,7 +1194,7 @@ class EncDecRegressionModel(_EncDecBaseModel):
 
         OmegaConf.set_struct(cfg, False)
 
-        if 'params' in cfg:
+        if "params" in cfg:
             cfg.params.num_classes = 1
         else:
             cfg.num_classes = 1
@@ -1049,12 +1205,12 @@ class EncDecRegressionModel(_EncDecBaseModel):
 class EncDecFrameClassificationModel(EncDecClassificationModel):
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        return {"outputs": NeuralType(('B', 'T', 'C'), LogitsType())}
+        return {"outputs": NeuralType(("B", "T", "C"), LogitsType())}
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         self.num_classes = len(cfg.labels)
         self.eval_loop_cnt = 0
-        self.ratio_threshold = cfg.get('ratio_threshold', 0.2)
+        self.ratio_threshold = cfg.get("ratio_threshold", 0.2)
         super().__init__(cfg=cfg, trainer=trainer)
         self.decoder.output_types = self.output_types
         self.decoder.output_types_for_export = self.output_types
@@ -1072,7 +1228,9 @@ class EncDecFrameClassificationModel(EncDecClassificationModel):
 
     def _setup_metrics(self):
         self._accuracy = TopKClassificationAccuracy(dist_sync_on_step=True)
-        self._macro_accuracy = Accuracy(num_classes=self.num_classes, average='macro', task="multiclass")
+        self._macro_accuracy = Accuracy(
+            num_classes=self.num_classes, average="macro", task="multiclass"
+        )
 
     def _setup_loss(self):
         if "loss" in self.cfg:
@@ -1088,18 +1246,23 @@ class EncDecFrameClassificationModel(EncDecClassificationModel):
         OmegaConf.set_struct(config, False)
         config.is_regression_task = self.is_regression_task
         OmegaConf.set_struct(config, True)
-        shuffle = config.get('shuffle', False)
+        shuffle = config.get("shuffle", False)
 
-        if config.get('is_tarred', False):
-            if ('tarred_audio_filepaths' in config and config['tarred_audio_filepaths'] is None) or (
-                'manifest_filepath' in config and config['manifest_filepath'] is None
+        if config.get("is_tarred", False):
+            if (
+                "tarred_audio_filepaths" in config
+                and config["tarred_audio_filepaths"] is None
+            ) or (
+                "manifest_filepath" in config and config["manifest_filepath"] is None
             ):
                 raise ValueError(
                     "Could not load dataset as `manifest_filepath` is None or "
                     f"`tarred_audio_filepaths` is None. Provided cfg : {config}"
                 )
 
-            shuffle_n = config.get('shuffle_n', 4 * config['batch_size']) if shuffle else 0
+            shuffle_n = (
+                config.get("shuffle_n", 4 * config["batch_size"]) if shuffle else 0
+            )
             dataset = audio_to_label_dataset.get_tarred_audio_multi_label_dataset(
                 cfg=config,
                 shuffle_n=shuffle_n,
@@ -1107,13 +1270,15 @@ class EncDecFrameClassificationModel(EncDecClassificationModel):
                 world_size=self.world_size,
             )
             shuffle = False
-            if hasattr(dataset, 'collate_fn'):
+            if hasattr(dataset, "collate_fn"):
                 collate_func = dataset.collate_fn
             else:
                 collate_func = dataset.datasets[0].collate_fn
         else:
-            if 'manifest_filepath' in config and config['manifest_filepath'] is None:
-                raise ValueError(f"Could not load dataset as `manifest_filepath` is None. Provided cfg : {config}")
+            if "manifest_filepath" in config and config["manifest_filepath"] is None:
+                raise ValueError(
+                    f"Could not load dataset as `manifest_filepath` is None. Provided cfg : {config}"
+                )
             dataset = audio_to_label_dataset.get_audio_multi_label_dataset(config)
             collate_func = dataset.collate_fn
 
@@ -1121,13 +1286,15 @@ class EncDecFrameClassificationModel(EncDecClassificationModel):
             dataset=dataset,
             batch_size=config.get("batch_size", 1),
             collate_fn=collate_func,
-            drop_last=config.get('drop_last', False),
+            drop_last=config.get("drop_last", False),
             shuffle=shuffle,
-            num_workers=config.get('num_workers', 0),
-            pin_memory=config.get('pin_memory', False),
+            num_workers=config.get("num_workers", 0),
+            pin_memory=config.get("pin_memory", False),
         )
 
-    def _setup_feature_label_dataloader(self, config: DictConfig) -> torch.utils.data.DataLoader:
+    def _setup_feature_label_dataloader(
+        self, config: DictConfig
+    ) -> torch.utils.data.DataLoader:
         """
         setup dataloader for VAD inference with audio features as input
         """
@@ -1136,36 +1303,49 @@ class EncDecFrameClassificationModel(EncDecClassificationModel):
         config.is_regression_task = self.is_regression_task
         OmegaConf.set_struct(config, True)
 
-        if 'augmentor' in config:
-            augmentor = process_augmentations(config['augmentor'])
+        if "augmentor" in config:
+            augmentor = process_augmentations(config["augmentor"])
         else:
             augmentor = None
-        if 'manifest_filepath' in config and config['manifest_filepath'] is None:
-            logging.warning(f"Could not load dataset as `manifest_filepath` is None. Provided config : {config}")
+        if "manifest_filepath" in config and config["manifest_filepath"] is None:
+            logging.warning(
+                f"Could not load dataset as `manifest_filepath` is None. Provided config : {config}"
+            )
             return None
 
-        dataset = feature_to_label_dataset.get_feature_multi_label_dataset(config=config, augmentor=augmentor)
+        dataset = feature_to_label_dataset.get_feature_multi_label_dataset(
+            config=config, augmentor=augmentor
+        )
 
         return torch.utils.data.DataLoader(
             dataset=dataset,
             batch_size=config.get("batch_size", 1),
             collate_fn=dataset.collate_fn,
-            drop_last=config.get('drop_last', False),
-            shuffle=config.get('shuffle', False),
-            num_workers=config.get('num_workers', 0),
-            pin_memory=config.get('pin_memory', False),
+            drop_last=config.get("drop_last", False),
+            shuffle=config.get("shuffle", False),
+            num_workers=config.get("num_workers", 0),
+            pin_memory=config.get("pin_memory", False),
         )
 
     def get_label_masks(self, labels, labels_len):
-        mask = torch.arange(labels.size(1))[None, :].to(labels.device) < labels_len[:, None]
+        mask = (
+            torch.arange(labels.size(1))[None, :].to(labels.device)
+            < labels_len[:, None]
+        )
         return mask.to(labels.device, dtype=bool)
 
     @typecheck()
     def forward(
-        self, input_signal=None, input_signal_length=None, processed_signal=None, processed_signal_length=None
+        self,
+        input_signal=None,
+        input_signal_length=None,
+        processed_signal=None,
+        processed_signal_length=None,
     ):
         has_input_signal = input_signal is not None and input_signal_length is not None
-        has_processed_signal = processed_signal is not None and processed_signal_length is not None
+        has_processed_signal = (
+            processed_signal is not None and processed_signal_length is not None
+        )
         if (has_input_signal ^ has_processed_signal) == False:
             raise ValueError(
                 f"{self} Arguments ``input_signal`` and ``input_signal_length`` are mutually exclusive "
@@ -1185,94 +1365,129 @@ class EncDecFrameClassificationModel(EncDecClassificationModel):
             )
         # Spec augment is not applied during evaluation/testing
         if self.spec_augmentation is not None and self.training:
-            processed_signal = self.spec_augmentation(input_spec=processed_signal, length=processed_signal_length)
-        encoded, encoded_len = self.encoder(audio_signal=processed_signal, length=processed_signal_length)
+            processed_signal = self.spec_augmentation(
+                input_spec=processed_signal, length=processed_signal_length
+            )
+        encoded, encoded_len = self.encoder(
+            audio_signal=processed_signal, length=processed_signal_length
+        )
         logits = self.decoder(encoded.transpose(1, 2))
         return logits
 
     # PTL-specific methods
     def training_step(self, batch, batch_idx):
         audio_signal, audio_signal_len, labels, labels_len = batch
-        logits = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
-        labels, labels_len = self.reshape_labels(logits, labels, audio_signal_len, labels_len)
+        logits = self.forward(
+            input_signal=audio_signal, input_signal_length=audio_signal_len
+        )
+        labels, labels_len = self.reshape_labels(
+            logits, labels, audio_signal_len, labels_len
+        )
         masks = self.get_label_masks(labels, labels_len)
 
         loss_value = self.loss(logits=logits, labels=labels, loss_mask=masks)
 
         tensorboard_logs = {
-            'train_loss': loss_value,
-            'learning_rate': self._optimizer.param_groups[0]['lr'],
-            'global_step': torch.tensor(self.trainer.global_step, dtype=torch.float32),
+            "train_loss": loss_value,
+            "learning_rate": self._optimizer.param_groups[0]["lr"],
+            "global_step": torch.tensor(self.trainer.global_step, dtype=torch.float32),
         }
 
-        metric_logits, metric_labels = self.get_metric_logits_labels(logits, labels, masks)
+        metric_logits, metric_labels = self.get_metric_logits_labels(
+            logits, labels, masks
+        )
         self._accuracy(logits=metric_logits, labels=metric_labels)
         topk_scores = self._accuracy.compute()
         self._accuracy.reset()
 
         for top_k, score in zip(self._accuracy.top_k, topk_scores):
-            tensorboard_logs[f'training_batch_accuracy_top@{top_k}'] = score
+            tensorboard_logs[f"training_batch_accuracy_top@{top_k}"] = score
 
-        return {'loss': loss_value, 'log': tensorboard_logs}
+        return {"loss": loss_value, "log": tensorboard_logs}
 
-    def validation_step(self, batch, batch_idx, dataloader_idx: int = 0, tag: str = 'val'):
+    def validation_step(
+        self, batch, batch_idx, dataloader_idx: int = 0, tag: str = "val"
+    ):
         audio_signal, audio_signal_len, labels, labels_len = batch
-        logits = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
-        labels, labels_len = self.reshape_labels(logits, labels, audio_signal_len, labels_len)
+        logits = self.forward(
+            input_signal=audio_signal, input_signal_length=audio_signal_len
+        )
+        labels, labels_len = self.reshape_labels(
+            logits, labels, audio_signal_len, labels_len
+        )
         masks = self.get_label_masks(labels, labels_len)
 
         loss_value = self.loss(logits=logits, labels=labels, loss_mask=masks)
 
-        metric_logits, metric_labels = self.get_metric_logits_labels(logits, labels, masks)
+        metric_logits, metric_labels = self.get_metric_logits_labels(
+            logits, labels, masks
+        )
 
         acc = self._accuracy(logits=metric_logits, labels=metric_labels)
-        correct_counts, total_counts = self._accuracy.correct_counts_k, self._accuracy.total_counts_k
+        correct_counts, total_counts = (
+            self._accuracy.correct_counts_k,
+            self._accuracy.total_counts_k,
+        )
 
         self._macro_accuracy.update(preds=metric_logits, target=metric_labels)
         stats = self._macro_accuracy._final_state()
 
         return {
-            f'{tag}_loss': loss_value,
-            f'{tag}_correct_counts': correct_counts,
-            f'{tag}_total_counts': total_counts,
-            f'{tag}_acc_micro': acc,
-            f'{tag}_acc_stats': stats,
+            f"{tag}_loss": loss_value,
+            f"{tag}_correct_counts": correct_counts,
+            f"{tag}_total_counts": total_counts,
+            f"{tag}_acc_micro": acc,
+            f"{tag}_acc_stats": stats,
         }
 
-    def multi_validation_epoch_end(self, outputs, dataloader_idx: int = 0, tag: str = 'val'):
-        val_loss_mean = torch.stack([x[f'{tag}_loss'] for x in outputs]).mean()
-        correct_counts = torch.stack([x[f'{tag}_correct_counts'] for x in outputs]).sum(axis=0)
-        total_counts = torch.stack([x[f'{tag}_total_counts'] for x in outputs]).sum(axis=0)
+    def multi_validation_epoch_end(
+        self, outputs, dataloader_idx: int = 0, tag: str = "val"
+    ):
+        val_loss_mean = torch.stack([x[f"{tag}_loss"] for x in outputs]).mean()
+        correct_counts = torch.stack([x[f"{tag}_correct_counts"] for x in outputs]).sum(
+            axis=0
+        )
+        total_counts = torch.stack([x[f"{tag}_total_counts"] for x in outputs]).sum(
+            axis=0
+        )
 
         self._accuracy.correct_counts_k = correct_counts
         self._accuracy.total_counts_k = total_counts
         topk_scores = self._accuracy.compute()
 
-        self._macro_accuracy.tp = torch.stack([x[f'{tag}_acc_stats'][0] for x in outputs]).sum(axis=0)
-        self._macro_accuracy.fp = torch.stack([x[f'{tag}_acc_stats'][1] for x in outputs]).sum(axis=0)
-        self._macro_accuracy.tn = torch.stack([x[f'{tag}_acc_stats'][2] for x in outputs]).sum(axis=0)
-        self._macro_accuracy.fn = torch.stack([x[f'{tag}_acc_stats'][3] for x in outputs]).sum(axis=0)
+        self._macro_accuracy.tp = torch.stack(
+            [x[f"{tag}_acc_stats"][0] for x in outputs]
+        ).sum(axis=0)
+        self._macro_accuracy.fp = torch.stack(
+            [x[f"{tag}_acc_stats"][1] for x in outputs]
+        ).sum(axis=0)
+        self._macro_accuracy.tn = torch.stack(
+            [x[f"{tag}_acc_stats"][2] for x in outputs]
+        ).sum(axis=0)
+        self._macro_accuracy.fn = torch.stack(
+            [x[f"{tag}_acc_stats"][3] for x in outputs]
+        ).sum(axis=0)
         macro_accuracy_score = self._macro_accuracy.compute()
 
         self._accuracy.reset()
         self._macro_accuracy.reset()
 
         tensorboard_log = {
-            f'{tag}_loss': val_loss_mean,
-            f'{tag}_acc_macro': macro_accuracy_score,
+            f"{tag}_loss": val_loss_mean,
+            f"{tag}_acc_macro": macro_accuracy_score,
         }
 
         for top_k, score in zip(self._accuracy.top_k, topk_scores):
-            tensorboard_log[f'{tag}_acc_micro_top@{top_k}'] = score
+            tensorboard_log[f"{tag}_acc_micro_top@{top_k}"] = score
 
         self.log_dict(tensorboard_log, sync_dist=True)
         return tensorboard_log
 
     def test_step(self, batch, batch_idx, dataloader_idx=0):
-        return self.validation_step(batch, batch_idx, dataloader_idx, tag='test')
+        return self.validation_step(batch, batch_idx, dataloader_idx, tag="test")
 
     def multi_test_epoch_end(self, outputs, dataloader_idx: int = 0):
-        return self.multi_validation_epoch_end(outputs, dataloader_idx, tag='test')
+        return self.multi_validation_epoch_end(outputs, dataloader_idx, tag="test")
 
     def reshape_labels(self, logits, labels, logits_len, labels_len):
         """
@@ -1310,10 +1525,14 @@ class EncDecFrameClassificationModel(EncDecClassificationModel):
                 if res > 0:
                     labels = labels[:, :-res]
                     mask = labels_len > (labels_max_len - res)
-                    labels_len = labels_len - mask * (labels_len - (labels_max_len - res))
+                    labels_len = labels_len - mask * (
+                        labels_len - (labels_max_len - res)
+                    )
                 labels = labels.view(batch_size, ratio, -1).amax(1)
                 labels_len = torch.div(labels_len, ratio, rounding_mode="floor")
-                labels_len = torch.min(torch.cat([logits_len[:, None], labels_len[:, None]], dim=1), dim=1)[0]
+                labels_len = torch.min(
+                    torch.cat([logits_len[:, None], labels_len[:, None]], dim=1), dim=1
+                )[0]
                 return labels.contiguous(), labels_len.contiguous()
         elif logits_max_len > labels_max_len:
             ratio = logits_max_len / labels_max_len
@@ -1332,10 +1551,14 @@ class EncDecFrameClassificationModel(EncDecClassificationModel):
                 if res > 0:
                     labels = torch.cat([labels, labels[:, -res:]], dim=1)
                     # no need to update `labels_len` since we ignore additional "res" padded labels
-            labels_len = torch.min(torch.cat([logits_len[:, None], labels_len[:, None]], dim=1), dim=1)[0]
+            labels_len = torch.min(
+                torch.cat([logits_len[:, None], labels_len[:, None]], dim=1), dim=1
+            )[0]
             return labels.contiguous(), labels_len.contiguous()
         else:
-            labels_len = torch.min(torch.cat([logits_len[:, None], labels_len[:, None]], dim=1), dim=1)[0]
+            labels_len = torch.min(
+                torch.cat([logits_len[:, None], labels_len[:, None]], dim=1), dim=1
+            )[0]
             return labels, labels_len
 
     def get_metric_logits_labels(self, logits, labels, masks):
@@ -1361,7 +1584,12 @@ class EncDecFrameClassificationModel(EncDecClassificationModel):
         return logits, labels
 
     def forward_for_export(
-        self, input, length=None, cache_last_channel=None, cache_last_time=None, cache_last_channel_len=None
+        self,
+        input,
+        length=None,
+        cache_last_channel=None,
+        cache_last_time=None,
+        cache_last_channel_len=None,
     ):
         """
         This forward is used when we need to export the model to ONNX format.
@@ -1378,13 +1606,21 @@ class EncDecFrameClassificationModel(EncDecClassificationModel):
         Returns:
             the output of the model
         """
-        enc_fun = getattr(self.input_module, 'forward_for_export', self.input_module.forward)
+        enc_fun = getattr(
+            self.input_module, "forward_for_export", self.input_module.forward
+        )
         if cache_last_channel is None:
             encoder_output = enc_fun(audio_signal=input, length=length)
             if isinstance(encoder_output, tuple):
                 encoder_output = encoder_output[0]
         else:
-            encoder_output, length, cache_last_channel, cache_last_time, cache_last_channel_len = enc_fun(
+            (
+                encoder_output,
+                length,
+                cache_last_channel,
+                cache_last_time,
+                cache_last_channel_len,
+            ) = enc_fun(
                 audio_signal=input,
                 length=length,
                 cache_last_channel=cache_last_channel,
@@ -1392,10 +1628,18 @@ class EncDecFrameClassificationModel(EncDecClassificationModel):
                 cache_last_channel_len=cache_last_channel_len,
             )
 
-        dec_fun = getattr(self.output_module, 'forward_for_export', self.output_module.forward)
+        dec_fun = getattr(
+            self.output_module, "forward_for_export", self.output_module.forward
+        )
         ret = dec_fun(hidden_states=encoder_output.transpose(1, 2))
         if isinstance(ret, tuple):
             ret = ret[0]
         if cache_last_channel is not None:
-            ret = (ret, length, cache_last_channel, cache_last_time, cache_last_channel_len)
+            ret = (
+                ret,
+                length,
+                cache_last_channel,
+                cache_last_time,
+                cache_last_channel_len,
+            )
         return cast_all(ret, from_dtype=torch.float16, to_dtype=torch.float32)

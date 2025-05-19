@@ -93,8 +93,12 @@ def _initialize_distributed_parallel_state(
     # initialize pytorch DDP
     # if not interactive and not torch.distributed.is_initialized():
     if not torch.distributed.is_initialized():
-        logging.info("pytorch DDP is not initialized. Initializing with pytorch-lightening...")
-        trainer = pl.Trainer(devices=devices, strategy="ddp" if not interactive else "auto", num_nodes=1)
+        logging.info(
+            "pytorch DDP is not initialized. Initializing with pytorch-lightening..."
+        )
+        trainer = pl.Trainer(
+            devices=devices, strategy="ddp" if not interactive else "auto", num_nodes=1
+        )
 
         if trainer.strategy.launcher is not None:
             trainer.strategy.launcher.launch(_dummy, trainer=trainer)
@@ -197,7 +201,9 @@ def load_weights_sharded_inplace_nemo2_to_mcore(
     )
 
 
-@pytest.mark.skip(reason="Skipping test due to slow runtime and non-availability of model/test data in CI.")
+@pytest.mark.skip(
+    reason="Skipping test due to slow runtime and non-availability of model/test data in CI."
+)
 def test_golden_values(use_te: bool = True):
     """Step 1:
     # add local .ssh/*.pub key to eos ~/.ssh/authorized_keys
@@ -214,36 +220,61 @@ def test_golden_values(use_te: bool = True):
         cfg_path = "arc_model/checkpoints/interleaved_hyena_7b_no_te/weights"
 
     with torch.inference_mode(), distributed_model_parallel_state():
-        hyena_config = llm.Hyena7bConfig(use_te=use_te, attention_backend=AttnBackend.fused)
+        hyena_config = llm.Hyena7bConfig(
+            use_te=use_te, attention_backend=AttnBackend.fused
+        )
         tokenizer = get_nmt_tokenizer(
             "byte-level",
         )
         raw_megatron_model = hyena_config.configure_model(tokenizer).eval().cuda()
         device = raw_megatron_model.parameters().__next__().device
-        load_weights_sharded_inplace_nemo2_to_mcore(raw_megatron_model, cfg_path, {}, "zarr")
+        load_weights_sharded_inplace_nemo2_to_mcore(
+            raw_megatron_model, cfg_path, {}, "zarr"
+        )
         """
         fp8='hybrid', fp8_margin=0, fp8_interval=1, fp8_amax_history_len=16, fp8_amax_compute_algo='max', fp8_wgrad=True, fp8_dot_product_attention=False, fp8_multi_head_attention=False, tp_only_amax_red=False
         """
         model = Float16Module(hyena_config, raw_megatron_model)
         input_seq = "GAAATTAGCGCGTCCGGAATGATACGAGGGGAAACGAAATTTTGAATTAATGGAGAAAAAAGACGAGAAACCTTAAGCAAAAAAATTTTAGCTTCGAATATTTATTAATTTCTGAGATGTTGTTAAACGATTTTCGATTCCAAGTTGTGCGCACGAACGTTATTGCAAATAAATGCTGCTTATTCGGATGTTTCCACGATCTTTGTTGCAATGGTAGTCGAGTACCCGATAACCCAATTTCGTTACATCGGCCTATCTGTAGAATATCCAATCTATGGTTCATAAAAAATCTGATCGTTTGTTTTTAAGAAATTAAACGCGTTAAATTGAACGAATTTCGAATACCGGTCTTAGCGAAGGACCTCCCCTCTTGCTTGCGTATTGCCCCGCGAAATTTCTTTTCGGCGATGAACGATACAAAAAATTCTATCGAATGTTACTTCTATTCTCTGCCTCGTCTATGACTTGGAGATTGGTCTATGTCGTTCGTTTTCTCGCGAGTTTCCAATATGTCCGTAGTATGTGAACGCTGGTATTCGTGAAGATAAATTATTGTTTTTACAATTTCTTTCAAAAATATATAATTTTAATTTATATAAT"
-        input_ids = torch.tensor(tokenizer.text_to_ids(input_seq)).int().unsqueeze(0).to(device)
+        input_ids = (
+            torch.tensor(tokenizer.text_to_ids(input_seq)).int().unsqueeze(0).to(device)
+        )
         position_ids = torch.arange(len(input_seq)).unsqueeze(0).to(device)
         attention_mask = None
-        outputs = model(input_ids=input_ids, position_ids=position_ids, attention_mask=attention_mask)
-        gold_standard_no_fp8 = torch.load("arc_model/gold_standards/final_7b_no_fp8_golden_value.pt").to(
-            device=outputs.device, dtype=outputs.dtype
+        outputs = model(
+            input_ids=input_ids,
+            position_ids=position_ids,
+            attention_mask=attention_mask,
         )
-        gold_standard_fp8 = torch.load("arc_model/gold_standards/interleaved_7b_golden_value.pt").to(
-            device=outputs.device, dtype=outputs.dtype
-        )
+        gold_standard_no_fp8 = torch.load(
+            "arc_model/gold_standards/final_7b_no_fp8_golden_value.pt"
+        ).to(device=outputs.device, dtype=outputs.dtype)
+        gold_standard_fp8 = torch.load(
+            "arc_model/gold_standards/interleaved_7b_golden_value.pt"
+        ).to(device=outputs.device, dtype=outputs.dtype)
 
         our_generation_str = "".join(
-            [chr(idx) for idx in outputs.softmax(dim=-1).argmax(dim=-1).flatten().detach().cpu().numpy().tolist()]
+            [
+                chr(idx)
+                for idx in outputs.softmax(dim=-1)
+                .argmax(dim=-1)
+                .flatten()
+                .detach()
+                .cpu()
+                .numpy()
+                .tolist()
+            ]
         )
         their_generation_str_fp8 = "".join(
             [
                 chr(idx)
-                for idx in gold_standard_fp8.softmax(dim=-1).argmax(dim=-1).flatten().detach().cpu().numpy().tolist()
+                for idx in gold_standard_fp8.softmax(dim=-1)
+                .argmax(dim=-1)
+                .flatten()
+                .detach()
+                .cpu()
+                .numpy()
+                .tolist()
             ]
         )
         their_generation_str_no_fp8 = "".join(
@@ -259,17 +290,23 @@ def test_golden_values(use_te: bool = True):
             ]
         )
         char_matches_ours_v_theirs_no_fp8 = [
-            our_generation_str[i] == their_generation_str_no_fp8[i] for i in range(len(their_generation_str_no_fp8))
+            our_generation_str[i] == their_generation_str_no_fp8[i]
+            for i in range(len(their_generation_str_no_fp8))
         ]
         char_matches_ours_v_theirs_fp8 = [
-            our_generation_str[i] == their_generation_str_fp8[i] for i in range(len(their_generation_str_fp8))
+            our_generation_str[i] == their_generation_str_fp8[i]
+            for i in range(len(their_generation_str_fp8))
         ]
         char_matches_theirs_v_theirs_fp8_vs_not = [
             their_generation_str_fp8[i] == their_generation_str_no_fp8[i]
             for i in range(len(their_generation_str_no_fp8))
         ]
-        token_similarity_vs_no_fp8 = sum(char_matches_ours_v_theirs_no_fp8) / len(char_matches_ours_v_theirs_no_fp8)
-        token_similarity_vs_fp8 = sum(char_matches_ours_v_theirs_fp8) / len(char_matches_ours_v_theirs_fp8)
+        token_similarity_vs_no_fp8 = sum(char_matches_ours_v_theirs_no_fp8) / len(
+            char_matches_ours_v_theirs_no_fp8
+        )
+        token_similarity_vs_fp8 = sum(char_matches_ours_v_theirs_fp8) / len(
+            char_matches_ours_v_theirs_fp8
+        )
         token_similarity_theirs = sum(char_matches_theirs_v_theirs_fp8_vs_not) / len(
             char_matches_theirs_v_theirs_fp8_vs_not
         )

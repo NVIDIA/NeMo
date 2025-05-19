@@ -54,7 +54,11 @@ def tokenizer(tmp_path_factory):
 @pytest.fixture
 def cuts_path(tmp_path_factory):
     tmp_path = tmp_path_factory.getbasetemp() / "cuts.jsonl"
-    c = dummy_cut(0, duration=1.0, supervisions=[SupervisionSegment("", "", 0, 1.0, text="dummy text")])
+    c = dummy_cut(
+        0,
+        duration=1.0,
+        supervisions=[SupervisionSegment("", "", 0, 1.0, text="dummy text")],
+    )
     c.context = "dummy context"
     CutSet([c]).to_file(tmp_path)
     return tmp_path
@@ -117,7 +121,9 @@ def test_prompt_format_cut(cuts_path, tokenizer):
     batch = next(iter(dl))
     ex = batch[0]
     assert isinstance(ex, Cut)
-    assert tokenizer.ids_to_text(ex.input_ids) == "[INST] dummy context [/INST] dummy text"
+    assert (
+        tokenizer.ids_to_text(ex.input_ids) == "[INST] dummy context [/INST] dummy text"
+    )
     assert tokenizer.ids_to_text(ex.context_ids) == "[INST] dummy context [/INST]"
     assert tokenizer.ids_to_text(ex.answer_ids) == "dummy text"
 
@@ -167,7 +173,11 @@ def test_prompt_format_src_tgt(src_tgt_example, tokenizer):
     dl = get_lhotse_dataloader_from_config(
         {
             "input_cfg": [
-                {"type": "txt_pair", "source_paths": src_tgt_example[0], "target_paths": src_tgt_example[1]}
+                {
+                    "type": "txt_pair",
+                    "source_paths": src_tgt_example[0],
+                    "target_paths": src_tgt_example[1],
+                }
             ],
             "batch_size": 1,
             "force_finite": True,
@@ -195,7 +205,11 @@ def test_prompt_format_src_tgt_filtered_out(src_tgt_example, tokenizer):
     dl = get_lhotse_dataloader_from_config(
         {
             "input_cfg": [
-                {"type": "txt_pair", "source_paths": src_tgt_example[0], "target_paths": src_tgt_example[1]}
+                {
+                    "type": "txt_pair",
+                    "source_paths": src_tgt_example[0],
+                    "target_paths": src_tgt_example[1],
+                }
             ],
             "batch_size": 1,
             "force_finite": True,
@@ -268,7 +282,10 @@ def test_prompt_format_nemo_sft(nemo_sft_example, tokenizer):
     batch = next(iter(dl))
     ex = batch[0]
     assert isinstance(ex, NeMoSFTExample)
-    assert tokenizer.ids_to_text(ex.input_ids) == "[INST] Hi, how are you? [/INST] Good day, I'm a useful assistant."
+    assert (
+        tokenizer.ids_to_text(ex.input_ids)
+        == "[INST] Hi, how are you? [/INST] Good day, I'm a useful assistant."
+    )
     assert tokenizer.ids_to_text(ex.context_ids) == "[INST] Hi, how are you? [/INST]"
     assert tokenizer.ids_to_text(ex.answer_ids) == "Good day, I'm a useful assistant."
 

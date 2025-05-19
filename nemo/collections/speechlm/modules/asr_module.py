@@ -47,7 +47,11 @@ class MCoreASRModule(MegatronModule):
         preprocessor: Optional[nn.Module] = None,
         spec_augment: Optional[nn.Module] = None,
     ):
-        super().__init__(config=TransformerConfig(num_layers=1, hidden_size=1, num_attention_heads=16))
+        super().__init__(
+            config=TransformerConfig(
+                num_layers=1, hidden_size=1, num_attention_heads=16
+            )
+        )
         self.encoder = encoder
         self.preprocessor = preprocessor
         self.spec_augmentation = spec_augment
@@ -60,7 +64,9 @@ class MCoreASRModule(MegatronModule):
         processed_signal_length=None,
     ):
         has_input_signal = input_signal is not None and input_signal_length is not None
-        has_processed_signal = processed_signal is not None and processed_signal_length is not None
+        has_processed_signal = (
+            processed_signal is not None and processed_signal_length is not None
+        )
         if (has_input_signal ^ has_processed_signal) is False:
             raise ValueError(
                 f"{self.__class__} Arguments ``input_signal`` and ``input_signal_length`` are mutually exclusive "
@@ -87,9 +93,13 @@ class MCoreASRModule(MegatronModule):
 
         # Spec augment is not applied during evaluation/testing
         if self.spec_augmentation is not None and self.training:
-            processed_signal = self.spec_augmentation(input_spec=processed_signal, length=processed_signal_length)
+            processed_signal = self.spec_augmentation(
+                input_spec=processed_signal, length=processed_signal_length
+            )
 
-        encoded, encoded_len = self.encoder(audio_signal=processed_signal, length=processed_signal_length)
+        encoded, encoded_len = self.encoder(
+            audio_signal=processed_signal, length=processed_signal_length
+        )
         return encoded, encoded_len
 
 
@@ -101,12 +111,20 @@ class HFWrappedPreprocessor(nn.Module):
 
     def forward(self, input_signal: torch.Tensor, length: torch.Tensor):
         processed = self.preprocessor(
-            input_signal.cpu().numpy(), sampling_rate=self.sample_rate, return_tensors="pt"
+            input_signal.cpu().numpy(),
+            sampling_rate=self.sample_rate,
+            return_tensors="pt",
         )  # type: transformers.feature_extraction_utils.BatchFeature
-        processed_signal = processed["input_features"]  # type: torch.Tensor # [batch, hidden, time]
-        processed_signal = processed_signal.to(input_signal.device).type_as(input_signal)
+        processed_signal = processed[
+            "input_features"
+        ]  # type: torch.Tensor # [batch, hidden, time]
+        processed_signal = processed_signal.to(input_signal.device).type_as(
+            input_signal
+        )
         processed_signal_len = torch.tensor(
-            [processed_signal.shape[2]] * processed_signal.shape[0], device=length.device, dtype=length.dtype
+            [processed_signal.shape[2]] * processed_signal.shape[0],
+            device=length.device,
+            dtype=length.dtype,
         )  # [batch]
         return processed_signal, processed_signal_len
 
@@ -126,7 +144,9 @@ class HFWrappedEncoder(nn.Module):
         )  # type: transformers.modeling_outputs.BaseModelOutput
         encoded = output["last_hidden_state"]  # [batch, time, hidden]
         encoded = encoded.transpose(1, 2)  # [batch, hidden, time]
-        encoded_len = torch.tensor([encoded.shape[2]] * encoded.shape[0], device=encoded.device).long()  # [batch]
+        encoded_len = torch.tensor(
+            [encoded.shape[2]] * encoded.shape[0], device=encoded.device
+        ).long()  # [batch]
         return encoded, encoded_len
 
     def __call__(self, *args, **kwargs):
@@ -156,7 +176,9 @@ class ASRModuleConfig(ModelParallelConfig, io.IOMixin):
             imported_cls = nemo_asr.models.ASRModel
         if self.pretrained_model is not None and self.config is None:
             if str(self.pretrained_model).endswith(".nemo"):
-                asr_model = imported_cls.restore_from(self.pretrained_model)  # type: nemo_asr.models.ASRModel
+                asr_model = imported_cls.restore_from(
+                    self.pretrained_model
+                )  # type: nemo_asr.models.ASRModel
             else:
                 asr_model = imported_cls.from_pretrained(
                     model_name=self.pretrained_model
@@ -179,15 +201,23 @@ class ASRModuleConfig(ModelParallelConfig, io.IOMixin):
             model = get_nested_attr(asr_model, self.target_module)
 
         if model is None:
-            raise ValueError(f"Model {self._target_} does not have attribute {self.target_module}")
+            raise ValueError(
+                f"Model {self._target_} does not have attribute {self.target_module}"
+            )
 
         if self.preprocessor_config is not None:
-            preprocessor = Serialization.from_config_dict(to_dict_config(self.preprocessor_config))
+            preprocessor = Serialization.from_config_dict(
+                to_dict_config(self.preprocessor_config)
+            )
         elif hasattr(asr_model, "preprocessor"):
-            preprocessor = asr_model.preprocessor  # type: nemo_asr.modules.AudioToMelSpectrogramPreprocessor
+            preprocessor = (
+                asr_model.preprocessor
+            )  # type: nemo_asr.modules.AudioToMelSpectrogramPreprocessor
         else:
             preprocessor = None
-            logging.warning(f"Model {self._target_} does not have a preprocessor, use with caution.")
+            logging.warning(
+                f"Model {self._target_} does not have a preprocessor, use with caution."
+            )
 
         if self.sample_rate != preprocessor._sample_rate:
             raise ValueError(
@@ -210,8 +240,12 @@ class ASRModuleConfig(ModelParallelConfig, io.IOMixin):
                 use_safetensors=True,
             )
         else:
-            config = AutoConfig.from_pretrained(self.pretrained_model, trust_remote_code=self.hf_trust_remote_code)
-            asr_model = AutoModelForSpeechSeq2Seq.from_config(config, trust_remote_code=self.hf_trust_remote_code)
+            config = AutoConfig.from_pretrained(
+                self.pretrained_model, trust_remote_code=self.hf_trust_remote_code
+            )
+            asr_model = AutoModelForSpeechSeq2Seq.from_config(
+                config, trust_remote_code=self.hf_trust_remote_code
+            )
 
         model = asr_model
         if self.target_module is not None:
@@ -227,8 +261,12 @@ class ASRModuleConfig(ModelParallelConfig, io.IOMixin):
             model, preprocessor = self.configure_nemo_asr_model()
 
         if self.spec_augment_config is not None:
-            spec_augment = Serialization.from_config_dict(to_dict_config(self.spec_augment_config))
+            spec_augment = Serialization.from_config_dict(
+                to_dict_config(self.spec_augment_config)
+            )
         else:
             spec_augment = None
 
-        return MCoreASRModule(encoder=model, preprocessor=preprocessor, spec_augment=spec_augment)
+        return MCoreASRModule(
+            encoder=model, preprocessor=preprocessor, spec_augment=spec_augment
+        )

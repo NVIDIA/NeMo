@@ -78,7 +78,9 @@ class TestLlamaEmbedding_1B:
         assert isinstance(recipe.trainer, run.Config)
         assert recipe.trainer.__fn_or_cls__ == Trainer
         assert isinstance(recipe.data, run.Config)
-        assert recipe.data.__fn_or_cls__ == llm.SpecterDataModule  # Different from other Llama models
+        assert (
+            recipe.data.__fn_or_cls__ == llm.SpecterDataModule
+        )  # Different from other Llama models
         assert recipe.data.seq_length == 512  # Default for embedding model
         assert recipe.data.micro_batch_size == 4  # Default for embedding model
         assert recipe.data.global_batch_size == 64  # Default for embedding model
@@ -89,26 +91,34 @@ class TestLlamaEmbedding_1B:
         assert recipe.optim.config.lr == 1e-4
 
     def test_finetune_recipe_with_packed_sequence(self, recipe_module):
-        with pytest.raises(AssertionError, match='pack_sequence is not supported for Embedding model finetuning.'):
+        with pytest.raises(
+            AssertionError,
+            match="pack_sequence is not supported for Embedding model finetuning.",
+        ):
             recipe_module.finetune_recipe(packed_sequence=True)
 
     def test_finetune_recipe_without_peft(self, recipe_module):
         recipe = recipe_module.finetune_recipe(peft_scheme=None)
         assert recipe.trainer.strategy.tensor_model_parallel_size == 1
         assert recipe.optim.config.lr == 5e-6
-        assert not hasattr(recipe, 'peft') or recipe.peft is None
+        assert not hasattr(recipe, "peft") or recipe.peft is None
 
     def test_finetune_recipe_with_invalid_peft(self, recipe_module):
-        with pytest.raises(ValueError, match="Unrecognized peft scheme: invalid_scheme"):
+        with pytest.raises(
+            ValueError, match="Unrecognized peft scheme: invalid_scheme"
+        ):
             recipe_module.finetune_recipe(peft_scheme="invalid_scheme")
 
     def test_finetune_performance_optimizations(self, recipe_module):
         recipe = recipe_module.finetune_recipe()
-        recipe = recipe_module.finetune_performance_optimizations(recipe, peft_scheme='lora')
+        recipe = recipe_module.finetune_performance_optimizations(
+            recipe, peft_scheme="lora"
+        )
         assert recipe.trainer.strategy.tensor_model_parallel_size == 1
-        assert recipe.peft.target_modules == ['linear_qkv']
+        assert recipe.peft.target_modules == ["linear_qkv"]
         assert any(
-            isinstance(cb, run.Config) and cb.__fn_or_cls__ == TimingCallback for cb in recipe.trainer.callbacks
+            isinstance(cb, run.Config) and cb.__fn_or_cls__ == TimingCallback
+            for cb in recipe.trainer.callbacks
         )
         assert any(
             isinstance(cb, run.Config) and cb.__fn_or_cls__ == GarbageCollectionCallback
@@ -117,13 +127,16 @@ class TestLlamaEmbedding_1B:
 
     def test_finetune_performance_optimizations_without_peft(self, recipe_module):
         recipe = recipe_module.finetune_recipe(peft_scheme=None)
-        recipe = recipe_module.finetune_performance_optimizations(recipe, peft_scheme=None)
+        recipe = recipe_module.finetune_performance_optimizations(
+            recipe, peft_scheme=None
+        )
         assert recipe.trainer.plugins.grad_reduce_in_fp32 is False
         assert recipe.trainer.strategy.ddp.grad_reduce_in_fp32 is False
         assert recipe.trainer.strategy.ddp.overlap_grad_reduce is True
         assert recipe.trainer.strategy.ddp.overlap_param_gather is True
         assert recipe.trainer.strategy.ddp.average_in_collective is True
         assert any(
-            isinstance(cb, run.Config) and cb.__fn_or_cls__.__name__ == "MegatronCommOverlapCallback"
+            isinstance(cb, run.Config)
+            and cb.__fn_or_cls__.__name__ == "MegatronCommOverlapCallback"
             for cb in recipe.trainer.callbacks
         )

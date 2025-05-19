@@ -19,7 +19,7 @@ from nemo.core.classes import Loss, Typing, typecheck
 from nemo.core.neural_types import (LabelsType, LengthsType, LossType,
                                     NeuralType, ProbsType)
 
-__all__ = ['BCELoss']
+__all__ = ["BCELoss"]
 
 
 class BCELoss(Loss, Typing):
@@ -31,9 +31,9 @@ class BCELoss(Loss, Typing):
     def input_types(self):
         """Input types definitions for AnguarLoss."""
         return {
-            "probs": NeuralType(('B', 'T', 'C'), ProbsType()),
-            'labels': NeuralType(('B', 'T', 'C'), LabelsType()),
-            "target_lens": NeuralType(('B'), LengthsType()),
+            "probs": NeuralType(("B", "T", "C"), ProbsType()),
+            "labels": NeuralType(("B", "T", "C"), LabelsType()),
+            "target_lens": NeuralType(("B"), LengthsType()),
         }
 
     @property
@@ -45,7 +45,7 @@ class BCELoss(Loss, Typing):
 
     def __init__(
         self,
-        reduction: str = 'mean',
+        reduction: str = "mean",
         alpha: float = 1.0,
         weight: torch.Tensor = torch.tensor([0.1, 0.9]),
         sorted_preds: bool = False,
@@ -68,9 +68,9 @@ class BCELoss(Loss, Typing):
         super().__init__()
         self.class_normalization = class_normalization
         if class_normalization:
-            self.reduction = 'none'
+            self.reduction = "none"
         else:
-            self.reduction = 'mean'
+            self.reduction = "mean"
         self.loss_weight = weight
         self.loss_f = torch.nn.BCELoss(reduction=self.reduction)
         self.sorted_preds = sorted_preds
@@ -101,35 +101,39 @@ class BCELoss(Loss, Typing):
         norm_weight = torch.zeros_like(labels).detach().clone()
         loss = torch.tensor(0.0).to(labels.device)
 
-        if self.class_normalization in ['class', 'class_binary', 'binary']:
-            if self.class_normalization in ['class', 'class_binary']:
+        if self.class_normalization in ["class", "class_binary", "binary"]:
+            if self.class_normalization in ["class", "class_binary"]:
                 # Normalize loss by number of classes
                 norm_weight = 1 / (labels.sum(dim=0) + self.eps)
                 norm_weight_norm = norm_weight / norm_weight.sum()
                 norm_weight_norm = torch.clamp(norm_weight_norm, min=0.05, max=1.0)
                 norm_weight_norm = norm_weight_norm / norm_weight_norm.max()
-                norm_weight = norm_weight_norm[None, :].expand_as(labels).detach().clone()
+                norm_weight = (
+                    norm_weight_norm[None, :].expand_as(labels).detach().clone()
+                )
             else:
                 norm_weight = torch.ones_like(labels).detach().clone()
 
-            if self.class_normalization in ['binary', 'class_binary']:
+            if self.class_normalization in ["binary", "class_binary"]:
                 binary_weight = torch.ones_like(labels).detach().clone()
-                one_weight = (labels.sum() / (labels.shape[0] * labels.shape[1])).to(labels.device)
+                one_weight = (labels.sum() / (labels.shape[0] * labels.shape[1])).to(
+                    labels.device
+                )
                 binary_weight[labels == 0] = one_weight
                 binary_weight[labels == 1] = 1 - one_weight
             else:
                 binary_weight = torch.ones_like(labels).detach().clone()
 
-        elif self.class_normalization == 'none' or not self.class_normalization:
+        elif self.class_normalization == "none" or not self.class_normalization:
             binary_weight = torch.ones_like(labels).detach().clone()
             norm_weight = torch.ones_like(labels).detach().clone()
 
-        if self.reduction == 'sum':
+        if self.reduction == "sum":
             loss = self.loss_f(probs, labels)
-        elif self.reduction == 'mean':
+        elif self.reduction == "mean":
             loss = self.loss_f(probs, labels).mean()
-        elif self.reduction == 'none':
-            if self.class_normalization in ['class', 'class_binary', 'binary']:
+        elif self.reduction == "none":
+            if self.class_normalization in ["class", "class_binary", "binary"]:
                 loss = (binary_weight * norm_weight * self.loss_f(probs, labels)).sum()
             else:
                 loss = self.loss_f(probs, labels)

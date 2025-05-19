@@ -74,14 +74,19 @@ def bert_data_step(dataloder_iter) -> Dict[str, torch.Tensor]:
     if parallel_state.is_pipeline_last_stage(ignore_virtual=False):
         required_keys.update(("labels", "loss_mask", "types", "is_random"))
 
-    _batch = {key: val.cuda(non_blocking=True) if key in required_keys else None for key, val in _batch.items()}
+    _batch = {
+        key: val.cuda(non_blocking=True) if key in required_keys else None
+        for key, val in _batch.items()
+    }
     # slice batch along sequence dimension for context parallelism
     output = get_batch_on_this_cp_rank(_batch)
 
     return output
 
 
-def bert_forward_step(model: L.LightningModule, batch: Dict[str, torch.Tensor]) -> torch.Tensor:
+def bert_forward_step(
+    model: L.LightningModule, batch: Dict[str, torch.Tensor]
+) -> torch.Tensor:
     """
     This subsets the batch keys to the ones actually used by forward pass of the model,
     and then calls the model's forward pass. if "cu_seqsens" are defined in the batch,
@@ -111,15 +116,15 @@ def default_layer_spec(config: "BertConfig") -> ModuleSpec:
     """
     bert_type = config.bert_type
     assert (
-        bert_type == 'megatron' or bert_type == 'huggingface'
-    ), f'Unknown bert type {bert_type}, supported type for bert model is: megatron, huggingface'
+        bert_type == "megatron" or bert_type == "huggingface"
+    ), f"Unknown bert type {bert_type}, supported type for bert model is: megatron, huggingface"
     if HAVE_TE:
-        if bert_type == 'megatron':
+        if bert_type == "megatron":
             return bert_layer_specs.bert_layer_with_transformer_engine_spec
         else:
             return get_bert_layer_with_transformer_engine_spec_postln()
 
-    if bert_type == 'megatron':
+    if bert_type == "megatron":
         return bert_layer_specs.bert_layer_local_spec
     else:
         return get_bert_layer_local_spec_postln()
@@ -142,7 +147,9 @@ class BertConfig(TransformerConfig, io.IOMixin):
     deallocate_pipeline_outputs = True
     make_vocab_size_divisible_by: int = 128
 
-    transformer_layer_spec: Union[ModuleSpec, Callable[["BertConfig"], ModuleSpec]] = default_layer_spec
+    transformer_layer_spec: Union[ModuleSpec, Callable[["BertConfig"], ModuleSpec]] = (
+        default_layer_spec
+    )
     forward_step_fn: Callable = bert_forward_step
     data_step_fn: Callable = bert_data_step
 
@@ -179,7 +186,9 @@ class BertConfig(TransformerConfig, io.IOMixin):
             config=self,
             num_tokentypes=self.num_tokentypes,
             transformer_layer_spec=transformer_layer_spec,
-            vocab_size=get_vocab_size(self, tokenizer.vocab_size, self.make_vocab_size_divisible_by),
+            vocab_size=get_vocab_size(
+                self, tokenizer.vocab_size, self.make_vocab_size_divisible_by
+            ),
             tokenizer=tokenizer if self.mask_vocab_padding_tokens else None,
             max_sequence_length=self.seq_length,
             pre_process=parallel_state.is_pipeline_first_stage(ignore_virtual=False),
@@ -204,7 +213,12 @@ class MCoreBertModelWrapperWithPostLNSupport(MCoreBert):
     """
 
     def __init__(
-        self, bert_type='megatron', add_pooler=True, tokenizer: Optional["TokenizerSpec"] = None, *args, **kwargs
+        self,
+        bert_type="megatron",
+        add_pooler=True,
+        tokenizer: Optional["TokenizerSpec"] = None,
+        *args,
+        **kwargs,
     ):
 
         super(MCoreBertModelWrapperWithPostLNSupport, self).__init__(*args, **kwargs)
@@ -213,8 +227,8 @@ class MCoreBertModelWrapperWithPostLNSupport(MCoreBert):
         self.tokenizer = tokenizer
 
         assert (
-            self.bert_type == 'megatron' or self.bert_type == 'huggingface'
-        ), f'bert_type should either be megatron or huggingface, but got {self.bert_type}.'
+            self.bert_type == "megatron" or self.bert_type == "huggingface"
+        ), f"bert_type should either be megatron or huggingface, but got {self.bert_type}."
 
         # Transformer.
         self.encoder = TransformerBlockWithPostLNSupport(
@@ -222,7 +236,7 @@ class MCoreBertModelWrapperWithPostLNSupport(MCoreBert):
             spec=self.transformer_layer_spec,
             pre_process=self.pre_process,
             post_process=self.post_process,
-            post_layer_norm=True if self.bert_type == 'megatron' else False,
+            post_layer_norm=True if self.bert_type == "megatron" else False,
             bert_type=self.bert_type,
         )
 
@@ -230,7 +244,10 @@ class MCoreBertModelWrapperWithPostLNSupport(MCoreBert):
         # We make it independent to support HF variances.
         if self.add_pooler:
             self.pooler = Pooler(
-                self.config.hidden_size, self.config.init_method, self.config, self.config.sequence_parallel
+                self.config.hidden_size,
+                self.config.init_method,
+                self.config,
+                self.config.sequence_parallel,
             )
 
         # Output
@@ -251,14 +268,18 @@ class MCoreBertModelWrapperWithPostLNSupport(MCoreBert):
                 bias=True,
                 skip_bias_add=True,
                 gather_output=not self.parallel_output,
-                skip_weight_param_allocation=self.pre_process and self.share_embeddings_and_output_weights,
+                skip_weight_param_allocation=self.pre_process
+                and self.share_embeddings_and_output_weights,
             )
 
             self.binary_head = None
             if self.add_binary_head:
                 # TODO: Should switch this to TE ?
                 self.binary_head = mcore_get_linear_layer(
-                    self.config.hidden_size, 2, self.config.init_method, self.config.perform_initialization
+                    self.config.hidden_size,
+                    2,
+                    self.config.init_method,
+                    self.config.perform_initialization,
                 )
         if self.pre_process or self.post_process:
             self.setup_embeddings_and_output_layer()
@@ -285,7 +306,9 @@ class MCoreBertModelWrapperWithPostLNSupport(MCoreBert):
 
         # We set this to false since we just want to get the hidden states from the encoder
         self.post_process = False
-        hidden_states = super().forward(input_ids, attention_mask, tokentype_ids, lm_labels, inference_params)
+        hidden_states = super().forward(
+            input_ids, attention_mask, tokentype_ids, lm_labels, inference_params
+        )
         self.post_process = original_post_process
 
         if not self.post_process or hidden_states_only:
@@ -320,9 +343,9 @@ class MCoreBertModelWrapperWithPostLNSupport(MCoreBert):
         if lm_labels is None:
             # [s b h] => [b s h]0
             return {
-                'logits': logits.transpose(0, 1).contiguous(),
-                'binary_logits': binary_logits,
-                'loss_mask': loss_mask,
+                "logits": logits.transpose(0, 1).contiguous(),
+                "binary_logits": binary_logits,
+                "loss_mask": loss_mask,
             }
 
         # mask vocab padding tokens from sum term of softmax
@@ -335,18 +358,20 @@ class MCoreBertModelWrapperWithPostLNSupport(MCoreBert):
             padded_vocab_size = logits.size()[-1]
             rank = parallel_state.get_tensor_model_parallel_rank()
             world_size = parallel_state.get_tensor_model_parallel_world_size()
-            vocab_start_index, _ = get_vocab_range(padded_vocab_size, rank, world_size)  # gets range on this tp rank
+            vocab_start_index, _ = get_vocab_range(
+                padded_vocab_size, rank, world_size
+            )  # gets range on this tp rank
 
             # mask tokens past unpadded_vocab_size. must be offset by where each tp rank's vocab range starts
             mask_start = max(unpadded_vocab_size - vocab_start_index, 0)
-            logits[:, :, mask_start:] = float('-inf')
+            logits[:, :, mask_start:] = float("-inf")
 
         loss = self.compute_language_model_loss(lm_labels, logits)
 
         return {
-            'lm_loss': loss,
-            'binary_logits': binary_logits,
-            'loss_mask': loss_mask,
+            "lm_loss": loss,
+            "binary_logits": binary_logits,
+            "loss_mask": loss_mask,
         }
 
 
@@ -434,9 +459,9 @@ class TransformerLayerWithPostLNSupport(TransformerLayer):
         # TODO: could we move `bias_dropout_add_exec_handler` itself
         # inside the module provided in the `bias_dropout_add_spec` module?
         with self.bias_dropout_add_exec_handler():
-            hidden_states = self.self_attn_bda(self.training, self.config.bias_dropout_fusion)(
-                attention_output_with_bias, residual, self.hidden_dropout
-            )
+            hidden_states = self.self_attn_bda(
+                self.training, self.config.bias_dropout_fusion
+            )(attention_output_with_bias, residual, self.hidden_dropout)
 
         # Residual connection.
         residual = hidden_states
@@ -455,15 +480,18 @@ class TransformerLayerWithPostLNSupport(TransformerLayer):
             inference_params=inference_params,
         )
 
-        if isinstance(attention_output_with_bias, dict) and "context" in attention_output_with_bias:
+        if (
+            isinstance(attention_output_with_bias, dict)
+            and "context" in attention_output_with_bias
+        ):
             context = attention_output_with_bias["context"]
 
         # TODO: could we move `bias_dropout_add_exec_handler` itself
         # inside the module provided in the `bias_dropout_add_spec` module?
         with self.bias_dropout_add_exec_handler():
-            hidden_states = self.cross_attn_bda(self.training, self.config.bias_dropout_fusion)(
-                attention_output_with_bias, residual, self.hidden_dropout
-            )
+            hidden_states = self.cross_attn_bda(
+                self.training, self.config.bias_dropout_fusion
+            )(attention_output_with_bias, residual, self.hidden_dropout)
 
         # Residual connection.
         residual = hidden_states
@@ -477,9 +505,9 @@ class TransformerLayerWithPostLNSupport(TransformerLayer):
         # TODO: could we move `bias_dropout_add_exec_handler` itself
         # inside the module provided in the `bias_dropout_add_spec` module?
         with self.bias_dropout_add_exec_handler():
-            hidden_states = self.mlp_bda(self.training, self.config.bias_dropout_fusion)(
-                mlp_output_with_bias, residual, self.hidden_dropout
-            )
+            hidden_states = self.mlp_bda(
+                self.training, self.config.bias_dropout_fusion
+            )(mlp_output_with_bias, residual, self.hidden_dropout)
 
         # Post-LN after MLP
         hidden_states = self.post_mlp_layernorm(hidden_states)
@@ -490,7 +518,11 @@ class TransformerLayerWithPostLNSupport(TransformerLayer):
         # won't result in memory savings (like the data loader, or
         # p2p_communication), it serves to document the origin of this
         # 'view' tensor.
-        output = make_viewless_tensor(inp=hidden_states, requires_grad=hidden_states.requires_grad, keep_graph=True)
+        output = make_viewless_tensor(
+            inp=hidden_states,
+            requires_grad=hidden_states.requires_grad,
+            keep_graph=True,
+        )
 
         return output, context
 
@@ -498,16 +530,18 @@ class TransformerLayerWithPostLNSupport(TransformerLayer):
 class TransformerBlockWithPostLNSupport(TransformerBlock):
     """Adapted from mcore's TransformerBlock with additional post-attention LN and post MLP LN support."""
 
-    def __init__(self, bert_type='megatron', *args, **kwargs):
+    def __init__(self, bert_type="megatron", *args, **kwargs):
 
         super(TransformerBlockWithPostLNSupport, self).__init__(*args, **kwargs)
         self.transformer_block_type = bert_type
-        if self.transformer_block_type == 'huggingface':
+        if self.transformer_block_type == "huggingface":
             # Initial LayerNorm is needed for converting the LN after the HF's Bert Embedding modules:
             # https://github.com/huggingface/transformers/tree/main/src/transformers/models/bert/modeling_bert.py#L170
             # megatron's embedding module does not need the additional LN.
             self.initial_layernorm = FusedLayerNorm(
-                config=self.config, hidden_size=self.config.hidden_size, eps=self.config.layernorm_epsilon
+                config=self.config,
+                hidden_size=self.config.hidden_size,
+                eps=self.config.layernorm_epsilon,
             )
 
     def forward(
@@ -550,10 +584,16 @@ class TransformerBlockWithPostLNSupport(TransformerBlock):
         if not self.pre_process:
             # See set_input_tensor()
             hidden_states = self.input_tensor
-        if self.transformer_block_type == 'huggingface':
+        if self.transformer_block_type == "huggingface":
             hidden_states = self.initial_layernorm(hidden_states)
         return super(TransformerBlockWithPostLNSupport, self).forward(
-            hidden_states, attention_mask, context, context_mask, rotary_pos_emb, inference_params, packed_seq_params
+            hidden_states,
+            attention_mask,
+            context,
+            context_mask,
+            rotary_pos_emb,
+            inference_params,
+            packed_seq_params,
         )
 
 
@@ -580,7 +620,9 @@ class BertModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         super().__init__()
         self.config = config
         self.tokenizer = tokenizer
-        self.optim = optim or MegatronOptimizerModule(config=OptimizerConfig(lr=1e-4, use_distributed_optimizer=True))
+        self.optim = optim or MegatronOptimizerModule(
+            config=OptimizerConfig(lr=1e-4, use_distributed_optimizer=True)
+        )
         self.optim.connect(self)  # This will bind the `configure_optimizers` method
         self.model_transform = model_transform
         self._training_loss_reduction = None
@@ -597,32 +639,46 @@ class BertModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         **kwargs,
     ) -> torch.Tensor:
         """Call the forward method of the underlying model, and return whatever it outputs."""
-        output_tensor = self.module(*args, **kwargs)  # for now just pass through to the underlying model
+        output_tensor = self.module(
+            *args, **kwargs
+        )  # for now just pass through to the underlying model
         return output_tensor
 
-    def data_step(self, dataloader_iter) -> Dict[str, torch.Tensor]:  # pylint: disable=C0115,C0116
+    def data_step(
+        self, dataloader_iter
+    ) -> Dict[str, torch.Tensor]:  # pylint: disable=C0115,C0116
         return self.config.data_step_fn(dataloader_iter)
 
     def forward_step(self, batch) -> torch.Tensor:  # pylint: disable=C0115,C0116
         return self.config.forward_step_fn(self, batch)
 
-    def training_step(self, batch, batch_idx=None) -> torch.Tensor:  # pylint: disable=C0115,C0116
+    def training_step(
+        self, batch, batch_idx=None
+    ) -> torch.Tensor:  # pylint: disable=C0115,C0116
         # In mcore the loss-function is part of the forward-pass (when labels are provided)
         return self.forward_step(batch)
 
-    def validation_step(self, batch, batch_idx=None) -> torch.Tensor:  # pylint: disable=C0115,C0116
+    def validation_step(
+        self, batch, batch_idx=None
+    ) -> torch.Tensor:  # pylint: disable=C0115,C0116
         # In mcore the loss-function is part of the forward-pass (when labels are provided)
         return self.forward_step(batch)
 
     @property
-    def training_loss_reduction(self) -> BERTLossReduction:  # pylint: disable=C0115,C0116
+    def training_loss_reduction(
+        self,
+    ) -> BERTLossReduction:  # pylint: disable=C0115,C0116
         if not self._training_loss_reduction:
-            self._training_loss_reduction = BERTLossReduction(add_sop_loss=self.config.bert_binary_head)
+            self._training_loss_reduction = BERTLossReduction(
+                add_sop_loss=self.config.bert_binary_head
+            )
 
         return self._training_loss_reduction
 
     @property
-    def validation_loss_reduction(self) -> BERTLossReduction:  # pylint: disable=C0115,C0116
+    def validation_loss_reduction(
+        self,
+    ) -> BERTLossReduction:  # pylint: disable=C0115,C0116
         if not self._validation_loss_reduction:
             self._validation_loss_reduction = BERTLossReduction(
                 validation_step=True, add_sop_loss=self.config.bert_binary_head

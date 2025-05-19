@@ -22,7 +22,7 @@ from nemo.collections.nlp.data.data_utils.data_preprocessing import (
     fill_class_weights, get_freq_weights, get_label_stats)
 from nemo.utils import logging
 
-__all__ = ['get_label_ids', 'create_text_and_labels']
+__all__ = ["get_label_ids", "create_text_and_labels"]
 
 
 def remove_punctuation(word: str):
@@ -30,11 +30,11 @@ def remove_punctuation(word: str):
     Removes all punctuation marks from a word except for '
     that is often a part of word: don't, it's, and so on
     """
-    all_punct_marks = string.punctuation.replace("'", '')
-    return re.sub('[' + all_punct_marks + ']', '', word)
+    all_punct_marks = string.punctuation.replace("'", "")
+    return re.sub("[" + all_punct_marks + "]", "", word)
 
 
-def create_text_and_labels(output_dir: str, file_path: str, punct_marks: str = ',.?'):
+def create_text_and_labels(output_dir: str, file_path: str, punct_marks: str = ",.?"):
     """
     Create datasets for training and evaluation.
 
@@ -53,47 +53,47 @@ def create_text_and_labels(output_dir: str, file_path: str, punct_marks: str = '
     [LABEL] [SPACE] [LABEL] [SPACE] [LABEL] (for labels.txt).'
     """
     if not os.path.exists(file_path):
-        raise ValueError(f'{file_path} not found')
+        raise ValueError(f"{file_path} not found")
 
     os.makedirs(output_dir, exist_ok=True)
 
     base_name = os.path.basename(file_path)
-    labels_file = os.path.join(output_dir, 'labels_' + base_name)
-    text_file = os.path.join(output_dir, 'text_' + base_name)
+    labels_file = os.path.join(output_dir, "labels_" + base_name)
+    text_file = os.path.join(output_dir, "text_" + base_name)
 
-    with open(file_path, 'r') as f:
-        with open(text_file, 'w') as text_f:
-            with open(labels_file, 'w') as labels_f:
+    with open(file_path, "r") as f:
+        with open(text_file, "w") as text_f:
+            with open(labels_file, "w") as labels_f:
                 for line in f:
                     line = line.split()
-                    text = ''
-                    labels = ''
+                    text = ""
+                    labels = ""
                     for word in line:
-                        label = word[-1] if word[-1] in punct_marks else 'O'
+                        label = word[-1] if word[-1] in punct_marks else "O"
                         word = remove_punctuation(word)
                         if len(word) > 0:
                             if word[0].isupper():
-                                label += 'U'
+                                label += "U"
                             else:
-                                label += 'O'
+                                label += "O"
 
                             word = word.lower()
-                            text += word + ' '
-                            labels += label + ' '
+                            text += word + " "
+                            labels += label + " "
 
-                    text_f.write(text.strip() + '\n')
-                    labels_f.write(labels.strip() + '\n')
+                    text_f.write(text.strip() + "\n")
+                    labels_f.write(labels.strip() + "\n")
 
-    print(f'{text_file} and {labels_file} created from {file_path}.')
+    print(f"{text_file} and {labels_file} created from {file_path}.")
 
 
 def get_label_ids(
     label_file: str,
     is_training: bool = False,
-    pad_label: str = 'O',
+    pad_label: str = "O",
     label_ids_dict: Dict[str, int] = None,
     get_weights: bool = True,
-    class_labels_file_artifact='label_ids.csv',
+    class_labels_file_artifact="label_ids.csv",
 ):
     """
     Generates str to int labels mapping for training data or checks correctness of the label_ids_dict
@@ -110,20 +110,20 @@ def get_label_ids(
         class_labels_file_artifact: name of the file to save in .nemo
     """
     if not os.path.exists(label_file):
-        raise ValueError(f'File {label_file} was not found.')
+        raise ValueError(f"File {label_file} was not found.")
 
-    logging.info(f'Processing {label_file}')
+    logging.info(f"Processing {label_file}")
     if not is_training and label_ids_dict is None:
         raise ValueError(
-            f'For non training data, label_ids_dict created during preprocessing of the training data '
-            f'should be provided'
+            f"For non training data, label_ids_dict created during preprocessing of the training data "
+            f"should be provided"
         )
 
     # collect all labels from the label_file
     data_dir = os.path.dirname(label_file)
     unique_labels = set(pad_label)
     all_labels = []
-    with open(label_file, 'r') as f:
+    with open(label_file, "r") as f:
         for line in f:
             line = line.strip().split()
             all_labels.extend(line)
@@ -132,10 +132,12 @@ def get_label_ids(
     # check that all labels from label_file are present in the specified label_ids_dict
     # or generate label_ids_dict from data (for training only)
     if label_ids_dict:
-        logging.info(f'Using provided labels mapping {label_ids_dict}')
+        logging.info(f"Using provided labels mapping {label_ids_dict}")
         for name in unique_labels:
             if name not in label_ids_dict:
-                raise ValueError(f'{name} class from {label_file} not found in the provided mapping: {label_ids_dict}')
+                raise ValueError(
+                    f"{name} class from {label_file} not found in the provided mapping: {label_ids_dict}"
+                )
     else:
         label_ids_dict = {pad_label: 0}
         if pad_label in unique_labels:
@@ -145,34 +147,38 @@ def get_label_ids(
 
     label_ids_filename = os.path.join(data_dir, class_labels_file_artifact)
     if is_training:
-        with open(label_ids_filename, 'w') as f:
+        with open(label_ids_filename, "w") as f:
             labels, _ = zip(*sorted(label_ids_dict.items(), key=lambda x: x[1]))
-            f.write('\n'.join(labels))
-        logging.info(f'Labels mapping {label_ids_dict} saved to : {label_ids_filename}')
+            f.write("\n".join(labels))
+        logging.info(f"Labels mapping {label_ids_dict} saved to : {label_ids_filename}")
 
     # calculate label statistics
     base_name = os.path.splitext(os.path.basename(label_file))[0]
-    stats_file = os.path.join(data_dir, f'{base_name}_label_stats.tsv')
+    stats_file = os.path.join(data_dir, f"{base_name}_label_stats.tsv")
     if os.path.exists(stats_file) and not is_training and not get_weights:
-        logging.info(f'{stats_file} found, skipping stats calculation.')
+        logging.info(f"{stats_file} found, skipping stats calculation.")
     else:
         all_labels = [label_ids_dict[label] for label in all_labels]
-        logging.info(f'Three most popular labels in {label_file}:')
-        total_labels, label_frequencies, max_id = get_label_stats(all_labels, stats_file)
-        logging.info(f'Total labels: {total_labels}. Label frequencies - {label_frequencies}')
+        logging.info(f"Three most popular labels in {label_file}:")
+        total_labels, label_frequencies, max_id = get_label_stats(
+            all_labels, stats_file
+        )
+        logging.info(
+            f"Total labels: {total_labels}. Label frequencies - {label_frequencies}"
+        )
 
     if get_weights:
-        class_weights_pkl = os.path.join(data_dir, f'{base_name}_weights.p')
+        class_weights_pkl = os.path.join(data_dir, f"{base_name}_weights.p")
         if os.path.exists(class_weights_pkl):
-            class_weights = pickle.load(open(class_weights_pkl, 'rb'))
-            logging.info(f'Class weights restored from {class_weights_pkl}')
+            class_weights = pickle.load(open(class_weights_pkl, "rb"))
+            logging.info(f"Class weights restored from {class_weights_pkl}")
         else:
             class_weights_dict = get_freq_weights(label_frequencies)
-            logging.info(f'Class Weights: {class_weights_dict}')
+            logging.info(f"Class Weights: {class_weights_dict}")
             class_weights = fill_class_weights(class_weights_dict, max_id)
 
             pickle.dump(class_weights, open(class_weights_pkl, "wb"))
-            logging.info(f'Class weights saved to {class_weights_pkl}')
+            logging.info(f"Class weights saved to {class_weights_pkl}")
     else:
         class_weights = None
 

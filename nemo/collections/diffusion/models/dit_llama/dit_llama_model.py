@@ -57,7 +57,9 @@ class DiTLlamaModel(DiTCrossAttentionModel):
             in_channels=in_channels,
             out_channels=out_channels,
             transformer_decoder_layer_spec=partial(
-                get_dit_llama_spec, num_experts=config.num_moe_experts, attn_mask_type=config.attn_mask_type
+                get_dit_llama_spec,
+                num_experts=config.num_moe_experts,
+                attn_mask_type=config.attn_mask_type,
             ),
             pos_embedder=dit_embeddings.FactorizedLearnable3DEmbedding,
             **kwargs,

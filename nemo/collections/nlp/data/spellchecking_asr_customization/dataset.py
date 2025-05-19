@@ -65,7 +65,7 @@ def collate_train_dataset(
     torch.LongTensor,
     torch.LongTensor,
 ]:
-    """collate batch of training items 
+    """collate batch of training items
     Args:
         batch: A list of tuples of (input_ids, input_mask, segment_ids, input_ids_for_subwords, input_mask_for_subwords, segment_ids_for_subwords, character_pos_to_subword_pos, labels_mask, labels, spans).
         pad_token_id: integer id of padding token (to use in padded_input_ids, padded_input_ids_for_subwords)
@@ -116,13 +116,29 @@ def collate_train_dataset(
     ) in batch:
         if len(input_ids) < max_length:
             pad_length = max_length - len(input_ids)
-            padded_input_ids.append(np.pad(input_ids, pad_width=[0, pad_length], constant_values=pad_token_id))
-            padded_input_mask.append(np.pad(input_mask, pad_width=[0, pad_length], constant_values=0))
-            padded_segment_ids.append(np.pad(segment_ids, pad_width=[0, pad_length], constant_values=0))
-            padded_labels_mask.append(np.pad(labels_mask, pad_width=[0, pad_length], constant_values=0))
-            padded_labels.append(np.pad(labels, pad_width=[0, pad_length], constant_values=0))
+            padded_input_ids.append(
+                np.pad(
+                    input_ids, pad_width=[0, pad_length], constant_values=pad_token_id
+                )
+            )
+            padded_input_mask.append(
+                np.pad(input_mask, pad_width=[0, pad_length], constant_values=0)
+            )
+            padded_segment_ids.append(
+                np.pad(segment_ids, pad_width=[0, pad_length], constant_values=0)
+            )
+            padded_labels_mask.append(
+                np.pad(labels_mask, pad_width=[0, pad_length], constant_values=0)
+            )
+            padded_labels.append(
+                np.pad(labels, pad_width=[0, pad_length], constant_values=0)
+            )
             padded_character_pos_to_subword_pos.append(
-                np.pad(character_pos_to_subword_pos, pad_width=[0, pad_length], constant_values=0)
+                np.pad(
+                    character_pos_to_subword_pos,
+                    pad_width=[0, pad_length],
+                    constant_values=0,
+                )
             )
         else:
             padded_input_ids.append(input_ids)
@@ -135,13 +151,25 @@ def collate_train_dataset(
         if len(input_ids_for_subwords) < max_length_for_subwords:
             pad_length = max_length_for_subwords - len(input_ids_for_subwords)
             padded_input_ids_for_subwords.append(
-                np.pad(input_ids_for_subwords, pad_width=[0, pad_length], constant_values=pad_token_id)
+                np.pad(
+                    input_ids_for_subwords,
+                    pad_width=[0, pad_length],
+                    constant_values=pad_token_id,
+                )
             )
             padded_input_mask_for_subwords.append(
-                np.pad(input_mask_for_subwords, pad_width=[0, pad_length], constant_values=0)
+                np.pad(
+                    input_mask_for_subwords,
+                    pad_width=[0, pad_length],
+                    constant_values=0,
+                )
             )
             padded_segment_ids_for_subwords.append(
-                np.pad(segment_ids_for_subwords, pad_width=[0, pad_length], constant_values=0)
+                np.pad(
+                    segment_ids_for_subwords,
+                    pad_width=[0, pad_length],
+                    constant_values=0,
+                )
             )
         else:
             padded_input_ids_for_subwords.append(input_ids_for_subwords)
@@ -149,9 +177,13 @@ def collate_train_dataset(
             padded_segment_ids_for_subwords.append(segment_ids_for_subwords)
 
         if len(spans) < max_length_for_spans:
-            padded_spans.append(np.ones((max_length_for_spans, 3), dtype=int) * -1)  # pad value is [-1, -1, -1]
+            padded_spans.append(
+                np.ones((max_length_for_spans, 3), dtype=int) * -1
+            )  # pad value is [-1, -1, -1]
             if len(spans) > 0:
-                padded_spans[-1][: spans.shape[0], : spans.shape[1]] = spans  # copy actual spans to the beginning
+                padded_spans[-1][
+                    : spans.shape[0], : spans.shape[1]
+                ] = spans  # copy actual spans to the beginning
         else:
             padded_spans.append(spans)
 
@@ -170,7 +202,18 @@ def collate_train_dataset(
 
 
 def collate_test_dataset(
-    batch: List[Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]],
+    batch: List[
+        Tuple[
+            np.ndarray,
+            np.ndarray,
+            np.ndarray,
+            np.ndarray,
+            np.ndarray,
+            np.ndarray,
+            np.ndarray,
+            np.ndarray,
+        ]
+    ],
     pad_token_id: int,
 ) -> Tuple[
     torch.LongTensor,
@@ -182,7 +225,7 @@ def collate_test_dataset(
     torch.LongTensor,
     torch.LongTensor,
 ]:
-    """collate batch of test items 
+    """collate batch of test items
     Args:
         batch: A list of tuples of (input_ids, input_mask, segment_ids, input_ids_for_subwords, input_mask_for_subwords, segment_ids_for_subwords, character_pos_to_subword_pos, fragment_indices).
         pad_token_id: integer id of padding token (to use in padded_input_ids, padded_input_ids_for_subwords)
@@ -227,11 +270,23 @@ def collate_test_dataset(
     ) in batch:
         if len(input_ids) < max_length:
             pad_length = max_length - len(input_ids)
-            padded_input_ids.append(np.pad(input_ids, pad_width=[0, pad_length], constant_values=pad_token_id))
-            padded_input_mask.append(np.pad(input_mask, pad_width=[0, pad_length], constant_values=0))
-            padded_segment_ids.append(np.pad(segment_ids, pad_width=[0, pad_length], constant_values=0))
+            padded_input_ids.append(
+                np.pad(
+                    input_ids, pad_width=[0, pad_length], constant_values=pad_token_id
+                )
+            )
+            padded_input_mask.append(
+                np.pad(input_mask, pad_width=[0, pad_length], constant_values=0)
+            )
+            padded_segment_ids.append(
+                np.pad(segment_ids, pad_width=[0, pad_length], constant_values=0)
+            )
             padded_character_pos_to_subword_pos.append(
-                np.pad(character_pos_to_subword_pos, pad_width=[0, pad_length], constant_values=0)
+                np.pad(
+                    character_pos_to_subword_pos,
+                    pad_width=[0, pad_length],
+                    constant_values=0,
+                )
             )
         else:
             padded_input_ids.append(input_ids)
@@ -242,13 +297,25 @@ def collate_test_dataset(
         if len(input_ids_for_subwords) < max_length_for_subwords:
             pad_length = max_length_for_subwords - len(input_ids_for_subwords)
             padded_input_ids_for_subwords.append(
-                np.pad(input_ids_for_subwords, pad_width=[0, pad_length], constant_values=pad_token_id)
+                np.pad(
+                    input_ids_for_subwords,
+                    pad_width=[0, pad_length],
+                    constant_values=pad_token_id,
+                )
             )
             padded_input_mask_for_subwords.append(
-                np.pad(input_mask_for_subwords, pad_width=[0, pad_length], constant_values=0)
+                np.pad(
+                    input_mask_for_subwords,
+                    pad_width=[0, pad_length],
+                    constant_values=0,
+                )
             )
             padded_segment_ids_for_subwords.append(
-                np.pad(segment_ids_for_subwords, pad_width=[0, pad_length], constant_values=0)
+                np.pad(
+                    segment_ids_for_subwords,
+                    pad_width=[0, pad_length],
+                    constant_values=0,
+                )
             )
         else:
             padded_input_ids_for_subwords.append(input_ids_for_subwords)
@@ -291,19 +358,18 @@ class SpellcheckingAsrCustomizationDataset(Dataset):
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        """Returns definitions of module output ports.
-        """
+        """Returns definitions of module output ports."""
         return {
-            "input_ids": NeuralType(('B', 'T'), ChannelType()),
-            "input_mask": NeuralType(('B', 'T'), MaskType()),
-            "segment_ids": NeuralType(('B', 'T'), ChannelType()),
-            "input_ids_for_subwords": NeuralType(('B', 'T'), ChannelType()),
-            "input_mask_for_subwords": NeuralType(('B', 'T'), MaskType()),
-            "segment_ids_for_subwords": NeuralType(('B', 'T'), ChannelType()),
-            "character_pos_to_subword_pos": NeuralType(('B', 'T'), ChannelType()),
-            "labels_mask": NeuralType(('B', 'T'), MaskType()),
-            "labels": NeuralType(('B', 'T'), LabelsType()),
-            "spans": NeuralType(('B', 'T', 'C'), IntType()),
+            "input_ids": NeuralType(("B", "T"), ChannelType()),
+            "input_mask": NeuralType(("B", "T"), MaskType()),
+            "segment_ids": NeuralType(("B", "T"), ChannelType()),
+            "input_ids_for_subwords": NeuralType(("B", "T"), ChannelType()),
+            "input_mask_for_subwords": NeuralType(("B", "T"), MaskType()),
+            "segment_ids_for_subwords": NeuralType(("B", "T"), ChannelType()),
+            "character_pos_to_subword_pos": NeuralType(("B", "T"), ChannelType()),
+            "labels_mask": NeuralType(("B", "T"), MaskType()),
+            "labels": NeuralType(("B", "T"), LabelsType()),
+            "spans": NeuralType(("B", "T", "C"), IntType()),
         }
 
     def __init__(self, input_file: str, example_builder: BertExampleBuilder) -> None:
@@ -319,10 +385,18 @@ class SpellcheckingAsrCustomizationDataset(Dataset):
         input_ids = np.array(example.features["input_ids"], dtype=np.int16)
         input_mask = np.array(example.features["input_mask"], dtype=np.int8)
         segment_ids = np.array(example.features["segment_ids"], dtype=np.int8)
-        input_ids_for_subwords = np.array(example.features["input_ids_for_subwords"], dtype=np.int16)
-        input_mask_for_subwords = np.array(example.features["input_mask_for_subwords"], dtype=np.int8)
-        segment_ids_for_subwords = np.array(example.features["segment_ids_for_subwords"], dtype=np.int8)
-        character_pos_to_subword_pos = np.array(example.features["character_pos_to_subword_pos"], dtype=np.int16)
+        input_ids_for_subwords = np.array(
+            example.features["input_ids_for_subwords"], dtype=np.int16
+        )
+        input_mask_for_subwords = np.array(
+            example.features["input_mask_for_subwords"], dtype=np.int8
+        )
+        segment_ids_for_subwords = np.array(
+            example.features["segment_ids_for_subwords"], dtype=np.int8
+        )
+        character_pos_to_subword_pos = np.array(
+            example.features["character_pos_to_subword_pos"], dtype=np.int16
+        )
         labels_mask = np.array(example.features["labels_mask"], dtype=np.int8)
         labels = np.array(example.features["labels"], dtype=np.int8)
         spans = np.array(example.features["spans"], dtype=np.int16)
@@ -380,13 +454,13 @@ class TarredSpellcheckingAsrCustomizationDataset(IterableDataset):
         self.pad_token_id = pad_token_id
 
         # Replace '(', '[', '<' and '_OP_' with '{'
-        brace_keys_open = ['(', '[', '<', '_OP_']
+        brace_keys_open = ["(", "[", "<", "_OP_"]
         for bkey in brace_keys_open:
             if bkey in text_tar_filepaths:
                 text_tar_filepaths = text_tar_filepaths.replace(bkey, "{")
 
         # Replace ')', ']', '>' and '_CL_' with '}'
-        brace_keys_close = [')', ']', '>', '_CL_']
+        brace_keys_close = [")", "]", ">", "_CL_"]
         for bkey in brace_keys_close:
             if bkey in text_tar_filepaths:
                 text_tar_filepaths = text_tar_filepaths.replace(bkey, "}")
@@ -403,11 +477,14 @@ class TarredSpellcheckingAsrCustomizationDataset(IterableDataset):
             )
         begin_idx = (len(text_tar_filepaths) // world_size) * global_rank
         end_idx = begin_idx + (len(text_tar_filepaths) // world_size)
-        logging.info('Begin Index : %d' % (begin_idx))
-        logging.info('End Index : %d' % (end_idx))
+        logging.info("Begin Index : %d" % (begin_idx))
+        logging.info("End Index : %d" % (end_idx))
         text_tar_filepaths = text_tar_filepaths[begin_idx:end_idx]
         logging.info(
-            "Partitioning tarred dataset: process (%d) taking shards [%d, %d)", global_rank, begin_idx, end_idx
+            "Partitioning tarred dataset: process (%d) taking shards [%d, %d)",
+            global_rank,
+            begin_idx,
+            end_idx,
         )
 
         self.tarpath = text_tar_filepaths
@@ -418,8 +495,8 @@ class TarredSpellcheckingAsrCustomizationDataset(IterableDataset):
             webdataset_split_by_workers,
             wds.shuffle(shuffle_n),
             wds.tarfile_to_samples(),
-            wds.rename(pkl='pkl', key='__key__'),
-            wds.to_tuple('pkl', 'key'),
+            wds.rename(pkl="pkl", key="__key__"),
+            wds.to_tuple("pkl", "key"),
             wds.map(self._build_sample),
         )
 
@@ -475,22 +552,23 @@ class SpellcheckingAsrCustomizationTestDataset(Dataset):
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        """Returns definitions of module output ports.
-        """
+        """Returns definitions of module output ports."""
         return {
-            "input_ids": NeuralType(('B', 'T'), ChannelType()),
-            "input_mask": NeuralType(('B', 'T'), MaskType()),
-            "segment_ids": NeuralType(('B', 'T'), ChannelType()),
-            "input_ids_for_subwords": NeuralType(('B', 'T'), ChannelType()),
-            "input_mask_for_subwords": NeuralType(('B', 'T'), MaskType()),
-            "segment_ids_for_subwords": NeuralType(('B', 'T'), ChannelType()),
-            "character_pos_to_subword_pos": NeuralType(('B', 'T'), ChannelType()),
-            "fragment_indices": NeuralType(('B', 'T', 'C'), IntType()),
+            "input_ids": NeuralType(("B", "T"), ChannelType()),
+            "input_mask": NeuralType(("B", "T"), MaskType()),
+            "segment_ids": NeuralType(("B", "T"), ChannelType()),
+            "input_ids_for_subwords": NeuralType(("B", "T"), ChannelType()),
+            "input_mask_for_subwords": NeuralType(("B", "T"), MaskType()),
+            "segment_ids_for_subwords": NeuralType(("B", "T"), ChannelType()),
+            "character_pos_to_subword_pos": NeuralType(("B", "T"), ChannelType()),
+            "fragment_indices": NeuralType(("B", "T", "C"), IntType()),
         }
 
     def __init__(self, input_file: str, example_builder: BertExampleBuilder) -> None:
         self.example_builder = example_builder
-        self.examples, self.hyps_refs = self.example_builder.read_input_file(input_file, infer=True)
+        self.examples, self.hyps_refs = self.example_builder.read_input_file(
+            input_file, infer=True
+        )
         self.pad_token_id = self.example_builder._pad_id
 
     def __len__(self):
@@ -503,9 +581,15 @@ class SpellcheckingAsrCustomizationTestDataset(Dataset):
         segment_ids = np.array(example.features["segment_ids"])
         input_ids_for_subwords = np.array(example.features["input_ids_for_subwords"])
         input_mask_for_subwords = np.array(example.features["input_mask_for_subwords"])
-        segment_ids_for_subwords = np.array(example.features["segment_ids_for_subwords"])
-        character_pos_to_subword_pos = np.array(example.features["character_pos_to_subword_pos"], dtype=np.int64)
-        fragment_indices = np.array(example.features["fragment_indices"], dtype=np.int16)
+        segment_ids_for_subwords = np.array(
+            example.features["segment_ids_for_subwords"]
+        )
+        character_pos_to_subword_pos = np.array(
+            example.features["character_pos_to_subword_pos"], dtype=np.int64
+        )
+        fragment_indices = np.array(
+            example.features["fragment_indices"], dtype=np.int16
+        )
         return (
             input_ids,
             input_mask,

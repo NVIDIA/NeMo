@@ -27,14 +27,16 @@ from nemo.utils import logging
 from nemo.utils.import_utils import safe_import_from
 
 MixedPrecisionPolicy, _ = safe_import_from(
-    "torch.distributed.fsdp", "MixedPrecisionPolicy", fallback_module="torch.distributed._composable.fsdp"
+    "torch.distributed.fsdp",
+    "MixedPrecisionPolicy",
+    fallback_module="torch.distributed._composable.fsdp",
 )
 
 
 class HFAutoModelForSpeechSeq2Seq(pl.LightningModule, io.IOMixin, fn.FNMixin):
     def __init__(
         self,
-        model_name='gpt2',
+        model_name="gpt2",
         load_pretrained_weights=True,
         tokenizer=None,
         loss_fn=masked_cross_entropy,
@@ -71,7 +73,9 @@ class HFAutoModelForSpeechSeq2Seq(pl.LightningModule, io.IOMixin, fn.FNMixin):
     def tokenizer(self):
         if self._tokenizer is None:
             self._tokenizer = AutoTokenizer(
-                self.model_name, include_special_tokens=True, trust_remote_code=self.trust_remote_code
+                self.model_name,
+                include_special_tokens=True,
+                trust_remote_code=self.trust_remote_code,
             )
         return self._tokenizer
 
@@ -83,7 +87,9 @@ class HFAutoModelForSpeechSeq2Seq(pl.LightningModule, io.IOMixin, fn.FNMixin):
     @property
     def processor(self):
         if self._processor is None:
-            self._processor = AutoProcessor.from_pretrained(self.model_name, trust_remote_code=self.trust_remote_code)
+            self._processor = AutoProcessor.from_pretrained(
+                self.model_name, trust_remote_code=self.trust_remote_code
+            )
         return self._processor
 
     @staticmethod
@@ -103,15 +109,23 @@ class HFAutoModelForSpeechSeq2Seq(pl.LightningModule, io.IOMixin, fn.FNMixin):
             else:
                 from transformers import AutoConfig
 
-                config = AutoConfig.from_pretrained(self.model_name, trust_remote_code=self.trust_remote_code)
-                self.model = AutoModelForSpeechSeq2Seq.from_config(config, trust_remote_code=self.trust_remote_code)
+                config = AutoConfig.from_pretrained(
+                    self.model_name, trust_remote_code=self.trust_remote_code
+                )
+                self.model = AutoModelForSpeechSeq2Seq.from_config(
+                    config, trust_remote_code=self.trust_remote_code
+                )
 
         # Apply FSDP2 and TP to the model
         if self.device_mesh is not None:
             if self.parallelize_fn is not None:
-                self.parallelize_fn(self.model, device_mesh=self.device_mesh, mp_policy=self.mp_policy)
+                self.parallelize_fn(
+                    self.model, device_mesh=self.device_mesh, mp_policy=self.mp_policy
+                )
             else:
-                fsdp2_strategy_parallelize(self.model, device_mesh=self.device_mesh, mp_policy=self.mp_policy)
+                fsdp2_strategy_parallelize(
+                    self.model, device_mesh=self.device_mesh, mp_policy=self.mp_policy
+                )
 
         if train:
             self.model.train()
@@ -124,21 +138,27 @@ class HFAutoModelForSpeechSeq2Seq(pl.LightningModule, io.IOMixin, fn.FNMixin):
         )
 
     def training_step(self, batch, batch_idx=None):
-        outputs = self.forward(input_features=batch["input_features"], decoder_input_ids=batch["decoder_input_ids"])
-        loss_mask = batch.get('loss_mask', None)
+        outputs = self.forward(
+            input_features=batch["input_features"],
+            decoder_input_ids=batch["decoder_input_ids"],
+        )
+        loss_mask = batch.get("loss_mask", None)
         if loss_mask is not None:
             loss_mask = loss_mask.to(self.model.device).view(-1)
         n_cls = outputs.logits.shape[-1]
         logits = outputs.logits.view(-1, n_cls)
         loss = self.loss_fn(logits, batch["labels"], loss_mask)
 
-        self.log('loss', loss, on_step=True, on_epoch=True, prog_bar=True)
+        self.log("loss", loss, on_step=True, on_epoch=True, prog_bar=True)
         return loss
 
     def validation_step(self, batch):
-        output = self.forward(input_features=batch["input_features"], decoder_input_ids=batch["decoder_input_ids"])
+        output = self.forward(
+            input_features=batch["input_features"],
+            decoder_input_ids=batch["decoder_input_ids"],
+        )
         loss = output.loss
-        self.log('val_loss', loss, on_step=True, on_epoch=True, prog_bar=True)
+        self.log("val_loss", loss, on_step=True, on_epoch=True, prog_bar=True)
 
     def save_pretrained(self, path):
         assert self.model is not None, "Model has to be created first."

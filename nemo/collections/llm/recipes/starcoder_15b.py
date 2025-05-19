@@ -253,7 +253,9 @@ def pretrain_recipe(
             global_batch_size=global_batch_size,
             micro_batch_size=micro_batch_size,
         ),
-        log=default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
+        log=default_log(
+            dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)
+        ),
         optim=distributed_fused_adam_with_cosine_annealing(
             precision=precision,
             warmup_steps=warmup_steps,
@@ -272,7 +274,7 @@ def finetune_recipe(
     name: str = "default",
     num_nodes: int = 1,
     num_gpus_per_node: int = 8,
-    peft_scheme: Optional[str] = 'lora',
+    peft_scheme: Optional[str] = "lora",
 ) -> run.Partial:
     """
     Create a fine-tuning recipe for Starcoder 15B model.
@@ -303,11 +305,13 @@ def finetune_recipe(
     Note:
         This recipe uses the SQuAD dataset for fine-tuning.
     """
-    recipe = default_finetune_recipe(model(), "bigcode/starcoder", dir, name, num_nodes, num_gpus_per_node)
-    if peft_scheme is None or peft_scheme.lower() == 'none':
+    recipe = default_finetune_recipe(
+        model(), "bigcode/starcoder", dir, name, num_nodes, num_gpus_per_node
+    )
+    if peft_scheme is None or peft_scheme.lower() == "none":
         recipe.trainer.strategy.pipeline_model_parallel_size = 8
         recipe.optim.config.lr = 5e-6
-    elif peft_scheme.lower() in ['lora', 'dora']:
+    elif peft_scheme.lower() in ["lora", "dora"]:
         recipe.peft = run.Config(PEFT_STR2CLS[peft_scheme.lower()])
         recipe.optim.config.lr = 1e-4
     else:

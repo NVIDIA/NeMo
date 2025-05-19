@@ -99,7 +99,7 @@ RNNT_LOSS_RESOLVER = {
     "warprnnt_numba": RNNTLossConfig(
         loss_name="warprnnt_numba",
         lib_name="numba",
-        min_version='0.53.0',
+        min_version="0.53.0",
         is_available=NUMBA_RNNT_AVAILABLE,
         installation_msg=NUMBA_INSTALLATION_MESSAGE,
         force_float32=False,  # This is only temporarily false, will be dynamically updated during resolution
@@ -107,7 +107,7 @@ RNNT_LOSS_RESOLVER = {
     "pytorch": RNNTLossConfig(
         loss_name="pytorch",
         lib_name="torch",
-        min_version='0.0',
+        min_version="0.0",
         is_available=True,
         installation_msg="Pure Pytorch implementation of RNN-T loss. Slow and for debugging purposes only.",
         force_float32=True,
@@ -115,7 +115,7 @@ RNNT_LOSS_RESOLVER = {
     "multiblank_rnnt": RNNTLossConfig(
         loss_name="multiblank_rnnt",
         lib_name="numba",
-        min_version='0.53.0',
+        min_version="0.53.0",
         is_available=NUMBA_RNNT_AVAILABLE,
         installation_msg=NUMBA_INSTALLATION_MESSAGE,
         force_float32=True,
@@ -123,7 +123,7 @@ RNNT_LOSS_RESOLVER = {
     "multiblank_rnnt_pytorch": RNNTLossConfig(
         loss_name="pytorch",
         lib_name="torch",
-        min_version='0.0',
+        min_version="0.0",
         is_available=True,
         installation_msg="Pure Pytorch implementation of Multiblank RNN-T loss. Slow and for debugging purposes only.",
         force_float32=True,
@@ -145,20 +145,20 @@ RNNT_LOSS_RESOLVER = {
     "tdt": RNNTLossConfig(
         loss_name="tdt",
         lib_name="numba",
-        min_version='0.53.0',
+        min_version="0.53.0",
         is_available=NUMBA_RNNT_AVAILABLE,
         installation_msg=NUMBA_INSTALLATION_MESSAGE,
     ),
     "tdt_pytorch": RNNTLossConfig(
         loss_name="tdt_pytorch",
         lib_name="torch",
-        min_version='0.0',
+        min_version="0.0",
         is_available=True,
         installation_msg="Pure Pytorch implementation of TDT loss. Slow and for debugging purposes only.",
     ),
 }
 
-RNNT_LOSS_RESOLVER['default'] = RNNT_LOSS_RESOLVER['warprnnt_numba']
+RNNT_LOSS_RESOLVER["default"] = RNNT_LOSS_RESOLVER["warprnnt_numba"]
 
 
 def _warn_unused_additional_kwargs(loss_name, kwargs):
@@ -171,7 +171,10 @@ def _warn_unused_additional_kwargs(loss_name, kwargs):
 
 
 def _clean_kwargs(
-    loss_name: str, kwargs: Optional[Dict[str, Any]], init_method: Callable, ignore_params: Optional[Set[str]] = None
+    loss_name: str,
+    kwargs: Optional[Dict[str, Any]],
+    init_method: Callable,
+    ignore_params: Optional[Set[str]] = None,
 ) -> Dict[str, Any]:
     """
     Cleans kwargs for the given loss function. Warn if there are unused kwargs.
@@ -203,18 +206,25 @@ def _clean_kwargs(
 
 
 def resolve_rnnt_default_loss_name() -> str:
-    return RNNT_LOSS_RESOLVER['default'].loss_name
+    return RNNT_LOSS_RESOLVER["default"].loss_name
 
 
-def resolve_rnnt_loss(loss_name: str, blank_idx: int, loss_kwargs: dict = None) -> torch.nn.Module:
+def resolve_rnnt_loss(
+    loss_name: str, blank_idx: int, loss_kwargs: dict = None
+) -> torch.nn.Module:
     loss_function_names = list(RNNT_LOSS_RESOLVER.keys())
 
     if loss_name not in loss_function_names:
         raise ValueError(
-            f"Provided `loss_name` {loss_name} not in list of available RNNT losses \n" f"{loss_function_names}"
+            f"Provided `loss_name` {loss_name} not in list of available RNNT losses \n"
+            f"{loss_function_names}"
         )
 
-    all_available_losses = {name: config for name, config in RNNT_LOSS_RESOLVER.items() if config.is_available}
+    all_available_losses = {
+        name: config
+        for name, config in RNNT_LOSS_RESOLVER.items()
+        if config.is_available
+    }
 
     loss_config = RNNT_LOSS_RESOLVER[loss_name]  # type: RNNTLossConfig
 
@@ -231,7 +241,9 @@ def resolve_rnnt_loss(loss_name: str, blank_idx: int, loss_kwargs: dict = None) 
     # Library version check
     if loss_config.min_version is not None:
         ver_matched, msg = model_utils.check_lib_version(
-            loss_config.lib_name, checked_version=loss_config.min_version, operator=operator.ge
+            loss_config.lib_name,
+            checked_version=loss_config.min_version,
+            operator=operator.ge,
         )
 
         if ver_matched is False:
@@ -250,62 +262,70 @@ def resolve_rnnt_loss(loss_name: str, blank_idx: int, loss_kwargs: dict = None) 
         loss_kwargs = OmegaConf.to_container(loss_kwargs, resolve=True)
 
     # Get actual loss name for `default`
-    if loss_name == 'default':
+    if loss_name == "default":
         loss_name = loss_config.loss_name
 
     """
     Resolve RNNT loss functions
     """
-    if loss_name == 'warprnnt':
-        loss_func = warprnnt.RNNTLoss(blank=blank_idx, reduction='none')
+    if loss_name == "warprnnt":
+        loss_func = warprnnt.RNNTLoss(blank=blank_idx, reduction="none")
         _warn_unused_additional_kwargs(loss_name, loss_kwargs)
 
-    elif loss_name == 'warprnnt_numba':
+    elif loss_name == "warprnnt_numba":
         # Update loss config's forced float32 flag if set to None
         loss_config.force_float32 = not numba_utils.is_numba_cuda_fp16_supported()
 
-        fastemit_lambda = loss_kwargs.pop('fastemit_lambda', 0.0)
-        clamp = loss_kwargs.pop('clamp', -1.0)
-        loss_func = RNNTLossNumba(blank=blank_idx, reduction='none', fastemit_lambda=fastemit_lambda, clamp=clamp)
+        fastemit_lambda = loss_kwargs.pop("fastemit_lambda", 0.0)
+        clamp = loss_kwargs.pop("clamp", -1.0)
+        loss_func = RNNTLossNumba(
+            blank=blank_idx,
+            reduction="none",
+            fastemit_lambda=fastemit_lambda,
+            clamp=clamp,
+        )
         _warn_unused_additional_kwargs(loss_name, loss_kwargs)
 
-    elif loss_name == 'pytorch':
-        loss_func = RNNTLossPytorch(blank=blank_idx, reduction='none')
+    elif loss_name == "pytorch":
+        loss_func = RNNTLossPytorch(blank=blank_idx, reduction="none")
         _warn_unused_additional_kwargs(loss_name, loss_kwargs)
 
-    elif loss_name == 'multiblank_rnnt':
-        fastemit_lambda = loss_kwargs.pop('fastemit_lambda', 0.0)
-        clamp = loss_kwargs.pop('clamp', -1.0)
-        big_blank_durations = loss_kwargs.pop('big_blank_durations', None)
-        sigma = loss_kwargs.pop('sigma', 0.0)
+    elif loss_name == "multiblank_rnnt":
+        fastemit_lambda = loss_kwargs.pop("fastemit_lambda", 0.0)
+        clamp = loss_kwargs.pop("clamp", -1.0)
+        big_blank_durations = loss_kwargs.pop("big_blank_durations", None)
+        sigma = loss_kwargs.pop("sigma", 0.0)
         loss_func = MultiblankRNNTLossNumba(
             blank=blank_idx,
             big_blank_durations=big_blank_durations,
-            reduction='none',
+            reduction="none",
             fastemit_lambda=fastemit_lambda,
             clamp=clamp,
             sigma=sigma,
         )
         _warn_unused_additional_kwargs(loss_name, loss_kwargs)
 
-    elif loss_name == 'multiblank_rnnt_pytorch':
-        big_blank_durations = loss_kwargs.pop('big_blank_durations', None)
-        sigma = loss_kwargs.pop('sigma', 0.0)
+    elif loss_name == "multiblank_rnnt_pytorch":
+        big_blank_durations = loss_kwargs.pop("big_blank_durations", None)
+        sigma = loss_kwargs.pop("sigma", 0.0)
         loss_func = MultiblankRNNTLossPytorch(
-            blank=blank_idx, big_blank_durations=big_blank_durations, reduction='none', sigma=sigma
+            blank=blank_idx,
+            big_blank_durations=big_blank_durations,
+            reduction="none",
+            sigma=sigma,
         )
         _warn_unused_additional_kwargs(loss_name, loss_kwargs)
 
-    elif loss_name == 'tdt':
-        fastemit_lambda = loss_kwargs.pop('fastemit_lambda', 0.0)
-        clamp = loss_kwargs.pop('clamp', -1.0)
-        durations = loss_kwargs.pop('durations', None)
-        sigma = loss_kwargs.pop('sigma', 0.0)
-        omega = loss_kwargs.pop('omega', 0.0)
+    elif loss_name == "tdt":
+        fastemit_lambda = loss_kwargs.pop("fastemit_lambda", 0.0)
+        clamp = loss_kwargs.pop("clamp", -1.0)
+        durations = loss_kwargs.pop("durations", None)
+        sigma = loss_kwargs.pop("sigma", 0.0)
+        omega = loss_kwargs.pop("omega", 0.0)
         loss_func = TDTLossNumba(
             blank=blank_idx,
             durations=durations,
-            reduction='none',
+            reduction="none",
             fastemit_lambda=fastemit_lambda,
             clamp=clamp,
             sigma=sigma,
@@ -313,21 +333,31 @@ def resolve_rnnt_loss(loss_name: str, blank_idx: int, loss_kwargs: dict = None) 
         )
         _warn_unused_additional_kwargs(loss_name, loss_kwargs)
 
-    elif loss_name == 'tdt_pytorch':
-        durations = loss_kwargs.pop('durations', None)
-        sigma = loss_kwargs.pop('sigma', 0.0)
-        loss_func = TDTLossPytorch(blank=blank_idx, durations=durations, reduction='none', sigma=sigma)
+    elif loss_name == "tdt_pytorch":
+        durations = loss_kwargs.pop("durations", None)
+        sigma = loss_kwargs.pop("sigma", 0.0)
+        loss_func = TDTLossPytorch(
+            blank=blank_idx, durations=durations, reduction="none", sigma=sigma
+        )
         _warn_unused_additional_kwargs(loss_name, loss_kwargs)
 
     elif loss_name == "graph_rnnt":
-        loss_kwargs = _clean_kwargs(loss_name, loss_kwargs, GraphRnntLoss.__init__, ignore_params={"blank"})
+        loss_kwargs = _clean_kwargs(
+            loss_name, loss_kwargs, GraphRnntLoss.__init__, ignore_params={"blank"}
+        )
         loss_func = GraphRnntLoss(blank=blank_idx, **loss_kwargs)
     elif loss_name == "graph_w_transducer":
-        loss_kwargs = _clean_kwargs(loss_name, loss_kwargs, GraphWTransducerLoss.__init__, ignore_params={"blank"})
+        loss_kwargs = _clean_kwargs(
+            loss_name,
+            loss_kwargs,
+            GraphWTransducerLoss.__init__,
+            ignore_params={"blank"},
+        )
         loss_func = GraphWTransducerLoss(blank=blank_idx, **loss_kwargs)
     else:
         raise ValueError(
-            f"Invalid value of `loss_name`: {loss_name}. Allowed loss names are :" f"{loss_function_names}"
+            f"Invalid value of `loss_name`: {loss_name}. Allowed loss names are :"
+            f"{loss_function_names}"
         )
 
     return loss_func
@@ -336,13 +366,12 @@ def resolve_rnnt_loss(loss_name: str, blank_idx: int, loss_kwargs: dict = None) 
 class RNNTLoss(Loss):
     @property
     def input_types(self):
-        """Input types definitions for CTCLoss.
-        """
+        """Input types definitions for CTCLoss."""
         return {
-            "log_probs": NeuralType(('B', 'T', 'T', 'D'), LogprobsType()),
-            "targets": NeuralType(('B', 'T'), LabelsType()),
-            "input_lengths": NeuralType(tuple('B'), LengthsType()),
-            "target_lengths": NeuralType(tuple('B'), LengthsType()),
+            "log_probs": NeuralType(("B", "T", "T", "D"), LogprobsType()),
+            "targets": NeuralType(("B", "T"), LabelsType()),
+            "input_lengths": NeuralType(tuple("B"), LengthsType()),
+            "target_lengths": NeuralType(tuple("B"), LengthsType()),
         }
 
     @property
@@ -353,7 +382,13 @@ class RNNTLoss(Loss):
         """
         return {"loss": NeuralType(elements_type=LossType())}
 
-    def __init__(self, num_classes, reduction: str = 'mean_batch', loss_name: str = "default", loss_kwargs=None):
+    def __init__(
+        self,
+        num_classes,
+        reduction: str = "mean_batch",
+        loss_name: str = "default",
+        loss_kwargs=None,
+    ):
         """
         RNN-T Loss function based on https://github.com/HawkAaron/warp-transducer.
         Optionally, can utilize a numba implementation of the same loss without having to compile the loss,
@@ -398,7 +433,7 @@ class RNNTLoss(Loss):
                                  standard blank, and the standard blank is the last symbol in the vocab)
                 TDT: num_classes = V. Note, V here does not include any of the "duration outputs".
 
-            reduction: Type of reduction to perform on loss. Possible values are 
+            reduction: Type of reduction to perform on loss. Possible values are
                 `mean_batch`, 'mean_volume`, `mean`, `sum` or None.
                 `None` will return a torch vector comprising the individual loss values of the batch.
                 `mean_batch` will average the losses in the batch
@@ -413,12 +448,16 @@ class RNNTLoss(Loss):
         """
         super(RNNTLoss, self).__init__()
 
-        if reduction not in [None, 'mean', 'sum', 'mean_batch', 'mean_volume']:
-            raise ValueError('`reduction` must be one of [mean, sum, mean_batch, mean_volume]')
+        if reduction not in [None, "mean", "sum", "mean_batch", "mean_volume"]:
+            raise ValueError(
+                "`reduction` must be one of [mean, sum, mean_batch, mean_volume]"
+            )
 
         self._blank = num_classes
         self.reduction = reduction
-        self._loss = resolve_rnnt_loss(loss_name, blank_idx=self._blank, loss_kwargs=loss_kwargs)
+        self._loss = resolve_rnnt_loss(
+            loss_name, blank_idx=self._blank, loss_kwargs=loss_kwargs
+        )
         self._force_float32 = RNNT_LOSS_RESOLVER[loss_name].force_float32
         self._fp16_compat_checked = False
 
@@ -428,14 +467,16 @@ class RNNTLoss(Loss):
             losses = torch.cat(losses, 0)
             target_lengths = torch.cat(target_lengths, 0)
 
-        if self.reduction == 'mean_batch':
+        if self.reduction == "mean_batch":
             losses = losses.mean()  # global batch size average
-        elif self.reduction == 'mean':
+        elif self.reduction == "mean":
             losses = torch.div(losses, target_lengths).mean()
-        elif self.reduction == 'sum':
+        elif self.reduction == "sum":
             losses = losses.sum()
-        elif self.reduction == 'mean_volume':
-            losses = losses.sum() / target_lengths.sum()  # same as above but longer samples weigh more
+        elif self.reduction == "mean_volume":
+            losses = (
+                losses.sum() / target_lengths.sum()
+            )  # same as above but longer samples weigh more
 
         return losses
 
@@ -476,7 +517,9 @@ class RNNTLoss(Loss):
         # of the log_probs tensor, therefore we increment the input_lengths by the difference.
         # This difference is generally small.
         if log_probs.shape[1] != max_logit_len:
-            log_probs = log_probs.narrow(dim=1, start=0, length=max_logit_len).contiguous()
+            log_probs = log_probs.narrow(
+                dim=1, start=0, length=max_logit_len
+            ).contiguous()
 
         # Reduce transcript length to correct alignment if additional padding was applied.
         # Transcript: [B, L] -> [B, L']; If L' < L
@@ -484,14 +527,21 @@ class RNNTLoss(Loss):
             targets = targets.contiguous()
 
         if targets.shape[1] != max_targets_len:
-            targets = targets.narrow(dim=1, start=0, length=max_targets_len).contiguous()
+            targets = targets.narrow(
+                dim=1, start=0, length=max_targets_len
+            ).contiguous()
 
         # Temporarily override loss reduction
         loss_reduction = self._loss.reduction
         self._loss.reduction = None
 
         # Compute RNNT loss
-        loss = self._loss(acts=log_probs, labels=targets, act_lens=input_lengths, label_lens=target_lengths)
+        loss = self._loss(
+            acts=log_probs,
+            labels=targets,
+            act_lens=input_lengths,
+            label_lens=target_lengths,
+        )
 
         # Loss reduction can be dynamic, so reset it after call
         self._loss.reduction = loss_reduction

@@ -59,7 +59,7 @@ class AttentionAdapterModuleMixin(adapter_mixins.AdapterModuleMixin):
         adapter_module: torch.nn.Module,
         *,
         adapter_name: str,
-        adapter_strategy: 'nemo.core.classes.mixins.adapter_mixin_strategies.AbstractAdapterStrategy',
+        adapter_strategy: "nemo.core.classes.mixins.adapter_mixin_strategies.AbstractAdapterStrategy",
     ):
         """
         Perform the forward step of a single adapter module on some input data.
@@ -82,7 +82,7 @@ class AttentionAdapterModuleMixin(adapter_mixins.AdapterModuleMixin):
         Returns:
             The result tensor, after the current active adapter has finished its forward pass.
         """
-        if not hasattr(self, 'self_attention_model'):
+        if not hasattr(self, "self_attention_model"):
             raise RuntimeError(
                 "self_attention_model attribute not found in the module! Please set in the module "
                 "a string attribute 'self_attention_model' with value 'abs_pos', 'rel_pos' or "
@@ -96,40 +96,49 @@ class AttentionAdapterModuleMixin(adapter_mixins.AdapterModuleMixin):
             multi_head_attention as conformer_mha
 
         # (input: torch.Tensor, adapter: torch.nn.Module, *, module: 'AdapterModuleMixin')
-        x = input['x']
-        loc = input['loc']
-        att_mask = input.get('att_mask', None)
-        pos_emb = input.get('pos_emb', None)
+        x = input["x"]
+        loc = input["loc"]
+        att_mask = input.get("att_mask", None)
+        pos_emb = input.get("pos_emb", None)
 
         from nemo.collections.common.parts import adapter_modules
 
-        if isinstance(adapter_module, adapter_modules.LinearAdapter) and loc == 'post':
+        if isinstance(adapter_module, adapter_modules.LinearAdapter) and loc == "post":
             output = adapter_strategy(x, adapter_module, module=self)
 
-        elif isinstance(adapter_module, conformer_mha.MultiHeadAttention) and loc == 'mha':
-            if self.self_attention_model == 'rel_pos':
+        elif (
+            isinstance(adapter_module, conformer_mha.MultiHeadAttention)
+            and loc == "mha"
+        ):
+            if self.self_attention_model == "rel_pos":
                 x = dict(query=x, key=x, value=x, mask=att_mask, pos_emb=pos_emb)
                 output = adapter_strategy(x, adapter_module, module=self)
 
-            elif self.self_attention_model == 'abs_pos':
+            elif self.self_attention_model == "abs_pos":
                 x = dict(query=x, key=x, value=x, mask=att_mask)
                 output = adapter_strategy(x, adapter_module, module=self)
 
             else:
-                raise ValueError(f"Unsupported value of self_attention_model , provided {self.self_attention_model}!")
+                raise ValueError(
+                    f"Unsupported value of self_attention_model , provided {self.self_attention_model}!"
+                )
 
-        elif isinstance(adapter_module, transformer_mha.MultiHeadAttention) and loc == 'mha':
+        elif (
+            isinstance(adapter_module, transformer_mha.MultiHeadAttention)
+            and loc == "mha"
+        ):
             x = dict(queries=x, keys=x, values=x, attention_mask=att_mask)
             output = adapter_strategy(x, adapter_module, module=self)
 
         else:
             # No adapter compatible, skip
             logging.warning(
-                "No adapter compatible with the current module. Skipping adapter forward pass.", mode=logging_mode.ONCE
+                "No adapter compatible with the current module. Skipping adapter forward pass.",
+                mode=logging_mode.ONCE,
             )
 
             output = x
 
-        input['x'] = output
+        input["x"] = output
 
         return input

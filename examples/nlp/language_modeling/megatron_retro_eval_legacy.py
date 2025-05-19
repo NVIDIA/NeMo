@@ -87,12 +87,18 @@ def main(cfg) -> None:
     if (
         cfg.tensor_model_parallel_size < 0
         or cfg.pipeline_model_parallel_size < 0
-        or cfg.get('pipeline_model_parallel_split_rank', -1) < 0
+        or cfg.get("pipeline_model_parallel_split_rank", -1) < 0
     ):
         with open_dict(cfg):
-            cfg.tensor_model_parallel_size = model_cfg.get('tensor_model_parallel_size', 1)
-            cfg.pipeline_model_parallel_size = model_cfg.get('pipeline_model_parallel_size', 1)
-            cfg.pipeline_model_parallel_split_rank = model_cfg.get('pipeline_model_parallel_split_rank', 0)
+            cfg.tensor_model_parallel_size = model_cfg.get(
+                "tensor_model_parallel_size", 1
+            )
+            cfg.pipeline_model_parallel_size = model_cfg.get(
+                "pipeline_model_parallel_size", 1
+            )
+            cfg.pipeline_model_parallel_split_rank = model_cfg.get(
+                "pipeline_model_parallel_split_rank", 0
+            )
 
     model = MegatronRetrievalModel.restore_from(
         model_path,
@@ -150,5 +156,5 @@ def main(cfg) -> None:
     print("***************************")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

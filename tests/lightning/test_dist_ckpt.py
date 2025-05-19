@@ -16,7 +16,7 @@ import os
 
 
 def set_env():
-    os.environ['NVTE_APPLY_QK_LAYER_SCALING'] = '1'
+    os.environ["NVTE_APPLY_QK_LAYER_SCALING"] = "1"
 
 
 from pathlib import Path
@@ -40,13 +40,15 @@ def _get_strategy():
     return strategy
 
 
-def _get_last_checkpoint_dir(model: pl.LightningModule, suffix: str = '') -> Path:
-    return f'epoch={model.trainer.current_epoch - 1}-step={model.trainer.max_steps - 1}{suffix}'
+def _get_last_checkpoint_dir(model: pl.LightningModule, suffix: str = "") -> Path:
+    return f"epoch={model.trainer.current_epoch - 1}-step={model.trainer.max_steps - 1}{suffix}"
 
 
 def get_model_and_data(mbs=2, gbs=2):
     seq_length = 128
-    data = llm.MockDataModule(seq_length=seq_length, micro_batch_size=mbs, global_batch_size=gbs)
+    data = llm.MockDataModule(
+        seq_length=seq_length, micro_batch_size=mbs, global_batch_size=gbs
+    )
 
     config = llm.GPTConfig(
         num_layers=2,
@@ -61,18 +63,20 @@ def get_model_and_data(mbs=2, gbs=2):
 
 class TestDistCkptIO:
 
-    @pytest.mark.run_only_on('GPU')
+    @pytest.mark.run_only_on("GPU")
     def test_dist_ckpt_io_called_for_mcore_models(self, tmp_path):
 
         set_env()
-        assert os.environ['NVTE_APPLY_QK_LAYER_SCALING'] == '1'
+        assert os.environ["NVTE_APPLY_QK_LAYER_SCALING"] == "1"
         gbs, mbs = 2, 2
         model, data = get_model_and_data(mbs, gbs)
 
         from tests.lightning.mcore_microbatch_utils import \
             reconfigure_num_microbatches_calculator_manager
 
-        with reconfigure_num_microbatches_calculator_manager(0, None, gbs, mbs, data_parallel_size=1):
+        with reconfigure_num_microbatches_calculator_manager(
+            0, None, gbs, mbs, data_parallel_size=1
+        ):
 
             strategy = _get_strategy()
 
@@ -96,22 +100,26 @@ class TestDistCkptIO:
         assert str(ckpt) == _get_last_checkpoint_dir(model)
         trainer._teardown()
 
-    @pytest.mark.run_only_on('GPU')
+    @pytest.mark.run_only_on("GPU")
     def test_async_save_produces_same_checkpoints_as_sync(self, tmp_path):
         set_env()
-        assert os.environ['NVTE_APPLY_QK_LAYER_SCALING'] == '1'
+        assert os.environ["NVTE_APPLY_QK_LAYER_SCALING"] == "1"
         gbs, mbs = 2, 2
         model, data = get_model_and_data(mbs, gbs)
         from tests.lightning.mcore_microbatch_utils import \
             reconfigure_num_microbatches_calculator_manager
 
-        with reconfigure_num_microbatches_calculator_manager(0, None, gbs, mbs, data_parallel_size=1):
+        with reconfigure_num_microbatches_calculator_manager(
+            0, None, gbs, mbs, data_parallel_size=1
+        ):
 
-            sync_ckpt_dir = tmp_path / 'sync_checkpoints'
-            async_ckpt_dir = tmp_path / 'async_checkpoints'
+            sync_ckpt_dir = tmp_path / "sync_checkpoints"
+            async_ckpt_dir = tmp_path / "async_checkpoints"
 
-            sync_checkpoint_io = MegatronCheckpointIO('torch_dist')
-            async_checkpoint_io = AsyncFinalizableCheckpointIO(MegatronCheckpointIO('torch_dist', async_save=True))
+            sync_checkpoint_io = MegatronCheckpointIO("torch_dist")
+            async_checkpoint_io = AsyncFinalizableCheckpointIO(
+                MegatronCheckpointIO("torch_dist", async_save=True)
+            )
 
             # dummy_trainer just to initialize NCCL
             dummy_trainer = pl.Trainer(
@@ -153,30 +161,35 @@ class TestDistCkptIO:
         ## NOTE: model does not have `sharded_state_dict` attribute because
         ## this is after MegatronStrategy teardown
         ## so model class' __getattr__ gets replaced with original __getattr__
-        checkpoint = {'sharded_state_dict': model.module.sharded_state_dict()}
+        checkpoint = {"sharded_state_dict": model.module.sharded_state_dict()}
 
         sync_state_dict = sync_checkpoint_io.load_checkpoint(
-            Path(f"{sync_ckpt_dir}/checkpoints/{_get_last_checkpoint_dir(model)}"), sharded_state_dict=checkpoint
+            Path(f"{sync_ckpt_dir}/checkpoints/{_get_last_checkpoint_dir(model)}"),
+            sharded_state_dict=checkpoint,
         )
 
         async_state_dict = async_checkpoint_io.load_checkpoint(
-            Path(f"{async_ckpt_dir}/checkpoints/{_get_last_checkpoint_dir(model)}"), sharded_state_dict=checkpoint
+            Path(f"{async_ckpt_dir}/checkpoints/{_get_last_checkpoint_dir(model)}"),
+            sharded_state_dict=checkpoint,
         )
 
         ## one of the keys is a _io.BytesIO object
-        for k in sync_state_dict['sharded_state_dict'].keys():
-            if isinstance(sync_state_dict['sharded_state_dict'][k], torch.Tensor):
-                assert torch.all(sync_state_dict['sharded_state_dict'][k] == async_state_dict['sharded_state_dict'][k])
+        for k in sync_state_dict["sharded_state_dict"].keys():
+            if isinstance(sync_state_dict["sharded_state_dict"][k], torch.Tensor):
+                assert torch.all(
+                    sync_state_dict["sharded_state_dict"][k]
+                    == async_state_dict["sharded_state_dict"][k]
+                )
         dummy_trainer._teardown()
 
     def test_sharded_strategies(self):
         set_env()
-        assert os.environ['NVTE_APPLY_QK_LAYER_SCALING'] == '1'
+        assert os.environ["NVTE_APPLY_QK_LAYER_SCALING"] == "1"
         model_checkpoint = nl.ModelCheckpoint()
 
         strategy = nl.MegatronStrategy(
             enable_nemo_ckpt_io=False,
-            save_ckpt_format='torch_dist',
+            save_ckpt_format="torch_dist",
             ckpt_parallel_save=True,
             ckpt_load_directly_on_device=False,
             ckpt_async_save=True,
@@ -191,7 +204,7 @@ class TestDistCkptIO:
 
         base_checkpoint_io = strategy.checkpoint_io._checkpoint_io
 
-        assert base_checkpoint_io.save_ckpt_format == 'torch_dist'
+        assert base_checkpoint_io.save_ckpt_format == "torch_dist"
         assert base_checkpoint_io.parallel_save
         assert base_checkpoint_io.load_directly_on_device == False
         trainer._teardown()

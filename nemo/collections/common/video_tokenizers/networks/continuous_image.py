@@ -28,18 +28,24 @@ NetworkEval = namedtuple("NetworkEval", ["reconstructions", "posteriors", "laten
 
 
 class ContinuousImageTokenizer(nn.Module):
-    def __init__(self, z_channels: int, z_factor: int, latent_channels: int, **kwargs) -> None:
+    def __init__(
+        self, z_channels: int, z_factor: int, latent_channels: int, **kwargs
+    ) -> None:
         super().__init__()
         self.name = kwargs.get("name", "ContinuousImageTokenizer")
         self.latent_channels = latent_channels
 
         encoder_name = kwargs.get("encoder", EncoderType.Default.name)
-        self.encoder = EncoderType[encoder_name].value(z_channels=z_factor * z_channels, **kwargs)
+        self.encoder = EncoderType[encoder_name].value(
+            z_channels=z_factor * z_channels, **kwargs
+        )
 
         decoder_name = kwargs.get("decoder", DecoderType.Default.name)
         self.decoder = DecoderType[decoder_name].value(z_channels=z_channels, **kwargs)
 
-        self.quant_conv = torch.nn.Conv2d(z_factor * z_channels, z_factor * latent_channels, 1)
+        self.quant_conv = torch.nn.Conv2d(
+            z_factor * z_channels, z_factor * latent_channels, 1
+        )
         self.post_quant_conv = torch.nn.Conv2d(latent_channels, z_channels, 1)
 
         formulation_name = kwargs.get("formulation", ContinuousFormulation.AE.name)

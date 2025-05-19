@@ -60,7 +60,7 @@ from nemo.core.neural_types.neural_type import NeuralType
 
 
 class KernelPredictor(torch.nn.Module):
-    ''' Kernel predictor for the location-variable convolutions'''
+    """Kernel predictor for the location-variable convolutions"""
 
     def __init__(
         self,
@@ -75,13 +75,13 @@ class KernelPredictor(torch.nn.Module):
         kpnet_nonlinear_activation="LeakyReLU",
         kpnet_nonlinear_activation_params={"negative_slope": 0.1},
     ):
-        '''
+        """
         Args:
             cond_channels (int): number of channel for the conditioning sequence,
             conv_in_channels (int): number of channel for the input sequence,
             conv_out_channels (int): number of channel for the output sequence,
             conv_layers (int): number of layers
-        '''
+        """
         super().__init__()
 
         self.conv_in_channels = conv_in_channels
@@ -89,12 +89,18 @@ class KernelPredictor(torch.nn.Module):
         self.conv_kernel_size = conv_kernel_size
         self.conv_layers = conv_layers
 
-        kpnet_kernel_channels = conv_in_channels * conv_out_channels * conv_kernel_size * conv_layers  # l_w
+        kpnet_kernel_channels = (
+            conv_in_channels * conv_out_channels * conv_kernel_size * conv_layers
+        )  # l_w
         kpnet_bias_channels = conv_out_channels * conv_layers  # l_b
 
         self.input_conv = nn.Sequential(
-            nn.utils.weight_norm(nn.Conv1d(cond_channels, kpnet_hidden_channels, 5, padding=2, bias=True)),
-            getattr(nn, kpnet_nonlinear_activation)(**kpnet_nonlinear_activation_params),
+            nn.utils.weight_norm(
+                nn.Conv1d(cond_channels, kpnet_hidden_channels, 5, padding=2, bias=True)
+            ),
+            getattr(nn, kpnet_nonlinear_activation)(
+                **kpnet_nonlinear_activation_params
+            ),
         )
 
         self.residual_convs = nn.ModuleList()
@@ -105,30 +111,54 @@ class KernelPredictor(torch.nn.Module):
                     nn.Dropout(kpnet_dropout),
                     nn.utils.weight_norm(
                         nn.Conv1d(
-                            kpnet_hidden_channels, kpnet_hidden_channels, kpnet_conv_size, padding=padding, bias=True
+                            kpnet_hidden_channels,
+                            kpnet_hidden_channels,
+                            kpnet_conv_size,
+                            padding=padding,
+                            bias=True,
                         )
                     ),
-                    getattr(nn, kpnet_nonlinear_activation)(**kpnet_nonlinear_activation_params),
+                    getattr(nn, kpnet_nonlinear_activation)(
+                        **kpnet_nonlinear_activation_params
+                    ),
                     nn.utils.weight_norm(
                         nn.Conv1d(
-                            kpnet_hidden_channels, kpnet_hidden_channels, kpnet_conv_size, padding=padding, bias=True
+                            kpnet_hidden_channels,
+                            kpnet_hidden_channels,
+                            kpnet_conv_size,
+                            padding=padding,
+                            bias=True,
                         )
                     ),
-                    getattr(nn, kpnet_nonlinear_activation)(**kpnet_nonlinear_activation_params),
+                    getattr(nn, kpnet_nonlinear_activation)(
+                        **kpnet_nonlinear_activation_params
+                    ),
                 )
             )
         self.kernel_conv = nn.utils.weight_norm(
-            nn.Conv1d(kpnet_hidden_channels, kpnet_kernel_channels, kpnet_conv_size, padding=padding, bias=True)
+            nn.Conv1d(
+                kpnet_hidden_channels,
+                kpnet_kernel_channels,
+                kpnet_conv_size,
+                padding=padding,
+                bias=True,
+            )
         )
         self.bias_conv = nn.utils.weight_norm(
-            nn.Conv1d(kpnet_hidden_channels, kpnet_bias_channels, kpnet_conv_size, padding=padding, bias=True)
+            nn.Conv1d(
+                kpnet_hidden_channels,
+                kpnet_bias_channels,
+                kpnet_conv_size,
+                padding=padding,
+                bias=True,
+            )
         )
 
     def forward(self, c):
-        '''
+        """
         Args:
             c (Tensor): the conditioning sequence (batch, cond_channels, cond_length)
-        '''
+        """
         batch, _, cond_length = c.shape
         c = self.input_conv(c)
         for residual_conv in self.residual_convs:
@@ -137,9 +167,19 @@ class KernelPredictor(torch.nn.Module):
         k = self.kernel_conv(c)
         b = self.bias_conv(c)
         kernels = k.contiguous().view(
-            batch, self.conv_layers, self.conv_in_channels, self.conv_out_channels, self.conv_kernel_size, cond_length,
+            batch,
+            self.conv_layers,
+            self.conv_in_channels,
+            self.conv_out_channels,
+            self.conv_kernel_size,
+            cond_length,
         )
-        bias = b.contiguous().view(batch, self.conv_layers, self.conv_out_channels, cond_length,)
+        bias = b.contiguous().view(
+            batch,
+            self.conv_layers,
+            self.conv_out_channels,
+            cond_length,
+        )
 
         return kernels, bias
 
@@ -153,7 +193,7 @@ class KernelPredictor(torch.nn.Module):
 
 
 class LVCBlock(torch.nn.Module):
-    '''the location-variable convolutions'''
+    """the location-variable convolutions"""
 
     def __init__(
         self,
@@ -219,14 +259,14 @@ class LVCBlock(torch.nn.Module):
             )
 
     def forward(self, x, c):
-        ''' forward propagation of the location-variable convolutions.
+        """forward propagation of the location-variable convolutions.
         Args:
             x (Tensor): the input sequence (batch, in_channels, in_length)
             c (Tensor): the conditioning sequence (batch, cond_channels, cond_length)
 
         Returns:
             Tensor: the output sequence (batch, in_channels, in_length)
-        '''
+        """
         _, in_channels, _ = x.shape  # (B, c_g, L')
 
         x = self.convt_pre(x)  # (B, c_g, stride * L')
@@ -248,7 +288,7 @@ class LVCBlock(torch.nn.Module):
         return x
 
     def location_variable_convolution(self, x, kernel, bias, dilation=1, hop_size=256):
-        ''' perform location-variable convolution operation on the input sequence (x) using the local convolution kernel
+        """perform location-variable convolution operation on the input sequence (x) using the local convolution kernel
         Args:
             x (Tensor): the input sequence (batch, in_channels, in_length).
             kernel (Tensor): the local convolution kernel (batch, in_channel, out_channels, kernel_size, kernel_length)
@@ -257,25 +297,35 @@ class LVCBlock(torch.nn.Module):
             hop_size (int): the hop_size of the conditioning sequence.
         Returns:
             (Tensor): the output sequence after performing local convolution. (batch, out_channels, in_length).
-        '''
+        """
         batch, _, in_length = x.shape
         batch, _, out_channels, kernel_size, kernel_length = kernel.shape
-        assert in_length == (kernel_length * hop_size), "length of (x, kernel) is not matched"
+        assert in_length == (
+            kernel_length * hop_size
+        ), "length of (x, kernel) is not matched"
 
         padding = dilation * int((kernel_size - 1) / 2)
-        x = F.pad(x, (padding, padding), 'constant', 0)  # (batch, in_channels, in_length + 2*padding)
-        x = x.unfold(2, hop_size + 2 * padding, hop_size)  # (batch, in_channels, kernel_length, hop_size + 2*padding)
+        x = F.pad(
+            x, (padding, padding), "constant", 0
+        )  # (batch, in_channels, in_length + 2*padding)
+        x = x.unfold(
+            2, hop_size + 2 * padding, hop_size
+        )  # (batch, in_channels, kernel_length, hop_size + 2*padding)
 
         if hop_size < dilation:
-            x = F.pad(x, (0, dilation), 'constant', 0)
+            x = F.pad(x, (0, dilation), "constant", 0)
         x = x.unfold(
             3, dilation, dilation
         )  # (batch, in_channels, kernel_length, (hop_size + 2*padding)/dilation, dilation)
         x = x[:, :, :, :, :hop_size]
-        x = x.transpose(3, 4)  # (batch, in_channels, kernel_length, dilation, (hop_size + 2*padding)/dilation)
-        x = x.unfold(4, kernel_size, 1)  # (batch, in_channels, kernel_length, dilation, _, kernel_size)
+        x = x.transpose(
+            3, 4
+        )  # (batch, in_channels, kernel_length, dilation, (hop_size + 2*padding)/dilation)
+        x = x.unfold(
+            4, kernel_size, 1
+        )  # (batch, in_channels, kernel_length, dilation, _, kernel_size)
 
-        o = torch.einsum('bildsk,biokl->bolsd', x, kernel)
+        o = torch.einsum("bildsk,biokl->bolsd", x, kernel)
         o = o.to(memory_format=torch.channels_last_3d)
         bias = bias.unsqueeze(-1).unsqueeze(-1).to(memory_format=torch.channels_last_3d)
         o = o + bias
@@ -291,7 +341,7 @@ class LVCBlock(torch.nn.Module):
 
 
 class Generator(NeuralModule):
-    __constants__ = ['lrelu_slope', 'num_kernels', 'num_upsamples']
+    __constants__ = ["lrelu_slope", "num_kernels", "num_upsamples"]
 
     def __init__(
         self,
@@ -333,34 +383,42 @@ class Generator(NeuralModule):
 
         assert (
             hop_length_lvc == self.hop_length
-        ), "multiplied value of strides {} should match n_window_stride {}".format(self.strides, self.hop_length)
+        ), "multiplied value of strides {} should match n_window_stride {}".format(
+            self.strides, self.hop_length
+        )
 
         self.conv_pre = nn.utils.weight_norm(
-            nn.Conv1d(self.noise_dim, self.channel_size, 7, padding=3, padding_mode='reflect')
+            nn.Conv1d(
+                self.noise_dim, self.channel_size, 7, padding=3, padding_mode="reflect"
+            )
         )
 
         self.conv_post = nn.Sequential(
             nn.LeakyReLU(self.lrelu_slope),
-            nn.utils.weight_norm(nn.Conv1d(self.channel_size, 1, 7, padding=3, padding_mode='reflect')),
+            nn.utils.weight_norm(
+                nn.Conv1d(self.channel_size, 1, 7, padding=3, padding_mode="reflect")
+            ),
             nn.Tanh(),
         )
 
     @property
     def input_types(self):
         return {
-            "x": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
+            "x": NeuralType(("B", "D", "T"), MelSpectrogramType()),
         }
 
     @property
     def output_types(self):
         return {
-            "audio": NeuralType(('B', 'S', 'T'), AudioSignal()),
+            "audio": NeuralType(("B", "S", "T"), AudioSignal()),
         }
 
     @typecheck()
     def forward(self, x):
         # UnivNet starts with Gaussian noise
-        z = torch.randn(x.size(0), self.noise_dim, x.size(2), dtype=x.dtype, device=x.device)
+        z = torch.randn(
+            x.size(0), self.noise_dim, x.size(2), dtype=x.dtype, device=x.device
+        )
         z = self.conv_pre(z)  # (B, c_g, L)
 
         for res_block in self.res_stack:
@@ -371,7 +429,7 @@ class Generator(NeuralModule):
         return z
 
     def remove_weight_norm(self):
-        print('Removing weight norm...')
+        print("Removing weight norm...")
         remove_weight_norm(self.conv_pre)
         for layer in self.conv_post:
             if len(layer.state_dict()) != 0:
@@ -381,7 +439,15 @@ class Generator(NeuralModule):
 
 
 class DiscriminatorP(NeuralModule):
-    def __init__(self, lrelu_slope, period, kernel_size=5, stride=3, use_spectral_norm=False, debug=False):
+    def __init__(
+        self,
+        lrelu_slope,
+        period,
+        kernel_size=5,
+        stride=3,
+        use_spectral_norm=False,
+        debug=False,
+    ):
         super().__init__()
         self.lrelu_slope = lrelu_slope
         self.period = period
@@ -389,11 +455,51 @@ class DiscriminatorP(NeuralModule):
         conv_ch = [64, 128, 256, 512, 1024] if not debug else [8, 12, 32, 64, 128]
         self.convs = nn.ModuleList(
             [
-                norm_f(Conv2d(1, conv_ch[0], (kernel_size, 1), (stride, 1), padding=(kernel_size // 2, 0))),
-                norm_f(Conv2d(conv_ch[0], conv_ch[1], (kernel_size, 1), (stride, 1), padding=(kernel_size // 2, 0))),
-                norm_f(Conv2d(conv_ch[1], conv_ch[2], (kernel_size, 1), (stride, 1), padding=(kernel_size // 2, 0))),
-                norm_f(Conv2d(conv_ch[2], conv_ch[3], (kernel_size, 1), (stride, 1), padding=(kernel_size // 2, 0))),
-                norm_f(Conv2d(conv_ch[3], conv_ch[4], (kernel_size, 1), 1, padding=(kernel_size // 2, 0))),
+                norm_f(
+                    Conv2d(
+                        1,
+                        conv_ch[0],
+                        (kernel_size, 1),
+                        (stride, 1),
+                        padding=(kernel_size // 2, 0),
+                    )
+                ),
+                norm_f(
+                    Conv2d(
+                        conv_ch[0],
+                        conv_ch[1],
+                        (kernel_size, 1),
+                        (stride, 1),
+                        padding=(kernel_size // 2, 0),
+                    )
+                ),
+                norm_f(
+                    Conv2d(
+                        conv_ch[1],
+                        conv_ch[2],
+                        (kernel_size, 1),
+                        (stride, 1),
+                        padding=(kernel_size // 2, 0),
+                    )
+                ),
+                norm_f(
+                    Conv2d(
+                        conv_ch[2],
+                        conv_ch[3],
+                        (kernel_size, 1),
+                        (stride, 1),
+                        padding=(kernel_size // 2, 0),
+                    )
+                ),
+                norm_f(
+                    Conv2d(
+                        conv_ch[3],
+                        conv_ch[4],
+                        (kernel_size, 1),
+                        1,
+                        padding=(kernel_size // 2, 0),
+                    )
+                ),
             ]
         )
         self.conv_post = norm_f(Conv2d(conv_ch[4], 1, (3, 1), 1, padding=(1, 0)))
@@ -401,13 +507,13 @@ class DiscriminatorP(NeuralModule):
     @property
     def input_types(self):
         return {
-            "x": NeuralType(('B', 'S', 'T'), AudioSignal()),
+            "x": NeuralType(("B", "S", "T"), AudioSignal()),
         }
 
     @property
     def output_types(self):
         return {
-            "decision": NeuralType(('B', 'T'), VoidType()),
+            "decision": NeuralType(("B", "T"), VoidType()),
             "feature_maps": [NeuralType(("B", "C", "H", "W"), VoidType())],
         }
 
@@ -439,7 +545,9 @@ class MultiPeriodDiscriminator(NeuralModule):
         super().__init__()
         self.lrelu_slope = cfg.lrelu_slope
         self.periods = cfg.periods
-        assert len(self.periods) == 5, "MPD requires list of len=5, got {}".format(cfg.periods)
+        assert len(self.periods) == 5, "MPD requires list of len=5, got {}".format(
+            cfg.periods
+        )
         self.kernel_size = cfg.kernel_size
         self.stride = cfg.stride
         self.use_spectral_norm = cfg.use_spectral_norm
@@ -492,15 +600,15 @@ class MultiPeriodDiscriminator(NeuralModule):
     @property
     def input_types(self):
         return {
-            "y": NeuralType(('B', 'S', 'T'), AudioSignal()),
-            "y_hat": NeuralType(('B', 'S', 'T'), AudioSignal()),
+            "y": NeuralType(("B", "S", "T"), AudioSignal()),
+            "y_hat": NeuralType(("B", "S", "T"), AudioSignal()),
         }
 
     @property
     def output_types(self):
         return {
-            "real_scores": [NeuralType(('B', 'T'), VoidType())],
-            "fake_scores": [NeuralType(('B', 'T'), VoidType())],
+            "real_scores": [NeuralType(("B", "T"), VoidType())],
+            "fake_scores": [NeuralType(("B", "T"), VoidType())],
             "real_feature_maps": [[NeuralType(("B", "C", "H", "W"), VoidType())]],
             "fake_feature_maps": [[NeuralType(("B", "C", "H", "W"), VoidType())]],
         }
@@ -527,7 +635,9 @@ class DiscriminatorR(NeuralModule):
         super().__init__()
 
         self.resolution = resolution
-        assert len(self.resolution) == 3, "MRD layer requires list with len=3, got {}".format(self.resolution)
+        assert (
+            len(self.resolution) == 3
+        ), "MRD layer requires list with len=3, got {}".format(self.resolution)
         self.lrelu_slope = cfg.lrelu_slope
 
         norm_f = weight_norm if cfg.use_spectral_norm == False else spectral_norm
@@ -546,13 +656,13 @@ class DiscriminatorR(NeuralModule):
     @property
     def input_types(self):
         return {
-            "x": NeuralType(('B', 'S', 'T'), AudioSignal()),
+            "x": NeuralType(("B", "S", "T"), AudioSignal()),
         }
 
     @property
     def output_types(self):
         return {
-            "decision": NeuralType(('B', 'T'), VoidType()),
+            "decision": NeuralType(("B", "T"), VoidType()),
             "feature_maps": [NeuralType(("B", "C", "T"), VoidType())],
         }
 
@@ -573,10 +683,21 @@ class DiscriminatorR(NeuralModule):
 
     def spectrogram(self, x):
         n_fft, hop_length, win_length = self.resolution
-        x = F.pad(x, (int((n_fft - hop_length) / 2), int((n_fft - hop_length) / 2)), mode='reflect')
+        x = F.pad(
+            x,
+            (int((n_fft - hop_length) / 2), int((n_fft - hop_length) / 2)),
+            mode="reflect",
+        )
         x = x.squeeze(1)
         x = torch.view_as_real(
-            torch.stft(x, n_fft=n_fft, hop_length=hop_length, win_length=win_length, center=False, return_complex=True)
+            torch.stft(
+                x,
+                n_fft=n_fft,
+                hop_length=hop_length,
+                win_length=win_length,
+                center=False,
+                return_complex=True,
+            )
         )  # [B, F, TT, 2] (Note: torch.stft() returns complex tensor [B, F, TT]; converted via view_as_real)
         mag = torch.norm(x, p=2, dim=-1)  # [B, F, TT]
 
@@ -592,20 +713,22 @@ class MultiResolutionDiscriminator(NeuralModule):
         ), "MRD requires list of list with len=3, each element having a list with len=3. got {}".format(
             self.resolutions
         )
-        self.discriminators = nn.ModuleList([DiscriminatorR(cfg, resolution) for resolution in self.resolutions])
+        self.discriminators = nn.ModuleList(
+            [DiscriminatorR(cfg, resolution) for resolution in self.resolutions]
+        )
 
     @property
     def input_types(self):
         return {
-            "y": NeuralType(('B', 'S', 'T'), AudioSignal()),
-            "y_hat": NeuralType(('B', 'S', 'T'), AudioSignal()),
+            "y": NeuralType(("B", "S", "T"), AudioSignal()),
+            "y_hat": NeuralType(("B", "S", "T"), AudioSignal()),
         }
 
     @property
     def output_types(self):
         return {
-            "real_scores": [NeuralType(('B', 'T'), VoidType())],
-            "fake_scores": [NeuralType(('B', 'T'), VoidType())],
+            "real_scores": [NeuralType(("B", "T"), VoidType())],
+            "fake_scores": [NeuralType(("B", "T"), VoidType())],
             "real_feature_maps": [[NeuralType(("B", "C", "T"), VoidType())]],
             "fake_feature_maps": [[NeuralType(("B", "C", "T"), VoidType())]],
         }

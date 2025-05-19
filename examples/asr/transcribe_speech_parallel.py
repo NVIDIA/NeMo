@@ -99,7 +99,9 @@ from nemo.utils.get_rank import is_global_rank_zero
 class ParallelTranscriptionConfig:
     model: Optional[str] = None  # name
     predict_ds: ASRDatasetConfig = field(
-        default_factory=lambda: ASRDatasetConfig(return_sample_id=True, num_workers=4, min_duration=0, max_duration=40)
+        default_factory=lambda: ASRDatasetConfig(
+            return_sample_id=True, num_workers=4, min_duration=0, max_duration=40
+        )
     )
     output_path: str = MISSING
 
@@ -109,7 +111,9 @@ class ParallelTranscriptionConfig:
 
     # decoding strategy for RNNT models
     # Double check whether fused_batch_size=-1 is right
-    rnnt_decoding: RNNTDecodingConfig = field(default_factory=lambda: RNNTDecodingConfig(fused_batch_size=-1))
+    rnnt_decoding: RNNTDecodingConfig = field(
+        default_factory=lambda: RNNTDecodingConfig(fused_batch_size=-1)
+    )
 
     # Decoding strategy for CTC models
     ctc_decoding: CTCDecodingConfig = field(default_factory=CTCDecodingConfig)
@@ -120,7 +124,9 @@ class ParallelTranscriptionConfig:
     att_context_size: Optional[list] = None
 
     trainer: TrainerConfig = field(
-        default_factory=lambda: TrainerConfig(devices=-1, accelerator="gpu", strategy="ddp")
+        default_factory=lambda: TrainerConfig(
+            devices=-1, accelerator="gpu", strategy="ddp"
+        )
     )
 
 
@@ -159,7 +165,9 @@ def main(cfg: ParallelTranscriptionConfig):
         model = ASRModel.restore_from(restore_path=cfg.model, map_location="cpu")
     elif cfg.model.endswith(".ckpt"):
         logging.info("Attempting to initialize from .ckpt file")
-        model = ASRModel.load_from_checkpoint(checkpoint_path=cfg.model, map_location="cpu")
+        model = ASRModel.load_from_checkpoint(
+            checkpoint_path=cfg.model, map_location="cpu"
+        )
     else:
         logging.info(
             "Attempting to initialize from a pretrained model as the model name does not have the extension of .nemo or .ckpt"
@@ -167,22 +175,28 @@ def main(cfg: ParallelTranscriptionConfig):
         model = ASRModel.from_pretrained(model_name=cfg.model, map_location="cpu")
 
     # Setup decoding strategy
-    if hasattr(model, 'change_decoding_strategy') and hasattr(model, 'decoding'):
+    if hasattr(model, "change_decoding_strategy") and hasattr(model, "decoding"):
         if cfg.decoder_type is not None:
-            decoding_cfg = cfg.rnnt_decoding if cfg.decoder_type == 'rnnt' else cfg.ctc_decoding
-            if hasattr(model, 'cur_decoder'):
-                model.change_decoding_strategy(decoding_cfg, decoder_type=cfg.decoder_type)
+            decoding_cfg = (
+                cfg.rnnt_decoding if cfg.decoder_type == "rnnt" else cfg.ctc_decoding
+            )
+            if hasattr(model, "cur_decoder"):
+                model.change_decoding_strategy(
+                    decoding_cfg, decoder_type=cfg.decoder_type
+                )
             else:
                 model.change_decoding_strategy(decoding_cfg)
 
         # Check if ctc or rnnt model
-        elif hasattr(model, 'joint'):  # RNNT model
+        elif hasattr(model, "joint"):  # RNNT model
             model.change_decoding_strategy(cfg.rnnt_decoding)
         else:
             model.change_decoding_strategy(cfg.ctc_decoding)
 
     cfg.predict_ds.return_sample_id = True
-    cfg.predict_ds = match_train_config(predict_ds=cfg.predict_ds, train_ds=model.cfg.train_ds)
+    cfg.predict_ds = match_train_config(
+        predict_ds=cfg.predict_ds, train_ds=model.cfg.train_ds
+    )
 
     if cfg.predict_ds.use_lhotse:
         OmegaConf.set_struct(cfg.predict_ds, False)
@@ -211,12 +225,18 @@ def main(cfg: ParallelTranscriptionConfig):
 
     os.makedirs(cfg.output_path, exist_ok=True)
     # trainer.global_rank is not valid before predict() is called. Need this hack to find the correct global_rank.
-    global_rank = trainer.node_rank * trainer.num_devices + int(os.environ.get("LOCAL_RANK", 0))
+    global_rank = trainer.node_rank * trainer.num_devices + int(
+        os.environ.get("LOCAL_RANK", 0)
+    )
     output_file = os.path.join(cfg.output_path, f"predictions_{global_rank}.json")
-    predictor_writer = ASRPredictionWriter(dataset=data_loader.dataset, output_file=output_file)
+    predictor_writer = ASRPredictionWriter(
+        dataset=data_loader.dataset, output_file=output_file
+    )
     trainer.callbacks.extend([predictor_writer])
 
-    predictions = trainer.predict(model=model, dataloaders=data_loader, return_predictions=cfg.return_predictions)
+    predictions = trainer.predict(
+        model=model, dataloaders=data_loader, return_predictions=cfg.return_predictions
+    )
     if predictions is not None:
         predictions = list(itertools.chain.from_iterable(predictions))
     samples_num = predictor_writer.close_output_file()
@@ -234,10 +254,10 @@ def main(cfg: ParallelTranscriptionConfig):
     if is_global_rank_zero():
         output_file = os.path.join(cfg.output_path, f"predictions_all.json")
         logging.info(f"Prediction files are being aggregated in {output_file}.")
-        with open(output_file, 'w') as outf:
+        with open(output_file, "w") as outf:
             for rank in range(trainer.world_size):
                 input_file = os.path.join(cfg.output_path, f"predictions_{rank}.json")
-                with open(input_file, 'r') as inpf:
+                with open(input_file, "r") as inpf:
                     lines = inpf.readlines()
                     for line in lines:
                         item = json.loads(line)
@@ -245,12 +265,18 @@ def main(cfg: ParallelTranscriptionConfig):
                         text_list.append(item["text"])
                         outf.write(json.dumps(item) + "\n")
                         samples_num += 1
-        wer_cer = word_error_rate(hypotheses=pred_text_list, references=text_list, use_cer=cfg.use_cer)
+        wer_cer = word_error_rate(
+            hypotheses=pred_text_list, references=text_list, use_cer=cfg.use_cer
+        )
         logging.info(
             f"Prediction is done for {samples_num} samples in total on all workers and results are aggregated in {output_file}."
         )
-        logging.info("{} for all predictions is {:.4f}.".format("CER" if cfg.use_cer else "WER", wer_cer))
+        logging.info(
+            "{} for all predictions is {:.4f}.".format(
+                "CER" if cfg.use_cer else "WER", wer_cer
+            )
+        )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

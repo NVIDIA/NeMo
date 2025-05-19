@@ -23,11 +23,15 @@ from nemo.lightning.io.pl import TrainerContext
 
 
 @overload
-def load_context(path: Path, subpath: Optional[str] = None, build: bool = True) -> TrainerContext: ...
+def load_context(
+    path: Path, subpath: Optional[str] = None, build: bool = True
+) -> TrainerContext: ...
 
 
 @overload
-def load_context(path: Path, subpath: Optional[str] = None, build: bool = False) -> fdl.Config[TrainerContext]: ...
+def load_context(
+    path: Path, subpath: Optional[str] = None, build: bool = False
+) -> fdl.Config[TrainerContext]: ...
 
 
 def load_context(path: Path, subpath: Optional[str] = None, build: bool = True):
@@ -58,14 +62,16 @@ def load_context(path: Path, subpath: Optional[str] = None, build: bool = True):
         return load(path, output_type=TrainerContext, subpath=subpath, build=build)
     except FileNotFoundError:
         # Maintain backwards compatibility with checkpoints that don't have '/context' dir.
-        if path.parts[-1] == 'context':
+        if path.parts[-1] == "context":
             path = path.parent
         else:
-            path = path / 'context'
+            path = path / "context"
         return load(path, output_type=TrainerContext, subpath=subpath, build=build)
 
 
-def model_importer(target: Type[ConnectorMixin], ext: str) -> Callable[[Type[ConnT]], Type[ConnT]]:
+def model_importer(
+    target: Type[ConnectorMixin], ext: str
+) -> Callable[[Type[ConnT]], Type[ConnT]]:
     """
     Registers an importer for a model with a specified file extension and an optional default path.
 
@@ -87,7 +93,9 @@ def model_importer(target: Type[ConnectorMixin], ext: str) -> Callable[[Type[Con
     return target.register_importer(ext)
 
 
-def model_exporter(target: Type[ConnectorMixin], ext: str) -> Callable[[Type[ConnT]], Type[ConnT]]:
+def model_exporter(
+    target: Type[ConnectorMixin], ext: str
+) -> Callable[[Type[ConnT]], Type[ConnT]]:
     """
     Registers an exporter for a model with a specified file extension and an optional default path.
 
@@ -110,7 +118,11 @@ def model_exporter(target: Type[ConnectorMixin], ext: str) -> Callable[[Type[Con
 
 
 def import_ckpt(
-    model: pl.LightningModule, source: str, output_path: Optional[Path] = None, overwrite: bool = False, **kwargs
+    model: pl.LightningModule,
+    source: str,
+    output_path: Optional[Path] = None,
+    overwrite: bool = False,
+    **kwargs,
 ) -> Path:
     """
     Imports a checkpoint into a model using the model's associated importer, typically for
@@ -205,7 +217,9 @@ def export_ckpt(
     target: str,
     output_path: Optional[Path] = None,
     overwrite: bool = False,
-    load_connector: Callable[[Path, str], ModelConnector] = load_connector_from_trainer_ckpt,
+    load_connector: Callable[
+        [Path, str], ModelConnector
+    ] = load_connector_from_trainer_ckpt,
     **kwargs,
 ) -> Path:
     """

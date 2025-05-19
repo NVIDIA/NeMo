@@ -40,4 +40,6 @@ try:
         ]
     )
 except ImportError as error:
-    logging.warning(f"Failed to import nemo.collections.speechlm.[api, recipes]: {error}")
+    logging.warning(
+        f"Failed to import nemo.collections.speechlm.[api, recipes]: {error}"
+    )

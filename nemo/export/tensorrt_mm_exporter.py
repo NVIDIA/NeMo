@@ -129,7 +129,9 @@ class TensorRTMMExporter(ITritonDeployable):
                 if len(os.listdir(self.model_dir)) > 0:
                     raise Exception("Couldn't delete all files.")
             elif len(os.listdir(self.model_dir)) > 0:
-                raise Exception("There are files in this folder. Try setting delete_existing_files=True.")
+                raise Exception(
+                    "There are files in this folder. Try setting delete_existing_files=True."
+                )
         else:
             Path(self.model_dir).mkdir(parents=True, exist_ok=True)
 
@@ -181,7 +183,12 @@ class TensorRTMMExporter(ITritonDeployable):
 
             if model_type == "salm":
                 perception_dir = os.path.join(self.model_dir, "perception_engine")
-                build_perception_engine(perception_dir, visual_checkpoint_path, model_type, vision_max_batch_size)
+                build_perception_engine(
+                    perception_dir,
+                    visual_checkpoint_path,
+                    model_type,
+                    vision_max_batch_size,
+                )
             else:
                 visual_dir = os.path.join(self.model_dir, "visual_engine")
                 build_visual_engine(
@@ -213,7 +220,8 @@ class TensorRTMMExporter(ITritonDeployable):
         """Run forward with loaded TRTLLM engine"""
         if self.runner is None:
             raise Exception(
-                "A nemo checkpoint should be exported and " "then it should be loaded first to run inference."
+                "A nemo checkpoint should be exported and "
+                "then it should be loaded first to run inference."
             )
 
         if isinstance(self.runner, TRTLLMRunner):
@@ -263,11 +271,18 @@ class TensorRTMMExporter(ITritonDeployable):
             + self.get_input_media_tensors()
             + [
                 Tensor(name="batch_size", shape=(-1,), dtype=np.int_, optional=True),
-                Tensor(name="max_output_len", shape=(-1,), dtype=np.int_, optional=True),
+                Tensor(
+                    name="max_output_len", shape=(-1,), dtype=np.int_, optional=True
+                ),
                 Tensor(name="top_k", shape=(-1,), dtype=np.int_, optional=True),
                 Tensor(name="top_p", shape=(-1,), dtype=np.single, optional=True),
                 Tensor(name="temperature", shape=(-1,), dtype=np.single, optional=True),
-                Tensor(name="repetition_penalty", shape=(-1,), dtype=np.single, optional=True),
+                Tensor(
+                    name="repetition_penalty",
+                    shape=(-1,),
+                    dtype=np.single,
+                    optional=True,
+                ),
                 Tensor(name="num_beams", shape=(-1,), dtype=np.int_, optional=True),
                 Tensor(name="lora_uids", shape=(-1,), dtype=bytes, optional=True),
             ]
@@ -281,7 +296,15 @@ class TensorRTMMExporter(ITritonDeployable):
         return outputs
 
     @batch
-    @first_value("batch_size", "max_output_len", "top_k", "top_p", "temperature", "repetition_penalty", "num_beams")
+    @first_value(
+        "batch_size",
+        "max_output_len",
+        "top_k",
+        "top_p",
+        "temperature",
+        "repetition_penalty",
+        "num_beams",
+    )
     def triton_infer_fn(self, **inputs: np.ndarray):
         try:
             if self.runner is None:
@@ -292,12 +315,16 @@ class TensorRTMMExporter(ITritonDeployable):
             infer_input = {"input_text": str_ndarray2list(inputs.pop("input_text")[0])}
             video_model_list = ["video-neva", "lita", "vita"]
             if self.runner.model_type in ["neva", "vila", "mllama"]:
-                infer_input["input_image"] = ndarray2img(inputs.pop("input_media")[0])[0]
+                infer_input["input_image"] = ndarray2img(inputs.pop("input_media")[0])[
+                    0
+                ]
             elif self.runner.model_type in video_model_list:
                 infer_input["input_image"] = inputs.pop("input_media")[0]
             elif self.runner.model_type == "salm":
                 infer_input["input_signal"] = inputs.pop("input_signal")
-                infer_input["input_signal_length"] = inputs.pop("input_signal_length")[:, 0]
+                infer_input["input_signal_length"] = inputs.pop("input_signal_length")[
+                    :, 0
+                ]
             if "batch_size" in inputs:
                 infer_input["batch_size"] = inputs.pop("batch_size")
             if "max_output_len" in inputs:
@@ -313,7 +340,9 @@ class TensorRTMMExporter(ITritonDeployable):
             if "num_beams" in inputs:
                 infer_input["num_beams"] = inputs.pop("num_beams")
             if "lora_uids" in inputs:
-                lora_uids = np.char.decode(inputs.pop("lora_uids").astype("bytes"), encoding="utf-8")
+                lora_uids = np.char.decode(
+                    inputs.pop("lora_uids").astype("bytes"), encoding="utf-8"
+                )
                 infer_input["lora_uids"] = lora_uids[0].tolist()
 
             if isinstance(self.runner, TRTLLMRunner):
@@ -321,7 +350,9 @@ class TensorRTMMExporter(ITritonDeployable):
                 self.runner.args.top_k = infer_input.pop("top_k")
                 self.runner.args.top_p = infer_input.pop("top_p")
                 self.runner.args.temperature = infer_input.pop("temperature")
-                self.runner.args.repetition_penalty = infer_input.pop("repetition_penalty")
+                self.runner.args.repetition_penalty = infer_input.pop(
+                    "repetition_penalty"
+                )
                 self.runner.args.num_beams = infer_input.pop("num_beams")
                 output_texts = self.runner.run(**infer_input)[1]
             else:
@@ -350,7 +381,7 @@ class TensorRTMMExporter(ITritonDeployable):
                     visual_engine_dir=visual_dir,
                     visual_engine_name="visual_encoder.engine",
                     llm_engine_dir=llm_dir,
-                    hf_model_dir='meta-llama/Llama-3.2-11B-Vision-Instruct',
+                    hf_model_dir="meta-llama/Llama-3.2-11B-Vision-Instruct",
                     use_py_session=True,
                     cross_kv_cache_fraction=0.5,
                     enable_context_fmha_fp32_acc=None,

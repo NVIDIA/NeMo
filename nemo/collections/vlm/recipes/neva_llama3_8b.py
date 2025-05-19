@@ -48,14 +48,18 @@ class NevaConfig8B(vlm.NevaConfig):
 
     from transformers import PretrainedConfig
 
-    language_transformer_config: TransformerConfig = field(default_factory=lambda: Llama3Config8B(seq_length=8192))
+    language_transformer_config: TransformerConfig = field(
+        default_factory=lambda: Llama3Config8B(seq_length=8192)
+    )
     vision_transformer_config: Union[TransformerConfig, PretrainedConfig] = field(
         default_factory=lambda: vlm.HFCLIPVisionConfig(
             pretrained_model_name_or_path="openai/clip-vit-large-patch14-336"
         )
     )
     vision_projection_config: TransformerConfig = field(
-        default_factory=lambda: vlm.MultimodalProjectorConfig(input_size=1024, hidden_size=4096, ffn_hidden_size=4096)
+        default_factory=lambda: vlm.MultimodalProjectorConfig(
+            input_size=1024, hidden_size=4096, ffn_hidden_size=4096
+        )
     )
 
     freeze_language_model: bool = False
@@ -216,7 +220,9 @@ def finetune_recipe(
             num_workers=4,
             packed_sequence=packed_sequence,
         ),
-        log=default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
+        log=default_log(
+            dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)
+        ),
         optim=distributed_fused_adam_with_cosine_annealing(max_lr=3e-4),
         resume=default_resume(),
     )

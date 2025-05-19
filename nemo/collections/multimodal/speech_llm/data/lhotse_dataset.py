@@ -29,7 +29,13 @@ def collate_vectors(items, max_length: int, padding_value):
     vectors = collate_vectors_lhotse(items, padding_value=padding_value)
     if max_length > vectors.size(1):
         vectors = torch.cat(
-            [vectors, padding_value * torch.ones(vectors.size(0), max_length - vectors.size(1), dtype=vectors.dtype)],
+            [
+                vectors,
+                padding_value
+                * torch.ones(
+                    vectors.size(0), max_length - vectors.size(1), dtype=vectors.dtype
+                ),
+            ],
             dim=1,
         )
     if items[0].shape[0] < 1:
@@ -79,7 +85,9 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
         self.context_key = context_key
         self.default_context_key = default_context_key
 
-    def __getitem__(self, all_cuts: CutSet) -> dict[str, Union[torch.Tensor, list[str], dict]]:
+    def __getitem__(
+        self, all_cuts: CutSet
+    ) -> dict[str, Union[torch.Tensor, list[str], dict]]:
         ans = {}
 
         # convert audio cuts to mini-batch
@@ -99,7 +107,7 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
 
             metadata = []
             for id, cut in enumerate(cuts):
-                metadata.append({'audio_filepath': cut.id + '.wav'})
+                metadata.append({"audio_filepath": cut.id + ".wav"})
 
             collated_text_data = collate_text_data(
                 cuts=cuts,
@@ -122,17 +130,33 @@ class LhotseAudioQuestionAnswerDataset(torch.utils.data.Dataset):
             ans.update(return_batch)
 
         # convert text examples to tensors
-        text_examples = all_cuts.filter(lambda c: isinstance(c, (SourceTargetTextExample, NeMoSFTExample)))
+        text_examples = all_cuts.filter(
+            lambda c: isinstance(c, (SourceTargetTextExample, NeMoSFTExample))
+        )
         if text_examples:
             pad_id = self.text_processor.pad_id
             text_minibatch = dict(
-                text_input_ids=collate_vectors_lhotse([e.input_ids for e in text_examples], padding_value=pad_id),
-                text_input_lens=torch.tensor([len(e.input_ids) for e in text_examples], dtype=torch.int64),
-                text_answer_ids=collate_vectors_lhotse([e.answer_ids for e in text_examples], padding_value=pad_id),
-                text_answer_lens=torch.tensor([len(e.answer_ids) for e in text_examples], dtype=torch.int64),
-                text_context_ids=collate_vectors_lhotse([e.context_ids for e in text_examples], padding_value=pad_id),
-                text_context_lens=torch.tensor([len(e.context_ids) for e in text_examples], dtype=torch.int64),
-                text_masks=collate_vectors_lhotse([e.mask for e in text_examples], padding_value=0),
+                text_input_ids=collate_vectors_lhotse(
+                    [e.input_ids for e in text_examples], padding_value=pad_id
+                ),
+                text_input_lens=torch.tensor(
+                    [len(e.input_ids) for e in text_examples], dtype=torch.int64
+                ),
+                text_answer_ids=collate_vectors_lhotse(
+                    [e.answer_ids for e in text_examples], padding_value=pad_id
+                ),
+                text_answer_lens=torch.tensor(
+                    [len(e.answer_ids) for e in text_examples], dtype=torch.int64
+                ),
+                text_context_ids=collate_vectors_lhotse(
+                    [e.context_ids for e in text_examples], padding_value=pad_id
+                ),
+                text_context_lens=torch.tensor(
+                    [len(e.context_ids) for e in text_examples], dtype=torch.int64
+                ),
+                text_masks=collate_vectors_lhotse(
+                    [e.mask for e in text_examples], padding_value=0
+                ),
             )
             ans.update(text_minibatch)
 
@@ -150,7 +174,10 @@ def collate_text_data(
     """Perform text collation equivalent to nemo/collections/multimodal/data/audio_text_qa_dataset.py:121"""
     batch_size = len(cuts)
     pad_id = text_processor.pad_id
-    examples = [{k: torch.as_tensor(v) for k, v in text_processor._process_example(cut).items()} for cut in cuts]
+    examples = [
+        {k: torch.as_tensor(v) for k, v in text_processor._process_example(cut).items()}
+        for cut in cuts
+    ]
     fields = as_dict(examples)
 
     def get_max_len(input_list):
@@ -164,7 +191,9 @@ def collate_text_data(
         context_id_maxlen = max_seq_length
         answer_id_maxlen = max_seq_length
 
-    all_tokens = collate_vectors(fields["input_ids"], max_length=input_id_maxlen, padding_value=pad_id)
+    all_tokens = collate_vectors(
+        fields["input_ids"], max_length=input_id_maxlen, padding_value=pad_id
+    )
     full_lengths = torch.LongTensor([len(item) for item in fields["input_ids"]])
 
     assert input_id_maxlen <= max_seq_length, f"{input_id_maxlen=} <= {max_seq_length=}"
@@ -174,12 +203,22 @@ def collate_text_data(
         "tokens_length": full_lengths - 1,
         "labels": all_tokens[:, 1:],
         "loss_mask": collate_vectors(
-            [torch.as_tensor(build_loss_mask(item)) for item in examples], max_length=input_id_maxlen, padding_value=0
+            [torch.as_tensor(build_loss_mask(item)) for item in examples],
+            max_length=input_id_maxlen,
+            padding_value=0,
         )[:, 1:],
-        "position_ids": torch.arange(input_id_maxlen, dtype=torch.long).repeat(batch_size, 1),
-        "contexts": collate_vectors(fields["context_ids"], max_length=context_id_maxlen, padding_value=pad_id),
-        "context_lengths": torch.LongTensor([len(seq) for seq in fields["context_ids"]]),
-        "answers": collate_vectors(fields["answer_ids"], max_length=answer_id_maxlen, padding_value=pad_id),
+        "position_ids": torch.arange(input_id_maxlen, dtype=torch.long).repeat(
+            batch_size, 1
+        ),
+        "contexts": collate_vectors(
+            fields["context_ids"], max_length=context_id_maxlen, padding_value=pad_id
+        ),
+        "context_lengths": torch.LongTensor(
+            [len(seq) for seq in fields["context_ids"]]
+        ),
+        "answers": collate_vectors(
+            fields["answer_ids"], max_length=answer_id_maxlen, padding_value=pad_id
+        ),
         "max_length": torch.LongTensor([input_id_maxlen] * batch_size),
     }
 

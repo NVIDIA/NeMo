@@ -27,7 +27,7 @@ from nemo.collections.nlp.data.language_modeling.megatron.t5_dataset import \
 
 
 class UL2Dataset(T5Dataset):
-    """ UL2 Dataset from https://arxiv.org/abs/2205.05131.
+    """UL2 Dataset from https://arxiv.org/abs/2205.05131.
     Consists of three different objectives:
 
     1. Short span masking with small probabilities (ex: T5). Typically max ngram size of 5 with 0.15 mask prob.
@@ -75,14 +75,16 @@ class UL2Dataset(T5Dataset):
             data_prefix=data_prefix,
             num_epochs=num_epochs,
             max_num_samples=max_num_samples,
-            max_seq_length=max_seq_length - 1,  # -1 to account for the added mask type token
+            max_seq_length=max_seq_length
+            - 1,  # -1 to account for the added mask type token
             max_seq_length_dec=max_seq_length_dec,
             seed=seed,
             masked_lm_prob=masked_lm_prob,
             short_seq_prob=short_seq_prob,
             max_ngram_size=max_ngram_size,
             mean_ngram_size=None,  # TODO: Determin if we want to actually pass mean ngram as an override to max here.
-            geometric_dist=ngram_span_length_distribution == LengthDistribution.geometric,
+            geometric_dist=ngram_span_length_distribution
+            == LengthDistribution.geometric,
             permutation=permutation,
             whole_word_masking=whole_word_masking,
             favor_long_ngrams=favor_long_ngrams,
@@ -96,7 +98,9 @@ class UL2Dataset(T5Dataset):
         self.extreme_max_ngram_size = extreme_max_ngram_size
         self.extreme_mean_ngram_size = extreme_mean_ngram_size
         self.ngram_span_length_distribution = ngram_span_length_distribution
-        self.extreme_ngram_span_length_distribution = extreme_ngram_span_length_distribution
+        self.extreme_ngram_span_length_distribution = (
+            extreme_ngram_span_length_distribution
+        )
         self.prefix_lm_pivot_mean = prefix_lm_pivot_mean
 
     @classmethod
@@ -147,7 +151,7 @@ class UL2Dataset(T5Dataset):
             pad_id=tokenizer.pad_id,
             skip_masking_id=skip_masking_id,
         )
-        sample = UL2Dataset._prepend_mask_type_token(tokenizer, sample, '<extra_id_r>')
+        sample = UL2Dataset._prepend_mask_type_token(tokenizer, sample, "<extra_id_r>")
         return sample
 
     @classmethod
@@ -173,7 +177,7 @@ class UL2Dataset(T5Dataset):
             pivot_distribution=pivot_distribution,
             add_eos=add_eos,
         )
-        sample = UL2Dataset._prepend_mask_type_token(tokenizer, sample, '<extra_id_s>')
+        sample = UL2Dataset._prepend_mask_type_token(tokenizer, sample, "<extra_id_s>")
         return sample
 
     @classmethod
@@ -219,7 +223,7 @@ class UL2Dataset(T5Dataset):
             pad_id=tokenizer.pad_id,
             skip_masking_id=skip_masking_id,
         )
-        sample = UL2Dataset._prepend_mask_type_token(tokenizer, sample, '<extra_id_x>')
+        sample = UL2Dataset._prepend_mask_type_token(tokenizer, sample, "<extra_id_x>")
         return sample
 
     def __getitem__(self, idx):
@@ -227,7 +231,9 @@ class UL2Dataset(T5Dataset):
         # Note that this rng state should be numpy and not python since
         # python randint is inclusive whereas the numpy one is exclusive.
         np_rng = np.random.RandomState(seed=(self.seed + idx))
-        masking_type = np_rng.randint(0, 3)  # 0: short span masking, 1: extreme masking, 2: prefix-LM
+        masking_type = np_rng.randint(
+            0, 3
+        )  # 0: short span masking, 1: extreme masking, 2: prefix-LM
         if masking_type == 0:
             # Call T5's build training sample for regular short span masking.
             return UL2Dataset.get_r_masking_training_sample(
@@ -286,10 +292,10 @@ class UL2Dataset(T5Dataset):
         token_id = tokenizer.text_to_ids(token)
         assert len(token_id) == 1, token
         token_id = token_id[0]
-        text_enc = np.concatenate([[token_id], sample['text_enc']])
-        sample['text_enc'] = text_enc
-        if 'enc_mask' in sample:
-            sample['enc_mask'] = np.concatenate([[1], sample['enc_mask']])
+        text_enc = np.concatenate([[token_id], sample["text_enc"]])
+        sample["text_enc"] = text_enc
+        if "enc_mask" in sample:
+            sample["enc_mask"] = np.concatenate([[1], sample["enc_mask"]])
         return sample
 
     @classmethod
@@ -407,26 +413,28 @@ class UL2Dataset(T5Dataset):
             (output_tokens, masked_positions, masked_labels, masked_spans) = lm_pred
 
         # Padding.
-        tokens_enc, tokens_dec_in, labels, enc_mask, dec_mask, loss_mask = T5Dataset.pad_and_convert_to_numpy(
-            output_tokens=output_tokens,
-            masked_positions=masked_positions,
-            masked_labels=masked_labels,
-            masked_spans=masked_spans,
-            sentinel_tokens=sentinel_tokens,
-            bos_id=bos_id,
-            eos_id=eos_id,
-            pad_id=pad_id,
-            max_seq_length=max_seq_length,
-            max_seq_length_dec=max_seq_length_dec,
+        tokens_enc, tokens_dec_in, labels, enc_mask, dec_mask, loss_mask = (
+            T5Dataset.pad_and_convert_to_numpy(
+                output_tokens=output_tokens,
+                masked_positions=masked_positions,
+                masked_labels=masked_labels,
+                masked_spans=masked_spans,
+                sentinel_tokens=sentinel_tokens,
+                bos_id=bos_id,
+                eos_id=eos_id,
+                pad_id=pad_id,
+                max_seq_length=max_seq_length,
+                max_seq_length_dec=max_seq_length_dec,
+            )
         )
 
         train_sample = {
-            'text_enc': tokens_enc,
-            'text_dec': tokens_dec_in,
-            'labels': labels,
-            'loss_mask': loss_mask,
-            'enc_mask': enc_mask,
-            'dec_mask': dec_mask,
+            "text_enc": tokens_enc,
+            "text_dec": tokens_dec_in,
+            "labels": labels,
+            "loss_mask": loss_mask,
+            "enc_mask": enc_mask,
+            "dec_mask": dec_mask,
         }
 
         return train_sample

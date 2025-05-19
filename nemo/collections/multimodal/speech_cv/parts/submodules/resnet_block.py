@@ -21,13 +21,20 @@ from nemo.collections.multimodal.speech_cv.parts.submodules.conv2d import \
 
 
 class ResNetBlock(nn.Module):
-
-    """ ResNet Residual Block used by ResNet18 and ResNet34 networks.
+    """ResNet Residual Block used by ResNet18 and ResNet34 networks.
     References: "Deep Residual Learning for Image Recognition", He et al.
     https://arxiv.org/abs/1512.03385
     """
 
-    def __init__(self, in_features, out_features, kernel_size, stride, weight_init="he_normal", bias_init="zeros"):
+    def __init__(
+        self,
+        in_features,
+        out_features,
+        kernel_size,
+        stride,
+        weight_init="he_normal",
+        bias_init="zeros",
+    ):
         super(ResNetBlock, self).__init__()
 
         # Convert to pair

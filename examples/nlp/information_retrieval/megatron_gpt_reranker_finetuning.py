@@ -30,7 +30,9 @@ from nemo.utils.exp_manager import exp_manager
 mp.set_start_method("spawn", force=True)
 
 
-def flatten_dict(d: MutableMapping, parent_key: str = '', sep: str = '.') -> MutableMapping:
+def flatten_dict(
+    d: MutableMapping, parent_key: str = "", sep: str = "."
+) -> MutableMapping:
     items = []
     for k, v in d.items():
         new_key = parent_key + sep + k if parent_key else k
@@ -44,35 +46,45 @@ def flatten_dict(d: MutableMapping, parent_key: str = '', sep: str = '.') -> Mut
 @hydra_runner(config_path="conf", config_name="megatron_gpt_reranker_tuning_config")
 def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
-    logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
+    logging.info(f"\n{OmegaConf.to_yaml(cfg)}")
 
     trainer = MegatronLMPPTrainerBuilder(cfg).create_trainer()
     exp_manager(trainer, cfg.exp_manager)
 
-    model_cfg = MegatronGPTRerankerModel.merge_cfg_with(cfg.model.restore_from_path, cfg)
+    model_cfg = MegatronGPTRerankerModel.merge_cfg_with(
+        cfg.model.restore_from_path, cfg
+    )
     if trainer.global_rank == 0:
         for logger in trainer.loggers:
             if isinstance(logger, WandbLogger):
                 fd = flatten_dict(dict(model_cfg), sep="/")
                 logger.experiment.config.update(fd)
-    model = MegatronGPTRerankerModel.restore_from(cfg.model.restore_from_path, model_cfg, trainer=trainer)
-    peft_cfg_cls_lst = [PEFT_CONFIG_MAP[s] for s in cfg.model.peft.peft_scheme.split(",")]
+    model = MegatronGPTRerankerModel.restore_from(
+        cfg.model.restore_from_path, model_cfg, trainer=trainer
+    )
+    peft_cfg_cls_lst = [
+        PEFT_CONFIG_MAP[s] for s in cfg.model.peft.peft_scheme.split(",")
+    ]
     peft_cfg_cls = [_peft_cfg(model_cfg) for _peft_cfg in peft_cfg_cls_lst]
 
     if cfg.model.peft.restore_from_path is not None:
         # initialize peft weights from a checkpoint instead of randomly
         # This is not the same as resume training because optimizer states are not restored.
-        logging.info("PEFT Weights will be loaded from", cfg.model.peft.restore_from_path)
+        logging.info(
+            "PEFT Weights will be loaded from", cfg.model.peft.restore_from_path
+        )
         model.load_adapters(cfg.model.peft.restore_from_path, peft_cfg_cls)
     elif peft_cfg_cls is not None:
         logging.info("Adding adapter weights to the model for PEFT")
         # model.add_adapter(peft_cfg_cls(model_cfg))
         model.add_adapter(peft_cfg_cls)
     else:
-        logging.info(f"Running full finetuning since no peft scheme is given.\n{model.summarize()}")
+        logging.info(
+            f"Running full finetuning since no peft scheme is given.\n{model.summarize()}"
+        )
 
     trainer.fit(model)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

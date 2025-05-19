@@ -53,19 +53,21 @@ def main():
     parser.add_argument("--train-file", type=str, default="train-v1.1.json")
     parser.add_argument("--dev-file", type=str, default="dev-v1.1.json")
     parser.add_argument("--save-name-base", type=str, default="squad")
-    parser.add_argument("--include-topic-name", action='store_true')
+    parser.add_argument("--include-topic-name", action="store_true")
     parser.add_argument("--random-seed", type=int, default=1234)
-    parser.add_argument("--sft-format", action='store_true')
+    parser.add_argument("--sft-format", action="store_true")
     args = parser.parse_args()
 
     train_data_dict = json.load(open(f"{args.data_dir}/{args.train_file}"))
     dev_data_dict = json.load(open(f"{args.data_dir}/{args.dev_file}"))
-    train_data = train_data_dict['data']
-    val_data = dev_data_dict['data']
+    train_data = train_data_dict["data"]
+    val_data = dev_data_dict["data"]
 
     save_name_base = f"{args.data_dir}/{args.save_name_base}"
 
-    process_data(train_data, val_data, save_name_base, args.include_topic_name, args.sft_format)
+    process_data(
+        train_data, val_data, save_name_base, args.include_topic_name, args.sft_format
+    )
 
 
 def process_data(train_data, val_data, save_name_base, include_topic, sft_format):
@@ -73,10 +75,10 @@ def process_data(train_data, val_data, save_name_base, include_topic, sft_format
     val_set = extract_questions(val_data, include_topic, sft_format, split="val")
     test_set = extract_questions(val_data, include_topic, sft_format, split="test")
 
-    gen_file(train_set, save_name_base, 'train', sft_format)
-    gen_file(val_set, save_name_base, 'val', sft_format)
-    gen_file(test_set, save_name_base, 'test', sft_format, make_ground_truth=True)
-    gen_file(test_set, save_name_base, 'test', sft_format, make_ground_truth=False)
+    gen_file(train_set, save_name_base, "train", sft_format)
+    gen_file(val_set, save_name_base, "val", sft_format)
+    gen_file(test_set, save_name_base, "test", sft_format, make_ground_truth=True)
+    gen_file(test_set, save_name_base, "test", sft_format, make_ground_truth=False)
 
 
 def extract_questions(data, include_topic, sft_format, split):
@@ -85,26 +87,28 @@ def extract_questions(data, include_topic, sft_format, split):
     # Iterate over topics, want to keep them seprate in train/val/test splits
     for question_group in data:
         processed_topic_data = []
-        topic = question_group['title']
-        questions = question_group['paragraphs']
+        topic = question_group["title"]
+        questions = question_group["paragraphs"]
 
         # Iterate over paragraphs related to topics
         for qa_group in questions:
-            context = qa_group['context']
-            qas = qa_group['qas']
+            context = qa_group["context"]
+            qas = qa_group["qas"]
 
             # Iterate over questions about paragraph
             for qa in qas:
-                question = qa['question']
+                question = qa["question"]
 
                 try:
                     # Dev set has multiple right answers. Want all possible answers in test split ground truth
                     if split == "test":
-                        answers = [qa['answers'][i]['text'] for i in range(len(qa['answers']))]
+                        answers = [
+                            qa["answers"][i]["text"] for i in range(len(qa["answers"]))
+                        ]
 
                     # Choose one anser from dev set if making validation split, train set only has one answer
                     else:
-                        answers = qa['answers'][0]["text"]
+                        answers = qa["answers"][0]["text"]
 
                 except IndexError:
                     continue
@@ -115,7 +119,12 @@ def extract_questions(data, include_topic, sft_format, split):
                         "output": answers,
                     }
                 else:
-                    example_json = {"taskname": "squad", "context": context, "question": question, "answer": answers}
+                    example_json = {
+                        "taskname": "squad",
+                        "context": context,
+                        "question": question,
+                        "answer": answers,
+                    }
 
                 if include_topic:
                     example_json["topic"] = topic
@@ -134,7 +143,7 @@ def gen_file(data, save_name_base, split_type, sft_format, make_ground_truth=Fal
 
     print(f"Saving {split_type} split to {save_path}")
 
-    with open(save_path, 'w') as save_file:
+    with open(save_path, "w") as save_file:
         for example_json in tqdm(data):
 
             # Dont want labels in the test set
@@ -144,7 +153,7 @@ def gen_file(data, save_name_base, split_type, sft_format, make_ground_truth=Fal
                 else:
                     del example_json["answer"]
 
-            save_file.write(json.dumps(example_json) + '\n')
+            save_file.write(json.dumps(example_json) + "\n")
 
 
 if __name__ == "__main__":

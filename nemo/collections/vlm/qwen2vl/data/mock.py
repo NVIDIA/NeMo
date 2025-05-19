@@ -59,7 +59,9 @@ class Qwen2VLMockDataModule(pl.LightningDataModule):
         self.pin_memory = pin_memory
         self.persistent_workers = persistent_workers
 
-        assert tokenizer is not None and image_processor is not None, 'please assign tokenizer and image_processor'
+        assert (
+            tokenizer is not None and image_processor is not None
+        ), "please assign tokenizer and image_processor"
         self.tokenizer = tokenizer
         self.image_processor = image_processor
         self.data_sampler = MegatronDataSampler(
@@ -72,13 +74,25 @@ class Qwen2VLMockDataModule(pl.LightningDataModule):
     def setup(self, stage: str = "") -> None:
         # pylint: disable=C0115,C0116
         self._train_ds = _Qwen2VLMockDataset(
-            self.tokenizer, self.image_processor, "train", self.num_train_samples, self.seq_length
+            self.tokenizer,
+            self.image_processor,
+            "train",
+            self.num_train_samples,
+            self.seq_length,
         )
         self._validation_ds = _Qwen2VLMockDataset(
-            self.tokenizer, self.image_processor, "valid", self.num_val_samples, self.seq_length
+            self.tokenizer,
+            self.image_processor,
+            "valid",
+            self.num_val_samples,
+            self.seq_length,
         )
         self._test_ds = _Qwen2VLMockDataset(
-            self.tokenizer, self.image_processor, "test", self.num_test_samples, self.seq_length
+            self.tokenizer,
+            self.image_processor,
+            "test",
+            self.num_test_samples,
+            self.seq_length,
         )
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
@@ -113,7 +127,9 @@ class Qwen2VLMockDataModule(pl.LightningDataModule):
 
 def prepare_image_inputs(num_channels: np.uint8 = 3, width=1024, height=1024):
     """This function prepares a list of PIL images"""
-    image_inputs = [np.random.randint(255, size=(num_channels, width, height), dtype=np.uint8)]
+    image_inputs = [
+        np.random.randint(255, size=(num_channels, width, height), dtype=np.uint8)
+    ]
     image_inputs = [Image.fromarray(np.moveaxis(x, 0, -1)) for x in image_inputs]
     return image_inputs
 
@@ -159,7 +175,9 @@ class _Qwen2VLMockDataset(Dataset):
         prcocess_out = self.image_processor(image_inputs, return_tensors="pt")
         pixel_values = prcocess_out.pixel_values
         image_grid_thw = prcocess_out.image_grid_thw[0]
-        image_token_amount = image_grid_thw.prod() // (self.spatial_merge_size**2)  # t*h*w
+        image_token_amount = image_grid_thw.prod() // (
+            self.spatial_merge_size**2
+        )  # t*h*w
 
         # reseve at least 200 position for text
         if self.seq_length - image_token_amount < 200:
@@ -167,11 +185,15 @@ class _Qwen2VLMockDataset(Dataset):
 
         # 2) prepare input token ids
         np_gen = np.random.default_rng(seed=(self.seed + idx))
-        tokens = torch.from_numpy(np_gen.integers(self.vocab_size, size=[self.seq_length + 1], dtype=np.int64))
+        tokens = torch.from_numpy(
+            np_gen.integers(self.vocab_size, size=[self.seq_length + 1], dtype=np.int64)
+        )
 
         # 3) fill IMAGE_TOKEN_INDEX to input token ids
         img_start_idx = 20  # pick a rnd value, where img token begins
-        tokens[img_start_idx : img_start_idx + image_token_amount] = IMAGE_TOKEN_INDEX  # ImageToken token index
+        tokens[img_start_idx : img_start_idx + image_token_amount] = (
+            IMAGE_TOKEN_INDEX  # ImageToken token index
+        )
         input_ids = tokens[:-1]
 
         # 4) prepare labels

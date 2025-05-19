@@ -53,19 +53,19 @@ def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        '--name_prefix',
-        help='Name of the final checkpoint. Will append -averaged automatically.',
+        "--name_prefix",
+        help="Name of the final checkpoint. Will append -averaged automatically.",
     )
     parser.add_argument(
-        '--checkpoint_dir',
-        help='Folder containing all the distributed checkpoints.',
+        "--checkpoint_dir",
+        help="Folder containing all the distributed checkpoints.",
     )
     # list of checkpoint steps to average
     parser.add_argument(
-        '--steps',
-        nargs='+',
+        "--steps",
+        nargs="+",
         type=int,
-        help='List of checkpoint steps to average. If not specified, will average all.',
+        help="List of checkpoint steps to average. If not specified, will average all.",
     )
 
     args = parser.parse_args()
@@ -78,7 +78,7 @@ def main():
     checkpoint_paths = []
     for ckpt_dir in os.listdir(args.checkpoint_dir):
         logging.info("Processing %s", ckpt_dir)
-        if ckpt_dir.endswith('0-last'):
+        if ckpt_dir.endswith("0-last"):
             continue
         if args.steps is None:
             checkpoint_paths.append(ckpt_dir)
@@ -93,7 +93,9 @@ def main():
     avg_weights = {}
     chunk_info = {}
 
-    logging.info(f"Averaging {n} checkpoints ... {'at steps:' + str(args.steps) if args.steps is not None else ''}")
+    logging.info(
+        f"Averaging {n} checkpoints ... {'at steps:' + str(args.steps) if args.steps is not None else ''}"
+    )
 
     # item that needs to be copied to the new checkpoint folder
     copy_items = []
@@ -109,30 +111,32 @@ def main():
                 continue
 
             # transformer engine states, leave them out
-            if item.endswith('._extra_state'):
+            if item.endswith("._extra_state"):
                 if ix == 0:
                     copy_items.append(os.path.join(full_path, item))
                 continue
 
             # optimizer states, no point of averaing them
-            if item.startswith('optimizer.'):
+            if item.startswith("optimizer."):
                 if ix == 0:
                     copy_items.append(os.path.join(full_path, item))
                 continue
 
             if item not in avg_weights:
                 logging.info(f"Initialized average weights dict with: {item}")
-                array = zarr.open(os.path.join(full_path, item), mode='r')
+                array = zarr.open(os.path.join(full_path, item), mode="r")
                 avg_weights[item] = array[:]
                 chunk_info[item] = array.chunks
             else:
                 logging.info(f"Updated average weights dict with weight: {item}")
-                array_z = zarr.open(os.path.join(full_path, item), mode='r')
+                array_z = zarr.open(os.path.join(full_path, item), mode="r")
                 sum_array = avg_weights[item] + array_z[:]
                 avg_weights[item] = sum_array
 
     for k in avg_weights:
-        logging.info(f"Average weights dict key : {k}, dtype : {avg_weights[k].dtype}, shape : {avg_weights[k].shape}")
+        logging.info(
+            f"Average weights dict key : {k}, dtype : {avg_weights[k].dtype}, shape : {avg_weights[k].shape}"
+        )
         if str(avg_weights[k].dtype).startswith("int"):
             raise ValueError("Int type not supported")
         else:
@@ -141,10 +145,12 @@ def main():
 
     # Save model
     if args.steps is None:
-        ckpt_name = os.path.join(args.checkpoint_dir, args.name_prefix + '-averaged')
+        ckpt_name = os.path.join(args.checkpoint_dir, args.name_prefix + "-averaged")
     else:
-        steps_combined = '_'.join([str(x) for x in args.steps])
-        ckpt_name = os.path.join(args.checkpoint_dir, args.name_prefix + '-' + steps_combined + '-averaged')
+        steps_combined = "_".join([str(x) for x in args.steps])
+        ckpt_name = os.path.join(
+            args.checkpoint_dir, args.name_prefix + "-" + steps_combined + "-averaged"
+        )
 
     # save avg_weights
     for k in avg_weights:
@@ -161,26 +167,32 @@ def main():
             fill_value=None,
             write_empty_chunks=True,
         )
-        if input_arr.dtype == np.dtype('bfloat16'):
+        if input_arr.dtype == np.dtype("bfloat16"):
             arr = output_array
             arr._dtype = input_arr.dtype
-            zarray = arr.store['.zarray']
-            arr.store['.zarray'] = zarray.replace(b'<V2', b'bfloat16')
+            zarray = arr.store[".zarray"]
+            arr.store[".zarray"] = zarray.replace(b"<V2", b"bfloat16")
         output_array[:] = input_arr
 
     # copy other files
     for item in copy_items:
         is_file = os.path.isfile(item)
-        logging.info(f"Copying {'directory' if is_file else 'file'} {item} to {ckpt_name}")
+        logging.info(
+            f"Copying {'directory' if is_file else 'file'} {item} to {ckpt_name}"
+        )
         if os.path.isfile(item):
             # copy single file
             shutil.copy(item, ckpt_name)
         else:
             # copy directory
-            shutil.copytree(item, os.path.join(ckpt_name, os.path.basename(item)), dirs_exist_ok=True)
+            shutil.copytree(
+                item,
+                os.path.join(ckpt_name, os.path.basename(item)),
+                dirs_exist_ok=True,
+            )
 
     logging.info(f"Averaged distributed checkpoint saved as : {ckpt_name}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

@@ -28,12 +28,20 @@ from nemo.collections.nlp.data.text_normalization_as_tagging.utils import \
 
 parser = ArgumentParser(description="Text Normalization Data Preprocessing for English")
 parser.add_argument(
-    "--data_dir", required=True, type=str, help="Path to data directory with files like output-00000-of-00100.tsv"
+    "--data_dir",
+    required=True,
+    type=str,
+    help="Path to data directory with files like output-00000-of-00100.tsv",
 )
-parser.add_argument("--reference_vocab", required=True, type=str, help="Multi Reference vocabulary")
+parser.add_argument(
+    "--reference_vocab", required=True, type=str, help="Multi Reference vocabulary"
+)
 parser.add_argument("--output_file", required=True, type=str, help="Output file")
 parser.add_argument(
-    "--sampling_count", required=True, type=int, help="Number of examples per class, you want, use -1 for all examples"
+    "--sampling_count",
+    required=True,
+    type=int,
+    help="Number of examples per class, you want, use -1 for all examples",
 )
 args = parser.parse_args()
 
@@ -55,7 +63,12 @@ def process_file(
             if line.startswith("<eos>"):
                 if len(words) > 0 and sent_ok:
                     out.write(
-                        " ".join(words) + "\t" + " ".join(reference_words) + "\t" + ";".join(semiotic_info) + "\n"
+                        " ".join(words)
+                        + "\t"
+                        + " ".join(reference_words)
+                        + "\t"
+                        + ";".join(semiotic_info)
+                        + "\n"
                     )
                     out_raw.write("\n".join(raw_lines) + "\n" + line)
                 words = []
@@ -75,7 +88,11 @@ def process_file(
                     words.append(written)
                     reference_words.append(written)
                     # if reference is <self>, but the word has itn conversions in our dictionary, add them
-                    for cls in ["CARDINAL", "ORDINAL", "DATE"]:  # date, ex sixties -> 60s
+                    for cls in [
+                        "CARDINAL",
+                        "ORDINAL",
+                        "DATE",
+                    ]:  # date, ex sixties -> 60s
                         k = (cls, written)
                         if k in reference_vcb:
                             for tr_variant in reference_vcb[k]:
@@ -142,7 +159,9 @@ def main() -> None:
     sampling_vcb = Counter()
     out = open(args.output_file, "w", encoding="utf-8")
     out_raw = open(args.output_file + ".raw", "w", encoding="utf-8")
-    input_paths = sorted([os.path.join(args.data_dir, f) for f in os.listdir(args.data_dir)])
+    input_paths = sorted(
+        [os.path.join(args.data_dir, f) for f in os.listdir(args.data_dir)]
+    )
     for inputname in input_paths:
         process_file(inputname, out, out_raw, reference_vcb, sampling_vcb)
     out.close()

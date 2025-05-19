@@ -62,19 +62,32 @@ from nemo.utils import logging
 
 def get_args():
     parser = argparse.ArgumentParser(
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter, description="Compute speaker level pitch statistics.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+        description="Compute speaker level pitch statistics.",
     )
     parser.add_argument(
-        "--input_manifest", required=True, type=Path, help="Path to input training manifest.",
+        "--input_manifest",
+        required=True,
+        type=Path,
+        help="Path to input training manifest.",
     )
     parser.add_argument(
-        "--input_audio_dir", required=True, type=Path, help="Path to base directory with audio files.",
+        "--input_audio_dir",
+        required=True,
+        type=Path,
+        help="Path to base directory with audio files.",
     )
     parser.add_argument(
-        "--output_manifest", required=True, type=Path, help="Path to output training manifest with processed audio.",
+        "--output_manifest",
+        required=True,
+        type=Path,
+        help="Path to output training manifest with processed audio.",
     )
     parser.add_argument(
-        "--output_audio_dir", required=True, type=Path, help="Path to output directory for audio files.",
+        "--output_audio_dir",
+        required=True,
+        type=Path,
+        help="Path to output directory for audio files.",
     )
     parser.add_argument(
         "--overwrite_audio",
@@ -87,7 +100,10 @@ def get_args():
         help="Whether to overwrite the output manifest file if it exists.",
     )
     parser.add_argument(
-        "--num_workers", default=1, type=int, help="Number of parallel threads to use. If -1 all CPUs are used."
+        "--num_workers",
+        default=1,
+        type=int,
+        help="Number of parallel threads to use. If -1 all CPUs are used.",
     )
     parser.add_argument(
         "--trim_config_path",
@@ -96,10 +112,16 @@ def get_args():
         help="Path to config file for nemo.collections.tts.data.audio_trimming.AudioTrimmer",
     )
     parser.add_argument(
-        "--max_entries", default=0, type=int, help="If provided, maximum number of entries in the manifest to process."
+        "--max_entries",
+        default=0,
+        type=int,
+        help="If provided, maximum number of entries in the manifest to process.",
     )
     parser.add_argument(
-        "--output_sample_rate", default=0, type=int, help="If provided, rate to resample the audio to."
+        "--output_sample_rate",
+        default=0,
+        type=int,
+        help="If provided, rate to resample the audio to.",
     )
     parser.add_argument(
         "--output_format",
@@ -108,19 +130,29 @@ def get_args():
         help="If provided, format output audio will be saved as. If not provided, will keep original format.",
     )
     parser.add_argument(
-        "--volume_level", default=0.0, type=float, help="If provided, peak volume to normalize audio to."
+        "--volume_level",
+        default=0.0,
+        type=float,
+        help="If provided, peak volume to normalize audio to.",
     )
     parser.add_argument(
-        "--min_duration", default=0.0, type=float, help="If provided, filter out utterances shorter than min_duration."
+        "--min_duration",
+        default=0.0,
+        type=float,
+        help="If provided, filter out utterances shorter than min_duration.",
     )
     parser.add_argument(
-        "--max_duration", default=0.0, type=float, help="If provided, filter out utterances longer than max_duration."
+        "--max_duration",
+        default=0.0,
+        type=float,
+        help="If provided, filter out utterances longer than max_duration.",
     )
     parser.add_argument(
         "--filter_file",
         required=False,
         type=Path,
-        help="If provided, output filter_file will contain list of " "utterances filtered out.",
+        help="If provided, output filter_file will contain list of "
+        "utterances filtered out.",
     )
     args = parser.parse_args()
     return args
@@ -138,7 +170,9 @@ def _process_entry(
 ) -> Tuple[dict, float, float]:
     audio_filepath = Path(entry["audio_filepath"])
 
-    audio_path, audio_path_rel = get_abs_rel_paths(input_path=audio_filepath, base_path=input_audio_dir)
+    audio_path, audio_path_rel = get_abs_rel_paths(
+        input_path=audio_filepath, base_path=input_audio_dir
+    )
 
     if not output_format:
         output_format = audio_path.suffix
@@ -159,7 +193,9 @@ def _process_entry(
             )
 
         if output_sample_rate:
-            audio = librosa.resample(y=audio, orig_sr=sample_rate, target_sr=output_sample_rate)
+            audio = librosa.resample(
+                y=audio, orig_sr=sample_rate, target_sr=output_sample_rate
+            )
             sample_rate = output_sample_rate
 
         if volume_level:
@@ -224,7 +260,7 @@ def main():
         entries = entries[:max_entries]
 
     # 'threading' backend is required when parallelizing torch models.
-    job_outputs = Parallel(n_jobs=num_workers, backend='threading')(
+    job_outputs = Parallel(n_jobs=num_workers, backend="threading")(
         delayed(_process_entry)(
             entry=entry,
             input_audio_dir=input_audio_dir,
@@ -258,9 +294,17 @@ def main():
         output_durations += output_duration
         output_entries.append(output_entry)
 
-    write_manifest(output_path=output_manifest_path, target_manifest=output_entries, ensure_ascii=False)
+    write_manifest(
+        output_path=output_manifest_path,
+        target_manifest=output_entries,
+        ensure_ascii=False,
+    )
     if filter_file:
-        write_manifest(output_path=str(filter_file), target_manifest=filtered_entries, ensure_ascii=False)
+        write_manifest(
+            output_path=str(filter_file),
+            target_manifest=filtered_entries,
+            ensure_ascii=False,
+        )
 
     logging.info(f"Duration of original audio: {original_durations / 3600:.2f} hours")
     logging.info(f"Duration of processed audio: {output_durations / 3600:.2f} hours")

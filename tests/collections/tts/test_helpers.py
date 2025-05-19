@@ -23,7 +23,9 @@ from nemo.collections.tts.parts.utils.helpers import (regulate_len,
 def sample_duration_input(max_length=64, group_size=2, batch_size=3):
     generator = torch.Generator()
     generator.manual_seed(0)
-    lengths = torch.randint(max_length // 4, max_length - 7, (batch_size,), generator=generator)
+    lengths = torch.randint(
+        max_length // 4, max_length - 7, (batch_size,), generator=generator
+    )
     durs = torch.ones(batch_size, max_length) * group_size
     durs[0, lengths[0]] += 1
     durs[2, lengths[2]] -= 1
@@ -46,7 +48,9 @@ def test_sort_unsort():
 def test_regulate_len():
     group_size = 2
     durs_in, enc_in, dur_lens = sample_duration_input(group_size=group_size)
-    enc_out, lens_out = regulate_len(durs_in, enc_in, group_size=group_size, dur_lens=dur_lens)
+    enc_out, lens_out = regulate_len(
+        durs_in, enc_in, group_size=group_size, dur_lens=dur_lens
+    )
     # make sure lens_out are rounded
     sum_diff = lens_out - torch.mul(lens_out // group_size, group_size)
     assert sum_diff.sum(dim=0) == 0

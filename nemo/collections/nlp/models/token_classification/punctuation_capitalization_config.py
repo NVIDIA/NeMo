@@ -128,7 +128,7 @@ class HeadConfig:
     fc_dropout: float = 0.1
     """A dropout used in an MLP."""
 
-    activation: str = 'relu'
+    activation: str = "relu"
     """An activation used in hidden layers."""
 
     use_transformer_init: bool = True
@@ -243,7 +243,9 @@ class PunctuationCapitalizationModelConfig:
     tokenizer: Any = field(default_factory=lambda: TokenizerConfig())
     """A configuration for source text tokenizer."""
 
-    language_model: LanguageModelConfig = field(default_factory=lambda: LanguageModelConfig())
+    language_model: LanguageModelConfig = field(
+        default_factory=lambda: LanguageModelConfig()
+    )
     """A configuration of a BERT-like language model which serves as a model body."""
 
     optim: Optional[Any] = None
@@ -254,7 +256,9 @@ class PunctuationCapitalizationModelConfig:
 
 
 @dataclass
-class PunctuationCapitalizationLexicalAudioModelConfig(PunctuationCapitalizationModelConfig):
+class PunctuationCapitalizationLexicalAudioModelConfig(
+    PunctuationCapitalizationModelConfig
+):
     """
     A configuration of
     :class:`~nemo.collections.nlp.models.token_classification.punctuation_lexical_audio_capitalization_model.PunctuationCapitalizationLexicalAudioModel`
@@ -303,7 +307,7 @@ class PunctuationCapitalizationConfig(NemoConfig):
     :func:`~nemo.collections.nlp.models.token_classification.punctuation_capitalization_model.PunctuationCapitalizationModel.list_available_models`.
     """
 
-    name: Optional[str] = 'Punctuation_and_Capitalization'
+    name: Optional[str] = "Punctuation_and_Capitalization"
     """A name of the model. Used for naming output directories and ``.nemo`` checkpoints."""
 
     do_training: bool = True
@@ -312,7 +316,9 @@ class PunctuationCapitalizationConfig(NemoConfig):
     do_testing: bool = False
     """Whether ot perform testing of the model."""
 
-    model: PunctuationCapitalizationModelConfig = field(default_factory=lambda: PunctuationCapitalizationModelConfig())
+    model: PunctuationCapitalizationModelConfig = field(
+        default_factory=lambda: PunctuationCapitalizationModelConfig()
+    )
     """A configuration for the
     :class:`~nemo.collections.nlp.models.token_classification.punctuation_capitalization_model.PunctuationCapitalizationModel`
     model."""
@@ -351,7 +357,7 @@ def is_legacy_model_config(model_cfg: DictConfig) -> bool:
     Returns:
         whether ``model_config`` is legacy
     """
-    return 'common_dataset_parameters' not in model_cfg
+    return "common_dataset_parameters" not in model_cfg
 
 
 def legacy_model_config_to_new_model_config(model_cfg: DictConfig) -> DictConfig:
@@ -369,42 +375,67 @@ def legacy_model_config_to_new_model_config(model_cfg: DictConfig) -> DictConfig
         model config which follows dataclass
             :class:`~nemo.collections.nlp.models.token_classification.punctuation_capitalization_config.PunctuationCapitalizationModelConfig`
     """
-    train_ds = model_cfg.get('train_ds')
-    validation_ds = model_cfg.get('validation_ds')
-    test_ds = model_cfg.get('test_ds')
+    train_ds = model_cfg.get("train_ds")
+    validation_ds = model_cfg.get("validation_ds")
+    test_ds = model_cfg.get("test_ds")
     dataset = model_cfg.dataset
-    punct_head_config = model_cfg.get('punct_head', {})
-    capit_head_config = model_cfg.get('capit_head', {})
+    punct_head_config = model_cfg.get("punct_head", {})
+    capit_head_config = model_cfg.get("capit_head", {})
     omega_conf = OmegaConf.structured(
         PunctuationCapitalizationModelConfig(
             class_labels=model_cfg.class_labels,
             common_dataset_parameters=CommonDatasetParametersConfig(
                 pad_label=dataset.pad_label,
                 ignore_extra_tokens=dataset.get(
-                    'ignore_extra_tokens', CommonDatasetParametersConfig.ignore_extra_tokens
+                    "ignore_extra_tokens",
+                    CommonDatasetParametersConfig.ignore_extra_tokens,
                 ),
-                ignore_start_end=dataset.get('ignore_start_end', CommonDatasetParametersConfig.ignore_start_end),
+                ignore_start_end=dataset.get(
+                    "ignore_start_end", CommonDatasetParametersConfig.ignore_start_end
+                ),
                 punct_label_ids=model_cfg.punct_label_ids,
                 capit_label_ids=model_cfg.capit_label_ids,
             ),
-            train_ds=None
-            if train_ds is None
-            else legacy_data_config_to_new_data_config(train_ds, dataset, train=True),
-            validation_ds=None
-            if validation_ds is None
-            else legacy_data_config_to_new_data_config(validation_ds, dataset, train=False),
-            test_ds=None if test_ds is None else legacy_data_config_to_new_data_config(test_ds, dataset, train=False),
+            train_ds=(
+                None
+                if train_ds is None
+                else legacy_data_config_to_new_data_config(
+                    train_ds, dataset, train=True
+                )
+            ),
+            validation_ds=(
+                None
+                if validation_ds is None
+                else legacy_data_config_to_new_data_config(
+                    validation_ds, dataset, train=False
+                )
+            ),
+            test_ds=(
+                None
+                if test_ds is None
+                else legacy_data_config_to_new_data_config(
+                    test_ds, dataset, train=False
+                )
+            ),
             punct_head=HeadConfig(
-                num_fc_layers=punct_head_config.get('punct_num_fc_layers', HeadConfig.num_fc_layers),
-                fc_dropout=punct_head_config.get('fc_dropout', HeadConfig.fc_dropout),
-                activation=punct_head_config.get('activation', HeadConfig.activation),
-                use_transformer_init=punct_head_config.get('use_transformer_init', HeadConfig.use_transformer_init),
+                num_fc_layers=punct_head_config.get(
+                    "punct_num_fc_layers", HeadConfig.num_fc_layers
+                ),
+                fc_dropout=punct_head_config.get("fc_dropout", HeadConfig.fc_dropout),
+                activation=punct_head_config.get("activation", HeadConfig.activation),
+                use_transformer_init=punct_head_config.get(
+                    "use_transformer_init", HeadConfig.use_transformer_init
+                ),
             ),
             capit_head=HeadConfig(
-                num_fc_layers=capit_head_config.get('capit_num_fc_layers', HeadConfig.num_fc_layers),
-                fc_dropout=capit_head_config.get('fc_dropout', HeadConfig.fc_dropout),
-                activation=capit_head_config.get('activation', HeadConfig.activation),
-                use_transformer_init=capit_head_config.get('use_transformer_init', HeadConfig.use_transformer_init),
+                num_fc_layers=capit_head_config.get(
+                    "capit_num_fc_layers", HeadConfig.num_fc_layers
+                ),
+                fc_dropout=capit_head_config.get("fc_dropout", HeadConfig.fc_dropout),
+                activation=capit_head_config.get("activation", HeadConfig.activation),
+                use_transformer_init=capit_head_config.get(
+                    "use_transformer_init", HeadConfig.use_transformer_init
+                ),
             ),
             tokenizer=model_cfg.tokenizer,
             language_model=model_cfg.language_model,
@@ -412,7 +443,9 @@ def legacy_model_config_to_new_model_config(model_cfg: DictConfig) -> DictConfig
         )
     )
     with open_dict(omega_conf):
-        retain_during_legacy_conversion = model_cfg.get('retain_during_legacy_conversion', {})
+        retain_during_legacy_conversion = model_cfg.get(
+            "retain_during_legacy_conversion", {}
+        )
         for key in retain_during_legacy_conversion.keys():
             omega_conf[key] = retain_during_legacy_conversion[key]
     return omega_conf

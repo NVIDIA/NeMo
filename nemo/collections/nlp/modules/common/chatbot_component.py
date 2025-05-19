@@ -38,9 +38,7 @@ except (ImportError, ModuleNotFoundError):
 
 class _Keywords(Enum):
     NO_VALUE = "NO_VALUE"  # Used as a sentinel to determine if nothing is provided as a argument for `value` in `Component.update()`
-    FINISHED_ITERATING = (
-        "FINISHED_ITERATING"  # Used to skip processing of a component's value (needed for generators + state)
-    )
+    FINISHED_ITERATING = "FINISHED_ITERATING"  # Used to skip processing of a component's value (needed for generators + state)
 
 
 @document("style")
@@ -77,7 +75,9 @@ class Chatbot(Changeable, Selectable, IOComponent, JSONSerializable):
             elem_classes: An optional list of strings that are assigned as the classes of this component in the HTML DOM. Can be used for targeting CSS styles.
         """
         if color_map is not None:
-            warnings.warn("The 'color_map' parameter has been deprecated.",)
+            warnings.warn(
+                "The 'color_map' parameter has been deprecated.",
+            )
         # self.md = utils.get_markdown_parser()
         self.md = Markdown(extras=["fenced-code-blocks", "tables", "break-on-newline"])
         self.select: EventListenerMethod
@@ -122,7 +122,9 @@ class Chatbot(Changeable, Selectable, IOComponent, JSONSerializable):
         }
         return updated_config
 
-    def _process_chat_messages(self, chat_message: str | Tuple | List | Dict | None) -> str | Dict | None:
+    def _process_chat_messages(
+        self, chat_message: str | Tuple | List | Dict | None
+    ) -> str | Dict | None:
         if chat_message is None:
             return None
         elif isinstance(chat_message, (tuple, list)):
@@ -134,7 +136,9 @@ class Chatbot(Changeable, Selectable, IOComponent, JSONSerializable):
                 "data": None,  # These last two fields are filled in by the frontend
                 "is_file": True,
             }
-        elif isinstance(chat_message, dict):  # This happens for previously processed messages
+        elif isinstance(
+            chat_message, dict
+        ):  # This happens for previously processed messages
             return chat_message
         elif isinstance(chat_message, str):
             # return self.md.render(chat_message)
@@ -143,7 +147,10 @@ class Chatbot(Changeable, Selectable, IOComponent, JSONSerializable):
             raise ValueError(f"Invalid message for Chatbot component: {chat_message}")
 
     def postprocess(
-        self, y: List[Tuple[str | Tuple | List | Dict | None, str | Tuple | List | Dict | None]],
+        self,
+        y: List[
+            Tuple[str | Tuple | List | Dict | None, str | Tuple | List | Dict | None]
+        ],
     ) -> List[Tuple[str | Dict | None, str | Dict | None]]:
         """
         Parameters:
@@ -181,6 +188,7 @@ class Chatbot(Changeable, Selectable, IOComponent, JSONSerializable):
             warnings.warn("The 'color_map' parameter has been deprecated.")
 
         Component.style(
-            self, **kwargs,
+            self,
+            **kwargs,
         )
         return self

@@ -59,7 +59,9 @@ class MultiLabelIntentSlotClassificationModel(IntentSlotClassificationModel):
         else:
             self.data_dir = cfg.data_dir
             # Update configuration of data_desc.
-            self._set_data_desc_to_cfg(cfg, cfg.data_dir, cfg.train_ds, cfg.validation_ds)
+            self._set_data_desc_to_cfg(
+                cfg, cfg.data_dir, cfg.train_ds, cfg.validation_ds
+            )
 
         # init superclass
         super().__init__(cfg=cfg, trainer=trainer)
@@ -68,7 +70,11 @@ class MultiLabelIntentSlotClassificationModel(IntentSlotClassificationModel):
         self._reconfigure_classifier()
 
     def _set_data_desc_to_cfg(
-        self, cfg: DictConfig, data_dir: str, train_ds: DictConfig, validation_ds: DictConfig
+        self,
+        cfg: DictConfig,
+        data_dir: str,
+        train_ds: DictConfig,
+        validation_ds: DictConfig,
     ) -> None:
         """
         Creates MultiLabelIntentSlotDataDesc and copies generated values to Configuration object's data descriptor.
@@ -83,7 +89,9 @@ class MultiLabelIntentSlotClassificationModel(IntentSlotClassificationModel):
             None
         """
         # Save data from data desc to config - so it can be reused later, e.g. in inference.
-        data_desc = MultiLabelIntentSlotDataDesc(data_dir=data_dir, modes=[train_ds.prefix, validation_ds.prefix])
+        data_desc = MultiLabelIntentSlotDataDesc(
+            data_dir=data_dir, modes=[train_ds.prefix, validation_ds.prefix]
+        )
         OmegaConf.set_struct(cfg, False)
         if not hasattr(cfg, "data_desc") or cfg.data_desc is None:
             cfg.data_desc = {}
@@ -132,8 +140,12 @@ class MultiLabelIntentSlotClassificationModel(IntentSlotClassificationModel):
         # define losses
         if self.cfg.class_balancing == "weighted_loss":
             # You may need to increase the number of epochs for convergence when using weighted_loss
-            self.intent_loss = BCEWithLogitsLoss(logits_ndim=2, pos_weight=self.cfg.data_desc.intent_weights)
-            self.slot_loss = CrossEntropyLoss(logits_ndim=3, weight=self.cfg.data_desc.slot_weights)
+            self.intent_loss = BCEWithLogitsLoss(
+                logits_ndim=2, pos_weight=self.cfg.data_desc.intent_weights
+            )
+            self.slot_loss = CrossEntropyLoss(
+                logits_ndim=3, weight=self.cfg.data_desc.slot_weights
+            )
         else:
             self.intent_loss = BCEWithLogitsLoss(logits_ndim=2)
             self.slot_loss = CrossEntropyLoss(logits_ndim=3)
@@ -186,7 +198,9 @@ class MultiLabelIntentSlotClassificationModel(IntentSlotClassificationModel):
 
         # calculate combined loss for intents and slots
         intent_loss = self.intent_loss(logits=intent_logits, labels=intent_labels)
-        slot_loss = self.slot_loss(logits=slot_logits, labels=slot_labels, loss_mask=loss_mask)
+        slot_loss = self.slot_loss(
+            logits=slot_logits, labels=slot_labels, loss_mask=loss_mask
+        )
         val_loss = self.total_loss(loss_1=intent_loss, loss_2=slot_loss)
 
         intent_probabilities = torch.round(torch.sigmoid(intent_logits))
@@ -257,7 +271,9 @@ class MultiLabelIntentSlotClassificationModel(IntentSlotClassificationModel):
             collate_fn=dataset.collate_fn,
         )
 
-    def prediction_probabilities(self, queries: List[str], test_ds: DictConfig) -> npt.NDArray:
+    def prediction_probabilities(
+        self, queries: List[str], test_ds: DictConfig
+    ) -> npt.NDArray:
         """
         Get prediction probabilities for the queries (intent and slots)
 
@@ -292,7 +308,9 @@ class MultiLabelIntentSlotClassificationModel(IntentSlotClassificationModel):
                 )
 
                 # predict intents for these examples
-                probabilities.append(torch.sigmoid(intent_logits).detach().cpu().numpy())
+                probabilities.append(
+                    torch.sigmoid(intent_logits).detach().cpu().numpy()
+                )
 
             probabilities = np.concatenate(probabilities)
 
@@ -329,7 +347,10 @@ class MultiLabelIntentSlotClassificationModel(IntentSlotClassificationModel):
             sentences.append(sentence)
             parts = input_line.strip().split("\t")[1:][0]
             parts = list(map(int, parts.split(",")))
-            parts = [1 if label in parts else 0 for label in range(len(self.cfg.data_desc.intent_labels))]
+            parts = [
+                1 if label in parts else 0
+                for label in range(len(self.cfg.data_desc.intent_labels))
+            ]
             metrics_labels.append(parts)
 
         # Retrieve class probabilities for each sentence
@@ -339,9 +360,9 @@ class MultiLabelIntentSlotClassificationModel(IntentSlotClassificationModel):
         # Find optimal logits rounding threshold for intents
         for i in np.arange(0.5, 0.96, 0.01):
             predictions = (intent_probabilities >= i).tolist()
-            precision = precision_score(metrics_labels, predictions, average='micro')
-            recall = recall_score(metrics_labels, predictions, average='micro')
-            f1 = f1_score(metrics_labels, predictions, average='micro')
+            precision = precision_score(metrics_labels, predictions, average="micro")
+            recall = recall_score(metrics_labels, predictions, average="micro")
+            f1 = f1_score(metrics_labels, predictions, average="micro")
             metrics_dict[i] = [precision, recall, f1]
 
         max_precision = max(metrics_dict, key=lambda x: metrics_dict[x][0])
@@ -349,19 +370,19 @@ class MultiLabelIntentSlotClassificationModel(IntentSlotClassificationModel):
         max_f1_score = max(metrics_dict, key=lambda x: metrics_dict[x][2])
 
         logging.info(
-            f'Best Threshold for F1-Score: {max_f1_score}, [Precision, Recall, F1-Score]: {metrics_dict[max_f1_score]}'
+            f"Best Threshold for F1-Score: {max_f1_score}, [Precision, Recall, F1-Score]: {metrics_dict[max_f1_score]}"
         )
         logging.info(
-            f'Best Threshold for Precision: {max_precision}, [Precision, Recall, F1-Score]: {metrics_dict[max_precision]}'
+            f"Best Threshold for Precision: {max_precision}, [Precision, Recall, F1-Score]: {metrics_dict[max_precision]}"
         )
         logging.info(
-            f'Best Threshold for Recall: {max_recall}, [Precision, Recall, F1-Score]: {metrics_dict[max_recall]}'
+            f"Best Threshold for Recall: {max_recall}, [Precision, Recall, F1-Score]: {metrics_dict[max_recall]}"
         )
 
         if metrics_dict[max_f1_score][2] > self.max_f1:
             self.max_f1 = metrics_dict[max_f1_score][2]
 
-            logging.info(f'Setting Threshold to: {max_f1_score}')
+            logging.info(f"Setting Threshold to: {max_f1_score}")
 
             self.threshold = max_f1_score
 
@@ -393,7 +414,7 @@ class MultiLabelIntentSlotClassificationModel(IntentSlotClassificationModel):
 
         if threshold is None:
             threshold = self.threshold
-        logging.info(f'Using threshold = {threshold}')
+        logging.info(f"Using threshold = {threshold}")
 
         predicted_slots = []
         predicted_vector = []
@@ -431,7 +452,9 @@ class MultiLabelIntentSlotClassificationModel(IntentSlotClassificationModel):
                     temp_list = []
                     for intent_num, probability in enumerate(intents):
                         if probability >= threshold:
-                            intent_lst.append((intent_labels[int(intent_num)], round(probability, 2)))
+                            intent_lst.append(
+                                (intent_labels[int(intent_num)], round(probability, 2))
+                            )
                             temp_list.append(1)
                         else:
                             temp_list.append(0)

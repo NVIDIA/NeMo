@@ -27,7 +27,7 @@ from nemo.utils.export_utils import (ExportFormat, augment_filename,
                                      verify_runtime, verify_torchscript,
                                      wrap_forward_method)
 
-__all__ = ['ExportFormat', 'Exportable']
+__all__ = ["ExportFormat", "Exportable"]
 
 
 class Exportable(ABC):
@@ -126,7 +126,11 @@ class Exportable(ABC):
                 input_example = out_example
             all_out.append(out)
             all_descr.append(descr)
-            logging.info("Successfully exported {} to {}".format(model.__class__.__name__, out_name))
+            logging.info(
+                "Successfully exported {} to {}".format(
+                    model.__class__.__name__, out_name
+                )
+            )
         return (all_out, all_descr)
 
     def _export(
@@ -144,7 +148,7 @@ class Exportable(ABC):
         use_dynamo=False,
     ):
         my_args = locals().copy()
-        my_args.pop('self')
+        my_args.pop("self")
 
         self.eval()
         for param in self.parameters():
@@ -155,7 +159,7 @@ class Exportable(ABC):
             if isinstance(m, Exportable):
                 exportables.append(m)
 
-        qual_name = self.__module__ + '.' + self.__class__.__qualname__
+        qual_name = self.__module__ + "." + self.__class__.__qualname__
         format = get_export_format(output)
         output_descr = f"{qual_name} exported to {format}"
 
@@ -171,19 +175,26 @@ class Exportable(ABC):
             forward_method, old_forward_method = wrap_forward_method(self)
 
             # Set module mode
-            with torch.inference_mode(), torch.no_grad(), torch.jit.optimized_execution(True), _jit_is_scripting():
+            with (
+                torch.inference_mode(),
+                torch.no_grad(),
+                torch.jit.optimized_execution(True),
+                _jit_is_scripting(),
+            ):
 
                 if input_example is None:
                     input_example = self.input_module.input_example()
 
                 # Remove i/o examples from args we propagate to enclosed Exportables
-                my_args.pop('output')
-                my_args.pop('input_example')
+                my_args.pop("output")
+                my_args.pop("input_example")
 
                 # Run (posibly overridden) prepare methods before calling forward()
                 for ex in exportables:
                     ex._prepare_for_export(**my_args, noreplace=True)
-                self._prepare_for_export(output=output, input_example=input_example, **my_args)
+                self._prepare_for_export(
+                    output=output, input_example=input_example, **my_args
+                )
 
                 input_list, input_dict = parse_input_example(input_example)
                 input_names = self.input_names
@@ -213,7 +224,9 @@ class Exportable(ABC):
                     jitted_model = torch.jit.load(output)
 
                     if check_trace:
-                        verify_torchscript(jitted_model, output, check_trace_input, check_tolerance)
+                        verify_torchscript(
+                            jitted_model, output, check_trace_input, check_tolerance
+                        )
                 elif format == ExportFormat.ONNX:
                     # dynamic axis is a mapping from input/output_name => list of "dynamic" indices
                     if dynamic_axes is None:
@@ -221,15 +234,29 @@ class Exportable(ABC):
                     if use_dynamo:
                         typecheck.enable_wrapping(enabled=False)
                         # https://github.com/pytorch/pytorch/issues/126339
-                        with monkeypatched(torch.nn.RNNBase, "flatten_parameters", lambda *args: None):
-                            logging.info(f"Running export.export, dynamic shapes:{dynamic_axes}\n")
+                        with monkeypatched(
+                            torch.nn.RNNBase, "flatten_parameters", lambda *args: None
+                        ):
+                            logging.info(
+                                f"Running export.export, dynamic shapes:{dynamic_axes}\n"
+                            )
 
                             # We have to use different types of arguments for dynamo_export to achieve
                             # same external weights behaviour as onnx.export :
                             # https://github.com/pytorch/pytorch/issues/126479
                             # https://github.com/pytorch/pytorch/issues/126269
-                            mem_params = sum([param.nelement() * param.element_size() for param in self.parameters()])
-                            mem_bufs = sum([buf.nelement() * buf.element_size() for buf in self.buffers()])
+                            mem_params = sum(
+                                [
+                                    param.nelement() * param.element_size()
+                                    for param in self.parameters()
+                                ]
+                            )
+                            mem_bufs = sum(
+                                [
+                                    buf.nelement() * buf.element_size()
+                                    for buf in self.buffers()
+                                ]
+                            )
                             mem = mem_params + mem_bufs
 
                             if mem > 2 * 1000 * 1000 * 1000:
@@ -246,8 +273,15 @@ class Exportable(ABC):
                                 model_state = None
                                 ex_model = self
 
-                            options = torch.onnx.ExportOptions(dynamic_shapes=True, op_level_debug=True)
-                            ex = torch.onnx.dynamo_export(ex_model, *input_list, **input_dict, export_options=options)
+                            options = torch.onnx.ExportOptions(
+                                dynamic_shapes=True, op_level_debug=True
+                            )
+                            ex = torch.onnx.dynamo_export(
+                                ex_model,
+                                *input_list,
+                                **input_dict,
+                                export_options=options,
+                            )
                             ex.save(output, model_state=model_state)
 
                             del ex
@@ -270,9 +304,15 @@ class Exportable(ABC):
                         )
 
                     if check_trace:
-                        verify_runtime(self, output, check_trace_input, input_names, check_tolerance=check_tolerance)
+                        verify_runtime(
+                            self,
+                            output,
+                            check_trace_input,
+                            input_names,
+                            check_tolerance=check_tolerance,
+                        )
                 else:
-                    raise ValueError(f'Encountered unknown export format {format}.')
+                    raise ValueError(f"Encountered unknown export format {format}.")
         finally:
             typecheck.enable_wrapping(enabled=True)
             typecheck.set_typecheck_enabled(enabled=True)
@@ -301,7 +341,7 @@ class Exportable(ABC):
         Override this method to prepare module for export. This is in-place operation.
         Base version does common necessary module replacements (Apex etc)
         """
-        if not 'noreplace' in kwargs:
+        if not "noreplace" in kwargs:
             replace_for_export(self)
 
     def _export_teardown(self):
@@ -312,11 +352,17 @@ class Exportable(ABC):
 
     @property
     def input_names(self):
-        return get_io_names(self.input_module.input_types_for_export, self.disabled_deployment_input_names)
+        return get_io_names(
+            self.input_module.input_types_for_export,
+            self.disabled_deployment_input_names,
+        )
 
     @property
     def output_names(self):
-        return get_io_names(self.output_module.output_types_for_export, self.disabled_deployment_output_names)
+        return get_io_names(
+            self.output_module.output_types_for_export,
+            self.disabled_deployment_output_names,
+        )
 
     @property
     def input_types_for_export(self) -> Optional[Dict[str, NeuralType]]:
@@ -327,13 +373,15 @@ class Exportable(ABC):
         return self.output_types
 
     def dynamic_shapes_for_export(self, use_dynamo=False):
-        return get_dynamic_axes(self.input_module.input_types_for_export, self.input_names, use_dynamo)
+        return get_dynamic_axes(
+            self.input_module.input_types_for_export, self.input_names, use_dynamo
+        )
 
     def get_export_subnet(self, subnet=None):
         """
         Returns Exportable subnet model/module to export
         """
-        if subnet is None or subnet == 'self':
+        if subnet is None or subnet == "self":
             return self
         else:
             return getattr(self, subnet)
@@ -343,13 +391,13 @@ class Exportable(ABC):
         Returns default set of subnet names exported for this model
         First goes the one receiving input (input_example)
         """
-        return ['self']
+        return ["self"]
 
     def get_export_config(self):
         """
         Returns export_config dictionary
         """
-        return getattr(self, 'export_config', {})
+        return getattr(self, "export_config", {})
 
     def set_export_config(self, args):
         """

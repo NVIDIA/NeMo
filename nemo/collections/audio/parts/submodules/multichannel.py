@@ -57,41 +57,43 @@ class ChannelAugment(NeuralModule):
 
         if num_channels_max is not None and num_channels_min > num_channels_max:
             raise ValueError(
-                f'Min number of channels {num_channels_min} cannot be greater than max number of channels {num_channels_max}'
+                f"Min number of channels {num_channels_min} cannot be greater than max number of channels {num_channels_max}"
             )
 
-        logging.debug('Initialized %s with', self.__class__.__name__)
-        logging.debug('\tpermute_channels: %s', self.permute_channels)
-        logging.debug('\tnum_channels_min: %s', self.num_channels_min)
-        logging.debug('\tnum_channels_max: %s', self.num_channels_max)
+        logging.debug("Initialized %s with", self.__class__.__name__)
+        logging.debug("\tpermute_channels: %s", self.permute_channels)
+        logging.debug("\tnum_channels_min: %s", self.num_channels_min)
+        logging.debug("\tnum_channels_max: %s", self.num_channels_max)
 
     @property
     def input_types(self):
         """Returns definitions of module input types"""
         return {
-            'input': NeuralType(('B', 'C', 'T'), AudioSignal()),
+            "input": NeuralType(("B", "C", "T"), AudioSignal()),
         }
 
     @property
     def output_types(self):
         """Returns definitions of module output types"""
         return {
-            'output': NeuralType(('B', 'C', 'T'), AudioSignal()),
+            "output": NeuralType(("B", "C", "T"), AudioSignal()),
         }
 
     @typecheck()
     @torch.no_grad()
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         # Expecting (B, C, T)
-        assert input.ndim == 3, 'Expecting input with shape (B, C, T)'
+        assert input.ndim == 3, "Expecting input with shape (B, C, T)"
         num_channels_in = input.size(1)
 
         if num_channels_in < self.num_channels_min:
             raise RuntimeError(
-                f'Number of input channels ({num_channels_in}) is smaller than the min number of output channels ({self.num_channels_min})'
+                f"Number of input channels ({num_channels_in}) is smaller than the min number of output channels ({self.num_channels_min})"
             )
 
-        num_channels_max = num_channels_in if self.num_channels_max is None else self.num_channels_max
+        num_channels_max = (
+            num_channels_in if self.num_channels_max is None else self.num_channels_max
+        )
         num_channels_out = self._rng.randint(self.num_channels_min, num_channels_max)
 
         channels = list(range(num_channels_in))
@@ -125,7 +127,9 @@ class TransformAverageConcatenate(NeuralModule):
 
         # Parametrize with the total number of features (needs to be divisible by two due to stacking)
         if out_features % 2 != 0:
-            raise ValueError(f'Number of output features should be divisible by two, currently set to {out_features}')
+            raise ValueError(
+                f"Number of output features should be divisible by two, currently set to {out_features}"
+            )
 
         self.transform_channel = torch.nn.Sequential(
             torch.nn.Linear(in_features, out_features // 2, bias=False), torch.nn.ReLU()
@@ -134,22 +138,22 @@ class TransformAverageConcatenate(NeuralModule):
             torch.nn.Linear(in_features, out_features // 2, bias=False), torch.nn.ReLU()
         )
 
-        logging.debug('Initialized %s with', self.__class__.__name__)
-        logging.debug('\tin_features:  %d', in_features)
-        logging.debug('\tout_features: %d', out_features)
+        logging.debug("Initialized %s with", self.__class__.__name__)
+        logging.debug("\tin_features:  %d", in_features)
+        logging.debug("\tout_features: %d", out_features)
 
     @property
     def input_types(self):
         """Returns definitions of module input types"""
         return {
-            'input': NeuralType(('B', 'C', 'D', 'T'), SpectrogramType()),
+            "input": NeuralType(("B", "C", "D", "T"), SpectrogramType()),
         }
 
     @property
     def output_types(self):
         """Returns definitions of module output types"""
         return {
-            'output': NeuralType(('B', 'C', 'D', 'T'), SpectrogramType()),
+            "output": NeuralType(("B", "C", "D", "T"), SpectrogramType()),
         }
 
     @typecheck()
@@ -200,7 +204,13 @@ class TransformAttendConcatenate(NeuralModule):
         - Jukić et al, Flexible multichannel speech enhancement for noise-robust frontend, 2023
     """
 
-    def __init__(self, in_features: int, out_features: Optional[int] = None, n_head: int = 4, dropout_rate: float = 0):
+    def __init__(
+        self,
+        in_features: int,
+        out_features: Optional[int] = None,
+        n_head: int = 4,
+        dropout_rate: float = 0,
+    ):
         super().__init__()
 
         if out_features is None:
@@ -208,7 +218,9 @@ class TransformAttendConcatenate(NeuralModule):
 
         # Parametrize with the total number of features (needs to be divisible by two due to stacking)
         if out_features % 2 != 0:
-            raise ValueError(f'Number of output features should be divisible by two, currently set to {out_features}')
+            raise ValueError(
+                f"Number of output features should be divisible by two, currently set to {out_features}"
+            )
 
         self.transform_channel = torch.nn.Sequential(
             torch.nn.Linear(in_features, out_features // 2, bias=False), torch.nn.ReLU()
@@ -216,26 +228,28 @@ class TransformAttendConcatenate(NeuralModule):
         self.transform_attend = torch.nn.Sequential(
             torch.nn.Linear(in_features, out_features // 2, bias=False), torch.nn.ReLU()
         )
-        self.attention = MultiHeadAttention(n_head=n_head, n_feat=out_features // 2, dropout_rate=dropout_rate)
+        self.attention = MultiHeadAttention(
+            n_head=n_head, n_feat=out_features // 2, dropout_rate=dropout_rate
+        )
 
-        logging.debug('Initialized %s with', self.__class__.__name__)
-        logging.debug('\tin_features:  %d', in_features)
-        logging.debug('\tout_features: %d', out_features)
-        logging.debug('\tn_head:       %d', n_head)
-        logging.debug('\tdropout_rate: %f', dropout_rate)
+        logging.debug("Initialized %s with", self.__class__.__name__)
+        logging.debug("\tin_features:  %d", in_features)
+        logging.debug("\tout_features: %d", out_features)
+        logging.debug("\tn_head:       %d", n_head)
+        logging.debug("\tdropout_rate: %f", dropout_rate)
 
     @property
     def input_types(self):
         """Returns definitions of module input types"""
         return {
-            'input': NeuralType(('B', 'C', 'D', 'T'), SpectrogramType()),
+            "input": NeuralType(("B", "C", "D", "T"), SpectrogramType()),
         }
 
     @property
     def output_types(self):
         """Returns definitions of module output types"""
         return {
-            'output': NeuralType(('B', 'C', 'D', 'T'), SpectrogramType()),
+            "output": NeuralType(("B", "C", "D", "T"), SpectrogramType()),
         }
 
     @typecheck()
@@ -278,20 +292,20 @@ class ChannelAveragePool(NeuralModule):
 
     def __init__(self):
         super().__init__()
-        logging.debug('Initialized %s', self.__class__.__name__)
+        logging.debug("Initialized %s", self.__class__.__name__)
 
     @property
     def input_types(self):
         """Returns definitions of module input types"""
         return {
-            'input': NeuralType(('B', 'C', 'D', 'T'), SpectrogramType()),
+            "input": NeuralType(("B", "C", "D", "T"), SpectrogramType()),
         }
 
     @property
     def output_types(self):
         """Returns definitions of module output types"""
         return {
-            'output': NeuralType(('B', 'D', 'T'), SpectrogramType()),
+            "output": NeuralType(("B", "D", "T"), SpectrogramType()),
         }
 
     @typecheck()
@@ -324,25 +338,27 @@ class ChannelAttentionPool(NeuralModule):
     def __init__(self, in_features: int, n_head: int = 1, dropout_rate: float = 0):
         super().__init__()
         self.in_features = in_features
-        self.attention = MultiHeadAttention(n_head=n_head, n_feat=in_features, dropout_rate=dropout_rate)
+        self.attention = MultiHeadAttention(
+            n_head=n_head, n_feat=in_features, dropout_rate=dropout_rate
+        )
 
-        logging.debug('Initialized %s with', self.__class__.__name__)
-        logging.debug('\tin_features:  %d', in_features)
-        logging.debug('\tnum_heads:    %d', n_head)
-        logging.debug('\tdropout_rate: %d', dropout_rate)
+        logging.debug("Initialized %s with", self.__class__.__name__)
+        logging.debug("\tin_features:  %d", in_features)
+        logging.debug("\tnum_heads:    %d", n_head)
+        logging.debug("\tdropout_rate: %d", dropout_rate)
 
     @property
     def input_types(self):
         """Returns definitions of module input types"""
         return {
-            'input': NeuralType(('B', 'C', 'D', 'T'), SpectrogramType()),
+            "input": NeuralType(("B", "C", "D", "T"), SpectrogramType()),
         }
 
     @property
     def output_types(self):
         """Returns definitions of module output types"""
         return {
-            'output': NeuralType(('B', 'D', 'T'), SpectrogramType()),
+            "output": NeuralType(("B", "D", "T"), SpectrogramType()),
         }
 
     @typecheck()
@@ -401,7 +417,7 @@ class ParametricMultichannelWienerFilter(NeuralModule):
     def __init__(
         self,
         beta: float = 1.0,
-        rank: str = 'one',
+        rank: str = "one",
         postfilter: Optional[str] = None,
         ref_channel: Optional[int] = None,
         ref_hard: bool = True,
@@ -421,26 +437,28 @@ class ParametricMultichannelWienerFilter(NeuralModule):
         # Assumed rank for the signal covariance matrix (psd_s)
         self.rank = rank
 
-        if self.rank == 'full' and self.beta == 0:
-            raise ValueError(f'Rank {self.rank} is not compatible with beta {self.beta}.')
+        if self.rank == "full" and self.beta == 0:
+            raise ValueError(
+                f"Rank {self.rank} is not compatible with beta {self.beta}."
+            )
 
         # Postfilter, applied on the output of the multichannel filter
-        if postfilter not in [None, 'ban']:
-            raise ValueError(f'Postfilter {postfilter} is not supported.')
+        if postfilter not in [None, "ban"]:
+            raise ValueError(f"Postfilter {postfilter} is not supported.")
         self.postfilter = postfilter
 
         # Regularization
         if diag_reg is not None and diag_reg < 0:
-            raise ValueError(f'Diagonal regularization {diag_reg} must be positive.')
+            raise ValueError(f"Diagonal regularization {diag_reg} must be positive.")
         self.diag_reg = diag_reg
 
         if eps <= 0:
-            raise ValueError(f'Epsilon {eps} must be positive.')
+            raise ValueError(f"Epsilon {eps} must be positive.")
         self.eps = eps
 
         # Reference channel
         self.ref_channel = ref_channel
-        if self.ref_channel == 'max_snr':
+        if self.ref_channel == "max_snr":
             self.ref_estimator = ReferenceChannelEstimatorSNR(
                 hard=ref_hard,
                 hard_use_grad=ref_hard_use_grad,
@@ -453,14 +471,14 @@ class ParametricMultichannelWienerFilter(NeuralModule):
         # Flag to determine if the filter is MISO or MIMO
         self.is_mimo = self.ref_channel is None
 
-        logging.debug('Initialized %s', self.__class__.__name__)
-        logging.debug('\tbeta:        %f', self.beta)
-        logging.debug('\trank:        %s', self.rank)
-        logging.debug('\tpostfilter:  %s', self.postfilter)
-        logging.debug('\tdiag_reg:    %g', self.diag_reg)
-        logging.debug('\teps:         %g', self.eps)
-        logging.debug('\tref_channel: %s', self.ref_channel)
-        logging.debug('\tis_mimo:     %s', self.is_mimo)
+        logging.debug("Initialized %s", self.__class__.__name__)
+        logging.debug("\tbeta:        %f", self.beta)
+        logging.debug("\trank:        %s", self.rank)
+        logging.debug("\tpostfilter:  %s", self.postfilter)
+        logging.debug("\tdiag_reg:    %g", self.diag_reg)
+        logging.debug("\teps:         %g", self.eps)
+        logging.debug("\tref_channel: %s", self.ref_channel)
+        logging.debug("\tis_mimo:     %s", self.is_mimo)
 
     @staticmethod
     def trace(x: torch.Tensor, keepdim: bool = False) -> torch.Tensor:
@@ -491,7 +509,9 @@ class ParametricMultichannelWienerFilter(NeuralModule):
         diag_reg = self.diag_reg * self.trace(psd).real + self.eps
 
         # Apply regularization
-        psd = psd + torch.diag_embed(diag_reg.unsqueeze(-1) * torch.ones(psd.shape[-1], device=psd.device))
+        psd = psd + torch.diag_embed(
+            diag_reg.unsqueeze(-1) * torch.ones(psd.shape[-1], device=psd.device)
+        )
 
         return psd
 
@@ -506,19 +526,27 @@ class ParametricMultichannelWienerFilter(NeuralModule):
             M-channel filter output, shape (B, M, F, T)
         """
         if not filter.is_complex():
-            raise TypeError(f'Expecting complex-valued filter, found {filter.dtype}')
+            raise TypeError(f"Expecting complex-valued filter, found {filter.dtype}")
 
         if not input.is_complex():
-            raise TypeError(f'Expecting complex-valued input, found {input.dtype}')
+            raise TypeError(f"Expecting complex-valued input, found {input.dtype}")
 
-        if filter.ndim != 4 or filter.size(-2) != input.size(-3) or filter.size(-3) != input.size(-2):
-            raise ValueError(f'Filter shape {filter.shape}, not compatible with input shape {input.shape}')
+        if (
+            filter.ndim != 4
+            or filter.size(-2) != input.size(-3)
+            or filter.size(-3) != input.size(-2)
+        ):
+            raise ValueError(
+                f"Filter shape {filter.shape}, not compatible with input shape {input.shape}"
+            )
 
-        output = torch.einsum('bfcm,bcft->bmft', filter.conj(), input)
+        output = torch.einsum("bfcm,bcft->bmft", filter.conj(), input)
 
         return output
 
-    def apply_ban(self, input: torch.Tensor, filter: torch.Tensor, psd_n: torch.Tensor) -> torch.Tensor:
+    def apply_ban(
+        self, input: torch.Tensor, filter: torch.Tensor, psd_n: torch.Tensor
+    ) -> torch.Tensor:
         """Apply blind analytic normalization postfilter. Note that this normalization has been
         derived for the GEV beamformer in [1]. More specifically, the BAN postfilter aims to scale GEV
         to satisfy the distortionless constraint and the final analytical expression is derived using
@@ -538,10 +566,12 @@ class ParametricMultichannelWienerFilter(NeuralModule):
         """
         # number of input channel, used to normalize the numerator
         num_inputs = filter.size(-2)
-        numerator = torch.einsum('bfcm,bfci,bfij,bfjm->bmf', filter.conj(), psd_n, psd_n, filter)
+        numerator = torch.einsum(
+            "bfcm,bfci,bfij,bfjm->bmf", filter.conj(), psd_n, psd_n, filter
+        )
         numerator = torch.sqrt(numerator.abs() / num_inputs)
 
-        denominator = torch.einsum('bfcm,bfci,bfim->bmf', filter.conj(), psd_n, filter)
+        denominator = torch.einsum("bfcm,bfci,bfim->bmf", filter.conj(), psd_n, filter)
         denominator = denominator.abs()
 
         # Scalar filter per output channel, frequency and batch
@@ -556,20 +586,22 @@ class ParametricMultichannelWienerFilter(NeuralModule):
     def input_types(self):
         """Returns definitions of module input types"""
         return {
-            'input': NeuralType(('B', 'C', 'D', 'T'), SpectrogramType()),
-            'mask_s': NeuralType(('B', 'D', 'T'), FloatType()),
-            'mask_n': NeuralType(('B', 'D', 'T'), FloatType()),
+            "input": NeuralType(("B", "C", "D", "T"), SpectrogramType()),
+            "mask_s": NeuralType(("B", "D", "T"), FloatType()),
+            "mask_n": NeuralType(("B", "D", "T"), FloatType()),
         }
 
     @property
     def output_types(self):
         """Returns definitions of module output types"""
         return {
-            'output': NeuralType(('B', 'C', 'D', 'T'), SpectrogramType()),
+            "output": NeuralType(("B", "C", "D", "T"), SpectrogramType()),
         }
 
     @typecheck()
-    def forward(self, input: torch.Tensor, mask_s: torch.Tensor, mask_n: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self, input: torch.Tensor, mask_s: torch.Tensor, mask_n: torch.Tensor
+    ) -> torch.Tensor:
         """Return processed signal.
         The output has either one channel (M=1) if a ref_channel is selected,
         or the same number of channels as the input (M=C) if ref_channel is None.
@@ -594,7 +626,7 @@ class ParametricMultichannelWienerFilter(NeuralModule):
             psd_s = covariance_matrix(x=input, mask=mask_s)
             psd_n = covariance_matrix(x=input, mask=mask_n)
 
-            if self.rank == 'one':
+            if self.rank == "one":
                 # Calculate filter W using (18) in [1]
                 # Diagonal regularization
                 if self.diag_reg:
@@ -605,7 +637,7 @@ class ParametricMultichannelWienerFilter(NeuralModule):
                 W = torch.linalg.solve(psd_n, psd_s)
                 lam = self.trace(W, keepdim=True).real
                 W = W / (self.beta + lam + self.eps)
-            elif self.rank == 'full':
+            elif self.rank == "full":
                 # Calculate filter W using (15) in [1]
                 psd_sn = psd_s + self.beta * psd_n
 
@@ -616,7 +648,7 @@ class ParametricMultichannelWienerFilter(NeuralModule):
                 # (B, F, C, C)
                 W = torch.linalg.solve(psd_sn, psd_s)
             else:
-                raise RuntimeError(f'Unexpected rank {self.rank}')
+                raise RuntimeError(f"Unexpected rank {self.rank}")
 
             if torch.jit.isinstance(self.ref_channel, int):
                 # Fixed ref channel
@@ -625,15 +657,19 @@ class ParametricMultichannelWienerFilter(NeuralModule):
             elif self.ref_estimator is not None:
                 # Estimate ref channel tensor (one-hot or soft across C)
                 # (B, C)
-                ref_channel_tensor = self.ref_estimator(W=W, psd_s=psd_s, psd_n=psd_n).to(W.dtype)
+                ref_channel_tensor = self.ref_estimator(
+                    W=W, psd_s=psd_s, psd_n=psd_n
+                ).to(W.dtype)
                 # Weighting across channels
                 # (B, F, C, 1)
-                W = torch.sum(W * ref_channel_tensor[:, None, None, :], dim=-1, keepdim=True)
+                W = torch.sum(
+                    W * ref_channel_tensor[:, None, None, :], dim=-1, keepdim=True
+                )
 
             output = self.apply_filter(input=input, filter=W)
 
             # Optional: postfilter
-            if self.postfilter == 'ban':
+            if self.postfilter == "ban":
                 output = self.apply_ban(input=output, filter=W, psd_n=psd_n)
 
         return output.to(iodtype)
@@ -676,36 +712,44 @@ class ReferenceChannelEstimatorSNR(NeuralModule):
         self.eps = eps
 
         if subband_weighting and num_subbands is None:
-            raise ValueError(f'Number of subbands must be provided when using subband_weighting={subband_weighting}.')
+            raise ValueError(
+                f"Number of subbands must be provided when using subband_weighting={subband_weighting}."
+            )
         # Subband weighting
-        self.weight_s = torch.nn.Parameter(torch.ones(num_subbands)) if subband_weighting else None
-        self.weight_n = torch.nn.Parameter(torch.ones(num_subbands)) if subband_weighting else None
+        self.weight_s = (
+            torch.nn.Parameter(torch.ones(num_subbands)) if subband_weighting else None
+        )
+        self.weight_n = (
+            torch.nn.Parameter(torch.ones(num_subbands)) if subband_weighting else None
+        )
 
-        logging.debug('Initialized %s', self.__class__.__name__)
-        logging.debug('\thard:              %d', self.hard)
-        logging.debug('\thard_use_grad:     %d', self.hard_use_grad)
-        logging.debug('\tsubband_weighting: %d', self.subband_weighting)
-        logging.debug('\tnum_subbands:      %s', num_subbands)
-        logging.debug('\teps:               %e', self.eps)
+        logging.debug("Initialized %s", self.__class__.__name__)
+        logging.debug("\thard:              %d", self.hard)
+        logging.debug("\thard_use_grad:     %d", self.hard_use_grad)
+        logging.debug("\tsubband_weighting: %d", self.subband_weighting)
+        logging.debug("\tnum_subbands:      %s", num_subbands)
+        logging.debug("\teps:               %e", self.eps)
 
     @property
     def input_types(self):
         """Returns definitions of module input types"""
         return {
-            'W': NeuralType(('B', 'D', 'C', 'C'), SpectrogramType()),
-            'psd_s': NeuralType(('B', 'D', 'C', 'C'), SpectrogramType()),
-            'psd_n': NeuralType(('B', 'D', 'C', 'C'), SpectrogramType()),
+            "W": NeuralType(("B", "D", "C", "C"), SpectrogramType()),
+            "psd_s": NeuralType(("B", "D", "C", "C"), SpectrogramType()),
+            "psd_n": NeuralType(("B", "D", "C", "C"), SpectrogramType()),
         }
 
     @property
     def output_types(self):
         """Returns definitions of module output types"""
         return {
-            'output': NeuralType(('B', 'C'), FloatType()),
+            "output": NeuralType(("B", "C"), FloatType()),
         }
 
     @typecheck()
-    def forward(self, W: torch.Tensor, psd_s: torch.Tensor, psd_n: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self, W: torch.Tensor, psd_s: torch.Tensor, psd_n: torch.Tensor
+    ) -> torch.Tensor:
         """
         Args:
             W: Multichannel input multichannel output filter, shape (B, F, C, M), where
@@ -718,8 +762,8 @@ class ReferenceChannelEstimatorSNR(NeuralModule):
         """
         if self.subband_weighting:
             # (B, F, M)
-            pow_s = torch.einsum('...jm,...jk,...km->...m', W.conj(), psd_s, W).abs()
-            pow_n = torch.einsum('...jm,...jk,...km->...m', W.conj(), psd_n, W).abs()
+            pow_s = torch.einsum("...jm,...jk,...km->...m", W.conj(), psd_s, W).abs()
+            pow_n = torch.einsum("...jm,...jk,...km->...m", W.conj(), psd_n, W).abs()
 
             # Subband-weighting
             # (B, F, M) -> (B, M)
@@ -728,8 +772,8 @@ class ReferenceChannelEstimatorSNR(NeuralModule):
         else:
             # Sum across f as well
             # (B, F, C, M), (B, F, C, C), (B, F, C, M) -> (B, M)
-            pow_s = torch.einsum('...fjm,...fjk,...fkm->...m', W.conj(), psd_s, W).abs()
-            pow_n = torch.einsum('...fjm,...fjk,...fkm->...m', W.conj(), psd_n, W).abs()
+            pow_s = torch.einsum("...fjm,...fjk,...fkm->...m", W.conj(), psd_s, W).abs()
+            pow_n = torch.einsum("...fjm,...fjk,...fkm->...m", W.conj(), psd_n, W).abs()
 
         # Estimated SNR per channel (B, C)
         snr = pow_s / (pow_n + self.eps)
@@ -773,39 +817,48 @@ class WPEFilter(NeuralModule):
         - Jukić et al, Group sparsity for MIMO speech dereverberation, 2015
     """
 
-    def __init__(self, filter_length: int, prediction_delay: int, diag_reg: Optional[float] = 1e-6, eps: float = 1e-8):
+    def __init__(
+        self,
+        filter_length: int,
+        prediction_delay: int,
+        diag_reg: Optional[float] = 1e-6,
+        eps: float = 1e-8,
+    ):
         super().__init__()
         self.filter_length = filter_length
         self.prediction_delay = prediction_delay
         self.diag_reg = diag_reg
         self.eps = eps
 
-        logging.debug('Initialized %s', self.__class__.__name__)
-        logging.debug('\tfilter_length:    %d', self.filter_length)
-        logging.debug('\tprediction_delay: %d', self.prediction_delay)
-        logging.debug('\tdiag_reg:         %g', self.diag_reg)
-        logging.debug('\teps:              %g', self.eps)
+        logging.debug("Initialized %s", self.__class__.__name__)
+        logging.debug("\tfilter_length:    %d", self.filter_length)
+        logging.debug("\tprediction_delay: %d", self.prediction_delay)
+        logging.debug("\tdiag_reg:         %g", self.diag_reg)
+        logging.debug("\teps:              %g", self.eps)
 
     @property
     def input_types(self) -> Dict[str, NeuralType]:
         """Returns definitions of module output ports."""
         return {
-            "input": NeuralType(('B', 'C', 'D', 'T'), SpectrogramType()),
-            "power": NeuralType(('B', 'C', 'D', 'T'), SpectrogramType()),
-            "input_length": NeuralType(('B',), LengthsType(), optional=True),
+            "input": NeuralType(("B", "C", "D", "T"), SpectrogramType()),
+            "power": NeuralType(("B", "C", "D", "T"), SpectrogramType()),
+            "input_length": NeuralType(("B",), LengthsType(), optional=True),
         }
 
     @property
     def output_types(self) -> Dict[str, NeuralType]:
         """Returns definitions of module output ports."""
         return {
-            "output": NeuralType(('B', 'C', 'D', 'T'), SpectrogramType()),
-            "output_length": NeuralType(('B',), LengthsType(), optional=True),
+            "output": NeuralType(("B", "C", "D", "T"), SpectrogramType()),
+            "output_length": NeuralType(("B",), LengthsType(), optional=True),
         }
 
     @typecheck()
     def forward(
-        self, input: torch.Tensor, power: torch.Tensor, input_length: Optional[torch.Tensor] = None
+        self,
+        input: torch.Tensor,
+        power: torch.Tensor,
+        input_length: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         """Given input and the predicted power for the desired signal, estimate
         the WPE filter and return the processed signal.
@@ -826,11 +879,16 @@ class WPEFilter(NeuralModule):
         weight = 1 / (weight + self.eps)
 
         # Multi-channel convolution matrix for each subband
-        tilde_input = self.convtensor(input, filter_length=self.filter_length, delay=self.prediction_delay)
+        tilde_input = self.convtensor(
+            input, filter_length=self.filter_length, delay=self.prediction_delay
+        )
 
         # Estimate correlation matrices
         Q, R = self.estimate_correlations(
-            input=input, weight=weight, tilde_input=tilde_input, input_length=input_length
+            input=input,
+            weight=weight,
+            tilde_input=tilde_input,
+            input_length=input_length,
         )
 
         # Estimate prediction filter
@@ -853,7 +911,11 @@ class WPEFilter(NeuralModule):
 
     @classmethod
     def convtensor(
-        cls, x: torch.Tensor, filter_length: int, delay: int = 0, n_steps: Optional[int] = None
+        cls,
+        x: torch.Tensor,
+        filter_length: int,
+        delay: int = 0,
+        n_steps: Optional[int] = None,
     ) -> torch.Tensor:
         """Create a tensor equivalent of convmtx_mc for each example in the batch.
         The input signal tensor `x` has shape (B, C, F, N).
@@ -874,7 +936,9 @@ class WPEFilter(NeuralModule):
             Return a convolutional tensor with shape (B, C, F, n_steps, filter_length)
         """
         if x.ndim != 4:
-            raise RuntimeError(f'Expecting a 4-D input. Received input with shape {x.shape}')
+            raise RuntimeError(
+                f"Expecting a 4-D input. Received input with shape {x.shape}"
+            )
 
         B, C, F, N = x.shape
 
@@ -916,8 +980,8 @@ class WPEFilter(NeuralModule):
 
         permute = []
         for m in range(C):
-            permute[m * filter_length : (m + 1) * filter_length] = m * filter_length + np.flip(
-                np.arange(filter_length)
+            permute[m * filter_length : (m + 1) * filter_length] = (
+                m * filter_length + np.flip(np.arange(filter_length))
             )
         return x[..., permute]
 
@@ -960,11 +1024,17 @@ class WPEFilter(NeuralModule):
 
         # Calculate (1)
         # result: (B, F, C, filter_length, C, filter_length)
-        Q = torch.einsum('bjfik,bmfin->bfjkmn', tilde_input.conj(), weight[:, None, :, :, None] * tilde_input)
+        Q = torch.einsum(
+            "bjfik,bmfin->bfjkmn",
+            tilde_input.conj(),
+            weight[:, None, :, :, None] * tilde_input,
+        )
 
         # Calculate (2)
         # result: (B, F, C, filter_length, C)
-        R = torch.einsum('bjfik,bmfi->bfjkm', tilde_input.conj(), weight[:, None, :, :] * input)
+        R = torch.einsum(
+            "bjfik,bmfi->bfjkm", tilde_input.conj(), weight[:, None, :, :] * input
+        )
 
         return Q, R
 
@@ -982,7 +1052,7 @@ class WPEFilter(NeuralModule):
         B, F, C, filter_length, _, _ = Q.shape
         assert (
             filter_length == self.filter_length
-        ), f'Shape of Q {Q.shape} is not matching filter length {self.filter_length}'
+        ), f"Shape of Q {Q.shape} is not matching filter length {self.filter_length}"
 
         # Reshape to analytical dimensions for each (b, f)
         Q = Q.reshape(B, F, C * self.filter_length, C * filter_length)
@@ -991,9 +1061,14 @@ class WPEFilter(NeuralModule):
         # Diagonal regularization
         if self.diag_reg:
             # Regularization: diag_reg * trace(Q) + eps
-            diag_reg = self.diag_reg * torch.diagonal(Q, dim1=-2, dim2=-1).sum(-1).real + self.eps
+            diag_reg = (
+                self.diag_reg * torch.diagonal(Q, dim1=-2, dim2=-1).sum(-1).real
+                + self.eps
+            )
             # Apply regularization on Q
-            Q = Q + torch.diag_embed(diag_reg.unsqueeze(-1) * torch.ones(Q.shape[-1], device=Q.device))
+            Q = Q + torch.diag_embed(
+                diag_reg.unsqueeze(-1) * torch.ones(Q.shape[-1], device=Q.device)
+            )
 
         # Solve for the filter
         G = torch.linalg.solve(Q, R)
@@ -1006,7 +1081,10 @@ class WPEFilter(NeuralModule):
         return G
 
     def apply_filter(
-        self, filter: torch.Tensor, input: Optional[torch.Tensor] = None, tilde_input: Optional[torch.Tensor] = None
+        self,
+        filter: torch.Tensor,
+        input: Optional[torch.Tensor] = None,
+        tilde_input: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         """Apply a prediction filter `filter` on the input `input` as
 
@@ -1024,14 +1102,16 @@ class WPEFilter(NeuralModule):
             the input signal, same shape as input (B, C, F, N)
         """
         if input is None and tilde_input is None:
-            raise RuntimeError('Both inputs cannot be None simultaneously.')
+            raise RuntimeError("Both inputs cannot be None simultaneously.")
         if input is not None and tilde_input is not None:
-            raise RuntimeError('Both inputs cannot be provided simultaneously.')
+            raise RuntimeError("Both inputs cannot be provided simultaneously.")
 
         if tilde_input is None:
-            tilde_input = self.convtensor(input, filter_length=self.filter_length, delay=self.prediction_delay)
+            tilde_input = self.convtensor(
+                input, filter_length=self.filter_length, delay=self.prediction_delay
+            )
 
         # For each (batch, output channel, f, time step), sum across (input channel, filter tap)
-        output = torch.einsum('bjfik,bmfjk->bmfi', tilde_input, filter)
+        output = torch.einsum("bjfik,bmfjk->bmfi", tilde_input, filter)
 
         return output

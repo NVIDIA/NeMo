@@ -19,25 +19,29 @@ from nemo.core.classes import NeuralModule
 from nemo.core.neural_types import (ChannelType, EncodedRepresentation,
                                     MaskType, NeuralType)
 
-__all__ = ['DecoderModule']
+__all__ = ["DecoderModule"]
 
 
 class DecoderModule(NeuralModule, ABC):
-    """ Base class for decoder neural module to be used in NLP models. """
+    """Base class for decoder neural module to be used in NLP models."""
 
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
         return {
-            "input_ids": NeuralType(('B', 'T'), ChannelType()),
-            "decoder_mask": NeuralType(('B', 'T'), MaskType(), optional=True),
-            "encoder_embeddings": NeuralType(('B', 'T', 'D'), ChannelType(), optional=True),
-            "encoder_mask": NeuralType(('B', 'T'), MaskType(), optional=True),
-            "decoder_mems": NeuralType(('B', 'D', 'T', 'D'), EncodedRepresentation(), optional=True),
+            "input_ids": NeuralType(("B", "T"), ChannelType()),
+            "decoder_mask": NeuralType(("B", "T"), MaskType(), optional=True),
+            "encoder_embeddings": NeuralType(
+                ("B", "T", "D"), ChannelType(), optional=True
+            ),
+            "encoder_mask": NeuralType(("B", "T"), MaskType(), optional=True),
+            "decoder_mems": NeuralType(
+                ("B", "D", "T", "D"), EncodedRepresentation(), optional=True
+            ),
         }
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        return {"last_hidden_states": NeuralType(('B', 'T', 'D'), ChannelType())}
+        return {"last_hidden_states": NeuralType(("B", "T", "D"), ChannelType())}
 
     @property
     def hidden_size(self) -> Optional[int]:

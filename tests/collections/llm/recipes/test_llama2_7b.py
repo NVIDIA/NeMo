@@ -92,13 +92,17 @@ class TestLlama2_7B:
     def test_finetune_recipe_with_packed_sequence(self, recipe_module):
         recipe = recipe_module.finetune_recipe(packed_sequence=True)
         assert recipe.data.seq_length == 4096
-        assert recipe.data.dataset_kwargs == {'pad_to_max_length': True}
-        assert hasattr(recipe.data, 'packed_sequence_specs')
+        assert recipe.data.dataset_kwargs == {"pad_to_max_length": True}
+        assert hasattr(recipe.data, "packed_sequence_specs")
         assert recipe.data.packed_sequence_specs.packed_sequence_size == 4096
 
     @pytest.mark.parametrize("num_nodes,num_gpus_per_node", [(1, 8), (2, 4), (4, 2)])
-    def test_pretrain_recipe_with_different_configurations(self, recipe_module, num_nodes, num_gpus_per_node):
-        recipe = recipe_module.pretrain_recipe(num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node)
+    def test_pretrain_recipe_with_different_configurations(
+        self, recipe_module, num_nodes, num_gpus_per_node
+    ):
+        recipe = recipe_module.pretrain_recipe(
+            num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node
+        )
         assert recipe.trainer.num_nodes == num_nodes
         assert recipe.trainer.devices == num_gpus_per_node
 
@@ -106,17 +110,20 @@ class TestLlama2_7B:
         recipe = recipe_module.finetune_recipe(peft_scheme=None)
         assert recipe.trainer.strategy.tensor_model_parallel_size == 2
         assert recipe.optim.config.lr == 5e-6
-        assert not hasattr(recipe, 'peft') or recipe.peft is None
+        assert not hasattr(recipe, "peft") or recipe.peft is None
 
     def test_finetune_recipe_with_invalid_peft(self, recipe_module):
-        with pytest.raises(ValueError, match="Unrecognized peft scheme: invalid_scheme"):
+        with pytest.raises(
+            ValueError, match="Unrecognized peft scheme: invalid_scheme"
+        ):
             recipe_module.finetune_recipe(peft_scheme="invalid_scheme")
 
     def test_finetune_performance_optimizations(self, recipe_module):
         recipe = recipe_module.finetune_recipe(performance_mode=True)
         assert recipe.trainer.strategy.tensor_model_parallel_size == 1
         assert any(
-            isinstance(cb, run.Config) and cb.__fn_or_cls__ == TimingCallback for cb in recipe.trainer.callbacks
+            isinstance(cb, run.Config) and cb.__fn_or_cls__ == TimingCallback
+            for cb in recipe.trainer.callbacks
         )
         assert any(
             isinstance(cb, run.Config) and cb.__fn_or_cls__ == GarbageCollectionCallback
@@ -131,10 +138,13 @@ class TestLlama2_7B:
         assert recipe.trainer.strategy.ddp.overlap_param_gather is True
         assert recipe.trainer.strategy.ddp.average_in_collective is True
         assert any(
-            isinstance(cb, run.Config) and cb.__fn_or_cls__.__name__ == "MegatronCommOverlapCallback"
+            isinstance(cb, run.Config)
+            and cb.__fn_or_cls__.__name__ == "MegatronCommOverlapCallback"
             for cb in recipe.trainer.callbacks
         )
 
     def test_finetune_performance_optimizations_with_peft(self, recipe_module):
-        recipe = recipe_module.finetune_recipe(performance_mode=True, peft_scheme='lora')
-        assert recipe.peft.target_modules == ['linear_qkv']
+        recipe = recipe_module.finetune_recipe(
+            performance_mode=True, peft_scheme="lora"
+        )
+        assert recipe.peft.target_modules == ["linear_qkv"]

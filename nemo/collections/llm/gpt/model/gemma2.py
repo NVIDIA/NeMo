@@ -49,7 +49,9 @@ if TYPE_CHECKING:
         AutoTokenizer
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
-TERowParallelLinear, _ = safe_import_from("megatron.core.extensions.transformer_engine", "TERowParallelLinear")
+TERowParallelLinear, _ = safe_import_from(
+    "megatron.core.extensions.transformer_engine", "TERowParallelLinear"
+)
 
 TENorm, _ = safe_import_from("megatron.core.extensions.transformer_engine", "TENorm")
 
@@ -111,7 +113,9 @@ class Gemma2Config(GPTConfig):
     vocab_size: int = 256000
     gradient_accumulation_fusion: bool = False
 
-    transformer_layer_spec: Union[ModuleSpec, Callable[["GPTConfig"], ModuleSpec]] = gemma2_layer_spec
+    transformer_layer_spec: Union[ModuleSpec, Callable[["GPTConfig"], ModuleSpec]] = (
+        gemma2_layer_spec
+    )
     # mcore customization
     query_pre_attn_scalar: int = 224
     attn_logit_softcapping: float = 50.0
@@ -164,7 +168,12 @@ class Gemma2Model(GPTModel):
         tokenizer: Optional["TokenizerSpec"] = None,
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
-        super().__init__(config or Gemma2Config(), optim=optim, tokenizer=tokenizer, model_transform=model_transform)
+        super().__init__(
+            config or Gemma2Config(),
+            optim=optim,
+            tokenizer=tokenizer,
+            model_transform=model_transform,
+        )
 
     def configure_model(self):
         from nemo.collections.common.parts.utils import extend_instance
@@ -188,7 +197,7 @@ class HFGemmaImporter(io.ModelConnector["GemmaForCausalLM", Gemma2Model]):
     def apply(self, output_path: Path) -> Path:
         from transformers import Gemma2ForCausalLM
 
-        source = Gemma2ForCausalLM.from_pretrained(str(self), torch_dtype='auto')
+        source = Gemma2ForCausalLM.from_pretrained(str(self), torch_dtype="auto")
         target = self.init()
 
         trainer = self.nemo_setup(target)
@@ -230,12 +239,17 @@ class HFGemmaImporter(io.ModelConnector["GemmaForCausalLM", Gemma2Model]):
                 fn=TransformFns.merge_qkv,
             ),
             io.state_transform(
-                source_key=("model.layers.*.mlp.gate_proj.weight", "model.layers.*.mlp.up_proj.weight"),
+                source_key=(
+                    "model.layers.*.mlp.gate_proj.weight",
+                    "model.layers.*.mlp.up_proj.weight",
+                ),
                 target_key="decoder.layers.*.mlp.linear_fc1.weight",
                 fn=TransformFns.merge_fc1,
             ),
         ]
-        return io.apply_transforms(source, target, mapping=mapping, transforms=transforms)
+        return io.apply_transforms(
+            source, target, mapping=mapping, transforms=transforms
+        )
 
     @property
     def tokenizer(self) -> "AutoTokenizer":
@@ -274,7 +288,9 @@ class HFGemmaImporter(io.ModelConnector["GemmaForCausalLM", Gemma2Model]):
             final_logit_softcapping=source.final_logit_softcapping,
             window_size=(source.sliding_window, 0),
             gated_linear_unit=True,
-            make_vocab_size_divisible_by=make_vocab_size_divisible_by(source.vocab_size),
+            make_vocab_size_divisible_by=make_vocab_size_divisible_by(
+                source.vocab_size
+            ),
             vocab_size=source.vocab_size,
             share_embeddings_and_output_weights=True,
             fp16=(dtype_from_hf(source) == torch.float16),
@@ -340,11 +356,16 @@ class HFGemmaExporter(io.ModelConnector[Gemma2Model, "GemmaForCausalLM"]):
             ),
             io.state_transform(
                 source_key="decoder.layers.*.mlp.linear_fc1.weight",
-                target_key=("model.layers.*.mlp.gate_proj.weight", "model.layers.*.mlp.up_proj.weight"),
+                target_key=(
+                    "model.layers.*.mlp.gate_proj.weight",
+                    "model.layers.*.mlp.up_proj.weight",
+                ),
                 fn=TransformFns.split_fc1,
             ),
         ]
-        return io.apply_transforms(source, target, mapping=mapping, transforms=transforms)
+        return io.apply_transforms(
+            source, target, mapping=mapping, transforms=transforms
+        )
 
     @property
     def tokenizer(self):
@@ -430,9 +451,15 @@ class Gemma2DotProductAttention(MegatronModule):
         # Per attention head and per partition values.
         world_size = parallel_state.get_tensor_model_parallel_world_size()
         self.hidden_size_per_partition = divide(projection_size, world_size)
-        self.hidden_size_per_attention_head = divide(projection_size, config.num_attention_heads)
-        self.num_attention_heads_per_partition = divide(self.config.num_attention_heads, world_size)
-        self.num_query_groups_per_partition = divide(self.config.num_query_groups, world_size)
+        self.hidden_size_per_attention_head = divide(
+            projection_size, config.num_attention_heads
+        )
+        self.num_attention_heads_per_partition = divide(
+            self.config.num_attention_heads, world_size
+        )
+        self.num_query_groups_per_partition = divide(
+            self.config.num_query_groups, world_size
+        )
 
         coeff = None
         self.norm_factor = math.sqrt(config.query_pre_attn_scalar)
@@ -455,7 +482,9 @@ class Gemma2DotProductAttention(MegatronModule):
         # different outputs on different number of parallel partitions but
         # on average it should not be partition dependent.
         self.attention_dropout = torch.nn.Dropout(
-            self.config.attention_dropout if attention_dropout is None else attention_dropout
+            self.config.attention_dropout
+            if attention_dropout is None
+            else attention_dropout
         )
 
     def forward(
@@ -473,7 +502,8 @@ class Gemma2DotProductAttention(MegatronModule):
         final_logit_softcapping.
         """
         assert packed_seq_params is None, (
-            "Packed sequence is not supported by DotProductAttention." "Please use TEDotProductAttention instead."
+            "Packed sequence is not supported by DotProductAttention."
+            "Please use TEDotProductAttention instead."
         )
 
         # ===================================
@@ -486,12 +516,20 @@ class Gemma2DotProductAttention(MegatronModule):
         # match the number of queries.
 
         # attn_mask_type is not used.
-        if self.num_attention_heads_per_partition // self.num_query_groups_per_partition > 1:
+        if (
+            self.num_attention_heads_per_partition
+            // self.num_query_groups_per_partition
+            > 1
+        ):
             key = key.repeat_interleave(
-                self.num_attention_heads_per_partition // self.num_query_groups_per_partition, dim=2
+                self.num_attention_heads_per_partition
+                // self.num_query_groups_per_partition,
+                dim=2,
             )
             value = value.repeat_interleave(
-                self.num_attention_heads_per_partition // self.num_query_groups_per_partition, dim=2
+                self.num_attention_heads_per_partition
+                // self.num_query_groups_per_partition,
+                dim=2,
             )
 
         # [b, np, sq, sk]
@@ -526,7 +564,9 @@ class Gemma2DotProductAttention(MegatronModule):
             alpha=(1.0 / self.norm_factor),
         )
         # Gemma 2 specific:
-        matmul_result = logit_softcapping(matmul_result, self.config.attn_logit_softcapping)
+        matmul_result = logit_softcapping(
+            matmul_result, self.config.attn_logit_softcapping
+        )
 
         # change view to [b, np, sq, sk]
         attention_scores = matmul_result.view(*output_size)
@@ -540,7 +580,9 @@ class Gemma2DotProductAttention(MegatronModule):
             attention_mask = get_swa(query.size(0), key.size(0), self.window_size)
 
         # attention scores and attention mask [b, np, sq, sk]
-        attention_probs: Tensor = self.scale_mask_softmax(attention_scores, attention_mask)
+        attention_probs: Tensor = self.scale_mask_softmax(
+            attention_scores, attention_mask
+        )
 
         # This is actually dropping out entire tokens to attend to, which might
         # seem a bit unusual, but is taken from the original Transformer paper.
@@ -570,7 +612,9 @@ class Gemma2DotProductAttention(MegatronModule):
         value = value.view(value.size(0), output_size[0] * output_size[1], -1)
 
         # change view [b * np, sq, sk]
-        attention_probs = attention_probs.view(output_size[0] * output_size[1], output_size[2], -1)
+        attention_probs = attention_probs.view(
+            output_size[0] * output_size[1], output_size[2], -1
+        )
 
         # matmul: [b * np, sq, hn]
         context = torch.bmm(attention_probs, value.transpose(0, 1))
@@ -647,7 +691,9 @@ class EmbeddingScalingMixin(torch.nn.Module):
         the superclass by the square root of the hidden size specified in the configuration.
         """
         embeddings = super().forward(**kwargs)
-        return embeddings * torch.tensor(self.config.hidden_size**0.5, dtype=embeddings.dtype)
+        return embeddings * torch.tensor(
+            self.config.hidden_size**0.5, dtype=embeddings.dtype
+        )
 
 
 def logit_softcapping(logits: torch.Tensor, scale: Optional[float]):

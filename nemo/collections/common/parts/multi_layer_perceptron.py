@@ -34,7 +34,7 @@ class MultiLayerPerceptron(torch.nn.Module):
         hidden_size: int,
         num_classes: int,
         num_layers: int = 2,
-        activation: str = 'relu',
+        activation: str = "relu",
         log_softmax: bool = True,
         channel_idx: Optional[int] = None,
     ):
@@ -42,20 +42,22 @@ class MultiLayerPerceptron(torch.nn.Module):
         self.layers = 0
         for _ in range(num_layers - 1):
             layer = torch.nn.Linear(hidden_size, hidden_size)
-            setattr(self, f'layer{self.layers}', layer)
-            setattr(self, f'layer{self.layers + 1}', getattr(torch, activation))
+            setattr(self, f"layer{self.layers}", layer)
+            setattr(self, f"layer{self.layers + 1}", getattr(torch, activation))
             self.layers += 2
         layer = torch.nn.Linear(hidden_size, num_classes)
-        setattr(self, f'layer{self.layers}', layer)
+        setattr(self, f"layer{self.layers}", layer)
         self.layers += 1
         self.log_softmax = log_softmax
         self.channel_idx = channel_idx
 
     @property
     def last_linear_layer(self):
-        return getattr(self, f'layer{self.layers - 1}')
+        return getattr(self, f"layer{self.layers - 1}")
 
-    def forward(self, hidden_states: Optional[torch.Tensor] = None, **kwargs) -> torch.Tensor:
+    def forward(
+        self, hidden_states: Optional[torch.Tensor] = None, **kwargs
+    ) -> torch.Tensor:
         """
         Multi-layer perceptron forward function compatible with multiple types of input keyword arguments
         """
@@ -74,7 +76,7 @@ class MultiLayerPerceptron(torch.nn.Module):
             output_states = hidden_states
 
         for i in range(self.layers):
-            output_states = getattr(self, f'layer{i}')(output_states)
+            output_states = getattr(self, f"layer{i}")(output_states)
 
         if self.log_softmax:
             output_states = torch.log_softmax(output_states, dim=-1)

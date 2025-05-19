@@ -36,7 +36,7 @@ class MegatronBARTModel(MegatronT5Model):
 
     def _validate_cfg(self):
         """Class-specific cfg validation"""
-        if self._cfg.data.get('dataset_type', None) != 'bart':
+        if self._cfg.data.get("dataset_type", None) != "bart":
             raise ValueError(
                 f"cfg.data.dataset_type = {self._cfg.data.get('dataset_type', None)} but 'bart' is expected"
             )
@@ -50,7 +50,7 @@ class MegatronBARTModel(MegatronT5Model):
     def _build_train_valid_test_datasets_kwargs(self):
         """allows child classes to add kwargs to dataset building"""
         return dict(
-            delete_mask_prob=self._cfg.data.get('delete_mask_prob', 0.0),
+            delete_mask_prob=self._cfg.data.get("delete_mask_prob", 0.0),
         )
 
     def list_available_models(self):

@@ -38,11 +38,24 @@ from nemo.utils import logging
 def get_args():
     parser = ArgumentParser()
     parser.add_argument(
-        "--input_name_or_path", type=str, default=None, required=True, help="Path to NeMo Mixtral checkpoint"
+        "--input_name_or_path",
+        type=str,
+        default=None,
+        required=True,
+        help="Path to NeMo Mixtral checkpoint",
     )
-    parser.add_argument("--output_path", type=str, default=None, required=True, help="Path to output HF checkpoint.")
     parser.add_argument(
-        '--hf_model_name', type=str, default="mistralai/Mixtral-8x7B-v0.1", help="Name of HF checkpoint"
+        "--output_path",
+        type=str,
+        default=None,
+        required=True,
+        help="Path to output HF checkpoint.",
+    )
+    parser.add_argument(
+        "--hf_model_name",
+        type=str,
+        default="mistralai/Mixtral-8x7B-v0.1",
+        help="Name of HF checkpoint",
     )
     parser.add_argument("--precision", type=str, default="32", help="Model precision")
     args = parser.parse_args()
@@ -63,13 +76,15 @@ def load_config(hf_model_name, nemo_config):
     hf_config.num_local_experts = nemo_config.num_moe_experts
     assert hf_config.num_local_experts > 0, "num_experts must be greater than zero."
     hf_config.num_experts_per_tok = nemo_config.moe_router_topk
-    assert hf_config.num_experts_per_tok > 0, "num_experts_per_token must be greater than zero."
-    if nemo_config.activation == 'fast-swiglu':
-        hf_config.activation = 'silu'
+    assert (
+        hf_config.num_experts_per_tok > 0
+    ), "num_experts_per_token must be greater than zero."
+    if nemo_config.activation == "fast-swiglu":
+        hf_config.activation = "silu"
     else:
         logging.warning(f"Got unknown activation function {nemo_config.activation}")
 
-    hf_config.rope_theta = nemo_config['rotary_base']
+    hf_config.rope_theta = nemo_config["rotary_base"]
     return hf_config
 
 
@@ -78,24 +93,31 @@ def convert(in_file, precision=None) -> None:
     Convert NeMo checkpoint to HF checkpoint
     """
 
-    logging.info(f'Loading NeMo checkpoint from: {in_file}')
+    logging.info(f"Loading NeMo checkpoint from: {in_file}")
 
-    dummy_trainer = Trainer(devices=1, accelerator='cpu', strategy=NLPDDPStrategy())
-    model_config = MegatronGPTModel.restore_from(in_file, trainer=dummy_trainer, return_config=True)
+    dummy_trainer = Trainer(devices=1, accelerator="cpu", strategy=NLPDDPStrategy())
+    model_config = MegatronGPTModel.restore_from(
+        in_file, trainer=dummy_trainer, return_config=True
+    )
     model_config.tensor_model_parallel_size = 1
     model_config.pipeline_model_parallel_size = 1
     model_config.name = "te_gpt"
     cpu_only = True
     if cpu_only:
-        map_location = torch.device('cpu')
+        map_location = torch.device("cpu")
         model_config.use_cpu_initialization = True
     else:
         map_location = None
 
     if cpu_only:
-        logging.info("******** Loading model on CPU. This will take a significant amount of time.")
+        logging.info(
+            "******** Loading model on CPU. This will take a significant amount of time."
+        )
     model = MegatronGPTModel.restore_from(
-        in_file, trainer=dummy_trainer, override_config_path=model_config, map_location=map_location
+        in_file,
+        trainer=dummy_trainer,
+        override_config_path=model_config,
+        map_location=map_location,
     )
     ckpt = model.state_dict()
     nemo_config = model.cfg
@@ -111,17 +133,21 @@ def convert(in_file, precision=None) -> None:
     elif precision in ["bf16", "bf16-mixed"]:
         dtype = torch.bfloat16
     else:
-        logging.warning(f"Precision string {precision} is not recognized, falling back to fp32")
+        logging.warning(
+            f"Precision string {precision} is not recognized, falling back to fp32"
+        )
         dtype = torch.float32  # fallback
     param_to_weights = lambda param: param.to(dtype)
 
     state_dict = OrderedDict()
 
-    hf_embed_weight_name = f'model.embed_tokens.weight'
+    hf_embed_weight_name = f"model.embed_tokens.weight"
     if mcore_gpt:
-        embed_weights_base_name = f'model.embedding.word_embeddings.weight'
+        embed_weights_base_name = f"model.embedding.word_embeddings.weight"
     else:
-        embed_weights_base_name = f'model.language_model.embedding.word_embeddings.weight'
+        embed_weights_base_name = (
+            f"model.language_model.embedding.word_embeddings.weight"
+        )
     state_dict[hf_embed_weight_name] = param_to_weights(ckpt[embed_weights_base_name])
 
     head_num = model.cfg.num_attention_heads
@@ -129,112 +155,155 @@ def convert(in_file, precision=None) -> None:
         num_query_groups = head_num
     else:
         num_query_groups = nemo_config.num_query_groups
-        assert head_num % num_query_groups == 0, 'head_num must be divisible by num_query_groups'
+        assert (
+            head_num % num_query_groups == 0
+        ), "head_num must be divisible by num_query_groups"
     if mcore_gpt:
-        assert nemo_config.activation.startswith('fast-'), 'mcore only supports fast version of gated linear unit.'
+        assert nemo_config.activation.startswith(
+            "fast-"
+        ), "mcore only supports fast version of gated linear unit."
 
     hidden_size = model.cfg.hidden_size
     head_num = model.cfg.num_attention_heads
     num_layers = model.cfg.num_layers
-    num_query_groups = model.cfg.get("num_query_groups", head_num)  # different num_query_groups for 70B
+    num_query_groups = model.cfg.get(
+        "num_query_groups", head_num
+    )  # different num_query_groups for 70B
 
-    head_size = model.cfg.get("kv_channels") or (hidden_size // head_num)  # equivalent to hf's head_dim
+    head_size = model.cfg.get("kv_channels") or (
+        hidden_size // head_num
+    )  # equivalent to hf's head_dim
     heads_per_group = head_num // num_query_groups
     qkv_total_dim = head_num + 2 * num_query_groups
 
     # Embedding
-    embed_weight = model.state_dict()[f'model.embedding.word_embeddings.weight']
-    embed_weights_base_name = f'model.embed_tokens.weight'
+    embed_weight = model.state_dict()[f"model.embedding.word_embeddings.weight"]
+    embed_weights_base_name = f"model.embed_tokens.weight"
     state_dict[embed_weights_base_name] = param_to_weights(embed_weight)
 
     for l in range(int(num_layers)):
         print(f"converting layer {l}")
 
-        qkv_weights = model.state_dict()[f'model.decoder.layers.{l}.self_attention.linear_qkv.weight']
+        qkv_weights = model.state_dict()[
+            f"model.decoder.layers.{l}.self_attention.linear_qkv.weight"
+        ]
         qkv_weights = qkv_weights.reshape([qkv_total_dim, head_size, hidden_size])
 
         q_slice = torch.cat(
             [
-                torch.arange((heads_per_group + 2) * i, (heads_per_group + 2) * i + heads_per_group)
+                torch.arange(
+                    (heads_per_group + 2) * i,
+                    (heads_per_group + 2) * i + heads_per_group,
+                )
                 for i in range(num_query_groups)
             ]
         )
         k_slice = torch.arange(heads_per_group, qkv_total_dim, (heads_per_group + 2))
-        v_slice = torch.arange(heads_per_group + 1, qkv_total_dim, (heads_per_group + 2))
+        v_slice = torch.arange(
+            heads_per_group + 1, qkv_total_dim, (heads_per_group + 2)
+        )
 
-        for name, slice in [('q_proj', q_slice), ('k_proj', k_slice), ('v_proj', v_slice)]:
-            weight_name = f'model.layers.{l}.self_attn.{name}.weight'
-            state_dict[weight_name] = param_to_weights(qkv_weights[slice].reshape(-1, hidden_size))
+        for name, slice in [
+            ("q_proj", q_slice),
+            ("k_proj", k_slice),
+            ("v_proj", v_slice),
+        ]:
+            weight_name = f"model.layers.{l}.self_attn.{name}.weight"
+            state_dict[weight_name] = param_to_weights(
+                qkv_weights[slice].reshape(-1, hidden_size)
+            )
 
         # attention dense
-        hf_o_weight_name = f'model.layers.{l}.self_attn.o_proj.weight'
+        hf_o_weight_name = f"model.layers.{l}.self_attn.o_proj.weight"
         if mcore_gpt:
-            o_weight_base_name = f'model.decoder.layers.{l}.self_attention.linear_proj.weight'
+            o_weight_base_name = (
+                f"model.decoder.layers.{l}.self_attention.linear_proj.weight"
+            )
         else:
-            o_weight_base_name = f'model.language_model.encoder.layers.{l}.self_attention.dense.weight'
+            o_weight_base_name = (
+                f"model.language_model.encoder.layers.{l}.self_attention.dense.weight"
+            )
         state_dict[hf_o_weight_name] = param_to_weights(ckpt[o_weight_base_name])
 
         # # MLP
         # Handle gate
-        hf_moe_gate_name = f'model.layers.{l}.block_sparse_moe.gate.weight'
+        hf_moe_gate_name = f"model.layers.{l}.block_sparse_moe.gate.weight"
         if mcore_gpt:
-            moe_gate_name = f'model.decoder.layers.{l}.mlp.router.weight'
+            moe_gate_name = f"model.decoder.layers.{l}.mlp.router.weight"
         else:
             raise Exception("not implemented")
         state_dict[hf_moe_gate_name] = param_to_weights(ckpt[moe_gate_name])
         # Handle experts
         for i in range(nemo_config.num_moe_experts):
             if mcore_gpt:
-                mlp_down_base_name = f'model.decoder.layers.{l}.mlp.experts.local_experts.{i}.linear_fc1.weight'
+                mlp_down_base_name = f"model.decoder.layers.{l}.mlp.experts.local_experts.{i}.linear_fc1.weight"
             else:
                 raise Exception("not implemented")
-            gate_proj_weight, up_proj_weight = torch.chunk(ckpt[mlp_down_base_name], 2, dim=0)
-            hf_gate_proj_name = f'model.layers.{l}.block_sparse_moe.experts.{i}.w1.weight'
-            hf_up_proj_name = f'model.layers.{l}.block_sparse_moe.experts.{i}.w3.weight'
+            gate_proj_weight, up_proj_weight = torch.chunk(
+                ckpt[mlp_down_base_name], 2, dim=0
+            )
+            hf_gate_proj_name = (
+                f"model.layers.{l}.block_sparse_moe.experts.{i}.w1.weight"
+            )
+            hf_up_proj_name = f"model.layers.{l}.block_sparse_moe.experts.{i}.w3.weight"
             state_dict[hf_gate_proj_name] = param_to_weights(gate_proj_weight)
             state_dict[hf_up_proj_name] = param_to_weights(up_proj_weight)
 
-            hf_mlp_up_weight_name = f'model.layers.{l}.block_sparse_moe.experts.{i}.w2.weight'
+            hf_mlp_up_weight_name = (
+                f"model.layers.{l}.block_sparse_moe.experts.{i}.w2.weight"
+            )
             if mcore_gpt:
-                mlp_up_base_name = f'model.decoder.layers.{l}.mlp.experts.local_experts.{i}.linear_fc2.weight'
+                mlp_up_base_name = f"model.decoder.layers.{l}.mlp.experts.local_experts.{i}.linear_fc2.weight"
             else:
                 raise Exception("not implemented")
             state_dict[hf_mlp_up_weight_name] = param_to_weights(ckpt[mlp_up_base_name])
 
         # LayerNorm
-        hf_input_ln_weight_name = f'model.layers.{l}.input_layernorm.weight'
+        hf_input_ln_weight_name = f"model.layers.{l}.input_layernorm.weight"
         if mcore_gpt:
-            input_ln_base_name = f'model.decoder.layers.{l}.self_attention.linear_qkv.layer_norm_weight'
+            input_ln_base_name = (
+                f"model.decoder.layers.{l}.self_attention.linear_qkv.layer_norm_weight"
+            )
         else:
-            input_ln_base_name = f'model.language_model.encoder.layers.{l}.input_layernorm.weight'
+            input_ln_base_name = (
+                f"model.language_model.encoder.layers.{l}.input_layernorm.weight"
+            )
         state_dict[hf_input_ln_weight_name] = param_to_weights(ckpt[input_ln_base_name])
 
-        hf_post_attn_ln_weight_name = f'model.layers.{l}.post_attention_layernorm.weight'
+        hf_post_attn_ln_weight_name = (
+            f"model.layers.{l}.post_attention_layernorm.weight"
+        )
         if mcore_gpt:
             # @akoumparouli: switch to the following once TE supports MoE.
             # post_attn_ln_base_name = f'model.decoder.layers.{l}.mlp.linear_fc1.layer_norm_weight'
-            post_attn_ln_base_name = f'model.decoder.layers.{l}.pre_mlp_layernorm.weight'
+            post_attn_ln_base_name = (
+                f"model.decoder.layers.{l}.pre_mlp_layernorm.weight"
+            )
         else:
-            post_attn_ln_base_name = f'model.language_model.encoder.layers.{l}.post_attention_layernorm.weight'
-        state_dict[hf_post_attn_ln_weight_name] = param_to_weights(ckpt[post_attn_ln_base_name])
+            post_attn_ln_base_name = f"model.language_model.encoder.layers.{l}.post_attention_layernorm.weight"
+        state_dict[hf_post_attn_ln_weight_name] = param_to_weights(
+            ckpt[post_attn_ln_base_name]
+        )
 
-    hf_final_ln_weight_name = 'model.norm.weight'
+    hf_final_ln_weight_name = "model.norm.weight"
     if mcore_gpt:
-        final_ln_base_name = 'model.decoder.final_layernorm.weight'
+        final_ln_base_name = "model.decoder.final_layernorm.weight"
     else:
-        final_ln_base_name = 'model.language_model.encoder.final_layernorm.weight'
+        final_ln_base_name = "model.language_model.encoder.final_layernorm.weight"
     state_dict[hf_final_ln_weight_name] = param_to_weights(ckpt[final_ln_base_name])
 
-    hf_output_layer_weight_name = 'lm_head.weight'
+    hf_output_layer_weight_name = "lm_head.weight"
     if mcore_gpt:
-        output_layer_base_name = 'model.output_layer.weight'
+        output_layer_base_name = "model.output_layer.weight"
     else:
-        output_layer_base_name = 'model.language_model.output_layer.weight'
-    state_dict[hf_output_layer_weight_name] = param_to_weights(ckpt[output_layer_base_name])
+        output_layer_base_name = "model.language_model.output_layer.weight"
+    state_dict[hf_output_layer_weight_name] = param_to_weights(
+        ckpt[output_layer_base_name]
+    )
     return state_dict, nemo_config
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     args = get_args()
     parallel_state.set_expert_model_parallel_world_size(1)
     hf_state_dict, nemo_config = convert(args.input_name_or_path, args.precision)
@@ -245,4 +314,4 @@ if __name__ == '__main__':
     model.save_pretrained(args.output_path)
     hf_tokenizer = AutoTokenizer.from_pretrained(args.hf_model_name)
     hf_tokenizer.save_pretrained(args.output_path)
-    logging.info(f'HF checkpoint saved to: {args.output_path}')
+    logging.info(f"HF checkpoint saved to: {args.output_path}")

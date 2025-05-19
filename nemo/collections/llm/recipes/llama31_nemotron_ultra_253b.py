@@ -87,7 +87,9 @@ def pretrain_recipe(
         This model is a distilled version of Llama-3.1-405B and only supports fine-tuning.
         Use the finetune_recipe function instead for model adaptation.
     """
-    raise NotImplementedError('Llama33 Nemotron Super model is a distilled model based on Llama3.1 405B.')
+    raise NotImplementedError(
+        "Llama33 Nemotron Super model is a distilled model based on Llama3.1 405B."
+    )
 
 
 @run.cli.factory(target=finetune, name=NAME)
@@ -97,7 +99,7 @@ def finetune_recipe(
     name: str = "default",
     num_nodes: int = 2,
     num_gpus_per_node: int = 8,
-    peft_scheme: Optional[str] = 'lora',
+    peft_scheme: Optional[str] = "lora",
     seq_length: Optional[int] = None,
     packed_sequence: Optional[bool] = None,
     performance_mode: bool = False,
@@ -147,12 +149,14 @@ def finetune_recipe(
     if seq_length is None:
         seq_length = 4096 if packed_sequence else 2048
 
-    recipe = default_finetune_recipe(model(), resume_path, dir, name, num_nodes, num_gpus_per_node, packed_sequence)
-    if peft_scheme is None or peft_scheme.lower() == 'none':
+    recipe = default_finetune_recipe(
+        model(), resume_path, dir, name, num_nodes, num_gpus_per_node, packed_sequence
+    )
+    if peft_scheme is None or peft_scheme.lower() == "none":
         recipe.trainer.strategy.tensor_model_parallel_size = 8
         recipe.trainer.strategy.pipeline_model_parallel_size = 9
         recipe.optim.config.lr = 5e-6
-    elif peft_scheme.lower() in ['lora', 'dora']:
+    elif peft_scheme.lower() in ["lora", "dora"]:
         recipe.trainer.strategy.tensor_model_parallel_size = 8
         recipe.trainer.strategy.pipeline_model_parallel_size = 2
         recipe.peft = run.Config(PEFT_STR2CLS[peft_scheme.lower()])
@@ -171,7 +175,9 @@ def finetune_recipe(
     recipe.model.config.seq_length = seq_length
     recipe.data.seq_length = seq_length
     if packed_sequence:
-        recipe.data.dataset_kwargs = {'pad_to_max_length': True}
-        recipe.data.packed_sequence_specs = run.Config(PackedSequenceSpecs, packed_sequence_size=seq_length)
+        recipe.data.dataset_kwargs = {"pad_to_max_length": True}
+        recipe.data.packed_sequence_specs = run.Config(
+            PackedSequenceSpecs, packed_sequence_size=seq_length
+        )
 
     return recipe

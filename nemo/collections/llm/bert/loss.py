@@ -30,7 +30,12 @@ class BERTLossReduction(MegatronLossReduction):
     when add_sop_loss = False, only calculate Masked token loss.
     """
 
-    def __init__(self, validation_step: bool = False, val_drop_last: bool = True, add_sop_loss: bool = True) -> None:
+    def __init__(
+        self,
+        validation_step: bool = False,
+        val_drop_last: bool = True,
+        add_sop_loss: bool = True,
+    ) -> None:
         super().__init__()
         self.validation_step = validation_step
         self.val_drop_last = val_drop_last
@@ -49,24 +54,26 @@ class BERTLossReduction(MegatronLossReduction):
         # Update loss_mask to batch.
         # Model forward did no update to loss_mask, but for unknown reason loss_mask can get lost (to None)
         # in 'batch' during update. We use the original loss_mask in the dataloader as the ground truth.
-        batch['loss_mask'] = forward_out['loss_mask']
+        batch["loss_mask"] = forward_out["loss_mask"]
         if not self.add_sop_loss:
-            return self.mlm.forward(batch, forward_out['lm_loss'])
+            return self.mlm.forward(batch, forward_out["lm_loss"])
 
         from megatron.core import parallel_state
 
-        lm_loss_, sop_logits = forward_out['lm_loss'], forward_out['binary_logits']
+        lm_loss_, sop_logits = forward_out["lm_loss"], forward_out["binary_logits"]
         assert sop_logits is not None, (
-            'Attempting to calculate Sentence Order Prediction Loss but SOP logits '
-            'are not provideds, Please Make sure you have added binary head.'
+            "Attempting to calculate Sentence Order Prediction Loss but SOP logits "
+            "are not provideds, Please Make sure you have added binary head."
         )
 
         cp_size = parallel_state.get_context_parallel_world_size()
         if cp_size == 1:
-            sop_loss_for_ub = sentence_order_prediction_loss(sop_logits, batch["is_random"])
+            sop_loss_for_ub = sentence_order_prediction_loss(
+                sop_logits, batch["is_random"]
+            )
             lm_loss_for_ub = masked_token_with_zero(lm_loss_, batch["loss_mask"])
         else:
-            raise NotImplementedError('CP is not supported for SOP loss yet')
+            raise NotImplementedError("CP is not supported for SOP loss yet")
 
         loss_for_ub = sop_loss_for_ub + lm_loss_for_ub
         reduced_loss = average_losses_across_data_parallel_group([loss_for_ub])
@@ -74,7 +81,8 @@ class BERTLossReduction(MegatronLossReduction):
 
     def reduce(self, losses_reduced_per_micro_batch) -> torch.Tensor:
         """Taken from: https://github.com/NVIDIA/NeMo/blob/main
-        /nemo/collections/nlp/models/language_modeling/megatron_gpt_model.py#L535-L552 ."""
+        /nemo/collections/nlp/models/language_modeling/megatron_gpt_model.py#L535-L552 .
+        """
         if losses_reduced_per_micro_batch:
             if "avg" in losses_reduced_per_micro_batch[0]:
                 # legacy behavior, average over the number of microbatches
@@ -85,7 +93,9 @@ class BERTLossReduction(MegatronLossReduction):
             from megatron.core import parallel_state
 
             loss_sum_and_ub_size = [
-                x["loss_sum_and_ub_size"] for x in losses_reduced_per_micro_batch if x["loss_sum_and_ub_size"][1] > 0
+                x["loss_sum_and_ub_size"]
+                for x in losses_reduced_per_micro_batch
+                if x["loss_sum_and_ub_size"][1] > 0
             ]
             loss = (
                 torch.vstack(loss_sum_and_ub_size).sum(dim=0)
@@ -94,7 +104,9 @@ class BERTLossReduction(MegatronLossReduction):
             )
             torch.distributed.all_reduce(
                 loss,
-                group=parallel_state.get_data_parallel_group(with_context_parallel=True),
+                group=parallel_state.get_data_parallel_group(
+                    with_context_parallel=True
+                ),
             )
             # average over the total number of tokens across the global batch.
             loss = loss[0] / loss[1]
@@ -134,9 +146,11 @@ class HardNegativeRankingLoss(MegatronLossReduction):
 
         cp_size = parallel_state.get_context_parallel_world_size()
         if cp_size != 1:
-            raise NotImplementedError(f'CP is not supported for {self.__class__} yet.')
+            raise NotImplementedError(f"CP is not supported for {self.__class__} yet.")
 
-        num_tensors_per_example = 2 + self.num_hard_negatives  # 1 query, 1 pos, num_hard_negatives negs
+        num_tensors_per_example = (
+            2 + self.num_hard_negatives
+        )  # 1 query, 1 pos, num_hard_negatives negs
         current_train_n_passages = 1 + self.num_hard_negatives
         batch_size = forward_out.shape[0] // num_tensors_per_example
         # Get Query, Key (Positives, Negatives)
@@ -145,15 +159,21 @@ class HardNegativeRankingLoss(MegatronLossReduction):
         query = torch.stack([item[0] for item in chunks])
         key = torch.cat([item[1:] for item in chunks])
 
-        assert key.shape[0] % query.shape[0] == 0, '{} % {} > 0'.format(key.shape[0], query.shape[0])
-        assert key.shape[0] / query.shape[0] == current_train_n_passages, '{} / {} != {}'.format(
+        assert key.shape[0] % query.shape[0] == 0, "{} % {} > 0".format(
+            key.shape[0], query.shape[0]
+        )
+        assert (
+            key.shape[0] / query.shape[0] == current_train_n_passages
+        ), "{} / {} != {}".format(
             key.shape[0], query.shape[0], current_train_n_passages
         )
         query_shape = query.shape
         repeated_query = query.repeat(1, 1, current_train_n_passages).reshape(
             query_shape[0] * current_train_n_passages, query_shape[1]
         )
-        scores = torch.sum(repeated_query * key, dim=-1).reshape(query_shape[0], current_train_n_passages)
+        scores = torch.sum(repeated_query * key, dim=-1).reshape(
+            query_shape[0], current_train_n_passages
+        )
         labels = torch.zeros(query_shape[0], dtype=torch.long, device=query.device)
         scores *= self.scale
         ce_loss = self.cross_entropy_loss(scores, labels)
@@ -162,7 +182,8 @@ class HardNegativeRankingLoss(MegatronLossReduction):
 
     def reduce(self, losses_reduced_per_micro_batch) -> torch.Tensor:
         """Taken from: https://github.com/NVIDIA/NeMo/blob/main
-        /nemo/collections/nlp/models/language_modeling/megatron_gpt_model.py#L535-L552 ."""
+        /nemo/collections/nlp/models/language_modeling/megatron_gpt_model.py#L535-L552 .
+        """
         if losses_reduced_per_micro_batch:
             if "avg" in losses_reduced_per_micro_batch[0]:
                 # legacy behavior, average over the number of microbatches
@@ -173,7 +194,9 @@ class HardNegativeRankingLoss(MegatronLossReduction):
             from megatron.core import parallel_state
 
             loss_sum_and_ub_size = [
-                x["loss_sum_and_ub_size"] for x in losses_reduced_per_micro_batch if x["loss_sum_and_ub_size"][1] > 0
+                x["loss_sum_and_ub_size"]
+                for x in losses_reduced_per_micro_batch
+                if x["loss_sum_and_ub_size"][1] > 0
             ]
             loss = (
                 torch.vstack(loss_sum_and_ub_size).sum(dim=0)
@@ -182,7 +205,9 @@ class HardNegativeRankingLoss(MegatronLossReduction):
             )
             torch.distributed.all_reduce(
                 loss,
-                group=parallel_state.get_data_parallel_group(with_context_parallel=True),
+                group=parallel_state.get_data_parallel_group(
+                    with_context_parallel=True
+                ),
             )
             # average over the total number of tokens across the global batch.
             loss = loss[0] / loss[1]
@@ -210,7 +235,7 @@ class BERTInBatchExclusiveHardNegativesRankingLoss(MegatronLossReduction):
         scale: float = 20,
         label_smoothing: float = 0.0,
         global_in_batch_negatives: bool = False,
-        backprop_type: Literal["local", "global"] = 'local',
+        backprop_type: Literal["local", "global"] = "local",
     ) -> None:
         super().__init__()
         self.validation_step = validation_step
@@ -225,11 +250,16 @@ class BERTInBatchExclusiveHardNegativesRankingLoss(MegatronLossReduction):
         from megatron.core import parallel_state
 
         local_tensor = local_tensor.contiguous()
-        if self.backprop_type == 'local':
+        if self.backprop_type == "local":
             global_tensors = [
-                torch.zeros_like(local_tensor) for _ in range(parallel_state.get_data_parallel_world_size())
+                torch.zeros_like(local_tensor)
+                for _ in range(parallel_state.get_data_parallel_world_size())
             ]
-            all_gather_no_backprop(global_tensors, local_tensor, group=parallel_state.get_data_parallel_group())
+            all_gather_no_backprop(
+                global_tensors,
+                local_tensor,
+                group=parallel_state.get_data_parallel_group(),
+            )
             global_tensors[parallel_state.get_data_parallel_rank()] = local_tensor
             global_tensors = torch.cat(global_tensors, dim=0)
 
@@ -246,7 +276,7 @@ class BERTInBatchExclusiveHardNegativesRankingLoss(MegatronLossReduction):
 
         cp_size = parallel_state.get_context_parallel_world_size()
         if cp_size != 1:
-            raise NotImplementedError(f'CP is not supported for {self.__class__} yet.')
+            raise NotImplementedError(f"CP is not supported for {self.__class__} yet.")
 
         if self.global_in_batch_negatives and not self.validation_step:
             forward_out = self._gather_global_in_batch_representations(forward_out)
@@ -258,12 +288,16 @@ class BERTInBatchExclusiveHardNegativesRankingLoss(MegatronLossReduction):
         queries = torch.stack([item[0] for item in chunks])
         positives = torch.stack([item[1] for item in chunks])
         hard_negs = [
-            torch.stack([item[i + 2] for item in chunks]) for i in range(self.num_hard_negatives)
+            torch.stack([item[i + 2] for item in chunks])
+            for i in range(self.num_hard_negatives)
         ]  # List of length "num_negatives", each tensor of shape (bs, embedding_dim)
 
         # Calculate scores
         pos_in_batch_negs_scores = torch.mm(
-            queries, positives.transpose(0, 1)  # shape (bs, bs); each positive is negative for other queries.
+            queries,
+            positives.transpose(
+                0, 1
+            ),  # shape (bs, bs); each positive is negative for other queries.
         )
         hard_negs_scores = (
             torch.multiply(
@@ -286,7 +320,8 @@ class BERTInBatchExclusiveHardNegativesRankingLoss(MegatronLossReduction):
 
     def reduce(self, losses_reduced_per_micro_batch) -> torch.Tensor:
         """Taken from: https://github.com/NVIDIA/NeMo/blob/main
-        /nemo/collections/nlp/models/language_modeling/megatron_gpt_model.py#L535-L552 ."""
+        /nemo/collections/nlp/models/language_modeling/megatron_gpt_model.py#L535-L552 .
+        """
         if losses_reduced_per_micro_batch:
             if "avg" in losses_reduced_per_micro_batch[0]:
                 # legacy behavior, average over the number of microbatches
@@ -297,7 +332,9 @@ class BERTInBatchExclusiveHardNegativesRankingLoss(MegatronLossReduction):
             from megatron.core import parallel_state
 
             loss_sum_and_ub_size = [
-                x["loss_sum_and_ub_size"] for x in losses_reduced_per_micro_batch if x["loss_sum_and_ub_size"][1] > 0
+                x["loss_sum_and_ub_size"]
+                for x in losses_reduced_per_micro_batch
+                if x["loss_sum_and_ub_size"][1] > 0
             ]
             loss = (
                 torch.vstack(loss_sum_and_ub_size).sum(dim=0)
@@ -306,7 +343,9 @@ class BERTInBatchExclusiveHardNegativesRankingLoss(MegatronLossReduction):
             )
             torch.distributed.all_reduce(
                 loss,
-                group=parallel_state.get_data_parallel_group(with_context_parallel=True),
+                group=parallel_state.get_data_parallel_group(
+                    with_context_parallel=True
+                ),
             )
             # average over the total number of tokens across the global batch.
             loss = loss[0] / loss[1]
@@ -345,7 +384,9 @@ def average_losses_across_data_parallel_group(losses):
     from megatron.core import parallel_state
 
     averaged_losses = torch.cat([loss.clone().detach().view(1) for loss in losses])
-    torch.distributed.all_reduce(averaged_losses, group=parallel_state.get_data_parallel_group())
+    torch.distributed.all_reduce(
+        averaged_losses, group=parallel_state.get_data_parallel_group()
+    )
     averaged_losses = averaged_losses / torch.distributed.get_world_size(
         group=parallel_state.get_data_parallel_group()
     )

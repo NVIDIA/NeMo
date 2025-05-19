@@ -64,22 +64,30 @@ class SEANetResnetBlock(NeuralModule):
         super().__init__()
         self.pre_activation = CodecActivation(activation=activation, channels=channels)
         hidden_channels = channels // 2
-        self.pre_conv = Conv1dNorm(in_channels=channels, out_channels=channels, kernel_size=1)
-        self.res_conv1 = Conv1dNorm(in_channels=channels, out_channels=hidden_channels, kernel_size=3)
-        self.post_activation = CodecActivation(activation=activation, channels=hidden_channels)
-        self.res_conv2 = Conv1dNorm(in_channels=hidden_channels, out_channels=channels, kernel_size=1)
+        self.pre_conv = Conv1dNorm(
+            in_channels=channels, out_channels=channels, kernel_size=1
+        )
+        self.res_conv1 = Conv1dNorm(
+            in_channels=channels, out_channels=hidden_channels, kernel_size=3
+        )
+        self.post_activation = CodecActivation(
+            activation=activation, channels=hidden_channels
+        )
+        self.res_conv2 = Conv1dNorm(
+            in_channels=hidden_channels, out_channels=channels, kernel_size=1
+        )
 
     @property
     def input_types(self):
         return {
-            "inputs": NeuralType(('B', 'C', 'T_input'), VoidType()),
-            "input_len": NeuralType(tuple('B'), LengthsType()),
+            "inputs": NeuralType(("B", "C", "T_input"), VoidType()),
+            "input_len": NeuralType(tuple("B"), LengthsType()),
         }
 
     @property
     def output_types(self):
         return {
-            "out": NeuralType(('B', 'C', 'T_out'), VoidType()),
+            "out": NeuralType(("B", "C", "T_out"), VoidType()),
         }
 
     def remove_weight_norm(self):
@@ -100,27 +108,33 @@ class SEANetResnetBlock(NeuralModule):
 
 
 class SEANetRNN(NeuralModule):
-    def __init__(self, dim: int, num_layers: int, rnn_type: str = "lstm", use_skip: bool = False):
+    def __init__(
+        self, dim: int, num_layers: int, rnn_type: str = "lstm", use_skip: bool = False
+    ):
         super().__init__()
         self.use_skip = use_skip
         if rnn_type == "lstm":
-            self.rnn = torch.nn.LSTM(input_size=dim, hidden_size=dim, num_layers=num_layers)
+            self.rnn = torch.nn.LSTM(
+                input_size=dim, hidden_size=dim, num_layers=num_layers
+            )
         elif rnn_type == "gru":
-            self.rnn = torch.nn.GRU(input_size=dim, hidden_size=dim, num_layers=num_layers)
+            self.rnn = torch.nn.GRU(
+                input_size=dim, hidden_size=dim, num_layers=num_layers
+            )
         else:
             raise ValueError(f"Unknown RNN type {rnn_type}")
 
     @property
     def input_types(self):
         return {
-            "inputs": NeuralType(('B', 'C', 'T'), VoidType()),
-            "input_len": NeuralType(tuple('B'), LengthsType()),
+            "inputs": NeuralType(("B", "C", "T"), VoidType()),
+            "input_len": NeuralType(tuple("B"), LengthsType()),
         }
 
     @property
     def output_types(self):
         return {
-            "out": NeuralType(('B', 'C', 'T'), VoidType()),
+            "out": NeuralType(("B", "C", "T"), VoidType()),
         }
 
     @typecheck()
@@ -159,7 +173,9 @@ class SEANetEncoder(NeuralModule):
         super().__init__()
 
         self.down_sample_rates = down_sample_rates
-        self.pre_conv = Conv1dNorm(in_channels=1, out_channels=base_channels, kernel_size=in_kernel_size)
+        self.pre_conv = Conv1dNorm(
+            in_channels=1, out_channels=base_channels, kernel_size=in_kernel_size
+        )
 
         in_channels = base_channels
         self.res_blocks = nn.ModuleList([])
@@ -168,7 +184,9 @@ class SEANetEncoder(NeuralModule):
         for i, down_sample_rate in enumerate(self.down_sample_rates):
             res_block = SEANetResnetBlock(channels=in_channels)
             self.res_blocks.append(res_block)
-            self.activations.append(CodecActivation(activation=activation, channels=in_channels))
+            self.activations.append(
+                CodecActivation(activation=activation, channels=in_channels)
+            )
 
             out_channels = 2 * in_channels
             kernel_size = 2 * down_sample_rate
@@ -182,22 +200,30 @@ class SEANetEncoder(NeuralModule):
             in_channels = out_channels
             self.down_sample_conv_layers.append(down_sample_conv)
 
-        self.post_activation = CodecActivation(activation=activation, channels=in_channels)
-        self.rnn = SEANetRNN(dim=in_channels, num_layers=rnn_layers, rnn_type=rnn_type, use_skip=rnn_skip)
-        self.post_conv = Conv1dNorm(in_channels=in_channels, out_channels=encoded_dim, kernel_size=out_kernel_size)
+        self.post_activation = CodecActivation(
+            activation=activation, channels=in_channels
+        )
+        self.rnn = SEANetRNN(
+            dim=in_channels, num_layers=rnn_layers, rnn_type=rnn_type, use_skip=rnn_skip
+        )
+        self.post_conv = Conv1dNorm(
+            in_channels=in_channels,
+            out_channels=encoded_dim,
+            kernel_size=out_kernel_size,
+        )
 
     @property
     def input_types(self):
         return {
-            "audio": NeuralType(('B', 'T_audio'), AudioSignal()),
-            "audio_len": NeuralType(tuple('B'), LengthsType()),
+            "audio": NeuralType(("B", "T_audio"), AudioSignal()),
+            "audio_len": NeuralType(tuple("B"), LengthsType()),
         }
 
     @property
     def output_types(self):
         return {
-            "encoded": NeuralType(('B', 'D', 'T_encoded'), EncodedRepresentation()),
-            "encoded_len": NeuralType(tuple('B'), LengthsType()),
+            "encoded": NeuralType(("B", "D", "T_encoded"), EncodedRepresentation()),
+            "encoded_len": NeuralType(tuple("B"), LengthsType()),
         }
 
     def remove_weight_norm(self):
@@ -215,7 +241,10 @@ class SEANetEncoder(NeuralModule):
         # [B, C, T_audio]
         out = self.pre_conv(inputs=audio, input_len=encoded_len)
         for res_block, down_sample_conv, down_sample_rate, activation in zip(
-            self.res_blocks, self.down_sample_conv_layers, self.down_sample_rates, self.activations
+            self.res_blocks,
+            self.down_sample_conv_layers,
+            self.down_sample_rates,
+            self.activations,
         ):
             # [B, C, T]
             out = res_block(inputs=out, input_len=encoded_len)
@@ -251,15 +280,26 @@ class SEANetDecoder(NeuralModule):
         super().__init__()
 
         self.up_sample_rates = up_sample_rates
-        self.pre_conv = Conv1dNorm(in_channels=encoded_dim, out_channels=base_channels, kernel_size=in_kernel_size)
-        self.rnn = SEANetRNN(dim=base_channels, num_layers=rnn_layers, rnn_type=rnn_type, use_skip=rnn_skip)
+        self.pre_conv = Conv1dNorm(
+            in_channels=encoded_dim,
+            out_channels=base_channels,
+            kernel_size=in_kernel_size,
+        )
+        self.rnn = SEANetRNN(
+            dim=base_channels,
+            num_layers=rnn_layers,
+            rnn_type=rnn_type,
+            use_skip=rnn_skip,
+        )
 
         in_channels = base_channels
         self.res_blocks = nn.ModuleList([])
         self.up_sample_conv_layers = nn.ModuleList([])
         self.activations = nn.ModuleList([])
         for i, up_sample_rate in enumerate(self.up_sample_rates):
-            self.activations.append(CodecActivation(activation=activation, channels=in_channels))
+            self.activations.append(
+                CodecActivation(activation=activation, channels=in_channels)
+            )
             out_channels = in_channels // 2
             kernel_size = 2 * up_sample_rate
             up_sample_conv = ConvTranspose1dNorm(
@@ -274,22 +314,26 @@ class SEANetDecoder(NeuralModule):
             res_block = SEANetResnetBlock(channels=in_channels)
             self.res_blocks.append(res_block)
 
-        self.post_activation = CodecActivation(activation=activation, channels=in_channels)
-        self.post_conv = Conv1dNorm(in_channels=in_channels, out_channels=1, kernel_size=out_kernel_size)
+        self.post_activation = CodecActivation(
+            activation=activation, channels=in_channels
+        )
+        self.post_conv = Conv1dNorm(
+            in_channels=in_channels, out_channels=1, kernel_size=out_kernel_size
+        )
         self.out_activation = nn.Tanh()
 
     @property
     def input_types(self):
         return {
-            "inputs": [NeuralType(('B', 'D', 'T_encoded'), EncodedRepresentation())],
-            "input_len": [NeuralType(tuple('B'), LengthsType())],
+            "inputs": [NeuralType(("B", "D", "T_encoded"), EncodedRepresentation())],
+            "input_len": [NeuralType(tuple("B"), LengthsType())],
         }
 
     @property
     def output_types(self):
         return {
-            "audio": NeuralType(('B', 'T_audio'), AudioSignal()),
-            "audio_len": NeuralType(tuple('B'), LengthsType()),
+            "audio": NeuralType(("B", "T_audio"), AudioSignal()),
+            "audio_len": NeuralType(tuple("B"), LengthsType()),
         }
 
     def remove_weight_norm(self):
@@ -306,7 +350,10 @@ class SEANetDecoder(NeuralModule):
         out = self.pre_conv(inputs=inputs, input_len=audio_len)
         out = self.rnn(inputs=out, input_len=audio_len)
         for res_block, up_sample_conv, up_sample_rate, activation in zip(
-            self.res_blocks, self.up_sample_conv_layers, self.up_sample_rates, self.activations
+            self.res_blocks,
+            self.up_sample_conv_layers,
+            self.up_sample_rates,
+            self.activations,
         ):
             audio_len = audio_len * up_sample_rate
             out = activation(out)
@@ -327,7 +374,9 @@ class DiscriminatorSTFT(NeuralModule):
         super().__init__()
 
         self.n_fft, self.hop_length, self.win_length = resolution
-        self.register_buffer("window", torch.hann_window(self.win_length, periodic=False))
+        self.register_buffer(
+            "window", torch.hann_window(self.win_length, periodic=False)
+        )
         self.activation = nn.LeakyReLU(lrelu_slope)
 
         self.conv_layers = nn.ModuleList(
@@ -361,14 +410,14 @@ class DiscriminatorSTFT(NeuralModule):
     @property
     def input_types(self):
         return {
-            "audio": NeuralType(('B', 'T_audio'), AudioSignal()),
+            "audio": NeuralType(("B", "T_audio"), AudioSignal()),
         }
 
     @property
     def output_types(self):
         return {
-            "scores": NeuralType(('B', 'C', 'T_spec'), VoidType()),
-            "fmap": [NeuralType(('B', 'D', 'T_spec', 'C'), VoidType())],
+            "scores": NeuralType(("B", "C", "T_spec"), VoidType()),
+            "fmap": [NeuralType(("B", "D", "T_spec", "C"), VoidType())],
         }
 
     @typecheck()
@@ -393,22 +442,24 @@ class DiscriminatorSTFT(NeuralModule):
 class MultiResolutionDiscriminatorSTFT(NeuralModule):
     def __init__(self, resolutions):
         super().__init__()
-        self.discriminators = nn.ModuleList([DiscriminatorSTFT(res) for res in resolutions])
+        self.discriminators = nn.ModuleList(
+            [DiscriminatorSTFT(res) for res in resolutions]
+        )
 
     @property
     def input_types(self):
         return {
-            "audio_real": NeuralType(('B', 'T_audio'), AudioSignal()),
-            "audio_gen": NeuralType(('B', 'T_audio'), AudioSignal()),
+            "audio_real": NeuralType(("B", "T_audio"), AudioSignal()),
+            "audio_gen": NeuralType(("B", "T_audio"), AudioSignal()),
         }
 
     @property
     def output_types(self):
         return {
-            "scores_real": [NeuralType(('B', 'C', 'T_spec'), VoidType())],
-            "scores_gen": [NeuralType(('B', 'C', 'T_spec'), VoidType())],
-            "fmaps_real": [[NeuralType(('B', 'D', 'T_spec', 'C'), VoidType())]],
-            "fmaps_gen": [[NeuralType(('B', 'D', 'T_spec', 'C'), VoidType())]],
+            "scores_real": [NeuralType(("B", "C", "T_spec"), VoidType())],
+            "scores_gen": [NeuralType(("B", "C", "T_spec"), VoidType())],
+            "fmaps_real": [[NeuralType(("B", "D", "T_spec", "C"), VoidType())]],
+            "fmaps_gen": [[NeuralType(("B", "D", "T_spec", "C"), VoidType())]],
         }
 
     @typecheck()
@@ -434,7 +485,9 @@ def _ema_inplace(moving_avg: Tensor, new: Tensor, decay: float) -> None:
     moving_avg.data.mul_(decay).add_(new, alpha=(1 - decay))
 
 
-def _laplace_smoothing(inputs: Tensor, n_categories: int, epsilon: float = 1e-5) -> Tensor:
+def _laplace_smoothing(
+    inputs: Tensor, n_categories: int, epsilon: float = 1e-5
+) -> Tensor:
     input_sum = inputs.sum()
     smoothed = (inputs + epsilon) / (input_sum + n_categories * epsilon)
     return input_sum * smoothed
@@ -452,7 +505,11 @@ def _compute_distances(input1: Tensor, input2: Tensor) -> Tensor:
         [(B, D)] tensor of distances.
     """
     input2 = rearrange(input2, "N D -> D N")
-    distances = input1.pow(2).sum(1, keepdim=True) - (2 * input1 @ input2) + input2.pow(2).sum(0, keepdim=True)
+    distances = (
+        input1.pow(2).sum(1, keepdim=True)
+        - (2 * input1 @ input2)
+        + input2.pow(2).sum(0, keepdim=True)
+    )
     return distances
 
 
@@ -475,12 +532,16 @@ def _sample_vectors(samples: Tensor, num_sample: int) -> Tensor:
     if total_samples >= num_sample:
         indices = torch.randperm(total_samples, device=device)[:num_sample]
     else:
-        indices = torch.randint(low=0, high=total_samples, size=(num_sample,), device=device)
+        indices = torch.randint(
+            low=0, high=total_samples, size=(num_sample,), device=device
+        )
 
     return samples[indices]
 
 
-def _k_means(samples: Tensor, num_clusters: int, num_iters: int = 10) -> Tuple[Tensor, Tensor]:
+def _k_means(
+    samples: Tensor, num_clusters: int, num_iters: int = 10
+) -> Tuple[Tensor, Tensor]:
     """
     K-means clustering algorithm.
 
@@ -581,7 +642,9 @@ class EuclideanCodebook(NeuralModule):
         if self.initialized:
             return
 
-        codes, cluster_size = _k_means(samples=data, num_clusters=self.codebook_size, num_iters=self.kmeans_iters)
+        codes, cluster_size = _k_means(
+            samples=data, num_clusters=self.codebook_size, num_iters=self.kmeans_iters
+        )
         self.codes.data.copy_(codes)
         self.codes_avg.data.copy_(codes.clone())
         self.cluster_size.data.copy_(cluster_size)
@@ -613,7 +676,9 @@ class EuclideanCodebook(NeuralModule):
         code_sum = code_onehot @ inputs
         _ema_inplace(moving_avg=self.codes_avg, new=code_sum, decay=self.decay)
 
-        cluster_size_smoothed = _laplace_smoothing(self.cluster_size, n_categories=self.codebook_size)
+        cluster_size_smoothed = _laplace_smoothing(
+            self.cluster_size, n_categories=self.codebook_size
+        )
         cluster_size_smoothed = rearrange(cluster_size_smoothed, "N -> N ()")
         codes_normalized = self.codes_avg / cluster_size_smoothed
         self.codes.data.copy_(codes_normalized)
@@ -633,15 +698,15 @@ class EuclideanCodebook(NeuralModule):
     @property
     def input_types(self):
         return {
-            "inputs": NeuralType(('B', 'T', 'D'), EncodedRepresentation()),
-            "input_len": NeuralType(tuple('B'), LengthsType()),
+            "inputs": NeuralType(("B", "T", "D"), EncodedRepresentation()),
+            "input_len": NeuralType(tuple("B"), LengthsType()),
         }
 
     @property
     def output_types(self):
         return {
-            "dequantized": NeuralType(('B', 'T', 'D'), EncodedRepresentation()),
-            "indices": NeuralType(('B', 'T'), Index()),
+            "dequantized": NeuralType(("B", "T", "D"), EncodedRepresentation()),
+            "indices": NeuralType(("B", "T"), Index()),
         }
 
     @typecheck()
@@ -666,10 +731,10 @@ class EuclideanCodebook(NeuralModule):
 
     @typecheck(
         input_types={
-            "inputs": NeuralType(('B', 'T', 'D'), EncodedRepresentation()),
-            "input_len": NeuralType(tuple('B'), LengthsType()),
+            "inputs": NeuralType(("B", "T", "D"), EncodedRepresentation()),
+            "input_len": NeuralType(tuple("B"), LengthsType()),
         },
-        output_types={"indices": NeuralType(('B', 'T'), Index())},
+        output_types={"indices": NeuralType(("B", "T"), Index())},
     )
     def encode(self, inputs, input_len):
         input_flat = rearrange(inputs, "B T D -> (B T) D")
@@ -682,10 +747,12 @@ class EuclideanCodebook(NeuralModule):
 
     @typecheck(
         input_types={
-            "indices": NeuralType(('B', 'T'), Index()),
-            "input_len": NeuralType(tuple('B'), LengthsType()),
+            "indices": NeuralType(("B", "T"), Index()),
+            "input_len": NeuralType(tuple("B"), LengthsType()),
         },
-        output_types={"dequantized": NeuralType(('B', 'T', 'D'), EncodedRepresentation())},
+        output_types={
+            "dequantized": NeuralType(("B", "T", "D"), EncodedRepresentation())
+        },
     )
     def decode(self, indices, input_len):
         # [B, T, D]
@@ -740,13 +807,15 @@ class ResidualVectorQuantizer(VectorQuantizerBase):
     @property
     def output_types(self):
         return {
-            "dequantized": NeuralType(('B', 'D', 'T'), EncodedRepresentation()),
-            "indices": NeuralType(('D', 'B', 'T'), Index()),
+            "dequantized": NeuralType(("B", "D", "T"), EncodedRepresentation()),
+            "indices": NeuralType(("D", "B", "T"), Index()),
             "commit_loss": NeuralType((), LossType()),
         }
 
     @typecheck()
-    def forward(self, inputs: Tensor, input_len: Tensor) -> Tuple[Tensor, Tensor, float]:
+    def forward(
+        self, inputs: Tensor, input_len: Tensor
+    ) -> Tuple[Tensor, Tensor, float]:
         commit_loss = 0.0
         residual = rearrange(inputs, "B D T -> B T D")
 
@@ -780,10 +849,10 @@ class ResidualVectorQuantizer(VectorQuantizerBase):
 
     @typecheck(
         input_types={
-            "inputs": NeuralType(('B', 'D', 'T'), EncodedRepresentation()),
-            "input_len": NeuralType(tuple('B'), LengthsType()),
+            "inputs": NeuralType(("B", "D", "T"), EncodedRepresentation()),
+            "input_len": NeuralType(tuple("B"), LengthsType()),
         },
-        output_types={"indices": NeuralType(('D', 'B', 'T'), Index())},
+        output_types={"indices": NeuralType(("D", "B", "T"), Index())},
     )
     def encode(self, inputs: Tensor, input_len: Tensor) -> Tensor:
         residual = rearrange(inputs, "B D T -> B T D")
@@ -801,18 +870,23 @@ class ResidualVectorQuantizer(VectorQuantizerBase):
 
     @typecheck(
         input_types={
-            "indices": NeuralType(('D', 'B', 'T'), Index()),
-            "input_len": NeuralType(tuple('B'), LengthsType()),
+            "indices": NeuralType(("D", "B", "T"), Index()),
+            "input_len": NeuralType(tuple("B"), LengthsType()),
         },
         output_types={
-            "dequantized": NeuralType(('B', 'D', 'T'), EncodedRepresentation()),
+            "dequantized": NeuralType(("B", "D", "T"), EncodedRepresentation()),
         },
     )
     def decode(self, indices: Tensor, input_len: Tensor) -> Tensor:
         # [B, T, D]
-        dequantized = torch.zeros([indices.shape[1], indices.shape[2], self.codebook_dim], device=indices.device)
+        dequantized = torch.zeros(
+            [indices.shape[1], indices.shape[2], self.codebook_dim],
+            device=indices.device,
+        )
         for codebook_indices, codebook in zip(indices, self.codebooks):
-            dequantized_i = codebook.decode(indices=codebook_indices, input_len=input_len)
+            dequantized_i = codebook.decode(
+                indices=codebook_indices, input_len=input_len
+            )
             dequantized = dequantized + dequantized_i
         dequantized = rearrange(dequantized, "B T D -> B D T")
         return dequantized
@@ -831,7 +905,9 @@ class GroupResidualVectorQuantizer(VectorQuantizerBase):
         Yang et al, HiFi-Codec: Group-residual Vector quantization for High Fidelity Audio Codec, 2023 (http://arxiv.org/abs/2305.02765).
     """
 
-    def __init__(self, num_codebooks: int, num_groups: int, codebook_dim: int, **kwargs):
+    def __init__(
+        self, num_codebooks: int, num_groups: int, codebook_dim: int, **kwargs
+    ):
         super().__init__()
 
         self.num_codebooks = num_codebooks
@@ -842,25 +918,27 @@ class GroupResidualVectorQuantizer(VectorQuantizerBase):
         self.rvqs = torch.nn.ModuleList(
             [
                 ResidualVectorQuantizer(
-                    num_codebooks=self.num_codebooks_per_group, codebook_dim=self.codebook_dim_per_group, **kwargs
+                    num_codebooks=self.num_codebooks_per_group,
+                    codebook_dim=self.codebook_dim_per_group,
+                    **kwargs,
                 )
                 for _ in range(self.num_groups)
             ]
         )
 
-        logging.debug('Initialized %s with', self.__class__.__name__)
-        logging.debug('\tnum_codebooks:           %d', self.num_codebooks)
-        logging.debug('\tnum_groups:              %d', self.num_groups)
-        logging.debug('\tcodebook_dim:            %d', self.codebook_dim)
-        logging.debug('\tnum_codebooks_per_group: %d', self.num_codebooks_per_group)
-        logging.debug('\tcodebook_dim_per_group:  %d', self.codebook_dim_per_group)
+        logging.debug("Initialized %s with", self.__class__.__name__)
+        logging.debug("\tnum_codebooks:           %d", self.num_codebooks)
+        logging.debug("\tnum_groups:              %d", self.num_groups)
+        logging.debug("\tcodebook_dim:            %d", self.codebook_dim)
+        logging.debug("\tnum_codebooks_per_group: %d", self.num_codebooks_per_group)
+        logging.debug("\tcodebook_dim_per_group:  %d", self.codebook_dim_per_group)
 
     @property
     def num_codebooks_per_group(self):
         """Number of codebooks for each group."""
         if self.num_codebooks % self.num_groups != 0:
             raise ValueError(
-                f'num_codebooks ({self.num_codebooks}) must be divisible by num_groups ({self.num_groups})'
+                f"num_codebooks ({self.num_codebooks}) must be divisible by num_groups ({self.num_groups})"
             )
 
         return self.num_codebooks // self.num_groups
@@ -869,7 +947,9 @@ class GroupResidualVectorQuantizer(VectorQuantizerBase):
     def codebook_dim_per_group(self):
         """Input vector dimension for each group."""
         if self.codebook_dim % self.num_groups != 0:
-            raise ValueError(f'codebook_dim ({self.codebook_dim}) must be divisible by num_groups ({self.num_groups})')
+            raise ValueError(
+                f"codebook_dim ({self.codebook_dim}) must be divisible by num_groups ({self.num_groups})"
+            )
 
         return self.codebook_dim // self.num_groups
 
@@ -877,8 +957,8 @@ class GroupResidualVectorQuantizer(VectorQuantizerBase):
     @property
     def output_types(self):
         return {
-            "dequantized": NeuralType(('B', 'D', 'T'), EncodedRepresentation()),
-            "indices": NeuralType(('D', 'B', 'T'), Index()),
+            "dequantized": NeuralType(("B", "D", "T"), EncodedRepresentation()),
+            "indices": NeuralType(("D", "B", "T"), Index()),
             "commit_loss": NeuralType((), LossType()),
         }
 
@@ -891,7 +971,9 @@ class GroupResidualVectorQuantizer(VectorQuantizerBase):
         commit_loss = 0
 
         for in_group, rvq_group in zip(inputs_grouped, self.rvqs):
-            dequantized_group, indices_group, commit_loss_group = rvq_group(inputs=in_group, input_len=input_len)
+            dequantized_group, indices_group, commit_loss_group = rvq_group(
+                inputs=in_group, input_len=input_len
+            )
             dequantized.append(dequantized_group)
             indices.append(indices_group)
             commit_loss += commit_loss_group
@@ -906,10 +988,10 @@ class GroupResidualVectorQuantizer(VectorQuantizerBase):
 
     @typecheck(
         input_types={
-            "inputs": NeuralType(('B', 'D', 'T'), EncodedRepresentation()),
-            "input_len": NeuralType(tuple('B'), LengthsType()),
+            "inputs": NeuralType(("B", "D", "T"), EncodedRepresentation()),
+            "input_len": NeuralType(tuple("B"), LengthsType()),
         },
-        output_types={"indices": NeuralType(('D', 'B', 'T'), Index())},
+        output_types={"indices": NeuralType(("D", "B", "T"), Index())},
     )
     def encode(self, inputs: Tensor, input_len: Tensor) -> Tensor:
         """Input is split into groups, each group is encoded separately, then the results are concatenated."""
@@ -927,11 +1009,11 @@ class GroupResidualVectorQuantizer(VectorQuantizerBase):
 
     @typecheck(
         input_types={
-            "indices": NeuralType(('D', 'B', 'T'), Index()),
-            "input_len": NeuralType(tuple('B'), LengthsType()),
+            "indices": NeuralType(("D", "B", "T"), Index()),
+            "input_len": NeuralType(tuple("B"), LengthsType()),
         },
         output_types={
-            "dequantized": NeuralType(('B', 'D', 'T'), EncodedRepresentation()),
+            "dequantized": NeuralType(("B", "D", "T"), EncodedRepresentation()),
         },
     )
     def decode(self, indices: Tensor, input_len: Tensor) -> Tensor:
@@ -940,7 +1022,9 @@ class GroupResidualVectorQuantizer(VectorQuantizerBase):
         dequantized = []
 
         for indices_group, rvq_group in zip(indices_grouped, self.rvqs):
-            dequantized_group = rvq_group.decode(indices=indices_group, input_len=input_len)
+            dequantized_group = rvq_group.decode(
+                indices=indices_group, input_len=input_len
+            )
             dequantized.append(dequantized_group)
 
         # concatenate along the feature dimension

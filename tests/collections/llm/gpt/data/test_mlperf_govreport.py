@@ -53,9 +53,12 @@ def mock_sampler():
 def sample_govreport_dataset():
     dataset_len = 30
     dataset = Dataset.from_dict(
-        {"input_ids": [[1, 2, 3, 4, 5]] * dataset_len, "labels": [[1, 2, -100, 4, 5]] * dataset_len}
+        {
+            "input_ids": [[1, 2, 3, 4, 5]] * dataset_len,
+            "labels": [[1, 2, -100, 4, 5]] * dataset_len,
+        }
     )
-    return DatasetDict({'train': dataset, 'validation': dataset})
+    return DatasetDict({"train": dataset, "validation": dataset})
 
 
 @pytest.fixture
@@ -65,12 +68,26 @@ def temp_dataset_dir():
 
 
 @pytest.fixture
-def govreport_data_module(mock_tokenizer, temp_dataset_dir, sample_govreport_dataset, mock_trainer, mock_sampler):
+def govreport_data_module(
+    mock_tokenizer,
+    temp_dataset_dir,
+    sample_govreport_dataset,
+    mock_trainer,
+    mock_sampler,
+):
     # Patch the _download_data method directly
-    with patch.object(MLPerfGovReportDataModule, '_download_data', return_value=sample_govreport_dataset):
-        with patch('nemo.collections.llm.gpt.data.core.get_dataset_root', return_value=temp_dataset_dir):
+    with patch.object(
+        MLPerfGovReportDataModule,
+        "_download_data",
+        return_value=sample_govreport_dataset,
+    ):
+        with patch(
+            "nemo.collections.llm.gpt.data.core.get_dataset_root",
+            return_value=temp_dataset_dir,
+        ):
             mock_packed_sequence_specs = MagicMock(
-                packed_sequence_size=2048, pad_cu_seqlens=False  # Disable pad_cu_seqlens to avoid metadata requirement
+                packed_sequence_size=2048,
+                pad_cu_seqlens=False,  # Disable pad_cu_seqlens to avoid metadata requirement
             )
 
             data_module = MLPerfGovReportDataModule(
@@ -96,7 +113,9 @@ def test_govreport_data_module_initialization(govreport_data_module):
     assert govreport_data_module.delete_raw is True
 
 
-def test_preprocess_and_split_data(govreport_data_module, temp_dataset_dir, sample_govreport_dataset):
+def test_preprocess_and_split_data(
+    govreport_data_module, temp_dataset_dir, sample_govreport_dataset
+):
     # Call the preprocessing function
     govreport_data_module._preprocess_and_split_data(sample_govreport_dataset)
 
@@ -156,7 +175,9 @@ def test_force_redownload(govreport_data_module, temp_dataset_dir):
 
     # Verify the file is different
     new_mtime = marker_file.stat().st_mtime
-    assert new_mtime > original_mtime, "File modification time should be newer after redownload"
+    assert (
+        new_mtime > original_mtime
+    ), "File modification time should be newer after redownload"
 
 
 def test_delete_raw(govreport_data_module, temp_dataset_dir, sample_govreport_dataset):
@@ -177,4 +198,6 @@ def test_delete_raw(govreport_data_module, temp_dataset_dir, sample_govreport_da
 
 def test_invalid_packed_sequence_size():
     with pytest.raises(ValueError):
-        MLPerfGovReportDataModule(seq_length=2048, packed_sequence_specs=MagicMock(packed_sequence_size=1024))
+        MLPerfGovReportDataModule(
+            seq_length=2048, packed_sequence_specs=MagicMock(packed_sequence_size=1024)
+        )

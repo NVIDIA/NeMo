@@ -85,7 +85,9 @@ class PEFT(IOMixin, ABC, ModelTransform):
             This method is automatically called for each module in the model when the PEFT
             instance is applied to the model using the __call__ method.
         """
-        raise NotImplementedError("The transform method should be implemented by subclasses.")
+        raise NotImplementedError(
+            "The transform method should be implemented by subclasses."
+        )
 
     def __call__(self, model: nn.Module) -> nn.Module:
         """Apply the PEFT method to the entire model.
@@ -143,7 +145,9 @@ class PEFT(IOMixin, ABC, ModelTransform):
         """
         return partial(WrappedAdapterIO, peft=self)
 
-    def setup(self, trainer: pl.Trainer, pl_module: pl.LightningModule, stage: str) -> None:
+    def setup(
+        self, trainer: pl.Trainer, pl_module: pl.LightningModule, stage: str
+    ) -> None:
         """PTL callback setup function."""
         from nemo.lightning.pytorch.strategies.utils import \
             create_checkpoint_io
@@ -151,7 +155,7 @@ class PEFT(IOMixin, ABC, ModelTransform):
 
         super().setup(trainer, pl_module, stage=stage)
 
-        self._add_via_setattr = 'HFAutoModel' in type(pl_module).__name__
+        self._add_via_setattr = "HFAutoModel" in type(pl_module).__name__
         trainer.strategy.trainer = trainer
         wrapped_io = self.get_wrappped_io()
 
@@ -181,12 +185,16 @@ class PEFT(IOMixin, ABC, ModelTransform):
             ]
             ckpt_io_kwargs = {
                 arg: getattr(trainer.strategy, arg)
-                for arg in filter(lambda x: hasattr(trainer.strategy, x), ckpt_io_kwarg_names)
+                for arg in filter(
+                    lambda x: hasattr(trainer.strategy, x), ckpt_io_kwarg_names
+                )
             }
-        trainer.strategy._checkpoint_io = create_checkpoint_io(wrapping_ckpt_io=wrapped_io, **ckpt_io_kwargs)
+        trainer.strategy._checkpoint_io = create_checkpoint_io(
+            wrapping_ckpt_io=wrapped_io, **ckpt_io_kwargs
+        )
         self.wrapped_io = (
             trainer.strategy._checkpoint_io._checkpoint_io
-            if getattr(trainer.strategy, 'async_save', False)
+            if getattr(trainer.strategy, "async_save", False)
             else trainer.strategy._checkpoint_io
         )
         trainer.strategy._init_model_parallel = False
@@ -202,7 +210,9 @@ class PEFT(IOMixin, ABC, ModelTransform):
         Can be overridden in each PEFT method class.
         """
         self.params_to_save = set(
-            name for name, param in trainer.lightning_module.named_parameters() if param.requires_grad
+            name
+            for name, param in trainer.lightning_module.named_parameters()
+            if param.requires_grad
         )
         for module_name, module in trainer.lightning_module.named_modules():
             if hasattr(module, "track_running_stats"):
@@ -219,7 +229,7 @@ class PEFT(IOMixin, ABC, ModelTransform):
         4. Set up `finalize_model_grads` from mcore.
         """
         # automodel adds adapters in configure_model
-        if not getattr(self, 'transform_already_applied', False):
+        if not getattr(self, "transform_already_applied", False):
             super().apply_transform(trainer)
         self.set_params_to_save(trainer)
 
@@ -229,8 +239,13 @@ class PEFT(IOMixin, ABC, ModelTransform):
             and Path(self.wrapped_io.adapter_ckpt_path).parts[-1] == HF_ADAPTER_PATH
         ):
             # Automodel adapter restoration is handled in restore_automodel.
-            return self.restore_automodel(trainer, self.wrapped_io.adapter_ckpt_path.parent)
-        elif getattr(self, 'transform_already_applied', False) == True or self.automodel_setup_optimizers is not None:
+            return self.restore_automodel(
+                trainer, self.wrapped_io.adapter_ckpt_path.parent
+            )
+        elif (
+            getattr(self, "transform_already_applied", False) == True
+            or self.automodel_setup_optimizers is not None
+        ):
             if self.automodel_setup_optimizers is not None:
                 logging.info("Setting up optimizers")
                 self.automodel_setup_optimizers(trainer)
@@ -241,8 +256,10 @@ class PEFT(IOMixin, ABC, ModelTransform):
         if self.wrapped_io.adapter_ckpt_path is not None:
             logging.info(f"Loading adapters from {self.wrapped_io.adapter_ckpt_path}")
             # create sharded state dict for adapter weights only to enable PEFT resume
-            adapter_sharded_state_dict['state_dict'] = {
-                k: v for k, v in trainer.model.sharded_state_dict().items() if self.adapter_key_filter(k)
+            adapter_sharded_state_dict["state_dict"] = {
+                k: v
+                for k, v in trainer.model.sharded_state_dict().items()
+                if self.adapter_key_filter(k)
             }
 
         if hasattr(trainer.strategy, "init_model_parallel"):
@@ -252,23 +269,33 @@ class PEFT(IOMixin, ABC, ModelTransform):
         if trainer.state.fn == TrainerFn.FITTING:
             logging.info("Setting up optimizers")
             trainer.strategy.setup_optimizers(trainer)
-            if self.wrapped_io.adapter_ckpt_path is not None and trainer.strategy.should_restore_optimizer_states():
+            if (
+                self.wrapped_io.adapter_ckpt_path is not None
+                and trainer.strategy.should_restore_optimizer_states()
+            ):
                 # PEFT resume, load optimizer state
-                adapter_sharded_state_dict['optimizer'] = [
+                adapter_sharded_state_dict["optimizer"] = [
                     trainer.strategy.optimizer_sharded_state_dict(is_loading=True)
                 ]
 
         if adapter_sharded_state_dict:
             adapter_state = self.wrapped_io.load_checkpoint(
-                self.wrapped_io.adapter_ckpt_path, sharded_state_dict=adapter_sharded_state_dict
+                self.wrapped_io.adapter_ckpt_path,
+                sharded_state_dict=adapter_sharded_state_dict,
             )
             trainer.strategy.load_model_state_dict(adapter_state, strict=False)
             if trainer.state.fn == TrainerFn.FITTING:
                 # Load optimizer
-                trainer.strategy.load_optimizer_state_dict(adapter_state, selective_restore=False)
+                trainer.strategy.load_optimizer_state_dict(
+                    adapter_state, selective_restore=False
+                )
                 # Load lr scheduler
-                if (lr_schedulers := adapter_state.get('lr_schedulers', None)) is not None:
-                    for config, lrs_state in zip(trainer.lr_scheduler_configs, lr_schedulers):
+                if (
+                    lr_schedulers := adapter_state.get("lr_schedulers", None)
+                ) is not None:
+                    for config, lrs_state in zip(
+                        trainer.lr_scheduler_configs, lr_schedulers
+                    ):
                         config.scheduler.load_state_dict(lrs_state)
 
         for cb in trainer.callbacks[::-1]:
@@ -286,39 +313,48 @@ class PEFT(IOMixin, ABC, ModelTransform):
     def restore_automodel(self, trainer, path):
         """restores automodel's adapter and optimizer state dict"""
 
-        def pop_fqn_prefix(fqn, prefix='model'):
+        def pop_fqn_prefix(fqn, prefix="model"):
             """helper function to remove first "model" from fqn"""
-            parts = fqn.split('.')
+            parts = fqn.split(".")
             assert parts[0] == prefix
-            return '.'.join(parts[1:])
+            return ".".join(parts[1:])
 
         adapter_state = self.wrapped_io.load_checkpoint(path)
         # Ensure all keys from adapter_state are contained in model
         state_dict = trainer.lightning_module.state_dict()
-        for key in adapter_state['state_dict'].keys():
+        for key in adapter_state["state_dict"].keys():
             assert key in state_dict, (key, state_dict.keys())
 
         # Move to cpu and load state
         from nemo.lightning.pytorch.strategies.utils import to_cpu
 
         trainer.strategy.load_model_state_dict(
-            {'state_dict': {pop_fqn_prefix(k): to_cpu(v) for k, v in adapter_state['state_dict'].items()}},
+            {
+                "state_dict": {
+                    pop_fqn_prefix(k): to_cpu(v)
+                    for k, v in adapter_state["state_dict"].items()
+                }
+            },
             strict=False,
         )
 
         # Ensure adapters have grad enabled
         for key, param in trainer.lightning_module.named_parameters():
-            param.requires_grad_(key in adapter_state['state_dict'])
+            param.requires_grad_(key in adapter_state["state_dict"])
 
         if trainer.state.fn == TrainerFn.FITTING:
             # Restore optim and LR Scheduler
-            assert self.automodel_setup_optimizers is not None, "Expected automodel_setup_optimizers to be valid"
+            assert (
+                self.automodel_setup_optimizers is not None
+            ), "Expected automodel_setup_optimizers to be valid"
             self.automodel_setup_optimizers(trainer)
             # Load optimizer
             trainer.strategy.load_optimizer_state_dict(adapter_state)
             # Load lr scheduler
-            if (lr_schedulers := adapter_state.get('lr_schedulers', None)) is not None:
-                for config, lrs_state in zip(trainer.lr_scheduler_configs, lr_schedulers):
+            if (lr_schedulers := adapter_state.get("lr_schedulers", None)) is not None:
+                for config, lrs_state in zip(
+                    trainer.lr_scheduler_configs, lr_schedulers
+                ):
                     config.scheduler.load_state_dict(lrs_state)
 
     def adapter_key_filter(self, key: str) -> bool:
@@ -328,7 +364,11 @@ class PEFT(IOMixin, ABC, ModelTransform):
         """
         if isinstance(key, tuple):
             return key[1].requires_grad
-        return key in self.params_to_save or ".adapter." in key or key.endswith(".adapters")
+        return (
+            key in self.params_to_save
+            or ".adapter." in key
+            or key.endswith(".adapters")
+        )
 
 
 class AdapterWrapper(nn.Module):
@@ -394,7 +434,7 @@ class AdapterWrapper(nn.Module):
 
         return linear_output, bias, layernorm_output
 
-    def state_dict(self, destination=None, prefix='', keep_vars=False):
+    def state_dict(self, destination=None, prefix="", keep_vars=False):
         """Retrieve the state dictionary of the wrapped module and adapter.
 
         This method overrides the default state_dict behavior to include both
@@ -415,15 +455,19 @@ class AdapterWrapper(nn.Module):
             destination = {}
 
         # Get state dict of the main module
-        self.to_wrap.state_dict(destination=destination, prefix=prefix, keep_vars=keep_vars)
+        self.to_wrap.state_dict(
+            destination=destination, prefix=prefix, keep_vars=keep_vars
+        )
 
         # Store adapter state dict under the "adapter" prefix in the destination dict
-        self.adapter.state_dict(destination=destination, prefix=f'{prefix}adapter.', keep_vars=keep_vars)
+        self.adapter.state_dict(
+            destination=destination, prefix=f"{prefix}adapter.", keep_vars=keep_vars
+        )
         return destination
 
     def sharded_state_dict(
         self,
-        prefix: str = '',
+        prefix: str = "",
         sharded_offsets: Tuple[Tuple[int, int, int]] = (),
         metadata: Optional[dict] = None,
     ) -> "ShardedStateDict":
@@ -443,12 +487,20 @@ class AdapterWrapper(nn.Module):
             ShardedStateDict: The combined sharded state dictionary.
         """
         sharded_state_dict = {}
-        sharded_state_dict.update(self.to_wrap.sharded_state_dict(prefix, sharded_offsets, metadata))
-        sharded_state_dict.update(self.adapter.sharded_state_dict(f"{prefix}adapter.", sharded_offsets, metadata))
+        sharded_state_dict.update(
+            self.to_wrap.sharded_state_dict(prefix, sharded_offsets, metadata)
+        )
+        sharded_state_dict.update(
+            self.adapter.sharded_state_dict(
+                f"{prefix}adapter.", sharded_offsets, metadata
+            )
+        )
         return sharded_state_dict
 
 
-class WrappedAdapterIO(_WrappingCheckpointIO, AsyncCompatibleCheckpointIO):  # noqa: F821
+class WrappedAdapterIO(
+    _WrappingCheckpointIO, AsyncCompatibleCheckpointIO
+):  # noqa: F821
     """
     A wrapper class for checkpoint I/O operations, specifically designed for PEFT (Parameter-Efficient Fine-Tuning).
 
@@ -484,26 +536,41 @@ class WrappedAdapterIO(_WrappingCheckpointIO, AsyncCompatibleCheckpointIO):  # n
     adapter_ckpt_path: Optional[Path] = None
 
     def __init__(
-        self, checkpoint_io: Optional["CheckpointIO"] = None, peft: Optional[PEFT] = None  # noqa: F821
+        self,
+        checkpoint_io: Optional["CheckpointIO"] = None,
+        peft: Optional[PEFT] = None,  # noqa: F821
     ) -> None:
         self.peft = peft
         super().__init__(checkpoint_io)
 
     @override
-    def save_checkpoint(self, checkpoint: Dict[str, Any], path: _PATH, storage_options: Optional[Any] = None) -> None:
+    def save_checkpoint(
+        self,
+        checkpoint: Dict[str, Any],
+        path: _PATH,
+        storage_options: Optional[Any] = None,
+    ) -> None:
         assert self.checkpoint_io is not None
         state_key = None
-        for k in ['sharded_state_dict', 'state_dict']:
+        for k in ["sharded_state_dict", "state_dict"]:
             if k in checkpoint:
                 state_key = k
                 break
-        assert state_key is not None, "Expected checkpoint to contain `sharded_state_dict` or `state_dict`"
+        assert (
+            state_key is not None
+        ), "Expected checkpoint to contain `sharded_state_dict` or `state_dict`"
         assert state_key in checkpoint, "Expected state_key to be in checkpoint"
 
         state_dict = checkpoint.pop(state_key)
-        checkpoint[state_key] = dict(filter(lambda item: self.peft.adapter_key_filter(item[0]), state_dict.items()))
+        checkpoint[state_key] = dict(
+            filter(
+                lambda item: self.peft.adapter_key_filter(item[0]), state_dict.items()
+            )
+        )
         ckpt_keys = list(checkpoint[state_key].keys())
-        request = self.checkpoint_io.save_checkpoint(checkpoint, path, storage_options=storage_options)
+        request = self.checkpoint_io.save_checkpoint(
+            checkpoint, path, storage_options=storage_options
+        )
 
         from nemo.utils.get_rank import is_global_rank_zero
 
@@ -567,12 +634,12 @@ class WrappedAdapterIO(_WrappingCheckpointIO, AsyncCompatibleCheckpointIO):  # n
                 - Wildcards are expanded as `[^.]+` to ensure that the match doesn't cross dot
                   (`.`) boundaries.
             """
-            re_target_modules = list(filter(lambda x: '*' in x, target_modules))
+            re_target_modules = list(filter(lambda x: "*" in x, target_modules))
             if len(re_target_modules) == 0:
                 return target_modules
-            non_re_target_modules = list(filter(lambda x: not '*' in x, target_modules))
-            combined_pattern = '|'.join(
-                map(lambda x: x.replace('*', '[^.]+'), re_target_modules),
+            non_re_target_modules = list(filter(lambda x: not "*" in x, target_modules))
+            combined_pattern = "|".join(
+                map(lambda x: x.replace("*", "[^.]+"), re_target_modules),
             )
             ans = set(non_re_target_modules)
             for key in ckpt_keys:
@@ -584,7 +651,9 @@ class WrappedAdapterIO(_WrappingCheckpointIO, AsyncCompatibleCheckpointIO):  # n
         from nemo.collections.llm.peft import DoRA
 
         # Contains all target module names, without any regular expression
-        materialized_module_names = extract_matched_module_names(ckpt_keys, self.peft.target_modules)
+        materialized_module_names = extract_matched_module_names(
+            ckpt_keys, self.peft.target_modules
+        )
         lora_config = LoraConfig(
             r=self.peft.dim,
             target_modules=materialized_module_names,
@@ -604,7 +673,7 @@ class WrappedAdapterIO(_WrappingCheckpointIO, AsyncCompatibleCheckpointIO):  # n
         path: _PATH,
         sharded_state_dict=None,
         map_location: Optional[Callable] = None,
-        strict: Optional['StrictHandling'] | bool = None,  # noqa: F821
+        strict: Optional["StrictHandling"] | bool = None,  # noqa: F821
     ) -> Dict[str, Any]:
         """
         =====================
@@ -637,14 +706,16 @@ class WrappedAdapterIO(_WrappingCheckpointIO, AsyncCompatibleCheckpointIO):  # n
         if getattr(path, "base_model_path", None):
             # PEFT Resume, FIRST TIME
             self.adapter_ckpt_path = Path(str(path))
-            adapter_ckpt = self.checkpoint_io.load_checkpoint(path, sharded_state_dict={})  # Loads only metadata
+            adapter_ckpt = self.checkpoint_io.load_checkpoint(
+                path, sharded_state_dict={}
+            )  # Loads only metadata
             # path is adapter path to restore the training metadata, but switch to loading base model here.
             path = self.model_ckpt_path = path.base_model_path
         elif (adapter_meta_path := base / ADAPTER_META_FILENAME).exists():
             # PEFT Resume, SECOND TIME
             with open(adapter_meta_path, "r") as f:
                 metadata = json.load(f)
-            self.model_ckpt_path = Path(metadata['model_ckpt_path'])
+            self.model_ckpt_path = Path(metadata["model_ckpt_path"])
             self.adapter_ckpt_path = path
         elif (base / HF_ADAPTER_PATH / HF_ADAPTER_CONFIG_FILENAME).exists():
             self.adapter_ckpt_path = path / HF_ADAPTER_PATH
@@ -653,9 +724,11 @@ class WrappedAdapterIO(_WrappingCheckpointIO, AsyncCompatibleCheckpointIO):  # n
             self.model_ckpt_path = path
 
         # Note: this will include the Trainer-state of the model-checkpoint
-        model_ckpt = self.checkpoint_io.load_checkpoint(path, sharded_state_dict, map_location, strict)
+        model_ckpt = self.checkpoint_io.load_checkpoint(
+            path, sharded_state_dict, map_location, strict
+        )
         if adapter_ckpt is not None:
             # PEFT Resume, FIRST TIME
-            adapter_ckpt['state_dict'].update(model_ckpt['state_dict'])
+            adapter_ckpt["state_dict"].update(model_ckpt["state_dict"])
             return adapter_ckpt
         return model_ckpt

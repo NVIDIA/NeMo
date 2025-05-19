@@ -25,12 +25,12 @@ import pytest
 from nemo.collections.asr.parts.utils.transcribe_utils import \
     TextProcessingConfig
 
-sys.path.append(str(Path(__file__).parents[2] / 'examples' / 'asr'))
+sys.path.append(str(Path(__file__).parents[2] / "examples" / "asr"))
 import speech_to_text_eval
 
 
 @pytest.mark.parametrize(
-    'build_args',
+    "build_args",
     [
         "ensemble.0.model=stt_es_conformer_ctc_large ensemble.1.model=stt_it_conformer_ctc_large",
         "ensemble.0.model=stt_es_conformer_transducer_large ensemble.1.model=stt_it_conformer_transducer_large",
@@ -99,7 +99,7 @@ def test_confidence_ensemble(tmp_path, build_args):
     if not os.getenv("TEST_DATA_PATH"):
         raise ValueError("TEST_DATA_PATH env variable has to be defined!")
 
-    test_data_path = Path(os.environ['TEST_DATA_PATH'])
+    test_data_path = Path(os.environ["TEST_DATA_PATH"])
 
     build_ensemble_cmd = f"""
         python {Path(__file__).parent / 'build_ensemble.py'} \
@@ -110,10 +110,12 @@ def test_confidence_ensemble(tmp_path, build_args):
     subprocess.run(build_ensemble_cmd, check=True, shell=True)
 
     eval_cfg = speech_to_text_eval.EvaluationConfig(
-        dataset_manifest=str(test_data_path / 'test_manifest.json'),
-        output_filename=str(tmp_path / 'output.json'),
-        model_path=str(tmp_path / 'ensemble.nemo'),
-        text_processing=TextProcessingConfig(punctuation_marks=".,?", do_lowercase=True, rm_punctuation=True),
+        dataset_manifest=str(test_data_path / "test_manifest.json"),
+        output_filename=str(tmp_path / "output.json"),
+        model_path=str(tmp_path / "ensemble.nemo"),
+        text_processing=TextProcessingConfig(
+            punctuation_marks=".,?", do_lowercase=True, rm_punctuation=True
+        ),
     )
 
     results = speech_to_text_eval.main(eval_cfg)

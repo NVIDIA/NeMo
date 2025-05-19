@@ -56,7 +56,9 @@ def model(use_mtp=False) -> run.Config[pl.LightningModule]:
             >>> print(model_config)
     """
     if use_mtp:
-        conf = run.Config(DeepSeekV3Config, mtp_num_layers=1, mtp_loss_scaling_factor=0.1)
+        conf = run.Config(
+            DeepSeekV3Config, mtp_num_layers=1, mtp_loss_scaling_factor=0.1
+        )
     else:
         conf = run.Config(DeepSeekV3Config)
     return run.Config(DeepSeekModel, config=conf)
@@ -109,8 +111,12 @@ def pretrain_recipe(
             num_gpus_per_node=num_gpus_per_node,
             callbacks=[run.Config(TimingCallback)],
         ),
-        data=run.Config(MockDataModule, seq_length=4096, global_batch_size=4096, micro_batch_size=1),
-        log=default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
+        data=run.Config(
+            MockDataModule, seq_length=4096, global_batch_size=4096, micro_batch_size=1
+        ),
+        log=default_log(
+            dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)
+        ),
         optim=distributed_fused_adam_with_cosine_annealing(max_lr=3e-4),
         resume=default_resume(),
     )
@@ -158,7 +164,7 @@ def finetune_recipe(
     name: str = "default",
     num_nodes: int = 5,
     num_gpus_per_node: int = 8,
-    peft_scheme: Optional[str] = 'lora',
+    peft_scheme: Optional[str] = "lora",
     seq_length: Optional[int] = None,
     packed_sequence: Optional[bool] = None,
 ) -> run.Partial:
@@ -201,27 +207,29 @@ def finetune_recipe(
         seq_length = 2048
 
     if num_nodes is None:
-        if peft_scheme is None or peft_scheme.lower() == 'none':
+        if peft_scheme is None or peft_scheme.lower() == "none":
             num_nodes = 64
-        elif peft_scheme.lower() in ['lora', 'dora']:
+        elif peft_scheme.lower() in ["lora", "dora"]:
             num_nodes = 5
 
-    recipe = default_finetune_recipe(model(), resume_path, dir, name, num_nodes, num_gpus_per_node, packed_sequence)
-    if peft_scheme is None or peft_scheme.lower() == 'none':
+    recipe = default_finetune_recipe(
+        model(), resume_path, dir, name, num_nodes, num_gpus_per_node, packed_sequence
+    )
+    if peft_scheme is None or peft_scheme.lower() == "none":
         recipe.trainer.strategy.expert_model_parallel_size = 64
         recipe.trainer.strategy.tensor_model_parallel_size = 1
         recipe.trainer.strategy.pipeline_model_parallel_size = 8
         recipe.trainer.strategy.num_layers_in_first_pipeline_stage = 6
         recipe.trainer.strategy.num_layers_in_last_pipeline_stage = 7
         recipe.optim.config.lr = 5e-6
-    elif peft_scheme.lower() in ['lora', 'dora']:
+    elif peft_scheme.lower() in ["lora", "dora"]:
         recipe.peft = run.Config(PEFT_STR2CLS[peft_scheme.lower()])
         recipe.peft.target_modules = [
-            'linear_q_down_proj',
-            'linear_q_up_proj',
-            'linear_kv_down_proj',
-            'linear_kv_up_proj',
-            'linear_proj',
+            "linear_q_down_proj",
+            "linear_q_up_proj",
+            "linear_kv_down_proj",
+            "linear_kv_up_proj",
+            "linear_proj",
         ]
         recipe.optim.config.use_distributed_optimizer = False
         recipe.model.config.cross_entropy_loss_fusion = False
@@ -239,7 +247,9 @@ def finetune_recipe(
     recipe.model.config.seq_length = seq_length
     recipe.data.seq_length = seq_length
     if packed_sequence:
-        recipe.data.dataset_kwargs = {'pad_to_max_length': True}
-        recipe.data.packed_sequence_specs = run.Config(PackedSequenceSpecs, packed_sequence_size=seq_length)
+        recipe.data.dataset_kwargs = {"pad_to_max_length": True}
+        recipe.data.packed_sequence_specs = run.Config(
+            PackedSequenceSpecs, packed_sequence_size=seq_length
+        )
 
     return recipe

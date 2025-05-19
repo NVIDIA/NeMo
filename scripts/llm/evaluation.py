@@ -61,9 +61,17 @@ def get_parser():
         help="NeMo 2.0 checkpoint to be evaluated",
     )
     parser.add_argument(
-        "--triton_http_address", type=str, default="0.0.0.0", help="IP address at which PyTriton server is created"
+        "--triton_http_address",
+        type=str,
+        default="0.0.0.0",
+        help="IP address at which PyTriton server is created",
     )
-    parser.add_argument("--fastapi_port", type=int, default=8080, help="Port at which FastAPI server is created")
+    parser.add_argument(
+        "--fastapi_port",
+        type=int,
+        default=8080,
+        help="Port at which FastAPI server is created",
+    )
     parser.add_argument(
         "--endpoint_type",
         type=str,
@@ -103,7 +111,10 @@ def get_parser():
         choices=EVAL_TASKS,
     )
     parser.add_argument(
-        "--limit", type=int, default=None, help="Limit evaluation to `limit` samples. Default: use all samples."
+        "--limit",
+        type=int,
+        default=None,
+        help="Limit evaluation to `limit` samples. Default: use all samples.",
     )
     parser.add_argument(
         "--parallel_requests",
@@ -136,10 +147,14 @@ def get_parser():
         help="Run on slurm using run.SlurmExecutor",
         default=False,
     )
-    parser.add_argument('--nodes', type=int, default=2, help="Num nodes for the executor")
-    parser.add_argument('--devices', type=int, default=8, help="Num devices per node for the executor")
     parser.add_argument(
-        '--container_image',
+        "--nodes", type=int, default=2, help="Num nodes for the executor"
+    )
+    parser.add_argument(
+        "--devices", type=int, default=8, help="Num devices per node for the executor"
+    )
+    parser.add_argument(
+        "--container_image",
         type=str,
         default="nvcr.io/nvidia/nemo:dev",
         help="Container image for the run, only used in case of slurm runs."
@@ -162,7 +177,9 @@ def slurm_executor(
     custom_env_vars: Optional[dict[str, str]] = None,
     retries: int = 0,
 ) -> run.SlurmExecutor:
-    if not (user and host and remote_job_dir and account and partition and nodes and devices):
+    if not (
+        user and host and remote_job_dir and account and partition and nodes and devices
+    ):
         raise RuntimeError(
             "Please set user, host, remote_job_dir, account, partition, nodes and devices args for using this ",
             "function.",

@@ -51,8 +51,8 @@ class ThutmoseTaggerModel(NLPModel):
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         return {
-            "logits": NeuralType(('B', 'T', 'D'), LogitsType()),
-            "semiotic_logits": NeuralType(('B', 'T', 'D'), LogitsType()),
+            "logits": NeuralType(("B", "T", "D"), LogitsType()),
+            "semiotic_logits": NeuralType(("B", "T", "D"), LogitsType()),
         }
 
     @property
@@ -66,7 +66,9 @@ class ThutmoseTaggerModel(NLPModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer = None) -> None:
         super().__init__(cfg=cfg, trainer=trainer)
 
-        label_map_file = self.register_artifact("label_map", cfg.label_map, verify_src_exists=True)
+        label_map_file = self.register_artifact(
+            "label_map", cfg.label_map, verify_src_exists=True
+        )
         semiotic_classes_file = self.register_artifact(
             "semiotic_classes", cfg.semiotic_classes, verify_src_exists=True
         )
@@ -75,9 +77,16 @@ class ThutmoseTaggerModel(NLPModel):
 
         self.num_labels = len(self.label_map)
         self.num_semiotic_labels = len(self.semiotic_classes)
-        self.id_2_tag = {tag_id: tagging.Tag(tag) for tag, tag_id in self.label_map.items()}
-        self.id_2_semiotic = {semiotic_id: semiotic for semiotic, semiotic_id in self.semiotic_classes.items()}
-        self.max_sequence_len = cfg.get('max_sequence_len', self.tokenizer.tokenizer.model_max_length)
+        self.id_2_tag = {
+            tag_id: tagging.Tag(tag) for tag, tag_id in self.label_map.items()
+        }
+        self.id_2_semiotic = {
+            semiotic_id: semiotic
+            for semiotic, semiotic_id in self.semiotic_classes.items()
+        }
+        self.max_sequence_len = cfg.get(
+            "max_sequence_len", self.tokenizer.tokenizer.model_max_length
+        )
 
         # setup to track metrics
         # we will have (len(self.semiotic_classes) + 1) labels
@@ -86,34 +95,56 @@ class ThutmoseTaggerModel(NLPModel):
         label_ids = self.semiotic_classes.copy()
         label_ids["WRONG"] = len(self.semiotic_classes)
         self.tag_classification_report = ClassificationReport(
-            len(self.semiotic_classes) + 1, label_ids=label_ids, mode='micro', dist_sync_on_step=True
+            len(self.semiotic_classes) + 1,
+            label_ids=label_ids,
+            mode="micro",
+            dist_sync_on_step=True,
         )
         self.tag_multiword_classification_report = ClassificationReport(
-            len(self.semiotic_classes) + 1, label_ids=label_ids, mode='micro', dist_sync_on_step=True
+            len(self.semiotic_classes) + 1,
+            label_ids=label_ids,
+            mode="micro",
+            dist_sync_on_step=True,
         )
         self.semiotic_classification_report = ClassificationReport(
-            len(self.semiotic_classes) + 1, label_ids=label_ids, mode='micro', dist_sync_on_step=True
+            len(self.semiotic_classes) + 1,
+            label_ids=label_ids,
+            mode="micro",
+            dist_sync_on_step=True,
         )
 
         self.hidden_size = cfg.hidden_size
 
         self.logits = TokenClassifier(
-            self.hidden_size, num_classes=self.num_labels, num_layers=1, log_softmax=False, dropout=0.1
+            self.hidden_size,
+            num_classes=self.num_labels,
+            num_layers=1,
+            log_softmax=False,
+            dropout=0.1,
         )
         self.semiotic_logits = TokenClassifier(
-            self.hidden_size, num_classes=self.num_semiotic_labels, num_layers=1, log_softmax=False, dropout=0.1
+            self.hidden_size,
+            num_classes=self.num_semiotic_labels,
+            num_layers=1,
+            log_softmax=False,
+            dropout=0.1,
         )
 
         self.loss_fn = CrossEntropyLoss(logits_ndim=3)
 
         self.builder = bert_example.BertExampleBuilder(
-            self.label_map, self.semiotic_classes, self.tokenizer.tokenizer, self.max_sequence_len
+            self.label_map,
+            self.semiotic_classes,
+            self.tokenizer.tokenizer,
+            self.max_sequence_len,
         )
 
     @typecheck()
     def forward(self, input_ids, input_mask, segment_ids):
 
-        src_hiddens = self.bert_model(input_ids=input_ids, token_type_ids=segment_ids, attention_mask=input_mask)
+        src_hiddens = self.bert_model(
+            input_ids=input_ids, token_type_ids=segment_ids, attention_mask=input_mask
+        )
         tag_logits = self.logits(hidden_states=src_hiddens)
         semiotic_logits = self.semiotic_logits(hidden_states=src_hiddens)
         return tag_logits, semiotic_logits
@@ -125,15 +156,23 @@ class ThutmoseTaggerModel(NLPModel):
         passed in as `batch`.
         """
 
-        input_ids, input_mask, segment_ids, labels_mask, labels, semiotic_labels, _ = batch
-        tag_logits, semiotic_logits = self.forward(input_ids=input_ids, input_mask=input_mask, segment_ids=segment_ids)
-        loss_on_tags = self.loss_fn(logits=tag_logits, labels=labels, loss_mask=labels_mask)
-        loss_on_semiotic = self.loss_fn(logits=semiotic_logits, labels=semiotic_labels, loss_mask=labels_mask)
+        input_ids, input_mask, segment_ids, labels_mask, labels, semiotic_labels, _ = (
+            batch
+        )
+        tag_logits, semiotic_logits = self.forward(
+            input_ids=input_ids, input_mask=input_mask, segment_ids=segment_ids
+        )
+        loss_on_tags = self.loss_fn(
+            logits=tag_logits, labels=labels, loss_mask=labels_mask
+        )
+        loss_on_semiotic = self.loss_fn(
+            logits=semiotic_logits, labels=semiotic_labels, loss_mask=labels_mask
+        )
         loss = loss_on_tags + loss_on_semiotic
-        lr = self._optimizer.param_groups[0]['lr']
-        self.log('train_loss', loss)
-        self.log('lr', lr, prog_bar=True)
-        return {'loss': loss, 'lr': lr}
+        lr = self._optimizer.param_groups[0]["lr"]
+        self.log("train_loss", loss)
+        self.log("lr", lr, prog_bar=True)
+        return {"loss": loss, "lr": lr}
 
     # Validation and Testing
     def validation_step(self, batch, batch_idx):
@@ -141,8 +180,18 @@ class ThutmoseTaggerModel(NLPModel):
         Lightning calls this inside the validation loop with the data from the validation dataloader
         passed in as `batch`.
         """
-        input_ids, input_mask, segment_ids, labels_mask, tag_labels, semiotic_labels, semiotic_spans = batch
-        tag_logits, semiotic_logits = self.forward(input_ids=input_ids, input_mask=input_mask, segment_ids=segment_ids)
+        (
+            input_ids,
+            input_mask,
+            segment_ids,
+            labels_mask,
+            tag_labels,
+            semiotic_labels,
+            semiotic_spans,
+        ) = batch
+        tag_logits, semiotic_logits = self.forward(
+            input_ids=input_ids, input_mask=input_mask, segment_ids=segment_ids
+        )
         tag_preds = torch.argmax(tag_logits, dim=2)
         semiotic_preds = torch.argmax(semiotic_logits, dim=2)
 
@@ -163,7 +212,9 @@ class ThutmoseTaggerModel(NLPModel):
                 if prediction[start:end] == label[start:end]:
                     span_predictions.append(cid)
                 else:
-                    span_predictions.append(self.tag_classification_report.num_classes - 1)  # this stands for WRONG
+                    span_predictions.append(
+                        self.tag_classification_report.num_classes - 1
+                    )  # this stands for WRONG
             if len(span_labels) != len(span_predictions):
                 raise ValueError(
                     "Length mismatch: len(span_labels)="
@@ -172,7 +223,8 @@ class ThutmoseTaggerModel(NLPModel):
                     + str(len(span_predictions))
                 )
             self.tag_classification_report(
-                torch.tensor(span_predictions).to(self.device), torch.tensor(span_labels).to(self.device)
+                torch.tensor(span_predictions).to(self.device),
+                torch.tensor(span_labels).to(self.device),
             )
 
             # We collect a separate classification_report for multiword replacements, as they are harder for the model
@@ -190,7 +242,9 @@ class ThutmoseTaggerModel(NLPModel):
                     multiword_span_predictions.append(cid)
                 else:
                     # this stands for WRONG
-                    multiword_span_predictions.append(self.tag_classification_report.num_classes - 1)
+                    multiword_span_predictions.append(
+                        self.tag_classification_report.num_classes - 1
+                    )
             if len(multiword_span_labels) != len(multiword_span_predictions):
                 raise ValueError(
                     "Length mismatch: len(multiword_span_labels)="
@@ -220,7 +274,9 @@ class ThutmoseTaggerModel(NLPModel):
                 if prediction[start:end] == label[start:end]:
                     span_predictions.append(cid)
                 else:
-                    span_predictions.append(self.tag_classification_report.num_classes - 1)  # this stands for WRONG
+                    span_predictions.append(
+                        self.tag_classification_report.num_classes - 1
+                    )  # this stands for WRONG
             if len(span_labels) != len(span_predictions):
                 raise ValueError(
                     "Length mismatch: len(span_labels)="
@@ -229,28 +285,39 @@ class ThutmoseTaggerModel(NLPModel):
                     + str(len(span_predictions))
                 )
             self.semiotic_classification_report(
-                torch.tensor(span_predictions).to(self.device), torch.tensor(span_labels).to(self.device)
+                torch.tensor(span_predictions).to(self.device),
+                torch.tensor(span_labels).to(self.device),
             )
 
-        val_loss_tag = self.loss_fn(logits=tag_logits, labels=tag_labels, loss_mask=labels_mask)
-        val_loss_semiotic = self.loss_fn(logits=semiotic_logits, labels=semiotic_labels, loss_mask=labels_mask)
+        val_loss_tag = self.loss_fn(
+            logits=tag_logits, labels=tag_labels, loss_mask=labels_mask
+        )
+        val_loss_semiotic = self.loss_fn(
+            logits=semiotic_logits, labels=semiotic_labels, loss_mask=labels_mask
+        )
         val_loss = val_loss_tag + val_loss_semiotic
-        self.validation_step_outputs.append({'val_loss': val_loss})
-        return {'val_loss': val_loss}
+        self.validation_step_outputs.append({"val_loss": val_loss})
+        return {"val_loss": val_loss}
 
     def on_validation_epoch_end(self):
         """
         Called at the end of validation to aggregate outputs.
         :param outputs: list of individual outputs of each validation step.
         """
-        avg_loss = torch.stack([x['val_loss'] for x in self.validation_step_outputs]).mean()
+        avg_loss = torch.stack(
+            [x["val_loss"] for x in self.validation_step_outputs]
+        ).mean()
 
         # calculate metrics and classification report
         # In our task recall = accuracy, and the recall column - is the per class accuracy
         _, tag_accuracy, _, tag_report = self.tag_classification_report.compute()
-        _, tag_multiword_accuracy, _, tag_multiword_report = self.tag_multiword_classification_report.compute()
+        _, tag_multiword_accuracy, _, tag_multiword_report = (
+            self.tag_multiword_classification_report.compute()
+        )
 
-        _, semiotic_accuracy, _, semiotic_report = self.semiotic_classification_report.compute()
+        _, semiotic_accuracy, _, semiotic_report = (
+            self.semiotic_classification_report.compute()
+        )
 
         logging.info("Total tag accuracy: " + str(tag_accuracy))
         logging.info(tag_report)
@@ -260,10 +327,10 @@ class ThutmoseTaggerModel(NLPModel):
         logging.info("Total semiotic accuracy: " + str(semiotic_accuracy))
         logging.info(semiotic_report)
 
-        self.log('val_loss', avg_loss, prog_bar=True)
-        self.log('tag accuracy', tag_accuracy)
-        self.log('tag multiword accuracy', tag_multiword_accuracy)
-        self.log('semiotic accuracy', semiotic_accuracy)
+        self.log("val_loss", avg_loss, prog_bar=True)
+        self.log("tag accuracy", tag_accuracy)
+        self.log("tag multiword accuracy", tag_multiword_accuracy)
+        self.log("semiotic accuracy", semiotic_accuracy)
 
         self.tag_classification_report.reset()
         self.tag_multiword_classification_report.reset()
@@ -303,7 +370,11 @@ class ThutmoseTaggerModel(NLPModel):
         """
 
         # all input sentences go into one batch
-        dataloader_cfg = {"batch_size": len(sents), "num_workers": 3, "pin_memory": False}
+        dataloader_cfg = {
+            "batch_size": len(sents),
+            "num_workers": 3,
+            "pin_memory": False,
+        }
         infer_datalayer = self._setup_infer_dataloader(dataloader_cfg, sents)
 
         batch = next(iter(infer_datalayer))
@@ -322,16 +393,22 @@ class ThutmoseTaggerModel(NLPModel):
             semiotic_preds = tensor2list(torch.argmax(semiotic_logits[i], dim=-1))
 
             # this mask is required by get_token_labels
-            example.features["labels_mask"] = [0] + [1] * (len(semiotic_preds) - 2) + [0]
+            example.features["labels_mask"] = (
+                [0] + [1] * (len(semiotic_preds) - 2) + [0]
+            )
             example.features["tag_labels"] = tag_preds
             example.features["semiotic_labels"] = semiotic_preds
-            tags = [self.id_2_tag[label_id] for label_id in example.get_token_labels("tag_labels")]
+            tags = [
+                self.id_2_tag[label_id]
+                for label_id in example.get_token_labels("tag_labels")
+            ]
             semiotic_labels = [
-                self.id_2_semiotic[label_id] for label_id in example.get_token_labels("semiotic_labels")
+                self.id_2_semiotic[label_id]
+                for label_id in example.get_token_labels("semiotic_labels")
             ]
 
-            prediction, inp_str, tag_str, tag_with_swap_str = example.editing_task.realize_output(
-                tags, semiotic_labels
+            prediction, inp_str, tag_str, tag_with_swap_str = (
+                example.editing_task.realize_output(tags, semiotic_labels)
             )
             all_preds.append(
                 prediction
@@ -355,7 +432,9 @@ class ThutmoseTaggerModel(NLPModel):
             )
             self._train_dl = None
             return
-        self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config, data_split="train")
+        self._train_dl = self._setup_dataloader_from_config(
+            cfg=train_data_config, data_split="train"
+        )
 
     def setup_validation_data(self, val_data_config: Optional[DictConfig]):
         if not val_data_config or not val_data_config.data_path:
@@ -364,7 +443,9 @@ class ThutmoseTaggerModel(NLPModel):
             )
             self._validation_dl = None
             return
-        self._validation_dl = self._setup_dataloader_from_config(cfg=val_data_config, data_split="val")
+        self._validation_dl = self._setup_dataloader_from_config(
+            cfg=val_data_config, data_split="val"
+        )
 
     def setup_test_data(self, test_data_config: Optional[DictConfig]):
         if not test_data_config or test_data_config.data_path is None:
@@ -373,21 +454,30 @@ class ThutmoseTaggerModel(NLPModel):
             )
             self._test_dl = None
             return
-        self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config, data_split="test")
+        self._test_dl = self._setup_dataloader_from_config(
+            cfg=test_data_config, data_split="test"
+        )
 
     def _setup_dataloader_from_config(self, cfg: DictConfig, data_split: str):
         start_time = perf_counter()
-        logging.info(f'Creating {data_split} dataset')
+        logging.info(f"Creating {data_split} dataset")
         input_file = cfg.data_path
-        dataset = ThutmoseTaggerDataset(input_file=input_file, example_builder=self.builder)
+        dataset = ThutmoseTaggerDataset(
+            input_file=input_file, example_builder=self.builder
+        )
         dl = torch.utils.data.DataLoader(
-            dataset=dataset, batch_size=cfg.batch_size, shuffle=cfg.shuffle, collate_fn=dataset.collate_fn
+            dataset=dataset,
+            batch_size=cfg.batch_size,
+            shuffle=cfg.shuffle,
+            collate_fn=dataset.collate_fn,
         )
         running_time = perf_counter() - start_time
-        logging.info(f'Took {running_time} seconds')
+        logging.info(f"Took {running_time} seconds")
         return dl
 
-    def _setup_infer_dataloader(self, cfg: DictConfig, queries: List[str]) -> 'torch.utils.data.DataLoader':
+    def _setup_infer_dataloader(
+        self, cfg: DictConfig, queries: List[str]
+    ) -> "torch.utils.data.DataLoader":
         """
         Setup function for a infer data loader.
         Args:

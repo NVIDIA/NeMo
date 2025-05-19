@@ -30,7 +30,7 @@ from nemo.core.neural_types import (LabelsType, LossType, MaskType, NeuralType,
                                     TokenIndex)
 from nemo.utils import logging
 
-__all__ = ['T5G2PModel']
+__all__ = ["T5G2PModel"]
 
 
 @dataclass
@@ -49,9 +49,9 @@ class T5G2PModel(G2PModel, Exportable):
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
         if self._input_types is None:
             return {
-                "input_ids": NeuralType(('B', 'T'), TokenIndex()),
-                "attention_mask": NeuralType(('B', 'T'), MaskType(), optional=True),
-                "labels": NeuralType(('B', 'T'), LabelsType()),
+                "input_ids": NeuralType(("B", "T"), TokenIndex()),
+                "attention_mask": NeuralType(("B", "T"), MaskType(), optional=True),
+                "labels": NeuralType(("B", "T"), LabelsType()),
             }
         return self._input_types
 
@@ -72,8 +72,12 @@ class T5G2PModel(G2PModel, Exportable):
         self.model_name = cfg.model_name
         self._tokenizer = AutoTokenizer.from_pretrained(self.model_name)
 
-        self.max_source_len = cfg.get("max_source_len", self._tokenizer.model_max_length)
-        self.max_target_len = cfg.get("max_target_len", self._tokenizer.model_max_length)
+        self.max_source_len = cfg.get(
+            "max_source_len", self._tokenizer.model_max_length
+        )
+        self.max_target_len = cfg.get(
+            "max_target_len", self._tokenizer.model_max_length
+        )
         self.do_lower = cfg.get("do_lower", False)
 
         # Ensure passed cfg is compliant with schema
@@ -82,7 +86,9 @@ class T5G2PModel(G2PModel, Exportable):
         if isinstance(cfg, dict):
             cfg = OmegaConf.create(cfg)
         elif not isinstance(cfg, DictConfig):
-            raise ValueError(f"cfg was type: {type(cfg)}. Expected either a dict or a DictConfig")
+            raise ValueError(
+                f"cfg was type: {type(cfg)}. Expected either a dict or a DictConfig"
+            )
         OmegaConf.merge(cfg, schema)
 
         super().__init__(cfg, trainer)
@@ -92,7 +98,9 @@ class T5G2PModel(G2PModel, Exportable):
 
     @typecheck()
     def forward(self, input_ids, attention_mask, labels):
-        outputs = self.model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
+        outputs = self.model(
+            input_ids=input_ids, attention_mask=attention_mask, labels=labels
+        )
         return outputs.loss
 
     # ===== Training Functions ===== #
@@ -104,13 +112,13 @@ class T5G2PModel(G2PModel, Exportable):
             labels=labels,
         )
 
-        self.log('train_loss', train_loss)
+        self.log("train_loss", train_loss)
         return train_loss
 
     def on_train_epoch_end(self):
         return super().on_train_epoch_end()
 
-    def _setup_infer_dataloader(self, cfg) -> 'torch.utils.data.DataLoader':
+    def _setup_infer_dataloader(self, cfg) -> "torch.utils.data.DataLoader":
         """
         Setup function for a infer data loader.
         Returns:
@@ -153,7 +161,7 @@ class T5G2PModel(G2PModel, Exportable):
         all_preds = []
         mode = self.training
         try:
-            device = 'cuda' if torch.cuda.is_available() else 'cpu'
+            device = "cuda" if torch.cuda.is_available() else "cpu"
             # Switch model to evaluation mode
             self.eval()
             self.to(device)
@@ -161,7 +169,9 @@ class T5G2PModel(G2PModel, Exportable):
             infer_datalayer = self._setup_infer_dataloader(DictConfig(config))
             for batch in infer_datalayer:
                 input_ids, _ = batch
-                generated_str, _, _ = self._generate_predictions(input_ids=input_ids.to(device))
+                generated_str, _, _ = self._generate_predictions(
+                    input_ids=input_ids.to(device)
+                )
 
                 all_preds.extend(generated_str)
                 del batch
@@ -187,16 +197,26 @@ class T5G2PModel(G2PModel, Exportable):
             torch.ones_like(labels) * ((labels == -100) * 100) + labels,
             skip_special_tokens=True,
         )
-        generated_str, _, _ = self._generate_predictions(input_ids=input_ids, model_max_target_len=self.max_target_len)
-        per = word_error_rate(hypotheses=generated_str, references=labels_str, use_cer=True)
-        output = {f"{split}_loss": val_loss, 'per': per}
-        if split == 'val':
-            if isinstance(self.trainer.val_dataloaders, (list, tuple)) and len(self.trainer.val_dataloaders) > 1:
+        generated_str, _, _ = self._generate_predictions(
+            input_ids=input_ids, model_max_target_len=self.max_target_len
+        )
+        per = word_error_rate(
+            hypotheses=generated_str, references=labels_str, use_cer=True
+        )
+        output = {f"{split}_loss": val_loss, "per": per}
+        if split == "val":
+            if (
+                isinstance(self.trainer.val_dataloaders, (list, tuple))
+                and len(self.trainer.val_dataloaders) > 1
+            ):
                 self.validation_step_outputs[dataloader_idx].append(output)
             else:
                 self.validation_step_outputs.append(output)
         else:
-            if isinstance(self.trainer.test_dataloaders, (list, tuple)) and len(self.trainer.test_dataloaders) > 1:
+            if (
+                isinstance(self.trainer.test_dataloaders, (list, tuple))
+                and len(self.trainer.test_dataloaders) > 1
+            ):
                 self.test_step_outputs[dataloader_idx].append(output)
             else:
                 self.test_step_outputs.append(output)
@@ -221,34 +241,45 @@ class T5G2PModel(G2PModel, Exportable):
         else:
             dataloader_name = self._validation_names[dataloader_idx].upper()
 
-        avg_per = sum([x['per'] for x in outputs]) / len(outputs)
+        avg_per = sum([x["per"] for x in outputs]) / len(outputs)
         self.log(f"{split}_per", avg_per)
 
         # to save all PER values for each dataset in WANDB
         self.log(f"{split}_per_{dataloader_name}", avg_per)
 
-        logging.info(f"PER: {round(avg_per * 100, 2)}% {dataloader_name}, {len(outputs)}examples")
-        return {'loss': avg_loss}
+        logging.info(
+            f"PER: {round(avg_per * 100, 2)}% {dataloader_name}, {len(outputs)}examples"
+        )
+        return {"loss": avg_loss}
 
     def multi_test_epoch_end(self, outputs, dataloader_idx=0):
         self.multi_validation_epoch_end(outputs, dataloader_idx, split="test")
 
     @torch.no_grad()
-    def _generate_predictions(self, input_ids: torch.Tensor, model_max_target_len: int = 512):
+    def _generate_predictions(
+        self, input_ids: torch.Tensor, model_max_target_len: int = 512
+    ):
         """
         Generates predictions and converts IDs to text.
         """
         outputs = self.model.generate(
-            input_ids, output_scores=True, return_dict_in_generate=True, max_length=model_max_target_len
+            input_ids,
+            output_scores=True,
+            return_dict_in_generate=True,
+            max_length=model_max_target_len,
         )
-        generated_ids, sequence_toks_scores = outputs['sequences'], outputs['scores']
-        generated_texts = self._tokenizer.batch_decode(generated_ids, skip_special_tokens=True)
+        generated_ids, sequence_toks_scores = outputs["sequences"], outputs["scores"]
+        generated_texts = self._tokenizer.batch_decode(
+            generated_ids, skip_special_tokens=True
+        )
 
         return generated_texts, generated_ids, sequence_toks_scores
 
     # ===== Dataset Setup Functions ===== #
     def _setup_dataloader_from_config(self, cfg, name):
-        if "dataloader_params" not in cfg or not isinstance(cfg.dataloader_params, DictConfig):
+        if "dataloader_params" not in cfg or not isinstance(
+            cfg.dataloader_params, DictConfig
+        ):
             raise ValueError(f"No dataloader_params for {name}")
 
         dataset = instantiate(
@@ -263,7 +294,9 @@ class T5G2PModel(G2PModel, Exportable):
             with_labels=True,
         )
 
-        return torch.utils.data.DataLoader(dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params)
+        return torch.utils.data.DataLoader(
+            dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params
+        )
 
     def setup_training_data(self, cfg):
         self._train_dl = self._setup_dataloader_from_config(cfg, name="train")
@@ -274,13 +307,17 @@ class T5G2PModel(G2PModel, Exportable):
     def setup_test_data(self, cfg):
         self._test_dl = self._setup_dataloader_from_config(cfg, name="test")
 
-    def setup_multiple_validation_data(self, val_data_config: Union[DictConfig, Dict] = None):
+    def setup_multiple_validation_data(
+        self, val_data_config: Union[DictConfig, Dict] = None
+    ):
         if not val_data_config or val_data_config.manifest_filepath is None:
             self._validation_dl = None
             return
         return super().setup_multiple_validation_data(val_data_config)
 
-    def setup_multiple_test_data(self, test_data_config: Union[DictConfig, Dict] = None):
+    def setup_multiple_test_data(
+        self, test_data_config: Union[DictConfig, Dict] = None
+    ):
         if not test_data_config or test_data_config.manifest_filepath is None:
             self._test_dl = None
             return
@@ -288,13 +325,13 @@ class T5G2PModel(G2PModel, Exportable):
 
     # ===== List Available Models - N/A =====$
     @classmethod
-    def list_available_models(cls) -> 'List[PretrainedModelInfo]':
+    def list_available_models(cls) -> "List[PretrainedModelInfo]":
         return []
 
     def _prepare_for_export(self, **kwargs):
         super()._prepare_for_export(**kwargs)
 
-        tensor_shape = ('B', 'T')
+        tensor_shape = ("B", "T")
 
         # Define input_types and output_types as required by export()
         self._input_types = {
@@ -319,16 +356,19 @@ class T5G2PModel(G2PModel, Exportable):
         input_ids = [sentence]
         input_encoding = self._tokenizer(
             input_ids,
-            padding='longest',
+            padding="longest",
             max_length=self.max_source_len,
             truncation=True,
-            return_tensors='pt',
+            return_tensors="pt",
         )
         return (input_encoding.input_ids,)
 
     def forward_for_export(self, input_ids):
         outputs = self.model.generate(
-            input_ids, output_scores=True, return_dict_in_generate=True, max_length=self.max_source_len
+            input_ids,
+            output_scores=True,
+            return_dict_in_generate=True,
+            max_length=self.max_source_len,
         )
-        generated_ids, sequence_toks_scores = outputs['sequences'], outputs['scores']
+        generated_ids, sequence_toks_scores = outputs["sequences"], outputs["scores"]
         return tuple(generated_ids)

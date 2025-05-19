@@ -58,7 +58,10 @@ class NeMoBertEmbeddings(BaseEmbedding):
 
         # restore model
         model = MegatronBertEmbeddingModel.restore_from(
-            restore_path=model_path, trainer=trainer, override_config_path=model_cfg, strict=True
+            restore_path=model_path,
+            trainer=trainer,
+            override_config_path=model_cfg,
+            strict=True,
         )
         model.freeze()
         self._model = model
@@ -91,7 +94,10 @@ class NeMoBertEmbeddings(BaseEmbedding):
         input_ids = [item[: (max_seq_length - 1)] for item in input_ids]
 
         # add bos and eos
-        input_ids = [([self._model.tokenizer.bos_id] + item + [self._model.tokenizer.eos_id]) for item in input_ids]
+        input_ids = [
+            ([self._model.tokenizer.bos_id] + item + [self._model.tokenizer.eos_id])
+            for item in input_ids
+        ]
 
         # pad input_ids
         def _ceil_to_nearest(n, m):
@@ -100,7 +106,10 @@ class NeMoBertEmbeddings(BaseEmbedding):
         lengths = [len(item) for item in input_ids]
         max_length = min(max_seq_length, _ceil_to_nearest(max(lengths), 16))
         assert max_length <= max_seq_length
-        input_ids = [item + [self._model.tokenizer.pad_id] * (max_length - len(item)) for item in input_ids]
+        input_ids = [
+            item + [self._model.tokenizer.pad_id] * (max_length - len(item))
+            for item in input_ids
+        ]
         input_ids = torch.LongTensor(input_ids)
 
         # construct attention_mask
@@ -122,9 +131,9 @@ class NeMoBertEmbeddings(BaseEmbedding):
         token_type_ids = torch.zeros_like(input_ids)
 
         processed_batch = {
-            'input_ids': input_ids,
-            'token_type_ids': token_type_ids,
-            'attention_mask': attention_mask,
+            "input_ids": input_ids,
+            "token_type_ids": token_type_ids,
+            "attention_mask": attention_mask,
         }
 
         return processed_batch
@@ -132,29 +141,41 @@ class NeMoBertEmbeddings(BaseEmbedding):
     def _get_query_embedding(self, query: str) -> List[float]:
         constructed_forward_input = self._construct_forward_input([query])
         for key in constructed_forward_input.keys():
-            constructed_forward_input[key] = constructed_forward_input[key].to(self._model.device)
+            constructed_forward_input[key] = constructed_forward_input[key].to(
+                self._model.device
+            )
 
         embeddings = self._model.forward(**constructed_forward_input)
-        embeddings = embeddings.transpose(0, 1)  # reshape tensor shape [hidden_dim, bs] to [bs, hidden_dim]
+        embeddings = embeddings.transpose(
+            0, 1
+        )  # reshape tensor shape [hidden_dim, bs] to [bs, hidden_dim]
 
         return embeddings[0].tolist()
 
     def _get_text_embedding(self, text: str) -> List[float]:
         constructed_forward_input = self._construct_forward_input([text])
         for key in constructed_forward_input.keys():
-            constructed_forward_input[key] = constructed_forward_input[key].to(self._model.device)
+            constructed_forward_input[key] = constructed_forward_input[key].to(
+                self._model.device
+            )
 
         embeddings = self._model.forward(**constructed_forward_input)
-        embeddings = embeddings.transpose(0, 1)  # reshape tensor shape [hidden_dim, bs] to [bs, hidden_dim]
+        embeddings = embeddings.transpose(
+            0, 1
+        )  # reshape tensor shape [hidden_dim, bs] to [bs, hidden_dim]
 
         return embeddings[0].tolist()
 
     def _get_text_embeddings(self, texts: List[str]) -> List[List[float]]:
         constructed_forward_input = self._construct_forward_input(texts)
         for key in constructed_forward_input.keys():
-            constructed_forward_input[key] = constructed_forward_input[key].to(self._model.device)
+            constructed_forward_input[key] = constructed_forward_input[key].to(
+                self._model.device
+            )
 
         embeddings = self._model.forward(**constructed_forward_input)
-        embeddings = embeddings.transpose(0, 1)  # reshape tensor shape [hidden_dim, bs] to [bs, hidden_dim]
+        embeddings = embeddings.transpose(
+            0, 1
+        )  # reshape tensor shape [hidden_dim, bs] to [bs, hidden_dim]
 
         return embeddings.tolist()

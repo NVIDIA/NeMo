@@ -22,7 +22,12 @@ from nemo.core.config import hydra_runner
 @hydra_runner(config_path="conf", config_name="retro_web_server")
 def main(cfg) -> None:
 
-    demo = RetroDemoWebApp(cfg.text_service_ip, cfg.text_service_port, cfg.combo_service_ip, cfg.combo_service_port)
+    demo = RetroDemoWebApp(
+        cfg.text_service_ip,
+        cfg.text_service_port,
+        cfg.combo_service_ip,
+        cfg.combo_service_port,
+    )
     demo.run_demo(cfg.share, cfg.username, cfg.password, cfg.port)
 
 

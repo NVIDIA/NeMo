@@ -36,7 +36,7 @@ from nemo.core.neural_types import (ChannelType, LabelsType, MaskType,
 from nemo.utils import logging
 from nemo.utils.get_rank import is_global_rank_zero
 
-__all__ = ['BertTokenClassificationDataset', 'BertTokenClassificationInferDataset']
+__all__ = ["BertTokenClassificationDataset", "BertTokenClassificationInferDataset"]
 
 
 def get_features(
@@ -44,7 +44,7 @@ def get_features(
     tokenizer: TokenizerSpec,
     max_seq_length: int = -1,
     label_ids: dict = None,
-    pad_label: str = 'O',
+    pad_label: str = "O",
     raw_labels: List[str] = None,
     ignore_extra_tokens: bool = False,
     ignore_start_end: bool = False,
@@ -120,8 +120,12 @@ def get_features(
             all_labels.append(labels)
 
     max_seq_length_data = max(sent_lengths)
-    max_seq_length = min(max_seq_length, max_seq_length_data) if max_seq_length > 0 else max_seq_length_data
-    logging.info(f'Setting Max Seq length to: {max_seq_length}')
+    max_seq_length = (
+        min(max_seq_length, max_seq_length_data)
+        if max_seq_length > 0
+        else max_seq_length_data
+    )
+    logging.info(f"Setting Max Seq length to: {max_seq_length}")
     get_stats(sent_lengths)
     too_long_count = 0
 
@@ -129,7 +133,9 @@ def get_features(
         if len(subtokens) > max_seq_length:
             subtokens = [tokenizer.cls_token] + subtokens[-max_seq_length + 1 :]
             all_input_mask[i] = [1] + all_input_mask[i][-max_seq_length + 1 :]
-            all_loss_mask[i] = [int(not ignore_start_end)] + all_loss_mask[i][-max_seq_length + 1 :]
+            all_loss_mask[i] = [int(not ignore_start_end)] + all_loss_mask[i][
+                -max_seq_length + 1 :
+            ]
             all_subtokens_mask[i] = [0] + all_subtokens_mask[i][-max_seq_length + 1 :]
 
             if with_label:
@@ -150,7 +156,7 @@ def get_features(
 
         all_segment_ids.append([0] * max_seq_length)
 
-    logging.warning(f'{too_long_count} are longer than {max_seq_length}')
+    logging.warning(f"{too_long_count} are longer than {max_seq_length}")
 
     for i in range(min(len(all_input_ids), 1)):
         logging.info("*** Example ***")
@@ -158,10 +164,19 @@ def get_features(
         logging.info("subtokens: %s", " ".join(list(map(str, all_subtokens[i]))))
         logging.info("loss_mask: %s", " ".join(list(map(str, all_loss_mask[i]))))
         logging.info("input_mask: %s", " ".join(list(map(str, all_input_mask[i]))))
-        logging.info("subtokens_mask: %s", " ".join(list(map(str, all_subtokens_mask[i]))))
+        logging.info(
+            "subtokens_mask: %s", " ".join(list(map(str, all_subtokens_mask[i])))
+        )
         if with_label:
             logging.info("labels: %s", " ".join(list(map(str, all_labels[i]))))
-    return (all_input_ids, all_segment_ids, all_input_mask, all_subtokens_mask, all_loss_mask, all_labels)
+    return (
+        all_input_ids,
+        all_segment_ids,
+        all_input_mask,
+        all_subtokens_mask,
+        all_loss_mask,
+        all_labels,
+    )
 
 
 class BertTokenClassificationDataset(Dataset):
@@ -191,15 +206,14 @@ class BertTokenClassificationDataset(Dataset):
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        """Returns definitions of module output ports.
-               """
+        """Returns definitions of module output ports."""
         return {
-            'input_ids': NeuralType(('B', 'T'), ChannelType()),
-            'segment_ids': NeuralType(('B', 'T'), ChannelType()),
-            'input_mask': NeuralType(('B', 'T'), MaskType()),
-            'subtokens_mask': NeuralType(('B', 'T'), MaskType()),
-            'loss_mask': NeuralType(('B', 'T'), MaskType()),
-            'labels': NeuralType(('B', 'T'), LabelsType()),
+            "input_ids": NeuralType(("B", "T"), ChannelType()),
+            "segment_ids": NeuralType(("B", "T"), ChannelType()),
+            "input_mask": NeuralType(("B", "T"), MaskType()),
+            "subtokens_mask": NeuralType(("B", "T"), MaskType()),
+            "loss_mask": NeuralType(("B", "T"), MaskType()),
+            "labels": NeuralType(("B", "T"), LabelsType()),
         }
 
     def __init__(
@@ -209,19 +223,19 @@ class BertTokenClassificationDataset(Dataset):
         max_seq_length: int,
         tokenizer: TokenizerSpec,
         num_samples: int = -1,
-        pad_label: str = 'O',
+        pad_label: str = "O",
         label_ids: Dict[str, int] = None,
         ignore_extra_tokens: bool = False,
         ignore_start_end: bool = False,
         use_cache: bool = True,
     ):
-        """ Initializes BertTokenClassificationDataset. """
+        """Initializes BertTokenClassificationDataset."""
 
         data_dir = os.path.dirname(text_file)
         text_filename = os.path.basename(text_file)
         lbl_filename = os.path.basename(label_file)
 
-        if not text_filename.endswith('.txt'):
+        if not text_filename.endswith(".txt"):
             raise ValueError("{text_file} should have extension .txt")
 
         vocab_size = getattr(tokenizer, "vocab_size", 0)
@@ -236,11 +250,11 @@ class BertTokenClassificationDataset(Dataset):
             if num_samples == 0:
                 raise ValueError("num_samples has to be positive", num_samples)
 
-            with open(text_file, 'r') as f:
+            with open(text_file, "r") as f:
                 text_lines = f.readlines()
 
             labels_lines = []
-            with open(label_file, 'r') as f:
+            with open(label_file, "r") as f:
                 for line in f:
                     line = line.strip().split()
                     labels_lines.append(line)
@@ -270,13 +284,15 @@ class BertTokenClassificationDataset(Dataset):
             # save features to a temp file first to make sure that non-master processes don't start reading the file
             # until the master process is done with writing
             ofd, tmp_features_pkl = tempfile.mkstemp(
-                suffix='.pkl', prefix=os.path.basename(features_pkl), dir=os.path.dirname(features_pkl)
+                suffix=".pkl",
+                prefix=os.path.basename(features_pkl),
+                dir=os.path.dirname(features_pkl),
             )
-            with os.fdopen(ofd, 'wb') as temp_f:
+            with os.fdopen(ofd, "wb") as temp_f:
                 pickle.dump(features, temp_f)
 
             os.rename(tmp_features_pkl, features_pkl)
-            logging.info(f'features saved to {features_pkl}')
+            logging.info(f"features saved to {features_pkl}")
 
         # wait until the master process writes to the processed data files
         if not master_device:
@@ -284,8 +300,8 @@ class BertTokenClassificationDataset(Dataset):
                 time.sleep(10)
 
         if features is None:
-            features = pickle.load(open(features_pkl, 'rb'))
-            logging.info(f'features restored from {features_pkl}')
+            features = pickle.load(open(features_pkl, "rb"))
+            logging.info(f"features restored from {features_pkl}")
 
         self.all_input_ids = features[0]
         self.all_segment_ids = features[1]
@@ -316,17 +332,19 @@ class BertTokenClassificationInferDataset(Dataset):
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        """Returns definitions of module output ports.
-               """
+        """Returns definitions of module output ports."""
         return {
-            'input_ids': NeuralType(('B', 'T'), ChannelType()),
-            'segment_ids': NeuralType(('B', 'T'), ChannelType()),
-            'input_mask': NeuralType(('B', 'T'), MaskType()),
-            'subtokens_mask': NeuralType(('B', 'T'), MaskType()),
+            "input_ids": NeuralType(("B", "T"), ChannelType()),
+            "segment_ids": NeuralType(("B", "T"), ChannelType()),
+            "input_mask": NeuralType(("B", "T"), MaskType()),
+            "subtokens_mask": NeuralType(("B", "T"), MaskType()),
         }
 
     def __init__(
-        self, queries: List[str], max_seq_length: int, tokenizer: TokenizerSpec,
+        self,
+        queries: List[str],
+        max_seq_length: int,
+        tokenizer: TokenizerSpec,
     ):
         """
         Initializes BertTokenClassificationInferDataset
@@ -335,7 +353,9 @@ class BertTokenClassificationInferDataset(Dataset):
             max_seq_length: max sequence length minus 2 for [CLS] and [SEP]
             tokenizer: such as AutoTokenizer
         """
-        features = get_features(queries=queries, max_seq_length=max_seq_length, tokenizer=tokenizer)
+        features = get_features(
+            queries=queries, max_seq_length=max_seq_length, tokenizer=tokenizer
+        )
 
         self.all_input_ids = features[0]
         self.all_segment_ids = features[1]

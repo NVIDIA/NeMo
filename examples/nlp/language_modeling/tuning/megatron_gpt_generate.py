@@ -87,7 +87,7 @@ An example is below.
 
 def use_inference_server(cfg, model, trainer):
     if not HAVE_MEGATRON_CORE:
-        raise ValueError('Megatron-core needs to be installed to use this feature!')
+        raise ValueError("Megatron-core needs to be installed to use this feature!")
 
     from nemo.collections.nlp.modules.common.megatron_web_server import (
         get_chatbot_demo, get_demo)
@@ -99,9 +99,9 @@ def use_inference_server(cfg, model, trainer):
         if cfg.web_server:
             if cfg.chat:
                 defaults = {
-                    'user': cfg.chatbot_config.user,
-                    'assistant': cfg.chatbot_config.assistant,
-                    'system': cfg.chatbot_config.system,
+                    "user": cfg.chatbot_config.user,
+                    "assistant": cfg.chatbot_config.assistant,
+                    "system": cfg.chatbot_config.system,
                 }
                 web_ui = partial(
                     get_chatbot_demo,
@@ -115,7 +115,14 @@ def use_inference_server(cfg, model, trainer):
             thread = threading.Thread(
                 target=web_ui,
                 daemon=True,
-                args=(cfg.share, cfg.username, cfg.password, cfg.port, cfg.web_port, loop),
+                args=(
+                    cfg.share,
+                    cfg.username,
+                    cfg.password,
+                    cfg.port,
+                    cfg.web_port,
+                    loop,
+                ),
             )
             thread.start()
         server = MegatronServer(model.cuda())
@@ -135,35 +142,48 @@ def main(cfg) -> None:
     trainer = MegatronLMPPTrainerBuilder(cfg).create_trainer()
 
     if cfg.model.peft.restore_from_path:
-        model_cfg = MegatronGPTSFTModel.merge_inference_cfg(cfg.model.peft.restore_from_path, cfg)
+        model_cfg = MegatronGPTSFTModel.merge_inference_cfg(
+            cfg.model.peft.restore_from_path, cfg
+        )
     else:
-        model_cfg = MegatronGPTSFTModel.merge_inference_cfg(cfg.model.restore_from_path, cfg)
+        model_cfg = MegatronGPTSFTModel.merge_inference_cfg(
+            cfg.model.restore_from_path, cfg
+        )
 
-    model = MegatronGPTSFTModel.restore_from(cfg.model.restore_from_path, model_cfg, trainer=trainer)
+    model = MegatronGPTSFTModel.restore_from(
+        cfg.model.restore_from_path, model_cfg, trainer=trainer
+    )
 
     if cfg.model.peft.restore_from_path:
         model.load_adapters(cfg.model.peft.restore_from_path)
-    elif cfg.model.peft.restore_from_ckpt.checkpoint_dir and cfg.model.peft.restore_from_ckpt.checkpoint_name:
+    elif (
+        cfg.model.peft.restore_from_ckpt.checkpoint_dir
+        and cfg.model.peft.restore_from_ckpt.checkpoint_name
+    ):
         peft_cfg_cls = PEFT_CONFIG_MAP[cfg.model.peft.peft_scheme]
         checkpoint_path = os.path.join(
-            cfg.model.peft.restore_from_ckpt.checkpoint_dir, cfg.model.peft.restore_from_ckpt.checkpoint_name
+            cfg.model.peft.restore_from_ckpt.checkpoint_dir,
+            cfg.model.peft.restore_from_ckpt.checkpoint_name,
         )
         # checkpoint_path is a dir in case of distributed checkpointing
         if not os.path.isdir(checkpoint_path):
             # legacy checkpoint needs model parallel rank injection
             checkpoint_path = inject_model_parallel_rank(
                 os.path.join(
-                    cfg.model.peft.restore_from_ckpt.checkpoint_dir, cfg.model.peft.restore_from_ckpt.checkpoint_name
+                    cfg.model.peft.restore_from_ckpt.checkpoint_dir,
+                    cfg.model.peft.restore_from_ckpt.checkpoint_name,
                 )
             )
             model.load_adapters(checkpoint_path, peft_cfgs=peft_cfg_cls(model_cfg))
         else:
-            raise NotImplementedError("distributed checkpointing of PEFT weights is not supported")
+            raise NotImplementedError(
+                "distributed checkpointing of PEFT weights is not supported"
+            )
 
     model.freeze()
     logging.info(f"Freezing parameters for PEFT eval:\n{model.summarize()}")
 
-    if not cfg.model.get('use_flash_attention', False):
+    if not cfg.model.get("use_flash_attention", False):
         cfg.inference.compute_attention_mask = True
     config = OmegaConf.to_container(cfg.inference, resolve=True)
     model.set_inference_config(config)

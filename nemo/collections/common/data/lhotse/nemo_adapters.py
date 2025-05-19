@@ -97,7 +97,9 @@ class LazyNeMoIterator:
             self.source = LazyJsonlIterator(paths[0])
         else:
             self.source = LazyIteratorChain(
-                *(LazyJsonlIterator(p) for p in paths), shuffle_iters=self.shuffle_shards, seed=self.shard_seed
+                *(LazyJsonlIterator(p) for p in paths),
+                shuffle_iters=self.shuffle_shards,
+                seed=self.shard_seed,
             )
         self.text_field = text_field
         self.lang_field = lang_field
@@ -108,16 +110,24 @@ class LazyNeMoIterator:
     def __iter__(self) -> Generator[Cut, None, None]:
         seed = resolve_seed(self.shard_seed)
         # Propagate the random seed
-        extra_fields = [ExtraField.from_dict({"seed": seed, **field_cfg}) for field_cfg in self.extra_fields or ()]
+        extra_fields = [
+            ExtraField.from_dict({"seed": seed, **field_cfg})
+            for field_cfg in self.extra_fields or ()
+        ]
         for data in self.source:
             # filter out entries with valid "_skipme" values.
             if data.get("_skipme", False):
                 continue
-            audio_path = get_full_path(str(data.pop("audio_filepath")), str(self.path), force_cache=False)
+            audio_path = get_full_path(
+                str(data.pop("audio_filepath")), str(self.path), force_cache=False
+            )
             duration = data.pop("duration")
             offset = data.pop("offset", None)
             cut = self._create_cut(
-                audio_path=audio_path, offset=offset, duration=duration, sampling_rate=data.pop("sampling_rate", None)
+                audio_path=audio_path,
+                offset=offset,
+                duration=duration,
+                sampling_rate=data.pop("sampling_rate", None),
             )
             # Note that start=0 and not start=offset because supervision's start if relative to the
             # start of the cut; and cut.start is already set to offset
@@ -154,7 +164,9 @@ class LazyNeMoIterator:
             cut = recording.to_cut()
             if offset is not None:
                 cut = cut.truncate(offset=offset, duration=duration, preserve_id=True)
-                cut.id = f"{cut.id}-{round(offset * 1e2):06d}-{round(duration * 1e2):06d}"
+                cut.id = (
+                    f"{cut.id}-{round(offset * 1e2):06d}-{round(duration * 1e2):06d}"
+                )
         else:
             # Only metadata requested.
             # We'll provide accurate metadata for Cut but inaccurate metadata for Recording to avoid
@@ -190,7 +202,9 @@ class LazyNeMoIterator:
             source_type = "url" if is_datastore_path(audio_path) else "file"
             return Recording(
                 id=audio_path,
-                sources=[AudioSource(type=source_type, channels=[0], source=audio_path)],
+                sources=[
+                    AudioSource(type=source_type, channels=[0], source=audio_path)
+                ],
                 sampling_rate=sampling_rate,
                 num_samples=compute_num_samples(duration, sampling_rate),
                 duration=duration,
@@ -301,7 +315,9 @@ class LazyNeMoTarredIterator:
                     f"we searched with regex '{json_pattern.pattern}' in input '{p}'"
                 )
                 shard_ids.append(int(m.group(1)))
-            self.shard_id_to_manifest = {sid: LazyJsonlIterator(p) for sid, p in zip(shard_ids, self.paths)}
+            self.shard_id_to_manifest = {
+                sid: LazyJsonlIterator(p) for sid, p in zip(shard_ids, self.paths)
+            }
             self.source = LazyIteratorChain(*self.shard_id_to_manifest.values())
 
         self.tar_paths = expand_sharded_filepaths(tar_paths)
@@ -358,7 +374,9 @@ class LazyNeMoTarredIterator:
     def shard_ids(self) -> List[int]:
         return sorted(self.shard_id_to_manifest.keys())
 
-    def _iter_sequential(self, tar_path, shard_manifest, manifest_path) -> Generator[tuple[dict, bytes], None, None]:
+    def _iter_sequential(
+        self, tar_path, shard_manifest, manifest_path
+    ) -> Generator[tuple[dict, bytes], None, None]:
         with tarfile.open(fileobj=open_best(tar_path, mode="rb"), mode="r|*") as tar:
             for tar_info in tar:
                 try:
@@ -382,11 +400,14 @@ class LazyNeMoTarredIterator:
             random.Random(seed).shuffle(shard_ids)
 
         # Propagate the random seed
-        extra_fields = [ExtraField.from_dict({"seed": seed, **field_cfg}) for field_cfg in self.extra_fields or ()]
+        extra_fields = [
+            ExtraField.from_dict({"seed": seed, **field_cfg})
+            for field_cfg in self.extra_fields or ()
+        ]
 
         # Handle NeMo tarred manifests with offsets.
         # They have multiple JSONL entries where audio paths end with '-sub1', '-sub2', etc. for each offset.
-        offset_pattern = re.compile(r'^(?P<stem>.+)(?P<sub>-sub\d+)(?P<ext>\.\w+)?$')
+        offset_pattern = re.compile(r"^(?P<stem>.+)(?P<sub>-sub\d+)(?P<ext>\.\w+)?$")
 
         for sid in shard_ids:
             manifest_path = self.paths[sid] if len(self.paths) > 1 else self.paths[0]
@@ -398,26 +419,40 @@ class LazyNeMoTarredIterator:
                     else k
                 )
 
-            shard_manifest: dict[str, list[dict]] = groupby(basename, self.shard_id_to_manifest[sid])
+            shard_manifest: dict[str, list[dict]] = groupby(
+                basename, self.shard_id_to_manifest[sid]
+            )
             tar_path = self.shard_id_to_tar_path[sid]
             try:
-                for data, raw_audio, tar_info in self._iter_sequential(tar_path, shard_manifest, manifest_path):
+                for data, raw_audio, tar_info in self._iter_sequential(
+                    tar_path, shard_manifest, manifest_path
+                ):
                     meta = soundfile.info(BytesIO(raw_audio))
                     recording = Recording(
                         id=tar_info.path,
-                        sources=[AudioSource(type="memory", channels=list(range(meta.channels)), source=raw_audio)],
+                        sources=[
+                            AudioSource(
+                                type="memory",
+                                channels=list(range(meta.channels)),
+                                source=raw_audio,
+                            )
+                        ],
                         sampling_rate=int(meta.samplerate),
                         num_samples=meta.frames,
                         duration=meta.duration,
                     )
                     cuts_for_recording = []
-                    for data in sorted(shard_manifest[tar_info.name], key=lambda d: d["audio_filepath"]):
+                    for data in sorted(
+                        shard_manifest[tar_info.name], key=lambda d: d["audio_filepath"]
+                    ):
                         # filter out entries with valid "_skipme" values.
                         if data.get("_skipme", False):
                             continue
                         # Cut the recording into corresponding segment and discard audio data outside the segment.
                         cut = make_cut_with_subset_inmemory_recording(
-                            recording, offset=data.get("offset", 0.0), duration=data.get("duration")
+                            recording,
+                            offset=data.get("offset", 0.0),
+                            duration=data.get("duration"),
                         )
                         cut.supervisions.append(
                             SupervisionSegment(
@@ -477,7 +512,9 @@ def make_cut_with_subset_inmemory_recording(
         ) from e
 
     audiobytes = BytesIO()
-    LibsndfileBackend().save_audio(audiobytes, cut.load_audio(), sampling_rate=cut.sampling_rate, format="wav")
+    LibsndfileBackend().save_audio(
+        audiobytes, cut.load_audio(), sampling_rate=cut.sampling_rate, format="wav"
+    )
     audiobytes.seek(0)
     new_recording = Recording(
         id=recording.id,
@@ -509,8 +546,12 @@ class ExtraField:
 
     @staticmethod
     def from_dict(data: dict) -> "ExtraField":
-        assert data["type"] in ExtraField.SUPPORTED_TYPES, f"Unknown transform type: {data['type']}"
-        return ExtraField.SUPPORTED_TYPES[data["type"]](**{k: v for k, v in data.items() if k != 'type'})
+        assert (
+            data["type"] in ExtraField.SUPPORTED_TYPES
+        ), f"Unknown transform type: {data['type']}"
+        return ExtraField.SUPPORTED_TYPES[data["type"]](
+            **{k: v for k, v in data.items() if k != "type"}
+        )
 
     @classmethod
     def is_supported(cls, field_type: str) -> bool:
@@ -538,7 +579,9 @@ class TextIteratorExtraField(ExtraField):
         try:
             attached_value = next(self.iterator)
         except StopIteration:
-            raise RuntimeError(f"Not enough lines in file {self.path} to attach to cuts under field {self.name}.")
+            raise RuntimeError(
+                f"Not enough lines in file {self.path} to attach to cuts under field {self.name}."
+            )
         setattr(cut, self.name, attached_value)
         return cut
 
@@ -595,8 +638,12 @@ def expand_sharded_filepaths(paths: str | Path | list[str]) -> list[str]:
     if isinstance(paths, Path):
         paths = str(paths)
 
-    return _expand_sharded_filepaths(paths, shard_strategy="replicate", world_size=1, global_rank=0)
+    return _expand_sharded_filepaths(
+        paths, shard_strategy="replicate", world_size=1, global_rank=0
+    )
 
 
-def _to_custom_attr_dict(d: dict, _excluded_fields: set[str] = {"duration", "audio_filepath"}) -> dict:
+def _to_custom_attr_dict(
+    d: dict, _excluded_fields: set[str] = {"duration", "audio_filepath"}
+) -> dict:
     return {k: v for k, v in d.items() if k not in _excluded_fields}

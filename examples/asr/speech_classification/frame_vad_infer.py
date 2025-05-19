@@ -77,12 +77,12 @@ def main(cfg):
         logging.info("Split long audio file to avoid CUDA memory issue")
         logging.debug("Try smaller split_duration if you still have CUDA memory issue")
         config = {
-            'input': manifest_vad_input,
-            'window_length_in_sec': cfg.vad.parameters.window_length_in_sec,
-            'split_duration': cfg.prepare_manifest.split_duration,
-            'num_workers': cfg.num_workers,
-            'prepared_manifest_vad_input': cfg.prepared_manifest_vad_input,
-            'out_dir': output_dir,
+            "input": manifest_vad_input,
+            "window_length_in_sec": cfg.vad.parameters.window_length_in_sec,
+            "split_duration": cfg.prepare_manifest.split_duration,
+            "num_workers": cfg.num_workers,
+            "prepared_manifest_vad_input": cfg.prepared_manifest_vad_input,
+            "out_dir": output_dir,
         }
         manifest_vad_input = prepare_manifest(config)
     else:
@@ -96,13 +96,13 @@ def main(cfg):
     # setup_test_data
     vad_model.setup_test_data(
         test_data_config={
-            'batch_size': 1,
-            'sample_rate': 16000,
-            'manifest_filepath': manifest_vad_input,
-            'labels': ['infer'],
-            'num_workers': cfg.num_workers,
-            'shuffle': False,
-            'normalize_audio_db': cfg.vad.parameters.normalize_audio_db,
+            "batch_size": 1,
+            "sample_rate": 16000,
+            "manifest_filepath": manifest_vad_input,
+            "labels": ["infer"],
+            "num_workers": cfg.num_workers,
+            "shuffle": False,
+            "normalize_audio_db": cfg.vad.parameters.normalize_audio_db,
         }
     )
 
@@ -110,11 +110,15 @@ def main(cfg):
     vad_model.eval()
 
     if not os.path.exists(cfg.frame_out_dir):
-        logging.info(f"Frame predictions do not exist at {cfg.frame_out_dir}, generating frame prediction.")
+        logging.info(
+            f"Frame predictions do not exist at {cfg.frame_out_dir}, generating frame prediction."
+        )
         os.mkdir(cfg.frame_out_dir)
         extract_frame_preds = True
     else:
-        logging.info(f"Frame predictions already exist at {cfg.frame_out_dir}, skipping frame prediction generation.")
+        logging.info(
+            f"Frame predictions already exist at {cfg.frame_out_dir}, skipping frame prediction generation."
+        )
         extract_frame_preds = False
 
     if extract_frame_preds:
@@ -126,7 +130,9 @@ def main(cfg):
             manifest_vad_input=manifest_vad_input,
             out_dir=cfg.frame_out_dir,
         )
-        logging.info(f"Finish generating VAD frame level prediction. You can find the prediction in {pred_dir}")
+        logging.info(
+            f"Finish generating VAD frame level prediction. You can find the prediction in {pred_dir}"
+        )
     else:
         pred_dir = cfg.frame_out_dir
 
@@ -169,13 +175,17 @@ def main(cfg):
     key_pred_rttm_map = {}
     manifest_new = []
     for entry in manifest_orig:
-        key = Path(entry['audio_filepath']).stem
-        entry['rttm_filepath'] = Path(os.path.join(rttm_out_dir, key + ".rttm")).absolute().as_posix()
-        if not Path(entry['rttm_filepath']).is_file():
-            logging.warning(f"Not able to find {entry['rttm_filepath']} for {entry['audio_filepath']}")
-            entry['rttm_filepath'] = ""
+        key = Path(entry["audio_filepath"]).stem
+        entry["rttm_filepath"] = (
+            Path(os.path.join(rttm_out_dir, key + ".rttm")).absolute().as_posix()
+        )
+        if not Path(entry["rttm_filepath"]).is_file():
+            logging.warning(
+                f"Not able to find {entry['rttm_filepath']} for {entry['audio_filepath']}"
+            )
+            entry["rttm_filepath"] = ""
         manifest_new.append(entry)
-        key_pred_rttm_map[key] = entry['rttm_filepath']
+        key_pred_rttm_map[key] = entry["rttm_filepath"]
 
     if not cfg.out_manifest_filepath:
         out_manifest_filepath = os.path.join(output_dir, "manifest_vad_output.json")
@@ -193,9 +203,9 @@ def main(cfg):
             key_pred_rttm_map=key_pred_rttm_map,
             frame_length_in_sec=frame_length_in_sec,
         )
-        DetER = report.iloc[[-1]][('detection error rate', '%')].item()
-        FA = report.iloc[[-1]][('false alarm', '%')].item()
-        MISS = report.iloc[[-1]][('miss', '%')].item()
+        DetER = report.iloc[[-1]][("detection error rate", "%")].item()
+        FA = report.iloc[[-1]][("false alarm", "%")].item()
+        MISS = report.iloc[[-1]][("miss", "%")].item()
         logging.info(f"AUROC: {auroc:.4f}")
         logging.info(f"DetER={DetER:0.4f}, False Alarm={FA:0.4f}, Miss={MISS:0.4f}")
         logging.info(f"with params: {cfg.vad.parameters.postprocessing}")

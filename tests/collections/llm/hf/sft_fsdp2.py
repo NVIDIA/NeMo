@@ -22,7 +22,7 @@ from nemo.collections import llm
 from nemo.lightning.pytorch.accelerate.transformer_engine import \
     is_te_accelerated
 
-DATA_PATH = '/home/TestData/lite/hf_cache/squad/'
+DATA_PATH = "/home/TestData/lite/hf_cache/squad/"
 
 
 def make_squad_hf_dataset(tokenizer, data_path=DATA_PATH):
@@ -43,43 +43,45 @@ def make_squad_hf_dataset(tokenizer, data_path=DATA_PATH):
             loss_mask=[0] * (len(context_ids) - 1) + [1] * len(answer_ids),
         )
 
-    datamodule = llm.HFDatasetDataModule(data_path, split="train[:10]", pad_token_id=tokenizer.eos_id)
+    datamodule = llm.HFDatasetDataModule(
+        data_path, split="train[:10]", pad_token_id=tokenizer.eos_id
+    )
     datamodule.map(
         formatting_prompts_func,
         batched=False,
         batch_size=2,
-        remove_columns=["id", "title", "context", "question", 'answers'],
+        remove_columns=["id", "title", "context", "question", "answers"],
     )
     return datamodule
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     if PkgVersion(get_torch_version_str()) >= PkgVersion("2.4"):
         import argparse
 
         parser = argparse.ArgumentParser()
-        parser.add_argument('--model', default='meta-llama/Llama-3.2-1B')
-        parser.add_argument('--devices', default=2, type=int)
-        parser.add_argument('--dp-size', default=2, type=int)
-        parser.add_argument('--tp-size', default=1, type=int)
-        parser.add_argument('--cp-size', default=1, type=int)
-        parser.add_argument('--sequence-parallel', default=False, action='store_true')
-        parser.add_argument('--accelerator', default='gpu', choices=['gpu'])
-        parser.add_argument('--model-accelerator', default=None, choices=['te'])
-        parser.add_argument('--max-steps', type=int, default=5)
-        parser.add_argument("--fp8-autocast", default=False, action='store_true')
-        parser.add_argument('--wandb-project', type=str, default=None)
-        parser.add_argument('--model-save-path', type=str, default=None)
+        parser.add_argument("--model", default="meta-llama/Llama-3.2-1B")
+        parser.add_argument("--devices", default=2, type=int)
+        parser.add_argument("--dp-size", default=2, type=int)
+        parser.add_argument("--tp-size", default=1, type=int)
+        parser.add_argument("--cp-size", default=1, type=int)
+        parser.add_argument("--sequence-parallel", default=False, action="store_true")
+        parser.add_argument("--accelerator", default="gpu", choices=["gpu"])
+        parser.add_argument("--model-accelerator", default=None, choices=["te"])
+        parser.add_argument("--max-steps", type=int, default=5)
+        parser.add_argument("--fp8-autocast", default=False, action="store_true")
+        parser.add_argument("--wandb-project", type=str, default=None)
+        parser.add_argument("--model-save-path", type=str, default=None)
         args = parser.parse_args()
 
         wandb = None
         if args.wandb_project is not None:
             from lightning.pytorch.loggers import WandbLogger
 
-            model = '_'.join(args.model.split('/')[-2:])
+            model = "_".join(args.model.split("/")[-2:])
             wandb = WandbLogger(
                 project=args.wandb_project,
-                name=f'{model}_dev{args.devices}_strat_{args.strategy}',
+                name=f"{model}_dev{args.devices}_strat_{args.strategy}",
             )
         grad_clip = None
         use_dist_samp = False
@@ -96,7 +98,9 @@ if __name__ == '__main__':
         from nemo.lightning.pytorch.accelerate.transformer_engine import \
             te_accelerate
 
-        model = llm.HFAutoModelForCausalLM(model_name=args.model, model_accelerator=model_accelerator)
+        model = llm.HFAutoModelForCausalLM(
+            model_name=args.model, model_accelerator=model_accelerator
+        )
         tokenizer = model.tokenizer
 
         llm.api.finetune(

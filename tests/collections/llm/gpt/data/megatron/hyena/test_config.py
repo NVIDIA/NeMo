@@ -66,8 +66,16 @@ def temp_dataset_config():
     dataset_config_content = [
         {"dataset_prefix": "dataset1", "dataset_weight": 0.5, "dataset_split": "train"},
         {"dataset_prefix": "dataset2", "dataset_weight": 0.5, "dataset_split": "train"},
-        {"dataset_prefix": "dataset1", "dataset_weight": 0.6, "dataset_split": "validation"},
-        {"dataset_prefix": "dataset2", "dataset_weight": 0.6, "dataset_split": "validation"},
+        {
+            "dataset_prefix": "dataset1",
+            "dataset_weight": 0.6,
+            "dataset_split": "validation",
+        },
+        {
+            "dataset_prefix": "dataset2",
+            "dataset_weight": 0.6,
+            "dataset_split": "validation",
+        },
         {"dataset_prefix": "dataset2", "dataset_weight": 0.2, "dataset_split": "test"},
     ]
 
@@ -100,7 +108,9 @@ def tmp_dataset(tmp_path):
 def test_valid_absolute_path(tmp_dataset):
     """Test configuration with valid absolute path."""
     config = Evo2BlendedDatasetConfig(
-        dataset_prefix=str(tmp_dataset / "dataset"), dataset_weight=0.5, dataset_split="train"
+        dataset_prefix=str(tmp_dataset / "dataset"),
+        dataset_weight=0.5,
+        dataset_split="train",
     )
     assert config.dataset_prefix == str(tmp_dataset / "dataset")
     assert config.dataset_weight == 0.5
@@ -110,36 +120,50 @@ def test_valid_absolute_path(tmp_dataset):
 def test_valid_relative_path(tmp_dataset):
     """Test configuration with valid relative path and base data path."""
     config = Evo2BlendedDatasetConfig(
-        dataset_path=str(tmp_dataset), dataset_prefix="dataset", dataset_weight=0.5, dataset_split="validation"
+        dataset_path=str(tmp_dataset),
+        dataset_prefix="dataset",
+        dataset_weight=0.5,
+        dataset_split="validation",
     )
     assert config.dataset_prefix == str(tmp_dataset / "dataset")
 
 
 def test_invalid_relative_path_without_base():
     """Test relative path fails without base data path."""
-    with pytest.raises(ValueError, match=f"dataset_prefix file does not exist: {Path('dataset').resolve()}"):
-        Evo2BlendedDatasetConfig(dataset_prefix="dataset", dataset_weight=0.5, dataset_split="train")
+    with pytest.raises(
+        ValueError,
+        match=f"dataset_prefix file does not exist: {Path('dataset').resolve()}",
+    ):
+        Evo2BlendedDatasetConfig(
+            dataset_prefix="dataset", dataset_weight=0.5, dataset_split="train"
+        )
 
 
 def test_valid_relative_path_without_base(tmp_dataset: Path):
     """Test relative path in current workdir does not fail without base data path."""
     # changing temporary cwd since Path(dataset_prefix).resolve() will resolve relative paths to the current working directory
     with change_dir(tmp_dataset):
-        Evo2BlendedDatasetConfig(dataset_prefix="dataset", dataset_weight=0.5, dataset_split="train")
+        Evo2BlendedDatasetConfig(
+            dataset_prefix="dataset", dataset_weight=0.5, dataset_split="train"
+        )
 
 
 def test_nonexistent_parent_path(tmp_path):
     """Test configuration fails with nonexistent parent directory."""
     invalid_path = tmp_path / "nonexistent" / "dataset"
     with pytest.raises(ValueError, match="parent path does not exist"):
-        Evo2BlendedDatasetConfig(dataset_prefix=str(invalid_path), dataset_weight=0.5, dataset_split="train")
+        Evo2BlendedDatasetConfig(
+            dataset_prefix=str(invalid_path), dataset_weight=0.5, dataset_split="train"
+        )
 
 
 def test_nonexistent_dataset_file(tmp_dataset):
     """Test configuration fails with nonexistent dataset file."""
     invalid_path = tmp_dataset / "nonexistent_dataset"
     with pytest.raises(ValueError, match="dataset_prefix file does not exist"):
-        Evo2BlendedDatasetConfig(dataset_prefix=str(invalid_path), dataset_weight=0.5, dataset_split="train")
+        Evo2BlendedDatasetConfig(
+            dataset_prefix=str(invalid_path), dataset_weight=0.5, dataset_split="train"
+        )
 
 
 def test_path_resolution(tmp_dataset):
@@ -148,7 +172,10 @@ def test_path_resolution(tmp_dataset):
     absolute_path = tmp_dataset / "dataset"
 
     config1 = Evo2BlendedDatasetConfig(
-        dataset_path=str(tmp_dataset), dataset_prefix=str(relative_path), dataset_weight=0.5, dataset_split="train"
+        dataset_path=str(tmp_dataset),
+        dataset_prefix=str(relative_path),
+        dataset_weight=0.5,
+        dataset_split="train",
     )
     # changing temporary cwd since Path(dataset_prefix).resolve() will resolve relative paths to the current working directory
     with change_dir(tmp_dataset):
@@ -170,8 +197,18 @@ def test_parse_dataset_config(temp_dataset_config):
     expected_result = defaultdict(
         list,
         {
-            "train": [0.5, str(Path(dataset_path) / "dataset1"), 0.5, str(Path(dataset_path) / "dataset2")],
-            "validation": [0.5, str(Path(dataset_path) / "dataset1"), 0.5, str(Path(dataset_path) / "dataset2")],
+            "train": [
+                0.5,
+                str(Path(dataset_path) / "dataset1"),
+                0.5,
+                str(Path(dataset_path) / "dataset2"),
+            ],
+            "validation": [
+                0.5,
+                str(Path(dataset_path) / "dataset1"),
+                0.5,
+                str(Path(dataset_path) / "dataset2"),
+            ],
             "test": [
                 1.0,
                 str(Path(dataset_path) / "dataset2"),
@@ -198,16 +235,24 @@ def test_infer_global_batch_size_validation():
     with pytest.raises(ValueError, match="devices must be greater than 0"):
         infer_global_batch_size(1, 1, 0, 1, 1, 1, 1)
 
-    with pytest.raises(ValueError, match="accumulate_grad_batches must be greater than 0"):
+    with pytest.raises(
+        ValueError, match="accumulate_grad_batches must be greater than 0"
+    ):
         infer_global_batch_size(1, 1, 1, 0, 1, 1, 1)
 
-    with pytest.raises(ValueError, match="tensor_model_parallel_size must be greater than 0"):
+    with pytest.raises(
+        ValueError, match="tensor_model_parallel_size must be greater than 0"
+    ):
         infer_global_batch_size(1, 1, 1, 1, 0, 1, 1)
 
-    with pytest.raises(ValueError, match="pipeline_model_parallel_size must be greater than 0"):
+    with pytest.raises(
+        ValueError, match="pipeline_model_parallel_size must be greater than 0"
+    ):
         infer_global_batch_size(1, 1, 1, 1, 1, 0, 1)
 
-    with pytest.raises(ValueError, match="context_model_parallel_size must be greater than 0"):
+    with pytest.raises(
+        ValueError, match="context_model_parallel_size must be greater than 0"
+    ):
         infer_global_batch_size(1, 1, 1, 1, 1, 1, 0)
 
 

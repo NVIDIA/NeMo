@@ -14,7 +14,7 @@
 
 
 __all__ = [
-    'deprecated',
+    "deprecated",
 ]
 
 import functools
@@ -42,7 +42,12 @@ def deprecated(wrapped=None, version=None, explanation=None, wait_seconds=0):
     """
 
     if wrapped is None:
-        return functools.partial(deprecated, version=version, explanation=explanation, wait_seconds=wait_seconds)
+        return functools.partial(
+            deprecated,
+            version=version,
+            explanation=explanation,
+            wait_seconds=wait_seconds,
+        )
 
     @wrapt.decorator
     def wrapper(wrapped, instance, args, kwargs):
@@ -65,7 +70,9 @@ def deprecated(wrapped=None, version=None, explanation=None, wait_seconds=0):
             # Display the deprecated warning.
             logging.warning(msg)
             if wait_seconds > 0:
-                logging.warning(f'Waiting for {wait_seconds} seconds before this message disappears')
+                logging.warning(
+                    f"Waiting for {wait_seconds} seconds before this message disappears"
+                )
                 time.sleep(wait_seconds)
 
         # Call the function.
@@ -90,8 +97,10 @@ def deprecated_warning(old_method=None, new_method=None, wait_seconds=2):
         msg = f"*****  {old_method} is deprecated. Please, use {new_method} instead.  *****"
     else:
         msg = f"*****  {old_method} is deprecated and will be removed soon.  *****"
-    banner = '\n'.join(['*' * len(msg)] * 2 + [msg] + ['*' * len(msg)] * 2)
+    banner = "\n".join(["*" * len(msg)] * 2 + [msg] + ["*" * len(msg)] * 2)
 
     logging.warning(f"\n\n{banner}\n")
-    logging.warning(f"Waiting for {wait_seconds} seconds before this message disappears.")
+    logging.warning(
+        f"Waiting for {wait_seconds} seconds before this message disappears."
+    )
     time.sleep(wait_seconds)

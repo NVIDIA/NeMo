@@ -55,7 +55,9 @@ def set_input_tensor(self, tensor):
     pass
 
 
-def get_image_sequence_length(img_h, img_w, patch_dim, add_class_token, class_token_len):
+def get_image_sequence_length(
+    img_h, img_w, patch_dim, add_class_token, class_token_len
+):
     """Get image sequence length given image size, patch size, and class token."""
     num_patches_per_dim_h = img_h // patch_dim
     num_patches_per_dim_w = img_w // patch_dim
@@ -96,9 +98,13 @@ class MultimodalProjectorConfig(TransformerConfig, io.IOMixin):
                 self.layer_spec = self.layer_spec.submodules
             elif self.projector_type == "mcore_affine":
                 self.projector_type = "affine"  # strip "mcore_" for mcore init
-                self.layer_spec = MLPSubmodules(linear_fc1=ColumnParallelLinear, linear_fc2=None)
+                self.layer_spec = MLPSubmodules(
+                    linear_fc1=ColumnParallelLinear, linear_fc2=None
+                )
             else:
-                raise NotImplementedError(f"Not supported projector type `{self.projector_type}`")
+                raise NotImplementedError(
+                    f"Not supported projector type `{self.projector_type}`"
+                )
 
             return MCoreMultimodalProjector(
                 self,
@@ -108,19 +114,25 @@ class MultimodalProjectorConfig(TransformerConfig, io.IOMixin):
             )
 
         # e.g. "mlp2x_gelu"
-        mlp_gelu_match = re.match(r'^mlp(\d+)x_gelu$', self.projector_type)
+        mlp_gelu_match = re.match(r"^mlp(\d+)x_gelu$", self.projector_type)
         if mlp_gelu_match:
             mlp_depth = int(mlp_gelu_match.group(1))
-            modules = [torch.nn.Linear(self.input_size, self.ffn_hidden_size, bias=True)]
+            modules = [
+                torch.nn.Linear(self.input_size, self.ffn_hidden_size, bias=True)
+            ]
             for _ in range(1, mlp_depth):
                 modules.append(torch.nn.GELU())
-                modules.append(torch.nn.Linear(self.ffn_hidden_size, self.hidden_size, bias=True))
+                modules.append(
+                    torch.nn.Linear(self.ffn_hidden_size, self.hidden_size, bias=True)
+                )
             model = torch.nn.Sequential(*modules)
             from types import MethodType
 
             model.set_input_tensor = MethodType(set_input_tensor, model)
         else:
-            raise NotImplementedError(f"Not supported projector type `{self.projector_type}`")
+            raise NotImplementedError(
+                f"Not supported projector type `{self.projector_type}`"
+            )
 
         return model
 
@@ -141,7 +153,9 @@ class HFCLIPVisionConfig(CLIPVisionConfig, io.IOMixin):
         # pylint: disable=C0115,C0116
         CLIPVisionConfig.__init__(self, *args, **kwargs, hidden_size=self.hidden_size)
         if self.pretrained_model_name_or_path is not None:
-            config = CLIPVisionConfig.from_pretrained(self.pretrained_model_name_or_path)
+            config = CLIPVisionConfig.from_pretrained(
+                self.pretrained_model_name_or_path
+            )
             for key, value in config.to_dict().items():
                 setattr(self, key, value)
         self.num_image_embeddings_per_tile = get_image_sequence_length(
@@ -220,7 +234,10 @@ class BaseCLIPViTModel(MCoreCLIPViTModel):
     """CLIP ViT vision model."""
 
     def forward(
-        self, x: torch.Tensor, attention_mask: Optional[torch.Tensor] = None, num_unused_layers: int = 0
+        self,
+        x: torch.Tensor,
+        attention_mask: Optional[torch.Tensor] = None,
+        num_unused_layers: int = 0,
     ) -> torch.Tensor:
         # pylint: disable=C0115,C0116
         if num_unused_layers > 0:

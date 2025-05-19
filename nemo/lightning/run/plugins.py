@@ -31,7 +31,7 @@ from nemo.lightning.pytorch.strategies.megatron_strategy import \
 from nemo.utils import logging
 from nemo.utils.import_utils import safe_import
 
-res_module, HAVE_RES = safe_import('nvidia_resiliency_ext.ptl_resiliency')
+res_module, HAVE_RES = safe_import("nvidia_resiliency_ext.ptl_resiliency")
 
 # This file contains plugins based on NeMo-Run's run.Plugin API.
 # Plugins operate both on a configured task and an executor at the same time, and are specific to NeMo-Run.
@@ -66,7 +66,9 @@ class PreemptionPlugin(run.Plugin):
     """
 
     preempt_time: int = 60
-    callbacks: list[run.Config[Callback]] = field(default_factory=lambda: [run.Config(PreemptionCallback)])
+    callbacks: list[run.Config[Callback]] = field(
+        default_factory=lambda: [run.Config(PreemptionCallback)]
+    )
 
     def setup(self, task: run.Partial | run.Script, executor: run.Executor):
         """Set up the preemption plugin."""
@@ -109,7 +111,9 @@ class FaultTolerancePlugin(run.Plugin):
 
     def setup(self, task: run.Partial | run.Script, executor: run.Executor):
         """Set up the fault tolerance plugin."""
-        assert HAVE_RES, "nvidia-resiliency-ext.ptl_resiliency is required to use the FaultTolerancePlugin."
+        assert (
+            HAVE_RES
+        ), "nvidia-resiliency-ext.ptl_resiliency is required to use the FaultTolerancePlugin."
 
         executor.launcher = run.FaultTolerance(
             max_restarts=self.num_in_job_restarts,
@@ -122,15 +126,24 @@ class FaultTolerancePlugin(run.Plugin):
 
         callbacks = [
             run.Config(
-                res_module.FaultToleranceCallback, autoresume=True, calculate_timeouts=True, exp_dir=task.log.log_dir
+                res_module.FaultToleranceCallback,
+                autoresume=True,
+                calculate_timeouts=True,
+                exp_dir=task.log.log_dir,
             )
         ]
 
-        assert not executor.launcher.nsys_profile, "Nsys not supported with the FaultTolerancePlugin."
+        assert (
+            not executor.launcher.nsys_profile
+        ), "Nsys not supported with the FaultTolerancePlugin."
         if hasattr(task, "trainer") and hasattr(task.trainer, "callbacks"):
             assert all(
                 map(
-                    lambda cb: not cb.__fn_or_cls__ == NsysCallback if "__fn_or_cls__" in dir(cb) else True,
+                    lambda cb: (
+                        not cb.__fn_or_cls__ == NsysCallback
+                        if "__fn_or_cls__" in dir(cb)
+                        else True
+                    ),
                     task.trainer.callbacks,
                 )
             ), "Nsys not supported with FaultTolerancePlugin."
@@ -180,7 +193,9 @@ class NsysPlugin(run.Plugin):
         launcher.nsys_trace = self.nsys_trace or ["nvtx", "cuda"]
         if isinstance(executor, run.SlurmExecutor):
             # NOTE: DO NOT change to f-string, `%q{}` is Slurm placeholder
-            launcher.nsys_filename = "profile_%p_%q{SLURM_JOB_ID}_node%q{SLURM_NODEID}_rank%q{SLURM_PROCID}"
+            launcher.nsys_filename = (
+                "profile_%p_%q{SLURM_JOB_ID}_node%q{SLURM_NODEID}_rank%q{SLURM_PROCID}"
+            )
 
 
 @dataclass(kw_only=True)
@@ -263,7 +278,9 @@ class WandbPlugin(run.Plugin):
                         "task_name": self.name,
                         "executor": executor.info(),
                         "remote_directory": (
-                            os.path.join(executor.tunnel.job_dir, Path(executor.job_dir).name)
+                            os.path.join(
+                                executor.tunnel.job_dir, Path(executor.job_dir).name
+                            )
                             if isinstance(executor, run.SlurmExecutor)
                             else None
                         ),
@@ -311,18 +328,32 @@ class ConfigValidationPlugin(run.Plugin):
     def setup(self, task: run.Partial | run.Script, executor: run.Executor):
         """Set up the plugin to configure validation."""
         assert isinstance(task, run.Partial)
-        logging.info(f"Validating {task.__fn_or_cls__.__qualname__} and {executor.__class__.__qualname__}.")
+        logging.info(
+            f"Validating {task.__fn_or_cls__.__qualname__} and {executor.__class__.__qualname__}."
+        )
         if self.validate_preemption:
             logging.info("Validating preemption callback")
-            assert any(map(lambda callback: callback.__fn_or_cls__ == PreemptionCallback, task.trainer.callbacks))
+            assert any(
+                map(
+                    lambda callback: callback.__fn_or_cls__ == PreemptionCallback,
+                    task.trainer.callbacks,
+                )
+            )
 
         if self.validate_checkpoint_dir:
             if isinstance(executor, run.SlurmExecutor):
                 mounts = executor.container_mounts + ["/nemo_run"]
                 mounts = list(map(lambda m: m.split(":")[-1], mounts))
-                logging.info(f"Validating checkpoint dir {task.log.log_dir} exists in {mounts}")
+                logging.info(
+                    f"Validating checkpoint dir {task.log.log_dir} exists in {mounts}"
+                )
                 assert task.log.log_dir
-                assert any(map(lambda mount: Path(mount) in Path(task.log.log_dir).parents, mounts))
+                assert any(
+                    map(
+                        lambda mount: Path(mount) in Path(task.log.log_dir).parents,
+                        mounts,
+                    )
+                )
 
         if self.validate_serialization:
             from nemo_run.core.serialization.zlib_json import \
@@ -338,7 +369,9 @@ class ConfigValidationPlugin(run.Plugin):
             assert task.log.wandb
 
         if self.validate_nodes_and_devices:
-            logging.info("Validating that nodes and devices match for task and executor")
+            logging.info(
+                "Validating that nodes and devices match for task and executor"
+            )
             if isinstance(executor, run.SlurmExecutor):
                 assert task.trainer.num_nodes == executor.nodes
                 assert task.trainer.devices == executor.nproc_per_node()
@@ -398,15 +431,24 @@ class PerfEnvPlugin(run.Plugin):
 
             # Set LayerNorm SM margin to support the overlap with LayerNorm kernel
             if self.enable_layernorm_sm_margin:
-                executor.env_vars["NVTE_FWD_LAYERNORM_SM_MARGIN"] = str(self.layernorm_sm_margin)
-                executor.env_vars["NVTE_BWD_LAYERNORM_SM_MARGIN"] = str(self.layernorm_sm_margin)
+                executor.env_vars["NVTE_FWD_LAYERNORM_SM_MARGIN"] = str(
+                    self.layernorm_sm_margin
+                )
+                executor.env_vars["NVTE_BWD_LAYERNORM_SM_MARGIN"] = str(
+                    self.layernorm_sm_margin
+                )
 
             # Set the chunk size of P2P communications. Using a large chunk size reduces the
             # buffering overhead from the communication kernel execution time
             pp_size = task.trainer.strategy.pipeline_model_parallel_size
             if pp_size > 1 and self.nccl_pp_comm_chunksize is not None:
-                assert isinstance(self.nccl_pp_comm_chunksize, int) and self.nccl_pp_comm_chunksize > 1
-                executor.env_vars["NCCL_P2P_NET_CHUNKSIZE"] = str(self.nccl_pp_comm_chunksize)
+                assert (
+                    isinstance(self.nccl_pp_comm_chunksize, int)
+                    and self.nccl_pp_comm_chunksize > 1
+                )
+                executor.env_vars["NCCL_P2P_NET_CHUNKSIZE"] = str(
+                    self.nccl_pp_comm_chunksize
+                )
 
             # Make cuda memory dynamically expandable that mitigates GPU memory waste from
             # fragementation
@@ -414,7 +456,9 @@ class PerfEnvPlugin(run.Plugin):
 
         # Improve perf by steering power to tensor cores, may not work on all systems
         if self.enable_vboost and isinstance(executor, run.SlurmExecutor):
-            vboost_cmd = self.get_vboost_srun_cmd(executor.nodes, executor.tunnel.job_dir)
+            vboost_cmd = self.get_vboost_srun_cmd(
+                executor.nodes, executor.tunnel.job_dir
+            )
             executor.setup_lines = (
                 executor.setup_lines + vboost_cmd
                 if (executor.setup_lines and len(executor.setup_lines) > 0)
@@ -438,7 +482,9 @@ class TritonCacheSetup(run.Plugin):
 
             def setup(self, task: run.Partial | run.Script, executor: run.Executor):
                 """Set up the Triton cache environment variables."""
-                executor.env_vars["TRITON_CACHE_DIR"] = executor.job_dir + "triton_cahce"
+                executor.env_vars["TRITON_CACHE_DIR"] = (
+                    executor.job_dir + "triton_cahce"
+                )
                 executor.env_vars["TRITON_CACHE_MANAGER"] = (
                     "megatron.core.ssm.triton_cache_manager:ParallelFileCacheManager"
                 )

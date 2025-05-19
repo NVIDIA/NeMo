@@ -79,11 +79,13 @@ try:
     from megatron.core.num_microbatches_calculator import get_num_microbatches
 
 except (ImportError, ModuleNotFoundError):
-    logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
+    logging.warning(
+        "Megatron num_microbatches_calculator not found, using Apex version."
+    )
     from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 
 
-__conditioning_keys__ = {'concat': 'c_concat', 'crossattn': 'c_crossattn', 'adm': 'y'}
+__conditioning_keys__ = {"concat": "c_concat", "crossattn": "c_crossattn", "adm": "y"}
 
 
 def random_dropout(embeddings, drop_rate):
@@ -95,7 +97,9 @@ def random_dropout(embeddings, drop_rate):
         drop_rate (float): Rate of dropping the embedding.
     """
     nsamples = embeddings.shape[0]
-    zero_flag = torch.ones(nsamples, 1, 1, device=torch.cuda.current_device()).to(embeddings.dtype) * (1 - drop_rate)
+    zero_flag = torch.ones(nsamples, 1, 1, device=torch.cuda.current_device()).to(
+        embeddings.dtype
+    ) * (1 - drop_rate)
     zero_flag = torch.bernoulli(zero_flag).cuda(non_blocking=True)
     embeddings = embeddings * zero_flag
     return embeddings
@@ -114,9 +118,15 @@ def uniform_on_device(r1, r2, shape, device):
 class DDPM(torch.nn.Module):
     def __init__(self, cfg):
         super().__init__()
-        assert cfg.parameterization in ["eps", "x0", "v"], 'currently only supporting "eps" and "x0" and "v"'
+        assert cfg.parameterization in [
+            "eps",
+            "x0",
+            "v",
+        ], 'currently only supporting "eps" and "x0" and "v"'
         self.parameterization = cfg.parameterization
-        logging.info(f"{self.__class__.__name__}: Running in {self.parameterization}-prediction mode")
+        logging.info(
+            f"{self.__class__.__name__}: Running in {self.parameterization}-prediction mode"
+        )
         self.cond_stage_model = None
         self.clip_denoised = cfg.clip_denoised
         self.log_every_t = cfg.log_every_t
@@ -125,7 +135,9 @@ class DDPM(torch.nn.Module):
         self.channels = cfg.channels
         self.channels_last = cfg.get("channels_last", False)
         self.use_positional_encodings = cfg.use_positional_encodings
-        self.model = DiffusionWrapper(cfg.unet_config, cfg.conditioning_key, cfg.inductor, cfg.inductor_cudagraphs)
+        self.model = DiffusionWrapper(
+            cfg.unet_config, cfg.conditioning_key, cfg.inductor, cfg.inductor_cudagraphs
+        )
         self.model_type = None
         count_params(self.model, verbose=True)
 
@@ -172,7 +184,11 @@ class DDPM(torch.nn.Module):
             betas = given_betas
         else:
             betas = make_beta_schedule(
-                beta_schedule, timesteps, linear_start=linear_start, linear_end=linear_end, cosine_s=cosine_s
+                beta_schedule,
+                timesteps,
+                linear_start=linear_start,
+                linear_end=linear_end,
+                cosine_s=cosine_s,
             )
         alphas = 1.0 - betas
         alphas_cumprod = np.cumprod(alphas, axis=0)
@@ -182,49 +198,81 @@ class DDPM(torch.nn.Module):
         self.num_timesteps = int(timesteps)
         self.linear_start = linear_start
         self.linear_end = linear_end
-        assert alphas_cumprod.shape[0] == self.num_timesteps, 'alphas have to be defined for each timestep'
+        assert (
+            alphas_cumprod.shape[0] == self.num_timesteps
+        ), "alphas have to be defined for each timestep"
 
         to_torch = partial(torch.tensor, dtype=torch.float32)
 
-        self.register_buffer('betas', to_torch(betas))
-        self.register_buffer('alphas_cumprod', to_torch(alphas_cumprod))
-        self.register_buffer('alphas_cumprod_prev', to_torch(alphas_cumprod_prev))
+        self.register_buffer("betas", to_torch(betas))
+        self.register_buffer("alphas_cumprod", to_torch(alphas_cumprod))
+        self.register_buffer("alphas_cumprod_prev", to_torch(alphas_cumprod_prev))
 
         # calculations for diffusion q(x_t | x_{t-1}) and others
-        self.register_buffer('sqrt_alphas_cumprod', to_torch(np.sqrt(alphas_cumprod)))
-        self.register_buffer('sqrt_one_minus_alphas_cumprod', to_torch(np.sqrt(1.0 - alphas_cumprod)))
-        self.register_buffer('log_one_minus_alphas_cumprod', to_torch(np.log(1.0 - alphas_cumprod)))
-        self.register_buffer('sqrt_recip_alphas_cumprod', to_torch(np.sqrt(1.0 / alphas_cumprod)))
-        self.register_buffer('sqrt_recipm1_alphas_cumprod', to_torch(np.sqrt(1.0 / alphas_cumprod - 1)))
-
-        # calculations for posterior q(x_{t-1} | x_t, x_0)
-        posterior_variance = (1 - self.v_posterior) * betas * (1.0 - alphas_cumprod_prev) / (
-            1.0 - alphas_cumprod
-        ) + self.v_posterior * betas
-        # above: equal to 1. / (1. / (1. - alpha_cumprod_tm1) + alpha_t / beta_t)
-        self.register_buffer('posterior_variance', to_torch(posterior_variance))
-        # below: log calculation clipped because the posterior variance is 0 at the beginning of the diffusion chain
-        self.register_buffer('posterior_log_variance_clipped', to_torch(np.log(np.maximum(posterior_variance, 1e-20))))
+        self.register_buffer("sqrt_alphas_cumprod", to_torch(np.sqrt(alphas_cumprod)))
         self.register_buffer(
-            'posterior_mean_coef1', to_torch(betas * np.sqrt(alphas_cumprod_prev) / (1.0 - alphas_cumprod))
+            "sqrt_one_minus_alphas_cumprod", to_torch(np.sqrt(1.0 - alphas_cumprod))
         )
         self.register_buffer(
-            'posterior_mean_coef2', to_torch((1.0 - alphas_cumprod_prev) * np.sqrt(alphas) / (1.0 - alphas_cumprod))
+            "log_one_minus_alphas_cumprod", to_torch(np.log(1.0 - alphas_cumprod))
+        )
+        self.register_buffer(
+            "sqrt_recip_alphas_cumprod", to_torch(np.sqrt(1.0 / alphas_cumprod))
+        )
+        self.register_buffer(
+            "sqrt_recipm1_alphas_cumprod", to_torch(np.sqrt(1.0 / alphas_cumprod - 1))
+        )
+
+        # calculations for posterior q(x_{t-1} | x_t, x_0)
+        posterior_variance = (1 - self.v_posterior) * betas * (
+            1.0 - alphas_cumprod_prev
+        ) / (1.0 - alphas_cumprod) + self.v_posterior * betas
+        # above: equal to 1. / (1. / (1. - alpha_cumprod_tm1) + alpha_t / beta_t)
+        self.register_buffer("posterior_variance", to_torch(posterior_variance))
+        # below: log calculation clipped because the posterior variance is 0 at the beginning of the diffusion chain
+        self.register_buffer(
+            "posterior_log_variance_clipped",
+            to_torch(np.log(np.maximum(posterior_variance, 1e-20))),
+        )
+        self.register_buffer(
+            "posterior_mean_coef1",
+            to_torch(betas * np.sqrt(alphas_cumprod_prev) / (1.0 - alphas_cumprod)),
+        )
+        self.register_buffer(
+            "posterior_mean_coef2",
+            to_torch(
+                (1.0 - alphas_cumprod_prev) * np.sqrt(alphas) / (1.0 - alphas_cumprod)
+            ),
         )
 
         if self.parameterization == "eps":
-            lvlb_weights = self.betas**2 / (2 * self.posterior_variance * to_torch(alphas) * (1 - self.alphas_cumprod))
+            lvlb_weights = self.betas**2 / (
+                2
+                * self.posterior_variance
+                * to_torch(alphas)
+                * (1 - self.alphas_cumprod)
+            )
         elif self.parameterization == "x0":
-            lvlb_weights = 0.5 * np.sqrt(torch.Tensor(alphas_cumprod)) / (2.0 * 1 - torch.Tensor(alphas_cumprod))
+            lvlb_weights = (
+                0.5
+                * np.sqrt(torch.Tensor(alphas_cumprod))
+                / (2.0 * 1 - torch.Tensor(alphas_cumprod))
+            )
         elif self.parameterization == "v":
             lvlb_weights = torch.ones_like(
-                self.betas**2 / (2 * self.posterior_variance * to_torch(alphas) * (1 - self.alphas_cumprod))
+                self.betas**2
+                / (
+                    2
+                    * self.posterior_variance
+                    * to_torch(alphas)
+                    * (1 - self.alphas_cumprod)
+                )
             )
         else:
             raise NotImplementedError("mu not supported")
         # TODO how to choose this term
         lvlb_weights[0] = lvlb_weights[1]
-        self.register_buffer('lvlb_weights', lvlb_weights, persistent=False)
+        self.register_buffer("lvlb_weights", lvlb_weights, persistent=False)
         assert not torch.isnan(self.lvlb_weights).all()
 
     def init_from_ckpt(
@@ -288,12 +336,18 @@ class DDPM(torch.nn.Module):
                 if k.startswith("model.diffusion_model"):
                     deleted += 1
                     del sd[k]
-            logging.info(f"Deleted {deleted} keys from `model.diffusion_model` state_dict.")
+            logging.info(
+                f"Deleted {deleted} keys from `model.diffusion_model` state_dict."
+            )
 
         missing, unexpected = (
-            self.load_state_dict(sd, strict=False) if not only_model else self.model.load_state_dict(sd, strict=False)
+            self.load_state_dict(sd, strict=False)
+            if not only_model
+            else self.model.load_state_dict(sd, strict=False)
         )
-        logging.info(f"Restored from {path} with {len(missing)} missing and {len(unexpected)} unexpected keys")
+        logging.info(
+            f"Restored from {path} with {len(missing)} missing and {len(unexpected)} unexpected keys"
+        )
         if len(missing) > 0:
             logging.info(f"Missing Keys: {missing}")
         if len(unexpected) > 0:
@@ -308,13 +362,16 @@ class DDPM(torch.nn.Module):
         """
         mean = extract_into_tensor(self.sqrt_alphas_cumprod, t, x_start.shape) * x_start
         variance = extract_into_tensor(1.0 - self.alphas_cumprod, t, x_start.shape)
-        log_variance = extract_into_tensor(self.log_one_minus_alphas_cumprod, t, x_start.shape)
+        log_variance = extract_into_tensor(
+            self.log_one_minus_alphas_cumprod, t, x_start.shape
+        )
         return mean, variance, log_variance
 
     def predict_start_from_noise(self, x_t, t, noise):
         return (
             extract_into_tensor(self.sqrt_recip_alphas_cumprod, t, x_t.shape) * x_t
-            - extract_into_tensor(self.sqrt_recipm1_alphas_cumprod, t, x_t.shape) * noise
+            - extract_into_tensor(self.sqrt_recipm1_alphas_cumprod, t, x_t.shape)
+            * noise
         )
 
     def predict_start_from_z_and_v(self, x_t, t, v):
@@ -326,7 +383,8 @@ class DDPM(torch.nn.Module):
     def predict_eps_from_z_and_v(self, x_t, t, v):
         return (
             extract_into_tensor(self.sqrt_alphas_cumprod, t, x_t.shape) * v
-            + extract_into_tensor(self.sqrt_one_minus_alphas_cumprod, t, x_t.shape) * x_t
+            + extract_into_tensor(self.sqrt_one_minus_alphas_cumprod, t, x_t.shape)
+            * x_t
         )
 
     def q_posterior(self, x_start, x_t, t):
@@ -335,7 +393,9 @@ class DDPM(torch.nn.Module):
             + extract_into_tensor(self.posterior_mean_coef2, t, x_t.shape) * x_t
         )
         posterior_variance = extract_into_tensor(self.posterior_variance, t, x_t.shape)
-        posterior_log_variance_clipped = extract_into_tensor(self.posterior_log_variance_clipped, t, x_t.shape)
+        posterior_log_variance_clipped = extract_into_tensor(
+            self.posterior_log_variance_clipped, t, x_t.shape
+        )
         return posterior_mean, posterior_variance, posterior_log_variance_clipped
 
     def p_mean_variance(self, x, t, clip_denoised: bool):
@@ -347,13 +407,17 @@ class DDPM(torch.nn.Module):
         if clip_denoised:
             x_recon.clamp_(-1.0, 1.0)
 
-        model_mean, posterior_variance, posterior_log_variance = self.q_posterior(x_start=x_recon, x_t=x, t=t)
+        model_mean, posterior_variance, posterior_log_variance = self.q_posterior(
+            x_start=x_recon, x_t=x, t=t
+        )
         return model_mean, posterior_variance, posterior_log_variance
 
     @torch.no_grad()
     def p_sample(self, x, t, clip_denoised=True, repeat_noise=False):
         b, *_, device = *x.shape, x.device
-        model_mean, _, model_log_variance = self.p_mean_variance(x=x, t=t, clip_denoised=clip_denoised)
+        model_mean, _, model_log_variance = self.p_mean_variance(
+            x=x, t=t, clip_denoised=clip_denoised
+        )
         noise = noise_like(x.shape, device, repeat_noise)
         # no noise when t == 0
         nonzero_mask = (1 - (t == 0).float()).reshape(b, *((1,) * (len(x.shape) - 1)))
@@ -365,9 +429,15 @@ class DDPM(torch.nn.Module):
         b = shape[0]
         img = torch.randn(shape, generator=self.rng, device=device)
         intermediates = [img]
-        for i in tqdm(reversed(range(0, self.num_timesteps)), desc='Sampling t', total=self.num_timesteps):
+        for i in tqdm(
+            reversed(range(0, self.num_timesteps)),
+            desc="Sampling t",
+            total=self.num_timesteps,
+        ):
             img = self.p_sample(
-                img, torch.full((b,), i, device=device, dtype=torch.long), clip_denoised=self.clip_denoised
+                img,
+                torch.full((b,), i, device=device, dtype=torch.long),
+                clip_denoised=self.clip_denoised,
             )
             if i % self.log_every_t == 0 or i == self.num_timesteps - 1:
                 intermediates.append(img)
@@ -380,14 +450,16 @@ class DDPM(torch.nn.Module):
         image_size = self.image_size
         channels = self.channels
         return self.p_sample_loop(
-            (batch_size, channels, image_size, image_size), return_intermediates=return_intermediates
+            (batch_size, channels, image_size, image_size),
+            return_intermediates=return_intermediates,
         )
 
     def q_sample(self, x_start, t, noise=None):
         noise = default(noise, lambda: randn_like(x_start, generator=self.rng))
         return (
             extract_into_tensor(self.sqrt_alphas_cumprod, t, x_start.shape) * x_start
-            + extract_into_tensor(self.sqrt_one_minus_alphas_cumprod, t, x_start.shape) * noise
+            + extract_into_tensor(self.sqrt_one_minus_alphas_cumprod, t, x_start.shape)
+            * noise
         )
 
     def get_v(self, x, noise, t):
@@ -397,15 +469,15 @@ class DDPM(torch.nn.Module):
         )
 
     def get_loss(self, pred, target, mean=True):
-        if self.loss_type == 'l1':
+        if self.loss_type == "l1":
             loss = (target - pred).abs()
             if mean:
                 loss = loss.mean()
-        elif self.loss_type == 'l2':
+        elif self.loss_type == "l2":
             if mean:
                 loss = torch.nn.functional.mse_loss(target, pred)
             else:
-                loss = torch.nn.functional.mse_loss(target, pred, reduction='none')
+                loss = torch.nn.functional.mse_loss(target, pred, reduction="none")
         else:
             raise NotImplementedError("unknown loss type '{loss_type}'")
 
@@ -424,28 +496,32 @@ class DDPM(torch.nn.Module):
         elif self.parameterization == "v":
             target = self.get_v(x_start, noise, t)
         else:
-            raise NotImplementedError(f"Paramterization {self.parameterization} not yet supported")
+            raise NotImplementedError(
+                f"Paramterization {self.parameterization} not yet supported"
+            )
 
         loss = self.get_loss(model_out, target, mean=False).mean(dim=[1, 2, 3])
 
-        log_prefix = 'train' if self.training else 'val'
+        log_prefix = "train" if self.training else "val"
 
-        loss_dict.update({f'{log_prefix}/loss_simple': loss.mean()})
+        loss_dict.update({f"{log_prefix}/loss_simple": loss.mean()})
         loss_simple = loss.mean() * self.l_simple_weight
 
         loss_vlb = (self.lvlb_weights[t] * loss).mean()
-        loss_dict.update({f'{log_prefix}/loss_vlb': loss_vlb})
+        loss_dict.update({f"{log_prefix}/loss_vlb": loss_vlb})
 
         loss = loss_simple + self.original_elbo_weight * loss_vlb
 
-        loss_dict.update({f'{log_prefix}/loss': loss})
+        loss_dict.update({f"{log_prefix}/loss": loss})
 
         return loss, loss_dict
 
     def forward(self, x, *args, **kwargs):
         # b, c, h, w, device, img_size, = *x.shape, x.device, self.image_size
         # assert h == img_size and w == img_size, f'height and width of image must be {img_size}'
-        t = torch.randint(0, self.num_timesteps, (x.shape[0],), generator=self.rng, device=x.device).long()
+        t = torch.randint(
+            0, self.num_timesteps, (x.shape[0],), generator=self.rng, device=x.device
+        ).long()
         return self.p_losses(x, t, *args, **kwargs)
 
     def get_input(self, batch, k):
@@ -466,8 +542,8 @@ class DDPM(torch.nn.Module):
 
     def _get_rows_from_list(self, samples):
         n_imgs_per_row = len(samples)
-        denoise_grid = rearrange(samples, 'n b c h w -> b n c h w')
-        denoise_grid = rearrange(denoise_grid, 'b n c h w -> (b n) c h w')
+        denoise_grid = rearrange(samples, "n b c h w -> b n c h w")
+        denoise_grid = rearrange(denoise_grid, "b n c h w -> (b n) c h w")
         denoise_grid = make_grid(denoise_grid, nrow=n_imgs_per_row)
         return denoise_grid
 
@@ -486,7 +562,7 @@ class DDPM(torch.nn.Module):
 
         for t in range(self.num_timesteps):
             if t % self.log_every_t == 0 or t == self.num_timesteps - 1:
-                t = repeat(torch.tensor([t]), '1 -> b', b=n_row)
+                t = repeat(torch.tensor([t]), "1 -> b", b=n_row)
                 t = t.long()
                 noise = randn_like(x_start, generator=self.rng)
                 x_noisy = self.q_sample(x_start=x_start, t=t, noise=noise)
@@ -497,7 +573,9 @@ class DDPM(torch.nn.Module):
         if sample:
             # get denoise row
             with self.ema_scope("Plotting"):
-                samples, denoise_row = self.sample(batch_size=N, return_intermediates=True)
+                samples, denoise_row = self.sample(
+                    batch_size=N, return_intermediates=True
+                )
 
             log["samples"] = samples
             log["denoise_row"] = self._get_rows_from_list(denoise_row)
@@ -520,10 +598,10 @@ class LatentDiffusion(DDPM, Serialization):
         assert self.num_timesteps_cond <= cfg.timesteps
         # for backwards compatibility after implementation of DiffusionWrapper
         if cfg.conditioning_key is None:
-            conditioning_key = 'concat' if cfg.concat_mode else 'crossattn'
+            conditioning_key = "concat" if cfg.concat_mode else "crossattn"
         else:
             conditioning_key = cfg.conditioning_key
-        if cfg.cond_stage_config == '__is_unconditional__':
+        if cfg.cond_stage_config == "__is_unconditional__":
             conditioning_key = None
         ckpt_path = cfg.ckpt_path
         ignore_keys = cfg.ignore_keys
@@ -535,12 +613,15 @@ class LatentDiffusion(DDPM, Serialization):
         self.cond_stage_key = cfg.cond_stage_key
 
         self.num_downs = 0
-        if "ddconfig" in cfg.first_stage_config and "ch_mult" in cfg.first_stage_config.ddconfig:
+        if (
+            "ddconfig" in cfg.first_stage_config
+            and "ch_mult" in cfg.first_stage_config.ddconfig
+        ):
             self.num_downs = len(cfg.first_stage_config.ddconfig.ch_mult) - 1
         if not cfg.scale_by_std:
             self.scale_factor = cfg.scale_factor
         else:
-            self.register_buffer('scale_factor', torch.tensor(cfg.scale_factor))
+            self.register_buffer("scale_factor", torch.tensor(cfg.scale_factor))
         self.instantiate_first_stage(cfg.first_stage_config)
         self.instantiate_cond_stage(cfg.cond_stage_config)
         self.cond_stage_forward = cfg.cond_stage_forward
@@ -553,7 +634,9 @@ class LatentDiffusion(DDPM, Serialization):
         if ckpt_path is not None:
             load_vae = True if cfg.get("load_vae", None) is None else cfg.load_vae
             load_unet = True if cfg.get("load_unet", None) is None else cfg.load_unet
-            load_encoder = True if cfg.get("load_encoder", None) is None else cfg.load_encoder
+            load_encoder = (
+                True if cfg.get("load_encoder", None) is None else cfg.load_encoder
+            )
 
             self.init_from_ckpt(
                 ckpt_path,
@@ -565,14 +648,22 @@ class LatentDiffusion(DDPM, Serialization):
             self.restarted_from_ckpt = True
 
         if self.channels_last:
-            self.first_stage_model = self.first_stage_model.to(memory_format=torch.channels_last)
+            self.first_stage_model = self.first_stage_model.to(
+                memory_format=torch.channels_last
+            )
             self.model = self.model.to(memory_format=torch.channels_last)
 
     def make_cond_schedule(
         self,
     ):
-        self.cond_ids = torch.full(size=(self.num_timesteps,), fill_value=self.num_timesteps - 1, dtype=torch.long)
-        ids = torch.round(torch.linspace(0, self.num_timesteps - 1, self.num_timesteps_cond)).long()
+        self.cond_ids = torch.full(
+            size=(self.num_timesteps,),
+            fill_value=self.num_timesteps - 1,
+            dtype=torch.long,
+        )
+        ids = torch.round(
+            torch.linspace(0, self.num_timesteps - 1, self.num_timesteps_cond)
+        ).long()
         self.cond_ids[: self.num_timesteps_cond] = ids
 
     def on_train_batch_start(self, batch, batch_idx, dataloader_idx=0):
@@ -583,7 +674,7 @@ class LatentDiffusion(DDPM, Serialization):
         encoder_posterior = self.encode_first_stage(x)
         z = self.get_first_stage_encoding(encoder_posterior).detach()
         del self.scale_factor
-        self.register_buffer('scale_factor', 1.0 / z.flatten().std())
+        self.register_buffer("scale_factor", 1.0 / z.flatten().std())
         logging.info(f"setting self.scale_factor to {self.scale_factor}")
         logging.info("### USING STD-RESCALING ###")
 
@@ -596,7 +687,9 @@ class LatentDiffusion(DDPM, Serialization):
         linear_end=2e-2,
         cosine_s=8e-3,
     ):
-        super().register_schedule(given_betas, beta_schedule, timesteps, linear_start, linear_end, cosine_s)
+        super().register_schedule(
+            given_betas, beta_schedule, timesteps, linear_start, linear_end, cosine_s
+        )
 
         self.shorten_cond_schedule = self.num_timesteps_cond > 1
         if self.shorten_cond_schedule:
@@ -615,7 +708,9 @@ class LatentDiffusion(DDPM, Serialization):
                 logging.info("Using first stage also as cond stage.")
                 self.cond_stage_model = self.first_stage_model
             elif config == "__is_unconditional__":
-                logging.info(f"Training {self.__class__.__name__} as an unconditional model.")
+                logging.info(
+                    f"Training {self.__class__.__name__} as an unconditional model."
+                )
                 self.cond_stage_model = None
                 # self.be_unconditional = True
             else:
@@ -625,19 +720,25 @@ class LatentDiffusion(DDPM, Serialization):
                 for param in self.cond_stage_model.parameters():
                     param.requires_grad = False
         else:
-            assert config != '__is_first_stage__'
-            assert config != '__is_unconditional__'
+            assert config != "__is_first_stage__"
+            assert config != "__is_unconditional__"
             model = LatentDiffusion.from_config_dict(config)
             self.cond_stage_model = model
 
-    def _get_denoise_row_from_list(self, samples, desc='', force_no_decoder_quantization=False):
+    def _get_denoise_row_from_list(
+        self, samples, desc="", force_no_decoder_quantization=False
+    ):
         denoise_row = []
         for zd in tqdm(samples, desc=desc):
-            denoise_row.append(self.decode_first_stage(zd, force_not_quantize=force_no_decoder_quantization))
+            denoise_row.append(
+                self.decode_first_stage(
+                    zd, force_not_quantize=force_no_decoder_quantization
+                )
+            )
         n_imgs_per_row = len(denoise_row)
         denoise_row = torch.stack(denoise_row)  # n_log_step, n_row, C, H, W
-        denoise_grid = rearrange(denoise_row, 'n b c h w -> b n c h w')
-        denoise_grid = rearrange(denoise_grid, 'b n c h w -> (b n) c h w')
+        denoise_grid = rearrange(denoise_row, "n b c h w -> b n c h w")
+        denoise_grid = rearrange(denoise_grid, "b n c h w -> (b n) c h w")
         denoise_grid = make_grid(denoise_grid, nrow=n_imgs_per_row)
         return denoise_grid
 
@@ -647,12 +748,16 @@ class LatentDiffusion(DDPM, Serialization):
         elif isinstance(encoder_posterior, torch.Tensor):
             z = encoder_posterior
         else:
-            raise NotImplementedError(f"encoder_posterior of type '{type(encoder_posterior)}' not yet implemented")
+            raise NotImplementedError(
+                f"encoder_posterior of type '{type(encoder_posterior)}' not yet implemented"
+            )
         return self.scale_factor * z
 
     def get_learned_conditioning(self, c):
         if self.cond_stage_forward is None:
-            if hasattr(self.cond_stage_model, 'encode') and callable(self.cond_stage_model.encode):
+            if hasattr(self.cond_stage_model, "encode") and callable(
+                self.cond_stage_model.encode
+            ):
                 c = self.cond_stage_model.encode(c)
                 if isinstance(c, DiagonalGaussianDistribution):
                     c = c.mode()
@@ -681,7 +786,9 @@ class LatentDiffusion(DDPM, Serialization):
         arr = self.meshgrid(h, w) / lower_right_corner
         dist_left_up = torch.min(arr, dim=-1, keepdims=True)[0]
         dist_right_down = torch.min(1 - arr, dim=-1, keepdims=True)[0]
-        edge_dist = torch.min(torch.cat([dist_left_up, dist_right_down], dim=-1), dim=-1)[0]
+        edge_dist = torch.min(
+            torch.cat([dist_left_up, dist_right_down], dim=-1), dim=-1
+        )[0]
         return edge_dist
 
     def get_weighting(self, h, w, Ly, Lx, device):
@@ -705,7 +812,9 @@ class LatentDiffusion(DDPM, Serialization):
             weighting = weighting * L_weighting
         return weighting
 
-    def get_fold_unfold(self, x, kernel_size, stride, uf=1, df=1):  # todo load once not every time, shorten code
+    def get_fold_unfold(
+        self, x, kernel_size, stride, uf=1, df=1
+    ):  # todo load once not every time, shorten code
         """
         :param x: img of size (bs, c, h, w)
         :return: n img crops of size (n, bs, c, kernel_size[0], kernel_size[1])
@@ -717,17 +826,23 @@ class LatentDiffusion(DDPM, Serialization):
         Lx = (w - kernel_size[1]) // stride[1] + 1
 
         if uf == 1 and df == 1:
-            fold_params = dict(kernel_size=kernel_size, dilation=1, padding=0, stride=stride)
+            fold_params = dict(
+                kernel_size=kernel_size, dilation=1, padding=0, stride=stride
+            )
             unfold = torch.nn.Unfold(**fold_params)
 
             fold = torch.nn.Fold(output_size=x.shape[2:], **fold_params)
 
-            weighting = self.get_weighting(kernel_size[0], kernel_size[1], Ly, Lx, x.device).to(x.dtype)
+            weighting = self.get_weighting(
+                kernel_size[0], kernel_size[1], Ly, Lx, x.device
+            ).to(x.dtype)
             normalization = fold(weighting).view(1, 1, h, w)  # normalizes the overlap
             weighting = weighting.view((1, 1, kernel_size[0], kernel_size[1], Ly * Lx))
 
         elif uf > 1 and df == 1:
-            fold_params = dict(kernel_size=kernel_size, dilation=1, padding=0, stride=stride)
+            fold_params = dict(
+                kernel_size=kernel_size, dilation=1, padding=0, stride=stride
+            )
             unfold = torch.nn.Unfold(**fold_params)
 
             fold_params2 = dict(
@@ -736,14 +851,24 @@ class LatentDiffusion(DDPM, Serialization):
                 padding=0,
                 stride=(stride[0] * uf, stride[1] * uf),
             )
-            fold = torch.nn.Fold(output_size=(x.shape[2] * uf, x.shape[3] * uf), **fold_params2)
+            fold = torch.nn.Fold(
+                output_size=(x.shape[2] * uf, x.shape[3] * uf), **fold_params2
+            )
 
-            weighting = self.get_weighting(kernel_size[0] * uf, kernel_size[1] * uf, Ly, Lx, x.device).to(x.dtype)
-            normalization = fold(weighting).view(1, 1, h * uf, w * uf)  # normalizes the overlap
-            weighting = weighting.view((1, 1, kernel_size[0] * uf, kernel_size[1] * uf, Ly * Lx))
+            weighting = self.get_weighting(
+                kernel_size[0] * uf, kernel_size[1] * uf, Ly, Lx, x.device
+            ).to(x.dtype)
+            normalization = fold(weighting).view(
+                1, 1, h * uf, w * uf
+            )  # normalizes the overlap
+            weighting = weighting.view(
+                (1, 1, kernel_size[0] * uf, kernel_size[1] * uf, Ly * Lx)
+            )
 
         elif df > 1 and uf == 1:
-            fold_params = dict(kernel_size=kernel_size, dilation=1, padding=0, stride=stride)
+            fold_params = dict(
+                kernel_size=kernel_size, dilation=1, padding=0, stride=stride
+            )
             unfold = torch.nn.Unfold(**fold_params)
 
             fold_params2 = dict(
@@ -752,11 +877,19 @@ class LatentDiffusion(DDPM, Serialization):
                 padding=0,
                 stride=(stride[0] // df, stride[1] // df),
             )
-            fold = torch.nn.Fold(output_size=(x.shape[2] // df, x.shape[3] // df), **fold_params2)
+            fold = torch.nn.Fold(
+                output_size=(x.shape[2] // df, x.shape[3] // df), **fold_params2
+            )
 
-            weighting = self.get_weighting(kernel_size[0] // df, kernel_size[1] // df, Ly, Lx, x.device).to(x.dtype)
-            normalization = fold(weighting).view(1, 1, h // df, w // df)  # normalizes the overlap
-            weighting = weighting.view((1, 1, kernel_size[0] // df, kernel_size[1] // df, Ly * Lx))
+            weighting = self.get_weighting(
+                kernel_size[0] // df, kernel_size[1] // df, Ly, Lx, x.device
+            ).to(x.dtype)
+            normalization = fold(weighting).view(
+                1, 1, h // df, w // df
+            )  # normalizes the overlap
+            weighting = weighting.view(
+                (1, 1, kernel_size[0] // df, kernel_size[1] // df, Ly * Lx)
+            )
 
         else:
             raise NotImplementedError
@@ -774,10 +907,10 @@ class LatentDiffusion(DDPM, Serialization):
         return_original_cond=False,
         bs=None,
     ):
-        if self.first_stage_key.endswith('encoded'):
+        if self.first_stage_key.endswith("encoded"):
             gaussian_parameters = batch[self.first_stage_key]
             encoder_posterior = DiagonalGaussianDistribution(gaussian_parameters)
-        elif self.first_stage_key.endswith('moments'):
+        elif self.first_stage_key.endswith("moments"):
             # Loading distribution from disk and sampling encoded
             distribution = batch[self.first_stage_key]  # torch.size([3, 1, 8, 64, 64])
             distribution = torch.squeeze(distribution, dim=1)
@@ -795,15 +928,21 @@ class LatentDiffusion(DDPM, Serialization):
             if cond_key is None:
                 cond_key = self.cond_stage_key
             if cond_key != self.first_stage_key:
-                if cond_key in ['captions', 'coordinates_bbox', 'txt'] or cond_key.endswith("encoded"):
+                if cond_key in [
+                    "captions",
+                    "coordinates_bbox",
+                    "txt",
+                ] or cond_key.endswith("encoded"):
                     xc = batch[cond_key]
-                elif cond_key == 'class_label':
+                elif cond_key == "class_label":
                     xc = batch
                 else:
                     xc = super().get_input(batch, cond_key)
             else:
                 xc = x
-            if (not self.cond_stage_trainable or force_c_encode) and (not cond_key.endswith('encoded')):
+            if (not self.cond_stage_trainable or force_c_encode) and (
+                not cond_key.endswith("encoded")
+            ):
                 if isinstance(xc, dict) or isinstance(xc, list):
                     # import pudb; pudb.set_trace()
                     c = self.get_learned_conditioning(xc)
@@ -817,7 +956,7 @@ class LatentDiffusion(DDPM, Serialization):
             if self.use_positional_encodings:
                 pos_x, pos_y = self.compute_latent_shifts(batch)
                 ckey = __conditioning_keys__[self.model.conditioning_key]
-                c = {ckey: c, 'pos_x': pos_x, 'pos_y': pos_y}
+                c = {ckey: c, "pos_x": pos_x, "pos_y": pos_y}
 
             if self.text_embedding_dropout_rate > 0:
                 assert self.text_embedding_dropout_rate < 1.0
@@ -828,7 +967,7 @@ class LatentDiffusion(DDPM, Serialization):
             xc = None
             if self.use_positional_encodings:
                 pos_x, pos_y = self.compute_latent_shifts(batch)
-                c = {'pos_x': pos_x, 'pos_y': pos_y}
+                c = {"pos_x": pos_x, "pos_y": pos_y}
         out = [z, c]
         if return_first_stage_outputs:
             xrec = self.decode_first_stage(z)
@@ -843,7 +982,7 @@ class LatentDiffusion(DDPM, Serialization):
             if z.dim() == 4:
                 z = torch.argmax(z.exp(), dim=1).long()
             z = self.first_stage_model.quantize.get_codebook_entry(z, shape=None)
-            z = rearrange(z, 'b h w c -> b c h w').contiguous()
+            z = rearrange(z, "b h w c -> b c h w").contiguous()
 
         z = 1.0 / self.scale_factor * z
 
@@ -861,23 +1000,31 @@ class LatentDiffusion(DDPM, Serialization):
                     stride = (min(stride[0], h), min(stride[1], w))
                     logging.info("reducing stride")
 
-                fold, unfold, normalization, weighting = self.get_fold_unfold(z, ks, stride, uf=uf)
+                fold, unfold, normalization, weighting = self.get_fold_unfold(
+                    z, ks, stride, uf=uf
+                )
 
                 z = unfold(z)  # (bn, nc * prod(**ks), L)
                 # 1. Reshape to img shape
-                z = z.view((z.shape[0], -1, ks[0], ks[1], z.shape[-1]))  # (bn, nc, ks[0], ks[1], L )
+                z = z.view(
+                    (z.shape[0], -1, ks[0], ks[1], z.shape[-1])
+                )  # (bn, nc, ks[0], ks[1], L )
 
                 # 2. apply model loop over last dim
                 if isinstance(self.first_stage_model, VQModelInterface):
                     output_list = [
                         self.first_stage_model.decode(
-                            z[:, :, :, :, i], force_not_quantize=predict_cids or force_not_quantize
+                            z[:, :, :, :, i],
+                            force_not_quantize=predict_cids or force_not_quantize,
                         )
                         for i in range(z.shape[-1])
                     ]
                 else:
 
-                    output_list = [self.first_stage_model.decode(z[:, :, :, :, i]) for i in range(z.shape[-1])]
+                    output_list = [
+                        self.first_stage_model.decode(z[:, :, :, :, i])
+                        for i in range(z.shape[-1])
+                    ]
 
                 o = torch.stack(output_list, axis=-1)  # # (bn, nc, ks[0], ks[1], L)
                 o = o * weighting
@@ -889,23 +1036,29 @@ class LatentDiffusion(DDPM, Serialization):
                 return decoded
             else:
                 if isinstance(self.first_stage_model, VQModelInterface):
-                    return self.first_stage_model.decode(z, force_not_quantize=predict_cids or force_not_quantize)
+                    return self.first_stage_model.decode(
+                        z, force_not_quantize=predict_cids or force_not_quantize
+                    )
                 else:
                     return self.first_stage_model.decode(z)
 
         else:
             if isinstance(self.first_stage_model, VQModelInterface):
-                return self.first_stage_model.decode(z, force_not_quantize=predict_cids or force_not_quantize)
+                return self.first_stage_model.decode(
+                    z, force_not_quantize=predict_cids or force_not_quantize
+                )
             else:
                 return self.first_stage_model.decode(z)
 
     # same as above but without decorator
-    def differentiable_decode_first_stage(self, z, predict_cids=False, force_not_quantize=False):
+    def differentiable_decode_first_stage(
+        self, z, predict_cids=False, force_not_quantize=False
+    ):
         if predict_cids:
             if z.dim() == 4:
                 z = torch.argmax(z.exp(), dim=1).long()
             z = self.first_stage_model.quantize.get_codebook_entry(z, shape=None)
-            z = rearrange(z, 'b h w c -> b c h w').contiguous()
+            z = rearrange(z, "b h w c -> b c h w").contiguous()
 
         z = 1.0 / self.scale_factor * z
 
@@ -923,23 +1076,31 @@ class LatentDiffusion(DDPM, Serialization):
                     stride = (min(stride[0], h), min(stride[1], w))
                     logging.info("reducing stride")
 
-                fold, unfold, normalization, weighting = self.get_fold_unfold(z, ks, stride, uf=uf)
+                fold, unfold, normalization, weighting = self.get_fold_unfold(
+                    z, ks, stride, uf=uf
+                )
 
                 z = unfold(z)  # (bn, nc * prod(**ks), L)
                 # 1. Reshape to img shape
-                z = z.view((z.shape[0], -1, ks[0], ks[1], z.shape[-1]))  # (bn, nc, ks[0], ks[1], L )
+                z = z.view(
+                    (z.shape[0], -1, ks[0], ks[1], z.shape[-1])
+                )  # (bn, nc, ks[0], ks[1], L )
 
                 # 2. apply model loop over last dim
                 if isinstance(self.first_stage_model, VQModelInterface):
                     output_list = [
                         self.first_stage_model.decode(
-                            z[:, :, :, :, i], force_not_quantize=predict_cids or force_not_quantize
+                            z[:, :, :, :, i],
+                            force_not_quantize=predict_cids or force_not_quantize,
                         )
                         for i in range(z.shape[-1])
                     ]
                 else:
 
-                    output_list = [self.first_stage_model.decode(z[:, :, :, :, i]) for i in range(z.shape[-1])]
+                    output_list = [
+                        self.first_stage_model.decode(z[:, :, :, :, i])
+                        for i in range(z.shape[-1])
+                    ]
 
                 o = torch.stack(output_list, axis=-1)  # # (bn, nc, ks[0], ks[1], L)
                 o = o * weighting
@@ -951,13 +1112,17 @@ class LatentDiffusion(DDPM, Serialization):
                 return decoded
             else:
                 if isinstance(self.first_stage_model, VQModelInterface):
-                    return self.first_stage_model.decode(z, force_not_quantize=predict_cids or force_not_quantize)
+                    return self.first_stage_model.decode(
+                        z, force_not_quantize=predict_cids or force_not_quantize
+                    )
                 else:
                     return self.first_stage_model.decode(z)
 
         else:
             if isinstance(self.first_stage_model, VQModelInterface):
-                return self.first_stage_model.decode(z, force_not_quantize=predict_cids or force_not_quantize)
+                return self.first_stage_model.decode(
+                    z, force_not_quantize=predict_cids or force_not_quantize
+                )
             else:
                 return self.first_stage_model.decode(z)
 
@@ -968,7 +1133,7 @@ class LatentDiffusion(DDPM, Serialization):
                 ks = self.split_input_params["ks"]  # eg. (128, 128)
                 stride = self.split_input_params["stride"]  # eg. (64, 64)
                 df = self.split_input_params["vqf"]
-                self.split_input_params['original_image_size'] = x.shape[-2:]
+                self.split_input_params["original_image_size"] = x.shape[-2:]
                 bs, nc, h, w = x.shape
                 if ks[0] > h or ks[1] > w:
                     ks = (min(ks[0], h), min(ks[1], w))
@@ -978,12 +1143,19 @@ class LatentDiffusion(DDPM, Serialization):
                     stride = (min(stride[0], h), min(stride[1], w))
                     logging.info("reducing stride")
 
-                fold, unfold, normalization, weighting = self.get_fold_unfold(x, ks, stride, df=df)
+                fold, unfold, normalization, weighting = self.get_fold_unfold(
+                    x, ks, stride, df=df
+                )
                 z = unfold(x)  # (bn, nc * prod(**ks), L)
                 # Reshape to img shape
-                z = z.view((z.shape[0], -1, ks[0], ks[1], z.shape[-1]))  # (bn, nc, ks[0], ks[1], L )
+                z = z.view(
+                    (z.shape[0], -1, ks[0], ks[1], z.shape[-1])
+                )  # (bn, nc, ks[0], ks[1], L )
 
-                output_list = [self.first_stage_model.encode(z[:, :, :, :, i]) for i in range(z.shape[-1])]
+                output_list = [
+                    self.first_stage_model.encode(z[:, :, :, :, i])
+                    for i in range(z.shape[-1])
+                ]
 
                 o = torch.stack(output_list, axis=-1)
                 o = o * weighting
@@ -1006,14 +1178,18 @@ class LatentDiffusion(DDPM, Serialization):
         return loss
 
     def forward(self, x, c, *args, **kwargs):
-        t = torch.randint(0, self.num_timesteps, (x.shape[0],), generator=self.rng, device=x.device).long()
+        t = torch.randint(
+            0, self.num_timesteps, (x.shape[0],), generator=self.rng, device=x.device
+        ).long()
         if self.model.conditioning_key is not None:
             assert c is not None
             if self.cond_stage_trainable:
                 c = self.get_learned_conditioning(c)
             if self.shorten_cond_schedule:  # TODO: drop this option
                 tc = self.cond_ids[t]
-                c = self.q_sample(x_start=c, t=tc, noise=randn_like(c.float(), generator=self.rng))
+                c = self.q_sample(
+                    x_start=c, t=tc, noise=randn_like(c.float(), generator=self.rng)
+                )
         return self.p_losses(x, c, t, *args, **kwargs)
 
     def _rescale_annotations(self, bboxes, crop_coordinates):  # TODO: move to dataset
@@ -1036,7 +1212,9 @@ class LatentDiffusion(DDPM, Serialization):
         else:
             if not isinstance(cond, list):
                 cond = [cond]
-            key = 'c_concat' if self.model.conditioning_key == 'concat' else 'c_crossattn'
+            key = (
+                "c_concat" if self.model.conditioning_key == "concat" else "c_crossattn"
+            )
             cond = {key: cond}
 
         if hasattr(self, "split_input_params"):
@@ -1047,15 +1225,19 @@ class LatentDiffusion(DDPM, Serialization):
 
             h, w = x_noisy.shape[-2:]
 
-            fold, unfold, normalization, weighting = self.get_fold_unfold(x_noisy, ks, stride)
+            fold, unfold, normalization, weighting = self.get_fold_unfold(
+                x_noisy, ks, stride
+            )
 
             z = unfold(x_noisy)  # (bn, nc * prod(**ks), L)
             # Reshape to img shape
-            z = z.view((z.shape[0], -1, ks[0], ks[1], z.shape[-1]))  # (bn, nc, ks[0], ks[1], L )
+            z = z.view(
+                (z.shape[0], -1, ks[0], ks[1], z.shape[-1])
+            )  # (bn, nc, ks[0], ks[1], L )
             z_list = [z[:, :, :, :, i] for i in range(z.shape[-1])]
 
             if (
-                self.cond_stage_key in ["image", "LR_image", "segmentation", 'bbox_img']
+                self.cond_stage_key in ["image", "LR_image", "segmentation", "bbox_img"]
                 and self.model.conditioning_key
             ):  # todo check for completeness
                 c_key = next(iter(cond.keys()))  # get key
@@ -1064,18 +1246,20 @@ class LatentDiffusion(DDPM, Serialization):
                 c = c[0]  # get element
 
                 c = unfold(c)
-                c = c.view((c.shape[0], -1, ks[0], ks[1], c.shape[-1]))  # (bn, nc, ks[0], ks[1], L )
+                c = c.view(
+                    (c.shape[0], -1, ks[0], ks[1], c.shape[-1])
+                )  # (bn, nc, ks[0], ks[1], L )
 
                 cond_list = [{c_key: [c[:, :, :, :, i]]} for i in range(c.shape[-1])]
 
-            elif self.cond_stage_key == 'coordinates_bbox':
+            elif self.cond_stage_key == "coordinates_bbox":
                 assert (
-                    'original_image_size' in self.split_input_params
-                ), 'BoudingBoxRescaling is missing original_image_size'
+                    "original_image_size" in self.split_input_params
+                ), "BoudingBoxRescaling is missing original_image_size"
 
                 # assuming padding of unfold is always 0 and its dilation is always 1
                 n_patches_per_row = int((w - ks[0]) / stride[0] + 1)
-                full_img_h, full_img_w = self.split_input_params['original_image_size']
+                full_img_h, full_img_w = self.split_input_params["original_image_size"]
                 # as we are operating on latents, we need the factor from the original image size to the
                 # spatial latent size to properly rescale the crops for regenerating the bbox annotations
                 num_downs = self.first_stage_model.encoder.num_resolutions - 1
@@ -1085,44 +1269,64 @@ class LatentDiffusion(DDPM, Serialization):
                 # need to rescale the tl patch coordinates to be in between (0,1)
                 tl_patch_coordinates = [
                     (
-                        rescale_latent * stride[0] * (patch_nr % n_patches_per_row) / full_img_w,
-                        rescale_latent * stride[1] * (patch_nr // n_patches_per_row) / full_img_h,
+                        rescale_latent
+                        * stride[0]
+                        * (patch_nr % n_patches_per_row)
+                        / full_img_w,
+                        rescale_latent
+                        * stride[1]
+                        * (patch_nr // n_patches_per_row)
+                        / full_img_h,
                     )
                     for patch_nr in range(z.shape[-1])
                 ]
 
                 # patch_limits are tl_coord, width and height coordinates as (x_tl, y_tl, h, w)
                 patch_limits = [
-                    (x_tl, y_tl, rescale_latent * ks[0] / full_img_w, rescale_latent * ks[1] / full_img_h)
+                    (
+                        x_tl,
+                        y_tl,
+                        rescale_latent * ks[0] / full_img_w,
+                        rescale_latent * ks[1] / full_img_h,
+                    )
                     for x_tl, y_tl in tl_patch_coordinates
                 ]
                 # patch_values = [(np.arange(x_tl,min(x_tl+ks, 1.)),np.arange(y_tl,min(y_tl+ks, 1.))) for x_tl, y_tl in tl_patch_coordinates]
 
                 # tokenize crop coordinates for the bounding boxes of the respective patches
                 patch_limits_tknzd = [
-                    torch.LongTensor(self.bbox_tokenizer._crop_encoder(bbox))[None] for bbox in patch_limits
+                    torch.LongTensor(self.bbox_tokenizer._crop_encoder(bbox))[None]
+                    for bbox in patch_limits
                 ]  # list of length l with tensors of shape (1, 2)
                 logging.info(patch_limits_tknzd[0].shape)
                 # cut tknzd crop position from conditioning
-                assert isinstance(cond, dict), 'cond must be dict to be fed into model'
-                cut_cond = cond['c_crossattn'][0][..., :-2]
+                assert isinstance(cond, dict), "cond must be dict to be fed into model"
+                cut_cond = cond["c_crossattn"][0][..., :-2]
                 logging.info(cut_cond.shape)
 
-                adapted_cond = torch.stack([torch.cat([cut_cond, p], dim=1) for p in patch_limits_tknzd])
-                adapted_cond = rearrange(adapted_cond, 'l b n -> (l b) n')
+                adapted_cond = torch.stack(
+                    [torch.cat([cut_cond, p], dim=1) for p in patch_limits_tknzd]
+                )
+                adapted_cond = rearrange(adapted_cond, "l b n -> (l b) n")
                 logging.info(adapted_cond.shape)
                 adapted_cond = self.get_learned_conditioning(adapted_cond)
                 logging.info(adapted_cond.shape)
-                adapted_cond = rearrange(adapted_cond, '(l b) n d -> l b n d', l=z.shape[-1])
+                adapted_cond = rearrange(
+                    adapted_cond, "(l b) n d -> l b n d", l=z.shape[-1]
+                )
                 logging.info(adapted_cond.shape)
 
-                cond_list = [{'c_crossattn': [e]} for e in adapted_cond]
+                cond_list = [{"c_crossattn": [e]} for e in adapted_cond]
 
             else:
-                cond_list = [cond for i in range(z.shape[-1])]  # Todo make this more efficient
+                cond_list = [
+                    cond for i in range(z.shape[-1])
+                ]  # Todo make this more efficient
 
             # apply model by loop over crops
-            output_list = [self.model(z_list[i], t, **cond_list[i]) for i in range(z.shape[-1])]
+            output_list = [
+                self.model(z_list[i], t, **cond_list[i]) for i in range(z.shape[-1])
+            ]
             assert not isinstance(
                 output_list[0], tuple
             )  # todo cant deal with multiple model outputs check this never happens
@@ -1144,7 +1348,8 @@ class LatentDiffusion(DDPM, Serialization):
 
     def _predict_eps_from_xstart(self, x_t, t, pred_xstart):
         return (
-            extract_into_tensor(self.sqrt_recip_alphas_cumprod, t, x_t.shape) * x_t - pred_xstart
+            extract_into_tensor(self.sqrt_recip_alphas_cumprod, t, x_t.shape) * x_t
+            - pred_xstart
         ) / extract_into_tensor(self.sqrt_recipm1_alphas_cumprod, t, x_t.shape)
 
     def _prior_bpd(self, x_start):
@@ -1158,7 +1363,9 @@ class LatentDiffusion(DDPM, Serialization):
         batch_size = x_start.shape[0]
         t = torch.tensor([self.num_timesteps - 1] * batch_size, device=x_start.device)
         qt_mean, _, qt_log_variance = self.q_mean_variance(x_start, t)
-        kl_prior = normal_kl(mean1=qt_mean, logvar1=qt_log_variance, mean2=0.0, logvar2=0.0)
+        kl_prior = normal_kl(
+            mean1=qt_mean, logvar1=qt_log_variance, mean2=0.0, logvar2=0.0
+        )
         return mean_flat(kl_prior) / np.log(2.0)
 
     def p_losses(self, x_start, cond, t, noise=None):
@@ -1167,7 +1374,7 @@ class LatentDiffusion(DDPM, Serialization):
         model_output = self.apply_model(x_noisy, t, cond)
 
         loss_dict = {}
-        prefix = 'train' if self.training else 'val'
+        prefix = "train" if self.training else "val"
 
         if self.parameterization == "x0":
             target = x_start
@@ -1178,25 +1385,27 @@ class LatentDiffusion(DDPM, Serialization):
         else:
             raise NotImplementedError()
 
-        if (self.precision in ['bf16', 'bf16-mixed']) or (self.precision in [16, '16', '16-mixed']):
+        if (self.precision in ["bf16", "bf16-mixed"]) or (
+            self.precision in [16, "16", "16-mixed"]
+        ):
             model_output = model_output.type(torch.float32)
         loss_simple = self.get_loss(model_output, target, mean=False).mean([1, 2, 3])
-        loss_dict.update({f'{prefix}/loss_simple': loss_simple.mean()})
+        loss_dict.update({f"{prefix}/loss_simple": loss_simple.mean()})
         self.logvar = self.logvar.cuda(non_blocking=True)
         logvar_t = self.logvar[t].cuda(non_blocking=True)
         loss = loss_simple / torch.exp(logvar_t) + logvar_t
         # loss = loss_simple / torch.exp(self.logvar) + self.logvar
         if self.learn_logvar:
-            loss_dict.update({f'{prefix}/loss_gamma': loss.mean()})
-            loss_dict.update({'logvar': self.logvar.data.mean()})
+            loss_dict.update({f"{prefix}/loss_gamma": loss.mean()})
+            loss_dict.update({"logvar": self.logvar.data.mean()})
 
         loss = self.l_simple_weight * loss.mean()
 
         loss_vlb = self.get_loss(model_output, target, mean=False).mean(dim=(1, 2, 3))
         loss_vlb = (self.lvlb_weights[t] * loss_vlb).mean()
-        loss_dict.update({f'{prefix}/loss_vlb': loss_vlb})
+        loss_dict.update({f"{prefix}/loss_vlb": loss_vlb})
         loss += self.original_elbo_weight * loss_vlb
-        loss_dict.update({f'{prefix}/loss': loss})
+        loss_dict.update({f"{prefix}/loss": loss})
 
         return loss, loss_dict
 
@@ -1217,7 +1426,9 @@ class LatentDiffusion(DDPM, Serialization):
 
         if score_corrector is not None:
             assert self.parameterization == "eps"
-            model_out = score_corrector.modify_score(self, model_out, x, t, c, **corrector_kwargs)
+            model_out = score_corrector.modify_score(
+                self, model_out, x, t, c, **corrector_kwargs
+            )
 
         if return_codebook_ids:
             model_out, logits = model_out
@@ -1233,7 +1444,9 @@ class LatentDiffusion(DDPM, Serialization):
             x_recon.clamp_(-1.0, 1.0)
         if quantize_denoised:
             x_recon, _, [_, _, indices] = self.first_stage_model.quantize(x_recon)
-        model_mean, posterior_variance, posterior_log_variance = self.q_posterior(x_start=x_recon, x_t=x, t=t)
+        model_mean, posterior_variance, posterior_log_variance = self.q_posterior(
+            x_start=x_recon, x_t=x, t=t
+        )
         if return_codebook_ids:
             return model_mean, posterior_variance, posterior_log_variance, logits
         elif return_x0:
@@ -1283,9 +1496,14 @@ class LatentDiffusion(DDPM, Serialization):
         nonzero_mask = (1 - (t == 0).float()).reshape(b, *((1,) * (len(x.shape) - 1)))
 
         if return_codebook_ids:
-            return model_mean + nonzero_mask * (0.5 * model_log_variance).exp() * noise, logits.argmax(dim=1)
+            return model_mean + nonzero_mask * (
+                0.5 * model_log_variance
+            ).exp() * noise, logits.argmax(dim=1)
         if return_x0:
-            return model_mean + nonzero_mask * (0.5 * model_log_variance).exp() * noise, x0
+            return (
+                model_mean + nonzero_mask * (0.5 * model_log_variance).exp() * noise,
+                x0,
+            )
         else:
             return model_mean + nonzero_mask * (0.5 * model_log_variance).exp() * noise
 
@@ -1318,7 +1536,9 @@ class LatentDiffusion(DDPM, Serialization):
         else:
             b = batch_size = shape[0]
         if x_T is None:
-            img = torch.randn(shape, generator=self.rng, device=torch.cuda.current_device())
+            img = torch.randn(
+                shape, generator=self.rng, device=torch.cuda.current_device()
+            )
         else:
             img = x_T
         intermediates = []
@@ -1333,12 +1553,20 @@ class LatentDiffusion(DDPM, Serialization):
                     for key in cond
                 }
             else:
-                cond = [c[:batch_size] for c in cond] if isinstance(cond, list) else cond[:batch_size]
+                cond = (
+                    [c[:batch_size] for c in cond]
+                    if isinstance(cond, list)
+                    else cond[:batch_size]
+                )
 
         if start_T is not None:
             timesteps = min(timesteps, start_T)
         iterator = (
-            tqdm(reversed(range(0, timesteps)), desc='Progressive Generation', total=timesteps)
+            tqdm(
+                reversed(range(0, timesteps)),
+                desc="Progressive Generation",
+                total=timesteps,
+            )
             if verbose
             else reversed(range(0, timesteps))
         )
@@ -1346,11 +1574,15 @@ class LatentDiffusion(DDPM, Serialization):
             temperature = [temperature] * timesteps
 
         for i in iterator:
-            ts = torch.full((b,), i, device=torch.cuda.current_device(), dtype=torch.long)
+            ts = torch.full(
+                (b,), i, device=torch.cuda.current_device(), dtype=torch.long
+            )
             if self.shorten_cond_schedule:
-                assert self.model.conditioning_key != 'hybrid'
+                assert self.model.conditioning_key != "hybrid"
                 tc = self.cond_ids[ts].to(cond.device)
-                cond = self.q_sample(x_start=cond, t=tc, noise=randn_like(cond, generator=self.rng))
+                cond = self.q_sample(
+                    x_start=cond, t=tc, noise=randn_like(cond, generator=self.rng)
+                )
 
             img, x0_partial = self.p_sample(
                 img,
@@ -1411,7 +1643,7 @@ class LatentDiffusion(DDPM, Serialization):
         if start_T is not None:
             timesteps = min(timesteps, start_T)
         iterator = (
-            tqdm(reversed(range(0, timesteps)), desc='Sampling t', total=timesteps)
+            tqdm(reversed(range(0, timesteps)), desc="Sampling t", total=timesteps)
             if verbose
             else reversed(range(0, timesteps))
         )
@@ -1423,11 +1655,19 @@ class LatentDiffusion(DDPM, Serialization):
         for i in iterator:
             ts = torch.full((b,), i, device=device, dtype=torch.long)
             if self.shorten_cond_schedule:
-                assert self.model.conditioning_key != 'hybrid'
+                assert self.model.conditioning_key != "hybrid"
                 tc = self.cond_ids[ts].to(cond.device)
-                cond = self.q_sample(x_start=cond, t=tc, noise=randn_like(cond, generator=self.rng))
+                cond = self.q_sample(
+                    x_start=cond, t=tc, noise=randn_like(cond, generator=self.rng)
+                )
 
-            img = self.p_sample(img, cond, ts, clip_denoised=self.clip_denoised, quantize_denoised=quantize_denoised)
+            img = self.p_sample(
+                img,
+                cond,
+                ts,
+                clip_denoised=self.clip_denoised,
+                quantize_denoised=quantize_denoised,
+            )
             if mask is not None:
                 img_orig = self.q_sample(x0, ts)
                 img = img_orig * mask + (1.0 - mask) * img
@@ -1471,7 +1711,11 @@ class LatentDiffusion(DDPM, Serialization):
                     for key in cond
                 }
             else:
-                cond = [c[:batch_size] for c in cond] if isinstance(cond, list) else cond[:batch_size]
+                cond = (
+                    [c[:batch_size] for c in cond]
+                    if isinstance(cond, list)
+                    else cond[:batch_size]
+                )
         return self.p_sample_loop(
             cond,
             shape,
@@ -1490,10 +1734,14 @@ class LatentDiffusion(DDPM, Serialization):
         if ddim:
             ddim_sampler = DDIMSampler(self)
             shape = (self.channels, self.image_size, self.image_size)
-            samples, intermediates = ddim_sampler.sample(ddim_steps, batch_size, shape, cond, verbose=False, **kwargs)
+            samples, intermediates = ddim_sampler.sample(
+                ddim_steps, batch_size, shape, cond, verbose=False, **kwargs
+            )
 
         else:
-            samples, intermediates = self.sample(cond=cond, batch_size=batch_size, return_intermediates=True, **kwargs)
+            samples, intermediates = self.sample(
+                cond=cond, batch_size=batch_size, return_intermediates=True, **kwargs
+            )
 
         return samples, intermediates
 
@@ -1537,9 +1785,9 @@ class LatentDiffusion(DDPM, Serialization):
             elif self.cond_stage_key in ["caption"]:
                 xc = log_txt_as_img((x.shape[2], x.shape[3]), batch["caption"])
                 log["conditioning"] = xc
-            elif self.cond_stage_key == 'class_label':
+            elif self.cond_stage_key == "class_label":
                 xc = log_txt_as_img((x.shape[2], x.shape[3]), batch["human_label"])
-                log['conditioning'] = xc
+                log["conditioning"] = xc
             elif isimage(xc):
                 log["conditioning"] = xc
             if ismap(xc):
@@ -1551,15 +1799,15 @@ class LatentDiffusion(DDPM, Serialization):
             z_start = z[:n_row]
             for t in range(self.num_timesteps):
                 if t % self.log_every_t == 0 or t == self.num_timesteps - 1:
-                    t = repeat(torch.tensor([t]), '1 -> b', b=n_row)
+                    t = repeat(torch.tensor([t]), "1 -> b", b=n_row)
                     t = t.long()
                     noise = randn_like(z_start, generator=self.rng)
                     z_noisy = self.q_sample(x_start=z_start, t=t, noise=noise)
                     diffusion_row.append(self.decode_first_stage(z_noisy))
 
             diffusion_row = torch.stack(diffusion_row)  # n_log_step, n_row, C, H, W
-            diffusion_grid = rearrange(diffusion_row, 'n b c h w -> b n c h w')
-            diffusion_grid = rearrange(diffusion_grid, 'b n c h w -> (b n) c h w')
+            diffusion_grid = rearrange(diffusion_row, "n b c h w -> b n c h w")
+            diffusion_grid = rearrange(diffusion_grid, "b n c h w -> (b n) c h w")
             diffusion_grid = make_grid(diffusion_grid, nrow=diffusion_row.shape[0])
             log["diffusion_row"] = diffusion_grid
 
@@ -1567,7 +1815,11 @@ class LatentDiffusion(DDPM, Serialization):
             # get denoise row
             with self.ema_scope("Plotting"):
                 samples, z_denoise_row = self.sample_log(
-                    cond=c, batch_size=N, ddim=use_ddim, ddim_steps=ddim_steps, eta=ddim_eta
+                    cond=c,
+                    batch_size=N,
+                    ddim=use_ddim,
+                    ddim_steps=ddim_steps,
+                    eta=ddim_eta,
                 )
                 # samples, z_denoise_row = self.sample(cond=c, batch_size=N, return_intermediates=True)
             x_samples = self.decode_first_stage(samples)
@@ -1605,7 +1857,13 @@ class LatentDiffusion(DDPM, Serialization):
                 mask = mask[:, None, ...]
                 with self.ema_scope("Plotting Inpaint"):
                     samples, _ = self.sample_log(
-                        cond=c, batch_size=N, ddim=use_ddim, eta=ddim_eta, ddim_steps=ddim_steps, x0=z[:N], mask=mask
+                        cond=c,
+                        batch_size=N,
+                        ddim=use_ddim,
+                        eta=ddim_eta,
+                        ddim_steps=ddim_steps,
+                        x0=z[:N],
+                        mask=mask,
                     )
                 x_samples = self.decode_first_stage(samples)
                 log["samples_inpainting"] = x_samples
@@ -1614,7 +1872,13 @@ class LatentDiffusion(DDPM, Serialization):
                 # outpaint
                 with self.ema_scope("Plotting Outpaint"):
                     samples, _ = self.sample_log(
-                        cond=c, batch_size=N, ddim=use_ddim, eta=ddim_eta, ddim_steps=ddim_steps, x0=z[:N], mask=mask
+                        cond=c,
+                        batch_size=N,
+                        ddim=use_ddim,
+                        eta=ddim_eta,
+                        ddim_steps=ddim_steps,
+                        x0=z[:N],
+                        mask=mask,
                     )
                 x_samples = self.decode_first_stage(samples)
                 log["samples_outpainting"] = x_samples
@@ -1622,9 +1886,13 @@ class LatentDiffusion(DDPM, Serialization):
         if plot_progressive_rows:
             with self.ema_scope("Plotting Progressives"):
                 img, progressives = self.progressive_denoising(
-                    c, shape=(self.channels, self.image_size, self.image_size), batch_size=N
+                    c,
+                    shape=(self.channels, self.image_size, self.image_size),
+                    batch_size=N,
                 )
-            prog_row = self._get_denoise_row_from_list(progressives, desc="Progressive Generation")
+            prog_row = self._get_denoise_row_from_list(
+                progressives, desc="Progressive Generation"
+            )
             log["progressive_row"] = prog_row
 
         if return_keys:
@@ -1637,10 +1905,12 @@ class LatentDiffusion(DDPM, Serialization):
     def parameters(self):
         params = list(self.model.parameters())
         if self.cond_stage_trainable:
-            logging.info(f"{self.__class__.__name__}: Also optimizing conditioner params!")
+            logging.info(
+                f"{self.__class__.__name__}: Also optimizing conditioner params!"
+            )
             params = params + list(self.cond_stage_model.parameters())
         if self.learn_logvar:
-            logging.info('Diffusion model optimizing logvar')
+            logging.info("Diffusion model optimizing logvar")
             params.append(self.logvar)
         return params
 
@@ -1675,37 +1945,42 @@ class MegatronLatentDiffusion(NLPAdapterModelMixin, MegatronBaseModel):
         self._validate_trainer()
 
         # megatron_amp_O2 is not yet supported in diffusion models
-        self.megatron_amp_O2 = cfg.get('megatron_amp_O2', False)
+        self.megatron_amp_O2 = cfg.get("megatron_amp_O2", False)
 
-        if self.megatron_amp_O2 and self.cfg.precision in ['16', 16, 'bf16']:
+        if self.megatron_amp_O2 and self.cfg.precision in ["16", 16, "bf16"]:
             self.model_parallel_config.enable_autocast = False
-            if not hasattr(self.cfg.unet_config, 'unet_precision') or not '16' in str(
+            if not hasattr(self.cfg.unet_config, "unet_precision") or not "16" in str(
                 self.cfg.unet_config.unet_precision
             ):
                 logging.info(
-                    'trainer.precision was set but unet_config.unet_precision was not! Setting unet_precision to fp16.'
+                    "trainer.precision was set but unet_config.unet_precision was not! Setting unet_precision to fp16."
                 )
-                self.cfg.unet_config.unet_precision = 'fp16'
+                self.cfg.unet_config.unet_precision = "fp16"
 
         self.model = self.model_provider_func()
 
         self.conditioning_keys = []
 
-        if self.model.precision in ['bf16', 'bf16-mixed']:
+        if self.model.precision in ["bf16", "bf16-mixed"]:
             self.autocast_dtype = torch.bfloat16
-        elif self.model.precision in [32, '32', '32-true']:
+        elif self.model.precision in [32, "32", "32-true"]:
             self.autocast_dtype = torch.float
-        elif self.model.precision in ['16-mixed', '16', 16]:
+        elif self.model.precision in ["16-mixed", "16", 16]:
             self.autocast_dtype = torch.half
         else:
-            raise ValueError('precision must be in [32, "32", "32-true", "16-mixed", "16", 16, "bf16-mixed", "bf16"]')
+            raise ValueError(
+                'precision must be in [32, "32", "32-true", "16-mixed", "16", 16, "bf16-mixed", "bf16"]'
+            )
 
         self.log_train_loss = bool(int(os.getenv("NEMO_LOG_TRAIN_LOSS", 1)))
         self.loss_broadcast_src_rank = None
 
     def get_module_list(self):
         if isinstance(self.model, list):
-            return [model.module if isinstance(model, Float16Module) else model for model in self.model]
+            return [
+                model.module if isinstance(model, Float16Module) else model
+                for model in self.model
+            ]
         elif isinstance(self.model, Float16Module):
             return [self.model.module]
         else:
@@ -1713,7 +1988,9 @@ class MegatronLatentDiffusion(NLPAdapterModelMixin, MegatronBaseModel):
 
     def model_provider_func(self, pre_process=True, post_process=True):
         """Model depends on pipeline paralellism."""
-        model = LatentDiffusion(cfg=self.cfg, model_parallel_config=self.model_parallel_config)
+        model = LatentDiffusion(
+            cfg=self.cfg, model_parallel_config=self.model_parallel_config
+        )
         return model
 
     def forward(self, x, c, *args, **kwargs):
@@ -1723,9 +2000,18 @@ class MegatronLatentDiffusion(NLPAdapterModelMixin, MegatronBaseModel):
     @rank_zero_only
     @torch.no_grad()
     def on_train_batch_start(self, batch, batch_idx, dataloader_idx=0):
-        if self.cfg.scale_by_std and self.current_epoch == 0 and self.global_step == 0 and batch_idx == 0:
-            assert self.cfg.scale_factor == 1.0, 'rather not use custom rescaling and std-rescaling simultaneously'
-            batch[self.cfg.first_stage_key] = batch[self.cfg.first_stage_key].cuda(non_blocking=True)
+        if (
+            self.cfg.scale_by_std
+            and self.current_epoch == 0
+            and self.global_step == 0
+            and batch_idx == 0
+        ):
+            assert (
+                self.cfg.scale_factor == 1.0
+            ), "rather not use custom rescaling and std-rescaling simultaneously"
+            batch[self.cfg.first_stage_key] = batch[self.cfg.first_stage_key].cuda(
+                non_blocking=True
+            )
             self.model.on_train_batch_start(batch, batch_idx)
 
     def fwd_bwd_step(self, dataloader_iter, forward_only):
@@ -1762,15 +2048,22 @@ class MegatronLatentDiffusion(NLPAdapterModelMixin, MegatronBaseModel):
         # only the last stages of the pipeline return losses
         loss_dict = {}
         if losses_reduced_per_micro_batch:
-            if (not forward_only) or self.cfg.data.get('validation_drop_last', True):
+            if (not forward_only) or self.cfg.data.get("validation_drop_last", True):
                 # average loss across micro batches
                 for key in losses_reduced_per_micro_batch[0]:
-                    loss_tensors_list = [loss_reduced[key] for loss_reduced in losses_reduced_per_micro_batch]
+                    loss_tensors_list = [
+                        loss_reduced[key]
+                        for loss_reduced in losses_reduced_per_micro_batch
+                    ]
                     loss_tensor = torch.stack(loss_tensors_list)
                     loss_dict[key] = loss_tensor.mean()
-                loss_mean = loss_dict["val/loss"] if forward_only else loss_dict["train/loss"]
+                loss_mean = (
+                    loss_dict["val/loss"] if forward_only else loss_dict["train/loss"]
+                )
             else:
-                raise NotImplementedError("Losses of micro batches sizes must be uniform!")
+                raise NotImplementedError(
+                    "Losses of micro batches sizes must be uniform!"
+                )
         else:
             if forward_only:
                 loss_mean = []
@@ -1783,7 +2076,9 @@ class MegatronLatentDiffusion(NLPAdapterModelMixin, MegatronBaseModel):
             # we can avoid this broadcast by updating the PTL log function to accept specific ranks
             if parallel_state.get_pipeline_model_parallel_world_size() > 1:
                 if self.loss_broadcast_src_rank is None:
-                    self.loss_broadcast_src_rank = parallel_state.get_pipeline_model_parallel_last_rank()
+                    self.loss_broadcast_src_rank = (
+                        parallel_state.get_pipeline_model_parallel_last_rank()
+                    )
                 torch.distributed.broadcast(
                     loss_mean,
                     self.loss_broadcast_src_rank,
@@ -1819,7 +2114,9 @@ class MegatronLatentDiffusion(NLPAdapterModelMixin, MegatronBaseModel):
         loss_mean, loss_dict = self.fwd_bwd_step(dataloader_iter, False)
 
         # when using sequence parallelism, the sequence parallel layernorm grads must be all-reduced
-        if self.cfg.get('tensor_model_parallel_size', 1) > 1 and self.cfg.get('sequence_parallel', False):
+        if self.cfg.get("tensor_model_parallel_size", 1) > 1 and self.cfg.get(
+            "sequence_parallel", False
+        ):
             self.allreduce_sequence_parallel_gradients()
 
         if self.with_distributed_adam:
@@ -1831,12 +2128,14 @@ class MegatronLatentDiffusion(NLPAdapterModelMixin, MegatronBaseModel):
             #     # main grads are stored in the MainParamsOptimizer wrapper
             #     self._optimizer.allreduce_main_grads()
             self._optimizer.allreduce_main_grads()
-        elif not self.cfg.get('ddp_overlap', True):
+        elif not self.cfg.get("ddp_overlap", True):
             # async grad allreduce is not currently implemented for O1/autocasting mixed precision training
             # so we all-reduce gradients after the pipeline
             self.allreduce_gradients()  # @sangkug we think this is causing memory to blow up (hurts perf)
         else:
-            raise ValueError("Either distributed_fused_adam or megatron_amp_O2 needs to be set if ddp_overlap is set")
+            raise ValueError(
+                "Either distributed_fused_adam or megatron_amp_O2 needs to be set if ddp_overlap is set"
+            )
 
         # for cuda graph with pytorch lightning
         # these values will be used outside the capturing range
@@ -1855,25 +2154,46 @@ class MegatronLatentDiffusion(NLPAdapterModelMixin, MegatronBaseModel):
     def non_cuda_graph_capturable(self):
         # Moving CUDA metrics to CPU leads to sync, do not show on progress bar
         # if CUDA graph is enabled.
-        show_metric = self.cfg.get("show_prog_bar_metric", True) and (self.cfg.get("capture_cudagraph_iters", -1) < 0)
+        show_metric = self.cfg.get("show_prog_bar_metric", True) and (
+            self.cfg.get("capture_cudagraph_iters", -1) < 0
+        )
 
         if self.log_train_loss:
-            self.log('reduced_train_loss', self.loss_mean, prog_bar=show_metric, rank_zero_only=True, batch_size=1)
+            self.log(
+                "reduced_train_loss",
+                self.loss_mean,
+                prog_bar=show_metric,
+                rank_zero_only=True,
+                batch_size=1,
+            )
 
-        if self.cfg.precision in [16, '16', '16-mixed']:
+        if self.cfg.precision in [16, "16", "16-mixed"]:
             loss_scale = self.trainer.precision_plugin.scaler._scale
             if loss_scale is not None:
-                self.log('loss_scale', loss_scale, batch_size=1)
+                self.log("loss_scale", loss_scale, batch_size=1)
 
         self.log_dict(
-            self.loss_dict, prog_bar=show_metric, logger=True, on_step=True, rank_zero_only=True, batch_size=1
+            self.loss_dict,
+            prog_bar=show_metric,
+            logger=True,
+            on_step=True,
+            rank_zero_only=True,
+            batch_size=1,
         )
-        lr = self._optimizer.param_groups[0]['lr']
-        self.log('lr', lr, prog_bar=show_metric, rank_zero_only=True, batch_size=1)
-        self.log('global_step', self.trainer.global_step + 1, prog_bar=show_metric, rank_zero_only=True, batch_size=1)
+        lr = self._optimizer.param_groups[0]["lr"]
+        self.log("lr", lr, prog_bar=show_metric, rank_zero_only=True, batch_size=1)
         self.log(
-            'consumed_samples',
-            self.compute_consumed_samples(self.trainer.global_step + 1 - self.init_global_step),
+            "global_step",
+            self.trainer.global_step + 1,
+            prog_bar=show_metric,
+            rank_zero_only=True,
+            batch_size=1,
+        )
+        self.log(
+            "consumed_samples",
+            self.compute_consumed_samples(
+                self.trainer.global_step + 1 - self.init_global_step
+            ),
             prog_bar=show_metric,
             rank_zero_only=True,
             batch_size=1,
@@ -1899,7 +2219,7 @@ class MegatronLatentDiffusion(NLPAdapterModelMixin, MegatronBaseModel):
         """Helper method for allreduce_sequence_parallel_gradients"""
 
         for param in module.parameters():
-            sequence_parallel_param = getattr(param, 'sequence_parallel', False)
+            sequence_parallel_param = getattr(param, "sequence_parallel", False)
             if sequence_parallel_param and param.requires_grad:
                 if self.megatron_amp_O2:
                     grad = param.main_grad
@@ -1913,10 +2233,14 @@ class MegatronLatentDiffusion(NLPAdapterModelMixin, MegatronBaseModel):
             Global batch is a list of micro batches.
             """
             # noise_map, condition
-            batch[self.cfg.first_stage_key] = batch[self.cfg.first_stage_key].cuda(non_blocking=True)
+            batch[self.cfg.first_stage_key] = batch[self.cfg.first_stage_key].cuda(
+                non_blocking=True
+            )
             if isinstance(batch[self.cfg.cond_stage_key], torch.Tensor):
                 # in the case of precached text embeddings, cond_stage is also a tensor
-                batch[self.cfg.cond_stage_key] = batch[self.cfg.cond_stage_key].cuda(non_blocking=True)
+                batch[self.cfg.cond_stage_key] = batch[self.cfg.cond_stage_key].cuda(
+                    non_blocking=True
+                )
 
             # SD has more dedicated structure for encoding, so we enable autocasting here as well
             with torch.cuda.amp.autocast(
@@ -1965,7 +2289,14 @@ class MegatronLatentDiffusion(NLPAdapterModelMixin, MegatronBaseModel):
     def validation_step(self, dataloader_iter):
         loss, val_loss_dict = self.fwd_bwd_step(dataloader_iter, True)
 
-        self.log_dict(val_loss_dict, prog_bar=False, logger=True, on_step=False, on_epoch=True, batch_size=1)
+        self.log_dict(
+            val_loss_dict,
+            prog_bar=False,
+            logger=True,
+            on_step=False,
+            on_epoch=True,
+            batch_size=1,
+        )
 
         return loss
 
@@ -1982,31 +2313,44 @@ class MegatronLatentDiffusion(NLPAdapterModelMixin, MegatronBaseModel):
                 Can be 'fit', 'validate', 'test', or 'predict'. Defaults to None.
         """
         if self.model.rng:
-            self.model.rng.manual_seed(self.cfg.seed + 100 * parallel_state.get_data_parallel_rank())
+            self.model.rng.manual_seed(
+                self.cfg.seed + 100 * parallel_state.get_data_parallel_rank()
+            )
 
         # log number of parameters
         if isinstance(self.model, list):
             num_parameters_on_device = sum(
-                [sum([p.nelement() for p in model_module.parameters()]) for model_module in self.model]
+                [
+                    sum([p.nelement() for p in model_module.parameters()])
+                    for model_module in self.model
+                ]
             )
         else:
-            num_parameters_on_device = sum([p.nelement() for p in self.model.parameters()])
+            num_parameters_on_device = sum(
+                [p.nelement() for p in self.model.parameters()]
+            )
 
         # to be summed across data parallel group
-        total_num_parameters = torch.tensor(num_parameters_on_device).cuda(non_blocking=True)
+        total_num_parameters = torch.tensor(num_parameters_on_device).cuda(
+            non_blocking=True
+        )
 
-        torch.distributed.all_reduce(total_num_parameters, group=parallel_state.get_model_parallel_group())
+        torch.distributed.all_reduce(
+            total_num_parameters, group=parallel_state.get_model_parallel_group()
+        )
 
         logging.info(
-            f'Pipeline model parallel rank: {parallel_state.get_pipeline_model_parallel_rank()}, '
-            f'Tensor model parallel rank: {parallel_state.get_tensor_model_parallel_rank()}, '
-            f'Number of model parameters on device: {num_parameters_on_device:.2e}. '
-            f'Total number of model parameters: {total_num_parameters:.2e}.'
+            f"Pipeline model parallel rank: {parallel_state.get_pipeline_model_parallel_rank()}, "
+            f"Tensor model parallel rank: {parallel_state.get_tensor_model_parallel_rank()}, "
+            f"Number of model parameters on device: {num_parameters_on_device:.2e}. "
+            f"Total number of model parameters: {total_num_parameters:.2e}."
         )
 
         resume_checkpoint_path = self.trainer.ckpt_path
         if resume_checkpoint_path:
-            init_consumed_samples = self._extract_consumed_samples_from_ckpt(resume_checkpoint_path)
+            init_consumed_samples = self._extract_consumed_samples_from_ckpt(
+                resume_checkpoint_path
+            )
         else:
             init_consumed_samples = 0
         self.init_consumed_samples = init_consumed_samples
@@ -2026,19 +2370,29 @@ class MegatronLatentDiffusion(NLPAdapterModelMixin, MegatronBaseModel):
 
     def build_train_valid_test_datasets(self):
         logging.info("Building datasets for Stable Diffusion...")
-        if self.trainer.limit_val_batches > 1.0 and isinstance(self.trainer.limit_val_batches, float):
-            raise ValueError("limit_val_batches must be an integer or float less than or equal to 1.0.")
+        if self.trainer.limit_val_batches > 1.0 and isinstance(
+            self.trainer.limit_val_batches, float
+        ):
+            raise ValueError(
+                "limit_val_batches must be an integer or float less than or equal to 1.0."
+            )
 
-        if self.cfg.first_stage_key.endswith("encoded") or self.cfg.first_stage_key.endswith("moments"):
+        if self.cfg.first_stage_key.endswith(
+            "encoded"
+        ) or self.cfg.first_stage_key.endswith("moments"):
             if self.cfg.cond_stage_key.endswith("clip_encoded"):
-                self._train_ds, self._validation_ds = build_train_valid_precached_clip_datasets(
-                    model_cfg=self.cfg,
-                    consumed_samples=self.compute_consumed_samples(0),
+                self._train_ds, self._validation_ds = (
+                    build_train_valid_precached_clip_datasets(
+                        model_cfg=self.cfg,
+                        consumed_samples=self.compute_consumed_samples(0),
+                    )
                 )
             else:
-                self._train_ds, self._validation_ds = build_train_valid_precached_datasets(
-                    model_cfg=self.cfg,
-                    consumed_samples=self.compute_consumed_samples(0),
+                self._train_ds, self._validation_ds = (
+                    build_train_valid_precached_datasets(
+                        model_cfg=self.cfg,
+                        consumed_samples=self.compute_consumed_samples(0),
+                    )
                 )
         else:
             self._train_ds, self._validation_ds = build_train_valid_datasets(
@@ -2047,19 +2401,19 @@ class MegatronLatentDiffusion(NLPAdapterModelMixin, MegatronBaseModel):
         self._test_ds = None
 
         if self._train_ds is not None:
-            logging.info(f'Length of train dataset: {len(self._train_ds)}')
+            logging.info(f"Length of train dataset: {len(self._train_ds)}")
         if self._validation_ds is not None:
-            logging.info(f'Length of val dataset: {len(self._validation_ds)}')
+            logging.info(f"Length of val dataset: {len(self._validation_ds)}")
         if self._test_ds is not None:
-            logging.info(f'Length of test dataset: {len(self._test_ds)}')
-        logging.info(f'Finished building datasets for LatentDiffusion.')
+            logging.info(f"Length of test dataset: {len(self._test_ds)}")
+        logging.info(f"Finished building datasets for LatentDiffusion.")
         return self._train_ds, self._validation_ds, self._test_ds
 
     def setup_training_data(self, cfg):
-        if hasattr(self, '_train_ds') and self._train_ds is not None:
+        if hasattr(self, "_train_ds") and self._train_ds is not None:
             consumed_samples = self.compute_consumed_samples(0)
             logging.info(
-                f'Setting up train dataloader with len(len(self._train_ds)): {len(self._train_ds)} and consumed samples: {consumed_samples}'
+                f"Setting up train dataloader with len(len(self._train_ds)): {len(self._train_ds)} and consumed samples: {consumed_samples}"
             )
             if self.cfg.cond_stage_key.endswith("clip_encoded"):
                 collate_fn = get_collate_fn(
@@ -2080,10 +2434,10 @@ class MegatronLatentDiffusion(NLPAdapterModelMixin, MegatronBaseModel):
             )
 
     def setup_validation_data(self, cfg):
-        if hasattr(self, '_validation_ds') and self._validation_ds is not None:
+        if hasattr(self, "_validation_ds") and self._validation_ds is not None:
             consumed_samples = 0
             logging.info(
-                f'Setting up validation dataloader with len(len(self._validation_ds)): {len(self._validation_ds)} and consumed samples: {consumed_samples}'
+                f"Setting up validation dataloader with len(len(self._validation_ds)): {len(self._validation_ds)} and consumed samples: {consumed_samples}"
             )
             self._validation_dl = torch.utils.data.DataLoader(
                 self._validation_ds,
@@ -2095,10 +2449,10 @@ class MegatronLatentDiffusion(NLPAdapterModelMixin, MegatronBaseModel):
             )
 
     def setup_test_data(self, cfg):
-        if hasattr(self, '_test_ds') and self._test_ds is not None:
+        if hasattr(self, "_test_ds") and self._test_ds is not None:
             consumed_samples = 0
             logging.info(
-                f'Setting up test dataloader with len(len(self._test_ds)): {len(self._test_ds)} and consumed samples: {consumed_samples}'
+                f"Setting up test dataloader with len(len(self._test_ds)): {len(self._test_ds)} and consumed samples: {consumed_samples}"
             )
             self._test_dl = torch.utils.data.DataLoader(
                 self._test_ds,
@@ -2107,7 +2461,9 @@ class MegatronLatentDiffusion(NLPAdapterModelMixin, MegatronBaseModel):
                 pin_memory=True,
             )
 
-    def transfer_batch_to_device(self, batch: Any, device: torch.device, dataloader_idx: int) -> Any:
+    def transfer_batch_to_device(
+        self, batch: Any, device: torch.device, dataloader_idx: int
+    ) -> Any:
         """PTL hook: https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#transfer-batch-to-device
         When using pipeline parallelism, we need the global batch to remain on the CPU,
         since the memory overhead will be too high when using a large number of microbatches.
@@ -2121,7 +2477,7 @@ class MegatronLatentDiffusion(NLPAdapterModelMixin, MegatronBaseModel):
         """
         if self.trainer.accumulate_grad_batches > 1:
             raise ValueError(
-                f'Gradient accumulation is done within training_step. trainer.accumulate_grad_batches must equal 1'
+                f"Gradient accumulation is done within training_step. trainer.accumulate_grad_batches must equal 1"
             )
 
     @classmethod
@@ -2130,14 +2486,16 @@ class MegatronLatentDiffusion(NLPAdapterModelMixin, MegatronBaseModel):
 
     def parameters(self):
         if isinstance(self.model, list):
-            return itertools.chain.from_iterable(module.parameters() for module in self.model)
+            return itertools.chain.from_iterable(
+                module.parameters() for module in self.model
+            )
         else:
             return self.model.parameters()
 
     def save_to(self, save_path: str):
         # Replace .nemo path in config for NeMo CLIP
         cfg = self._cfg
-        if cfg.get('cond_stage_config').get('restore_from_path'):
+        if cfg.get("cond_stage_config").get("restore_from_path"):
             with open_dict(cfg):
                 cfg.cond_stage_config.restore_from_path = None
                 cfg.cond_stage_config.cfg = self.model.cond_stage_model.cfg
@@ -2165,7 +2523,9 @@ class MegatronLatentDiffusion(NLPAdapterModelMixin, MegatronBaseModel):
                 if map_location is not None:
                     checkpoint = pl_load(checkpoint_path, map_location=map_location)
                 else:
-                    checkpoint = pl_load(checkpoint_path, map_location=lambda storage, loc: storage)
+                    checkpoint = pl_load(
+                        checkpoint_path, map_location=lambda storage, loc: storage
+                    )
 
             if hparams_file is not None:
                 extension = hparams_file.split(".")[-1]
@@ -2174,7 +2534,9 @@ class MegatronLatentDiffusion(NLPAdapterModelMixin, MegatronBaseModel):
                 elif extension.lower() in ("yml", "yaml"):
                     hparams = load_hparams_from_yaml(hparams_file)
                 else:
-                    raise ValueError(".csv, .yml or .yaml is required for `hparams_file`")
+                    raise ValueError(
+                        ".csv, .yml or .yaml is required for `hparams_file`"
+                    )
 
                 hparams["on_gpu"] = False
 
@@ -2185,82 +2547,92 @@ class MegatronLatentDiffusion(NLPAdapterModelMixin, MegatronBaseModel):
             if cls.CHECKPOINT_HYPER_PARAMS_KEY not in checkpoint:
                 checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY] = {}
             # override the hparams with values that were passed in
-            cfg = checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY].get('cfg', checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY])
+            cfg = checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY].get(
+                "cfg", checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY]
+            )
             # TODO: can we do this without overriding?
             config_kwargs = kwargs.copy()
-            if 'trainer' in config_kwargs:
-                config_kwargs.pop('trainer')
+            if "trainer" in config_kwargs:
+                config_kwargs.pop("trainer")
             cfg.update(config_kwargs)
 
             # Disable individual unet/vae weights loading otherwise the model will look for these partial ckpts and raise error
             if cfg:
-                if cfg.get('unet_config') and cfg.get('unet_config').get('from_pretrained'):
+                if cfg.get("unet_config") and cfg.get("unet_config").get(
+                    "from_pretrained"
+                ):
                     cfg.unet_config.from_pretrained = None
-                if cfg.get('first_stage_config') and cfg.get('first_stage_config').get('from_pretrained'):
+                if cfg.get("first_stage_config") and cfg.get("first_stage_config").get(
+                    "from_pretrained"
+                ):
                     cfg.first_stage_config.from_pretrained = None
                 ## Now when we covert ckpt to nemo, let's always get rid of those _orig_mod
-                if cfg.get('inductor'):
+                if cfg.get("inductor"):
                     cfg.inductor = False
                 ## Append some dummy configs that DB didn't support
-                if not cfg.get('channels_last'):
+                if not cfg.get("channels_last"):
                     cfg.channels_last = True
-                if not cfg.get('capture_cudagraph_iters'):
+                if not cfg.get("capture_cudagraph_iters"):
                     cfg.capture_cudagraph_iters = -1
-                if cfg.get('unet_config') and cfg.get('unet_config').get('use_te_dpa'):
+                if cfg.get("unet_config") and cfg.get("unet_config").get("use_te_dpa"):
                     cfg.unet_config.use_te_dpa = False
                     cfg.unet_config.use_flash_attention = True
 
             # compatibility for stable diffusion old checkpoint tweaks
-            first_key = list(checkpoint['state_dict'].keys())[0]
+            first_key = list(checkpoint["state_dict"].keys())[0]
             if first_key == "betas":
                 # insert "model." into for megatron wrapper
                 new_state_dict = {}
-                for key in checkpoint['state_dict'].keys():
+                for key in checkpoint["state_dict"].keys():
                     new_key = "model." + key
-                    new_state_dict[new_key] = checkpoint['state_dict'][key]
-                checkpoint['state_dict'] = new_state_dict
+                    new_state_dict[new_key] = checkpoint["state_dict"][key]
+                checkpoint["state_dict"] = new_state_dict
             elif (
-                first_key == 'model.text_encoder.transformer.text_model.embeddings.position_ids'
-                or first_key == 'model.text_encoder.model.language_model.embedding.position_embeddings'
+                first_key
+                == "model.text_encoder.transformer.text_model.embeddings.position_ids"
+                or first_key
+                == "model.text_encoder.model.language_model.embedding.position_embeddings"
             ):
                 # remap state keys from dreambooth when using HF clip
                 new_state_dict = {}
-                for key in checkpoint['state_dict'].keys():
-                    new_key = key.replace('._orig_mod', "")
-                    new_key = new_key.replace('unet', 'model.diffusion_model')
-                    new_key = new_key.replace('vae', 'first_stage_model')
-                    new_key = new_key.replace('text_encoder', 'cond_stage_model')
-                    new_key = new_key.replace('.noise_scheduler', '')
-                    new_state_dict[new_key] = checkpoint['state_dict'][key]
-                checkpoint['state_dict'] = new_state_dict
+                for key in checkpoint["state_dict"].keys():
+                    new_key = key.replace("._orig_mod", "")
+                    new_key = new_key.replace("unet", "model.diffusion_model")
+                    new_key = new_key.replace("vae", "first_stage_model")
+                    new_key = new_key.replace("text_encoder", "cond_stage_model")
+                    new_key = new_key.replace(".noise_scheduler", "")
+                    new_state_dict[new_key] = checkpoint["state_dict"][key]
+                checkpoint["state_dict"] = new_state_dict
 
             # compatibility for inductor in inference
-            if not cfg.get('inductor', False):
+            if not cfg.get("inductor", False):
                 new_state_dict = {}
-                for key in checkpoint['state_dict'].keys():
-                    new_key = key.replace('._orig_mod', '', 1)
-                    new_state_dict[new_key] = checkpoint['state_dict'][key]
-                checkpoint['state_dict'] = new_state_dict
+                for key in checkpoint["state_dict"].keys():
+                    new_key = key.replace("._orig_mod", "", 1)
+                    new_state_dict[new_key] = checkpoint["state_dict"][key]
+                checkpoint["state_dict"] = new_state_dict
 
             # compatiblity for te-dpa in inference
-            if cfg.get('unet_config') and not cfg.get('unet_config').get('use_te_dpa'):
+            if cfg.get("unet_config") and not cfg.get("unet_config").get("use_te_dpa"):
                 new_state_dict = {}
-                for key in checkpoint['state_dict'].keys():
+                for key in checkpoint["state_dict"].keys():
                     if "_extra_state" not in key:
-                        new_state_dict[key] = checkpoint['state_dict'][key]
-                checkpoint['state_dict'] = new_state_dict
+                        new_state_dict[key] = checkpoint["state_dict"][key]
+                checkpoint["state_dict"] = new_state_dict
 
-            if cfg.get('megatron_amp_O2', False):
+            if cfg.get("megatron_amp_O2", False):
                 new_state_dict = {}
-                for key in checkpoint['state_dict'].keys():
-                    new_key = key.replace('model.', 'model.module.', 1)
-                    new_state_dict[new_key] = checkpoint['state_dict'][key]
-                checkpoint['state_dict'] = new_state_dict
+                for key in checkpoint["state_dict"].keys():
+                    new_key = key.replace("model.", "model.module.", 1)
+                    new_state_dict[new_key] = checkpoint["state_dict"][key]
+                checkpoint["state_dict"] = new_state_dict
 
-            if 'cfg' in kwargs:
+            if "cfg" in kwargs:
                 model = ptl_load_state(cls, checkpoint, strict=strict, **kwargs)
             else:
-                model = ptl_load_state(cls, checkpoint, strict=strict, cfg=cfg, **kwargs)
+                model = ptl_load_state(
+                    cls, checkpoint, strict=strict, cfg=cfg, **kwargs
+                )
                 # cfg = checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY].cfg
 
             checkpoint = model
@@ -2269,15 +2641,26 @@ class MegatronLatentDiffusion(NLPAdapterModelMixin, MegatronBaseModel):
             cls._set_model_restore_state(is_being_restored=False)
         return checkpoint
 
-    def _check_and_add_adapter(self, name, module, peft_name, peft_cfg, name_key_to_mcore_mixins=None):
+    def _check_and_add_adapter(
+        self, name, module, peft_name, peft_cfg, name_key_to_mcore_mixins=None
+    ):
         if isinstance(module, AdapterModuleMixin):
             if isinstance(module, LinearWrapper):
-                peft_cfg.in_features, peft_cfg.out_features = module.in_features, module.out_features
+                peft_cfg.in_features, peft_cfg.out_features = (
+                    module.in_features,
+                    module.out_features,
+                )
             elif isinstance(module, LoraWrapper):
-                peft_cfg.in_features, peft_cfg.out_features = module.in_features, module.out_features
+                peft_cfg.in_features, peft_cfg.out_features = (
+                    module.in_features,
+                    module.out_features,
+                )
             else:
                 return
-            if model_utils.import_class_by_path(peft_cfg._target_) in module.get_accepted_adapter_types():
+            if (
+                model_utils.import_class_by_path(peft_cfg._target_)
+                in module.get_accepted_adapter_types()
+            ):
                 module.add_adapter(
                     name=peft_name,
                     cfg=peft_cfg,
@@ -2311,11 +2694,11 @@ class MegatronLatentDiffusion(NLPAdapterModelMixin, MegatronBaseModel):
             # Modify state key for Dreambooth inference
             new_state_dict = {}
             for key in state_dict.keys():
-                new_key = key.replace('unet', 'model.diffusion_model')
-                new_key = new_key.replace('vae', 'first_stage_model')
-                new_key = new_key.replace('text_encoder', 'cond_stage_model')
-                new_key = new_key.replace('.noise_scheduler', '')
-                new_key = new_key.replace('._orig_mod', '')
+                new_key = key.replace("unet", "model.diffusion_model")
+                new_key = new_key.replace("vae", "first_stage_model")
+                new_key = new_key.replace("text_encoder", "cond_stage_model")
+                new_key = new_key.replace(".noise_scheduler", "")
+                new_key = new_key.replace("._orig_mod", "")
                 new_state_dict[new_key] = state_dict[key]
             state_dict = new_state_dict
             return state_dict
@@ -2323,19 +2706,23 @@ class MegatronLatentDiffusion(NLPAdapterModelMixin, MegatronBaseModel):
         # Determine device
         if map_location is None:
             if torch.cuda.is_available():
-                map_location = 'cuda'
+                map_location = "cuda"
             else:
-                map_location = 'cpu'
+                map_location = "cpu"
 
-        if filepath.endswith('.nemo'):
-            conf, state_dict = self._get_config_and_state_dict_from_nemo(filepath, map_location)
-        elif filepath.endswith('.ckpt'):
-            state_dict = torch.load(filepath, map_location, weights_only=False)['state_dict']
+        if filepath.endswith(".nemo"):
+            conf, state_dict = self._get_config_and_state_dict_from_nemo(
+                filepath, map_location
+            )
+        elif filepath.endswith(".ckpt"):
+            state_dict = torch.load(filepath, map_location, weights_only=False)[
+                "state_dict"
+            ]
         else:
             raise RuntimeError(f"{filepath} is not nemo file or ckpt file")
         if not peft_cfgs:
             assert filepath.endswith(
-                '.nemo'
+                ".nemo"
             ), "Inferring peft scheme is only supported for .nemo checkpoints. Please supply the `peft_cfgs` argument."
             peft_cfgs = [PEFT_CONFIG_MAP[conf.peft.peft_scheme](conf)]
         self.add_adapter(peft_cfgs)
@@ -2355,7 +2742,7 @@ class DiffusionWrapper(pl.LightningModule, Serialization):
         super().__init__()
         self.diffusion_model = DiffusionWrapper.from_config_dict(diff_model_config)
         self.conditioning_key = conditioning_key
-        assert self.conditioning_key in [None, 'concat', 'crossattn', 'hybrid', 'adm']
+        assert self.conditioning_key in [None, "concat", "crossattn", "hybrid", "adm"]
 
         # Fusing VAE and CLIP doesn't give benefit
         if inductor:
@@ -2368,17 +2755,17 @@ class DiffusionWrapper(pl.LightningModule, Serialization):
     def forward(self, x, t, c_concat: list = None, c_crossattn: list = None):
         if self.conditioning_key is None:
             out = self.diffusion_model(x, t)
-        elif self.conditioning_key == 'concat':
+        elif self.conditioning_key == "concat":
             xc = torch.cat([x] + c_concat, dim=1)
             out = self.diffusion_model(xc, t)
-        elif self.conditioning_key == 'crossattn':
+        elif self.conditioning_key == "crossattn":
             cc = torch.cat(c_crossattn, 1)
             out = self.diffusion_model(x, t, context=cc)
-        elif self.conditioning_key == 'hybrid':
+        elif self.conditioning_key == "hybrid":
             xc = torch.cat([x] + c_concat, dim=1)
             cc = torch.cat(c_crossattn, 1)
             out = self.diffusion_model(xc, t, context=cc)
-        elif self.conditioning_key == 'adm':
+        elif self.conditioning_key == "adm":
             cc = c_crossattn[0]
             out = self.diffusion_model(x, t, y=cc)
         else:

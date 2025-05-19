@@ -66,7 +66,15 @@ def qwen2vl_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
         _batch = batch
 
     required_keys = set()
-    required_keys.update(("input_ids", "pixel_values", "image_grid_thw", "pixel_values_videos", "video_grid_thw"))
+    required_keys.update(
+        (
+            "input_ids",
+            "pixel_values",
+            "image_grid_thw",
+            "pixel_values_videos",
+            "video_grid_thw",
+        )
+    )
     if parallel_state.is_pipeline_first_stage(ignore_virtual=False):
         required_keys.update(("position_ids",))
     if parallel_state.is_pipeline_last_stage(ignore_virtual=False):
@@ -78,7 +86,11 @@ def qwen2vl_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
         )
 
     _batch = {
-        key: val.cuda(non_blocking=True) if key in required_keys and val is not None else None
+        key: (
+            val.cuda(non_blocking=True)
+            if key in required_keys and val is not None
+            else None
+        )
         for key, val in _batch.items()
     }
     # slice batch along sequence dimension for context parallelism
@@ -99,8 +111,8 @@ def qwen2vl_forward_step(model, batch) -> torch.Tensor:
         "labels": batch.get("labels", None),
     }
 
-    if 'cu_seqlens' in batch:
-        forward_args['packed_seq_params'] = get_packed_seq_params(batch)
+    if "cu_seqlens" in batch:
+        forward_args["packed_seq_params"] = get_packed_seq_params(batch)
 
     return model(**forward_args)
 
@@ -140,7 +152,7 @@ class Qwen2VLVisionConfig(TransformerConfig, io.IOMixin):
     bias_activation_fusion: bool = False
     bias_dropout_fusion: bool = False
     attention_softmax_in_fp32: bool = True
-    normalization: str = 'LayerNorm'
+    normalization: str = "LayerNorm"
     apply_rope_fusion: bool = False
     layernorm_epsilon: float = 1e-6
     transformer_layer_spec: ModuleSpec = None
@@ -212,32 +224,52 @@ class Qwen2VLConfig(TransformerConfig, io.IOMixin):
     def configure_model(self, tokenizer) -> "MCoreQwen2VLModel":
         # pylint: disable=C0115,C0116
         self.language_transformer_config.scatter_embedding_sequence_parallel = False
-        self.language_transformer_config.tensor_model_parallel_size = self.tensor_model_parallel_size
+        self.language_transformer_config.tensor_model_parallel_size = (
+            self.tensor_model_parallel_size
+        )
         self.language_transformer_config.sequence_parallel = self.sequence_parallel
-        self.vision_transformer_config.tensor_model_parallel_size = self.tensor_model_parallel_size
-        self.vision_projection_config.tensor_model_parallel_size = self.tensor_model_parallel_size
-        self.language_transformer_config.pipeline_model_parallel_size = self.pipeline_model_parallel_size
+        self.vision_transformer_config.tensor_model_parallel_size = (
+            self.tensor_model_parallel_size
+        )
+        self.vision_projection_config.tensor_model_parallel_size = (
+            self.tensor_model_parallel_size
+        )
+        self.language_transformer_config.pipeline_model_parallel_size = (
+            self.pipeline_model_parallel_size
+        )
 
         if self.encoder_pipeline_model_parallel_size > 0:
-            assert self.encoder_pipeline_model_parallel_size == 1, "ViT can only live on 1 pipeline stage."
-            self.vision_transformer_config.pipeline_model_parallel_size = self.encoder_pipeline_model_parallel_size
-            self.vision_projection_config.pipeline_model_parallel_size = self.encoder_pipeline_model_parallel_size
+            assert (
+                self.encoder_pipeline_model_parallel_size == 1
+            ), "ViT can only live on 1 pipeline stage."
+            self.vision_transformer_config.pipeline_model_parallel_size = (
+                self.encoder_pipeline_model_parallel_size
+            )
+            self.vision_projection_config.pipeline_model_parallel_size = (
+                self.encoder_pipeline_model_parallel_size
+            )
             self.language_transformer_config.encoder_pipeline_model_parallel_size = (
                 self.encoder_pipeline_model_parallel_size
             )
             if self.encoder_tensor_model_parallel_size > 0:
-                self.vision_transformer_config.tensor_model_parallel_size = self.encoder_tensor_model_parallel_size
-                self.vision_projection_config.tensor_model_parallel_size = self.encoder_tensor_model_parallel_size
+                self.vision_transformer_config.tensor_model_parallel_size = (
+                    self.encoder_tensor_model_parallel_size
+                )
+                self.vision_projection_config.tensor_model_parallel_size = (
+                    self.encoder_tensor_model_parallel_size
+                )
 
         model = MCoreQwen2VLModel(
             config=self,
             tokenizer=tokenizer,
             pre_process=ps.is_pipeline_first_stage(ignore_virtual=False)
-            or ps.get_pipeline_model_parallel_rank() == self.encoder_pipeline_model_parallel_size,
+            or ps.get_pipeline_model_parallel_rank()
+            == self.encoder_pipeline_model_parallel_size,
             post_process=ps.is_pipeline_last_stage(ignore_virtual=False),
             add_encoder=ps.is_pipeline_first_stage(ignore_virtual=False),
             add_decoder=ps.is_pipeline_last_stage(ignore_virtual=False)
-            or ps.get_pipeline_model_parallel_rank() >= self.encoder_pipeline_model_parallel_size,
+            or ps.get_pipeline_model_parallel_rank()
+            >= self.encoder_pipeline_model_parallel_size,
             drop_vision_class_token=self.drop_vision_class_token,
         )
 
@@ -286,11 +318,19 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
                 post_process=post_process,
             )
 
-            self.share_embeddings_and_output_weights = self.language_model.share_embeddings_and_output_weights
+            self.share_embeddings_and_output_weights = (
+                self.language_model.share_embeddings_and_output_weights
+            )
             self._language_max_sequence_length = self.language_model.max_sequence_length
-            self._language_is_pipeline_parallel = language_transformer_config.pipeline_model_parallel_size > 1
-            restore_model_weights(self.language_model, config.language_model_from_pretrained)
-            logging.info(f"Restored language model weights from {config.language_model_from_pretrained}")
+            self._language_is_pipeline_parallel = (
+                language_transformer_config.pipeline_model_parallel_size > 1
+            )
+            restore_model_weights(
+                self.language_model, config.language_model_from_pretrained
+            )
+            logging.info(
+                f"Restored language model weights from {config.language_model_from_pretrained}"
+            )
         else:
             if config.language_model_from_pretrained is not None:
                 dist_checkpointing.load(
@@ -303,8 +343,12 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
             self.vision_model = vision_transformer_config.configure_model()
             self.vision_projection = vision_projection_config.configure_model()
             self._drop_vision_class_token = drop_vision_class_token
-            restore_model_weights(self.vision_model, config.vision_model_from_pretrained)
-            logging.info(f"Restored vision model weights from {config.vision_model_from_pretrained}")
+            restore_model_weights(
+                self.vision_model, config.vision_model_from_pretrained
+            )
+            logging.info(
+                f"Restored vision model weights from {config.vision_model_from_pretrained}"
+            )
 
         self.freeze(
             freeze_language_model=config.freeze_language_model,
@@ -386,12 +430,18 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
             if attention_mask is None:
                 attention_mask = torch.ones_like(total_input_ids)
             position_ids = torch.ones(
-                3, input_ids.shape[0], input_ids.shape[1], dtype=input_ids.dtype, device=input_ids.device
+                3,
+                input_ids.shape[0],
+                input_ids.shape[1],
+                dtype=input_ids.dtype,
+                device=input_ids.device,
             )
             image_index, video_index = 0, 0
             for i, input_ids_item in enumerate(total_input_ids):
                 _input_ids = input_ids_item[attention_mask[i] == 1]
-                vision_start_indices = torch.argwhere(_input_ids == vision_start_token_id).squeeze(1)
+                vision_start_indices = torch.argwhere(
+                    _input_ids == vision_start_token_id
+                ).squeeze(1)
                 vision_tokens = _input_ids[vision_start_indices + 1]
                 image_nums = (vision_tokens == image_token_id).sum()
                 video_nums = (vision_tokens == video_token_id).sum()
@@ -433,31 +483,70 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
                     )
                     text_len = ed - st
 
-                    st_idx = llm_pos_ids_list[-1].max() + 1 if len(llm_pos_ids_list) > 0 else 0
-                    llm_pos_ids_list.append(torch.arange(text_len).view(1, -1).expand(3, -1) + st_idx)
+                    st_idx = (
+                        llm_pos_ids_list[-1].max() + 1
+                        if len(llm_pos_ids_list) > 0
+                        else 0
+                    )
+                    llm_pos_ids_list.append(
+                        torch.arange(text_len).view(1, -1).expand(3, -1) + st_idx
+                    )
 
-                    t_index = torch.arange(llm_grid_t).view(-1, 1).expand(-1, llm_grid_h * llm_grid_w).flatten()
-                    h_index = torch.arange(llm_grid_h).view(1, -1, 1).expand(llm_grid_t, -1, llm_grid_w).flatten()
-                    w_index = torch.arange(llm_grid_w).view(1, 1, -1).expand(llm_grid_t, llm_grid_h, -1).flatten()
-                    llm_pos_ids_list.append(torch.stack([t_index, h_index, w_index]) + text_len + st_idx)
+                    t_index = (
+                        torch.arange(llm_grid_t)
+                        .view(-1, 1)
+                        .expand(-1, llm_grid_h * llm_grid_w)
+                        .flatten()
+                    )
+                    h_index = (
+                        torch.arange(llm_grid_h)
+                        .view(1, -1, 1)
+                        .expand(llm_grid_t, -1, llm_grid_w)
+                        .flatten()
+                    )
+                    w_index = (
+                        torch.arange(llm_grid_w)
+                        .view(1, 1, -1)
+                        .expand(llm_grid_t, llm_grid_h, -1)
+                        .flatten()
+                    )
+                    llm_pos_ids_list.append(
+                        torch.stack([t_index, h_index, w_index]) + text_len + st_idx
+                    )
                     st = ed + llm_grid_t * llm_grid_h * llm_grid_w
 
                 if st < len(input_tokens):
-                    st_idx = llm_pos_ids_list[-1].max() + 1 if len(llm_pos_ids_list) > 0 else 0
+                    st_idx = (
+                        llm_pos_ids_list[-1].max() + 1
+                        if len(llm_pos_ids_list) > 0
+                        else 0
+                    )
                     text_len = len(input_tokens) - st
-                    llm_pos_ids_list.append(torch.arange(text_len).view(1, -1).expand(3, -1) + st_idx)
+                    llm_pos_ids_list.append(
+                        torch.arange(text_len).view(1, -1).expand(3, -1) + st_idx
+                    )
 
                 llm_positions = torch.cat(llm_pos_ids_list, dim=1).reshape(3, -1)
-                position_ids[..., i, attention_mask[i] == 1] = llm_positions.to(position_ids.device)
-                mrope_position_deltas.append(llm_positions.max() + 1 - len(total_input_ids[i]))
-            mrope_position_deltas = torch.tensor(mrope_position_deltas, device=input_ids.device).unsqueeze(1)
+                position_ids[..., i, attention_mask[i] == 1] = llm_positions.to(
+                    position_ids.device
+                )
+                mrope_position_deltas.append(
+                    llm_positions.max() + 1 - len(total_input_ids[i])
+                )
+            mrope_position_deltas = torch.tensor(
+                mrope_position_deltas, device=input_ids.device
+            ).unsqueeze(1)
             return position_ids, mrope_position_deltas
         else:
             if attention_mask is not None:
                 position_ids = attention_mask.long().cumsum(-1) - 1
                 position_ids.masked_fill_(attention_mask == 0, 1)
-                position_ids = position_ids.unsqueeze(0).expand(3, -1, -1).to(input_ids.device)
-                max_position_ids = position_ids.max(0, keepdim=False)[0].max(-1, keepdim=True)[0]
+                position_ids = (
+                    position_ids.unsqueeze(0).expand(3, -1, -1).to(input_ids.device)
+                )
+                max_position_ids = position_ids.max(0, keepdim=False)[0].max(
+                    -1, keepdim=True
+                )[0]
                 mrope_position_deltas = max_position_ids + 1 - attention_mask.shape[-1]
             else:
                 position_ids = (
@@ -513,7 +602,8 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
             loss_mask (torch.Tensor): Loss mask expanded to combined sequence length. Shape [b, s].
         """
         use_inference_kv_cache = (
-            inference_params is not None and "image_tokens_count" in inference_params.key_value_memory_dict
+            inference_params is not None
+            and "image_tokens_count" in inference_params.key_value_memory_dict
         )
 
         has_images = pixel_values is not None
@@ -529,7 +619,9 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
             image_embeddings = None
         elif self.add_encoder and has_images:
             pixel_values = pixel_values.to(next(self.vision_model.parameters()).dtype)
-            image_embeddings = self.vision_model(pixel_values, grid_thw=image_grid_thw)  # [bs, img_seq_len, h_vision]
+            image_embeddings = self.vision_model(
+                pixel_values, grid_thw=image_grid_thw
+            )  # [bs, img_seq_len, h_vision]
 
             if self._drop_vision_class_token:
                 class_token_len = getattr(self.vision_model, "class_token_len", 1)
@@ -549,7 +641,9 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
 
         video_embeddings = None
         if self.add_encoder and has_videos:
-            pixel_values_videos = pixel_values_videos.to(next(self.vision_model.parameters()).dtype)
+            pixel_values_videos = pixel_values_videos.to(
+                next(self.vision_model.parameters()).dtype
+            )
             video_embeddings = self.vision_model(
                 pixel_values_videos, grid_thw=video_grid_thw
             )  # [bs, img_seq_len, h_vision]
@@ -567,19 +661,29 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
             if position_ids is not None:
                 position_ids = position_ids[:, :, : self._language_max_sequence_length]
 
-            if labels is not None and labels.shape[1] > self._language_max_sequence_length:
+            if (
+                labels is not None
+                and labels.shape[1] > self._language_max_sequence_length
+            ):
                 labels = labels[:, : self._language_max_sequence_length]
                 loss_mask = loss_mask[:, : self._language_max_sequence_length]
 
         # Pipeline parallel expects fixed input size. Check if we need to pad.
-        if self._language_is_pipeline_parallel and language_seq_len < self._language_max_sequence_length:
+        if (
+            self._language_is_pipeline_parallel
+            and language_seq_len < self._language_max_sequence_length
+        ):
             padded_seq_len = self._language_max_sequence_length - language_seq_len
             input_ids = torch.nn.functional.pad(input_ids, (0, padded_seq_len))
             if position_ids is not None:
-                position_ids = torch.nn.functional.pad(position_ids, (0, padded_seq_len))
+                position_ids = torch.nn.functional.pad(
+                    position_ids, (0, padded_seq_len)
+                )
 
         if position_ids is None and input_ids is not None:
-            position_ids, _ = self.get_rope_index(input_ids, image_grid_thw, video_grid_thw, attention_mask)
+            position_ids, _ = self.get_rope_index(
+                input_ids, image_grid_thw, video_grid_thw, attention_mask
+            )
 
         # Create the language_embeddings (if this is the first language model stage).
         if self.pre_process:
@@ -591,12 +695,19 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
                 # Pad to nearest multiple of TP world size for embedding.
                 tp_world_size = ps.get_tensor_model_parallel_world_size()
                 padded_seq_len = (
-                    int((input_ids.shape[1] + tp_world_size - 1) // tp_world_size * tp_world_size) - input_ids.shape[1]
+                    int(
+                        (input_ids.shape[1] + tp_world_size - 1)
+                        // tp_world_size
+                        * tp_world_size
+                    )
+                    - input_ids.shape[1]
                 )
                 if padded_seq_len != 0:
                     input_ids = torch.nn.functional.pad(input_ids, (0, padded_seq_len))
                     if position_ids is not None:
-                        position_ids = torch.nn.functional.pad(position_ids, (0, padded_seq_len))
+                        position_ids = torch.nn.functional.pad(
+                            position_ids, (0, padded_seq_len)
+                        )
 
             input_ids_text = input_ids.clone()
             # MultiModal Token indices are assumed to be values
@@ -606,17 +717,21 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
                 input_ids=input_ids_text, position_ids=None
             )  # [decoder_seq_len, b, h_language]
 
-            language_embeddings = language_embeddings.transpose(1, 0).contiguous()  # [b, decoder_seq_len, h_language]
+            language_embeddings = language_embeddings.transpose(
+                1, 0
+            ).contiguous()  # [b, decoder_seq_len, h_language]
 
         # Preprocess input, labels and loss mask.
-        combined_embeddings, final_labels, final_loss_mask, final_attention_mask = self._preprocess_data(
-            input_ids,
-            loss_mask=loss_mask,
-            labels=labels,
-            language_embeddings=language_embeddings,
-            image_embeddings=image_embeddings,
-            video_embeddings=video_embeddings,
-            attention_mask=attention_mask,
+        combined_embeddings, final_labels, final_loss_mask, final_attention_mask = (
+            self._preprocess_data(
+                input_ids,
+                loss_mask=loss_mask,
+                labels=labels,
+                language_embeddings=language_embeddings,
+                image_embeddings=image_embeddings,
+                video_embeddings=video_embeddings,
+                attention_mask=attention_mask,
+            )
         )  # [decoder_seq_len, b, h_language], [b, decoder_seq_len], [b, decoder_seq_len]
 
         output = self.language_model(
@@ -665,7 +780,9 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
         is available and it's the 1st pipeline_parallel stage
         """
 
-        assert self.add_decoder, "input text preprocessing is only needed for the language model"
+        assert (
+            self.add_decoder
+        ), "input text preprocessing is only needed for the language model"
 
         # No pre- or postprocessing needed.
         # With pipeline parallel > 2, this means a chunk in the middle of the model.
@@ -713,7 +830,9 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
                     .expand_as(final_embedding)
                     .to(final_embedding.device)
                 )
-                image_embeddings = image_embeddings.to(final_embedding.device, final_embedding.dtype)
+                image_embeddings = image_embeddings.to(
+                    final_embedding.device, final_embedding.dtype
+                )
                 final_embedding = final_embedding.masked_scatter(
                     image_mask, image_embeddings
                 )  #  [b, seq_len, h_language]
@@ -736,8 +855,12 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
                     .expand_as(final_embedding)
                     .to(final_embedding.device)
                 )
-                video_embeddings = video_embeddings.to(final_embedding.device, final_embedding.dtype)
-                final_embedding = final_embedding.masked_scatter(video_mask, video_embeddings)
+                video_embeddings = video_embeddings.to(
+                    final_embedding.device, final_embedding.dtype
+                )
+                final_embedding = final_embedding.masked_scatter(
+                    video_mask, video_embeddings
+                )
 
         #
         # Create the final labels and loss mask (if this is the last language model stage).
@@ -747,13 +870,22 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
         if self.post_process and has_labels:
 
             # Pipeline parallel expects fixed input size. Check if we need to pad
-            if self._language_is_pipeline_parallel and labels.shape[1] < self._language_max_sequence_length:
+            if (
+                self._language_is_pipeline_parallel
+                and labels.shape[1] < self._language_max_sequence_length
+            ):
                 max_seq_len = self._language_max_sequence_length
                 final_labels = torch.full(
-                    (batch_size, max_seq_len), IGNORE_INDEX, dtype=labels.dtype, device=labels.device
+                    (batch_size, max_seq_len),
+                    IGNORE_INDEX,
+                    dtype=labels.dtype,
+                    device=labels.device,
                 )
                 final_loss_mask = torch.full(
-                    (batch_size, max_seq_len), 0, dtype=loss_mask.dtype, device=loss_mask.device
+                    (batch_size, max_seq_len),
+                    0,
+                    dtype=loss_mask.dtype,
+                    device=loss_mask.device,
                 )
                 final_labels[:, : labels.shape[1]] = labels[:, :]
                 final_loss_mask[:, : labels.shape[1]] = loss_mask[:, :]
@@ -768,14 +900,21 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
         if final_embedding is not None:
             # Truncate if exceeding the language model's max sequence length.
             if final_embedding.shape[1] > self._language_max_sequence_length:
-                final_embedding = final_embedding[:, : self._language_max_sequence_length]
+                final_embedding = final_embedding[
+                    :, : self._language_max_sequence_length
+                ]
 
             # TODO: check and add self.context_parallel_lm to MCoreQwen2VLModel
             # # Transpose to [s,b,h] if not using CP because CP Sharding expects seq in dim=1
-            final_embedding = final_embedding.transpose(1, 0).contiguous()  #  [seq_len, bs, h_language]
+            final_embedding = final_embedding.transpose(
+                1, 0
+            ).contiguous()  #  [seq_len, bs, h_language]
             if self.sequence_parallel_lm:
                 final_embedding = scatter_to_sequence_parallel_region(final_embedding)
-        truncate_labels = final_labels is not None and final_labels.shape[1] > self._language_max_sequence_length
+        truncate_labels = (
+            final_labels is not None
+            and final_labels.shape[1] > self._language_max_sequence_length
+        )
         if truncate_labels:
             final_labels = final_labels[:, : self._language_max_sequence_length]
             final_loss_mask = final_loss_mask[:, : self._language_max_sequence_length]
@@ -787,7 +926,7 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
         # gives us non-lists or None
         if not isinstance(input_tensor, list):
             input_tensor = [input_tensor]
-        assert len(input_tensor) == 1, 'input_tensor should only be length 1 for llava'
+        assert len(input_tensor) == 1, "input_tensor should only be length 1 for llava"
 
         if self.add_encoder and self.add_decoder:
             self.vision_model.set_input_tensor(input_tensor[0])
@@ -813,7 +952,9 @@ class Qwen2VLModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin)
         super().__init__()
         self.config = config
         self.tokenizer = tokenizer
-        self.optim = optim or MegatronOptimizerModule(config=OptimizerConfig(lr=1e-4, use_distributed_optimizer=True))
+        self.optim = optim or MegatronOptimizerModule(
+            config=OptimizerConfig(lr=1e-4, use_distributed_optimizer=True)
+        )
         self.optim.connect(self)  # This will bind the `configure_optimizers` method
         self.model_transform = model_transform
         self._training_loss_reduction = None
@@ -884,7 +1025,9 @@ class Qwen2VLModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin)
     def validation_loss_reduction(self) -> MaskedTokenLossReductionWithLossMask:
         # pylint: disable=C0115,C0116
         if not self._validation_loss_reduction:
-            self._validation_loss_reduction = MaskedTokenLossReductionWithLossMask(validation_step=True)
+            self._validation_loss_reduction = MaskedTokenLossReductionWithLossMask(
+                validation_step=True
+            )
 
         return self._validation_loss_reduction
 

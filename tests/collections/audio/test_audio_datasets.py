@@ -34,8 +34,8 @@ from nemo.collections.common.data.lhotse import \
 
 class TestAudioDatasets:
     @pytest.mark.unit
-    @pytest.mark.parametrize('num_channels', [1, 2])
-    @pytest.mark.parametrize('num_targets', [1, 3])
+    @pytest.mark.parametrize("num_channels", [1, 2])
+    @pytest.mark.parametrize("num_targets", [1, 3])
     def test_list_to_multichannel(self, num_channels, num_targets):
         """Test conversion of a list of arrays into"""
         random_seed = 42
@@ -48,36 +48,49 @@ class TestAudioDatasets:
         golden_target = _rng.normal(size=(num_channels * num_targets, num_samples))
 
         # Create a list of num_targets signals with num_channels channels
-        target_list = [golden_target[n * num_channels : (n + 1) * num_channels, :] for n in range(num_targets)]
+        target_list = [
+            golden_target[n * num_channels : (n + 1) * num_channels, :]
+            for n in range(num_targets)
+        ]
 
         # Check the original signal is not modified
-        assert (ASRAudioProcessor.list_to_multichannel(golden_target) == golden_target).all()
+        assert (
+            ASRAudioProcessor.list_to_multichannel(golden_target) == golden_target
+        ).all()
         # Check the list is converted back to the original signal
-        assert (ASRAudioProcessor.list_to_multichannel(target_list) == golden_target).all()
+        assert (
+            ASRAudioProcessor.list_to_multichannel(target_list) == golden_target
+        ).all()
 
     @pytest.mark.unit
-    @pytest.mark.parametrize('num_channels', [1, 2])
+    @pytest.mark.parametrize("num_channels", [1, 2])
     def test_processor_process_audio(self, num_channels):
         """Test signal normalization in process_audio."""
         num_samples = 1000
         num_examples = 30
 
-        signals = ['input_signal', 'target_signal', 'reference_signal']
+        signals = ["input_signal", "target_signal", "reference_signal"]
 
         for normalization_signal in [None] + signals:
             # Create processor
             processor = ASRAudioProcessor(
-                sample_rate=16000, random_offset=False, normalization_signal=normalization_signal
+                sample_rate=16000,
+                random_offset=False,
+                normalization_signal=normalization_signal,
             )
 
             # Generate random signals
             for n in range(num_examples):
-                example = {signal: torch.randn(num_channels, num_samples) for signal in signals}
+                example = {
+                    signal: torch.randn(num_channels, num_samples) for signal in signals
+                }
                 processed_example = processor.process_audio(example)
 
                 # Expected scale
                 if normalization_signal:
-                    scale = 1.0 / (example[normalization_signal].abs().max() + processor.eps)
+                    scale = 1.0 / (
+                        example[normalization_signal].abs().max() + processor.eps
+                    )
                 else:
                     scale = 1.0
 
@@ -85,7 +98,7 @@ class TestAudioDatasets:
                 for signal in signals:
                     assert torch.allclose(
                         processed_example[signal], example[signal] * scale
-                    ), f'Failed example {n} signal {signal}'
+                    ), f"Failed example {n} signal {signal}"
 
     @pytest.mark.unit
     def test_audio_collate_fn(self):
@@ -98,15 +111,15 @@ class TestAudioDatasets:
         _rng = np.random.default_rng(seed=random_seed)
 
         signal_to_channels = {
-            'input_signal': 2,
-            'target_signal': 1,
-            'reference_signal': 1,
+            "input_signal": 2,
+            "target_signal": 1,
+            "reference_signal": 1,
         }
 
         signal_to_length = {
-            'input_signal': _rng.integers(low=5, high=25, size=batch_size),
-            'target_signal': _rng.integers(low=5, high=25, size=batch_size),
-            'reference_signal': _rng.integers(low=5, high=25, size=batch_size),
+            "input_signal": _rng.integers(low=5, high=25, size=batch_size),
+            "target_signal": _rng.integers(low=5, high=25, size=batch_size),
+            "reference_signal": _rng.integers(low=5, high=25, size=batch_size),
         }
 
         # Generate batch
@@ -114,8 +127,12 @@ class TestAudioDatasets:
         for n in range(batch_size):
             item = dict()
             for signal, num_channels in signal_to_channels.items():
-                random_signal = _rng.normal(size=(num_channels, signal_to_length[signal][n]))
-                random_signal = np.squeeze(random_signal)  # get rid of channel dimention for single-channel
+                random_signal = _rng.normal(
+                    size=(num_channels, signal_to_length[signal][n])
+                )
+                random_signal = np.squeeze(
+                    random_signal
+                )  # get rid of channel dimention for single-channel
                 item[signal] = torch.tensor(random_signal)
             batch.append(item)
 
@@ -123,15 +140,15 @@ class TestAudioDatasets:
         batched = _audio_collate_fn(batch)
 
         batched_signals = {
-            'input_signal': batched[0].cpu().detach().numpy(),
-            'target_signal': batched[2].cpu().detach().numpy(),
-            'reference_signal': batched[4].cpu().detach().numpy(),
+            "input_signal": batched[0].cpu().detach().numpy(),
+            "target_signal": batched[2].cpu().detach().numpy(),
+            "reference_signal": batched[4].cpu().detach().numpy(),
         }
 
         batched_lengths = {
-            'input_signal': batched[1].cpu().detach().numpy(),
-            'target_signal': batched[3].cpu().detach().numpy(),
-            'reference_signal': batched[5].cpu().detach().numpy(),
+            "input_signal": batched[1].cpu().detach().numpy(),
+            "target_signal": batched[3].cpu().detach().numpy(),
+            "reference_signal": batched[5].cpu().detach().numpy(),
         }
 
         # Check outputs
@@ -142,13 +159,15 @@ class TestAudioDatasets:
                 golden_length = signal_to_length[signal][n]
                 assert (
                     uut_length == golden_length
-                ), f'Example {n} signal {signal} length mismatch: batched ({uut_length}) != golden ({golden_length})'
+                ), f"Example {n} signal {signal} length mismatch: batched ({uut_length}) != golden ({golden_length})"
 
                 uut_signal = b_signal[n][:uut_length, ...]
-                golden_signal = batch[n][signal][:uut_length, ...].cpu().detach().numpy()
+                golden_signal = (
+                    batch[n][signal][:uut_length, ...].cpu().detach().numpy()
+                )
                 assert np.allclose(
                     uut_signal, golden_signal, atol=atol
-                ), f'Example {n} signal {signal} value mismatch.'
+                ), f"Example {n} signal {signal} value mismatch."
 
     @pytest.mark.unit
     def test_audio_to_target_dataset(self):
@@ -175,14 +194,14 @@ class TestAudioDatasets:
         sample_rate = 16000
         num_examples = 25
         data_num_channels = {
-            'input_signal': 4,
-            'target_signal': 2,
+            "input_signal": 4,
+            "target_signal": 2,
         }
         data_min_duration = 2.0
         data_max_duration = 8.0
         data_key = {
-            'input_signal': 'input_filepath',
-            'target_signal': 'target_filepath',
+            "input_signal": "input_filepath",
+            "target_signal": "target_filepath",
         }
 
         # Tolerance
@@ -192,7 +211,12 @@ class TestAudioDatasets:
         _rng = np.random.default_rng(seed=random_seed)
 
         # Input and target signals have the same duration
-        data_duration = np.round(_rng.uniform(low=data_min_duration, high=data_max_duration, size=num_examples), 3)
+        data_duration = np.round(
+            _rng.uniform(
+                low=data_min_duration, high=data_max_duration, size=num_examples
+            ),
+            3,
+        )
         data_duration_samples = np.floor(data_duration * sample_rate).astype(int)
 
         data = dict()
@@ -200,9 +224,15 @@ class TestAudioDatasets:
             data[signal] = []
             for n in range(num_examples):
                 if num_channels == 1:
-                    random_signal = _rng.uniform(low=-0.5, high=0.5, size=(data_duration_samples[n]))
+                    random_signal = _rng.uniform(
+                        low=-0.5, high=0.5, size=(data_duration_samples[n])
+                    )
                 else:
-                    random_signal = _rng.uniform(low=-0.5, high=0.5, size=(num_channels, data_duration_samples[n]))
+                    random_signal = _rng.uniform(
+                        low=-0.5,
+                        high=0.5,
+                        size=(num_channels, data_duration_samples[n]),
+                    )
                 data[signal].append(random_signal)
 
         with tempfile.TemporaryDirectory() as test_dir:
@@ -216,57 +246,65 @@ class TestAudioDatasets:
 
                 for signal in data:
                     # filenames
-                    signal_filename = f'{signal}_{n:02d}.wav'
+                    signal_filename = f"{signal}_{n:02d}.wav"
 
                     # write audio files
-                    sf.write(os.path.join(test_dir, signal_filename), data[signal][n].T, sample_rate, 'float')
+                    sf.write(
+                        os.path.join(test_dir, signal_filename),
+                        data[signal][n].T,
+                        sample_rate,
+                        "float",
+                    )
 
                     # update metadata
                     meta[data_key[signal]] = signal_filename
 
-                meta['duration'] = data_duration[n]
+                meta["duration"] = data_duration[n]
                 metadata.append(meta)
 
             # Save manifest
-            manifest_filepath = os.path.join(test_dir, 'manifest.json')
+            manifest_filepath = os.path.join(test_dir, "manifest.json")
             write_manifest(manifest_filepath, metadata)
 
             # Test 1
             # - No constraints on channels or duration
             dataset = AudioToTargetDataset(
                 manifest_filepath=manifest_filepath,
-                input_key=data_key['input_signal'],
-                target_key=data_key['target_signal'],
+                input_key=data_key["input_signal"],
+                target_key=data_key["target_signal"],
                 sample_rate=sample_rate,
             )
 
             # Also test the corresponding factory
             config = {
-                'manifest_filepath': manifest_filepath,
-                'input_key': data_key['input_signal'],
-                'target_key': data_key['target_signal'],
-                'sample_rate': sample_rate,
+                "manifest_filepath": manifest_filepath,
+                "input_key": data_key["input_signal"],
+                "target_key": data_key["target_signal"],
+                "sample_rate": sample_rate,
             }
             dataset_factory = audio_to_audio_dataset.get_audio_to_target_dataset(config)
 
             # Prepare lhotse manifest
-            cuts_path = manifest_filepath.replace('.json', '_cuts.jsonl')
+            cuts_path = manifest_filepath.replace(".json", "_cuts.jsonl")
             convert_manifest_nemo_to_lhotse(
                 input_manifest=manifest_filepath,
                 output_manifest=cuts_path,
-                input_key=data_key['input_signal'],
-                target_key=data_key['target_signal'],
+                input_key=data_key["input_signal"],
+                target_key=data_key["target_signal"],
             )
 
             # Prepare lhotse dataset
             config_lhotse = {
-                'cuts_path': cuts_path,
-                'use_lhotse': True,
-                'sample_rate': sample_rate,
-                'batch_size': 1,
+                "cuts_path": cuts_path,
+                "use_lhotse": True,
+                "sample_rate": sample_rate,
+                "batch_size": 1,
             }
             dl_lhotse = get_lhotse_dataloader_from_config(
-                OmegaConf.create(config_lhotse), global_rank=0, world_size=1, dataset=LhotseAudioToTargetDataset()
+                OmegaConf.create(config_lhotse),
+                global_rank=0,
+                world_size=1,
+                dataset=LhotseAudioToTargetDataset(),
             )
             dataset_lhotse = [item for item in dl_lhotse]
 
@@ -274,10 +312,10 @@ class TestAudioDatasets:
             for signal in data:
                 assert data_num_channels[signal] == dataset.num_channels(
                     signal
-                ), f'Num channels not correct for signal {signal}'
+                ), f"Num channels not correct for signal {signal}"
                 assert data_num_channels[signal] == dataset_factory.num_channels(
                     signal
-                ), f'Num channels not correct for signal {signal}'
+                ), f"Num channels not correct for signal {signal}"
 
             # Test returned examples
             for n in range(num_examples):
@@ -286,20 +324,22 @@ class TestAudioDatasets:
 
                     for use_lhotse in [False, True]:
                         item_signal = (
-                            dataset_lhotse[n][signal].squeeze(0) if use_lhotse else dataset.__getitem__(n)[signal]
+                            dataset_lhotse[n][signal].squeeze(0)
+                            if use_lhotse
+                            else dataset.__getitem__(n)[signal]
                         )
                         item_factory_signal = dataset_factory.__getitem__(n)[signal]
 
                         assert (
                             item_signal.shape == golden_signal.shape
-                        ), f'Test 1, use_lhotse={use_lhotse}: Signal {signal} item shape {item_signal.shape} not matching reference shape {golden_signal.shape}'
+                        ), f"Test 1, use_lhotse={use_lhotse}: Signal {signal} item shape {item_signal.shape} not matching reference shape {golden_signal.shape}"
                         assert np.allclose(
                             item_signal, golden_signal, atol=atol
-                        ), f'Test 1, use_lhotse={use_lhotse}: Failed for example {n}, signal {signal} (random seed {random_seed})'
+                        ), f"Test 1, use_lhotse={use_lhotse}: Failed for example {n}, signal {signal} (random seed {random_seed})"
 
                         assert np.allclose(
                             item_factory_signal, golden_signal, atol=atol
-                        ), f'Test 1, use_lhotse={use_lhotse}: Failed for factory example {n}, signal {signal} (random seed {random_seed})'
+                        ), f"Test 1, use_lhotse={use_lhotse}: Failed for factory example {n}, signal {signal} (random seed {random_seed})"
 
             # Test 2
             # - Filtering based on signal duration
@@ -308,8 +348,8 @@ class TestAudioDatasets:
 
             dataset = AudioToTargetDataset(
                 manifest_filepath=manifest_filepath,
-                input_key=data_key['input_signal'],
-                target_key=data_key['target_signal'],
+                input_key=data_key["input_signal"],
+                target_key=data_key["target_signal"],
                 min_duration=min_duration,
                 max_duration=max_duration,
                 sample_rate=sample_rate,
@@ -317,48 +357,57 @@ class TestAudioDatasets:
 
             # Prepare lhotse dataset
             config_lhotse = {
-                'cuts_path': cuts_path,
-                'use_lhotse': True,
-                'min_duration': min_duration,
-                'max_duration': max_duration,
-                'sample_rate': sample_rate,
-                'batch_size': 1,
+                "cuts_path": cuts_path,
+                "use_lhotse": True,
+                "min_duration": min_duration,
+                "max_duration": max_duration,
+                "sample_rate": sample_rate,
+                "batch_size": 1,
             }
             dl_lhotse = get_lhotse_dataloader_from_config(
-                OmegaConf.create(config_lhotse), global_rank=0, world_size=1, dataset=LhotseAudioToTargetDataset()
+                OmegaConf.create(config_lhotse),
+                global_rank=0,
+                world_size=1,
+                dataset=LhotseAudioToTargetDataset(),
             )
             dataset_lhotse = [item for item in dl_lhotse]
 
-            filtered_examples = [n for n, val in enumerate(data_duration) if min_duration <= val <= max_duration]
+            filtered_examples = [
+                n
+                for n, val in enumerate(data_duration)
+                if min_duration <= val <= max_duration
+            ]
 
             for n in range(len(dataset)):
                 for use_lhotse in [False, True]:
                     for signal in data:
                         item_signal = (
-                            dataset_lhotse[n][signal].squeeze(0) if use_lhotse else dataset.__getitem__(n)[signal]
+                            dataset_lhotse[n][signal].squeeze(0)
+                            if use_lhotse
+                            else dataset.__getitem__(n)[signal]
                         )
                         golden_signal = data[signal][filtered_examples[n]]
                         assert (
                             item_signal.shape == golden_signal.shape
-                        ), f'Test 2, use_lhotse={use_lhotse}: Signal {signal} item shape {item_signal.shape} not matching reference shape {golden_signal.shape}'
+                        ), f"Test 2, use_lhotse={use_lhotse}: Signal {signal} item shape {item_signal.shape} not matching reference shape {golden_signal.shape}"
 
                         assert np.allclose(
                             item_signal, golden_signal, atol=atol
-                        ), f'Test 2, use_lhotse={use_lhotse}: Failed for example {n}, signal {signal} (random seed {random_seed})'
+                        ), f"Test 2, use_lhotse={use_lhotse}: Failed for example {n}, signal {signal} (random seed {random_seed})"
 
             # Test 3
             # - Use channel selector
             channel_selector = {
-                'input_signal': [0, 2],
-                'target_signal': 1,
+                "input_signal": [0, 2],
+                "target_signal": 1,
             }
 
             dataset = AudioToTargetDataset(
                 manifest_filepath=manifest_filepath,
-                input_key=data_key['input_signal'],
-                target_key=data_key['target_signal'],
-                input_channel_selector=channel_selector['input_signal'],
-                target_channel_selector=channel_selector['target_signal'],
+                input_key=data_key["input_signal"],
+                target_key=data_key["target_signal"],
+                input_channel_selector=channel_selector["input_signal"],
+                target_channel_selector=channel_selector["target_signal"],
                 sample_rate=sample_rate,
             )
 
@@ -371,25 +420,27 @@ class TestAudioDatasets:
                     golden_signal = data[signal][n][cs, ...]
                     assert (
                         item_signal.shape == golden_signal.shape
-                    ), f'Signal {signal}: item shape {item_signal.shape} not matching reference shape {golden_signal.shape}'
+                    ), f"Signal {signal}: item shape {item_signal.shape} not matching reference shape {golden_signal.shape}"
                     assert np.allclose(
                         item_signal, golden_signal, atol=atol
-                    ), f'Test 3: Failed for example {n}, signal {signal} (random seed {random_seed})'
+                    ), f"Test 3: Failed for example {n}, signal {signal} (random seed {random_seed})"
 
             # Test 4
             # - Use fixed duration (random segment selection)
             audio_duration = 4.0
             audio_duration_samples = int(np.floor(audio_duration * sample_rate))
 
-            filtered_examples = [n for n, val in enumerate(data_duration) if val >= audio_duration]
+            filtered_examples = [
+                n for n, val in enumerate(data_duration) if val >= audio_duration
+            ]
 
             for random_offset in [True, False]:
                 # Test subsegments with the default fixed offset and a random offset
 
                 dataset = AudioToTargetDataset(
                     manifest_filepath=manifest_filepath,
-                    input_key=data_key['input_signal'],
-                    target_key=data_key['target_signal'],
+                    input_key=data_key["input_signal"],
+                    target_key=data_key["target_signal"],
                     sample_rate=sample_rate,
                     min_duration=audio_duration,
                     audio_duration=audio_duration,
@@ -398,53 +449,63 @@ class TestAudioDatasets:
 
                 # Prepare lhotse dataset
                 config_lhotse = {
-                    'cuts_path': cuts_path,
-                    'use_lhotse': True,
-                    'min_duration': audio_duration,
-                    'truncate_duration': audio_duration,
-                    'truncate_offset_type': 'random' if random_offset else 'start',
-                    'sample_rate': sample_rate,
-                    'batch_size': 1,
+                    "cuts_path": cuts_path,
+                    "use_lhotse": True,
+                    "min_duration": audio_duration,
+                    "truncate_duration": audio_duration,
+                    "truncate_offset_type": "random" if random_offset else "start",
+                    "sample_rate": sample_rate,
+                    "batch_size": 1,
                 }
                 dl_lhotse = get_lhotse_dataloader_from_config(
-                    OmegaConf.create(config_lhotse), global_rank=0, world_size=1, dataset=LhotseAudioToTargetDataset()
+                    OmegaConf.create(config_lhotse),
+                    global_rank=0,
+                    world_size=1,
+                    dataset=LhotseAudioToTargetDataset(),
                 )
                 dataset_lhotse = [item for item in dl_lhotse]
 
                 for n in range(len(dataset)):
                     for use_lhotse in [False, True]:
-                        item = dataset_lhotse[n] if use_lhotse else dataset.__getitem__(n)
+                        item = (
+                            dataset_lhotse[n] if use_lhotse else dataset.__getitem__(n)
+                        )
                         golden_start = golden_end = None
                         for signal in data:
-                            item_signal = item[signal].squeeze(0) if use_lhotse else item[signal]
+                            item_signal = (
+                                item[signal].squeeze(0) if use_lhotse else item[signal]
+                            )
                             full_golden_signal = data[signal][filtered_examples[n]]
 
                             # Find random segment using correlation on the first channel
                             # of the first signal, and then use it fixed for other signals
                             if golden_start is None:
                                 golden_start = get_segment_start(
-                                    signal=full_golden_signal[0, :], segment=item_signal[0, :]
+                                    signal=full_golden_signal[0, :],
+                                    segment=item_signal[0, :],
                                 )
                                 if not random_offset:
                                     assert (
                                         golden_start == 0
-                                    ), f'Test 4, use_lhotse={use_lhotse}: Expecting the signal to start at 0 when random_offset is False'
+                                    ), f"Test 4, use_lhotse={use_lhotse}: Expecting the signal to start at 0 when random_offset is False"
 
                                 golden_end = golden_start + audio_duration_samples
-                            golden_signal = full_golden_signal[..., golden_start:golden_end]
+                            golden_signal = full_golden_signal[
+                                ..., golden_start:golden_end
+                            ]
 
                             # Test length is correct
                             assert (
                                 item_signal.shape[-1] == audio_duration_samples
-                            ), f'Test 4, use_lhotse={use_lhotse}: Signal length ({item_signal.shape[-1]}) not matching the expected length ({audio_duration_samples})'
+                            ), f"Test 4, use_lhotse={use_lhotse}: Signal length ({item_signal.shape[-1]}) not matching the expected length ({audio_duration_samples})"
 
                             assert (
                                 item_signal.shape == golden_signal.shape
-                            ), f'Test 4, use_lhotse={use_lhotse}: Signal {signal} item shape {item_signal.shape} not matching reference shape {golden_signal.shape}'
+                            ), f"Test 4, use_lhotse={use_lhotse}: Signal {signal} item shape {item_signal.shape} not matching reference shape {golden_signal.shape}"
                             # Test signal values
                             assert np.allclose(
                                 item_signal, golden_signal, atol=atol
-                            ), f'Test 4, use_lhotse={use_lhotse}: Failed for example {n}, signal {signal} (random seed {random_seed})'
+                            ), f"Test 4, use_lhotse={use_lhotse}: Failed for example {n}, signal {signal} (random seed {random_seed})"
 
             # Test 5:
             # - Test collate_fn
@@ -453,7 +514,7 @@ class TestAudioDatasets:
             for use_lhotse in [False, True]:
                 if use_lhotse:
                     # Get batch from lhotse dataloader
-                    config_lhotse['batch_size'] = batch_size
+                    config_lhotse["batch_size"] = batch_size
                     dl_lhotse = get_lhotse_dataloader_from_config(
                         OmegaConf.create(config_lhotse),
                         global_rank=0,
@@ -468,7 +529,7 @@ class TestAudioDatasets:
 
                 # Test all shapes and lengths
                 for n, signal in enumerate(data.keys()):
-                    length = signal.replace('_signal', '_length')
+                    length = signal.replace("_signal", "_length")
 
                     if isinstance(batched, dict):
                         signal_shape = batched[signal].shape
@@ -481,13 +542,13 @@ class TestAudioDatasets:
                         batch_size,
                         data_num_channels[signal],
                         audio_duration_samples,
-                    ), f'Test 5, use_lhotse={use_lhotse}: Unexpected signal {signal} shape {signal_shape}'
+                    ), f"Test 5, use_lhotse={use_lhotse}: Unexpected signal {signal} shape {signal_shape}"
                     assert (
                         len(signal_len) == batch_size
-                    ), f'Test 5, use_lhotse={use_lhotse}: Unexpected length of signal_len ({len(signal_len)})'
+                    ), f"Test 5, use_lhotse={use_lhotse}: Unexpected length of signal_len ({len(signal_len)})"
                     assert all(
                         signal_len == audio_duration_samples
-                    ), f'Test 5, use_lhotse={use_lhotse}: Unexpected signal_len {signal_len}'
+                    ), f"Test 5, use_lhotse={use_lhotse}: Unexpected signal_len {signal_len}"
 
     @pytest.mark.unit
     def test_audio_to_target_dataset_with_target_list(self):
@@ -508,14 +569,14 @@ class TestAudioDatasets:
         sample_rate = 16000
         num_examples = 25
         data_num_channels = {
-            'input_signal': 4,
-            'target_signal': 2,
+            "input_signal": 4,
+            "target_signal": 2,
         }
         data_min_duration = 2.0
         data_max_duration = 8.0
         data_key = {
-            'input_signal': 'input_filepath',
-            'target_signal': 'target_filepath',
+            "input_signal": "input_filepath",
+            "target_signal": "target_filepath",
         }
 
         # Tolerance
@@ -525,7 +586,12 @@ class TestAudioDatasets:
         _rng = np.random.default_rng(seed=random_seed)
 
         # Input and target signals have the same duration
-        data_duration = np.round(_rng.uniform(low=data_min_duration, high=data_max_duration, size=num_examples), 3)
+        data_duration = np.round(
+            _rng.uniform(
+                low=data_min_duration, high=data_max_duration, size=num_examples
+            ),
+            3,
+        )
         data_duration_samples = np.floor(data_duration * sample_rate).astype(int)
 
         data = dict()
@@ -533,9 +599,15 @@ class TestAudioDatasets:
             data[signal] = []
             for n in range(num_examples):
                 if num_channels == 1:
-                    random_signal = _rng.uniform(low=-0.5, high=0.5, size=(data_duration_samples[n]))
+                    random_signal = _rng.uniform(
+                        low=-0.5, high=0.5, size=(data_duration_samples[n])
+                    )
                 else:
-                    random_signal = _rng.uniform(low=-0.5, high=0.5, size=(num_channels, data_duration_samples[n]))
+                    random_signal = _rng.uniform(
+                        low=-0.5,
+                        high=0.5,
+                        size=(num_channels, data_duration_samples[n]),
+                    )
                 data[signal].append(random_signal)
 
         with tempfile.TemporaryDirectory() as test_dir:
@@ -548,71 +620,79 @@ class TestAudioDatasets:
                 meta = dict()
 
                 for signal in data:
-                    if signal == 'target_signal':
+                    if signal == "target_signal":
                         # Save targets as individual files
                         signal_filename = []
                         for ch in range(data_num_channels[signal]):
                             # add current filename
-                            signal_filename.append(f'{signal}_{n:02d}_ch_{ch}.wav')
+                            signal_filename.append(f"{signal}_{n:02d}_ch_{ch}.wav")
                             # write audio file
                             sf.write(
                                 os.path.join(test_dir, signal_filename[-1]),
                                 data[signal][n][ch, :],
                                 sample_rate,
-                                'float',
+                                "float",
                             )
                     else:
                         # single file
-                        signal_filename = f'{signal}_{n:02d}.wav'
+                        signal_filename = f"{signal}_{n:02d}.wav"
 
                         # write audio files
-                        sf.write(os.path.join(test_dir, signal_filename), data[signal][n].T, sample_rate, 'float')
+                        sf.write(
+                            os.path.join(test_dir, signal_filename),
+                            data[signal][n].T,
+                            sample_rate,
+                            "float",
+                        )
 
                     # update metadata
                     meta[data_key[signal]] = signal_filename
 
-                meta['duration'] = data_duration[n]
+                meta["duration"] = data_duration[n]
                 metadata.append(meta)
 
             # Save manifest
-            manifest_filepath = os.path.join(test_dir, 'manifest.json')
+            manifest_filepath = os.path.join(test_dir, "manifest.json")
             write_manifest(manifest_filepath, metadata)
 
             # Test 1
             # - No constraints on channels or duration
             dataset = AudioToTargetDataset(
                 manifest_filepath=manifest_filepath,
-                input_key=data_key['input_signal'],
-                target_key=data_key['target_signal'],
+                input_key=data_key["input_signal"],
+                target_key=data_key["target_signal"],
                 sample_rate=sample_rate,
             )
 
             config = {
-                'manifest_filepath': manifest_filepath,
-                'input_key': data_key['input_signal'],
-                'target_key': data_key['target_signal'],
-                'sample_rate': sample_rate,
+                "manifest_filepath": manifest_filepath,
+                "input_key": data_key["input_signal"],
+                "target_key": data_key["target_signal"],
+                "sample_rate": sample_rate,
             }
             dataset_factory = audio_to_audio_dataset.get_audio_to_target_dataset(config)
 
             # Prepare lhotse manifest
-            cuts_path = manifest_filepath.replace('.json', '_cuts.jsonl')
+            cuts_path = manifest_filepath.replace(".json", "_cuts.jsonl")
             convert_manifest_nemo_to_lhotse(
                 input_manifest=manifest_filepath,
                 output_manifest=cuts_path,
-                input_key=data_key['input_signal'],
-                target_key=data_key['target_signal'],
+                input_key=data_key["input_signal"],
+                target_key=data_key["target_signal"],
             )
 
             # Prepare lhotse dataset
             config_lhotse = {
-                'cuts_path': cuts_path,
-                'use_lhotse': True,
-                'sample_rate': sample_rate,
-                'batch_size': 1,
+                "cuts_path": cuts_path,
+                "use_lhotse": True,
+                "sample_rate": sample_rate,
+                "batch_size": 1,
             }
             dl_lhotse = get_lhotse_dataloader_from_config(
-                OmegaConf.create(config_lhotse), global_rank=0, world_size=1, dataset=LhotseAudioToTargetDataset()
+                OmegaConf.create(config_lhotse),
+                global_rank=0,
+                world_size=1,
+                dataset=LhotseAudioToTargetDataset(),
             )
             dataset_lhotse = [item for item in dl_lhotse]
 
@@ -621,18 +701,20 @@ class TestAudioDatasets:
                     item = dataset_lhotse[n] if use_lhotse else dataset.__getitem__(n)
                     item_factory = dataset_factory.__getitem__(n)
                     for signal in data:
-                        item_signal = item[signal].squeeze(0) if use_lhotse else item[signal]
+                        item_signal = (
+                            item[signal].squeeze(0) if use_lhotse else item[signal]
+                        )
                         golden_signal = data[signal][n]
                         assert (
                             item_signal.shape == golden_signal.shape
-                        ), f'Test 1, use_lhotse={use_lhotse}: Signal {signal} item shape {item_signal.shape} not matching reference shape {golden_signal.shape}'
+                        ), f"Test 1, use_lhotse={use_lhotse}: Signal {signal} item shape {item_signal.shape} not matching reference shape {golden_signal.shape}"
                         assert np.allclose(
                             item_signal, golden_signal, atol=atol
-                        ), f'Test 1, use_lhotse={use_lhotse}: Failed for example {n}, signal {signal} (random seed {random_seed})'
+                        ), f"Test 1, use_lhotse={use_lhotse}: Failed for example {n}, signal {signal} (random seed {random_seed})"
 
                         assert np.allclose(
                             item_factory[signal], golden_signal, atol=atol
-                        ), f'Test 1, use_lhotse={use_lhotse}: Failed for factory example {n}, signal {signal} (random seed {random_seed})'
+                        ), f"Test 1, use_lhotse={use_lhotse}: Failed for factory example {n}, signal {signal} (random seed {random_seed})"
 
             # Test 2
             # Set target as the first channel of input_filepath and all files listed in target_filepath.
@@ -640,8 +722,8 @@ class TestAudioDatasets:
             # Note: this is currently not supported by lhotse, so we only test the default dataset here.
             dataset = AudioToTargetDataset(
                 manifest_filepath=manifest_filepath,
-                input_key=data_key['input_signal'],
-                target_key=[data_key['input_signal'], data_key['target_signal']],
+                input_key=data_key["input_signal"],
+                target_key=[data_key["input_signal"], data_key["target_signal"]],
                 target_channel_selector=0,
                 sample_rate=sample_rate,
             )
@@ -652,15 +734,17 @@ class TestAudioDatasets:
                 for signal in data:
                     item_signal = item[signal].cpu().detach().numpy()
                     golden_signal = data[signal][n]
-                    if signal == 'target_signal':
+                    if signal == "target_signal":
                         # add the first channel of the input
-                        golden_signal = np.concatenate([data['input_signal'][n][0:1, ...], golden_signal], axis=0)
+                        golden_signal = np.concatenate(
+                            [data["input_signal"][n][0:1, ...], golden_signal], axis=0
+                        )
                     assert (
                         item_signal.shape == golden_signal.shape
-                    ), f'Signal {signal}: item shape {item_signal.shape} not matching reference shape {golden_signal.shape}'
+                    ), f"Signal {signal}: item shape {item_signal.shape} not matching reference shape {golden_signal.shape}"
                     assert np.allclose(
                         item_signal, golden_signal, atol=atol
-                    ), f'Test 2: Failed for example {n}, signal {signal} (random seed {random_seed})'
+                    ), f"Test 2: Failed for example {n}, signal {signal} (random seed {random_seed})"
 
     @pytest.mark.unit
     def test_audio_to_target_dataset_for_inference(self):
@@ -681,12 +765,12 @@ class TestAudioDatasets:
         sample_rate = 16000
         num_examples = 25
         data_num_channels = {
-            'input_signal': 4,
+            "input_signal": 4,
         }
         data_min_duration = 2.0
         data_max_duration = 8.0
         data_key = {
-            'input_signal': 'input_filepath',
+            "input_signal": "input_filepath",
         }
 
         # Tolerance
@@ -696,7 +780,12 @@ class TestAudioDatasets:
         _rng = np.random.default_rng(seed=random_seed)
 
         # Input and target signals have the same duration
-        data_duration = np.round(_rng.uniform(low=data_min_duration, high=data_max_duration, size=num_examples), 3)
+        data_duration = np.round(
+            _rng.uniform(
+                low=data_min_duration, high=data_max_duration, size=num_examples
+            ),
+            3,
+        )
         data_duration_samples = np.floor(data_duration * sample_rate).astype(int)
 
         data = dict()
@@ -704,9 +793,15 @@ class TestAudioDatasets:
             data[signal] = []
             for n in range(num_examples):
                 if num_channels == 1:
-                    random_signal = _rng.uniform(low=-0.5, high=0.5, size=(data_duration_samples[n]))
+                    random_signal = _rng.uniform(
+                        low=-0.5, high=0.5, size=(data_duration_samples[n])
+                    )
                 else:
-                    random_signal = _rng.uniform(low=-0.5, high=0.5, size=(num_channels, data_duration_samples[n]))
+                    random_signal = _rng.uniform(
+                        low=-0.5,
+                        high=0.5,
+                        size=(num_channels, data_duration_samples[n]),
+                    )
                 data[signal].append(random_signal)
 
         with tempfile.TemporaryDirectory() as test_dir:
@@ -716,85 +811,99 @@ class TestAudioDatasets:
                 meta = dict()
                 for signal in data:
                     # filenames
-                    signal_filename = f'{signal}_{n:02d}.wav'
+                    signal_filename = f"{signal}_{n:02d}.wav"
                     # write audio files
-                    sf.write(os.path.join(test_dir, signal_filename), data[signal][n].T, sample_rate, 'float')
+                    sf.write(
+                        os.path.join(test_dir, signal_filename),
+                        data[signal][n].T,
+                        sample_rate,
+                        "float",
+                    )
                     # update metadata
                     meta[data_key[signal]] = signal_filename
-                meta['duration'] = data_duration[n]
+                meta["duration"] = data_duration[n]
                 metadata.append(meta)
 
             # Save manifest
-            manifest_filepath = os.path.join(test_dir, 'manifest.json')
+            manifest_filepath = os.path.join(test_dir, "manifest.json")
             write_manifest(manifest_filepath, metadata)
 
             # Test 1
             # - No constraints on channels or duration
             dataset = AudioToTargetDataset(
                 manifest_filepath=manifest_filepath,
-                input_key=data_key['input_signal'],
+                input_key=data_key["input_signal"],
                 target_key=None,  # target_signal will be empty
                 sample_rate=sample_rate,
             )
 
             # Also test the corresponding factory
             config = {
-                'manifest_filepath': manifest_filepath,
-                'input_key': data_key['input_signal'],
-                'target_key': None,
-                'sample_rate': sample_rate,
+                "manifest_filepath": manifest_filepath,
+                "input_key": data_key["input_signal"],
+                "target_key": None,
+                "sample_rate": sample_rate,
             }
             dataset_factory = audio_to_audio_dataset.get_audio_to_target_dataset(config)
 
             # Prepare lhotse manifest
-            cuts_path = manifest_filepath.replace('.json', '_cuts.jsonl')
+            cuts_path = manifest_filepath.replace(".json", "_cuts.jsonl")
             convert_manifest_nemo_to_lhotse(
                 input_manifest=manifest_filepath,
                 output_manifest=cuts_path,
-                input_key=data_key['input_signal'],
+                input_key=data_key["input_signal"],
                 target_key=None,
             )
 
             # Prepare lhotse dataset
             config_lhotse = {
-                'cuts_path': cuts_path,
-                'use_lhotse': True,
-                'sample_rate': sample_rate,
-                'batch_size': 1,
+                "cuts_path": cuts_path,
+                "use_lhotse": True,
+                "sample_rate": sample_rate,
+                "batch_size": 1,
             }
             dl_lhotse = get_lhotse_dataloader_from_config(
-                OmegaConf.create(config_lhotse), global_rank=0, world_size=1, dataset=LhotseAudioToTargetDataset()
+                OmegaConf.create(config_lhotse),
+                global_rank=0,
+                world_size=1,
+                dataset=LhotseAudioToTargetDataset(),
             )
             dataset_lhotse = [item for item in dl_lhotse]
 
             for n in range(num_examples):
 
-                for label in ['original', 'factory', 'lhotse']:
+                for label in ["original", "factory", "lhotse"]:
 
-                    if label == 'original':
+                    if label == "original":
                         item = dataset.__getitem__(n)
-                    elif label == 'factory':
+                    elif label == "factory":
                         item = dataset_factory.__getitem__(n)
-                    elif label == 'lhotse':
+                    elif label == "lhotse":
                         item = dataset_lhotse[n]
                     else:
-                        raise ValueError(f'Unknown label {label}')
+                        raise ValueError(f"Unknown label {label}")
 
                     # Check target is None
-                    if 'target_signal' in item:
-                        assert item['target_signal'].numel() == 0, f'{label}: target_signal is expected to be empty.'
+                    if "target_signal" in item:
+                        assert (
+                            item["target_signal"].numel() == 0
+                        ), f"{label}: target_signal is expected to be empty."
 
                     # Check valid signals
                     for signal in data:
 
-                        item_signal = item[signal].squeeze(0) if label == 'lhotse' else item[signal]
+                        item_signal = (
+                            item[signal].squeeze(0)
+                            if label == "lhotse"
+                            else item[signal]
+                        )
                         golden_signal = data[signal][n]
                         assert (
                             item_signal.shape == golden_signal.shape
-                        ), f'{label} -- Signal {signal}: item shape {item_signal.shape} not matching reference shape {golden_signal.shape}'
+                        ), f"{label} -- Signal {signal}: item shape {item_signal.shape} not matching reference shape {golden_signal.shape}"
                         assert np.allclose(
                             item_signal, golden_signal, atol=atol
-                        ), f'{label} -- Test 1: Failed for example {n}, signal {signal} (random seed {random_seed})'
+                        ), f"{label} -- Test 1: Failed for example {n}, signal {signal} (random seed {random_seed})"
 
     @pytest.mark.unit
     def test_audio_to_target_with_reference_dataset(self):
@@ -818,16 +927,16 @@ class TestAudioDatasets:
         sample_rate = 16000
         num_examples = 25
         data_num_channels = {
-            'input_signal': 4,
-            'target_signal': 2,
-            'reference_signal': 1,
+            "input_signal": 4,
+            "target_signal": 2,
+            "reference_signal": 1,
         }
         data_min_duration = 2.0
         data_max_duration = 8.0
         data_key = {
-            'input_signal': 'input_filepath',
-            'target_signal': 'target_filepath',
-            'reference_signal': 'reference_filepath',
+            "input_signal": "input_filepath",
+            "target_signal": "target_filepath",
+            "reference_signal": "reference_filepath",
         }
 
         # Tolerance
@@ -837,7 +946,12 @@ class TestAudioDatasets:
         _rng = np.random.default_rng(seed=random_seed)
 
         # Input and target signals have the same duration
-        data_duration = np.round(_rng.uniform(low=data_min_duration, high=data_max_duration, size=num_examples), 3)
+        data_duration = np.round(
+            _rng.uniform(
+                low=data_min_duration, high=data_max_duration, size=num_examples
+            ),
+            3,
+        )
         data_duration_samples = np.floor(data_duration * sample_rate).astype(int)
 
         data = dict()
@@ -845,9 +959,15 @@ class TestAudioDatasets:
             data[signal] = []
             for n in range(num_examples):
                 if num_channels == 1:
-                    random_signal = _rng.uniform(low=-0.5, high=0.5, size=(data_duration_samples[n]))
+                    random_signal = _rng.uniform(
+                        low=-0.5, high=0.5, size=(data_duration_samples[n])
+                    )
                 else:
-                    random_signal = _rng.uniform(low=-0.5, high=0.5, size=(num_channels, data_duration_samples[n]))
+                    random_signal = _rng.uniform(
+                        low=-0.5,
+                        high=0.5,
+                        size=(num_channels, data_duration_samples[n]),
+                    )
                 data[signal].append(random_signal)
 
         with tempfile.TemporaryDirectory() as test_dir:
@@ -861,19 +981,24 @@ class TestAudioDatasets:
 
                 for signal in data:
                     # filenames
-                    signal_filename = f'{signal}_{n:02d}.wav'
+                    signal_filename = f"{signal}_{n:02d}.wav"
 
                     # write audio files
-                    sf.write(os.path.join(test_dir, signal_filename), data[signal][n].T, sample_rate, 'float')
+                    sf.write(
+                        os.path.join(test_dir, signal_filename),
+                        data[signal][n].T,
+                        sample_rate,
+                        "float",
+                    )
 
                     # update metadata
                     meta[data_key[signal]] = signal_filename
 
-                meta['duration'] = data_duration[n]
+                meta["duration"] = data_duration[n]
                 metadata.append(meta)
 
             # Save manifest
-            manifest_filepath = os.path.join(test_dir, 'manifest.json')
+            manifest_filepath = os.path.join(test_dir, "manifest.json")
             write_manifest(manifest_filepath, metadata)
 
             # Test 1
@@ -881,23 +1006,27 @@ class TestAudioDatasets:
             # - Reference is not synchronized with input and target, so whole reference signal will be loaded
             dataset = AudioToTargetWithReferenceDataset(
                 manifest_filepath=manifest_filepath,
-                input_key=data_key['input_signal'],
-                target_key=data_key['target_signal'],
-                reference_key=data_key['reference_signal'],
+                input_key=data_key["input_signal"],
+                target_key=data_key["target_signal"],
+                reference_key=data_key["reference_signal"],
                 reference_is_synchronized=False,
                 sample_rate=sample_rate,
             )
 
             # Also test the corresponding factory
             config = {
-                'manifest_filepath': manifest_filepath,
-                'input_key': data_key['input_signal'],
-                'target_key': data_key['target_signal'],
-                'reference_key': data_key['reference_signal'],
-                'reference_is_synchronized': False,
-                'sample_rate': sample_rate,
+                "manifest_filepath": manifest_filepath,
+                "input_key": data_key["input_signal"],
+                "target_key": data_key["target_signal"],
+                "reference_key": data_key["reference_signal"],
+                "reference_is_synchronized": False,
+                "sample_rate": sample_rate,
             }
-            dataset_factory = audio_to_audio_dataset.get_audio_to_target_with_reference_dataset(config)
+            dataset_factory = (
+                audio_to_audio_dataset.get_audio_to_target_with_reference_dataset(
+                    config
+                )
+            )
 
             for n in range(num_examples):
                 item = dataset.__getitem__(n)
@@ -908,15 +1037,15 @@ class TestAudioDatasets:
                     golden_signal = data[signal][n]
                     assert (
                         item_signal.shape == golden_signal.shape
-                    ), f'Signal {signal}: item shape {item_signal.shape} not matching reference shape {golden_signal.shape}'
+                    ), f"Signal {signal}: item shape {item_signal.shape} not matching reference shape {golden_signal.shape}"
                     assert np.allclose(
                         item_signal, golden_signal, atol=atol
-                    ), f'Test 1: Failed for example {n}, signal {signal} (random seed {random_seed})'
+                    ), f"Test 1: Failed for example {n}, signal {signal} (random seed {random_seed})"
 
                     item_factory_signal = item_factory[signal].cpu().detach().numpy()
                     assert np.allclose(
                         item_factory_signal, golden_signal, atol=atol
-                    ), f'Test 1: Failed for factory example {n}, signal {signal} (random seed {random_seed})'
+                    ), f"Test 1: Failed for factory example {n}, signal {signal} (random seed {random_seed})"
 
             # Test 2
             # - Use fixed duration (random segment selection)
@@ -925,9 +1054,9 @@ class TestAudioDatasets:
             audio_duration_samples = int(np.floor(audio_duration * sample_rate))
             dataset = AudioToTargetWithReferenceDataset(
                 manifest_filepath=manifest_filepath,
-                input_key=data_key['input_signal'],
-                target_key=data_key['target_signal'],
-                reference_key=data_key['reference_signal'],
+                input_key=data_key["input_signal"],
+                target_key=data_key["target_signal"],
+                reference_key=data_key["reference_signal"],
                 reference_is_synchronized=True,
                 sample_rate=sample_rate,
                 min_duration=audio_duration,
@@ -935,7 +1064,9 @@ class TestAudioDatasets:
                 random_offset=True,
             )
 
-            filtered_examples = [n for n, val in enumerate(data_duration) if val >= audio_duration]
+            filtered_examples = [
+                n for n, val in enumerate(data_duration) if val >= audio_duration
+            ]
 
             for n in range(len(dataset)):
                 item = dataset.__getitem__(n)
@@ -948,19 +1079,21 @@ class TestAudioDatasets:
                     # Find random segment using correlation on the first channel
                     # of the first signal, and then use it fixed for other signals
                     if golden_start is None:
-                        golden_start = get_segment_start(signal=full_golden_signal[0, :], segment=item_signal[0, :])
+                        golden_start = get_segment_start(
+                            signal=full_golden_signal[0, :], segment=item_signal[0, :]
+                        )
                         golden_end = golden_start + audio_duration_samples
                     golden_signal = full_golden_signal[..., golden_start:golden_end]
 
                     # Test length is correct
                     assert (
                         item_signal.shape[-1] == audio_duration_samples
-                    ), f'Test 2: Signal {signal} length ({item_signal.shape[-1]}) not matching the expected length ({audio_duration_samples})'
+                    ), f"Test 2: Signal {signal} length ({item_signal.shape[-1]}) not matching the expected length ({audio_duration_samples})"
 
                     # Test signal values
                     assert np.allclose(
                         item_signal, golden_signal, atol=atol
-                    ), f'Test 2: Failed for example {n}, signal {signal} (random seed {random_seed})'
+                    ), f"Test 2: Failed for example {n}, signal {signal} (random seed {random_seed})"
 
             # Test 3
             # - Use fixed duration (random segment selection)
@@ -969,9 +1102,9 @@ class TestAudioDatasets:
             audio_duration_samples = int(np.floor(audio_duration * sample_rate))
             dataset = AudioToTargetWithReferenceDataset(
                 manifest_filepath=manifest_filepath,
-                input_key=data_key['input_signal'],
-                target_key=data_key['target_signal'],
-                reference_key=data_key['reference_signal'],
+                input_key=data_key["input_signal"],
+                target_key=data_key["target_signal"],
+                reference_key=data_key["reference_signal"],
                 reference_is_synchronized=False,
                 sample_rate=sample_rate,
                 min_duration=audio_duration,
@@ -979,7 +1112,9 @@ class TestAudioDatasets:
                 random_offset=True,
             )
 
-            filtered_examples = [n for n, val in enumerate(data_duration) if val >= audio_duration]
+            filtered_examples = [
+                n for n, val in enumerate(data_duration) if val >= audio_duration
+            ]
 
             for n in range(len(dataset)):
                 item = dataset.__getitem__(n)
@@ -989,7 +1124,7 @@ class TestAudioDatasets:
                     item_signal = item[signal].cpu().detach().numpy()
                     full_golden_signal = data[signal][filtered_examples[n]]
 
-                    if signal == 'reference_signal':
+                    if signal == "reference_signal":
                         # Complete signal is loaded for reference
                         golden_signal = full_golden_signal
                     else:
@@ -997,7 +1132,8 @@ class TestAudioDatasets:
                         # of the first signal, and then use it fixed for other signals
                         if golden_start is None:
                             golden_start = get_segment_start(
-                                signal=full_golden_signal[0, :], segment=item_signal[0, :]
+                                signal=full_golden_signal[0, :],
+                                segment=item_signal[0, :],
                             )
                             golden_end = golden_start + audio_duration_samples
                         golden_signal = full_golden_signal[..., golden_start:golden_end]
@@ -1005,14 +1141,14 @@ class TestAudioDatasets:
                         # Test length is correct
                         assert (
                             item_signal.shape[-1] == audio_duration_samples
-                        ), f'Test 3: Signal {signal} length ({item_signal.shape[-1]}) not matching the expected length ({audio_duration_samples})'
+                        ), f"Test 3: Signal {signal} length ({item_signal.shape[-1]}) not matching the expected length ({audio_duration_samples})"
                     assert (
                         item_signal.shape == golden_signal.shape
-                    ), f'Signal {signal}: item shape {item_signal.shape} not matching reference shape {golden_signal.shape}'
+                    ), f"Signal {signal}: item shape {item_signal.shape} not matching reference shape {golden_signal.shape}"
                     # Test signal values
                     assert np.allclose(
                         item_signal, golden_signal, atol=atol
-                    ), f'Test 3: Failed for example {n}, signal {signal} (random seed {random_seed})'
+                    ), f"Test 3: Failed for example {n}, signal {signal} (random seed {random_seed})"
 
             # Test 4:
             # - Test collate_fn
@@ -1039,17 +1175,17 @@ class TestAudioDatasets:
         sample_rate = 16000
         num_examples = 25
         data_num_channels = {
-            'input_signal': 4,
-            'target_signal': 2,
-            'embedding_vector': 1,
+            "input_signal": 4,
+            "target_signal": 2,
+            "embedding_vector": 1,
         }
         data_min_duration = 2.0
         data_max_duration = 8.0
         embedding_length = 64  # 64-dimensional embedding vector
         data_key = {
-            'input_signal': 'input_filepath',
-            'target_signal': 'target_filepath',
-            'embedding_vector': 'embedding_filepath',
+            "input_signal": "input_filepath",
+            "target_signal": "target_filepath",
+            "embedding_vector": "embedding_filepath",
         }
 
         # Tolerance
@@ -1059,19 +1195,30 @@ class TestAudioDatasets:
         _rng = np.random.default_rng(seed=random_seed)
 
         # Input and target signals have the same duration
-        data_duration = np.round(_rng.uniform(low=data_min_duration, high=data_max_duration, size=num_examples), 3)
+        data_duration = np.round(
+            _rng.uniform(
+                low=data_min_duration, high=data_max_duration, size=num_examples
+            ),
+            3,
+        )
         data_duration_samples = np.floor(data_duration * sample_rate).astype(int)
 
         data = dict()
         for signal, num_channels in data_num_channels.items():
             data[signal] = []
             for n in range(num_examples):
-                data_length = embedding_length if signal == 'embedding_vector' else data_duration_samples[n]
+                data_length = (
+                    embedding_length
+                    if signal == "embedding_vector"
+                    else data_duration_samples[n]
+                )
 
                 if num_channels == 1:
                     random_signal = _rng.uniform(low=-0.5, high=0.5, size=(data_length))
                 else:
-                    random_signal = _rng.uniform(low=-0.5, high=0.5, size=(num_channels, data_length))
+                    random_signal = _rng.uniform(
+                        low=-0.5, high=0.5, size=(num_channels, data_length)
+                    )
                 data[signal].append(random_signal)
 
         with tempfile.TemporaryDirectory() as test_dir:
@@ -1084,46 +1231,57 @@ class TestAudioDatasets:
                 meta = dict()
 
                 for signal in data:
-                    if signal == 'embedding_vector':
-                        signal_filename = f'{signal}_{n:02d}.npy'
-                        np.save(os.path.join(test_dir, signal_filename), data[signal][n])
+                    if signal == "embedding_vector":
+                        signal_filename = f"{signal}_{n:02d}.npy"
+                        np.save(
+                            os.path.join(test_dir, signal_filename), data[signal][n]
+                        )
 
                     else:
                         # filenames
-                        signal_filename = f'{signal}_{n:02d}.wav'
+                        signal_filename = f"{signal}_{n:02d}.wav"
 
                         # write audio files
-                        sf.write(os.path.join(test_dir, signal_filename), data[signal][n].T, sample_rate, 'float')
+                        sf.write(
+                            os.path.join(test_dir, signal_filename),
+                            data[signal][n].T,
+                            sample_rate,
+                            "float",
+                        )
 
                     # update metadata
                     meta[data_key[signal]] = signal_filename
 
-                meta['duration'] = data_duration[n]
+                meta["duration"] = data_duration[n]
                 metadata.append(meta)
 
             # Save manifest
-            manifest_filepath = os.path.join(test_dir, 'manifest.json')
+            manifest_filepath = os.path.join(test_dir, "manifest.json")
             write_manifest(manifest_filepath, metadata)
 
             # Test 1
             # - No constraints on channels or duration
             dataset = AudioToTargetWithEmbeddingDataset(
                 manifest_filepath=manifest_filepath,
-                input_key=data_key['input_signal'],
-                target_key=data_key['target_signal'],
-                embedding_key=data_key['embedding_vector'],
+                input_key=data_key["input_signal"],
+                target_key=data_key["target_signal"],
+                embedding_key=data_key["embedding_vector"],
                 sample_rate=sample_rate,
             )
 
             # Also test the corresponding factory
             config = {
-                'manifest_filepath': manifest_filepath,
-                'input_key': data_key['input_signal'],
-                'target_key': data_key['target_signal'],
-                'embedding_key': data_key['embedding_vector'],
-                'sample_rate': sample_rate,
+                "manifest_filepath": manifest_filepath,
+                "input_key": data_key["input_signal"],
+                "target_key": data_key["target_signal"],
+                "embedding_key": data_key["embedding_vector"],
+                "sample_rate": sample_rate,
             }
-            dataset_factory = audio_to_audio_dataset.get_audio_to_target_with_embedding_dataset(config)
+            dataset_factory = (
+                audio_to_audio_dataset.get_audio_to_target_with_embedding_dataset(
+                    config
+                )
+            )
 
             for n in range(num_examples):
                 item = dataset.__getitem__(n)
@@ -1134,15 +1292,15 @@ class TestAudioDatasets:
                     golden_signal = data[signal][n]
                     assert (
                         item_signal.shape == golden_signal.shape
-                    ), f'Signal {signal}: item shape {item_signal.shape} not matching reference shape {golden_signal.shape}'
+                    ), f"Signal {signal}: item shape {item_signal.shape} not matching reference shape {golden_signal.shape}"
                     assert np.allclose(
                         item_signal, golden_signal, atol=atol
-                    ), f'Test 1: Failed for example {n}, signal {signal} (random seed {random_seed})'
+                    ), f"Test 1: Failed for example {n}, signal {signal} (random seed {random_seed})"
 
                     item_factory_signal = item_factory[signal].cpu().detach().numpy()
                     assert np.allclose(
                         item_factory_signal, golden_signal, atol=atol
-                    ), f'Test 1: Failed for factory example {n}, signal {signal} (random seed {random_seed})'
+                    ), f"Test 1: Failed for factory example {n}, signal {signal} (random seed {random_seed})"
 
             # Test 2:
             # - Test collate_fn

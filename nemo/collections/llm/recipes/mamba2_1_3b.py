@@ -45,7 +45,7 @@ def tokenizer(tokenizer_model: str = None) -> run.Config[pl.LightningModule]:
     """
     return run.Config(
         get_nmt_tokenizer,
-        library='huggingface',
+        library="huggingface",
         model_name="EleutherAI/gpt-neox-20b",
         tokenizer_model=tokenizer_model,
         use_fast=True,
@@ -230,7 +230,9 @@ def pretrain_recipe(
             micro_batch_size=mbs,
             tokenizer=tokenizer(tokenizer_model=tokenizer_model),
         ),
-        log=default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
+        log=default_log(
+            dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)
+        ),
         optim=distributed_fused_adam_with_cosine_annealing(max_lr=3e-4),
         resume=default_resume(),
     )
@@ -254,7 +256,7 @@ def finetune_recipe(
     log_every_n_steps: int = 10,
     gbs: int = 8,
     mbs: int = 1,
-    peft_scheme: Optional[str] = 'none',
+    peft_scheme: Optional[str] = "none",
 ) -> run.Partial:
     """
     Create a fine-tuning recipe for Mamba2 1.3B model.
@@ -341,11 +343,15 @@ def finetune_recipe(
             micro_batch_size=mbs,
             tokenizer=tokenizer(tokenizer_model=tokenizer_model),
         ),
-        log=llm.default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
-        optim=distributed_fused_adam_with_cosine_annealing(max_lr=1e-4, min_lr=0, warmup_steps=50),
+        log=llm.default_log(
+            dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)
+        ),
+        optim=distributed_fused_adam_with_cosine_annealing(
+            max_lr=1e-4, min_lr=0, warmup_steps=50
+        ),
         resume=nemo_resume,
     )
-    if peft_scheme is None or peft_scheme.lower() == 'none':
+    if peft_scheme is None or peft_scheme.lower() == "none":
         recipe.trainer.strategy.tensor_model_parallel_size = 1
         recipe.optim.config.lr = 5e-6
     else:

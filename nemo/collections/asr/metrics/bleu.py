@@ -26,12 +26,14 @@ from nemo.collections.asr.parts.submodules.rnnt_decoding import \
     AbstractRNNTDecoding
 from nemo.utils import logging
 
-__all__ = ['BLEU']
+__all__ = ["BLEU"]
 
 
 def move_dimension_to_the_front(tensor, dim_index):
     all_dims = list(range(tensor.ndim))
-    return tensor.permute(*([dim_index] + all_dims[:dim_index] + all_dims[dim_index + 1 :]))
+    return tensor.permute(
+        *([dim_index] + all_dims[:dim_index] + all_dims[dim_index + 1 :])
+    )
 
 
 # TODO: Add documentation
@@ -84,7 +86,9 @@ class BLEU(SacreBLEUScore):
 
     def __init__(
         self,
-        decoding: Union[AbstractCTCDecoding, AbstractRNNTDecoding, AbstractMultiTaskDecoding],
+        decoding: Union[
+            AbstractCTCDecoding, AbstractRNNTDecoding, AbstractMultiTaskDecoding
+        ],
         tokenize: Literal["none", "13a", "zh", "intl", "char"] = "13a",
         n_gram: int = 4,
         lowercase: bool = False,
@@ -122,7 +126,9 @@ class BLEU(SacreBLEUScore):
                 return_hypotheses=False,
             )
         else:
-            raise TypeError(f"WER metric does not support decoding of type {type(self.decoding)}")
+            raise TypeError(
+                f"WER metric does not support decoding of type {type(self.decoding)}"
+            )
 
         self.tokenize = tokenize
         self.log_prediction = log_prediction
@@ -157,14 +163,18 @@ class BLEU(SacreBLEUScore):
             targets_cpu_tensor = targets.long().cpu()
             # check batch_dim_index is first dim
             if self.batch_dim_index != 0:
-                targets_cpu_tensor = move_dimension_to_the_front(targets_cpu_tensor, self.batch_dim_index)
+                targets_cpu_tensor = move_dimension_to_the_front(
+                    targets_cpu_tensor, self.batch_dim_index
+                )
             # iterate over batch
             for ind in range(targets_cpu_tensor.shape[0]):
                 tgt_len = tgt_lenths_cpu_tensor[ind].item()
                 target = targets_cpu_tensor[ind][:tgt_len].numpy().tolist()
                 reference = self.decoding.decode_tokens_to_str(target)
                 references.append(reference)
-            hypotheses = self.decode(predictions, predictions_lengths, predictions_mask, input_ids, targets)
+            hypotheses = self.decode(
+                predictions, predictions_lengths, predictions_mask, input_ids, targets
+            )
 
         if self.log_prediction:
             logging.info("\n")
@@ -211,5 +221,11 @@ class BLEU(SacreBLEUScore):
         denominator,
     ):
         return _bleu_score_compute(
-            predictions_lengths, targets_lengths, numerator, denominator, self.n_gram, self.weights, self.smooth
+            predictions_lengths,
+            targets_lengths,
+            numerator,
+            denominator,
+            self.n_gram,
+            self.weights,
+            self.smooth,
         )

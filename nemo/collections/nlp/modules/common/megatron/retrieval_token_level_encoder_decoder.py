@@ -84,12 +84,12 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
         bias_dropout_add_fusion=True,
         masked_softmax_fusion=True,
         openai_gelu=False,
-        activation='gelu',
+        activation="gelu",
         onnx_safe=False,
         bias=True,
-        normalization='layernorm',
+        normalization="layernorm",
         headscale=False,
-        transformer_block_type='pre_ln',
+        transformer_block_type="pre_ln",
         hidden_steps=-1,
         add_encoder=True,
         add_decoder=True,
@@ -110,7 +110,9 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
             assert (
                 apply_query_key_layer_scaling
             ), "megatron lm compatible model has to set apply_query_key_layer_scaling"
-            assert add_position_embedding, "megatron lm compatible model has to set add_position_embedding"
+            assert (
+                add_position_embedding
+            ), "megatron lm compatible model has to set add_position_embedding"
         self.parallel_output = parallel_output
         self.pre_process = pre_process
         self.post_process = post_process
@@ -118,7 +120,9 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
         self.precision = precision
         self.add_encoder = add_encoder
         self.add_decoder = add_decoder
-        self.add_abs_position_embedding = add_position_embedding  # whether use absolute position embedding
+        self.add_abs_position_embedding = (
+            add_position_embedding  # whether use absolute position embedding
+        )
         self.tokenizer = tokenizer
         self.eod_id = tokenizer.eos_id
         self.transformer_block_type = transformer_block_type
@@ -128,7 +132,7 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
         if kv_channels is None:
             assert (
                 hidden_size % num_attention_heads == 0
-            ), 'hidden_size must be divisible by num_attention_heads if kv_channels is None'
+            ), "hidden_size must be divisible by num_attention_heads if kv_channels is None"
             kv_channels = hidden_size // num_attention_heads
 
         if pre_process:
@@ -140,7 +144,9 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                 init_method=init_method_normal(init_method_std),
                 num_tokentypes=num_tokentypes,
                 embedding_dropout_prob=hidden_dropout,
-                position_embedding_type='learned_absolute' if add_position_embedding else '',
+                position_embedding_type=(
+                    "learned_absolute" if add_position_embedding else ""
+                ),
                 transpose_batch_sequence=False,
             )
             self._embedding_key = "embedding"
@@ -148,9 +154,13 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
         encoder_init = init_method_normal(init_method_std)
         encoder_scaled_init = scaled_init_method_normal(init_method_std, dec_num_layers)
         pre_decoder_init = init_method_normal(init_method_std)
-        pre_decoder_scaled_init = scaled_init_method_normal(init_method_std, dec_num_layers)
+        pre_decoder_scaled_init = scaled_init_method_normal(
+            init_method_std, dec_num_layers
+        )
         post_decoder_init = init_method_normal(init_method_std)
-        post_decoder_scaled_init = scaled_init_method_normal(init_method_std, dec_num_layers)
+        post_decoder_scaled_init = scaled_init_method_normal(
+            init_method_std, dec_num_layers
+        )
 
         if add_encoder:
             enc_layer_types = []
@@ -172,9 +182,9 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                 init_method=encoder_init,
                 scaled_init_method=encoder_scaled_init,
                 pre_process=pre_process,
-                post_process=False
-                if megatron_lm_compatible
-                else post_process,  # megatron lm model has no final layer_norm
+                post_process=(
+                    False if megatron_lm_compatible else post_process
+                ),  # megatron lm model has no final layer_norm
                 init_method_std=init_method_std,
                 hidden_dropout=hidden_dropout,
                 attention_dropout=attention_dropout,
@@ -219,7 +229,9 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
             assert pre_decoder_num_layers in dec_cross_attention
             for i in range(post_decoder_num_layers):
                 if i == 0:
-                    post_decoder_layer_types.append(LayerType.retrieval_decoder_after_self_attn)
+                    post_decoder_layer_types.append(
+                        LayerType.retrieval_decoder_after_self_attn
+                    )
                 elif i + pre_decoder_num_layers in dec_cross_attention:
                     post_decoder_layer_types.append(LayerType.retrieval_decoder)
                 else:
@@ -316,12 +328,16 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
             self._post_decoder_key = "post_decoder"
 
         self.initialize_word_embeddings(
-            init_method=init_method_normal(init_method_std), vocab_size=vocab_size, hidden_size=hidden_size
+            init_method=init_method_normal(init_method_std),
+            vocab_size=vocab_size,
+            hidden_size=hidden_size,
         )
 
         if add_decoder and post_process:
-            self.tokens_head = MuReadout(self.word_embeddings_weight().size(0), parallel_output)
-            self._tokens_head_key = 'tokens_head'
+            self.tokens_head = MuReadout(
+                self.word_embeddings_weight().size(0), parallel_output
+            )
+            self._tokens_head_key = "tokens_head"
 
     def set_input_tensor(self, input_tensor):
         """Set input tensor to be used instead of forward()'s input.
@@ -352,7 +368,11 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
         """
         eod_positions = None
         retrieved_emb = None
-        if input_ids is not None and self.eod_id is not None and not self.megatron_lm_compatible:
+        if (
+            input_ids is not None
+            and self.eod_id is not None
+            and not self.megatron_lm_compatible
+        ):
             # do not reset attention for megatron lm compatible model
             eod_positions = torch.where(input_ids == self.eod_id)
 
@@ -363,18 +383,26 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                     input_position_ids = position_ids
                 else:
                     input_position_ids = None
-                input_emb = self.encoder_embedding(input_ids, input_position_ids, token_type_ids=token_type_ids)
+                input_emb = self.encoder_embedding(
+                    input_ids, input_position_ids, token_type_ids=token_type_ids
+                )
             else:
                 input_emb = None
 
         if retrieved_ids is not None:
             if self.add_abs_position_embedding:
                 seq_length = retrieved_ids.size(-1)
-                retrieved_position_ids = torch.arange(seq_length, dtype=torch.long, device=retrieved_ids.device)
-                retrieved_position_ids = retrieved_position_ids.unsqueeze(0).expand_as(retrieved_ids).clone()
+                retrieved_position_ids = torch.arange(
+                    seq_length, dtype=torch.long, device=retrieved_ids.device
+                )
+                retrieved_position_ids = (
+                    retrieved_position_ids.unsqueeze(0).expand_as(retrieved_ids).clone()
+                )
             else:
                 retrieved_position_ids = None
-            retrieved_emb = self.encoder_embedding(retrieved_ids, retrieved_position_ids)
+            retrieved_emb = self.encoder_embedding(
+                retrieved_ids, retrieved_position_ids
+            )
 
         if self.add_decoder:
             hidden = self.pre_decoder(
@@ -421,9 +449,13 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                 # tensor_parallel.vocab_parallel_cross_entropy performs log_softmax and return log p(x_i|z) per token i
                 if self.fp16_cross_entropy:
                     assert token_logits.dtype == torch.half
-                    tokens_loss = tensor_parallel.vocab_parallel_cross_entropy(token_logits, labels)
+                    tokens_loss = tensor_parallel.vocab_parallel_cross_entropy(
+                        token_logits, labels
+                    )
                 else:
-                    tokens_loss = tensor_parallel.vocab_parallel_cross_entropy(token_logits.float(), labels)
+                    tokens_loss = tensor_parallel.vocab_parallel_cross_entropy(
+                        token_logits.float(), labels
+                    )
                 # [s, b] -> [b, s]
                 tokens_loss = tokens_loss.transpose(0, 1).contiguous()
                 return tokens_loss
@@ -432,32 +464,52 @@ class MegatronRetrievalTokenLevelEncoderDecoderModule(MegatronModule):
                 token_logits = token_logits.transpose(0, 1).contiguous()
                 return token_logits
 
-    def state_dict_for_save_checkpoint(self, destination=None, prefix='', keep_vars=False):
+    def state_dict_for_save_checkpoint(
+        self, destination=None, prefix="", keep_vars=False
+    ):
         """For easy load when model is combined with other heads,
         add an extra key."""
 
         state_dict_ = {}
 
-        state_dict_[self._encoder_embedding_key] = self.encoder_embedding.state_dict_for_save_checkpoint(
+        state_dict_[self._encoder_embedding_key] = (
+            self.encoder_embedding.state_dict_for_save_checkpoint(
+                destination, prefix, keep_vars
+            )
+        )
+        state_dict_[self._encoder_key] = self.encoder.state_dict_for_save_checkpoint(
             destination, prefix, keep_vars
         )
-        state_dict_[self._encoder_key] = self.encoder.state_dict_for_save_checkpoint(destination, prefix, keep_vars)
-        state_dict_[self._pre_decoder_key] = self.pre_decoder.state_dict_for_save_checkpoint(
-            destination, prefix, keep_vars
+        state_dict_[self._pre_decoder_key] = (
+            self.pre_decoder.state_dict_for_save_checkpoint(
+                destination, prefix, keep_vars
+            )
         )
-        state_dict_[self._post_decoder_key] = self.post_decoder.state_dict_for_save_checkpoint(
-            destination, prefix, keep_vars
+        state_dict_[self._post_decoder_key] = (
+            self.post_decoder.state_dict_for_save_checkpoint(
+                destination, prefix, keep_vars
+            )
         )
-        state_dict_[self._tokens_head_key] = self.tokens_head.state_dict_for_save_checkpoint(
-            destination, prefix, keep_vars
+        state_dict_[self._tokens_head_key] = (
+            self.tokens_head.state_dict_for_save_checkpoint(
+                destination, prefix, keep_vars
+            )
         )
         return state_dict_
 
     def load_state_dict(self, state_dict, strict=True):
         """Customized load."""
 
-        self.encoder_embedding.encoder_embeddingload_state_dict(state_dict[self._encoder_embedding_key], strict=strict)
+        self.encoder_embedding.encoder_embeddingload_state_dict(
+            state_dict[self._encoder_embedding_key], strict=strict
+        )
         self.encoder.load_state_dict(state_dict[self._encoder_key], strict=strict)
-        self.pre_decoder.load_state_dict(state_dict[self._pre_decoder_key], strict=strict)
-        self.post_decoder.load_state_dict(state_dict[self._post_decoder_key], strict=strict)
-        self.tokens_head.load_state_dict(state_dict[self._tokens_head_key], strict=strict)
+        self.pre_decoder.load_state_dict(
+            state_dict[self._pre_decoder_key], strict=strict
+        )
+        self.post_decoder.load_state_dict(
+            state_dict[self._post_decoder_key], strict=strict
+        )
+        self.tokens_head.load_state_dict(
+            state_dict[self._tokens_head_key], strict=strict
+        )

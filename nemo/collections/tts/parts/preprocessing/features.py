@@ -32,7 +32,13 @@ from nemo.utils.decorators import experimental
 @experimental
 class Featurizer(ABC):
     @abstractmethod
-    def save(self, manifest_entry: Dict[str, Any], audio_dir: Path, feature_dir: Path, overwrite: bool = True) -> None:
+    def save(
+        self,
+        manifest_entry: Dict[str, Any],
+        audio_dir: Path,
+        feature_dir: Path,
+        overwrite: bool = True,
+    ) -> None:
         """
         Save feature value to disk for given manifest entry.
 
@@ -44,7 +50,9 @@ class Featurizer(ABC):
         """
 
     @abstractmethod
-    def load(self, manifest_entry: Dict[str, Any], audio_dir: Path, feature_dir: Path) -> Dict[str, Tensor]:
+    def load(
+        self, manifest_entry: Dict[str, Any], audio_dir: Path, feature_dir: Path
+    ) -> Dict[str, Tensor]:
         """
         Read saved feature value for given manifest entry.
 
@@ -65,7 +73,10 @@ class Featurizer(ABC):
 
 
 def _get_feature_filepath(
-    manifest_entry: Dict[str, Any], audio_dir: Path, feature_dir: Path, feature_name: str
+    manifest_entry: Dict[str, Any],
+    audio_dir: Path,
+    feature_dir: Path,
+    feature_name: str,
 ) -> Path:
     """
     Get the absolute path for the feature file corresponding to the input manifest entry
@@ -73,19 +84,29 @@ def _get_feature_filepath(
     Example: audio_filepath "<audio_dir>/speaker1/audio1.wav" becomes
         feature_filepath "<feature_dir>/<feature_name>/speaker1/audio1.npy"
     """
-    _, audio_filepath_rel = get_audio_filepaths(manifest_entry=manifest_entry, audio_dir=audio_dir)
-    feature_filepath = feature_dir / feature_name / audio_filepath_rel.with_suffix(".npy")
+    _, audio_filepath_rel = get_audio_filepaths(
+        manifest_entry=manifest_entry, audio_dir=audio_dir
+    )
+    feature_filepath = (
+        feature_dir / feature_name / audio_filepath_rel.with_suffix(".npy")
+    )
     return feature_filepath
 
 
 def _features_exists(
-    feature_names: List[Optional[str]], manifest_entry: Dict[str, Any], audio_dir: Path, feature_dir: Path,
+    feature_names: List[Optional[str]],
+    manifest_entry: Dict[str, Any],
+    audio_dir: Path,
+    feature_dir: Path,
 ) -> bool:
     for feature_name in feature_names:
         if feature_name is None:
             continue
         feature_filepath = _get_feature_filepath(
-            manifest_entry=manifest_entry, audio_dir=audio_dir, feature_dir=feature_dir, feature_name=feature_name
+            manifest_entry=manifest_entry,
+            audio_dir=audio_dir,
+            feature_dir=feature_dir,
+            feature_name=feature_name,
         )
         if not feature_filepath.exists():
             return False
@@ -106,7 +127,10 @@ def _save_feature(
         return
 
     feature_filepath = _get_feature_filepath(
-        manifest_entry=manifest_entry, audio_dir=audio_dir, feature_dir=feature_dir, feature_name=feature_name
+        manifest_entry=manifest_entry,
+        audio_dir=audio_dir,
+        feature_dir=feature_dir,
+        feature_name=feature_name,
     )
     feature_filepath.parent.mkdir(exist_ok=True, parents=True)
     np.save(file=str(feature_filepath), arr=features)
@@ -127,11 +151,14 @@ def _load_feature(
         return
 
     feature_filepath = _get_feature_filepath(
-        manifest_entry=manifest_entry, audio_dir=audio_dir, feature_dir=feature_dir, feature_name=feature_name
+        manifest_entry=manifest_entry,
+        audio_dir=audio_dir,
+        feature_dir=feature_dir,
+        feature_name=feature_name,
     )
     feature_filepath = str(feature_filepath)
     if indices:
-        feature_mmap = np.load(feature_filepath, mmap_mode='r')
+        feature_mmap = np.load(feature_filepath, mmap_mode="r")
         feature_array = feature_mmap[indices[0] : indices[1]]
         feature_array = np.copy(feature_array)
     else:
@@ -140,19 +167,27 @@ def _load_feature(
     feature_dict[feature_name] = feature_tensor
 
 
-def _get_frame_indices(manifest_entry: Dict[str, Any], sample_rate: int, hop_length: int) -> Optional[Tuple[int, int]]:
+def _get_frame_indices(
+    manifest_entry: Dict[str, Any], sample_rate: int, hop_length: int
+) -> Optional[Tuple[int, int]]:
     if "offset" not in manifest_entry:
         return None
 
     offset = manifest_entry["offset"]
     duration = manifest_entry["duration"]
     start_i = librosa.core.time_to_frames(offset, sr=sample_rate, hop_length=hop_length)
-    end_i = 1 + start_i + librosa.core.time_to_frames(duration, sr=sample_rate, hop_length=hop_length)
+    end_i = (
+        1
+        + start_i
+        + librosa.core.time_to_frames(duration, sr=sample_rate, hop_length=hop_length)
+    )
     return start_i, end_i
 
 
 def _collate_feature(
-    feature_dict: Dict[str, Tensor], feature_name: Optional[str], train_batch: List[Dict[str, Tensor]]
+    feature_dict: Dict[str, Tensor],
+    feature_name: Optional[str],
+    train_batch: List[Dict[str, Tensor]],
 ) -> None:
     if feature_name is None:
         return
@@ -210,7 +245,9 @@ class MelSpectrogramFeaturizer(Featurizer):
             dither=0.0,
         )
 
-    def compute_mel_spec(self, manifest_entry: Dict[str, Any], audio_dir: Path) -> np.ndarray:
+    def compute_mel_spec(
+        self, manifest_entry: Dict[str, Any], audio_dir: Path
+    ) -> np.ndarray:
         """
         Computes mel spectrogram for the input manifest entry.
 
@@ -221,7 +258,9 @@ class MelSpectrogramFeaturizer(Featurizer):
         Returns:
             [spec_dim, T_spec] float tensor containing spectrogram features.
         """
-        audio_filepath_abs, _ = get_audio_filepaths(manifest_entry=manifest_entry, audio_dir=audio_dir)
+        audio_filepath_abs, _ = get_audio_filepaths(
+            manifest_entry=manifest_entry, audio_dir=audio_dir
+        )
         audio, _ = librosa.load(audio_filepath_abs, sr=self.sample_rate)
 
         if self.volume_norm:
@@ -233,14 +272,22 @@ class MelSpectrogramFeaturizer(Featurizer):
         audio_len_tensor = torch.tensor([audio.shape[0]], dtype=torch.int32)
 
         # [1, spec_dim, T_spec]
-        spec_tensor, _ = self.preprocessor(input_signal=audio_tensor, length=audio_len_tensor)
+        spec_tensor, _ = self.preprocessor(
+            input_signal=audio_tensor, length=audio_len_tensor
+        )
         # [spec_dim, T_spec]
         spec_tensor = spec_tensor.detach()[0]
         spec_array = spec_tensor.numpy()
 
         return spec_array
 
-    def save(self, manifest_entry: Dict[str, Any], audio_dir: Path, feature_dir: Path, overwrite: bool = True) -> None:
+    def save(
+        self,
+        manifest_entry: Dict[str, Any],
+        audio_dir: Path,
+        feature_dir: Path,
+        overwrite: bool = True,
+    ) -> None:
         if not overwrite and _features_exists(
             feature_names=[self.feature_name],
             manifest_entry=manifest_entry,
@@ -258,10 +305,14 @@ class MelSpectrogramFeaturizer(Featurizer):
             feature_dir=feature_dir,
         )
 
-    def load(self, manifest_entry: Dict[str, Any], audio_dir: Path, feature_dir: Path) -> Dict[str, Tensor]:
+    def load(
+        self, manifest_entry: Dict[str, Any], audio_dir: Path, feature_dir: Path
+    ) -> Dict[str, Tensor]:
         feature_dict = {}
         indices = _get_frame_indices(
-            manifest_entry=manifest_entry, sample_rate=self.sample_rate, hop_length=self.hop_length
+            manifest_entry=manifest_entry,
+            sample_rate=self.sample_rate,
+            hop_length=self.hop_length,
         )
         _load_feature(
             feature_dict=feature_dict,
@@ -275,16 +326,24 @@ class MelSpectrogramFeaturizer(Featurizer):
 
     def collate_fn(self, train_batch: List[Dict[str, Tensor]]) -> Dict[str, Tensor]:
         feature_dict = {}
-        _collate_feature(feature_dict=feature_dict, feature_name=self.feature_name, train_batch=train_batch)
+        _collate_feature(
+            feature_dict=feature_dict,
+            feature_name=self.feature_name,
+            train_batch=train_batch,
+        )
         return feature_dict
 
 
 class EnergyFeaturizer(Featurizer):
-    def __init__(self, spec_featurizer: MelSpectrogramFeaturizer, feature_name: str = "energy") -> None:
+    def __init__(
+        self, spec_featurizer: MelSpectrogramFeaturizer, feature_name: str = "energy"
+    ) -> None:
         self.feature_name = feature_name
         self.spec_featurizer = spec_featurizer
 
-    def compute_energy(self, manifest_entry: Dict[str, Any], audio_dir: Path) -> np.ndarray:
+    def compute_energy(
+        self, manifest_entry: Dict[str, Any], audio_dir: Path
+    ) -> np.ndarray:
         """
         Computes energy for the input manifest entry.
 
@@ -296,12 +355,20 @@ class EnergyFeaturizer(Featurizer):
             [T_spec] float tensor containing energy features.
         """
         # [spec_dim, T_spec]
-        spec = self.spec_featurizer.compute_mel_spec(manifest_entry=manifest_entry, audio_dir=audio_dir)
+        spec = self.spec_featurizer.compute_mel_spec(
+            manifest_entry=manifest_entry, audio_dir=audio_dir
+        )
         # [T_spec]
         energy = np.linalg.norm(spec, axis=0)
         return energy
 
-    def save(self, manifest_entry: Dict[str, Any], audio_dir: Path, feature_dir: Path, overwrite: bool = True) -> None:
+    def save(
+        self,
+        manifest_entry: Dict[str, Any],
+        audio_dir: Path,
+        feature_dir: Path,
+        overwrite: bool = True,
+    ) -> None:
         if not overwrite and _features_exists(
             feature_names=[self.feature_name],
             manifest_entry=manifest_entry,
@@ -319,7 +386,9 @@ class EnergyFeaturizer(Featurizer):
             feature_dir=feature_dir,
         )
 
-    def load(self, manifest_entry: Dict[str, Any], audio_dir: Path, feature_dir: Path) -> Dict[str, Tensor]:
+    def load(
+        self, manifest_entry: Dict[str, Any], audio_dir: Path, feature_dir: Path
+    ) -> Dict[str, Tensor]:
         feature_dict = {}
         indices = _get_frame_indices(
             manifest_entry=manifest_entry,
@@ -338,7 +407,11 @@ class EnergyFeaturizer(Featurizer):
 
     def collate_fn(self, train_batch: List[Dict[str, Tensor]]) -> Dict[str, Tensor]:
         feature_dict = {}
-        _collate_feature(feature_dict=feature_dict, feature_name=self.feature_name, train_batch=train_batch)
+        _collate_feature(
+            feature_dict=feature_dict,
+            feature_name=self.feature_name,
+            train_batch=train_batch,
+        )
         return feature_dict
 
 
@@ -375,8 +448,8 @@ class PitchFeaturizer(Featurizer):
         sample_rate: int = 22050,
         win_length: int = 1024,
         hop_length: int = 256,
-        pitch_fmin: int = librosa.note_to_hz('C2'),
-        pitch_fmax: int = librosa.note_to_hz('C7'),
+        pitch_fmin: int = librosa.note_to_hz("C2"),
+        pitch_fmax: int = librosa.note_to_hz("C7"),
         volume_norm: bool = True,
         batch_seconds: Optional[float] = 30.0,
         batch_padding: int = 10,
@@ -417,7 +490,9 @@ class PitchFeaturizer(Featurizer):
             voiced_mask: [T_spec] bool tensor indicating whether each audio frame is voiced.
             voiced_prob: [T_spec] float array with [0, 1] probability that each audio frame is voiced.
         """
-        audio_filepath_abs, _ = get_audio_filepaths(manifest_entry=manifest_entry, audio_dir=audio_dir)
+        audio_filepath_abs, _ = get_audio_filepaths(
+            manifest_entry=manifest_entry, audio_dir=audio_dir
+        )
         audio, _ = librosa.load(audio_filepath_abs, sr=self.sample_rate)
 
         if self.volume_norm:
@@ -483,16 +558,28 @@ class PitchFeaturizer(Featurizer):
 
         return pitch, voiced_mask, voiced_prob
 
-    def save(self, manifest_entry: Dict[str, Any], audio_dir: Path, feature_dir: Path, overwrite: bool = True) -> None:
+    def save(
+        self,
+        manifest_entry: Dict[str, Any],
+        audio_dir: Path,
+        feature_dir: Path,
+        overwrite: bool = True,
+    ) -> None:
         if not overwrite and _features_exists(
-            feature_names=[self.pitch_name, self.voiced_mask_name, self.voiced_prob_name],
+            feature_names=[
+                self.pitch_name,
+                self.voiced_mask_name,
+                self.voiced_prob_name,
+            ],
             manifest_entry=manifest_entry,
             audio_dir=audio_dir,
             feature_dir=feature_dir,
         ):
             return
 
-        pitch, voiced_mask, voiced_prob = self.compute_pitch(manifest_entry=manifest_entry, audio_dir=audio_dir)
+        pitch, voiced_mask, voiced_prob = self.compute_pitch(
+            manifest_entry=manifest_entry, audio_dir=audio_dir
+        )
         _save_feature(
             feature_name=self.pitch_name,
             features=pitch,
@@ -515,10 +602,14 @@ class PitchFeaturizer(Featurizer):
             feature_dir=feature_dir,
         )
 
-    def load(self, manifest_entry: Dict[str, Any], audio_dir: Path, feature_dir: Path) -> Dict[str, Tensor]:
+    def load(
+        self, manifest_entry: Dict[str, Any], audio_dir: Path, feature_dir: Path
+    ) -> Dict[str, Tensor]:
         feature_dict = {}
         indices = _get_frame_indices(
-            manifest_entry=manifest_entry, sample_rate=self.sample_rate, hop_length=self.hop_length
+            manifest_entry=manifest_entry,
+            sample_rate=self.sample_rate,
+            hop_length=self.hop_length,
         )
         _load_feature(
             feature_dict=feature_dict,
@@ -548,7 +639,19 @@ class PitchFeaturizer(Featurizer):
 
     def collate_fn(self, train_batch: List[Dict[str, Tensor]]) -> Dict[str, Tensor]:
         feature_dict = {}
-        _collate_feature(feature_dict=feature_dict, feature_name=self.pitch_name, train_batch=train_batch)
-        _collate_feature(feature_dict=feature_dict, feature_name=self.voiced_mask_name, train_batch=train_batch)
-        _collate_feature(feature_dict=feature_dict, feature_name=self.voiced_prob_name, train_batch=train_batch)
+        _collate_feature(
+            feature_dict=feature_dict,
+            feature_name=self.pitch_name,
+            train_batch=train_batch,
+        )
+        _collate_feature(
+            feature_dict=feature_dict,
+            feature_name=self.voiced_mask_name,
+            train_batch=train_batch,
+        )
+        _collate_feature(
+            feature_dict=feature_dict,
+            feature_name=self.voiced_prob_name,
+            train_batch=train_batch,
+        )
         return feature_dict

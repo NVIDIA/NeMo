@@ -132,7 +132,9 @@ class SquareAnnealingScheduler(LRSchedulerModule):
         self.monitor = monitor
 
     def scheduler(self, model, optimizer):
-        lr_scheduler = SquareAnnealing(optimizer, max_steps=self.max_steps, min_lr=self.min_lr)
+        lr_scheduler = SquareAnnealing(
+            optimizer, max_steps=self.max_steps, min_lr=self.min_lr
+        )
         return {
             "optimizer": optimizer,
             "lr_scheduler": {
@@ -163,7 +165,9 @@ class SquareRootAnnealingScheduler(LRSchedulerModule):
         self.monitor = monitor
 
     def scheduler(self, model, optimizer):
-        lr_scheduler = SquareRootAnnealing(optimizer, max_steps=self.max_steps, min_lr=self.min_lr)
+        lr_scheduler = SquareRootAnnealing(
+            optimizer, max_steps=self.max_steps, min_lr=self.min_lr
+        )
         return {
             "optimizer": optimizer,
             "lr_scheduler": {
@@ -241,7 +245,10 @@ class NoamHoldAnnealingScheduler(LRSchedulerModule):
 
     def scheduler(self, model, optimizer):
         lr_scheduler = NoamHoldAnnealing(
-            optimizer, max_steps=self.max_steps, decay_rate=self.decay_rate, min_lr=self.min_lr
+            optimizer,
+            max_steps=self.max_steps,
+            decay_rate=self.decay_rate,
+            min_lr=self.min_lr,
         )
         return {
             "optimizer": optimizer,
@@ -314,7 +321,9 @@ class InverseSquareRootAnnealingScheduler(LRSchedulerModule):
         self.monitor = monitor
 
     def scheduler(self, model, optimizer):
-        lr_scheduler = InverseSquareRootAnnealing(optimizer, max_steps=self.max_steps, min_lr=self.min_lr)
+        lr_scheduler = InverseSquareRootAnnealing(
+            optimizer, max_steps=self.max_steps, min_lr=self.min_lr
+        )
         return {
             "optimizer": optimizer,
             "lr_scheduler": {
@@ -345,7 +354,9 @@ class T5InverseSquareRootAnnealingScheduler(LRSchedulerModule):
         self.monitor = monitor
 
     def scheduler(self, model, optimizer):
-        lr_scheduler = T5InverseSquareRootAnnealing(optimizer, max_steps=self.max_steps, min_lr=self.min_lr)
+        lr_scheduler = T5InverseSquareRootAnnealing(
+            optimizer, max_steps=self.max_steps, min_lr=self.min_lr
+        )
         return {
             "optimizer": optimizer,
             "lr_scheduler": {
@@ -381,7 +392,11 @@ class PolynomialDecayAnnealingScheduler(LRSchedulerModule):
 
     def scheduler(self, model, optimizer):
         lr_scheduler = PolynomialDecayAnnealing(
-            optimizer, max_steps=self.max_steps, min_lr=self.min_lr, power=self.power, cycle=self.cycle
+            optimizer,
+            max_steps=self.max_steps,
+            min_lr=self.min_lr,
+            power=self.power,
+            cycle=self.cycle,
         )
         return {
             "optimizer": optimizer,
@@ -418,7 +433,11 @@ class PolynomialHoldDecayAnnealingScheduler(LRSchedulerModule):
 
     def scheduler(self, model, optimizer):
         lr_scheduler = PolynomialHoldDecayAnnealing(
-            optimizer, max_steps=self.max_steps, min_lr=self.min_lr, power=self.power, cycle=self.cycle
+            optimizer,
+            max_steps=self.max_steps,
+            min_lr=self.min_lr,
+            power=self.power,
+            cycle=self.cycle,
         )
         return {
             "optimizer": optimizer,

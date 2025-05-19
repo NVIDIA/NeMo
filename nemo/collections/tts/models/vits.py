@@ -51,7 +51,7 @@ except ModuleNotFoundError:
 
 @experimental
 class VitsModel(TextToWaveform):
-    def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
+    def __init__(self, cfg: DictConfig, trainer: "Trainer" = None):
         # Convert to Hydra 1.0 compatible DictConfig
 
         cfg = model_utils.convert_model_config_to_dict_config(cfg)
@@ -73,7 +73,9 @@ class VitsModel(TextToWaveform):
 
         super().__init__(cfg=cfg, trainer=trainer)
 
-        self.audio_to_melspec_processor = instantiate(cfg.preprocessor, highfreq=cfg.train_ds.dataset.highfreq)
+        self.audio_to_melspec_processor = instantiate(
+            cfg.preprocessor, highfreq=cfg.train_ds.dataset.highfreq
+        )
 
         self.feat_matching_loss = FeatureMatchingLoss()
         self.disc_loss = DiscriminatorLoss()
@@ -98,8 +100,10 @@ class VitsModel(TextToWaveform):
             # for backward compatibility
             if (
                 self._is_model_being_restored()
-                and (cfg.text_tokenizer.g2p.get('_target_', None) is not None)
-                and cfg.text_tokenizer.g2p["_target_"].startswith("nemo_text_processing.g2p")
+                and (cfg.text_tokenizer.g2p.get("_target_", None) is not None)
+                and cfg.text_tokenizer.g2p["_target_"].startswith(
+                    "nemo_text_processing.g2p"
+                )
             ):
                 cfg.text_tokenizer.g2p["_target_"] = g2p_backward_compatible_support(
                     cfg.text_tokenizer.g2p["_target_"]
@@ -109,17 +113,19 @@ class VitsModel(TextToWaveform):
 
             if "phoneme_dict" in cfg.text_tokenizer.g2p:
                 g2p_kwargs["phoneme_dict"] = self.register_artifact(
-                    'text_tokenizer.g2p.phoneme_dict',
+                    "text_tokenizer.g2p.phoneme_dict",
                     cfg.text_tokenizer.g2p.phoneme_dict,
                 )
 
             if "heteronyms" in cfg.text_tokenizer.g2p:
                 g2p_kwargs["heteronyms"] = self.register_artifact(
-                    'text_tokenizer.g2p.heteronyms',
+                    "text_tokenizer.g2p.heteronyms",
                     cfg.text_tokenizer.g2p.heteronyms,
                 )
 
-            text_tokenizer_kwargs["g2p"] = instantiate(cfg.text_tokenizer.g2p, **g2p_kwargs)
+            text_tokenizer_kwargs["g2p"] = instantiate(
+                cfg.text_tokenizer.g2p, **g2p_kwargs
+            )
 
         self.tokenizer = instantiate(cfg.text_tokenizer, **text_tokenizer_kwargs)
 
@@ -154,10 +160,14 @@ class VitsModel(TextToWaveform):
         )
 
         if sched_config is not None:
-            if sched_config.name == 'ExponentialLR':
-                scheduler_d = torch.optim.lr_scheduler.ExponentialLR(optim_d, gamma=sched_config.lr_decay)
-                scheduler_g = torch.optim.lr_scheduler.ExponentialLR(optim_g, gamma=sched_config.lr_decay)
-            elif sched_config.name == 'CosineAnnealing':
+            if sched_config.name == "ExponentialLR":
+                scheduler_d = torch.optim.lr_scheduler.ExponentialLR(
+                    optim_d, gamma=sched_config.lr_decay
+                )
+                scheduler_g = torch.optim.lr_scheduler.ExponentialLR(
+                    optim_g, gamma=sched_config.lr_decay
+                )
+            elif sched_config.name == "CosineAnnealing":
                 scheduler_g = CosineAnnealing(
                     optimizer=optim_g,
                     max_steps=sched_config.max_steps,
@@ -171,8 +181,8 @@ class VitsModel(TextToWaveform):
             else:
                 raise ValueError("Unknown optimizer.")
 
-            scheduler_g_dict = {'scheduler': scheduler_g, 'interval': 'step'}
-            scheduler_d_dict = {'scheduler': scheduler_d, 'interval': 'step'}
+            scheduler_g_dict = {"scheduler": scheduler_g, "interval": "step"}
+            scheduler_d_dict = {"scheduler": scheduler_d, "interval": "step"}
             return [optim_g, optim_d], [scheduler_g_dict, scheduler_d_dict]
         else:
             return [optim_g, optim_d]
@@ -180,15 +190,23 @@ class VitsModel(TextToWaveform):
     # for inference
     @typecheck(
         input_types={
-            "tokens": NeuralType(('B', 'T_text'), TokenIndex()),
-            "speakers": NeuralType(('B',), Index(), optional=True),
-            "noise_scale": NeuralType(('B',), FloatType(), optional=True),
-            "length_scale": NeuralType(('B',), FloatType(), optional=True),
-            "noise_scale_w": NeuralType(('B',), FloatType(), optional=True),
-            "max_len": NeuralType(('B',), IntType(), optional=True),
+            "tokens": NeuralType(("B", "T_text"), TokenIndex()),
+            "speakers": NeuralType(("B",), Index(), optional=True),
+            "noise_scale": NeuralType(("B",), FloatType(), optional=True),
+            "length_scale": NeuralType(("B",), FloatType(), optional=True),
+            "noise_scale_w": NeuralType(("B",), FloatType(), optional=True),
+            "max_len": NeuralType(("B",), IntType(), optional=True),
         }
     )
-    def forward(self, tokens, speakers=None, noise_scale=1, length_scale=1, noise_scale_w=1.0, max_len=1000):
+    def forward(
+        self,
+        tokens,
+        speakers=None,
+        noise_scale=1,
+        length_scale=1,
+        noise_scale_w=1.0,
+        max_len=1000,
+    ):
         text_len = torch.tensor([tokens.size(-1)]).to(int).to(tokens.device)
         audio_pred, attn, y_mask, (z, z_p, m_p, logs_p) = self.net_g.infer(
             tokens,
@@ -208,19 +226,35 @@ class VitsModel(TextToWaveform):
         else:
             (audio, audio_len, text, text_len) = batch
 
-        spec, spec_lengths = self.audio_to_melspec_processor(audio, audio_len, linear_spec=True)
+        spec, spec_lengths = self.audio_to_melspec_processor(
+            audio, audio_len, linear_spec=True
+        )
 
         with autocast(enabled=True):
-            audio_pred, l_length, attn, ids_slice, text_mask, z_mask, (z, z_p, m_p, logs_p, m_q, logs_q) = self.net_g(
-                text, text_len, spec, spec_lengths, speakers
-            )
+            (
+                audio_pred,
+                l_length,
+                attn,
+                ids_slice,
+                text_mask,
+                z_mask,
+                (z, z_p, m_p, logs_p, m_q, logs_q),
+            ) = self.net_g(text, text_len, spec, spec_lengths, speakers)
 
         audio_pred = audio_pred.float()
 
-        audio_pred_mel, _ = self.audio_to_melspec_processor(audio_pred.squeeze(1), audio_len, linear_spec=False)
+        audio_pred_mel, _ = self.audio_to_melspec_processor(
+            audio_pred.squeeze(1), audio_len, linear_spec=False
+        )
 
-        audio = slice_segments(audio.unsqueeze(1), ids_slice * self.cfg.n_window_stride, self._cfg.segment_size)
-        audio_mel, _ = self.audio_to_melspec_processor(audio.squeeze(1), audio_len, linear_spec=False)
+        audio = slice_segments(
+            audio.unsqueeze(1),
+            ids_slice * self.cfg.n_window_stride,
+            self._cfg.segment_size,
+        )
+        audio_mel, _ = self.audio_to_melspec_processor(
+            audio.squeeze(1), audio_len, linear_spec=False
+        )
 
         with autocast(enabled=True):
             y_d_hat_r, y_d_hat_g, _, _ = self.net_d(audio, audio_pred.detach())
@@ -246,7 +280,12 @@ class VitsModel(TextToWaveform):
         with autocast(enabled=False):
             loss_dur = torch.sum(l_length.float())
             loss_mel = F.l1_loss(audio_mel, audio_pred_mel) * self._cfg.c_mel
-            loss_kl = self.kl_loss(z_p=z_p, logs_q=logs_q, m_p=m_p, logs_p=logs_p, z_mask=z_mask) * self._cfg.c_kl
+            loss_kl = (
+                self.kl_loss(
+                    z_p=z_p, logs_q=logs_q, m_p=m_p, logs_p=logs_p, z_mask=z_mask
+                )
+                * self._cfg.c_kl
+            )
             loss_fm = self.feat_matching_loss(fmap_r=fmap_r, fmap_g=fmap_g)
             loss_gen, losses_gen = self.gen_loss(disc_outputs=y_d_hat_g)
             loss_gen_all = loss_gen + loss_fm + loss_mel + loss_dur + loss_kl
@@ -298,13 +337,19 @@ class VitsModel(TextToWaveform):
         else:
             (audio, audio_len, text, text_len) = batch
 
-        audio_pred, _, mask, *_ = self.net_g.infer(text, text_len, speakers, max_len=1000)
+        audio_pred, _, mask, *_ = self.net_g.infer(
+            text, text_len, speakers, max_len=1000
+        )
 
         audio_pred = audio_pred.squeeze()
-        audio_pred_len = mask.sum([1, 2]).long() * self._cfg.validation_ds.dataset.hop_length
+        audio_pred_len = (
+            mask.sum([1, 2]).long() * self._cfg.validation_ds.dataset.hop_length
+        )
 
         mel, mel_lengths = self.audio_to_melspec_processor(audio, audio_len)
-        audio_pred_mel, audio_pred_mel_len = self.audio_to_melspec_processor(audio_pred, audio_pred_len)
+        audio_pred_mel, audio_pred_mel_len = self.audio_to_melspec_processor(
+            audio_pred, audio_pred_len
+        )
 
         # plot audio once per epoch
         if batch_idx == 0 and isinstance(self.logger, WandbLogger) and HAVE_WANDB:
@@ -314,11 +359,15 @@ class VitsModel(TextToWaveform):
             audios = []
             specs += [
                 wandb.Image(
-                    plot_spectrogram_to_numpy(mel[0, :, : mel_lengths[0]].data.cpu().numpy()),
+                    plot_spectrogram_to_numpy(
+                        mel[0, :, : mel_lengths[0]].data.cpu().numpy()
+                    ),
                     caption=f"val_mel_target",
                 ),
                 wandb.Image(
-                    plot_spectrogram_to_numpy(audio_pred_mel[0, :, : audio_pred_mel_len[0]].data.cpu().numpy()),
+                    plot_spectrogram_to_numpy(
+                        audio_pred_mel[0, :, : audio_pred_mel_len[0]].data.cpu().numpy()
+                    ),
                     caption=f"val_mel_predicted",
                 ),
             ]
@@ -330,7 +379,10 @@ class VitsModel(TextToWaveform):
                     sample_rate=self._cfg.sample_rate,
                 ),
                 wandb.Audio(
-                    audio_pred[0, : audio_pred_len[0]].data.cpu().to(torch.float).numpy(),
+                    audio_pred[0, : audio_pred_len[0]]
+                    .data.cpu()
+                    .to(torch.float)
+                    .numpy(),
                     caption=f"val_wav_predicted",
                     sample_rate=self._cfg.sample_rate,
                 ),
@@ -340,7 +392,7 @@ class VitsModel(TextToWaveform):
 
     def _loader(self, cfg):
         try:
-            _ = cfg['dataset']['manifest_filepath']
+            _ = cfg["dataset"]["manifest_filepath"]
         except omegaconf.errors.MissingMandatoryValue:
             logging.warning("manifest_filepath was skipped. No dataset for this model.")
             return None
@@ -366,7 +418,9 @@ class VitsModel(TextToWaveform):
             text_tokenizer=self.tokenizer,
         )
 
-        train_sampler = DistributedBucketSampler(dataset, **self.cfg.train_ds.batch_sampler)
+        train_sampler = DistributedBucketSampler(
+            dataset, **self.cfg.train_ds.batch_sampler
+        )
 
         dataloader = torch.utils.data.DataLoader(
             dataset,
@@ -387,7 +441,7 @@ class VitsModel(TextToWaveform):
         pass
 
     @classmethod
-    def list_available_models(cls) -> 'List[PretrainedModelInfo]':
+    def list_available_models(cls) -> "List[PretrainedModelInfo]":
         list_of_models = []
         model = PretrainedModelInfo(
             pretrained_model_name="tts_en_lj_vits",
@@ -408,9 +462,9 @@ class VitsModel(TextToWaveform):
 
     @typecheck(
         input_types={
-            "tokens": NeuralType(('B', 'T_text'), TokenIndex(), optional=True),
+            "tokens": NeuralType(("B", "T_text"), TokenIndex(), optional=True),
         },
-        output_types={"audio": NeuralType(('B', 'T_audio'), AudioSignal())},
+        output_types={"audio": NeuralType(("B", "T_audio"), AudioSignal())},
     )
     def convert_text_to_waveform(self, *, tokens, speakers=None):
         audio = self(tokens=tokens, speakers=speakers)[0].squeeze(1)

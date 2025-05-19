@@ -43,8 +43,8 @@ def cook_raw_iamges(sample: dict) -> dict:
 
     return dict(
         **basic_sample_keys(sample),
-        image=sample['jpg'],
-        txt=sample['txt'],
+        image=sample["jpg"],
+        txt=sample["txt"],
     )
 
 
@@ -86,7 +86,9 @@ class ClipTaskEncoder(DefaultTaskEncoder, IOMixin):
         self.image_processor = image_processor
 
         if image_processor is None or tokenizer is None:
-            logging.warning("Processor or tokenizer are not provided! Fall back to `openai/clip-vit-large-patch14`.")
+            logging.warning(
+                "Processor or tokenizer are not provided! Fall back to `openai/clip-vit-large-patch14`."
+            )
             from transformers import AutoProcessor
 
             from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import \
@@ -114,5 +116,7 @@ class ClipTaskEncoder(DefaultTaskEncoder, IOMixin):
         """
         sample_new = {}
         sample_new["images"] = self.img_transform(sample["image"])
-        sample_new["captions"] = tokenize(sample["txt"], self.tokenizer, context_length=self.max_length)
+        sample_new["captions"] = tokenize(
+            sample["txt"], self.tokenizer, context_length=self.max_length
+        )
         return sample_new

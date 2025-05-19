@@ -24,8 +24,7 @@ from nemo.utils import logging
 
 @dataclass
 class GraphIntersectDenseConfig:
-    """Graph dense intersection config.
-    """
+    """Graph dense intersection config."""
 
     search_beam: float = 20.0
     output_beam: float = 10.0
@@ -43,7 +42,9 @@ class GraphModuleConfig:
     topo_with_self_loops: bool = True
     token_lm: Optional[Any] = None
     intersect_pruned: bool = False
-    intersect_conf: GraphIntersectDenseConfig = field(default_factory=lambda: GraphIntersectDenseConfig())
+    intersect_conf: GraphIntersectDenseConfig = field(
+        default_factory=lambda: GraphIntersectDenseConfig()
+    )
     boost_coeff: float = 0.0
     predictor_window_size: int = 0
     predictor_step_size: int = 1
@@ -51,7 +52,7 @@ class GraphModuleConfig:
 
 class ASRK2Mixin(ABC):
     """k2 Mixin class that simplifies the construction of various models with k2-based losses.
-    
+
     It does the following:
         -   Sets up the graph loss and decoder (methods _init_k2 and update_k2_modules).
         -   Registers external graphs, if needed.
@@ -67,8 +68,13 @@ class ASRK2Mixin(ABC):
         """
         if not hasattr(self, "_cfg"):
             raise ValueError("self._cfg must be set before calling _init_k2().")
-        if not hasattr(self._cfg, "graph_module_cfg") or self._cfg.graph_module_cfg is None:
-            raise ValueError("self._cfg.graph_module_cfg must be set and cannot be None.")
+        if (
+            not hasattr(self._cfg, "graph_module_cfg")
+            or self._cfg.graph_module_cfg is None
+        ):
+            raise ValueError(
+                "self._cfg.graph_module_cfg must be set and cannot be None."
+            )
         self.graph_module_cfg = self._cfg.graph_module_cfg
 
         # register token_lm for MAPLoss
@@ -80,7 +86,9 @@ class ASRK2Mixin(ABC):
                 raise ValueError(
                     f"graph_module_cfg.backend_cfg.token_lm is empty. It must be set for criterion_type == `{criterion_type}`"
                 )
-            token_lm_path = self.register_artifact('graph_module_cfg.backend_cfg.token_lm', token_lm_path)
+            token_lm_path = self.register_artifact(
+                "graph_module_cfg.backend_cfg.token_lm", token_lm_path
+            )
             self.graph_module_cfg.backend_cfg["token_lm"] = token_lm_path
 
         self.update_k2_modules(self.graph_module_cfg)
@@ -103,9 +111,12 @@ class ASRK2Mixin(ABC):
         else:
             # CTC, MMI, ...
             num_classes = self.decoder.num_classes_with_blank - 1
-            remove_consecutive = input_cfg.backend_cfg.get("topo_with_self_loops", True) and input_cfg.backend_cfg.get(
-                "topo_type", "default"
-            ) not in ["forced_blank", "identity",]
+            remove_consecutive = input_cfg.backend_cfg.get(
+                "topo_with_self_loops", True
+            ) and input_cfg.backend_cfg.get("topo_type", "default") not in [
+                "forced_blank",
+                "identity",
+            ]
             self._wer.remove_consecutive = remove_consecutive
 
         from nemo.collections.asr.losses.lattice_losses import LatticeLoss
@@ -146,7 +157,10 @@ class ASRK2Mixin(ABC):
             )
 
     def _forward_k2_post_processing(
-        self, log_probs: torch.Tensor, encoded_length: torch.Tensor, greedy_predictions: torch.Tensor
+        self,
+        log_probs: torch.Tensor,
+        encoded_length: torch.Tensor,
+        greedy_predictions: torch.Tensor,
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         k2-related post-processing parf of .forward()

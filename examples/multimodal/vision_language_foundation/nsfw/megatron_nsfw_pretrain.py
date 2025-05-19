@@ -28,7 +28,7 @@ from nemo.utils.exp_manager import exp_manager
 @hydra_runner(config_path="conf", config_name="megatron_nsfw_config")
 def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
-    logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
+    logging.info(f"\n{OmegaConf.to_yaml(cfg)}")
 
     assert (
         cfg.trainer.devices * cfg.trainer.num_nodes
@@ -54,5 +54,5 @@ def main(cfg) -> None:
         model.save_to(cfg.model.save_path)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

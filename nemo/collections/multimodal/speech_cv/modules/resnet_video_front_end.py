@@ -37,12 +37,18 @@ class ResNetVideoFrontEnd(NeuralModule):
         out_channels_first: Whether outputs should have channels_first format (Batch, Dout, Time) or channels_last (Batch, Time, Dout)
     """
 
-    def __init__(self, in_channels=1, model="ResNet18", dim_output=256, out_channels_first=True):
+    def __init__(
+        self, in_channels=1, model="ResNet18", dim_output=256, out_channels_first=True
+    ):
         super(ResNetVideoFrontEnd, self).__init__()
 
         self.front_end = nn.Sequential(
             nn.Conv3d(
-                in_channels=in_channels, out_channels=64, kernel_size=(5, 7, 7), stride=(1, 2, 2), padding=(2, 3, 3)
+                in_channels=in_channels,
+                out_channels=64,
+                kernel_size=(5, 7, 7),
+                stride=(1, 2, 2),
+                padding=(2, 3, 3),
             ),
             nn.BatchNorm3d(num_features=64),
             nn.ReLU(),
@@ -57,8 +63,8 @@ class ResNetVideoFrontEnd(NeuralModule):
         """Returns definitions of module input ports."""
         return OrderedDict(
             {
-                "audio_signal": NeuralType(('B', 'D', 'T', 'H', 'W'), VideoSignal()),
-                "length": NeuralType(tuple('B'), LengthsType()),
+                "audio_signal": NeuralType(("B", "D", "T", "H", "W"), VideoSignal()),
+                "length": NeuralType(tuple("B"), LengthsType()),
             }
         )
 
@@ -67,8 +73,8 @@ class ResNetVideoFrontEnd(NeuralModule):
         """Returns definitions of module input ports."""
         return OrderedDict(
             {
-                "output_signal": NeuralType(('B', 'D', 'T'), NeuralType()),
-                "length": NeuralType(tuple('B'), LengthsType()),
+                "output_signal": NeuralType(("B", "D", "T"), NeuralType()),
+                "length": NeuralType(tuple("B"), LengthsType()),
             }
         )
 

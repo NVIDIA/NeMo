@@ -79,7 +79,9 @@ def make_dataset(
     both_none = extensions is None and is_valid_file is None
     both_something = extensions is not None and is_valid_file is not None
     if both_none or both_something:
-        raise ValueError("Both extensions and is_valid_file cannot be None or not None at the same time")
+        raise ValueError(
+            "Both extensions and is_valid_file cannot be None or not None at the same time"
+        )
     if extensions is not None:
 
         def is_valid_file(x: str) -> bool:
@@ -99,7 +101,9 @@ def make_dataset(
                     item = path, class_index
                     local_instances.append(item)
 
-        instances.extend(local_instances[0 : int(len(local_instances) * data_per_class_fraction)])
+        instances.extend(
+            local_instances[0 : int(len(local_instances) * data_per_class_fraction)]
+        )
 
     return instances
 
@@ -145,12 +149,18 @@ if TORCHVISION_AVAILABLE:
             data_per_class_fraction=1.0,
             is_valid_file: Optional[Callable[[str], bool]] = None,
         ) -> None:
-            super(DatasetFolder, self).__init__(root, transform=transform, target_transform=target_transform)
+            super(DatasetFolder, self).__init__(
+                root, transform=transform, target_transform=target_transform
+            )
             self.classes_fraction = classes_fraction
             self.data_per_class_fraction = data_per_class_fraction
             classes, class_to_idx = self._find_classes(self.root)
             samples = self.make_dataset(
-                self.root, class_to_idx, self.data_per_class_fraction, extensions, is_valid_file
+                self.root,
+                class_to_idx,
+                self.data_per_class_fraction,
+                extensions,
+                is_valid_file,
             )
             if len(samples) == 0:
                 msg = "Found 0 files in subfolders of: {}\n".format(self.root)
@@ -175,7 +185,11 @@ if TORCHVISION_AVAILABLE:
             is_valid_file: Optional[Callable[[str], bool]] = None,
         ) -> List[Tuple[str, int]]:
             return make_dataset(
-                directory, class_to_idx, data_per_class_fraction, extensions=extensions, is_valid_file=is_valid_file
+                directory,
+                class_to_idx,
+                data_per_class_fraction,
+                extensions=extensions,
+                is_valid_file=is_valid_file,
             )
 
         def _find_classes(self, dir: str) -> Tuple[List[str], Dict[str, int]]:
@@ -220,7 +234,6 @@ if TORCHVISION_AVAILABLE:
         def __len__(self) -> int:
             return len(self.samples)
 
-
 else:
 
     class DatasetFolder:
@@ -229,14 +242,24 @@ else:
             logging.error("Torchvision not found but required.")
 
 
-IMG_EXTENSIONS = ('.jpg', '.jpeg', '.png', '.ppm', '.bmp', '.pgm', '.tif', '.tiff', '.webp')
+IMG_EXTENSIONS = (
+    ".jpg",
+    ".jpeg",
+    ".png",
+    ".ppm",
+    ".bmp",
+    ".pgm",
+    ".tif",
+    ".tiff",
+    ".webp",
+)
 
 
 def pil_loader(path: str) -> Image.Image:
     # open path as file to avoid ResourceWarning (https://github.com/python-pillow/Pillow/issues/835)
-    with open(path, 'rb') as f:
+    with open(path, "rb") as f:
         img = Image.open(f)
-        return img.convert('RGB')
+        return img.convert("RGB")
 
 
 # TODO: specify the return type
@@ -253,7 +276,7 @@ def accimage_loader(path: str) -> Any:
 def default_loader(path: str) -> Any:
     from torchvision import get_image_backend
 
-    if get_image_backend() == 'accimage':
+    if get_image_backend() == "accimage":
         return accimage_loader(path)
     else:
         return pil_loader(path)

@@ -29,12 +29,14 @@ from nemo.collections.asr.parts.utils.transcribe_utils import \
 DEVICES = []
 
 if torch.cuda.is_available():
-    DEVICES.append('cuda')
+    DEVICES.append("cuda")
 
 
 @pytest.fixture(scope="module")
 def stt_en_conformer_transducer_small_model():
-    model = EncDecRNNTBPEModel.from_pretrained(model_name="stt_en_conformer_transducer_small", map_location="cpu")
+    model = EncDecRNNTBPEModel.from_pretrained(
+        model_name="stt_en_conformer_transducer_small", map_location="cpu"
+    )
     return model
 
 
@@ -69,14 +71,22 @@ def get_rnnt_alignments(
     )
 
     for transcription in transcriptions:
-        for align_elem, frame_confidence in zip(transcription.alignments, transcription.frame_confidence):
-            assert len(align_elem) == len(frame_confidence)  # frame confidences have to match alignments
+        for align_elem, frame_confidence in zip(
+            transcription.alignments, transcription.frame_confidence
+        ):
+            assert len(align_elem) == len(
+                frame_confidence
+            )  # frame confidences have to match alignments
             assert len(align_elem) > 0  # no empty alignments
             for idx, pred in enumerate(align_elem):
                 if idx < len(align_elem) - 1:
-                    assert pred[1].item() != model.decoder.blank_idx  # all except last have to be non-blank
+                    assert (
+                        pred[1].item() != model.decoder.blank_idx
+                    )  # all except last have to be non-blank
                 else:
-                    assert pred[1].item() == model.decoder.blank_idx  # last one has to be blank
+                    assert (
+                        pred[1].item() == model.decoder.blank_idx
+                    )  # last one has to be blank
     return transcriptions
 
 
@@ -104,7 +114,9 @@ def test_rnnt_alignments(
     if use_cuda_graph_decoder and device != "cuda":
         pytest.skip("CUDA decoder works only with CUDA")
     if not loop_labels and use_cuda_graph_decoder:
-        pytest.skip("Frame-Looping algorithm with CUDA graphs does not yet support alignments")
+        pytest.skip(
+            "Frame-Looping algorithm with CUDA graphs does not yet support alignments"
+        )
     # using greedy as baseline and comparing all other configurations to it
     ref_transcriptions = get_rnnt_alignments(
         "greedy",
@@ -125,7 +137,9 @@ def test_rnnt_alignments(
     # slightly different in batched and single-sample mode
     assert len(ref_transcriptions) == len(transcriptions)
     for ref_transcription, transcription in zip(ref_transcriptions, transcriptions):
-        for ref_align_elem, align_elem in zip(ref_transcription.alignments, transcription.alignments):
+        for ref_align_elem, align_elem in zip(
+            ref_transcription.alignments, transcription.alignments
+        ):
             assert len(ref_align_elem) == len(align_elem)
             for ref_pred, pred in zip(ref_align_elem, align_elem):
                 assert ref_pred[1].item() == pred[1].item()

@@ -50,10 +50,10 @@ class TestTTSTokenizers:
     def _parse_text(tokenizer, text):
         tokens = tokenizer.encode(text)
         chars = tokenizer.decode(tokens)
-        chars = chars.replace('|', '')
+        chars = chars.replace("|", "")
         return chars, tokens
 
-    @pytest.mark.run_only_on('CPU')
+    @pytest.mark.run_only_on("CPU")
     @pytest.mark.unit
     def test_english_chars_tokenizer(self):
         input_text = "Hello world!"
@@ -65,7 +65,7 @@ class TestTTSTokenizers:
         assert chars == expected_output
         assert len(tokens) == len(input_text)
 
-    @pytest.mark.run_only_on('CPU')
+    @pytest.mark.run_only_on("CPU")
     @pytest.mark.unit
     def test_english_chars_tokenizer_unknown_token(self):
         input_text = "Hey 🙂 there"
@@ -77,7 +77,7 @@ class TestTTSTokenizers:
         assert chars == expected_output
         assert len(tokens) == len(expected_output)
 
-    @pytest.mark.run_only_on('CPU')
+    @pytest.mark.run_only_on("CPU")
     @pytest.mark.unit
     def test_english_chars_tokenizer_accented_character(self):
         input_text = "Let's drink at the café."
@@ -89,7 +89,7 @@ class TestTTSTokenizers:
         assert chars == expected_output
         assert len(tokens) == len(input_text)
 
-    @pytest.mark.run_only_on('CPU')
+    @pytest.mark.run_only_on("CPU")
     @pytest.mark.unit
     def test_german_chars_tokenizer(self):
         input_text = "Was ist dein Lieblingsgetränk?"
@@ -101,7 +101,7 @@ class TestTTSTokenizers:
         assert chars == expected_output
         assert len(tokens) == len(input_text)
 
-    @pytest.mark.run_only_on('CPU')
+    @pytest.mark.run_only_on("CPU")
     @pytest.mark.unit
     def test_italian_chars_tokenizer(self):
         input_text = "Ciao mondo!"
@@ -113,7 +113,7 @@ class TestTTSTokenizers:
         assert chars == expected_output
         assert len(tokens) == len(input_text)
 
-    @pytest.mark.run_only_on('CPU')
+    @pytest.mark.run_only_on("CPU")
     @pytest.mark.unit
     def test_spanish_chars_tokenizer(self):
         input_text = "¿Cuál es su nombre?"
@@ -125,7 +125,7 @@ class TestTTSTokenizers:
         assert chars == expected_output
         assert len(tokens) == len(input_text)
 
-    @pytest.mark.run_only_on('CPU')
+    @pytest.mark.run_only_on("CPU")
     @pytest.mark.unit
     def test_vietnamese_chars_tokenizer(self):
         input_text = "Xin chào các bạn."
@@ -137,7 +137,7 @@ class TestTTSTokenizers:
         assert chars == expected_output
         assert len(tokens) == len(input_text)
 
-    @pytest.mark.run_only_on('CPU')
+    @pytest.mark.run_only_on("CPU")
     @pytest.mark.unit
     def test_french_chars_tokenizer(self):
         input_text = "Bon après-midi !"
@@ -149,7 +149,7 @@ class TestTTSTokenizers:
         assert chars == expected_output
         assert len(tokens) == len(input_text)
 
-    @pytest.mark.run_only_on('CPU')
+    @pytest.mark.run_only_on("CPU")
     @pytest.mark.unit
     def test_ipa_tokenizer(self):
         input_text = "Hello world!"
@@ -162,14 +162,14 @@ class TestTTSTokenizers:
 
         assert chars == expected_output
 
-    @pytest.mark.run_only_on('CPU')
+    @pytest.mark.run_only_on("CPU")
     @pytest.mark.unit
     def test_ipa_tokenizer_unsupported_locale(self):
         g2p = IpaG2p(phoneme_dict=self.PHONEME_DICT_EN)
         with pytest.raises(ValueError, match="Unsupported locale"):
             IPATokenizer(g2p=g2p, locale="asdf")
 
-    @pytest.mark.run_only_on('CPU')
+    @pytest.mark.run_only_on("CPU")
     @pytest.mark.unit
     def test_ipa_tokenizer_de_de(self):
         input_text = "Hallo welt"
@@ -181,7 +181,7 @@ class TestTTSTokenizers:
 
         assert chars == expected_output
 
-    @pytest.mark.run_only_on('CPU')
+    @pytest.mark.run_only_on("CPU")
     @pytest.mark.unit
     def test_ipa_tokenizer_it_it(self):
         input_text = "Ciao mondo"
@@ -193,7 +193,7 @@ class TestTTSTokenizers:
 
         assert chars == expected_output
 
-    @pytest.mark.run_only_on('CPU')
+    @pytest.mark.run_only_on("CPU")
     @pytest.mark.unit
     def test_ipa_tokenizer_en_us(self):
         input_text = "Hello café."
@@ -206,7 +206,7 @@ class TestTTSTokenizers:
 
         assert chars == expected_output
 
-    @pytest.mark.run_only_on('CPU')
+    @pytest.mark.run_only_on("CPU")
     @pytest.mark.unit
     def test_ipa_tokenizer_es_es(self):
         input_text = "¡Buenos días!"
@@ -218,7 +218,7 @@ class TestTTSTokenizers:
 
         assert chars == expected_output
 
-    @pytest.mark.run_only_on('CPU')
+    @pytest.mark.run_only_on("CPU")
     @pytest.mark.unit
     def test_ipa_tokenizer_fr_fr(self):
         input_text = "Bonjour le monde"
@@ -230,7 +230,7 @@ class TestTTSTokenizers:
 
         assert chars == expected_output
 
-    @pytest.mark.run_only_on('CPU')
+    @pytest.mark.run_only_on("CPU")
     @pytest.mark.unit
     def test_ipa_tokenizer_fixed_vocab(self):
         phoneme_dict = self.PHONEME_DICT_EN
@@ -252,7 +252,7 @@ class TestTTSTokenizers:
             'ˈ', 'w', 'u', 'n', 'd',
         }
         # fmt: on
-        fixed_vocab = symbol_vocab - {'ʊ', 'F'}
+        fixed_vocab = symbol_vocab - {"ʊ", "F"}
         tokenizer = IPATokenizer(g2p=g2p, locale="en-US", fixed_vocab=fixed_vocab)
 
         # Make sure phoneme_dict has been updated properly
@@ -266,7 +266,7 @@ class TestTTSTokenizers:
         expected_output = "HELLO, ˈwund"
         assert chars == expected_output
 
-    @pytest.mark.run_only_on('CPU')
+    @pytest.mark.run_only_on("CPU")
     @pytest.mark.unit
     def test_japanese_phoneme_tokenizer(self):
         input_text = "ハロー ワールド."

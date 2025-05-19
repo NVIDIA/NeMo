@@ -47,8 +47,10 @@ class MegatronMambaModel(MegatronGPTModel):
 
     def __init__(self, cfg: DictConfig, trainer: Trainer):
         if not HAVE_MEGATRON_CORE or not HAVE_MAMBA_SSM:
-            raise ImportError("Both megatron.core and mamba_ssm packages are required to use MegatronMambaModel")
-        self.vocab_size = cfg.get('vocab_size', 65536)
+            raise ImportError(
+                "Both megatron.core and mamba_ssm packages are required to use MegatronMambaModel"
+            )
+        self.vocab_size = cfg.get("vocab_size", 65536)
         self.cfg = cfg
         super().__init__(cfg=cfg, trainer=trainer)
         logging.warning("Overriding mcore_gpt=True")
@@ -56,19 +58,25 @@ class MegatronMambaModel(MegatronGPTModel):
 
     def model_provider_func(self, pre_process, post_process):
         if not HAVE_MEGATRON_CORE or not HAVE_MAMBA_SSM:
-            raise ImportError("Both megatron.core and mamba_ssm packages are required to use MegatronMambaModel")
+            raise ImportError(
+                "Both megatron.core and mamba_ssm packages are required to use MegatronMambaModel"
+            )
         self.hybrid_override_pattern = self.cfg.get(
-            'hybrid_override_pattern', "M" * self.transformer_config.num_layers
+            "hybrid_override_pattern", "M" * self.transformer_config.num_layers
         )
-        self.transformer_config.add_bias_linear = self.cfg.get('add_bias_linear', False)
-        self.transformer_config.gated_linear_unit = self.cfg.get('gated_linear_unit', False)
-        self.transformer_config.layernorm_epsilon = self.cfg.get('layernorm_epsilon', 1e-5)
+        self.transformer_config.add_bias_linear = self.cfg.get("add_bias_linear", False)
+        self.transformer_config.gated_linear_unit = self.cfg.get(
+            "gated_linear_unit", False
+        )
+        self.transformer_config.layernorm_epsilon = self.cfg.get(
+            "layernorm_epsilon", 1e-5
+        )
 
         model = MambaModel(
             config=self.transformer_config,
-            max_sequence_length=self.cfg.get('encoder_seq_length', 4096),
-            vocab_size=self.cfg.get('vocab_size', 65536),
-            mamba_ssm_ngroups=self.cfg.get('mamba_ssm_ngroups', 8),
+            max_sequence_length=self.cfg.get("encoder_seq_length", 4096),
+            vocab_size=self.cfg.get("vocab_size", 65536),
+            mamba_ssm_ngroups=self.cfg.get("mamba_ssm_ngroups", 8),
             mamba_stack_spec=mamba_stack_spec,
             hybrid_override_pattern=self.hybrid_override_pattern,
         )
@@ -78,7 +86,10 @@ class MegatronMambaModel(MegatronGPTModel):
     def forward(self, input_ids, position_ids=None, attention_mask=None, labels=None):
 
         output_tensor = self.model(
-            input_ids=input_ids, position_ids=position_ids, attention_mask=attention_mask, labels=labels
+            input_ids=input_ids,
+            position_ids=position_ids,
+            attention_mask=attention_mask,
+            labels=labels,
         )
         return output_tensor
 

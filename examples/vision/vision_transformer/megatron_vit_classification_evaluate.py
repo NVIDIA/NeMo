@@ -37,14 +37,14 @@ from nemo.utils.get_rank import is_global_rank_zero
 @hydra_runner(config_path="conf", config_name="megatron_vit_classification_evaluate")
 def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
-    logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
+    logging.info(f"\n{OmegaConf.to_yaml(cfg)}")
 
     plugins = []
     strategy = NLPDDPStrategy(
         no_ddp_communication_hook=True,
         find_unused_parameters=False,  # we don't use DDP for async grad allreduce
     )
-    if cfg.get('cluster_type', None) == 'BCP':
+    if cfg.get("cluster_type", None) == "BCP":
         plugins.append(TorchElasticEnvironment())
 
     # trainer required for restoring model parallel models
@@ -85,7 +85,9 @@ def main(cfg) -> None:
 
     model.eval()
 
-    val_transform = ClassificationTransform(model.cfg, (model.cfg.img_h, model.cfg.img_w), train=False)
+    val_transform = ClassificationTransform(
+        model.cfg, (model.cfg.img_h, model.cfg.img_w), train=False
+    )
     val_data = ImageFolder(
         root=cfg.model.data.imagenet_val,
         transform=val_transform,
@@ -124,5 +126,5 @@ def main(cfg) -> None:
         print(f"ViT Imagenet 1K Evaluation Accuracy: {correct / total:.4f}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

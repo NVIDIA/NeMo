@@ -54,7 +54,7 @@ class LatticeLoss(Loss):
 
         backend: Which backend to use for loss calculation. Currently only `k2` is supported.
 
-        criterion_type: Type of criterion to use. Choices: `ml` and `map`, 
+        criterion_type: Type of criterion to use. Choices: `ml` and `map`,
             with `ml` standing for Maximum Likelihood and `map` for Maximum A Posteriori Probability.
 
         loss_type: Type of the loss function to use. Choices: `ctc` and `rnnt` for `ml`, and `mmi` for `map`.
@@ -67,10 +67,12 @@ class LatticeLoss(Loss):
 
     @property
     def input_types(self):
-        """Input types definitions for LatticeLoss.
-        """
+        """Input types definitions for LatticeLoss."""
         return {
-            "log_probs": NeuralType(("B", "T", "D") if self._3d_input else ("B", "T", "T", "D"), LogprobsType()),
+            "log_probs": NeuralType(
+                ("B", "T", "D") if self._3d_input else ("B", "T", "T", "D"),
+                LogprobsType(),
+            ),
             "targets": NeuralType(("B", "T"), LabelsType()),
             "input_lengths": NeuralType(tuple("B"), LengthsType()),
             "target_lengths": NeuralType(tuple("B"), LengthsType()),
@@ -126,7 +128,10 @@ class LatticeLoss(Loss):
                 raise ValueError(f"Unsupported `criterion_type`: {criterion_type}.")
 
             self._loss = K2Loss(
-                num_classes=self._blank + 1, blank=self._blank, reduction=inner_reduction, cfg=graph_module_cfg,
+                num_classes=self._blank + 1,
+                blank=self._blank,
+                reduction=inner_reduction,
+                cfg=graph_module_cfg,
             )
         elif backend == "gtn":
             raise NotImplementedError(f"Backend {backend} is not supported.")
@@ -144,8 +149,7 @@ class LatticeLoss(Loss):
             self._partial_loss = PartialGrad(self._loss)
 
     def update_graph(self, graph):
-        """Updates graph of the backend loss function.
-        """
+        """Updates graph of the backend loss function."""
         if self.criterion_type != "ml":
             self._loss.update_graph(graph)
 
@@ -171,16 +175,34 @@ class LatticeLoss(Loss):
                 target_lengths_part = target_lengths[begin:end]
                 targets_part = targets[begin:end, : target_lengths_part.max()]
                 loss_part, _ = (
-                    self._partial_loss(log_probs_part, targets_part, input_lengths_part, target_lengths_part)
+                    self._partial_loss(
+                        log_probs_part,
+                        targets_part,
+                        input_lengths_part,
+                        target_lengths_part,
+                    )
                     if log_probs_part.requires_grad
-                    else self._loss(log_probs_part, targets_part, input_lengths_part, target_lengths_part)
+                    else self._loss(
+                        log_probs_part,
+                        targets_part,
+                        input_lengths_part,
+                        target_lengths_part,
+                    )
                 )
-                del log_probs_part, targets_part, input_lengths_part, target_lengths_part
+                del (
+                    log_probs_part,
+                    targets_part,
+                    input_lengths_part,
+                    target_lengths_part,
+                )
                 loss_list.append(loss_part)
             loss = torch.cat(loss_list, 0)
         else:
             loss, _ = self._loss(
-                log_probs=log_probs, targets=targets, input_lengths=input_lengths, target_lengths=target_lengths,
+                log_probs=log_probs,
+                targets=targets,
+                input_lengths=input_lengths,
+                target_lengths=target_lengths,
             )
         if self._apply_batch_mean:
             # torch.mean gives nan if loss is empty

@@ -103,44 +103,53 @@ Set `do_training` to `false` and `do_testing` to `true` to perform evaluation wi
 def main(cfg: DictConfig) -> None:
     # PTL 2.0 has find_unused_parameters as False by default, so its required to set it to True
     # when there are unused parameters like here
-    if cfg.trainer.strategy == 'ddp':
+    if cfg.trainer.strategy == "ddp":
         cfg.trainer.strategy = "ddp_find_unused_parameters_true"
     torch.manual_seed(42)
     cfg = OmegaConf.merge(OmegaConf.structured(PunctuationCapitalizationConfig()), cfg)
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
     if not cfg.do_training and not cfg.do_testing:
-        raise ValueError("At least one of config parameters `do_training` and `do_testing` has to `true`.")
+        raise ValueError(
+            "At least one of config parameters `do_training` and `do_testing` has to `true`."
+        )
     if cfg.do_training:
-        if cfg.model.get('train_ds') is None:
-            raise ValueError('`model.train_ds` config section is required if `do_training` config item is `True`.')
+        if cfg.model.get("train_ds") is None:
+            raise ValueError(
+                "`model.train_ds` config section is required if `do_training` config item is `True`."
+            )
     if cfg.do_testing:
-        if cfg.model.get('test_ds') is None:
-            raise ValueError('`model.test_ds` config section is required if `do_testing` config item is `True`.')
+        if cfg.model.get("test_ds") is None:
+            raise ValueError(
+                "`model.test_ds` config section is required if `do_testing` config item is `True`."
+            )
 
     if not cfg.pretrained_model:
-        logging.info(f'Config: {OmegaConf.to_yaml(cfg)}')
+        logging.info(f"Config: {OmegaConf.to_yaml(cfg)}")
         model = PunctuationCapitalizationModel(cfg.model, trainer=trainer)
     else:
         if os.path.exists(cfg.pretrained_model):
             model = PunctuationCapitalizationModel.restore_from(cfg.pretrained_model)
-        elif cfg.pretrained_model in PunctuationCapitalizationModel.get_available_model_names():
+        elif (
+            cfg.pretrained_model
+            in PunctuationCapitalizationModel.get_available_model_names()
+        ):
             model = PunctuationCapitalizationModel.from_pretrained(cfg.pretrained_model)
         else:
             raise ValueError(
-                f'Config parameter `pretrained_model` should contain a path to the pre-trained .nemo file or a model '
-                f'name from '
-                f'{[m.pretrained_model_name for m in PunctuationCapitalizationModel.list_available_models()]}. '
+                f"Config parameter `pretrained_model` should contain a path to the pre-trained .nemo file or a model "
+                f"name from "
+                f"{[m.pretrained_model_name for m in PunctuationCapitalizationModel.list_available_models()]}. "
                 f'Provided `pretrained_model="{cfg.pretrained_model}"` is neither a valid path, nor a valid model '
-                f'name.'
+                f"name."
             )
         model.update_config_after_restoring_from_checkpoint(
             class_labels=cfg.model.class_labels,
             common_dataset_parameters=cfg.model.common_dataset_parameters,
-            train_ds=cfg.model.get('train_ds') if cfg.do_training else None,
-            validation_ds=cfg.model.get('validation_ds') if cfg.do_training else None,
-            test_ds=cfg.model.get('test_ds') if cfg.do_testing else None,
-            optim=cfg.model.get('optim') if cfg.do_training else None,
+            train_ds=cfg.model.get("train_ds") if cfg.do_training else None,
+            validation_ds=cfg.model.get("validation_ds") if cfg.do_training else None,
+            test_ds=cfg.model.get("test_ds") if cfg.do_testing else None,
+            optim=cfg.model.get("optim") if cfg.do_training else None,
         )
         model.set_trainer(trainer)
         if cfg.do_training:
@@ -155,5 +164,5 @@ def main(cfg: DictConfig) -> None:
         trainer.test(model)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

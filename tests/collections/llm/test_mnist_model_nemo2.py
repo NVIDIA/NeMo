@@ -112,7 +112,9 @@ class MSELossReduction(MegatronLossReduction):
         Returns:
             A tensor that is the mean of the losses. (used for logging).
         """
-        mse_losses = torch.stack([loss["avg"] for loss in losses_reduced_per_micro_batch])
+        mse_losses = torch.stack(
+            [loss["avg"] for loss in losses_reduced_per_micro_batch]
+        )
         return mse_losses.mean()
 
 
@@ -136,7 +138,9 @@ def get_dtype_device(torch_object) -> Tuple[torch.dtype, torch.device]:  # noqa:
             try:
                 p = next(m.parameters())
             except StopIteration as e:
-                raise ValueError("Cannot get dtype on a torch module with no parameters.") from e
+                raise ValueError(
+                    "Cannot get dtype on a torch module with no parameters."
+                ) from e
             return p.dtype, p.device
         case dict(keys=_, values=values):
             val = some_first(values())
@@ -149,7 +153,9 @@ def get_dtype_device(torch_object) -> Tuple[torch.dtype, torch.device]:  # noqa:
 
 
 # NOTE(SKH): These types are all wrong, but are close. The inner type must always be a torch.Tensor, but the outer container should be generic.
-def batch_collator(batches: Optional[Union[Tuple[ReductionT], List[ReductionT]]]) -> Optional[ReductionT]:
+def batch_collator(
+    batches: Optional[Union[Tuple[ReductionT], List[ReductionT]]]
+) -> Optional[ReductionT]:
     """Takes a sequence of batches and collates them into a single batch.
         This is distinct from the standard pytorch default_collator since it does
         not add the batch dimension, it's assumed the batch
@@ -177,11 +183,20 @@ def batch_collator(batches: Optional[Union[Tuple[ReductionT], List[ReductionT]]]
         case [torch.Tensor(), *_]:
             return torch.cat(batches, dim=0)
         case [dict(), *_]:
-            return {key: batch_collator([batch[key] for batch in batches]) for key in batches[0]}
+            return {
+                key: batch_collator([batch[key] for batch in batches])
+                for key in batches[0]
+            }
         case [tuple(), *_]:
-            return tuple(batch_collator([batch[i] for batch in batches]) for i in range(len(batches[0])))
+            return tuple(
+                batch_collator([batch[i] for batch in batches])
+                for i in range(len(batches[0]))
+            )
         case [list(), *_]:
-            return [batch_collator([batch[i] for batch in batches]) for i in range(len(batches[0]))]
+            return [
+                batch_collator([batch[i] for batch in batches])
+                for i in range(len(batches[0]))
+            ]
         case None:
             return None
         case []:
@@ -235,7 +250,9 @@ class LitAutoEncoder(pl.LightningModule, io.IOMixin, io.ConnectorMixin):
         super().__init__()
         self.config = config
         self.optim = MegatronOptimizerModule(
-            config=OptimizerConfig(lr=1e-4, optimizer="adam", use_distributed_optimizer=True),
+            config=OptimizerConfig(
+                lr=1e-4, optimizer="adam", use_distributed_optimizer=True
+            ),
         )
         # Bind the configure_optimizers method to the model
         self.optim.connect(self)
@@ -374,46 +391,83 @@ class LossLoggingCallback(pl.Callback):  # noqa: D101
         self.val_losses = []
         self.test_losses = []
 
-    def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):  # noqa: D102
+    def on_train_batch_end(
+        self, trainer, pl_module, outputs, batch, batch_idx
+    ):  # noqa: D102
         # Assuming the loss is computed internally and stored in pl_module
-        if torch.distributed.get_rank() == 0 and parallel_state.is_pipeline_last_stage(ignore_virtual=False):
+        if torch.distributed.get_rank() == 0 and parallel_state.is_pipeline_last_stage(
+            ignore_virtual=False
+        ):
             if isinstance(outputs, dict):
                 outputs = outputs["loss"]
             loss = outputs
-            pl_module.log("train_loss", loss, on_step=True, prog_bar=True, logger=True, rank_zero_only=True)
+            pl_module.log(
+                "train_loss",
+                loss,
+                on_step=True,
+                prog_bar=True,
+                logger=True,
+                rank_zero_only=True,
+            )
 
-    def on_test_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx=0):  # noqa: D102
-        if torch.distributed.get_rank() == 0 and parallel_state.is_pipeline_last_stage(ignore_virtual=False):
+    def on_test_batch_end(
+        self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx=0
+    ):  # noqa: D102
+        if torch.distributed.get_rank() == 0 and parallel_state.is_pipeline_last_stage(
+            ignore_virtual=False
+        ):
             if isinstance(outputs, dict):
                 outputs = outputs["loss"]
             loss = outputs
             self.test_losses.append(loss)
 
-    def on_validation_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx=0):  # noqa: D102
+    def on_validation_batch_end(
+        self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx=0
+    ):  # noqa: D102
         # Assuming the loss is computed internally and stored in pl_module
-        if torch.distributed.get_rank() == 0 and parallel_state.is_pipeline_last_stage(ignore_virtual=False):
+        if torch.distributed.get_rank() == 0 and parallel_state.is_pipeline_last_stage(
+            ignore_virtual=False
+        ):
             if isinstance(outputs, dict):
                 outputs = outputs["loss"]
             loss = outputs
             self.val_losses.append(loss)
 
     def on_validation_epoch_end(self, trainer, pl_module):  # noqa: D102
-        if torch.distributed.get_rank() == 0 and parallel_state.is_pipeline_last_stage(ignore_virtual=False):
+        if torch.distributed.get_rank() == 0 and parallel_state.is_pipeline_last_stage(
+            ignore_virtual=False
+        ):
             if len(self.val_losses) > 0:
                 avg_val_loss = torch.stack(self.val_losses).mean()
-                pl_module.log("val_loss", avg_val_loss, prog_bar=True, logger=True, rank_zero_only=True)
+                pl_module.log(
+                    "val_loss",
+                    avg_val_loss,
+                    prog_bar=True,
+                    logger=True,
+                    rank_zero_only=True,
+                )
                 self.val_losses.clear()
 
     def on_test_epoch_end(self, trainer, pl_module):  # noqa: D102
-        if torch.distributed.get_rank() == 0 and parallel_state.is_pipeline_last_stage(ignore_virtual=False):
+        if torch.distributed.get_rank() == 0 and parallel_state.is_pipeline_last_stage(
+            ignore_virtual=False
+        ):
             if len(self.test_losses) > 0:
                 avg_test_loss = torch.stack(self.test_losses).mean()
-                pl_module.log("test_loss", avg_test_loss, prog_bar=True, logger=True, rank_zero_only=True)
+                pl_module.log(
+                    "test_loss",
+                    avg_test_loss,
+                    prog_bar=True,
+                    logger=True,
+                    rank_zero_only=True,
+                )
                 self.test_losses.clear()
 
 
 class MNISTDataModule(pl.LightningDataModule):  # noqa: D101
-    def __init__(self, data_dir: str = "./", batch_size: int = 32) -> None:  # noqa: D107
+    def __init__(
+        self, data_dir: str = "./", batch_size: int = 32
+    ) -> None:  # noqa: D107
         super().__init__()
         self.data_dir = data_dir
         self.batch_size = batch_size
@@ -439,9 +493,15 @@ class MNISTDataModule(pl.LightningDataModule):  # noqa: D101
         Args:
             stage: can be one of train / test / predict.
         """  # noqa: D415
-        self.mnist_test = MNISTCustom(self.data_dir, download=True, transform=transforms.ToTensor(), train=False)
-        self.mnist_predict = MNISTCustom(self.data_dir, download=True, transform=transforms.ToTensor(), train=False)
-        mnist_full = MNISTCustom(self.data_dir, download=True, transform=transforms.ToTensor(), train=True)
+        self.mnist_test = MNISTCustom(
+            self.data_dir, download=True, transform=transforms.ToTensor(), train=False
+        )
+        self.mnist_predict = MNISTCustom(
+            self.data_dir, download=True, transform=transforms.ToTensor(), train=False
+        )
+        mnist_full = MNISTCustom(
+            self.data_dir, download=True, transform=transforms.ToTensor(), train=True
+        )
         self.mnist_train, self.mnist_val = torch.utils.data.random_split(
             mnist_full, [55000, 5000], generator=torch.Generator().manual_seed(42)
         )
@@ -513,7 +573,9 @@ def run_train_mnist_litautoencoder_with_megatron_strategy_single_gpu():
             tb_logger = TensorBoardLogger(save_dir=str(save_dir), name=name)
             # Setup the logger and train the model
             nemo_logger = NeMoLogger(
-                log_dir=str(root_dir),  # WARNING: passing a path in here results in mutating the Path class.
+                log_dir=str(
+                    root_dir
+                ),  # WARNING: passing a path in here results in mutating the Path class.
                 name=name,
                 tensorboard=tb_logger,
                 ckpt=checkpoint_callback,
@@ -570,7 +632,9 @@ def run_train_mnist_litautoencoder_with_megatron_strategy_single_gpu():
                 accelerator="gpu",
                 devices=1,
                 strategy=pred_strategy,
-                default_root_dir=str(root_dir),  # WARNING: passing a path in here results in mutating the Path class.
+                default_root_dir=str(
+                    root_dir
+                ),  # WARNING: passing a path in here results in mutating the Path class.
             )
             ckpt_path = checkpoint_callback.last_model_path.replace(
                 ".ckpt", ""
@@ -584,18 +648,28 @@ def run_train_mnist_litautoencoder_with_megatron_strategy_single_gpu():
             ).exists(), f"checkpoint {ckpt_path} not found in {os.listdir(Path(ckpt_path).parent)}"
             # FIXME: the below checkpoint loading strategy and manual module unwrapping probably only works in single GPU
             #  and maybe DDP.
-            unwrapped_trained_model = trainer.model.module  # TODO clean this up. Would be good not to have to unwrap.
+            unwrapped_trained_model = (
+                trainer.model.module
+            )  # TODO clean this up. Would be good not to have to unwrap.
             forward_output = batch_collator(
                 predict_trainer.predict(
-                    unwrapped_trained_model, dataloaders=data_module.test_dataloader(), ckpt_path=ckpt_path
+                    unwrapped_trained_model,
+                    dataloaders=data_module.test_dataloader(),
+                    ckpt_path=ckpt_path,
                 )
             )
             assert set(forward_output.keys()) == {
                 "z",
                 "x_hat",
             }, f"We expect forward output from predit_step, not the loss, got: {forward_output}"
-            assert forward_output["x_hat"].shape == (len(data_module.mnist_test), 28 * 28)
-            assert forward_output["z"].shape == (len(data_module.mnist_test), 3)  # latent bottleneck in model of dim 3
+            assert forward_output["x_hat"].shape == (
+                len(data_module.mnist_test),
+                28 * 28,
+            )
+            assert forward_output["z"].shape == (
+                len(data_module.mnist_test),
+                3,
+            )  # latent bottleneck in model of dim 3
             predict_trainer._teardown()
 
 

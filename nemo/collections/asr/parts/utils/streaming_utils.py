@@ -66,7 +66,7 @@ def write_lcs_alignment_to_pickle(alignment, filepath, extras=None):
     if extras is None:
         extras = {}
 
-    extras['alignment'] = alignment
+    extras["alignment"] = alignment
     torch.save(extras, filepath)
 
 
@@ -223,7 +223,9 @@ def longest_common_subsequence_merge(X, Y, filepath=None):
             j_skip = 0  # how many diagonals didnt have the token. Incremented by 1 for every row i
 
             for i_idx in range(i_temp, m + 1):  # walk from i_partial + 1 => m + 1
-                j_any_skip = 0  # If the diagonal element at this location is not found, set to 1
+                j_any_skip = (
+                    0  # If the diagonal element at this location is not found, set to 1
+                )
                 # j_any_skip expands the search space one place to the right
                 # This allows 1 diagonal misalignment per timestep i (and expands the search for the next timestep)
 
@@ -289,7 +291,9 @@ def longest_common_subsequence_merge(X, Y, filepath=None):
     return result_idx, LCSuff
 
 
-def lcs_alignment_merge_buffer(buffer, data, delay, model, max_steps_per_timestep: int = 5, filepath: str = None):
+def lcs_alignment_merge_buffer(
+    buffer, data, delay, model, max_steps_per_timestep: int = 5, filepath: str = None
+):
     """
     Merges the new text from the current frame with the previous text contained in the buffer.
 
@@ -312,7 +316,9 @@ def lcs_alignment_merge_buffer(buffer, data, delay, model, max_steps_per_timeste
     buffer_slice = buffer[-search_size:]
 
     # Perform LCS Merge
-    lcs_idx, lcs_alignment = longest_common_subsequence_merge(buffer_slice, data, filepath=filepath)
+    lcs_idx, lcs_alignment = longest_common_subsequence_merge(
+        buffer_slice, data, filepath=filepath
+    )
 
     # Slice off new data
     # i, j, slice_len = lcs_idx
@@ -355,7 +361,7 @@ class StreamingFeatureBufferer:
     """
 
     def __init__(self, asr_model, chunk_size, buffer_size):
-        '''
+        """
         Args:
             asr_model:
                 Reference to the asr model instance for which the feature needs to be created
@@ -363,11 +369,13 @@ class StreamingFeatureBufferer:
                 Duration of the new chunk of audio
             buffer_size (float):
                 Size of the total audio in seconds maintained in the buffer
-        '''
+        """
 
         self.NORM_CONSTANT = 1e-5
-        if hasattr(asr_model.preprocessor, 'log') and asr_model.preprocessor.log:
-            self.ZERO_LEVEL_SPEC_DB_VAL = -16.635  # Log-Melspectrogram value for zero signal
+        if hasattr(asr_model.preprocessor, "log") and asr_model.preprocessor.log:
+            self.ZERO_LEVEL_SPEC_DB_VAL = (
+                -16.635
+            )  # Log-Melspectrogram value for zero signal
         else:
             self.ZERO_LEVEL_SPEC_DB_VAL = 0.0
         self.asr_model = asr_model
@@ -382,7 +390,10 @@ class StreamingFeatureBufferer:
         total_buffer_len = int(buffer_size / timestep_duration)
         self.n_feat = asr_model.cfg.preprocessor.features
         self.sample_buffer = torch.zeros(int(self.buffer_size * self.sr))
-        self.buffer = torch.ones([self.n_feat, total_buffer_len], dtype=torch.float32) * self.ZERO_LEVEL_SPEC_DB_VAL
+        self.buffer = (
+            torch.ones([self.n_feat, total_buffer_len], dtype=torch.float32)
+            * self.ZERO_LEVEL_SPEC_DB_VAL
+        )
         self.feature_chunk_len = int(chunk_size / timestep_duration)
         self.feature_buffer_len = total_buffer_len
 
@@ -397,14 +408,18 @@ class StreamingFeatureBufferer:
         self.raw_preprocessor.to(asr_model.device)
 
     def reset(self):
-        '''
+        """
         Reset frame_history and decoder's state
-        '''
-        self.buffer = torch.ones(self.buffer.shape, dtype=torch.float32) * self.ZERO_LEVEL_SPEC_DB_VAL
+        """
+        self.buffer = (
+            torch.ones(self.buffer.shape, dtype=torch.float32)
+            * self.ZERO_LEVEL_SPEC_DB_VAL
+        )
         self.frame_buffers = []
         self.sample_buffer = torch.zeros(int(self.buffer_size * self.sr))
         self.feature_buffer = (
-            torch.ones([self.n_feat, self.feature_buffer_len], dtype=torch.float32) * self.ZERO_LEVEL_SPEC_DB_VAL
+            torch.ones([self.n_feat, self.feature_buffer_len], dtype=torch.float32)
+            * self.ZERO_LEVEL_SPEC_DB_VAL
         )
 
     def _add_chunk_to_buffer(self, chunk):
@@ -415,14 +430,18 @@ class StreamingFeatureBufferer:
             chunk (Tensor):
                 Tensor filled with time-series audio signal
         """
-        self.sample_buffer[: -self.n_chunk_samples] = self.sample_buffer[self.n_chunk_samples :].clone()
+        self.sample_buffer[: -self.n_chunk_samples] = self.sample_buffer[
+            self.n_chunk_samples :
+        ].clone()
         self.sample_buffer[-self.n_chunk_samples :] = chunk.clone()
 
     def _update_feature_buffer(self, feat_chunk):
         """
         Add an extracted feature to `feature_buffer`
         """
-        self.feature_buffer[:, : -self.feature_chunk_len] = self.feature_buffer[:, self.feature_chunk_len :].clone()
+        self.feature_buffer[:, : -self.feature_chunk_len] = self.feature_buffer[
+            :, self.feature_chunk_len :
+        ].clone()
         self.feature_buffer[:, -self.feature_chunk_len :] = feat_chunk.clone()
 
     def get_raw_feature_buffer(self):
@@ -463,7 +482,9 @@ class StreamingFeatureBufferer:
                 Tensor filled with time-series audio signal
         """
         if len(chunk) > self.n_chunk_samples:
-            raise ValueError(f"chunk should be of length {self.n_chunk_samples} or less")
+            raise ValueError(
+                f"chunk should be of length {self.n_chunk_samples} or less"
+            )
         if len(chunk) < self.n_chunk_samples:
             temp_chunk = torch.zeros(self.n_chunk_samples, dtype=torch.float32)
             temp_chunk[: chunk.shape[0]] = chunk
@@ -480,7 +501,7 @@ class AudioFeatureIterator(IterableDataset):
         self.output = True
         self.count = 0
         self.pad_to_frame_len = pad_to_frame_len
-        timestep_duration = preprocessor._cfg['window_stride']
+        timestep_duration = preprocessor._cfg["window_stride"]
         self._feature_frame_len = frame_len / timestep_duration
         audio_signal = torch.from_numpy(self._samples).unsqueeze_(0).to(device)
         audio_signal_len = torch.Tensor([self._samples.shape[0]]).to(device)
@@ -504,7 +525,10 @@ class AudioFeatureIterator(IterableDataset):
             if not self.pad_to_frame_len:
                 frame = self._features[:, self._start : self._features_len[0]].cpu()
             else:
-                frame = np.zeros([self._features.shape[0], int(self._feature_frame_len)], dtype='float32')
+                frame = np.zeros(
+                    [self._features.shape[0], int(self._feature_frame_len)],
+                    dtype="float32",
+                )
                 segment = self._features[:, self._start : self._features_len[0]].cpu()
                 frame[:, : segment.shape[1]] = segment
             self.output = False
@@ -549,8 +573,8 @@ class AudioBuffersDataLayer(IterableDataset):
     @property
     def output_types(self):
         return {
-            "processed_signal": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
-            "processed_length": NeuralType(tuple('B'), LengthsType()),
+            "processed_signal": NeuralType(("B", "D", "T"), MelSpectrogramType()),
+            "processed_length": NeuralType(tuple("B"), LengthsType()),
         }
 
     def __init__(self):
@@ -565,7 +589,9 @@ class AudioBuffersDataLayer(IterableDataset):
         self._buf_count += 1
         return (
             torch.as_tensor(self.signal[self._buf_count - 1], dtype=torch.float32),
-            torch.as_tensor(self.signal[self._buf_count - 1].shape[1], dtype=torch.int64),
+            torch.as_tensor(
+                self.signal[self._buf_count - 1].shape[1], dtype=torch.int64
+            ),
         )
 
     def set_signal(self, signals):
@@ -583,15 +609,24 @@ class FeatureFrameBufferer:
     an array of buffers.
     """
 
-    def __init__(self, asr_model, frame_len=1.6, batch_size=4, total_buffer=4.0, pad_to_buffer_len=True):
-        '''
+    def __init__(
+        self,
+        asr_model,
+        frame_len=1.6,
+        batch_size=4,
+        total_buffer=4.0,
+        pad_to_buffer_len=True,
+    ):
+        """
         Args:
           frame_len: frame's duration, seconds
           frame_overlap: duration of overlaps before and after current frame, seconds
           offset: number of symbols to drop for smooth streaming
-        '''
-        if hasattr(asr_model.preprocessor, 'log') and asr_model.preprocessor.log:
-            self.ZERO_LEVEL_SPEC_DB_VAL = -16.635  # Log-Melspectrogram value for zero signal
+        """
+        if hasattr(asr_model.preprocessor, "log") and asr_model.preprocessor.log:
+            self.ZERO_LEVEL_SPEC_DB_VAL = (
+                -16.635
+            )  # Log-Melspectrogram value for zero signal
         else:
             self.ZERO_LEVEL_SPEC_DB_VAL = 0.0
         self.asr_model = asr_model
@@ -602,7 +637,10 @@ class FeatureFrameBufferer:
 
         total_buffer_len = int(total_buffer / timestep_duration)
         self.n_feat = asr_model._cfg.preprocessor.features
-        self.buffer = np.ones([self.n_feat, total_buffer_len], dtype=np.float32) * self.ZERO_LEVEL_SPEC_DB_VAL
+        self.buffer = (
+            np.ones([self.n_feat, total_buffer_len], dtype=np.float32)
+            * self.ZERO_LEVEL_SPEC_DB_VAL
+        )
         self.pad_to_buffer_len = pad_to_buffer_len
         self.batch_size = batch_size
 
@@ -611,7 +649,8 @@ class FeatureFrameBufferer:
         self.feature_buffer_len = total_buffer_len
 
         self.feature_buffer = (
-            np.ones([self.n_feat, self.feature_buffer_len], dtype=np.float32) * self.ZERO_LEVEL_SPEC_DB_VAL
+            np.ones([self.n_feat, self.feature_buffer_len], dtype=np.float32)
+            * self.ZERO_LEVEL_SPEC_DB_VAL
         )
         self.frame_buffers = []
         self.buffered_features_size = 0
@@ -619,16 +658,20 @@ class FeatureFrameBufferer:
         self.buffered_len = 0
 
     def reset(self):
-        '''
+        """
         Reset frame_history and decoder's state
-        '''
-        self.buffer = np.ones(shape=self.buffer.shape, dtype=np.float32) * self.ZERO_LEVEL_SPEC_DB_VAL
-        self.prev_char = ''
+        """
+        self.buffer = (
+            np.ones(shape=self.buffer.shape, dtype=np.float32)
+            * self.ZERO_LEVEL_SPEC_DB_VAL
+        )
+        self.prev_char = ""
         self.unmerged = []
         self.frame_buffers = []
         self.buffered_len = 0
         self.feature_buffer = (
-            np.ones([self.n_feat, self.feature_buffer_len], dtype=np.float32) * self.ZERO_LEVEL_SPEC_DB_VAL
+            np.ones([self.n_feat, self.feature_buffer_len], dtype=np.float32)
+            * self.ZERO_LEVEL_SPEC_DB_VAL
         )
 
     def get_batch_frames(self):
@@ -664,9 +707,13 @@ class FeatureFrameBufferer:
     def _update_feature_buffer(self, feat_frame):
         curr_frame_len = feat_frame.shape[1]
         if curr_frame_len < self.feature_buffer_len and not self.pad_to_buffer_len:
-            self.feature_buffer = np.copy(feat_frame)  # assume that only the last frame is less than the buffer length
+            self.feature_buffer = np.copy(
+                feat_frame
+            )  # assume that only the last frame is less than the buffer length
         else:
-            self.feature_buffer[:, : -feat_frame.shape[1]] = self.feature_buffer[:, feat_frame.shape[1] :]
+            self.feature_buffer[:, : -feat_frame.shape[1]] = self.feature_buffer[
+                :, feat_frame.shape[1] :
+            ]
             self.feature_buffer[:, -feat_frame.shape[1] :] = feat_frame
         self.buffered_features_size += feat_frame.shape[1]
 
@@ -676,13 +723,20 @@ class FeatureFrameBufferer:
             self._update_feature_buffer(frame)
             mean_from_buffer = np.mean(self.feature_buffer, axis=1)
             stdev_from_buffer = np.std(self.feature_buffer, axis=1)
-            norm_consts.append((mean_from_buffer.reshape(self.n_feat, 1), stdev_from_buffer.reshape(self.n_feat, 1)))
+            norm_consts.append(
+                (
+                    mean_from_buffer.reshape(self.n_feat, 1),
+                    stdev_from_buffer.reshape(self.n_feat, 1),
+                )
+            )
         return norm_consts
 
     def normalize_frame_buffers(self, frame_buffers, norm_consts):
         CONSTANT = 1e-5
         for i, frame_buffer in enumerate(frame_buffers):
-            frame_buffers[i] = (frame_buffer - norm_consts[i][0]) / (norm_consts[i][1] + CONSTANT)
+            frame_buffers[i] = (frame_buffer - norm_consts[i][0]) / (
+                norm_consts[i][1] + CONSTANT
+            )
 
     def get_buffers_batch(self):
         batch_frames = self.get_batch_frames()
@@ -716,12 +770,12 @@ class FrameBatchASR:
         batch_size=4,
         pad_to_buffer_len=True,
     ):
-        '''
+        """
         Args:
           frame_len: frame's duration, seconds
           frame_overlap: duration of overlaps before and after current frame, seconds
           offset: number of symbols to drop for smooth streaming
-        '''
+        """
         self.frame_bufferer = FeatureFrameBufferer(
             asr_model=asr_model,
             frame_len=frame_len,
@@ -766,10 +820,12 @@ class FrameBatchASR:
         """
         Reset frame_history and decoder's state
         """
-        self.prev_char = ''
+        self.prev_char = ""
         self.unmerged = []
         self.data_layer = AudioBuffersDataLayer()
-        self.data_loader = DataLoader(self.data_layer, batch_size=self.batch_size, collate_fn=speech_collate_fn)
+        self.data_loader = DataLoader(
+            self.data_layer, batch_size=self.batch_size, collate_fn=speech_collate_fn
+        )
         self.all_logits = []
         self.all_preds = []
         self.toks_unmerged = []
@@ -778,8 +834,13 @@ class FrameBatchASR:
 
     def read_audio_file(self, audio_filepath: str, delay, model_stride_in_secs):
         samples = get_samples(audio_filepath)
-        samples = np.pad(samples, (0, int(delay * model_stride_in_secs * self.asr_model._cfg.sample_rate)))
-        frame_reader = AudioFeatureIterator(samples, self.frame_len, self.raw_preprocessor, self.asr_model.device)
+        samples = np.pad(
+            samples,
+            (0, int(delay * model_stride_in_secs * self.asr_model._cfg.sample_rate)),
+        )
+        frame_reader = AudioFeatureIterator(
+            samples, self.frame_len, self.raw_preprocessor, self.asr_model.device
+        )
         self.set_frame_reader(frame_reader)
 
     def set_frame_reader(self, frame_reader):
@@ -801,8 +862,12 @@ class FrameBatchASR:
         for batch in iter(self.data_loader):
 
             feat_signal, feat_signal_len = batch
-            feat_signal, feat_signal_len = feat_signal.to(device), feat_signal_len.to(device)
-            forward_outs = self.asr_model(processed_signal=feat_signal, processed_signal_length=feat_signal_len)
+            feat_signal, feat_signal_len = feat_signal.to(device), feat_signal_len.to(
+                device
+            )
+            forward_outs = self.asr_model(
+                processed_signal=feat_signal, processed_signal_length=feat_signal_len
+            )
 
             if len(forward_outs) == 2:  # hybrid ctc rnnt model
                 encoded, encoded_len = forward_outs
@@ -828,7 +893,9 @@ class FrameBatchASR:
         self.unmerged = []
         for pred in self.all_preds:
             decoded = pred.tolist()
-            self.unmerged += decoded[len(decoded) - 1 - delay : len(decoded) - 1 - delay + tokens_per_chunk]
+            self.unmerged += decoded[
+                len(decoded) - 1 - delay : len(decoded) - 1 - delay + tokens_per_chunk
+            ]
         hypothesis = self.greedy_merge(self.unmerged)
         if not keep_logits:
             return hypothesis
@@ -858,19 +925,25 @@ class BatchedFeatureFrameBufferer(FeatureFrameBufferer):
     """
 
     def __init__(self, asr_model, frame_len=1.6, batch_size=4, total_buffer=4.0):
-        '''
+        """
         Args:
           frame_len: frame's duration, seconds
           frame_overlap: duration of overlaps before and after current frame, seconds
           offset: number of symbols to drop for smooth streaming
-        '''
-        super().__init__(asr_model, frame_len=frame_len, batch_size=batch_size, total_buffer=total_buffer)
+        """
+        super().__init__(
+            asr_model,
+            frame_len=frame_len,
+            batch_size=batch_size,
+            total_buffer=total_buffer,
+        )
 
         # OVERRIDES OF BASE CLASS
         timestep_duration = asr_model._cfg.preprocessor.window_stride
         total_buffer_len = int(total_buffer / timestep_duration)
         self.buffer = (
-            np.ones([batch_size, self.n_feat, total_buffer_len], dtype=np.float32) * self.ZERO_LEVEL_SPEC_DB_VAL
+            np.ones([batch_size, self.n_feat, total_buffer_len], dtype=np.float32)
+            * self.ZERO_LEVEL_SPEC_DB_VAL
         )
 
         # Preserve list of buffers and indices, one for every sample
@@ -884,12 +957,15 @@ class BatchedFeatureFrameBufferer(FeatureFrameBufferer):
         del self.buffered_features_size
 
     def reset(self):
-        '''
+        """
         Reset frame_history and decoder's state
-        '''
+        """
         super().reset()
         self.feature_buffer = (
-            np.ones([self.batch_size, self.n_feat, self.feature_buffer_len], dtype=np.float32)
+            np.ones(
+                [self.batch_size, self.n_feat, self.feature_buffer_len],
+                dtype=np.float32,
+            )
             * self.ZERO_LEVEL_SPEC_DB_VAL
         )
         self.all_frame_reader = [None for _ in range(self.batch_size)]
@@ -933,7 +1009,9 @@ class BatchedFeatureFrameBufferer(FeatureFrameBufferer):
             frame = frames[idx]
             # If the sample has a buffer, then process it as usual
             if frame is not None:
-                self.buffer[idx, :, : -self.n_frame_len] = self.buffer[idx, :, self.n_frame_len :]
+                self.buffer[idx, :, : -self.n_frame_len] = self.buffer[
+                    idx, :, self.n_frame_len :
+                ]
                 self.buffer[idx, :, -self.n_frame_len :] = frame
                 # self.buffered_len += frame.shape[1]
                 # WRAP the buffer at index idx into a outer list
@@ -954,7 +1032,9 @@ class BatchedFeatureFrameBufferer(FeatureFrameBufferer):
     def _update_feature_buffer(self, feat_frame, idx):
         # Update the feature buffer for given sample, or reset if the sample has finished processing
         if feat_frame is not None:
-            self.feature_buffer[idx, :, : -feat_frame.shape[1]] = self.feature_buffer[idx, :, feat_frame.shape[1] :]
+            self.feature_buffer[idx, :, : -feat_frame.shape[1]] = self.feature_buffer[
+                idx, :, feat_frame.shape[1] :
+            ]
             self.feature_buffer[idx, :, -feat_frame.shape[1] :] = feat_frame
             # self.buffered_features_size += feat_frame.shape[1]
         else:
@@ -964,15 +1044,21 @@ class BatchedFeatureFrameBufferer(FeatureFrameBufferer):
         for idx, frame in enumerate(batch_frames):
             self._update_feature_buffer(frame, idx)
 
-        mean_from_buffer = np.mean(self.feature_buffer, axis=2, keepdims=True)  # [B, self.n_feat, 1]
-        stdev_from_buffer = np.std(self.feature_buffer, axis=2, keepdims=True)  # [B, self.n_feat, 1]
+        mean_from_buffer = np.mean(
+            self.feature_buffer, axis=2, keepdims=True
+        )  # [B, self.n_feat, 1]
+        stdev_from_buffer = np.std(
+            self.feature_buffer, axis=2, keepdims=True
+        )  # [B, self.n_feat, 1]
 
         return (mean_from_buffer, stdev_from_buffer)
 
     def normalize_frame_buffers(self, frame_buffers, norm_consts):
         CONSTANT = 1e-8
         for i in range(len(frame_buffers)):
-            frame_buffers[i] = (frame_buffers[i] - norm_consts[0][i]) / (norm_consts[1][i] + CONSTANT)
+            frame_buffers[i] = (frame_buffers[i] - norm_consts[0][i]) / (
+                norm_consts[1][i] + CONSTANT
+            )
 
     def get_buffers_batch(self):
         batch_frames = self.get_batch_frames()
@@ -1001,7 +1087,7 @@ class BatchedFrameASRRNNT(FrameBatchASR):
         max_steps_per_timestep: int = 5,
         stateful_decoding: bool = False,
     ):
-        '''
+        """
         Args:
             asr_model: An RNNT model.
             frame_len: frame's duration, seconds.
@@ -1009,8 +1095,13 @@ class BatchedFrameASRRNNT(FrameBatchASR):
             batch_size: Number of independent audio samples to process at each step.
             max_steps_per_timestep: Maximum number of tokens (u) to process per acoustic timestep (t).
             stateful_decoding: Boolean whether to enable stateful decoding for preservation of state across buffers.
-        '''
-        super().__init__(asr_model, frame_len=frame_len, total_buffer=total_buffer, batch_size=batch_size)
+        """
+        super().__init__(
+            asr_model,
+            frame_len=frame_len,
+            total_buffer=total_buffer,
+            batch_size=batch_size,
+        )
 
         # OVERRIDES OF THE BASE CLASS
         self.max_steps_per_timestep = max_steps_per_timestep
@@ -1033,7 +1124,10 @@ class BatchedFrameASRRNNT(FrameBatchASR):
 
         # OVERRIDES
         self.frame_bufferer = BatchedFeatureFrameBufferer(
-            asr_model=asr_model, frame_len=frame_len, batch_size=batch_size, total_buffer=total_buffer
+            asr_model=asr_model,
+            frame_len=frame_len,
+            batch_size=batch_size,
+            total_buffer=total_buffer,
         )
 
         self.reset()
@@ -1062,8 +1156,16 @@ class BatchedFrameASRRNNT(FrameBatchASR):
         # Read in a batch of audio files, one by one
         for idx in range(self.batch_size):
             samples = get_samples(audio_filepath[idx])
-            samples = np.pad(samples, (0, int(delay * model_stride_in_secs * self.asr_model._cfg.sample_rate)))
-            frame_reader = AudioFeatureIterator(samples, self.frame_len, self.raw_preprocessor, self.asr_model.device)
+            samples = np.pad(
+                samples,
+                (
+                    0,
+                    int(delay * model_stride_in_secs * self.asr_model._cfg.sample_rate),
+                ),
+            )
+            frame_reader = AudioFeatureIterator(
+                samples, self.frame_len, self.raw_preprocessor, self.asr_model.device
+            )
             self.set_frame_reader(frame_reader, idx)
 
     def set_frame_reader(self, frame_reader, idx):
@@ -1121,7 +1223,9 @@ class BatchedFrameASRRNNT(FrameBatchASR):
 
             batch = next(data_iters[idx])
             feat_signal, feat_signal_len = batch
-            feat_signal, feat_signal_len = feat_signal.to(device), feat_signal_len.to(device)
+            feat_signal, feat_signal_len = feat_signal.to(device), feat_signal_len.to(
+                device
+            )
 
             feat_signals.append(feat_signal)
             feat_signal_lens.append(feat_signal_len)
@@ -1137,7 +1241,9 @@ class BatchedFrameASRRNNT(FrameBatchASR):
 
         del feat_signals, feat_signal_lens
 
-        encoded, encoded_len = self.asr_model(processed_signal=feat_signal, processed_signal_length=feat_signal_len)
+        encoded, encoded_len = self.asr_model(
+            processed_signal=feat_signal, processed_signal_length=feat_signal_len
+        )
 
         # filter out partial hypotheses from older batch subset
         if self.stateful_decoding and self.previous_hypotheses is not None:
@@ -1148,7 +1254,10 @@ class BatchedFrameASRRNNT(FrameBatchASR):
             self.previous_hypotheses = new_prev_hypothesis
 
         best_hyp = self.asr_model.decoding.rnnt_decoder_predictions_tensor(
-            encoded, encoded_len, return_hypotheses=True, partial_hypotheses=self.previous_hypotheses
+            encoded,
+            encoded_len,
+            return_hypotheses=True,
+            partial_hypotheses=self.previous_hypotheses,
         )
 
         if self.stateful_decoding:
@@ -1156,7 +1265,9 @@ class BatchedFrameASRRNNT(FrameBatchASR):
             self.previous_hypotheses = best_hyp
 
         for idx, hyp in enumerate(best_hyp):
-            global_index_key = new_batch_keys[idx]  # get index of this sample in the global batch
+            global_index_key = new_batch_keys[
+                idx
+            ]  # get index of this sample in the global batch
 
             has_signal_ended = self.frame_bufferer.signal_end[global_index_key]
             if not has_signal_ended:
@@ -1164,7 +1275,9 @@ class BatchedFrameASRRNNT(FrameBatchASR):
 
         preds = [hyp.y_sequence for hyp in best_hyp]
         for idx, pred in enumerate(preds):
-            global_index_key = new_batch_keys[idx]  # get index of this sample in the global batch
+            global_index_key = new_batch_keys[
+                idx
+            ]  # get index of this sample in the global batch
 
             has_signal_ended = self.frame_bufferer.signal_end[global_index_key]
             if not has_signal_ended:
@@ -1172,7 +1285,9 @@ class BatchedFrameASRRNNT(FrameBatchASR):
 
         timestamps = [hyp.timestamp for hyp in best_hyp]
         for idx, timestamp in enumerate(timestamps):
-            global_index_key = new_batch_keys[idx]  # get index of this sample in the global batch
+            global_index_key = new_batch_keys[
+                idx
+            ]  # get index of this sample in the global batch
 
             has_signal_ended = self.frame_bufferer.signal_end[global_index_key]
             if not has_signal_ended:
@@ -1185,15 +1300,19 @@ class BatchedFrameASRRNNT(FrameBatchASR):
             for idx, pred in enumerate(preds):
                 if len(pred) > 0 and pred[-1] == self.eos_id:
                     # reset states :
-                    self.previous_hypotheses[idx].y_sequence = self.previous_hypotheses[idx].y_sequence[:-1]
-                    self.previous_hypotheses[idx].dec_state = self.asr_model.decoder.batch_select_state(
-                        reset_states, idx
+                    self.previous_hypotheses[idx].y_sequence = self.previous_hypotheses[
+                        idx
+                    ].y_sequence[:-1]
+                    self.previous_hypotheses[idx].dec_state = (
+                        self.asr_model.decoder.batch_select_state(reset_states, idx)
                     )
 
         # Position map update
         if len(new_batch_keys) != len(self.batch_index_map):
             for new_batch_idx, global_index_key in enumerate(new_batch_keys):
-                self.batch_index_map[global_index_key] = new_batch_idx  # let index point from global pos -> local pos
+                self.batch_index_map[global_index_key] = (
+                    new_batch_idx  # let index point from global pos -> local pos
+                )
 
         del encoded, encoded_len
         del best_hyp, pred
@@ -1222,10 +1341,17 @@ class BatchedFrameASRRNNT(FrameBatchASR):
                     offset = 1
 
                 alignment = alignment[
-                    len(alignment) - offset - delay : len(alignment) - offset - delay + tokens_per_chunk
+                    len(alignment)
+                    - offset
+                    - delay : len(alignment)
+                    - offset
+                    - delay
+                    + tokens_per_chunk
                 ]
 
-                ids, toks = self._alignment_decoder(alignment, self.asr_model.tokenizer, self.blank_id)
+                ids, toks = self._alignment_decoder(
+                    alignment, self.asr_model.tokenizer, self.blank_id
+                )
 
                 if len(ids) > 0 and a_idx < signal_end_idx:
                     self.unmerged[idx] = inplace_buffer_merge(
@@ -1282,7 +1408,7 @@ class BatchedFrameASRTDT(BatchedFrameASRRNNT):
         stateful_decoding: bool = False,
         tdt_search_boundary: int = 4,
     ):
-        '''
+        """
         Args:
             asr_model: An RNNT model.
             frame_len: frame's duration, seconds.
@@ -1291,8 +1417,13 @@ class BatchedFrameASRTDT(BatchedFrameASRRNNT):
             max_steps_per_timestep: Maximum number of tokens (u) to process per acoustic timestep (t).
             stateful_decoding: Boolean whether to enable stateful decoding for preservation of state across buffers.
             tdt_search_boundary: The max number of frames that we search between chunks to match the token at boundary.
-        '''
-        super().__init__(asr_model, frame_len=frame_len, total_buffer=total_buffer, batch_size=batch_size)
+        """
+        super().__init__(
+            asr_model,
+            frame_len=frame_len,
+            total_buffer=total_buffer,
+            batch_size=batch_size,
+        )
         self.tdt_search_boundary = tdt_search_boundary
 
     def transcribe(
@@ -1329,13 +1460,20 @@ class BatchedFrameASRTDT(BatchedFrameASRRNNT):
                 ]
 
                 alignment = alignment[
-                    len(alignment) - offset - delay : len(alignment) - offset - delay + tokens_per_chunk
+                    len(alignment)
+                    - offset
+                    - delay : len(alignment)
+                    - offset
+                    - delay
+                    + tokens_per_chunk
                 ]
 
                 longer_ids, longer_toks = self._alignment_decoder(
                     longer_alignment, self.asr_model.tokenizer, self.blank_id
                 )
-                ids, _ = self._alignment_decoder(alignment, self.asr_model.tokenizer, self.blank_id)
+                ids, _ = self._alignment_decoder(
+                    alignment, self.asr_model.tokenizer, self.blank_id
+                )
 
                 if len(longer_ids) > 0 and a_idx < signal_end_idx:
                     if a_idx == 0 or len(self.unmerged[idx]) == 0:
@@ -1384,7 +1522,7 @@ class LongestCommonSubsequenceBatchedFrameASRRNNT(BatchedFrameASRRNNT):
         stateful_decoding: bool = False,
         alignment_basepath: str = None,
     ):
-        '''
+        """
         Args:
             asr_model: An RNNT model.
             frame_len: frame's duration, seconds.
@@ -1393,8 +1531,15 @@ class LongestCommonSubsequenceBatchedFrameASRRNNT(BatchedFrameASRRNNT):
             max_steps_per_timestep: Maximum number of tokens (u) to process per acoustic timestep (t).
             stateful_decoding: Boolean whether to enable stateful decoding for preservation of state across buffers.
             alignment_basepath: Str path to a directory where alignments from LCS will be preserved for later analysis.
-        '''
-        super().__init__(asr_model, frame_len, total_buffer, batch_size, max_steps_per_timestep, stateful_decoding)
+        """
+        super().__init__(
+            asr_model,
+            frame_len,
+            total_buffer,
+            batch_size,
+            max_steps_per_timestep,
+            stateful_decoding,
+        )
         self.sample_offset = 0
         self.lcs_delay = -1
 
@@ -1425,7 +1570,9 @@ class LongestCommonSubsequenceBatchedFrameASRRNNT(BatchedFrameASRRNNT):
                 if a_idx == 0:
                     # len(alignment) - 1 - delay + tokens_per_chunk
                     alignment = alignment[len(alignment) - 1 - delay :]
-                    ids, toks = self._alignment_decoder(alignment, self.asr_model.tokenizer, self.blank_id)
+                    ids, toks = self._alignment_decoder(
+                        alignment, self.asr_model.tokenizer, self.blank_id
+                    )
 
                     if len(ids) > 0:
                         self.unmerged[idx] = inplace_buffer_merge(
@@ -1436,7 +1583,9 @@ class LongestCommonSubsequenceBatchedFrameASRRNNT(BatchedFrameASRRNNT):
                         )
 
                 else:
-                    ids, toks = self._alignment_decoder(alignment, self.asr_model.tokenizer, self.blank_id)
+                    ids, toks = self._alignment_decoder(
+                        alignment, self.asr_model.tokenizer, self.blank_id
+                    )
                     if len(ids) > 0 and a_idx < signal_end_idx:
 
                         if self.alignment_basepath is not None:
@@ -1446,7 +1595,9 @@ class LongestCommonSubsequenceBatchedFrameASRRNNT(BatchedFrameASRRNNT):
                             path = os.path.join(basepath, str(sample_offset))
 
                             os.makedirs(path, exist_ok=True)
-                            path = os.path.join(path, "alignment_" + str(alignment_offset) + '.pt')
+                            path = os.path.join(
+                                path, "alignment_" + str(alignment_offset) + ".pt"
+                            )
 
                             filepath = path
                         else:
@@ -1475,13 +1626,13 @@ class CacheAwareStreamingAudioBuffer:
     """
 
     def __init__(self, model, online_normalization=None, pad_and_drop_preencoded=False):
-        '''
+        """
         Args:
             model: An ASR model.
             online_normalization (bool): whether to perform online normalization per chunk or
             normalize the whole audio before chunking
             pad_and_drop_preencoded (bool): if true pad first audio chunk and always drop preencoded
-        '''
+        """
         self.model = model
         self.buffer = None
         self.buffer_idx = 0
@@ -1502,7 +1653,9 @@ class CacheAwareStreamingAudioBuffer:
 
         self.preprocessor = self.extract_preprocessor()
 
-        if hasattr(model.encoder, "pre_encode") and hasattr(model.encoder.pre_encode, "get_sampling_frames"):
+        if hasattr(model.encoder, "pre_encode") and hasattr(
+            model.encoder.pre_encode, "get_sampling_frames"
+        ):
             self.sampling_frames = model.encoder.pre_encode.get_sampling_frames()
         else:
             self.sampling_frames = None
@@ -1536,7 +1689,9 @@ class CacheAwareStreamingAudioBuffer:
                     else self.streaming_cfg.shift_size
                 )
 
-            audio_chunk = self.buffer[:, :, self.buffer_idx : self.buffer_idx + chunk_size]
+            audio_chunk = self.buffer[
+                :, :, self.buffer_idx : self.buffer_idx + chunk_size
+            ]
 
             if self.sampling_frames is not None:
                 # checking to make sure the audio chunk has enough frames to produce at least one output after
@@ -1545,7 +1700,9 @@ class CacheAwareStreamingAudioBuffer:
                     cur_sampling_frames = self.sampling_frames[0]
                 else:
                     cur_sampling_frames = (
-                        self.sampling_frames[1] if isinstance(self.sampling_frames, list) else self.sampling_frames
+                        self.sampling_frames[1]
+                        if isinstance(self.sampling_frames, list)
+                        else self.sampling_frames
                     )
                 if audio_chunk.size(-1) < cur_sampling_frames:
                     return
@@ -1553,13 +1710,23 @@ class CacheAwareStreamingAudioBuffer:
             # Adding the cache needed for the pre-encoder part of the model to the chunk
             # if there is not enough frames to be used as the pre-encoding cache, zeros would be added
             zeros_pads = None
-            if self.buffer_idx == 0 and isinstance(self.streaming_cfg.pre_encode_cache_size, list):
+            if self.buffer_idx == 0 and isinstance(
+                self.streaming_cfg.pre_encode_cache_size, list
+            ):
                 if self.pad_and_drop_preencoded:
-                    cache_pre_encode_num_frames = self.streaming_cfg.pre_encode_cache_size[1]
+                    cache_pre_encode_num_frames = (
+                        self.streaming_cfg.pre_encode_cache_size[1]
+                    )
                 else:
-                    cache_pre_encode_num_frames = self.streaming_cfg.pre_encode_cache_size[0]
+                    cache_pre_encode_num_frames = (
+                        self.streaming_cfg.pre_encode_cache_size[0]
+                    )
                 cache_pre_encode = torch.zeros(
-                    (audio_chunk.size(0), self.input_features, cache_pre_encode_num_frames),
+                    (
+                        audio_chunk.size(0),
+                        self.input_features,
+                        cache_pre_encode_num_frames,
+                    ),
                     device=audio_chunk.device,
                     dtype=audio_chunk.dtype,
                 )
@@ -1572,7 +1739,9 @@ class CacheAwareStreamingAudioBuffer:
                 start_pre_encode_cache = self.buffer_idx - pre_encode_cache_size
                 if start_pre_encode_cache < 0:
                     start_pre_encode_cache = 0
-                cache_pre_encode = self.buffer[:, :, start_pre_encode_cache : self.buffer_idx]
+                cache_pre_encode = self.buffer[
+                    :, :, start_pre_encode_cache : self.buffer_idx
+                ]
                 if cache_pre_encode.size(-1) < pre_encode_cache_size:
                     zeros_pads = torch.zeros(
                         (
@@ -1601,7 +1770,9 @@ class CacheAwareStreamingAudioBuffer:
 
             max_chunk_lengths = self.streams_length - self.buffer_idx
             max_chunk_lengths = max_chunk_lengths + added_len
-            chunk_lengths = torch.clamp(max_chunk_lengths, min=0, max=audio_chunk.size(-1))
+            chunk_lengths = torch.clamp(
+                max_chunk_lengths, min=0, max=audio_chunk.size(-1)
+            )
 
             self.buffer_idx += shift_size
             self.step += 1
@@ -1640,42 +1811,67 @@ class CacheAwareStreamingAudioBuffer:
 
     def append_audio_file(self, audio_filepath, stream_id=-1):
         audio = get_samples(audio_filepath)
-        processed_signal, processed_signal_length, stream_id = self.append_audio(audio, stream_id)
+        processed_signal, processed_signal_length, stream_id = self.append_audio(
+            audio, stream_id
+        )
         return processed_signal, processed_signal_length, stream_id
 
     def append_audio(self, audio, stream_id=-1):
         processed_signal, processed_signal_length = self.preprocess_audio(audio)
-        processed_signal, processed_signal_length, stream_id = self.append_processed_signal(
-            processed_signal, stream_id
+        processed_signal, processed_signal_length, stream_id = (
+            self.append_processed_signal(processed_signal, stream_id)
         )
         return processed_signal, processed_signal_length, stream_id
 
     def append_processed_signal(self, processed_signal, stream_id=-1):
-        processed_signal_length = torch.tensor(processed_signal.size(-1), device=processed_signal.device)
-        if stream_id >= 0 and (self.streams_length is not None and stream_id >= len(self.streams_length)):
+        processed_signal_length = torch.tensor(
+            processed_signal.size(-1), device=processed_signal.device
+        )
+        if stream_id >= 0 and (
+            self.streams_length is not None and stream_id >= len(self.streams_length)
+        ):
             raise ValueError("Not valid stream_id!")
         if self.buffer is None:
             if stream_id >= 0:
-                raise ValueError("stream_id can not be specified when there is no stream.")
+                raise ValueError(
+                    "stream_id can not be specified when there is no stream."
+                )
             self.buffer = processed_signal
-            self.streams_length = torch.tensor([processed_signal_length], device=processed_signal.device)
+            self.streams_length = torch.tensor(
+                [processed_signal_length], device=processed_signal.device
+            )
         else:
             if self.buffer.size(1) != processed_signal.size(1):
-                raise ValueError("Buffer and the processed signal have different dimensions!")
+                raise ValueError(
+                    "Buffer and the processed signal have different dimensions!"
+                )
             if stream_id < 0:
-                self.buffer = torch.nn.functional.pad(self.buffer, pad=(0, 0, 0, 0, 0, 1))
+                self.buffer = torch.nn.functional.pad(
+                    self.buffer, pad=(0, 0, 0, 0, 0, 1)
+                )
                 self.streams_length = torch.cat(
-                    (self.streams_length, torch.tensor([0], device=self.streams_length.device)), dim=-1
+                    (
+                        self.streams_length,
+                        torch.tensor([0], device=self.streams_length.device),
+                    ),
+                    dim=-1,
                 )
                 stream_id = len(self.streams_length) - 1
             needed_len = self.streams_length[stream_id] + processed_signal_length
             if needed_len > self.buffer.size(-1):
-                self.buffer = torch.nn.functional.pad(self.buffer, pad=(0, needed_len - self.buffer.size(-1)))
+                self.buffer = torch.nn.functional.pad(
+                    self.buffer, pad=(0, needed_len - self.buffer.size(-1))
+                )
 
             self.buffer[
-                stream_id, :, self.streams_length[stream_id] : self.streams_length[stream_id] + processed_signal_length
+                stream_id,
+                :,
+                self.streams_length[stream_id] : self.streams_length[stream_id]
+                + processed_signal_length,
             ] = processed_signal
-            self.streams_length[stream_id] = self.streams_length[stream_id] + processed_signal.size(-1)
+            self.streams_length[stream_id] = self.streams_length[
+                stream_id
+            ] + processed_signal.size(-1)
 
         if self.online_normalization:
             processed_signal, x_mean, x_std = normalize_batch(
@@ -1711,7 +1907,9 @@ class CacheAwareStreamingAudioBuffer:
 
 class FrameBatchMultiTaskAED(FrameBatchASR):
     def __init__(self, asr_model, frame_len=4, total_buffer=4, batch_size=4):
-        super().__init__(asr_model, frame_len, total_buffer, batch_size, pad_to_buffer_len=False)
+        super().__init__(
+            asr_model, frame_len, total_buffer, batch_size, pad_to_buffer_len=False
+        )
         self.window_stride = asr_model._cfg.preprocessor.window_stride
         self.subsampling_factor = asr_model._cfg.encoder.subsampling_factor
         self.chunk_offsets = [
@@ -1763,14 +1961,27 @@ class FrameBatchMultiTaskAED(FrameBatchASR):
             ]
         )["context_ids"]
 
-        return torch.tensor(tokens, dtype=torch.long, device=self.asr_model.device).unsqueeze(0)  # [1, T]
+        return torch.tensor(
+            tokens, dtype=torch.long, device=self.asr_model.device
+        ).unsqueeze(
+            0
+        )  # [1, T]
 
-    def read_audio_file(self, audio_filepath: str, delay, model_stride_in_secs, meta_data):
+    def read_audio_file(
+        self, audio_filepath: str, delay, model_stride_in_secs, meta_data
+    ):
         self.input_tokens = self.get_input_tokens(meta_data)
         samples = get_samples(audio_filepath)
-        samples = np.pad(samples, (0, int(delay * model_stride_in_secs * self.asr_model._cfg.sample_rate)))
+        samples = np.pad(
+            samples,
+            (0, int(delay * model_stride_in_secs * self.asr_model._cfg.sample_rate)),
+        )
         frame_reader = AudioFeatureIterator(
-            samples, self.frame_len, self.raw_preprocessor, self.asr_model.device, pad_to_frame_len=False
+            samples,
+            self.frame_len,
+            self.raw_preprocessor,
+            self.asr_model.device,
+            pad_to_frame_len=False,
         )
         self.set_frame_reader(frame_reader)
 
@@ -1781,9 +1992,13 @@ class FrameBatchMultiTaskAED(FrameBatchASR):
             feat_signal, feat_signal_len = batch
             # keep track of chunk offsets
             self.chunk_offsets.extend(feat_signal_len.tolist())
-            feat_signal, feat_signal_len = feat_signal.to(device), feat_signal_len.to(device)
+            feat_signal, feat_signal_len = feat_signal.to(device), feat_signal_len.to(
+                device
+            )
             tokens = self.input_tokens.to(device).repeat(feat_signal.size(0), 1)
-            tokens_len = torch.tensor([tokens.size(1)] * tokens.size(0), device=device).long()
+            tokens_len = torch.tensor(
+                [tokens.size(1)] * tokens.size(0), device=device
+            ).long()
 
             batch_input = PromptedAudioToTextMiniBatch(
                 audio=feat_signal,
@@ -1795,12 +2010,17 @@ class FrameBatchMultiTaskAED(FrameBatchASR):
                 prompted_transcript=None,
                 prompted_transcript_lens=None,
             )
-            predictions = self.asr_model.predict_step(batch_input, has_processed_signal=True)
+            predictions = self.asr_model.predict_step(
+                batch_input, has_processed_signal=True
+            )
             self.all_preds.extend(predictions)
             del predictions
 
     def transcribe(
-        self, tokens_per_chunk: Optional[int] = None, delay: Optional[int] = None, keep_logits: bool = False
+        self,
+        tokens_per_chunk: Optional[int] = None,
+        delay: Optional[int] = None,
+        keep_logits: bool = False,
     ):
         """
         unsued params are for keeping the same signature as the parent class
@@ -1813,7 +2033,9 @@ class FrameBatchMultiTaskAED(FrameBatchASR):
         if not keep_logits:
             return hypothesis
 
-        print("keep_logits=True is not supported for MultiTaskAEDFrameBatchInfer. Returning empty logits.")
+        print(
+            "keep_logits=True is not supported for MultiTaskAEDFrameBatchInfer. Returning empty logits."
+        )
         return hypothesis, []
 
     def _join_hypotheses(self, hypotheses):
@@ -1825,9 +2047,9 @@ class FrameBatchMultiTaskAED(FrameBatchASR):
             score=0.0,
             y_sequence=torch.tensor([]),
             timestamp={
-                'char': [],
-                'word': [],
-                'segment': [],
+                "char": [],
+                "word": [],
+                "segment": [],
             },
         )
 
@@ -1850,31 +2072,38 @@ class FrameBatchMultiTaskAED(FrameBatchASR):
         # word level
         cumulative_offset = 0
         for i, h in enumerate(hypotheses):
-            cumulative_offset += self.chunk_offsets[i]  # self.chunk_offsets starts with 0,
+            cumulative_offset += self.chunk_offsets[
+                i
+            ]  # self.chunk_offsets starts with 0,
 
             # update frame numbers
             updated_timestamps = [
                 {
                     **word,
-                    'start_offset': word['start_offset']
+                    "start_offset": word["start_offset"]
                     + cumulative_offset
                     // self.subsampling_factor,  # dividing here to avoid error accumulation over long audios
-                    'end_offset': word['end_offset'] + cumulative_offset // self.subsampling_factor,
+                    "end_offset": word["end_offset"]
+                    + cumulative_offset // self.subsampling_factor,
                 }
-                for word in h.timestamp['word']
+                for word in h.timestamp["word"]
             ]
 
             # update times
             updated_timestamps = [
                 {
                     **word,
-                    'start': word['start_offset'] * self.window_stride * self.subsampling_factor,
-                    'end': word['end_offset'] * self.window_stride * self.subsampling_factor,
+                    "start": word["start_offset"]
+                    * self.window_stride
+                    * self.subsampling_factor,
+                    "end": word["end_offset"]
+                    * self.window_stride
+                    * self.subsampling_factor,
                 }
                 for word in updated_timestamps
             ]
 
-            merged_hypothesis.timestamp['word'].extend(updated_timestamps)
+            merged_hypothesis.timestamp["word"].extend(updated_timestamps)
 
         # segment level
         cumulative_offset = 0
@@ -1885,36 +2114,51 @@ class FrameBatchMultiTaskAED(FrameBatchASR):
             updated_timestamps = [
                 {
                     **segment,
-                    'start_offset': segment['start_offset'] + cumulative_offset // self.subsampling_factor,
-                    'end_offset': segment['end_offset'] + cumulative_offset // self.subsampling_factor,
+                    "start_offset": segment["start_offset"]
+                    + cumulative_offset // self.subsampling_factor,
+                    "end_offset": segment["end_offset"]
+                    + cumulative_offset // self.subsampling_factor,
                 }
-                for segment in h.timestamp['segment']
+                for segment in h.timestamp["segment"]
             ]
 
             # update times
             updated_timestamps = [
                 {
                     **segment,
-                    'start': segment['start_offset'] * self.window_stride * self.subsampling_factor,
-                    'end': segment['end_offset'] * self.window_stride * self.subsampling_factor,
+                    "start": segment["start_offset"]
+                    * self.window_stride
+                    * self.subsampling_factor,
+                    "end": segment["end_offset"]
+                    * self.window_stride
+                    * self.subsampling_factor,
                 }
                 for segment in updated_timestamps
             ]
 
-            merged_hypothesis.timestamp['segment'].extend(updated_timestamps)
+            merged_hypothesis.timestamp["segment"].extend(updated_timestamps)
 
         return merged_hypothesis
 
 
 class FrameBatchChunkedRNNT(FrameBatchASR):
     def __init__(self, asr_model, frame_len=4, total_buffer=4, batch_size=4):
-        super().__init__(asr_model, frame_len, total_buffer, batch_size, pad_to_buffer_len=False)
+        super().__init__(
+            asr_model, frame_len, total_buffer, batch_size, pad_to_buffer_len=False
+        )
 
     def read_audio_file(self, audio_filepath: str, delay, model_stride_in_secs):
         samples = get_samples(audio_filepath)
-        samples = np.pad(samples, (0, int(delay * model_stride_in_secs * self.asr_model._cfg.sample_rate)))
+        samples = np.pad(
+            samples,
+            (0, int(delay * model_stride_in_secs * self.asr_model._cfg.sample_rate)),
+        )
         frame_reader = AudioFeatureIterator(
-            samples, self.frame_len, self.raw_preprocessor, self.asr_model.device, pad_to_frame_len=False
+            samples,
+            self.frame_len,
+            self.raw_preprocessor,
+            self.asr_model.device,
+            pad_to_frame_len=False,
         )
         self.set_frame_reader(frame_reader)
 
@@ -1923,14 +2167,20 @@ class FrameBatchChunkedRNNT(FrameBatchASR):
         device = self.asr_model.device
         for batch in iter(self.data_loader):
             feat_signal, feat_signal_len = batch
-            feat_signal, feat_signal_len = feat_signal.to(device), feat_signal_len.to(device)
+            feat_signal, feat_signal_len = feat_signal.to(device), feat_signal_len.to(
+                device
+            )
 
             encoded, encoded_len = self.asr_model(
                 processed_signal=feat_signal, processed_signal_length=feat_signal_len
             )
 
-            best_hyp_text, all_hyp_text = self.asr_model.decoding.rnnt_decoder_predictions_tensor(
-                encoder_output=encoded, encoded_lengths=encoded_len, return_hypotheses=False
+            best_hyp_text, all_hyp_text = (
+                self.asr_model.decoding.rnnt_decoder_predictions_tensor(
+                    encoder_output=encoded,
+                    encoded_lengths=encoded_len,
+                    return_hypotheses=False,
+                )
             )
             self.all_preds.extend(best_hyp_text)
             del best_hyp_text
@@ -1939,7 +2189,10 @@ class FrameBatchChunkedRNNT(FrameBatchASR):
             del encoded_len
 
     def transcribe(
-        self, tokens_per_chunk: Optional[int] = None, delay: Optional[int] = None, keep_logits: bool = False
+        self,
+        tokens_per_chunk: Optional[int] = None,
+        delay: Optional[int] = None,
+        keep_logits: bool = False,
     ):
         """
         unsued params are for keeping the same signature as the parent class
@@ -1950,19 +2203,30 @@ class FrameBatchChunkedRNNT(FrameBatchASR):
         if not keep_logits:
             return hypothesis
 
-        print("keep_logits=True is not supported for FrameBatchChunkedRNNT. Returning empty logits.")
+        print(
+            "keep_logits=True is not supported for FrameBatchChunkedRNNT. Returning empty logits."
+        )
         return hypothesis, []
 
 
 class FrameBatchChunkedCTC(FrameBatchASR):
     def __init__(self, asr_model, frame_len=4, total_buffer=4, batch_size=4):
-        super().__init__(asr_model, frame_len, total_buffer, batch_size, pad_to_buffer_len=False)
+        super().__init__(
+            asr_model, frame_len, total_buffer, batch_size, pad_to_buffer_len=False
+        )
 
     def read_audio_file(self, audio_filepath: str, delay, model_stride_in_secs):
         samples = get_samples(audio_filepath)
-        samples = np.pad(samples, (0, int(delay * model_stride_in_secs * self.asr_model._cfg.sample_rate)))
+        samples = np.pad(
+            samples,
+            (0, int(delay * model_stride_in_secs * self.asr_model._cfg.sample_rate)),
+        )
         frame_reader = AudioFeatureIterator(
-            samples, self.frame_len, self.raw_preprocessor, self.asr_model.device, pad_to_frame_len=False
+            samples,
+            self.frame_len,
+            self.raw_preprocessor,
+            self.asr_model.device,
+            pad_to_frame_len=False,
         )
         self.set_frame_reader(frame_reader)
 
@@ -1971,23 +2235,31 @@ class FrameBatchChunkedCTC(FrameBatchASR):
         device = self.asr_model.device
         for batch in iter(self.data_loader):
             feat_signal, feat_signal_len = batch
-            feat_signal, feat_signal_len = feat_signal.to(device), feat_signal_len.to(device)
+            feat_signal, feat_signal_len = feat_signal.to(device), feat_signal_len.to(
+                device
+            )
 
-            results = self.asr_model(processed_signal=feat_signal, processed_signal_length=feat_signal_len)
+            results = self.asr_model(
+                processed_signal=feat_signal, processed_signal_length=feat_signal_len
+            )
             if len(results) == 2:  # hybrid model
                 encoded, encoded_len = results
                 log_probs = self.asr_model.ctc_decoder(encoder_output=encoded)
-                transcribed_texts, _ = self.asr_model.ctc_decoding.ctc_decoder_predictions_tensor(
-                    decoder_outputs=log_probs,
-                    decoder_lengths=encoded_len,
-                    return_hypotheses=False,
+                transcribed_texts, _ = (
+                    self.asr_model.ctc_decoding.ctc_decoder_predictions_tensor(
+                        decoder_outputs=log_probs,
+                        decoder_lengths=encoded_len,
+                        return_hypotheses=False,
+                    )
                 )
             else:
                 log_probs, encoded_len, predictions = results
-                transcribed_texts, _ = self.asr_model.decoding.ctc_decoder_predictions_tensor(
-                    decoder_outputs=log_probs,
-                    decoder_lengths=encoded_len,
-                    return_hypotheses=False,
+                transcribed_texts, _ = (
+                    self.asr_model.decoding.ctc_decoder_predictions_tensor(
+                        decoder_outputs=log_probs,
+                        decoder_lengths=encoded_len,
+                        return_hypotheses=False,
+                    )
                 )
 
             self.all_preds.extend(transcribed_texts)
@@ -1996,7 +2268,10 @@ class FrameBatchChunkedCTC(FrameBatchASR):
             del predictions
 
     def transcribe(
-        self, tokens_per_chunk: Optional[int] = None, delay: Optional[int] = None, keep_logits: bool = False
+        self,
+        tokens_per_chunk: Optional[int] = None,
+        delay: Optional[int] = None,
+        keep_logits: bool = False,
     ):
         """
         unsued params are for keeping the same signature as the parent class
@@ -2007,5 +2282,7 @@ class FrameBatchChunkedCTC(FrameBatchASR):
         if not keep_logits:
             return hypothesis
 
-        print("keep_logits=True is not supported for FrameBatchChunkedCTC. Returning empty logits.")
+        print(
+            "keep_logits=True is not supported for FrameBatchChunkedCTC. Returning empty logits."
+        )
         return hypothesis, []

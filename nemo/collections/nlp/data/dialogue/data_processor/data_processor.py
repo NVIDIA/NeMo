@@ -20,7 +20,7 @@ from nemo.collections.nlp.data.data_utils.data_preprocessing import \
     DataProcessor
 from nemo.utils.decorators import deprecated_warning
 
-__all__ = ['DialogueDataProcessor']
+__all__ = ["DialogueDataProcessor"]
 
 
 class DialogueDataProcessor(DataProcessor):
@@ -79,7 +79,9 @@ class DialogueDataProcessor(DataProcessor):
                 idxs = dev_idxs
             else:
                 dev_idxs_set = set(dev_idxs)
-                train_idxs = [idx for idx in list(range(n_samples)) if idx not in dev_idxs_set]
+                train_idxs = [
+                    idx for idx in list(range(n_samples)) if idx not in dev_idxs_set
+                ]
                 idxs = train_idxs
 
         elif dataset_split == "test":

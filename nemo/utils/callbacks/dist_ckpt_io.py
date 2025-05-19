@@ -66,7 +66,7 @@ def _debug_time(name: str):
     try:
         yield
     finally:
-        logging.debug(f'{name} took {time() - start:.3f}s')
+        logging.debug(f"{name} took {time() - start:.3f}s")
 
 
 class AsyncCompatibleCheckpointIO(CheckpointIO, ABC):
@@ -79,8 +79,11 @@ class AsyncCompatibleCheckpointIO(CheckpointIO, ABC):
 
     @abstractmethod
     def save_checkpoint(
-        self, checkpoint: Dict[str, Any], path: _PATH, storage_options: Optional[Any] = None
-    ) -> 'AsyncRequest':
+        self,
+        checkpoint: Dict[str, Any],
+        path: _PATH,
+        storage_options: Optional[Any] = None,
+    ) -> "AsyncRequest":
         """Interface to implement save_checkpoint and return an AsyncRequest"""
         raise NotImplementedError
 
@@ -105,12 +108,19 @@ class AsyncFinalizableCheckpointIO(_WrappingCheckpointIO):
         if not HAVE_MEGATRON_CORE:
             raise ImportError(IMPORT_ERROR)
         if not isinstance(checkpoint_io, AsyncCompatibleCheckpointIO):
-            raise ValueError(f'Incompatible wrapped checkpoint_io type: {type(checkpoint_io)}')
+            raise ValueError(
+                f"Incompatible wrapped checkpoint_io type: {type(checkpoint_io)}"
+            )
 
         super().__init__(checkpoint_io)
         self.async_calls_queue = AsyncCallsQueue()
 
-    def save_checkpoint(self, checkpoint: Dict[str, Any], path: _PATH, storage_options: Optional[Any] = None) -> None:
+    def save_checkpoint(
+        self,
+        checkpoint: Dict[str, Any],
+        path: _PATH,
+        storage_options: Optional[Any] = None,
+    ) -> None:
         """Executes async request returned from the underlying checkpoint_io asynchronously.
 
         Requires the underlying checkpoint_io.save_checkpoint to return an AsyncRequest.
@@ -127,15 +137,19 @@ class AsyncFinalizableCheckpointIO(_WrappingCheckpointIO):
 
         Applies underlying checkpoint_io finalize callback first, then the external one (postfix order).
         """
-        external_finalize_fn = (storage_options or {}).pop('finalize_fn', None)
-        assert isinstance(self.checkpoint_io, AsyncCompatibleCheckpointIO), type(self.checkpoint_io)
-        async_request = self.checkpoint_io.save_checkpoint(checkpoint, path, storage_options)
+        external_finalize_fn = (storage_options or {}).pop("finalize_fn", None)
+        assert isinstance(self.checkpoint_io, AsyncCompatibleCheckpointIO), type(
+            self.checkpoint_io
+        )
+        async_request = self.checkpoint_io.save_checkpoint(
+            checkpoint, path, storage_options
+        )
         if external_finalize_fn is not None:
             async_request.add_finalize_fn(external_finalize_fn)
         call_idx = self.async_calls_queue.schedule_async_request(async_request)
-        logging.debug(f'Scheduled an async call #{call_idx}')
+        logging.debug(f"Scheduled an async call #{call_idx}")
 
-    @_debug_time('AsyncFinalizableCheckpointIO.maybe_finalize_save_checkpoint')
+    @_debug_time("AsyncFinalizableCheckpointIO.maybe_finalize_save_checkpoint")
     def maybe_finalize_save_checkpoint(self, blocking: bool = False):
         """Performs checkpoint finalization (if possible).
 
@@ -150,7 +164,9 @@ class AsyncFinalizableCheckpointIO(_WrappingCheckpointIO):
         start_time = time()
         call_idx_finalized = self.async_calls_queue.maybe_finalize_async_calls(blocking)
         if call_idx_finalized:
-            logging.debug(f'Finalized async calls: {[f"#{idx}" for idx in call_idx_finalized]}')
+            logging.debug(
+                f'Finalized async calls: {[f"#{idx}" for idx in call_idx_finalized]}'
+            )
         end_time = time()
         logging.info(f"Async finalization time took {end_time - start_time:.3f} s")
         return len(call_idx_finalized) > 0
@@ -160,7 +176,9 @@ class AsyncFinalizableCheckpointIO(_WrappingCheckpointIO):
         super().teardown()
         if self.async_calls_queue.get_num_unfinalized_calls() > 0:
             # Can't do finalization now because some ranks might be lost
-            logging.warning('Some async checkpoint saves might be not finalized properly.')
+            logging.warning(
+                "Some async checkpoint saves might be not finalized properly."
+            )
 
 
 class AsyncFinalizerCallback(Callback):
@@ -182,14 +200,16 @@ class AsyncFinalizerCallback(Callback):
         """Override hook to finalize pending checkpoint(s) if they exist."""
         checkpoint_io = self._get_checkpoint_io(trainer)
         if checkpoint_io.async_calls_queue.get_num_unfinalized_calls() > 0:
-            logging.info('Pending async checkpoint saves. Finalizing them synchronously now')
+            logging.info(
+                "Pending async checkpoint saves. Finalizing them synchronously now"
+            )
         self._get_checkpoint_io(trainer).maybe_finalize_save_checkpoint(blocking=True)
 
     def _get_checkpoint_io(self, trainer) -> AsyncFinalizableCheckpointIO:
         checkpoint_io = trainer.strategy.checkpoint_io
         if not isinstance(checkpoint_io, AsyncFinalizableCheckpointIO):
             raise ValueError(
-                f'Async finalizer requires an async compatible CheckpointIO, got: {checkpoint_io.__class__}'
+                f"Async finalizer requires an async compatible CheckpointIO, got: {checkpoint_io.__class__}"
             )
         return checkpoint_io
 
@@ -219,7 +239,7 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
         self,
         save_ckpt_format: str,
         load_directly_on_device: bool = True,
-        load_strictness: Optional['StrictHandling'] = None,
+        load_strictness: Optional["StrictHandling"] = None,
         async_save: bool = False,
         torch_dist_multiproc: Optional[int] = None,
         assume_constant_structure: bool = False,
@@ -255,20 +275,25 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
                 it should be provided separately. Defaults to False.
         """
         return cls(
-            save_ckpt_format=model_cfg.get('dist_ckpt_format', 'torch_dist'),
-            load_directly_on_device=model_cfg.get('dist_ckpt_load_on_device', True),
-            load_strictness=model_cfg.get('dist_ckpt_load_strictness', None),
+            save_ckpt_format=model_cfg.get("dist_ckpt_format", "torch_dist"),
+            load_directly_on_device=model_cfg.get("dist_ckpt_load_on_device", True),
+            load_strictness=model_cfg.get("dist_ckpt_load_strictness", None),
             async_save=async_save,
-            torch_dist_multiproc=model_cfg.get('dist_ckpt_torch_dist_multiproc', None),
-            parallel_save=model_cfg.get('dist_ckpt_parallel_save', False),
-            parallel_save_within_dp=model_cfg.get('dist_ckpt_parallel_save_within_dp', False),
-            parallel_load=model_cfg.get('dist_ckpt_parallel_load', False),
+            torch_dist_multiproc=model_cfg.get("dist_ckpt_torch_dist_multiproc", None),
+            parallel_save=model_cfg.get("dist_ckpt_parallel_save", False),
+            parallel_save_within_dp=model_cfg.get(
+                "dist_ckpt_parallel_save_within_dp", False
+            ),
+            parallel_load=model_cfg.get("dist_ckpt_parallel_load", False),
         )
 
-    @_debug_time('DistributedCheckpointIO.save_checkpoint')
+    @_debug_time("DistributedCheckpointIO.save_checkpoint")
     def save_checkpoint(
-        self, checkpoint: Dict[str, Any], path: _PATH, storage_options: Optional[Any] = None
-    ) -> Optional['AsyncRequest']:
+        self,
+        checkpoint: Dict[str, Any],
+        path: _PATH,
+        storage_options: Optional[Any] = None,
+    ) -> Optional["AsyncRequest"]:
         """Saves a distributed checkpoint. Creates the checkpoint root directory if doesn't exist.
 
         Args:
@@ -279,7 +304,9 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
         fs = get_filesystem(path)
         fs.makedirs(path, exist_ok=True)
 
-        validate_sharding_integrity = not (self.validated_consistency and self.assume_constant_structure)
+        validate_sharding_integrity = not (
+            self.validated_consistency and self.assume_constant_structure
+        )
         self.validated_consistency = True
 
         rank = torch.distributed.get_rank()
@@ -304,7 +331,9 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
         logging.info(log_message)
 
         def iter_finalize_fn():
-            logging.info(f'Successfully saved checkpoint from iteration {int(iteration):7d} to {path}')
+            logging.info(
+                f"Successfully saved checkpoint from iteration {int(iteration):7d} to {path}"
+            )
 
         if self.async_save:
             assert async_save_request is not None
@@ -312,13 +341,13 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
 
         return async_save_request
 
-    @_debug_time('DistributedCheckpointIO.load_checkpoint')
+    @_debug_time("DistributedCheckpointIO.load_checkpoint")
     def load_checkpoint(
         self,
         path: _PATH,
         map_location: Optional[Any] = None,
         sharded_state_dict: Dict[str, Any] = None,
-        strict: Union[None, bool, 'StrictHandling'] = None,
+        strict: Union[None, bool, "StrictHandling"] = None,
         validate_access_integrity: Optional[bool] = True,
     ) -> Dict[str, Any]:
         """Loads a distributed checkpoint.
@@ -339,12 +368,18 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
             Dist[str, Any]: loaded checkpoint.
         """
         if sharded_state_dict is None:
-            raise ValueError('DistributedCheckpointIO requires passing sharded_state_dict argument to load_checkpoint')
+            raise ValueError(
+                "DistributedCheckpointIO requires passing sharded_state_dict argument to load_checkpoint"
+            )
         if map_location is not None:
-            raise ValueError('DistributedCheckpointIO doesnt handle map_location argument')
+            raise ValueError(
+                "DistributedCheckpointIO doesnt handle map_location argument"
+            )
 
-        if self.save_ckpt_format == 'zarr' and self.load_directly_on_device:
-            sharded_strategy = tensorstore.TensorStoreLoadShardedStrategy(load_directly_on_device=True)
+        if self.save_ckpt_format == "zarr" and self.load_directly_on_device:
+            sharded_strategy = tensorstore.TensorStoreLoadShardedStrategy(
+                load_directly_on_device=True
+            )
         else:
             sharded_strategy = None
 
@@ -356,14 +391,20 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
             )
 
         if sharded_strategy is not None:
-            logging.info(f'Using {sharded_strategy} dist-ckpt load strategy.')
+            logging.info(f"Using {sharded_strategy} dist-ckpt load strategy.")
 
         if isinstance(strict, bool):
             # For backward-compatibility reasons and a bug in MCore (strict check not applied to factories)
             # we must apply a simple strict check here.
             if not strict:
-                sharded_state_dict = self.adjust_non_strict_load(path, sharded_state_dict)
-            strict = StrictHandling.ASSUME_OK_UNEXPECTED if strict else StrictHandling.LOG_ALL
+                sharded_state_dict = self.adjust_non_strict_load(
+                    path, sharded_state_dict
+                )
+            strict = (
+                StrictHandling.ASSUME_OK_UNEXPECTED
+                if strict
+                else StrictHandling.LOG_ALL
+            )
         if self.load_strictness is not None:
             # Overwrites function argument
             strict = self.load_strictness
@@ -371,7 +412,7 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
             # Default behavior
             strict = StrictHandling.ASSUME_OK_UNEXPECTED
 
-        logging.debug(f'Dist ckpt load strictness: {strict}')
+        logging.debug(f"Dist ckpt load strictness: {strict}")
 
         start_time = time()
         ret = dist_checkpointing.load(
@@ -407,15 +448,19 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
                     return True
             return False
 
-        _, sharded_state_dict = extract_matching_values(sharded_state_dict, should_remove_missing_sharded_base)
-        logging.info(f'The following keys are not in the checkpoint and will not be loaded: {unexpected_keys}')
+        _, sharded_state_dict = extract_matching_values(
+            sharded_state_dict, should_remove_missing_sharded_base
+        )
+        logging.info(
+            f"The following keys are not in the checkpoint and will not be loaded: {unexpected_keys}"
+        )
 
         # TODO: compute missing_keys by:
         #  1. all_gather_object of loaded_keys
         #  2. missing_keys = ckpt_sharded_metadata.keys() - loaded_keys
         return sharded_state_dict
 
-    @_debug_time('DistributedCheckpointIO.remove_checkpoint')
+    @_debug_time("DistributedCheckpointIO.remove_checkpoint")
     def remove_checkpoint(self, path: _PATH) -> None:
         """Remove a distributed checkpoint.
 
@@ -424,7 +469,7 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
         shutil.rmtree(path, ignore_errors=True)
 
     @property
-    def save_sharded_strategy(self) -> 'SaveShardedStrategy':
+    def save_sharded_strategy(self) -> "SaveShardedStrategy":
         """Conditionally initialize and get the sharded strategy to use for saving."""
         if self._save_sharded_strategy is None:
             self._save_sharded_strategy = self._determine_dist_ckpt_save_strategy()
@@ -437,35 +482,45 @@ class DistributedCheckpointIO(AsyncCompatibleCheckpointIO):
         are passed in config or in case of a fully parallel save in which case
         a parallelization wrapper is applied.
         """
-        if self.save_ckpt_format == 'zarr':
+        if self.save_ckpt_format == "zarr":
             logging.warning(
-                '`zarr` distributed checkpoint backend is deprecated.'
-                ' Distributed optimizer checkpoint saving might be extremely slow.'
-                ' Please switch to PyTorch Distributed format (model.dist_ckpt_format=torch_dist).'
+                "`zarr` distributed checkpoint backend is deprecated."
+                " Distributed optimizer checkpoint saving might be extremely slow."
+                " Please switch to PyTorch Distributed format (model.dist_ckpt_format=torch_dist)."
             )
 
-        if self.async_save and self.save_ckpt_format != 'torch_dist':
-            raise ValueError('Async dist-ckpt save supported only for torch_dist format')
+        if self.async_save and self.save_ckpt_format != "torch_dist":
+            raise ValueError(
+                "Async dist-ckpt save supported only for torch_dist format"
+            )
 
-        torch_dist_kwargs = {} if self.torch_dist_multiproc is None else dict(thread_count=self.torch_dist_multiproc)
-        if self.save_ckpt_format == 'torch_dist' and torch_dist_kwargs:
-            save_strategy = TorchDistSaveShardedStrategy(self.save_ckpt_format, 1, **torch_dist_kwargs)
+        torch_dist_kwargs = (
+            {}
+            if self.torch_dist_multiproc is None
+            else dict(thread_count=self.torch_dist_multiproc)
+        )
+        if self.save_ckpt_format == "torch_dist" and torch_dist_kwargs:
+            save_strategy = TorchDistSaveShardedStrategy(
+                self.save_ckpt_format, 1, **torch_dist_kwargs
+            )
         else:
             save_strategy = get_default_save_sharded_strategy(self.save_ckpt_format, 1)
 
         # MCore v0.8 introduces `use_cached_ckpt_structure` attribute
-        if hasattr(save_strategy, 'use_cached_ckpt_structure'):
+        if hasattr(save_strategy, "use_cached_ckpt_structure"):
             save_strategy.use_cached_ckpt_structure = self.assume_constant_structure
 
         if self.parallel_save:
             parallelization_group = (
-                get_data_parallel_group(with_context_parallel=True) if self.parallel_save_within_dp else None
+                get_data_parallel_group(with_context_parallel=True)
+                if self.parallel_save_within_dp
+                else None
             )
             save_strategy = FullyParallelSaveStrategyWrapper(
                 save_strategy, parallelization_group, self.assume_constant_structure
             )
 
-        logging.info(f'Using {save_strategy} dist-ckpt save strategy.')
+        logging.info(f"Using {save_strategy} dist-ckpt save strategy.")
         return save_strategy
 
 

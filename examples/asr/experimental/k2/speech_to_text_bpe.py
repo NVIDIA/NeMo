@@ -85,7 +85,9 @@ from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 
 
-@hydra_runner(config_path="experimental/k2/conf/citrinet", config_name="citrinet_mmi_1024.yaml")
+@hydra_runner(
+    config_path="experimental/k2/conf/citrinet", config_name="citrinet_mmi_1024.yaml"
+)
 def main(cfg: EncDecK2SeqModelConfig):
     logging.info(f"Hydra config: {OmegaConf.to_yaml(cfg)}")
 
@@ -98,7 +100,10 @@ def main(cfg: EncDecK2SeqModelConfig):
 
     trainer.fit(asr_model)
 
-    if hasattr(cfg.model, 'test_ds') and cfg.model.test_ds.manifest_filepath is not None:
+    if (
+        hasattr(cfg.model, "test_ds")
+        and cfg.model.test_ds.manifest_filepath is not None
+    ):
         if asr_model.prepare_test(trainer):
             trainer.test(asr_model)
 

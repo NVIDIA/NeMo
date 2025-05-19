@@ -62,7 +62,7 @@ class ASRDatasetConfig(nemo.core.classes.dataset.DatasetConfig):
     unk_index: int = -1
     normalize: bool = False
     trim: bool = True
-    parser: Optional[str] = 'en'
+    parser: Optional[str] = "en"
     eos_id: Optional[int] = None
     bos_id: Optional[int] = None
     pad_id: int = 0
@@ -88,11 +88,15 @@ class EncDecCTCConfig(model_cfg.ModelConfig):
     labels: List[str] = MISSING
 
     # Dataset configs
-    train_ds: ASRDatasetConfig = field(default_factory=lambda: ASRDatasetConfig(manifest_filepath=None, shuffle=True))
+    train_ds: ASRDatasetConfig = field(
+        default_factory=lambda: ASRDatasetConfig(manifest_filepath=None, shuffle=True)
+    )
     validation_ds: ASRDatasetConfig = field(
         default_factory=lambda: ASRDatasetConfig(manifest_filepath=None, shuffle=False)
     )
-    test_ds: ASRDatasetConfig = field(default_factory=lambda: ASRDatasetConfig(manifest_filepath=None, shuffle=False))
+    test_ds: ASRDatasetConfig = field(
+        default_factory=lambda: ASRDatasetConfig(manifest_filepath=None, shuffle=False)
+    )
 
     # Optimizer / Scheduler config
     optim: Optional[model_cfg.OptimConfig] = field(
@@ -106,8 +110,12 @@ class EncDecCTCConfig(model_cfg.ModelConfig):
     spec_augment: Optional[SpectrogramAugmentationConfig] = field(
         default_factory=lambda: SpectrogramAugmentationConfig()
     )
-    encoder: ConvASREncoderConfig = field(default_factory=lambda: ConvASREncoderConfig())
-    decoder: ConvASRDecoderConfig = field(default_factory=lambda: ConvASRDecoderConfig())
+    encoder: ConvASREncoderConfig = field(
+        default_factory=lambda: ConvASREncoderConfig()
+    )
+    decoder: ConvASRDecoderConfig = field(
+        default_factory=lambda: ConvASRDecoderConfig()
+    )
     decoding: CTCDecodingConfig = field(default_factory=lambda: CTCDecodingConfig())
 
 
@@ -126,7 +134,9 @@ class CacheAwareStreamingConfig:
     )
 
     cache_drop_size: int = 0  # the number of steps to drop from the cache
-    last_channel_cache_size: int = 0  # the size of the needed cache for last channel layers
+    last_channel_cache_size: int = (
+        0  # the size of the needed cache for last channel layers
+    )
 
     valid_out_len: int = (
         0  # the number of the steps in the final output which are valid (have the same value as in the offline mode)
@@ -135,7 +145,13 @@ class CacheAwareStreamingConfig:
     pre_encode_cache_size: int = (
         0  # the size of the needed cache for the pre-encoding part of the model to avoid caching inside the pre-encoding layers
     )
-    drop_extra_pre_encoded: int = 0  # the number of steps to get dropped after the pre-encoding layer
+    drop_extra_pre_encoded: int = (
+        0  # the number of steps to get dropped after the pre-encoding layer
+    )
 
-    last_channel_num: int = 0  # number of the last channel layers (like MHA layers) which need caching in the model
-    last_time_num: int = 0  # number of the last time layers (like convolutions) which need caching in the model
+    last_channel_num: int = (
+        0  # number of the last channel layers (like MHA layers) which need caching in the model
+    )
+    last_time_num: int = (
+        0  # number of the last time layers (like convolutions) which need caching in the model
+    )

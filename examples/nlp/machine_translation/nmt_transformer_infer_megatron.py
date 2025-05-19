@@ -50,7 +50,9 @@ def main(cfg) -> None:
     ), "devices * num_nodes should equal tensor_model_parallel_size * pipeline_model_parallel_size"
 
     app_state = AppState()
-    app_state.model_parallel_size = cfg.tensor_model_parallel_size * cfg.pipeline_model_parallel_size
+    app_state.model_parallel_size = (
+        cfg.tensor_model_parallel_size * cfg.pipeline_model_parallel_size
+    )
     (
         app_state.tensor_model_parallel_rank,
         app_state.pipeline_model_parallel_rank,
@@ -69,7 +71,9 @@ def main(cfg) -> None:
     if cfg.model_file is not None:
         if not os.path.exists(cfg.model_file):
             raise ValueError(f"Model file {cfg.model_file} does not exist")
-        pretrained_cfg = MegatronNMTModel.restore_from(cfg.model_file, trainer=trainer, return_config=True)
+        pretrained_cfg = MegatronNMTModel.restore_from(
+            cfg.model_file, trainer=trainer, return_config=True
+        )
         OmegaConf.set_struct(pretrained_cfg, True)
         with open_dict(pretrained_cfg):
             pretrained_cfg.precision = trainer.precision
@@ -80,8 +84,12 @@ def main(cfg) -> None:
             override_config_path=pretrained_cfg,
         )
     elif cfg.checkpoint_dir is not None:
-        checkpoint_path = inject_model_parallel_rank(os.path.join(cfg.checkpoint_dir, cfg.checkpoint_name))
-        model = MegatronNMTModel.load_from_checkpoint(checkpoint_path, hparams_file=cfg.hparams_file, trainer=trainer)
+        checkpoint_path = inject_model_parallel_rank(
+            os.path.join(cfg.checkpoint_dir, cfg.checkpoint_name)
+        )
+        model = MegatronNMTModel.load_from_checkpoint(
+            checkpoint_path, hparams_file=cfg.hparams_file, trainer=trainer
+        )
     else:
         raise ValueError("need at least a nemo file or checkpoint dir")
 
@@ -90,7 +98,7 @@ def main(cfg) -> None:
     logging.info(f"Translating: {cfg.srctext}")
     src_text = []
     translations = []
-    with open(cfg.srctext, 'r') as src_f, open(cfg.tgtout, 'w') as tgt_f:
+    with open(cfg.srctext, "r") as src_f, open(cfg.tgtout, "w") as tgt_f:
         for line in src_f:
             src_text.append(line.strip())
             if len(src_text) == cfg.batch_size:
@@ -112,5 +120,5 @@ def main(cfg) -> None:
                 tgt_f.write(translation + "\n")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()  # noqa pylint: disable=no-value-for-parameter

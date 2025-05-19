@@ -34,7 +34,7 @@ class ModuleDict(nn.ModuleDict):
 
     def sharded_state_dict(
         self,
-        prefix: str = '',
+        prefix: str = "",
         sharded_offsets: Tuple[Tuple[int, int, int]] = (),
         metadata: Optional[dict] = None,
     ) -> "ShardedStateDict":
@@ -55,7 +55,9 @@ class ModuleDict(nn.ModuleDict):
         """
         sharded_state_dict = {}
         for key, layer in self.items():
-            sharded_state_dict.update(layer.sharded_state_dict(f"{prefix}{key}.", sharded_offsets, metadata))
+            sharded_state_dict.update(
+                layer.sharded_state_dict(f"{prefix}{key}.", sharded_offsets, metadata)
+            )
         return sharded_state_dict
 
 
@@ -75,9 +77,15 @@ class LoRALinearSplitQKV(AdapterWrapper):
         key = self.adapter.adapter_k(layernorm_output)
         value = self.adapter.adapter_v(layernorm_output)
 
-        query_4d = query.reshape(query.shape[0], query.shape[1], -1, self.to_wrap.config.kv_channels)
-        key_4d = key.reshape(key.shape[0], key.shape[1], -1, self.to_wrap.config.kv_channels)
-        value_4d = value.reshape(value.shape[0], value.shape[1], -1, self.to_wrap.config.kv_channels)
+        query_4d = query.reshape(
+            query.shape[0], query.shape[1], -1, self.to_wrap.config.kv_channels
+        )
+        key_4d = key.reshape(
+            key.shape[0], key.shape[1], -1, self.to_wrap.config.kv_channels
+        )
+        value_4d = value.reshape(
+            value.shape[0], value.shape[1], -1, self.to_wrap.config.kv_channels
+        )
 
         qkv_4d = torch.cat([query_4d, key_4d, value_4d], dim=2)
         adapter_output = qkv_4d.reshape(qkv_4d.shape[0], qkv_4d.shape[1], -1)
@@ -152,19 +160,19 @@ class CanonicalLoRA(PEFT, ModuleMatcher):
 
     target_modules: List[str] = field(
         default_factory=lambda: [
-            'linear_q',
-            'linear_k',
-            'linear_v',
-            'linear_proj',
-            'linear_fc1_up',
-            'linear_fc1_gate',
-            'linear_fc2',
+            "linear_q",
+            "linear_k",
+            "linear_v",
+            "linear_proj",
+            "linear_fc1_up",
+            "linear_fc1_gate",
+            "linear_fc2",
         ]
     )
     dim: int = 32
     alpha: int = 32
     dropout: float = 0.0
-    dropout_position: Literal['pre', 'post'] = 'pre'
+    dropout_position: Literal["pre", "post"] = "pre"
     lora_A_init_method: str = "xavier"
     lora_B_init_method: str = "zero"
 
@@ -197,16 +205,26 @@ class CanonicalLoRA(PEFT, ModuleMatcher):
                 "use ['linear_fc1_up', 'linear_fc1_gate'] with Canonical LoRA"
             )
 
-            if 'linear_q' in target:
-                self.canonical_mapping[target.replace('linear_q', 'linear_qkv')].add('linear_q')
-            elif 'linear_k' in target:
-                self.canonical_mapping[target.replace('linear_k', 'linear_qkv')].add('linear_k')
-            elif 'linear_v' in target:
-                self.canonical_mapping[target.replace('linear_v', 'linear_qkv')].add('linear_v')
-            elif 'linear_fc1_up' in target:
-                self.canonical_mapping[target.replace('linear_fc1_up', 'linear_fc1')].add('linear_fc1_up')
-            elif 'linear_fc1_gate' in target:
-                self.canonical_mapping[target.replace('linear_fc1_gate', 'linear_fc1')].add('linear_fc1_gate')
+            if "linear_q" in target:
+                self.canonical_mapping[target.replace("linear_q", "linear_qkv")].add(
+                    "linear_q"
+                )
+            elif "linear_k" in target:
+                self.canonical_mapping[target.replace("linear_k", "linear_qkv")].add(
+                    "linear_k"
+                )
+            elif "linear_v" in target:
+                self.canonical_mapping[target.replace("linear_v", "linear_qkv")].add(
+                    "linear_v"
+                )
+            elif "linear_fc1_up" in target:
+                self.canonical_mapping[
+                    target.replace("linear_fc1_up", "linear_fc1")
+                ].add("linear_fc1_up")
+            elif "linear_fc1_gate" in target:
+                self.canonical_mapping[
+                    target.replace("linear_fc1_gate", "linear_fc1")
+                ].add("linear_fc1_gate")
             else:
                 self.canonical_mapping[target].add(target)
 
@@ -228,15 +246,21 @@ class CanonicalLoRA(PEFT, ModuleMatcher):
             (match, full_name) = ans
             if isinstance(m, nn.Linear):
                 return LinearAdapter(
-                    m, dim=self.dim, alpha=self.alpha, dropout=self.dropout, lora_A_init_method=self.lora_A_init_method
+                    m,
+                    dim=self.dim,
+                    alpha=self.alpha,
+                    dropout=self.dropout,
+                    lora_A_init_method=self.lora_A_init_method,
                 )
 
-            input_is_parallel, in_features, out_features, disable_sp_comm = get_adapter_attributes_from_linear(m)
+            input_is_parallel, in_features, out_features, disable_sp_comm = (
+                get_adapter_attributes_from_linear(m)
+            )
 
             adapter_kwargs = dict(
                 dim=self.dim,
                 base_linear_name=full_name,
-                activation='identity',
+                activation="identity",
                 norm_type=None,
                 column_init_method=self.lora_A_init_method,
                 row_init_method=self.lora_B_init_method,
@@ -249,32 +273,52 @@ class CanonicalLoRA(PEFT, ModuleMatcher):
                 is_expert=is_expert_linear(full_name),
                 disable_sequence_parallel_comm=disable_sp_comm,
             )
-            if name in ['linear_proj', 'linear_fc2']:
-                adapter = ParallelLinearAdapter(in_features, out_features, **adapter_kwargs)
+            if name in ["linear_proj", "linear_fc2"]:
+                adapter = ParallelLinearAdapter(
+                    in_features, out_features, **adapter_kwargs
+                )
                 logging.info(f"Adding lora to: {full_name}")
                 return LoRALinear(m, adapter)
 
             canonical_submodules = self.canonical_mapping[match]
             logging.info(f"Adding lora to: {full_name} ({canonical_submodules})")
-            if name == 'linear_qkv':
+            if name == "linear_qkv":
                 adapter_q, adapter_k, adapter_v = None, None, None
                 kv_out_features = m.config.kv_channels * m.config.num_query_groups
-                if 'linear_q' in canonical_submodules:
-                    adapter_q = ParallelLinearAdapter(in_features, in_features, **adapter_kwargs)
-                if 'linear_k' in canonical_submodules:
-                    adapter_k = ParallelLinearAdapter(in_features, kv_out_features, **adapter_kwargs)
-                if 'linear_v' in canonical_submodules:
-                    adapter_v = ParallelLinearAdapter(in_features, kv_out_features, **adapter_kwargs)
-                adapters = ModuleDict({'adapter_q': adapter_q, 'adapter_k': adapter_k, 'adapter_v': adapter_v})
+                if "linear_q" in canonical_submodules:
+                    adapter_q = ParallelLinearAdapter(
+                        in_features, in_features, **adapter_kwargs
+                    )
+                if "linear_k" in canonical_submodules:
+                    adapter_k = ParallelLinearAdapter(
+                        in_features, kv_out_features, **adapter_kwargs
+                    )
+                if "linear_v" in canonical_submodules:
+                    adapter_v = ParallelLinearAdapter(
+                        in_features, kv_out_features, **adapter_kwargs
+                    )
+                adapters = ModuleDict(
+                    {
+                        "adapter_q": adapter_q,
+                        "adapter_k": adapter_k,
+                        "adapter_v": adapter_v,
+                    }
+                )
                 return LoRALinearSplitQKV(m, adapters)
 
-            if name == 'linear_fc1':
+            if name == "linear_fc1":
                 adapter_up, adapter_gate = None, None
-                if 'linear_fc1_up' in canonical_submodules:
-                    adapter_up = ParallelLinearAdapter(in_features, out_features // 2, **adapter_kwargs)
-                if 'linear_fc1_gate' in canonical_submodules:
-                    adapter_gate = ParallelLinearAdapter(in_features, out_features // 2, **adapter_kwargs)
-                adapters = ModuleDict({'adapter_up': adapter_up, 'adapter_gate': adapter_gate})
+                if "linear_fc1_up" in canonical_submodules:
+                    adapter_up = ParallelLinearAdapter(
+                        in_features, out_features // 2, **adapter_kwargs
+                    )
+                if "linear_fc1_gate" in canonical_submodules:
+                    adapter_gate = ParallelLinearAdapter(
+                        in_features, out_features // 2, **adapter_kwargs
+                    )
+                adapters = ModuleDict(
+                    {"adapter_up": adapter_up, "adapter_gate": adapter_gate}
+                )
                 return LoRALinearSplitFC1UpGate(m, adapters)
 
         return m

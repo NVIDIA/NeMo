@@ -22,7 +22,8 @@ from nemo.collections.nlp.data.text_normalization.utils import (normalize_str,
                                                                 remove_puncts)
 from nemo.utils import logging
 
-__all__ = ['TextNormalizationTestDataset']
+__all__ = ["TextNormalizationTestDataset"]
+
 
 # Test Dataset
 class TextNormalizationTestDataset:
@@ -40,7 +41,15 @@ class TextNormalizationTestDataset:
         insts = read_data_file(input_file, lang=lang)
         processor = MosesProcessor(lang_id=lang)
         # Build inputs and targets
-        self.directions, self.inputs, self.targets, self.classes, self.nb_spans, self.span_starts, self.span_ends = (
+        (
+            self.directions,
+            self.inputs,
+            self.targets,
+            self.classes,
+            self.nb_spans,
+            self.span_starts,
+            self.span_ends,
+        ) = (
             [],
             [],
             [],
@@ -49,7 +58,7 @@ class TextNormalizationTestDataset:
             [],
             [],
         )
-        for (classes, w_words, s_words) in insts:
+        for classes, w_words, s_words in insts:
             # Extract words that are not punctuations
             for direction in constants.INST_DIRECTIONS:
                 if direction == constants.INST_BACKWARD:
@@ -73,7 +82,9 @@ class TextNormalizationTestDataset:
                         else:
                             processed_s_words.append(s_word)
 
-                        s_word_last = processor.tokenize(processed_s_words.pop()).split()
+                        s_word_last = processor.tokenize(
+                            processed_s_words.pop()
+                        ).split()
                         processed_s_words.append(" ".join(s_word_last))
                         num_tokens = len(s_word_last)
                         processed_nb_spans += 1
@@ -87,7 +98,7 @@ class TextNormalizationTestDataset:
                     self.span_ends.append(processed_s_span_ends)
                     self.classes.append(processed_classes)
                     self.nb_spans.append(processed_nb_spans)
-                    input_words = ' '.join(processed_s_words)
+                    input_words = " ".join(processed_s_words)
                     # Update self.directions, self.inputs, self.targets
                     self.directions.append(direction)
                     self.inputs.append(input_words)
@@ -127,7 +138,7 @@ class TextNormalizationTestDataset:
                     self.span_ends.append(w_span_ends)
                     self.classes.append(processed_classes)
                     self.nb_spans.append(processed_nb_spans)
-                    input_words = ' '.join(processed_w_words)
+                    input_words = " ".join(processed_w_words)
                     # Update self.directions, self.inputs, self.targets
                     self.directions.append(direction)
                     self.inputs.append(input_words)
@@ -173,7 +184,9 @@ class TextNormalizationTestDataset:
         return int(pred == target)
 
     @staticmethod
-    def compute_sent_accuracy(preds: List[str], targets: List[str], inst_directions: List[str]):
+    def compute_sent_accuracy(
+        preds: List[str], targets: List[str], inst_directions: List[str]
+    ):
         """
         Compute the sentence accuracy metric.
 
@@ -185,11 +198,13 @@ class TextNormalizationTestDataset:
         """
         assert len(preds) == len(targets)
         if len(targets) == 0:
-            return 'NA'
+            return "NA"
         # Sentence Accuracy
         correct_count = 0
         for inst_dir, pred, target in zip(inst_directions, preds, targets):
-            correct_count += TextNormalizationTestDataset.is_same(pred, target, inst_dir)
+            correct_count += TextNormalizationTestDataset.is_same(
+                pred, target, inst_dir
+            )
         sent_accuracy = correct_count / len(targets)
 
         return sent_accuracy
@@ -221,7 +236,7 @@ class TextNormalizationTestDataset:
         """
 
         if len(targets) == 0:
-            return 'NA'
+            return "NA"
         class2stats, class2correct = defaultdict(int), defaultdict(int)
         for ix, (sent, tags) in enumerate(zip(inputs, tag_preds)):
             try:
@@ -248,7 +263,10 @@ class TextNormalizationTestDataset:
                     tmp = cur_spans[span_idx]
                     cur_words[class_idx].append(tmp)
                     span_idx += 1
-                    while jx < len(sent) and tags[jx] == constants.I_PREFIX + constants.TRANSFORM_TAG:
+                    while (
+                        jx < len(sent)
+                        and tags[jx] == constants.I_PREFIX + constants.TRANSFORM_TAG
+                    ):
                         while jx >= span_ends[ix][class_idx]:
                             class_idx += 1
                             class2stats[classes[ix][class_idx]] += 1
@@ -259,12 +277,18 @@ class TextNormalizationTestDataset:
             # assert len(cur_words) == len(targets[ix])
             for class_idx in range(nb_spans[ix]):
                 correct = TextNormalizationTestDataset.is_same(
-                    " ".join(cur_words[class_idx]), targets[ix][target_token_idx], inst_directions[ix]
+                    " ".join(cur_words[class_idx]),
+                    targets[ix][target_token_idx],
+                    inst_directions[ix],
                 )
                 class2correct[classes[ix][class_idx]] += correct
                 target_token_idx += 1
 
         for key in class2stats:
-            class2stats[key] = (class2correct[key] / class2stats[key], class2correct[key], class2stats[key])
+            class2stats[key] = (
+                class2correct[key] / class2stats[key],
+                class2correct[key],
+                class2stats[key],
+            )
 
         return class2stats

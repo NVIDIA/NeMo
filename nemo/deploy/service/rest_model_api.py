@@ -28,13 +28,22 @@ class TritonSettings(BaseSettings):
     def __init__(self):
         super(TritonSettings, self).__init__()
         try:
-            self._triton_service_port = int(os.environ.get('TRITON_PORT', 8080))
-            self._triton_service_ip = os.environ.get('TRITON_HTTP_ADDRESS', '0.0.0.0')
-            self._triton_request_timeout = int(os.environ.get('TRITON_REQUEST_TIMEOUT', 60))
-            self._openai_format_response = os.environ.get('OPENAI_FORMAT_RESPONSE', 'False').lower() == 'true'
-            self._output_generation_logits = os.environ.get('OUTPUT_GENERATION_LOGITS', 'False').lower() == 'true'
+            self._triton_service_port = int(os.environ.get("TRITON_PORT", 8080))
+            self._triton_service_ip = os.environ.get("TRITON_HTTP_ADDRESS", "0.0.0.0")
+            self._triton_request_timeout = int(
+                os.environ.get("TRITON_REQUEST_TIMEOUT", 60)
+            )
+            self._openai_format_response = (
+                os.environ.get("OPENAI_FORMAT_RESPONSE", "False").lower() == "true"
+            )
+            self._output_generation_logits = (
+                os.environ.get("OUTPUT_GENERATION_LOGITS", "False").lower() == "true"
+            )
         except Exception as error:
-            logging.error("An exception occurred trying to retrieve set args in TritonSettings class. Error:", error)
+            logging.error(
+                "An exception occurred trying to retrieve set args in TritonSettings class. Error:",
+                error,
+            )
             return
 
     @property
@@ -91,9 +100,7 @@ async def check_triton_health():
     This method exposes endpoint "/triton_health" which can be used to verify if Triton server is accessible while running the REST or FastAPI application.
     Verify by running: curl http://service_http_address:service_port/v1/triton_health and the returned status should inform if the server is accessible.
     """
-    triton_url = (
-        f"http://{triton_settings.triton_service_ip}:{str(triton_settings.triton_service_port)}/v2/health/ready"
-    )
+    triton_url = f"http://{triton_settings.triton_service_ip}:{str(triton_settings.triton_service_port)}/v2/health/ready"
     logging.info(f"Attempting to connect to Triton server at: {triton_url}")
     try:
         response = requests.get(triton_url, timeout=5)
@@ -102,13 +109,19 @@ async def check_triton_health():
         else:
             raise HTTPException(status_code=503, detail="Triton server is not ready")
     except requests.RequestException as e:
-        raise HTTPException(status_code=503, detail=f"Cannot reach Triton server: {str(e)}")
+        raise HTTPException(
+            status_code=503, detail=f"Cannot reach Triton server: {str(e)}"
+        )
 
 
 @app.post("/v1/completions/")
 def completions_v1(request: CompletionRequest):
     try:
-        url = triton_settings.triton_service_ip + ":" + str(triton_settings.triton_service_port)
+        url = (
+            triton_settings.triton_service_ip
+            + ":"
+            + str(triton_settings.triton_service_port)
+        )
         nq = NemoQueryLLM(url=url, model_name=request.model)
         output = nq.query_llm(
             prompts=[request.prompt],
@@ -128,5 +141,8 @@ def completions_v1(request: CompletionRequest):
                 "output": output[0][0],
             }
     except Exception as error:
-        logging.error("An exception occurred with the post request to /v1/completions/ endpoint:", error)
+        logging.error(
+            "An exception occurred with the post request to /v1/completions/ endpoint:",
+            error,
+        )
         return {"error": "An exception occurred"}

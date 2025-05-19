@@ -30,7 +30,9 @@ def main(cfg) -> None:
     if cfg.generating.llm.model_type == "gpt":
         Settings.llm = NeMoGPTLLM(model_path=model_path, cfg=cfg)
     else:
-        assert cfg.generating.model_type in ["gpt"], "Currently RAG pipeline supports 'gpt' for LLM models."
+        assert cfg.generating.model_type in [
+            "gpt"
+        ], "Currently RAG pipeline supports 'gpt' for LLM models."
 
     # load embedder
     logging.info("Loading embedder.")
@@ -38,7 +40,9 @@ def main(cfg) -> None:
     if cfg.indexing.embedder.model_type == "bert":
         embed_model = NeMoBertEmbeddings(model_path=model_path, cfg=cfg)
     else:
-        assert cfg.indexing.model_type in ["bert"], "Currently RAG pipeline supports 'bert' for embeddings models."
+        assert cfg.indexing.model_type in [
+            "bert"
+        ], "Currently RAG pipeline supports 'bert' for embeddings models."
         embed_model = None
     Settings.embed_model = embed_model
 
@@ -60,5 +64,5 @@ def main(cfg) -> None:
     logging.info(response)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

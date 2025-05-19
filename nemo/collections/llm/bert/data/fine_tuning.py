@@ -101,7 +101,9 @@ class FineTuningDataModule(pl.LightningDataModule):
 
         # Follows the calculation in nemo.collections.nlp.data.language_modeling.megatron.
         # base_dataset_utils.get_datasets_weights_and_num_samples
-        self.max_train_samples = int(math.ceil(self.global_batch_size * self.trainer.max_steps * 1.005))
+        self.max_train_samples = int(
+            math.ceil(self.global_batch_size * self.trainer.max_steps * 1.005)
+        )
 
     def state_dict(self) -> Dict[str, Any]:
         """Called when saving a checkpoint, implement to generate and save datamodule state.
@@ -127,7 +129,9 @@ class FineTuningDataModule(pl.LightningDataModule):
                 update_num_microbatches
 
         except (ImportError, ModuleNotFoundError):
-            logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
+            logging.warning(
+                "Megatron num_microbatches_calculator not found, using Apex version."
+            )
             from apex.transformer.pipeline_parallel.utils import \
                 update_num_microbatches
         consumed_samples = state_dict["consumed_samples"]
@@ -218,10 +222,10 @@ class FineTuningDataModule(pl.LightningDataModule):
             name = self.tokenizer.tokenizer.name_or_path
             if name.endswith("context/nemo_tokenizer"):
                 # NEMO_HOME/hf_org/hf_model/context/nemo_tokenizer => hf_org--hf_model
-                tokenizer_model_name = '--'.join(name.split("/")[-4:-2])
+                tokenizer_model_name = "--".join(name.split("/")[-4:-2])
             elif name.endswith("nemo_tokenizer"):
                 # NEMO_HOME/hf_org/hf_model/nemo_tokenizer => hf_org--hf_model
-                tokenizer_model_name = '--'.join(name.split("/")[-3:-1])
+                tokenizer_model_name = "--".join(name.split("/")[-3:-1])
             else:
                 # hf_org/hf_model => hf_org--hf_model
                 tokenizer_model_name = name.replace("/", "--")

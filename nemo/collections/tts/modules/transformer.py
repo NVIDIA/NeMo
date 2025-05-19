@@ -40,11 +40,13 @@ class PositionalEmbedding(nn.Module):
         super(PositionalEmbedding, self).__init__()
         self.demb = demb
         inv_freq = 1 / (10000 ** (torch.arange(0.0, demb, 2.0) / demb))
-        self.register_buffer('inv_freq', inv_freq)
+        self.register_buffer("inv_freq", inv_freq)
 
     def forward(self, pos_seq, bsz=None):
         #        sinusoid_inp = torch.ger(pos_seq, self.inv_freq)
-        sinusoid_inp = torch.matmul(torch.unsqueeze(pos_seq, -1), torch.unsqueeze(self.inv_freq, 0))
+        sinusoid_inp = torch.matmul(
+            torch.unsqueeze(pos_seq, -1), torch.unsqueeze(self.inv_freq, 0)
+        )
 
         pos_emb = torch.cat([sinusoid_inp.sin(), sinusoid_inp.cos()], dim=1)
         if bsz is not None:
@@ -54,7 +56,15 @@ class PositionalEmbedding(nn.Module):
 
 
 class PositionwiseConvFF(nn.Module):
-    def __init__(self, d_model, d_inner, kernel_size, dropout, pre_lnorm=False, condition_types=[]):
+    def __init__(
+        self,
+        d_model,
+        d_inner,
+        kernel_size,
+        dropout,
+        pre_lnorm=False,
+        condition_types=[],
+    ):
         super(PositionwiseConvFF, self).__init__()
 
         self.d_model = d_model
@@ -71,7 +81,9 @@ class PositionwiseConvFF(nn.Module):
             nn.Conv1d(d_inner, d_model, kernel_size[1], 1, (kernel_size[1] // 2)),
             nn.Dropout(dropout),
         )
-        self.layer_norm = ConditionalLayerNorm(d_model, condition_dim=d_model, condition_types=condition_types)
+        self.layer_norm = ConditionalLayerNorm(
+            d_model, condition_dim=d_model, condition_types=condition_types
+        )
         self.pre_lnorm = pre_lnorm
 
     def forward(self, inp, conditioning=None):
@@ -81,7 +93,9 @@ class PositionwiseConvFF(nn.Module):
         if self.pre_lnorm:
             # layer normalization + positionwise feed-forward
             core_out = inp.transpose(1, 2)
-            core_out = self.CoreNet(self.layer_norm(core_out, conditioning).to(inp.dtype))
+            core_out = self.CoreNet(
+                self.layer_norm(core_out, conditioning).to(inp.dtype)
+            )
             core_out = core_out.transpose(1, 2)
 
             # residual connection
@@ -99,7 +113,16 @@ class PositionwiseConvFF(nn.Module):
 
 
 class MultiHeadAttn(nn.Module):
-    def __init__(self, n_head, d_model, d_head, dropout, dropatt=0.1, pre_lnorm=False, condition_types=[]):
+    def __init__(
+        self,
+        n_head,
+        d_model,
+        d_head,
+        dropout,
+        dropatt=0.1,
+        pre_lnorm=False,
+        condition_types=[],
+    ):
         super(MultiHeadAttn, self).__init__()
 
         self.n_head = n_head
@@ -112,7 +135,9 @@ class MultiHeadAttn(nn.Module):
         self.drop = nn.Dropout(dropout)
         self.dropatt = nn.Dropout(dropatt)
         self.o_net = nn.Linear(n_head * d_head, d_model, bias=False)
-        self.layer_norm = ConditionalLayerNorm(d_model, condition_dim=d_model, condition_types=condition_types)
+        self.layer_norm = ConditionalLayerNorm(
+            d_model, condition_dim=d_model, condition_types=condition_types
+        )
 
     def forward(self, inp, attn_mask=None, conditioning=None):
         return self._forward(inp, attn_mask, conditioning)
@@ -146,14 +171,16 @@ class MultiHeadAttn(nn.Module):
         if attn_mask is not None:
             attn_mask = attn_mask.unsqueeze(1).to(attn_score.dtype)
             attn_mask = attn_mask.repeat(n_head, attn_mask.size(2), 1)
-            attn_score.masked_fill_(attn_mask.to(torch.bool), -float('inf'))
+            attn_score.masked_fill_(attn_mask.to(torch.bool), -float("inf"))
 
         attn_prob = F.softmax(attn_score, dim=2)
         attn_prob = self.dropatt(attn_prob)
         attn_vec = torch.bmm(attn_prob, v)
 
         attn_vec = attn_vec.view(n_head, s0, s1, d_head)
-        attn_vec = attn_vec.permute(1, 2, 0, 3).contiguous().view(s0, s1, n_head * d_head)
+        attn_vec = (
+            attn_vec.permute(1, 2, 0, 3).contiguous().view(s0, s1, n_head * d_head)
+        )
 
         # linear projection
         attn_out = self.o_net(attn_vec)
@@ -170,16 +197,35 @@ class MultiHeadAttn(nn.Module):
 
 
 class TransformerLayer(nn.Module, adapter_mixins.AdapterModuleMixin):
-    def __init__(self, n_head, d_model, d_head, d_inner, kernel_size, dropout, condition_types=[], **kwargs):
+    def __init__(
+        self,
+        n_head,
+        d_model,
+        d_head,
+        d_inner,
+        kernel_size,
+        dropout,
+        condition_types=[],
+        **kwargs,
+    ):
         super(TransformerLayer, self).__init__()
 
-        self.dec_attn = MultiHeadAttn(n_head, d_model, d_head, dropout, condition_types=condition_types, **kwargs)
+        self.dec_attn = MultiHeadAttn(
+            n_head, d_model, d_head, dropout, condition_types=condition_types, **kwargs
+        )
         self.pos_ff = PositionwiseConvFF(
-            d_model, d_inner, kernel_size, dropout, pre_lnorm=kwargs.get('pre_lnorm'), condition_types=condition_types
+            d_model,
+            d_inner,
+            kernel_size,
+            dropout,
+            pre_lnorm=kwargs.get("pre_lnorm"),
+            condition_types=condition_types,
         )
 
     def forward(self, dec_inp, mask=None, conditioning=None):
-        output = self.dec_attn(dec_inp, attn_mask=~mask.squeeze(2), conditioning=conditioning)
+        output = self.dec_attn(
+            dec_inp, attn_mask=~mask.squeeze(2), conditioning=conditioning
+        )
         output *= mask
         output = self.pos_ff(output, conditioning)
         output *= mask
@@ -234,16 +280,18 @@ class FFTransformerDecoder(NeuralModule):
     @property
     def input_types(self):
         return {
-            "input": NeuralType(('B', 'T', 'D'), EncodedRepresentation()),
-            "seq_lens": NeuralType(('B'), LengthsType()),
-            "conditioning": NeuralType(('B', 'T', 'D'), EncodedRepresentation(), optional=True),
+            "input": NeuralType(("B", "T", "D"), EncodedRepresentation()),
+            "seq_lens": NeuralType(("B"), LengthsType()),
+            "conditioning": NeuralType(
+                ("B", "T", "D"), EncodedRepresentation(), optional=True
+            ),
         }
 
     @property
     def output_types(self):
         return {
-            "out": NeuralType(('B', 'T', 'D'), EncodedRepresentation()),
-            "mask": NeuralType(('B', 'T', 'D'), MaskType()),
+            "out": NeuralType(("B", "T", "D"), EncodedRepresentation()),
+            "mask": NeuralType(("B", "T", "D"), MaskType()),
         }
 
     @typecheck()
@@ -297,18 +345,24 @@ class FFTransformerEncoder(FFTransformerDecoder):
         )
 
         self.padding_idx = padding_idx
-        self.word_emb = nn.Embedding(n_embed, d_embed or d_model, padding_idx=self.padding_idx)
+        self.word_emb = nn.Embedding(
+            n_embed, d_embed or d_model, padding_idx=self.padding_idx
+        )
 
     @property
     def input_types(self):
         return {
-            "input": NeuralType(('B', 'T'), TokenIndex()),
-            "conditioning": NeuralType(('B', 'T', 'D'), EncodedRepresentation(), optional=True),
+            "input": NeuralType(("B", "T"), TokenIndex()),
+            "conditioning": NeuralType(
+                ("B", "T", "D"), EncodedRepresentation(), optional=True
+            ),
         }
 
     def forward(self, input, conditioning=0):
 
-        return self._forward(self.word_emb(input), (input != self.padding_idx).unsqueeze(2), conditioning)  # (B, L, 1)
+        return self._forward(
+            self.word_emb(input), (input != self.padding_idx).unsqueeze(2), conditioning
+        )  # (B, L, 1)
 
 
 class FFTransformer(nn.Module):
@@ -337,7 +391,15 @@ class FFTransformer(nn.Module):
 
         for _ in range(n_layers):
             self.layers.append(
-                TransformerLayer(n_head, in_dim, d_head, d_inner, kernel_size, dropout, dropatt=dropatt)
+                TransformerLayer(
+                    n_head,
+                    in_dim,
+                    d_head,
+                    d_inner,
+                    kernel_size,
+                    dropout,
+                    dropatt=dropatt,
+                )
             )
 
         self.dense = LinearNorm(in_dim, out_dim)

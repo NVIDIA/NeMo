@@ -18,7 +18,7 @@ from nemo.core.classes import Serialization, Typing, typecheck
 from nemo.core.neural_types import (LabelsType, LossType, NeuralType,
                                     RegressionValuesType)
 
-__all__ = ['MSELoss']
+__all__ = ["MSELoss"]
 
 
 class MSELoss(nn.MSELoss, Serialization, Typing):
@@ -28,20 +28,18 @@ class MSELoss(nn.MSELoss, Serialization, Typing):
 
     @property
     def input_types(self):
-        """Returns definitions of module input ports.
-        """
+        """Returns definitions of module input ports."""
         return {
-            "preds": NeuralType(tuple('B'), RegressionValuesType()),
-            "labels": NeuralType(tuple('B'), LabelsType()),
+            "preds": NeuralType(tuple("B"), RegressionValuesType()),
+            "labels": NeuralType(tuple("B"), LabelsType()),
         }
 
     @property
     def output_types(self):
-        """Returns definitions of module output ports.
-        """
+        """Returns definitions of module output ports."""
         return {"loss": NeuralType(elements_type=LossType())}
 
-    def __init__(self, reduction: str = 'mean'):
+    def __init__(self, reduction: str = "mean"):
         """
         Args:
             reduction: type of the reduction over the batch

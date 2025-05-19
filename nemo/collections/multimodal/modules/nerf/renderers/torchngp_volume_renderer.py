@@ -24,7 +24,15 @@ from nemo.collections.multimodal.modules.nerf.renderers.base_renderer import \
 
 
 class TorchNGPVolumeRenderer(BaseRenderer):
-    def __init__(self, bound, update_interval, grid_resolution, density_thresh, max_steps, dt_gamma):
+    def __init__(
+        self,
+        bound,
+        update_interval,
+        grid_resolution,
+        density_thresh,
+        max_steps,
+        dt_gamma,
+    ):
 
         super().__init__(bound, update_interval)
 
@@ -36,12 +44,14 @@ class TorchNGPVolumeRenderer(BaseRenderer):
 
         # density grid
         # TODO(ahmadki): needs rework
-        density_grid = torch.zeros([self.cascade, self.grid_resolution ** 3])  # [CAS, H * H * H]
+        density_grid = torch.zeros(
+            [self.cascade, self.grid_resolution**3]
+        )  # [CAS, H * H * H]
         density_bitfield = torch.zeros(
-            self.cascade * self.grid_resolution ** 3 // 8, dtype=torch.uint8
+            self.cascade * self.grid_resolution**3 // 8, dtype=torch.uint8
         )  # [CAS * H * H * H // 8]
-        self.register_buffer('density_grid', density_grid)
-        self.register_buffer('density_bitfield', density_bitfield)
+        self.register_buffer("density_grid", density_grid)
+        self.register_buffer("density_bitfield", density_bitfield)
         self.mean_density = 0
         self.iter_density = 0
 
@@ -51,50 +61,69 @@ class TorchNGPVolumeRenderer(BaseRenderer):
         self.background = None
 
     @torch.no_grad()
-    def update_step(self, epoch: int, global_step: int, decay: float = 0.95, S: int = 128, **kwargs):
+    def update_step(
+        self, epoch: int, global_step: int, decay: float = 0.95, S: int = 128, **kwargs
+    ):
         if global_step % self.update_interval != 0:
             return
 
         ### update density grid
         tmp_grid = -torch.ones_like(self.density_grid)
 
-        X = torch.arange(self.grid_resolution, dtype=torch.int32, device=self.aabb.device).split(S)
-        Y = torch.arange(self.grid_resolution, dtype=torch.int32, device=self.aabb.device).split(S)
-        Z = torch.arange(self.grid_resolution, dtype=torch.int32, device=self.aabb.device).split(S)
+        X = torch.arange(
+            self.grid_resolution, dtype=torch.int32, device=self.aabb.device
+        ).split(S)
+        Y = torch.arange(
+            self.grid_resolution, dtype=torch.int32, device=self.aabb.device
+        ).split(S)
+        Z = torch.arange(
+            self.grid_resolution, dtype=torch.int32, device=self.aabb.device
+        ).split(S)
 
         for xs in X:
             for ys in Y:
                 for zs in Z:
 
                     # construct points
-                    xx, yy, zz = torch.meshgrid(xs, ys, zs, indexing='ij')
+                    xx, yy, zz = torch.meshgrid(xs, ys, zs, indexing="ij")
                     coords = torch.cat(
-                        [xx.reshape(-1, 1), yy.reshape(-1, 1), zz.reshape(-1, 1)], dim=-1
+                        [xx.reshape(-1, 1), yy.reshape(-1, 1), zz.reshape(-1, 1)],
+                        dim=-1,
                     )  # [N, 3], in [0, 128)
                     indices = raymarching.morton3D(coords).long()  # [N]
-                    xyzs = 2 * coords.float() / (self.grid_resolution - 1) - 1  # [N, 3] in [-1, 1]
+                    xyzs = (
+                        2 * coords.float() / (self.grid_resolution - 1) - 1
+                    )  # [N, 3] in [-1, 1]
 
                     # cascading
                     for cas in range(self.cascade):
-                        bound = min(2 ** cas, self.bound)
+                        bound = min(2**cas, self.bound)
                         half_grid_resolution = bound / self.grid_resolution
                         # scale to current cascade's resolution
                         cas_xyzs = xyzs * (bound - half_grid_resolution)
                         # add noise in [-hgs, hgs]
-                        cas_xyzs += (torch.rand_like(cas_xyzs) * 2 - 1) * half_grid_resolution
+                        cas_xyzs += (
+                            torch.rand_like(cas_xyzs) * 2 - 1
+                        ) * half_grid_resolution
                         # query density
-                        density = self.nerf.forward_density(cas_xyzs).reshape(-1).detach()
+                        density = (
+                            self.nerf.forward_density(cas_xyzs).reshape(-1).detach()
+                        )
                         # assign
                         tmp_grid[cas, indices] = density
         # ema update
         valid_mask = self.density_grid >= 0
-        self.density_grid[valid_mask] = torch.maximum(self.density_grid[valid_mask] * decay, tmp_grid[valid_mask])
+        self.density_grid[valid_mask] = torch.maximum(
+            self.density_grid[valid_mask] * decay, tmp_grid[valid_mask]
+        )
         self.mean_density = torch.mean(self.density_grid[valid_mask]).item()
         self.iter_density += 1
 
         # convert to bitfield
         density_thresh = min(self.mean_density, self.density_thresh)
-        self.density_bitfield = raymarching.packbits(self.density_grid, density_thresh, self.density_bitfield)
+        self.density_bitfield = raymarching.packbits(
+            self.density_grid, density_thresh, self.density_bitfield
+        )
 
     def forward(
         self,
@@ -105,7 +134,7 @@ class TorchNGPVolumeRenderer(BaseRenderer):
         shading_type=None,
         return_normal_image=False,
         return_normal_perturb=False,
-        **kwargs
+        **kwargs,
     ):
         return self._render(
             rays_o=rays_o,
@@ -115,7 +144,7 @@ class TorchNGPVolumeRenderer(BaseRenderer):
             shading_type=shading_type,
             return_normal_image=return_normal_image,
             return_normal_perturb=return_normal_perturb,
-            **kwargs
+            **kwargs,
         )
 
     # TODO(ahmadki): return_normal_image is always False ?
@@ -131,7 +160,7 @@ class TorchNGPVolumeRenderer(BaseRenderer):
         perturb=False,
         T_thresh=1e-4,
         binarize=False,
-        **kwargs
+        **kwargs,
     ):
         # rays_o, rays_d: [B, H, W, 3]
         B, H, W, _ = rays_o.shape
@@ -176,10 +205,16 @@ class TorchNGPVolumeRenderer(BaseRenderer):
                 light_d = light_d[flatten_rays]
 
             return_normal = (shading_type is not None) or return_normal_image
-            sigmas, albedo, normals = self.nerf(positions=positions, return_normal=return_normal)
+            sigmas, albedo, normals = self.nerf(
+                positions=positions, return_normal=return_normal
+            )
 
             fg_color = self.material(
-                albedo=albedo, normals=normals, light_d=light_d, ambient_ratio=ambient_ratio, shading_type=shading_type
+                albedo=albedo,
+                normals=normals,
+                light_d=light_d,
+                ambient_ratio=ambient_ratio,
+                shading_type=shading_type,
             )
 
             weights, opacity, depth, image = raymarching.composite_rays_train(
@@ -238,7 +273,9 @@ class TorchNGPVolumeRenderer(BaseRenderer):
                 dirs = F.normalize(dirs)
 
                 return_normal = shading_type not in [None, ShadingEnum.TEXTURELESS]
-                sigmas, albedo, normals = self.nerf(positions=positions, return_normal=return_normal)
+                sigmas, albedo, normals = self.nerf(
+                    positions=positions, return_normal=return_normal
+                )
 
                 fg_color = self.material(
                     albedo=albedo,

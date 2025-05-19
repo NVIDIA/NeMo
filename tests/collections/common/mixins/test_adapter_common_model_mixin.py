@@ -38,7 +38,7 @@ class MockLinearAdapter2(LinearAdapter):
 
 
 class CommonModule(NeuralModule):
-    """ Define a default neural module (without adapter support)"""
+    """Define a default neural module (without adapter support)"""
 
     def __init__(self):
         super().__init__()
@@ -61,7 +61,7 @@ class CommonModule(NeuralModule):
 
 
 class CommonModuleAdapter(CommonModule, AdapterModuleMixin):
-    """ Subclass the DefaultModule, adding adapter module support"""
+    """Subclass the DefaultModule, adding adapter module support"""
 
     def forward(self, x):
         x = super().forward(x)
@@ -74,27 +74,31 @@ class CommonModuleAdapter(CommonModule, AdapterModuleMixin):
 
         return x
 
-    def get_accepted_adapter_types(self,) -> 'Set[type]':
+    def get_accepted_adapter_types(
+        self,
+    ) -> "Set[type]":
         types = super().get_accepted_adapter_types()
 
         if len(types) == 0:
-            self.set_accepted_adapter_types(['nemo.collections.common.parts.adapter_modules.LinearAdapter'])
+            self.set_accepted_adapter_types(
+                ["nemo.collections.common.parts.adapter_modules.LinearAdapter"]
+            )
             types = self.get_accepted_adapter_types()
         return types
 
 
-def get_adapter_cfg(in_features=50, dim=100, norm_pos='pre'):
+def get_adapter_cfg(in_features=50, dim=100, norm_pos="pre"):
     cfg = {
-        '_target_': 'nemo.collections.common.parts.adapter_modules.LinearAdapter',
-        'in_features': in_features,
-        'dim': dim,
-        'norm_position': norm_pos,
+        "_target_": "nemo.collections.common.parts.adapter_modules.LinearAdapter",
+        "in_features": in_features,
+        "dim": dim,
+        "norm_position": norm_pos,
     }
     return cfg
 
 
 def get_classpath(cls):
-    return f'{cls.__module__}.{cls.__name__}'
+    return f"{cls.__module__}.{cls.__name__}"
 
 
 if adapter_mixins.get_registered_adapter(CommonModule) is None:
@@ -108,47 +112,47 @@ class TestCommonAdapterModuleMixin:
         model = CommonModuleAdapter()
         original_num_params = model.num_weights
 
-        assert not hasattr(model, '_accepted_adapter_types')
+        assert not hasattr(model, "_accepted_adapter_types")
 
-        model.add_adapter(name='adapter_0', cfg=get_adapter_cfg())
+        model.add_adapter(name="adapter_0", cfg=get_adapter_cfg())
         new_num_params = model.num_weights
         assert new_num_params > original_num_params
 
         # Adding adapter will implicitly try to get accepted adapters, initializing the set
-        assert hasattr(model, '_accepted_adapter_types')
+        assert hasattr(model, "_accepted_adapter_types")
 
         types = model.get_accepted_adapter_types()
         types = list(types)
         assert len(types) == 1
-        assert types[0].__name__ == 'LinearAdapter'
+        assert types[0].__name__ == "LinearAdapter"
 
     @pytest.mark.unit
     def test_set_accepted_adapter_types_reset_types(self):
         model = CommonModuleAdapter()
         original_num_params = model.num_weights
 
-        assert not hasattr(model, '_accepted_adapter_types')
+        assert not hasattr(model, "_accepted_adapter_types")
 
         # Implicitly sets some types
         model.get_accepted_adapter_types()
 
         # Adding adapter will implicitly try to get accepted adapters, initializing the set
-        assert hasattr(model, '_accepted_adapter_types')
+        assert hasattr(model, "_accepted_adapter_types")
 
         types = model.get_accepted_adapter_types()
         types = list(types)
         assert len(types) == 1
-        assert types[0].__name__ == 'LinearAdapter'
+        assert types[0].__name__ == "LinearAdapter"
 
         # Reset type now
         model.set_accepted_adapter_types([])
 
-        assert hasattr(model, '_accepted_adapter_types')
+        assert hasattr(model, "_accepted_adapter_types")
         types = model._accepted_adapter_types
         assert len(types) == 0
 
         # Since types are empty, get_types will set the default types
-        model.add_adapter(name='adapter_0', cfg=get_adapter_cfg())
+        model.add_adapter(name="adapter_0", cfg=get_adapter_cfg())
         new_num_params = model.num_weights
         assert new_num_params > original_num_params
 
@@ -157,7 +161,7 @@ class TestCommonAdapterModuleMixin:
         model = CommonModuleAdapter()
         original_num_params = model.num_weights
 
-        assert not hasattr(model, '_accepted_adapter_types')
+        assert not hasattr(model, "_accepted_adapter_types")
 
         # Explicitly set the accepted types to be the subclasses
         model.set_accepted_adapter_types(
@@ -170,4 +174,4 @@ class TestCommonAdapterModuleMixin:
         # Should throw error because the base class is now no longer in accepted list
         # and the get_types method does not fill in the default
         with pytest.raises(ValueError):
-            model.add_adapter(name='adapter_0', cfg=get_adapter_cfg())
+            model.add_adapter(name="adapter_0", cfg=get_adapter_cfg())

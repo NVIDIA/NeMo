@@ -32,17 +32,26 @@ from nemo.collections.tts.parts.utils.tts_dataset_utils import get_base_dir
 def load_wav(wav_path, wav_featurizer, pad_multiple=1024):
     wav = wav_featurizer.process(wav_path)
     if (wav.shape[0] % pad_multiple) != 0:
-        wav = torch.cat([wav, torch.zeros(pad_multiple - wav.shape[0] % pad_multiple, dtype=torch.float)])
+        wav = torch.cat(
+            [
+                wav,
+                torch.zeros(
+                    pad_multiple - wav.shape[0] % pad_multiple, dtype=torch.float
+                ),
+            ]
+        )
     wav = wav[:-1]
 
     return wav
 
 
-def get_pitch_contour(wav, pitch_mean=None, pitch_std=None, compute_mean_std=False, sample_rate=22050):
+def get_pitch_contour(
+    wav, pitch_mean=None, pitch_std=None, compute_mean_std=False, sample_rate=22050
+):
     f0, _, _ = librosa.pyin(
         wav.numpy(),
-        fmin=librosa.note_to_hz('C2'),
-        fmax=librosa.note_to_hz('C7'),
+        fmin=librosa.note_to_hz("C2"),
+        fmax=librosa.note_to_hz("C7"),
         frame_length=1024,
         hop_length=256,
         sr=sample_rate,
@@ -82,7 +91,9 @@ def segment_wav(wav, segment_length=44100, hop_size=44100, min_segment_size=2205
         return segments
 
 
-def get_speaker_embedding(ssl_model, wav_featurizer, audio_paths, duration=None, device="cpu"):
+def get_speaker_embedding(
+    ssl_model, wav_featurizer, audio_paths, duration=None, device="cpu"
+):
     all_segments = []
     all_wavs = []
     for audio_path in audio_paths:
@@ -97,11 +108,15 @@ def get_speaker_embedding(ssl_model, wav_featurizer, audio_paths, duration=None,
             break
 
     signal_batch = torch.stack(all_segments)
-    signal_length_batch = torch.stack([torch.tensor(signal_batch.shape[1]) for _ in range(len(all_segments))])
+    signal_length_batch = torch.stack(
+        [torch.tensor(signal_batch.shape[1]) for _ in range(len(all_segments))]
+    )
     signal_batch = signal_batch.to(device)
     signal_length_batch = signal_length_batch.to(device)
     _, speaker_embeddings, _, _, _ = ssl_model.forward_for_export(
-        input_signal=signal_batch, input_signal_length=signal_length_batch, normalize_content=True
+        input_signal=signal_batch,
+        input_signal_length=signal_length_batch,
+        normalize_content=True,
     )
 
     speaker_embedding = torch.mean(speaker_embeddings, dim=0)
@@ -112,10 +127,15 @@ def get_speaker_embedding(ssl_model, wav_featurizer, audio_paths, duration=None,
 
 
 def get_ssl_features_disentangled(
-    ssl_model, wav_featurizer, audio_path, emb_type="embedding_and_probs", use_unique_tokens=False, device="cpu"
+    ssl_model,
+    wav_featurizer,
+    audio_path,
+    emb_type="embedding_and_probs",
+    use_unique_tokens=False,
+    device="cpu",
 ):
     """
-    Extracts content embedding, speaker embedding and duration tokens to be used as inputs for FastPitchModel_SSL 
+    Extracts content embedding, speaker embedding and duration tokens to be used as inputs for FastPitchModel_SSL
     synthesizer. Content embedding and speaker embedding extracted using SSLDisentangler model.
     Args:
         ssl_model: SSLDisentangler model
@@ -132,8 +152,12 @@ def get_ssl_features_disentangled(
     audio_signal_length = torch.tensor([wav.shape[0]])
     audio_signal = audio_signal.to(device)
     audio_signal_length = audio_signal_length.to(device)
-    _, speaker_embedding, content_embedding, content_log_probs, encoded_len = ssl_model.forward_for_export(
-        input_signal=audio_signal, input_signal_length=audio_signal_length, normalize_content=True
+    _, speaker_embedding, content_embedding, content_log_probs, encoded_len = (
+        ssl_model.forward_for_export(
+            input_signal=audio_signal,
+            input_signal_length=audio_signal_length,
+            normalize_content=True,
+        )
     )
 
     content_embedding = content_embedding[0, : encoded_len[0].item()]
@@ -181,13 +205,17 @@ def get_ssl_features_disentangled(
                 content_buffer.append(final_content_embedding[:, _t])
             else:
                 durations.append(len(content_buffer) * ssl_downsampling_factor)
-                unique_content_embeddings.append(torch.mean(torch.stack(content_buffer), dim=0))
+                unique_content_embeddings.append(
+                    torch.mean(torch.stack(content_buffer), dim=0)
+                )
                 content_buffer = [final_content_embedding[:, _t]]
                 unique_tokens.append(token_predictions[_t].item())
 
         if len(content_buffer) > 0:
             durations.append(len(content_buffer) * ssl_downsampling_factor)
-            unique_content_embeddings.append(torch.mean(torch.stack(content_buffer), dim=0))
+            unique_content_embeddings.append(
+                torch.mean(torch.stack(content_buffer), dim=0)
+            )
             unique_tokens.append(token_predictions[_t].item())
 
         unique_content_embedding = torch.stack(unique_content_embeddings)
@@ -199,25 +227,33 @@ def get_ssl_features_disentangled(
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Evaluate the model')
-    parser.add_argument('--ssl_model_ckpt_path', type=str)
-    parser.add_argument('--hifi_ckpt_path', type=str)
-    parser.add_argument('--fastpitch_ckpt_path', type=str)
-    parser.add_argument('--source_audio_path', type=str)
-    parser.add_argument('--target_audio_path', type=str)  # can be a list seperated by comma
-    parser.add_argument('--out_path', type=str)
-    parser.add_argument('--source_target_out_pairs', type=str)
-    parser.add_argument('--use_unique_tokens', type=int, default=0)
-    parser.add_argument('--compute_pitch', type=int, default=0)
-    parser.add_argument('--compute_duration', type=int, default=0)
+    parser = argparse.ArgumentParser(description="Evaluate the model")
+    parser.add_argument("--ssl_model_ckpt_path", type=str)
+    parser.add_argument("--hifi_ckpt_path", type=str)
+    parser.add_argument("--fastpitch_ckpt_path", type=str)
+    parser.add_argument("--source_audio_path", type=str)
+    parser.add_argument(
+        "--target_audio_path", type=str
+    )  # can be a list seperated by comma
+    parser.add_argument("--out_path", type=str)
+    parser.add_argument("--source_target_out_pairs", type=str)
+    parser.add_argument("--use_unique_tokens", type=int, default=0)
+    parser.add_argument("--compute_pitch", type=int, default=0)
+    parser.add_argument("--compute_duration", type=int, default=0)
     args = parser.parse_args()
 
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
 
     if args.source_target_out_pairs is not None:
-        assert args.source_audio_path is None, "source_audio_path and source_target_out_pairs are mutually exclusive"
-        assert args.target_audio_path is None, "target_audio_path and source_target_out_pairs are mutually exclusive"
-        assert args.out_path is None, "out_path and source_target_out_pairs are mutually exclusive"
+        assert (
+            args.source_audio_path is None
+        ), "source_audio_path and source_target_out_pairs are mutually exclusive"
+        assert (
+            args.target_audio_path is None
+        ), "target_audio_path and source_target_out_pairs are mutually exclusive"
+        assert (
+            args.out_path is None
+        ), "out_path and source_target_out_pairs are mutually exclusive"
         with open(args.source_target_out_pairs, "r") as f:
             lines = f.readlines()
             source_target_out_pairs = [line.strip().split(";") for line in lines]
@@ -229,27 +265,35 @@ def main():
             target_name = os.path.basename(args.target_audio_path).split(".")[0]
             args.out_path = "swapped_{}_{}.wav".format(source_name, target_name)
 
-        source_target_out_pairs = [(args.source_audio_path, args.target_audio_path, args.out_path)]
+        source_target_out_pairs = [
+            (args.source_audio_path, args.target_audio_path, args.out_path)
+        ]
 
     out_paths = [r[2] for r in source_target_out_pairs]
     out_dir = get_base_dir(out_paths)
     if not os.path.exists(out_dir):
         os.makedirs(out_dir)
 
-    ssl_model = ssl_tts.SSLDisentangler.load_from_checkpoint(args.ssl_model_ckpt_path, strict=False)
+    ssl_model = ssl_tts.SSLDisentangler.load_from_checkpoint(
+        args.ssl_model_ckpt_path, strict=False
+    )
     ssl_model = ssl_model.to(device)
     ssl_model.eval()
 
     vocoder = hifigan.HifiGanModel.load_from_checkpoint(args.hifi_ckpt_path).to(device)
     vocoder.eval()
 
-    fastpitch_model = fastpitch_ssl.FastPitchModel_SSL.load_from_checkpoint(args.fastpitch_ckpt_path, strict=False)
+    fastpitch_model = fastpitch_ssl.FastPitchModel_SSL.load_from_checkpoint(
+        args.fastpitch_ckpt_path, strict=False
+    )
     fastpitch_model = fastpitch_model.to(device)
     fastpitch_model.eval()
-    fastpitch_model.non_trainable_models = {'vocoder': vocoder}
+    fastpitch_model.non_trainable_models = {"vocoder": vocoder}
     fpssl_sample_rate = fastpitch_model._cfg.sample_rate
 
-    wav_featurizer = WaveformFeaturizer(sample_rate=fpssl_sample_rate, int_values=False, augmentor=None)
+    wav_featurizer = WaveformFeaturizer(
+        sample_rate=fpssl_sample_rate, int_values=False, augmentor=None
+    )
 
     use_unique_tokens = args.use_unique_tokens == 1
     compute_pitch = args.compute_pitch == 1
@@ -271,13 +315,19 @@ def main():
             )
 
             speaker_embedding2 = get_speaker_embedding(
-                ssl_model, wav_featurizer, target_audio_paths, duration=None, device=device
+                ssl_model,
+                wav_featurizer,
+                target_audio_paths,
+                duration=None,
+                device=device,
             )
 
             pitch_contour1 = None
             if not compute_pitch:
                 pitch_contour1 = get_pitch_contour(
-                    load_wav(source_audio_path, wav_featurizer), compute_mean_std=True, sample_rate=fpssl_sample_rate
+                    load_wav(source_audio_path, wav_featurizer),
+                    compute_mean_std=True,
+                    sample_rate=fpssl_sample_rate,
                 )[None]
                 pitch_contour1 = pitch_contour1.to(device)
 

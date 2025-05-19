@@ -29,7 +29,7 @@ from nemo.collections.audio.losses.audio import (MAELoss, MSELoss, SDRLoss,
 try:
     import importlib
 
-    importlib.import_module('torchaudio')
+    importlib.import_module("torchaudio")
 
     HAVE_TORCHAUDIO = True
 except ModuleNotFoundError:
@@ -43,10 +43,12 @@ from nemo.collections.audio.parts.utils.audio import (
 
 class TestAudioLosses:
     @pytest.mark.unit
-    @pytest.mark.parametrize('num_channels', [1, 4])
-    @pytest.mark.parametrize('use_mask', [True, False])
-    @pytest.mark.parametrize('use_input_length', [True, False])
-    def test_calculate_mean(self, num_channels: int, use_mask: bool, use_input_length: bool):
+    @pytest.mark.parametrize("num_channels", [1, 4])
+    @pytest.mark.parametrize("use_mask", [True, False])
+    @pytest.mark.parametrize("use_input_length", [True, False])
+    def test_calculate_mean(
+        self, num_channels: int, use_mask: bool, use_input_length: bool
+    ):
         """Test mean calculation"""
         batch_size = 8
         num_samples = 50
@@ -60,9 +62,13 @@ class TestAudioLosses:
 
         for n in range(num_batches):
 
-            input_signal = torch.randn(size=(batch_size, num_channels, num_samples), generator=rng)
+            input_signal = torch.randn(
+                size=(batch_size, num_channels, num_samples), generator=rng
+            )
             # Random input length
-            input_length = torch.randint(low=1, high=num_samples, size=(batch_size,), generator=rng)
+            input_length = torch.randint(
+                low=1, high=num_samples, size=(batch_size,), generator=rng
+            )
             # Corresponding mask
             mask = torch.zeros(size=(batch_size, 1, num_samples))
             for i in range(batch_size):
@@ -70,7 +76,9 @@ class TestAudioLosses:
 
             if use_mask and use_input_length:
                 with pytest.raises(RuntimeError):
-                    calculate_mean(input_signal, mask=mask, input_length=input_length, eps=eps)
+                    calculate_mean(
+                        input_signal, mask=mask, input_length=input_length, eps=eps
+                    )
                 # Done with this test
                 continue
 
@@ -85,7 +93,15 @@ class TestAudioLosses:
             for b in range(batch_size):
                 for c in range(num_channels):
                     golden = torch.mean(
-                        input_signal[b, c, : input_length[b] if use_input_length or use_mask else num_samples]
+                        input_signal[
+                            b,
+                            c,
+                            : (
+                                input_length[b]
+                                if use_input_length or use_mask
+                                else num_samples
+                            ),
+                        ]
                     )
                     assert torch.allclose(
                         uut[b, c], golden, atol=atol
@@ -99,7 +115,12 @@ class TestAudioLosses:
 
         with pytest.raises(ValueError):
             # using both scale and convolution invariant is not allowed
-            calculate_sdr_batch(estimate=estimate, target=target, scale_invariant=True, convolution_invariant=True)
+            calculate_sdr_batch(
+                estimate=estimate,
+                target=target,
+                scale_invariant=True,
+                convolution_invariant=True,
+            )
 
     @pytest.mark.unit
     def test_calculate_mse_input_and_mask(self):
@@ -111,7 +132,9 @@ class TestAudioLosses:
 
         with pytest.raises(RuntimeError):
             # using both input_length and mask is not allowed
-            calculate_mse_batch(estimate=estimate, target=target, input_length=input_length, mask=mask)
+            calculate_mse_batch(
+                estimate=estimate, target=target, input_length=input_length, mask=mask
+            )
 
     @pytest.mark.unit
     def test_calculate_mse_invalid_dimensions(self):
@@ -140,7 +163,9 @@ class TestAudioLosses:
 
         with pytest.raises(RuntimeError):
             # using both input_length and mask is not allowed
-            calculate_mae_batch(estimate=estimate, target=target, input_length=input_length, mask=mask)
+            calculate_mae_batch(
+                estimate=estimate, target=target, input_length=input_length, mask=mask
+            )
 
     @pytest.mark.unit
     def test_calculate_mae_invalid_dimensions(self):
@@ -160,7 +185,7 @@ class TestAudioLosses:
             calculate_mae_batch(estimate=estimate, target=target)
 
     @pytest.mark.unit
-    @pytest.mark.parametrize('num_channels', [1, 4])
+    @pytest.mark.parametrize("num_channels", [1, 4])
     def test_sdr(self, num_channels: int):
         """Test SDR calculation"""
         test_eps = [0, 1e-16, 1e-1]
@@ -182,7 +207,9 @@ class TestAudioLosses:
                     # Generate random signal
                     target = _rng.normal(size=(batch_size, num_channels, num_samples))
                     # Random noise + scaling
-                    noise = _rng.uniform(low=0.01, high=1) * _rng.normal(size=(batch_size, num_channels, num_samples))
+                    noise = _rng.uniform(low=0.01, high=1) * _rng.normal(
+                        size=(batch_size, num_channels, num_samples)
+                    )
                     # Estimate
                     estimate = target + noise
 
@@ -214,20 +241,22 @@ class TestAudioLosses:
                     )
 
                     # Calculate SDR loss
-                    uut_sdr_loss = sdr_loss(estimate=tensor_estimate, target=tensor_target)
+                    uut_sdr_loss = sdr_loss(
+                        estimate=tensor_estimate, target=tensor_target
+                    )
 
                     # Compare torch SDR vs numpy
                     assert np.allclose(
                         uut_sdr.cpu().detach().numpy(), golden_sdr, atol=atol
-                    ), f'SDR not matching for example {n}, eps={eps}, remove_mean={remove_mean}'
+                    ), f"SDR not matching for example {n}, eps={eps}, remove_mean={remove_mean}"
 
                     # Compare SDR loss vs average of torch SDR
                     assert np.isclose(
                         uut_sdr_loss, -uut_sdr.mean(), atol=atol
-                    ), f'SDRLoss not matching for example {n}, eps={eps}, remove_mean={remove_mean}'
+                    ), f"SDRLoss not matching for example {n}, eps={eps}, remove_mean={remove_mean}"
 
     @pytest.mark.unit
-    @pytest.mark.parametrize('num_channels', [1, 4])
+    @pytest.mark.parametrize("num_channels", [1, 4])
     def test_sdr_weighted(self, num_channels: int):
         """Test SDR calculation with weighting for channels"""
         batch_size = 8
@@ -259,7 +288,9 @@ class TestAudioLosses:
             golden_sdr = 0
             for b in range(batch_size):
                 sdr = [
-                    calculate_sdr_numpy(estimate=estimate[b, m, :], target=target[b, m, :])
+                    calculate_sdr_numpy(
+                        estimate=estimate[b, m, :], target=target[b, m, :]
+                    )
                     for m in range(num_channels)
                 ]
                 # weighted sum
@@ -273,10 +304,10 @@ class TestAudioLosses:
             # Compare
             assert np.allclose(
                 uut_sdr_loss.cpu().detach().numpy(), -golden_sdr, atol=atol
-            ), f'SDRLoss not matching for example {n}'
+            ), f"SDRLoss not matching for example {n}"
 
     @pytest.mark.unit
-    @pytest.mark.parametrize('num_channels', [1, 4])
+    @pytest.mark.parametrize("num_channels", [1, 4])
     def test_sdr_input_length(self, num_channels):
         """Test SDR calculation with input length."""
         batch_size = 8
@@ -310,7 +341,9 @@ class TestAudioLosses:
             golden_sdr = 0
             for b, b_len in enumerate(input_length):
                 sdr = [
-                    calculate_sdr_numpy(estimate=estimate[b, m, :b_len], target=target[b, m, :b_len])
+                    calculate_sdr_numpy(
+                        estimate=estimate[b, m, :b_len], target=target[b, m, :b_len]
+                    )
                     for m in range(num_channels)
                 ]
                 sdr = np.mean(np.array(sdr))
@@ -318,15 +351,19 @@ class TestAudioLosses:
             golden_sdr /= batch_size  # average over batch
 
             # Calculate SDR
-            uut_sdr_loss = sdr_loss(estimate=tensor_estimate, target=tensor_target, input_length=tensor_input_length)
+            uut_sdr_loss = sdr_loss(
+                estimate=tensor_estimate,
+                target=tensor_target,
+                input_length=tensor_input_length,
+            )
 
             # Compare
             assert np.allclose(
                 uut_sdr_loss.cpu().detach().numpy(), -golden_sdr, atol=atol
-            ), f'SDRLoss not matching for example {n}'
+            ), f"SDRLoss not matching for example {n}"
 
     @pytest.mark.unit
-    @pytest.mark.parametrize('num_channels', [1, 4])
+    @pytest.mark.parametrize("num_channels", [1, 4])
     def test_sdr_scale_invariant(self, num_channels: int):
         """Test SDR calculation with scale invariant option."""
         batch_size = 8
@@ -361,7 +398,9 @@ class TestAudioLosses:
             for b, b_len in enumerate(input_length):
                 sdr = [
                     calculate_sdr_numpy(
-                        estimate=estimate[b, m, :b_len], target=target[b, m, :b_len], scale_invariant=True
+                        estimate=estimate[b, m, :b_len],
+                        target=target[b, m, :b_len],
+                        scale_invariant=True,
                     )
                     for m in range(num_channels)
                 ]
@@ -370,15 +409,19 @@ class TestAudioLosses:
             golden_sdr /= batch_size  # average over batch
 
             # Calculate SDR loss
-            uut_sdr_loss = sdr_loss(estimate=tensor_estimate, target=tensor_target, input_length=tensor_input_length)
+            uut_sdr_loss = sdr_loss(
+                estimate=tensor_estimate,
+                target=tensor_target,
+                input_length=tensor_input_length,
+            )
 
             # Compare
             assert np.allclose(
                 uut_sdr_loss.cpu().detach().numpy(), -golden_sdr, atol=atol
-            ), f'SDRLoss not matching for example {n}'
+            ), f"SDRLoss not matching for example {n}"
 
     @pytest.mark.unit
-    @pytest.mark.parametrize('num_channels', [1, 4])
+    @pytest.mark.parametrize("num_channels", [1, 4])
     def test_sdr_binary_mask(self, num_channels):
         """Test SDR calculation with temporal mask."""
         batch_size = 8
@@ -401,7 +444,9 @@ class TestAudioLosses:
             estimate = target + noise
 
             # Limit calculation to masked samples
-            mask = _rng.integers(low=0, high=2, size=(batch_size, num_channels, max_num_samples))
+            mask = _rng.integers(
+                low=0, high=2, size=(batch_size, num_channels, max_num_samples)
+            )
 
             # Tensors for testing the loss
             tensor_estimate = torch.tensor(estimate)
@@ -413,7 +458,8 @@ class TestAudioLosses:
             for b in range(batch_size):
                 sdr = [
                     calculate_sdr_numpy(
-                        estimate=estimate[b, m, mask[b, m, :] > 0], target=target[b, m, mask[b, m, :] > 0]
+                        estimate=estimate[b, m, mask[b, m, :] > 0],
+                        target=target[b, m, mask[b, m, :] > 0],
                     )
                     for m in range(num_channels)
                 ]
@@ -422,16 +468,18 @@ class TestAudioLosses:
             golden_sdr /= batch_size  # average over batch
 
             # Calculate SDR loss
-            uut_sdr_loss = sdr_loss(estimate=tensor_estimate, target=tensor_target, mask=tensor_mask)
+            uut_sdr_loss = sdr_loss(
+                estimate=tensor_estimate, target=tensor_target, mask=tensor_mask
+            )
 
             # Compare
             assert np.allclose(
                 uut_sdr_loss.cpu().detach().numpy(), -golden_sdr, atol=atol
-            ), f'SDRLoss not matching for example {n}'
+            ), f"SDRLoss not matching for example {n}"
 
     @pytest.mark.unit
-    @pytest.mark.parametrize('num_channels', [1])
-    @pytest.mark.parametrize('sdr_max', [10, 0])
+    @pytest.mark.parametrize("num_channels", [1])
+    @pytest.mark.parametrize("sdr_max", [10, 0])
     def test_sdr_max(self, num_channels: int, sdr_max: float):
         """Test SDR calculation with soft max threshold."""
         batch_size = 8
@@ -465,7 +513,11 @@ class TestAudioLosses:
             golden_sdr = 0
             for b, b_len in enumerate(input_length):
                 sdr = [
-                    calculate_sdr_numpy(estimate=estimate[b, m, :b_len], target=target[b, m, :b_len], sdr_max=sdr_max)
+                    calculate_sdr_numpy(
+                        estimate=estimate[b, m, :b_len],
+                        target=target[b, m, :b_len],
+                        sdr_max=sdr_max,
+                    )
                     for m in range(num_channels)
                 ]
                 sdr = np.mean(np.array(sdr))
@@ -473,19 +525,29 @@ class TestAudioLosses:
             golden_sdr /= batch_size  # average over batch
 
             # Calculate SDR loss
-            uut_sdr_loss = sdr_loss(estimate=tensor_estimate, target=tensor_target, input_length=tensor_input_length)
+            uut_sdr_loss = sdr_loss(
+                estimate=tensor_estimate,
+                target=tensor_target,
+                input_length=tensor_input_length,
+            )
 
             # Compare
             assert np.allclose(
                 uut_sdr_loss.cpu().detach().numpy(), -golden_sdr, atol=atol
-            ), f'SDRLoss not matching for example {n}'
+            ), f"SDRLoss not matching for example {n}"
 
     @pytest.mark.unit
-    @pytest.mark.parametrize('filter_length', [1, 32])
-    @pytest.mark.parametrize('num_channels', [1, 4])
-    @pytest.mark.parametrize('use_mask', [True, False])
-    @pytest.mark.parametrize('use_input_length', [True, False])
-    def test_target_calculation(self, num_channels: int, filter_length: int, use_mask: bool, use_input_length: bool):
+    @pytest.mark.parametrize("filter_length", [1, 32])
+    @pytest.mark.parametrize("num_channels", [1, 4])
+    @pytest.mark.parametrize("use_mask", [True, False])
+    @pytest.mark.parametrize("use_input_length", [True, False])
+    def test_target_calculation(
+        self,
+        num_channels: int,
+        filter_length: int,
+        use_mask: bool,
+        use_input_length: bool,
+    ):
         """Test target calculation with scale and convolution invariance."""
         batch_size = 8
         max_num_samples = 50
@@ -505,7 +567,9 @@ class TestAudioLosses:
             estimate = target + noise
 
             # Limit calculation to random input_length samples
-            input_length = _rng.integers(low=filter_length, high=max_num_samples, size=batch_size)
+            input_length = _rng.integers(
+                low=filter_length, high=max_num_samples, size=batch_size
+            )
 
             # Corresponding mask
             mask = torch.zeros(size=(batch_size, 1, max_num_samples))
@@ -549,12 +613,16 @@ class TestAudioLosses:
             )
 
             if filter_length == 1:
-                assert torch.allclose(ci_target, si_target), f'SI and CI should match for filter_length=1'
+                assert torch.allclose(
+                    ci_target, si_target
+                ), f"SI and CI should match for filter_length=1"
 
             # Compare against numpy
             for b in range(batch_size):
                 # valid length for the current example
-                b_len = input_length[b] if use_input_length or use_mask else max_num_samples
+                b_len = (
+                    input_length[b] if use_input_length or use_mask else max_num_samples
+                )
 
                 # calculate reference target for each channel
                 for m in range(num_channels):
@@ -564,21 +632,27 @@ class TestAudioLosses:
                     )
 
                     assert np.allclose(
-                        si_target[b, m, :b_len].cpu().detach().numpy(), si_target_ref, atol=atol
-                    ), f'SI not matching for example {n}, channel {m}'
+                        si_target[b, m, :b_len].cpu().detach().numpy(),
+                        si_target_ref,
+                        atol=atol,
+                    ), f"SI not matching for example {n}, channel {m}"
 
                     # Convolution invariant reference
                     ci_target_ref = convolution_invariant_target_numpy(
-                        estimate=estimate[b, m, :b_len], target=target[b, m, :b_len], filter_length=filter_length
+                        estimate=estimate[b, m, :b_len],
+                        target=target[b, m, :b_len],
+                        filter_length=filter_length,
                     )
 
                     assert np.allclose(
-                        ci_target[b, m, :b_len].cpu().detach().numpy(), ci_target_ref, atol=atol
-                    ), f'CI not matching for example {n}, channel {m}'
+                        ci_target[b, m, :b_len].cpu().detach().numpy(),
+                        ci_target_ref,
+                        atol=atol,
+                    ), f"CI not matching for example {n}, channel {m}"
 
     @pytest.mark.unit
-    @pytest.mark.parametrize('filter_length', [1, 32])
-    @pytest.mark.parametrize('num_channels', [1, 4])
+    @pytest.mark.parametrize("filter_length", [1, 32])
+    @pytest.mark.parametrize("num_channels", [1, 4])
     def test_sdr_convolution_invariant(self, num_channels: int, filter_length: int):
         """Test SDR calculation with convolution invariant option."""
         batch_size = 8
@@ -589,7 +663,9 @@ class TestAudioLosses:
 
         _rng = np.random.default_rng(seed=random_seed)
 
-        sdr_loss = SDRLoss(convolution_invariant=True, convolution_filter_length=filter_length)
+        sdr_loss = SDRLoss(
+            convolution_invariant=True, convolution_filter_length=filter_length
+        )
 
         for n in range(num_batches):
 
@@ -601,11 +677,15 @@ class TestAudioLosses:
             estimate = target + noise
 
             # Limit calculation to random input_length samples
-            input_length = _rng.integers(low=filter_length, high=max_num_samples, size=batch_size)
+            input_length = _rng.integers(
+                low=filter_length, high=max_num_samples, size=batch_size
+            )
 
             # Calculate SDR loss
             uut_sdr_loss = sdr_loss(
-                estimate=torch.tensor(estimate), target=torch.tensor(target), input_length=torch.tensor(input_length)
+                estimate=torch.tensor(estimate),
+                target=torch.tensor(target),
+                input_length=torch.tensor(input_length),
             )
 
             # Reference SDR
@@ -627,7 +707,7 @@ class TestAudioLosses:
             # Compare
             assert np.allclose(
                 uut_sdr_loss.cpu().detach().numpy(), -golden_sdr, atol=atol
-            ), f'SDRLoss not matching for example {n}'
+            ), f"SDRLoss not matching for example {n}"
 
     @pytest.mark.unit
     def test_sdr_scale_and_convolution_invariant(self):
@@ -649,7 +729,9 @@ class TestAudioLosses:
 
         with pytest.raises(RuntimeError):
             # using both input_length and mask is not allowed
-            sdr_loss(estimate=estimate, target=target, input_length=input_length, mask=mask)
+            sdr_loss(
+                estimate=estimate, target=target, input_length=input_length, mask=mask
+            )
 
     @pytest.mark.unit
     def test_sdr_invalid_weight(self):
@@ -666,11 +748,11 @@ class TestAudioLosses:
     def test_sdr_invalid_reduction(self):
         """Test SDR with invalid reduction."""
         with pytest.raises(ValueError):
-            SDRLoss(reduction='not-mean')
+            SDRLoss(reduction="not-mean")
 
     @pytest.mark.unit
-    @pytest.mark.parametrize('num_channels', [1, 4])
-    @pytest.mark.parametrize('ndim', [3, 4])
+    @pytest.mark.parametrize("num_channels", [1, 4])
+    @pytest.mark.parametrize("ndim", [3, 4])
     def test_mse(self, num_channels: int, ndim: int):
         """Test MSE calculation"""
         batch_size = 8
@@ -717,7 +799,9 @@ class TestAudioLosses:
                     golden_mse[b, m] = np.mean(np.abs(err) ** 2, axis=reduction_dim)
 
             # Calculate MSE in torch
-            uut_mse = calculate_mse_batch(estimate=tensor_estimate, target=tensor_target)
+            uut_mse = calculate_mse_batch(
+                estimate=tensor_estimate, target=tensor_target
+            )
 
             # Calculate MSE loss
             uut_mse_loss = mse_loss(estimate=tensor_estimate, target=tensor_target)
@@ -725,14 +809,16 @@ class TestAudioLosses:
             # Compare torch SDR vs numpy
             assert np.allclose(
                 uut_mse.cpu().detach().numpy(), golden_mse, atol=atol
-            ), f'MSE not matching for example {n}'
+            ), f"MSE not matching for example {n}"
 
             # Compare SDR loss vs average of torch SDR
-            assert np.isclose(uut_mse_loss, uut_mse.mean(), atol=atol), f'MSELoss not matching for example {n}'
+            assert np.isclose(
+                uut_mse_loss, uut_mse.mean(), atol=atol
+            ), f"MSELoss not matching for example {n}"
 
     @pytest.mark.unit
-    @pytest.mark.parametrize('num_channels', [1, 4])
-    @pytest.mark.parametrize('ndim', [3, 4])
+    @pytest.mark.parametrize("num_channels", [1, 4])
+    @pytest.mark.parametrize("ndim", [3, 4])
     def test_mse_weighted(self, num_channels: int, ndim: int):
         """Test MSE calculation with weighting for channels"""
         batch_size = 8
@@ -773,7 +859,10 @@ class TestAudioLosses:
             golden_mse = 0
             for b in range(batch_size):
                 mse = [
-                    np.mean(np.abs(estimate[b, m, :] - target[b, m, :]) ** 2, axis=reduction_dim)
+                    np.mean(
+                        np.abs(estimate[b, m, :] - target[b, m, :]) ** 2,
+                        axis=reduction_dim,
+                    )
                     for m in range(num_channels)
                 ]
                 # weighted sum
@@ -787,11 +876,11 @@ class TestAudioLosses:
             # Compare
             assert np.allclose(
                 uut_mse_loss.cpu().detach().numpy(), golden_mse, atol=atol
-            ), f'MSELoss not matching for example {n}'
+            ), f"MSELoss not matching for example {n}"
 
     @pytest.mark.unit
-    @pytest.mark.parametrize('num_channels', [1, 4])
-    @pytest.mark.parametrize('ndim', [3, 4])
+    @pytest.mark.parametrize("num_channels", [1, 4])
+    @pytest.mark.parametrize("ndim", [3, 4])
     def test_mse_input_length(self, num_channels: int, ndim: int):
         """Test MSE calculation with input length."""
         batch_size = 8
@@ -834,7 +923,11 @@ class TestAudioLosses:
             golden_mse = 0
             for b, b_len in enumerate(input_length):
                 mse = [
-                    np.mean(np.abs(estimate[b, m, ..., :b_len] - target[b, m, ..., :b_len]) ** 2, axis=reduction_dim)
+                    np.mean(
+                        np.abs(estimate[b, m, ..., :b_len] - target[b, m, ..., :b_len])
+                        ** 2,
+                        axis=reduction_dim,
+                    )
                     for m in range(num_channels)
                 ]
                 mse = np.mean(np.array(mse))
@@ -842,12 +935,16 @@ class TestAudioLosses:
             golden_mse /= batch_size  # average over batch
 
             # Calculate MSE
-            uut_mse_loss = mse_loss(estimate=tensor_estimate, target=tensor_target, input_length=tensor_input_length)
+            uut_mse_loss = mse_loss(
+                estimate=tensor_estimate,
+                target=tensor_target,
+                input_length=tensor_input_length,
+            )
 
             # Compare
             assert np.allclose(
                 uut_mse_loss.cpu().detach().numpy(), golden_mse, atol=atol
-            ), f'MSELoss not matching for example {n}'
+            ), f"MSELoss not matching for example {n}"
 
     @pytest.mark.unit
     def test_mse_invalid_weight(self):
@@ -865,7 +962,7 @@ class TestAudioLosses:
         """Test MSE with unsupported reduction."""
         with pytest.raises(ValueError):
             # unsupported reduction
-            MSELoss(reduction='not-mean')
+            MSELoss(reduction="not-mean")
 
     @pytest.mark.unit
     def test_mse_invalid_ndim(self):
@@ -879,8 +976,8 @@ class TestAudioLosses:
             MSELoss(ndim=5)
 
     @pytest.mark.unit
-    @pytest.mark.parametrize('num_channels', [1, 4])
-    @pytest.mark.parametrize('ndim', [3, 4])
+    @pytest.mark.parametrize("num_channels", [1, 4])
+    @pytest.mark.parametrize("ndim", [3, 4])
     def test_mae(self, num_channels: int, ndim: int):
         """Test MAE calculation"""
         batch_size = 8
@@ -932,11 +1029,11 @@ class TestAudioLosses:
             # Compare
             assert np.allclose(
                 uut_mae_loss.cpu().detach().numpy(), golden_mae.mean(), atol=atol
-            ), f'MAE not matching for example {n}'
+            ), f"MAE not matching for example {n}"
 
     @pytest.mark.unit
-    @pytest.mark.parametrize('num_channels', [1, 4])
-    @pytest.mark.parametrize('ndim', [3, 4])
+    @pytest.mark.parametrize("num_channels", [1, 4])
+    @pytest.mark.parametrize("ndim", [3, 4])
     def test_mae_weighted(self, num_channels: int, ndim: int):
         """Test MAE calculation with weighting for channels"""
         batch_size = 8
@@ -977,7 +1074,9 @@ class TestAudioLosses:
             golden_mae = 0
             for b in range(batch_size):
                 mae = [
-                    np.mean(np.abs(estimate[b, m, :] - target[b, m, :]), axis=reduction_dim)
+                    np.mean(
+                        np.abs(estimate[b, m, :] - target[b, m, :]), axis=reduction_dim
+                    )
                     for m in range(num_channels)
                 ]
                 # weighted sum
@@ -991,11 +1090,11 @@ class TestAudioLosses:
             # Compare
             assert np.allclose(
                 uut_mae_loss.cpu().detach().numpy(), golden_mae, atol=atol
-            ), f'MAELoss not matching for example {n}'
+            ), f"MAELoss not matching for example {n}"
 
     @pytest.mark.unit
-    @pytest.mark.parametrize('num_channels', [1, 4])
-    @pytest.mark.parametrize('ndim', [3, 4])
+    @pytest.mark.parametrize("num_channels", [1, 4])
+    @pytest.mark.parametrize("ndim", [3, 4])
     def test_mae_input_length(self, num_channels: int, ndim: int):
         """Test MAE calculation with input length."""
         batch_size = 8
@@ -1038,7 +1137,10 @@ class TestAudioLosses:
             golden_mae = 0
             for b, b_len in enumerate(input_length):
                 mae = [
-                    np.mean(np.abs(estimate[b, m, ..., :b_len] - target[b, m, ..., :b_len]), axis=reduction_dim)
+                    np.mean(
+                        np.abs(estimate[b, m, ..., :b_len] - target[b, m, ..., :b_len]),
+                        axis=reduction_dim,
+                    )
                     for m in range(num_channels)
                 ]
                 mae = np.mean(np.array(mae))
@@ -1046,12 +1148,16 @@ class TestAudioLosses:
             golden_mae /= batch_size  # average over batch
 
             # Calculate MSE
-            uut_mae_loss = mae_loss(estimate=tensor_estimate, target=tensor_target, input_length=tensor_input_length)
+            uut_mae_loss = mae_loss(
+                estimate=tensor_estimate,
+                target=tensor_target,
+                input_length=tensor_input_length,
+            )
 
             # Compare
             assert np.allclose(
                 uut_mae_loss.cpu().detach().numpy(), golden_mae, atol=atol
-            ), f'MAELoss not matching for example {n}'
+            ), f"MAELoss not matching for example {n}"
 
     @pytest.mark.unit
     def test_mae_invalid_weight(self):
@@ -1069,7 +1175,7 @@ class TestAudioLosses:
         """Test MAE with invalid reduction."""
         with pytest.raises(ValueError):
             # unsupported reduction
-            MAELoss(reduction='not-mean')
+            MAELoss(reduction="not-mean")
 
     @pytest.mark.unit
     def test_mae_invalid_ndim(self):
@@ -1083,9 +1189,11 @@ class TestAudioLosses:
             MAELoss(ndim=5)
 
     @pytest.mark.unit
-    @pytest.mark.skipif(not HAVE_TORCHAUDIO, reason="Modules in this test require torchaudio")
+    @pytest.mark.skipif(
+        not HAVE_TORCHAUDIO, reason="Modules in this test require torchaudio"
+    )
     def test_maxine_combined_loss(self, test_data_dir):
-        INPUT_LOCATION = os.path.join(test_data_dir, 'audio', 'maxine', 'input.bin')
+        INPUT_LOCATION = os.path.join(test_data_dir, "audio", "maxine", "input.bin")
         ATOL = 1e-2
 
         GOLDEN_VALUES = [
@@ -1118,7 +1226,11 @@ class TestAudioLosses:
             input_data = input_data.repeat(batch_size).reshape((batch_size, 1, -1))
             input_data = input_data.to(device)
 
-            estimate = torch.tensor(np.zeros(input_data.shape, np.float32)).reshape((batch_size, 1, -1)).to(device)
+            estimate = (
+                torch.tensor(np.zeros(input_data.shape, np.float32))
+                .reshape((batch_size, 1, -1))
+                .to(device)
+            )
 
             loss = loss_instance.forward(estimate=estimate, target=input_data).cpu()
 

@@ -23,7 +23,7 @@ from nemo.collections.nlp.modules.common.megatron.utils import \
     build_position_ids
 
 # the text representation of eos_id, it applies for all tokenizers
-END_OF_SEQ = '<|endoftext|>'
+END_OF_SEQ = "<|endoftext|>"
 
 
 def switch(val1, val2, boolean):
@@ -32,7 +32,9 @@ def switch(val1, val2, boolean):
     return (1 - boolean) * val1 + boolean * val2
 
 
-class AudioToTextGenerationStrategy(text_generation_strategy.GPTModelTextGenerationStrategy):
+class AudioToTextGenerationStrategy(
+    text_generation_strategy.GPTModelTextGenerationStrategy
+):
     def init_batch(
         self,
         context_tokens: torch.Tensor,
@@ -58,8 +60,14 @@ class AudioToTextGenerationStrategy(text_generation_strategy.GPTModelTextGenerat
             audio_feats = audio_feats.split(num_audios.tolist())
             audio_feat_lens = audio_feat_lens.split(num_audios.tolist())
 
-        encoder_input, attention_mask, _, position_ids, encoder_max_length = self.model.inject_perception_input(
-            audio_feats, audio_feat_lens, context_tokens, context_lengths, context_start_idx
+        encoder_input, attention_mask, _, position_ids, encoder_max_length = (
+            self.model.inject_perception_input(
+                audio_feats,
+                audio_feat_lens,
+                context_tokens,
+                context_lengths,
+                context_start_idx,
+            )
         )
 
         self.attention_mask = attention_mask
@@ -68,12 +76,22 @@ class AudioToTextGenerationStrategy(text_generation_strategy.GPTModelTextGenerat
         if num_audios is not None:
             # handle multiple audio files per sample
             new_context_tokens = shift_tokens_by_multi_audios(
-                context_tokens, context_lengths, audio_feat_lens, context_start_idx, encoder_max_length
+                context_tokens,
+                context_lengths,
+                audio_feat_lens,
+                context_start_idx,
+                encoder_max_length,
             )
-            audio_feat_lens = torch.stack([torch.sum(lens) for lens in audio_feat_lens])  # [batch,]
+            audio_feat_lens = torch.stack(
+                [torch.sum(lens) for lens in audio_feat_lens]
+            )  # [batch,]
         else:
             new_context_tokens = self.model._shift_labels_by_emb_len(
-                context_tokens, context_lengths, audio_feat_lens, encoder_max_length, pad_token=0
+                context_tokens,
+                context_lengths,
+                audio_feat_lens,
+                encoder_max_length,
+                pad_token=0,
             )
 
         return new_context_tokens, encoder_input, audio_feat_lens
@@ -81,7 +99,10 @@ class AudioToTextGenerationStrategy(text_generation_strategy.GPTModelTextGenerat
     def clip_max_len(self, maxlen: int) -> int:
         """clip the max len based on the LM model max sequence length"""
         # for positional embedding types that allow length extrapolation, don't clip the max length
-        if self.model.cfg.get("position_embedding_type", "learned_absolute") == "learned_absolute":
+        if (
+            self.model.cfg.get("position_embedding_type", "learned_absolute")
+            == "learned_absolute"
+        ):
             if maxlen > self.model.cfg.encoder_seq_length + 1:
                 maxlen = self.model.cfg.encoder_seq_length + 1
         return maxlen
@@ -108,29 +129,55 @@ class AudioToTextGenerationStrategy(text_generation_strategy.GPTModelTextGenerat
             # Set this to false so the memory is not reallocated.
             set_inference_key_value_memory = False
             tokens2use = tokens[:, curr_context_length - 1].view(micro_batch_size, -1)
-            positions2use = self.position_ids[:, curr_context_length - 1].view(micro_batch_size, -1)
+            positions2use = self.position_ids[:, curr_context_length - 1].view(
+                micro_batch_size, -1
+            )
             embeddings2use = self.model._get_text_embeddings(tokens2use, positions2use)
             started = context_lengths <= curr_context_length
-            embeddings2use = switch(input_embeddings[curr_context_length - 1].unsqueeze(0), embeddings2use, started)
+            embeddings2use = switch(
+                input_embeddings[curr_context_length - 1].unsqueeze(0),
+                embeddings2use,
+                started,
+            )
 
         """Prepare batch for each of the inference steps"""
         setkey_value_array = torch.tensor(
-            [set_inference_key_value_memory] * micro_batch_size, device=torch.cuda.current_device()
+            [set_inference_key_value_memory] * micro_batch_size,
+            device=torch.cuda.current_device(),
         )
-        len_array = torch.tensor([maxlen] * micro_batch_size, device=torch.cuda.current_device())
+        len_array = torch.tensor(
+            [maxlen] * micro_batch_size, device=torch.cuda.current_device()
+        )
 
-        batch = [tokens2use, embeddings2use, self.attention_mask, positions2use, setkey_value_array, len_array]
-        tensor_shape = [tokens2use.shape[1], micro_batch_size, self.model.cfg.hidden_size]
+        batch = [
+            tokens2use,
+            embeddings2use,
+            self.attention_mask,
+            positions2use,
+            setkey_value_array,
+            len_array,
+        ]
+        tensor_shape = [
+            tokens2use.shape[1],
+            micro_batch_size,
+            self.model.cfg.hidden_size,
+        ]
         return batch, tensor_shape
 
-    def post_process(self, tokens: torch.Tensor, new_tokens: torch.Tensor, context_length: int):
+    def post_process(
+        self, tokens: torch.Tensor, new_tokens: torch.Tensor, context_length: int
+    ):
         """
         At the end of the inference, post process the inference results
         """
         pass
 
     def end_of_generation_condition(
-        self, tokens: torch.Tensor, prev: torch.Tensor, eod_id: int, end_strings: List[str]
+        self,
+        tokens: torch.Tensor,
+        prev: torch.Tensor,
+        eod_id: int,
+        end_strings: List[str],
     ) -> torch.Tensor:
         """
         return whether the generation should stop based on the previous token
@@ -152,8 +199,8 @@ class AudioToTextGenerationStrategy(text_generation_strategy.GPTModelTextGenerat
             for end_string in end_strings:
                 if len(end_string) > 1:
                     continue
-                ids_1 = tokenizer.text_to_ids(f'<extra_id_1>{end_string}')
-                ids_2 = tokenizer.text_to_ids('<extra_id_1>')
+                ids_1 = tokenizer.text_to_ids(f"<extra_id_1>{end_string}")
+                ids_2 = tokenizer.text_to_ids("<extra_id_1>")
                 if len(ids_1) <= len(ids_2):
                     continue
                 token_id = ids_1[len(ids_2) :][0]
@@ -163,7 +210,10 @@ class AudioToTextGenerationStrategy(text_generation_strategy.GPTModelTextGenerat
             for p, token_item in zip(prev, tokens):
                 text = tokenizer.ids_to_text(token_item.tolist())
                 conditions.append(
-                    any([text.endswith(end_string) for end_string in end_strings] + [p.item() in end_tokens])
+                    any(
+                        [text.endswith(end_string) for end_string in end_strings]
+                        + [p.item() in end_tokens]
+                    )
                 )
             return torch.tensor(conditions, dtype=torch.bool, device=tokens.device)
 
@@ -182,14 +232,14 @@ class CrossAttendAudioToTextGenerationStrategy(AudioToTextGenerationStrategy):
         """initialize the batch data before the inference steps."""
         # Move to GPU.
         batch = {
-            'audio_signal': audio_signal,
-            'audio_signal_length': audio_length,
-            'tokens': context_tokens,
-            'tokens_length': context_lengths,
-            'labels': context_tokens,
-            'loss_mask': None,
+            "audio_signal": audio_signal,
+            "audio_signal_length": audio_length,
+            "tokens": context_tokens,
+            "tokens_length": context_lengths,
+            "labels": context_tokens,
+            "loss_mask": None,
         }
-        if self.model.perception.cfg.get('combine_return', True):
+        if self.model.perception.cfg.get("combine_return", True):
             (
                 encoder_input,
                 self.attention_mask,
@@ -197,7 +247,9 @@ class CrossAttendAudioToTextGenerationStrategy(AudioToTextGenerationStrategy):
                 _,
                 (speech_encoded, speech_encoded_len, extra_outputs),
             ) = self.model.prepare_llm_input(batch)
-            self.position_ids = build_position_ids(encoder_input[:, :, 0].transpose(0, 1))
+            self.position_ids = build_position_ids(
+                encoder_input[:, :, 0].transpose(0, 1)
+            )
             self.extra_outputs = extra_outputs
             return (
                 context_tokens,
@@ -212,9 +264,15 @@ class CrossAttendAudioToTextGenerationStrategy(AudioToTextGenerationStrategy):
                 _,
                 (speech_encoded, speech_encoded_len, llm_encoded_len, extra_outputs),
             ) = self.model.prepare_llm_input(batch)
-            self.position_ids = build_position_ids(encoder_input[:, :, 0].transpose(0, 1))
+            self.position_ids = build_position_ids(
+                encoder_input[:, :, 0].transpose(0, 1)
+            )
             self.extra_outputs = extra_outputs
-            return context_tokens, (encoder_input, speech_encoded, speech_encoded_len), llm_encoded_len
+            return (
+                context_tokens,
+                (encoder_input, speech_encoded, speech_encoded_len),
+                llm_encoded_len,
+            )
 
     def prepare_batch_at_step(
         self,
@@ -228,7 +286,7 @@ class CrossAttendAudioToTextGenerationStrategy(AudioToTextGenerationStrategy):
         compute_attention_mask: bool,
     ) -> Tuple[List[torch.Tensor], List[int]]:
         # types2use = None
-        self.input_embeds_hidden = self.extra_outputs.get('input_embeds_hidden', None)
+        self.input_embeds_hidden = self.extra_outputs.get("input_embeds_hidden", None)
         input_embeddings, speech_encoded, speech_encoded_len = input_embeddings
         if step == 0:
             # Allocate memory for the entire context.
@@ -240,13 +298,17 @@ class CrossAttendAudioToTextGenerationStrategy(AudioToTextGenerationStrategy):
             # Set this to false so the memory is not reallocated.
             set_inference_key_value_memory = False
             tokens2use = tokens[:, curr_context_length - 1].view(micro_batch_size, -1)
-            positions2use = self.position_ids[:, curr_context_length - 1].view(micro_batch_size, -1)
-            embeddings2use = self.model._get_text_embeddings(tokens2use, positions2use).transpose(0, 1)
+            positions2use = self.position_ids[:, curr_context_length - 1].view(
+                micro_batch_size, -1
+            )
+            embeddings2use = self.model._get_text_embeddings(
+                tokens2use, positions2use
+            ).transpose(0, 1)
             started = context_lengths <= curr_context_length
             # for seq started, first get embeddings2use, and then run cross attend, after that replace embeddings2use with the cross attended embed
             # use speech_encoded; rerun cross attend
             # [1, b, d]
-            decoder_mems_list = self.extra_outputs.get('decoder_mems_list', None)
+            decoder_mems_list = self.extra_outputs.get("decoder_mems_list", None)
             if decoder_mems_list is not None:
                 decoder_mems_list = decoder_mems_list[:, :, : curr_context_length - 1]
             # need to use audio_ratio field if to support text-only decoding
@@ -258,19 +320,37 @@ class CrossAttendAudioToTextGenerationStrategy(AudioToTextGenerationStrategy):
                 decoder_mems_list=decoder_mems_list,
                 return_mems=True,
             )
-            self.input_embeds_hidden = self.extra_outputs.get('input_embeds_hidden', None)
+            self.input_embeds_hidden = self.extra_outputs.get(
+                "input_embeds_hidden", None
+            )
             embeddings2use = switch(
-                input_embeddings[curr_context_length - 1].unsqueeze(0), embeddings2use.transpose(0, 1), started
+                input_embeddings[curr_context_length - 1].unsqueeze(0),
+                embeddings2use.transpose(0, 1),
+                started,
             )
 
         """Prepare batch for each of the inference steps"""
         setkey_value_array = torch.tensor(
-            [set_inference_key_value_memory] * micro_batch_size, device=torch.cuda.current_device()
+            [set_inference_key_value_memory] * micro_batch_size,
+            device=torch.cuda.current_device(),
         )
-        len_array = torch.tensor([maxlen] * micro_batch_size, device=torch.cuda.current_device())
+        len_array = torch.tensor(
+            [maxlen] * micro_batch_size, device=torch.cuda.current_device()
+        )
 
-        batch = [tokens2use, embeddings2use, self.attention_mask, positions2use, setkey_value_array, len_array]
-        tensor_shape = [tokens2use.shape[1], micro_batch_size, self.model.cfg.hidden_size]
+        batch = [
+            tokens2use,
+            embeddings2use,
+            self.attention_mask,
+            positions2use,
+            setkey_value_array,
+            len_array,
+        ]
+        tensor_shape = [
+            tokens2use.shape[1],
+            micro_batch_size,
+            self.model.cfg.hidden_size,
+        ]
         return batch, tensor_shape
 
 
@@ -283,4 +363,6 @@ def model_inference_strategy_dispatcher(model, **args):
     elif isinstance(model, ModularAudioGPTModel):
         return AudioToTextGenerationStrategy(model, **args)
     else:
-        return text_generation_strategy.model_inference_strategy_dispatcher(model, **args)
+        return text_generation_strategy.model_inference_strategy_dispatcher(
+            model, **args
+        )

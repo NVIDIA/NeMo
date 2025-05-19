@@ -77,12 +77,16 @@ class SemiSortBatchSampler(DistributedSampler):
         """
         if randomization_factor is None:
             randomization_factor = 0.1
-            logging.info("Randomization factor not found in config, default value 0.1 will be set.")
+            logging.info(
+                "Randomization factor not found in config, default value 0.1 will be set."
+            )
         else:
             logging.info(f"A randomization factor {randomization_factor} will be used.")
 
         if randomization_factor < 0.0:
-            raise ValueError(f'Randomization factor must be non-negative but found {randomization_factor}.')
+            raise ValueError(
+                f"Randomization factor must be non-negative but found {randomization_factor}."
+            )
 
         self.rank: List = global_rank
         self.num_replicas: int = world_size
@@ -111,7 +115,9 @@ class SemiSortBatchSampler(DistributedSampler):
         global_num_batches = math.ceil(init_num_samples / self.micro_batch_size)
 
         # add extra batches to make it divisible by world size (num replicas)
-        num_batches_pad = (self.num_replicas - global_num_batches % self.num_replicas) % self.num_replicas
+        num_batches_pad = (
+            self.num_replicas - global_num_batches % self.num_replicas
+        ) % self.num_replicas
         global_num_batches += num_batches_pad
 
         # calculate the number of batches per rank
@@ -125,7 +131,9 @@ class SemiSortBatchSampler(DistributedSampler):
         bound: float = (max_duration - min_duration) * self.randomization_factor / 2
 
         # generate pseudo noise
-        noise: np.array = np.random.uniform(low=-bound, high=bound, size=len(self.durations))
+        noise: np.array = np.random.uniform(
+            low=-bound, high=bound, size=len(self.durations)
+        )
 
         # sort indices accroding to pseudo noise
         sorted_indices: np.array = np.argsort(self.durations + noise)
@@ -136,7 +144,9 @@ class SemiSortBatchSampler(DistributedSampler):
             tail: int = len(sorted_indices) % self.micro_batch_size
             exclude = np.random.choice(len(sorted_indices), tail, replace=False)
             sorted_indices = np.delete(sorted_indices, exclude)
-            logging.warning(f"Drop last is set to True, so {len(exclude)} samples will be dropped.")
+            logging.warning(
+                f"Drop last is set to True, so {len(exclude)} samples will be dropped."
+            )
 
         global_num_batches: int = math.ceil(len(sorted_indices) / self.micro_batch_size)
 
@@ -150,7 +160,9 @@ class SemiSortBatchSampler(DistributedSampler):
             return []
 
         # add extra batches to make it divisible by world size (num replicas)
-        pad_batches_num: int = (self.num_replicas - global_num_batches % self.num_replicas) % self.num_replicas
+        pad_batches_num: int = (
+            self.num_replicas - global_num_batches % self.num_replicas
+        ) % self.num_replicas
         if global_num_batches < self.num_replicas:
             logging.warning(
                 f"The number of all batches is {global_num_batches}, which is less than the "
@@ -174,13 +186,15 @@ class SemiSortBatchSampler(DistributedSampler):
         local_indices: np.array = sorted_indices[self.rank :: self.num_replicas]
 
         # split local batches
-        size_mask = range(self.micro_batch_size, len(local_indices), self.micro_batch_size)
+        size_mask = range(
+            self.micro_batch_size, len(local_indices), self.micro_batch_size
+        )
         local_batches = np.split(local_indices, size_mask, axis=0)
 
         if len(local_batches) != self.local_num_batches:
             raise RuntimeError(
-                f'Number of calculated indices {len(local_batches)} is not equal to calculated '
-                f'number of local batches {self.local_num_batches}.'
+                f"Number of calculated indices {len(local_batches)} is not equal to calculated "
+                f"number of local batches {self.local_num_batches}."
             )
 
         return local_batches
@@ -219,23 +233,28 @@ def get_semi_sorted_batch_sampler(
     Returns:
         SemiSortBatchSampler: Semi Sorted Batch Sampler class.
     """
-    if not (isinstance(dataset, AudioToCharDataset) or isinstance(dataset, AudioToBPEDataset)):
+    if not (
+        isinstance(dataset, AudioToCharDataset)
+        or isinstance(dataset, AudioToBPEDataset)
+    ):
         raise ValueError(
             "Only AudioToCharDataset or AudioToBPEDataset supported with semi sorted batching, "
             f"but found {type(dataset)}."
         )
 
-    durations = [sample.duration for sample in dataset.manifest_processor.collection.data]
+    durations = [
+        sample.duration for sample in dataset.manifest_processor.collection.data
+    ]
 
     sampler = SemiSortBatchSampler(
         global_rank=model.global_rank,
         world_size=model.world_size,
         durations=durations,
-        batch_size=config['batch_size'],
-        batch_shuffle=config.get('shuffle', True),
-        drop_last=config.get('drop_last', False),
-        randomization_factor=config.get('randomization_factor', None),
-        seed=config.get('semi_sort_sampler_seed', 42),
+        batch_size=config["batch_size"],
+        batch_shuffle=config.get("shuffle", True),
+        drop_last=config.get("drop_last", False),
+        randomization_factor=config.get("randomization_factor", None),
+        seed=config.get("semi_sort_sampler_seed", 42),
     )
 
     return sampler

@@ -26,7 +26,7 @@ from nemo.utils.exp_manager import exp_manager
 @hydra_runner(config_path="conf", config_name="megatron_t5_speechllm_inference.yaml")
 def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
-    logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
+    logging.info(f"\n{OmegaConf.to_yaml(cfg)}")
 
     # MegatronTrainerBuilder compat checks
     if "gradient_as_bucket_view" not in cfg.model:
@@ -41,8 +41,10 @@ def main(cfg) -> None:
         cfg.model.precision = cfg.trainer.precision
 
     # load existing or init new soft prompt T5 model
-    checkpoint_path = cfg.get('checkpoint_path', None)
-    assert checkpoint_path is not None, "Please specify checkpoint_path in the config file"
+    checkpoint_path = cfg.get("checkpoint_path", None)
+    assert (
+        checkpoint_path is not None
+    ), "Please specify checkpoint_path in the config file"
     model = MegatronT5SpeechLMModel.load_from_checkpoint(
         checkpoint_path=checkpoint_path, trainer=trainer, cfg=cfg.model
     )
@@ -51,5 +53,5 @@ def main(cfg) -> None:
     trainer.test(model)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

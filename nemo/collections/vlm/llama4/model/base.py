@@ -64,11 +64,20 @@ def llama4_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
 
     packed_seq_params = _batch.get("packed_seq_params", None)
     _batch = {
-        key: val.cuda(non_blocking=True) if key in required_keys and val is not None else None
+        key: (
+            val.cuda(non_blocking=True)
+            if key in required_keys and val is not None
+            else None
+        )
         for key, val in _batch.items()
     }
     if packed_seq_params is not None:
-        for attr in ["cu_seqlens_q", "cu_seqlens_kv", "cu_seqlens_q_padded", "cu_seqlens_kv_padded"]:
+        for attr in [
+            "cu_seqlens_q",
+            "cu_seqlens_kv",
+            "cu_seqlens_q_padded",
+            "cu_seqlens_kv_padded",
+        ]:
             value = getattr(packed_seq_params, attr, None)
             if value is not None:
                 setattr(packed_seq_params, attr, value.cuda(non_blocking=True))
@@ -139,29 +148,57 @@ class Llama4OmniConfig(NevaConfig):
     def configure_model(self, tokenizer) -> "MCoreNevaModel":
         # pylint: disable=C0115,C0116
         self.language_transformer_config.scatter_embedding_sequence_parallel = False
-        self.language_transformer_config.tensor_model_parallel_size = self.tensor_model_parallel_size
+        self.language_transformer_config.tensor_model_parallel_size = (
+            self.tensor_model_parallel_size
+        )
         self.language_transformer_config.sequence_parallel = self.sequence_parallel
-        self.vision_transformer_config.tensor_model_parallel_size = self.tensor_model_parallel_size
-        self.vision_projection_config.tensor_model_parallel_size = self.tensor_model_parallel_size
-        self.language_transformer_config.pipeline_model_parallel_size = self.pipeline_model_parallel_size
-        self.language_transformer_config.context_parallel_size = self.context_parallel_size
-        self.language_transformer_config.expert_tensor_parallel_size = self.expert_tensor_parallel_size
-        self.language_transformer_config.expert_model_parallel_size = self.expert_model_parallel_size
+        self.vision_transformer_config.tensor_model_parallel_size = (
+            self.tensor_model_parallel_size
+        )
+        self.vision_projection_config.tensor_model_parallel_size = (
+            self.tensor_model_parallel_size
+        )
+        self.language_transformer_config.pipeline_model_parallel_size = (
+            self.pipeline_model_parallel_size
+        )
+        self.language_transformer_config.context_parallel_size = (
+            self.context_parallel_size
+        )
+        self.language_transformer_config.expert_tensor_parallel_size = (
+            self.expert_tensor_parallel_size
+        )
+        self.language_transformer_config.expert_model_parallel_size = (
+            self.expert_model_parallel_size
+        )
 
         if self.encoder_pipeline_model_parallel_size > 0:
-            assert self.encoder_pipeline_model_parallel_size == 1, "ViT can only live on 1 pipeline stage."
-            self.vision_transformer_config.pipeline_model_parallel_size = self.encoder_pipeline_model_parallel_size
-            self.vision_projection_config.pipeline_model_parallel_size = self.encoder_pipeline_model_parallel_size
+            assert (
+                self.encoder_pipeline_model_parallel_size == 1
+            ), "ViT can only live on 1 pipeline stage."
+            self.vision_transformer_config.pipeline_model_parallel_size = (
+                self.encoder_pipeline_model_parallel_size
+            )
+            self.vision_projection_config.pipeline_model_parallel_size = (
+                self.encoder_pipeline_model_parallel_size
+            )
             self.language_transformer_config.encoder_pipeline_model_parallel_size = (
                 self.encoder_pipeline_model_parallel_size
             )
             if self.encoder_tensor_model_parallel_size > 0:
-                self.vision_transformer_config.tensor_model_parallel_size = self.encoder_tensor_model_parallel_size
-                self.vision_projection_config.tensor_model_parallel_size = self.encoder_tensor_model_parallel_size
+                self.vision_transformer_config.tensor_model_parallel_size = (
+                    self.encoder_tensor_model_parallel_size
+                )
+                self.vision_projection_config.tensor_model_parallel_size = (
+                    self.encoder_tensor_model_parallel_size
+                )
 
         # set token_drop setting from config
-        self.language_transformer_config.moe_pad_expert_input_to_capacity = self.moe_pad_expert_input_to_capacity
-        self.language_transformer_config.moe_expert_capacity_factor = self.moe_expert_capacity_factor
+        self.language_transformer_config.moe_pad_expert_input_to_capacity = (
+            self.moe_pad_expert_input_to_capacity
+        )
+        self.language_transformer_config.moe_expert_capacity_factor = (
+            self.moe_expert_capacity_factor
+        )
 
         model = Llama4OmniBaseModel(
             config=self,
@@ -170,7 +207,8 @@ class Llama4OmniConfig(NevaConfig):
             post_process=ps.is_pipeline_last_stage(),
             add_encoder=ps.is_pipeline_first_stage(),
             add_decoder=ps.is_pipeline_last_stage()
-            or ps.get_pipeline_model_parallel_rank() >= self.encoder_pipeline_model_parallel_size,
+            or ps.get_pipeline_model_parallel_rank()
+            >= self.encoder_pipeline_model_parallel_size,
             drop_vision_class_token=self.drop_vision_class_token,
         )
 
@@ -219,7 +257,8 @@ class Llama4OmniBaseModel(MCoreNevaModel):
         """
 
         use_inference_kv_cache = (
-            inference_params is not None and "image_tokens_count" in inference_params.key_value_memory_dict
+            inference_params is not None
+            and "image_tokens_count" in inference_params.key_value_memory_dict
         )
         has_images = images is not None and len(images) > 0
 
@@ -230,14 +269,20 @@ class Llama4OmniBaseModel(MCoreNevaModel):
         elif self.add_encoder and not has_images:
             vision_param = next(self.vision_model.parameters())
             # If no images provided, use an empty image embeddings tensor.
-            image_embeddings = torch.tensor([], dtype=vision_param.dtype, device=vision_param.device).reshape(0, 0, 0)
+            image_embeddings = torch.tensor(
+                [], dtype=vision_param.dtype, device=vision_param.device
+            ).reshape(0, 0, 0)
         elif self.add_encoder and has_images:
             # images is in shape of (num_images_in_mbs, c, h, w)
             # note num_images_in_mbs is not mbs but total images in this mbs.
-            image_embeddings = self.vision_model(images)  # [num_tiles, img_seq_len, h_vision]
+            image_embeddings = self.vision_model(
+                images
+            )  # [num_tiles, img_seq_len, h_vision]
 
             # map vision model output size to language model input size.
-            image_embeddings = self.vision_projection(image_embeddings)  # [num_tiles, img_seq_len, h_language]
+            image_embeddings = self.vision_projection(
+                image_embeddings
+            )  # [num_tiles, img_seq_len, h_language]
 
             # TODO: Support batched inference.
             # In inference, the language model KV cache will be updated for image token positions.
@@ -265,17 +310,25 @@ class Llama4OmniBaseModel(MCoreNevaModel):
                 input_ids=input_ids_text, position_ids=position_ids
             )  # [text_seq_len, b, h_language]
 
-            language_embeddings = language_embeddings.transpose(1, 0).contiguous()  # [b, text_seq_len, h_language]
+            language_embeddings = language_embeddings.transpose(
+                1, 0
+            ).contiguous()  # [b, text_seq_len, h_language]
 
             # Preprocess input, labels and loss mask.
             if has_images:
                 original_inputs_embeds_shape = language_embeddings.shape
 
-                image_embeddings_flattened = image_embeddings.view(-1, image_embeddings.size(-1))
+                image_embeddings_flattened = image_embeddings.view(
+                    -1, image_embeddings.size(-1)
+                )
 
-                special_image_mask = (input_ids == self.tokenizer.token_to_id("<|patch|>")).unsqueeze(-1)
+                special_image_mask = (
+                    input_ids == self.tokenizer.token_to_id("<|patch|>")
+                ).unsqueeze(-1)
                 final_mask = special_image_mask.to(language_embeddings.device)
-                combined_embeddings = language_embeddings.view(-1, language_embeddings.size(-1))
+                combined_embeddings = language_embeddings.view(
+                    -1, language_embeddings.size(-1)
+                )
 
                 final_mask_1d = final_mask[..., 0].reshape(-1)
                 num_tokens_to_fill = final_mask_1d.sum()
@@ -286,14 +339,22 @@ class Llama4OmniBaseModel(MCoreNevaModel):
                         f"but image_embeddings has {image_embeddings_flattened.size(0)} embeddings."
                     )
 
-                expanded_mask = final_mask_1d.unsqueeze(-1).expand(-1, combined_embeddings.size(-1))
-                combined_embeddings = combined_embeddings.masked_scatter(expanded_mask, image_embeddings_flattened)
+                expanded_mask = final_mask_1d.unsqueeze(-1).expand(
+                    -1, combined_embeddings.size(-1)
+                )
+                combined_embeddings = combined_embeddings.masked_scatter(
+                    expanded_mask, image_embeddings_flattened
+                )
 
-                combined_embeddings = combined_embeddings.view(original_inputs_embeds_shape)
+                combined_embeddings = combined_embeddings.view(
+                    original_inputs_embeds_shape
+                )
 
             else:
                 combined_embeddings = language_embeddings
-            if not (packed_seq_params is not None and packed_seq_params.qkv_format == "thd"):
+            if not (
+                packed_seq_params is not None and packed_seq_params.qkv_format == "thd"
+            ):
                 combined_embeddings = combined_embeddings.transpose(
                     0, 1
                 ).contiguous()  # [combined_seq_len, b, h_language]
@@ -309,7 +370,10 @@ class Llama4OmniBaseModel(MCoreNevaModel):
         if self.context_parallel_lm > 1 or self.sequence_parallel_lm:
             combined_embeddings, final_labels, final_loss_mask, packed_seq_params = (
                 self._process_embedding_token_parallel(
-                    combined_embeddings, final_labels, final_loss_mask, packed_seq_params
+                    combined_embeddings,
+                    final_labels,
+                    final_loss_mask,
+                    packed_seq_params,
                 )
             )
 

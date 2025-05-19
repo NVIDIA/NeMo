@@ -61,22 +61,22 @@ class DialogueS2SGenerationDataset(DialogueDataset):
         """
         actions_str = []
         for action in actions:
-            act = action['act'].lower()
-            slot = action['slot']
-            value = action['values'][0] if action['values'] else ''
+            act = action["act"].lower()
+            slot = action["slot"]
+            value = action["values"][0] if action["values"] else ""
 
-            if prompt_template == 'values':
+            if prompt_template == "values":
                 action_str = value
-            elif prompt_template == 'slots_values':
+            elif prompt_template == "slots_values":
                 if value:
-                    action_str = '{} ({})'.format(slot, value)
+                    action_str = "{} ({})".format(slot, value)
                 else:
                     action_str = slot
-            elif prompt_template == 'acts_slots_values':
+            elif prompt_template == "acts_slots_values":
                 if value:
-                    action_str = '{} {} ({})'.format(act, slot, value)
+                    action_str = "{} {} ({})".format(act, slot, value)
                 elif slot:
-                    action_str = '{} {}'.format(act, slot)
+                    action_str = "{} {}".format(act, slot)
                 else:
                     action_str = act
             else:
@@ -84,15 +84,17 @@ class DialogueS2SGenerationDataset(DialogueDataset):
                     "Please set model.dataset.prompt_template to acts_slots_values, slots_values or values"
                 )
             actions_str.append(action_str)
-        return ' '.join(actions_str)
+        return " ".join(actions_str)
 
     def remove_invalid_samples(self, features):
         valid_idxs = []
         for i in range(len(features)):
-            for field in ['utterance', 'system_utterance', 'system_actions']:
+            for field in ["utterance", "system_utterance", "system_actions"]:
                 if field in features[i].data:
                     features[i].data["labels"][field] = features[i].data[field]
-            all_fields = self.input_label_type.split('+') + self.output_label_type.split('+')
+            all_fields = self.input_label_type.split(
+                "+"
+            ) + self.output_label_type.split("+")
             all_fields_non_empty = True
             for field in all_fields:
                 if not features[i].data["labels"][field]:
@@ -106,34 +108,42 @@ class DialogueS2SGenerationDataset(DialogueDataset):
 
     def get_n_tokens_in_sentence(self, sentence):
         encodings_dict = self.tokenizer.tokenizer(
-            sentence, truncation=True, max_length=self.cfg.max_seq_length, padding=False, return_tensors="pt"
+            sentence,
+            truncation=True,
+            max_length=self.cfg.max_seq_length,
+            padding=False,
+            return_tensors="pt",
         )
-        output = torch.squeeze(encodings_dict['input_ids'])
+        output = torch.squeeze(encodings_dict["input_ids"])
         return len(output) if len(output.size()) > 0 else 0
 
     def default_encode(self, sentence):
         encodings_dict = self.tokenizer.tokenizer(
-            sentence, truncation=True, max_length=self.cfg.max_seq_length, padding="max_length", return_tensors="pt"
+            sentence,
+            truncation=True,
+            max_length=self.cfg.max_seq_length,
+            padding="max_length",
+            return_tensors="pt",
         )
-        input_ids = torch.squeeze(encodings_dict['input_ids'])
-        attn_masks = torch.squeeze(encodings_dict['attention_mask'])
+        input_ids = torch.squeeze(encodings_dict["input_ids"])
+        attn_masks = torch.squeeze(encodings_dict["attention_mask"])
         return encodings_dict, input_ids, attn_masks
 
     def format_prompt(self, ex):
-        '''
+        """
         Formats training prompt based on self.input_field_type
 
         Training example:
             e.g. response: <response> # input_label_type = response
             e.g. utterance: <utterance> # input_label_type = utterance
             e.g. passage: <passage> utterance: <utterance> # input_label_type = passage+utterance
-        '''
-        parts = self.input_label_type.split('+')
-        input_sentence = ' '.join([part + ': ' + ex["labels"][part] for part in parts])
+        """
+        parts = self.input_label_type.split("+")
+        input_sentence = " ".join([part + ": " + ex["labels"][part] for part in parts])
         return input_sentence
 
     def __getitem__(self, idx: int):
-        '''
+        """
         State how the input and output samples look like
 
         This template can be changed
@@ -142,15 +152,17 @@ class DialogueS2SGenerationDataset(DialogueDataset):
             e.g. INPUT - "response: <response>" OUTPUT - "<fluent_response>"  # input_label_type = response, output_label_type = fluent_response
             e.g. INPUT - "utterance: <utterance>" OUTPUT - "<response>" # input_label_type = utterance, output_label_type = response
             e.g. INPUT - "passage: <passage> utterance: <utterance>" OUTPUT - "<response>" # input_label_type = passage+utterance, output_label_type = response
-        '''
+        """
         ex = self.features[idx].data
-        for field in ['utterance', 'system_utterance']:
+        for field in ["utterance", "system_utterance"]:
             if field in ex:
                 ex["labels"][field] = ex[field]
 
-        if 'system_actions' in ex:
-            ex["labels"]['system_actions'] = DialogueS2SGenerationDataset.format_actions(
-                self.cfg.prompt_template, ex['system_actions']
+        if "system_actions" in ex:
+            ex["labels"]["system_actions"] = (
+                DialogueS2SGenerationDataset.format_actions(
+                    self.cfg.prompt_template, ex["system_actions"]
+                )
             )
 
         input_sentence = self.format_prompt(ex)

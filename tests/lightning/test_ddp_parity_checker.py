@@ -28,10 +28,12 @@ from nemo.lightning.pytorch.callbacks import DdpParityChecker
 
 
 def make_parser():
-    parser = argparse.ArgumentParser(description='Train a small GPT model using NeMo 2.0')
-    parser.add_argument('--data-path', type=str, help="Path to data file")
-    parser.add_argument('--vocab-path', type=str, help="Path to vocab file")
-    parser.add_argument('--merges-path', type=str, help="Path to merges file")
+    parser = argparse.ArgumentParser(
+        description="Train a small GPT model using NeMo 2.0"
+    )
+    parser.add_argument("--data-path", type=str, help="Path to data file")
+    parser.add_argument("--vocab-path", type=str, help="Path to vocab file")
+    parser.add_argument("--merges-path", type=str, help="Path to merges file")
 
     return parser
 
@@ -39,7 +41,9 @@ def make_parser():
 def wrap_config(config, trainer):
     class ConfigWrapper(type(config)):
         def configure_model(self, tokenizer) -> "MCoreGPTModel":
-            return make_byzantine_model_wrapper(super().configure_model(tokenizer), trainer)
+            return make_byzantine_model_wrapper(
+                super().configure_model(tokenizer), trainer
+            )
 
     config.__class__ = ConfigWrapper
     return config
@@ -52,12 +56,12 @@ def make_byzantine_model_wrapper(model, trainer):
             with torch.no_grad():
                 import random
 
-                rank = int(os.environ['LOCAL_RANK'])
+                rank = int(os.environ["LOCAL_RANK"])
                 if rank != 1:
                     return ans
                 for opt in trainer.strategy.model.optim._optimizers:
                     for g in opt.param_groups:
-                        for param in g['params']:
+                        for param in g["params"]:
                             param.fill_(random.uniform(0, 1))
             return ans
 

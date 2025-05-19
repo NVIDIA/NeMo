@@ -21,11 +21,13 @@ from typing import Tuple, Union
 from nemo.utils import model_utils
 
 # Prevent Numba CUDA logs from showing at info level
-cuda_logger = pylogger.getLogger('numba.cuda.cudadrv.driver')
+cuda_logger = pylogger.getLogger("numba.cuda.cudadrv.driver")
 cuda_logger.setLevel(pylogger.ERROR)  # only show error
 
 __NUMBA_DEFAULT_MINIMUM_VERSION__ = "0.53.0"
-__NUMBA_MINIMUM_VERSION__ = os.environ.get("NEMO_NUMBA_MINVER", __NUMBA_DEFAULT_MINIMUM_VERSION__)
+__NUMBA_MINIMUM_VERSION__ = os.environ.get(
+    "NEMO_NUMBA_MINVER", __NUMBA_DEFAULT_MINIMUM_VERSION__
+)
 
 __NUMBA_MINIMUM_VERSION_FP16_SUPPORTED__ = "0.57.0"
 
@@ -46,8 +48,8 @@ NUMBA_INSTALLATION_MESSAGE = (
 STRICT_NUMBA_COMPAT_CHECK = True
 
 # Get environment key if available
-if 'STRICT_NUMBA_COMPAT_CHECK' in os.environ:
-    check_str = os.environ.get('STRICT_NUMBA_COMPAT_CHECK')
+if "STRICT_NUMBA_COMPAT_CHECK" in os.environ:
+    check_str = os.environ.get("STRICT_NUMBA_COMPAT_CHECK")
     check_bool = str(check_str).lower() in ("yes", "true", "t", "1")
     STRICT_NUMBA_COMPAT_CHECK = check_bool
 
@@ -96,7 +98,9 @@ def numba_cpu_is_supported(min_version: str) -> bool:
     Returns:
         bool, whether numba CPU supported with this current installation or not.
     """
-    module_available, msg = model_utils.check_lib_version('numba', checked_version=min_version, operator=operator.ge)
+    module_available, msg = model_utils.check_lib_version(
+        "numba", checked_version=min_version, operator=operator.ge
+    )
 
     # If numba is not installed
     if module_available is None:
@@ -109,7 +113,7 @@ def numba_cuda_is_supported(min_version: str) -> bool:
     """
     Tests if an appropriate version of numba is installed, and if it is,
     if cuda is supported properly within it.
-    
+
     Args:
         min_version: The minimum version of numba that is required.
 
@@ -127,7 +131,7 @@ def numba_cuda_is_supported(min_version: str) -> bool:
         from numba import cuda
 
         # this method first arrived in 0.53, and that's the minimum version required
-        if hasattr(cuda, 'is_supported_version'):
+        if hasattr(cuda, "is_supported_version"):
             try:
                 cuda_available = cuda.is_available()
                 if cuda_available:
@@ -151,7 +155,9 @@ def numba_cuda_is_supported(min_version: str) -> bool:
         return False
 
 
-def is_numba_cuda_fp16_supported(return_reason: bool = False) -> Union[bool, Tuple[bool, str]]:
+def is_numba_cuda_fp16_supported(
+    return_reason: bool = False,
+) -> Union[bool, Tuple[bool, str]]:
     """
     Utility method that returns a bool, stating if FP16 is supported for numba cuda kernels or not.
 
@@ -159,16 +165,18 @@ def is_numba_cuda_fp16_supported(return_reason: bool = False) -> Union[bool, Tup
         bool, whether Numba CUDA will support fp16 or not.
     """
     reason = ""
-    use_nvidia_binding = os.environ.get('NUMBA_CUDA_USE_NVIDIA_BINDING', None)
+    use_nvidia_binding = os.environ.get("NUMBA_CUDA_USE_NVIDIA_BINDING", None)
     if use_nvidia_binding is not None:
         use_nvidia_binding = use_nvidia_binding.lower() == "1"
-        reason += "Env variable `NUMBA_CUDA_USE_NVIDIA_BINDING` is available and set to `1`. "
+        reason += (
+            "Env variable `NUMBA_CUDA_USE_NVIDIA_BINDING` is available and set to `1`. "
+        )
     else:
         use_nvidia_binding = False
         reason += "Env variable `NUMBA_CUDA_USE_NVIDIA_BINDING` is not available or has not set to `1`."
 
     numba_fp16_version_correct = model_utils.check_lib_version(
-        'numba', __NUMBA_MINIMUM_VERSION_FP16_SUPPORTED__, operator=operator.ge
+        "numba", __NUMBA_MINIMUM_VERSION_FP16_SUPPORTED__, operator=operator.ge
     )[0]
 
     if numba_fp16_version_correct:
@@ -187,7 +195,7 @@ def is_numba_cuda_fp16_supported(return_reason: bool = False) -> Union[bool, Tup
 def skip_numba_cuda_test_if_unsupported(min_version: str):
     """
     Helper method to skip pytest test case if numba cuda is not supported.
-    
+
     Args:
         min_version: The minimum version of numba that is required.
     """
@@ -195,4 +203,6 @@ def skip_numba_cuda_test_if_unsupported(min_version: str):
     if not numba_cuda_support:
         import pytest
 
-        pytest.skip(f"Numba cuda test is being skipped. Minimum version required : {min_version}")
+        pytest.skip(
+            f"Numba cuda test is being skipped. Minimum version required : {min_version}"
+        )

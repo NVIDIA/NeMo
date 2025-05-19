@@ -68,7 +68,9 @@ class TestCommonMetrics:
         correct1, total1 = accuracy.correct_counts_k, accuracy.total_counts_k
 
         accuracy.reset()
-        proc2_acc = accuracy(logits=torch.flip(self.top_k_logits, dims=[1]), labels=labels[1])  # reverse logits
+        proc2_acc = accuracy(
+            logits=torch.flip(self.top_k_logits, dims=[1]), labels=labels[1]
+        )  # reverse logits
         correct2, total2 = accuracy.correct_counts_k, accuracy.total_counts_k
 
         correct = torch.stack([correct1, correct2])
@@ -97,7 +99,9 @@ class TestCommonMetrics:
         correct1, total1 = accuracy.correct_counts_k, accuracy.total_counts_k
 
         proc2_acc = accuracy(
-            logits=torch.flip(self.top_k_logits, dims=[1])[:2, :],  # reverse logits, select first 2 samples
+            logits=torch.flip(self.top_k_logits, dims=[1])[
+                :2, :
+            ],  # reverse logits, select first 2 samples
             labels=torch.tensor([2, 0]),
         )  # reduce number of labels
         correct2, total2 = accuracy.correct_counts_k, accuracy.total_counts_k
@@ -148,13 +152,24 @@ class TestPerplexity(PerplexityTester):
 @pytest.mark.parametrize(
     "loss_sum_or_avg, num_measurements",
     [
-        (NO_ZERO_NUM_MEASUREMENTS.loss_sum_or_avg, NO_ZERO_NUM_MEASUREMENTS.num_measurements),
-        (SOME_NUM_MEASUREMENTS_ARE_ZERO.loss_sum_or_avg, SOME_NUM_MEASUREMENTS_ARE_ZERO.num_measurements),
-        (ALL_NUM_MEASUREMENTS_ARE_ZERO.loss_sum_or_avg, ALL_NUM_MEASUREMENTS_ARE_ZERO.num_measurements),
+        (
+            NO_ZERO_NUM_MEASUREMENTS.loss_sum_or_avg,
+            NO_ZERO_NUM_MEASUREMENTS.num_measurements,
+        ),
+        (
+            SOME_NUM_MEASUREMENTS_ARE_ZERO.loss_sum_or_avg,
+            SOME_NUM_MEASUREMENTS_ARE_ZERO.num_measurements,
+        ),
+        (
+            ALL_NUM_MEASUREMENTS_ARE_ZERO.loss_sum_or_avg,
+            ALL_NUM_MEASUREMENTS_ARE_ZERO.num_measurements,
+        ),
     ],
 )
 class TestLoss(LossTester):
-    def test_loss(self, ddp, dist_sync_on_step, loss_sum_or_avg, num_measurements, take_avg_loss):
+    def test_loss(
+        self, ddp, dist_sync_on_step, loss_sum_or_avg, num_measurements, take_avg_loss
+    ):
         self.run_class_loss_test(
             ddp=ddp,
             loss_sum_or_avg=loss_sum_or_avg,
@@ -170,16 +185,16 @@ class TestPunctuationErrorRate:
     punctuation_marks = [".", ",", "!", "?"]
 
     operation_amounts = {
-        '.': {'Correct': 0, 'Deletions': 0, 'Insertions': 0, 'Substitutions': 1},
-        ',': {'Correct': 0, 'Deletions': 1, 'Insertions': 0, 'Substitutions': 0},
-        '!': {'Correct': 1, 'Deletions': 0, 'Insertions': 0, 'Substitutions': 0},
-        '?': {'Correct': 0, 'Deletions': 0, 'Insertions': 1, 'Substitutions': 0},
+        ".": {"Correct": 0, "Deletions": 0, "Insertions": 0, "Substitutions": 1},
+        ",": {"Correct": 0, "Deletions": 1, "Insertions": 0, "Substitutions": 0},
+        "!": {"Correct": 1, "Deletions": 0, "Insertions": 0, "Substitutions": 0},
+        "?": {"Correct": 0, "Deletions": 0, "Insertions": 1, "Substitutions": 0},
     }
     substitution_amounts = {
-        '.': {'.': 0, ',': 0, '!': 1, '?': 0},
-        ',': {'.': 0, ',': 0, '!': 0, '?': 0},
-        '!': {'.': 0, ',': 0, '!': 0, '?': 0},
-        '?': {'.': 0, ',': 0, '!': 0, '?': 0},
+        ".": {".": 0, ",": 0, "!": 1, "?": 0},
+        ",": {".": 0, ",": 0, "!": 0, "?": 0},
+        "!": {".": 0, ",": 0, "!": 0, "?": 0},
+        "?": {".": 0, ",": 0, "!": 0, "?": 0},
     }
     correct_rate = 0.25
     deletions_rate = 0.25
@@ -187,26 +202,53 @@ class TestPunctuationErrorRate:
     substitutions_rate = 0.25
     punct_er = 0.75
     operation_rates = {
-        '.': {'Correct': 0.0, 'Deletions': 0.0, 'Insertions': 0.0, 'Substitutions': 1.0},
-        ',': {'Correct': 0.0, 'Deletions': 1.0, 'Insertions': 0.0, 'Substitutions': 0.0},
-        '!': {'Correct': 1.0, 'Deletions': 0.0, 'Insertions': 0.0, 'Substitutions': 0.0},
-        '?': {'Correct': 0.0, 'Deletions': 0.0, 'Insertions': 1.0, 'Substitutions': 0.0},
+        ".": {
+            "Correct": 0.0,
+            "Deletions": 0.0,
+            "Insertions": 0.0,
+            "Substitutions": 1.0,
+        },
+        ",": {
+            "Correct": 0.0,
+            "Deletions": 1.0,
+            "Insertions": 0.0,
+            "Substitutions": 0.0,
+        },
+        "!": {
+            "Correct": 1.0,
+            "Deletions": 0.0,
+            "Insertions": 0.0,
+            "Substitutions": 0.0,
+        },
+        "?": {
+            "Correct": 0.0,
+            "Deletions": 0.0,
+            "Insertions": 1.0,
+            "Substitutions": 0.0,
+        },
     }
     substitution_rates = {
-        '.': {'.': 0.0, ',': 0.0, '!': 1.0, '?': 0.0},
-        ',': {'.': 0.0, ',': 0.0, '!': 0.0, '?': 0.0},
-        '!': {'.': 0.0, ',': 0.0, '!': 0.0, '?': 0.0},
-        '?': {'.': 0.0, ',': 0.0, '!': 0.0, '?': 0.0},
+        ".": {".": 0.0, ",": 0.0, "!": 1.0, "?": 0.0},
+        ",": {".": 0.0, ",": 0.0, "!": 0.0, "?": 0.0},
+        "!": {".": 0.0, ",": 0.0, "!": 0.0, "?": 0.0},
+        "?": {".": 0.0, ",": 0.0, "!": 0.0, "?": 0.0},
     }
 
     @pytest.mark.unit
     def test_punctuation_error_rate(self):
-        assert punctuation_error_rate([self.reference], [self.hypothesis], self.punctuation_marks) == self.punct_er
+        assert (
+            punctuation_error_rate(
+                [self.reference], [self.hypothesis], self.punctuation_marks
+            )
+            == self.punct_er
+        )
 
     @pytest.mark.unit
     def test_OccurancePunctuationErrorRate(self):
         oper_obj = OccurancePunctuationErrorRate(self.punctuation_marks)
-        operation_amounts, substitution_amounts, punctuation_rates = oper_obj.compute(self.reference, self.hypothesis)
+        operation_amounts, substitution_amounts, punctuation_rates = oper_obj.compute(
+            self.reference, self.hypothesis
+        )
 
         assert operation_amounts == self.operation_amounts
         assert substitution_amounts == self.substitution_amounts
@@ -220,7 +262,9 @@ class TestPunctuationErrorRate:
 
     @pytest.mark.unit
     def test_DatasetPunctuationErrorRate(self):
-        dper_obj = DatasetPunctuationErrorRate([self.reference], [self.hypothesis], self.punctuation_marks)
+        dper_obj = DatasetPunctuationErrorRate(
+            [self.reference], [self.hypothesis], self.punctuation_marks
+        )
         dper_obj.compute()
 
         assert dper_obj.correct_rate == self.correct_rate

@@ -83,23 +83,23 @@ class TarOrFolderImageLoader:
     def __init__(self, image_folder):
         self.image_folder = image_folder
         self.tar_index = {}
-        if self.image_folder.endswith('.tar'):
+        if self.image_folder.endswith(".tar"):
             self.build_index()
 
     def build_index(self):
-        with tarfile.open(self.image_folder, 'r') as tar:
+        with tarfile.open(self.image_folder, "r") as tar:
             for member in tar.getmembers():
                 self.tar_index[member.name] = member
 
     def open_image(self, file_name):
-        if self.image_folder.endswith('.tar'):
-            with tarfile.open(self.image_folder, 'r') as tar:
+        if self.image_folder.endswith(".tar"):
+            with tarfile.open(self.image_folder, "r") as tar:
                 member = self.tar_index.get(file_name)
                 if member:
                     f = tar.extractfile(member)
-                    return Image.open(f).convert('RGB')
+                    return Image.open(f).convert("RGB")
         else:
-            return Image.open(os.path.join(self.image_folder, file_name)).convert('RGB')
+            return Image.open(os.path.join(self.image_folder, file_name)).convert("RGB")
         return None
 
 
@@ -131,17 +131,17 @@ class TarOrFolderVideoLoader:
         self.video_folder = video_folder
         self.data_cfg = data_cfg
         self.tar_index = {}
-        if self.video_folder.endswith('.tar'):
+        if self.video_folder.endswith(".tar"):
             self.build_index()
 
     def build_index(self):
-        with tarfile.open(self.video_folder, 'r') as tar:
+        with tarfile.open(self.video_folder, "r") as tar:
             for member in tar.getmembers():
                 self.tar_index[member.name] = member
 
     def open_video(self, file_name):
-        if self.video_folder.endswith('.tar'):
-            with tarfile.open(self.video_folder, 'r') as tar:
+        if self.video_folder.endswith(".tar"):
+            with tarfile.open(self.video_folder, "r") as tar:
                 member = self.tar_index.get(file_name)
                 if member:
                     f = tar.extractfile(member)
@@ -154,28 +154,30 @@ class TarOrFolderVideoLoader:
         return None
 
     def flatten_frames(self, cap):
-        if self.data_cfg['splice_single_frame'] == 'first':
+        if self.data_cfg["splice_single_frame"] == "first":
             frame = cap[0].asnumpy()
-            return Image.fromarray(frame).convert('RGB')
-        elif self.data_cfg['splice_single_frame'] == 'middle':
+            return Image.fromarray(frame).convert("RGB")
+        elif self.data_cfg["splice_single_frame"] == "middle":
             frame = cap[len(cap) // 2].asnumpy()
-            return Image.fromarray(frame).convert('RGB')
-        elif self.data_cfg['splice_single_frame'] == 'last':
+            return Image.fromarray(frame).convert("RGB")
+        elif self.data_cfg["splice_single_frame"] == "last":
             frame = cap[-1].asnumpy()
-            return Image.fromarray(frame).convert('RGB')
+            return Image.fromarray(frame).convert("RGB")
         else:
-            if self.data_cfg['num_frames'] == -1:
+            if self.data_cfg["num_frames"] == -1:
                 frames = []
                 for frame in cap:
                     rgb_frame = frame.asnumpy()
-                    img = Image.fromarray(rgb_frame).convert('RGB')
+                    img = Image.fromarray(rgb_frame).convert("RGB")
                     frames.append(img)
                 return frames
             else:
-                num_frames = min(len(cap), self.data_cfg['num_frames'])
+                num_frames = min(len(cap), self.data_cfg["num_frames"])
                 indices = np.linspace(0, len(cap) - 1, num_frames, dtype=int)
-                frames = [Image.fromarray(cap[i].asnumpy()).convert('RGB') for i in indices]
-                while len(frames) < self.data_cfg['num_frames']:
+                frames = [
+                    Image.fromarray(cap[i].asnumpy()).convert("RGB") for i in indices
+                ]
+                while len(frames) < self.data_cfg["num_frames"]:
                     frames.append(frames[-1])
                 return frames
 
@@ -206,7 +208,9 @@ def tokenize(
     torch.LongTensor
         A two-dimensional tensor containing the resulting tokens, shape = [number of input strings, context_length + add_extra_token].
     """
-    assert add_extra_token == 0 or add_extra_token == 1, "`add_extra_token` should be either 0 or 1."
+    assert (
+        add_extra_token == 0 or add_extra_token == 1
+    ), "`add_extra_token` should be either 0 or 1."
 
     texts_is_str = False
     if isinstance(texts, str):
@@ -216,7 +220,9 @@ def tokenize(
     max_len = max([len(token) for token in tokens])
     context_length = min(max_len - add_extra_token, context_length)
     # truncate and padding
-    result = torch.zeros(len(tokens), context_length + add_extra_token, dtype=torch.long)
+    result = torch.zeros(
+        len(tokens), context_length + add_extra_token, dtype=torch.long
+    )
 
     for i, token in enumerate(tokens):
         if len(token) > context_length + add_extra_token:
@@ -246,7 +252,9 @@ def get_tokens_ids(tokenizer, tokens):
     return [tokenizer.token_to_id(token) for token in tokens]
 
 
-def preprocess_multimodal(sources: dict, multimodal_cfg: dict, cur_token_len: int, use_plain: bool = False) -> Dict:
+def preprocess_multimodal(
+    sources: dict, multimodal_cfg: dict, cur_token_len: int, use_plain: bool = False
+) -> Dict:
     """
     Preprocesses multimodal sources based on the provided configuration.
 
@@ -265,13 +273,13 @@ def preprocess_multimodal(sources: dict, multimodal_cfg: dict, cur_token_len: in
     Returns:
     - dict: The processed sources dictionary after applying multimodal preprocessing steps.
     """
-    is_multimodal = multimodal_cfg['is_multimodal']
-    model_type = multimodal_cfg['model_type']
-    media_type = multimodal_cfg['media_type']
+    is_multimodal = multimodal_cfg["is_multimodal"]
+    model_type = multimodal_cfg["model_type"]
+    media_type = multimodal_cfg["media_type"]
     image_token_len = cur_token_len
-    if media_type == 'image':
+    if media_type == "image":
         default_token = DEFAULT_IMAGE_TOKEN
-    elif media_type == 'video':
+    elif media_type == "video":
         default_token = DEFAULT_VIDEO_TOKEN
     else:
         return sources
@@ -279,29 +287,33 @@ def preprocess_multimodal(sources: dict, multimodal_cfg: dict, cur_token_len: in
     if not is_multimodal:
         return sources
 
-    num_frames = multimodal_cfg['num_frames']
+    num_frames = multimodal_cfg["num_frames"]
     # vila
-    if multimodal_cfg['mm_mlp_adapter_type'] == 'mlp_downsample':
+    if multimodal_cfg["mm_mlp_adapter_type"] == "mlp_downsample":
         image_token_len //= 4
 
     num_patches = image_token_len
     # TO DO: to support multiple images
-    if media_type == 'video':
+    if media_type == "video":
         num_patches *= num_frames
 
-    if multimodal_cfg['use_im_start_end']:
+    if multimodal_cfg["use_im_start_end"]:
         replace_token = DEFAULT_IMAGE_PATCH_TOKEN[model_type] * num_patches
     else:
         replace_token = DEFAULT_IMAGE_PATCH_TOKEN[model_type] * (num_patches - 2)
-    replace_token = DEFAULT_IM_START_TOKEN[model_type] + replace_token + DEFAULT_IM_END_TOKEN[model_type]
+    replace_token = (
+        DEFAULT_IM_START_TOKEN[model_type]
+        + replace_token
+        + DEFAULT_IM_END_TOKEN[model_type]
+    )
 
-    if media_type == 'video' and multimodal_cfg.get("use_lita", False):
-        if not multimodal_cfg.get('lita', None):
+    if media_type == "video" and multimodal_cfg.get("use_lita", False):
+        if not multimodal_cfg.get("lita", None):
             raise ValueError("LITA config is missing")
-        lita_video_arch = multimodal_cfg['lita']['lita_video_arch']
+        lita_video_arch = multimodal_cfg["lita"]["lita_video_arch"]
         num_temporal_tokens, num_spatial_tokens = num_frames, 0
-        if lita_video_arch == 'temporal_all_resolution':
-            sample_frames = min(multimodal_cfg['lita']['sample_frames'], num_frames)
+        if lita_video_arch == "temporal_all_resolution":
+            sample_frames = min(multimodal_cfg["lita"]["sample_frames"], num_frames)
             # num_frames for temporal tokens, sample_frames * num_patches for spatial tokens
             num_spatial_tokens = sample_frames * image_token_len
         else:
@@ -309,50 +321,65 @@ def preprocess_multimodal(sources: dict, multimodal_cfg: dict, cur_token_len: in
             num_spatial_tokens = image_token_len
         num_tokens = num_temporal_tokens + num_spatial_tokens
 
-        visual_token_format = multimodal_cfg['lita'].get('visual_token_format', 'v1')
+        visual_token_format = multimodal_cfg["lita"].get("visual_token_format", "v1")
         media_start = DEFAULT_IM_START_TOKEN[model_type]
         media_end = DEFAULT_IM_END_TOKEN[model_type]
         image_patch = DEFAULT_IMAGE_PATCH_TOKEN[model_type]
-        if visual_token_format == 'im_vid_start_end':
-            image_start, image_end = DEFAULT_IM_START_TOKEN[model_type], DEFAULT_IM_END_TOKEN[model_type]
+        if visual_token_format == "im_vid_start_end":
+            image_start, image_end = (
+                DEFAULT_IM_START_TOKEN[model_type],
+                DEFAULT_IM_END_TOKEN[model_type],
+            )
             vid_start, vid_end = DEFAULT_VID_START_TOKEN, DEFAULT_VID_END_TOKEN
-            if multimodal_cfg['use_im_start_end']:
-                replace_token_list = [image_start + image_patch * image_token_len + image_end] * sample_frames
-                replace_token_list += [vid_start + image_patch * num_temporal_tokens + vid_end]
+            if multimodal_cfg["use_im_start_end"]:
+                replace_token_list = [
+                    image_start + image_patch * image_token_len + image_end
+                ] * sample_frames
+                replace_token_list += [
+                    vid_start + image_patch * num_temporal_tokens + vid_end
+                ]
                 replace_token = "".join(replace_token_list)
             else:
-                replace_token_list = [image_start + image_patch * (image_token_len - 1) + image_end]
-                replace_token_list += [image_start + image_patch * image_token_len + image_end] * (sample_frames - 1)
-                replace_token_list += [vid_start + image_patch * (num_temporal_tokens - 1) + vid_end]
+                replace_token_list = [
+                    image_start + image_patch * (image_token_len - 1) + image_end
+                ]
+                replace_token_list += [
+                    image_start + image_patch * image_token_len + image_end
+                ] * (sample_frames - 1)
+                replace_token_list += [
+                    vid_start + image_patch * (num_temporal_tokens - 1) + vid_end
+                ]
                 replace_token = "".join(replace_token_list)
             replace_token = media_start + replace_token + media_end
         else:
-            if multimodal_cfg['use_im_start_end']:
+            if multimodal_cfg["use_im_start_end"]:
                 replace_token = image_patch * num_tokens
             else:
                 replace_token = image_patch * (num_tokens - 2)
             replace_token = media_start + replace_token + media_end
 
     for source in sources:
-        conversation = source['conversations']
-        if multimodal_cfg['sep_image_conv_front']:
-            assert default_token in conversation[0]['value']
-            conversation[0]['value'] = conversation[0]['value'].replace(default_token, '').strip()
-            conversation[0]['value'] = (
+        conversation = source["conversations"]
+        if multimodal_cfg["sep_image_conv_front"]:
+            assert default_token in conversation[0]["value"]
+            conversation[0]["value"] = (
+                conversation[0]["value"].replace(default_token, "").strip()
+            )
+            conversation[0]["value"] = (
                 default_token
                 + conversation_lib.default_conversation.sep
                 + conversation_lib.default_conversation.roles[0]
                 + ": "
-                + conversation[0]['value']
+                + conversation[0]["value"]
             )
         if use_plain:
-            assert default_token in conversation[0]['value']
-            conversation[0]['value'] = default_token
+            assert default_token in conversation[0]["value"]
+            conversation[0]["value"] = default_token
         if multimodal_cfg["conv_template"] == "interleaved":
             # directly replace the default_token in the conversation,
             # since we don't use the conversation template
             updated_conversation = conversation.replace(default_token, replace_token)
-            source['conversations'] = updated_conversation
+            source["conversations"] = updated_conversation
         else:
             for turn in conversation:
                 turn["value"] = turn["value"].replace(default_token, replace_token)
@@ -360,17 +387,22 @@ def preprocess_multimodal(sources: dict, multimodal_cfg: dict, cur_token_len: in
 
 
 def process_image(processor, image, image_aspect_ratio="square"):
-    if isinstance(processor, CLIPImageProcessor) or isinstance(processor, SiglipImageProcessor):
+    if isinstance(processor, CLIPImageProcessor) or isinstance(
+        processor, SiglipImageProcessor
+    ):
         # image processor from HF
-        if image_aspect_ratio == 'keep':
+        if image_aspect_ratio == "keep":
             max_hw, min_hw = max(image.size), min(image.size)
             aspect_ratio = max_hw / min_hw
             max_len, min_len = 448, 224
             shortest_edge = int(min(max_len / aspect_ratio, min_len))
             image = processor.preprocess(
-                image, return_tensors='pt', do_center_crop=False, size={"shortest_edge": shortest_edge}
-            )['pixel_values'][0]
-        elif image_aspect_ratio == 'pad':
+                image,
+                return_tensors="pt",
+                do_center_crop=False,
+                size={"shortest_edge": shortest_edge},
+            )["pixel_values"][0]
+        elif image_aspect_ratio == "pad":
 
             def expand2square(pil_img, background_color):
                 width, height = pil_img.size
@@ -385,12 +417,16 @@ def process_image(processor, image, image_aspect_ratio="square"):
                     result.paste(pil_img, ((height - width) // 2, 0))
                     return result
 
-            image = expand2square(image, tuple(int(x * 255) for x in processor.image_mean))
-            image = processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
+            image = expand2square(
+                image, tuple(int(x * 255) for x in processor.image_mean)
+            )
+            image = processor.preprocess(image, return_tensors="pt")["pixel_values"][0]
         else:
-            image = processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
+            image = processor.preprocess(image, return_tensors="pt")["pixel_values"][0]
     else:
-        assert image_aspect_ratio == 'square', 'NeMo image transform with setting `image_aspect_ratio` to `square`.'
+        assert (
+            image_aspect_ratio == "square"
+        ), "NeMo image transform with setting `image_aspect_ratio` to `square`."
         image = processor(image)
     return image
 
@@ -421,7 +457,7 @@ def preprocess_llama_3(
     # Apply prompt templates
     conversations = []
     for i, source in enumerate(sources):
-        source = source['conversations']
+        source = source["conversations"]
         if roles[source[0]["from"]] != conv.roles[0]:
             # Skip the first one if it is not from human
             source = source[1:]
@@ -517,7 +553,7 @@ def preprocess_llama_2(
     # Apply prompt templates
     conversations = []
     for i, source in enumerate(sources):
-        source = source['conversations']
+        source = source["conversations"]
         if roles[source[0]["from"]] != conv.roles[0]:
             # Skip the first one if it is not from human
             source = source[1:]
@@ -643,7 +679,7 @@ def preprocess_yi_34b(
                 turn["from"] = conv.roles[1]
                 value = turn["value"]
 
-                conv.append_message(turn['from'], value)
+                conv.append_message(turn["from"], value)
                 if not turn["value"]:
                     strip_end_for_inference = True
             else:
@@ -722,7 +758,7 @@ def preprocess_v1(
     # Apply prompt templates
     conversations = []
     for i, source in enumerate(sources):
-        source = source['conversations']
+        source = source["conversations"]
         if roles[source[0]["from"]] != conv.roles[0]:
             # Skip the first one if it is not from human
             source = source[1:]
@@ -800,7 +836,7 @@ def preprocess_interleaved_prompt(
     """tokenize the interleaved prompt and mask the text part of the prompt"""
     conversations = []
     for source in sources:
-        conversations.append(source['conversations'])
+        conversations.append(source["conversations"])
     add_extra_token = cfg.get("add_extra_token")
     tokens = tokenize(
         texts=conversations,
@@ -809,12 +845,19 @@ def preprocess_interleaved_prompt(
         add_extra_token=add_extra_token,
     )
 
-    model_type = cfg['model_type']
+    model_type = cfg["model_type"]
     image_patch_token = DEFAULT_IMAGE_PATCH_TOKEN[model_type]
     image_start_token = DEFAULT_IM_START_TOKEN[model_type]
     image_end_token = DEFAULT_IM_END_TOKEN[model_type]
-    DEFAULT_TOKENS = [image_patch_token, image_start_token, image_end_token, DEFAULT_PAD_TOKEN]
-    img_patch_id, img_start_id, img_end_id, pad_id = get_tokens_ids(tokenizer, DEFAULT_TOKENS)
+    DEFAULT_TOKENS = [
+        image_patch_token,
+        image_start_token,
+        image_end_token,
+        DEFAULT_PAD_TOKEN,
+    ]
+    img_patch_id, img_start_id, img_end_id, pad_id = get_tokens_ids(
+        tokenizer, DEFAULT_TOKENS
+    )
     tokens[tokens == img_patch_id] = 0  # DEFAULT_IMAGE_PATCH_TOKEN
 
     labels = tokens.clone().detach()
@@ -872,26 +915,24 @@ def preprocess_nvgpt(
     conversations = []
     for source in sources:
         conv.messages = []
-        conv.system = source.get('system', conv.system)
+        conv.system = source.get("system", conv.system)
 
         strip_end_for_inference = False
-        for i, turn in enumerate(source['conversations']):
+        for i, turn in enumerate(source["conversations"]):
 
             if i % 2 == 1:
-                turn['from'] = conv.roles[1]
-                if 'label' not in turn:
-                    turn['label'] = (
+                turn["from"] = conv.roles[1]
+                if "label" not in turn:
+                    turn["label"] = (
                         "quality:4,toxicity:0,humor:0,creativity:0,helpfulness:4,correctness:4,coherence:4,complexity:4,verbosity:4"
                     )
-                value = DEFAULT_LABELS_TOKEN + turn['label'] + '\n' + turn['value']
-                conv.append_message(turn['from'], value)
+                value = DEFAULT_LABELS_TOKEN + turn["label"] + "\n" + turn["value"]
+                conv.append_message(turn["from"], value)
                 if not turn["value"]:
-                    strip_end_for_inference = (
-                        True  # in inference, current turn is empty, thus end tokens need to striped.
-                    )
+                    strip_end_for_inference = True  # in inference, current turn is empty, thus end tokens need to striped.
             else:
-                turn['from'] = conv.roles[0]
-                conv.append_message(turn['from'], turn['value'])
+                turn["from"] = conv.roles[0]
+                conv.append_message(turn["from"], turn["value"])
         context = conv.get_prompt()
         if strip_end_for_inference:
             context = context.rstrip("\n<extra_id_1>") + "\n"
@@ -916,7 +957,9 @@ def preprocess_nvgpt(
         re_rounds = [conv.sep.join(rounds[:3])]  # system + user + gpt
 
         for conv_idx in range(3, len(rounds), 2):
-            re_rounds.append(conv.sep.join(rounds[conv_idx : conv_idx + 2]))  # user + gpt
+            re_rounds.append(
+                conv.sep.join(rounds[conv_idx : conv_idx + 2])
+            )  # user + gpt
 
         cur_len = 0
         for i, rou in enumerate(re_rounds):
@@ -984,25 +1027,23 @@ def preprocess_nv_dpo(
     conversations = []
     for source in sources:
         conv.messages = []
-        conv.system = source.get('system', conv.system)
+        conv.system = source.get("system", conv.system)
 
         strip_end_for_inference = False
-        for i, turn in enumerate(source['conversations']):
+        for i, turn in enumerate(source["conversations"]):
 
             if i % 2 == 1:
-                turn['from'] = conv.roles[1]
+                turn["from"] = conv.roles[1]
                 if "label" in turn:
-                    value = DEFAULT_LABELS_TOKEN + turn['label'] + '\n' + turn['value']
+                    value = DEFAULT_LABELS_TOKEN + turn["label"] + "\n" + turn["value"]
                 else:
                     value = turn["value"]
-                conv.append_message(turn['from'], value)
+                conv.append_message(turn["from"], value)
                 if not turn["value"]:
-                    strip_end_for_inference = (
-                        True  # in inference, current turn is empty, thus end tokens need to striped.
-                    )
+                    strip_end_for_inference = True  # in inference, current turn is empty, thus end tokens need to striped.
             else:
-                turn['from'] = conv.roles[0]
-                conv.append_message(turn['from'], turn['value'])
+                turn["from"] = conv.roles[0]
+                conv.append_message(turn["from"], turn["value"])
         context = conv.get_prompt()
         if strip_end_for_inference:
             if context.endswith("\n<extra_id_1>"):
@@ -1027,7 +1068,9 @@ def preprocess_nv_dpo(
         re_rounds = [conv.sep.join(rounds[:3])]  # system + user + gpt
 
         for conv_idx in range(3, len(rounds), 2):
-            re_rounds.append(conv.sep.join(rounds[conv_idx : conv_idx + 2]))  # user + gpt
+            re_rounds.append(
+                conv.sep.join(rounds[conv_idx : conv_idx + 2])
+            )  # user + gpt
 
         cur_len = 0
         for i, rou in enumerate(re_rounds):
@@ -1038,9 +1081,15 @@ def preprocess_nv_dpo(
                 break
 
             # handle label if exists
-            labels_match = re.search(rf"{re.escape(DEFAULT_LABELS_TOKEN)}.*?\n", parts[1])
+            labels_match = re.search(
+                rf"{re.escape(DEFAULT_LABELS_TOKEN)}.*?\n", parts[1]
+            )
             instruction_len = len(
-                tokenizer.text_to_ids(parts[0] + sep + (parts[1][: labels_match.end()] if labels_match else ""))
+                tokenizer.text_to_ids(
+                    parts[0]
+                    + sep
+                    + (parts[1][: labels_match.end()] if labels_match else "")
+                )
             )
             round_len = len(tokenizer.text_to_ids(rou + conv.sep))
             target[cur_len : cur_len + instruction_len] = IGNORE_INDEX
@@ -1090,10 +1139,10 @@ def preprocess_plain(
     # add end signal and concatenate together
     conversations = []
     for source in sources:
-        source = source['conversations']
+        source = source["conversations"]
         assert len(source) == 2
         # This line is different from LLaVA repo, we inserted '\n' after <image>.
-        conversation = source[0]['value'] + source[1]['value'] + '\n'
+        conversation = source[0]["value"] + source[1]["value"] + "\n"
         conversations.append(conversation)
     # tokenize conversations
     add_extra_token = cfg.get("add_extra_token")
@@ -1105,8 +1154,8 @@ def preprocess_plain(
     )
     labels = tokens.clone().detach()
     for target, source in zip(labels, sources):
-        source = source['conversations']
-        tokenized_len = len(tokenizer.text_to_ids(source[0]['value']))
+        source = source["conversations"]
+        tokenized_len = len(tokenizer.text_to_ids(source[0]["value"]))
         target[:tokenized_len] = IGNORE_INDEX
 
     if add_extra_token:
@@ -1134,15 +1183,21 @@ def preprocess_conversations(self, sources):
     elif self.conv_template == "llama_3":
         return preprocess_llama_3(sources, self.tokenizer, self.multimodal_cfg)
     elif self.conv_template == "mistral":
-        return preprocess_llama_2(sources, self.tokenizer, self.multimodal_cfg, is_mistral=True)
+        return preprocess_llama_2(
+            sources, self.tokenizer, self.multimodal_cfg, is_mistral=True
+        )
     elif self.conv_template == "yi_34b":
         return preprocess_yi_34b(sources, self.tokenizer, self.multimodal_cfg)
     elif self.conv_template == "plain":
         return preprocess_plain(sources, self.tokenizer, self.multimodal_cfg)
     elif self.conv_template == "interleaved":
-        return preprocess_interleaved_prompt(sources, self.tokenizer, self.multimodal_cfg)
+        return preprocess_interleaved_prompt(
+            sources, self.tokenizer, self.multimodal_cfg
+        )
     else:
-        raise ValueError(f"Conversation template `{self.conv_template}` is not supported in Neva now.")
+        raise ValueError(
+            f"Conversation template `{self.conv_template}` is not supported in Neva now."
+        )
 
 
 class LazySupervisedDataset(Dataset):
@@ -1161,12 +1216,18 @@ class LazySupervisedDataset(Dataset):
         self.list_data_dict = list_data_dict
         self.multimodal_cfg = multimodal_cfg
         self.conv_template = multimodal_cfg["conv_template"]
-        self.image_folder = multimodal_cfg['image_folder']
-        self.video_folder = multimodal_cfg['video_folder']
+        self.image_folder = multimodal_cfg["image_folder"]
+        self.video_folder = multimodal_cfg["video_folder"]
         self.processor = multimodal_cfg["image_processor"]
 
-        self.image_loader = TarOrFolderImageLoader(self.image_folder) if self.image_folder else None
-        self.video_loader = TarOrFolderVideoLoader(self.video_folder, data_cfg) if self.video_folder else None
+        self.image_loader = (
+            TarOrFolderImageLoader(self.image_folder) if self.image_folder else None
+        )
+        self.video_loader = (
+            TarOrFolderVideoLoader(self.video_folder, data_cfg)
+            if self.video_folder
+            else None
+        )
 
     def __len__(self):
         return len(self.list_data_dict)
@@ -1178,26 +1239,28 @@ class LazySupervisedDataset(Dataset):
         if isinstance(i, int):
             sources = [sources]
         assert len(sources) == 1, "Don't know why it is wrapped to a list"  # FIXME
-        if 'image' in sources[0]:
-            if not isinstance(self.list_data_dict[i]['image'], list):
-                self.list_data_dict[i]['image'] = [self.list_data_dict[i]['image']]
+        if "image" in sources[0]:
+            if not isinstance(self.list_data_dict[i]["image"], list):
+                self.list_data_dict[i]["image"] = [self.list_data_dict[i]["image"]]
 
             images = []
-            for image_file in self.list_data_dict[i]['image']:
+            for image_file in self.list_data_dict[i]["image"]:
                 image = self.image_loader.open_image(image_file)
                 if image is None:
                     logging.warning(f"Image {image_file} could not be found!")
-                image = process_image(self.processor, image, self.multimodal_cfg['image_aspect_ratio'])
+                image = process_image(
+                    self.processor, image, self.multimodal_cfg["image_aspect_ratio"]
+                )
                 images.append(image)
             media_tensors = torch.tensor([])
             if images:
                 media_tensors = torch.stack(images)
-                patch_dim = self.multimodal_cfg['patch_dim']
+                patch_dim = self.multimodal_cfg["patch_dim"]
 
                 height_num_patches = media_tensors[0].shape[1] // patch_dim
                 width_num_patches = media_tensors[0].shape[2] // patch_dim
 
-                if self.multimodal_cfg['mm_mlp_adapter_type'] == 'mlp_downsample':
+                if self.multimodal_cfg["mm_mlp_adapter_type"] == "mlp_downsample":
                     if height_num_patches % 2 != 0:
                         height_num_patches += 1
                     if width_num_patches % 2 != 0:
@@ -1211,62 +1274,78 @@ class LazySupervisedDataset(Dataset):
                     cur_token_len,
                     use_plain=(self.conv_template == "plain"),
                 )
-        elif 'video' in sources[0]:
-            if not isinstance(self.list_data_dict[i]['video'], list):
-                self.list_data_dict[i]['video'] = [self.list_data_dict[i]['video']]
+        elif "video" in sources[0]:
+            if not isinstance(self.list_data_dict[i]["video"], list):
+                self.list_data_dict[i]["video"] = [self.list_data_dict[i]["video"]]
 
             videos = []
-            for video_file in self.list_data_dict[i]['video']:
+            for video_file in self.list_data_dict[i]["video"]:
                 frames = self.video_loader.open_video(video_file)
                 if frames is None:
                     logging.warning(f"Video {video_file} could not be found!")
-                if isinstance(self.processor, CLIPImageProcessor) or isinstance(self.processor, SiglipImageProcessor):
+                if isinstance(self.processor, CLIPImageProcessor) or isinstance(
+                    self.processor, SiglipImageProcessor
+                ):
                     # image processor from HF
-                    if self.multimodal_cfg['image_aspect_ratio'] == 'keep':
+                    if self.multimodal_cfg["image_aspect_ratio"] == "keep":
                         max_hw, min_hw = max(frames.size), min(frames.size)
                         aspect_ratio = max_hw / min_hw
                         max_len, min_len = 448, 224
                         shortest_edge = int(min(max_len / aspect_ratio, min_len))
                         frames = self.processor.preprocess(
-                            frames, return_tensors='pt', do_center_crop=False, size={"shortest_edge": shortest_edge}
-                        )['pixel_values']
-                    elif self.multimodal_cfg['image_aspect_ratio'] == 'pad':
+                            frames,
+                            return_tensors="pt",
+                            do_center_crop=False,
+                            size={"shortest_edge": shortest_edge},
+                        )["pixel_values"]
+                    elif self.multimodal_cfg["image_aspect_ratio"] == "pad":
 
                         def expand2square(pil_img, background_color):
                             width, height = pil_img.size
                             if width == height:
                                 return pil_img
                             elif width > height:
-                                result = Image.new(pil_img.mode, (width, width), background_color)
+                                result = Image.new(
+                                    pil_img.mode, (width, width), background_color
+                                )
                                 result.paste(pil_img, (0, (width - height) // 2))
                                 return result
                             else:
-                                result = Image.new(pil_img.mode, (height, height), background_color)
+                                result = Image.new(
+                                    pil_img.mode, (height, height), background_color
+                                )
                                 result.paste(pil_img, ((height - width) // 2, 0))
                                 return result
 
                         frames = [
-                            expand2square(frame, tuple(int(x * 255) for x in self.processor.image_mean))
+                            expand2square(
+                                frame,
+                                tuple(int(x * 255) for x in self.processor.image_mean),
+                            )
                             for frame in frames
                         ]
-                        frames = self.processor.preprocess(frames, return_tensors='pt')['pixel_values']
+                        frames = self.processor.preprocess(frames, return_tensors="pt")[
+                            "pixel_values"
+                        ]
                     else:
-                        frames = self.processor.preprocess(frames, return_tensors='pt')['pixel_values']
+                        frames = self.processor.preprocess(frames, return_tensors="pt")[
+                            "pixel_values"
+                        ]
                 else:
                     assert (
-                        self.multimodal_cfg['image_aspect_ratio'] == 'square'
-                    ), 'NeMo image transform with setting `image_aspect_ratio` to `square`.'
+                        self.multimodal_cfg["image_aspect_ratio"] == "square"
+                    ), "NeMo image transform with setting `image_aspect_ratio` to `square`."
                     frames = self.processor(frames)
                 videos.append(frames)
             media_tensors = frames
             if videos:
                 media_tensors = torch.stack(videos)
-                patch_dim = self.multimodal_cfg['patch_dim']
+                patch_dim = self.multimodal_cfg["patch_dim"]
 
                 height_num_patches = media_tensors[0].shape[-2] // patch_dim
                 width_num_patches = media_tensors[0].shape[-1] // patch_dim
 
-                if self.multimodal_cfg['mm_mlp_adapter_type'] == 'mlp_downsample':
+                if self.multimodal_cfg["mm_mlp_adapter_type"] == "mlp_downsample":
                     if height_num_patches % 2 != 0:
                         height_num_patches += 1
                     if width_num_patches % 2 != 0:
@@ -1288,26 +1367,33 @@ class LazySupervisedDataset(Dataset):
         data_dict = preprocess_conversations(self, sources)
 
         if isinstance(i, int):
-            data_dict = dict(tokens=data_dict["tokens"][0], labels=data_dict["labels"][0])
+            data_dict = dict(
+                tokens=data_dict["tokens"][0], labels=data_dict["labels"][0]
+            )
 
         # image exist in the data
-        if self.multimodal_cfg['is_multimodal']:
+        if self.multimodal_cfg["is_multimodal"]:
             if isinstance(self.processor, CLIPImageProcessor):
-                crop_size = [self.processor.crop_size['height'], self.processor.crop_size['width']]
+                crop_size = [
+                    self.processor.crop_size["height"],
+                    self.processor.crop_size["width"],
+                ]
             else:
-                crop_size = self.multimodal_cfg['crop_size']
+                crop_size = self.multimodal_cfg["crop_size"]
 
             # Image does not exist in the data, but the model is multimodal
             # TODO, if there are different videos on T dimensions.
             if media_tensors.shape[0] < MAX_NUM_IMAGES:
                 padding_size = MAX_NUM_IMAGES - media_tensors.shape[0]
-                zero_padding = torch.zeros((padding_size, 3, crop_size[0], crop_size[1]), dtype=torch.float)
+                zero_padding = torch.zeros(
+                    (padding_size, 3, crop_size[0], crop_size[1]), dtype=torch.float
+                )
                 media_tensors = torch.cat((media_tensors, zero_padding), dim=0)
 
-            if self.multimodal_cfg['media_type'] == 'image':
-                data_dict['image'] = media_tensors
-            elif self.multimodal_cfg['media_type'] == 'video':
-                data_dict['video'] = media_tensors
+            if self.multimodal_cfg["media_type"] == "image":
+                data_dict["image"] = media_tensors
+            elif self.multimodal_cfg["media_type"] == "video":
+                data_dict["video"] = media_tensors
 
         return data_dict
 
@@ -1317,13 +1403,15 @@ class NevaDataset(LazySupervisedDataset):
 
     def __init__(self, data_path: str, tokenizer, multimodal_cfg: dict, data_cfg: dict):
         if data_path.endswith(".json"):
-            super(NevaDataset, self).__init__(data_path, tokenizer, multimodal_cfg, data_cfg)
+            super(NevaDataset, self).__init__(
+                data_path, tokenizer, multimodal_cfg, data_cfg
+            )
 
         elif data_path.endswith(".jsonl"):
             super(NevaDataset, self).__init__(None, tokenizer, multimodal_cfg, data_cfg)
             logging.warning("Loading image inputs from SteerLM Dataset")
-            if multimodal_cfg['media_type'] == 'image':
-                image_folder = multimodal_cfg['image_folder']
+            if multimodal_cfg["media_type"] == "image":
+                image_folder = multimodal_cfg["image_folder"]
                 for line in open(data_path, "r"):
                     record = json.loads(line)
 
@@ -1331,17 +1419,19 @@ class NevaDataset(LazySupervisedDataset):
                     # search for <img src="/absolute/path/to/image" in the conversation
                     #   add it as record['image'], remove src tag from the <img> tag
 
-                    record['image'] = []
-                    for turn in record['conversations']:
-                        matches = re.finditer('<img src="([^"]+)"', turn['value'])
+                    record["image"] = []
+                    for turn in record["conversations"]:
+                        matches = re.finditer('<img src="([^"]+)"', turn["value"])
                         for match in matches:
                             image_name = match.group(1).split("/")[-1]
                             image_path = os.path.join(image_folder, image_name)
                             if not os.path.isfile(image_path):
                                 logging.warning(f"Image not found: {image_path}")
                                 continue
-                            record['image'].append(image_name)  # url
-                        turn['value'] = re.sub('<img src="([^"]+)">', DEFAULT_IMAGE_TOKEN, turn['value'])
+                            record["image"].append(image_name)  # url
+                        turn["value"] = re.sub(
+                            '<img src="([^"]+)">', DEFAULT_IMAGE_TOKEN, turn["value"]
+                        )
 
                     self.list_data_dict.append(record)
 
@@ -1358,38 +1448,44 @@ class DataCollatorForSupervisedDataset(object):
 
     def __call__(self, instances: Sequence[Dict]) -> Dict[str, torch.Tensor]:
         packed_sequence = "cu_seqlens" in instances[0]
-        max_len = max(instance['tokens'].shape[0] for instance in instances)
+        max_len = max(instance["tokens"].shape[0] for instance in instances)
         max_len = (max_len - 1) // 64 * 64 + 64
         for instance in instances:
-            pad_len = max_len - instance['tokens'].shape[0]
-            instance['tokens'] = F.pad(instance['tokens'], (0, pad_len), 'constant', 0)
-            instance['labels'] = F.pad(instance['labels'], (0, pad_len), 'constant', -1)
+            pad_len = max_len - instance["tokens"].shape[0]
+            instance["tokens"] = F.pad(instance["tokens"], (0, pad_len), "constant", 0)
+            instance["labels"] = F.pad(instance["labels"], (0, pad_len), "constant", -1)
             if packed_sequence and instance["cu_seqlens"][-1] != max_len:
-                instance["cu_seqlens"] = torch.cat((instance["cu_seqlens"], torch.IntTensor([max_len])), 0)
+                instance["cu_seqlens"] = torch.cat(
+                    (instance["cu_seqlens"], torch.IntTensor([max_len])), 0
+                )
 
         if packed_sequence:
-            max_len_cu = max(instance['cu_seqlens'].shape[0] for instance in instances)
-            max_len_image = max(instance['image'].shape[0] for instance in instances)
+            max_len_cu = max(instance["cu_seqlens"].shape[0] for instance in instances)
+            max_len_image = max(instance["image"].shape[0] for instance in instances)
             for instance in instances:
-                pad_len_cu = max_len_cu - instance['cu_seqlens'].shape[0]
-                instance['cu_seqlens'] = F.pad(instance['cu_seqlens'], (0, pad_len_cu), 'constant', max_len)
+                pad_len_cu = max_len_cu - instance["cu_seqlens"].shape[0]
+                instance["cu_seqlens"] = F.pad(
+                    instance["cu_seqlens"], (0, pad_len_cu), "constant", max_len
+                )
 
-                x = instance['image']
+                x = instance["image"]
                 num_pad = max_len_image - x.shape[0]
-                pad_tensor = torch.zeros(num_pad, *x.shape[1:], dtype=x.dtype, device=x.device)
-                instance['image'] = torch.cat((x, pad_tensor), dim=0)
+                pad_tensor = torch.zeros(
+                    num_pad, *x.shape[1:], dtype=x.dtype, device=x.device
+                )
+                instance["image"] = torch.cat((x, pad_tensor), dim=0)
 
         batch = default_collate(instances)
         tokenizer = self.tokenizer
         model_cfg = self.model_cfg
 
-        tokens = batch['tokens']
-        labels = batch['labels']
-        media_type = model_cfg.data.get('media_type', 'image')
-        if media_type == 'image':
-            media = batch.get('image')
-        elif media_type == 'video':
-            media = batch.get('video')
+        tokens = batch["tokens"]
+        labels = batch["labels"]
+        media_type = model_cfg.data.get("media_type", "image")
+        if media_type == "image":
+            media = batch.get("image")
+        elif media_type == "video":
+            media = batch.get("video")
         else:
             raise ValueError(f"Unsupported media type {media_type}")
 
@@ -1402,8 +1498,12 @@ class DataCollatorForSupervisedDataset(object):
                     seqlen = cu_seqlen[ind + 1] - cu_seqlen[ind]
                     position_ids[-1].extend(list(range(seqlen)))
             position_ids = torch.LongTensor(position_ids)
-            loss_mask = torch.ones(tokens.size(), dtype=torch.float, device=tokens.device)
-            attention_mask = torch.ones(tokens.size(), dtype=torch.long, device=tokens.device)
+            loss_mask = torch.ones(
+                tokens.size(), dtype=torch.float, device=tokens.device
+            )
+            attention_mask = torch.ones(
+                tokens.size(), dtype=torch.long, device=tokens.device
+            )
         else:
             attention_mask, loss_mask, position_ids = get_ltor_masks_and_position_ids(
                 data=tokens,
@@ -1420,33 +1520,37 @@ class DataCollatorForSupervisedDataset(object):
         if media is None:
             raise NotImplementedError
         else:
-            if media_type == 'image':
+            if media_type == "image":
                 media = rearrange(media, "b T c h w -> b T 1 c h w")
-            elif media_type == 'video':
+            elif media_type == "video":
                 media = rearrange(media, "b T F c h w -> b T F c h w")
 
         batch = {
-            'tokens': tokens,
-            'labels': labels,
-            'attention_mask': attention_mask,
-            'loss_mask': loss_mask,
-            'position_ids': position_ids,
-            'media': media,
+            "tokens": tokens,
+            "labels": labels,
+            "attention_mask": attention_mask,
+            "loss_mask": loss_mask,
+            "position_ids": position_ids,
+            "media": media,
         }
         if packed_sequence:
             batch["cu_seqlens"] = cu_seqlens
         return batch
 
 
-def make_supervised_data_module(tokenizer, image_processor, model_cfg, each_file_from_path=None) -> Dict:
+def make_supervised_data_module(
+    tokenizer, image_processor, model_cfg, each_file_from_path=None
+) -> Dict:
     """Make dataset and collator for supervised fine-tuning."""
     data_cfg = model_cfg.data
     mm_cfg = model_cfg.mm_cfg
     add_extra_token = 1
-    if getattr(model_cfg, 'no_seqlen_plus_one_input_tokens', False):
+    if getattr(model_cfg, "no_seqlen_plus_one_input_tokens", False):
         add_extra_token = 0
     crop_size = mm_cfg.vision_encoder.get("crop_size", (224, 224))
-    data_path = each_file_from_path if each_file_from_path is not None else data_cfg.data_path
+    data_path = (
+        each_file_from_path if each_file_from_path is not None else data_cfg.data_path
+    )
     train_dataset = NevaDataset(
         tokenizer=tokenizer,
         data_path=data_path,
@@ -1457,23 +1561,23 @@ def make_supervised_data_module(tokenizer, image_processor, model_cfg, each_file
             conv_template=data_cfg.get("conv_template", "nvgpt"),
             patch_dim=model_cfg.mm_cfg.vision_encoder.patch_dim,
             crop_size=crop_size,
-            image_folder=data_cfg.get('image_folder', None),
-            video_folder=data_cfg.get('video_folder', None),
+            image_folder=data_cfg.get("image_folder", None),
+            video_folder=data_cfg.get("video_folder", None),
             image_aspect_ratio=data_cfg.image_aspect_ratio,
-            use_im_start_end=getattr(model_cfg.mm_cfg, 'use_im_start_end', False),
+            use_im_start_end=getattr(model_cfg.mm_cfg, "use_im_start_end", False),
             image_processor=image_processor,
             add_extra_token=add_extra_token,
             context_length=model_cfg.encoder_seq_length,
-            media_type=data_cfg.get('media_type', 'image'),
-            num_frames=data_cfg.get('num_frames', -1),
-            use_lita=getattr(model_cfg.mm_cfg, 'use_lita', False),
-            lita=getattr(model_cfg.mm_cfg, 'lita', {}),
-            mm_mlp_adapter_type=model_cfg.mm_cfg.get('mm_mlp_adapter_type', 'linear'),
+            media_type=data_cfg.get("media_type", "image"),
+            num_frames=data_cfg.get("num_frames", -1),
+            use_lita=getattr(model_cfg.mm_cfg, "use_lita", False),
+            lita=getattr(model_cfg.mm_cfg, "lita", {}),
+            mm_mlp_adapter_type=model_cfg.mm_cfg.get("mm_mlp_adapter_type", "linear"),
         ),
         data_cfg=dict(
-            splice_single_frame=data_cfg.get('splice_single_frame', None),
-            num_frames=data_cfg.get('num_frames', -1),
-            sep_token_between_frames=data_cfg.get('sep_token_between_frames', False),
+            splice_single_frame=data_cfg.get("splice_single_frame", None),
+            num_frames=data_cfg.get("num_frames", -1),
+            sep_token_between_frames=data_cfg.get("sep_token_between_frames", False),
         ),
     )
 
@@ -1494,7 +1598,9 @@ class NevaPackedSeqDatatset(Dataset):
             "cu_seqlens": torch.IntTensor(self.ds[doc_start]),
             "tokens": torch.LongTensor(self.ds[doc_start + 1]),
             "labels": torch.LongTensor(self.ds[doc_start + 2]),
-            "image": torch.FloatTensor(self.ds[doc_start + 3]).reshape(-1, 3, *self.crop_size),
+            "image": torch.FloatTensor(self.ds[doc_start + 3]).reshape(
+                -1, 3, *self.crop_size
+            ),
         }
 
         return batch

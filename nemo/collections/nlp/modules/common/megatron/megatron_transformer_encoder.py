@@ -49,7 +49,9 @@ except (ImportError, ModuleNotFoundError):
 __all__ = ["MegatronTransformerEncoderModule"]
 
 
-class MegatronTransformerEncoderModule(MegatronModule, Exportable, MegatronEncoderModule):
+class MegatronTransformerEncoderModule(
+    MegatronModule, Exportable, MegatronEncoderModule
+):
     """Transformer encoder model."""
 
     def __init__(
@@ -81,10 +83,10 @@ class MegatronTransformerEncoderModule(MegatronModule, Exportable, MegatronEncod
         persist_layer_norm=False,
         openai_gelu=False,
         onnx_safe=False,
-        activation='gelu',
+        activation="gelu",
         bias=True,
-        normalization='layernorm',
-        transformer_block_type='pre_ln',
+        normalization="layernorm",
+        transformer_block_type="pre_ln",
         headscale=False,
         parent_model_type=ModelType.encoder_or_decoder,
         megatron_legacy=False,
@@ -92,7 +94,7 @@ class MegatronTransformerEncoderModule(MegatronModule, Exportable, MegatronEncod
         num_moe_experts=1,
         moe_frequency=1,
         moe_dropout=0.0,
-        position_embedding_type='learned_absolute',
+        position_embedding_type="learned_absolute",
         use_flash_attention=False,
     ):
         super(MegatronTransformerEncoderModule, self).__init__(config=config)
@@ -114,7 +116,7 @@ class MegatronTransformerEncoderModule(MegatronModule, Exportable, MegatronEncod
 
             assert (
                 hidden_size % num_attention_heads == 0
-            ), 'hidden_size must be divisible by num_attention_heads if kv_channels is None'
+            ), "hidden_size must be divisible by num_attention_heads if kv_channels is None"
             kv_channels = hidden_size // num_attention_heads
 
         # Transformer.
@@ -161,7 +163,7 @@ class MegatronTransformerEncoderModule(MegatronModule, Exportable, MegatronEncod
             position_embedding_type=position_embedding_type,
             use_flash_attention=use_flash_attention,
         )
-        self._model_key = 'model'
+        self._model_key = "model"
 
     def set_input_tensor(self, input_tensor):
         """See megatron.model.transformer.set_input_tensor()"""
@@ -201,12 +203,16 @@ class MegatronTransformerEncoderModule(MegatronModule, Exportable, MegatronEncod
 
         return enc_output
 
-    def state_dict_for_save_checkpoint(self, destination=None, prefix='', keep_vars=False):
+    def state_dict_for_save_checkpoint(
+        self, destination=None, prefix="", keep_vars=False
+    ):
         """For easy load."""
 
         state_dict_ = {}
 
-        state_dict_[self._model_key] = self.model.state_dict_for_save_checkpoint(destination, prefix, keep_vars)
+        state_dict_[self._model_key] = self.model.state_dict_for_save_checkpoint(
+            destination, prefix, keep_vars
+        )
 
         return state_dict_
 
@@ -217,20 +223,22 @@ class MegatronTransformerEncoderModule(MegatronModule, Exportable, MegatronEncod
         if self._model_key in state_dict:
             state_dict_ = state_dict[self._model_key]
         # for backward compatibility.
-        elif 'transformer' in state_dict:
-            state_dict_ = state_dict['transformer']
+        elif "transformer" in state_dict:
+            state_dict_ = state_dict["transformer"]
         else:
             # for backward compatibility.
             state_dict_ = {}
             for key in state_dict.keys():
-                if 'transformer.' in key:
-                    state_dict_[key.split('transformer.')[1]] = state_dict[key]
+                if "transformer." in key:
+                    state_dict_[key.split("transformer.")[1]] = state_dict[key]
 
         # for backward compatibility.
         state_dict_self_attention = {}
         for key in state_dict_.keys():
-            if '.attention.' in key:
-                state_dict_self_attention[key.replace(".attention.", ".self_attention.")] = state_dict_[key]
+            if ".attention." in key:
+                state_dict_self_attention[
+                    key.replace(".attention.", ".self_attention.")
+                ] = state_dict_[key]
             else:
                 state_dict_self_attention[key] = state_dict_[key]
         state_dict_ = state_dict_self_attention
@@ -238,7 +246,9 @@ class MegatronTransformerEncoderModule(MegatronModule, Exportable, MegatronEncod
         self.model.load_state_dict(state_dict_, strict=strict)
 
 
-class MultiMegatronTransformerEncoderModule(MegatronModule, Exportable, MegatronEncoderModule):
+class MultiMegatronTransformerEncoderModule(
+    MegatronModule, Exportable, MegatronEncoderModule
+):
     """Transformer encoder model."""
 
     def __init__(
@@ -271,10 +281,10 @@ class MultiMegatronTransformerEncoderModule(MegatronModule, Exportable, Megatron
         persist_layer_norm=False,
         openai_gelu=False,
         onnx_safe=False,
-        activation='gelu',
+        activation="gelu",
         bias=True,
-        normalization='layernorm',
-        transformer_block_type='pre_ln',
+        normalization="layernorm",
+        transformer_block_type="pre_ln",
         headscale=False,
         parent_model_type=ModelType.encoder_or_decoder,
         megatron_legacy=False,
@@ -282,7 +292,7 @@ class MultiMegatronTransformerEncoderModule(MegatronModule, Exportable, Megatron
         num_moe_experts=1,
         moe_frequency=1,
         moe_dropout=0.0,
-        position_embedding_type='learned_absolute',
+        position_embedding_type="learned_absolute",
         use_flash_attention=False,
     ):
         super(MultiMegatronTransformerEncoderModule, self).__init__(config=config)
@@ -304,7 +314,7 @@ class MultiMegatronTransformerEncoderModule(MegatronModule, Exportable, Megatron
 
             assert (
                 hidden_size % num_attention_heads == 0
-            ), 'hidden_size must be divisible by num_attention_heads if kv_channels is None'
+            ), "hidden_size must be divisible by num_attention_heads if kv_channels is None"
             kv_channels = hidden_size // num_attention_heads
 
         # Transformer List
@@ -357,7 +367,7 @@ class MultiMegatronTransformerEncoderModule(MegatronModule, Exportable, Megatron
 
         self.model = torch.nn.ModuleList(self.model)
 
-        self._model_key = 'model'
+        self._model_key = "model"
 
     def set_input_tensor(self, input_tensor):
         """See megatron.model.transformer.set_input_tensor()"""
@@ -384,7 +394,9 @@ class MultiMegatronTransformerEncoderModule(MegatronModule, Exportable, Megatron
         for encoder_number in range(len(self.model)):
             enc_input_ = enc_input[encoder_number]
             enc_attn_mask_ = enc_attn_mask[encoder_number]
-            enc_self_attention_relative_position_bias_ = enc_self_attention_relative_position_bias[encoder_number]
+            enc_self_attention_relative_position_bias_ = (
+                enc_self_attention_relative_position_bias[encoder_number]
+            )
 
             if self.use_flash_attention:
                 enc_attn_mask_3d = enc_attn_mask_ < 0.5
@@ -412,12 +424,16 @@ class MultiMegatronTransformerEncoderModule(MegatronModule, Exportable, Megatron
 
         return enc_outputs
 
-    def state_dict_for_save_checkpoint(self, destination=None, prefix='', keep_vars=False):
+    def state_dict_for_save_checkpoint(
+        self, destination=None, prefix="", keep_vars=False
+    ):
         """For easy load."""
 
         state_dict_ = {}
 
-        state_dict_[self._model_key] = self.model.state_dict_for_save_checkpoint(destination, prefix, keep_vars)
+        state_dict_[self._model_key] = self.model.state_dict_for_save_checkpoint(
+            destination, prefix, keep_vars
+        )
 
         return state_dict_
 
@@ -428,20 +444,22 @@ class MultiMegatronTransformerEncoderModule(MegatronModule, Exportable, Megatron
         if self._model_key in state_dict:
             state_dict_ = state_dict[self._model_key]
         # for backward compatibility.
-        elif 'transformer' in state_dict:
-            state_dict_ = state_dict['transformer']
+        elif "transformer" in state_dict:
+            state_dict_ = state_dict["transformer"]
         else:
             # for backward compatibility.
             state_dict_ = {}
             for key in state_dict.keys():
-                if 'transformer.' in key:
-                    state_dict_[key.split('transformer.')[1]] = state_dict[key]
+                if "transformer." in key:
+                    state_dict_[key.split("transformer.")[1]] = state_dict[key]
 
         # for backward compatibility.
         state_dict_self_attention = {}
         for key in state_dict_.keys():
-            if '.attention.' in key:
-                state_dict_self_attention[key.replace(".attention.", ".self_attention.")] = state_dict_[key]
+            if ".attention." in key:
+                state_dict_self_attention[
+                    key.replace(".attention.", ".self_attention.")
+                ] = state_dict_[key]
             else:
                 state_dict_self_attention[key] = state_dict_[key]
         state_dict_ = state_dict_self_attention

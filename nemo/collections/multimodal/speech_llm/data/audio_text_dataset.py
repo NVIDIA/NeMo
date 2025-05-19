@@ -52,10 +52,10 @@ except (ImportError, ModuleNotFoundError):
     HAVE_MEGATRON_CORE = False
 
 __all__ = [
-    'AudioTextDataset',
-    'TarredAudioTextDataset',
-    'get_tarred_audio_text_dataset_from_config',
-    'get_audio_text_dataset_from_config',
+    "AudioTextDataset",
+    "TarredAudioTextDataset",
+    "get_tarred_audio_text_dataset_from_config",
+    "get_audio_text_dataset_from_config",
 ]
 
 
@@ -89,7 +89,9 @@ def _audio_collate_fn(audio_signals, audio_lengths):
     return audio_signals_padded, audio_lengths
 
 
-def _collate_item(item: Union[torch.Tensor, np.ndarray, List], max_length: int, pad_id: int = 0):
+def _collate_item(
+    item: Union[torch.Tensor, np.ndarray, List], max_length: int, pad_id: int = 0
+):
     # function copied from nemo/collections/nlp/data/language_modelling/megatron/gpt_sft_dataset.py
     item = maybe_cast_to_list(item)
     # max_length = max([len(x) for x in item]) if item else 0
@@ -112,11 +114,11 @@ def _speechllm_audio_text_collate_fn(
     audio_lengths = [x["audio_length"] for x in batch]
     audio_signal, audio_lengths = _audio_collate_fn(audio_signal, audio_lengths)
 
-    input_ids = [item['input_ids'][:-1] for item in batch]
-    labels = [item['input_ids'][1:] for item in batch]
-    contexts = [item['context_ids'] for item in batch]
-    context_lengths = torch.LongTensor([item['context_length'] for item in batch])
-    answers = [item['answer_ids'] for item in batch]
+    input_ids = [item["input_ids"][:-1] for item in batch]
+    labels = [item["input_ids"][1:] for item in batch]
+    contexts = [item["context_ids"] for item in batch]
+    context_lengths = torch.LongTensor([item["context_length"] for item in batch])
+    answers = [item["answer_ids"] for item in batch]
 
     loss_mask = [build_loss_mask(item)[1:] for item in batch]
 
@@ -131,27 +133,37 @@ def _speechllm_audio_text_collate_fn(
 
     position_ids = [list(range(max_length)) for _ in batch]
     position_ids = torch.LongTensor(position_ids)
-    input_ids = torch.LongTensor(_collate_item(input_ids, max_length=max_length, pad_id=text_pad_id))
+    input_ids = torch.LongTensor(
+        _collate_item(input_ids, max_length=max_length, pad_id=text_pad_id)
+    )
     input_length = torch.LongTensor([len(x) for x in input_ids])
-    labels = torch.LongTensor(_collate_item(labels, max_length=max_length, pad_id=text_pad_id))
-    loss_mask = torch.LongTensor(_collate_item(loss_mask, max_length=max_length, pad_id=0))
-    contexts = torch.LongTensor(_collate_item(contexts, max_length=max_length, pad_id=text_pad_id))
-    answers = torch.LongTensor(_collate_item(answers, max_length=max_length, pad_id=text_pad_id))
+    labels = torch.LongTensor(
+        _collate_item(labels, max_length=max_length, pad_id=text_pad_id)
+    )
+    loss_mask = torch.LongTensor(
+        _collate_item(loss_mask, max_length=max_length, pad_id=0)
+    )
+    contexts = torch.LongTensor(
+        _collate_item(contexts, max_length=max_length, pad_id=text_pad_id)
+    )
+    answers = torch.LongTensor(
+        _collate_item(answers, max_length=max_length, pad_id=text_pad_id)
+    )
 
     batch = {
-        'sample_ids': sample_ids,
-        'audio_signal': audio_signal,
-        'audio_signal_length': audio_lengths,
-        'tokens': input_ids,
-        'tokens_length': input_length,
-        'labels': labels,
-        'loss_mask': loss_mask,
-        'position_ids': position_ids,
-        'contexts': contexts,
-        'context_lengths': context_lengths,
-        'answers': answers,
-        'max_length': torch.LongTensor(max_length),
-        'metadata': [x['metadata'] for x in batch],
+        "sample_ids": sample_ids,
+        "audio_signal": audio_signal,
+        "audio_signal_length": audio_lengths,
+        "tokens": input_ids,
+        "tokens_length": input_length,
+        "labels": labels,
+        "loss_mask": loss_mask,
+        "position_ids": position_ids,
+        "contexts": contexts,
+        "context_lengths": context_lengths,
+        "answers": answers,
+        "max_length": torch.LongTensor(max_length),
+        "metadata": [x["metadata"] for x in batch],
     }
 
     return batch
@@ -165,7 +177,7 @@ def _speechllm_multi_audio_text_collate_fn(
     text_pad_id: int,
 ):
     """Collate function for multi audio case."""
-    context_start_idx = [item['context_start_idx'] for item in batch]
+    context_start_idx = [item["context_start_idx"] for item in batch]
 
     audio_signals = [x["audio_signal"] for x in batch]
     audio_lengths = [x["audio_length"] for x in batch]
@@ -173,21 +185,27 @@ def _speechllm_multi_audio_text_collate_fn(
 
     # put all audios from all samples in one batch
     audio_signals_merged = [item for audio_list in audio_signals for item in audio_list]
-    audio_lengths_merged = [item for length_list in audio_lengths for item in length_list]
-    audio_signals_merged, audio_lengths_merged = _audio_collate_fn(audio_signals_merged, audio_lengths_merged)
+    audio_lengths_merged = [
+        item for length_list in audio_lengths for item in length_list
+    ]
+    audio_signals_merged, audio_lengths_merged = _audio_collate_fn(
+        audio_signals_merged, audio_lengths_merged
+    )
 
     for i in range(len(batch)):
         # create dummy audio_signal and audio_length for _speechllm_audio_text_collate_fn()
         batch[i]["audio_signal"] = audio_signals[i][0]
         batch[i]["audio_length"] = audio_lengths[i][0]
 
-    batch = _speechllm_audio_text_collate_fn(batch, tokens_to_generate, pad_to_max_length, max_seq_length, text_pad_id)
+    batch = _speechllm_audio_text_collate_fn(
+        batch, tokens_to_generate, pad_to_max_length, max_seq_length, text_pad_id
+    )
 
     # add multi audio specific fields
-    batch['context_start_idx'] = list(context_start_idx)
-    batch['num_audios'] = torch.LongTensor(num_audios)
-    batch['audio_signal'] = audio_signals_merged
-    batch['audio_signal_length'] = audio_lengths_merged
+    batch["context_start_idx"] = list(context_start_idx)
+    batch["num_audios"] = torch.LongTensor(num_audios)
+    batch["audio_signal"] = audio_signals_merged
+    batch["audio_signal_length"] = audio_lengths_merged
 
     return batch
 
@@ -248,10 +266,10 @@ class AudioTextDataset(TextProcessing, Dataset):
     def __init__(
         self,
         manifest_filepath: str,
-        tokenizer: 'nemo.collections.common.tokenizers.TokenizerSpec',
+        tokenizer: "nemo.collections.common.tokenizers.TokenizerSpec",
         sample_rate: int,
         int_values: bool = False,
-        augmentor: 'nemo.collections.asr.parts.perturb.AudioAugmentor' = None,
+        augmentor: "nemo.collections.asr.parts.perturb.AudioAugmentor" = None,
         max_duration: Optional[int] = None,
         min_duration: Optional[int] = None,
         max_utts: int = 0,
@@ -273,8 +291,8 @@ class AudioTextDataset(TextProcessing, Dataset):
         virtual_tokens: int = 0,
         tokens_to_generate: int = 0,
         index_by_file_id: bool = False,
-        context_key: str = 'context',
-        answer_key: str = 'answer',
+        context_key: str = "context",
+        answer_key: str = "answer",
         end_string: Optional[str] = None,
         context_file: Optional[Union[List[str], str]] = None,
         audio_locator: Optional[str] = None,
@@ -311,7 +329,9 @@ class AudioTextDataset(TextProcessing, Dataset):
             manifest_filepath = manifest_filepath.split(",")
 
         # If necessary, cache manifests and audio from object store
-        cache_datastore_manifests(manifest_filepaths=manifest_filepath, cache_audio=True)
+        cache_datastore_manifests(
+            manifest_filepaths=manifest_filepath, cache_audio=True
+        )
 
         self.collection = collections.SpeechLLMAudioTextCollection(
             manifests_files=manifest_filepath,
@@ -325,7 +345,9 @@ class AudioTextDataset(TextProcessing, Dataset):
             answer_key=answer_key,
         )
 
-        self.featurizer = WaveformFeaturizer(sample_rate=sample_rate, int_values=int_values, augmentor=augmentor)
+        self.featurizer = WaveformFeaturizer(
+            sample_rate=sample_rate, int_values=int_values, augmentor=augmentor
+        )
         self.trim = trim
         self.channel_selector = channel_selector
 
@@ -361,10 +383,10 @@ class AudioTextDataset(TextProcessing, Dataset):
         text_data = self._process_example(context=sample.context, output=sample.answer)
 
         output.update(text_data)
-        output['metadata'] = {
-            'audio_filepath': sample.audio_file,
-            'offset': offset,
-            'duration': sample.duration,
+        output["metadata"] = {
+            "audio_filepath": sample.audio_file,
+            "offset": offset,
+            "duration": sample.duration,
         }
         return output
 
@@ -471,18 +493,18 @@ class MultiAudioTextDataset(AudioTextDataset):
 
         text_data = self._process_example(context=sample.context, output=sample.answer)
 
-        if isinstance(output["audio_signal"], list) and len(output["audio_signal"]) + 1 != len(
-            text_data['context_start_idx']
-        ):
+        if isinstance(output["audio_signal"], list) and len(
+            output["audio_signal"]
+        ) + 1 != len(text_data["context_start_idx"]):
             raise ValueError(
                 f"The number of text segments ({len(text_data['context_start_idx'])}) must be one more than number of audios ({len(output['audio_signal'])})"
             )
 
         output.update(text_data)
-        output['metadata'] = {
-            'audio_filepath': sample.audio_file,
-            'offset': offsets,
-            'duration': sample.duration,
+        output["metadata"] = {
+            "audio_filepath": sample.audio_file,
+            "offset": offsets,
+            "duration": sample.duration,
         }
         return output
 
@@ -652,10 +674,10 @@ class TarredAudioTextDataset(TextProcessing, IterableDataset):
         self,
         audio_tar_filepaths: Union[str, List[str]],
         manifest_filepath: str,
-        tokenizer: 'nemo.collections.common.tokenizers.TokenizerSpec',
+        tokenizer: "nemo.collections.common.tokenizers.TokenizerSpec",
         sample_rate: int,
         int_values: bool = False,
-        augmentor: Optional['nemo.collections.asr.parts.perturb.AudioAugmentor'] = None,
+        augmentor: Optional["nemo.collections.asr.parts.perturb.AudioAugmentor"] = None,
         shuffle_n: int = 0,
         min_duration: Optional[float] = None,
         max_duration: Optional[float] = None,
@@ -678,8 +700,8 @@ class TarredAudioTextDataset(TextProcessing, IterableDataset):
         prompt_template: str = None,
         virtual_tokens: int = 0,
         tokens_to_generate: int = 0,
-        context_key: str = 'context',
-        answer_key: str = 'answer',
+        context_key: str = "context",
+        answer_key: str = "answer",
         end_string: Optional[str] = None,
         context_file: Optional[Union[List[str], str]] = None,
     ):
@@ -730,7 +752,9 @@ class TarredAudioTextDataset(TextProcessing, IterableDataset):
 
         self.len = self._compute_len()
 
-        self.featurizer = WaveformFeaturizer(sample_rate=sample_rate, int_values=int_values, augmentor=augmentor)
+        self.featurizer = WaveformFeaturizer(
+            sample_rate=sample_rate, int_values=int_values, augmentor=augmentor
+        )
         self.trim = trim
 
         audio_tar_filepaths = expand_sharded_filepaths(
@@ -752,8 +776,8 @@ class TarredAudioTextDataset(TextProcessing, IterableDataset):
             webdataset_split_by_workers,
             wds.shuffle(shuffle_n),
             wds.tarfile_to_samples(),
-            wds.rename(audio=VALID_FILE_FORMATS, key='__key__'),
-            wds.to_tuple('audio', 'key'),
+            wds.rename(audio=VALID_FILE_FORMATS, key="__key__"),
+            wds.to_tuple("audio", "key"),
             self._filter,
             self._loop_offsets,
             wds.map(self._build_sample),
@@ -822,14 +846,16 @@ class TarredAudioTextDataset(TextProcessing, IterableDataset):
             output["audio_length"] = torch.tensor(80)
 
         # Text features
-        text_data = self._process_example(context=manifest_entry.context, output=manifest_entry.answer)
+        text_data = self._process_example(
+            context=manifest_entry.context, output=manifest_entry.answer
+        )
 
         output.update(text_data)
 
-        output['metadata'] = {
-            'audio_filepath': audio_filename,
-            'offset': offset,
-            'duration': manifest_entry.duration,
+        output["metadata"] = {
+            "audio_filepath": audio_filename,
+            "offset": offset,
+            "duration": manifest_entry.duration,
         }
         return output
 
@@ -841,13 +867,19 @@ class TarredAudioTextDataset(TextProcessing, IterableDataset):
 
     def _compute_len(self):
         # TODO: need to figure out why here needs to be divided by world_size, while in ASR we don't need to.
-        if self.shard_manifests and torch.distributed.is_available() and torch.distributed.is_initialized():
+        if (
+            self.shard_manifests
+            and torch.distributed.is_available()
+            and torch.distributed.is_initialized()
+        ):
             my_len = torch.tensor(len(self.collection), dtype=torch.int32).cuda()
             torch.distributed.all_reduce(my_len)
             my_len = my_len.int() // parallel_state.get_data_parallel_world_size()
-            logging.info(f'Sharded manifests: Total length: {my_len}')
+            logging.info(f"Sharded manifests: Total length: {my_len}")
         else:
-            my_len = len(self.collection) // parallel_state.get_data_parallel_world_size()
+            my_len = (
+                len(self.collection) // parallel_state.get_data_parallel_world_size()
+            )
 
         return my_len
 
@@ -866,13 +898,13 @@ def get_tarred_audio_text_dataset(
     answer_only_loss=True,
     virtual_tokens=0,
 ):
-    tarred_audio_filepaths = config['tarred_audio_filepaths']
-    manifest_filepaths = config['manifest_filepath']
+    tarred_audio_filepaths = config["tarred_audio_filepaths"]
+    manifest_filepaths = config["manifest_filepath"]
     datasets = []
     tarred_audio_filepaths = convert_to_config_list(tarred_audio_filepaths)
     manifest_filepaths = convert_to_config_list(manifest_filepaths)
 
-    bucketing_weights = config.get('bucketing_weights', None)  # For upsampling buckets
+    bucketing_weights = config.get("bucketing_weights", None)  # For upsampling buckets
     if bucketing_weights:
         for idx, weight in enumerate(bucketing_weights):
             if not isinstance(weight, int) or weight <= 0:
@@ -883,10 +915,10 @@ def get_tarred_audio_text_dataset(
             f"manifest_filepaths (length={len(manifest_filepaths)}) and tarred_audio_filepaths (length={len(tarred_audio_filepaths)}) need to have the same number of buckets."
         )
 
-    if 'labels' not in config:
+    if "labels" not in config:
         logging.warning(f"dataset does not have explicitly defined labels")
 
-    if 'max_utts' in config:
+    if "max_utts" in config:
         raise ValueError('"max_utts" parameter is not supported for tarred datasets')
 
     for dataset_idx, (tarred_audio_filepath, manifest_filepath) in enumerate(
@@ -901,36 +933,38 @@ def get_tarred_audio_text_dataset(
             audio_tar_filepaths=tarred_audio_filepath,
             manifest_filepath=manifest_filepath,
             tokenizer=tokenizer,
-            sample_rate=config['sample_rate'],
-            int_values=config.get('int_values', False),
+            sample_rate=config["sample_rate"],
+            int_values=config.get("int_values", False),
             augmentor=augmentor,
             shuffle_n=shuffle_n,
-            max_duration=config.get('max_duration', None),
-            min_duration=config.get('min_duration', None),
-            trim=config.get('trim_silence', False),
-            shard_strategy=config.get('tarred_shard_strategy', 'scatter'),
-            shard_manifests=config.get('shard_manifests', False),
+            max_duration=config.get("max_duration", None),
+            min_duration=config.get("min_duration", None),
+            trim=config.get("trim_silence", False),
+            shard_strategy=config.get("tarred_shard_strategy", "scatter"),
+            shard_manifests=config.get("shard_manifests", False),
             global_rank=global_rank,
             world_size=world_size,
             max_seq_length=config.max_seq_length,
             min_seq_length=config.min_seq_length,
-            add_bos=config.get('add_bos', False),
-            add_eos=config.get('add_eos', True),
-            add_sep=config.get('add_sep', False),
+            add_bos=config.get("add_bos", False),
+            add_eos=config.get("add_eos", True),
+            add_sep=config.get("add_sep", False),
             sep_id=sep_id,
-            separate_prompt_and_response_with_newline=config.get('separate_prompt_and_response_with_newline', True),
+            separate_prompt_and_response_with_newline=config.get(
+                "separate_prompt_and_response_with_newline", True
+            ),
             answer_only_loss=answer_only_loss,
-            truncation_field=config.get('truncation_field', 'context'),
+            truncation_field=config.get("truncation_field", "context"),
             pad_to_max_length=False,
-            prompt_template=config.get('prompt_template', None),
+            prompt_template=config.get("prompt_template", None),
             virtual_tokens=virtual_tokens,
             tokens_to_generate=config.get(
-                'tokens_to_generate', 0
+                "tokens_to_generate", 0
             ),  # used at inference time to allocate tensor positions for tokens that will be generated by inf procedure.
-            context_key=config.get('context_key', 'context'),
-            answer_key=config.get('answer_key', 'answer'),
-            end_string=config.get('end_string', None),
-            context_file=config.get('context_file', None),
+            context_key=config.get("context_key", "context"),
+            answer_key=config.get("answer_key", "answer"),
+            end_string=config.get("end_string", None),
+            context_file=config.get("context_file", None),
         )
 
         if bucketing_weights:
@@ -939,7 +973,7 @@ def get_tarred_audio_text_dataset(
             datasets.append(dataset)
 
     with open_dict(config):  # patch for bucketing tarred datasets
-        config['batch_size'] = config.get("micro_batch_size", 1)
+        config["batch_size"] = config.get("micro_batch_size", 1)
     return get_chain_dataset(datasets=datasets, ds_config=config, rank=global_rank)
 
 
@@ -954,20 +988,22 @@ def get_concat_tarred_audio_text_dataset(
     answer_only_loss=True,
     virtual_tokens=0,
 ):
-    tarred_audio_filepaths = config['tarred_audio_filepaths']
-    manifest_filepaths = config['manifest_filepath']
+    tarred_audio_filepaths = config["tarred_audio_filepaths"]
+    manifest_filepaths = config["manifest_filepath"]
     datasets = []
     for dataset_idx, (tarred_audio_filepath, manifest_filepath) in enumerate(
         zip(tarred_audio_filepaths, manifest_filepaths)
     ):
         conf = copy.deepcopy(config)
-        conf['manifest_filepath'] = manifest_filepath
-        conf['tarred_audio_filepaths'] = tarred_audio_filepath
-        context_files = config.get('context_file', None)
-        if isinstance(context_files, ListConfig) and len(context_files) == len(manifest_filepaths):
-            conf['context_file'] = context_files[dataset_idx]
+        conf["manifest_filepath"] = manifest_filepath
+        conf["tarred_audio_filepaths"] = tarred_audio_filepath
+        context_files = config.get("context_file", None)
+        if isinstance(context_files, ListConfig) and len(context_files) == len(
+            manifest_filepaths
+        ):
+            conf["context_file"] = context_files[dataset_idx]
         else:
-            conf['context_file'] = context_files
+            conf["context_file"] = context_files
         dataset = get_tarred_audio_text_dataset(
             config=conf,
             tokenizer=tokenizer,
@@ -981,10 +1017,10 @@ def get_concat_tarred_audio_text_dataset(
         )
         datasets.append(dataset)
 
-    concat_sampling_probabilities = config.get('concat_sampling_probabilities', None)
-    if not isinstance(concat_sampling_probabilities, ListConfig) or len(concat_sampling_probabilities) != len(
-        datasets
-    ):
+    concat_sampling_probabilities = config.get("concat_sampling_probabilities", None)
+    if not isinstance(concat_sampling_probabilities, ListConfig) or len(
+        concat_sampling_probabilities
+    ) != len(datasets):
         logging.info(
             f"concat_sampling_probabilities is not provided or is not of the same size as datasets, using uniform sampling."
         )
@@ -992,12 +1028,12 @@ def get_concat_tarred_audio_text_dataset(
 
     dataset = ConcatDataset(
         datasets,
-        sampling_technique=config.get('concat_sampling_technique', 'temperature'),
-        sampling_temperature=config.get('concat_sampling_temperature', 5),
-        sampling_scale=config.get('concat_sampling_scale', 1),
+        sampling_technique=config.get("concat_sampling_technique", "temperature"),
+        sampling_temperature=config.get("concat_sampling_temperature", 5),
+        sampling_scale=config.get("concat_sampling_scale", 1),
         sampling_probabilities=concat_sampling_probabilities,
-        shuffle=config.get('concat_shuffle', True),
-        seed=config.get('concat_sampling_seed', None),
+        shuffle=config.get("concat_shuffle", True),
+        seed=config.get("concat_sampling_seed", None),
         global_rank=global_rank,
         world_size=world_size,
     )
@@ -1014,19 +1050,30 @@ def get_tarred_audio_text_dataset_from_config(
     answer_only_loss: bool = True,
     virtual_tokens: int = 0,
 ):
-    is_concat = config.get('is_concat', False)
+    is_concat = config.get("is_concat", False)
     if is_concat:
-        if 'concat_sampling_technique' in config and config['concat_sampling_technique'] is None:
+        if (
+            "concat_sampling_technique" in config
+            and config["concat_sampling_technique"] is None
+        ):
             logging.warning(
                 f"Concat dataset requires `concat_sampling_technique` but it was not provided. Config: {config}"
             )
             return None
 
     data_parallel_size = parallel_state.get_data_parallel_world_size()
-    num_micro_batches = config.global_batch_size // (config.micro_batch_size * data_parallel_size)
-    global_batch_size_on_this_data_parallel_rank = num_micro_batches * config.micro_batch_size
-    shuffle = config['shuffle']
-    shuffle_n = config.get('shuffle_n', 4 * global_batch_size_on_this_data_parallel_rank) if shuffle else 0
+    num_micro_batches = config.global_batch_size // (
+        config.micro_batch_size * data_parallel_size
+    )
+    global_batch_size_on_this_data_parallel_rank = (
+        num_micro_batches * config.micro_batch_size
+    )
+    shuffle = config["shuffle"]
+    shuffle_n = (
+        config.get("shuffle_n", 4 * global_batch_size_on_this_data_parallel_rank)
+        if shuffle
+        else 0
+    )
     if is_concat:
         dataset = get_concat_tarred_audio_text_dataset(
             config=config,
@@ -1065,20 +1112,28 @@ def get_audio_text_dataset_from_config(
     virtual_tokens: int = 0,
 ):
     if isinstance(config.manifest_filepath, str):
-        manifest_filepath = config.manifest_filepath.split(',')
+        manifest_filepath = config.manifest_filepath.split(",")
     else:
         manifest_filepath = config.manifest_filepath
 
-    data_cls = MultiAudioTextDataset if config.get('audio_locator', None) else AudioTextDataset
+    data_cls = (
+        MultiAudioTextDataset if config.get("audio_locator", None) else AudioTextDataset
+    )
     logging.info(f"Using `{data_cls.__name__}` for dataset")
     datasets = []
     if is_train:
         # Construct the data prefix list for `get_datasets_weights_and_num_samples()`
         # that is of the format [weight1,file_name1,weight2,file_name2,...]
-        concat_sampling_probabilities = config.get('concat_sampling_probabilities', None)
+        concat_sampling_probabilities = config.get(
+            "concat_sampling_probabilities", None
+        )
         if concat_sampling_probabilities is None:
-            concat_sampling_probabilities = [1.0 / len(manifest_filepath)] * len(manifest_filepath)
-        elif len(config.get('concat_sampling_probabilities', None)) != len(manifest_filepath):
+            concat_sampling_probabilities = [1.0 / len(manifest_filepath)] * len(
+                manifest_filepath
+            )
+        elif len(config.get("concat_sampling_probabilities", None)) != len(
+            manifest_filepath
+        ):
             raise ValueError(
                 (
                     f"concat_sampling_probabilities must be of the same size as manifest_filepath.",
@@ -1092,57 +1147,69 @@ def get_audio_text_dataset_from_config(
 
         num_samples_per_dataset = get_num_samples_from_files(manifest_filepath)
         num_train_samples = [len(manifest_filepath) * max(num_samples_per_dataset)]
-        _, _, num_train_samples_per_dataset = get_datasets_weights_and_num_samples(data_prefix, num_train_samples)
-        num_train_samples_after_blend = sum([x[0] for x in num_train_samples_per_dataset])
+        _, _, num_train_samples_per_dataset = get_datasets_weights_and_num_samples(
+            data_prefix, num_train_samples
+        )
+        num_train_samples_after_blend = sum(
+            [x[0] for x in num_train_samples_per_dataset]
+        )
     else:
         num_train_samples_per_dataset = [[None]] * len(manifest_filepath)
 
-    for dataset_idx, (file_path, num_samples) in enumerate(zip(manifest_filepath, num_train_samples_per_dataset)):
-        context_file = config.get('context_file', None)
-        if isinstance(context_file, ListConfig) and len(context_file) == len(manifest_filepath):
+    for dataset_idx, (file_path, num_samples) in enumerate(
+        zip(manifest_filepath, num_train_samples_per_dataset)
+    ):
+        context_file = config.get("context_file", None)
+        if isinstance(context_file, ListConfig) and len(context_file) == len(
+            manifest_filepath
+        ):
             context_file = context_file[dataset_idx]
         dataset = data_cls(
             manifest_filepath=file_path,
             tokenizer=tokenizer,
             sample_rate=config.sample_rate,
-            int_values=config.get('int_values', False),
+            int_values=config.get("int_values", False),
             augmentor=augmentor,
-            max_duration=getattr(config, 'max_duration', None),
-            min_duration=getattr(config, 'min_duration', None),
-            max_utts=getattr(config, 'max_utts', -1),
-            trim=getattr(config, 'trim_silence', False),
-            channel_selector=getattr(config, 'channel_selector', None),
+            max_duration=getattr(config, "max_duration", None),
+            min_duration=getattr(config, "min_duration", None),
+            max_utts=getattr(config, "max_utts", -1),
+            trim=getattr(config, "trim_silence", False),
+            channel_selector=getattr(config, "channel_selector", None),
             max_seq_length=config.max_seq_length,
             min_seq_length=config.min_seq_length,
-            add_bos=config.get('add_bos', False),
-            add_eos=config.get('add_eos', True),
-            add_sep=config.get('add_sep', False),
+            add_bos=config.get("add_bos", False),
+            add_eos=config.get("add_eos", True),
+            add_sep=config.get("add_sep", False),
             sep_id=sep_id,
             max_num_samples=num_samples[0],
-            seed=config.get('seed', 1234),
-            separate_prompt_and_response_with_newline=config.get('separate_prompt_and_response_with_newline', True),
+            seed=config.get("seed", 1234),
+            separate_prompt_and_response_with_newline=config.get(
+                "separate_prompt_and_response_with_newline", True
+            ),
             answer_only_loss=answer_only_loss,
-            truncation_field=config.get('truncation_field', 'context'),
-            pad_to_max_length=config.get('pad_to_max_length', False),
-            prompt_template=config.get('prompt_template', None),
+            truncation_field=config.get("truncation_field", "context"),
+            pad_to_max_length=config.get("pad_to_max_length", False),
+            prompt_template=config.get("prompt_template", None),
             virtual_tokens=virtual_tokens,
             tokens_to_generate=config.get(
-                'tokens_to_generate', 0
+                "tokens_to_generate", 0
             ),  # used at inference time to allocate tensor positions for tokens that will be generated by inf procedure.
-            context_key=config.get('context_key', 'context'),
-            answer_key=config.get('answer_key', 'answer'),
-            end_string=config.get('end_string', None),
+            context_key=config.get("context_key", "context"),
+            answer_key=config.get("answer_key", "answer"),
+            end_string=config.get("end_string", None),
             context_file=context_file,
-            audio_locator=config.get('audio_locator', None),
-            add_boa_eoa=config.get('add_boa_eoa', False),
-            boa_string=config.get('boa_string', None),
-            eoa_string=config.get('eoa_string', None),
+            audio_locator=config.get("audio_locator", None),
+            add_boa_eoa=config.get("add_boa_eoa", False),
+            boa_string=config.get("boa_string", None),
+            eoa_string=config.get("eoa_string", None),
         )
         datasets.append(dataset)
 
     if is_train:
         dataset = BlendableDataset(
-            datasets=datasets, weights=concat_sampling_probabilities, size=num_train_samples_after_blend
+            datasets=datasets,
+            weights=concat_sampling_probabilities,
+            size=num_train_samples_after_blend,
         )
         return dataset
     else:

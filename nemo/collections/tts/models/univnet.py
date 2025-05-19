@@ -47,7 +47,7 @@ except ModuleNotFoundError:
 class UnivNetModel(Vocoder, Exportable):
     """UnivNet model (https://arxiv.org/abs/2106.07889) that is used to generate audio from mel spectrogram."""
 
-    def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
+    def __init__(self, cfg: DictConfig, trainer: "Trainer" = None):
         # Convert to Hydra 1.0 compatible DictConfig
         cfg = model_utils.convert_model_config_to_dict_config(cfg)
         cfg = model_utils.maybe_update_config_version(cfg)
@@ -56,12 +56,20 @@ class UnivNetModel(Vocoder, Exportable):
 
         self.audio_to_melspec_precessor = instantiate(cfg.preprocessor)
         # We use separate preprocessor for training, because we need to pass grads and remove pitch fmax limitation
-        self.trg_melspec_fn = instantiate(cfg.preprocessor, highfreq=None, use_grads=True)
-        self.generator = instantiate(
-            cfg.generator, n_mel_channels=cfg.preprocessor.nfilt, hop_length=cfg.preprocessor.n_window_stride
+        self.trg_melspec_fn = instantiate(
+            cfg.preprocessor, highfreq=None, use_grads=True
         )
-        self.mpd = MultiPeriodDiscriminator(cfg.discriminator.mpd, debug=cfg.debug if "debug" in cfg else False)
-        self.mrd = MultiResolutionDiscriminator(cfg.discriminator.mrd, debug=cfg.debug if "debug" in cfg else False)
+        self.generator = instantiate(
+            cfg.generator,
+            n_mel_channels=cfg.preprocessor.nfilt,
+            hop_length=cfg.preprocessor.n_window_stride,
+        )
+        self.mpd = MultiPeriodDiscriminator(
+            cfg.discriminator.mpd, debug=cfg.debug if "debug" in cfg else False
+        )
+        self.mrd = MultiResolutionDiscriminator(
+            cfg.discriminator.mrd, debug=cfg.debug if "debug" in cfg else False
+        )
 
         self.discriminator_loss = DiscriminatorLoss()
         self.generator_loss = GeneratorLoss()
@@ -71,7 +79,9 @@ class UnivNetModel(Vocoder, Exportable):
         self.fft_sizes = [res[0] for res in self.stft_resolutions]
         self.hop_sizes = [res[1] for res in self.stft_resolutions]
         self.win_lengths = [res[2] for res in self.stft_resolutions]
-        self.mrstft_loss = MultiResolutionSTFTLoss(self.fft_sizes, self.hop_sizes, self.win_lengths)
+        self.mrstft_loss = MultiResolutionSTFTLoss(
+            self.fft_sizes, self.hop_sizes, self.win_lengths
+        )
         self.stft_lamb = cfg.stft_lamb
 
         self.sample_rate = self._cfg.preprocessor.sample_rate
@@ -97,7 +107,7 @@ class UnivNetModel(Vocoder, Exportable):
     @staticmethod
     def get_warmup_steps(max_steps, warmup_steps, warmup_ratio):
         if warmup_steps is not None and warmup_ratio is not None:
-            raise ValueError(f'Either use warmup_steps or warmup_ratio for scheduler')
+            raise ValueError(f"Either use warmup_steps or warmup_ratio for scheduler")
 
         if warmup_steps is not None:
             return warmup_steps
@@ -105,7 +115,7 @@ class UnivNetModel(Vocoder, Exportable):
         if warmup_ratio is not None:
             return warmup_ratio * max_steps
 
-        raise ValueError(f'Specify warmup_steps or warmup_ratio for scheduler')
+        raise ValueError(f"Specify warmup_steps or warmup_ratio for scheduler")
 
     def configure_optimizers(self):
         optim_config = self._cfg.optim.copy()
@@ -115,7 +125,7 @@ class UnivNetModel(Vocoder, Exportable):
         OmegaConf.set_struct(optim_config, True)
 
         # Backward compatibility
-        if sched_config is None and 'sched' in self._cfg:
+        if sched_config is None and "sched" in self._cfg:
             sched_config = self._cfg.sched
 
         optim_g = instantiate(
@@ -145,11 +155,15 @@ class UnivNetModel(Vocoder, Exportable):
             OmegaConf.set_struct(sched_config, True)
 
             scheduler_g = prepare_lr_scheduler(
-                optimizer=optim_g, scheduler_config=sched_config, train_dataloader=self._train_dl
+                optimizer=optim_g,
+                scheduler_config=sched_config,
+                train_dataloader=self._train_dl,
             )
 
             scheduler_d = prepare_lr_scheduler(
-                optimizer=optim_d, scheduler_config=sched_config, train_dataloader=self._train_dl
+                optimizer=optim_d,
+                scheduler_config=sched_config,
+                train_dataloader=self._train_dl,
             )
 
             return [optim_g, optim_d], [scheduler_g, scheduler_d]
@@ -164,10 +178,10 @@ class UnivNetModel(Vocoder, Exportable):
         return self.generator(x=spec)
 
     @typecheck(
-        input_types={"spec": NeuralType(('B', 'C', 'T'), MelSpectrogramType())},
-        output_types={"audio": NeuralType(('B', 'T'), AudioSignal())},
+        input_types={"spec": NeuralType(("B", "C", "T"), MelSpectrogramType())},
+        output_types={"audio": NeuralType(("B", "T"), AudioSignal())},
     )
-    def convert_spectrogram_to_audio(self, spec: 'torch.tensor') -> 'torch.tensor':
+    def convert_spectrogram_to_audio(self, spec: "torch.tensor") -> "torch.tensor":
         return self(spec=spec).squeeze(1)
 
     def training_step(self, batch, batch_idx):
@@ -187,11 +201,15 @@ class UnivNetModel(Vocoder, Exportable):
 
         # Train discriminator
         optim_d.zero_grad()
-        mpd_score_real, mpd_score_gen, _, _ = self.mpd(y=audio, y_hat=audio_pred.detach())
+        mpd_score_real, mpd_score_gen, _, _ = self.mpd(
+            y=audio, y_hat=audio_pred.detach()
+        )
         loss_disc_mpd, _, _ = self.discriminator_loss(
             disc_real_outputs=mpd_score_real, disc_generated_outputs=mpd_score_gen
         )
-        mrd_score_real, mrd_score_gen, _, _ = self.mrd(y=audio, y_hat=audio_pred.detach())
+        mrd_score_real, mrd_score_gen, _, _ = self.mrd(
+            y=audio, y_hat=audio_pred.detach()
+        )
         loss_disc_mrd, _, _ = self.discriminator_loss(
             disc_real_outputs=mrd_score_real, disc_generated_outputs=mrd_score_gen
         )
@@ -201,7 +219,9 @@ class UnivNetModel(Vocoder, Exportable):
 
         # Train generator
         optim_g.zero_grad()
-        loss_sc, loss_mag = self.mrstft_loss(x=audio_pred.squeeze(1), y=audio.squeeze(1), input_lengths=audio_len)
+        loss_sc, loss_mag = self.mrstft_loss(
+            x=audio_pred.squeeze(1), y=audio.squeeze(1), input_lengths=audio_len
+        )
         loss_sc = torch.stack(loss_sc).mean()
         loss_mag = torch.stack(loss_mag).mean()
         loss_mrstft = (loss_sc + loss_mag) * self.stft_lamb
@@ -224,10 +244,12 @@ class UnivNetModel(Vocoder, Exportable):
             "d_loss_mrd": loss_disc_mrd,
             "d_loss": loss_d,
             "global_step": self.global_step,
-            "lr": optim_g.param_groups[0]['lr'],
+            "lr": optim_g.param_groups[0]["lr"],
         }
         self.log_dict(metrics, on_step=True, sync_dist=True)
-        self.log("g_mrstft_loss", loss_mrstft, prog_bar=True, logger=False, sync_dist=True)
+        self.log(
+            "g_mrstft_loss", loss_mrstft, prog_bar=True, logger=False, sync_dist=True
+        )
 
     def validation_step(self, batch, batch_idx):
         if self.input_as_mel:
@@ -244,7 +266,9 @@ class UnivNetModel(Vocoder, Exportable):
 
         if self.input_as_mel:
             gt_mel, gt_mel_len = self.audio_to_melspec_precessor(audio, audio_len)
-        audio_pred_mel, _ = self.audio_to_melspec_precessor(audio_pred.squeeze(1), audio_len)
+        audio_pred_mel, _ = self.audio_to_melspec_precessor(
+            audio_pred.squeeze(1), audio_len
+        )
         loss_mel = F.l1_loss(audio_mel, audio_pred_mel)
 
         self.log_dict({"val_loss": loss_mel}, on_epoch=True, sync_dist=True)
@@ -261,7 +285,10 @@ class UnivNetModel(Vocoder, Exportable):
                         sample_rate=self.sample_rate,
                     ),
                     wandb.Audio(
-                        audio_pred[i, 0, : audio_len[i]].data.cpu().numpy().astype('float32'),
+                        audio_pred[i, 0, : audio_len[i]]
+                        .data.cpu()
+                        .numpy()
+                        .astype("float32"),
                         caption=f"generated audio {i}",
                         sample_rate=self.sample_rate,
                     ),
@@ -273,22 +300,32 @@ class UnivNetModel(Vocoder, Exportable):
                 ]
                 specs += [
                     wandb.Image(
-                        plot_spectrogram_to_numpy(audio_mel[i, :, : audio_mel_len[i]].data.cpu().numpy()),
+                        plot_spectrogram_to_numpy(
+                            audio_mel[i, :, : audio_mel_len[i]].data.cpu().numpy()
+                        ),
                         caption=f"input mel {i}",
                     ),
                     wandb.Image(
-                        plot_spectrogram_to_numpy(audio_pred_mel[i, :, : audio_mel_len[i]].data.cpu().numpy()),
+                        plot_spectrogram_to_numpy(
+                            audio_pred_mel[i, :, : audio_mel_len[i]].data.cpu().numpy()
+                        ),
                         caption=f"output mel {i}",
                     ),
                     wandb.Image(
-                        plot_spectrogram_to_numpy(pred_denoised_mel[i, :, : audio_mel_len[i]].data.cpu().numpy()),
+                        plot_spectrogram_to_numpy(
+                            pred_denoised_mel[i, :, : audio_mel_len[i]]
+                            .data.cpu()
+                            .numpy()
+                        ),
                         caption=f"denoised mel {i}",
                     ),
                 ]
                 if self.input_as_mel:
                     specs += [
                         wandb.Image(
-                            plot_spectrogram_to_numpy(gt_mel[i, :, : audio_mel_len[i]].data.cpu().numpy()),
+                            plot_spectrogram_to_numpy(
+                                gt_mel[i, :, : audio_mel_len[i]].data.cpu().numpy()
+                            ),
                             caption=f"gt mel {i}",
                         ),
                     ]
@@ -297,7 +334,13 @@ class UnivNetModel(Vocoder, Exportable):
 
     def _bias_denoise(self, audio, mel):
         def stft(x):
-            comp = torch.stft(x.squeeze(1), n_fft=1024, hop_length=256, win_length=1024, return_complex=True)
+            comp = torch.stft(
+                x.squeeze(1),
+                n_fft=1024,
+                hop_length=256,
+                win_length=1024,
+                return_complex=True,
+            )
             comp = torch.view_as_real(comp)
             real, imag = comp[..., 0], comp[..., 1]
             mags = torch.sqrt(real**2 + imag**2)
@@ -305,8 +348,12 @@ class UnivNetModel(Vocoder, Exportable):
             return mags, phase
 
         def istft(mags, phase):
-            comp = torch.stack([mags * torch.cos(phase), mags * torch.sin(phase)], dim=-1)
-            x = torch.istft(torch.view_as_complex(comp), n_fft=1024, hop_length=256, win_length=1024)
+            comp = torch.stack(
+                [mags * torch.cos(phase), mags * torch.sin(phase)], dim=-1
+            )
+            x = torch.istft(
+                torch.view_as_complex(comp), n_fft=1024, hop_length=256, win_length=1024
+            )
             return x
 
         # Create bias tensor
@@ -316,19 +363,25 @@ class UnivNetModel(Vocoder, Exportable):
             self.stft_bias = self.stft_bias[:, :, 0][:, :, None]
 
         audio_mags, audio_phase = stft(audio)
-        audio_mags = audio_mags - self.cfg.get("denoise_strength", 0.0025) * self.stft_bias
+        audio_mags = (
+            audio_mags - self.cfg.get("denoise_strength", 0.0025) * self.stft_bias
+        )
         audio_mags = torch.clamp(audio_mags, 0.0)
         audio_denoised = istft(audio_mags, audio_phase).unsqueeze(1)
 
         return audio_denoised
 
-    def __setup_dataloader_from_config(self, cfg, shuffle_should_be: bool = True, name: str = "train"):
+    def __setup_dataloader_from_config(
+        self, cfg, shuffle_should_be: bool = True, name: str = "train"
+    ):
         if "dataset" not in cfg or not isinstance(cfg.dataset, DictConfig):
             raise ValueError(f"No dataset for {name}")
-        if "dataloader_params" not in cfg or not isinstance(cfg.dataloader_params, DictConfig):
+        if "dataloader_params" not in cfg or not isinstance(
+            cfg.dataloader_params, DictConfig
+        ):
             raise ValueError(f"No dataloder_params for {name}")
         if shuffle_should_be:
-            if 'shuffle' not in cfg.dataloader_params:
+            if "shuffle" not in cfg.dataloader_params:
                 logging.warning(
                     f"Shuffle should be set to True for {self}'s {name} dataloader but was not found in its "
                     "config. Manually setting to True"
@@ -336,24 +389,32 @@ class UnivNetModel(Vocoder, Exportable):
                 with open_dict(cfg["dataloader_params"]):
                     cfg.dataloader_params.shuffle = True
             elif not cfg.dataloader_params.shuffle:
-                logging.error(f"The {name} dataloader for {self} has shuffle set to False!!!")
+                logging.error(
+                    f"The {name} dataloader for {self} has shuffle set to False!!!"
+                )
         elif not shuffle_should_be and cfg.dataloader_params.shuffle:
-            logging.error(f"The {name} dataloader for {self} has shuffle set to True!!!")
+            logging.error(
+                f"The {name} dataloader for {self} has shuffle set to True!!!"
+            )
 
         dataset = instantiate(cfg.dataset)
-        return torch.utils.data.DataLoader(dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params)
+        return torch.utils.data.DataLoader(
+            dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params
+        )
 
     def setup_training_data(self, cfg):
         self._train_dl = self.__setup_dataloader_from_config(cfg)
 
     def setup_validation_data(self, cfg):
-        self._validation_dl = self.__setup_dataloader_from_config(cfg, shuffle_should_be=False, name="validation")
+        self._validation_dl = self.__setup_dataloader_from_config(
+            cfg, shuffle_should_be=False, name="validation"
+        )
 
     def setup_test_data(self, cfg):
         pass
 
     @classmethod
-    def list_available_models(cls) -> 'Optional[Dict[str, str]]':
+    def list_available_models(cls) -> "Optional[Dict[str, str]]":
         list_of_models = []
         model = PretrainedModelInfo(
             pretrained_model_name="tts_en_lj_univnet",
@@ -384,13 +445,13 @@ class UnivNetModel(Vocoder, Exportable):
     @property
     def input_types(self):
         return {
-            "spec": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
+            "spec": NeuralType(("B", "D", "T"), MelSpectrogramType()),
         }
 
     @property
     def output_types(self):
         return {
-            "audio": NeuralType(('B', 'S', 'T'), AudioSignal(self.sample_rate)),
+            "audio": NeuralType(("B", "S", "T"), AudioSignal(self.sample_rate)),
         }
 
     def input_example(self, max_batch=1, max_dim=256):
@@ -400,8 +461,12 @@ class UnivNetModel(Vocoder, Exportable):
             A tuple of input examples.
         """
         par = next(self.parameters())
-        mel = torch.randn((max_batch, self.cfg['preprocessor']['nfilt'], max_dim), device=par.device, dtype=par.dtype)
-        return ({'spec': mel},)
+        mel = torch.randn(
+            (max_batch, self.cfg["preprocessor"]["nfilt"], max_dim),
+            device=par.device,
+            dtype=par.dtype,
+        )
+        return ({"spec": mel},)
 
     def forward_for_export(self, spec):
         """

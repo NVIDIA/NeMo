@@ -76,21 +76,32 @@ def override_recipe_configs(
         nccl_communicator_config_path=args.nccl_communicator_config_path,
     )
     recipe = set_exp_logging_configs(
-        recipe, "pre_train", "llm", "nemotron", args.tensorboard, args.wandb, args.wandb_prj_name, args.wandb_job_name
+        recipe,
+        "pre_train",
+        "llm",
+        "nemotron",
+        args.tensorboard,
+        args.wandb,
+        args.wandb_prj_name,
+        args.wandb_job_name,
     )
 
     gpu_type = args.gpu.lower()
 
     # data module configs
     if args.use_hf_tokenizer:
-        logging.warning("HuggingFace tokenizer not supported for Nemotron4 340B. Using NullTokenizer.")
+        logging.warning(
+            "HuggingFace tokenizer not supported for Nemotron4 340B. Using NullTokenizer."
+        )
     recipe.data.tokenizer = run.Config(
         get_nmt_tokenizer, library="null", model_name="NullTokenizer", vocab_size=256000
     )
     recipe.model.tokenizer = recipe.data.tokenizer
 
     comm_overlap_callback_idx = get_comm_overlap_callback_idx(recipe.trainer.callbacks)
-    assert comm_overlap_callback_idx is not None, "MegatronCommOverlapCallback missing. Required for performance."
+    assert (
+        comm_overlap_callback_idx is not None
+    ), "MegatronCommOverlapCallback missing. Required for performance."
 
     if gpu_type in ["b200", "gb200"]:
         if args.fp8_recipe.lower() != "mxfp8":
@@ -100,8 +111,12 @@ def override_recipe_configs(
                 else userbuffers_bf16_b200_h18432_tp8_mbs1_seqlen4096
             )
             # needed as tp_overlap_configs.userbuffers are dataclass objects which are unserializable
-            tp_comm_overlap_cfg = fdl.cast(run.Config, fdl_dc.convert_dataclasses_to_configs(tp_comm_overlap_cfg))
-            recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap_cfg = tp_comm_overlap_cfg
+            tp_comm_overlap_cfg = fdl.cast(
+                run.Config, fdl_dc.convert_dataclasses_to_configs(tp_comm_overlap_cfg)
+            )
+            recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap_cfg = (
+                tp_comm_overlap_cfg
+            )
     if args.compute_dtype.lower() == "fp8" and args.fp8_recipe.lower() == "mxfp8":
         recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap_cfg = None
         recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap = False
@@ -171,7 +186,7 @@ if __name__ == "__main__":
         PerfEnvPlugin(
             enable_vboost=True,
             nccl_pp_comm_chunksize=2097152 if pp_size > 1 else None,
-            gpu_sm100_or_newer=(args.gpu.lower() in ['b200', 'gb200']),
+            gpu_sm100_or_newer=(args.gpu.lower() in ["b200", "gb200"]),
         )
     ]
     if args.enable_nsys:

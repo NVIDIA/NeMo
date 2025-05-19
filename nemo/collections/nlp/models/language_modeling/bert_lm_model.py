@@ -48,7 +48,9 @@ class BERTLMModel(ModelPT):
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        output_types_dict = {"mlm_log_probs": self.mlm_classifier.output_types["log_probs"]}
+        output_types_dict = {
+            "mlm_log_probs": self.mlm_classifier.output_types["log_probs"]
+        }
         if not self.only_mlm_loss:
             output_types_dict["nsp_logits"] = self.nsp_classifier.output_types["logits"]
         return output_types_dict
@@ -60,19 +62,25 @@ class BERTLMModel(ModelPT):
         config_file = None
 
         if cfg.tokenizer is not None:
-            if cfg.tokenizer.get('tokenizer_name') and cfg.tokenizer.get('tokenizer_model'):
+            if cfg.tokenizer.get("tokenizer_name") and cfg.tokenizer.get(
+                "tokenizer_model"
+            ):
                 self._setup_tokenizer(cfg.tokenizer)
-            if cfg.get('tokenizer.vocab_file'):
-                vocab_file = self.register_artifact('tokenizer.vocab_file', cfg.tokenizer.vocab_file)
+            if cfg.get("tokenizer.vocab_file"):
+                vocab_file = self.register_artifact(
+                    "tokenizer.vocab_file", cfg.tokenizer.vocab_file
+                )
         else:
             self.tokenizer = None
 
         super().__init__(cfg=cfg, trainer=trainer)
 
-        if cfg.get('language_model.config'):
+        if cfg.get("language_model.config"):
             config_dict = OmegaConf.to_container(cfg.language_model.config)
-        if cfg.get('language_model.config_file'):
-            config_file = self.register_artifact('language_model.config_file', cfg.language_model.config_file)
+        if cfg.get("language_model.config_file"):
+            config_file = self.register_artifact(
+                "language_model.config_file", cfg.language_model.config_file
+            )
 
         self.bert_model = get_lm_model(
             config_file=config_file,
@@ -115,8 +123,12 @@ class BERTLMModel(ModelPT):
             self.mlm_classifier.mlp.last_linear_layer.weight.shape
             != self.bert_model.embeddings.word_embeddings.weight.shape
         ):
-            raise ValueError("Final classification layer does not match embedding layer.")
-        self.mlm_classifier.mlp.last_linear_layer.weight = self.bert_model.embeddings.word_embeddings.weight
+            raise ValueError(
+                "Final classification layer does not match embedding layer."
+            )
+        self.mlm_classifier.mlp.last_linear_layer.weight = (
+            self.bert_model.embeddings.word_embeddings.weight
+        )
         # create extra bias
 
         # setup to track metrics
@@ -144,8 +156,12 @@ class BERTLMModel(ModelPT):
         nsp_logits = self.nsp_classifier(hidden_states=hidden_states)
         return mlm_log_probs, nsp_logits
 
-    def _compute_losses(self, mlm_log_probs, nsp_logits, output_ids, output_mask, labels):
-        mlm_loss = self.mlm_loss(log_probs=mlm_log_probs, labels=output_ids, output_mask=output_mask)
+    def _compute_losses(
+        self, mlm_log_probs, nsp_logits, output_ids, output_mask, labels
+    ):
+        mlm_loss = self.mlm_loss(
+            log_probs=mlm_log_probs, labels=output_ids, output_mask=output_mask
+        )
         if self.only_mlm_loss:
             loss, nsp_loss = mlm_loss, None
         else:
@@ -165,12 +181,18 @@ class BERTLMModel(ModelPT):
         passed in as `batch`.
         """
         input_ids, input_type_ids, input_mask, output_ids, output_mask, labels = batch
-        forward_outputs = self.forward(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
+        forward_outputs = self.forward(
+            input_ids=input_ids,
+            token_type_ids=input_type_ids,
+            attention_mask=input_mask,
+        )
         mlm_log_probs, nsp_logits = self._parse_forward_outputs(forward_outputs)
-        _, _, loss = self._compute_losses(mlm_log_probs, nsp_logits, output_ids, output_mask, labels)
-        lr = self._optimizer.param_groups[0]['lr']
-        self.log('train_loss', loss)
-        self.log('lr', lr, prog_bar=True)
+        _, _, loss = self._compute_losses(
+            mlm_log_probs, nsp_logits, output_ids, output_mask, labels
+        )
+        lr = self._optimizer.param_groups[0]["lr"]
+        self.log("train_loss", loss)
+        self.log("lr", lr, prog_bar=True)
         return {"loss": loss, "lr": lr}
 
     def validation_step(self, batch, batch_idx):
@@ -179,11 +201,17 @@ class BERTLMModel(ModelPT):
         passed in as `batch`.
         """
         input_ids, input_type_ids, input_mask, output_ids, output_mask, labels = batch
-        forward_outputs = self.forward(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
+        forward_outputs = self.forward(
+            input_ids=input_ids,
+            token_type_ids=input_type_ids,
+            attention_mask=input_mask,
+        )
         mlm_log_probs, nsp_logits = self._parse_forward_outputs(forward_outputs)
-        _, _, loss = self._compute_losses(mlm_log_probs, nsp_logits, output_ids, output_mask, labels)
+        _, _, loss = self._compute_losses(
+            mlm_log_probs, nsp_logits, output_ids, output_mask, labels
+        )
         self.validation_perplexity(logits=mlm_log_probs)
-        loss = {'val_loss': loss}
+        loss = {"val_loss": loss}
         self.validation_step_outputs.append(loss)
         return loss
 
@@ -197,10 +225,12 @@ class BERTLMModel(ModelPT):
             dict: Validation loss and tensorboard logs.
         """
         if self.validation_step_outputs:
-            avg_loss = torch.stack([x['val_loss'] for x in self.validation_step_outputs]).mean()
+            avg_loss = torch.stack(
+                [x["val_loss"] for x in self.validation_step_outputs]
+            ).mean()
             perplexity = self.validation_perplexity.compute()
             logging.info(f"evaluation perplexity {perplexity.cpu().item()}")
-            self.log(f'val_loss', avg_loss)
+            self.log(f"val_loss", avg_loss)
             self.validation_step_outputs.clear()  # free memory
 
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
@@ -226,7 +256,11 @@ class BERTLMModel(ModelPT):
         batch_size = cfg.batch_size
 
         if os.path.isdir(dataset):
-            files = [os.path.join(dataset, f) for f in os.listdir(dataset) if os.path.isfile(os.path.join(dataset, f))]
+            files = [
+                os.path.join(dataset, f)
+                for f in os.listdir(dataset)
+                if os.path.isfile(os.path.join(dataset, f))
+            ]
         else:
             files = [dataset]
         files.sort()
@@ -241,7 +275,11 @@ class BERTLMModel(ModelPT):
         tokenizer = get_tokenizer(
             tokenizer_name=cfg.tokenizer_name,
             tokenizer_model=cfg.tokenizer_model,
-            special_tokens=OmegaConf.to_container(cfg.special_tokens) if cfg.special_tokens else None,
+            special_tokens=(
+                OmegaConf.to_container(cfg.special_tokens)
+                if cfg.special_tokens
+                else None
+            ),
             vocab_file=cfg.vocab_file,
         )
         self.tokenizer = tokenizer

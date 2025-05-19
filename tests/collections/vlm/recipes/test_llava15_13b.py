@@ -86,7 +86,11 @@ class TestLlava15_13B:
         assert recipe.resume is not None
 
         # Validate trainer callbacks contain TimingCallback and MegatronCommOverlapCallback
-        callback_classes = {cb.__fn_or_cls__ for cb in recipe.trainer.callbacks if isinstance(cb, run.Config)}
+        callback_classes = {
+            cb.__fn_or_cls__
+            for cb in recipe.trainer.callbacks
+            if isinstance(cb, run.Config)
+        }
         assert TimingCallback in callback_classes
         assert MegatronCommOverlapCallback in callback_classes
 
@@ -102,6 +106,8 @@ class TestLlava15_13B:
 
     @pytest.mark.parametrize("num_nodes,num_gpus", [(1, 8), (2, 4), (4, 2)])
     def test_parameterized_configurations(self, recipe_module, num_nodes, num_gpus):
-        recipe = recipe_module.finetune_recipe(num_nodes=num_nodes, num_gpus_per_node=num_gpus)
+        recipe = recipe_module.finetune_recipe(
+            num_nodes=num_nodes, num_gpus_per_node=num_gpus
+        )
         assert recipe.trainer.num_nodes == num_nodes
         assert recipe.trainer.devices == num_gpus

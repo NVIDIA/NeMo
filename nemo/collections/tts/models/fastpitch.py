@@ -57,7 +57,9 @@ class G2PConfig:
 
 @dataclass
 class TextTokenizer:
-    _target_: str = "nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers.EnglishPhonemesTokenizer"
+    _target_: str = (
+        "nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers.EnglishPhonemesTokenizer"
+    )
     punct: bool = True
     stresses: bool = True
     chars: bool = True
@@ -201,8 +203,10 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
             # for backward compatibility
             if (
                 self._is_model_being_restored()
-                and (cfg.text_tokenizer.g2p.get('_target_', None) is not None)
-                and cfg.text_tokenizer.g2p["_target_"].startswith("nemo_text_processing.g2p")
+                and (cfg.text_tokenizer.g2p.get("_target_", None) is not None)
+                and cfg.text_tokenizer.g2p["_target_"].startswith(
+                    "nemo_text_processing.g2p"
+                )
             ):
                 cfg.text_tokenizer.g2p["_target_"] = g2p_backward_compatible_support(
                     cfg.text_tokenizer.g2p["_target_"]
@@ -212,18 +216,20 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
 
             if "phoneme_dict" in cfg.text_tokenizer.g2p:
                 g2p_kwargs["phoneme_dict"] = self.register_artifact(
-                    'text_tokenizer.g2p.phoneme_dict',
+                    "text_tokenizer.g2p.phoneme_dict",
                     cfg.text_tokenizer.g2p.phoneme_dict,
                 )
 
             if "heteronyms" in cfg.text_tokenizer.g2p:
                 g2p_kwargs["heteronyms"] = self.register_artifact(
-                    'text_tokenizer.g2p.heteronyms',
+                    "text_tokenizer.g2p.heteronyms",
                     cfg.text_tokenizer.g2p.heteronyms,
                 )
 
             # for backward compatability
-            text_tokenizer_kwargs["g2p"] = instantiate(cfg.text_tokenizer.g2p, **g2p_kwargs)
+            text_tokenizer_kwargs["g2p"] = instantiate(
+                cfg.text_tokenizer.g2p, **g2p_kwargs
+            )
 
         # TODO @xueyang: rename the instance of tokenizer because vocab is misleading.
         self.vocab = instantiate(cfg.text_tokenizer, **text_tokenizer_kwargs)
@@ -251,7 +257,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
         else:
             self._parser = parsers.make_parser(
                 labels=self._cfg.labels,
-                name='en',
+                name="en",
                 unk_id=-1,
                 blank_id=-1,
                 do_normalize=True,
@@ -266,7 +272,9 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
         if isinstance(str_input, Hypothesis):
             str_input = str_input.text
         if normalize and self.text_normalizer_call is not None:
-            str_input = self.text_normalizer_call(str_input, **self.text_normalizer_call_kwargs)
+            str_input = self.text_normalizer_call(
+                str_input, **self.text_normalizer_call_kwargs
+            )
 
         if self.learn_alignment:
             eval_phon_mode = contextlib.nullcontext()
@@ -284,19 +292,27 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
 
     @typecheck(
         input_types={
-            "text": NeuralType(('B', 'T_text'), TokenIndex()),
-            "durs": NeuralType(('B', 'T_text'), TokenDurationType()),
-            "pitch": NeuralType(('B', 'T_audio'), RegressionValuesType()),
-            "energy": NeuralType(('B', 'T_audio'), RegressionValuesType(), optional=True),
-            "speaker": NeuralType(('B'), Index(), optional=True),
+            "text": NeuralType(("B", "T_text"), TokenIndex()),
+            "durs": NeuralType(("B", "T_text"), TokenDurationType()),
+            "pitch": NeuralType(("B", "T_audio"), RegressionValuesType()),
+            "energy": NeuralType(
+                ("B", "T_audio"), RegressionValuesType(), optional=True
+            ),
+            "speaker": NeuralType(("B"), Index(), optional=True),
             "pace": NeuralType(optional=True),
-            "spec": NeuralType(('B', 'D', 'T_spec'), MelSpectrogramType(), optional=True),
-            "attn_prior": NeuralType(('B', 'T_spec', 'T_text'), ProbsType(), optional=True),
-            "mel_lens": NeuralType(('B'), LengthsType(), optional=True),
-            "input_lens": NeuralType(('B'), LengthsType(), optional=True),
+            "spec": NeuralType(
+                ("B", "D", "T_spec"), MelSpectrogramType(), optional=True
+            ),
+            "attn_prior": NeuralType(
+                ("B", "T_spec", "T_text"), ProbsType(), optional=True
+            ),
+            "mel_lens": NeuralType(("B"), LengthsType(), optional=True),
+            "input_lens": NeuralType(("B"), LengthsType(), optional=True),
             # reference_* data is used for multi-speaker FastPitch training
-            "reference_spec": NeuralType(('B', 'D', 'T_spec'), MelSpectrogramType(), optional=True),
-            "reference_spec_lens": NeuralType(('B'), LengthsType(), optional=True),
+            "reference_spec": NeuralType(
+                ("B", "D", "T_spec"), MelSpectrogramType(), optional=True
+            ),
+            "reference_spec_lens": NeuralType(("B"), LengthsType(), optional=True),
         }
     )
     def forward(
@@ -330,17 +346,21 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
             reference_spec_lens=reference_spec_lens,
         )
 
-    @typecheck(output_types={"spect": NeuralType(('B', 'D', 'T_spec'), MelSpectrogramType())})
+    @typecheck(
+        output_types={"spect": NeuralType(("B", "D", "T_spec"), MelSpectrogramType())}
+    )
     def generate_spectrogram(
         self,
-        tokens: 'torch.tensor',
+        tokens: "torch.tensor",
         speaker: Optional[int] = None,
         pace: float = 1.0,
-        reference_spec: Optional['torch.tensor'] = None,
-        reference_spec_lens: Optional['torch.tensor'] = None,
+        reference_spec: Optional["torch.tensor"] = None,
+        reference_spec_lens: Optional["torch.tensor"] = None,
     ) -> torch.tensor:
         if self.training:
-            logging.warning("generate_spectrogram() is meant to be called in eval mode.")
+            logging.warning(
+                "generate_spectrogram() is meant to be called in eval mode."
+            )
         if isinstance(speaker, int):
             speaker = torch.tensor([speaker]).to(self.device)
         spect, *_ = self(
@@ -364,10 +384,15 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
             None,
         )
         if self.learn_alignment:
-            if self.ds_class == "nemo.collections.tts.data.text_to_speech_dataset.TextToSpeechDataset":
+            if (
+                self.ds_class
+                == "nemo.collections.tts.data.text_to_speech_dataset.TextToSpeechDataset"
+            ):
                 batch_dict = batch
             else:
-                batch_dict = process_batch(batch, self._train_dl.dataset.sup_data_types_set)
+                batch_dict = process_batch(
+                    batch, self._train_dl.dataset.sup_data_types_set
+                )
             audio = batch_dict.get("audio")
             audio_lens = batch_dict.get("audio_lens")
             text = batch_dict.get("text")
@@ -419,16 +444,29 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
             durs = attn_hard_dur
 
         mel_loss = self.mel_loss_fn(spect_predicted=mels_pred, spect_tgt=mels)
-        dur_loss = self.duration_loss_fn(log_durs_predicted=log_durs_pred, durs_tgt=durs, len=text_lens)
+        dur_loss = self.duration_loss_fn(
+            log_durs_predicted=log_durs_pred, durs_tgt=durs, len=text_lens
+        )
         loss = mel_loss + dur_loss
         if self.learn_alignment:
-            ctc_loss = self.forward_sum_loss_fn(attn_logprob=attn_logprob, in_lens=text_lens, out_lens=spec_len)
-            bin_loss_weight = min(self.current_epoch / self.bin_loss_warmup_epochs, 1.0) * 1.0
-            bin_loss = self.bin_loss_fn(hard_attention=attn_hard, soft_attention=attn_soft) * bin_loss_weight
+            ctc_loss = self.forward_sum_loss_fn(
+                attn_logprob=attn_logprob, in_lens=text_lens, out_lens=spec_len
+            )
+            bin_loss_weight = (
+                min(self.current_epoch / self.bin_loss_warmup_epochs, 1.0) * 1.0
+            )
+            bin_loss = (
+                self.bin_loss_fn(hard_attention=attn_hard, soft_attention=attn_soft)
+                * bin_loss_weight
+            )
             loss += ctc_loss + bin_loss
 
-        pitch_loss = self.pitch_loss_fn(pitch_predicted=pitch_pred, pitch_tgt=pitch, len=text_lens)
-        energy_loss = self.energy_loss_fn(energy_predicted=energy_pred, energy_tgt=energy_tgt, length=text_lens)
+        pitch_loss = self.pitch_loss_fn(
+            pitch_predicted=pitch_pred, pitch_tgt=pitch, len=text_lens
+        )
+        energy_loss = self.energy_loss_fn(
+            energy_predicted=energy_pred, energy_tgt=energy_tgt, length=text_lens
+        )
         loss += pitch_loss + energy_loss
 
         self.log("t_loss", loss)
@@ -442,7 +480,11 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
             self.log("t_bin_loss", bin_loss)
 
         # Log images to tensorboard
-        if self.log_images and self.log_train_images and isinstance(self.logger, TensorBoardLogger):
+        if (
+            self.log_images
+            and self.log_train_images
+            and isinstance(self.logger, TensorBoardLogger)
+        ):
             self.log_train_images = False
 
             self.tb_logger.add_image(
@@ -486,10 +528,15 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
             None,
         )
         if self.learn_alignment:
-            if self.ds_class == "nemo.collections.tts.data.text_to_speech_dataset.TextToSpeechDataset":
+            if (
+                self.ds_class
+                == "nemo.collections.tts.data.text_to_speech_dataset.TextToSpeechDataset"
+            ):
                 batch_dict = batch
             else:
-                batch_dict = process_batch(batch, self._train_dl.dataset.sup_data_types_set)
+                batch_dict = process_batch(
+                    batch, self._train_dl.dataset.sup_data_types_set
+                )
             audio = batch_dict.get("audio")
             audio_lens = batch_dict.get("audio_lens")
             text = batch_dict.get("text")
@@ -542,9 +589,15 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
             durs = attn_hard_dur
 
         mel_loss = self.mel_loss_fn(spect_predicted=mels_pred, spect_tgt=mels)
-        dur_loss = self.duration_loss_fn(log_durs_predicted=log_durs_pred, durs_tgt=durs, len=text_lens)
-        pitch_loss = self.pitch_loss_fn(pitch_predicted=pitch_pred, pitch_tgt=pitch, len=text_lens)
-        energy_loss = self.energy_loss_fn(energy_predicted=energy_pred, energy_tgt=energy_tgt, length=text_lens)
+        dur_loss = self.duration_loss_fn(
+            log_durs_predicted=log_durs_pred, durs_tgt=durs, len=text_lens
+        )
+        pitch_loss = self.pitch_loss_fn(
+            pitch_predicted=pitch_pred, pitch_tgt=pitch, len=text_lens
+        )
+        energy_loss = self.energy_loss_fn(
+            energy_predicted=energy_pred, energy_tgt=energy_tgt, length=text_lens
+        )
         loss = mel_loss + dur_loss + pitch_loss + energy_loss
 
         val_outputs = {
@@ -560,7 +613,9 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
         return val_outputs
 
     def on_validation_epoch_end(self):
-        collect = lambda key: torch.stack([x[key] for x in self.validation_step_outputs]).mean()
+        collect = lambda key: torch.stack(
+            [x[key] for x in self.validation_step_outputs]
+        ).mean()
         val_loss = collect("val_loss")
         mel_loss = collect("mel_loss")
         dur_loss = collect("dur_loss")
@@ -573,7 +628,9 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
             energy_loss = collect("energy_loss")
             self.log("val_energy_loss", energy_loss, sync_dist=True)
 
-        _, _, _, _, _, spec_target, spec_predict = self.validation_step_outputs[0].values()
+        _, _, _, _, _, spec_target, spec_predict = self.validation_step_outputs[
+            0
+        ].values()
 
         if self.log_images and isinstance(self.logger, TensorBoardLogger):
             self.tb_logger.add_image(
@@ -603,9 +660,14 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
                 text_tokenizer=self.vocab,
             )
 
-        sampler = dataset.get_sampler(cfg.dataloader_params.batch_size, world_size=self.trainer.world_size)
+        sampler = dataset.get_sampler(
+            cfg.dataloader_params.batch_size, world_size=self.trainer.world_size
+        )
         return torch.utils.data.DataLoader(
-            dataset, collate_fn=dataset.collate_fn, sampler=sampler, **cfg.dataloader_params
+            dataset,
+            collate_fn=dataset.collate_fn,
+            sampler=sampler,
+            **cfg.dataloader_params,
         )
 
     def _setup_test_dataloader(self, cfg):
@@ -619,15 +681,21 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
                 text_tokenizer=self.vocab,
             )
 
-        return torch.utils.data.DataLoader(dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params)
+        return torch.utils.data.DataLoader(
+            dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params
+        )
 
-    def __setup_dataloader_from_config(self, cfg, shuffle_should_be: bool = True, name: str = "train"):
+    def __setup_dataloader_from_config(
+        self, cfg, shuffle_should_be: bool = True, name: str = "train"
+    ):
         if "dataset" not in cfg or not isinstance(cfg.dataset, DictConfig):
             raise ValueError(f"No dataset for {name}")
-        if "dataloader_params" not in cfg or not isinstance(cfg.dataloader_params, DictConfig):
+        if "dataloader_params" not in cfg or not isinstance(
+            cfg.dataloader_params, DictConfig
+        ):
             raise ValueError(f"No dataloader_params for {name}")
         if shuffle_should_be:
-            if 'shuffle' not in cfg.dataloader_params:
+            if "shuffle" not in cfg.dataloader_params:
                 logging.warning(
                     f"Shuffle should be set to True for {self}'s {name} dataloader but was not found in its "
                     "config. Manually setting to True"
@@ -635,14 +703,20 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
                 with open_dict(cfg.dataloader_params):
                     cfg.dataloader_params.shuffle = True
             elif not cfg.dataloader_params.shuffle:
-                logging.error(f"The {name} dataloader for {self} has shuffle set to False!!!")
+                logging.error(
+                    f"The {name} dataloader for {self} has shuffle set to False!!!"
+                )
         elif cfg.dataloader_params.shuffle:
-            logging.error(f"The {name} dataloader for {self} has shuffle set to True!!!")
+            logging.error(
+                f"The {name} dataloader for {self} has shuffle set to True!!!"
+            )
 
         if self.ds_class == "nemo.collections.tts.data.dataset.TTSDataset":
             phon_mode = contextlib.nullcontext()
             if hasattr(self.vocab, "set_phone_prob"):
-                phon_mode = self.vocab.set_phone_prob(prob=None if name == "val" else self.vocab.phoneme_probability)
+                phon_mode = self.vocab.set_phone_prob(
+                    prob=None if name == "val" else self.vocab.phoneme_probability
+                )
 
             with phon_mode:
                 dataset = instantiate(
@@ -654,19 +728,29 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
         else:
             dataset = instantiate(cfg.dataset)
 
-        return torch.utils.data.DataLoader(dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params)
+        return torch.utils.data.DataLoader(
+            dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params
+        )
 
     def setup_training_data(self, cfg):
-        if self.ds_class == "nemo.collections.tts.data.text_to_speech_dataset.TextToSpeechDataset":
+        if (
+            self.ds_class
+            == "nemo.collections.tts.data.text_to_speech_dataset.TextToSpeechDataset"
+        ):
             self._train_dl = self._setup_train_dataloader(cfg)
         else:
             self._train_dl = self.__setup_dataloader_from_config(cfg)
 
     def setup_validation_data(self, cfg):
-        if self.ds_class == "nemo.collections.tts.data.text_to_speech_dataset.TextToSpeechDataset":
+        if (
+            self.ds_class
+            == "nemo.collections.tts.data.text_to_speech_dataset.TextToSpeechDataset"
+        ):
             self._validation_dl = self._setup_test_dataloader(cfg)
         else:
-            self._validation_dl = self.__setup_dataloader_from_config(cfg, shuffle_should_be=False, name="val")
+            self._validation_dl = self.__setup_dataloader_from_config(
+                cfg, shuffle_should_be=False, name="val"
+            )
 
     def setup_test_data(self, cfg):
         """Omitted."""
@@ -677,8 +761,13 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
             return []
 
         sample_ds_class = self.log_config.dataset._target_
-        if sample_ds_class != "nemo.collections.tts.data.text_to_speech_dataset.TextToSpeechDataset":
-            raise ValueError(f"Logging callback only supported for TextToSpeechDataset, got {sample_ds_class}")
+        if (
+            sample_ds_class
+            != "nemo.collections.tts.data.text_to_speech_dataset.TextToSpeechDataset"
+        ):
+            raise ValueError(
+                f"Logging callback only supported for TextToSpeechDataset, got {sample_ds_class}"
+            )
 
         data_loader = self._setup_test_dataloader(self.log_config)
 
@@ -698,7 +787,7 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
         return [log_callback]
 
     @classmethod
-    def list_available_models(cls) -> 'List[PretrainedModelInfo]':
+    def list_available_models(cls) -> "List[PretrainedModelInfo]":
         """
         This method returns a list of pre-trained model which can be instantiated directly from NVIDIA's NGC cloud.
         Returns:
@@ -801,7 +890,9 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
     def _prepare_for_export(self, **kwargs):
         super()._prepare_for_export(**kwargs)
 
-        tensor_shape = ('T') if self.export_config["enable_ragged_batches"] else ('B', 'T')
+        tensor_shape = (
+            ("T") if self.export_config["enable_ragged_batches"] else ("B", "T")
+        )
 
         # Define input_types and output_types as required by export()
         self._input_types = {
@@ -809,18 +900,20 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
             "pitch": NeuralType(tensor_shape, RegressionValuesType()),
             "pace": NeuralType(tensor_shape),
             "volume": NeuralType(tensor_shape, optional=True),
-            "batch_lengths": NeuralType(('B'), optional=True),
-            "speaker": NeuralType(('B'), Index(), optional=True),
+            "batch_lengths": NeuralType(("B"), optional=True),
+            "speaker": NeuralType(("B"), Index(), optional=True),
         }
         self._output_types = {
-            "spect": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
-            "num_frames": NeuralType(('B'), TokenDurationType()),
-            "durs_predicted": NeuralType(('B', 'T'), TokenDurationType()),
-            "log_durs_predicted": NeuralType(('B', 'T'), TokenLogDurationType()),
-            "pitch_predicted": NeuralType(('B', 'T'), RegressionValuesType()),
+            "spect": NeuralType(("B", "D", "T"), MelSpectrogramType()),
+            "num_frames": NeuralType(("B"), TokenDurationType()),
+            "durs_predicted": NeuralType(("B", "T"), TokenDurationType()),
+            "log_durs_predicted": NeuralType(("B", "T"), TokenLogDurationType()),
+            "pitch_predicted": NeuralType(("B", "T"), RegressionValuesType()),
         }
         if self.export_config["enable_volume"]:
-            self._output_types["volume_aligned"] = NeuralType(('B', 'T'), RegressionValuesType())
+            self._output_types["volume_aligned"] = NeuralType(
+                ("B", "T"), RegressionValuesType()
+            )
 
     def _export_teardown(self):
         self._input_types = self._output_types = None
@@ -852,22 +945,38 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
             A tuple of input examples.
         """
         par = next(self.fastpitch.parameters())
-        inputs = sample_tts_input(self.export_config, par.device, max_batch=max_batch, max_dim=max_dim)
-        if 'enable_ragged_batches' not in self.export_config:
-            inputs.pop('batch_lengths', None)
+        inputs = sample_tts_input(
+            self.export_config, par.device, max_batch=max_batch, max_dim=max_dim
+        )
+        if "enable_ragged_batches" not in self.export_config:
+            inputs.pop("batch_lengths", None)
         return (inputs,)
 
-    def forward_for_export(self, text, pitch, pace, volume=None, batch_lengths=None, speaker=None):
+    def forward_for_export(
+        self, text, pitch, pace, volume=None, batch_lengths=None, speaker=None
+    ):
         if self.export_config["enable_ragged_batches"]:
             text, pitch, pace, volume_tensor, lens = batch_from_ragged(
-                text, pitch, pace, batch_lengths, padding_idx=self.fastpitch.encoder.padding_idx, volume=volume
+                text,
+                pitch,
+                pace,
+                batch_lengths,
+                padding_idx=self.fastpitch.encoder.padding_idx,
+                volume=volume,
             )
             if volume is not None:
                 volume = volume_tensor
-        return self.fastpitch.infer(text=text, pitch=pitch, pace=pace, volume=volume, speaker=speaker)
+        return self.fastpitch.infer(
+            text=text, pitch=pitch, pace=pace, volume=volume, speaker=speaker
+        )
 
     def interpolate_speaker(
-        self, original_speaker_1, original_speaker_2, weight_speaker_1, weight_speaker_2, new_speaker_id
+        self,
+        original_speaker_1,
+        original_speaker_2,
+        weight_speaker_1,
+        weight_speaker_2,
+        new_speaker_id,
     ):
         """
         This method performs speaker interpolation between two original speakers the model is trained on.
@@ -885,16 +994,30 @@ class FastPitchModel(SpectrogramGenerator, Exportable, FastPitchAdapterModelMixi
                 be performed with a multi-speaker model"
             )
         n_speakers = self.fastpitch.speaker_emb.weight.data.size()[0]
-        if original_speaker_1 >= n_speakers or original_speaker_2 >= n_speakers or new_speaker_id >= n_speakers:
+        if (
+            original_speaker_1 >= n_speakers
+            or original_speaker_2 >= n_speakers
+            or new_speaker_id >= n_speakers
+        ):
             raise Exception(
                 f"Parameters original_speaker_1, original_speaker_2, new_speaker_id should be less than the total \
                 total number of speakers FastPitch was trained on (n_speakers = {n_speakers})."
             )
         speaker_emb_1 = (
-            self.fastpitch.speaker_emb(torch.tensor(original_speaker_1, dtype=torch.int32).cuda()).clone().detach()
+            self.fastpitch.speaker_emb(
+                torch.tensor(original_speaker_1, dtype=torch.int32).cuda()
+            )
+            .clone()
+            .detach()
         )
         speaker_emb_2 = (
-            self.fastpitch.speaker_emb(torch.tensor(original_speaker_2, dtype=torch.int32).cuda()).clone().detach()
+            self.fastpitch.speaker_emb(
+                torch.tensor(original_speaker_2, dtype=torch.int32).cuda()
+            )
+            .clone()
+            .detach()
         )
-        new_speaker_emb = weight_speaker_1 * speaker_emb_1 + weight_speaker_2 * speaker_emb_2
+        new_speaker_emb = (
+            weight_speaker_1 * speaker_emb_1 + weight_speaker_2 * speaker_emb_2
+        )
         self.fastpitch.speaker_emb.weight.data[new_speaker_id] = new_speaker_emb

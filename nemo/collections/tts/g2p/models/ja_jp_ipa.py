@@ -72,15 +72,18 @@ class JapaneseG2p(BaseG2p):
             if isinstance(phoneme_dict, str) or isinstance(phoneme_dict, pathlib.Path)
             else phoneme_dict
         )
-        self.phoneme_list = sorted({pron for prons in phoneme_dict.values() for pron in prons})
+        self.phoneme_list = sorted(
+            {pron for prons in phoneme_dict.values() for pron in prons}
+        )
 
         # ascii letters
         self.ascii_letter_dict = {
-            x: ascii_letter_prefix + x for x in get_grapheme_character_set(locale="en-US", case=ascii_letter_case)
+            x: ascii_letter_prefix + x
+            for x in get_grapheme_character_set(locale="en-US", case=ascii_letter_case)
         }
         self.ascii_letter_list = sorted(self.ascii_letter_dict)
         self.ascii_letter_case = ascii_letter_case
-        self.punctuation = get_ipa_punctuation_list('ja-JP')
+        self.punctuation = get_ipa_punctuation_list("ja-JP")
 
         if apply_to_oov_word is None:
             logging.warning(
@@ -114,7 +117,7 @@ class JapaneseG2p(BaseG2p):
     ) -> Dict[str, List[str]]:
         """Loads prondict dict file, and generates a set of all valid symbols."""
         g2p_dict = defaultdict(list)
-        with open(phoneme_dict_path, 'r') as file:
+        with open(phoneme_dict_path, "r") as file:
             for line in file:
                 # skip empty lines and comment lines starting with `;;;`.
                 if line.startswith(";;;") or len(line.strip()) == 0:
@@ -123,7 +126,9 @@ class JapaneseG2p(BaseG2p):
                 word, pronunciation = line.rstrip().split(maxsplit=1)
 
                 # add a prefix to distinguish phoneme symbols from non-phoneme symbols.
-                pronunciation_with_prefix = [phoneme_prefix + pron for pron in pronunciation]
+                pronunciation_with_prefix = [
+                    phoneme_prefix + pron for pron in pronunciation
+                ]
                 g2p_dict[word] = pronunciation_with_prefix
 
         return g2p_dict
@@ -146,6 +151,8 @@ class JapaneseG2p(BaseG2p):
             elif word in self.punctuation:
                 phoneme_seq += word
             else:
-                logging.warning(f"{word} not found in the pronunciation dictionary. Returning graphemes instead.")
+                logging.warning(
+                    f"{word} not found in the pronunciation dictionary. Returning graphemes instead."
+                )
                 phoneme_seq += [c for c in word]
         return phoneme_seq

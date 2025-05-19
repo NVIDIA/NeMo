@@ -43,30 +43,42 @@ class StatsPoolLayer(nn.Module):
         ValueError if an unsupported pooling mode is specified.
     """
 
-    def __init__(self, feat_in: int, pool_mode: str = 'xvector', eps: float = 1e-10, unbiased: bool = True):
+    def __init__(
+        self,
+        feat_in: int,
+        pool_mode: str = "xvector",
+        eps: float = 1e-10,
+        unbiased: bool = True,
+    ):
         super().__init__()
         supported_modes = {"xvector", "tap"}
         if pool_mode not in supported_modes:
-            raise ValueError(f"Pool mode must be one of {supported_modes}; got '{pool_mode}'")
+            raise ValueError(
+                f"Pool mode must be one of {supported_modes}; got '{pool_mode}'"
+            )
         self.pool_mode = pool_mode
         self.feat_in = feat_in
         self.eps = eps
         self.unbiased = unbiased
-        if self.pool_mode == 'xvector':
+        if self.pool_mode == "xvector":
             # Mean + std
             self.feat_in *= 2
 
     def forward(self, encoder_output, length=None):
         if length is None:
             mean = encoder_output.mean(dim=-1)  # Time Axis
-            if self.pool_mode == 'xvector':
+            if self.pool_mode == "xvector":
                 correction = 1 if self.unbiased else 0
-                std = encoder_output.std(dim=-1, correction=correction).clamp(min=self.eps)
+                std = encoder_output.std(dim=-1, correction=correction).clamp(
+                    min=self.eps
+                )
                 pooled = torch.cat([mean, std], dim=-1)
             else:
                 pooled = mean
         else:
-            mask = make_seq_mask_like(like=encoder_output, lengths=length, valid_ones=False)
+            mask = make_seq_mask_like(
+                like=encoder_output, lengths=length, valid_ones=False
+            )
             encoder_output = encoder_output.masked_fill(mask, 0.0)
             # [B, D, T] -> [B, D]
             means = encoder_output.mean(dim=-1)
@@ -91,9 +103,16 @@ class StatsPoolLayer(nn.Module):
 
 @torch.jit.script_if_tracing
 def make_seq_mask_like(
-    like: torch.Tensor, lengths: torch.Tensor, valid_ones: bool = True, time_dim: int = -1
+    like: torch.Tensor,
+    lengths: torch.Tensor,
+    valid_ones: bool = True,
+    time_dim: int = -1,
 ) -> torch.Tensor:
-    mask = torch.arange(like.shape[time_dim], device=like.device).repeat(lengths.shape[0], 1).lt(lengths.unsqueeze(-1))
+    mask = (
+        torch.arange(like.shape[time_dim], device=like.device)
+        .repeat(lengths.shape[0], 1)
+        .lt(lengths.unsqueeze(-1))
+    )
     # Match number of dims in `like` tensor
     for _ in range(like.dim() - mask.dim()):
         mask = mask.unsqueeze(1)
@@ -123,7 +142,9 @@ def lens_to_mask(lens: List[int], max_len: int, device: str = None):
     return mask, num_values
 
 
-def get_statistics_with_mask(x: torch.Tensor, m: torch.Tensor, dim: int = 2, eps: float = 1e-10):
+def get_statistics_with_mask(
+    x: torch.Tensor, m: torch.Tensor, dim: int = 2, eps: float = 1e-10
+):
     """
     compute mean and standard deviation of input(x) provided with its masking labels (m)
     input:
@@ -196,7 +217,14 @@ class MaskedSEModule(nn.Module):
         squeeze and excite layer output
     """
 
-    def __init__(self, inp_filters: int, se_filters: int, out_filters: int, kernel_size: int = 1, dilation: int = 1):
+    def __init__(
+        self,
+        inp_filters: int,
+        se_filters: int,
+        out_filters: int,
+        kernel_size: int = 1,
+        dilation: int = 1,
+    ):
         super().__init__()
         self.se_layer = nn.Sequential(
             nn.Conv1d(
@@ -221,7 +249,9 @@ class MaskedSEModule(nn.Module):
             x = torch.mean(input, dim=2, keep_dim=True)
         else:
             max_len = input.size(2)
-            mask, num_values = lens_to_mask(length, max_len=max_len, device=input.device)
+            mask, num_values = lens_to_mask(
+                length, max_len=max_len, device=input.device
+            )
             x = torch.sum((input * mask), dim=2, keepdim=True) / (num_values)
 
         out = self.se_layer(x)
@@ -249,11 +279,13 @@ class TDNNSEModule(nn.Module):
         se_channels: int = 128,
         kernel_size: int = 1,
         dilation: int = 1,
-        init_mode: str = 'xavier_uniform',
+        init_mode: str = "xavier_uniform",
     ):
         super().__init__()
         self.out_filters = out_filters
-        padding_val = get_same_padding(kernel_size=kernel_size, dilation=dilation, stride=1)
+        padding_val = get_same_padding(
+            kernel_size=kernel_size, dilation=dilation, stride=1
+        )
 
         group_conv = nn.Conv1d(
             out_filters,
@@ -305,7 +337,12 @@ class AttentivePoolLayer(nn.Module):
         self.feat_in = 2 * inp_filters
 
         self.attention_layer = nn.Sequential(
-            TDNNModule(inp_filters * 3, attention_channels, kernel_size=kernel_size, dilation=dilation),
+            TDNNModule(
+                inp_filters * 3,
+                attention_channels,
+                kernel_size=kernel_size,
+                dilation=dilation,
+            ),
             nn.Tanh(),
             nn.Conv1d(
                 in_channels=attention_channels,

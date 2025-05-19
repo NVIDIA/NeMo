@@ -45,7 +45,9 @@ try:
     HAVE_MEGATRON_CORE_OR_TE = True
 
 except (ImportError, ModuleNotFoundError):
-    logging.warning("The package `megatron.core` was not imported in this environment which is needed for SSMs.")
+    logging.warning(
+        "The package `megatron.core` was not imported in this environment which is needed for SSMs."
+    )
     HAVE_MEGATRON_CORE_OR_TE = False
 
 from megatron.core.transformer.enums import AttnBackend
@@ -83,8 +85,8 @@ def dist_ckpt_handler(checkpoint_dir):
     Returns:
         tuple: A tuple containing the processed state dictionary and distributed checkpoint arguments.
     """
-    os.environ['MASTER_ADDR'] = 'localhost'
-    os.environ['MASTER_PORT'] = '12355'  # Ensure this port is available
+    os.environ["MASTER_ADDR"] = "localhost"
+    os.environ["MASTER_PORT"] = "12355"  # Ensure this port is available
     world_size = 1
     rank = 0
     torch.distributed.init_process_group(
@@ -97,64 +99,64 @@ def dist_ckpt_handler(checkpoint_dir):
     for k in key_list:
         if "optimizer" in k:
             state_dict.pop(k)
-    dist_ckpt_args = state_dict['args']
-    state_dict.pop('args')
-    state_dict.pop('checkpoint_version')
-    state_dict.pop('iteration')
+    dist_ckpt_args = state_dict["args"]
+    state_dict.pop("args")
+    state_dict.pop("checkpoint_version")
+    state_dict.pop("iteration")
     try:
-        state_dict.pop('opt_param_scheduler')
+        state_dict.pop("opt_param_scheduler")
     except Exception:
         pass
     try:
-        state_dict.pop('num_floating_point_operations_so_far')
+        state_dict.pop("num_floating_point_operations_so_far")
     except Exception:
         pass
     try:
-        state_dict.pop('rerun_state_machine')
+        state_dict.pop("rerun_state_machine")
     except Exception:
         pass
     for i, symbol in enumerate(dist_ckpt_args.hybrid_override_pattern):
-        if symbol == 'M':
-            state_dict[f'decoder.layers.{i}.mixer.in_proj.weight'] = torch.cat(
+        if symbol == "M":
+            state_dict[f"decoder.layers.{i}.mixer.in_proj.weight"] = torch.cat(
                 [
-                    state_dict[f'decoder.layers.{i}.mixer.in_proj.weight.z'],
-                    state_dict[f'decoder.layers.{i}.mixer.in_proj.weight.x'],
-                    state_dict[f'decoder.layers.{i}.mixer.in_proj.weight.B'],
-                    state_dict[f'decoder.layers.{i}.mixer.in_proj.weight.C'],
-                    state_dict[f'decoder.layers.{i}.mixer.in_proj.weight.dt'],
+                    state_dict[f"decoder.layers.{i}.mixer.in_proj.weight.z"],
+                    state_dict[f"decoder.layers.{i}.mixer.in_proj.weight.x"],
+                    state_dict[f"decoder.layers.{i}.mixer.in_proj.weight.B"],
+                    state_dict[f"decoder.layers.{i}.mixer.in_proj.weight.C"],
+                    state_dict[f"decoder.layers.{i}.mixer.in_proj.weight.dt"],
                 ],
                 dim=0,
             )
 
-            state_dict.pop(f'decoder.layers.{i}.mixer.in_proj.weight.z')
-            state_dict.pop(f'decoder.layers.{i}.mixer.in_proj.weight.x')
-            state_dict.pop(f'decoder.layers.{i}.mixer.in_proj.weight.B')
-            state_dict.pop(f'decoder.layers.{i}.mixer.in_proj.weight.C')
-            state_dict.pop(f'decoder.layers.{i}.mixer.in_proj.weight.dt')
+            state_dict.pop(f"decoder.layers.{i}.mixer.in_proj.weight.z")
+            state_dict.pop(f"decoder.layers.{i}.mixer.in_proj.weight.x")
+            state_dict.pop(f"decoder.layers.{i}.mixer.in_proj.weight.B")
+            state_dict.pop(f"decoder.layers.{i}.mixer.in_proj.weight.C")
+            state_dict.pop(f"decoder.layers.{i}.mixer.in_proj.weight.dt")
 
-            state_dict[f'decoder.layers.{i}.mixer.conv1d.weight'] = torch.cat(
+            state_dict[f"decoder.layers.{i}.mixer.conv1d.weight"] = torch.cat(
                 [
-                    state_dict[f'decoder.layers.{i}.mixer.conv1d.weight.x'],
-                    state_dict[f'decoder.layers.{i}.mixer.conv1d.weight.B'],
-                    state_dict[f'decoder.layers.{i}.mixer.conv1d.weight.C'],
+                    state_dict[f"decoder.layers.{i}.mixer.conv1d.weight.x"],
+                    state_dict[f"decoder.layers.{i}.mixer.conv1d.weight.B"],
+                    state_dict[f"decoder.layers.{i}.mixer.conv1d.weight.C"],
                 ],
                 dim=0,
             )
-            state_dict.pop(f'decoder.layers.{i}.mixer.conv1d.weight.x')
-            state_dict.pop(f'decoder.layers.{i}.mixer.conv1d.weight.B')
-            state_dict.pop(f'decoder.layers.{i}.mixer.conv1d.weight.C')
+            state_dict.pop(f"decoder.layers.{i}.mixer.conv1d.weight.x")
+            state_dict.pop(f"decoder.layers.{i}.mixer.conv1d.weight.B")
+            state_dict.pop(f"decoder.layers.{i}.mixer.conv1d.weight.C")
 
-            state_dict[f'decoder.layers.{i}.mixer.conv1d.bias'] = torch.cat(
+            state_dict[f"decoder.layers.{i}.mixer.conv1d.bias"] = torch.cat(
                 [
-                    state_dict[f'decoder.layers.{i}.mixer.conv1d.bias.x'],
-                    state_dict[f'decoder.layers.{i}.mixer.conv1d.bias.B'],
-                    state_dict[f'decoder.layers.{i}.mixer.conv1d.bias.C'],
+                    state_dict[f"decoder.layers.{i}.mixer.conv1d.bias.x"],
+                    state_dict[f"decoder.layers.{i}.mixer.conv1d.bias.B"],
+                    state_dict[f"decoder.layers.{i}.mixer.conv1d.bias.C"],
                 ],
                 dim=0,
             )
-            state_dict.pop(f'decoder.layers.{i}.mixer.conv1d.bias.x')
-            state_dict.pop(f'decoder.layers.{i}.mixer.conv1d.bias.B')
-            state_dict.pop(f'decoder.layers.{i}.mixer.conv1d.bias.C')
+            state_dict.pop(f"decoder.layers.{i}.mixer.conv1d.bias.x")
+            state_dict.pop(f"decoder.layers.{i}.mixer.conv1d.bias.B")
+            state_dict.pop(f"decoder.layers.{i}.mixer.conv1d.bias.C")
     torch.distributed.destroy_process_group()
     return state_dict, dist_ckpt_args
 
@@ -191,14 +193,14 @@ class SSMConfig(TransformerConfig, io.IOMixin):
     pre_process: bool = True
     seq_length: int = 8192
     # Mamba with no attention has no need for position embeddings, so none is default
-    position_embedding_type: Literal['learned_absolute', 'rope', 'none'] = 'none'
+    position_embedding_type: Literal["learned_absolute", "rope", "none"] = "none"
     rotary_percent: float = 1.0
     rotary_base: int = 10000
     seq_len_interpolation_factor: Optional[float] = None
     apply_rope_fusion: bool = True
     make_vocab_size_divisible_by: int = 128
     gated_linear_unit: bool = False
-    normalization: str = 'RMSNorm'
+    normalization: str = "RMSNorm"
     add_bias_linear: bool = False
     hidden_dropout: float = 0.0
     attention_dropout: float = 0.0
@@ -217,7 +219,9 @@ class SSMConfig(TransformerConfig, io.IOMixin):
         default_factory=lambda: default_mamba_stack_spec
     )
 
-    def configure_model(self, tokenizer, pre_process=None, post_process=None) -> "MCoreMambaModel":
+    def configure_model(
+        self, tokenizer, pre_process=None, post_process=None
+    ) -> "MCoreMambaModel":
         """
         Configures the model for training or inference.
         """
@@ -228,7 +232,9 @@ class SSMConfig(TransformerConfig, io.IOMixin):
         return MCoreMambaModel(
             self,
             mamba_stack_spec=mamba_stack_spec,
-            vocab_size=get_vocab_size(self, tokenizer.vocab_size, self.make_vocab_size_divisible_by),
+            vocab_size=get_vocab_size(
+                self, tokenizer.vocab_size, self.make_vocab_size_divisible_by
+            ),
             max_sequence_length=self.seq_length,
             hybrid_attention_ratio=self.hybrid_attention_ratio,
             hybrid_mlp_ratio=self.hybrid_mlp_ratio,
@@ -237,8 +243,10 @@ class SSMConfig(TransformerConfig, io.IOMixin):
             rotary_percent=self.rotary_percent,
             rotary_base=self.rotary_base,
             seq_len_interpolation_factor=self.seq_len_interpolation_factor,
-            pre_process=pre_process or parallel_state.is_pipeline_first_stage(ignore_virtual=False),
-            post_process=post_process or parallel_state.is_pipeline_last_stage(ignore_virtual=False),
+            pre_process=pre_process
+            or parallel_state.is_pipeline_first_stage(ignore_virtual=False),
+            post_process=post_process
+            or parallel_state.is_pipeline_last_stage(ignore_virtual=False),
         )
 
 
@@ -263,10 +271,18 @@ class MambaModel(GPTModel):
         """
         Initializes the MambaModel with the given configuration, optimizer, tokenizer, and model transform.
         """
-        super().__init__(config or SSMConfig(), optim=optim, tokenizer=tokenizer, model_transform=model_transform)
+        super().__init__(
+            config or SSMConfig(),
+            optim=optim,
+            tokenizer=tokenizer,
+            model_transform=model_transform,
+        )
 
     def get_inference_wrapper(
-        self, params_dtype, inference_batch_times_seqlen_threshold, inference_max_seq_length=8192
+        self,
+        params_dtype,
+        inference_batch_times_seqlen_threshold,
+        inference_max_seq_length=8192,
     ) -> torch.Tensor:
         """
         Returns the inference wrapper for the model.
@@ -279,12 +295,14 @@ class MambaModel(GPTModel):
                 break
             mcore_model = getattr(mcore_model, "module", None)
         if mcore_model is None or type(mcore_model) is not MCoreMambaModel:
-            raise ValueError("Exact MCoreMambaModel instance not found in the model structure.")
+            raise ValueError(
+                "Exact MCoreMambaModel instance not found in the model structure."
+            )
 
         vocab_size = None
         if self.tokenizer is not None:
             vocab_size = self.tokenizer.vocab_size
-        elif hasattr(self.config, 'vocab_size'):
+        elif hasattr(self.config, "vocab_size"):
             vocab_size = self.config.vocab_size
         else:
             raise ValueError(
@@ -300,7 +318,9 @@ class MambaModel(GPTModel):
             inference_max_seq_length=inference_max_seq_length,
         )
 
-        model_inference_wrapper = GPTInferenceWrapper(mcore_model, inference_wrapper_config)
+        model_inference_wrapper = GPTInferenceWrapper(
+            mcore_model, inference_wrapper_config
+        )
         return model_inference_wrapper
 
 
@@ -340,9 +360,9 @@ class PyTorchSSMImporter(io.ModelConnector["MambaModel", MambaModel]):
         if source_dist_ckpt:
             source, dist_ckpt_args = dist_ckpt_handler(str(self))
         else:
-            source = torch.load(str(self), map_location='cpu')
-        if 'model' in source:
-            source = source['model']
+            source = torch.load(str(self), map_location="cpu")
+        if "model" in source:
+            source = source["model"]
 
         source = _ModelState(source)
         target = self.init()
@@ -376,40 +396,45 @@ class PyTorchSSMImporter(io.ModelConnector["MambaModel", MambaModel]):
         """
         if self.model_config.mapping_type == "base":
             mapping = {
-                'backbone.embedding.weight': 'embedding.word_embeddings.weight',
-                'backbone.layers.*.mixer.A_log': 'decoder.layers.*.mixer.A_log',
-                'backbone.layers.*.mixer.D': 'decoder.layers.*.mixer.D',
-                'backbone.layers.*.mixer.conv1d.weight': 'decoder.layers.*.mixer.conv1d.weight',
-                'backbone.layers.*.mixer.conv1d.bias': 'decoder.layers.*.mixer.conv1d.bias',
-                'backbone.layers.*.mixer.in_proj.weight': 'decoder.layers.*.mixer.in_proj.weight',
-                'backbone.layers.*.mixer.dt_bias': 'decoder.layers.*.mixer.dt_bias',
-                'backbone.layers.*.mixer.out_proj.weight': 'decoder.layers.*.mixer.out_proj.weight',
-                'backbone.layers.*.mixer.norm.weight': 'decoder.layers.*.mixer.norm.weight',
-                'backbone.layers.*.norm.weight': 'decoder.layers.*.mixer.in_proj.layer_norm_weight',
-                'backbone.norm_f.weight': 'decoder.final_norm.weight',
-                'lm_head.weight': 'output_layer.weight',
+                "backbone.embedding.weight": "embedding.word_embeddings.weight",
+                "backbone.layers.*.mixer.A_log": "decoder.layers.*.mixer.A_log",
+                "backbone.layers.*.mixer.D": "decoder.layers.*.mixer.D",
+                "backbone.layers.*.mixer.conv1d.weight": "decoder.layers.*.mixer.conv1d.weight",
+                "backbone.layers.*.mixer.conv1d.bias": "decoder.layers.*.mixer.conv1d.bias",
+                "backbone.layers.*.mixer.in_proj.weight": "decoder.layers.*.mixer.in_proj.weight",
+                "backbone.layers.*.mixer.dt_bias": "decoder.layers.*.mixer.dt_bias",
+                "backbone.layers.*.mixer.out_proj.weight": "decoder.layers.*.mixer.out_proj.weight",
+                "backbone.layers.*.mixer.norm.weight": "decoder.layers.*.mixer.norm.weight",
+                "backbone.layers.*.norm.weight": "decoder.layers.*.mixer.in_proj.layer_norm_weight",
+                "backbone.norm_f.weight": "decoder.final_norm.weight",
+                "lm_head.weight": "output_layer.weight",
             }
         elif "nvidia" in self.model_config.mapping_type:
             mapping = {
-                'embedding.word_embeddings.weight': 'embedding.word_embeddings.weight',
-                'decoder.layers.*.mixer.A_log': 'decoder.layers.*.mixer.A_log',
-                'decoder.layers.*.mixer.D': 'decoder.layers.*.mixer.D',
-                'decoder.layers.*.mixer.conv1d.weight': 'decoder.layers.*.mixer.conv1d.weight',
-                'decoder.layers.*.mixer.conv1d.bias': 'decoder.layers.*.mixer.conv1d.bias',
-                'decoder.layers.*.mixer.in_proj.weight': 'decoder.layers.*.mixer.in_proj.weight',
-                'decoder.layers.*.mixer.dt_bias': 'decoder.layers.*.mixer.dt_bias',
-                'decoder.layers.*.mixer.out_proj.weight': 'decoder.layers.*.mixer.out_proj.weight',
-                'decoder.layers.*.mixer.norm.weight': 'decoder.layers.*.mixer.norm.weight',
-                'decoder.final_norm.weight': 'decoder.final_norm.weight',
-                'output_layer.weight': 'output_layer.weight',
+                "embedding.word_embeddings.weight": "embedding.word_embeddings.weight",
+                "decoder.layers.*.mixer.A_log": "decoder.layers.*.mixer.A_log",
+                "decoder.layers.*.mixer.D": "decoder.layers.*.mixer.D",
+                "decoder.layers.*.mixer.conv1d.weight": "decoder.layers.*.mixer.conv1d.weight",
+                "decoder.layers.*.mixer.conv1d.bias": "decoder.layers.*.mixer.conv1d.bias",
+                "decoder.layers.*.mixer.in_proj.weight": "decoder.layers.*.mixer.in_proj.weight",
+                "decoder.layers.*.mixer.dt_bias": "decoder.layers.*.mixer.dt_bias",
+                "decoder.layers.*.mixer.out_proj.weight": "decoder.layers.*.mixer.out_proj.weight",
+                "decoder.layers.*.mixer.norm.weight": "decoder.layers.*.mixer.norm.weight",
+                "decoder.final_norm.weight": "decoder.final_norm.weight",
+                "output_layer.weight": "output_layer.weight",
             }
             if "nemotronh" in self.model_config.mapping_type:
                 # This style is a workaround for linting error
-                mapping.update({key: key for key in ['decoder.layers.*.mixer.in_proj.layer_norm_weight']})
+                mapping.update(
+                    {
+                        key: key
+                        for key in ["decoder.layers.*.mixer.in_proj.layer_norm_weight"]
+                    }
+                )
             else:
                 mapping.update(
                     {
-                        'decoder.layers.*.norm.weight': 'decoder.layers.*.mixer.in_proj.layer_norm_weight',
+                        "decoder.layers.*.norm.weight": "decoder.layers.*.mixer.in_proj.layer_norm_weight",
                     }
                 )
             if "hybrid" in self.model_config.mapping_type:
@@ -417,12 +442,12 @@ class PyTorchSSMImporter(io.ModelConnector["MambaModel", MambaModel]):
                     {
                         key: key
                         for key in [
-                            'decoder.layers.*.mlp.linear_fc1.layer_norm_weight',
-                            'decoder.layers.*.mlp.linear_fc1.weight',
-                            'decoder.layers.*.mlp.linear_fc2.weight',
-                            'decoder.layers.*.self_attention.linear_proj.weight',
-                            'decoder.layers.*.self_attention.linear_qkv.layer_norm_weight',
-                            'decoder.layers.*.self_attention.linear_qkv.weight',
+                            "decoder.layers.*.mlp.linear_fc1.layer_norm_weight",
+                            "decoder.layers.*.mlp.linear_fc1.weight",
+                            "decoder.layers.*.mlp.linear_fc2.weight",
+                            "decoder.layers.*.self_attention.linear_proj.weight",
+                            "decoder.layers.*.self_attention.linear_qkv.layer_norm_weight",
+                            "decoder.layers.*.self_attention.linear_qkv.weight",
                         ]
                     }
                 )
@@ -510,34 +535,40 @@ class HFNemotronHImporter(io.ModelConnector["AutoModelForCausalLM", MambaModel])
             torch.nn.Module: The converted target model.
         """
         mapping = {
-            'backbone.embeddings.weight': 'embedding.word_embeddings.weight',
-            'backbone.layers.*.mixer.A_log': 'decoder.layers.*.mixer.A_log',
-            'backbone.layers.*.mixer.D': 'decoder.layers.*.mixer.D',
-            'backbone.layers.*.mixer.conv1d.weight': 'decoder.layers.*.mixer.conv1d.weight',
-            'backbone.layers.*.mixer.conv1d.bias': 'decoder.layers.*.mixer.conv1d.bias',
-            'backbone.layers.*.mixer.in_proj.weight': 'decoder.layers.*.mixer.in_proj.weight',
-            'backbone.layers.*.mixer.dt_bias': 'decoder.layers.*.mixer.dt_bias',
-            'backbone.layers.*.mixer.out_proj.weight': 'decoder.layers.*.mixer.out_proj.weight',
-            'backbone.layers.*.mixer.norm.weight': 'decoder.layers.*.mixer.norm.weight',
-            'backbone.layers.*.mixer.up_proj.weight': 'decoder.layers.*.mlp.linear_fc1.weight',
-            'backbone.layers.*.mixer.down_proj.weight': 'decoder.layers.*.mlp.linear_fc2.weight',
-            'backbone.layers.*.mixer.o_proj.weight': 'decoder.layers.*.self_attention.linear_proj.weight',
-            'backbone.norm_f.weight': 'decoder.final_norm.weight',
-            'lm_head.weight': 'output_layer.weight',
+            "backbone.embeddings.weight": "embedding.word_embeddings.weight",
+            "backbone.layers.*.mixer.A_log": "decoder.layers.*.mixer.A_log",
+            "backbone.layers.*.mixer.D": "decoder.layers.*.mixer.D",
+            "backbone.layers.*.mixer.conv1d.weight": "decoder.layers.*.mixer.conv1d.weight",
+            "backbone.layers.*.mixer.conv1d.bias": "decoder.layers.*.mixer.conv1d.bias",
+            "backbone.layers.*.mixer.in_proj.weight": "decoder.layers.*.mixer.in_proj.weight",
+            "backbone.layers.*.mixer.dt_bias": "decoder.layers.*.mixer.dt_bias",
+            "backbone.layers.*.mixer.out_proj.weight": "decoder.layers.*.mixer.out_proj.weight",
+            "backbone.layers.*.mixer.norm.weight": "decoder.layers.*.mixer.norm.weight",
+            "backbone.layers.*.mixer.up_proj.weight": "decoder.layers.*.mlp.linear_fc1.weight",
+            "backbone.layers.*.mixer.down_proj.weight": "decoder.layers.*.mlp.linear_fc2.weight",
+            "backbone.layers.*.mixer.o_proj.weight": "decoder.layers.*.self_attention.linear_proj.weight",
+            "backbone.norm_f.weight": "decoder.final_norm.weight",
+            "lm_head.weight": "output_layer.weight",
         }
         for i, layer_type in enumerate(source.config.hybrid_override_pattern):
             if layer_type == "M":
-                mapping[f'backbone.layers.{i}.norm.weight'] = f'decoder.layers.{i}.mixer.in_proj.layer_norm_weight'
+                mapping[f"backbone.layers.{i}.norm.weight"] = (
+                    f"decoder.layers.{i}.mixer.in_proj.layer_norm_weight"
+                )
             elif layer_type == "-":
-                mapping[f'backbone.layers.{i}.norm.weight'] = f'decoder.layers.{i}.mlp.linear_fc1.layer_norm_weight'
+                mapping[f"backbone.layers.{i}.norm.weight"] = (
+                    f"decoder.layers.{i}.mlp.linear_fc1.layer_norm_weight"
+                )
             elif layer_type == "*":
-                mapping[f'backbone.layers.{i}.norm.weight'] = (
-                    f'decoder.layers.{i}.self_attention.linear_qkv.layer_norm_weight'
+                mapping[f"backbone.layers.{i}.norm.weight"] = (
+                    f"decoder.layers.{i}.self_attention.linear_qkv.layer_norm_weight"
                 )
             else:
                 raise AttributeError(f"layer type {layer_type} not found.")
 
-        return io.apply_transforms(source, target, mapping=mapping, transforms=[_import_qkv])
+        return io.apply_transforms(
+            source, target, mapping=mapping, transforms=[_import_qkv]
+        )
 
     @property
     def tokenizer(self) -> "AutoTokenizer":
@@ -549,7 +580,9 @@ class HFNemotronHImporter(io.ModelConnector["AutoModelForCausalLM", MambaModel])
         from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import \
             AutoTokenizer
 
-        return AutoTokenizer(self.save_hf_tokenizer_assets(str(self)), trust_remote_code=True)
+        return AutoTokenizer(
+            self.save_hf_tokenizer_assets(str(self)), trust_remote_code=True
+        )
 
     @property
     def config(self) -> SSMConfig:
@@ -631,29 +664,33 @@ class HFNemotronHExporter(io.ModelConnector[MambaModel, "AutoModelForCausalLM"])
             torch.nn.Module: The converted target model.
         """
         mapping = {
-            'decoder.layers.*.mixer.A_log': 'backbone.layers.*.mixer.A_log',
-            'decoder.layers.*.mixer.D': 'backbone.layers.*.mixer.D',
-            'decoder.layers.*.mixer.conv1d.weight': 'backbone.layers.*.mixer.conv1d.weight',
-            'decoder.layers.*.mixer.conv1d.bias': 'backbone.layers.*.mixer.conv1d.bias',
-            'decoder.layers.*.mixer.in_proj.weight': 'backbone.layers.*.mixer.in_proj.weight',
-            'decoder.layers.*.mixer.dt_bias': 'backbone.layers.*.mixer.dt_bias',
-            'decoder.layers.*.mixer.out_proj.weight': 'backbone.layers.*.mixer.out_proj.weight',
-            'decoder.layers.*.mixer.norm.weight': 'backbone.layers.*.mixer.norm.weight',
-            'decoder.layers.*.mlp.linear_fc1.weight': 'backbone.layers.*.mixer.up_proj.weight',
-            'decoder.layers.*.mlp.linear_fc2.weight': 'backbone.layers.*.mixer.down_proj.weight',
-            'decoder.layers.*.self_attention.linear_proj.weight': 'backbone.layers.*.mixer.o_proj.weight',
-            'decoder.final_norm.weight': 'backbone.norm_f.weight',
+            "decoder.layers.*.mixer.A_log": "backbone.layers.*.mixer.A_log",
+            "decoder.layers.*.mixer.D": "backbone.layers.*.mixer.D",
+            "decoder.layers.*.mixer.conv1d.weight": "backbone.layers.*.mixer.conv1d.weight",
+            "decoder.layers.*.mixer.conv1d.bias": "backbone.layers.*.mixer.conv1d.bias",
+            "decoder.layers.*.mixer.in_proj.weight": "backbone.layers.*.mixer.in_proj.weight",
+            "decoder.layers.*.mixer.dt_bias": "backbone.layers.*.mixer.dt_bias",
+            "decoder.layers.*.mixer.out_proj.weight": "backbone.layers.*.mixer.out_proj.weight",
+            "decoder.layers.*.mixer.norm.weight": "backbone.layers.*.mixer.norm.weight",
+            "decoder.layers.*.mlp.linear_fc1.weight": "backbone.layers.*.mixer.up_proj.weight",
+            "decoder.layers.*.mlp.linear_fc2.weight": "backbone.layers.*.mixer.down_proj.weight",
+            "decoder.layers.*.self_attention.linear_proj.weight": "backbone.layers.*.mixer.o_proj.weight",
+            "decoder.final_norm.weight": "backbone.norm_f.weight",
         }
 
         for i, layer_type in enumerate(source.config.hybrid_override_pattern):
             if layer_type == "M":
-                mapping[f'decoder.layers.{i}.mixer.in_proj.layer_norm_weight'] = f'backbone.layers.{i}.norm.weight'
-            elif layer_type == "-":
-                mapping[f'decoder.layers.{i}.mlp.linear_fc1.layer_norm_weight'] = f'backbone.layers.{i}.norm.weight'
-            elif layer_type == "*":
-                mapping[f'decoder.layers.{i}.self_attention.linear_qkv.layer_norm_weight'] = (
-                    f'backbone.layers.{i}.norm.weight'
+                mapping[f"decoder.layers.{i}.mixer.in_proj.layer_norm_weight"] = (
+                    f"backbone.layers.{i}.norm.weight"
                 )
+            elif layer_type == "-":
+                mapping[f"decoder.layers.{i}.mlp.linear_fc1.layer_norm_weight"] = (
+                    f"backbone.layers.{i}.norm.weight"
+                )
+            elif layer_type == "*":
+                mapping[
+                    f"decoder.layers.{i}.self_attention.linear_qkv.layer_norm_weight"
+                ] = f"backbone.layers.{i}.norm.weight"
             else:
                 raise AttributeError(f"layer type {layer_type} not found.")
 
@@ -674,7 +711,9 @@ class HFNemotronHExporter(io.ModelConnector[MambaModel, "AutoModelForCausalLM"])
             AutoTokenizer: The tokenizer object.
         """
 
-        return AutoTokenizer.from_pretrained("nvidia/Nemotron-H-8B-Base-8K", trust_remote_code=True)
+        return AutoTokenizer.from_pretrained(
+            "nvidia/Nemotron-H-8B-Base-8K", trust_remote_code=True
+        )
 
     @property
     def config(self):
@@ -687,11 +726,17 @@ class HFNemotronHExporter(io.ModelConnector[MambaModel, "AutoModelForCausalLM"])
 
         # TODO @ataghibakhsh: Change AutoConfig to NemotronHConfig once merged to HF
         if type(source) == NemotronHConfig8B:
-            hf_config = AutoConfig.from_pretrained("nvidia/Nemotron-H-8B-Base-8K", trust_remote_code=True)
+            hf_config = AutoConfig.from_pretrained(
+                "nvidia/Nemotron-H-8B-Base-8K", trust_remote_code=True
+            )
         elif type(source) == NemotronHConfig47B:
-            hf_config = AutoConfig.from_pretrained("nvidia/Nemotron-H-47B-Base-8K", trust_remote_code=True)
+            hf_config = AutoConfig.from_pretrained(
+                "nvidia/Nemotron-H-47B-Base-8K", trust_remote_code=True
+            )
         elif type(source) == NemotronHConfig56B:
-            hf_config = AutoConfig.from_pretrained("nvidia/Nemotron-H-56B-Base-8K", trust_remote_code=True)
+            hf_config = AutoConfig.from_pretrained(
+                "nvidia/Nemotron-H-56B-Base-8K", trust_remote_code=True
+            )
         else:
             raise ValueError(f"Unsupported model size: {source}")
 
@@ -742,11 +787,15 @@ def _import_qkv(ctx: io.TransformCTX, q, k, v):
         qkv_weights_l.append(v[i : i + 1, :, :])
     qkv_weights = torch.cat(qkv_weights_l)
     assert qkv_weights.ndim == 3, qkv_weights.shape
-    assert qkv_weights.shape[0] == (heads_per_group + 2) * num_query_groups, qkv_weights.shape
+    assert (
+        qkv_weights.shape[0] == (heads_per_group + 2) * num_query_groups
+    ), qkv_weights.shape
     assert qkv_weights.shape[1] == head_size, qkv_weights.shape
     assert qkv_weights.shape[2] == old_tensor_shape[1], qkv_weights.shape
 
-    qkv_weights = qkv_weights.reshape([head_size * (head_num + 2 * num_query_groups), hidden_size])
+    qkv_weights = qkv_weights.reshape(
+        [head_size * (head_num + 2 * num_query_groups), hidden_size]
+    )
 
     return qkv_weights
 
@@ -782,7 +831,9 @@ def _export_qkv(ctx: io.TransformCTX, linear_qkv):
     linear_qkv = linear_qkv.reshape([qkv_total_dim, head_size, hidden_size])
     q_slice = torch.cat(
         [
-            torch.arange((heads_per_group + 2) * i, (heads_per_group + 2) * i + heads_per_group)
+            torch.arange(
+                (heads_per_group + 2) * i, (heads_per_group + 2) * i + heads_per_group
+            )
             for i in range(num_query_groups)
         ]
     )
@@ -847,7 +898,7 @@ class BaseMambaConfig130M(SSMConfig):
     mamba_num_groups: int = 1
     ffn_hidden_size: int = 768
     make_vocab_size_divisible_by: int = 16
-    tokenizer_library: str = 'huggingface'
+    tokenizer_library: str = "huggingface"
     tokenizer_name: str = "EleutherAI/gpt-neox-20b"
     mapping_type: str = "base"
 
@@ -863,7 +914,7 @@ class BaseMambaConfig370M(SSMConfig):
     mamba_num_groups: int = 1
     ffn_hidden_size: int = 1024
     make_vocab_size_divisible_by: int = 16
-    tokenizer_library: str = 'huggingface'
+    tokenizer_library: str = "huggingface"
     tokenizer_name: str = "EleutherAI/gpt-neox-20b"
     mapping_type: str = "base"
 
@@ -879,7 +930,7 @@ class BaseMambaConfig780M(SSMConfig):
     mamba_num_groups: int = 1
     ffn_hidden_size: int = 1536
     make_vocab_size_divisible_by: int = 16
-    tokenizer_library: str = 'huggingface'
+    tokenizer_library: str = "huggingface"
     tokenizer_name: str = "EleutherAI/gpt-neox-20b"
     mapping_type: str = "base"
 
@@ -895,7 +946,7 @@ class BaseMambaConfig1_3B(SSMConfig):
     mamba_num_groups: int = 1
     ffn_hidden_size: int = 2048
     make_vocab_size_divisible_by: int = 16
-    tokenizer_library: str = 'huggingface'
+    tokenizer_library: str = "huggingface"
     tokenizer_name: str = "EleutherAI/gpt-neox-20b"
     mapping_type: str = "base"
 
@@ -911,7 +962,7 @@ class BaseMambaConfig2_7B(SSMConfig):
     mamba_num_groups: int = 1
     ffn_hidden_size: int = 2560
     make_vocab_size_divisible_by: int = 16
-    tokenizer_library: str = 'huggingface'
+    tokenizer_library: str = "huggingface"
     tokenizer_name: str = "EleutherAI/gpt-neox-20b"
     mapping_type: str = "base"
 
@@ -928,7 +979,7 @@ class NVIDIAMambaConfig8B(SSMConfig):
     mamba_num_groups: int = 8
     ffn_hidden_size: int = 4096
     make_vocab_size_divisible_by: int = 128
-    tokenizer_library: str = 'megatron'
+    tokenizer_library: str = "megatron"
     tokenizer_name: str = "GPTSentencePieceTokenizer"
     mapping_type: str = "nvidia-pure"
 
@@ -937,7 +988,9 @@ class NVIDIAMambaConfig8B(SSMConfig):
 class NVIDIAMambaHybridConfig8B(SSMConfig):
     """NVIDIAMambaHybridConfig8B"""
 
-    hybrid_override_pattern: str = "M-M-M--M-M*-M-M-M-M--M*-M-M-M-M-M*--M-M-M-M-M*-M--M-M-M-"
+    hybrid_override_pattern: str = (
+        "M-M-M--M-M*-M-M-M-M--M*-M-M-M-M-M*--M-M-M-M-M*-M--M-M-M-"
+    )
     num_layers: int = 56
     seq_length: int = 4096
     hidden_size: int = 4096
@@ -946,7 +999,7 @@ class NVIDIAMambaHybridConfig8B(SSMConfig):
     num_attention_heads: int = 32
     num_query_groups: int = 8
     make_vocab_size_divisible_by: int = 128
-    tokenizer_library: str = 'megatron'
+    tokenizer_library: str = "megatron"
     tokenizer_name: str = "GPTSentencePieceTokenizer"
     mapping_type: str = "nvidia-hybrid"
 
@@ -961,7 +1014,7 @@ class NemotronHConfigBase(SSMConfig):
     num_query_groups: int = 8
     make_vocab_size_divisible_by: int = 128
     activation_func: callable = lambda x: torch.pow(F.relu(x), 2)
-    tokenizer_library: str = 'tiktoken'
+    tokenizer_library: str = "tiktoken"
     tokenizer_name: str = "TiktokenTokenizer"
     mapping_type: str = "nvidia-hybrid-nemotronh"
     masked_softmax_fusion: bool = True
@@ -977,7 +1030,9 @@ class NemotronHConfigBase(SSMConfig):
 class NemotronHConfig8B(NemotronHConfigBase):
     """NemotronHConfig8B"""
 
-    hybrid_override_pattern: str = "M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M-"
+    hybrid_override_pattern: str = (
+        "M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M-"
+    )
     num_layers: int = 52
     hidden_size: int = 4096
     mamba_state_dim: int = 128

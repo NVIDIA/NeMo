@@ -41,7 +41,7 @@ try:
 
     OPT_GROUP_NORM = True
 except Exception:
-    print('Fused optimized group norm has not been installed.')
+    print("Fused optimized group norm has not been installed.")
     OPT_GROUP_NORM = False
 
 
@@ -69,7 +69,7 @@ def convert_module_to_fp32(module, enable_norm_layers=False):
 
 def convert_module_to_fp8(model):
     def _set_module(model, submodule_key, module):
-        tokens = submodule_key.split('.')
+        tokens = submodule_key.split(".")
         sub_tokens = tokens[:-1]
         cur_mod = model
         for s in sub_tokens:
@@ -83,7 +83,7 @@ def convert_module_to_fp8(model):
     for n, v in model.named_modules():
         if isinstance(v, torch.nn.Linear):
             # if n in ['class_embed', 'bbox_embed.layers.0', 'bbox_embed.layers.1', 'bbox_embed.layers.2']: continue
-            logging.info(f'[INFO] Replace Linear: {n}, weight: {v.weight.shape}')
+            logging.info(f"[INFO] Replace Linear: {n}, weight: {v.weight.shape}")
             if v.bias is None:
                 is_bias = False
             else:
@@ -108,7 +108,9 @@ class AttentionPool2d(nn.Module):
         output_dim: int = None,
     ):
         super().__init__()
-        self.positional_embedding = nn.Parameter(th.randn(embed_dim, spacial_dim**2 + 1) / embed_dim**0.5)
+        self.positional_embedding = nn.Parameter(
+            th.randn(embed_dim, spacial_dim**2 + 1) / embed_dim**0.5
+        )
         self.qkv_proj = conv_nd(1, embed_dim, 3 * embed_dim, 1)
         self.c_proj = conv_nd(1, embed_dim, output_dim or embed_dim, 1)
         self.num_heads = embed_dim // num_heads_channels
@@ -168,7 +170,9 @@ class Upsample(nn.Module):
                     It can be 1, 2, or 3. If set to 3, upsampling occurs in the inner-two dimensions.
     """
 
-    def __init__(self, channels, use_conv, dims=2, out_channels=None, padding=1, third_up=False):
+    def __init__(
+        self, channels, use_conv, dims=2, out_channels=None, padding=1, third_up=False
+    ):
         super().__init__()
         self.channels = channels
         self.out_channels = out_channels or channels
@@ -176,7 +180,9 @@ class Upsample(nn.Module):
         self.dims = dims
         self.third_up = third_up
         if use_conv:
-            self.conv = conv_nd(dims, self.channels, self.out_channels, 3, padding=padding)
+            self.conv = conv_nd(
+                dims, self.channels, self.out_channels, 3, padding=padding
+            )
 
     def forward(self, x):
         assert x.shape[1] == self.channels
@@ -189,7 +195,11 @@ class Upsample(nn.Module):
             x = x.to(torch.float32)
         if self.dims == 3:
             t_factor = 1 if not self.third_up else 2
-            x = F.interpolate(x, (t_factor * x.shape[2], x.shape[3] * 2, x.shape[4] * 2), mode="nearest")
+            x = F.interpolate(
+                x,
+                (t_factor * x.shape[2], x.shape[3] * 2, x.shape[4] * 2),
+                mode="nearest",
+            )
         elif self.dims == 2:
             x = (
                 x.permute(0, 2, 3, 1)
@@ -209,14 +219,16 @@ class Upsample(nn.Module):
 
 
 class TransposedUpsample(nn.Module):
-    'Learned 2x upsampling without padding'
+    "Learned 2x upsampling without padding"
 
     def __init__(self, channels, out_channels=None, ks=5):
         super().__init__()
         self.channels = channels
         self.out_channels = out_channels or channels
 
-        self.up = nn.ConvTranspose2d(self.channels, self.out_channels, kernel_size=ks, stride=2)
+        self.up = nn.ConvTranspose2d(
+            self.channels, self.out_channels, kernel_size=ks, stride=2
+        )
 
     def forward(self, x):
         return self.up(x)
@@ -237,7 +249,9 @@ class Downsample(nn.Module):
                     It can be 1, 2, or 3. For 3D signals, downsampling occurs in the inner-two dimensions.
     """
 
-    def __init__(self, channels, use_conv, dims=2, out_channels=None, padding=1, third_down=False):
+    def __init__(
+        self, channels, use_conv, dims=2, out_channels=None, padding=1, third_down=False
+    ):
         super().__init__()
         self.channels = channels
         self.out_channels = out_channels or channels
@@ -245,7 +259,14 @@ class Downsample(nn.Module):
         self.dims = dims
         stride = 2 if dims != 3 else ((1, 2, 2) if not third_down else (2, 2, 2))
         if use_conv:
-            self.op = conv_nd(dims, self.channels, self.out_channels, 3, stride=stride, padding=padding)
+            self.op = conv_nd(
+                dims,
+                self.channels,
+                self.out_channels,
+                3,
+                stride=stride,
+                padding=padding,
+            )
         else:
             assert self.channels == self.out_channels
             self.op = avg_pool_nd(dims, kernel_size=stride, stride=stride)
@@ -323,7 +344,9 @@ class ResBlock(TimestepBlock):
             self.h_upd = self.x_upd = nn.Identity()
 
         self.skip_t_emb = skip_t_emb
-        self.emb_out_channels = 2 * self.out_channels if use_scale_shift_norm else self.out_channels
+        self.emb_out_channels = (
+            2 * self.out_channels if use_scale_shift_norm else self.out_channels
+        )
         if self.skip_t_emb:
             logging.info(f"Skipping timestep embedding in {self.__class__.__name__}")
             assert not self.use_scale_shift_norm
@@ -337,13 +360,23 @@ class ResBlock(TimestepBlock):
         self.out_layers = nn.Sequential(
             normalization(self.out_channels, act="silu", gn_groups=resblock_gn_groups),
             nn.Dropout(p=dropout),
-            zero_module(conv_nd(dims, self.out_channels, self.out_channels, kernel_size, padding=padding)),
+            zero_module(
+                conv_nd(
+                    dims,
+                    self.out_channels,
+                    self.out_channels,
+                    kernel_size,
+                    padding=padding,
+                )
+            ),
         )
 
         if self.out_channels == channels:
             self.skip_connection = nn.Identity()
         elif use_conv:
-            self.skip_connection = conv_nd(dims, channels, self.out_channels, kernel_size, padding=padding)
+            self.skip_connection = conv_nd(
+                dims, channels, self.out_channels, kernel_size, padding=padding
+            )
         else:
             self.skip_connection = conv_nd(dims, channels, self.out_channels, 1)
 
@@ -360,7 +393,9 @@ class ResBlock(TimestepBlock):
             Tensor: An output Tensor of shape [N x C x ...], representing the processed features.
         """
         if self.use_checkpoint:
-            return checkpoint(self._forward, (x, emb), self.parameters(), self.use_checkpoint)
+            return checkpoint(
+                self._forward, (x, emb), self.parameters(), self.use_checkpoint
+            )
         else:
             return self._forward(x, emb)
 
@@ -481,7 +516,9 @@ class QKVAttentionLegacy(nn.Module):
         ch = width // (3 * self.n_heads)
         q, k, v = qkv.reshape(bs * self.n_heads, ch * 3, length).split(ch, dim=1)
         scale = 1 / math.sqrt(math.sqrt(ch))
-        weight = th.einsum("bct,bcs->bts", q * scale, k * scale)  # More stable with f16 than dividing afterwards
+        weight = th.einsum(
+            "bct,bcs->bts", q * scale, k * scale
+        )  # More stable with f16 than dividing afterwards
         weight = th.softmax(weight.float(), dim=-1).type(weight.dtype)
         a = th.einsum("bts,bcs->bct", weight, v)
         return a.reshape(bs, -1, length)
@@ -615,12 +652,12 @@ class UNetModel(nn.Module):
         if use_spatial_transformer:
             assert (
                 context_dim is not None
-            ), 'You forgot to include the dimension of your cross-attention conditioning...'
+            ), "You forgot to include the dimension of your cross-attention conditioning..."
 
         if context_dim is not None:
             assert (
                 use_spatial_transformer
-            ), 'You forgot to use the spatial transformer for your cross-attention conditioning...'
+            ), "You forgot to use the spatial transformer for your cross-attention conditioning..."
 
             if type(context_dim) == ListConfig:
                 context_dim = list(context_dim)
@@ -629,10 +666,14 @@ class UNetModel(nn.Module):
             num_heads_upsample = num_heads
 
         if num_heads == -1:
-            assert num_head_channels != -1, 'Either num_heads or num_head_channels has to be set'
+            assert (
+                num_head_channels != -1
+            ), "Either num_heads or num_head_channels has to be set"
 
         if num_head_channels == -1:
-            assert num_heads != -1, 'Either num_heads or num_head_channels has to be set'
+            assert (
+                num_heads != -1
+            ), "Either num_heads or num_head_channels has to be set"
 
         self.image_size = image_size
         self.in_channels = in_channels
@@ -642,7 +683,9 @@ class UNetModel(nn.Module):
             transformer_depth = len(channel_mult) * [transformer_depth]
         elif isinstance(transformer_depth, ListConfig):
             transformer_depth = list(transformer_depth)
-        transformer_depth_middle = default(transformer_depth_middle, transformer_depth[-1])
+        transformer_depth_middle = default(
+            transformer_depth_middle, transformer_depth[-1]
+        )
 
         if isinstance(num_res_blocks, int):
             self.num_res_blocks = len(channel_mult) * [num_res_blocks]
@@ -689,8 +732,10 @@ class UNetModel(nn.Module):
             linear(time_embed_dim, time_embed_dim),
         )
 
-        self.time_embeddings = torch.Tensor(build_timestep_embedding(model_channels, timesteps))
-        if unet_precision == 'fp16-mixed' or unet_precision == 'fp16':
+        self.time_embeddings = torch.Tensor(
+            build_timestep_embedding(model_channels, timesteps)
+        )
+        if unet_precision == "fp16-mixed" or unet_precision == "fp16":
             self.time_embeddings = self.time_embeddings.to(torch.float16)
 
         if self.num_classes is not None:
@@ -721,7 +766,11 @@ class UNetModel(nn.Module):
             else:
                 raise ValueError()
         self.input_blocks = nn.ModuleList(
-            [TimestepEmbedSequential(conv_nd(dims, in_channels, model_channels, 3, padding=1))]
+            [
+                TimestepEmbedSequential(
+                    conv_nd(dims, in_channels, model_channels, 3, padding=1)
+                )
+            ]
         )
         self._feature_size = model_channels
         input_block_chans = [model_channels]
@@ -751,13 +800,20 @@ class UNetModel(nn.Module):
                         dim_head = num_head_channels
                     if legacy:
                         # num_heads = 1
-                        dim_head = ch // num_heads if use_spatial_transformer else num_head_channels
+                        dim_head = (
+                            ch // num_heads
+                            if use_spatial_transformer
+                            else num_head_channels
+                        )
                     if exists(disable_self_attentions):
                         disabled_sa = disable_self_attentions[level]
                     else:
                         disabled_sa = False
 
-                    if not exists(num_attention_blocks) or nr < num_attention_blocks[level]:
+                    if (
+                        not exists(num_attention_blocks)
+                        or nr < num_attention_blocks[level]
+                    ):
                         layers.append(
                             AttentionBlock(
                                 ch,
@@ -802,7 +858,9 @@ class UNetModel(nn.Module):
                             resblock_gn_groups=resblock_gn_groups,
                         )
                         if resblock_updown
-                        else Downsample(ch, conv_resample, dims=dims, out_channels=out_ch)
+                        else Downsample(
+                            ch, conv_resample, dims=dims, out_channels=out_ch
+                        )
                     )
                 )
                 ch = out_ch
@@ -889,13 +947,20 @@ class UNetModel(nn.Module):
                         dim_head = num_head_channels
                     if legacy:
                         # num_heads = 1
-                        dim_head = ch // num_heads if use_spatial_transformer else num_head_channels
+                        dim_head = (
+                            ch // num_heads
+                            if use_spatial_transformer
+                            else num_head_channels
+                        )
                     if exists(disable_self_attentions):
                         disabled_sa = disable_self_attentions[level]
                     else:
                         disabled_sa = False
 
-                    if not exists(num_attention_blocks) or i < num_attention_blocks[level]:
+                    if (
+                        not exists(num_attention_blocks)
+                        or i < num_attention_blocks[level]
+                    ):
                         layers.append(
                             AttentionBlock(
                                 ch,
@@ -954,18 +1019,22 @@ class UNetModel(nn.Module):
 
         if from_pretrained is not None:
             logging.info(f"Attempting to load pretrained unet from {from_pretrained}")
-            if from_pretrained.endswith('safetensors'):
+            if from_pretrained.endswith("safetensors"):
                 from safetensors.torch import load_file as load_safetensors
 
                 state_dict = load_safetensors(from_pretrained)
             else:
-                state_dict = torch.load(from_pretrained, map_location='cpu', weights_only=False)
-            if 'state_dict' in state_dict.keys():
-                state_dict = state_dict['state_dict']
-            missing_key, unexpected_keys, _, _ = self._load_pretrained_model(state_dict, from_NeMo=from_NeMo)
+                state_dict = torch.load(
+                    from_pretrained, map_location="cpu", weights_only=False
+                )
+            if "state_dict" in state_dict.keys():
+                state_dict = state_dict["state_dict"]
+            missing_key, unexpected_keys, _, _ = self._load_pretrained_model(
+                state_dict, from_NeMo=from_NeMo
+            )
             if len(missing_key) > 0:
                 logging.info(
-                    'Following keys are missing during loading unet weights, which may lead to compromised image quality for a resumed training. Please check the checkpoint you provided.'
+                    "Following keys are missing during loading unet weights, which may lead to compromised image quality for a resumed training. Please check the checkpoint you provided."
                 )
                 logging.info(f"Missing keys: {missing_key}")
                 logging.info(f"Unexpected keys: {unexpected_keys}")
@@ -974,22 +1043,24 @@ class UNetModel(nn.Module):
 
         if unet_precision == "fp16-mixed":  # AMP O2
             self.convert_to_fp16()
-        elif unet_precision == 'fp16':
+        elif unet_precision == "fp16":
             self.convert_to_fp16(enable_norm_layers=True)
         if self.use_te_fp8:
-            assert unet_precision == 'fp16', "fp8 training can't work with fp16 O2 amp recipe"
+            assert (
+                unet_precision == "fp16"
+            ), "fp8 training can't work with fp16 O2 amp recipe"
             convert_module_to_fp8(self)
 
-            fp8_margin = int(os.getenv("FP8_MARGIN", '0'))
-            fp8_interval = int(os.getenv("FP8_INTERVAL", '1'))
+            fp8_margin = int(os.getenv("FP8_MARGIN", "0"))
+            fp8_interval = int(os.getenv("FP8_INTERVAL", "1"))
             fp8_format = os.getenv("FP8_FORMAT", "hybrid")
-            fp8_amax_history_len = int(os.getenv("FP8_HISTORY_LEN", '1024'))
-            fp8_amax_compute_algo = os.getenv("FP8_COMPUTE_ALGO", 'max')
-            fp8_wgrad = os.getenv("FP8_WGRAD", '1') == '1'
+            fp8_amax_history_len = int(os.getenv("FP8_HISTORY_LEN", "1024"))
+            fp8_amax_compute_algo = os.getenv("FP8_COMPUTE_ALGO", "max")
+            fp8_wgrad = os.getenv("FP8_WGRAD", "1") == "1"
 
             fp8_format_dict = {
-                'hybrid': transformer_engine.common.recipe.Format.HYBRID,
-                'e4m3': transformer_engine.common.recipe.Format.E4M3,
+                "hybrid": transformer_engine.common.recipe.Format.HYBRID,
+                "e4m3": transformer_engine.common.recipe.Format.E4M3,
             }
             fp8_format = fp8_format_dict[fp8_format]
 
@@ -1017,12 +1088,12 @@ class UNetModel(nn.Module):
                 target_id = 3 * id_0 + 1 + id_1
                 post_fix = (
                     key_[25:]
-                    .replace('time_emb_proj', 'emb_layers.1')
-                    .replace('norm1', 'in_layers.0')
-                    .replace('norm2', 'out_layers.0')
-                    .replace('conv1', 'in_layers.2')
-                    .replace('conv2', 'out_layers.3')
-                    .replace('conv_shortcut', 'skip_connection')
+                    .replace("time_emb_proj", "emb_layers.1")
+                    .replace("norm1", "in_layers.0")
+                    .replace("norm2", "out_layers.0")
+                    .replace("conv1", "in_layers.2")
+                    .replace("conv2", "out_layers.3")
+                    .replace("conv_shortcut", "skip_connection")
                 )
                 ## Rohit: I've changed this to make sure it is compatible
                 # post_fix = (
@@ -1034,16 +1105,18 @@ class UNetModel(nn.Module):
                 #     .replace('conv2', 'out_layers.2')
                 #     .replace('conv_shortcut', 'skip_connection')
                 # )
-                res_dict["input_blocks." + str(target_id) + '.0.' + post_fix] = value_
+                res_dict["input_blocks." + str(target_id) + ".0." + post_fix] = value_
             elif "attentions" in key_:
                 id_1 = int(key_[26])
                 target_id = 3 * id_0 + 1 + id_1
                 post_fix = key_[28:]
-                res_dict["input_blocks." + str(target_id) + '.1.' + post_fix] = value_
+                res_dict["input_blocks." + str(target_id) + ".1." + post_fix] = value_
             elif "downsamplers" in key_:
                 post_fix = key_[35:]
                 target_id = 3 * (id_0 + 1)
-                res_dict["input_blocks." + str(target_id) + '.0.op.' + post_fix] = value_
+                res_dict["input_blocks." + str(target_id) + ".0.op." + post_fix] = (
+                    value_
+                )
         return res_dict
 
     def _mid_blocks_mapping(self, mid_dict):
@@ -1051,29 +1124,29 @@ class UNetModel(nn.Module):
         for key_, value_ in mid_dict.items():
             if "resnets" in key_:
                 temp_key_ = (
-                    key_.replace('time_emb_proj', 'emb_layers.1')
-                    .replace('norm1', 'in_layers.0')
-                    .replace('norm2', 'out_layers.0')
-                    .replace('conv1', 'in_layers.2')
-                    .replace('conv2', 'out_layers.3')
-                    .replace('conv_shortcut', 'skip_connection')
-                    .replace('middle_block.resnets.0', 'middle_block.0')
-                    .replace('middle_block.resnets.1', 'middle_block.2')
+                    key_.replace("time_emb_proj", "emb_layers.1")
+                    .replace("norm1", "in_layers.0")
+                    .replace("norm2", "out_layers.0")
+                    .replace("conv1", "in_layers.2")
+                    .replace("conv2", "out_layers.3")
+                    .replace("conv_shortcut", "skip_connection")
+                    .replace("middle_block.resnets.0", "middle_block.0")
+                    .replace("middle_block.resnets.1", "middle_block.2")
                 )
                 res_dict[temp_key_] = value_
             elif "attentions" in key_:
-                res_dict[key_.replace('attentions.0', '1')] = value_
+                res_dict[key_.replace("attentions.0", "1")] = value_
         return res_dict
 
     def _other_blocks_mapping(self, other_dict):
         res_dict = {}
         for key_, value_ in other_dict.items():
             tmp_key = (
-                key_.replace('conv_in', 'input_blocks.0.0')
-                .replace('time_embedding.linear_1', 'time_embed.0')
-                .replace('time_embedding.linear_2', 'time_embed.2')
-                .replace('conv_norm_out', 'out.0')
-                .replace('conv_out', 'out.2')
+                key_.replace("conv_in", "input_blocks.0.0")
+                .replace("time_embedding.linear_1", "time_embed.0")
+                .replace("time_embedding.linear_2", "time_embed.2")
+                .replace("conv_norm_out", "out.0")
+                .replace("conv_out", "out.2")
             )
             res_dict[tmp_key] = value_
         return res_dict
@@ -1087,31 +1160,35 @@ class UNetModel(nn.Module):
                 target_id = 3 * id_0 + id_1
                 post_fix = (
                     key_[26:]
-                    .replace('time_emb_proj', 'emb_layers.1')
-                    .replace('norm1', 'in_layers.0')
-                    .replace('norm2', 'out_layers.0')
-                    .replace('conv1', 'in_layers.2')
-                    .replace('conv2', 'out_layers.3')
-                    .replace('conv_shortcut', 'skip_connection')
+                    .replace("time_emb_proj", "emb_layers.1")
+                    .replace("norm1", "in_layers.0")
+                    .replace("norm2", "out_layers.0")
+                    .replace("conv1", "in_layers.2")
+                    .replace("conv2", "out_layers.3")
+                    .replace("conv_shortcut", "skip_connection")
                 )
-                res_dict["output_blocks." + str(target_id) + '.0.' + post_fix] = value_
+                res_dict["output_blocks." + str(target_id) + ".0." + post_fix] = value_
             elif "attentions" in key_:
                 id_1 = int(key_[27])
                 target_id = 3 * id_0 + id_1
                 post_fix = key_[29:]
-                res_dict["output_blocks." + str(target_id) + '.1.' + post_fix] = value_
+                res_dict["output_blocks." + str(target_id) + ".1." + post_fix] = value_
             elif "upsamplers" in key_:
                 post_fix = key_[34:]
                 target_id = 3 * (id_0 + 1) - 1
-                mid_str = '.2.conv.' if target_id != 2 else '.1.conv.'
-                res_dict["output_blocks." + str(target_id) + mid_str + post_fix] = value_
+                mid_str = ".2.conv." if target_id != 2 else ".1.conv."
+                res_dict["output_blocks." + str(target_id) + mid_str + post_fix] = (
+                    value_
+                )
         return res_dict
 
     def _sdxl_embedding_mapping(self, sdxl_dict):
         res_dict = {}
         for key_, value_ in sdxl_dict.items():
             new_key_ = (
-                key_.replace('add_embedding.', 'label_emb.').replace('linear_1.', '0.0.').replace('linear_2.', '0.2.')
+                key_.replace("add_embedding.", "label_emb.")
+                .replace("linear_1.", "0.0.")
+                .replace("linear_2.", "0.2.")
             )
             res_dict[new_key_] = value_
         return res_dict
@@ -1119,26 +1196,28 @@ class UNetModel(nn.Module):
     def _legacy_unet_ckpt_mapping(self, unet_dict):
         new_dict = {}
         key_map = {
-            'transformer_blocks.0.norm1.weight': 'transformer_blocks.0.attn1.norm.weight',
-            'transformer_blocks.0.norm1.bias': 'transformer_blocks.0.attn1.norm.bias',
-            'transformer_blocks.0.norm2.weight': 'transformer_blocks.0.attn2.norm.weight',
-            'transformer_blocks.0.norm2.bias': 'transformer_blocks.0.attn2.norm.bias',
-            'transformer_blocks.0.norm3.weight': 'transformer_blocks.0.ff.net.0.weight',
-            'transformer_blocks.0.norm3.bias': 'transformer_blocks.0.ff.net.0.bias',
-            'transformer_blocks.0.ff.net.0.proj.weight': 'transformer_blocks.0.ff.net.1.proj.weight',
-            'transformer_blocks.0.ff.net.0.proj.bias': 'transformer_blocks.0.ff.net.1.proj.bias',
-            'transformer_blocks.0.ff.net.2.weight': 'transformer_blocks.0.ff.net.3.weight',
-            'transformer_blocks.0.ff.net.2.bias': 'transformer_blocks.0.ff.net.3.bias',
+            "transformer_blocks.0.norm1.weight": "transformer_blocks.0.attn1.norm.weight",
+            "transformer_blocks.0.norm1.bias": "transformer_blocks.0.attn1.norm.bias",
+            "transformer_blocks.0.norm2.weight": "transformer_blocks.0.attn2.norm.weight",
+            "transformer_blocks.0.norm2.bias": "transformer_blocks.0.attn2.norm.bias",
+            "transformer_blocks.0.norm3.weight": "transformer_blocks.0.ff.net.0.weight",
+            "transformer_blocks.0.norm3.bias": "transformer_blocks.0.ff.net.0.bias",
+            "transformer_blocks.0.ff.net.0.proj.weight": "transformer_blocks.0.ff.net.1.proj.weight",
+            "transformer_blocks.0.ff.net.0.proj.bias": "transformer_blocks.0.ff.net.1.proj.bias",
+            "transformer_blocks.0.ff.net.2.weight": "transformer_blocks.0.ff.net.3.weight",
+            "transformer_blocks.0.ff.net.2.bias": "transformer_blocks.0.ff.net.3.bias",
         }
 
-        pattern = re.compile(r'(input_blocks|output_blocks)\.[\d\w]+\.[\d\w]+\.')
-        pattern_middle_block = re.compile(r'middle_block\.[\d\w]+\.')
+        pattern = re.compile(r"(input_blocks|output_blocks)\.[\d\w]+\.[\d\w]+\.")
+        pattern_middle_block = re.compile(r"middle_block\.[\d\w]+\.")
         for old_key, value in unet_dict.items():
             match = pattern.match(old_key)
             match_middle = pattern_middle_block.match(old_key)
             if match or match_middle:
                 prefix = match.group(0) if match else match_middle.group(0)
-                suffix = old_key.split('.', 3)[-1] if match else old_key.split('.', 2)[-1]
+                suffix = (
+                    old_key.split(".", 3)[-1] if match else old_key.split(".", 2)[-1]
+                )
                 if suffix in key_map:
                     new_key = prefix + key_map[suffix]
                     new_dict[new_key] = value
@@ -1152,30 +1231,30 @@ class UNetModel(nn.Module):
     def te_fp8_key_mapping(self, unet_dict):
         new_state_dict = {}
         for key in unet_dict.keys():
-            if 'extra_state' in key:
+            if "extra_state" in key:
                 continue
 
             ### LayerNormLinear
             # norm_to_q.layer_norm_{weight|bias} -> norm.{weight|bias}
             # norm_to_q.weight -> to_q.weight
-            new_key = key.replace('attn1.norm.', 'attn1.norm_to_q.layer_norm_')
+            new_key = key.replace("attn1.norm.", "attn1.norm_to_q.layer_norm_")
             new_key = new_key.replace(
-                'attn1.to_q.weight',
-                'attn1.norm_to_q.weight',
+                "attn1.to_q.weight",
+                "attn1.norm_to_q.weight",
             )
-            new_key = new_key.replace('attn2.norm.', 'attn2.norm_to_q.layer_norm_')
+            new_key = new_key.replace("attn2.norm.", "attn2.norm_to_q.layer_norm_")
             new_key = new_key.replace(
-                'attn2.to_q.weight',
-                'attn2.norm_to_q.weight',
+                "attn2.to_q.weight",
+                "attn2.norm_to_q.weight",
             )
 
             ### LayerNormMLP
             # ff.net.layer_norm_{weight|bias} -> ff.net.0.{weight|bias}
             # ff.net.fc1_{weight|bias} -> ff.net.1.proj.{weight|bias}
             # ff.net.fc2_{weight|bias} -> ff.net.3.{weight|bias}
-            new_key = new_key.replace('ff.net.0.', 'ff.net.layer_norm_')
-            new_key = new_key.replace('ff.net.1.proj.', 'ff.net.fc1_')
-            new_key = new_key.replace('ff.net.3.', 'ff.net.fc2_')
+            new_key = new_key.replace("ff.net.0.", "ff.net.layer_norm_")
+            new_key = new_key.replace("ff.net.1.proj.", "ff.net.fc1_")
+            new_key = new_key.replace("ff.net.3.", "ff.net.fc2_")
 
             new_state_dict[new_key] = unet_dict[key]
         return new_state_dict
@@ -1190,11 +1269,11 @@ class UNetModel(nn.Module):
         sdxl_dict = {}
         for key_, value_ in state_dict.items():
             if "down_blocks" in key_:
-                input_dict[key_.replace('down_blocks', 'input_blocks')] = value_
+                input_dict[key_.replace("down_blocks", "input_blocks")] = value_
             elif "up_blocks" in key_:
-                output_dict[key_.replace('up_blocks', 'output_blocks')] = value_
+                output_dict[key_.replace("up_blocks", "output_blocks")] = value_
             elif "mid_block" in key_:
-                mid_dict[key_.replace('mid_block', 'middle_block')] = value_
+                mid_dict[key_.replace("mid_block", "middle_block")] = value_
             elif "add_embedding" in key_:
                 # SDXL related mapping
                 sdxl_dict[key_] = value_
@@ -1215,7 +1294,9 @@ class UNetModel(nn.Module):
 
         return res_dict
 
-    def _load_pretrained_model(self, state_dict, ignore_mismatched_sizes=False, from_NeMo=False):
+    def _load_pretrained_model(
+        self, state_dict, ignore_mismatched_sizes=False, from_NeMo=False
+    ):
         state_dict = self._strip_unet_key_prefix(state_dict)
         if not from_NeMo:
             logging.info("creating state key mapping from HF")
@@ -1230,22 +1311,29 @@ class UNetModel(nn.Module):
         unexpected_keys = list(set(loaded_keys) - set(expected_keys))
 
         # SDXL specific mapping
-        if 'output_blocks.2.2.conv.bias' in missing_keys and 'output_blocks.2.1.conv.bias' in loaded_keys:
-            state_dict['output_blocks.2.2.conv.bias'] = state_dict['output_blocks.2.1.conv.bias']
-            state_dict['output_blocks.2.2.conv.weight'] = state_dict['output_blocks.2.1.conv.weight']
+        if (
+            "output_blocks.2.2.conv.bias" in missing_keys
+            and "output_blocks.2.1.conv.bias" in loaded_keys
+        ):
+            state_dict["output_blocks.2.2.conv.bias"] = state_dict[
+                "output_blocks.2.1.conv.bias"
+            ]
+            state_dict["output_blocks.2.2.conv.weight"] = state_dict[
+                "output_blocks.2.1.conv.weight"
+            ]
 
-        if 'out.1.weight' in missing_keys and 'out.2.weight' in state_dict.keys():
-            state_dict['out.1.weight'] = state_dict['out.2.weight']
-            state_dict['out.1.bias'] = state_dict['out.2.bias']
+        if "out.1.weight" in missing_keys and "out.2.weight" in state_dict.keys():
+            state_dict["out.1.weight"] = state_dict["out.2.weight"]
+            state_dict["out.1.bias"] = state_dict["out.2.bias"]
 
         if (
-            'input_blocks.1.0.in_layers.2.weight' in loaded_keys
-            and 'input_blocks.1.0.in_layers.1.weight' in expected_keys
+            "input_blocks.1.0.in_layers.2.weight" in loaded_keys
+            and "input_blocks.1.0.in_layers.1.weight" in expected_keys
         ):
             # GroupNormOpt fuses activation function to one layer, thus the indexing of weights are shifted for following
             for key_ in missing_keys:
                 try:
-                    s = key_.split('.')
+                    s = key_.split(".")
                     idx = int(s[-2])
                     new_key_ = ".".join(s[:-2] + [str(int(idx + 1))] + [s[-1]])
                     state_dict[key_] = state_dict[new_key_]
@@ -1269,10 +1357,15 @@ class UNetModel(nn.Module):
 
                     if (
                         model_key in model_state_dict
-                        and state_dict[checkpoint_key].shape != model_state_dict[model_key].shape
+                        and state_dict[checkpoint_key].shape
+                        != model_state_dict[model_key].shape
                     ):
                         mismatched_keys.append(
-                            (checkpoint_key, state_dict[checkpoint_key].shape, model_state_dict[model_key].shape)
+                            (
+                                checkpoint_key,
+                                state_dict[checkpoint_key].shape,
+                                model_state_dict[model_key].shape,
+                            )
                         )
                         del state_dict[checkpoint_key]
             return mismatched_keys
@@ -1292,16 +1385,22 @@ class UNetModel(nn.Module):
     def _strip_unet_key_prefix(self, state_dict):
         re_state_dict = {}
         for key_, value_ in state_dict.items():
-            if key_.startswith('model.diffusion_model'):
-                re_state_dict[key_.replace('model.diffusion_model.', '')] = value_
-            elif key_.startswith('model.model.diffusion_model'):
-                re_state_dict[key_.replace('model.model.diffusion_model.', '')] = value_
-            elif key_.startswith('model._orig_mod.diffusion_model.'):
-                re_state_dict[key_.replace('model._orig_mod.diffusion_model.', '')] = value_
-            elif key_.startswith('model.model._orig_mod.diffusion_model.'):
-                re_state_dict[key_.replace('model.model._orig_mod.diffusion_model.', '')] = value_
-            elif key_.startswith('model.model.diffusion_model._orig_mod.'):
-                re_state_dict[key_.replace('model.model.diffusion_model._orig_mod.', '')] = value_
+            if key_.startswith("model.diffusion_model"):
+                re_state_dict[key_.replace("model.diffusion_model.", "")] = value_
+            elif key_.startswith("model.model.diffusion_model"):
+                re_state_dict[key_.replace("model.model.diffusion_model.", "")] = value_
+            elif key_.startswith("model._orig_mod.diffusion_model."):
+                re_state_dict[key_.replace("model._orig_mod.diffusion_model.", "")] = (
+                    value_
+                )
+            elif key_.startswith("model.model._orig_mod.diffusion_model."):
+                re_state_dict[
+                    key_.replace("model.model._orig_mod.diffusion_model.", "")
+                ] = value_
+            elif key_.startswith("model.model.diffusion_model._orig_mod."):
+                re_state_dict[
+                    key_.replace("model.model.diffusion_model._orig_mod.", "")
+                ] = value_
             else:
                 re_state_dict[key_] = value_
         return re_state_dict
@@ -1330,7 +1429,11 @@ class UNetModel(nn.Module):
         """
         Convert the torso of the model to float16.
         """
-        self.apply(lambda module: convert_module_to_fp16(module=module, enable_norm_layers=enable_norm_layers))
+        self.apply(
+            lambda module: convert_module_to_fp16(
+                module=module, enable_norm_layers=enable_norm_layers
+            )
+        )
 
     def _forward(self, x, timesteps=None, context=None, y=None, **kwargs):
         """
@@ -1359,7 +1462,9 @@ class UNetModel(nn.Module):
         if self.time_embeddings.device != timesteps.device:
             self.time_embeddings = self.time_embeddings.to(timesteps.device)
 
-        t_emb = timestep_embedding(timesteps, self.model_channels, cached_embedding=self.time_embeddings)
+        t_emb = timestep_embedding(
+            timesteps, self.model_channels, cached_embedding=self.time_embeddings
+        )
         emb = self.time_embed(t_emb)
         if self.num_classes is not None:
             assert y.shape[0] == x.shape[0]
@@ -1448,7 +1553,11 @@ class EncoderUNetModel(nn.Module):
         )
 
         self.input_blocks = nn.ModuleList(
-            [TimestepEmbedSequential(conv_nd(dims, in_channels, model_channels, 3, padding=1))]
+            [
+                TimestepEmbedSequential(
+                    conv_nd(dims, in_channels, model_channels, 3, padding=1)
+                )
+            ]
         )
         self._feature_size = model_channels
         input_block_chans = [model_channels]
@@ -1498,7 +1607,9 @@ class EncoderUNetModel(nn.Module):
                             resblock_gn_groups=resblock_gn_groups,
                         )
                         if resblock_updown
-                        else Downsample(ch, conv_resample, dims=dims, out_channels=out_ch)
+                        else Downsample(
+                            ch, conv_resample, dims=dims, out_channels=out_ch
+                        )
                     )
                 )
                 ch = out_ch
@@ -1548,7 +1659,9 @@ class EncoderUNetModel(nn.Module):
             self.out = nn.Sequential(
                 normalization(ch),
                 nn.SiLU(),
-                AttentionPool2d((image_size // ds), ch, num_head_channels, out_channels),
+                AttentionPool2d(
+                    (image_size // ds), ch, num_head_channels, out_channels
+                ),
             )
         elif pool == "spatial":
             self.out = nn.Sequential(
@@ -1580,7 +1693,9 @@ class EncoderUNetModel(nn.Module):
         :param timesteps: a 1-D batch of timesteps.
         :return: an [N x K] Tensor of outputs.
         """
-        emb = self.time_embed(timestep_embedding(timesteps, self.model_channels), use_fp16=self.use_fp16)
+        emb = self.time_embed(
+            timestep_embedding(timesteps, self.model_channels), use_fp16=self.use_fp16
+        )
 
         # future support
         if self.dtype == th.float32:

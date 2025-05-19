@@ -86,11 +86,11 @@ class FabricMegatronMixedPrecision(MixedPrecision):
         if isinstance(precision, int):
             precision = str(precision)
 
-        dtype = torch.bfloat16 if precision in ['bf16', 'bf16-mixed'] else torch.float32
+        dtype = torch.bfloat16 if precision in ["bf16", "bf16-mixed"] else torch.float32
         self.dtype_config = DtypeConfig(
-            fp32=precision in ['fp32', '32'],
-            fp16=precision in ['fp16', 'fp16-mixed', '16', '16-mixed'],
-            bf16=precision in ['bf16', 'bf16-mixed'],
+            fp32=precision in ["fp32", "32"],
+            fp16=precision in ["fp16", "fp16-mixed", "16", "16-mixed"],
+            bf16=precision in ["bf16", "bf16-mixed"],
             params_dtype=params_dtype or torch.float32,
             pipeline_dtype=pipeline_dtype or dtype,
             autocast_dtype=autocast_dtype or dtype,
@@ -181,8 +181,12 @@ class FabricMegatronMixedPrecision(MixedPrecision):
         This is optional and depends on the precision limitations during optimization.
         """
         for optim_config in get_optim_config(optimizer):
-            assert optim_config.bf16 == self.dtype_config.bf16, "BF16 model/optim config mismatch"
-            assert optim_config.fp16 == self.dtype_config.fp16, "FP16 model/optim config mismatch"
+            assert (
+                optim_config.bf16 == self.dtype_config.bf16
+            ), "BF16 model/optim config mismatch"
+            assert (
+                optim_config.fp16 == self.dtype_config.fp16
+            ), "FP16 model/optim config mismatch"
         return optimizer
 
     @contextmanager
@@ -195,7 +199,9 @@ class FabricMegatronMixedPrecision(MixedPrecision):
 
 
 @to_fabric.register(MegatronMixedPrecision)
-def _convert_megatron_mixed_precision(plugin: MegatronMixedPrecision) -> FabricMegatronMixedPrecision:
+def _convert_megatron_mixed_precision(
+    plugin: MegatronMixedPrecision,
+) -> FabricMegatronMixedPrecision:
     return FabricMegatronMixedPrecision(
         precision=plugin.precision,
     )

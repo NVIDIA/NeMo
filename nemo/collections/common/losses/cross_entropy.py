@@ -20,7 +20,7 @@ from nemo.core.neural_types import (LabelsType, LogitsType, LogprobsType,
                                     LossType, MaskType, NeuralType)
 from nemo.utils import logging
 
-__all__ = ['CrossEntropyLoss', 'NLLLoss']
+__all__ = ["CrossEntropyLoss", "NLLLoss"]
 
 
 class CrossEntropyLoss(nn.CrossEntropyLoss, Serialization, Typing):
@@ -30,21 +30,25 @@ class CrossEntropyLoss(nn.CrossEntropyLoss, Serialization, Typing):
 
     @property
     def input_types(self):
-        """Returns definitions of module input ports.
-        """
+        """Returns definitions of module input ports."""
         return {
-            "logits": NeuralType(['B'] + ['ANY'] * (self._logits_dim - 1), LogitsType()),
-            "labels": NeuralType(['B'] + ['ANY'] * (self._logits_dim - 2), LabelsType()),
-            "loss_mask": NeuralType(['B'] + ['ANY'] * (self._logits_dim - 2), MaskType(), optional=True),
+            "logits": NeuralType(
+                ["B"] + ["ANY"] * (self._logits_dim - 1), LogitsType()
+            ),
+            "labels": NeuralType(
+                ["B"] + ["ANY"] * (self._logits_dim - 2), LabelsType()
+            ),
+            "loss_mask": NeuralType(
+                ["B"] + ["ANY"] * (self._logits_dim - 2), MaskType(), optional=True
+            ),
         }
 
     @property
     def output_types(self):
-        """Returns definitions of module output ports.
-        """
+        """Returns definitions of module output ports."""
         return {"loss": NeuralType(elements_type=LossType())}
 
-    def __init__(self, logits_ndim=2, weight=None, reduction='mean', ignore_index=-100):
+    def __init__(self, logits_ndim=2, weight=None, reduction="mean", ignore_index=-100):
         """
         Args:
             logits_ndim (int): number of dimensions (or rank) of the logits tensor
@@ -89,8 +93,7 @@ class NLLLoss(nn.NLLLoss, Serialization, Typing):
 
     @property
     def input_types(self):
-        """Returns definitions of module input ports.
-        """
+        """Returns definitions of module input ports."""
         return {
             "log_probs": NeuralType(("B", "T", "D"), LogprobsType()),
             "labels": NeuralType(("B", "T"), LabelsType()),
@@ -99,11 +102,12 @@ class NLLLoss(nn.NLLLoss, Serialization, Typing):
 
     @property
     def output_types(self):
-        """Returns definitions of module output ports.
-        """
+        """Returns definitions of module output ports."""
         return {"loss": NeuralType(elements_type=LossType())}
 
-    def __init__(self, log_probs_ndim=2, weight=None, reduction='mean', ignore_index=-100):
+    def __init__(
+        self, log_probs_ndim=2, weight=None, reduction="mean", ignore_index=-100
+    ):
         """
         Args:
             log_probs_ndim (int): number of dimensions (or rank) of the logprobs tensor

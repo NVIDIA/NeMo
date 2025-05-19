@@ -77,7 +77,9 @@ class FineTuningDataModule(pl.LightningDataModule):
                 get_nmt_tokenizer
 
             special_tokens = {}
-            special_tokens['additional_special_tokens'] = [f'<extra_id_{i}>' for i in range(100)]
+            special_tokens["additional_special_tokens"] = [
+                f"<extra_id_{i}>" for i in range(100)
+            ]
             tokenizer = get_nmt_tokenizer(
                 "megatron",
                 "BertWordPieceCase",
@@ -106,7 +108,9 @@ class FineTuningDataModule(pl.LightningDataModule):
 
         # Follows the calculation in nemo.collections.nlp.data.language_modeling.megatron.
         # base_dataset_utils.get_datasets_weights_and_num_samples
-        self.max_train_samples = int(math.ceil(self.global_batch_size * self.trainer.max_steps * 1.005))
+        self.max_train_samples = int(
+            math.ceil(self.global_batch_size * self.trainer.max_steps * 1.005)
+        )
 
     def train_dataloader(self) -> DataLoader:
         return self._create_dataloader(

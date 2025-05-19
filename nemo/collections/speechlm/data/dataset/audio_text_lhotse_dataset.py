@@ -30,7 +30,13 @@ def collate_vectors(items, max_length: int, padding_value):
     vectors = collate_vectors_lhotse(items, padding_value=padding_value)
     if max_length > vectors.size(1):
         vectors = torch.cat(
-            [vectors, padding_value * torch.ones(vectors.size(0), max_length - vectors.size(1), dtype=vectors.dtype)],
+            [
+                vectors,
+                padding_value
+                * torch.ones(
+                    vectors.size(0), max_length - vectors.size(1), dtype=vectors.dtype
+                ),
+            ],
             dim=1,
         )
     if items[0].shape[0] < 1:
@@ -84,7 +90,9 @@ class MultimodalConversationDataset(torch.utils.data.Dataset):
         self.answer_only_loss = answer_only_loss
         self.is_train = is_train
 
-    def __getitem__(self, all_cuts: CutSet) -> dict[str, Union[torch.Tensor, list[str], dict]]:
+    def __getitem__(
+        self, all_cuts: CutSet
+    ) -> dict[str, Union[torch.Tensor, list[str], dict]]:
         audio_samples = []
         text_samples = []
         for sample in all_cuts:
@@ -119,7 +127,9 @@ class MultimodalConversationDataset(torch.utils.data.Dataset):
             "context_lengths": text_batch["context_lengths"],
             "answers": text_batch["answers"],
             "max_length": text_batch["max_length"],
-            "context_start_idx": text_batch["context_start_idx"],  # used for multi-audio per sample
+            "context_start_idx": text_batch[
+                "context_start_idx"
+            ],  # used for multi-audio per sample
             "num_audios": text_batch["num_audios"],  # used for multi-audio per sample
         }
 
@@ -134,7 +144,9 @@ class MultimodalConversationDataset(torch.utils.data.Dataset):
     def _get_metadata(self, all_cuts: CutSet) -> List[dict]:
         metadata = []
         for cut in all_cuts:
-            metadata.append({"type": type(cut).__name__, "id": getattr(cut, "id", "n/a")})
+            metadata.append(
+                {"type": type(cut).__name__, "id": getattr(cut, "id", "n/a")}
+            )
         return metadata
 
     def _process_sample(self, sample: Any) -> dict:
@@ -188,7 +200,9 @@ class MultimodalConversationDataset(torch.utils.data.Dataset):
 
         return audio_data, text_data
 
-    def _process_multimodal_conversation(self, sample: NeMoMultimodalConversation) -> Tuple[dict, TextProcessorOutput]:
+    def _process_multimodal_conversation(
+        self, sample: NeMoMultimodalConversation
+    ) -> Tuple[dict, TextProcessorOutput]:
         # Load audio
         audio_turns = [turn for turn in sample.turns if isinstance(turn, AudioTurn)]
         audio_signal = [turn.cut.load_audio().reshape(-1) for turn in audio_turns]
@@ -247,7 +261,9 @@ def collate_text_data(
     context_ids = [sample.context_ids for sample in samples]
     context_lengths = [sample.context_length for sample in samples]
     answer_ids = [sample.answer_ids for sample in samples]
-    context_start_idx = [sample.context_start_idx.numpy().tolist() for sample in samples]
+    context_start_idx = [
+        sample.context_start_idx.numpy().tolist() for sample in samples
+    ]
     num_audios = [sample.num_audios for sample in samples]
     answer_start_idx = [sample.answer_start_idx for sample in samples]
 
@@ -259,7 +275,9 @@ def collate_text_data(
         context_id_maxlen = max_seq_length
         answer_id_maxlen = max_seq_length
 
-    all_tokens = collate_vectors(input_ids, max_length=input_id_maxlen, padding_value=pad_id)
+    all_tokens = collate_vectors(
+        input_ids, max_length=input_id_maxlen, padding_value=pad_id
+    )
     full_lengths = torch.LongTensor([len(item) for item in input_ids])
 
     assert input_id_maxlen <= max_seq_length, f"{input_id_maxlen=} <= {max_seq_length=}"
@@ -272,7 +290,9 @@ def collate_text_data(
         "tokens": all_tokens[:, :-1],  # [batch_size, input_id_maxlen - 1]
         "tokens_length": full_lengths - 1,  # [batch_size]
         "labels": all_tokens[:, 1:],  # [batch_size, input_id_maxlen - 1]
-        "loss_mask": collate_vectors(loss_mask, max_length=input_id_maxlen, padding_value=0)[
+        "loss_mask": collate_vectors(
+            loss_mask, max_length=input_id_maxlen, padding_value=0
+        )[
             :, 1:
         ],  # [batch_size, input_id_maxlen - 1]
         "position_ids": torch.arange(input_id_maxlen, dtype=torch.long).repeat(

@@ -37,7 +37,7 @@ mp.set_start_method("spawn", force=True)
 @hydra_runner(config_path="conf", config_name="megatron_gpt_config")
 def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
-    logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
+    logging.info(f"\n{OmegaConf.to_yaml(cfg)}")
 
     trainer = MegatronTrainerBuilder(cfg).create_trainer()
     exp_manager(trainer, cfg.exp_manager)
@@ -45,7 +45,9 @@ def main(cfg) -> None:
     # Continual training
     if cfg.model.get("restore_from_path") is not None:
         # Option 1: Restore only the model weights from a .nemo file
-        logging.info(f"Continual training: loading weights from {cfg.model.restore_from_path}")
+        logging.info(
+            f"Continual training: loading weights from {cfg.model.restore_from_path}"
+        )
         from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import \
             MegatronGPTSFTModel
 
@@ -58,7 +60,9 @@ def main(cfg) -> None:
         )
     elif cfg.model.get("restore_from_ckpt") is not None:
         # Option 2: Restore both model weights and optimizer states from a PTL checkpoint
-        logging.info(f"Continual training: loading weights and optimizer states from {cfg.model.restore_from_ckpt}")
+        logging.info(
+            f"Continual training: loading weights and optimizer states from {cfg.model.restore_from_ckpt}"
+        )
         trainer.ckpt_path = Path(cfg.model.restore_from_ckpt)
         model = MegatronGPTModel(cfg.model, trainer)
 
@@ -69,5 +73,5 @@ def main(cfg) -> None:
     trainer.fit(model)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

@@ -67,13 +67,21 @@ def hyena(config: FLOPSConfig):
     #   Values FLOPs ((L, L) x (L, D))
     attn_fpl = 2 * 2 * config.gbs * config.hs * config.enc_seq_len**2
     # Hyena Projection
-    hyena_proj_fpl = 2 * 3 * config.gbs * config.enc_seq_len * hyena_short_conv_L * config.hs
+    hyena_proj_fpl = (
+        2 * 3 * config.gbs * config.enc_seq_len * hyena_short_conv_L * config.hs
+    )
     # Hyena Short Conv
-    hyena_short_conv_fpl = 2 * config.gbs * config.enc_seq_len * hyena_short_conv_len * config.hs
+    hyena_short_conv_fpl = (
+        2 * config.gbs * config.enc_seq_len * hyena_short_conv_len * config.hs
+    )
     # Hyena Medium Conv
-    hyena_medium_conv_fpl = 2 * config.gbs * config.enc_seq_len * hyena_medium_conv_len * config.hs
+    hyena_medium_conv_fpl = (
+        2 * config.gbs * config.enc_seq_len * hyena_medium_conv_len * config.hs
+    )
     # Hyena Long Conv (FFT)
-    hyena_long_conv_fft_fpl = config.gbs * 10 * config.enc_seq_len * math.log2(config.enc_seq_len) * config.hs
+    hyena_long_conv_fft_fpl = (
+        config.gbs * 10 * config.enc_seq_len * math.log2(config.enc_seq_len) * config.hs
+    )
     # Based off of https://gitlab-master.nvidia.com/clara-discovery/savanna/-/blob/main/savanna/mfu.py#L182
     # Assumption: 1x Backwards Pass FLOPS = 2x Forward Pass FLOPS
     return 3 * (

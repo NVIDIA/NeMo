@@ -53,7 +53,7 @@ def tokenizer(vocab_file: str = None) -> run.Config[pl.LightningModule]:
     if vocab_file:
         return run.Config(
             get_nmt_tokenizer,
-            library='tiktoken',
+            library="tiktoken",
             model_name="TiktokenTokenizer",
             vocab_file=vocab_file,
             use_fast=True,
@@ -61,7 +61,7 @@ def tokenizer(vocab_file: str = None) -> run.Config[pl.LightningModule]:
     else:
         return run.Config(
             get_nmt_tokenizer,
-            library='huggingface',
+            library="huggingface",
             model_name="nvidia/Nemotron-H-47B-Base-8K",
             use_fast=True,
         )
@@ -255,7 +255,9 @@ def pretrain_recipe(
             micro_batch_size=mbs,
             tokenizer=tokenizer(vocab_file=vocab_file),
         ),
-        log=default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
+        log=default_log(
+            dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)
+        ),
         optim=distributed_fused_adam_with_cosine_annealing(max_lr=3e-4),
         resume=default_resume(),
     )
@@ -286,7 +288,7 @@ def finetune_recipe(
     gbs: int = 768,
     mbs: int = 1,
     performance_mode: bool = False,
-    peft_scheme: Optional[str] = 'none',
+    peft_scheme: Optional[str] = "none",
 ) -> run.Partial:
     """
     Create a fine-tuning recipe for NemotronH Hybrid 47B model.
@@ -345,11 +347,15 @@ def finetune_recipe(
             micro_batch_size=mbs,
             tokenizer=tokenizer(vocab_file=vocab_file),
         ),
-        log=llm.default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
-        optim=distributed_fused_adam_with_cosine_annealing(max_lr=1e-4, min_lr=0, warmup_steps=50),
+        log=llm.default_log(
+            dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)
+        ),
+        optim=distributed_fused_adam_with_cosine_annealing(
+            max_lr=1e-4, min_lr=0, warmup_steps=50
+        ),
         resume=nemo_resume,
     )
-    if peft_scheme is None or peft_scheme.lower() == 'none':
+    if peft_scheme is None or peft_scheme.lower() == "none":
         recipe.trainer.strategy.tensor_model_parallel_size = 8
         recipe.optim.config.lr = 5e-6
     else:

@@ -45,12 +45,14 @@ class ExampleModel(BoringModel):
 class ExampleMCoreModel(ExampleModel):
     def sharded_state_dict(self):
         return {
-            'a': ShardedTensor.from_rank_offsets('a', self.layer.weight, replica_id=torch.distributed.get_rank()),
-            'const': 3,
+            "a": ShardedTensor.from_rank_offsets(
+                "a", self.layer.weight, replica_id=torch.distributed.get_rank()
+            ),
+            "const": 3,
         }
 
     def on_save_checkpoint(self, checkpoint: Dict[str, Any]) -> None:
-        checkpoint['sharded_state_dict'] = self.sharded_state_dict()
+        checkpoint["sharded_state_dict"] = self.sharded_state_dict()
 
 
 class MockDistributedCheckpointIO(DistributedCheckpointIO):
@@ -71,9 +73,19 @@ class MockTorchCheckpointIO(TorchCheckpointIO):
         self.save_checkpoint_called_args = args, kwargs
 
 
-def _get_last_checkpoint_dir(root_dir: Path, model: pl.LightningModule, suffix: str = '') -> Path:
-    steps = len(model.train_dataloader().dataset) * model.trainer.max_epochs // torch.distributed.get_world_size()
-    return root_dir / 'checkpoints' / f'epoch={model.trainer.max_epochs - 1}-step={steps}{suffix}'
+def _get_last_checkpoint_dir(
+    root_dir: Path, model: pl.LightningModule, suffix: str = ""
+) -> Path:
+    steps = (
+        len(model.train_dataloader().dataset)
+        * model.trainer.max_epochs
+        // torch.distributed.get_world_size()
+    )
+    return (
+        root_dir
+        / "checkpoints"
+        / f"epoch={model.trainer.max_epochs - 1}-step={steps}{suffix}"
+    )
 
 
 def _get_nlp_strategy_without_optimizer_state():
@@ -86,10 +98,10 @@ def _get_nlp_strategy_without_optimizer_state():
 
 
 class TestDistCkptIO:
-    @pytest.mark.run_only_on('GPU')
+    @pytest.mark.run_only_on("GPU")
     def test_dist_ckpt_io_called_for_mcore_models(self, tmp_path):
         strategy = _get_nlp_strategy_without_optimizer_state()
-        checkpoint_io = MockDistributedCheckpointIO('xxx')
+        checkpoint_io = MockDistributedCheckpointIO("xxx")
 
         test_trainer = pl.Trainer(
             enable_checkpointing=True,
@@ -102,13 +114,15 @@ class TestDistCkptIO:
         model = ExampleMCoreModel()
         test_trainer.fit(model)
 
-        assert isinstance(test_trainer.strategy.checkpoint_io, MockDistributedCheckpointIO)
+        assert isinstance(
+            test_trainer.strategy.checkpoint_io, MockDistributedCheckpointIO
+        )
         assert checkpoint_io.save_checkpoint_called_args is not None
         (state_dict, path), _ = checkpoint_io.save_checkpoint_called_args
         # Ckpt path doesn't contain the .ckpt suffix
         assert path.name == _get_last_checkpoint_dir(tmp_path, model).name
 
-    @pytest.mark.run_only_on('GPU')
+    @pytest.mark.run_only_on("GPU")
     def test_dist_ckpt_path_not_executed_for_non_core_models(self, tmp_path):
         strategy = NLPDDPStrategy()
         checkpoint_io = MockTorchCheckpointIO()
@@ -129,17 +143,22 @@ class TestDistCkptIO:
             assert checkpoint_io.save_checkpoint_called_args is not None
             (state_dict, path), _ = checkpoint_io.save_checkpoint_called_args
             # Ckpt path *does* contain the .ckpt suffix
-            assert os.path.basename(path) == _get_last_checkpoint_dir(tmp_path, model, suffix='.ckpt').name
+            assert (
+                os.path.basename(path)
+                == _get_last_checkpoint_dir(tmp_path, model, suffix=".ckpt").name
+            )
         else:
             assert checkpoint_io.save_checkpoint_called_args is None
 
 
 class TestAsyncSave:
-    @pytest.mark.run_only_on('GPU')
+    @pytest.mark.run_only_on("GPU")
     def test_async_save_produces_same_checkpoints_as_sync(self, tmp_path):
         strategy = _get_nlp_strategy_without_optimizer_state()
-        sync_checkpoint_io = DistributedCheckpointIO('torch_dist')
-        async_checkpoint_io = AsyncFinalizableCheckpointIO(DistributedCheckpointIO('torch_dist', async_save=True))
+        sync_checkpoint_io = DistributedCheckpointIO("torch_dist")
+        async_checkpoint_io = AsyncFinalizableCheckpointIO(
+            DistributedCheckpointIO("torch_dist", async_save=True)
+        )
 
         model = ExampleMCoreModel()
 
@@ -154,8 +173,8 @@ class TestAsyncSave:
         dummy_trainer.fit(model)
         tmp_path = strategy.broadcast(tmp_path)
 
-        sync_ckpt_dir = tmp_path / 'sync_checkpoints'
-        async_ckpt_dir = tmp_path / 'async_checkpoints'
+        sync_ckpt_dir = tmp_path / "sync_checkpoints"
+        async_ckpt_dir = tmp_path / "async_checkpoints"
 
         sync_test_trainer = pl.Trainer(
             enable_checkpointing=True,
@@ -179,13 +198,21 @@ class TestAsyncSave:
         async_test_trainer.fit(model)
 
         # Load and compare checkpoints
-        checkpoint = {'sharded_state_dict': model.sharded_state_dict()}
+        checkpoint = {"sharded_state_dict": model.sharded_state_dict()}
         sync_state_dict = sync_checkpoint_io.load_checkpoint(
-            _get_last_checkpoint_dir(sync_ckpt_dir, model), sharded_state_dict=checkpoint
+            _get_last_checkpoint_dir(sync_ckpt_dir, model),
+            sharded_state_dict=checkpoint,
         )
         async_state_dict = async_checkpoint_io.load_checkpoint(
-            _get_last_checkpoint_dir(async_ckpt_dir, model), sharded_state_dict=checkpoint
+            _get_last_checkpoint_dir(async_ckpt_dir, model),
+            sharded_state_dict=checkpoint,
         )
 
-        assert sync_state_dict['sharded_state_dict']['const'] == async_state_dict['sharded_state_dict']['const']
-        assert torch.all(sync_state_dict['sharded_state_dict']['a'] == async_state_dict['sharded_state_dict']['a'])
+        assert (
+            sync_state_dict["sharded_state_dict"]["const"]
+            == async_state_dict["sharded_state_dict"]["const"]
+        )
+        assert torch.all(
+            sync_state_dict["sharded_state_dict"]["a"]
+            == async_state_dict["sharded_state_dict"]["a"]
+        )

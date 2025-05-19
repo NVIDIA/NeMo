@@ -94,7 +94,11 @@ def parallel_lm_logits(
     tensor_model_parallel = parallel_state.get_tensor_model_parallel_world_size() > 1
 
     # async grad allreduce can only be used when not using sequence parallelism
-    allreduce_dgrad = async_tensor_model_parallel_allreduce and tensor_model_parallel and not sequence_parallel
+    allreduce_dgrad = (
+        async_tensor_model_parallel_allreduce
+        and tensor_model_parallel
+        and not sequence_parallel
+    )
 
     # copy input_ to model parallel region if needed
     if async_tensor_model_parallel_allreduce or sequence_parallel:
@@ -170,7 +174,9 @@ def get_linear_layer(rows, columns, init_method):
 @torch.jit.script
 def gelu_impl(x):
     """OpenAI's gelu implementation."""
-    return 0.5 * x * (1.0 + torch.tanh(0.7978845608028654 * x * (1.0 + 0.044715 * x * x)))
+    return (
+        0.5 * x * (1.0 + torch.tanh(0.7978845608028654 * x * (1.0 + 0.044715 * x * x)))
+    )
 
 
 def openai_gelu(x):
@@ -191,13 +197,22 @@ def squared_relu(x):
 # This is actually Python equivalent of torch.nn.functional.gelu(), also with type hints for ONNX exporter
 @torch.jit.script
 def erf_gelu(x):
-    return x * 0.5 * (torch.erf(x / 1.41421).to(dtype=x.dtype) + torch.ones_like(x).to(dtype=x.dtype))
+    return (
+        x
+        * 0.5
+        * (
+            torch.erf(x / 1.41421).to(dtype=x.dtype)
+            + torch.ones_like(x).to(dtype=x.dtype)
+        )
+    )
 
 
 def average_losses_across_data_parallel_group(losses):
     """Reduce a tensor of losses across all GPUs."""
     averaged_losses = torch.cat([loss.clone().detach().view(1) for loss in losses])
-    torch.distributed.all_reduce(averaged_losses, group=parallel_state.get_data_parallel_group())
+    torch.distributed.all_reduce(
+        averaged_losses, group=parallel_state.get_data_parallel_group()
+    )
     averaged_losses = averaged_losses / torch.distributed.get_world_size(
         group=parallel_state.get_data_parallel_group()
     )
@@ -206,7 +221,12 @@ def average_losses_across_data_parallel_group(losses):
 
 
 def get_ltor_masks_and_position_ids(
-    data, eod_token, reset_position_ids, reset_attention_mask, eod_mask_loss, compute_attention_mask=True
+    data,
+    eod_token,
+    reset_position_ids,
+    reset_attention_mask,
+    eod_mask_loss,
+    compute_attention_mask=True,
 ):
     """Build masks and position id for left to right model."""
 
@@ -221,9 +241,9 @@ def get_ltor_masks_and_position_ids(
 
     attention_mask = None
     if compute_attention_mask:
-        attention_mask = torch.tril(torch.ones((att_mask_batch, seq_length, seq_length), device=data.device)).view(
-            att_mask_batch, 1, seq_length, seq_length
-        )
+        attention_mask = torch.tril(
+            torch.ones((att_mask_batch, seq_length, seq_length), device=data.device)
+        ).view(att_mask_batch, 1, seq_length, seq_length)
 
     # Loss mask.
     loss_mask = torch.ones(data.size(), dtype=torch.float, device=data.device)
@@ -353,7 +373,9 @@ def build_attention_mask_3d(source_mask, target_mask, attn_mask_type):
     elif attn_mask_type == AttnMaskType.causal:
         mask = build_attention_mask_3d_causal(source_mask, target_mask)
     else:
-        raise ValueError(f"Unsupported attention mask attn_mask_type = {attn_mask_type}")
+        raise ValueError(
+            f"Unsupported attention mask attn_mask_type = {attn_mask_type}"
+        )
 
     return mask
 
@@ -366,32 +388,36 @@ def get_params_for_weight_decay_optimization(
     Layernorms and biases will have no weight decay but the rest will.
     """
     modules = listify_model(model)
-    weight_decay_params = {'params': [], 'is_expert': False}
-    weight_decay_expert_params = {'params': [], 'is_expert': True}
-    no_weight_decay_params = {'params': [], 'weight_decay': 0.0, 'is_expert': False}
+    weight_decay_params = {"params": [], "is_expert": False}
+    weight_decay_expert_params = {"params": [], "is_expert": True}
+    no_weight_decay_params = {"params": [], "weight_decay": 0.0, "is_expert": False}
     # EP params have the 'allreduce' attr set.
-    is_expert = lambda param: not getattr(param, 'allreduce', True)
+    is_expert = lambda param: not getattr(param, "allreduce", True)
     # Do the actual param classification
     for module in modules:
         for module_ in module.modules():
             if isinstance(module_, (FusedLayerNorm, FastLayerNorm, MixedFusedRMSNorm)):
-                no_weight_decay_params['params'].extend(
+                no_weight_decay_params["params"].extend(
                     list(filter(lambda p: p is not None, module_._parameters.values()))
                 )
             else:
                 for name, param in module_._parameters.items():
                     if param is None:
                         continue
-                    if name.endswith('bias'):
-                        no_weight_decay_params['params'].extend([param])
+                    if name.endswith("bias"):
+                        no_weight_decay_params["params"].extend([param])
                     else:
                         if is_expert(param):
-                            weight_decay_expert_params['params'].extend([param])
+                            weight_decay_expert_params["params"].extend([param])
                         else:
-                            weight_decay_params['params'].extend([param])
+                            weight_decay_params["params"].extend([param])
 
-    param_groups = [weight_decay_params, weight_decay_expert_params, no_weight_decay_params]
-    return tuple(filter(lambda g: len(g['params']) > 0, param_groups))
+    param_groups = [
+        weight_decay_params,
+        weight_decay_expert_params,
+        no_weight_decay_params,
+    ]
+    return tuple(filter(lambda g: len(g["params"]) > 0, param_groups))
 
 
 def get_all_params_for_weight_decay_optimization(
@@ -400,17 +426,21 @@ def get_all_params_for_weight_decay_optimization(
     """Use all params for weight decay."""
     modules = listify_model(model)
 
-    weight_decay_params = {'params': [], 'is_expert': False}
-    weight_decay_expert_params = {'params': [], 'is_expert': True}
+    weight_decay_params = {"params": [], "is_expert": False}
+    weight_decay_expert_params = {"params": [], "is_expert": True}
 
     # populate with params
-    is_expert = lambda param: not getattr(param, 'allreduce', True)
+    is_expert = lambda param: not getattr(param, "allreduce", True)
     for module in modules:
-        weight_decay_params['params'] += list(filter(lambda x: not is_expert(x), module.parameters()))
-        weight_decay_expert_params['params'] += list(filter(is_expert, module.parameters()))
+        weight_decay_params["params"] += list(
+            filter(lambda x: not is_expert(x), module.parameters())
+        )
+        weight_decay_expert_params["params"] += list(
+            filter(is_expert, module.parameters())
+        )
 
     param_groups = [weight_decay_params, weight_decay_expert_params]
-    return tuple(filter(lambda g: len(g['params']) > 0, param_groups))
+    return tuple(filter(lambda g: len(g["params"]) > 0, param_groups))
 
 
 def split_list(inputs, num_chunks, enforce_divisible_batch: Optional[bool] = True):
@@ -424,7 +454,9 @@ def split_list(inputs, num_chunks, enforce_divisible_batch: Optional[bool] = Tru
 
 
 def get_iterator_k_split(
-    batch: Union[Dict, List[torch.Tensor]], num_microbatches: int, enforce_divisible_batch: Optional[bool] = True
+    batch: Union[Dict, List[torch.Tensor]],
+    num_microbatches: int,
+    enforce_divisible_batch: Optional[bool] = True,
 ) -> Iterator:
     """
     Split a batch into k microbatches, where the batch size is divisible by k. Batch could be
@@ -432,7 +464,9 @@ def get_iterator_k_split(
     as long as the length of that list is the same as the batch size.
     """
     if isinstance(batch, dict):
-        discard_items = [k for k, v in batch.items() if not isinstance(v, (torch.Tensor, list))]
+        discard_items = [
+            k for k, v in batch.items() if not isinstance(v, (torch.Tensor, list))
+        ]
         if len(discard_items) > 0:
             logging.warning(
                 f"Only support splitting torch.Tensor and List[torch.Tensor]. Discarding the following keys from the batch: {discard_items}",
@@ -452,7 +486,9 @@ def get_iterator_k_split(
                     f"Issue with batch size configuration: batch size {items[0][1].shape[0]} is not divisible by {num_microbatches}!"
                 )
 
-        split_batch = [torch.tensor_split(item[1], num_microbatches, dim=0) for item in items]
+        split_batch = [
+            torch.tensor_split(item[1], num_microbatches, dim=0) for item in items
+        ]
         # handle the case where the batch size from dynamic bucketting is not divisible
         if items[0][1].shape[0] % num_microbatches != 0:
             chunk_size = split_batch[0][-1].shape[0]
@@ -461,35 +497,48 @@ def get_iterator_k_split(
         if len(list_items) == 0:
             # Only have tensor items
             microbatches = [
-                [(items[i][0], split_batch[i][j]) for i in range(len(items))] for j in range(num_microbatches)
+                [(items[i][0], split_batch[i][j]) for i in range(len(items))]
+                for j in range(num_microbatches)
             ]
         else:
             # Split list items
             list_items = list(list_items.items())
             split_list_batch = [
-                split_list(item[1], num_microbatches, enforce_divisible_batch=enforce_divisible_batch)
+                split_list(
+                    item[1],
+                    num_microbatches,
+                    enforce_divisible_batch=enforce_divisible_batch,
+                )
                 for item in list_items
             ]
             # Merge tensor and list items
             all_keys = [item[0] for item in items] + [item[0] for item in list_items]
             all_split_batch = split_batch + split_list_batch
             microbatches = [
-                [(all_keys[i], all_split_batch[i][j]) for i in range(len(all_keys))] for j in range(num_microbatches)
+                [(all_keys[i], all_split_batch[i][j]) for i in range(len(all_keys))]
+                for j in range(num_microbatches)
             ]
         microbatches = [dict(elem) for elem in microbatches]
     else:
         # Split a list of torch tensors
-        assert batch[0].shape[0] % num_microbatches == 0, "Issue with batch size configuration!"
+        assert (
+            batch[0].shape[0] % num_microbatches == 0
+        ), "Issue with batch size configuration!"
         split_batch = []
         for item in batch:
             if torch.is_tensor(item):
                 split_batch.append(torch.tensor_split(item, num_microbatches, dim=0))
             elif isinstance(item, list):
                 if isinstance(item[0], torch.Tensor):
-                    split_tensors = [torch.tensor_split(elem, num_microbatches, dim=0) for elem in item]
+                    split_tensors = [
+                        torch.tensor_split(elem, num_microbatches, dim=0)
+                        for elem in item
+                    ]
                     split_tuple = []
                     for mbi in range(num_microbatches):
-                        split_tuple.append([split_tensors[i][mbi] for i in range(len(split_tensors))])
+                        split_tuple.append(
+                            [split_tensors[i][mbi] for i in range(len(split_tensors))]
+                        )
                     split_tuple = tuple(split_tuple)
                     split_batch.append(split_tuple)
                 else:
@@ -500,7 +549,8 @@ def get_iterator_k_split(
                 raise ValueError(f"Unsupported item type: {type(item)}")
 
         microbatches = [
-            [elem[i] if elem is not None else elem for elem in split_batch] for i in range(num_microbatches)
+            [elem[i] if elem is not None else elem for elem in split_batch]
+            for i in range(num_microbatches)
         ]
 
     return itertools.chain(microbatches)
@@ -509,9 +559,9 @@ def get_iterator_k_split(
 def _cast_if_autocast_enabled(tensor):
     if torch.is_autocast_enabled():
         if isinstance(tensor, torch.Tensor):
-            if tensor.device.type == 'cuda':
+            if tensor.device.type == "cuda":
                 dtype = torch.get_autocast_gpu_dtype()
-            elif tensor.device.type == 'cpu':
+            elif tensor.device.type == "cpu":
                 dtype = torch.get_autocast_cpu_dtype()
             else:
                 raise NotImplementedError()

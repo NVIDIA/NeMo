@@ -36,7 +36,9 @@ class VerbalizeFst(GraphFst):
     """
 
     def __init__(self, deterministic: bool = True):
-        super().__init__(name="verbalize", kind="verbalize", deterministic=deterministic)
+        super().__init__(
+            name="verbalize", kind="verbalize", deterministic=deterministic
+        )
         whitelist_graph = WhiteListFst(deterministic=deterministic).fst
 
         self.fst = whitelist_graph

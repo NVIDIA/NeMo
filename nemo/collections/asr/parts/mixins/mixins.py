@@ -55,13 +55,13 @@ class ASRBPEMixin(ABC):
     """
 
     # this will be used in configs and nemo artifacts
-    AGGREGATE_TOKENIZERS_DICT_PREFIX = 'langs'
+    AGGREGATE_TOKENIZERS_DICT_PREFIX = "langs"
 
     def _setup_tokenizer(self, tokenizer_cfg: DictConfig):
-        tokenizer_type = tokenizer_cfg.get('type')
+        tokenizer_type = tokenizer_cfg.get("type")
         if tokenizer_type is None:
             raise ValueError("`tokenizer.type` cannot be None")
-        elif tokenizer_type.lower() == 'agg':
+        elif tokenizer_type.lower() == "agg":
             self._setup_aggregate_tokenizer(tokenizer_cfg)
         else:
             self._setup_monolingual_tokenizer(tokenizer_cfg)
@@ -70,68 +70,83 @@ class ASRBPEMixin(ABC):
 
     def _setup_monolingual_tokenizer(self, tokenizer_cfg: DictConfig):
         # Prevent tokenizer parallelism (unless user has explicitly set it)
-        if 'TOKENIZERS_PARALLELISM' not in os.environ:
-            os.environ['TOKENIZERS_PARALLELISM'] = 'false'
+        if "TOKENIZERS_PARALLELISM" not in os.environ:
+            os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
-        self.tokenizer_cfg = OmegaConf.to_container(tokenizer_cfg, resolve=True)  # type: dict
-        self.tokenizer_dir = self.tokenizer_cfg.pop('dir')  # Remove tokenizer directory
-        self.tokenizer_type = self.tokenizer_cfg.pop('type').lower()  # Remove tokenizer_type
+        self.tokenizer_cfg = OmegaConf.to_container(
+            tokenizer_cfg, resolve=True
+        )  # type: dict
+        self.tokenizer_dir = self.tokenizer_cfg.pop("dir")  # Remove tokenizer directory
+        self.tokenizer_type = self.tokenizer_cfg.pop(
+            "type"
+        ).lower()  # Remove tokenizer_type
 
-        self.hf_tokenizer_kwargs = self.tokenizer_cfg.pop("hf_kwargs", {})  # Remove HF tokenizer kwargs
+        self.hf_tokenizer_kwargs = self.tokenizer_cfg.pop(
+            "hf_kwargs", {}
+        )  # Remove HF tokenizer kwargs
 
         # just in case the previous tokenizer was an aggregate
         self._cleanup_aggregate_config_and_artifacts_if_needed()
 
         # Preserve config
-        if hasattr(self, 'cfg') and 'tokenizer' in self.cfg:
+        if hasattr(self, "cfg") and "tokenizer" in self.cfg:
             self.cfg.tokenizer.dir = self.tokenizer_dir
             self.cfg.tokenizer.type = self.tokenizer_type
 
-            if 'hf_kwargs' in tokenizer_cfg:
+            if "hf_kwargs" in tokenizer_cfg:
                 with open_dict(self.cfg.tokenizer):
-                    self.cfg.tokenizer.hf_kwargs = tokenizer_cfg.get('hf_kwargs')
+                    self.cfg.tokenizer.hf_kwargs = tokenizer_cfg.get("hf_kwargs")
 
-        if self.tokenizer_type not in ['bpe', 'wpe']:
+        if self.tokenizer_type not in ["bpe", "wpe"]:
             raise ValueError(
                 "`tokenizer.type` must be either `bpe` for SentencePiece tokenizer or "
                 "`wpe` for BERT based tokenizer"
             )
 
-        if self.tokenizer_type == 'bpe':
+        if self.tokenizer_type == "bpe":
             # This is a BPE Tokenizer
-            if 'model_path' in self.tokenizer_cfg:
-                model_path = self.tokenizer_cfg.get('model_path')
+            if "model_path" in self.tokenizer_cfg:
+                model_path = self.tokenizer_cfg.get("model_path")
             else:
-                model_path = os.path.join(self.tokenizer_dir, 'tokenizer.model')
-            model_path = self.register_artifact('tokenizer.model_path', model_path)
+                model_path = os.path.join(self.tokenizer_dir, "tokenizer.model")
+            model_path = self.register_artifact("tokenizer.model_path", model_path)
             self.model_path = model_path
 
-            if 'special_tokens' in self.tokenizer_cfg:
-                special_tokens = self.tokenizer_cfg['special_tokens']
+            if "special_tokens" in self.tokenizer_cfg:
+                special_tokens = self.tokenizer_cfg["special_tokens"]
 
                 if special_tokens is not None:
-                    raise ValueError("`special_tokens` are no longer supported for SentencePiece based tokenizers.")
+                    raise ValueError(
+                        "`special_tokens` are no longer supported for SentencePiece based tokenizers."
+                    )
 
             if "custom_tokenizer" in self.tokenizer_cfg:
                 self.tokenizer = self.from_config_dict(
-                    {"_target_": tokenizer_cfg["custom_tokenizer"]["_target_"], "model_path": model_path}
+                    {
+                        "_target_": tokenizer_cfg["custom_tokenizer"]["_target_"],
+                        "model_path": model_path,
+                    }
                 )
             else:
-                self.tokenizer = tokenizers.SentencePieceTokenizer(model_path=model_path)
+                self.tokenizer = tokenizers.SentencePieceTokenizer(
+                    model_path=model_path
+                )
 
-            if 'vocab_path' in self.tokenizer_cfg:
-                vocab_path = self.tokenizer_cfg.get('vocab_path')
+            if "vocab_path" in self.tokenizer_cfg:
+                vocab_path = self.tokenizer_cfg.get("vocab_path")
             else:
-                vocab_path = os.path.join(self.tokenizer_dir, 'vocab.txt')
-            vocab_path = self.register_artifact('tokenizer.vocab_path', vocab_path)
+                vocab_path = os.path.join(self.tokenizer_dir, "vocab.txt")
+            vocab_path = self.register_artifact("tokenizer.vocab_path", vocab_path)
             self.vocab_path = vocab_path
 
             try:
-                if 'spe_tokenizer_vocab' in self.tokenizer_cfg:
-                    spe_vocab_path = self.tokenizer_cfg.get('spe_tokenizer_vocab')
+                if "spe_tokenizer_vocab" in self.tokenizer_cfg:
+                    spe_vocab_path = self.tokenizer_cfg.get("spe_tokenizer_vocab")
                 else:
-                    spe_vocab_path = os.path.join(self.tokenizer_dir, 'tokenizer.vocab')
-                spe_vocab_path = self.register_artifact('tokenizer.spe_tokenizer_vocab', spe_vocab_path)
+                    spe_vocab_path = os.path.join(self.tokenizer_dir, "tokenizer.vocab")
+                spe_vocab_path = self.register_artifact(
+                    "tokenizer.spe_tokenizer_vocab", spe_vocab_path
+                )
                 self.spe_vocab_path = spe_vocab_path
             except FileNotFoundError:
                 # fallback case for older checkpoints that did not preserve the tokenizer.vocab
@@ -150,33 +165,35 @@ class ASRBPEMixin(ABC):
             # attach utility values to the tokenizer wrapper
             self.tokenizer.tokenizer.vocab_size = len(vocabulary)
             self.tokenizer.tokenizer.get_vocab = get_vocab
-            self.tokenizer.tokenizer.all_special_tokens = self.tokenizer.special_token_to_id
+            self.tokenizer.tokenizer.all_special_tokens = (
+                self.tokenizer.special_token_to_id
+            )
 
         else:
             # This is a WPE Tokenizer
             # If path from previous registration exists, remove it
-            if 'vocab_path' in self.tokenizer_cfg:
-                vocab_path = self.tokenizer_cfg.get('vocab_path')
+            if "vocab_path" in self.tokenizer_cfg:
+                vocab_path = self.tokenizer_cfg.get("vocab_path")
             else:
-                vocab_path = os.path.join(self.tokenizer_dir, 'vocab.txt')
-            vocab_path = self.register_artifact('tokenizer.vocab_path', vocab_path)
+                vocab_path = os.path.join(self.tokenizer_dir, "vocab.txt")
+            vocab_path = self.register_artifact("tokenizer.vocab_path", vocab_path)
             self.vocab_path = vocab_path
 
             # If path from previous registration exists, remove it
-            if 'vocab_path' in self.tokenizer_cfg:
-                self.tokenizer_cfg.pop('vocab_path')
+            if "vocab_path" in self.tokenizer_cfg:
+                self.tokenizer_cfg.pop("vocab_path")
 
             self.tokenizer = tokenizers.AutoTokenizer(
-                pretrained_model_name='bert-base-cased',
+                pretrained_model_name="bert-base-cased",
                 vocab_file=self.vocab_path,
-                mask_token=self.hf_tokenizer_kwargs.get('mask_token', None),
-                bos_token=self.hf_tokenizer_kwargs.get('bos_token', None),
-                eos_token=self.hf_tokenizer_kwargs.get('eos_token', None),
-                pad_token=self.hf_tokenizer_kwargs.get('pad_token', None),
-                sep_token=self.hf_tokenizer_kwargs.get('sep_token', None),
-                cls_token=self.hf_tokenizer_kwargs.get('cls_token', None),
-                unk_token=self.hf_tokenizer_kwargs.get('unk_token', None),
-                use_fast=self.hf_tokenizer_kwargs.get('use_fast', False),
+                mask_token=self.hf_tokenizer_kwargs.get("mask_token", None),
+                bos_token=self.hf_tokenizer_kwargs.get("bos_token", None),
+                eos_token=self.hf_tokenizer_kwargs.get("eos_token", None),
+                pad_token=self.hf_tokenizer_kwargs.get("pad_token", None),
+                sep_token=self.hf_tokenizer_kwargs.get("sep_token", None),
+                cls_token=self.hf_tokenizer_kwargs.get("cls_token", None),
+                unk_token=self.hf_tokenizer_kwargs.get("unk_token", None),
+                use_fast=self.hf_tokenizer_kwargs.get("use_fast", False),
             )
 
         logging.info(
@@ -187,33 +204,37 @@ class ASRBPEMixin(ABC):
 
     def _setup_aggregate_tokenizer(self, tokenizer_cfg: DictConfig):
         # Prevent tokenizer parallelism (unless user has explicitly set it)
-        if 'TOKENIZERS_PARALLELISM' not in os.environ:
-            os.environ['TOKENIZERS_PARALLELISM'] = 'false'
+        if "TOKENIZERS_PARALLELISM" not in os.environ:
+            os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
-        self.tokenizer_cfg = OmegaConf.to_container(tokenizer_cfg, resolve=True)  # type: dict
+        self.tokenizer_cfg = OmegaConf.to_container(
+            tokenizer_cfg, resolve=True
+        )  # type: dict
 
         # the aggregate tokenizer does not have one tokenizer_dir but multiple ones
         self.tokenizer_dir = None
 
-        self.tokenizer_cfg.pop('dir', None)  # Remove tokenizer directory, if any
+        self.tokenizer_cfg.pop("dir", None)  # Remove tokenizer directory, if any
         # Remove tokenizer_type -- obviously if we are here, the type is 'agg'
-        self.tokenizer_type = self.tokenizer_cfg.pop('type').lower()
+        self.tokenizer_type = self.tokenizer_cfg.pop("type").lower()
 
         # the aggregate tokenizer should not have these
         self.hf_tokenizer_kwargs = {}
         self.tokenizer_cfg.pop("hf_kwargs", {})  # Remove HF tokenizer kwargs, if any
 
-        logging.info('_setup_tokenizer: detected an aggregate tokenizer')
+        logging.info("_setup_tokenizer: detected an aggregate tokenizer")
         # need to de-register any monolingual config items if they exist
         self._cleanup_monolingual_and_aggregate_config_and_artifacts_if_needed()
 
         # overwrite tokenizer type
-        if hasattr(self, 'cfg') and 'tokenizer' in self.cfg:
+        if hasattr(self, "cfg") and "tokenizer" in self.cfg:
             self.cfg.tokenizer.type = self.tokenizer_type
 
         tokenizers_dict = {}
         # init each of the monolingual tokenizers found in the config and assemble into  AggregateTokenizer
-        for lang, tokenizer_config in self.tokenizer_cfg[self.AGGREGATE_TOKENIZERS_DICT_PREFIX].items():
+        for lang, tokenizer_config in self.tokenizer_cfg[
+            self.AGGREGATE_TOKENIZERS_DICT_PREFIX
+        ].items():
             (
                 tokenizer,
                 model_path,
@@ -222,31 +243,39 @@ class ASRBPEMixin(ABC):
             ) = self._make_tokenizer(tokenizer_config, lang)
 
             tokenizers_dict[lang] = tokenizer
-            if hasattr(self, 'cfg'):
+            if hasattr(self, "cfg"):
                 with open_dict(self.cfg.tokenizer):
-                    self.cfg.tokenizer[self.AGGREGATE_TOKENIZERS_DICT_PREFIX][lang]['dir'] = self.tokenizer_cfg[
-                        self.AGGREGATE_TOKENIZERS_DICT_PREFIX
-                    ][lang]['dir']
-                    self.cfg.tokenizer[self.AGGREGATE_TOKENIZERS_DICT_PREFIX][lang]['type'] = self.tokenizer_cfg[
-                        self.AGGREGATE_TOKENIZERS_DICT_PREFIX
-                    ][lang]['type']
+                    self.cfg.tokenizer[self.AGGREGATE_TOKENIZERS_DICT_PREFIX][lang][
+                        "dir"
+                    ] = self.tokenizer_cfg[self.AGGREGATE_TOKENIZERS_DICT_PREFIX][lang][
+                        "dir"
+                    ]
+                    self.cfg.tokenizer[self.AGGREGATE_TOKENIZERS_DICT_PREFIX][lang][
+                        "type"
+                    ] = self.tokenizer_cfg[self.AGGREGATE_TOKENIZERS_DICT_PREFIX][lang][
+                        "type"
+                    ]
 
         if "custom_tokenizer" in tokenizer_cfg:
             # Class which implements this is usually a ModelPT, has access to Serializable mixin by extension
             self.tokenizer = self.from_config_dict(
-                {"_target_": tokenizer_cfg["custom_tokenizer"]["_target_"], "tokenizers": tokenizers_dict}
+                {
+                    "_target_": tokenizer_cfg["custom_tokenizer"]["_target_"],
+                    "tokenizers": tokenizers_dict,
+                }
             )
         else:
             self.tokenizer = tokenizers.AggregateTokenizer(tokenizers_dict)
 
     def _make_tokenizer(self, tokenizer_cfg: DictConfig, lang=None):
 
-        tokenizer_type = tokenizer_cfg.get('type').lower()
-        tokenizer_dir = tokenizer_cfg.get('dir')
+        tokenizer_type = tokenizer_cfg.get("type").lower()
+        tokenizer_dir = tokenizer_cfg.get("dir")
 
-        if tokenizer_type not in ['bpe', 'wpe']:
+        if tokenizer_type not in ["bpe", "wpe"]:
             raise ValueError(
-                '`tokenizer.type` must be either `bpe` for SentencePiece tokenizer or' '`wpe` for BERT based tokenizer'
+                "`tokenizer.type` must be either `bpe` for SentencePiece tokenizer or"
+                "`wpe` for BERT based tokenizer"
             )
 
         # defaults
@@ -254,42 +283,58 @@ class ASRBPEMixin(ABC):
         vocab_path = None
         spe_vocab_path = None
 
-        if tokenizer_type == 'bpe':
+        if tokenizer_type == "bpe":
             # This is a BPE Tokenizer
-            if 'model_path' in tokenizer_cfg:
-                model_path = tokenizer_cfg.get('model_path')
+            if "model_path" in tokenizer_cfg:
+                model_path = tokenizer_cfg.get("model_path")
             else:
-                model_path = os.path.join(tokenizer_dir, 'tokenizer.model')
+                model_path = os.path.join(tokenizer_dir, "tokenizer.model")
 
             model_path = self.register_artifact(
-                'tokenizer.' + self.AGGREGATE_TOKENIZERS_DICT_PREFIX + '.' + lang + '.model_path', model_path
+                "tokenizer."
+                + self.AGGREGATE_TOKENIZERS_DICT_PREFIX
+                + "."
+                + lang
+                + ".model_path",
+                model_path,
             )
 
-            if 'special_tokens' in tokenizer_cfg:
-                special_tokens = tokenizer_cfg['special_tokens']
+            if "special_tokens" in tokenizer_cfg:
+                special_tokens = tokenizer_cfg["special_tokens"]
                 if special_tokens is not None:
-                    raise ValueError('`special_tokens` are no longer supported for SentencePiece based tokenizers.')
+                    raise ValueError(
+                        "`special_tokens` are no longer supported for SentencePiece based tokenizers."
+                    )
 
             # Update special tokens
             tokenizer = tokenizers.SentencePieceTokenizer(model_path=model_path)
 
-            if 'vocab_path' in tokenizer_cfg:
-                vocab_path = tokenizer_cfg.get('vocab_path')
+            if "vocab_path" in tokenizer_cfg:
+                vocab_path = tokenizer_cfg.get("vocab_path")
             else:
-                vocab_path = os.path.join(tokenizer_dir, 'vocab.txt')
+                vocab_path = os.path.join(tokenizer_dir, "vocab.txt")
 
             vocab_path = self.register_artifact(
-                'tokenizer.' + self.AGGREGATE_TOKENIZERS_DICT_PREFIX + '.' + lang + '.vocab_path', vocab_path
+                "tokenizer."
+                + self.AGGREGATE_TOKENIZERS_DICT_PREFIX
+                + "."
+                + lang
+                + ".vocab_path",
+                vocab_path,
             )
 
             try:
-                if 'spe_tokenizer_vocab' in tokenizer_cfg:
-                    spe_vocab_path = tokenizer_cfg.get('spe_tokenizer_vocab')
+                if "spe_tokenizer_vocab" in tokenizer_cfg:
+                    spe_vocab_path = tokenizer_cfg.get("spe_tokenizer_vocab")
                 else:
-                    spe_vocab_path = os.path.join(tokenizer_dir, 'tokenizer.vocab')
+                    spe_vocab_path = os.path.join(tokenizer_dir, "tokenizer.vocab")
 
                 spe_vocab_path = self.register_artifact(
-                    'tokenizer.' + self.AGGREGATE_TOKENIZERS_DICT_PREFIX + '.' + lang + '.spe_tokenizer_vocab',
+                    "tokenizer."
+                    + self.AGGREGATE_TOKENIZERS_DICT_PREFIX
+                    + "."
+                    + lang
+                    + ".spe_tokenizer_vocab",
                     spe_vocab_path,
                 )
 
@@ -315,35 +360,44 @@ class ASRBPEMixin(ABC):
         else:
             # This is a WPE Tokenizer
             # If path from previous registration exists, remove it
-            if 'vocab_path' in tokenizer_cfg:
-                vocab_path = tokenizer_cfg.get('vocab_path')
+            if "vocab_path" in tokenizer_cfg:
+                vocab_path = tokenizer_cfg.get("vocab_path")
             else:
-                vocab_path = os.path.join(tokenizer_dir, 'vocab.txt')
+                vocab_path = os.path.join(tokenizer_dir, "vocab.txt")
 
             vocab_path = self.register_artifact(
-                'tokenizer.' + self.AGGREGATE_TOKENIZERS_DICT_PREFIX + '.' + lang + '.vocab_path', vocab_path
+                "tokenizer."
+                + self.AGGREGATE_TOKENIZERS_DICT_PREFIX
+                + "."
+                + lang
+                + ".vocab_path",
+                vocab_path,
             )
 
             # If path from previous registration exists, remove it
-            if 'vocab_path' in tokenizer_cfg:
-                tokenizer_cfg.pop('vocab_path')
+            if "vocab_path" in tokenizer_cfg:
+                tokenizer_cfg.pop("vocab_path")
 
-            hf_tokenizer_kwargs = tokenizer_cfg.get('hf_kwargs', {})
+            hf_tokenizer_kwargs = tokenizer_cfg.get("hf_kwargs", {})
             tokenizer = tokenizers.AutoTokenizer(
-                pretrained_model_name=hf_tokenizer_kwargs.get('pretrained_model_name', 'bert-base-cased'),
+                pretrained_model_name=hf_tokenizer_kwargs.get(
+                    "pretrained_model_name", "bert-base-cased"
+                ),
                 vocab_file=vocab_path,
-                mask_token=hf_tokenizer_kwargs.get('mask_token', None),
-                bos_token=hf_tokenizer_kwargs.get('bos_token', None),
-                eos_token=hf_tokenizer_kwargs.get('eos_token', None),
-                pad_token=hf_tokenizer_kwargs.get('pad_token', None),
-                sep_token=hf_tokenizer_kwargs.get('sep_token', None),
-                cls_token=hf_tokenizer_kwargs.get('cls_token', None),
-                unk_token=hf_tokenizer_kwargs.get('unk_token', None),
-                use_fast=hf_tokenizer_kwargs.get('use_fast', False),
+                mask_token=hf_tokenizer_kwargs.get("mask_token", None),
+                bos_token=hf_tokenizer_kwargs.get("bos_token", None),
+                eos_token=hf_tokenizer_kwargs.get("eos_token", None),
+                pad_token=hf_tokenizer_kwargs.get("pad_token", None),
+                sep_token=hf_tokenizer_kwargs.get("sep_token", None),
+                cls_token=hf_tokenizer_kwargs.get("cls_token", None),
+                unk_token=hf_tokenizer_kwargs.get("unk_token", None),
+                use_fast=hf_tokenizer_kwargs.get("use_fast", False),
             )
 
         logging.info(
-            'Tokenizer {} initialized with {} tokens'.format(tokenizer.__class__.__name__, tokenizer.vocab_size)
+            "Tokenizer {} initialized with {} tokens".format(
+                tokenizer.__class__.__name__, tokenizer.vocab_size
+            )
         )
 
         return tokenizer, model_path, vocab_path, spe_vocab_path
@@ -354,24 +408,26 @@ class ASRBPEMixin(ABC):
         We need to do this when we switch from a monolingual tokenizer to an aggregate one
         or go between aggregate tokenizers which could have a different number of languages
         """
-        if hasattr(self, 'cfg'):
+        if hasattr(self, "cfg"):
             with open_dict(self.cfg.tokenizer):
-                self.cfg.tokenizer.pop('dir', None)
-                self.cfg.tokenizer.pop('model_path', None)
-                self.cfg.tokenizer.pop('vocab_path', None)
-                self.cfg.tokenizer.pop('spe_tokenizer_vocab', None)
-                self.cfg.tokenizer.pop('hf_kwargs', None)
+                self.cfg.tokenizer.pop("dir", None)
+                self.cfg.tokenizer.pop("model_path", None)
+                self.cfg.tokenizer.pop("vocab_path", None)
+                self.cfg.tokenizer.pop("spe_tokenizer_vocab", None)
+                self.cfg.tokenizer.pop("hf_kwargs", None)
 
         # need to de-register any monolingual artifacts if they exist
-        if hasattr(self, 'artifacts'):
-            self.artifacts.pop('tokenizer.model_path', None)
-            self.artifacts.pop('tokenizer.vocab_path', None)
-            self.artifacts.pop('tokenizer.spe_tokenizer_vocab', None)
+        if hasattr(self, "artifacts"):
+            self.artifacts.pop("tokenizer.model_path", None)
+            self.artifacts.pop("tokenizer.vocab_path", None)
+            self.artifacts.pop("tokenizer.spe_tokenizer_vocab", None)
 
             # just in case we are replacing one aggregate tokenizer with another one, we better
             # clean up the old aggregate artifacts as well
             for akey in list(self.artifacts.keys()):
-                if akey.startswith('tokenizer.' + self.AGGREGATE_TOKENIZERS_DICT_PREFIX + '.'):
+                if akey.startswith(
+                    "tokenizer." + self.AGGREGATE_TOKENIZERS_DICT_PREFIX + "."
+                ):
                     self.artifacts.pop(akey)
 
     def _cleanup_aggregate_config_and_artifacts_if_needed(self):
@@ -379,14 +435,16 @@ class ASRBPEMixin(ABC):
         Clean ups any aggregate config items and artifacts.
         We need to do this when we switch from an aggregate tokenizer to a monolingual one
         """
-        if hasattr(self, 'cfg'):
+        if hasattr(self, "cfg"):
             with open_dict(self.cfg.tokenizer):
                 self.cfg.tokenizer.pop(self.AGGREGATE_TOKENIZERS_DICT_PREFIX, None)
 
         # clean up the old aggregate artifacts as well
-        if hasattr(self, 'artifacts'):
+        if hasattr(self, "artifacts"):
             for akey in list(self.artifacts.keys()):
-                if akey.startswith('tokenizer.' + self.AGGREGATE_TOKENIZERS_DICT_PREFIX + '.'):
+                if akey.startswith(
+                    "tokenizer." + self.AGGREGATE_TOKENIZERS_DICT_PREFIX + "."
+                ):
                     self.artifacts.pop(akey)
 
     def save_tokenizers(self, directory: str):
@@ -396,13 +454,13 @@ class ASRBPEMixin(ABC):
         Args:
             directory: The directory to save the tokenizer(s) to.
         """
-        if not hasattr(self, 'cfg'):
+        if not hasattr(self, "cfg"):
             raise RuntimeError(
                 "The model has not been initialized with a tokenizer yet. Please call the model's "
                 "__init__ and _setup_tokenizer methods first."
             )
 
-        if self.tokenizer_type == 'agg':
+        if self.tokenizer_type == "agg":
             for lang in self.tokenizer.langs:
                 subconfig = self.cfg.tokenizer.langs.get(lang)
                 new_dir = os.path.join(directory, lang)
@@ -433,21 +491,25 @@ class ASRBPEMixin(ABC):
                 loc = shutil.copy2(v, dir)
                 logging.info(f"Saved {k} at {loc}")
 
-            if isinstance(v, str) and v.startswith('nemo:'):
+            if isinstance(v, str) and v.startswith("nemo:"):
                 nemo_object_name = v[5:]
                 nemo_file_objects.append(nemo_object_name)
 
         if len(nemo_file_objects) > 0:
-            logging.debug(f"Copying the following nemo file objects to {dir}: {nemo_file_objects}")
+            logging.debug(
+                f"Copying the following nemo file objects to {dir}: {nemo_file_objects}"
+            )
 
-            if not hasattr(self, 'model_guid'):
+            if not hasattr(self, "model_guid"):
                 raise ValueError(
                     "The model does not have a model_guid attribute. "
                     "Please ensure that the model has been restored from a .nemo file."
                 )
 
             appstate = app_state.AppState()
-            restore_path = appstate.get_model_metadata_from_guid(self.model_guid).restoration_path
+            restore_path = appstate.get_model_metadata_from_guid(
+                self.model_guid
+            ).restoration_path
             if restore_path is None:
                 raise ValueError(
                     "The model has not been restored from a .nemo file. Cannot extract the tokenizer "
@@ -476,17 +538,28 @@ class ASRBPEMixin(ABC):
                         new_name = "_".join(new_name)
                     else:
                         new_name = new_name[0]
-                    os.rename(os.path.join(dir, member.name), os.path.join(dir, new_name))
+                    os.rename(
+                        os.path.join(dir, member.name), os.path.join(dir, new_name)
+                    )
 
-                    logging.info(f"Saved {nemo_object_name} at {os.path.join(dir, new_name)}")
+                    logging.info(
+                        f"Saved {nemo_object_name} at {os.path.join(dir, new_name)}"
+                    )
 
     def _derive_tokenizer_properties(self):
         vocab = self.tokenizer.tokenizer.get_vocab()
 
-        capitalized_tokens = {token.strip() for token in vocab if any(char.isupper() for char in token)}
+        capitalized_tokens = {
+            token.strip() for token in vocab if any(char.isupper() for char in token)
+        }
         self.tokenizer.supports_capitalization = bool(capitalized_tokens)
 
-        punctuation = {char for token in vocab for char in token if unicodedata.category(char).startswith('P')}
+        punctuation = {
+            char
+            for token in vocab
+            for char in token
+            if unicodedata.category(char).startswith("P")
+        }
         self.tokenizer.supported_punctuation = punctuation
 
 
@@ -499,7 +572,9 @@ class ASRModuleMixin(ASRAdapterModelMixin):
     functionality if the corresponding module is present.
     """
 
-    def change_conv_asr_se_context_window(self, context_window: int, update_config: bool = True):
+    def change_conv_asr_se_context_window(
+        self, context_window: int, update_config: bool = True
+    ):
         """
         Update the context window of the SqueezeExcitation module if the provided model contains an
         `encoder` which is an instance of `ConvASREncoder`.
@@ -518,7 +593,10 @@ class ASRModuleMixin(ASRAdapterModelMixin):
         )
 
     def change_attention_model(
-        self, self_attention_model: str = None, att_context_size: List[int] = None, update_config: bool = True
+        self,
+        self_attention_model: str = None,
+        att_context_size: List[int] = None,
+        update_config: bool = True,
     ):
         """
         Update the self_attention_model if function is available in encoder.
@@ -545,7 +623,7 @@ class ASRModuleMixin(ASRAdapterModelMixin):
         if self_attention_model is None and att_context_size is None:
             return
 
-        if not hasattr(self, 'encoder'):
+        if not hasattr(self, "encoder"):
             logging.info(
                 "Could not change the self_attention_model in encoder "
                 "since the model provided does not contain an `encoder` module in its config."
@@ -556,7 +634,9 @@ class ASRModuleMixin(ASRAdapterModelMixin):
             logging.info("Model encoder doesn't have a change_attention_model method ")
             return
 
-        self.encoder.change_attention_model(self_attention_model, att_context_size, update_config, self.device)
+        self.encoder.change_attention_model(
+            self_attention_model, att_context_size, update_config, self.device
+        )
         if update_config:
             with open_dict(self.cfg):
                 self.cfg.encoder.self_attention_model = self_attention_model
@@ -574,7 +654,7 @@ class ASRModuleMixin(ASRAdapterModelMixin):
             conv_chunking_factor (int)
         """
 
-        if not hasattr(self, 'encoder'):
+        if not hasattr(self, "encoder"):
             logging.info(
                 "Could not call the change_subsampling_conv_chunking_factor method in encoder "
                 "since the model provided does not contain an `encoder` module in its config."
@@ -582,13 +662,19 @@ class ASRModuleMixin(ASRAdapterModelMixin):
             return
 
         if not hasattr(self.encoder, "change_subsampling_conv_chunking_factor"):
-            logging.info("Model encoder doesn't have a change_subsampling_conv_chunking_factor method ")
+            logging.info(
+                "Model encoder doesn't have a change_subsampling_conv_chunking_factor method "
+            )
             return
 
-        self.encoder.change_subsampling_conv_chunking_factor(subsampling_conv_chunking_factor)
+        self.encoder.change_subsampling_conv_chunking_factor(
+            subsampling_conv_chunking_factor
+        )
         if update_config:
             with open_dict(self.cfg):
-                self.cfg.encoder.subsampling_conv_chunking_factor = subsampling_conv_chunking_factor
+                self.cfg.encoder.subsampling_conv_chunking_factor = (
+                    subsampling_conv_chunking_factor
+                )
 
     def conformer_stream_step(
         self,
@@ -630,13 +716,20 @@ class ASRModuleMixin(ASRAdapterModelMixin):
             log_probs: the logits tensor of current streaming chunk, only returned when return_log_probs=True
             encoded_len: the length of the output log_probs + history chunk log_probs, only returned when return_log_probs=True
         """
-        if not isinstance(self, asr_models.EncDecRNNTModel) and not isinstance(self, asr_models.EncDecCTCModel):
+        if not isinstance(self, asr_models.EncDecRNNTModel) and not isinstance(
+            self, asr_models.EncDecCTCModel
+        ):
             raise NotImplementedError(f"stream_step does not support {type(self)}!")
 
         if not isinstance(self.encoder, StreamingEncoder):
-            raise NotImplementedError("Encoder of this model does not support streaming!")
+            raise NotImplementedError(
+                "Encoder of this model does not support streaming!"
+            )
 
-        if isinstance(self, asr_models.EncDecRNNTModel) and return_transcription is False:
+        if (
+            isinstance(self, asr_models.EncDecRNNTModel)
+            and return_transcription is False
+        ):
             logging.info(
                 "return_transcription can not be False for Transducer models as decoder returns the transcriptions too."
             )
@@ -661,7 +754,8 @@ class ASRModuleMixin(ASRAdapterModelMixin):
         )
 
         if isinstance(self, asr_models.EncDecCTCModel) or (
-            isinstance(self, asr_models.EncDecHybridRNNTCTCModel) and self.cur_decoder == "ctc"
+            isinstance(self, asr_models.EncDecHybridRNNTCTCModel)
+            and self.cur_decoder == "ctc"
         ):
             if hasattr(self, "ctc_decoder"):
                 decoding = self.ctc_decoding
@@ -687,7 +781,9 @@ class ASRModuleMixin(ASRAdapterModelMixin):
                 else:
                     preds_cur = predictions_tensor[preds_idx, : encoded_len[preds_idx]]
                 if previous_pred_out is not None:
-                    greedy_predictions_concat = torch.cat((previous_pred_out[preds_idx], preds_cur), dim=-1)
+                    greedy_predictions_concat = torch.cat(
+                        (previous_pred_out[preds_idx], preds_cur), dim=-1
+                    )
                     encoded_len[preds_idx] += len(previous_pred_out[preds_idx])
                 else:
                     greedy_predictions_concat = preds_cur
@@ -758,12 +854,18 @@ class ASRModuleMixin(ASRAdapterModelMixin):
             )
 
         if not isinstance(self, asr_models.EncDecCTCModel):
-            raise NotImplementedError(f"simulate streaming does not support {type(self)}!")
+            raise NotImplementedError(
+                f"simulate streaming does not support {type(self)}!"
+            )
 
         if not isinstance(self.encoder, StreamingEncoder):
-            raise NotImplementedError("Encoder of this model does not support streaming!")
+            raise NotImplementedError(
+                "Encoder of this model does not support streaming!"
+            )
 
-        data_loader = self._setup_streaming_transcribe_dataloader(paths2audio_files, batch_size, online_normalization)
+        data_loader = self._setup_streaming_transcribe_dataloader(
+            paths2audio_files, batch_size, online_normalization
+        )
 
         total_log_probs = []
         total_texts = []
@@ -771,8 +873,8 @@ class ASRModuleMixin(ASRAdapterModelMixin):
         for streaming_buffer in data_loader:
             streaming_buffer_iter = iter(streaming_buffer)
             batch_size = len(streaming_buffer.streams_length)
-            cache_last_channel, cache_last_time, cache_last_channel_len = self.encoder.get_initial_cache_state(
-                batch_size=batch_size
+            cache_last_channel, cache_last_time, cache_last_channel_len = (
+                self.encoder.get_initial_cache_state(batch_size=batch_size)
             )
             previous_hypotheses = None
             pred_out_stream = None
@@ -780,8 +882,14 @@ class ASRModuleMixin(ASRAdapterModelMixin):
             transcribed_texts = None
             batch_log_probs = []
 
-            for step_num, (chunk_audio, chunk_lengths) in enumerate(streaming_buffer_iter):
-                drop_extra_pre_encoded = self.encoder.streaming_cfg.drop_extra_pre_encoded if step_num != 0 else 0
+            for step_num, (chunk_audio, chunk_lengths) in enumerate(
+                streaming_buffer_iter
+            ):
+                drop_extra_pre_encoded = (
+                    self.encoder.streaming_cfg.drop_extra_pre_encoded
+                    if step_num != 0
+                    else 0
+                )
                 with torch.inference_mode():
                     result = self.conformer_stream_step(
                         processed_signal=chunk_audio,
@@ -825,7 +933,7 @@ class ASRModuleMixin(ASRAdapterModelMixin):
                     total_log_probs.append(log_probs[0:log_prob_len])
 
             if transcribed_texts is None:
-                total_texts += [''] * batch_size
+                total_texts += [""] * batch_size
             else:
                 total_texts += transcribed_texts
 
@@ -837,7 +945,9 @@ class ASRModuleMixin(ASRAdapterModelMixin):
 
         hyps = []
         for log_probs, text in zip(total_log_probs, total_texts):
-            hyps.append(Hypothesis(y_sequence=log_probs, text=text, score=0.0, dec_state=None))
+            hyps.append(
+                Hypothesis(y_sequence=log_probs, text=text, score=0.0, dec_state=None)
+            )
         return hyps
 
     def _setup_streaming_transcribe_dataloader(
@@ -857,14 +967,20 @@ class ASRModuleMixin(ASRAdapterModelMixin):
         from nemo.collections.asr.parts.utils.streaming_utils import \
             CacheAwareStreamingAudioBuffer
 
-        streaming_buffer = CacheAwareStreamingAudioBuffer(model=self, online_normalization=online_normalization)
+        streaming_buffer = CacheAwareStreamingAudioBuffer(
+            model=self, online_normalization=online_normalization
+        )
         for sample_idx, sample in enumerate(paths2audio_files):
-            processed_signal, processed_signal_length, stream_id = streaming_buffer.append_audio_file(
-                sample, stream_id=-1
+            processed_signal, processed_signal_length, stream_id = (
+                streaming_buffer.append_audio_file(sample, stream_id=-1)
             )
-            logging.info(f'Added this sample to the buffer: {sample}')
-            if (sample_idx + 1) % batch_size == 0 or sample_idx == len(paths2audio_files) - 1:
-                logging.info(f"Starting to stream samples {sample_idx - len(streaming_buffer) + 1} to {sample_idx}...")
+            logging.info(f"Added this sample to the buffer: {sample}")
+            if (sample_idx + 1) % batch_size == 0 or sample_idx == len(
+                paths2audio_files
+            ) - 1:
+                logging.info(
+                    f"Starting to stream samples {sample_idx - len(streaming_buffer) + 1} to {sample_idx}..."
+                )
                 yield streaming_buffer
                 streaming_buffer.reset_buffer()
 
@@ -878,11 +994,17 @@ class VerificationMixin(ABC):
             paths2audio_files: paths to audio fragment to be verified
             manifest_filepath: path to manifest file to bre created
         """
-        with open(manifest_filepath, 'w', encoding='utf-8') as fp:
+        with open(manifest_filepath, "w", encoding="utf-8") as fp:
             for audio_file in paths2audio_files:
                 audio_file = audio_file.strip()
-                entry = {'audio_filepath': audio_file, 'offset': 0.0, 'duration': None, 'text': '-', 'label': 'infer'}
-                fp.write(json.dumps(entry) + '\n')
+                entry = {
+                    "audio_filepath": audio_file,
+                    "offset": 0.0,
+                    "duration": None,
+                    "text": "-",
+                    "label": "infer",
+                }
+                fp.write(json.dumps(entry) + "\n")
 
 
 class DiarizationMixin(VerificationMixin):

@@ -74,14 +74,14 @@ class FlowStep(nn.Module):
         n_mel_channels,
         n_context_dim,
         n_layers,
-        affine_model='simple_conv',
-        scaling_fn='exp',
-        matrix_decomposition='',
-        affine_activation='softplus',
+        affine_model="simple_conv",
+        scaling_fn="exp",
+        matrix_decomposition="",
+        affine_activation="softplus",
         use_partial_padding=False,
     ):
         super(FlowStep, self).__init__()
-        if matrix_decomposition == 'LUS':
+        if matrix_decomposition == "LUS":
             self.invtbl_conv = Invertible1x1ConvLUS(n_mel_channels)
         else:
             self.invtbl_conv = Invertible1x1Conv(n_mel_channels)
@@ -154,11 +154,11 @@ class RadTTSModule(NeuralModule, Exportable):
         f0_model_config,
         energy_model_config,
         v_model_config=None,
-        include_modules='dec',
-        scaling_fn='exp',
-        matrix_decomposition='',
+        include_modules="dec",
+        scaling_fn="exp",
+        matrix_decomposition="",
         learn_alignments=False,
-        affine_activation='softplus',
+        affine_activation="softplus",
         attn_use_CTC=True,
         use_context_lstm=False,
         context_lstm_norm=None,
@@ -166,7 +166,7 @@ class RadTTSModule(NeuralModule, Exportable):
         n_energy_avg_dims=0,
         context_lstm_w_f0_and_energy=True,
         use_first_order_features=False,
-        unvoiced_bias_activation='',
+        unvoiced_bias_activation="",
         ap_pred_log_f0=False,
         **kwargs,
     ):
@@ -175,7 +175,7 @@ class RadTTSModule(NeuralModule, Exportable):
         self.n_mel_channels = n_mel_channels
         self.n_f0_dims = n_f0_dims  # >= 1 to trains with f0
         self.n_energy_avg_dims = n_energy_avg_dims  # >= 1 trains with energy
-        self.decoder_use_partial_padding = kwargs['decoder_use_partial_padding']
+        self.decoder_use_partial_padding = kwargs["decoder_use_partial_padding"]
         self.n_speaker_dim = n_speaker_dim
         assert self.n_speaker_dim % 2 == 0
         self.speaker_embedding = torch.nn.Embedding(n_speakers, self.n_speaker_dim)
@@ -191,39 +191,50 @@ class RadTTSModule(NeuralModule, Exportable):
         self.context_lstm_norm = context_lstm_norm
         self.context_lstm_w_f0_and_energy = context_lstm_w_f0_and_energy
         self.use_first_order_features = bool(use_first_order_features)
-        self.decoder_use_unvoiced_bias = kwargs['decoder_use_unvoiced_bias']
+        self.decoder_use_unvoiced_bias = kwargs["decoder_use_unvoiced_bias"]
         self.ap_pred_log_f0 = ap_pred_log_f0
-        self.ap_use_unvoiced_bias = kwargs['ap_use_unvoiced_bias']
+        self.ap_use_unvoiced_bias = kwargs["ap_use_unvoiced_bias"]
 
-        if 'atn' in include_modules or 'dec' in include_modules:
+        if "atn" in include_modules or "dec" in include_modules:
             if self.learn_alignments:
-                self.attention = ConvAttention(n_mel_channels, self.n_speaker_dim, n_text_dim)
+                self.attention = ConvAttention(
+                    n_mel_channels, self.n_speaker_dim, n_text_dim
+                )
 
             self.n_flows = n_flows
             self.n_group_size = n_group_size
 
-            n_flowstep_cond_dims = self.n_speaker_dim + (n_text_dim + n_f0_dims + n_energy_avg_dims) * n_group_size
+            n_flowstep_cond_dims = (
+                self.n_speaker_dim
+                + (n_text_dim + n_f0_dims + n_energy_avg_dims) * n_group_size
+            )
 
             if self.use_context_lstm:
                 n_in_context_lstm = self.n_speaker_dim + n_text_dim * n_group_size
-                n_context_lstm_hidden = int((self.n_speaker_dim + n_text_dim * n_group_size) / 2)
+                n_context_lstm_hidden = int(
+                    (self.n_speaker_dim + n_text_dim * n_group_size) / 2
+                )
 
                 if self.context_lstm_w_f0_and_energy:
                     n_in_context_lstm = n_f0_dims + n_energy_avg_dims + n_text_dim
                     n_in_context_lstm *= n_group_size
                     n_in_context_lstm += self.n_speaker_dim
-                    n_flowstep_cond_dims = self.n_speaker_dim + n_text_dim * n_group_size
+                    n_flowstep_cond_dims = (
+                        self.n_speaker_dim + n_text_dim * n_group_size
+                    )
 
                 self.context_lstm = BiLSTM(
-                    input_size=n_in_context_lstm, hidden_size=n_context_lstm_hidden, num_layers=1,
+                    input_size=n_in_context_lstm,
+                    hidden_size=n_context_lstm_hidden,
+                    num_layers=1,
                 )
 
             if self.n_group_size > 1:
                 self.unfold_params = {
-                    'kernel_size': (n_group_size, 1),
-                    'stride': n_group_size,
-                    'padding': 0,
-                    'dilation': 1,
+                    "kernel_size": (n_group_size, 1),
+                    "stride": n_group_size,
+                    "padding": 0,
+                    "dilation": 1,
                 }
                 self.unfold_mod = nn.Unfold(**self.unfold_params)
 
@@ -249,71 +260,83 @@ class RadTTSModule(NeuralModule, Exportable):
                     )
                 )
 
-        if 'dpm' in include_modules:
-            dur_model_config['hparams']['n_speaker_dim'] = n_speaker_dim
+        if "dpm" in include_modules:
+            dur_model_config["hparams"]["n_speaker_dim"] = n_speaker_dim
             self.dur_pred_layer = get_attribute_prediction_model(dur_model_config)
 
         self.use_unvoiced_bias = False
         self.use_vpred_module = False
-        self.ap_use_voiced_embeddings = kwargs['ap_use_voiced_embeddings']
+        self.ap_use_voiced_embeddings = kwargs["ap_use_voiced_embeddings"]
 
         if self.decoder_use_unvoiced_bias or self.ap_use_unvoiced_bias:
-            assert unvoiced_bias_activation in {'relu', 'exp'}
+            assert unvoiced_bias_activation in {"relu", "exp"}
             self.use_unvoiced_bias = True
-            if unvoiced_bias_activation == 'relu':
+            if unvoiced_bias_activation == "relu":
                 unvbias_nonlin = nn.ReLU()
-            elif unvoiced_bias_activation == 'exp':
+            elif unvoiced_bias_activation == "exp":
                 unvbias_nonlin = ExponentialClass()
             else:
                 exit(1)  # we won't reach here anyway due to the assertion
-            self.unvoiced_bias_module = nn.Sequential(LinearNorm(n_text_dim, 1), unvbias_nonlin)
+            self.unvoiced_bias_module = nn.Sequential(
+                LinearNorm(n_text_dim, 1), unvbias_nonlin
+            )
 
         # all situations in which the vpred module is necessary
-        if self.ap_use_voiced_embeddings or self.use_unvoiced_bias or 'vpred' in include_modules:
+        if (
+            self.ap_use_voiced_embeddings
+            or self.use_unvoiced_bias
+            or "vpred" in include_modules
+        ):
             self.use_vpred_module = True
 
         if self.use_vpred_module:
-            v_model_config['hparams']['n_speaker_dim'] = n_speaker_dim
+            v_model_config["hparams"]["n_speaker_dim"] = n_speaker_dim
             self.v_pred_module = get_attribute_prediction_model(v_model_config)
             # 4 embeddings, first two are scales, second two are biases
             if self.ap_use_voiced_embeddings:
                 self.v_embeddings = torch.nn.Embedding(4, n_text_dim)
             self.v_pred_threshold = 0.5
 
-        if 'apm' in include_modules:
-            f0_model_config['hparams']['n_speaker_dim'] = n_speaker_dim
-            energy_model_config['hparams']['n_speaker_dim'] = n_speaker_dim
+        if "apm" in include_modules:
+            f0_model_config["hparams"]["n_speaker_dim"] = n_speaker_dim
+            energy_model_config["hparams"]["n_speaker_dim"] = n_speaker_dim
             if self.use_first_order_features:
-                f0_model_config['hparams']['n_in_dim'] = 2
-                energy_model_config['hparams']['n_in_dim'] = 2
+                f0_model_config["hparams"]["n_in_dim"] = 2
+                energy_model_config["hparams"]["n_in_dim"] = 2
                 if (
-                    'spline_flow_params' in f0_model_config['hparams']
-                    and f0_model_config['hparams']['spline_flow_params'] is not None
+                    "spline_flow_params" in f0_model_config["hparams"]
+                    and f0_model_config["hparams"]["spline_flow_params"] is not None
                 ):
-                    f0_model_config['hparams']['spline_flow_params']['n_in_channels'] = 2
+                    f0_model_config["hparams"]["spline_flow_params"][
+                        "n_in_channels"
+                    ] = 2
                 if (
-                    'spline_flow_params' in energy_model_config['hparams']
-                    and energy_model_config['hparams']['spline_flow_params'] is not None
+                    "spline_flow_params" in energy_model_config["hparams"]
+                    and energy_model_config["hparams"]["spline_flow_params"] is not None
                 ):
-                    energy_model_config['hparams']['spline_flow_params']['n_in_channels'] = 2
+                    energy_model_config["hparams"]["spline_flow_params"][
+                        "n_in_channels"
+                    ] = 2
             else:
                 if (
-                    'spline_flow_params' in f0_model_config['hparams']
-                    and f0_model_config['hparams']['spline_flow_params'] is not None
+                    "spline_flow_params" in f0_model_config["hparams"]
+                    and f0_model_config["hparams"]["spline_flow_params"] is not None
                 ):
-                    f0_model_config['hparams']['spline_flow_params']['n_in_channels'] = f0_model_config['hparams'][
-                        'n_in_dim'
-                    ]
+                    f0_model_config["hparams"]["spline_flow_params"][
+                        "n_in_channels"
+                    ] = f0_model_config["hparams"]["n_in_dim"]
                 if (
-                    'spline_flow_params' in energy_model_config['hparams']
-                    and energy_model_config['hparams']['spline_flow_params'] is not None
+                    "spline_flow_params" in energy_model_config["hparams"]
+                    and energy_model_config["hparams"]["spline_flow_params"] is not None
                 ):
-                    energy_model_config['hparams']['spline_flow_params']['n_in_channels'] = energy_model_config[
-                        'hparams'
-                    ]['n_in_dim']
+                    energy_model_config["hparams"]["spline_flow_params"][
+                        "n_in_channels"
+                    ] = energy_model_config["hparams"]["n_in_dim"]
 
             self.f0_pred_module = get_attribute_prediction_model(f0_model_config)
-            self.energy_pred_module = get_attribute_prediction_model(energy_model_config)
+            self.energy_pred_module = get_attribute_prediction_model(
+                energy_model_config
+            )
 
     def encode_speaker(self, spk_ids):
         spk_ids = spk_ids * 0 if self.dummy_speaker_embedding else spk_ids
@@ -327,14 +350,18 @@ class RadTTSModule(NeuralModule, Exportable):
         text_enc = self.encoder(text_embeddings, in_lens).transpose(1, 2)
         return text_enc, text_embeddings
 
-    def preprocess_context(self, context, speaker_vecs, out_lens, f0, energy_avg, assume_padded=False):
+    def preprocess_context(
+        self, context, speaker_vecs, out_lens, f0, energy_avg, assume_padded=False
+    ):
         if self.n_group_size > 1:
             context = self.unfold(context, assume_padded=assume_padded)
 
             if f0 is not None:
                 f0 = self.unfold(f0[:, None, :], assume_padded=assume_padded)
             if energy_avg is not None:
-                energy_avg = self.unfold(energy_avg[:, None, :], assume_padded=assume_padded)
+                energy_avg = self.unfold(
+                    energy_avg[:, None, :], assume_padded=assume_padded
+                )
         speaker_vecs = speaker_vecs[..., None].expand(-1, -1, context.shape[2])
         context_w_spkvec = torch.cat((context, speaker_vecs), 1)
 
@@ -347,7 +374,9 @@ class RadTTSModule(NeuralModule, Exportable):
                     context_w_spkvec = torch.cat((context_w_spkvec, energy_avg), 1)
 
             unfolded_out_lens = out_lens // self.n_group_size
-            context_lstm_padded_output = self.context_lstm(context_w_spkvec.transpose(1, 2), unfolded_out_lens)
+            context_lstm_padded_output = self.context_lstm(
+                context_w_spkvec.transpose(1, 2), unfolded_out_lens
+            )
             context_w_spkvec = context_lstm_padded_output.transpose(1, 2)
 
         if not self.context_lstm_w_f0_and_energy:
@@ -396,8 +425,12 @@ class RadTTSModule(NeuralModule, Exportable):
             attn_cpu = attn.data.cpu().numpy()
             attn_out = torch.zeros_like(attn)
             for ind in range(b_size):
-                hard_attn = mas_width1(attn_cpu[ind, 0, : out_lens[ind], : in_lens[ind]])
-                attn_out[ind, 0, : out_lens[ind], : in_lens[ind]] = torch.tensor(hard_attn, device=attn.get_device())
+                hard_attn = mas_width1(
+                    attn_cpu[ind, 0, : out_lens[ind], : in_lens[ind]]
+                )
+                attn_out[ind, 0, : out_lens[ind], : in_lens[ind]] = torch.tensor(
+                    hard_attn, device=attn.get_device()
+                )
         return attn_out
 
     def get_first_order_features(self, feats, dilation=1):
@@ -406,8 +439,12 @@ class RadTTSModule(NeuralModule, Exportable):
         out_lens: b-dim
         """
         # add an extra column
-        feats_extended_R = torch.cat((feats, torch.zeros_like(feats[:, 0:dilation])), dim=1)
-        feats_extended_L = torch.cat((torch.zeros_like(feats[:, 0:dilation]), feats), dim=1)
+        feats_extended_R = torch.cat(
+            (feats, torch.zeros_like(feats[:, 0:dilation])), dim=1
+        )
+        feats_extended_L = torch.cat(
+            (torch.zeros_like(feats[:, 0:dilation]), feats), dim=1
+        )
         dfeats_R = feats_extended_R[:, dilation:] - feats
         dfeats_L = feats - feats_extended_L[:, 0:-dilation]
 
@@ -423,8 +460,12 @@ class RadTTSModule(NeuralModule, Exportable):
         unvoiced_embedding_s = self.v_embeddings.weight[1:2, :, None]
         voiced_embedding_b = self.v_embeddings.weight[2:3, :, None]
         unvoiced_embedding_b = self.v_embeddings.weight[3:4, :, None]
-        scale = torch.sigmoid(voiced_embedding_s * voiced_mask + unvoiced_embedding_s * (1 - voiced_mask))
-        bias = 0.1 * torch.tanh(voiced_embedding_b * voiced_mask + unvoiced_embedding_b * (1 - voiced_mask))
+        scale = torch.sigmoid(
+            voiced_embedding_s * voiced_mask + unvoiced_embedding_s * (1 - voiced_mask)
+        )
+        bias = 0.1 * torch.tanh(
+            voiced_embedding_b * voiced_mask + unvoiced_embedding_b * (1 - voiced_mask)
+        )
         return text_enc * scale + bias
 
     def forward(
@@ -445,12 +486,17 @@ class RadTTSModule(NeuralModule, Exportable):
 
         log_s_list, log_det_W_list, z_mel = [], [], []
         attn_hard = None
-        if 'atn' in self.include_modules or 'dec' in self.include_modules:
+        if "atn" in self.include_modules or "dec" in self.include_modules:
             # make sure to do the alignments before folding
             attn_mask = ~get_mask_from_lengths(in_lens)[..., None]
             # attn_mask should be 1 for unsd t-steps in text_enc_w_spkvec tensor
             attn_soft, attn_logprob = self.attention(
-                mel, text_embeddings, out_lens, attn_mask, key_lens=in_lens, attn_prior=attn_prior
+                mel,
+                text_embeddings,
+                out_lens,
+                attn_mask,
+                key_lens=in_lens,
+                attn_prior=attn_prior,
             )
 
             if binarize_attention:
@@ -474,7 +520,7 @@ class RadTTSModule(NeuralModule, Exportable):
             f0_bias.masked_fill_(voiced_mask_bool, 0.0)
 
         # mel decoder forward pass
-        if 'dec' in self.include_modules:
+        if "dec" in self.include_modules:
             if self.n_group_size > 1:
                 # might truncate some frames at the end, but that's ok
                 # sometimes referred to as the "squeeze" operation
@@ -493,7 +539,9 @@ class RadTTSModule(NeuralModule, Exportable):
                     z = mel[:, : self.n_early_size]
                     z_out.append(z)
                     mel = mel[:, self.n_early_size :]
-                mel, log_det_W, log_s = flow_step(mel, context_w_spkvec, seq_lens=unfolded_seq_lens)
+                mel, log_det_W, log_s = flow_step(
+                    mel, context_w_spkvec, seq_lens=unfolded_seq_lens
+                )
                 log_s_list.append(log_s)
                 log_det_W_list.append(log_det_W)
 
@@ -502,21 +550,24 @@ class RadTTSModule(NeuralModule, Exportable):
 
         # duration predictor forward pass
         duration_model_outputs = None
-        if 'dpm' in self.include_modules:
+        if "dpm" in self.include_modules:
             if attn_hard is None:
                 attn_hard = self.binarize_attention(attn_soft, in_lens, out_lens)
 
             # convert hard attention to durations
             attn_hard_reduced = attn_hard.sum(2)[:, 0, :]
             duration_model_outputs = self.dur_pred_layer(
-                torch.detach(text_enc), torch.detach(speaker_vecs), torch.detach(attn_hard_reduced.float()), in_lens
+                torch.detach(text_enc),
+                torch.detach(speaker_vecs),
+                torch.detach(attn_hard_reduced.float()),
+                in_lens,
             )
 
         # f0, energy, vpred predictors forward pass
         f0_model_outputs = None
         energy_model_outputs = None
         vpred_model_outputs = None
-        if 'apm' in self.include_modules:
+        if "apm" in self.include_modules:
             if attn_hard is None:
                 attn_hard = self.binarize_attention(attn_soft, in_lens, out_lens)
 
@@ -524,7 +575,9 @@ class RadTTSModule(NeuralModule, Exportable):
             if binarize_attention:
                 text_enc_time_expanded = context.clone()
             else:
-                text_enc_time_expanded = torch.bmm(text_enc, attn_hard.squeeze(1).transpose(1, 2))
+                text_enc_time_expanded = torch.bmm(
+                    text_enc, attn_hard.squeeze(1).transpose(1, 2)
+                )
 
             if self.use_vpred_module:
                 # unvoiced bias requires  voiced mask prediction
@@ -537,8 +590,12 @@ class RadTTSModule(NeuralModule, Exportable):
 
                 # affine transform context using voiced mask
                 if self.ap_use_voiced_embeddings:
-                    text_enc_time_expanded = self.apply_voice_mask_to_text(text_enc_time_expanded, voiced_mask)
-            if self.ap_use_unvoiced_bias:  # whether to use the unvoiced bias in the attribute predictor
+                    text_enc_time_expanded = self.apply_voice_mask_to_text(
+                        text_enc_time_expanded, voiced_mask
+                    )
+            if (
+                self.ap_use_unvoiced_bias
+            ):  # whether to use the unvoiced bias in the attribute predictor
                 f0_target = torch.detach(f0 * voiced_mask + f0_bias)
             else:
                 f0_target = torch.detach(f0)
@@ -552,7 +609,9 @@ class RadTTSModule(NeuralModule, Exportable):
                 denergy_avg = self.get_first_order_features(energy_avg)
 
                 f0_voiced = torch.cat((f0_target[:, None], df0[:, None]), dim=1)
-                energy_avg = torch.cat((energy_avg[:, None], denergy_avg[:, None]), dim=1)
+                energy_avg = torch.cat(
+                    (energy_avg[:, None], denergy_avg[:, None]), dim=1
+                )
 
                 f0_voiced = f0_voiced * 3  # scale to ~ 1 std
                 energy_avg = energy_avg * 3  # scale to ~ 1 std
@@ -568,17 +627,17 @@ class RadTTSModule(NeuralModule, Exportable):
             )
 
         outputs = {
-            'z_mel': z_mel,
-            'log_det_W_list': log_det_W_list,
-            'log_s_list': log_s_list,
-            'duration_model_outputs': duration_model_outputs,
-            'f0_model_outputs': f0_model_outputs,
-            'energy_model_outputs': energy_model_outputs,
-            'vpred_model_outputs': vpred_model_outputs,
-            'attn_soft': attn_soft,
-            'attn': attn,
-            'text_embeddings': text_embeddings,
-            'attn_logprob': attn_logprob,
+            "z_mel": z_mel,
+            "log_det_W_list": log_det_W_list,
+            "log_s_list": log_s_list,
+            "duration_model_outputs": duration_model_outputs,
+            "f0_model_outputs": f0_model_outputs,
+            "energy_model_outputs": energy_model_outputs,
+            "vpred_model_outputs": vpred_model_outputs,
+            "attn_soft": attn_soft,
+            "attn": attn,
+            "text_embeddings": text_embeddings,
+            "attn_logprob": attn_logprob,
         }
 
         return outputs
@@ -634,17 +693,25 @@ class RadTTSModule(NeuralModule, Exportable):
             pace = pace[:, :txt_len_pad_removed]
 
         txt_enc_time_expanded, out_lens = regulate_len(
-            dur, txt_enc.transpose(1, 2), pace, group_size=self.n_group_size, dur_lens=in_lens,
+            dur,
+            txt_enc.transpose(1, 2),
+            pace,
+            group_size=self.n_group_size,
+            dur_lens=in_lens,
         )
-        n_groups = torch.div(out_lens, self.n_group_size, rounding_mode='floor')
+        n_groups = torch.div(out_lens, self.n_group_size, rounding_mode="floor")
         max_out_len = torch.max(out_lens)
 
         txt_enc_time_expanded.transpose_(1, 2)
         if voiced_mask is None:
             if self.use_vpred_module:
                 # get logits
-                voiced_mask = self.v_pred_module.infer(txt_enc_time_expanded, spk_vec_attributes, lens=out_lens)
-                voiced_mask_bool = torch.sigmoid(voiced_mask[:, 0]) > self.v_pred_threshold
+                voiced_mask = self.v_pred_module.infer(
+                    txt_enc_time_expanded, spk_vec_attributes, lens=out_lens
+                )
+                voiced_mask_bool = (
+                    torch.sigmoid(voiced_mask[:, 0]) > self.v_pred_threshold
+                )
                 voiced_mask = voiced_mask_bool.to(dur.dtype)
             else:
                 voiced_mask_bool = None
@@ -654,7 +721,9 @@ class RadTTSModule(NeuralModule, Exportable):
         ap_txt_enc_time_expanded = txt_enc_time_expanded
         # voice mask augmentation only used for attribute prediction
         if self.ap_use_voiced_embeddings:
-            ap_txt_enc_time_expanded = self.apply_voice_mask_to_text(txt_enc_time_expanded, voiced_mask)
+            ap_txt_enc_time_expanded = self.apply_voice_mask_to_text(
+                txt_enc_time_expanded, voiced_mask
+            )
 
         f0_bias = 0
         # unvoiced bias forward pass
@@ -663,12 +732,16 @@ class RadTTSModule(NeuralModule, Exportable):
             f0_bias = -f0_bias[..., 0]
 
         if f0 is None:
-            f0 = self.infer_f0(ap_txt_enc_time_expanded, spk_vec_attributes, voiced_mask_bool, out_lens)[:, 0]
+            f0 = self.infer_f0(
+                ap_txt_enc_time_expanded, spk_vec_attributes, voiced_mask_bool, out_lens
+            )[:, 0]
 
         f0 = adjust_f0(f0, f0_mean, f0_std, voiced_mask_bool, musical_scaling=False)
 
         if energy_avg is None:
-            energy_avg = self.infer_energy(ap_txt_enc_time_expanded, spk_vec, out_lens)[:, 0]
+            energy_avg = self.infer_energy(ap_txt_enc_time_expanded, spk_vec, out_lens)[
+                :, 0
+            ]
 
         # replication pad, because ungrouping with different group sizes
         # may lead to mismatched lengths
@@ -686,10 +759,17 @@ class RadTTSModule(NeuralModule, Exportable):
             f0_bias = pitch_shift_spec_len.squeeze(-1) + f0_bias
 
         context_w_spkvec = self.preprocess_context(
-            txt_enc_time_expanded, spk_vec, out_lens, (f0 + f0_bias) * voiced_mask, energy_avg, assume_padded=True,
+            txt_enc_time_expanded,
+            spk_vec,
+            out_lens,
+            (f0 + f0_bias) * voiced_mask,
+            energy_avg,
+            assume_padded=True,
         )
 
-        residual = txt_enc.new_zeros(batch_size, 80 * self.n_group_size, torch.max(n_groups))
+        residual = txt_enc.new_zeros(
+            batch_size, 80 * self.n_group_size, torch.max(n_groups)
+        )
         if sigma > 0.0:
             residual = torch.normal(residual) * sigma
 
@@ -702,7 +782,10 @@ class RadTTSModule(NeuralModule, Exportable):
         for i, flow_step in enumerate(reversed(self.flows)):
             curr_step = self.n_flows - i - 1
             mel = flow_step(mel, context_w_spkvec, inverse=True, seq_lens=n_groups)
-            if num_steps_to_exit > 0 and curr_step == self.exit_steps[num_steps_to_exit - 1]:
+            if (
+                num_steps_to_exit > 0
+                and curr_step == self.exit_steps[num_steps_to_exit - 1]
+            ):
                 # concatenate the next chunk of z
                 num_steps_to_exit = num_steps_to_exit - 1
                 split = num_steps_to_exit * self.n_early_size
@@ -713,7 +796,13 @@ class RadTTSModule(NeuralModule, Exportable):
         if self.n_group_size > 1:
             mel = self.fold(mel)
 
-        return {'mel': mel, 'out_lens': out_lens, 'dur': dur, 'f0': f0, 'energy_avg': energy_avg}
+        return {
+            "mel": mel,
+            "out_lens": out_lens,
+            "dur": dur,
+            "f0": f0,
+            "energy_avg": energy_avg,
+        }
 
     def infer_f0(self, txt_enc_time_expanded, spk_vec, voiced_mask=None, lens=None):
         f0 = self.f0_pred_module.infer(txt_enc_time_expanded, spk_vec, lens)
@@ -755,17 +844,16 @@ class RadTTSModule(NeuralModule, Exportable):
         return energy
 
     def remove_norms(self):
-        """Removes spectral and weightnorms from model. Call before inference
-        """
+        """Removes spectral and weightnorms from model. Call before inference"""
         dev = next(self.parameters()).device
         for name, module in self.named_modules():
             try:
-                nn.utils.remove_spectral_norm(module, name='weight_hh_l0')
+                nn.utils.remove_spectral_norm(module, name="weight_hh_l0")
                 print("Removed spectral norm from {}".format(name))
             except:
                 pass
             try:
-                nn.utils.remove_spectral_norm(module, name='weight_hh_l0_reverse')
+                nn.utils.remove_spectral_norm(module, name="weight_hh_l0_reverse")
                 print("Removed spectral norm from {}".format(name))
             except:
                 pass
@@ -779,17 +867,17 @@ class RadTTSModule(NeuralModule, Exportable):
     @property
     def input_types(self):
         return {
-            "text": NeuralType(('B', 'T_text'), TokenIndex()),
-            "lens": NeuralType(('B'), LengthsType(), optional=True),
-            "speaker_id": NeuralType(('B'), Index()),
-            "speaker_id_text": NeuralType(('B'), Index()),
-            "speaker_id_attributes": NeuralType(('B'), Index()),
+            "text": NeuralType(("B", "T_text"), TokenIndex()),
+            "lens": NeuralType(("B"), LengthsType(), optional=True),
+            "speaker_id": NeuralType(("B"), Index()),
+            "speaker_id_text": NeuralType(("B"), Index()),
+            "speaker_id_attributes": NeuralType(("B"), Index()),
         }
 
     @property
     def output_types(self):
         return {
-            "spect": NeuralType(('B', 'D', 'T_spec'), MelSpectrogramType()),
-            "num_frames": NeuralType(('B'), TokenDurationType()),
-            "durs_predicted": NeuralType(('B', 'T_text'), TokenDurationType()),
+            "spect": NeuralType(("B", "D", "T_spec"), MelSpectrogramType()),
+            "num_frames": NeuralType(("B"), TokenDurationType()),
+            "durs_predicted": NeuralType(("B", "T_text"), TokenDurationType()),
         }

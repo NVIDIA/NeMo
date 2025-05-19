@@ -89,21 +89,29 @@ class TestLlama3_70B:
         assert recipe.peft.__fn_or_cls__ == LoRA
 
     @pytest.mark.parametrize("num_nodes,num_gpus_per_node", [(1, 8), (2, 4), (4, 2)])
-    def test_pretrain_recipe_with_different_configurations(self, recipe_module, num_nodes, num_gpus_per_node):
-        recipe = recipe_module.pretrain_recipe(num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node)
+    def test_pretrain_recipe_with_different_configurations(
+        self, recipe_module, num_nodes, num_gpus_per_node
+    ):
+        recipe = recipe_module.pretrain_recipe(
+            num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node
+        )
         assert recipe.trainer.num_nodes == num_nodes
         assert recipe.trainer.devices == num_gpus_per_node
 
     def test_pretrain_performance_optimizations(self, recipe_module):
         recipe = recipe_module.pretrain_recipe(performance_mode=True)
         assert any(
-            isinstance(cb, run.Config) and cb.__fn_or_cls__ == MegatronCommOverlapCallback
+            isinstance(cb, run.Config)
+            and cb.__fn_or_cls__ == MegatronCommOverlapCallback
             for cb in recipe.trainer.callbacks
         )
 
     def test_trainer_parallelism_options(self, recipe_module):
         trainer_config = recipe_module.trainer(
-            tensor_parallelism=8, pipeline_parallelism=2, context_parallelism=4, sequence_parallelism=False
+            tensor_parallelism=8,
+            pipeline_parallelism=2,
+            context_parallelism=4,
+            sequence_parallelism=False,
         )
         assert trainer_config.strategy.tensor_model_parallel_size == 8
         assert trainer_config.strategy.pipeline_model_parallel_size == 2

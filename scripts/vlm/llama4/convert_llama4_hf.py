@@ -16,9 +16,9 @@ from nemo.collections import llm, vlm
 from nemo.collections.vlm.llama4.model.llama4_omni import \
     Llama4ScoutExperts16Config
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # Specify the Hugging Face model ID
-    hf_model_id = 'meta-llama/Llama-4-Scout-17B-16E-Instruct'
+    hf_model_id = "meta-llama/Llama-4-Scout-17B-16E-Instruct"
     # Import the model and convert to NeMo 2.0 format
     llm.import_ckpt(
         model=vlm.Llama4OmniModel(Llama4ScoutExperts16Config()),  # Model configuration

@@ -127,14 +127,16 @@ def legacy_generate(model, processor, raw_image, text, num_tokens_to_generate):
     prompt = processor.apply_chat_template(conversation, add_generation_prompt=True)
     hf_tokenizer = processor.tokenizer
 
-    inputs = processor(prompt, raw_image, return_tensors='pt').to(0, torch.float16)
-    input_ids = hf_tokenizer(prompt, return_tensors='pt')['input_ids'].cuda()
+    inputs = processor(prompt, raw_image, return_tensors="pt").to(0, torch.float16)
+    input_ids = hf_tokenizer(prompt, return_tensors="pt")["input_ids"].cuda()
     input_ids[input_ids == 32000] = -200
-    images = inputs['pixel_values'].cuda()
+    images = inputs["pixel_values"].cuda()
     images = images.reshape(images.size(0), 3, 336, 336)
 
     position_ids = (
-        torch.arange(input_ids.size(1), dtype=torch.long, device=input_ids.device).unsqueeze(0).expand_as(input_ids)
+        torch.arange(input_ids.size(1), dtype=torch.long, device=input_ids.device)
+        .unsqueeze(0)
+        .expand_as(input_ids)
     )
 
     model = model.module.cuda()
@@ -157,7 +159,9 @@ def legacy_generate(model, processor, raw_image, text, num_tokens_to_generate):
 
             input_ids = generated_ids
             position_ids = (
-                torch.arange(input_ids.size(1), dtype=torch.long, device=input_ids.device)
+                torch.arange(
+                    input_ids.size(1), dtype=torch.long, device=input_ids.device
+                )
                 .unsqueeze(0)
                 .expand_as(input_ids)
             )
@@ -167,7 +171,9 @@ def legacy_generate(model, processor, raw_image, text, num_tokens_to_generate):
                 break
 
     generated_ids[generated_ids == -200] = 0
-    generated_texts = hf_tokenizer.batch_decode(generated_ids, skip_special_tokens=False)
+    generated_texts = hf_tokenizer.batch_decode(
+        generated_ids, skip_special_tokens=False
+    )
     logging.info("======== GENERATED TEXT OUTPUT ========")
     logging.info(f"{generated_texts}")
     logging.info("=======================================")
@@ -206,9 +212,13 @@ def main(args) -> None:
         config = Llava15Config7B()
         if args.enable_quantization:
             new_transformer_layer_spec = get_gpt_modelopt_spec(
-                config.language_transformer_config, local_core_attention=False, remap_te_layernorm=True
+                config.language_transformer_config,
+                local_core_attention=False,
+                remap_te_layernorm=True,
             )
-            config.language_transformer_config.transformer_layer_spec = new_transformer_layer_spec
+            config.language_transformer_config.transformer_layer_spec = (
+                new_transformer_layer_spec
+            )
         model = LlavaModel(config, tokenizer=hf_tokenizer)
         model = fabric.load_model(args.local_model_path, model)
 
@@ -219,7 +229,9 @@ def main(args) -> None:
         num_tokens_to_generate=args.num_tokens_to_generate,
     )
     if args.legacy_generate:
-        legacy_generate(model, processor, raw_image, args.prompt, args.num_tokens_to_generate)
+        legacy_generate(
+            model, processor, raw_image, args.prompt, args.num_tokens_to_generate
+        )
     else:
         generate(model, processor, images=raw_image, text=args.prompt, params=params)
 
@@ -253,7 +265,11 @@ def main(args) -> None:
             for img_url in quantization_images_url:
                 raw_image = load_image(img_url)
                 response = generate(
-                    model, processor, images=raw_image, text="can you describe this image?", params=params
+                    model,
+                    processor,
+                    images=raw_image,
+                    text="can you describe this image?",
+                    params=params,
                 )
                 print(img_url, "->", response)
 
@@ -266,7 +282,9 @@ def main(args) -> None:
         elif args.quant_alg == "awq":
             mtq_config = mtq.INT4_AWQ_CFG
         else:
-            raise ValueError(f"Unsupported quantization algorithm: {args.quantization.algorithm}")
+            raise ValueError(
+                f"Unsupported quantization algorithm: {args.quantization.algorithm}"
+            )
 
         logging.info("-------- Start Quantization --------")
         mtq.quantize(model, mtq_config, forward_loop)

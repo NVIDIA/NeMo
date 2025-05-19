@@ -39,16 +39,16 @@ def conformer_ctc_bpe_model():
 class TestContextGraphCTC:
     @pytest.mark.unit
     def test_graph_building(self):
-        context_biasing_list = [["gpu", [['▁g', 'p', 'u'], ['▁g', '▁p', '▁u']]]]
+        context_biasing_list = [["gpu", [["▁g", "p", "u"], ["▁g", "▁p", "▁u"]]]]
         context_graph = context_biasing.ContextGraphCTC(blank_id=1024)
         context_graph.add_to_graph(context_biasing_list)
         assert context_graph.num_nodes == 8
         assert context_graph.blank_token == 1024
-        assert not context_graph.root.next['▁g'].is_end
-        assert context_graph.root.next['▁g'].next['p'].next['u'].is_end
-        assert context_graph.root.next['▁g'].next['p'].next['u'].word == 'gpu'
-        assert context_graph.root.next['▁g'].next['▁p'].next['▁u'].is_end
-        assert context_graph.root.next['▁g'].next['▁p'].next['▁u'].word == 'gpu'
+        assert not context_graph.root.next["▁g"].is_end
+        assert context_graph.root.next["▁g"].next["p"].next["u"].is_end
+        assert context_graph.root.next["▁g"].next["p"].next["u"].word == "gpu"
+        assert context_graph.root.next["▁g"].next["▁p"].next["▁u"].is_end
+        assert context_graph.root.next["▁g"].next["▁p"].next["▁u"].word == "gpu"
 
 
 class TestCTCWordSpotter:
@@ -56,14 +56,22 @@ class TestCTCWordSpotter:
     @pytest.mark.with_downloads
     def test_run_word_spotter(self, test_data_dir, conformer_ctc_bpe_model):
         asr_model = conformer_ctc_bpe_model
-        audio_file_path = os.path.join(test_data_dir, "asr/test/an4/wav/cen3-mjwl-b.wav")
+        audio_file_path = os.path.join(
+            test_data_dir, "asr/test/an4/wav/cen3-mjwl-b.wav"
+        )
         target_text = "nineteen"
         target_tokenization = asr_model.tokenizer.text_to_ids(target_text)
         ctc_logprobs = (
-            asr_model.transcribe([audio_file_path], batch_size=1, return_hypotheses=True)[0].alignments.cpu().numpy()
+            asr_model.transcribe(
+                [audio_file_path], batch_size=1, return_hypotheses=True
+            )[0]
+            .alignments.cpu()
+            .numpy()
         )
         context_biasing_list = [[target_text, [target_tokenization]]]
-        context_graph = context_biasing.ContextGraphCTC(blank_id=asr_model.decoding.blank_id)
+        context_graph = context_biasing.ContextGraphCTC(
+            blank_id=asr_model.decoding.blank_id
+        )
         context_graph.add_to_graph(context_biasing_list)
 
         # without context biasing
@@ -151,11 +159,15 @@ class TestContextBiasingUtils:
     def test_compute_fscore(self):
         recog_manifest = """{"audio_filepath": "test.wav", "duration": 1.0, "text": "a new gpu for nvidia", "pred_text": "a new gpu for invidia"}\n"""
         context_words = ["gpu", "cpu", "nvidia"]
-        with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8') as f:
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8") as f:
             f.write(recog_manifest)
             f.seek(0)
             fscore_stats = context_biasing.compute_fscore(f.name, context_words)
-            assert (round(fscore_stats[0], 4), round(fscore_stats[1], 4), round(fscore_stats[2], 4)) == (
+            assert (
+                round(fscore_stats[0], 4),
+                round(fscore_stats[1], 4),
+                round(fscore_stats[2], 4),
+            ) == (
                 1.0,
                 0.5,
                 0.6667,

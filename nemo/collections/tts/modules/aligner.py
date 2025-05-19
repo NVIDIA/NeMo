@@ -47,18 +47,32 @@ class AlignmentEncoder(torch.nn.Module):
     ):
         super().__init__()
         self.temperature = temperature
-        self.cond_input = ConditionalInput(n_text_channels, n_text_channels, condition_types)
+        self.cond_input = ConditionalInput(
+            n_text_channels, n_text_channels, condition_types
+        )
         self.softmax = torch.nn.Softmax(dim=3)
         self.log_softmax = torch.nn.LogSoftmax(dim=3)
 
         self.key_proj = nn.Sequential(
-            ConvNorm(n_text_channels, n_text_channels * 2, kernel_size=3, bias=True, w_init_gain='relu'),
+            ConvNorm(
+                n_text_channels,
+                n_text_channels * 2,
+                kernel_size=3,
+                bias=True,
+                w_init_gain="relu",
+            ),
             torch.nn.ReLU(),
             ConvNorm(n_text_channels * 2, n_att_channels, kernel_size=1, bias=True),
         )
 
         self.query_proj = nn.Sequential(
-            ConvNorm(n_mel_channels, n_mel_channels * 2, kernel_size=3, bias=True, w_init_gain='relu'),
+            ConvNorm(
+                n_mel_channels,
+                n_mel_channels * 2,
+                kernel_size=3,
+                bias=True,
+                w_init_gain="relu",
+            ),
             torch.nn.ReLU(),
             ConvNorm(n_mel_channels * 2, n_mel_channels, kernel_size=1, bias=True),
             torch.nn.ReLU(),
@@ -115,7 +129,9 @@ class AlignmentEncoder(torch.nn.Module):
     def get_cosine_dist(queries_enc, keys_enc):
         queries_enc = rearrange(queries_enc, "B C T1 -> B C T1 1")
         keys_enc = rearrange(keys_enc, "B C T2 -> B C 1 T2")
-        cosine_dist = -torch.nn.functional.cosine_similarity(queries_enc, keys_enc, dim=1)
+        cosine_dist = -torch.nn.functional.cosine_similarity(
+            queries_enc, keys_enc, dim=1
+        )
         cosine_dist = rearrange(cosine_dist, "B T1 T2 -> B 1 T1 T2")
         return cosine_dist
 
@@ -158,12 +174,16 @@ class AlignmentEncoder(torch.nn.Module):
                     dist[
                         dist_idx,
                         torch.arange(t1_size),
-                        torch.repeat_interleave(torch.arange(t2_size), repeats=durations[dist_idx]),
+                        torch.repeat_interleave(
+                            torch.arange(t2_size), repeats=durations[dist_idx]
+                        ),
                     ]
                 )
             )
 
-        return torch.tensor(mean_dist_by_durations, dtype=dist.dtype, device=dist.device)
+        return torch.tensor(
+            mean_dist_by_durations, dtype=dist.dtype, device=dist.device
+        )
 
     @staticmethod
     def get_mean_distance_for_word(l2_dists, durs, start_token, num_tokens):

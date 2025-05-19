@@ -83,7 +83,9 @@ def execute_job(
     Singleton.set_state(singleton_state)
 
     # Update base config with overrides to create sweep config
-    sweep_config = hydra_context.config_loader.load_sweep_config(config, list(overrides))
+    sweep_config = hydra_context.config_loader.load_sweep_config(
+        config, list(overrides)
+    )
     with open_dict(sweep_config):
         sweep_config.hydra.job.id = "{}_{}".format(sweep_config.hydra.job.name, idx)
         sweep_config.hydra.job.num = idx
@@ -93,7 +95,7 @@ def execute_job(
     script_path = os.path.join(os.getcwd(), sys.argv[0])
     script_path = os.path.abspath(script_path)
 
-    hash_salt = "|".join([script_path, str(OmegaConf.to_yaml(config))]).encode('utf-8')
+    hash_salt = "|".join([script_path, str(OmegaConf.to_yaml(config))]).encode("utf-8")
     hash_val = hashlib.sha256(hash_salt).hexdigest()
 
     config_dir = os.path.join(os.getcwd(), "hydra_cfg", str(hash_val))
@@ -105,7 +107,7 @@ def execute_job(
     # Remove hydra from sweep config
     # This is done to prevent recursive call to multirun launcher in Hydra.
     with open_dict(task_cfg):
-        task_cfg.pop('hydra', '')
+        task_cfg.pop("hydra", "")
 
     # Save the current jobs config to directory
     temp_config_name = f"config_{idx}.yaml"
@@ -117,9 +119,9 @@ def execute_job(
 
     # Check and replace trainer.devices in config with gpu_idx
     found_devices = False
-    gpu_override = f'trainer.devices=[{gpu_idx}]'
+    gpu_override = f"trainer.devices=[{gpu_idx}]"
     for oidx, val in enumerate(overrides):
-        if 'trainer.devices' in val:
+        if "trainer.devices" in val:
             overrides[oidx] = gpu_override
             found_devices = True
 
@@ -129,7 +131,7 @@ def execute_job(
     # Build launch command
     # Note: We depend on PTL doing the right thing since this command has global visibility of all CUDA_VISIBLE_DEVICES
     cmd = [
-        'python',
+        "python",
         script_path,
         "--config-path",
         config_dir,
@@ -149,7 +151,9 @@ def execute_job(
     # Setup data thread for stderr
     std_error_buffer = []
     # Trivial thread just reads lines from stdout into the list
-    drainerthread = threading.Thread(target=std_error_buffer.extend, args=(proc.stderr,))
+    drainerthread = threading.Thread(
+        target=std_error_buffer.extend, args=(proc.stderr,)
+    )
     drainerthread.daemon = True
     drainerthread.start()
 
@@ -164,7 +168,11 @@ def execute_job(
     return proc, res, (std_error_buffer, drainerthread)
 
 
-def launch(launcher, job_overrides: Sequence[Sequence[str]], initial_job_idx: int,) -> Sequence[JobReturn]:
+def launch(
+    launcher,
+    job_overrides: Sequence[Sequence[str]],
+    initial_job_idx: int,
+) -> Sequence[JobReturn]:
     """
     Args:
         launcher: Reference to the Launched subclass
@@ -189,7 +197,8 @@ def launch(launcher, job_overrides: Sequence[Sequence[str]], initial_job_idx: in
 
     logging.info(
         "ProcessLauncher({}) is launching {} jobs".format(
-            ",".join([f"{k}={v}" for k, v in runner_cfg.items()]), len(job_overrides),
+            ",".join([f"{k}={v}" for k, v in runner_cfg.items()]),
+            len(job_overrides),
         )
     )
     logging.info("Launching jobs, sweep output dir : {}".format(sweep_dir))
@@ -200,15 +209,17 @@ def launch(launcher, job_overrides: Sequence[Sequence[str]], initial_job_idx: in
     singleton_state = Singleton.get_state()
 
     # Process the runner's config to build up the multiplex config
-    num_gpus = runner_cfg.get('num_gpus', -1)
-    jobs_per_gpu = runner_cfg.get('jobs_per_gpu', 1)
+    num_gpus = runner_cfg.get("num_gpus", -1)
+    jobs_per_gpu = runner_cfg.get("jobs_per_gpu", 1)
 
     # Only GPUs are supported for now.
     if num_gpus <= 0:
         if torch.cuda.is_available():
             num_gpus = torch.cuda.device_count()
         else:
-            raise ValueError(f"{launcher.__class__.__name__} only supports GPU operations.")
+            raise ValueError(
+                f"{launcher.__class__.__name__} only supports GPU operations."
+            )
 
     # Setup arguments for multiplex runner
     overrides = list(job_overrides)
@@ -275,7 +286,9 @@ def launch(launcher, job_overrides: Sequence[Sequence[str]], initial_job_idx: in
                     if retcode is not None:
                         # Log that the process with some ID has finished
                         if finished_processes[proc_idx] == 0:
-                            logging.info(f"Processed job : {len(ret) + proc_idx} :: Ret code = {retcode}")
+                            logging.info(
+                                f"Processed job : {len(ret) + proc_idx} :: Ret code = {retcode}"
+                            )
 
                         finished_processes[proc_idx] = 1
 
@@ -284,7 +297,10 @@ def launch(launcher, job_overrides: Sequence[Sequence[str]], initial_job_idx: in
                         std_error_threads[proc_idx].join()
                         error_data = std_error_buffers[proc_idx]
                         error_data = [
-                            str(data, encoding='utf-8').encode('utf-8').decode('utf-8').encode('utf-8')
+                            str(data, encoding="utf-8")
+                            .encode("utf-8")
+                            .decode("utf-8")
+                            .encode("utf-8")
                             for data in error_data
                         ]
 
@@ -313,7 +329,8 @@ def launch(launcher, job_overrides: Sequence[Sequence[str]], initial_job_idx: in
                         err_string = ""
                         for err_line in err_buffer:
                             err_string = (
-                                err_string + f"{str(err_line, encoding='utf-8').encode('utf-8').decode('utf-8')}"
+                                err_string
+                                + f"{str(err_line, encoding='utf-8').encode('utf-8').decode('utf-8')}"
                             )
                     else:
                         err_string = err_buffer
@@ -327,7 +344,9 @@ def launch(launcher, job_overrides: Sequence[Sequence[str]], initial_job_idx: in
                     res.return_value = Exception(error_msg)
                     res.status = JobStatus.FAILED
 
-                logging.info(f"Finished executing job : {len(ret)}. Return Code = {proc.returncode}")
+                logging.info(
+                    f"Finished executing job : {len(ret)}. Return Code = {proc.returncode}"
+                )
                 ret.append(res)
 
             # Reset for next batch
@@ -349,18 +368,31 @@ class ProcessLauncher(Launcher):
 
         self.runner = kwargs  # type: ProcessLauncherConfig
 
-    def setup(self, *, hydra_context: HydraContext, task_function: TaskFunction, config: DictConfig,) -> None:
+    def setup(
+        self,
+        *,
+        hydra_context: HydraContext,
+        task_function: TaskFunction,
+        config: DictConfig,
+    ) -> None:
         self.config = config
         self.task_function = task_function
         self.hydra_context = hydra_context
 
-    def launch(self, job_overrides: Sequence[Sequence[str]], initial_job_idx: int) -> Sequence[JobReturn]:
+    def launch(
+        self, job_overrides: Sequence[Sequence[str]], initial_job_idx: int
+    ) -> Sequence[JobReturn]:
 
-        return launch(launcher=self, job_overrides=job_overrides, initial_job_idx=initial_job_idx)
+        return launch(
+            launcher=self, job_overrides=job_overrides, initial_job_idx=initial_job_idx
+        )
 
 
 ConfigStore.instance().store(
-    group="hydra/launcher", name="nemo_launcher", node=ProcessLauncherConfig, provider="nemo_process_launcher",
+    group="hydra/launcher",
+    name="nemo_launcher",
+    node=ProcessLauncherConfig,
+    provider="nemo_process_launcher",
 )
 
 Plugins.instance().register(ProcessLauncher)

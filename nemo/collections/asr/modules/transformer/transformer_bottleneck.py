@@ -38,7 +38,7 @@ __all__ = [
 @dataclass
 class NeMoTransformerBottleneckConfig(NeMoTransformerConfig):
     # architecture details (default is no bottleneck)
-    arch: str = ''
+    arch: str = ""
     hidden_steps: int = -1
     hidden_blocks: int = 1
     hidden_init_method: str = "params"
@@ -74,11 +74,11 @@ class TransformerBottleneckEncoderNM(TransformerEncoderNM):
         ffn_dropout: float = 0.0,
         attn_score_dropout: float = 0.0,
         attn_layer_dropout: float = 0.0,
-        hidden_act: str = 'relu',
+        hidden_act: str = "relu",
         mask_future: bool = False,
         pre_ln: bool = False,
         pre_ln_final_layer_norm: bool = True,
-        arch: str = '',
+        arch: str = "",
         hidden_steps: int = -1,
         hidden_blocks: int = 1,
         hidden_init_method: str = "default",
@@ -204,7 +204,9 @@ class TransformerBottleneckEncoderNM(TransformerEncoderNM):
                 pooling_type="avg",
             )
         else:
-            raise ValueError(f"Unknown arch = {self.arch}, supported arch = {self.supported_arch}")
+            raise ValueError(
+                f"Unknown arch = {self.arch}, supported arch = {self.supported_arch}"
+            )
 
         return encoder
 
@@ -212,7 +214,9 @@ class TransformerBottleneckEncoderNM(TransformerEncoderNM):
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
         input_types = super().input_types
         input_types.update(
-            {"return_mask": NeuralType((), BoolType(), True),}
+            {
+                "return_mask": NeuralType((), BoolType(), True),
+            }
         )
 
         return input_types
@@ -221,7 +225,9 @@ class TransformerBottleneckEncoderNM(TransformerEncoderNM):
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         output_types = super().output_types
         output_types.update(
-            {"hidden_mask": NeuralType(('B', 'T'), MaskType(), True),}
+            {
+                "hidden_mask": NeuralType(("B", "T"), MaskType(), True),
+            }
         )
         return output_types
 
@@ -241,11 +247,14 @@ class TransformerBottleneckEncoderNM(TransformerEncoderNM):
         embeddings = self._embedding(input_ids=input_ids)
 
         if (not self.arch) or (self.arch == "seq2seq"):
-            encoder_hidden_states = self._encoder(encoder_states=embeddings, encoder_mask=encoder_mask)
+            encoder_hidden_states = self._encoder(
+                encoder_states=embeddings, encoder_mask=encoder_mask
+            )
             encoder_hidden_mask = encoder_mask
         else:
             encoder_hidden_states, encoder_hidden_mask = self._encoder(
-                encoder_states=embeddings, encoder_mask=encoder_mask,
+                encoder_states=embeddings,
+                encoder_mask=encoder_mask,
             )
 
         if return_mask:
@@ -271,10 +280,10 @@ class TransformerBottleneckDecoderNM(TransformerDecoderNM):
         ffn_dropout: float = 0.0,
         attn_score_dropout: float = 0.0,
         attn_layer_dropout: float = 0.0,
-        hidden_act: str = 'relu',
+        hidden_act: str = "relu",
         pre_ln: bool = False,
         pre_ln_final_layer_norm: bool = True,
-        arch='',
+        arch="",
     ):
         super().__init__(
             vocab_size=vocab_size,
@@ -323,7 +332,9 @@ class TransformerBottleneckDecoderNM(TransformerDecoderNM):
         if (not arch) or (arch == "seq2seq"):
             decoder = self.decoder
         else:
-            raise ValueError(f"Unknown arch = {self.arch}, supported arch = {self.supported_arch}")
+            raise ValueError(
+                f"Unknown arch = {self.arch}, supported arch = {self.supported_arch}"
+            )
 
         return decoder
 

@@ -66,7 +66,9 @@ def override_recipe_configs(
         data_parallel_size=num_gpus_per_node * num_nodes,
         tensor_parallel_size=1,
     )
-    pretrain.trainer.accumulate_grad_batches = global_batch_size / num_gpus_per_node / num_nodes
+    pretrain.trainer.accumulate_grad_batches = (
+        global_batch_size / num_gpus_per_node / num_nodes
+    )
     return pretrain
 
 
@@ -107,7 +109,7 @@ if __name__ == "__main__":
         PerfEnvPlugin(
             enable_vboost=True,
             nccl_pp_comm_chunksize=2097152 if pp_size > 1 else None,
-            gpu_sm100_or_newer=(args.gpu.lower() in ['b200', 'gb200']),
+            gpu_sm100_or_newer=(args.gpu.lower() in ["b200", "gb200"]),
         ),
     ]
     if args.enable_nsys:

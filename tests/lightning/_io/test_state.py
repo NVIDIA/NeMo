@@ -66,7 +66,10 @@ class TestStateDictTransform:
             "decoder.layers.1.mlp.experts.linear_fc2.weight": -1,
         }
         ctx = TransformCTX(
-            source=nn.Module(), source_state=source_state, target=nn.Module(), target_state=target_state
+            source=nn.Module(),
+            source_state=source_state,
+            target=nn.Module(),
+            target_state=target_state,
         )
         return ctx
 
@@ -100,7 +103,10 @@ class TestStateDictTransform:
             "model.layers.3.mlp.experts.1.up_proj.weight": -1,
         }
         ctx = TransformCTX(
-            source=nn.Module(), source_state=source_state, target=nn.Module(), target_state=target_state
+            source=nn.Module(),
+            source_state=source_state,
+            target=nn.Module(),
+            target_state=target_state,
         )
         return ctx
 
@@ -114,8 +120,14 @@ class TestStateDictTransform:
             transform=lambda ctx, x: x * 100,
         )
         transform(mock_ctx)
-        assert mock_ctx.target_state["decoder.layers.0.mlp.experts.linear_fc2.weight"] == 800
-        assert mock_ctx.target_state["decoder.layers.1.mlp.experts.linear_fc2.weight"] == 900
+        assert (
+            mock_ctx.target_state["decoder.layers.0.mlp.experts.linear_fc2.weight"]
+            == 800
+        )
+        assert (
+            mock_ctx.target_state["decoder.layers.1.mlp.experts.linear_fc2.weight"]
+            == 900
+        )
 
     def test_transform_with_multiple_sources(self, mock_ctx):
         """
@@ -131,8 +143,14 @@ class TestStateDictTransform:
             transform=lambda ctx, q, k, v: q * 100 + k * 10 + v,
         )
         transform(mock_ctx)
-        assert mock_ctx.target_state["decoder.layers.0.self_attention.linear_qkv.weight"] == 123
-        assert mock_ctx.target_state["decoder.layers.1.self_attention.linear_qkv.weight"] == 234
+        assert (
+            mock_ctx.target_state["decoder.layers.0.self_attention.linear_qkv.weight"]
+            == 123
+        )
+        assert (
+            mock_ctx.target_state["decoder.layers.1.self_attention.linear_qkv.weight"]
+            == 234
+        )
 
     def test_transform_with_multiple_mapped_sources(self, mock_ctx):
         """
@@ -148,8 +166,14 @@ class TestStateDictTransform:
             transform=lambda ctx, q, k, v: q * 100 + k * 10 + v,
         )
         transform(mock_ctx)
-        assert mock_ctx.target_state["decoder.layers.0.self_attention.linear_qkv.weight"] == 123
-        assert mock_ctx.target_state["decoder.layers.1.self_attention.linear_qkv.weight"] == 234
+        assert (
+            mock_ctx.target_state["decoder.layers.0.self_attention.linear_qkv.weight"]
+            == 123
+        )
+        assert (
+            mock_ctx.target_state["decoder.layers.1.self_attention.linear_qkv.weight"]
+            == 234
+        )
 
     def test_transform_with_variable_arguments(self, mock_ctx):
         """
@@ -161,8 +185,14 @@ class TestStateDictTransform:
             transform=lambda ctx, *args: sum(args),
         )
         transform(mock_ctx)
-        assert mock_ctx.target_state["decoder.layers.0.self_attention.linear_qkv.weight"] == 6
-        assert mock_ctx.target_state["decoder.layers.1.self_attention.linear_qkv.weight"] == 9
+        assert (
+            mock_ctx.target_state["decoder.layers.0.self_attention.linear_qkv.weight"]
+            == 6
+        )
+        assert (
+            mock_ctx.target_state["decoder.layers.1.self_attention.linear_qkv.weight"]
+            == 9
+        )
 
     def test_transform_with_no_matching_source(self, mock_ctx):
         """
@@ -198,10 +228,20 @@ class TestStateDictTransform:
         transform(mock_multi_target_ctx)
 
         # Check that the target state has been updated correctly
-        assert mock_multi_target_ctx.target_state["model.layers.0.mlp.gate_proj.weight"] == 0
-        assert mock_multi_target_ctx.target_state["model.layers.0.mlp.up_proj.weight"] == 2
-        assert mock_multi_target_ctx.target_state["model.layers.1.mlp.gate_proj.weight"] == 1
-        assert mock_multi_target_ctx.target_state["model.layers.1.mlp.up_proj.weight"] == 3
+        assert (
+            mock_multi_target_ctx.target_state["model.layers.0.mlp.gate_proj.weight"]
+            == 0
+        )
+        assert (
+            mock_multi_target_ctx.target_state["model.layers.0.mlp.up_proj.weight"] == 2
+        )
+        assert (
+            mock_multi_target_ctx.target_state["model.layers.1.mlp.gate_proj.weight"]
+            == 1
+        )
+        assert (
+            mock_multi_target_ctx.target_state["model.layers.1.mlp.up_proj.weight"] == 3
+        )
 
     def test_transform_with_multiple_sources_multiple_wildcards(self, mock_ctx):
         """
@@ -216,12 +256,26 @@ class TestStateDictTransform:
             transform=lambda ctx, gate, up: gate * 10 + up,
         )
         transform(mock_ctx)
-        assert mock_ctx.target_state["decoder.layers.0.mlp.experts.linear_fc1.weight0"] == 45
-        assert mock_ctx.target_state["decoder.layers.0.mlp.experts.linear_fc1.weight1"] == 67
-        assert mock_ctx.target_state["decoder.layers.1.mlp.experts.linear_fc1.weight0"] == 56
-        assert mock_ctx.target_state["decoder.layers.1.mlp.experts.linear_fc1.weight1"] == 78
+        assert (
+            mock_ctx.target_state["decoder.layers.0.mlp.experts.linear_fc1.weight0"]
+            == 45
+        )
+        assert (
+            mock_ctx.target_state["decoder.layers.0.mlp.experts.linear_fc1.weight1"]
+            == 67
+        )
+        assert (
+            mock_ctx.target_state["decoder.layers.1.mlp.experts.linear_fc1.weight0"]
+            == 56
+        )
+        assert (
+            mock_ctx.target_state["decoder.layers.1.mlp.experts.linear_fc1.weight1"]
+            == 78
+        )
 
-    def test_transform_with_multiple_targets_multiple_wildcards(self, mock_multi_target_ctx):
+    def test_transform_with_multiple_targets_multiple_wildcards(
+        self, mock_multi_target_ctx
+    ):
         """
         Test transformation when multiple target keys are specified, each with more than 1 wildcard.
         """
@@ -239,14 +293,54 @@ class TestStateDictTransform:
         )
 
         transform(mock_multi_target_ctx)
-        assert mock_multi_target_ctx.target_state["model.layers.2.mlp.experts.0.gate_proj.weight"] == 2
-        assert mock_multi_target_ctx.target_state["model.layers.2.mlp.experts.0.up_proj.weight"] == 3
-        assert mock_multi_target_ctx.target_state["model.layers.2.mlp.experts.1.gate_proj.weight"] == 4
-        assert mock_multi_target_ctx.target_state["model.layers.2.mlp.experts.1.up_proj.weight"] == 5
-        assert mock_multi_target_ctx.target_state["model.layers.3.mlp.experts.0.gate_proj.weight"] == 3
-        assert mock_multi_target_ctx.target_state["model.layers.3.mlp.experts.0.up_proj.weight"] == 4
-        assert mock_multi_target_ctx.target_state["model.layers.3.mlp.experts.1.gate_proj.weight"] == 5
-        assert mock_multi_target_ctx.target_state["model.layers.3.mlp.experts.1.up_proj.weight"] == 6
+        assert (
+            mock_multi_target_ctx.target_state[
+                "model.layers.2.mlp.experts.0.gate_proj.weight"
+            ]
+            == 2
+        )
+        assert (
+            mock_multi_target_ctx.target_state[
+                "model.layers.2.mlp.experts.0.up_proj.weight"
+            ]
+            == 3
+        )
+        assert (
+            mock_multi_target_ctx.target_state[
+                "model.layers.2.mlp.experts.1.gate_proj.weight"
+            ]
+            == 4
+        )
+        assert (
+            mock_multi_target_ctx.target_state[
+                "model.layers.2.mlp.experts.1.up_proj.weight"
+            ]
+            == 5
+        )
+        assert (
+            mock_multi_target_ctx.target_state[
+                "model.layers.3.mlp.experts.0.gate_proj.weight"
+            ]
+            == 3
+        )
+        assert (
+            mock_multi_target_ctx.target_state[
+                "model.layers.3.mlp.experts.0.up_proj.weight"
+            ]
+            == 4
+        )
+        assert (
+            mock_multi_target_ctx.target_state[
+                "model.layers.3.mlp.experts.1.gate_proj.weight"
+            ]
+            == 5
+        )
+        assert (
+            mock_multi_target_ctx.target_state[
+                "model.layers.3.mlp.experts.1.up_proj.weight"
+            ]
+            == 6
+        )
 
     def test_transform_with_no_matching_target(self, mock_ctx):
         """
@@ -284,9 +378,9 @@ class TestStateTransformDecorator:
         Provides a mock transformation context with predefined source and target states.
         """
         source_state = {
-            'model.layers.1.self_attn.q_proj.weight': 1,
-            'model.layers.1.self_attn.k_proj.weight': 2,
-            'model.layers.1.self_attn.v_proj.weight': 3,
+            "model.layers.1.self_attn.q_proj.weight": 1,
+            "model.layers.1.self_attn.k_proj.weight": 2,
+            "model.layers.1.self_attn.v_proj.weight": 3,
         }
         # Pre-populate target_state with initial values or placeholders
         target_state = {
@@ -295,7 +389,10 @@ class TestStateTransformDecorator:
             "decoder.layers.1.self_attention.linear_v.weight": 0,
         }
         ctx = TransformCTX(
-            source=nn.Module(), source_state=source_state, target=nn.Module(), target_state=target_state
+            source=nn.Module(),
+            source_state=source_state,
+            target=nn.Module(),
+            target_state=target_state,
         )
         return ctx
 
@@ -306,7 +403,10 @@ class TestStateTransformDecorator:
         # Apply the transformation
         single_transform(mock_ctx)
         # Verify the target state is updated correctly
-        assert mock_ctx.target_state["decoder.layers.1.self_attention.linear_q.weight"] == 11
+        assert (
+            mock_ctx.target_state["decoder.layers.1.self_attention.linear_q.weight"]
+            == 11
+        )
 
     def test_multiple_outputs_transform(self, mock_ctx):
         """
@@ -315,13 +415,23 @@ class TestStateTransformDecorator:
         # Apply the transformation
         multiple_outputs_transform(mock_ctx)
         # Verify the target state is updated correctly for each key
-        assert mock_ctx.target_state["decoder.layers.1.self_attention.linear_q.weight"] == 1
-        assert mock_ctx.target_state["decoder.layers.1.self_attention.linear_k.weight"] == 2
-        assert mock_ctx.target_state["decoder.layers.1.self_attention.linear_v.weight"] == 3
+        assert (
+            mock_ctx.target_state["decoder.layers.1.self_attention.linear_q.weight"]
+            == 1
+        )
+        assert (
+            mock_ctx.target_state["decoder.layers.1.self_attention.linear_k.weight"]
+            == 2
+        )
+        assert (
+            mock_ctx.target_state["decoder.layers.1.self_attention.linear_v.weight"]
+            == 3
+        )
 
 
 @state_transform(
-    source_key="model.layers.*.self_attn.q_proj.weight", target_key="decoder.layers.1.self_attention.linear_q.weight"
+    source_key="model.layers.*.self_attn.q_proj.weight",
+    target_key="decoder.layers.1.self_attention.linear_q.weight",
 )
 def single_transform(ctx, x):
     """

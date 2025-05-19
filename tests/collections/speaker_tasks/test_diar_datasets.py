@@ -50,25 +50,31 @@ class TestAudioToSpeechE2ESpkDiarDataset:
 
     @pytest.mark.unit
     def test_e2e_speaker_diar_dataset(self, test_data_dir):
-        manifest_path = os.path.abspath(os.path.join(test_data_dir, 'asr/diarizer/lsm_val.json'))
+        manifest_path = os.path.abspath(
+            os.path.join(test_data_dir, "asr/diarizer/lsm_val.json")
+        )
 
         batch_size = 4
         num_samples = 8
-        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        device = "cuda" if torch.cuda.is_available() else "cpu"
         data_dict_list = []
-        with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8') as f:
-            with open(manifest_path, 'r', encoding='utf-8') as mfile:
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8") as f:
+            with open(manifest_path, "r", encoding="utf-8") as mfile:
                 for ix, line in enumerate(mfile):
                     if ix >= num_samples:
                         break
 
-                    line = line.replace("tests/data/", test_data_dir + "/").replace("\n", "")
+                    line = line.replace("tests/data/", test_data_dir + "/").replace(
+                        "\n", ""
+                    )
                     f.write(f"{line}\n")
                     data_dict = json.loads(line)
                     data_dict_list.append(data_dict)
 
             f.seek(0)
-            featurizer = WaveformFeaturizer(sample_rate=16000, int_values=False, augmentor=None)
+            featurizer = WaveformFeaturizer(
+                sample_rate=16000, int_values=False, augmentor=None
+            )
 
             dataset = AudioToSpeechE2ESpkDiarDataset(
                 manifest_filepath=f.name,
@@ -90,24 +96,40 @@ class TestAudioToSpeechE2ESpkDiarDataset:
                 num_workers=1,
                 pin_memory=False,
             )
-            assert len(dataloader_instance) == (num_samples / batch_size)  # Check if the number of batches is correct
+            assert len(dataloader_instance) == (
+                num_samples / batch_size
+            )  # Check if the number of batches is correct
             batch_counts = len(dataloader_instance)
 
             deviation_thres_rate = 0.01  # 1% deviation allowed
             for batch_index, batch in enumerate(dataloader_instance):
                 if batch_index != batch_counts - 1:
-                    assert len(batch) == batch_size, "Batch size does not match the expected value"
+                    assert (
+                        len(batch) == batch_size
+                    ), "Batch size does not match the expected value"
                 audio_signals, audio_signal_len, targets, target_lens = batch
                 for sample_index in range(audio_signals.shape[0]):
                     dataloader_audio_in_sec = audio_signal_len[sample_index].item()
                     data_dur_in_sec = abs(
-                        data_dict_list[batch_size * batch_index + sample_index]['duration'] * featurizer.sample_rate
+                        data_dict_list[batch_size * batch_index + sample_index][
+                            "duration"
+                        ]
+                        * featurizer.sample_rate
                         - dataloader_audio_in_sec
                     )
                     assert (
-                        data_dur_in_sec <= deviation_thres_rate * dataloader_audio_in_sec
+                        data_dur_in_sec
+                        <= deviation_thres_rate * dataloader_audio_in_sec
                     ), "Duration deviation exceeds 1%"
-                assert not torch.isnan(audio_signals).any(), "audio_signals tensor contains NaN values"
-                assert not torch.isnan(audio_signal_len).any(), "audio_signal_len tensor contains NaN values"
-                assert not torch.isnan(targets).any(), "targets tensor contains NaN values"
-                assert not torch.isnan(target_lens).any(), "target_lens tensor contains NaN values"
+                assert not torch.isnan(
+                    audio_signals
+                ).any(), "audio_signals tensor contains NaN values"
+                assert not torch.isnan(
+                    audio_signal_len
+                ).any(), "audio_signal_len tensor contains NaN values"
+                assert not torch.isnan(
+                    targets
+                ).any(), "targets tensor contains NaN values"
+                assert not torch.isnan(
+                    target_lens
+                ).any(), "target_lens tensor contains NaN values"

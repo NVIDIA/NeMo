@@ -30,10 +30,8 @@ from nemo.collections.multimodal.models.vision_language_foundation.clip.megatron
     CLIPModel
 from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.openaimodel import \
     Timestep
-from nemo.collections.multimodal.modules.stable_diffusion.encoders.x_transformer import \
-    TransformerWrapper  # TODO: can we directly rely on lucidrains code and simply add this as a reuirement? --> test
-from nemo.collections.multimodal.modules.stable_diffusion.encoders.x_transformer import \
-    Encoder
+from nemo.collections.multimodal.modules.stable_diffusion.encoders.x_transformer import (  # TODO: can we directly rely on lucidrains code and simply add this as a reuirement? --> test
+    Encoder, TransformerWrapper)
 from nemo.collections.multimodal.parts.stable_diffusion.utils import (
     count_params, disabled_train, expand_dims_like, instantiate_from_config)
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
@@ -76,16 +74,26 @@ class AbstractEncoder(nn.Module):
                         if hasattr(sub_module, "input_size") and hasattr(
                             sub_module, "output_size"
                         ):  # for megatron ParallelLinear
-                            lora = LoraWrapper(sub_module, sub_module.input_size, sub_module.output_size)
+                            lora = LoraWrapper(
+                                sub_module,
+                                sub_module.input_size,
+                                sub_module.output_size,
+                            )
                         else:  # for nn.Linear
-                            lora = LoraWrapper(sub_module, sub_module.in_features, sub_module.out_features)
+                            lora = LoraWrapper(
+                                sub_module,
+                                sub_module.in_features,
+                                sub_module.out_features,
+                            )
                         self.lora_layers.append(lora)
                         if sub_name not in tmp.keys():
                             tmp.update({sub_name: lora})
                         else:
-                            print(f"Duplicate subnames are found in module {module_name}")
+                            print(
+                                f"Duplicate subnames are found in module {module_name}"
+                            )
                 for sub_name, lora_layer in tmp.items():
-                    lora_name = f'{sub_name}_lora'
+                    lora_name = f"{sub_name}_lora"
                     module.add_module(lora_name, lora_layer)
 
 
@@ -149,16 +157,26 @@ class AbstractEmbModel(nn.Module):
                         if hasattr(sub_module, "input_size") and hasattr(
                             sub_module, "output_size"
                         ):  # for megatron ParallelLinear
-                            lora = LoraWrapper(sub_module, sub_module.input_size, sub_module.output_size)
+                            lora = LoraWrapper(
+                                sub_module,
+                                sub_module.input_size,
+                                sub_module.output_size,
+                            )
                         else:  # for nn.Linear
-                            lora = LoraWrapper(sub_module, sub_module.in_features, sub_module.out_features)
+                            lora = LoraWrapper(
+                                sub_module,
+                                sub_module.in_features,
+                                sub_module.out_features,
+                            )
                         self.lora_layers.append(lora)
                         if sub_name not in tmp.keys():
                             tmp.update({sub_name: lora})
                         else:
-                            print(f"Duplicate subnames are found in module {module_name}")
+                            print(
+                                f"Duplicate subnames are found in module {module_name}"
+                            )
                 for sub_name, lora_layer in tmp.items():
-                    lora_name = f'{sub_name}_lora'
+                    lora_name = f"{sub_name}_lora"
                     module.add_module(lora_name, lora_layer)
 
 
@@ -171,7 +189,7 @@ class GeneralConditioner(nn.Module):
         embedders = []
 
         for n, embconfig in enumerate(emb_models):
-            embedder = embconfig['emb_model']
+            embedder = embconfig["emb_model"]
             assert isinstance(
                 embedder, AbstractEmbModel
             ), f"embedder model {embedder.__class__.__name__} has to inherit from AbstractEmbModel"
@@ -192,7 +210,9 @@ class GeneralConditioner(nn.Module):
             elif "input_keys" in embconfig:
                 embedder.input_keys = embconfig["input_keys"]
             else:
-                raise KeyError(f"need either 'input_key' or 'input_keys' for embedder {embedder.__class__.__name__}")
+                raise KeyError(
+                    f"need either 'input_key' or 'input_keys' for embedder {embedder.__class__.__name__}"
+                )
 
             embedder.legacy_ucg_val = embconfig.get("legacy_ucg_value", None)
             if embedder.legacy_ucg_val is not None:
@@ -210,7 +230,9 @@ class GeneralConditioner(nn.Module):
                 batch[embedder.input_key][i] = val
         return batch
 
-    def forward(self, batch: Dict, force_zero_embeddings: Optional[List] = None) -> Dict:
+    def forward(
+        self, batch: Dict, force_zero_embeddings: Optional[List] = None
+    ) -> Dict:
         output = dict()
         if force_zero_embeddings is None:
             force_zero_embeddings = []
@@ -233,20 +255,30 @@ class GeneralConditioner(nn.Module):
                 if embedder.ucg_rate > 0.0 and embedder.legacy_ucg_val is None:
                     emb = (
                         expand_dims_like(
-                            torch.bernoulli((1.0 - embedder.ucg_rate) * torch.ones(emb.shape[0], device=emb.device)),
+                            torch.bernoulli(
+                                (1.0 - embedder.ucg_rate)
+                                * torch.ones(emb.shape[0], device=emb.device)
+                            ),
                             emb,
                         )
                         * emb
                     )
-                if hasattr(embedder, "input_key") and embedder.input_key in force_zero_embeddings:
+                if (
+                    hasattr(embedder, "input_key")
+                    and embedder.input_key in force_zero_embeddings
+                ):
                     emb = torch.zeros_like(emb)
                 if out_key in output:
-                    output[out_key] = torch.cat((output[out_key], emb), self.KEY2CATDIM[out_key])
+                    output[out_key] = torch.cat(
+                        (output[out_key], emb), self.KEY2CATDIM[out_key]
+                    )
                 else:
                     output[out_key] = emb
         return output
 
-    def get_unconditional_conditioning(self, batch_c, batch_uc=None, force_uc_zero_embeddings=None):
+    def get_unconditional_conditioning(
+        self, batch_c, batch_uc=None, force_uc_zero_embeddings=None
+    ):
         if force_uc_zero_embeddings is None:
             force_uc_zero_embeddings = []
         ucg_rates = list()
@@ -262,7 +294,7 @@ class GeneralConditioner(nn.Module):
 
 
 class ClassEmbedder(nn.Module):
-    def __init__(self, embed_dim, n_classes=1000, key='class'):
+    def __init__(self, embed_dim, n_classes=1000, key="class"):
         super().__init__()
         self.key = key
         self.embedding = nn.Embedding(n_classes, embed_dim)
@@ -283,7 +315,9 @@ class TransformerEmbedder(AbstractEncoder):
         super().__init__()
         self.device = device
         self.transformer = TransformerWrapper(
-            num_tokens=vocab_size, max_seq_len=max_seq_len, attn_layers=Encoder(dim=n_embed, depth=n_layer)
+            num_tokens=vocab_size,
+            max_seq_len=max_seq_len,
+            attn_layers=Encoder(dim=n_embed, depth=n_layer),
         )
 
     def forward(self, tokens):
@@ -371,16 +405,33 @@ class BERTEmbedder(AbstractEncoder):
 
 
 class SpatialRescaler(nn.Module):
-    def __init__(self, n_stages=1, method='bilinear', multiplier=0.5, in_channels=3, out_channels=None, bias=False):
+    def __init__(
+        self,
+        n_stages=1,
+        method="bilinear",
+        multiplier=0.5,
+        in_channels=3,
+        out_channels=None,
+        bias=False,
+    ):
         super().__init__()
         self.n_stages = n_stages
         assert self.n_stages >= 0
-        assert method in ['nearest', 'linear', 'bilinear', 'trilinear', 'bicubic', 'area']
+        assert method in [
+            "nearest",
+            "linear",
+            "bilinear",
+            "trilinear",
+            "bicubic",
+            "area",
+        ]
         self.multiplier = multiplier
         self.interpolator = partial(torch.nn.functional.interpolate, mode=method)
         self.remap_output = out_channels is not None
         if self.remap_output:
-            print(f'Spatial Rescaler mapping from {in_channels} to {out_channels} channels after resizing.')
+            print(
+                f"Spatial Rescaler mapping from {in_channels} to {out_channels} channels after resizing."
+            )
             self.channel_mapper = nn.Conv2d(in_channels, out_channels, 1, bias=bias)
 
     def forward(self, x):
@@ -396,7 +447,9 @@ class SpatialRescaler(nn.Module):
 
 
 class LoraWrapper(nn.Module, adapter_mixins.AdapterModuleMixin):
-    def __init__(self, target_module, in_features, out_features, lora_network_alpha=None):
+    def __init__(
+        self, target_module, in_features, out_features, lora_network_alpha=None
+    ):
         super().__init__()
         self.target_module = target_module
         self.set_accepted_adapter_types([ParallelLinearAdapterConfig._target_])
@@ -407,14 +460,18 @@ class LoraWrapper(nn.Module, adapter_mixins.AdapterModuleMixin):
     def forward(self, x):
         org_results = self.target_forward(x)
         if self.is_adapter_available():
-            lora_linear_adapter = self.get_adapter_module(AdapterName.PARALLEL_LINEAR_ADAPTER)
+            lora_linear_adapter = self.get_adapter_module(
+                AdapterName.PARALLEL_LINEAR_ADAPTER
+            )
             lora_mixed_x = lora_linear_adapter(x)
             # This value has the same meaning as the `--network_alpha` option in the kohya-ss trainer script.
             # See https://github.com/darkstorm2150/sd-scripts/blob/main/docs/train_network_README-en.md#execute-learning
             mixed_x = org_results[0] if isinstance(org_results, tuple) else org_results
 
             if self.lora_network_alpha:
-                mixed_x = mixed_x + lora_mixed_x * (self.lora_network_alpha / lora_linear_adapter.dim)
+                mixed_x = mixed_x + lora_mixed_x * (
+                    self.lora_network_alpha / lora_linear_adapter.dim
+                )
             else:
                 mixed_x = mixed_x + lora_mixed_x
 
@@ -449,7 +506,11 @@ class FrozenCLIPEmbedder(AbstractEmbModel):
         layer_idx=None,
         always_return_pooled=False,
     ):
-        super().__init__(enable_lora_finetune, target_block=["CLIPAttention", "CLIPMLP"], target_module=["Linear"])
+        super().__init__(
+            enable_lora_finetune,
+            target_block=["CLIPAttention", "CLIPMLP"],
+            target_module=["Linear"],
+        )
         self.tokenizer = CLIPTokenizer.from_pretrained(version)
         self.transformer = CLIPTextModel.from_pretrained(version)
         self.device = device
@@ -482,7 +543,9 @@ class FrozenCLIPEmbedder(AbstractEmbModel):
             return_tensors="pt",
         )
         tokens = batch_encoding["input_ids"].to(self.device, non_blocking=True)
-        outputs = self.transformer(input_ids=tokens, output_hidden_states=(self.layer == "hidden"))
+        outputs = self.transformer(
+            input_ids=tokens, output_hidden_states=(self.layer == "hidden")
+        )
 
         if self.layer == "last":
             z = outputs.last_hidden_state
@@ -575,7 +638,10 @@ class FrozenOpenCLIPEmbedder(AbstractEncoder):
         for i, r in enumerate(self.model.transformer.resblocks):
             if i == len(self.model.transformer.resblocks) - self.layer_idx:
                 break
-            if self.model.transformer.grad_checkpointing and not torch.jit.is_scripting():
+            if (
+                self.model.transformer.grad_checkpointing
+                and not torch.jit.is_scripting()
+            ):
                 x = checkpoint(r, x, attn_mask)
             else:
                 x = r(x, attn_mask=attn_mask)
@@ -635,22 +701,28 @@ class FrozenMegatronCLIPEmbedder(AbstractEmbModel):
 
     def load_config_and_state_from_nemo(self, nemo_path):
         if torch.cuda.is_available():
-            map_location = torch.device('cuda')
+            map_location = torch.device("cuda")
         else:
-            map_location = torch.device('cpu')
+            map_location = torch.device("cpu")
         save_restore_connector = NLPSaveRestoreConnector()
         cwd = os.getcwd()
 
         with tempfile.TemporaryDirectory() as tmpdir:
             try:
-                save_restore_connector._unpack_nemo_file(path2file=nemo_path, out_folder=tmpdir)
+                save_restore_connector._unpack_nemo_file(
+                    path2file=nemo_path, out_folder=tmpdir
+                )
 
                 # Change current working directory to
                 os.chdir(tmpdir)
-                config_yaml = os.path.join(tmpdir, save_restore_connector.model_config_yaml)
+                config_yaml = os.path.join(
+                    tmpdir, save_restore_connector.model_config_yaml
+                )
                 cfg = OmegaConf.load(config_yaml)
 
-                model_weights = os.path.join(tmpdir, save_restore_connector.model_weights_ckpt)
+                model_weights = os.path.join(
+                    tmpdir, save_restore_connector.model_weights_ckpt
+                )
                 state_dict = save_restore_connector._load_state_dict_from_disk(
                     model_weights, map_location=map_location
                 )
@@ -667,7 +739,7 @@ class FrozenMegatronCLIPEmbedder(AbstractEmbModel):
             tokenizer_model=cfg.tokenizer.model,
             vocab_file=cfg.tokenizer.vocab_file,
             merges_file=cfg.tokenizer.merge_file,
-            delimiter=cfg.tokenizer.get('delimiter', None),
+            delimiter=cfg.tokenizer.get("delimiter", None),
             legacy=legacy,
         )
 
@@ -681,8 +753,8 @@ class FrozenMegatronCLIPEmbedder(AbstractEmbModel):
     def load_model(self, cfg, state_dict):
         padded_vocab_size = self._vocab_size_with_padding(
             orig_vocab_size=self.tokenizer.vocab_size,
-            make_vocab_size_divisible_by=cfg.get('make_vocab_size_divisible_by', 128),
-            tensor_model_parallel_size=cfg.get('tensor_model_parallel_size', 1),
+            make_vocab_size_divisible_by=cfg.get("make_vocab_size_divisible_by", 128),
+            tensor_model_parallel_size=cfg.get("tensor_model_parallel_size", 1),
         )
         model = CLIPModel(
             model_cfg=cfg,
@@ -704,16 +776,18 @@ class FrozenMegatronCLIPEmbedder(AbstractEmbModel):
         del model.vision_encoder
         self.model = model.text_encoder
 
-    def _vocab_size_with_padding(self, orig_vocab_size, make_vocab_size_divisible_by, tensor_model_parallel_size):
+    def _vocab_size_with_padding(
+        self, orig_vocab_size, make_vocab_size_divisible_by, tensor_model_parallel_size
+    ):
         after = orig_vocab_size
         multiple = make_vocab_size_divisible_by * tensor_model_parallel_size
         after = ((after + multiple - 1) // multiple) * multiple
         return after
 
     def forward(self, text):
-        '''
+        """
         Get embeddings from input text
-        '''
+        """
         texts = self.text_transform(text)
         z, z_pooled = self.encode_with_transformer(texts.to(self.device))
         # # Pad the seq length to multiple of 8
@@ -737,7 +811,9 @@ class FrozenMegatronCLIPEmbedder(AbstractEmbModel):
 
     def pool(self, x, text):
         # take features from the eot embedding (eot_token is the highest number in each sequence)
-        x = x[torch.arange(x.shape[0]), text.argmax(dim=-1)] @ (self.model.head.weight.T)
+        x = x[torch.arange(x.shape[0]), text.argmax(dim=-1)] @ (
+            self.model.head.weight.T
+        )
         return x
 
     def text_transformer_forward(self, x: torch.Tensor, attn_mask=None):
@@ -809,7 +885,9 @@ class FrozenOpenCLIPEmbedder2(AbstractEmbModel):
             z_layer = z[self.layer]
             # # Pad the seq length to multiple of 8
             seq_len = (z_layer.shape[1] + 8 - 1) // 8 * 8
-            z_layer = torch.nn.functional.pad(z_layer, (0, 0, 0, seq_len - z_layer.shape[1]), value=0.0)
+            z_layer = torch.nn.functional.pad(
+                z_layer, (0, 0, 0, seq_len - z_layer.shape[1]), value=0.0
+            )
             return z_layer, z["pooled"]
         return z[self.layer]
 
@@ -832,7 +910,10 @@ class FrozenOpenCLIPEmbedder2(AbstractEmbModel):
 
     def pool(self, x, text):
         # take features from the eot embedding (eot_token is the highest number in each sequence)
-        x = x[torch.arange(x.shape[0]), text.argmax(dim=-1)] @ self.model.text_projection
+        x = (
+            x[torch.arange(x.shape[0]), text.argmax(dim=-1)]
+            @ self.model.text_projection
+        )
         return x
 
     def text_transformer_forward(self, x: torch.Tensor, attn_mask=None):
@@ -840,7 +921,10 @@ class FrozenOpenCLIPEmbedder2(AbstractEmbModel):
         for i, r in enumerate(self.model.transformer.resblocks):
             if i == len(self.model.transformer.resblocks) - 1:
                 outputs["penultimate"] = x.permute(1, 0, 2)  # LND -> NLD
-            if self.model.transformer.grad_checkpointing and not torch.jit.is_scripting():
+            if (
+                self.model.transformer.grad_checkpointing
+                and not torch.jit.is_scripting()
+            ):
                 x = checkpoint(r, x, attn_mask)
             else:
                 x = r(x, attn_mask=attn_mask)
@@ -854,7 +938,7 @@ class FrozenOpenCLIPEmbedder2(AbstractEmbModel):
 class ConcatTimestepEmbedderND(AbstractEmbModel):
     """embeds each dimension independently and concatenates them"""
 
-    def __init__(self, outdim, device='cuda'):
+    def __init__(self, outdim, device="cuda"):
         super().__init__()
         self.timestep = Timestep(outdim)
         self.outdim = outdim
@@ -868,18 +952,18 @@ class ConcatTimestepEmbedderND(AbstractEmbModel):
         x = rearrange(x, "b d -> (b d)")
         emb = self.timestep(x)
         emb = rearrange(emb, "(b d) d2 -> b (d d2)", b=b, d=dims, d2=self.outdim)
-        if self.device == 'cuda':
+        if self.device == "cuda":
             return emb.to(torch.cuda.current_device())
         return emb
 
 
 class PrecachedEmbModel(AbstractEmbModel):
-    def __init__(self, device='cuda'):
+    def __init__(self, device="cuda"):
         super().__init__()
         self.device = device
 
     def forward(self, *args):
-        if self.device == 'cuda':
+        if self.device == "cuda":
             return [arg.to(torch.cuda.current_device()) for arg in args]
         return list(args)
 

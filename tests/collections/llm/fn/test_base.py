@@ -119,7 +119,11 @@ class TestWalkListModule:
     @pytest.mark.parametrize("module_container", [nn.ModuleList, nn.Sequential])
     def test_walk_module_container(self, module_container):
         modules = [nn.Linear(10, 10), nn.Linear(10, 10)]
-        module = module_container(modules) if module_container is nn.ModuleList else nn.Sequential(*modules)
+        module = (
+            module_container(modules)
+            if module_container is nn.ModuleList
+            else nn.Sequential(*modules)
+        )
 
         def walk_fn(module):
             if isinstance(module, nn.Linear):
@@ -130,13 +134,21 @@ class TestWalkListModule:
 
         assert isinstance(walked_module, module_container)
         assert len(walked_module) == 2
-        assert torch.allclose(walked_module[0].weight, torch.ones_like(walked_module[0].weight))
-        assert torch.allclose(walked_module[1].weight, torch.ones_like(walked_module[1].weight))
+        assert torch.allclose(
+            walked_module[0].weight, torch.ones_like(walked_module[0].weight)
+        )
+        assert torch.allclose(
+            walked_module[1].weight, torch.ones_like(walked_module[1].weight)
+        )
 
     @pytest.mark.parametrize("module_container", [nn.ModuleList, nn.Sequential])
     def test_walk_module_container_with_kwargs(self, module_container):
         modules = [nn.Linear(10, 10), nn.Linear(10, 10)]
-        module = module_container(modules) if module_container is nn.ModuleList else nn.Sequential(*modules)
+        module = (
+            module_container(modules)
+            if module_container is nn.ModuleList
+            else nn.Sequential(*modules)
+        )
 
         def walk_fn(module, value):
             if isinstance(module, nn.Linear):
@@ -147,8 +159,12 @@ class TestWalkListModule:
 
         assert isinstance(walked_module, module_container)
         assert len(walked_module) == 2
-        assert torch.allclose(walked_module[0].weight, 2.0 * torch.ones_like(walked_module[0].weight))
-        assert torch.allclose(walked_module[1].weight, 2.0 * torch.ones_like(walked_module[1].weight))
+        assert torch.allclose(
+            walked_module[0].weight, 2.0 * torch.ones_like(walked_module[0].weight)
+        )
+        assert torch.allclose(
+            walked_module[1].weight, 2.0 * torch.ones_like(walked_module[1].weight)
+        )
 
     @pytest.mark.parametrize("module_container", [nn.ModuleList, nn.Sequential])
     def test_walk_module_container_with_recursion(self, module_container):
@@ -156,7 +172,11 @@ class TestWalkListModule:
             nn.Sequential(nn.Linear(10, 10), nn.Linear(10, 10)),
             nn.Sequential(nn.Linear(10, 10), nn.Linear(10, 10)),
         ]
-        module = module_container(modules) if module_container is nn.ModuleList else nn.Sequential(*modules)
+        module = (
+            module_container(modules)
+            if module_container is nn.ModuleList
+            else nn.Sequential(*modules)
+        )
 
         def walk_fn(module):
             if isinstance(module, nn.Linear):
@@ -181,7 +201,9 @@ class TestWalkDictModule:
         essentially testing the identity operation.
         """
         # Setup
-        modules = nn.ModuleDict({"linear": nn.Linear(10, 10), "conv": nn.Conv2d(1, 20, 5)})
+        modules = nn.ModuleDict(
+            {"linear": nn.Linear(10, 10), "conv": nn.Conv2d(1, 20, 5)}
+        )
         identity = lambda x: x
 
         # Exercise
@@ -189,15 +211,21 @@ class TestWalkDictModule:
 
         # Verify
         assert isinstance(walked_modules, nn.ModuleDict)
-        assert "linear" in walked_modules and isinstance(walked_modules["linear"], nn.Linear)
-        assert "conv" in walked_modules and isinstance(walked_modules["conv"], nn.Conv2d)
+        assert "linear" in walked_modules and isinstance(
+            walked_modules["linear"], nn.Linear
+        )
+        assert "conv" in walked_modules and isinstance(
+            walked_modules["conv"], nn.Conv2d
+        )
 
     def test_walk_module_dict_transform(self):
         """
         Test walking through an nn.ModuleDict and applying a transformation to each module.
         In this case, we'll add a ReLU activation after each module.
         """
-        modules = nn.ModuleDict({"linear": nn.Linear(10, 10), "conv": nn.Conv2d(1, 20, 5)})
+        modules = nn.ModuleDict(
+            {"linear": nn.Linear(10, 10), "conv": nn.Conv2d(1, 20, 5)}
+        )
 
         def add_relu(module: nn.Module, name=None):
             if name in ["linear", "conv"]:

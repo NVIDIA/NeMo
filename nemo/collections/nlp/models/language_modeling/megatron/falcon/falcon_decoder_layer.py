@@ -72,13 +72,15 @@ class FalconTransformerLayer(TransformerLayer):
             raise ImportError(
                 "megatron-core was not found. Please see the NeMo README for installation instructions: https://github.com/NVIDIA/NeMo#megatron-gpt."
             )
-        super().__init__(config=config, submodules=submodules, layer_number=layer_number)
+        super().__init__(
+            config=config, submodules=submodules, layer_number=layer_number
+        )
 
-        if hasattr(self.config, 'new_decoder_architecture'):
+        if hasattr(self.config, "new_decoder_architecture"):
             self.new_decoder_architecture = self.config.new_decoder_architecture
         else:
             self.new_decoder_architecture = None
-        if hasattr(self.config, 'parallel_attention'):
+        if hasattr(self.config, "parallel_attention"):
             self.parallel_attention = self.config.parallel_attention
         else:
             self.parallel_attention = None
@@ -138,9 +140,9 @@ class FalconTransformerLayer(TransformerLayer):
         )
 
         with self.bias_dropout_add_exec_handler():
-            hidden_states = self.self_attn_bda(self.training, self.config.bias_dropout_fusion)(
-                attention_output_with_bias, residual, self.config.hidden_dropout
-            )
+            hidden_states = self.self_attn_bda(
+                self.training, self.config.bias_dropout_fusion
+            )(attention_output_with_bias, residual, self.config.hidden_dropout)
 
         if not self.new_decoder_architecture:
             if self.parallel_attention:
@@ -162,10 +164,14 @@ class FalconTransformerLayer(TransformerLayer):
             mlp_output_with_bias = (mlp_output_without_bias, None)
 
         with self.bias_dropout_add_exec_handler():
-            hidden_states = self.mlp_bda(self.training, self.config.bias_dropout_fusion)(
-                mlp_output_with_bias, residual, self.config.hidden_dropout
-            )
+            hidden_states = self.mlp_bda(
+                self.training, self.config.bias_dropout_fusion
+            )(mlp_output_with_bias, residual, self.config.hidden_dropout)
 
-        output = make_viewless_tensor(inp=hidden_states, requires_grad=hidden_states.requires_grad, keep_graph=True)
+        output = make_viewless_tensor(
+            inp=hidden_states,
+            requires_grad=hidden_states.requires_grad,
+            keep_graph=True,
+        )
 
         return output, context

@@ -30,7 +30,9 @@ class TestLlavaNextSampleEncoder(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         # Use actual processor
-        cls.processor = AutoProcessor.from_pretrained("llava-hf/llava-v1.6-vicuna-7b-hf")
+        cls.processor = AutoProcessor.from_pretrained(
+            "llava-hf/llava-v1.6-vicuna-7b-hf"
+        )
         cls.tokenizer = cls.processor.tokenizer
         cls.image_processor = cls.processor.image_processor
 
@@ -39,10 +41,14 @@ class TestLlavaNextSampleEncoder(unittest.TestCase):
             image_token=ImageToken(token_str="<image>", token_id=-200),
             ignore_place_holder=-100,
             conversation_template_config=LLaVATemplateConfig(
-                system="I am an AI assistant", roles=["user", "assistant"], stop_string=" </s>"
+                system="I am an AI assistant",
+                roles=["user", "assistant"],
+                stop_string=" </s>",
             ),
         )
-        self.encoder = LlavaNextSampleEncoder(self.tokenizer, self.image_processor, self.config)
+        self.encoder = LlavaNextSampleEncoder(
+            self.tokenizer, self.image_processor, self.config
+        )
 
     def test_process_image(self):
         test_image = torch.rand(3, 224, 224)
@@ -79,5 +85,5 @@ class TestLlavaNextSampleEncoder(unittest.TestCase):
         self.assertGreater(result.num_media_tiles, 0)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

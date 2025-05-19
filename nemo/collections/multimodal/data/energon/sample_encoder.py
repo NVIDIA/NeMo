@@ -78,7 +78,11 @@ class BaseSampleEncoder(SampleEncoder):
     """
 
     def __init__(
-        self, tokenizer, image_processor, multimodal_sample_config=MultiModalSampleConfig(), image_tag_type=None
+        self,
+        tokenizer,
+        image_processor,
+        multimodal_sample_config=MultiModalSampleConfig(),
+        image_tag_type=None,
     ):
         """
         Initialize the BaseSampleEncoder.
@@ -113,7 +117,9 @@ class BaseSampleEncoder(SampleEncoder):
         Returns:
         torch.Tensor: A preprocessed and reshaped image tensor with dimensions (1, 1, channels, height, width).
         """
-        image = self.image_processor.preprocess(image, return_tensors='pt', do_rescale=False)['pixel_values']
+        image = self.image_processor.preprocess(
+            image, return_tensors="pt", do_rescale=False
+        )["pixel_values"]
         assert isinstance(image, torch.Tensor)
         image = rearrange(image, "F c h w -> 1 F c h w")  # T F c h w
         return image
@@ -133,10 +139,14 @@ class BaseSampleEncoder(SampleEncoder):
             for tokens where loss should be computed and zeros for `ignore_place_holder` tokens.
         """
         loss_mask = torch.ones(labels.size(), dtype=torch.float)
-        loss_mask[labels == self.ignore_place_holder] = 0.0  # loss computed only for answer and non image tokens
+        loss_mask[labels == self.ignore_place_holder] = (
+            0.0  # loss computed only for answer and non image tokens
+        )
         return loss_mask
 
-    def encode(self, input_sample: ImageTextSample, output_sample: ImageTextSample) -> None:
+    def encode(
+        self, input_sample: ImageTextSample, output_sample: ImageTextSample
+    ) -> None:
         """
         Abstract method to encode an input sample.
 
@@ -167,7 +177,11 @@ class VQASampleEncoder(BaseSampleEncoder):
     """
 
     def __init__(
-        self, tokenizer, image_processor, multimodal_sample_config=MultiModalSampleConfig(), image_tag_type=None
+        self,
+        tokenizer,
+        image_processor,
+        multimodal_sample_config=MultiModalSampleConfig(),
+        image_tag_type=None,
     ):
         """
         Initialize the VQASampleEncoder.
@@ -178,8 +192,12 @@ class VQASampleEncoder(BaseSampleEncoder):
         multimodal_sample_config (MultiModalSampleConfig, optional): Configuration object for multimodal samples.
             Defaults to MultiModalSampleConfig().
         """
-        super().__init__(tokenizer, image_processor, multimodal_sample_config, image_tag_type)
-        self.conversation_template_config = multimodal_sample_config.conversation_template_config
+        super().__init__(
+            tokenizer, image_processor, multimodal_sample_config, image_tag_type
+        )
+        self.conversation_template_config = (
+            multimodal_sample_config.conversation_template_config
+        )
 
     def apply_prompt_template(self, input_text: VQASample, use_plain=False):
         """
@@ -194,44 +212,78 @@ class VQASampleEncoder(BaseSampleEncoder):
         Returns:
         str: The generated templated prompt as a string.
         """
-        logging.debug(f"apply_conversation_template context {input_text.context} answer {input_text.answers}")
+        logging.debug(
+            f"apply_conversation_template context {input_text.context} answer {input_text.answers}"
+        )
 
         messages = []
 
         # Add system message if it exists
         if self.conversation_template_config.system:
-            messages.append({'role': 'system', 'content': self.conversation_template_config.system})
+            messages.append(
+                {"role": "system", "content": self.conversation_template_config.system}
+            )
 
         # Handle cases where context and answers are lists
-        if isinstance(input_text.context, list) and isinstance(input_text.answers, list):
+        if isinstance(input_text.context, list) and isinstance(
+            input_text.answers, list
+        ):
             # Ensure both lists are the same length or adjust based on your specific needs
             min_length = min(len(input_text.context), len(input_text.answers))
             for i in range(min_length):
-                messages.append({'role': self.conversation_template_config.roles[0], 'content': input_text.context[i]})
-                messages.append({'role': self.conversation_template_config.roles[1], 'content': input_text.answers[i]})
-        elif isinstance(input_text.context, str) and isinstance(input_text.answers, str):
+                messages.append(
+                    {
+                        "role": self.conversation_template_config.roles[0],
+                        "content": input_text.context[i],
+                    }
+                )
+                messages.append(
+                    {
+                        "role": self.conversation_template_config.roles[1],
+                        "content": input_text.answers[i],
+                    }
+                )
+        elif isinstance(input_text.context, str) and isinstance(
+            input_text.answers, str
+        ):
             # Handle single context and answer as strings
-            messages.append({'role': self.conversation_template_config.roles[0], 'content': input_text.context})
-            messages.append({'role': self.conversation_template_config.roles[1], 'content': input_text.answers})
+            messages.append(
+                {
+                    "role": self.conversation_template_config.roles[0],
+                    "content": input_text.context,
+                }
+            )
+            messages.append(
+                {
+                    "role": self.conversation_template_config.roles[1],
+                    "content": input_text.answers,
+                }
+            )
         else:
             raise ValueError(
                 "VQA Sample context/answers should either be a List[str] or str. Other types not supported"
             )
         # Set the chat template if defined
         if self.conversation_template_config.chat_template:
-            self.tokenizer.chat_template = self.conversation_template_config.chat_template
+            self.tokenizer.chat_template = (
+                self.conversation_template_config.chat_template
+            )
         elif self.tokenizer.chat_template is None:
             raise ValueError(
                 "Both tokenizer and conversation template does not have chat template defined. Refer to https://huggingface.co/docs/transformers/main/en/chat_templating"
             )
 
         # Apply the conversation template to generate the prompt
-        templated_prompt = self.tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=False)
+        templated_prompt = self.tokenizer.apply_chat_template(
+            messages, tokenize=False, add_generation_prompt=False
+        )
         if self.image_tag_type == "internvl":
             # TODO(yuya): update hardcoded solution
             templated_prompt = templated_prompt.replace("<image>", "<img><image></img>")
         else:
-            assert self.image_tag_type is None, f"Not supported image_tag_type {self.image_tag_type}"
+            assert (
+                self.image_tag_type is None
+            ), f"Not supported image_tag_type {self.image_tag_type}"
         logging.debug(f"apply prompt template templated_prompt {templated_prompt}")
         return templated_prompt
 
@@ -249,7 +301,11 @@ class VQASampleEncoder(BaseSampleEncoder):
         torch.Tensor: A tensor containing the tokenized prompt.
         """
         # Split the prompt into chunks and track special tokens
-        regex_pattern = '(' + '|'.join(re.escape(token) for token in [self.image_token.token_str]) + ')'
+        regex_pattern = (
+            "("
+            + "|".join(re.escape(token) for token in [self.image_token.token_str])
+            + ")"
+        )
         chunks = re.split(regex_pattern, prompt)
         # Tokenize each chunk and replace special tokens with their indices
         tokenized_chunks = []
@@ -257,7 +313,9 @@ class VQASampleEncoder(BaseSampleEncoder):
             if chunk == self.image_token.token_str:
                 tokenized_chunks.append(self.image_token.token_id)
             elif len(chunk) > 0:
-                tokenized_chunks.extend(self.tokenizer(chunk, add_special_tokens=False).input_ids)
+                tokenized_chunks.extend(
+                    self.tokenizer(chunk, add_special_tokens=False).input_ids
+                )
 
         return torch.tensor(tokenized_chunks, dtype=torch.long)
 
@@ -280,18 +338,24 @@ class VQASampleEncoder(BaseSampleEncoder):
 
         # Initialize labels with ignore index
         labels = torch.ones_like(tokens) * self.ignore_place_holder
-        search_start_index = 0  # Initialize search index to start labeling answers sequentially
+        search_start_index = (
+            0  # Initialize search index to start labeling answers sequentially
+        )
 
         stop_str = getattr(self.conversation_template_config, "stop_string", None)
 
         # Check if answers is a single string or a list
-        answers = sample.answers if isinstance(sample.answers, list) else [sample.answers]
+        answers = (
+            sample.answers if isinstance(sample.answers, list) else [sample.answers]
+        )
 
         # Iterate through the answers and compute labels for each answer
         for answer in answers:
             # Encode the answer with the stop string
             answer = self.process_answer_str(answer, stop_str)
-            answer_tokens = self.tokenizer.encode(answer, add_special_tokens=False, return_tensors="pt")[0]
+            answer_tokens = self.tokenizer.encode(
+                answer, add_special_tokens=False, return_tensors="pt"
+            )[0]
 
             # sometimes the tokenizer can add additional space. See:
             # https://github.com/huggingface/transformers/issues/25073#issuecomment-1655271420
@@ -299,7 +363,9 @@ class VQASampleEncoder(BaseSampleEncoder):
                 answer_tokens = answer_tokens[1:]
 
             # Find the start and end indices of the answer tokens in the prompt
-            answer_start, answer_end = _find_pattern_indices(tokens, answer_tokens, search_start_index)
+            answer_start, answer_end = _find_pattern_indices(
+                tokens, answer_tokens, search_start_index
+            )
             if answer_start < 0:
                 logging.warning(
                     "Unable to find a valid answer in the conversation. "
@@ -338,14 +404,18 @@ class VQASampleEncoder(BaseSampleEncoder):
         """
         # apply prompt template
         conversation_prompt = self.apply_prompt_template(input_sample)
-        logging.debug(f"task encoder encode_sample conversation_prompt {conversation_prompt}")
+        logging.debug(
+            f"task encoder encode_sample conversation_prompt {conversation_prompt}"
+        )
         # tokenize prompt
         tokens = self.tokenize(conversation_prompt)
         labels = self.compute_labels(tokens, input_sample)
 
         tokens = tokens[:-1].contiguous()
         labels = labels[1:].contiguous()
-        logging.debug(f"task encoder encode_sample after tokenize prompt tokens {tokens}")
+        logging.debug(
+            f"task encoder encode_sample after tokenize prompt tokens {tokens}"
+        )
         logging.debug(f"task encoder encode_sample labels {labels}")
         loss_mask = self.compute_loss_mask(labels)
         processed_image = self.process_image(input_sample.image)
@@ -376,7 +446,11 @@ class InterleavedSampleEncoder(BaseSampleEncoder):
     """
 
     def __init__(
-        self, tokenizer, image_processor, multimodal_sample_config=MultiModalSampleConfig(), image_tag_type=None
+        self,
+        tokenizer,
+        image_processor,
+        multimodal_sample_config=MultiModalSampleConfig(),
+        image_tag_type=None,
     ):
         """
         Initialize the InterleavedSampleEncoder.
@@ -387,7 +461,9 @@ class InterleavedSampleEncoder(BaseSampleEncoder):
         multimodal_sample_config (MultiModalSampleConfig, optional): Configuration object for multimodal samples.
             Defaults to MultiModalSampleConfig().
         """
-        super().__init__(tokenizer, image_processor, multimodal_sample_config, image_tag_type)
+        super().__init__(
+            tokenizer, image_processor, multimodal_sample_config, image_tag_type
+        )
 
     def tokenize(self, sample) -> tuple[torch.Tensor, torch.Tensor]:
         """
@@ -414,12 +490,20 @@ class InterleavedSampleEncoder(BaseSampleEncoder):
                 processed_image = self.process_image(chunk)
                 images.append(processed_image)
             elif len(chunk) > 0:
-                logging.debug(f"Multimodal datalaoder encoder interleaved sample text chunk {chunk}")
-                tokenized_chunks.extend(self.tokenizer(chunk, add_special_tokens=False).input_ids)
+                logging.debug(
+                    f"Multimodal datalaoder encoder interleaved sample text chunk {chunk}"
+                )
+                tokenized_chunks.extend(
+                    self.tokenizer(chunk, add_special_tokens=False).input_ids
+                )
             else:
-                raise ValueError(f"Unsupported type in interleaved sequence: {type(chunk)}")
+                raise ValueError(
+                    f"Unsupported type in interleaved sequence: {type(chunk)}"
+                )
         tokens = torch.tensor(tokenized_chunks, dtype=torch.long)
-        logging.debug(f"Multimodal dataloader encode interleaved sample tokenized chunks {tokenized_chunks}")
+        logging.debug(
+            f"Multimodal dataloader encode interleaved sample tokenized chunks {tokenized_chunks}"
+        )
         image_tensor = torch.concatenate(images, dim=1)  # T F(no of images) c h w
         return tokens, image_tensor
 
@@ -459,7 +543,9 @@ class InterleavedSampleEncoder(BaseSampleEncoder):
         tokens, images = self.tokenize(input_sample)
         labels = self.compute_labels(tokens)
         tokens = tokens[:-1]
-        logging.debug(f"task encoder encode_sample after tokenize prompt tokens {tokens}")
+        logging.debug(
+            f"task encoder encode_sample after tokenize prompt tokens {tokens}"
+        )
         logging.debug(f"task encoder encode_sample lables {labels}")
         loss_mask = self.compute_loss_mask(labels)
         output_sample.__key__ = input_sample.__key__
@@ -483,7 +569,11 @@ class SimilarityInterleavedEncoder(InterleavedSampleEncoder):
     """
 
     def __init__(
-        self, tokenizer, image_processor, multimodal_sample_config=MultiModalSampleConfig(), image_tag_type=None
+        self,
+        tokenizer,
+        image_processor,
+        multimodal_sample_config=MultiModalSampleConfig(),
+        image_tag_type=None,
     ):
         """
         Initialize the SimilarityInterleavedEncoder.
@@ -494,10 +584,14 @@ class SimilarityInterleavedEncoder(InterleavedSampleEncoder):
         multimodal_sample_config (MultiModalSampleConfig, optional): Configuration object for multimodal samples.
             Defaults to MultiModalSampleConfig().
         """
-        super().__init__(tokenizer, image_processor, multimodal_sample_config, image_tag_type)
+        super().__init__(
+            tokenizer, image_processor, multimodal_sample_config, image_tag_type
+        )
         self.image_following_text = multimodal_sample_config.image_following_text
 
-    def tokenize(self, sample: SimilarityInterleavedSample) -> tuple[torch.Tensor, torch.Tensor]:
+    def tokenize(
+        self, sample: SimilarityInterleavedSample
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         """
         Tokenize the input sequence and process images based on similarity indices.
 
@@ -526,7 +620,10 @@ class SimilarityInterleavedEncoder(InterleavedSampleEncoder):
         sorted_indices = sorted(matched_text_indices)
         # Traverse texts, and interleave images based on sorted_indices
         for text_idx in range(len(texts)):
-            if image_idx < len(sorted_indices) and sorted_indices[image_idx] == text_idx:
+            if (
+                image_idx < len(sorted_indices)
+                and sorted_indices[image_idx] == text_idx
+            ):
                 if not self.image_following_text:
                     # Add image before the text
                     interleaved_list.append(self.image_token.token_id)
@@ -541,7 +638,11 @@ class SimilarityInterleavedEncoder(InterleavedSampleEncoder):
         # Merge consecutve text entries with a space between them
         final_sequence = []
         for item in interleaved_list:
-            if final_sequence and isinstance(final_sequence[-1], str) and isinstance(item, str):
+            if (
+                final_sequence
+                and isinstance(final_sequence[-1], str)
+                and isinstance(item, str)
+            ):
                 final_sequence[-1] += " " + item
             else:
                 final_sequence.append(item)
@@ -550,10 +651,14 @@ class SimilarityInterleavedEncoder(InterleavedSampleEncoder):
             if chunk == self.image_token.token_id:
                 tokenized_chunks.append(chunk)
             else:
-                tokenized_chunks.extend(self.tokenizer(chunk, add_special_tokens=False).input_ids)
+                tokenized_chunks.extend(
+                    self.tokenizer(chunk, add_special_tokens=False).input_ids
+                )
         tokens = torch.tensor(tokenized_chunks, dtype=torch.long)
         logging.debug(
             f"Multimodal dataloader encode similarity interleaved sample tokenized chunks {tokenized_chunks}"
         )
-        image_tensor = torch.concatenate(sorted_images, dim=1)  # T F(no of images) c h w
+        image_tensor = torch.concatenate(
+            sorted_images, dim=1
+        )  # T F(no of images) c h w
         return tokens, image_tensor

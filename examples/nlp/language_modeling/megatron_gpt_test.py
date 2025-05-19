@@ -31,21 +31,21 @@ from nemo.utils.app_state import AppState
 @hydra_runner(config_path="conf", config_name="megatron_gpt_config")
 def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
-    logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
+    logging.info(f"\n{OmegaConf.to_yaml(cfg)}")
 
     trainer = None
-    if cfg.trainer.precision in [16, '16', '16-mixed']:
+    if cfg.trainer.precision in [16, "16", "16-mixed"]:
         trainer = Trainer(
             plugins=[
                 NLPMixedPrecisionPlugin(
-                    init_scale=cfg.model.get('native_amp_init_scale', 2**32),
-                    growth_interval=cfg.model.get('native_amp_growth_interval', 1000),
+                    init_scale=cfg.model.get("native_amp_init_scale", 2**32),
+                    growth_interval=cfg.model.get("native_amp_growth_interval", 1000),
                 ),
             ],
             strategy=NLPDDPStrategy(),
             **cfg.trainer,
         )
-    elif cfg.trainer.precision in ['bf16', 'bf16-mixed']:
+    elif cfg.trainer.precision in ["bf16", "bf16-mixed"]:
         trainer = Trainer(
             plugins=[
                 NLPNativeBfloat16PrecisionPlugin(),
@@ -54,11 +54,15 @@ def main(cfg) -> None:
             **cfg.trainer,
         )
     else:
-        trainer = Trainer(plugins=[NLPPrecisionPlugin()], strategy=NLPDDPStrategy(), **cfg.trainer)
+        trainer = Trainer(
+            plugins=[NLPPrecisionPlugin()], strategy=NLPDDPStrategy(), **cfg.trainer
+        )
 
     app_state = AppState()
     app_state.model_parallel_size = cfg.model.tensor_model_parallel_size
-    app_state.model_parallel_rank = compute_model_parallel_rank(trainer.local_rank, app_state.model_parallel_size)
+    app_state.model_parallel_rank = compute_model_parallel_rank(
+        trainer.local_rank, app_state.model_parallel_size
+    )
 
     model = MegatronGPTModel.restore_from(
         cfg.restore_from_path,
@@ -73,5 +77,5 @@ def main(cfg) -> None:
     trainer.test(model)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

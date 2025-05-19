@@ -59,29 +59,42 @@ class ClassifyFst(GraphFst):
         deterministic: bool = True,
         whitelist: str = None,
     ):
-        super().__init__(name="tokenize_and_classify", kind="classify", deterministic=deterministic)
+        super().__init__(
+            name="tokenize_and_classify", kind="classify", deterministic=deterministic
+        )
 
         far_file = None
         if cache_dir is not None and cache_dir != "None":
             os.makedirs(cache_dir, exist_ok=True)
             whitelist_file = os.path.basename(whitelist) if whitelist else ""
             far_file = os.path.join(
-                cache_dir, f"_{input_case}_en_tn_{deterministic}_deterministic{whitelist_file}.far"
+                cache_dir,
+                f"_{input_case}_en_tn_{deterministic}_deterministic{whitelist_file}.far",
             )
         if not overwrite_cache and far_file and os.path.exists(far_file):
             self.fst = pynini.Far(far_file, mode="r")["tokenize_and_classify"]
-            logging.info(f'ClassifyFst.fst was restored from {far_file}.')
+            logging.info(f"ClassifyFst.fst was restored from {far_file}.")
         else:
             logging.info(f"Creating ClassifyFst grammars.")
 
             punctuation = PunctuationFst(deterministic=deterministic)
             punct_graph = punctuation.fst
-            word_graph = WordFst(deterministic=deterministic, punctuation=punctuation).fst
-            whitelist_graph = WhiteListFst(input_case=input_case, deterministic=deterministic).fst
+            word_graph = WordFst(
+                deterministic=deterministic, punctuation=punctuation
+            ).fst
+            whitelist_graph = WhiteListFst(
+                input_case=input_case, deterministic=deterministic
+            ).fst
 
-            classify = pynutil.add_weight(whitelist_graph, 1) | pynutil.add_weight(word_graph, 100)
+            classify = pynutil.add_weight(whitelist_graph, 1) | pynutil.add_weight(
+                word_graph, 100
+            )
 
-            punct = pynutil.insert("tokens { ") + pynutil.add_weight(punct_graph, weight=2.1) + pynutil.insert(" }")
+            punct = (
+                pynutil.insert("tokens { ")
+                + pynutil.add_weight(punct_graph, weight=2.1)
+                + pynutil.insert(" }")
+            )
             punct = pynini.closure(
                 pynini.compose(pynini.closure(NEMO_WHITE_SPACE, 1), delete_extra_space)
                 | (pynutil.insert(" ") + punct),
@@ -89,14 +102,18 @@ class ClassifyFst(GraphFst):
             )
             token = pynutil.insert("tokens { ") + classify + pynutil.insert(" }")
             token_plus_punct = (
-                pynini.closure(punct + pynutil.insert(" ")) + token + pynini.closure(pynutil.insert(" ") + punct)
+                pynini.closure(punct + pynutil.insert(" "))
+                + token
+                + pynini.closure(pynutil.insert(" ") + punct)
             )
 
             graph = (
                 token_plus_punct
                 + pynini.closure(
                     (
-                        pynini.compose(pynini.closure(NEMO_WHITE_SPACE, 1), delete_extra_space)
+                        pynini.compose(
+                            pynini.closure(NEMO_WHITE_SPACE, 1), delete_extra_space
+                        )
                         | (pynutil.insert(" ") + punct + pynutil.insert(" "))
                     )
                     + token_plus_punct

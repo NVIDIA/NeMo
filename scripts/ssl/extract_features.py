@@ -53,7 +53,9 @@ from nemo.utils import logging
 
 typecheck.set_typecheck_enabled(enabled=False)
 
-parser = argparse.ArgumentParser(description="Extract audio features using an SSL model")
+parser = argparse.ArgumentParser(
+    description="Extract audio features using an SSL model"
+)
 parser.add_argument(
     "--model_path",
     type=str,
@@ -68,7 +70,11 @@ parser.add_argument(
     help="Path to the input audio file, or list of files, directory or jsonl manifest",
 )
 parser.add_argument(
-    "-o", "--output", type=str, required=True, help="Path to the output directory that contains .npy file"
+    "-o",
+    "--output",
+    type=str,
+    required=True,
+    help="Path to the output directory that contains .npy file",
 )
 parser.add_argument(
     "-l",
@@ -78,11 +84,33 @@ parser.add_argument(
     help="Layers to extract features from, use 'all' to extract from all layer, 'last' for last layer, "
     "or comma-separated indices of the target layers (e.g. '0,1,2')",
 )
-parser.add_argument("-b", "--batch_size", type=int, default=8, help="Batch size for feature extraction")
-parser.add_argument("-w", "--workers", type=int, default=8, help="Number of workers for feature extraction")
-parser.add_argument("-d", "--device", type=str, default="cuda", help="Device to use for feature extraction")
-parser.add_argument("-t", "--type", type=str, default="wav", help="audio file type, only needed for directory input")
-parser.add_argument("--use_amp", action="store_true", help="Use automatic mixed precision")
+parser.add_argument(
+    "-b", "--batch_size", type=int, default=8, help="Batch size for feature extraction"
+)
+parser.add_argument(
+    "-w",
+    "--workers",
+    type=int,
+    default=8,
+    help="Number of workers for feature extraction",
+)
+parser.add_argument(
+    "-d",
+    "--device",
+    type=str,
+    default="cuda",
+    help="Device to use for feature extraction",
+)
+parser.add_argument(
+    "-t",
+    "--type",
+    type=str,
+    default="wav",
+    help="audio file type, only needed for directory input",
+)
+parser.add_argument(
+    "--use_amp", action="store_true", help="Use automatic mixed precision"
+)
 parser.add_argument(
     "--amp_dtype",
     type=str,
@@ -90,7 +118,13 @@ parser.add_argument(
     choices=["float16", "bfloat16"],
     help="Data type for automatic mixed precision",
 )
-parser.add_argument("-mc", "--max_cache", type=int, default=-1, help="Max cache size before saving features")
+parser.add_argument(
+    "-mc",
+    "--max_cache",
+    type=int,
+    default=-1,
+    help="Max cache size before saving features",
+)
 args = parser.parse_args()
 
 
@@ -101,18 +135,29 @@ def get_input_manifest(input: str) -> List[dict]:
     if input.endswith(".json") or input.endswith(".jsonl") and os.path.isfile(input):
         logging.info(f"Reading manifest from: {input}")
         manifest = [
-            {"audio_filepath": str(get_full_path(item["audio_filepath"], input)), "duration": None, "text": "-"}
+            {
+                "audio_filepath": str(get_full_path(item["audio_filepath"], input)),
+                "duration": None,
+                "text": "-",
+            }
             for item in read_manifest(input)
         ]
     elif os.path.isdir(input):
         logging.info(f"Creating manifest from directory: {input}")
         manifest = [
-            {"audio_filepath": str(p), "duration": None, "text": "-"} for p in Path(input).rglob(f"*.{args.type}")
+            {"audio_filepath": str(p), "duration": None, "text": "-"}
+            for p in Path(input).rglob(f"*.{args.type}")
         ]
         logging.info(f"Found {len(manifest)} items of {args.type} files")
     elif os.path.isfile(input):
         logging.info(f"Reading single file: {input}")
-        manifest = [{"audio_filepath": Path(input).absolute.as_posix(), "duration": None, "text": "-"}]
+        manifest = [
+            {
+                "audio_filepath": Path(input).absolute.as_posix(),
+                "duration": None,
+                "text": "-",
+            }
+        ]
     else:
         raise ValueError(f"Invalid input: {input}")
     return manifest
@@ -136,7 +181,9 @@ class FeatureExtractor(pl.LightningModule):
     Wrapper class for extracting features from SSL model
     """
 
-    def __init__(self, ssl_model: EncDecDenoiseMaskedTokenPredModel, layer: str = "all"):
+    def __init__(
+        self, ssl_model: EncDecDenoiseMaskedTokenPredModel, layer: str = "all"
+    ):
         super().__init__()
         self.preprocessor = ssl_model.preprocessor
         self.encoder = ssl_model.encoder
@@ -166,7 +213,9 @@ class FeatureExtractor(pl.LightningModule):
         Forward pass to extract features, same input interface as EncDecDenoiseMaskedTokenPredModel.forward
         """
         has_input_signal = input_signal is not None and input_signal_length is not None
-        has_processed_signal = processed_signal is not None and processed_signal_length is not None
+        has_processed_signal = (
+            processed_signal is not None and processed_signal_length is not None
+        )
         if (has_input_signal ^ has_processed_signal) == False:
             raise ValueError(
                 f"{self} Arguments ``input_signal`` and ``input_signal_length`` are mutually exclusive "
@@ -177,7 +226,9 @@ class FeatureExtractor(pl.LightningModule):
                 input_signal=input_signal,
                 length=input_signal_length,
             )
-        encoded, encoded_len = self.feature_extractor(audio_signal=processed_signal, length=processed_signal_length)
+        encoded, encoded_len = self.feature_extractor(
+            audio_signal=processed_signal, length=processed_signal_length
+        )
         return encoded, encoded_len
 
 
@@ -190,7 +241,9 @@ def maybe_save_features(output_dir, results, max_cache, manifest):
     os.makedirs(output_dir, exist_ok=True)
     logging.info(f"Saving {len(results)} features to {output_dir}")
 
-    for sample_id, audio_file, features_np in tqdm(results, desc="Saving features", total=len(results)):
+    for sample_id, audio_file, features_np in tqdm(
+        results, desc="Saving features", total=len(results)
+    ):
         filename = str(audio_file).replace("/", "_").replace(".", "_")
         if len(filename) > 256:
             filename = filename[-256:]
@@ -245,7 +298,11 @@ def extract_features(args):
     results = []
     amp_dtype = torch.float16 if args.amp_dtype == "float16" else torch.bfloat16
     logging.info(f"Extracting features using AMP: {args.use_amp}, dtype: {amp_dtype}")
-    with torch.amp.autocast('cuda' if torch.cuda.is_available() else 'cpu', dtype=amp_dtype, enabled=args.use_amp):
+    with torch.amp.autocast(
+        "cuda" if torch.cuda.is_available() else "cpu",
+        dtype=amp_dtype,
+        enabled=args.use_amp,
+    ):
         with torch.inference_mode():
             for batch in tqdm(dataloader, desc="Extracting features"):
                 batch = move_data_to_device(batch, device)
@@ -269,7 +326,9 @@ def extract_features(args):
                     feat_i_np = torch.stack(feat_i, dim=0).cpu().numpy()
 
                     indices.add(sid_i)
-                    results.append((sid_i, manifest[sid_i]['audio_filepath'], feat_i_np))
+                    results.append(
+                        (sid_i, manifest[sid_i]["audio_filepath"], feat_i_np)
+                    )
 
                 maybe_save_features(args.output, results, args.max_cache, manifest)
 
@@ -278,7 +337,9 @@ def extract_features(args):
     output_manifest = Path(args.output) / "features.json"
     write_manifest(output_manifest, manifest)
     os.remove(tmp_manifest.name)
-    logging.info(f"Extracted features from {total_num_samples} samples to {args.output}")
+    logging.info(
+        f"Extracted features from {total_num_samples} samples to {args.output}"
+    )
     logging.info(f"Manifest saved to: {output_manifest}")
 
 

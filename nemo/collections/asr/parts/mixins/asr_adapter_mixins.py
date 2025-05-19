@@ -55,9 +55,11 @@ class ASRAdapterModelMixin(AdapterModelPTMixin):
         supports_adapters = False
 
         # At least the encoder must extend AdapterModuleMixin
-        valid_adapter_names = [x for x in self.adapter_module_names if x != '']
+        valid_adapter_names = [x for x in self.adapter_module_names if x != ""]
         for module_name in valid_adapter_names:
-            if hasattr(self, module_name) and isinstance(getattr(self, module_name), AdapterModuleMixin):
+            if hasattr(self, module_name) and isinstance(
+                getattr(self, module_name), AdapterModuleMixin
+            ):
                 supports_adapters |= True
 
         # If adapters are supported, setup the adapter config + any modules (pre-existing adapter modules)
@@ -79,12 +81,12 @@ class ASRAdapterModelMixin(AdapterModelPTMixin):
         module_name, _ = self.resolve_adapter_module_name_(name)
 
         # Use + as a splitter, in order to share one name across multiple modules
-        if '+' in module_name:
-            module_names = module_name.split('+')
+        if "+" in module_name:
+            module_names = module_name.split("+")
         else:
             module_names = [module_name]
 
-        valid_module_names = [x for x in self.adapter_module_names if x != '']
+        valid_module_names = [x for x in self.adapter_module_names if x != ""]
         default_module_name = self.default_adapter_module_name
 
         # Check if default module name is None or not
@@ -98,10 +100,12 @@ class ASRAdapterModelMixin(AdapterModelPTMixin):
         with open_dict(self.cfg):
             for module_name in module_names:
                 # Check if encoder adapters should be added
-                if module_name == '':
+                if module_name == "":
                     if hasattr(self, default_module_name):
                         # Dispatch the call to the default model.
-                        getattr(self, default_module_name).add_adapter(name=name, cfg=cfg)
+                        getattr(self, default_module_name).add_adapter(
+                            name=name, cfg=cfg
+                        )
 
                 elif module_name in valid_module_names:
                     # Check if module exists
@@ -119,12 +123,16 @@ class ASRAdapterModelMixin(AdapterModelPTMixin):
         """
         config_contains_adapter = super().is_adapter_available()
 
-        valid_module_names = [x for x in self.adapter_module_names if x != '']
+        valid_module_names = [x for x in self.adapter_module_names if x != ""]
 
         # Forward the method call to the individual modules
         for module_name in valid_module_names:
-            if hasattr(self, module_name) and isinstance(getattr(self, module_name), AdapterModuleMixin):
-                config_contains_adapter |= getattr(self, module_name).is_adapter_available()
+            if hasattr(self, module_name) and isinstance(
+                getattr(self, module_name), AdapterModuleMixin
+            ):
+                config_contains_adapter |= getattr(
+                    self, module_name
+                ).is_adapter_available()
 
         return config_contains_adapter
 
@@ -155,12 +163,12 @@ class ASRAdapterModelMixin(AdapterModelPTMixin):
             module_name = None
 
         # Use + as a splitter, in order to share one name across multiple modules
-        if module_name is not None and '+' in module_name:
-            module_names = module_name.split('+')
+        if module_name is not None and "+" in module_name:
+            module_names = module_name.split("+")
         else:
             module_names = [module_name]
 
-        valid_module_names = [x for x in self.adapter_module_names if x != '']
+        valid_module_names = [x for x in self.adapter_module_names if x != ""]
         default_module_name = self.default_adapter_module_name
 
         # Check if default module name is None or not
@@ -174,15 +182,19 @@ class ASRAdapterModelMixin(AdapterModelPTMixin):
         for module_name in module_names:
             # Check if encoder adapters should be used
 
-            if module_name == '':
+            if module_name == "":
                 if hasattr(self, default_module_name):
                     # Dispatch the call to the default model.
-                    getattr(self, default_module_name).set_enabled_adapters(name=name, enabled=enabled)
+                    getattr(self, default_module_name).set_enabled_adapters(
+                        name=name, enabled=enabled
+                    )
 
             elif module_name in valid_module_names:
                 if hasattr(self, module_name):
                     # Dispatch the call to the module.
-                    getattr(self, module_name).set_enabled_adapters(name=name, enabled=enabled)
+                    getattr(self, module_name).set_enabled_adapters(
+                        name=name, enabled=enabled
+                    )
 
     def get_enabled_adapters(self) -> List[str]:
         """
@@ -193,12 +205,16 @@ class ASRAdapterModelMixin(AdapterModelPTMixin):
         """
         enabled_adapters = super().get_enabled_adapters()
 
-        valid_module_names = [x for x in self.adapter_module_names if x != '']
+        valid_module_names = [x for x in self.adapter_module_names if x != ""]
 
         # Check if encoder adapters should be used or are enabled
         for module_name in valid_module_names:
-            if hasattr(self, module_name) and isinstance(getattr(self, module_name), AdapterModuleMixin):
-                enabled_adapters.extend(getattr(self, module_name).get_enabled_adapters())
+            if hasattr(self, module_name) and isinstance(
+                getattr(self, module_name), AdapterModuleMixin
+            ):
+                enabled_adapters.extend(
+                    getattr(self, module_name).get_enabled_adapters()
+                )
 
         enabled_adapters = list(sorted(list(set(enabled_adapters))))
 
@@ -211,17 +227,19 @@ class ASRAdapterModelMixin(AdapterModelPTMixin):
         # Obtain the global adapter config if possible, otherwise use sensible defaults.
         global_cfg = self._get_global_cfg()
 
-        valid_module_names = [x for x in self.adapter_module_names if x != '']
+        valid_module_names = [x for x in self.adapter_module_names if x != ""]
 
         for module_name in valid_module_names:
-            check_adapter_support = global_cfg.get(f'check_{module_name}_adapter', True)
+            check_adapter_support = global_cfg.get(f"check_{module_name}_adapter", True)
 
             if check_adapter_support:
                 # Test whether the module supports adapters
-                if hasattr(self, module_name) and not isinstance(getattr(self, module_name), AdapterModuleMixin):
+                if hasattr(self, module_name) and not isinstance(
+                    getattr(self, module_name), AdapterModuleMixin
+                ):
                     logging.warning(
-                        f'Module `{module_name}` exists, but {getattr(self, module_name).__class__.__name__} '
-                        f'does not implement `AdapterModuleMixin`',
+                        f"Module `{module_name}` exists, but {getattr(self, module_name).__class__.__name__} "
+                        f"does not implement `AdapterModuleMixin`",
                         mode=logging_mode.ONCE,
                     )
 
@@ -244,8 +262,8 @@ class ASRAdapterModelMixin(AdapterModelPTMixin):
         module_name, adapter_name = super().resolve_adapter_module_name_(name)
 
         # Use + as a splitter, in order to share one name across multiple modules
-        if '+' in module_name:
-            module_names = module_name.split('+')
+        if "+" in module_name:
+            module_names = module_name.split("+")
         else:
             module_names = [module_name]
 
@@ -254,7 +272,9 @@ class ASRAdapterModelMixin(AdapterModelPTMixin):
 
         for mod_name in module_names:
             if mod_name not in valid_module_names:
-                raise ValueError(f"Provided module name `{mod_name}` is not in valid list : {valid_module_names}")
+                raise ValueError(
+                    f"Provided module name `{mod_name}` is not in valid list : {valid_module_names}"
+                )
 
         return (module_name, adapter_name)
 
@@ -263,15 +283,15 @@ class ASRAdapterModelMixin(AdapterModelPTMixin):
         Utility method, to either extract or construct the global config inside adapters config.
         """
         global_config = DictConfig({})
-        if 'adapters' in self.cfg and self.adapter_global_cfg_key in self.cfg.adapters:
+        if "adapters" in self.cfg and self.adapter_global_cfg_key in self.cfg.adapters:
             global_config = self.adapter_cfg[self.adapter_global_cfg_key]
         return global_config
 
     @property
     def adapter_module_names(self) -> List[str]:
-        valid_module_names = ['', 'encoder', 'decoder', 'joint']
+        valid_module_names = ["", "encoder", "decoder", "joint"]
         return valid_module_names
 
     @property
     def default_adapter_module_name(self) -> str:
-        return 'encoder'
+        return "encoder"

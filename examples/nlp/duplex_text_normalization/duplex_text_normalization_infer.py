@@ -75,93 +75,118 @@ except (ImportError, ModuleNotFoundError):
 
 @hydra_runner(config_path="conf", config_name="duplex_tn_config")
 def main(cfg: DictConfig) -> None:
-    logging.debug(f'Config Params: {OmegaConf.to_yaml(cfg)}')
+    logging.debug(f"Config Params: {OmegaConf.to_yaml(cfg)}")
     lang = cfg.lang
 
     if cfg.decoder_pretrained_model is None or cfg.tagger_pretrained_model is None:
-        raise ValueError("Both pre-trained models (DuplexTaggerModel and DuplexDecoderModel) should be provided.")
-    tagger_trainer, tagger_model = instantiate_model_and_trainer(cfg, TAGGER_MODEL, False)
-    decoder_trainer, decoder_model = instantiate_model_and_trainer(cfg, DECODER_MODEL, False)
+        raise ValueError(
+            "Both pre-trained models (DuplexTaggerModel and DuplexDecoderModel) should be provided."
+        )
+    tagger_trainer, tagger_model = instantiate_model_and_trainer(
+        cfg, TAGGER_MODEL, False
+    )
+    decoder_trainer, decoder_model = instantiate_model_and_trainer(
+        cfg, DECODER_MODEL, False
+    )
     decoder_model.max_sequence_len = 512
     tagger_model.max_sequence_len = 512
     tn_model = DuplexTextNormalizationModel(tagger_model, decoder_model, lang)
 
     if lang == constants.ENGLISH and NEMO_TEXT_PROCESSING_AVAILABLE:
-        normalizer_electronic = ElectronicNormalizer(input_case="cased", lang=lang, deterministic=True)
-        normalizer_whitelist = WhitelistNormalizer(input_case="cased", lang=lang, deterministic=True)
+        normalizer_electronic = ElectronicNormalizer(
+            input_case="cased", lang=lang, deterministic=True
+        )
+        normalizer_whitelist = WhitelistNormalizer(
+            input_case="cased", lang=lang, deterministic=True
+        )
 
     if cfg.inference.get("from_file", False):
         text_file = cfg.inference.from_file
-        logging.info(f'Running inference on {text_file}...')
+        logging.info(f"Running inference on {text_file}...")
         if not os.path.exists(text_file):
-            raise ValueError(f'{text_file} not found.')
+            raise ValueError(f"{text_file} not found.")
 
-        with open(text_file, 'r') as f:
+        with open(text_file, "r") as f:
             lines = f.readlines()
 
         if lang == constants.ENGLISH:
             new_lines = normalizer_electronic.normalize_list(lines)
             lines = [
-                post_process_punct(input=input_, normalized_text=norm_) for input_, norm_ in zip(lines, new_lines)
+                post_process_punct(input=input_, normalized_text=norm_)
+                for input_, norm_ in zip(lines, new_lines)
             ]
             new_lines = normalizer_whitelist.normalize_list(lines)
             lines = [
-                post_process_punct(input=input_, normalized_text=norm_) for input_, norm_ in zip(lines, new_lines)
+                post_process_punct(input=input_, normalized_text=norm_)
+                for input_, norm_ in zip(lines, new_lines)
             ]
 
-        def _get_predictions(lines: List[str], mode: str, batch_size: int, text_file: str):
-            """ Runs inference on a batch data without labels and saved predictions to a file. """
-            assert mode in ['tn', 'itn']
+        def _get_predictions(
+            lines: List[str], mode: str, batch_size: int, text_file: str
+        ):
+            """Runs inference on a batch data without labels and saved predictions to a file."""
+            assert mode in ["tn", "itn"]
             file_name, extension = os.path.splitext(text_file)
             batch, all_preds = [], []
             for i, line in enumerate(lines):
                 batch.append(line.strip())
                 if len(batch) == batch_size or i == len(lines) - 1:
-                    outputs = tn_model._infer(batch, [constants.DIRECTIONS_TO_MODE[mode]] * len(batch),)
+                    outputs = tn_model._infer(
+                        batch,
+                        [constants.DIRECTIONS_TO_MODE[mode]] * len(batch),
+                    )
                     all_preds.extend([x for x in outputs[-1]])
                     batch = []
             assert len(all_preds) == len(lines)
-            out_file = f'{file_name}_{mode}{extension}'
-            with open(f'{out_file}', 'w') as f_out:
+            out_file = f"{file_name}_{mode}{extension}"
+            with open(f"{out_file}", "w") as f_out:
                 f_out.write("\n".join(all_preds))
-            logging.info(f'Predictions for {mode} save to {out_file}.')
+            logging.info(f"Predictions for {mode} save to {out_file}.")
 
         batch_size = cfg.inference.get("batch_size", 8)
-        if cfg.mode in ['tn', 'joint']:
+        if cfg.mode in ["tn", "joint"]:
             # TN mode
-            _get_predictions(lines, 'tn', batch_size, text_file)
-        if cfg.mode in ['itn', 'joint']:
+            _get_predictions(lines, "tn", batch_size, text_file)
+        if cfg.mode in ["itn", "joint"]:
             # ITN mode
-            _get_predictions(lines, 'itn', batch_size, text_file)
+            _get_predictions(lines, "itn", batch_size, text_file)
 
     else:
-        print('Entering interactive mode.')
+        print("Entering interactive mode.")
         done = False
         while not done:
             print('Type "STOP" to exit.')
-            test_input = input('Input a test input:')
+            test_input = input("Input a test input:")
             if test_input == "STOP":
                 done = True
             if not done:
                 if lang == constants.ENGLISH and NEMO_TEXT_PROCESSING_AVAILABLE:
-                    new_input = normalizer_electronic.normalize(test_input, verbose=False)
-                    test_input = post_process_punct(input=test_input, normalized_text=new_input)
-                    new_input = normalizer_whitelist.normalize(test_input, verbose=False)
-                    test_input = post_process_punct(input=test_input, normalized_text=new_input)
+                    new_input = normalizer_electronic.normalize(
+                        test_input, verbose=False
+                    )
+                    test_input = post_process_punct(
+                        input=test_input, normalized_text=new_input
+                    )
+                    new_input = normalizer_whitelist.normalize(
+                        test_input, verbose=False
+                    )
+                    test_input = post_process_punct(
+                        input=test_input, normalized_text=new_input
+                    )
                 directions = []
                 inputs = []
-                if cfg.mode in ['itn', 'joint']:
+                if cfg.mode in ["itn", "joint"]:
                     directions.append(constants.DIRECTIONS_TO_MODE[constants.ITN_MODE])
                     inputs.append(test_input)
-                if cfg.mode in ['tn', 'joint']:
+                if cfg.mode in ["tn", "joint"]:
                     directions.append(constants.DIRECTIONS_TO_MODE[constants.TN_MODE])
                     inputs.append(test_input)
                 outputs = tn_model._infer(inputs, directions)[-1]
-                if cfg.mode in ['joint', 'itn']:
-                    print(f'Prediction (ITN): {outputs[0]}')
-                if cfg.mode in ['joint', 'tn']:
-                    print(f'Prediction (TN): {outputs[-1]}')
+                if cfg.mode in ["joint", "itn"]:
+                    print(f"Prediction (ITN): {outputs[0]}")
+                if cfg.mode in ["joint", "tn"]:
+                    print(f"Prediction (TN): {outputs[-1]}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

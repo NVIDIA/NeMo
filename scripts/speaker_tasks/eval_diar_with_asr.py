@@ -77,8 +77,7 @@ python eval_diar_with_asr.py \
 
 
 def get_pyannote_objs_from_rttms(rttm_file_path_list):
-    """Generate PyAnnote objects from RTTM file list
-    """
+    """Generate PyAnnote objects from RTTM file list"""
     pyannote_obj_list = []
     for rttm_file in rttm_file_path_list:
         rttm_file = rttm_file.strip()
@@ -91,8 +90,7 @@ def get_pyannote_objs_from_rttms(rttm_file_path_list):
 
 
 def make_meta_dict(hyp_rttm_list, ref_rttm_list):
-    """Create a temporary `audio_rttm_map_dict` for evaluation
-    """
+    """Create a temporary `audio_rttm_map_dict` for evaluation"""
     meta_dict = {}
     for k, rttm_file in enumerate(ref_rttm_list):
         uniq_id = get_uniqname_from_filepath(rttm_file)
@@ -104,8 +102,7 @@ def make_meta_dict(hyp_rttm_list, ref_rttm_list):
 
 
 def make_trans_info_dict(hyp_json_list_path):
-    """Create `trans_info_dict` from the `.json` files
-    """
+    """Create `trans_info_dict` from the `.json` files"""
     trans_info_dict = {}
     for json_file in hyp_json_list_path:
         json_file = json_file.strip()
@@ -117,8 +114,7 @@ def make_trans_info_dict(hyp_json_list_path):
 
 
 def read_file_path(list_path):
-    """Read file path and strip to remove line change symbol
-    """
+    """Read file path and strip to remove line change symbol"""
     return sorted([x.strip() for x in read_file(list_path)])
 
 
@@ -178,7 +174,9 @@ def main(
                 ref_ctm_file_list=ref_ctm_list,
             )
         else:
-            raise ValueError("Hypothesis information is not provided in the correct format.")
+            raise ValueError(
+                "Hypothesis information is not provided in the correct format."
+            )
     else:
         wer_results = {}
 
@@ -198,16 +196,32 @@ def main(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--hyp_rttm_list", help="path to the filelist of hypothesis RTTM files", type=str, required=True, default=None
+        "--hyp_rttm_list",
+        help="path to the filelist of hypothesis RTTM files",
+        type=str,
+        required=True,
+        default=None,
     )
     parser.add_argument(
-        "--ref_rttm_list", help="path to the filelist of reference RTTM files", type=str, required=True, default=None
+        "--ref_rttm_list",
+        help="path to the filelist of reference RTTM files",
+        type=str,
+        required=True,
+        default=None,
     )
     parser.add_argument(
-        "--hyp_ctm_list", help="path to the filelist of hypothesis CTM files", type=str, required=False, default=None
+        "--hyp_ctm_list",
+        help="path to the filelist of hypothesis CTM files",
+        type=str,
+        required=False,
+        default=None,
     )
     parser.add_argument(
-        "--ref_ctm_list", help="path to the filelist of reference CTM files", type=str, required=False, default=None
+        "--ref_ctm_list",
+        help="path to the filelist of reference CTM files",
+        type=str,
+        required=False,
+        default=None,
     )
     parser.add_argument(
         "--hyp_json_list",
@@ -224,7 +238,11 @@ if __name__ == "__main__":
         default="all",
     )
     parser.add_argument(
-        "--root_path", help='directory for saving result files', type=str, required=False, default="./"
+        "--root_path",
+        help="directory for saving result files",
+        type=str,
+        required=False,
+        default="./",
     )
 
     args = parser.parse_args()

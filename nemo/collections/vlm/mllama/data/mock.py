@@ -91,13 +91,25 @@ class MockDataModule(pl.LightningDataModule):
     def setup(self, stage: str = "") -> None:
         """Set up datasets for the specified stage."""
         self._train_ds = _MockMLlamaDataset(
-            self.vocab_size, self.crop_size, "train", self.num_train_samples, self.decoder_seq_length
+            self.vocab_size,
+            self.crop_size,
+            "train",
+            self.num_train_samples,
+            self.decoder_seq_length,
         )
         self._validation_ds = _MockMLlamaDataset(
-            self.vocab_size, self.crop_size, "valid", self.num_val_samples, self.decoder_seq_length
+            self.vocab_size,
+            self.crop_size,
+            "valid",
+            self.num_val_samples,
+            self.decoder_seq_length,
         )
         self._test_ds = _MockMLlamaDataset(
-            self.vocab_size, self.crop_size, "test", self.num_test_samples, self.decoder_seq_length
+            self.vocab_size,
+            self.crop_size,
+            "test",
+            self.num_test_samples,
+            self.decoder_seq_length,
         )
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
@@ -179,9 +191,15 @@ class _MockMLlamaDataset(Dataset):
         """Generates a single data sample."""
         # Generate data of the expected size and datatype (based on GPTDataset).
         np_gen = np.random.default_rng(seed=(self.seed + idx))
-        tokens = torch.from_numpy(np_gen.integers(self.vocab_size, size=[self.seq_length + 1], dtype=np.int64))
-        images = torch.from_numpy(np_gen.standard_normal((1, 4, 3, self.image_height, self.image_width)))
-        aspect_ratio_ids = torch.from_numpy(np_gen.integers(8, size=[1], dtype=np.int64)) + 1
+        tokens = torch.from_numpy(
+            np_gen.integers(self.vocab_size, size=[self.seq_length + 1], dtype=np.int64)
+        )
+        images = torch.from_numpy(
+            np_gen.standard_normal((1, 4, 3, self.image_height, self.image_width))
+        )
+        aspect_ratio_ids = (
+            torch.from_numpy(np_gen.integers(8, size=[1], dtype=np.int64)) + 1
+        )
 
         labels = tokens.clone()
         tokens = tokens[:-1]

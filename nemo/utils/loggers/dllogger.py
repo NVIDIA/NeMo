@@ -80,7 +80,8 @@ class DLLogger(Logger):
 
         if not backends:
             logging.warning(
-                "Neither stdout nor json_file DLLogger parameters were specified." "DLLogger will not log anything."
+                "Neither stdout nor json_file DLLogger parameters were specified."
+                "DLLogger will not log anything."
             )
         dllogger.init(backends=backends)
 
@@ -90,7 +91,9 @@ class DLLogger(Logger):
             params = vars(params)
         elif isinstance(params, AttributeDict):
             params = dict(params)
-        params = apply_to_collection(params, (DictConfig, ListConfig), OmegaConf.to_container, resolve=True)
+        params = apply_to_collection(
+            params, (DictConfig, ListConfig), OmegaConf.to_container, resolve=True
+        )
         params = apply_to_collection(params, Path, str)
         params = _sanitize_callable_params(_flatten_dict(_convert_params(params)))
         dllogger.log(step="PARAMETER", data=params)

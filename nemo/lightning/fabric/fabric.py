@@ -128,17 +128,26 @@ class Fabric(lb.Fabric, IOMixin):
         from nemo.lightning.io import ConnectorMixin
 
         if not issubclass(model_type, ConnectorMixin):
-            raise TypeError("The provided model class must be a subclass of ConnectorMixin")
+            raise TypeError(
+                "The provided model class must be a subclass of ConnectorMixin"
+            )
 
         model: ModelT = model_type.import_from(path)
 
         return self.load_model(model.ckpt_path, model)
 
     @override
-    def setup_module(self, module: nn.Module, move_to_device: bool = True, _reapply_compile: bool = True):
+    def setup_module(
+        self,
+        module: nn.Module,
+        move_to_device: bool = True,
+        _reapply_compile: bool = True,
+    ):
         from nemo.lightning.fabric.strategies import FabricMegatronStrategy
 
-        out = super().setup_module(module, move_to_device=move_to_device, _reapply_compile=_reapply_compile)
+        out = super().setup_module(
+            module, move_to_device=move_to_device, _reapply_compile=_reapply_compile
+        )
 
         # We don't want to return a _FabricModule for megatron since we only want to precision convert
         # at the beginning and end of the pipeline
@@ -147,7 +156,9 @@ class Fabric(lb.Fabric, IOMixin):
 
         return out
 
-    def setup_datamodule(self, datamodule: pl.LightningDataModule, stage: str = "") -> pl.LightningDataModule:
+    def setup_datamodule(
+        self, datamodule: pl.LightningDataModule, stage: str = ""
+    ) -> pl.LightningDataModule:
         datamodule.setup(stage)
 
         if hasattr(self.strategy, "process_datamodule"):

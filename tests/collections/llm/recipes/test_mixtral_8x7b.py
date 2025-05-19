@@ -60,7 +60,9 @@ class TestMixtral8x7B:
 
         # Check DDP configuration
         assert isinstance(trainer_config.strategy.ddp, run.Config)
-        assert trainer_config.strategy.ddp.__fn_or_cls__ == DistributedDataParallelConfig
+        assert (
+            trainer_config.strategy.ddp.__fn_or_cls__ == DistributedDataParallelConfig
+        )
         assert trainer_config.strategy.ddp.check_for_nan_in_grad is True
         assert trainer_config.strategy.ddp.grad_reduce_in_fp32 is True
 
@@ -93,7 +95,7 @@ class TestMixtral8x7B:
         assert recipe.data.micro_batch_size == 1
         assert isinstance(recipe.peft, run.Config)
         assert recipe.peft.__fn_or_cls__ == LoRA
-        assert recipe.peft.target_modules == ['linear_qkv', 'linear_proj']
+        assert recipe.peft.target_modules == ["linear_qkv", "linear_proj"]
         assert recipe.peft.dim == 32
 
     def test_trainer_parallelism_options(self, recipe_module):

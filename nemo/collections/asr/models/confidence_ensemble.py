@@ -58,10 +58,10 @@ class ConfidenceSpec:
         to save the models or call transcribe, we need to use the proper
         object of type ``ConfidenceConfig``.
         """
-        if self.confidence_type == 'max_prob':
-            name = 'max_prob'
-            entropy_type = 'tsallis'  # can be any
-            entropy_norm = 'lin'  # can be any
+        if self.confidence_type == "max_prob":
+            name = "max_prob"
+            entropy_type = "tsallis"  # can be any
+            entropy_norm = "lin"  # can be any
         else:
             name, entropy_type, entropy_norm = self.confidence_type.split("_")
         return ConfidenceConfig(
@@ -123,7 +123,9 @@ def get_filtered_logprobs(hypothesis: Hypothesis, exclude_blank: bool) -> torch.
     return filtered_logprobs
 
 
-def compute_confidence(hypothesis: Hypothesis, confidence_cfg: ConfidenceConfig) -> float:
+def compute_confidence(
+    hypothesis: Hypothesis, confidence_cfg: ConfidenceConfig
+) -> float:
     """Computes confidence score of the full utterance from a given hypothesis.
 
     This is essentially a re-implementation of the built-in confidence
@@ -152,7 +154,9 @@ def compute_confidence(hypothesis: Hypothesis, confidence_cfg: ConfidenceConfig)
         alpha = confidence_cfg.method_cfg.alpha
     conf_func = get_confidence_measure_bank()[conf_type]
 
-    conf_value = aggr_func(conf_func(filtered_logprobs, v=vocab_size, t=alpha)).cpu().item()
+    conf_value = (
+        aggr_func(conf_func(filtered_logprobs, v=vocab_size, t=alpha)).cpu().item()
+    )
 
     return conf_value
 
@@ -176,12 +180,12 @@ def safe_joblib_load(file_path: str) -> Pipeline:
 
     # Define whitelist of allowed classes for deserialization
     ALLOWED_CLASSES = {
-        'sklearn.pipeline.Pipeline',
-        'sklearn.preprocessing._data.StandardScaler',
-        'sklearn.linear_model._logistic.LogisticRegression',
-        'numpy.ndarray',
-        'numpy.dtype',
-        'numpy._pickle',
+        "sklearn.pipeline.Pipeline",
+        "sklearn.preprocessing._data.StandardScaler",
+        "sklearn.linear_model._logistic.LogisticRegression",
+        "numpy.ndarray",
+        "numpy.dtype",
+        "numpy._pickle",
     }
 
     class RestrictedUnpickler(pickle.Unpickler):
@@ -203,7 +207,7 @@ def safe_joblib_load(file_path: str) -> Pipeline:
             warnings.simplefilter("ignore")
             # First try to load with our custom unpickler
             try:
-                with open(file_path, 'rb') as f:
+                with open(file_path, "rb") as f:
                     unpickler = RestrictedUnpickler(f)
                     model = unpickler.load()
             except (pickle.UnpicklingError, AttributeError):
@@ -218,7 +222,9 @@ def safe_joblib_load(file_path: str) -> Pipeline:
                 # Validate pipeline steps
                 for step_name, step_obj in model.named_steps.items():
                     if not (isinstance(step_obj, (StandardScaler, LogisticRegression))):
-                        raise ValueError(f"Unauthorized pipeline step: {type(step_obj)}")
+                        raise ValueError(
+                            f"Unauthorized pipeline step: {type(step_obj)}"
+                        )
 
         return model
 
@@ -232,7 +238,7 @@ class SecurityError(Exception):
     pass
 
 
-@deprecated(version='v2.1.0')
+@deprecated(version="v2.1.0")
 class ConfidenceEnsembleModel(ModelPT):
     """Implementation of the confidence ensemble model.
 
@@ -246,7 +252,7 @@ class ConfidenceEnsembleModel(ModelPT):
     def __init__(
         self,
         cfg: DictConfig,
-        trainer: 'Trainer' = None,
+        trainer: "Trainer" = None,
     ):
         super().__init__(cfg=cfg, trainer=trainer)
 
@@ -260,12 +266,12 @@ class ConfidenceEnsembleModel(ModelPT):
         # for model_idx in range(self.num_models):
         #    model = getattr(self, f"model{model_idx}")
 
-        if 'num_models' in self.cfg:
+        if "num_models" in self.cfg:
             self.num_models = self.cfg.num_models
             for idx in range(self.num_models):
                 cfg_field = f"model{idx}"
                 model_cfg = self.cfg[cfg_field]
-                model_class = model_utils.import_class_by_path(model_cfg['target'])
+                model_class = model_utils.import_class_by_path(model_cfg["target"])
                 self.register_nemo_submodule(
                     name=cfg_field,
                     config_field=cfg_field,
@@ -281,7 +287,9 @@ class ConfidenceEnsembleModel(ModelPT):
                     self.register_nemo_submodule(
                         name=cfg_field,
                         config_field=cfg_field,
-                        model=ASRModel.restore_from(model, trainer=trainer, map_location="cpu"),
+                        model=ASRModel.restore_from(
+                            model, trainer=trainer, map_location="cpu"
+                        ),
                     )
                 else:
                     self.register_nemo_submodule(
@@ -293,11 +301,15 @@ class ConfidenceEnsembleModel(ModelPT):
         # registering model selection block - this is expected to be a joblib-saved
         # pretrained sklearn pipeline containing standardization + logistic regression
         # trained to predict "most-confident" model index from the confidence scores of all models
-        model_selection_block_path = self.register_artifact("model_selection_block", cfg.model_selection_block)
+        model_selection_block_path = self.register_artifact(
+            "model_selection_block", cfg.model_selection_block
+        )
         try:
             self.model_selection_block = safe_joblib_load(model_selection_block_path)
         except SecurityError as e:
-            raise RuntimeError(f"Security error loading model selection block: {str(e)}")
+            raise RuntimeError(
+                f"Security error loading model selection block: {str(e)}"
+            )
         except Exception as e:
             raise RuntimeError(f"Error loading model selection block: {str(e)}")
 
@@ -313,7 +325,9 @@ class ConfidenceEnsembleModel(ModelPT):
                 self.update_decoding_parameters(model.cfg.decoding)
                 model.change_decoding_strategy(model.cfg.decoding, decoder_type="rnnt")
                 self.update_decoding_parameters(model.cfg.aux_ctc.decoding)
-                model.change_decoding_strategy(model.cfg.aux_ctc.decoding, decoder_type="ctc")
+                model.change_decoding_strategy(
+                    model.cfg.aux_ctc.decoding, decoder_type="ctc"
+                )
             else:
                 self.update_decoding_parameters(model.cfg.decoding)
                 model.change_decoding_strategy(model.cfg.decoding)
@@ -338,7 +352,10 @@ class ConfidenceEnsembleModel(ModelPT):
             getattr(self, f"model{model_idx}").setup_validation_data(val_data_config)
 
     def change_attention_model(
-        self, self_attention_model: str = None, att_context_size: List[int] = None, update_config: bool = True
+        self,
+        self_attention_model: str = None,
+        att_context_size: List[int] = None,
+        update_config: bool = True,
     ):
         """Pass-through to the ensemble models."""
         for model_idx in range(self.num_models):
@@ -346,7 +363,9 @@ class ConfidenceEnsembleModel(ModelPT):
                 self_attention_model, att_context_size, update_config
             )
 
-    def change_decoding_strategy(self, decoding_cfg: Optional[DictConfig] = None, decoder_type: str = None):
+    def change_decoding_strategy(
+        self, decoding_cfg: Optional[DictConfig] = None, decoder_type: str = None
+    ):
         """Pass-through to the ensemble models.
 
         The only change here is that we always require expected temperature
@@ -403,7 +422,9 @@ class ConfidenceEnsembleModel(ModelPT):
 
             model_confidences = []
             for transcription in transcriptions:
-                model_confidences.append(compute_confidence(transcription, self.confidence_cfg))
+                model_confidences.append(
+                    compute_confidence(transcription, self.confidence_cfg)
+                )
             confidences.append(model_confidences)
             all_transcriptions.append(transcriptions)
 
@@ -412,7 +433,9 @@ class ConfidenceEnsembleModel(ModelPT):
         model_indices = self.model_selection_block.predict(features)
         final_transcriptions = []
         for transcrption_idx in range(len(all_transcriptions[0])):
-            final_transcriptions.append(all_transcriptions[model_indices[transcrption_idx]][transcrption_idx])
+            final_transcriptions.append(
+                all_transcriptions[model_indices[transcrption_idx]][transcrption_idx]
+            )
 
         return final_transcriptions
 

@@ -68,8 +68,8 @@ class RepoMetadata:
 
 # Registry of external repos that should be packaged with the code in the experiment
 EXTERNAL_REPOS = {
-    'nemo_skills': RepoMetadata(
-        name='nemo_skills', path=Path(__file__).absolute().parents[1]
+    "nemo_skills": RepoMetadata(
+        name="nemo_skills", path=Path(__file__).absolute().parents[1]
     ),  # path to nemo_skills repo
 }
 
@@ -103,10 +103,14 @@ def get_registered_external_repo(name: str) -> Optional[RepoMetadata]:
 
 def check_if_mounted(cluster_config, path_to_check):
     """Will check that path_to_check is referenced inside one of the mounts."""
-    for mount in get_mounts_from_config(cluster_config) + ['/nemo_run/code:/nemo_run/code']:
+    for mount in get_mounts_from_config(cluster_config) + [
+        "/nemo_run/code:/nemo_run/code"
+    ]:
         if path_to_check.startswith(mount.split(":")[1]):
             return
-    raise ValueError(f"The path '{path_to_check}' is not mounted. Check cluster config.")
+    raise ValueError(
+        f"The path '{path_to_check}' is not mounted. Check cluster config."
+    )
 
 
 def get_unmounted_path(cluster_config, path):
@@ -122,7 +126,9 @@ def get_unmounted_path(cluster_config, path):
 # caching the status assuming it doesn't change while experiment is being scheduled
 # otherwise this results in too many ssh calls
 @lru_cache
-def get_exp_handles(expname: str, ignore_finished=True, ignore_exp_not_exists=True) -> list[str]:
+def get_exp_handles(
+    expname: str, ignore_finished=True, ignore_exp_not_exists=True
+) -> list[str]:
     """Will return the handles of the tasks in the experiment.
 
     If ignore_finished=True, will only return handles for the tasks
@@ -138,7 +144,13 @@ def get_exp_handles(expname: str, ignore_finished=True, ignore_exp_not_exists=Tr
         handles = []
         for job in exp.jobs:
             if not ignore_finished or (
-                job.status(exp._runner) in [AppState.RUNNING, AppState.PENDING, AppState.SUBMITTED, AppState.UNKNOWN]
+                job.status(exp._runner)
+                in [
+                    AppState.RUNNING,
+                    AppState.PENDING,
+                    AppState.SUBMITTED,
+                    AppState.UNKNOWN,
+                ]
             ):
                 handles.append(job.handle)
                 continue
@@ -172,17 +184,17 @@ def get_timeout(cluster_config, partition):
     Returns:
         str: Timeout value in the format 'days:hours:minutes:seconds'
     """
-    if 'timeouts' not in cluster_config:
+    if "timeouts" not in cluster_config:
         timeout = "10000:00:00:00"
     else:
         timeout = cluster_config["timeouts"][partition or cluster_config["partition"]]
 
         # subtracting 15 minutes to account for the time it takes to save the model
         # the format expected by nemo is days:hours:minutes:seconds
-        time_diff = datetime.strptime(timeout, "%H:%M:%S") - datetime.strptime("00:15:00", "%H:%M:%S")
-        timeout = (
-            f'00:{time_diff.seconds // 3600:02d}:{(time_diff.seconds % 3600) // 60:02d}:{time_diff.seconds % 60:02d}'
+        time_diff = datetime.strptime(timeout, "%H:%M:%S") - datetime.strptime(
+            "00:15:00", "%H:%M:%S"
         )
+        timeout = f"00:{time_diff.seconds // 3600:02d}:{(time_diff.seconds % 3600) // 60:02d}:{time_diff.seconds % 60:02d}"
     return timeout
 
 
@@ -265,8 +277,10 @@ def get_reward_server_command(
     elif server_type == "vllm" and model_path.startswith("/"):
         check_if_mounted(cluster_config, model_path)
 
-    if server_type == 'nemo':
-        nemo_aligner_reward_model_port = get_free_port(strategy="random", exclude=[server_port])
+    if server_type == "nemo":
+        nemo_aligner_reward_model_port = get_free_port(
+            strategy="random", exclude=[server_port]
+        )
         server_start_cmd = (
             # Note: The order of the two commands is important as the reward model server
             # needs to be the first command so it can get the HF_TOKEN from the environment
@@ -329,7 +343,7 @@ def get_ray_server_cmd(start_cmd):
     )
 
     ray_start_cmd = (
-        "if [ \"${SLURM_PROCID:-0}\" = 0 ]; then "
+        'if [ "${SLURM_PROCID:-0}" = 0 ]; then '
         "    echo 'Starting head node' && "
         "    export RAY_raylet_start_wait_time_s=120 && "
         "    ray start "
@@ -340,7 +354,7 @@ def get_ray_server_cmd(start_cmd):
         "else "
         "    echo 'Starting worker node' && "
         "    export RAY_raylet_start_wait_time_s=120 && "
-        "    echo \"Connecting to head node at $SLURM_MASTER_NODE\" && "
+        '    echo "Connecting to head node at $SLURM_MASTER_NODE" && '
         "    ray start "
         "        --block "
         "        --address=$SLURM_MASTER_NODE:6379 "
@@ -371,7 +385,7 @@ def get_server_command(
     elif server_type == "vllm" and model_path.startswith("/"):
         check_if_mounted(cluster_config, model_path)
 
-    if server_type == 'nemo':
+    if server_type == "nemo":
         server_start_cmd = (
             "python -m nemo_skills.inference.server.serve_nemo "
             f"    gpt_model_file={model_path} "
@@ -386,7 +400,7 @@ def get_server_command(
         # somehow on slurm nemo needs multiple tasks, but locally only 1
         if cluster_config["executor"] == "local":
             num_tasks = 1
-    elif server_type == 'vllm':
+    elif server_type == "vllm":
         start_vllm_cmd = (
             "python3 -m nemo_skills.inference.server.serve_vllm "
             f"    --model {model_path} "
@@ -396,9 +410,11 @@ def get_server_command(
         )
         server_start_cmd = get_ray_server_cmd(start_vllm_cmd)
         num_tasks = 1
-    elif server_type == 'sglang':
+    elif server_type == "sglang":
         if num_nodes > 1:
-            multinode_args = " --dist_init_addr $SLURM_MASTER_NODE --node_rank $SLURM_PROCID "
+            multinode_args = (
+                " --dist_init_addr $SLURM_MASTER_NODE --node_rank $SLURM_PROCID "
+            )
         else:
             multinode_args = ""
         server_start_cmd = (
@@ -520,13 +536,17 @@ def get_cluster_config(cluster=None, config_dir=None):
             return read_config(Path(config_dir) / f"{cluster}.yaml")
 
         # if it's not defined we are trying to find locally
-        if (Path.cwd() / 'cluster_configs' / f"{cluster}.yaml").exists():
-            return read_config(Path.cwd() / 'cluster_configs' / f"{cluster}.yaml")
+        if (Path.cwd() / "cluster_configs" / f"{cluster}.yaml").exists():
+            return read_config(Path.cwd() / "cluster_configs" / f"{cluster}.yaml")
 
-        if (Path(__file__).parents[2] / 'cluster_configs' / f"{cluster}.yaml").exists():
-            return read_config(Path(__file__).parents[2] / 'cluster_configs' / f"{cluster}.yaml")
+        if (Path(__file__).parents[2] / "cluster_configs" / f"{cluster}.yaml").exists():
+            return read_config(
+                Path(__file__).parents[2] / "cluster_configs" / f"{cluster}.yaml"
+            )
 
-        raise ValueError(f"Cluster config {cluster} not found in any of the supported folders.")
+        raise ValueError(
+            f"Cluster config {cluster} not found in any of the supported folders."
+        )
 
     config_file = os.environ.get("NEMO_SKILLS_CONFIG")
     if not config_file:
@@ -537,9 +557,11 @@ def get_cluster_config(cluster=None, config_dir=None):
 
     cluster_config = read_config(config_file)
 
-    if cluster_config['executor'] == 'slurm' and "ssh_tunnel" not in cluster_config:
+    if cluster_config["executor"] == "slurm" and "ssh_tunnel" not in cluster_config:
         if "job_dir" not in cluster_config:
-            raise ValueError("job_dir must be provided in the cluster config if ssh_tunnel is not provided.")
+            raise ValueError(
+                "job_dir must be provided in the cluster config if ssh_tunnel is not provided."
+            )
         set_nemorun_home(cluster_config["job_dir"])
 
     return cluster_config
@@ -573,7 +595,9 @@ def tunnel_hash(tunnel):
 def get_tunnel(cluster_config):
     """Create ssh tunnel."""
     if "ssh_tunnel" not in cluster_config:
-        LOG.info("No ssh_tunnel configuration found, assuming we are running from the cluster already.")
+        LOG.info(
+            "No ssh_tunnel configuration found, assuming we are running from the cluster already."
+        )
         return run.LocalTunnel(job_dir="")
     return _get_tunnel_cached(**cluster_config["ssh_tunnel"])
 
@@ -584,7 +608,7 @@ class OutputWatcher(StreamWatcher):
 
     def submit(self, stream):
         """Process and display a stream of output."""
-        print(stream, end='\r')
+        print(stream, end="\r")
         sys.stdout.flush()
         return []
 
@@ -592,16 +616,20 @@ class OutputWatcher(StreamWatcher):
 def progress_callback(transferred: int, total: int) -> None:
     """Display SFTP transfer progress."""
     percent = (transferred / total) * 100
-    bar = '=' * int(percent / 2) + '>'
+    bar = "=" * int(percent / 2) + ">"
     sys.stdout.write(
-        f'\rFile Transfer Progress: [{bar:<50}] {percent:.1f}% '
-        f'({transferred/1024/1024:.1f}MB/{total/1024/1024:.1f}MB)'
+        f"\rFile Transfer Progress: [{bar:<50}] {percent:.1f}% "
+        f"({transferred/1024/1024:.1f}MB/{total/1024/1024:.1f}MB)"
     )
     sys.stdout.flush()
 
 
 def cluster_download(
-    tunnel: SSHTunnel, remote_dir: str, local_dir: str, remote_tar_dir: Optional[str] = None, verbose: bool = True
+    tunnel: SSHTunnel,
+    remote_dir: str,
+    local_dir: str,
+    remote_tar_dir: Optional[str] = None,
+    verbose: bool = True,
 ):
     """
     Downloads a directory from a remote cluster by creating a tar archive and transferring it.
@@ -614,7 +642,7 @@ def cluster_download(
         verbose: Print download progress
     """
 
-    remote_dir = remote_dir.rstrip('/')
+    remote_dir = remote_dir.rstrip("/")
     remote_dir_parent, remote_dir_name = os.path.split(remote_dir)
 
     # Directory where the remote tarball is written
@@ -627,7 +655,7 @@ def cluster_download(
     local_tar = os.path.join(local_dir, remote_tar_filename)
 
     # Get the directory size
-    result = tunnel.run(f'du -sb {remote_dir} | cut -f1')
+    result = tunnel.run(f"du -sb {remote_dir} | cut -f1")
     total_size = int(result.stdout.strip())
 
     # Check if result directory compression is streamable
@@ -635,7 +663,7 @@ def cluster_download(
     try:
         # Check whether the command pv is present on the remote system or not.
         # Certain systems may not have the `pv` command
-        result = tunnel.run('which pv', warn=True)
+        result = tunnel.run("which pv", warn=True)
         streaming_possible = result.exited == 0
     except Exception:
         streaming_possible = False
@@ -644,15 +672,15 @@ def cluster_download(
         # We can do streaming compression
         # Command for streaming the compression progress
         command = (
-            f'cd {remote_dir_parent} && '
+            f"cd {remote_dir_parent} && "
             f'tar --exclude="*.log" -cf - {remote_dir_name} | '
             f'pv -s {total_size} -p -t -e -b -F "Compressing Remote Directory: %b %t %p" | '
-            f'gzip > {remote_tar}'
+            f"gzip > {remote_tar}"
         )
         # Run the remote compression command and stream the progress
         tunnel.run(command, watchers=[OutputWatcher()], pty=True, hide=(not verbose))
     else:
-        command = f'cd {remote_dir_parent} && tar -czf {remote_tar} {remote_dir_name}'
+        command = f"cd {remote_dir_parent} && tar -czf {remote_tar} {remote_dir_name}"
         result = tunnel.run(command, hide=(not verbose))
 
     # Get SFTP client from tunnel's session's underlying client
@@ -668,13 +696,15 @@ def cluster_download(
         tar.extractall(path=local_dir)
 
     # Clean up the tarball from the remote server
-    tunnel.run(f'rm {remote_tar}', hide=True)
+    tunnel.run(f"rm {remote_tar}", hide=True)
 
     # Clean up the local tarball
     os.remove(local_tar)
 
 
-def cluster_upload(tunnel: SSHTunnel, local_file: str, remote_dir: str, verbose: bool = True):
+def cluster_upload(
+    tunnel: SSHTunnel, local_file: str, remote_dir: str, verbose: bool = True
+):
     """
     Uploads a file to cluster.
     TODO: extend to a folder.
@@ -686,7 +716,11 @@ def cluster_upload(tunnel: SSHTunnel, local_file: str, remote_dir: str, verbose:
         verbose: Print upload progress
     """
     sftp = tunnel.session.client.open_sftp()
-    sftp.put(str(local_file), str(remote_dir), callback=progress_callback if verbose else None)
+    sftp.put(
+        str(local_file),
+        str(remote_dir),
+        callback=progress_callback if verbose else None,
+    )
     print("\nTransfer complete")
 
 
@@ -724,29 +758,33 @@ def get_git_repo_path(path: str | Path = None):
 
 def get_packager(extra_package_dirs: tuple[str] | None = None):
     """Will check if we are running from a git repo and use git packager or default packager otherwise."""
-    nemo_skills_dir = get_registered_external_repo('nemo_skills').path
+    nemo_skills_dir = get_registered_external_repo("nemo_skills").path
 
     if extra_package_dirs:
-        include_patterns = [str(Path(d) / '*') for d in extra_package_dirs]
-        include_pattern_relative_paths = [str(Path(d).parent) for d in extra_package_dirs]
+        include_patterns = [str(Path(d) / "*") for d in extra_package_dirs]
+        include_pattern_relative_paths = [
+            str(Path(d).parent) for d in extra_package_dirs
+        ]
     else:
         include_patterns = []
         include_pattern_relative_paths = []
 
-    check_uncommited_changes = not bool(os.getenv('NEMO_SKILLS_DISABLE_UNCOMMITTED_CHANGES_CHECK', 0))
+    check_uncommited_changes = not bool(
+        os.getenv("NEMO_SKILLS_DISABLE_UNCOMMITTED_CHANGES_CHECK", 0)
+    )
 
     # are we in a git repo? If yes, we are uploading the current code
     repo_path = get_git_repo_path(path=None)  # check if we are in a git repo in pwd
 
     if repo_path:
         # Do we have nemo_skills package in this repo? If no, we need to pick it up from installed location
-        if not (Path(repo_path) / 'nemo_skills').is_dir():
+        if not (Path(repo_path) / "nemo_skills").is_dir():
             logging.warning(
                 "Not running from NeMo-Skills repo, trying to upload installed package. "
                 "Make sure there are no extra files in %s",
-                str(nemo_skills_dir / '*'),
+                str(nemo_skills_dir / "*"),
             )
-            include_patterns.append(str(nemo_skills_dir / '*'))
+            include_patterns.append(str(nemo_skills_dir / "*"))
         else:
             # picking up local dataset files if we are in the right repo
             include_patterns.append(str(nemo_skills_dir / "dataset/**/*.jsonl"))
@@ -761,9 +799,9 @@ def get_packager(extra_package_dirs: tuple[str] | None = None):
         logging.warning(
             "Not running from a git repo, trying to upload installed package. \
             Make sure there are no extra files in %s",
-            str(nemo_skills_dir / '*'),
+            str(nemo_skills_dir / "*"),
         )
-        include_patterns.append(str(nemo_skills_dir / '*'))
+        include_patterns.append(str(nemo_skills_dir / "*"))
         include_pattern_relative_paths.append(str(nemo_skills_dir.parent))
 
         root_package = run.PatternPackager(
@@ -774,21 +812,22 @@ def get_packager(extra_package_dirs: tuple[str] | None = None):
     extra_repos = {}
     if len(EXTERNAL_REPOS) > 1:
         # Insert root package as the first package
-        extra_repos['nemo_run'] = root_package
+        extra_repos["nemo_run"] = root_package
 
         for repo_name, repo_meta in EXTERNAL_REPOS.items():
-            if repo_name == 'nemo_skills':
+            if repo_name == "nemo_skills":
                 continue
 
             repo_path = repo_meta.path
             if get_git_repo_path(repo_path):
                 # Extra repos is a git repos, so we need to package only committed files
                 extra_repos[repo_name] = run.GitArchivePackager(
-                    basepath=str(repo_path), check_uncommitted_changes=check_uncommited_changes
+                    basepath=str(repo_path),
+                    check_uncommitted_changes=check_uncommited_changes,
                 )
             else:
                 # Extra repos is not a git repo, so we need to package all files in the directory
-                repo_include_pattern = [str(Path(repo_path) / '*')]
+                repo_include_pattern = [str(Path(repo_path) / "*")]
                 repo_include_pattern_relative_path = [str(Path(repo_path).parent)]
                 extra_repos[repo_name] = run.PatternPackager(
                     include_pattern=repo_include_pattern,
@@ -825,11 +864,15 @@ def get_env_variables(cluster_config):
             if env_var.count("=") == 1:
                 env_var, value = env_var.split("=")
             else:
-                raise ValueError(f"Invalid required environment variable format: {env_var}")
+                raise ValueError(
+                    f"Invalid required environment variable format: {env_var}"
+                )
             env_vars[env_var.strip()] = value.strip()
             logging.info(f"Adding required environment variable {env_var}")
         elif env_var in os.environ:
-            logging.info(f"Adding required environment variable {env_var} from environment")
+            logging.info(
+                f"Adding required environment variable {env_var} from environment"
+            )
             env_vars[env_var] = os.environ[env_var]
         else:
             raise ValueError(f"Required environment variable {env_var} not found.")
@@ -837,7 +880,12 @@ def get_env_variables(cluster_config):
     # It is fine to have these as always optional even if they are required for some configs
     # Assume it is required, then this will override the value set above with the same
     # value, assuming it has not been updated externally between these two calls
-    always_optional_env_vars = ["WANDB_API_KEY", "NVIDIA_API_KEY", "OPENAI_API_KEY", "HF_TOKEN"]
+    always_optional_env_vars = [
+        "WANDB_API_KEY",
+        "NVIDIA_API_KEY",
+        "OPENAI_API_KEY",
+        "HF_TOKEN",
+    ]
     default_factories = {
         "HF_TOKEN": lambda: str(get_token()),
     }
@@ -848,17 +896,25 @@ def get_env_variables(cluster_config):
             if env_var.count("=") == 1:
                 env_var, value = env_var.split("=")
             else:
-                raise ValueError(f"Invalid optional environment variable format: {env_var}")
+                raise ValueError(
+                    f"Invalid optional environment variable format: {env_var}"
+                )
             env_vars[env_var.strip()] = value.strip()
             logging.info(f"Adding optional environment variable {env_var}")
         elif env_var in os.environ:
-            logging.info(f"Adding optional environment variable {env_var} from environment")
+            logging.info(
+                f"Adding optional environment variable {env_var} from environment"
+            )
             env_vars[env_var] = os.environ[env_var]
         elif env_var in default_factories:
             env_vars[env_var] = default_factories[env_var]()
-            logging.info(f"Adding optional environment variable {env_var} from environment")
+            logging.info(
+                f"Adding optional environment variable {env_var} from environment"
+            )
         else:
-            logging.info(f"Optional environment variable {env_var} not found in user environment; skipping.")
+            logging.info(
+                f"Optional environment variable {env_var} not found in user environment; skipping."
+            )
 
     return env_vars
 
@@ -876,7 +932,7 @@ def get_mounts_from_config(cluster_config: dict):
     Returns:
         list: updated list of mounts
     """
-    mounts = cluster_config.get('mounts', [])
+    mounts = cluster_config.get("mounts", [])
 
     # if there are env_mounts, we will add the mounts from the env_mounts
     for mount_id in range(len(mounts)):
@@ -975,7 +1031,9 @@ def get_executor(
         if num_nodes > 1:
             raise ValueError("Local executor does not support multi-node execution")
 
-        env_vars["PYTHONUNBUFFERED"] = "1"  # this makes sure logs are streamed right away
+        env_vars["PYTHONUNBUFFERED"] = (
+            "1"  # this makes sure logs are streamed right away
+        )
         return DockerExecutor(
             container_image=container,
             packager=packager,
@@ -989,7 +1047,9 @@ def get_executor(
         )
 
     if not heterogeneous:
-        env_vars["SLURM_MASTER_NODE"] = "$(scontrol show hostnames $SLURM_JOB_NODELIST | head -n1)"
+        env_vars["SLURM_MASTER_NODE"] = (
+            "$(scontrol show hostnames $SLURM_JOB_NODELIST | head -n1)"
+        )
     else:
         # master node will be within the same group
         env_vars["SLURM_MASTER_NODE"] = (
@@ -1002,28 +1062,31 @@ def get_executor(
             )
 
     partition = partition or cluster_config.get("partition")
-    if 'timeouts' not in cluster_config:
+    if "timeouts" not in cluster_config:
         timeout = "10000:00:00:00"
     else:
         timeout = cluster_config["timeouts"][partition]
 
-    additional_parameters = {'time_min': time_min} if time_min is not None else {}
-    if cluster_config.get('mail_type') is not None:
-        additional_parameters['mail_type'] = cluster_config['mail_type']
-    if cluster_config.get('mail_user') is not None:
-        additional_parameters['mail_user'] = cluster_config['mail_user']
+    additional_parameters = {"time_min": time_min} if time_min is not None else {}
+    if cluster_config.get("mail_type") is not None:
+        additional_parameters["mail_type"] = cluster_config["mail_type"]
+    if cluster_config.get("mail_user") is not None:
+        additional_parameters["mail_user"] = cluster_config["mail_user"]
     srun_args = [
         "--no-container-mount-home",
         "--overlap",
         "--mpi=pmix",
-        '--wait=10',
+        "--wait=10",
         # we need to be explicit about this in srun as commands might need to run in parallel
         f"--ntasks-per-node={tasks_per_node}",
         f"--nodes={num_nodes}",
         # NeMo-run should take care of this, but we'll put it here temporarily
         f"--container-env={','.join([k.strip() for k in env_vars.keys()])}",
     ]
-    if not cluster_config.get("disable_gpus_per_node", False) and gpus_per_node is not None:
+    if (
+        not cluster_config.get("disable_gpus_per_node", False)
+        and gpus_per_node is not None
+    ):
         srun_args.append(f"--gpus-per-node={gpus_per_node}")
 
     dependency_type = cluster_config.get("dependency_type", "afterany")
@@ -1039,13 +1102,17 @@ def get_executor(
         time=timeout,
         additional_parameters=additional_parameters,
         packager=packager,
-        gpus_per_node=gpus_per_node if not cluster_config.get("disable_gpus_per_node", False) else None,
+        gpus_per_node=(
+            gpus_per_node
+            if not cluster_config.get("disable_gpus_per_node", False)
+            else None
+        ),
         srun_args=srun_args,
         job_details=CustomJobDetails(
             job_name=cluster_config.get("job_name_prefix", "") + job_name,
             folder=get_unmounted_path(cluster_config, log_dir),
-            srun_prefix=log_prefix + '_' + job_name + '_',
-            sbatch_prefix=job_name + '_',
+            srun_prefix=log_prefix + "_" + job_name + "_",
+            sbatch_prefix=job_name + "_",
         ),
         wait_time_for_group_job=0.01,
         monitor_group_job_wait_time=20,
@@ -1138,7 +1205,8 @@ def add_task(
             exp_handles = get_exp_handles(dep_expname)
             if len(exp_handles) == 0:
                 LOG.warning(
-                    "No pending or running tasks found for experiment %s, cannot set dependencies.", dep_expname
+                    "No pending or running tasks found for experiment %s, cannot set dependencies.",
+                    dep_expname,
                 )
             dependencies.extend(exp_handles)
         if len(dependencies) == 0:
@@ -1146,8 +1214,8 @@ def add_task(
     else:
         dependencies = None
 
-    if num_gpus is None and cluster_config['executor'] == "slurm":
-        if not 'cpu' in (partition or cluster_config.get("partition", "")):
+    if num_gpus is None and cluster_config["executor"] == "slurm":
+        if not "cpu" in (partition or cluster_config.get("partition", "")):
             num_gpus = 1
 
     if sandbox_port is None:
@@ -1161,15 +1229,19 @@ def add_task(
     executors = []
     # assuming server always has the largest resources request, so it needs to go first
     if server_config is not None:
-        server_cmd, num_server_tasks = get_server_command(**server_config, cluster_config=cluster_config)
-        if 'container' not in server_config:
-            server_container = cluster_config["containers"][server_config['server_type']]
+        server_cmd, num_server_tasks = get_server_command(
+            **server_config, cluster_config=cluster_config
+        )
+        if "container" not in server_config:
+            server_container = cluster_config["containers"][
+                server_config["server_type"]
+            ]
         server_executor = get_executor(
             cluster_config=cluster_config,
             container=server_container,
-            num_nodes=server_config['num_nodes'],
+            num_nodes=server_config["num_nodes"],
             tasks_per_node=num_server_tasks,
-            gpus_per_node=server_config['num_gpus'],
+            gpus_per_node=server_config["num_gpus"],
             partition=partition,
             time_min=time_min,
             dependencies=dependencies,
@@ -1199,10 +1271,14 @@ def add_task(
             num_tasks = [num_tasks]
         if len(cmd) != len(container) or len(cmd) != len(num_tasks):
             raise ValueError("Number of commands, containers and num_tasks must match.")
-        for cur_idx, (cur_cmd, cur_container, cur_tasks) in enumerate(zip(cmd, container, num_tasks)):
+        for cur_idx, (cur_cmd, cur_container, cur_tasks) in enumerate(
+            zip(cmd, container, num_tasks)
+        ):
             if cluster_config["executor"] == "local" and cur_tasks > 1:
                 cur_cmd = f"mpirun --allow-run-as-root -np {cur_tasks} bash -c {shlex.quote(cur_cmd)}"
-            with temporary_env_update(cluster_config, {"NEMO_SKILLS_SANDBOX_PORT": sandbox_port}):
+            with temporary_env_update(
+                cluster_config, {"NEMO_SKILLS_SANDBOX_PORT": sandbox_port}
+            ):
                 commands.append(cur_cmd)
                 executors.append(
                     get_executor(
@@ -1242,7 +1318,9 @@ def add_task(
             sandbox_executor = get_executor(
                 cluster_config=cluster_config,
                 container=cluster_config["containers"]["sandbox"],
-                num_nodes=executors[0].nodes if cluster_config["executor"] == "slurm" else 1,
+                num_nodes=(
+                    executors[0].nodes if cluster_config["executor"] == "slurm" else 1
+                ),
                 tasks_per_node=1,
                 gpus_per_node=num_gpus,
                 partition=partition,
@@ -1271,19 +1349,30 @@ def add_task(
                     try:
                         reuse_code_exp = run.Experiment.from_id(reuse_code_exp)
                     except Exception:
-                        LOG.debug(f"Failed to create experiment from id {reuse_code_exp}, trying to find it by title")
+                        LOG.debug(
+                            f"Failed to create experiment from id {reuse_code_exp}, trying to find it by title"
+                        )
                         reuse_code_exp = run.Experiment.from_title(reuse_code_exp)
 
-                LOG.info("Trying to reuse code from experiment %s", reuse_code_exp._title)
+                LOG.info(
+                    "Trying to reuse code from experiment %s", reuse_code_exp._title
+                )
                 reuse_key = get_packaging_job_key(reuse_code_exp._id, "nemo-run")
                 if reuse_key in reuse_code_exp.tunnels[tunnel.key].packaging_jobs:
-                    reuse_dir = reuse_code_exp.tunnels[tunnel.key].packaging_jobs[reuse_key].dst_path
+                    reuse_dir = (
+                        reuse_code_exp.tunnels[tunnel.key]
+                        .packaging_jobs[reuse_key]
+                        .dst_path
+                    )
 
                     for executor in executors:
                         executor.packager.symlink_from_remote_dir = reuse_dir
                     LOG.info(f"Successfully reused code from {reuse_key}")
                 else:
-                    LOG.warning("Relevant packaging job not found for experiment %s", reuse_code_exp._title)
+                    LOG.warning(
+                        "Relevant packaging job not found for experiment %s",
+                        reuse_code_exp._title,
+                    )
         # if current is not reused, we are refreshing the cache as there is a reason to believe it's outdated
         elif isinstance(tunnel, run.SSHTunnel):
             REUSE_CODE_EXP.pop(tunnel_hash(tunnel), None)
@@ -1312,8 +1401,12 @@ def run_exp(exp, cluster_config, sequential=None):
 
     If it is specified, it will be used as is.
     """
-    if cluster_config['executor'] == 'local':
-        exp.run(detach=False, tail_logs=True, sequential=True if sequential is None else sequential)
+    if cluster_config["executor"] == "local":
+        exp.run(
+            detach=False,
+            tail_logs=True,
+            sequential=True if sequential is None else sequential,
+        )
     else:
         exp.run(detach=True, sequential=False if sequential is None else sequential)
 

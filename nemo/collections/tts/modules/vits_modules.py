@@ -81,7 +81,15 @@ class LayerNorm(nn.Module):
 
 
 class ConvReluNorm(nn.Module):
-    def __init__(self, in_channels, hidden_channels, out_channels, kernel_size, n_layers, p_dropout):
+    def __init__(
+        self,
+        in_channels,
+        hidden_channels,
+        out_channels,
+        kernel_size,
+        n_layers,
+        p_dropout,
+    ):
         super().__init__()
         self.in_channels = in_channels
         self.hidden_channels = hidden_channels
@@ -93,11 +101,22 @@ class ConvReluNorm(nn.Module):
 
         self.conv_layers = nn.ModuleList()
         self.norm_layers = nn.ModuleList()
-        self.conv_layers.append(nn.Conv1d(in_channels, hidden_channels, kernel_size, padding=kernel_size // 2))
+        self.conv_layers.append(
+            nn.Conv1d(
+                in_channels, hidden_channels, kernel_size, padding=kernel_size // 2
+            )
+        )
         self.norm_layers.append(LayerNorm(hidden_channels))
         self.relu_drop = nn.Sequential(nn.ReLU(), nn.Dropout(p_dropout))
         for _ in range(n_layers - 1):
-            self.conv_layers.append(nn.Conv1d(hidden_channels, hidden_channels, kernel_size, padding=kernel_size // 2))
+            self.conv_layers.append(
+                nn.Conv1d(
+                    hidden_channels,
+                    hidden_channels,
+                    kernel_size,
+                    padding=kernel_size // 2,
+                )
+            )
             self.norm_layers.append(LayerNorm(hidden_channels))
         self.proj = nn.Conv1d(hidden_channels, out_channels, 1)
         self.proj.weight.data.zero_()
@@ -131,10 +150,17 @@ class DDSConv(nn.Module):
         self.norms_1 = nn.ModuleList()
         self.norms_2 = nn.ModuleList()
         for i in range(n_layers):
-            dilation = kernel_size ** i
+            dilation = kernel_size**i
             padding = (kernel_size * dilation - dilation) // 2
             self.convs_sep.append(
-                nn.Conv1d(channels, channels, kernel_size, groups=channels, dilation=dilation, padding=padding)
+                nn.Conv1d(
+                    channels,
+                    channels,
+                    kernel_size,
+                    groups=channels,
+                    dilation=dilation,
+                    padding=padding,
+                )
             )
             self.convs_1x1.append(nn.Conv1d(channels, channels, 1))
             self.norms_1.append(LayerNorm(channels))
@@ -156,7 +182,15 @@ class DDSConv(nn.Module):
 
 
 class WN(torch.nn.Module):
-    def __init__(self, hidden_channels, kernel_size, dilation_rate, n_layers, gin_channels=0, p_dropout=0):
+    def __init__(
+        self,
+        hidden_channels,
+        kernel_size,
+        dilation_rate,
+        n_layers,
+        gin_channels=0,
+        p_dropout=0,
+    ):
         super(WN, self).__init__()
         assert kernel_size % 2 == 1
         self.hidden_channels = hidden_channels
@@ -171,16 +205,22 @@ class WN(torch.nn.Module):
         self.drop = nn.Dropout(p_dropout)
 
         if gin_channels != 0:
-            cond_layer = torch.nn.Conv1d(gin_channels, 2 * hidden_channels * n_layers, 1)
-            self.cond_layer = torch.nn.utils.weight_norm(cond_layer, name='weight')
+            cond_layer = torch.nn.Conv1d(
+                gin_channels, 2 * hidden_channels * n_layers, 1
+            )
+            self.cond_layer = torch.nn.utils.weight_norm(cond_layer, name="weight")
 
         for i in range(n_layers):
-            dilation = dilation_rate ** i
+            dilation = dilation_rate**i
             padding = int((kernel_size * dilation - dilation) / 2)
             in_layer = torch.nn.Conv1d(
-                hidden_channels, 2 * hidden_channels, kernel_size, dilation=dilation, padding=padding
+                hidden_channels,
+                2 * hidden_channels,
+                kernel_size,
+                dilation=dilation,
+                padding=padding,
             )
-            in_layer = torch.nn.utils.weight_norm(in_layer, name='weight')
+            in_layer = torch.nn.utils.weight_norm(in_layer, name="weight")
             self.in_layers.append(in_layer)
 
             # last one is not necessary
@@ -190,7 +230,7 @@ class WN(torch.nn.Module):
                 res_skip_channels = hidden_channels
 
             res_skip_layer = torch.nn.Conv1d(hidden_channels, res_skip_channels, 1)
-            res_skip_layer = torch.nn.utils.weight_norm(res_skip_layer, name='weight')
+            res_skip_layer = torch.nn.utils.weight_norm(res_skip_layer, name="weight")
             self.res_skip_layers.append(res_skip_layer)
 
     def forward(self, x, x_mask, g=None, **kwargs):
@@ -292,7 +332,12 @@ class ResidualCouplingLayer(nn.Module):
 
         self.pre = nn.Conv1d(self.half_channels, hidden_channels, 1)
         self.enc = WN(
-            hidden_channels, kernel_size, dilation_rate, n_layers, p_dropout=p_dropout, gin_channels=gin_channels
+            hidden_channels,
+            kernel_size,
+            dilation_rate,
+            n_layers,
+            p_dropout=p_dropout,
+            gin_channels=gin_channels,
         )
         self.post = nn.Conv1d(hidden_channels, self.half_channels * (2 - mean_only), 1)
         self.post.weight.data.zero_()
@@ -321,7 +366,15 @@ class ResidualCouplingLayer(nn.Module):
 
 
 class ConvFlow(nn.Module):
-    def __init__(self, in_channels, filter_channels, kernel_size, n_layers, num_bins=10, tail_bound=5.0):
+    def __init__(
+        self,
+        in_channels,
+        filter_channels,
+        kernel_size,
+        n_layers,
+        num_bins=10,
+        tail_bound=5.0,
+    ):
         super().__init__()
         self.in_channels = in_channels
         self.filter_channels = filter_channels
@@ -333,7 +386,9 @@ class ConvFlow(nn.Module):
 
         self.pre = nn.Conv1d(self.half_channels, filter_channels, 1)
         self.convs = DDSConv(filter_channels, kernel_size, n_layers, p_dropout=0.0)
-        self.proj = nn.Conv1d(filter_channels, self.half_channels * (num_bins * 3 - 1), 1)
+        self.proj = nn.Conv1d(
+            filter_channels, self.half_channels * (num_bins * 3 - 1), 1
+        )
         self.proj.weight.data.zero_()
         self.proj.bias.data.zero_()
 
@@ -347,7 +402,9 @@ class ConvFlow(nn.Module):
         h = h.reshape(b, c, -1, t).permute(0, 1, 3, 2)  # [b, cx?, t] -> [b, c, t, ?]
 
         unnormalized_widths = h[..., : self.num_bins] / math.sqrt(self.filter_channels)
-        unnormalized_heights = h[..., self.num_bins : 2 * self.num_bins] / math.sqrt(self.filter_channels)
+        unnormalized_heights = h[..., self.num_bins : 2 * self.num_bins] / math.sqrt(
+            self.filter_channels
+        )
         unnormalized_derivatives = h[..., 2 * self.num_bins :]
 
         x1, logabsdet = piecewise_rational_quadratic_transform(
@@ -356,7 +413,7 @@ class ConvFlow(nn.Module):
             unnormalized_heights,
             unnormalized_derivatives,
             inverse=reverse,
-            tails='linear',
+            tails="linear",
             tail_bound=self.tail_bound,
         )
 
@@ -369,7 +426,15 @@ class ConvFlow(nn.Module):
 
 
 class StochasticDurationPredictor(nn.Module):
-    def __init__(self, in_channels, filter_channels, kernel_size, p_dropout, n_flows=4, gin_channels=0):
+    def __init__(
+        self,
+        in_channels,
+        filter_channels,
+        kernel_size,
+        p_dropout,
+        n_flows=4,
+        gin_channels=0,
+    ):
         super().__init__()
         filter_channels = in_channels  # it needs to be removed from future version.
         self.in_channels = in_channels
@@ -388,16 +453,22 @@ class StochasticDurationPredictor(nn.Module):
 
         self.post_pre = nn.Conv1d(1, filter_channels, 1)
         self.post_proj = nn.Conv1d(filter_channels, filter_channels, 1)
-        self.post_convs = DDSConv(filter_channels, kernel_size, n_layers=3, p_dropout=p_dropout)
+        self.post_convs = DDSConv(
+            filter_channels, kernel_size, n_layers=3, p_dropout=p_dropout
+        )
         self.post_flows = nn.ModuleList()
         self.post_flows.append(ElementwiseAffine(2))
         for i in range(4):
-            self.post_flows.append(ConvFlow(2, filter_channels, kernel_size, n_layers=3))
+            self.post_flows.append(
+                ConvFlow(2, filter_channels, kernel_size, n_layers=3)
+            )
             self.post_flows.append(Flip())
 
         self.pre = nn.Conv1d(in_channels, filter_channels, 1)
         self.proj = nn.Conv1d(filter_channels, filter_channels, 1)
-        self.convs = DDSConv(filter_channels, kernel_size, n_layers=3, p_dropout=p_dropout)
+        self.convs = DDSConv(
+            filter_channels, kernel_size, n_layers=3, p_dropout=p_dropout
+        )
         if gin_channels != 0:
             self.cond = nn.Conv1d(gin_channels, filter_channels, 1)
 
@@ -420,7 +491,10 @@ class StochasticDurationPredictor(nn.Module):
             h_w = self.post_pre(w)
             h_w = self.post_convs(h_w, x_mask)
             h_w = self.post_proj(h_w) * x_mask
-            e_q = torch.randn(w.size(0), 2, w.size(2)).to(device=x.device, dtype=x.dtype) * x_mask
+            e_q = (
+                torch.randn(w.size(0), 2, w.size(2)).to(device=x.device, dtype=x.dtype)
+                * x_mask
+            )
             z_q = e_q
             for flow in self.post_flows:
                 z_q, logdet_q = flow(z_q, x_mask, g=(x + h_w))
@@ -428,8 +502,13 @@ class StochasticDurationPredictor(nn.Module):
             z_u, z1 = torch.split(z_q, [1, 1], 1)
             u = torch.sigmoid(z_u) * x_mask
             z0 = (w - u) * x_mask
-            logdet_tot_q += torch.sum((F.logsigmoid(z_u) + F.logsigmoid(-z_u)) * x_mask, [1, 2])
-            logq = torch.sum(-0.5 * (math.log(2 * math.pi) + (e_q ** 2)) * x_mask, [1, 2]) - logdet_tot_q
+            logdet_tot_q += torch.sum(
+                (F.logsigmoid(z_u) + F.logsigmoid(-z_u)) * x_mask, [1, 2]
+            )
+            logq = (
+                torch.sum(-0.5 * (math.log(2 * math.pi) + (e_q**2)) * x_mask, [1, 2])
+                - logdet_tot_q
+            )
 
             logdet_tot = 0
             z0, logdet = self.log_flow(z0, x_mask)
@@ -438,12 +517,18 @@ class StochasticDurationPredictor(nn.Module):
             for flow in flows:
                 z, logdet = flow(z, x_mask, g=x, reverse=reverse)
                 logdet_tot = logdet_tot + logdet
-            nll = torch.sum(0.5 * (math.log(2 * math.pi) + (z ** 2)) * x_mask, [1, 2]) - logdet_tot
+            nll = (
+                torch.sum(0.5 * (math.log(2 * math.pi) + (z**2)) * x_mask, [1, 2])
+                - logdet_tot
+            )
             return nll + logq  # [b]
         else:
             flows = list(reversed(self.flows))
             flows = flows[:-2] + [flows[-1]]  # remove a useless vflow
-            z = torch.randn(x.size(0), 2, x.size(2)).to(device=x.device, dtype=x.dtype) * noise_scale
+            z = (
+                torch.randn(x.size(0), 2, x.size(2)).to(device=x.device, dtype=x.dtype)
+                * noise_scale
+            )
             for flow in flows:
                 z = flow(z, x_mask, g=x, reverse=reverse)
             z0, z1 = torch.split(z, [1, 1], 1)
@@ -452,7 +537,9 @@ class StochasticDurationPredictor(nn.Module):
 
 
 class DurationPredictor(nn.Module):
-    def __init__(self, in_channels, filter_channels, kernel_size, p_dropout, gin_channels=0):
+    def __init__(
+        self, in_channels, filter_channels, kernel_size, p_dropout, gin_channels=0
+    ):
         super().__init__()
 
         self.in_channels = in_channels
@@ -462,9 +549,13 @@ class DurationPredictor(nn.Module):
         self.gin_channels = gin_channels
 
         self.drop = nn.Dropout(p_dropout)
-        self.conv_1 = nn.Conv1d(in_channels, filter_channels, kernel_size, padding=kernel_size // 2)
+        self.conv_1 = nn.Conv1d(
+            in_channels, filter_channels, kernel_size, padding=kernel_size // 2
+        )
         self.norm_1 = LayerNorm(filter_channels)
-        self.conv_2 = nn.Conv1d(filter_channels, filter_channels, kernel_size, padding=kernel_size // 2)
+        self.conv_2 = nn.Conv1d(
+            filter_channels, filter_channels, kernel_size, padding=kernel_size // 2
+        )
         self.norm_2 = LayerNorm(filter_channels)
         self.proj = nn.Conv1d(filter_channels, 1, 1)
 
@@ -512,9 +603,11 @@ class TextEncoder(nn.Module):
         self.p_dropout = p_dropout
 
         self.emb = nn.Embedding(n_vocab, hidden_channels, padding_idx=padding_idx)
-        nn.init.normal_(self.emb.weight, 0.0, hidden_channels ** -0.5)
+        nn.init.normal_(self.emb.weight, 0.0, hidden_channels**-0.5)
 
-        self.encoder = AttentionEncoder(hidden_channels, filter_channels, n_heads, n_layers, kernel_size, p_dropout)
+        self.encoder = AttentionEncoder(
+            hidden_channels, filter_channels, n_heads, n_layers, kernel_size, p_dropout
+        )
         self.proj = nn.Conv1d(hidden_channels, out_channels * 2, 1)
 
     def forward(self, x, x_lengths):
@@ -530,7 +623,16 @@ class TextEncoder(nn.Module):
 
 
 class ResidualCouplingBlock(nn.Module):
-    def __init__(self, channels, hidden_channels, kernel_size, dilation_rate, n_layers, n_flows=4, gin_channels=0):
+    def __init__(
+        self,
+        channels,
+        hidden_channels,
+        kernel_size,
+        dilation_rate,
+        n_layers,
+        n_flows=4,
+        gin_channels=0,
+    ):
         super().__init__()
         self.channels = channels
         self.hidden_channels = hidden_channels
@@ -567,7 +669,14 @@ class ResidualCouplingBlock(nn.Module):
 
 class PosteriorEncoder(nn.Module):
     def __init__(
-        self, in_channels, out_channels, hidden_channels, kernel_size, dilation_rate, n_layers, gin_channels=0
+        self,
+        in_channels,
+        out_channels,
+        hidden_channels,
+        kernel_size,
+        dilation_rate,
+        n_layers,
+        gin_channels=0,
     ):
         super().__init__()
         self.in_channels = in_channels
@@ -579,11 +688,21 @@ class PosteriorEncoder(nn.Module):
         self.gin_channels = gin_channels
 
         self.pre = nn.Conv1d(in_channels, hidden_channels, 1)
-        self.enc = WN(hidden_channels, kernel_size, dilation_rate, n_layers, gin_channels=gin_channels)
+        self.enc = WN(
+            hidden_channels,
+            kernel_size,
+            dilation_rate,
+            n_layers,
+            gin_channels=gin_channels,
+        )
         self.proj = nn.Conv1d(hidden_channels, out_channels * 2, 1)
 
     def forward(self, x, x_lengths, g=None):
-        x_mask = torch.unsqueeze(get_mask_from_lengths(x_lengths, x), 1).to(x.dtype).to(device=x.device)
+        x_mask = (
+            torch.unsqueeze(get_mask_from_lengths(x_lengths, x), 1)
+            .to(x.dtype)
+            .to(device=x.device)
+        )
         x = self.pre(x) * x_mask
         x = self.enc(x, x_mask, g=g)
         stats = self.proj(x) * x_mask
@@ -607,15 +726,17 @@ class Generator(torch.nn.Module):
         super(Generator, self).__init__()
         self.num_kernels = len(resblock_kernel_sizes)
         self.num_upsamples = len(upsample_rates)
-        self.conv_pre = nn.Conv1d(initial_channel, upsample_initial_channel, 7, 1, padding=3)
-        resblock = ResBlock1 if resblock == '1' else ResBlock2
+        self.conv_pre = nn.Conv1d(
+            initial_channel, upsample_initial_channel, 7, 1, padding=3
+        )
+        resblock = ResBlock1 if resblock == "1" else ResBlock2
 
         self.ups = nn.ModuleList()
         for i, (u, k) in enumerate(zip(upsample_rates, upsample_kernel_sizes)):
             self.ups.append(
                 weight_norm(
                     nn.ConvTranspose1d(
-                        upsample_initial_channel // (2 ** i),
+                        upsample_initial_channel // (2**i),
                         upsample_initial_channel // (2 ** (i + 1)),
                         k,
                         u,
@@ -627,7 +748,9 @@ class Generator(torch.nn.Module):
         self.resblocks = nn.ModuleList()
         for i in range(len(self.ups)):
             ch = upsample_initial_channel // (2 ** (i + 1))
-            for j, (k, d) in enumerate(zip(resblock_kernel_sizes, resblock_dilation_sizes)):
+            for j, (k, d) in enumerate(
+                zip(resblock_kernel_sizes, resblock_dilation_sizes)
+            ):
                 self.resblocks.append(resblock(ch, k, d))
 
         self.conv_post = nn.Conv1d(ch, 1, 7, 1, padding=3, bias=False)
@@ -655,7 +778,7 @@ class Generator(torch.nn.Module):
         return x
 
     def remove_weight_norm(self):
-        print('Removing weight norm...')
+        print("Removing weight norm...")
         for l in self.ups:
             remove_weight_norm(l)
         for l in self.resblocks:
@@ -670,11 +793,51 @@ class DiscriminatorP(torch.nn.Module):
         norm_f = weight_norm if use_spectral_norm == False else spectral_norm
         self.convs = nn.ModuleList(
             [
-                norm_f(nn.Conv2d(1, 32, (kernel_size, 1), (stride, 1), padding=(get_padding(kernel_size, 1), 0))),
-                norm_f(nn.Conv2d(32, 128, (kernel_size, 1), (stride, 1), padding=(get_padding(kernel_size, 1), 0))),
-                norm_f(nn.Conv2d(128, 512, (kernel_size, 1), (stride, 1), padding=(get_padding(kernel_size, 1), 0))),
-                norm_f(nn.Conv2d(512, 1024, (kernel_size, 1), (stride, 1), padding=(get_padding(kernel_size, 1), 0))),
-                norm_f(nn.Conv2d(1024, 1024, (kernel_size, 1), 1, padding=(get_padding(kernel_size, 1), 0))),
+                norm_f(
+                    nn.Conv2d(
+                        1,
+                        32,
+                        (kernel_size, 1),
+                        (stride, 1),
+                        padding=(get_padding(kernel_size, 1), 0),
+                    )
+                ),
+                norm_f(
+                    nn.Conv2d(
+                        32,
+                        128,
+                        (kernel_size, 1),
+                        (stride, 1),
+                        padding=(get_padding(kernel_size, 1), 0),
+                    )
+                ),
+                norm_f(
+                    nn.Conv2d(
+                        128,
+                        512,
+                        (kernel_size, 1),
+                        (stride, 1),
+                        padding=(get_padding(kernel_size, 1), 0),
+                    )
+                ),
+                norm_f(
+                    nn.Conv2d(
+                        512,
+                        1024,
+                        (kernel_size, 1),
+                        (stride, 1),
+                        padding=(get_padding(kernel_size, 1), 0),
+                    )
+                ),
+                norm_f(
+                    nn.Conv2d(
+                        1024,
+                        1024,
+                        (kernel_size, 1),
+                        1,
+                        padding=(get_padding(kernel_size, 1), 0),
+                    )
+                ),
             ]
         )
         self.dropout = nn.Dropout(0.3)
@@ -740,7 +903,9 @@ class MultiPeriodDiscriminator(torch.nn.Module):
         periods = [2, 3, 5, 7, 11]
 
         discs = [DiscriminatorS(use_spectral_norm=use_spectral_norm)]
-        discs = discs + [DiscriminatorP(i, use_spectral_norm=use_spectral_norm) for i in periods]
+        discs = discs + [
+            DiscriminatorP(i, use_spectral_norm=use_spectral_norm) for i in periods
+        ]
         self.discriminators = nn.ModuleList(discs)
 
     def forward(self, y, y_hat):
@@ -786,7 +951,7 @@ class SynthesizerTrn(nn.Module):
         n_speakers=0,
         gin_channels=0,
         use_sdp=True,
-        **kwargs
+        **kwargs,
     ):
 
         super().__init__()
@@ -834,14 +999,26 @@ class SynthesizerTrn(nn.Module):
             gin_channels=gin_channels,
         )
         self.enc_q = PosteriorEncoder(
-            spec_channels, inter_channels, hidden_channels, 5, 1, 16, gin_channels=gin_channels
+            spec_channels,
+            inter_channels,
+            hidden_channels,
+            5,
+            1,
+            16,
+            gin_channels=gin_channels,
         )
-        self.flow = ResidualCouplingBlock(inter_channels, hidden_channels, 5, 1, 4, gin_channels=gin_channels)
+        self.flow = ResidualCouplingBlock(
+            inter_channels, hidden_channels, 5, 1, 4, gin_channels=gin_channels
+        )
 
         if use_sdp:
-            self.dp = StochasticDurationPredictor(hidden_channels, 192, 3, 0.5, 4, gin_channels=gin_channels)
+            self.dp = StochasticDurationPredictor(
+                hidden_channels, 192, 3, 0.5, 4, gin_channels=gin_channels
+            )
         else:
-            self.dp = DurationPredictor(hidden_channels, 256, 3, 0.5, gin_channels=gin_channels)
+            self.dp = DurationPredictor(
+                hidden_channels, 256, 3, 0.5, gin_channels=gin_channels
+            )
 
         if n_speakers > 1:
             self.emb_g = nn.Embedding(n_speakers, gin_channels)
@@ -853,20 +1030,26 @@ class SynthesizerTrn(nn.Module):
         else:
             g = None
 
-        z, mean_posterior, logscale_posterior, spec_mask = self.enc_q(spec, spec_len, g=g)
+        z, mean_posterior, logscale_posterior, spec_mask = self.enc_q(
+            spec, spec_len, g=g
+        )
         z_p = self.flow(z, spec_mask, g=g)
 
         with torch.no_grad():
             # negative cross-entropy
             s_p_sq_r = torch.exp(-2 * logscale_prior)  # [b, d, t]
-            neg_cent1 = torch.sum(-0.5 * math.log(2 * math.pi) - logscale_prior, [1], keepdim=True)  # [b, 1, t_s]
+            neg_cent1 = torch.sum(
+                -0.5 * math.log(2 * math.pi) - logscale_prior, [1], keepdim=True
+            )  # [b, 1, t_s]
             neg_cent2 = torch.matmul(
-                -0.5 * (z_p ** 2).transpose(1, 2), s_p_sq_r
+                -0.5 * (z_p**2).transpose(1, 2), s_p_sq_r
             )  # [b, t_t, d] x [b, d, t_s] = [b, t_t, t_s]
             neg_cent3 = torch.matmul(
                 z_p.transpose(1, 2), (mean_prior * s_p_sq_r)
             )  # [b, t_t, d] x [b, d, t_s] = [b, t_t, t_s]
-            neg_cent4 = torch.sum(-0.5 * (mean_prior ** 2) * s_p_sq_r, [1], keepdim=True)  # [b, 1, t_s]
+            neg_cent4 = torch.sum(
+                -0.5 * (mean_prior**2) * s_p_sq_r, [1], keepdim=True
+            )  # [b, 1, t_s]
             neg_cent = neg_cent1 + neg_cent2 + neg_cent3 + neg_cent4
 
             attn_mask = torch.unsqueeze(text_mask, 2) * torch.unsqueeze(spec_mask, -1)
@@ -879,13 +1062,19 @@ class SynthesizerTrn(nn.Module):
         else:
             logw_ = torch.log(w + 1e-6) * text_mask
             logw = self.dp(x, text_mask, g=g)
-            l_length = torch.sum((logw - logw_) ** 2, [1, 2]) / torch.sum(text_mask)  # for averaging
+            l_length = torch.sum((logw - logw_) ** 2, [1, 2]) / torch.sum(
+                text_mask
+            )  # for averaging
 
         # expand prior
-        mean_prior = torch.matmul(attn.squeeze(1), mean_prior.transpose(1, 2)).transpose(
+        mean_prior = torch.matmul(
+            attn.squeeze(1), mean_prior.transpose(1, 2)
+        ).transpose(
             1, 2
         )  # [b, t', t], [b, t, d] -> [b, d, t']
-        logscale_prior = torch.matmul(attn.squeeze(1), logscale_prior.transpose(1, 2)).transpose(
+        logscale_prior = torch.matmul(
+            attn.squeeze(1), logscale_prior.transpose(1, 2)
+        ).transpose(
             1, 2
         )  # [b, t', t], [b, t, d] -> [b, d, t']
 
@@ -901,7 +1090,16 @@ class SynthesizerTrn(nn.Module):
             (z, z_p, mean_prior, logscale_prior, mean_posterior, logscale_posterior),
         )
 
-    def infer(self, text, text_len, speakers=None, noise_scale=1, length_scale=1, noise_scale_w=1.0, max_len=None):
+    def infer(
+        self,
+        text,
+        text_len,
+        speakers=None,
+        noise_scale=1,
+        length_scale=1,
+        noise_scale_w=1.0,
+        max_len=None,
+    ):
         x, mean_prior, logscale_prior, text_mask = self.enc_p(text, text_len)
         if self.n_speakers > 1 and speakers is not None:
             g = self.emb_g(speakers).unsqueeze(-1)  # [b, h, 1]
@@ -915,18 +1113,27 @@ class SynthesizerTrn(nn.Module):
         w = torch.exp(logw) * text_mask * length_scale
         w_ceil = torch.ceil(w)
         audio_lengths = torch.clamp_min(torch.sum(w_ceil, [1, 2]), 1).long()
-        audio_mask = torch.unsqueeze(get_mask_from_lengths(audio_lengths, None), 1).to(text_mask.dtype)
+        audio_mask = torch.unsqueeze(get_mask_from_lengths(audio_lengths, None), 1).to(
+            text_mask.dtype
+        )
         attn_mask = torch.unsqueeze(text_mask, 2) * torch.unsqueeze(audio_mask, -1)
         attn = generate_path(w_ceil, attn_mask)
 
-        mean_prior = torch.matmul(attn.squeeze(1), mean_prior.transpose(1, 2)).transpose(
+        mean_prior = torch.matmul(
+            attn.squeeze(1), mean_prior.transpose(1, 2)
+        ).transpose(
             1, 2
         )  # [b, t', t], [b, t, d] -> [b, d, t']
-        logscale_prior = torch.matmul(attn.squeeze(1), logscale_prior.transpose(1, 2)).transpose(
+        logscale_prior = torch.matmul(
+            attn.squeeze(1), logscale_prior.transpose(1, 2)
+        ).transpose(
             1, 2
         )  # [b, t', t], [b, t, d] -> [b, d, t']
 
-        z_p = mean_prior + torch.randn_like(mean_prior) * torch.exp(logscale_prior) * noise_scale
+        z_p = (
+            mean_prior
+            + torch.randn_like(mean_prior) * torch.exp(logscale_prior) * noise_scale
+        )
         z = self.flow(z_p, audio_mask, g=g, reverse=True)
         audio = self.dec((z * audio_mask)[:, :, :max_len], g=g)
         return audio, attn, audio_mask, (z, z_p, mean_prior, logscale_prior)
@@ -956,7 +1163,7 @@ class AttentionEncoder(nn.Module):
         kernel_size=1,
         p_dropout=0.0,
         window_size=4,
-        **kwargs
+        **kwargs,
     ):
         super().__init__()
         self.hidden_channels = hidden_channels
@@ -975,12 +1182,22 @@ class AttentionEncoder(nn.Module):
         for _ in range(self.n_layers):
             self.attn_layers.append(
                 MultiHeadAttention(
-                    hidden_channels, hidden_channels, n_heads, p_dropout=p_dropout, window_size=window_size
+                    hidden_channels,
+                    hidden_channels,
+                    n_heads,
+                    p_dropout=p_dropout,
+                    window_size=window_size,
                 )
             )
             self.norm_layers_1.append(LayerNorm(hidden_channels))
             self.ffn_layers.append(
-                FFN(hidden_channels, hidden_channels, filter_channels, kernel_size, p_dropout=p_dropout)
+                FFN(
+                    hidden_channels,
+                    hidden_channels,
+                    filter_channels,
+                    kernel_size,
+                    p_dropout=p_dropout,
+                )
             )
             self.norm_layers_2.append(LayerNorm(hidden_channels))
 
@@ -1034,9 +1251,15 @@ class MultiHeadAttention(nn.Module):
 
         if window_size is not None:
             n_heads_rel = 1 if heads_share else n_heads
-            rel_stddev = self.k_channels ** -0.5
-            self.emb_rel_k = nn.Parameter(torch.randn(n_heads_rel, window_size * 2 + 1, self.k_channels) * rel_stddev)
-            self.emb_rel_v = nn.Parameter(torch.randn(n_heads_rel, window_size * 2 + 1, self.k_channels) * rel_stddev)
+            rel_stddev = self.k_channels**-0.5
+            self.emb_rel_k = nn.Parameter(
+                torch.randn(n_heads_rel, window_size * 2 + 1, self.k_channels)
+                * rel_stddev
+            )
+            self.emb_rel_v = nn.Parameter(
+                torch.randn(n_heads_rel, window_size * 2 + 1, self.k_channels)
+                * rel_stddev
+            )
 
         nn.init.xavier_uniform_(self.conv_q.weight)
         nn.init.xavier_uniform_(self.conv_k.weight)
@@ -1065,28 +1288,46 @@ class MultiHeadAttention(nn.Module):
 
         scores = torch.matmul(query / math.sqrt(self.k_channels), key.transpose(-2, -1))
         if self.window_size is not None:
-            assert t_s == t_t, "Relative attention is only available for self-attention."
+            assert (
+                t_s == t_t
+            ), "Relative attention is only available for self-attention."
             key_relative_embeddings = self._get_relative_embeddings(self.emb_rel_k, t_s)
-            rel_logits = self._matmul_with_relative_keys(query / math.sqrt(self.k_channels), key_relative_embeddings)
+            rel_logits = self._matmul_with_relative_keys(
+                query / math.sqrt(self.k_channels), key_relative_embeddings
+            )
             scores_local = self._relative_position_to_absolute_position(rel_logits)
             scores = scores + scores_local
         if self.proximal_bias:
             assert t_s == t_t, "Proximal bias is only available for self-attention."
-            scores = scores + self._attention_bias_proximal(t_s).to(device=scores.device, dtype=scores.dtype)
+            scores = scores + self._attention_bias_proximal(t_s).to(
+                device=scores.device, dtype=scores.dtype
+            )
         if mask is not None:
             scores = scores.masked_fill(mask == 0, -1e4)
             if self.block_length is not None:
-                assert t_s == t_t, "Local attention is only available for self-attention."
-                block_mask = torch.ones_like(scores).triu(-self.block_length).tril(self.block_length)
+                assert (
+                    t_s == t_t
+                ), "Local attention is only available for self-attention."
+                block_mask = (
+                    torch.ones_like(scores)
+                    .triu(-self.block_length)
+                    .tril(self.block_length)
+                )
                 scores = scores.masked_fill(block_mask == 0, -1e4)
         p_attn = F.softmax(scores, dim=-1)  # [b, n_h, t_t, t_s]
         p_attn = self.drop(p_attn)
         output = torch.matmul(p_attn, value)
         if self.window_size is not None:
             relative_weights = self._absolute_position_to_relative_position(p_attn)
-            value_relative_embeddings = self._get_relative_embeddings(self.emb_rel_v, t_s)
-            output = output + self._matmul_with_relative_values(relative_weights, value_relative_embeddings)
-        output = output.transpose(2, 3).contiguous().view(b, d, t_t)  # [b, n_h, t_t, d_k] -> [b, d, t_t]
+            value_relative_embeddings = self._get_relative_embeddings(
+                self.emb_rel_v, t_s
+            )
+            output = output + self._matmul_with_relative_values(
+                relative_weights, value_relative_embeddings
+            )
+        output = (
+            output.transpose(2, 3).contiguous().view(b, d, t_t)
+        )  # [b, n_h, t_t, d_k] -> [b, d, t_t]
         return output, p_attn
 
     def _matmul_with_relative_values(self, x, y):
@@ -1114,11 +1355,14 @@ class MultiHeadAttention(nn.Module):
         slice_end_position = slice_start_position + 2 * length - 1
         if pad_length > 0:
             padded_relative_embeddings = F.pad(
-                relative_embeddings, convert_pad_shape([[0, 0], [pad_length, pad_length], [0, 0]])
+                relative_embeddings,
+                convert_pad_shape([[0, 0], [pad_length, pad_length], [0, 0]]),
             )
         else:
             padded_relative_embeddings = relative_embeddings
-        used_relative_embeddings = padded_relative_embeddings[:, slice_start_position:slice_end_position]
+        used_relative_embeddings = padded_relative_embeddings[
+            :, slice_start_position:slice_end_position
+        ]
         return used_relative_embeddings
 
     def _relative_position_to_absolute_position(self, x):
@@ -1135,7 +1379,9 @@ class MultiHeadAttention(nn.Module):
         x_flat = F.pad(x_flat, convert_pad_shape([[0, 0], [0, 0], [0, length - 1]]))
 
         # Reshape and slice out the padded elements.
-        x_final = x_flat.view([batch, heads, length + 1, 2 * length - 1])[:, :, :length, length - 1 :]
+        x_final = x_flat.view([batch, heads, length + 1, 2 * length - 1])[
+            :, :, :length, length - 1 :
+        ]
         return x_final
 
     def _absolute_position_to_relative_position(self, x):
@@ -1146,7 +1392,7 @@ class MultiHeadAttention(nn.Module):
         batch, heads, length, _ = x.size()
         # padd along column
         x = F.pad(x, convert_pad_shape([[0, 0], [0, 0], [0, 0], [0, length - 1]]))
-        x_flat = x.view([batch, heads, length ** 2 + length * (length - 1)])
+        x_flat = x.view([batch, heads, length**2 + length * (length - 1)])
         # add 0's in the beginning that will skew the elements after reshape
         x_flat = F.pad(x_flat, convert_pad_shape([[0, 0], [0, 0], [length, 0]]))
         x_final = x_flat.view([batch, heads, length, 2 * length])[:, :, :, 1:]
@@ -1166,7 +1412,14 @@ class MultiHeadAttention(nn.Module):
 
 class FFN(nn.Module):
     def __init__(
-        self, in_channels, out_channels, filter_channels, kernel_size, p_dropout=0.0, activation=None, causal=False
+        self,
+        in_channels,
+        out_channels,
+        filter_channels,
+        kernel_size,
+        p_dropout=0.0,
+        activation=None,
+        causal=False,
     ):
         super().__init__()
         self.in_channels = in_channels

@@ -39,7 +39,8 @@ class TestLlama33NemotronSuper49B:
 
     def test_pretrain_recipe(self, recipe_module):
         with pytest.raises(
-            NotImplementedError, match='Llama33 Nemotron Super model is a distilled model based on Llama33-70B'
+            NotImplementedError,
+            match="Llama33 Nemotron Super model is a distilled model based on Llama33-70B",
         ):
             recipe_module.pretrain_recipe()
 
@@ -57,7 +58,7 @@ class TestLlama33NemotronSuper49B:
         assert recipe.peft is None
 
     def test_finetune_recipe_lora(self, recipe_module):
-        recipe = recipe_module.finetune_recipe(peft_scheme='lora')
+        recipe = recipe_module.finetune_recipe(peft_scheme="lora")
         assert isinstance(recipe, run.Partial)
         assert recipe.__fn_or_cls__ == finetune
         assert isinstance(recipe.model, run.Config)
@@ -75,7 +76,7 @@ class TestLlama33NemotronSuper49B:
         assert recipe.model.config.cross_entropy_loss_fusion is False
 
     def test_finetune_recipe_dora(self, recipe_module):
-        recipe = recipe_module.finetune_recipe(peft_scheme='dora')
+        recipe = recipe_module.finetune_recipe(peft_scheme="dora")
         assert isinstance(recipe, run.Partial)
         assert recipe.__fn_or_cls__ == finetune
         assert isinstance(recipe.model, run.Config)
@@ -86,7 +87,7 @@ class TestLlama33NemotronSuper49B:
         assert recipe.trainer.strategy.pipeline_model_parallel_size == 1
         assert recipe.optim.config.lr == 1e-4
         assert isinstance(recipe.peft, run.Config)
-        assert recipe.peft.__fn_or_cls__ == PEFT_STR2CLS['dora']
+        assert recipe.peft.__fn_or_cls__ == PEFT_STR2CLS["dora"]
         assert recipe.peft.dim == 8
         assert recipe.peft.alpha == 16
         assert recipe.optim.config.use_distributed_optimizer is False
@@ -94,10 +95,14 @@ class TestLlama33NemotronSuper49B:
 
     def test_finetune_recipe_invalid_peft(self, recipe_module):
         with pytest.raises(ValueError, match="Unrecognized peft scheme: invalid"):
-            recipe_module.finetune_recipe(peft_scheme='invalid')
+            recipe_module.finetune_recipe(peft_scheme="invalid")
 
     @pytest.mark.parametrize("num_nodes,num_gpus_per_node", [(1, 8), (2, 4), (4, 2)])
-    def test_finetune_recipe_with_different_configurations(self, recipe_module, num_nodes, num_gpus_per_node):
-        recipe = recipe_module.finetune_recipe(num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node)
+    def test_finetune_recipe_with_different_configurations(
+        self, recipe_module, num_nodes, num_gpus_per_node
+    ):
+        recipe = recipe_module.finetune_recipe(
+            num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node
+        )
         assert recipe.trainer.num_nodes == num_nodes
         assert recipe.trainer.devices == num_gpus_per_node

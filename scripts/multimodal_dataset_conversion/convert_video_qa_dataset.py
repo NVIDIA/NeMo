@@ -131,7 +131,7 @@ def process(value, duration: float, num_time_tokens: int = 100):
 
 
 def convert(qa_dataset, output_file, num_time_tokens, ext=".mp4"):
-    with open(qa_dataset, 'r') as f:
+    with open(qa_dataset, "r") as f:
         qa_data = json.load(f)
 
     role_mapping = {
@@ -143,14 +143,14 @@ def convert(qa_dataset, output_file, num_time_tokens, ext=".mp4"):
     list_data_dict = []
     for sample in qa_data:
         new_sample = {}
-        id = sample['video_id']
+        id = sample["video_id"]
         video = id + ext
         conversations = []
-        for idx, conversation in enumerate(sample['conversations']):
-            if 'role' in conversation and 'content' in conversation:
-                new_role = role_mapping[conversation['role']]
-                new_content = conversation['content']
-            elif 'from' in conversation and 'value' in conversation:
+        for idx, conversation in enumerate(sample["conversations"]):
+            if "role" in conversation and "content" in conversation:
+                new_role = role_mapping[conversation["role"]]
+                new_content = conversation["content"]
+            elif "from" in conversation and "value" in conversation:
                 new_role = role_mapping[conversation["from"]]
                 new_content = conversation["value"]
             else:
@@ -161,21 +161,29 @@ def convert(qa_dataset, output_file, num_time_tokens, ext=".mp4"):
                 new_content = "<video> \n" + new_content
             conversations.append({"from": new_role, "value": new_content})
 
-        new_sample['id'] = id
-        new_sample['video'] = video
-        new_sample['conversations'] = conversations
+        new_sample["id"] = id
+        new_sample["video"] = video
+        new_sample["conversations"] = conversations
         new_sample["duration"] = sample["duration"]
         list_data_dict.append(new_sample)
 
-    with open(output_file, 'w') as f:
+    with open(output_file, "w") as f:
         json.dump(list_data_dict, f, indent=4)
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Convert QA dataset to NeMo video training dataset format')
-    parser.add_argument('--qa_dataset', type=str, required=True, help='QA dataset in json format')
-    parser.add_argument('--output_file', type=str, required=True, help='Output file in json format')
-    parser.add_argument('--num_time_tokens', type=int, default=100, help='Number of time tokens')
+    parser = argparse.ArgumentParser(
+        description="Convert QA dataset to NeMo video training dataset format"
+    )
+    parser.add_argument(
+        "--qa_dataset", type=str, required=True, help="QA dataset in json format"
+    )
+    parser.add_argument(
+        "--output_file", type=str, required=True, help="Output file in json format"
+    )
+    parser.add_argument(
+        "--num_time_tokens", type=int, default=100, help="Number of time tokens"
+    )
     args = parser.parse_args()
 
     convert(args.qa_dataset, args.output_file, args.num_time_tokens)

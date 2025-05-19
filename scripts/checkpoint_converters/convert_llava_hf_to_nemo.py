@@ -100,8 +100,14 @@ def create_rename_keys(num_hidden_layers):
                 "multi_modal_projector.linear_2.bias",
                 "model.embedding.word_embeddings.adapter_layer.mm_projector_adapter.mm_projector.2.bias",
             ),
-            ("language_model.model.embed_tokens.weight", "model.embedding.word_embeddings.weight"),
-            ("language_model.model.norm.weight", "model.decoder.final_layernorm.weight"),
+            (
+                "language_model.model.embed_tokens.weight",
+                "model.embedding.word_embeddings.weight",
+            ),
+            (
+                "language_model.model.norm.weight",
+                "model.decoder.final_layernorm.weight",
+            ),
             ("language_model.lm_head.weight", "model.output_layer.weight"),
         ]
     )
@@ -160,44 +166,63 @@ def adjust_tensor_shapes(model, nemo_state_dict):
 
     # Note: For 'key' and 'value' weight and biases, NeMo uses a consolidated tensor 'query_key_value'.
     for key_ in list(nemo_state_dict.keys()):
-        if 'vision_towel' in key_:
+        if "vision_towel" in key_:
             del nemo_state_dict[key_]
 
-        if 'word_embeddings.weight' in key_ or 'output_layer.weight' in key_:
+        if "word_embeddings.weight" in key_ or "output_layer.weight" in key_:
             # padding
             loaded_weight = nemo_state_dict[key_]
             new_weight = model.state_dict()[key_]
-            new_weight[: loaded_weight.shape[0], : loaded_weight.shape[1]] = loaded_weight
+            new_weight[: loaded_weight.shape[0], : loaded_weight.shape[1]] = (
+                loaded_weight
+            )
             nemo_state_dict[key_] = new_weight
 
-        if 'mlp.linear_fc1_gate.weight' in key_:
+        if "mlp.linear_fc1_gate.weight" in key_:
             key_gate = key_
-            key_proj = key_.replace('mlp.linear_fc1_gate.weight', 'mlp.linear_fc1_proj.weight')
-            new_key = key_.replace('mlp.linear_fc1_gate.weight', 'mlp.linear_fc1.weight')
+            key_proj = key_.replace(
+                "mlp.linear_fc1_gate.weight", "mlp.linear_fc1_proj.weight"
+            )
+            new_key = key_.replace(
+                "mlp.linear_fc1_gate.weight", "mlp.linear_fc1.weight"
+            )
             gate_weight = nemo_state_dict[key_gate]
             proj_weight = nemo_state_dict[key_proj]
             nemo_state_dict[new_key] = torch.cat((gate_weight, proj_weight))
             del nemo_state_dict[key_gate], nemo_state_dict[key_proj]
 
-        if 'self_attention.linear_q.weight' in key_:
+        if "self_attention.linear_q.weight" in key_:
             key_q = key_
-            key_k = key_.replace('linear_q', 'linear_k')
-            key_v = key_.replace('linear_q', 'linear_v')
-            key_qkv = key_.replace('linear_q', 'linear_qkv')
+            key_k = key_.replace("linear_q", "linear_k")
+            key_v = key_.replace("linear_q", "linear_v")
+            key_qkv = key_.replace("linear_q", "linear_qkv")
 
             # [(head_num + 2 * num_query_groups) * head_size, hidden_size]
             # -> [head_num, head_size, hidden_size], 2 * [num_query_groups, head_size, hidden_size]
-            q_weight, k_weight, v_weight = nemo_state_dict[key_q], nemo_state_dict[key_k], nemo_state_dict[key_v]
+            q_weight, k_weight, v_weight = (
+                nemo_state_dict[key_q],
+                nemo_state_dict[key_k],
+                nemo_state_dict[key_v],
+            )
             q_weight = q_weight.reshape(head_num, head_size, hidden_size)
             k_weight = k_weight.reshape(num_query_groups, head_size, hidden_size)
             v_weight = v_weight.reshape(num_query_groups, head_size, hidden_size)
 
-            qkv_weight = torch.empty((0, head_size, hidden_size), device=q_weight.device)
+            qkv_weight = torch.empty(
+                (0, head_size, hidden_size), device=q_weight.device
+            )
             for i in range(num_query_groups):
-                qkv_weight = torch.cat((qkv_weight, q_weight[i * heads_per_group : (i + 1) * heads_per_group, :, :]))
+                qkv_weight = torch.cat(
+                    (
+                        qkv_weight,
+                        q_weight[i * heads_per_group : (i + 1) * heads_per_group, :, :],
+                    )
+                )
                 qkv_weight = torch.cat((qkv_weight, k_weight[i : i + 1, :, :]))
                 qkv_weight = torch.cat((qkv_weight, v_weight[i : i + 1, :, :]))
-            qkv_weight = qkv_weight.reshape([head_size * (head_num + 2 * num_query_groups), hidden_size])
+            qkv_weight = qkv_weight.reshape(
+                [head_size * (head_num + 2 * num_query_groups), hidden_size]
+            )
             nemo_state_dict[key_qkv] = qkv_weight
             del nemo_state_dict[key_q], nemo_state_dict[key_k], nemo_state_dict[key_v]
 
@@ -207,13 +232,17 @@ def adjust_tensor_shapes(model, nemo_state_dict):
 def adjust_nemo_config(model_config, ref_config):
     model_config.mm_cfg.mm_mlp_adapter_type = "mlp2x_gelu"
     if ref_config["vision_config"].image_size == 336:
-        model_config.mm_cfg.vision_encoder.from_pretrained = "openai/clip-vit-large-patch14-336"
+        model_config.mm_cfg.vision_encoder.from_pretrained = (
+            "openai/clip-vit-large-patch14-336"
+        )
         model_config.data.image_token_len = 576
     else:
-        model_config.mm_cfg.vision_encoder.from_pretrained = "openai/clip-vit-large-patch14"
+        model_config.mm_cfg.vision_encoder.from_pretrained = (
+            "openai/clip-vit-large-patch14"
+        )
         model_config.data.image_token_len = 256
 
-    ref_config = ref_config['text_config'].__dict__
+    ref_config = ref_config["text_config"].__dict__
     model_config["encoder_seq_length"] = ref_config["max_position_embeddings"]
     model_config["num_layers"] = ref_config["num_hidden_layers"]
     model_config["ffn_hidden_size"] = ref_config["intermediate_size"]
@@ -227,7 +256,9 @@ def adjust_nemo_config(model_config, ref_config):
     )
     if ref_config.get("rope_scaling") is not None:
         if ref_config["rope_scaling"]["type"] == "linear":
-            model_config["seq_len_interpolation_factor"] = ref_config["rope_scaling"]["factor"]
+            model_config["seq_len_interpolation_factor"] = ref_config["rope_scaling"][
+                "factor"
+            ]
         else:
             raise ValueError("Only linear rope scaling type is supported now")
     model_config["use_cpu_initialization"] = True
@@ -244,14 +275,21 @@ def get_args():
         "--hparams_file",
         type=str,
         default=os.path.join(
-            os.path.dirname(__file__), '../../examples/multimodal/multimodal_llm/neva/conf/llava_config.yaml'
+            os.path.dirname(__file__),
+            "../../examples/multimodal/multimodal_llm/neva/conf/llava_config.yaml",
         ),
         required=False,
         help="Path config for restoring. It's created during training and may need to be modified during restore if restore environment is different than training. Ex: /raid/nemo_experiments/megatron_gpt/hparams.yaml",
     )
-    parser.add_argument("--output_path", type=str, default=None, help="Path to output .nemo file.")
     parser.add_argument(
-        "--precision", type=str, default="bf16", choices=["bf16", "32"], help="Precision for checkpoint weight saved"
+        "--output_path", type=str, default=None, help="Path to output .nemo file."
+    )
+    parser.add_argument(
+        "--precision",
+        type=str,
+        default="bf16",
+        choices=["bf16", "32"],
+        help="Precision for checkpoint weight saved",
     )
     parser.add_argument("--skip_verification", action="store_true")
 
@@ -277,58 +315,77 @@ def convert(args):
 
     rename_keys = create_rename_keys(nemo_config.model.num_layers)
     old_state_dict = hf_model.state_dict()
-    new_state_dict = rename_model_keys(model_state_dict=old_state_dict, rename_keys=rename_keys)
+    new_state_dict = rename_model_keys(
+        model_state_dict=old_state_dict, rename_keys=rename_keys
+    )
 
     nemo_state_dict = adjust_tensor_shapes(model, new_state_dict)
     model.load_state_dict(nemo_state_dict, strict=False)
 
-    logging.info(f'=' * 100)
+    logging.info(f"=" * 100)
     if not args.skip_verification:
         # Verifications
         input_texts = [
-            'query: how much protein should a female eat',
+            "query: how much protein should a female eat",
         ]
         logging.info(f"Running verifications {input_texts} ...")
 
         # Tokenize the input texts
         hf_tokenizer.pad_token = hf_tokenizer.eos_token
-        batch_dict = hf_tokenizer(input_texts, max_length=512, padding=True, truncation=True, return_tensors='pt')
+        batch_dict = hf_tokenizer(
+            input_texts,
+            max_length=512,
+            padding=True,
+            truncation=True,
+            return_tensors="pt",
+        )
         batch_dict_cuda = {k: v.cuda() for k, v in batch_dict.items()}
         hf_model = hf_model.cuda().eval()
         model = model.cuda().eval()
 
         hf_outputs = hf_model(**batch_dict_cuda, output_hidden_states=True)
-        ids = batch_dict_cuda['input_ids']
+        ids = batch_dict_cuda["input_ids"]
 
-        id_tensors = [torch.unsqueeze(torch.LongTensor(id_list), dim=0) for id_list in ids.cpu()]
+        id_tensors = [
+            torch.unsqueeze(torch.LongTensor(id_list), dim=0) for id_list in ids.cpu()
+        ]
 
         masks_and_position_ids = [
-            get_ltor_masks_and_position_ids(id_tensor, hf_tokenizer.eos_token, False, False, False)
+            get_ltor_masks_and_position_ids(
+                id_tensor, hf_tokenizer.eos_token, False, False, False
+            )
             for id_tensor in id_tensors
         ]
         for tokens, attn_mask_and_pos_ids in zip(id_tensors, masks_and_position_ids):
             attn_mask, _, pos_ids = attn_mask_and_pos_ids
 
             outputs = model(
-                tokens=tokens.cuda(), text_position_ids=pos_ids.cuda(), attention_mask=attn_mask.cuda(), labels=None
+                tokens=tokens.cuda(),
+                text_position_ids=pos_ids.cuda(),
+                attention_mask=attn_mask.cuda(),
+                labels=None,
             )
 
         hf_next_token = hf_outputs.logits[0, -1].argmax()
         next_token = outputs.squeeze()[-1].argmax()
 
-        logging.info(f"HF predicted next token is: '{hf_tokenizer._convert_id_to_token(int(hf_next_token))}'.")
-        logging.info(f"NeMo predicted next token is: '{hf_tokenizer._convert_id_to_token(int(next_token))}'.")
+        logging.info(
+            f"HF predicted next token is: '{hf_tokenizer._convert_id_to_token(int(hf_next_token))}'."
+        )
+        logging.info(
+            f"NeMo predicted next token is: '{hf_tokenizer._convert_id_to_token(int(next_token))}'."
+        )
         assert (
             hf_next_token == next_token
-        ), f'prediction mismatch: {hf_tokenizer.decode(hf_next_token)} != {hf_tokenizer.decode(next_token)}'
-        logging.info(f'=' * 100)
+        ), f"prediction mismatch: {hf_tokenizer.decode(hf_next_token)} != {hf_tokenizer.decode(next_token)}"
+        logging.info(f"=" * 100)
 
     dtype = torch_dtype_from_precision(args.precision)
     model = model.to(dtype=dtype)
     model.save_to(args.output_path)
-    logging.info(f'NeMo model saved to: {args.output_path}')
+    logging.info(f"NeMo model saved to: {args.output_path}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     args = get_args()
     convert(args)

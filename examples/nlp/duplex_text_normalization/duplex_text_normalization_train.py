@@ -100,44 +100,52 @@ from nemo.utils.exp_manager import exp_manager
 
 @hydra_runner(config_path="conf", config_name="duplex_tn_config")
 def main(cfg: DictConfig) -> None:
-    logging.info(f'Config Params: {OmegaConf.to_yaml(cfg)}')
+    logging.info(f"Config Params: {OmegaConf.to_yaml(cfg)}")
 
     # Train the tagger
     if cfg.tagger_model.do_training:
         logging.info(
             "================================================================================================"
         )
-        logging.info('Starting training tagger...')
-        tagger_trainer, tagger_model = instantiate_model_and_trainer(cfg, TAGGER_MODEL, True)
-        tagger_exp_manager = cfg.get('tagger_exp_manager', None)
+        logging.info("Starting training tagger...")
+        tagger_trainer, tagger_model = instantiate_model_and_trainer(
+            cfg, TAGGER_MODEL, True
+        )
+        tagger_exp_manager = cfg.get("tagger_exp_manager", None)
         exp_manager(tagger_trainer, tagger_exp_manager)
         tagger_trainer.fit(tagger_model)
-        logging.info('Training finished!')
+        logging.info("Training finished!")
 
     # Train the decoder
     if cfg.decoder_model.do_training:
         logging.info(
             "================================================================================================"
         )
-        logging.info('Starting training decoder...')
-        decoder_trainer, decoder_model = instantiate_model_and_trainer(cfg, DECODER_MODEL, True)
-        decoder_exp_manager = cfg.get('decoder_exp_manager', None)
+        logging.info("Starting training decoder...")
+        decoder_trainer, decoder_model = instantiate_model_and_trainer(
+            cfg, DECODER_MODEL, True
+        )
+        decoder_exp_manager = cfg.get("decoder_exp_manager", None)
         exp_manager(decoder_trainer, decoder_exp_manager)
         decoder_trainer.fit(decoder_model)
-        logging.info('Training finished!')
+        logging.info("Training finished!")
 
     # Evaluation after training
     if (
-        hasattr(cfg.data, 'test_ds')
+        hasattr(cfg.data, "test_ds")
         and cfg.data.test_ds.data_path is not None
         and cfg.tagger_model.do_training
         and cfg.decoder_model.do_training
     ):
         tn_model = DuplexTextNormalizationModel(tagger_model, decoder_model, cfg.lang)
-        test_dataset = TextNormalizationTestDataset(cfg.data.test_ds.data_path, cfg.mode, cfg.lang)
-        results = tn_model.evaluate(test_dataset, cfg.data.test_ds.batch_size, cfg.data.test_ds.errors_log_fp)
-        print(f'\nTest results: {results}')
+        test_dataset = TextNormalizationTestDataset(
+            cfg.data.test_ds.data_path, cfg.mode, cfg.lang
+        )
+        results = tn_model.evaluate(
+            test_dataset, cfg.data.test_ds.batch_size, cfg.data.test_ds.errors_log_fp
+        )
+        print(f"\nTest results: {results}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

@@ -29,7 +29,12 @@ from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 
 class StableDiffusion(Txt2ImgGuidanceBase):
     def __init__(
-        self, checkpoint, sampler_type="DDIM", t_range=[0.02, 0.98], precision="16", device=torch.device('cuda')
+        self,
+        checkpoint,
+        sampler_type="DDIM",
+        t_range=[0.02, 0.98],
+        precision="16",
+        device=torch.device("cuda"),
     ):
         super().__init__()
 
@@ -65,18 +70,32 @@ class StableDiffusion(Txt2ImgGuidanceBase):
         return self.text_encoder(prompt)
 
     @torch.autocast(device_type="cuda")
-    def train_step(self, text_embeddings, pred_rgb, guidance_scale=100, as_latent=False):
+    def train_step(
+        self, text_embeddings, pred_rgb, guidance_scale=100, as_latent=False
+    ):
 
         if as_latent:
-            latents = F.interpolate(pred_rgb, (64, 64), mode='bilinear', align_corners=False) * 2 - 1
+            latents = (
+                F.interpolate(pred_rgb, (64, 64), mode="bilinear", align_corners=False)
+                * 2
+                - 1
+            )
         else:
             # interp to 512x512 to be fed into vae.
-            pred_rgb_512 = F.interpolate(pred_rgb, (512, 512), mode='bilinear', align_corners=False)
+            pred_rgb_512 = F.interpolate(
+                pred_rgb, (512, 512), mode="bilinear", align_corners=False
+            )
             # encode image into latents with vae, requires grad!
             latents = self.encode_imgs(pred_rgb_512)
 
         # timestep ~ U(0.02, 0.98) to avoid very high/low noise level
-        t = torch.randint(self.min_step, self.max_step + 1, (latents.shape[0],), dtype=torch.long, device=self.device)
+        t = torch.randint(
+            self.min_step,
+            self.max_step + 1,
+            (latents.shape[0],),
+            dtype=torch.long,
+            device=self.device,
+        )
 
         with torch.no_grad():
             noise = torch.randn_like(latents)
@@ -86,7 +105,9 @@ class StableDiffusion(Txt2ImgGuidanceBase):
             noise_pred = self.model.apply_model(latent_model_input, td, text_embeddings)
 
             noise_pred_uncond, noise_pred_pos = noise_pred.chunk(2)
-            noise_pred = noise_pred_uncond + guidance_scale * (noise_pred_pos - noise_pred_uncond)
+            noise_pred = noise_pred_uncond + guidance_scale * (
+                noise_pred_pos - noise_pred_uncond
+            )
 
         # w(t), sigma_t^2
         w = 1 - self.alphas[t]
@@ -94,7 +115,11 @@ class StableDiffusion(Txt2ImgGuidanceBase):
         grad = torch.nan_to_num(grad)
 
         targets = (latents - grad).detach()
-        loss = 0.5 * F.mse_loss(latents.float(), targets, reduction='sum') / latents.shape[0]
+        loss = (
+            0.5
+            * F.mse_loss(latents.float(), targets, reduction="sum")
+            / latents.shape[0]
+        )
         return loss
 
     def image_encoder(self, x):
@@ -117,22 +142,28 @@ class StableDiffusion(Txt2ImgGuidanceBase):
 
     def load_config_and_state_from_nemo(self, nemo_path):
         if torch.cuda.is_available():
-            map_location = torch.device('cuda')
+            map_location = torch.device("cuda")
         else:
-            map_location = torch.device('cpu')
+            map_location = torch.device("cpu")
         save_restore_connector = NLPSaveRestoreConnector()
         cwd = os.getcwd()
 
         with tempfile.TemporaryDirectory() as tmpdir:
             try:
-                save_restore_connector._unpack_nemo_file(path2file=nemo_path, out_folder=tmpdir)
+                save_restore_connector._unpack_nemo_file(
+                    path2file=nemo_path, out_folder=tmpdir
+                )
 
                 # Change current working directory to
                 os.chdir(tmpdir)
-                config_yaml = os.path.join(tmpdir, save_restore_connector.model_config_yaml)
+                config_yaml = os.path.join(
+                    tmpdir, save_restore_connector.model_config_yaml
+                )
                 cfg = OmegaConf.load(config_yaml)
 
-                model_weights = os.path.join(tmpdir, save_restore_connector.model_weights_ckpt)
+                model_weights = os.path.join(
+                    tmpdir, save_restore_connector.model_weights_ckpt
+                )
                 state_dict = save_restore_connector._load_state_dict_from_disk(
                     model_weights, map_location=map_location
                 )

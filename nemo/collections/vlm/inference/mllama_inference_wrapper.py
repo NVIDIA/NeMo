@@ -47,17 +47,30 @@ class MllamaInferenceWrapper(AbstractModelInferenceWrapper):
         image_dict: List[Dict] = None,
     ):
         # pylint: disable=C0115,C0116
-        max_num_concurrent_media = max(instance['pixel_values'].shape[0] for instance in image_dict)
+        max_num_concurrent_media = max(
+            instance["pixel_values"].shape[0] for instance in image_dict
+        )
         for instance in image_dict:
-            pad_num_images = max_num_concurrent_media - instance['pixel_values'].shape[0]
-            instance['pixel_values'] = F.pad(
-                instance['pixel_values'], (0, 0, 0, 0, 0, 0, 0, 0, 0, pad_num_images), 'constant', 0
+            pad_num_images = (
+                max_num_concurrent_media - instance["pixel_values"].shape[0]
             )
-            instance['aspect_ratio_ids'] = F.pad(
-                instance['aspect_ratio_ids'], (0, max(pad_num_images - 1, 0)), 'constant', 0
+            instance["pixel_values"] = F.pad(
+                instance["pixel_values"],
+                (0, 0, 0, 0, 0, 0, 0, 0, 0, pad_num_images),
+                "constant",
+                0,
             )
-            instance['num_tiles'] = F.pad(
-                torch.tensor(instance['num_tiles']), (0, max(pad_num_images - 1, 0)), 'constant', 0
+            instance["aspect_ratio_ids"] = F.pad(
+                instance["aspect_ratio_ids"],
+                (0, max(pad_num_images - 1, 0)),
+                "constant",
+                0,
+            )
+            instance["num_tiles"] = F.pad(
+                torch.tensor(instance["num_tiles"]),
+                (0, max(pad_num_images - 1, 0)),
+                "constant",
+                0,
             )
         batch = default_collate(image_dict)
 
@@ -78,9 +91,9 @@ class MllamaInferenceWrapper(AbstractModelInferenceWrapper):
         return {
             "prompts_tokens": prompts_tokens,
             "position_ids": position_ids,
-            "pixel_values": batch['pixel_values'].cuda(non_blocking=True),
-            "num_tiles": batch['num_tiles'],
-            "aspect_ratio_ids": batch['aspect_ratio_ids'].cuda(non_blocking=True),
+            "pixel_values": batch["pixel_values"].cuda(non_blocking=True),
+            "num_tiles": batch["num_tiles"],
+            "aspect_ratio_ids": batch["aspect_ratio_ids"].cuda(non_blocking=True),
         }
 
     def get_batch_for_context_window(
@@ -90,18 +103,24 @@ class MllamaInferenceWrapper(AbstractModelInferenceWrapper):
         context_end_position: int,
     ) -> Dict[str, Any]:
         # pylint: disable=C0115,C0116
-        tokens2use = inference_input["prompts_tokens"][:, context_start_position:context_end_position]
-        positions2use = inference_input["position_ids"][:, context_start_position:context_end_position]
+        tokens2use = inference_input["prompts_tokens"][
+            :, context_start_position:context_end_position
+        ]
+        positions2use = inference_input["position_ids"][
+            :, context_start_position:context_end_position
+        ]
 
         return {
             "prompts_tokens": tokens2use,
             "position_ids": positions2use,
-            "pixel_values": inference_input['pixel_values'],
-            "num_tiles": inference_input['num_tiles'],
-            "aspect_ratio_ids": inference_input['aspect_ratio_ids'],
+            "pixel_values": inference_input["pixel_values"],
+            "num_tiles": inference_input["num_tiles"],
+            "aspect_ratio_ids": inference_input["aspect_ratio_ids"],
         }
 
-    def forward_pass_without_pipeline_parallel(self, inference_input: Dict[str, Any]) -> torch.Tensor:
+    def forward_pass_without_pipeline_parallel(
+        self, inference_input: Dict[str, Any]
+    ) -> torch.Tensor:
         """Utility to carry out simple forward pass for TP or no model parallel models
 
         Runs a very simple forward pass for model. Used  in the case of models without
@@ -115,7 +134,9 @@ class MllamaInferenceWrapper(AbstractModelInferenceWrapper):
             torch.Tensor: The output logits of shape [batch_size, seq_len, padded_vocab_size]
         """
         tokens2use = inference_input["prompts_tokens"]
-        batch_masks = [create_vision_mask_tensor(tokens2use[0], 128256)] * tokens2use.size(0)
+        batch_masks = [
+            create_vision_mask_tensor(tokens2use[0], 128256)
+        ] * tokens2use.size(0)
         logits = self.model(
             batch_images=inference_input["pixel_values"],
             batch_masks=batch_masks,

@@ -30,7 +30,9 @@ try:
     from nemo.deploy import DeployPyTriton
     from nemo.deploy.nlp import NemoQueryLLM
 except Exception as e:
-    LOGGER.warning(f"Cannot import Triton, deployment will not be available. {type(e).__name__}: {e}")
+    LOGGER.warning(
+        f"Cannot import Triton, deployment will not be available. {type(e).__name__}: {e}"
+    )
     triton_supported = False
 
 in_framework_supported = True
@@ -52,14 +54,18 @@ trt_llm_supported = True
 try:
     from nemo.export.tensorrt_llm import TensorRTLLM
 except Exception as e:
-    LOGGER.warning(f"Cannot import the TensorRTLLM exporter, it will not be available. {type(e).__name__}: {e}")
+    LOGGER.warning(
+        f"Cannot import the TensorRTLLM exporter, it will not be available. {type(e).__name__}: {e}"
+    )
     trt_llm_supported = False
 
 vllm_supported = True
 try:
     from nemo.export.vllm_exporter import vLLMExporter
 except Exception as e:
-    LOGGER.warning(f"Cannot import the vLLM exporter, it will not be available. {type(e).__name__}: {e}")
+    LOGGER.warning(
+        f"Cannot import the vLLM exporter, it will not be available. {type(e).__name__}: {e}"
+    )
     vllm_supported = False
 
 
@@ -95,7 +101,7 @@ def get_accuracy_with_lambada(model, nq, task_ids, lora_uids, test_data_path):
     all_expected_outputs = []
     all_actual_outputs = []
 
-    with open(test_data_path, 'r') as file:
+    with open(test_data_path, "r") as file:
         records = json.load(file)
 
         eval_start = time.monotonic()
@@ -104,7 +110,9 @@ def get_accuracy_with_lambada(model, nq, task_ids, lora_uids, test_data_path):
             expected_output = record["last_word"].strip().lower()
             all_expected_outputs.append(expected_output)
             if model is not None:
-                if in_framework_supported and isinstance(model, MegatronLLMDeployableNemo2):
+                if in_framework_supported and isinstance(
+                    model, MegatronLLMDeployableNemo2
+                ):
                     model_output = model.generate(
                         prompts=[prompt],
                         inference_params=CommonInferenceParams(
@@ -115,7 +123,9 @@ def get_accuracy_with_lambada(model, nq, task_ids, lora_uids, test_data_path):
                             return_log_probs=False,
                         ),
                     )
-                    model_output = model_output[0].generated_text  # Index [0] as a single prompt is used
+                    model_output = model_output[
+                        0
+                    ].generated_text  # Index [0] as a single prompt is used
                 else:
                     model_output = model.forward(
                         input_texts=[prompt],
@@ -152,7 +162,9 @@ def get_accuracy_with_lambada(model, nq, task_ids, lora_uids, test_data_path):
                     )
                     # Accessing [0][0] of "text" is to get a raw string entry from a NumPy array
                     # for a single prompt (batch size = 1) and stripping prefix if needed:
-                    deployed_output = deployed_output["choices"][0]["text"][0][0][0:].strip().lower()
+                    deployed_output = (
+                        deployed_output["choices"][0]["text"][0][0][0:].strip().lower()
+                    )
                 else:
                     deployed_output = nq.query_llm(
                         prompts=[prompt],
@@ -181,13 +193,16 @@ def get_accuracy_with_lambada(model, nq, task_ids, lora_uids, test_data_path):
         accuracy=correct_answers / len(all_expected_outputs),
         accuracy_relaxed=correct_answers_relaxed / len(all_expected_outputs),
         deployed_accuracy=correct_answers_deployed / len(all_expected_outputs),
-        deployed_accuracy_relaxed=correct_answers_deployed_relaxed / len(all_expected_outputs),
+        deployed_accuracy_relaxed=correct_answers_deployed_relaxed
+        / len(all_expected_outputs),
         evaluation_time=eval_end - eval_start,
     )
 
 
 # Tests if the model outputs contain the expected keywords.
-def check_model_outputs(streaming: bool, model_outputs, expected_outputs: List[str]) -> bool:
+def check_model_outputs(
+    streaming: bool, model_outputs, expected_outputs: List[str]
+) -> bool:
 
     # In streaming mode, we get a list of lists of lists, and we only care about the last item in that list
     if streaming:
@@ -269,7 +284,11 @@ def run_inference(
             )
             print("")
 
-            print("Path: {0} and model: {1} with {2} tps will be tested".format(checkpoint_path, model_name, tp_size))
+            print(
+                "Path: {0} and model: {1} with {2} tps will be tested".format(
+                    checkpoint_path, model_name, tp_size
+                )
+            )
 
         prompt_embeddings_checkpoint_path = None
         task_ids = None
@@ -422,11 +441,19 @@ def run_inference(
             # Check deployed funcitonal correctness
             if args.functional_test:
                 functional_result.deployed_pass = True
-                if not check_model_outputs(streaming, output_deployed, expected_outputs):
-                    LOGGER.warning("Deployed model outputs don't match the expected result.")
+                if not check_model_outputs(
+                    streaming, output_deployed, expected_outputs
+                ):
+                    LOGGER.warning(
+                        "Deployed model outputs don't match the expected result."
+                    )
                     functional_result.deployed_pass = False
 
-        if debug or functional_result.regular_pass == False or functional_result.deployed_pass == False:
+        if (
+            debug
+            or functional_result.regular_pass == False
+            or functional_result.deployed_pass == False
+        ):
             print("")
             print("--- Prompt: ", prompts)
             print("")
@@ -443,7 +470,9 @@ def run_inference(
         accuracy_result = None
         if run_accuracy:
             print("Start model accuracy testing ...")
-            accuracy_result = get_accuracy_with_lambada(exporter, nq, task_ids, lora_uids, test_data_path)
+            accuracy_result = get_accuracy_with_lambada(
+                exporter, nq, task_ids, lora_uids, test_data_path
+            )
 
         if test_deployment:
             nm.stop()
@@ -480,10 +509,17 @@ def run_in_framework_inference(
             )
             print("")
 
-            print("Path: {0} and model: {1} will be tested".format(checkpoint_path, model_name))
+            print(
+                "Path: {0} and model: {1} will be tested".format(
+                    checkpoint_path, model_name
+                )
+            )
 
         deployed_model = MegatronLLMDeploy.get_deployable(
-            checkpoint_path, num_gpus, enable_flash_decode=enable_flash_decode, legacy_ckpt=legacy_ckpt
+            checkpoint_path,
+            num_gpus,
+            enable_flash_decode=enable_flash_decode,
+            legacy_ckpt=legacy_ckpt,
         )
 
         nm = DeployPyTriton(
@@ -496,7 +532,11 @@ def run_in_framework_inference(
         nq = NemoQueryLLMPyTorch(url="localhost:8000", model_name=model_name)
 
         output_deployed = nq.query_llm(
-            prompts=prompts, top_k=top_k, top_p=top_p, temperature=temperature, max_length=max_output_len
+            prompts=prompts,
+            top_k=top_k,
+            top_p=top_p,
+            temperature=temperature,
+            max_length=max_output_len,
         )
         output_deployed = output_deployed["choices"][0]["text"]
 
@@ -508,7 +548,9 @@ def run_in_framework_inference(
         if run_accuracy:
             print("Start model accuracy testing ...")
             # This script is not written with torch.distributed support in mind, so running non-deployed in-framework models on multiple devices will not work
-            accuracy_result = get_accuracy_with_lambada(deployed_model, nq, None, None, test_data_path)
+            accuracy_result = get_accuracy_with_lambada(
+                deployed_model, nq, None, None, test_data_path
+            )
 
         nm.stop()
 
@@ -643,7 +685,7 @@ def get_args():
     parser.add_argument(
         "--debug",
         default=False,
-        action='store_true',
+        action="store_true",
     )
     parser.add_argument(
         "--test_data_path",
@@ -683,7 +725,7 @@ def get_args():
     )
     parser.add_argument(
         "-gmu",
-        '--gpu_memory_utilization',
+        "--gpu_memory_utilization",
         default=0.95,  # 0.95 is needed to run Mixtral-8x7B on 2x48GB GPUs
         type=float,
         help="GPU memory utilization percentage for vLLM.",
@@ -721,17 +763,19 @@ def get_args():
         s = s.lower()
         true_strings = ["true", "1"]
         false_strings = ["false", "0"]
-        if s == '':
+        if s == "":
             return False
         if s in true_strings:
             return True
         if s in false_strings:
             return False
-        if optional and s == 'auto':
+        if optional and s == "auto":
             return None
         raise UsageError(f"Invalid boolean value for argument --{name}: '{s}'")
 
-    args.model_type = None if str(args.model_type).lower() == "none" else args.model_type
+    args.model_type = (
+        None if str(args.model_type).lower() == "none" else args.model_type
+    )
     args.test_cpp_runtime = str_to_bool("test_cpp_runtime", args.test_cpp_runtime)
     args.test_deployment = str_to_bool("test_deployment", args.test_deployment)
     args.functional_test = str_to_bool("functional_test", args.functional_test)
@@ -739,13 +783,21 @@ def get_args():
     args.run_accuracy = str_to_bool("run_accuracy", args.run_accuracy)
     args.use_vllm = str_to_bool("use_vllm", args.use_vllm)
     args.use_huggingface = str_to_bool("use_huggingface", args.use_huggingface)
-    args.enable_flash_decode = str_to_bool("enable_flash_decode", args.enable_flash_decode)
+    args.enable_flash_decode = str_to_bool(
+        "enable_flash_decode", args.enable_flash_decode
+    )
     args.lora = str_to_bool("lora", args.lora)
     args.ptuning = str_to_bool("ptuning", args.ptuning)
-    args.use_parallel_embedding = str_to_bool("use_parallel_embedding", args.use_parallel_embedding)
+    args.use_parallel_embedding = str_to_bool(
+        "use_parallel_embedding", args.use_parallel_embedding
+    )
     args.in_framework = str_to_bool("in_framework", args.in_framework)
-    args.export_fp8_quantized = str_to_bool("export_fp8_quantized", args.export_fp8_quantized, optional=True)
-    args.use_fp8_kv_cache = str_to_bool("use_fp8_kv_cache", args.use_fp8_kv_cache, optional=True)
+    args.export_fp8_quantized = str_to_bool(
+        "export_fp8_quantized", args.export_fp8_quantized, optional=True
+    )
+    args.use_fp8_kv_cache = str_to_bool(
+        "use_fp8_kv_cache", args.use_fp8_kv_cache, optional=True
+    )
     args.legacy_ckpt = str_to_bool("legacy_ckpt", args.legacy_ckpt)
 
     return args
@@ -762,10 +814,14 @@ def run_inference_tests(args):
         raise UsageError("In-framework inference is not supported in this environment.")
 
     if args.use_vllm and (args.ptuning or args.lora):
-        raise UsageError("The vLLM integration currently does not support P-tuning or LoRA.")
+        raise UsageError(
+            "The vLLM integration currently does not support P-tuning or LoRA."
+        )
 
     if args.test_deployment and not triton_supported:
-        raise UsageError("Deployment tests are not available because Triton is not supported in this environment.")
+        raise UsageError(
+            "Deployment tests are not available because Triton is not supported in this environment."
+        )
 
     if args.run_accuracy and args.test_data_path is None:
         raise UsageError("Accuracy testing requires the --test_data_path argument.")
@@ -868,8 +924,12 @@ def run_inference_tests(args):
         print(f"Tensor Parallelism:              {num_tps}")
 
         if args.functional_test and functional_result is not None:
-            print(f"Functional Test:                 {optional_bool_to_pass_fail(functional_result.regular_pass)}")
-            print(f"Deployed Functional Test:        {optional_bool_to_pass_fail(functional_result.deployed_pass)}")
+            print(
+                f"Functional Test:                 {optional_bool_to_pass_fail(functional_result.regular_pass)}"
+            )
+            print(
+                f"Deployed Functional Test:        {optional_bool_to_pass_fail(functional_result.deployed_pass)}"
+            )
 
             if functional_result.regular_pass == False:
                 functional_test_result = "FAIL"
@@ -878,12 +938,24 @@ def run_inference_tests(args):
 
         if args.run_accuracy and accuracy_result is not None:
             print(f"Model Accuracy:                  {accuracy_result.accuracy:.4f}")
-            print(f"Relaxed Model Accuracy:          {accuracy_result.accuracy_relaxed:.4f}")
-            print(f"Deployed Model Accuracy:         {accuracy_result.deployed_accuracy:.4f}")
-            print(f"Deployed Relaxed Model Accuracy: {accuracy_result.deployed_accuracy_relaxed:.4f}")
-            print(f"Evaluation Time [s]:             {accuracy_result.evaluation_time:.2f}")
-            if (deployed_tests_only and accuracy_result.deployed_accuracy_relaxed < args.accuracy_threshold) or (
-                not deployed_tests_only and accuracy_result.accuracy_relaxed < args.accuracy_threshold
+            print(
+                f"Relaxed Model Accuracy:          {accuracy_result.accuracy_relaxed:.4f}"
+            )
+            print(
+                f"Deployed Model Accuracy:         {accuracy_result.deployed_accuracy:.4f}"
+            )
+            print(
+                f"Deployed Relaxed Model Accuracy: {accuracy_result.deployed_accuracy_relaxed:.4f}"
+            )
+            print(
+                f"Evaluation Time [s]:             {accuracy_result.evaluation_time:.2f}"
+            )
+            if (
+                deployed_tests_only
+                and accuracy_result.deployed_accuracy_relaxed < args.accuracy_threshold
+            ) or (
+                not deployed_tests_only
+                and accuracy_result.accuracy_relaxed < args.accuracy_threshold
             ):
                 accuracy_test_result = "FAIL"
 
@@ -900,7 +972,7 @@ def run_inference_tests(args):
         raise Exception(f"Model accuracy is below {args.accuracy_threshold}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     try:
         args = get_args()
         run_inference_tests(args)

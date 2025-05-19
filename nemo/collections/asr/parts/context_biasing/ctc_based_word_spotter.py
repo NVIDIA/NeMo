@@ -71,7 +71,11 @@ def beam_pruning(next_tokens: List[Token], beam_threshold: float) -> List[Token]
     if not next_tokens:
         return []
     best_token = next_tokens[np.argmax([token.score for token in next_tokens])]
-    next_tokens = [token for token in next_tokens if token.score > best_token.score - beam_threshold]
+    next_tokens = [
+        token
+        for token in next_tokens
+        if token.score > best_token.score - beam_threshold
+    ]
     return next_tokens
 
 
@@ -105,7 +109,9 @@ def state_pruning(next_tokens: List[Token]) -> List[Token]:
     return next_tokens_pruned
 
 
-def find_best_hyps(spotted_words: List[WSHyp], intersection_threshold: int = 10) -> List[WSHyp]:
+def find_best_hyps(
+    spotted_words: List[WSHyp], intersection_threshold: int = 10
+) -> List[WSHyp]:
     """
     Some spotted hypotheses may have overlap.
     If hypotheses intersection is greater than intersection_threshold,
@@ -130,7 +136,11 @@ def find_best_hyps(spotted_words: List[WSHyp], intersection_threshold: int = 10)
             # get left and right interval values
             l, r = int(h_interval_key.split("_")[0]), int(h_interval_key.split("_")[1])
             current_dict_interval = set(range(l, r + 1))
-            intersection_part = 100 / len(current_dict_interval) * len(hyp_interval & current_dict_interval)
+            intersection_part = (
+                100
+                / len(current_dict_interval)
+                * len(hyp_interval & current_dict_interval)
+            )
             # in case of intersection:
             if intersection_part >= intersection_threshold:
                 if hyp.score > hyp_intervals_dict[h_interval_key].score:
@@ -142,7 +152,9 @@ def find_best_hyps(spotted_words: List[WSHyp], intersection_threshold: int = 10)
         if insert_new_hyp:
             hyp_intervals_dict[h_interval_name] = hyp
 
-    best_hyp_list = [hyp_intervals_dict[h_interval_key] for h_interval_key in hyp_intervals_dict]
+    best_hyp_list = [
+        hyp_intervals_dict[h_interval_key] for h_interval_key in hyp_intervals_dict
+    ]
 
     return best_hyp_list
 
@@ -214,7 +226,9 @@ def get_ctc_word_alignment(
     return word_alignment
 
 
-def filter_wb_hyps(best_hyp_list: List[WSHyp], word_alignment: List[tuple]) -> List[WSHyp]:
+def filter_wb_hyps(
+    best_hyp_list: List[WSHyp], word_alignment: List[tuple]
+) -> List[WSHyp]:
     """
     Compare scores of spotted words with overlapping words from ctc alignment.
     If score of spotted word is less than overalapping words from ctc alignment,
@@ -243,7 +257,9 @@ def filter_wb_hyps(best_hyp_list: List[WSHyp], word_alignment: List[tuple]) -> L
         for i in range(current_word_in_ali, len(word_alignment)):
             word_stats = word_alignment[i]
             word_interval = set(range(word_stats[1], word_stats[2] + 1))
-            intersection_part = 100 / len(word_interval) * len(hyp_interval & word_interval)
+            intersection_part = (
+                100 / len(word_interval) * len(hyp_interval & word_interval)
+            )
             if intersection_part:
                 if not hyp_intersects:
                     overall_spot_score = word_stats[3]
@@ -313,18 +329,30 @@ def run_word_spotter(
         best_score = None
         for token in active_tokens:
             # skip token by the blank_threshold if empty token
-            if token.state is context_graph.root and logprobs[frame][blank_idx] > blank_threshold:
+            if (
+                token.state is context_graph.root
+                and logprobs[frame][blank_idx] > blank_threshold
+            ):
                 continue
             for transition_state in token.state.next:
                 # skip non-blank token by the non_blank_threshold if empty token
-                if token.state is context_graph.root and logprobs[frame][int(transition_state)] < non_blank_threshold:
+                if (
+                    token.state is context_graph.root
+                    and logprobs[frame][int(transition_state)] < non_blank_threshold
+                ):
                     continue
                 # running beam pruning (start) - skips current token by score before Token class creations
                 if transition_state != blank_idx:
                     # add cb_weight only for non-blank tokens
-                    current_score = token.score + logprobs[frame][int(transition_state)].item() + cb_weight
+                    current_score = (
+                        token.score
+                        + logprobs[frame][int(transition_state)].item()
+                        + cb_weight
+                    )
                 else:
-                    current_score = token.score + logprobs[frame][int(transition_state)].item()
+                    current_score = (
+                        token.score + logprobs[frame][int(transition_state)].item()
+                    )
                 if not best_score:
                     best_score = current_score
                 else:
@@ -334,12 +362,19 @@ def run_word_spotter(
                         best_score = current_score
                 # running beam pruning (end)
 
-                new_token = Token(token.state.next[transition_state], current_score, token.start_frame)
+                new_token = Token(
+                    token.state.next[transition_state], current_score, token.start_frame
+                )
                 # add a word as spotted if token reached the end of word state in context graph:
                 if new_token.state.is_end and new_token.score > keyword_threshold:
                     word = new_token.state.word
                     spotted_words.append(
-                        WSHyp(word=word, score=new_token.score, start_frame=new_token.start_frame, end_frame=frame)
+                        WSHyp(
+                            word=word,
+                            score=new_token.score,
+                            start_frame=new_token.start_frame,
+                            end_frame=frame,
+                        )
                     )
                     # check case when the current state is the last in the branch (only one self-loop transition)
                     if len(new_token.state.next) == 1:

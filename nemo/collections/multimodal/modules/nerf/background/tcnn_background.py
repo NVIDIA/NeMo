@@ -32,11 +32,17 @@ class TCNNBackground(NeRFBackgroundBase):
     ):
         super().__init__()
         self.bound = bound
-        if encoder_cfg.get('per_level_scale') is None:
-            encoder_cfg['per_level_scale'] = np.exp2(np.log2(2048 * self.bound / 16) / (16 - 1))
-        self.encoder = tcnn.Encoding(n_input_dims=encoder_num_input_dims, encoding_config=dict(encoder_cfg))
+        if encoder_cfg.get("per_level_scale") is None:
+            encoder_cfg["per_level_scale"] = np.exp2(
+                np.log2(2048 * self.bound / 16) / (16 - 1)
+            )
+        self.encoder = tcnn.Encoding(
+            n_input_dims=encoder_num_input_dims, encoding_config=dict(encoder_cfg)
+        )
         self.background_net = tcnn.Network(
-            self.encoder.n_output_dims, background_net_num_output_dims, network_config=dict(background_net_cfg)
+            self.encoder.n_output_dims,
+            background_net_num_output_dims,
+            network_config=dict(background_net_cfg),
         )
 
     def encode(self, rays_d: torch.Tensor) -> torch.Tensor:

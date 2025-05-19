@@ -24,7 +24,12 @@ from nemo.collections.multimodal.modules.nerf.utils.torch_ngp.encoding import \
 
 class TorchNGPBackground(NeRFBackgroundBase):
     def __init__(
-        self, encoder_type: str, encoder_input_dims: int, encoder_multi_res: int, num_output_dims: int, net_cfg: Dict
+        self,
+        encoder_type: str,
+        encoder_input_dims: int,
+        encoder_multi_res: int,
+        num_output_dims: int,
+        net_cfg: Dict,
     ):
         super().__init__()
 

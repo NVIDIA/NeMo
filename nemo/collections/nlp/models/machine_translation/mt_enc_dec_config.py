@@ -33,7 +33,7 @@ from nemo.core.config.modelPT import OptimConfig, SchedConfig
 
 @dataclass
 class MTSchedConfig(SchedConfig):
-    name: str = 'InverseSquareRootAnnealing'
+    name: str = "InverseSquareRootAnnealing"
     warmup_ratio: Optional[float] = None
     last_epoch: int = -1
 
@@ -41,7 +41,7 @@ class MTSchedConfig(SchedConfig):
 # TODO: Refactor this dataclass to to support more optimizers (it pins the optimizer to Adam-like optimizers).
 @dataclass
 class MTOptimConfig(OptimConfig):
-    name: str = 'adam'
+    name: str = "adam"
     lr: float = 1e-3
     betas: Tuple[float, float] = (0.9, 0.98)
     weight_decay: float = 0.0
@@ -57,8 +57,8 @@ class MTEncDecModelConfig(EncDecNLPModelConfig):
     label_smoothing: Optional[float] = 0.0
     beam_size: int = 4
     len_pen: float = 0.0
-    src_language: Any = 'en'  # Any = str or List[str]
-    tgt_language: Any = 'en'  # Any = str or List[str]
+    src_language: Any = "en"  # Any = str or List[str]
+    tgt_language: Any = "en"  # Any = str or List[str]
     find_unused_parameters: Optional[bool] = True
     shared_tokenizer: Optional[bool] = True
     multilingual: Optional[bool] = False
@@ -73,7 +73,9 @@ class MTEncDecModelConfig(EncDecNLPModelConfig):
     decoder_tokenizer: Any = MISSING
     decoder: Any = MISSING
 
-    head: TokenClassifierConfig = field(default_factory=lambda: TokenClassifierConfig(log_softmax=True))
+    head: TokenClassifierConfig = field(
+        default_factory=lambda: TokenClassifierConfig(log_softmax=True)
+    )
 
     # dataset configurations
     train_ds: Optional[TranslationDataConfig] = field(
@@ -116,12 +118,16 @@ class MTEncDecModelConfig(EncDecNLPModelConfig):
 class AAYNBaseConfig(MTEncDecModelConfig):
 
     # Attention is All You Need Base Configuration
-    encoder_tokenizer: TokenizerConfig = field(default_factory=lambda: TokenizerConfig(library='sentencepiece'))
-    decoder_tokenizer: TokenizerConfig = field(default_factory=lambda: TokenizerConfig(library='sentencepiece'))
+    encoder_tokenizer: TokenizerConfig = field(
+        default_factory=lambda: TokenizerConfig(library="sentencepiece")
+    )
+    decoder_tokenizer: TokenizerConfig = field(
+        default_factory=lambda: TokenizerConfig(library="sentencepiece")
+    )
 
     encoder: NeMoTransformerEncoderConfig = field(
         default_factory=lambda: NeMoTransformerEncoderConfig(
-            library='nemo',
+            library="nemo",
             model_name=None,
             pretrained=False,
             hidden_size=512,
@@ -136,7 +142,7 @@ class AAYNBaseConfig(MTEncDecModelConfig):
 
     decoder: NeMoTransformerConfig = field(
         default_factory=lambda: NeMoTransformerConfig(
-            library='nemo',
+            library="nemo",
             model_name=None,
             pretrained=False,
             hidden_size=512,
@@ -152,7 +158,7 @@ class AAYNBaseConfig(MTEncDecModelConfig):
 
 @dataclass
 class MTBottleneckModelConfig(AAYNBaseConfig):
-    model_type: str = 'nll'
+    model_type: str = "nll"
     min_logv: float = -6
     latent_size: int = -1  # -1 will take value of encoder hidden
     non_recon_warmup_batches: int = 200000
@@ -161,7 +167,7 @@ class MTBottleneckModelConfig(AAYNBaseConfig):
 
     encoder: NeMoTransformerBottleneckEncoderConfig = field(
         default_factory=lambda: NeMoTransformerBottleneckEncoderConfig(
-            library='nemo',
+            library="nemo",
             model_name=None,
             pretrained=False,
             hidden_size=512,
@@ -171,16 +177,16 @@ class MTBottleneckModelConfig(AAYNBaseConfig):
             ffn_dropout=0.1,
             attn_score_dropout=0.1,
             attn_layer_dropout=0.1,
-            arch='seq2seq',
+            arch="seq2seq",
             hidden_steps=32,
             hidden_blocks=1,
-            hidden_init_method='params',
+            hidden_init_method="params",
         )
     )
 
     decoder: NeMoTransformerBottleneckDecoderConfig = field(
         default_factory=lambda: NeMoTransformerBottleneckDecoderConfig(
-            library='nemo',
+            library="nemo",
             model_name=None,
             pretrained=False,
             inner_size=2048,
@@ -189,6 +195,6 @@ class MTBottleneckModelConfig(AAYNBaseConfig):
             ffn_dropout=0.1,
             attn_score_dropout=0.1,
             attn_layer_dropout=0.1,
-            arch='seq2seq',
+            arch="seq2seq",
         )
     )

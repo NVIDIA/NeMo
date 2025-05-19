@@ -86,7 +86,9 @@ class Qwen2VLTaskBatch(Batch):
     loss_mask: torch.Tensor
 
 
-def convert_to_qwen2vl_content(user_input: str, image_pattern: str = '<image>', video_pattern: str = '<video>'):
+def convert_to_qwen2vl_content(
+    user_input: str, image_pattern: str = "<image>", video_pattern: str = "<video>"
+):
     """Split user input into format Qwen2VL tokenizer accepts."""
 
     pattern = r"({image}|{video})".format(image=image_pattern, video=video_pattern)
@@ -96,12 +98,14 @@ def convert_to_qwen2vl_content(user_input: str, image_pattern: str = '<image>', 
     for matched in re.finditer(pattern, user_input):
         start, end = matched.span()
         if start > cur:
-            contents.append({"type": "text", "text": user_input[cur:start].strip(' ')})
+            contents.append({"type": "text", "text": user_input[cur:start].strip(" ")})
 
         contents.append(
             {
                 "type": matched.string[start:end][1:-1],
-                matched.string[start:end][1:-1]: str(mm_idx[matched.string[start:end][1:-1]]),
+                matched.string[start:end][1:-1]: str(
+                    mm_idx[matched.string[start:end][1:-1]]
+                ),
             }
         )
 
@@ -109,7 +113,9 @@ def convert_to_qwen2vl_content(user_input: str, image_pattern: str = '<image>', 
         mm_idx[matched.string[start:end][1:-1]] += 1
 
     if cur < len(user_input):
-        contents.append({"type": "text", "text": user_input[cur : len(user_input)].strip(' ')})
+        contents.append(
+            {"type": "text", "text": user_input[cur : len(user_input)].strip(" ")}
+        )
 
     return contents
 
@@ -124,35 +130,37 @@ def cook_chatml_sample(sample: dict) -> ChatMLSample:
     Returns:
         sample in ChatMLSample format
     """
-    imgs = sample.get('jpgs', None)
+    imgs = sample.get("jpgs", None)
     if imgs:
         imgs = pickle.loads(imgs)
         if isinstance(imgs, list) and len(imgs) > 0:
             imgs = [Image.fromarray(d) for d in imgs]
         else:
             imgs = None
-    videos = sample.get('videos', None)
+    videos = sample.get("videos", None)
     if videos:
         videos = pickle.loads(videos)
         if isinstance(videos, list) and len(videos) > 0:
             videos = [[d for d in video] for video in videos]
         else:
             videos = None
-    if "<image>" in sample['json'] and imgs is None:
+    if "<image>" in sample["json"] and imgs is None:
         logging.warning("<image> in conversation text but no image data")
-    if "<video>" in sample['json'] and videos is None:
+    if "<video>" in sample["json"] and videos is None:
         logging.warning("<video> in conversation text but no video data")
 
     chat_sample = ChatMLSample(
         **basic_sample_keys(sample),
         imgs=imgs,
         videos=videos,
-        conversation=sample['json'],
+        conversation=sample["json"],
     )
     return chat_sample
 
 
-class Qwen2VLTaskEncoder(DefaultTaskEncoder[ChatMLSample, Qwen2VLTaskSample, Qwen2VLTaskBatch, dict]):
+class Qwen2VLTaskEncoder(
+    DefaultTaskEncoder[ChatMLSample, Qwen2VLTaskSample, Qwen2VLTaskBatch, dict]
+):
     """A simple task encoder for captioning."""
 
     cookers = [
@@ -179,7 +187,10 @@ class Qwen2VLTaskEncoder(DefaultTaskEncoder[ChatMLSample, Qwen2VLTaskSample, Qwe
         self.patch_size = patch_size
 
         self.seq_len = max_padding_length
-        self.image_token_id, self.video_token_id = HF_IMAGE_TOKEN_INDEX, HF_VIDEO_TOKEN_INDEX
+        self.image_token_id, self.video_token_id = (
+            HF_IMAGE_TOKEN_INDEX,
+            HF_VIDEO_TOKEN_INDEX,
+        )
 
     def encode_sample(self, sample: ChatMLSample):
         """
@@ -194,31 +205,41 @@ class Qwen2VLTaskEncoder(DefaultTaskEncoder[ChatMLSample, Qwen2VLTaskSample, Qwe
         """
         # NOTE: flatten all images
         #     Input of process_vision:
-        processed_vision = process_vision(self.image_processor, sample.imgs, sample.videos)
-        image_thw_grids = processed_vision['image_grid_thw']
-        video_thw_grids = processed_vision['video_grid_thw']
-        flattened_imgs = processed_vision['image_inputs']
-        flattened_videos = processed_vision['video_inputs']
+        processed_vision = process_vision(
+            self.image_processor, sample.imgs, sample.videos
+        )
+        image_thw_grids = processed_vision["image_grid_thw"]
+        video_thw_grids = processed_vision["video_grid_thw"]
+        flattened_imgs = processed_vision["image_inputs"]
+        flattened_videos = processed_vision["video_inputs"]
 
         conversation = (
-            json.loads(sample.conversation) if isinstance(sample.conversation, (str, bytes)) else sample.conversation
+            json.loads(sample.conversation)
+            if isinstance(sample.conversation, (str, bytes))
+            else sample.conversation
         )
 
-        _from_system_ = 'from' in conversation[0]
-        role_key = 'from' if 'from' in conversation[0] else 'role'
-        content_key = 'value' if 'from' in conversation[0] else 'content'
+        _from_system_ = "from" in conversation[0]
+        role_key = "from" if "from" in conversation[0] else "role"
+        content_key = "value" if "from" in conversation[0] else "content"
 
         # NOTE: assume the conversation format is: [System]? (User Assistant)+
         converted_conversation = []
         if len(conversation) % 2 == 0:
             # Default Prompt
-            converted_conversation.append({'role': 'system', 'content': 'You are a helpful assistant.'})
+            converted_conversation.append(
+                {"role": "system", "content": "You are a helpful assistant."}
+            )
         else:
-            converted_conversation.append({'role': 'system', 'content': conversation[0][content_key]})
+            converted_conversation.append(
+                {"role": "system", "content": conversation[0][content_key]}
+            )
             conversation = conversation[1:]
 
-        if _from_system_:  # ['conversations':[{'from':'human', 'value':[]}, {'from':'gpt', 'value':[]}]
-            EXPECTED_ROLE = ['human', 'gpt']
+        if (
+            _from_system_
+        ):  # ['conversations':[{'from':'human', 'value':[]}, {'from':'gpt', 'value':[]}]
+            EXPECTED_ROLE = ["human", "gpt"]
             for turn_idx, turn in enumerate(conversation):
                 role = turn[role_key]
                 if role != EXPECTED_ROLE[turn_idx % len(EXPECTED_ROLE)]:
@@ -228,15 +249,15 @@ class Qwen2VLTaskEncoder(DefaultTaskEncoder[ChatMLSample, Qwen2VLTaskSample, Qwe
                     )
                 content = turn[content_key]
 
-                if role == 'human':
-                    role = 'user'
+                if role == "human":
+                    role = "user"
                     content = convert_to_qwen2vl_content(content)
-                elif role == 'gpt':
-                    role = 'assistant'
+                elif role == "gpt":
+                    role = "assistant"
 
-                converted_conversation.append({'role': role, 'content': content})
+                converted_conversation.append({"role": role, "content": content})
         else:  # ['messages':[{'role':'user', 'content':[]}, {'role':'assistant', 'content':[]}]
-            EXPECTED_ROLE = ['user', 'assistant']
+            EXPECTED_ROLE = ["user", "assistant"]
             for turn_idx, turn in enumerate(conversation):
                 role = turn[role_key]
                 if role != EXPECTED_ROLE[turn_idx % len(EXPECTED_ROLE)]:
@@ -246,22 +267,28 @@ class Qwen2VLTaskEncoder(DefaultTaskEncoder[ChatMLSample, Qwen2VLTaskSample, Qwe
                     )
                 content = turn[content_key]
 
-                if role == 'user':
+                if role == "user":
                     content = convert_to_qwen2vl_content(content)
 
-                converted_conversation.append({'role': role, 'content': content})
+                converted_conversation.append({"role": role, "content": content})
         conversation = converted_conversation
 
         # NOTE: we need to mask all system/user input tokens and assistant generation prefix tokens
-        input_ids = self.hf_tokenizer.apply_chat_template(conversation, tokenize=True, return_tensors="np")[0]
+        input_ids = self.hf_tokenizer.apply_chat_template(
+            conversation, tokenize=True, return_tensors="np"
+        )[0]
         pad_token_id = self.hf_tokenizer.pad_token_id
         target = [pad_token_id for _ in range(len(input_ids))]
         search_start_index = 0
         for turn_idx, turn in enumerate(conversation[1:]):
-            if turn['role'] == 'assistant':
-                answer = turn['content'] + "<|im_end|>" + "\n"
-                answer_tokens = self.hf_tokenizer.encode(answer, add_special_tokens=False)
-                answer_start, answer_end = find_pattern_indices(input_ids, answer_tokens, search_start_index)
+            if turn["role"] == "assistant":
+                answer = turn["content"] + "<|im_end|>" + "\n"
+                answer_tokens = self.hf_tokenizer.encode(
+                    answer, add_special_tokens=False
+                )
+                answer_start, answer_end = find_pattern_indices(
+                    input_ids, answer_tokens, search_start_index
+                )
                 assert answer_start > 0, "Not found valid answer in conversation."
                 target[answer_start:answer_end] = input_ids[answer_start:answer_end]
                 search_start_index = answer_end
@@ -281,9 +308,9 @@ class Qwen2VLTaskEncoder(DefaultTaskEncoder[ChatMLSample, Qwen2VLTaskSample, Qwe
                 video_thw_grids
             ), f"With {len(video_thw_grids)} videos in the sample, but {len(video_token_indices)} video placeholders!"
         if image_thw_grids is not None and video_thw_grids is not None:
-            image_thw_grids, video_thw_grids = np.array(image_thw_grids, dtype=np.int64), np.array(
-                video_thw_grids, dtype=np.int64
-            )
+            image_thw_grids, video_thw_grids = np.array(
+                image_thw_grids, dtype=np.int64
+            ), np.array(video_thw_grids, dtype=np.int64)
             # xxx_thw_grids.shape[0] indicates how many '<image>' or '<video>' inside conversation text,
             # minus it and then get patch number, this would get exact number of visual padding size
             target_length = (
@@ -297,19 +324,25 @@ class Qwen2VLTaskEncoder(DefaultTaskEncoder[ChatMLSample, Qwen2VLTaskSample, Qwe
             image_thw_grids = np.array(image_thw_grids, dtype=np.int64)
 
             target_length = (
-                input_ids.shape[0] - image_thw_grids.shape[0] + image_thw_grids.prod(axis=-1).sum() // merge_length
+                input_ids.shape[0]
+                - image_thw_grids.shape[0]
+                + image_thw_grids.prod(axis=-1).sum() // merge_length
             )
         elif video_thw_grids is not None:
             video_thw_grids = np.array(video_thw_grids, dtype=np.int64)
 
             target_length = (
-                input_ids.shape[0] - video_thw_grids.shape[0] + video_thw_grids.prod(axis=-1).sum() // merge_length
+                input_ids.shape[0]
+                - video_thw_grids.shape[0]
+                + video_thw_grids.prod(axis=-1).sum() // merge_length
             )
         else:
             target_length = input_ids.shape[0]
 
         if target_length > self.seq_len:
-            logging.warning(f"Long sequence with length {target_length} found, dropped...")
+            logging.warning(
+                f"Long sequence with length {target_length} found, dropped..."
+            )
         final_input_ids = np.zeros(target_length, dtype=input_ids.dtype)
         final_input_masks = final_input_ids.copy()
 
@@ -353,8 +386,8 @@ class Qwen2VLTaskEncoder(DefaultTaskEncoder[ChatMLSample, Qwen2VLTaskSample, Qwe
         return Qwen2VLTaskSample(
             __key__=sample.__key__,
             __subflavors__=sample.__subflavors__,
-            imgs=flattened_imgs['pixel_values'] if flattened_imgs else [],
-            videos=flattened_videos['pixel_values_videos'] if flattened_videos else [],
+            imgs=flattened_imgs["pixel_values"] if flattened_imgs else [],
+            videos=flattened_videos["pixel_values_videos"] if flattened_videos else [],
             image_thw_grids=image_thw_grids if flattened_imgs else [],
             video_thw_grids=video_thw_grids if flattened_videos else [],
             image_input_mask=image_input_mask,
@@ -398,8 +431,12 @@ class Qwen2VLTaskEncoder(DefaultTaskEncoder[ChatMLSample, Qwen2VLTaskSample, Qwe
         if max_seq_len > self.seq_len:
             logging.warning("max sequence length larger than passed parameter")
 
-        text_mat = np.full((len(samples), max_seq_len), self.hf_tokenizer.pad_token_id, dtype=np.int64)
-        target_mat = np.full((len(samples), max_seq_len), self.hf_tokenizer.pad_token_id, dtype=np.int64)
+        text_mat = np.full(
+            (len(samples), max_seq_len), self.hf_tokenizer.pad_token_id, dtype=np.int64
+        )
+        target_mat = np.full(
+            (len(samples), max_seq_len), self.hf_tokenizer.pad_token_id, dtype=np.int64
+        )
 
         image_input_masks = np.zeros_like(text_mat, dtype=bool)
         video_input_masks = np.zeros_like(text_mat, dtype=bool)
@@ -411,9 +448,13 @@ class Qwen2VLTaskEncoder(DefaultTaskEncoder[ChatMLSample, Qwen2VLTaskSample, Qwe
             text_mat[i, :text_len] = np.array(s.text)[:text_len]
             # NOTE: we should assert user input sequence will not be truncated
             if s.image_input_mask is not None:
-                image_input_masks[i, :text_len] = np.array(s.image_input_mask)[:text_len]
+                image_input_masks[i, :text_len] = np.array(s.image_input_mask)[
+                    :text_len
+                ]
             if s.video_input_mask is not None:
-                video_input_masks[i, :text_len] = np.array(s.video_input_mask)[:text_len]
+                video_input_masks[i, :text_len] = np.array(s.video_input_mask)[
+                    :text_len
+                ]
             target_mat[i, :target_len] = np.array(s.target)[:target_len]
 
         tokens = torch.from_numpy(text_mat)
@@ -442,8 +483,16 @@ class Qwen2VLTaskEncoder(DefaultTaskEncoder[ChatMLSample, Qwen2VLTaskSample, Qwe
             __subflavors__=[s.__subflavors__ for s in samples],
             pixel_values=torch.vstack(imgs) if len(imgs) > 0 else None,
             pixel_values_videos=torch.vstack(videos) if len(videos) > 0 else None,
-            image_grid_thw=torch.from_numpy(np.array(image_thw_grids)) if len(image_thw_grids) > 0 else None,
-            video_grid_thw=torch.from_numpy(np.array(video_thw_grids)) if len(video_thw_grids) > 0 else None,
+            image_grid_thw=(
+                torch.from_numpy(np.array(image_thw_grids))
+                if len(image_thw_grids) > 0
+                else None
+            ),
+            video_grid_thw=(
+                torch.from_numpy(np.array(video_thw_grids))
+                if len(video_thw_grids) > 0
+                else None
+            ),
             image_input_mask=torch.from_numpy(image_input_masks),
             video_input_mask=torch.from_numpy(video_input_masks),
             input_ids=tokens,

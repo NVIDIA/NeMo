@@ -122,7 +122,9 @@ def get_lr(lr_scheduler):
 def zero_grad(optimizer, *args, **kwargs):
     # We invoke zero_grad before graph capturing.
     if torch.cuda.is_current_stream_capturing():
-        rank_zero_info("CUDAGraphCallback: set optimizer.zero_grad as nop during graph capturing.")
+        rank_zero_info(
+            "CUDAGraphCallback: set optimizer.zero_grad as nop during graph capturing."
+        )
     else:
         optimizer.__orig_zero_grad__(*args, **kwargs)
 
@@ -131,7 +133,11 @@ def to_tensor(self, value, name):
     # Log metrics in PyTorch Lightning often invokes CPU & GPU synchronizations. Here
     # we implement smart metrics to avoid those synchronizations.
     # Refer to: https://github.com/Lightning-AI/pytorch-lightning/blob/2.0.7/src/lightning/pytorch/core/module.py#L615
-    value = value.clone().detach() if isinstance(value, torch.Tensor) else torch.tensor(value)
+    value = (
+        value.clone().detach()
+        if isinstance(value, torch.Tensor)
+        else torch.tensor(value)
+    )
     if not torch.numel(value) == 1:
         raise ValueError(
             f"`self.log({name}, {value})` was called, but the tensor must have a single element."
@@ -159,7 +165,10 @@ def get_optimizer_step(state):
         else:
             zero_grad_kwargs = {}
 
-        if 0 <= state.current_iteration < state.capture_iteration or state.capture_iteration < 0:
+        if (
+            0 <= state.current_iteration < state.capture_iteration
+            or state.capture_iteration < 0
+        ):
             state.stream.wait_stream(torch.cuda.current_stream())
             with torch.cuda.stream(state.stream):
                 optimizer.zero_grad(**zero_grad_kwargs)
@@ -175,8 +184,13 @@ def get_optimizer_step(state):
             torch.cuda.synchronize()
             # Sleep for one second to let environment stable
             time.sleep(1)
-            rank_zero_info("CUDAGraphCallback: capturing CUDA graph for module %s.", self.__class__.__name__)
-            with torch.cuda.graph(state.graph, stream=state.stream, capture_error_mode="global"):
+            rank_zero_info(
+                "CUDAGraphCallback: capturing CUDA graph for module %s.",
+                self.__class__.__name__,
+            )
+            with torch.cuda.graph(
+                state.graph, stream=state.stream, capture_error_mode="global"
+            ):
                 # PyTorch CUDA graph doc for whole-network capturing mentions:
                 #
                 #   Sets grads to None before capture, so backward() will create
@@ -196,7 +210,9 @@ def get_optimizer_step(state):
         # Graph replay and reconstruct missing result
         if state.current_iteration >= state.capture_iteration >= 0:
             state.graph.replay()
-            optimizer_closure._result = ClosureResult.from_training_step_output(state.output)
+            optimizer_closure._result = ClosureResult.from_training_step_output(
+                state.output
+            )
 
         # If something is not capturable, try to put it there, e.g. `self.log()`.
         if hasattr(self, "non_cuda_graph_capturable"):
@@ -262,14 +278,20 @@ class CUDAGraphCallback(Callback):
         # Required by CUDA graph with DDP
         # Ref: https://pytorch.org/docs/stable/notes/cuda.html#usage-with-distributeddataparallel
         if 0 <= capture_iteration <= 11:
-            raise Exception("Warmup must run at least 11 DDP-enabled eager iterations before capture.")
+            raise Exception(
+                "Warmup must run at least 11 DDP-enabled eager iterations before capture."
+            )
         if torch.distributed.is_initialized():
-            raise Exception("CUDAGraphCallback should be initialized before process group.")
+            raise Exception(
+                "CUDAGraphCallback should be initialized before process group."
+            )
         os.environ["TORCH_NCCL_ASYNC_ERROR_HANDLING"] = "0"
 
         self.state = CUDAGraphState(capture_iteration=capture_iteration)
 
-    def setup(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule", stage: str) -> None:
+    def setup(
+        self, trainer: "pl.Trainer", pl_module: "pl.LightningModule", stage: str
+    ) -> None:
         """Called when fit, validate, test, predict, or tune begins."""
         if self.state.capture_iteration < 0:
             return
@@ -286,7 +308,9 @@ class CUDAGraphCallback(Callback):
         DistributedDataParallel.__orig_init__ = DistributedDataParallel.__init__
         DistributedDataParallel.__init__ = get_ddp_init(self.state)
 
-    def teardown(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule", stage: str) -> None:
+    def teardown(
+        self, trainer: "pl.Trainer", pl_module: "pl.LightningModule", stage: str
+    ) -> None:
         """Called when fit, validate, test, predict, or tune ends."""
         if self.state.capture_iteration < 0:
             return
@@ -297,12 +321,16 @@ class CUDAGraphCallback(Callback):
         DistributedDataParallel.__init__ = DistributedDataParallel.__orig_init__
         del DistributedDataParallel.__orig_init__
 
-    def on_fit_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
+    def on_fit_start(
+        self, trainer: "pl.Trainer", pl_module: "pl.LightningModule"
+    ) -> None:
         """Called when fit begins."""
         if self.state.capture_iteration < 0:
             return
 
-        if is_param_in_hook_signature(pl_module.training_step, "dataloader_iter", explicit=True):
+        if is_param_in_hook_signature(
+            pl_module.training_step, "dataloader_iter", explicit=True
+        ):
             raise Exception(
                 "Found `dataloader_iter` argument in the `training_step`. This is "
                 "not supported by full iteration CUDA graph capturing yet since "
@@ -315,12 +343,16 @@ class CUDAGraphCallback(Callback):
         self.state.stream = torch.cuda.Stream()
         self.state.graph = torch.cuda.CUDAGraph()
 
-    def on_fit_end(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
+    def on_fit_end(
+        self, trainer: "pl.Trainer", pl_module: "pl.LightningModule"
+    ) -> None:
         """Called when fit ends."""
         if self.state.capture_iteration < 0:
             return
 
-    def on_train_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
+    def on_train_start(
+        self, trainer: "pl.Trainer", pl_module: "pl.LightningModule"
+    ) -> None:
         """Called when the train begins."""
         if self.state.capture_iteration < 0:
             return
@@ -340,7 +372,9 @@ class CUDAGraphCallback(Callback):
 
         # Warn if `optimizer.zero_grad()` invoked during graph capturing
         for optimizer in trainer.optimizers:
-            assert isinstance(optimizer, torch.optim.Optimizer), f"Expect Optimizer type but got {type(optimizer)}"
+            assert isinstance(
+                optimizer, torch.optim.Optimizer
+            ), f"Expect Optimizer type but got {type(optimizer)}"
             optimizer.__orig_zero_grad__ = optimizer.zero_grad
             optimizer.zero_grad = MethodType(zero_grad, optimizer)
 
@@ -368,7 +402,9 @@ class CUDAGraphCallback(Callback):
         optimizer_step = get_optimizer_step(self.state)
         pl_module.optimizer_step = MethodType(optimizer_step, pl_module)
 
-    def on_train_end(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
+    def on_train_end(
+        self, trainer: "pl.Trainer", pl_module: "pl.LightningModule"
+    ) -> None:
         """Called when the train ends."""
         if self.state.capture_iteration < 0:
             return
@@ -395,11 +431,15 @@ class CUDAGraphCallback(Callback):
         pl_module.optimizer_step = pl_module.__orig_optimizer_step__
         del pl_module.__orig_optimizer_step__
 
-    def on_train_epoch_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
+    def on_train_epoch_start(
+        self, trainer: "pl.Trainer", pl_module: "pl.LightningModule"
+    ) -> None:
         """Called when the train epoch begins."""
         pass
 
-    def on_train_epoch_end(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
+    def on_train_epoch_end(
+        self, trainer: "pl.Trainer", pl_module: "pl.LightningModule"
+    ) -> None:
         """Called when the train epoch ends.
 
         To access all batch outputs at the end of the epoch, either:
@@ -410,13 +450,22 @@ class CUDAGraphCallback(Callback):
         pass
 
     def on_train_batch_start(
-        self, trainer: "pl.Trainer", pl_module: "pl.LightningModule", batch: Any, batch_idx: int
+        self,
+        trainer: "pl.Trainer",
+        pl_module: "pl.LightningModule",
+        batch: Any,
+        batch_idx: int,
     ) -> None:
         """Called when the train batch begins."""
         pass
 
     def on_train_batch_end(
-        self, trainer: "pl.Trainer", pl_module: "pl.LightningModule", outputs: STEP_OUTPUT, batch: Any, batch_idx: int
+        self,
+        trainer: "pl.Trainer",
+        pl_module: "pl.LightningModule",
+        outputs: STEP_OUTPUT,
+        batch: Any,
+        batch_idx: int,
     ) -> None:
         """Called when the train batch ends.
 
@@ -427,7 +476,10 @@ class CUDAGraphCallback(Callback):
         pass
 
     def on_save_checkpoint(
-        self, trainer: "pl.Trainer", pl_module: "pl.LightningModule", checkpoint: Dict[str, Any]
+        self,
+        trainer: "pl.Trainer",
+        pl_module: "pl.LightningModule",
+        checkpoint: Dict[str, Any],
     ) -> None:
         r"""
         Called when saving a checkpoint to give you a chance to store anything else you might want to save.

@@ -29,14 +29,22 @@ from nemo.collections.asr.parts.utils.confidence_metrics import (
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 
 
-def get_correct_marks(r: Union[List[int], List[str]], h: Union[List[int], List[str]]) -> List[bool]:
+def get_correct_marks(
+    r: Union[List[int], List[str]], h: Union[List[int], List[str]]
+) -> List[bool]:
     """Get correct marks by aligning the reference text with a hypothesis.
 
     This method considers only insertions and substitutions as incorrect marks.
     """
     return [
         a == b
-        for a, b in zip(*(texterrors.align_texts([str(rr) for rr in r], [str(hh) for hh in h], False)[:-1]))
+        for a, b in zip(
+            *(
+                texterrors.align_texts(
+                    [str(rr) for rr in r], [str(hh) for hh in h], False
+                )[:-1]
+            )
+        )
         if b != "<eps>"
     ]
 
@@ -74,7 +82,10 @@ def run_confidence_benchmark(
     with torch.amp.autocast(model.device.type, enabled=use_amp):
         with torch.no_grad():
             transcriptions = model.transcribe(
-                audio=filepaths, batch_size=batch_size, return_hypotheses=True, num_workers=num_workers
+                audio=filepaths,
+                batch_size=batch_size,
+                return_hypotheses=True,
+                num_workers=num_workers,
             )
     if is_rnnt:
         transcriptions = transcriptions[0]
@@ -87,20 +98,35 @@ def run_confidence_benchmark(
     results = {}
     for level in levels:
         if level == "token":
-            targets_with_confidence = [get_token_targets_with_confidence(tran) for tran in transcriptions]
+            targets_with_confidence = [
+                get_token_targets_with_confidence(tran) for tran in transcriptions
+            ]
             correct_marks = [
-                get_correct_marks(model.tokenizer.text_to_ids(r), model.tokenizer.text_to_ids(h.text))
+                get_correct_marks(
+                    model.tokenizer.text_to_ids(r), model.tokenizer.text_to_ids(h.text)
+                )
                 for r, h in zip(reference_texts, transcriptions)
             ]
         else:  # "word"
-            targets_with_confidence = [get_word_targets_with_confidence(tran) for tran in transcriptions]
-            correct_marks = [get_correct_marks(r.split(), h.words) for r, h in zip(reference_texts, transcriptions)]
+            targets_with_confidence = [
+                get_word_targets_with_confidence(tran) for tran in transcriptions
+            ]
+            correct_marks = [
+                get_correct_marks(r.split(), h.words)
+                for r, h in zip(reference_texts, transcriptions)
+            ]
 
         y_true, y_score = np.array(
-            [[f, p[1]] for cm, twc in zip(correct_marks, targets_with_confidence) for f, p in zip(cm, twc)]
+            [
+                [f, p[1]]
+                for cm, twc in zip(correct_marks, targets_with_confidence)
+                for f, p in zip(cm, twc)
+            ]
         ).T
         # output scheme: yc.mean(), yc.max(), yc.std() or yc.mean(), yc.max(), yc.std(), (thresholds, yc)
-        result_yc = auc_yc(y_true, y_score, return_std_maximum=True, return_curve=draw_plot)
+        result_yc = auc_yc(
+            y_true, y_score, return_std_maximum=True, return_curve=draw_plot
+        )
         # output scheme: ece or ece, (thresholds, ece_curve)
         results_ece = ece(y_true, y_score, return_curve=draw_plot)
         results[level] = [
@@ -118,9 +144,13 @@ def run_confidence_benchmark(
             y_score_correct = y_score[mask_correct]
             y_score_incorrect = y_score[~mask_correct]
             # histogram of the correct distribution
-            save_confidence_hist(y_score_correct, plot_dir, level + "_" + "hist_correct")
+            save_confidence_hist(
+                y_score_correct, plot_dir, level + "_" + "hist_correct"
+            )
             # histogram of the incorrect distribution
-            save_confidence_hist(y_score_incorrect, plot_dir, level + "_" + "hist_incorrect")
+            save_confidence_hist(
+                y_score_incorrect, plot_dir, level + "_" + "hist_incorrect"
+            )
             # AUC-ROC curve
             save_roc_curve(y_true, y_score, plot_dir, level + "_" + "roc")
             # AUC-PR curve
@@ -141,7 +171,12 @@ def run_confidence_benchmark(
             ece_thresholds, ece_values = results_ece[-1]
             ece_values /= max(ece_values)
             save_custom_confidence_curve(
-                ece_thresholds, ece_values, plot_dir, level + "_" + "ece", "Threshold", "|Accuracy − Confidence score|"
+                ece_thresholds,
+                ece_values,
+                plot_dir,
+                level + "_" + "ece",
+                "Threshold",
+                "|Accuracy − Confidence score|",
             )
 
     return results

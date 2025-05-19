@@ -27,9 +27,13 @@ from nemo.collections.common.tokenizers.sentencepiece_tokenizer import (
 def tokenizer(tmp_path_factory) -> SentencePieceTokenizer:
     tmpdir = tmp_path_factory.mktemp("klingon_tokens")
     text_path = tmpdir / "text.txt"
-    text_path.write_text("\n".join(map(chr, range(ord('a'), ord('z')))))
+    text_path.write_text("\n".join(map(chr, range(ord("a"), ord("z")))))
     model_path, vocab_path = create_spt_model(
-        text_path, vocab_size=32, sample_size=-1, do_lower_case=False, output_dir=str(tmpdir)
+        text_path,
+        vocab_size=32,
+        sample_size=-1,
+        do_lower_case=False,
+        output_dir=str(tmpdir),
     )
     return SentencePieceTokenizer(model_path)
 
@@ -45,8 +49,20 @@ def test_lhotse_asr_dataset(tokenizer):
 
     # cuts[2]: audio + two supervisions
     cuts[2].supervisions = [
-        SupervisionSegment(id="cuts2-sup0", recording_id=cuts[2].recording_id, start=0, duration=0.5, text="first"),
-        SupervisionSegment(id="cuts2-sup1", recording_id=cuts[2].recording_id, start=0.5, duration=0.5, text="second"),
+        SupervisionSegment(
+            id="cuts2-sup0",
+            recording_id=cuts[2].recording_id,
+            start=0,
+            duration=0.5,
+            text="first",
+        ),
+        SupervisionSegment(
+            id="cuts2-sup1",
+            recording_id=cuts[2].recording_id,
+            start=0.5,
+            duration=0.5,
+            text="second",
+        ),
     ]
 
     dataset = LhotseSpeechToTextBpeDataset(tokenizer=tokenizer)
@@ -76,13 +92,27 @@ def test_lhotse_asr_dataset_metadata(tokenizer):
     cuts[0].id = "cuts0"
     cuts[1].id = "cuts1"
     cuts[0].supervisions = [
-        SupervisionSegment(id="cuts0-sup0", recording_id=cuts[0].recording_id, start=0.2, duration=0.5, text="first"),
+        SupervisionSegment(
+            id="cuts0-sup0",
+            recording_id=cuts[0].recording_id,
+            start=0.2,
+            duration=0.5,
+            text="first",
+        ),
     ]
     cuts[1].supervisions = [
-        SupervisionSegment(id="cuts1-sup0", recording_id=cuts[1].recording_id, start=0, duration=1, text=""),
+        SupervisionSegment(
+            id="cuts1-sup0",
+            recording_id=cuts[1].recording_id,
+            start=0,
+            duration=1,
+            text="",
+        ),
     ]
 
-    datasets_metadata = LhotseSpeechToTextBpeDataset(tokenizer=tokenizer, return_cuts=True)
+    datasets_metadata = LhotseSpeechToTextBpeDataset(
+        tokenizer=tokenizer, return_cuts=True
+    )
     batch = datasets_metadata[cuts]
     assert isinstance(batch, tuple)
     assert len(batch) == 5

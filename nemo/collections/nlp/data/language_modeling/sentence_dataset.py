@@ -30,7 +30,7 @@ from nemo.collections.nlp.data.data_utils.data_preprocessing import \
 from nemo.core import Dataset
 from nemo.utils.distributed import webdataset_split_by_workers
 
-__all__ = ['SentenceDataset', 'TarredSentenceDataset']
+__all__ = ["SentenceDataset", "TarredSentenceDataset"]
 
 
 class SentenceDataset(Dataset):
@@ -69,8 +69,12 @@ class SentenceDataset(Dataset):
         """
 
         batches = []
-        for batch_elem_len, batch_sent_ids in zip(self.batch_elem_lengths, self.batch_sent_ids):
-            batch = self.tokenizer.pad_id * np.ones((len(batch_sent_ids), batch_elem_len), dtype=np.int64)
+        for batch_elem_len, batch_sent_ids in zip(
+            self.batch_elem_lengths, self.batch_sent_ids
+        ):
+            batch = self.tokenizer.pad_id * np.ones(
+                (len(batch_sent_ids), batch_elem_len), dtype=np.int64
+            )
             for i, sentence_idx in enumerate(batch_sent_ids):
                 batch[i][: len(ids[sentence_idx])] = ids[sentence_idx]
             batches.append(batch)
@@ -134,7 +138,9 @@ class SentenceDataset(Dataset):
         ids_ = []
         for i in range(len(ids)):
             len_ = len(ids[i])
-            if (max_tokens is not None and len_ > max_tokens) or (min_tokens is not None and len_ < min_tokens):
+            if (max_tokens is not None and len_ > max_tokens) or (
+                min_tokens is not None and len_ < min_tokens
+            ):
                 continue
             ids_.append(ids[i])
         return ids_
@@ -203,7 +209,7 @@ class TarredSentenceDataset(IterableDataset):
         self.tokenizer = tokenizer
         self.pad_id = tokenizer.pad_id
 
-        valid_shard_strategies = ['scatter', 'replicate']
+        valid_shard_strategies = ["scatter", "replicate"]
         if shard_strategy not in valid_shard_strategies:
             raise ValueError(
                 f"Invalid shard strategy of type {type(shard_strategy)} "
@@ -211,20 +217,20 @@ class TarredSentenceDataset(IterableDataset):
                 f"Allowed values are: {valid_shard_strategies}."
             )
 
-        with open(metadata_path, 'r') as f:
+        with open(metadata_path, "r") as f:
             metadata = json.load(f)
 
         self.metadata = metadata
 
         if isinstance(text_tar_filepaths, str):
             # Replace '(', '[', '<' and '_OP_' with '{'
-            brace_keys_open = ['(', '[', '<', '_OP_']
+            brace_keys_open = ["(", "[", "<", "_OP_"]
             for bkey in brace_keys_open:
                 if bkey in text_tar_filepaths:
                     text_tar_filepaths = text_tar_filepaths.replace(bkey, "{")
 
             # Replace ')', ']', '>' and '_CL_' with '}'
-            brace_keys_close = [')', ']', '>', '_CL_']
+            brace_keys_close = [")", "]", ">", "_CL_"]
             for bkey in brace_keys_close:
                 if bkey in text_tar_filepaths:
                     text_tar_filepaths = text_tar_filepaths.replace(bkey, "}")
@@ -233,31 +239,40 @@ class TarredSentenceDataset(IterableDataset):
             # Brace expand
             text_tar_filepaths = list(braceexpand.braceexpand(text_tar_filepaths))
 
-        if shard_strategy == 'scatter':
-            logging.info("Tarred dataset shards will be scattered evenly across all nodes.")
+        if shard_strategy == "scatter":
+            logging.info(
+                "Tarred dataset shards will be scattered evenly across all nodes."
+            )
             if len(text_tar_filepaths) % world_size != 0:
                 logging.warning(
                     f"Number of shards in tarred dataset ({len(text_tar_filepaths)}) is not divisible "
                     f"by number of distributed workers ({world_size}). "
                     f"Some shards will not be used ({len(text_tar_filepaths) % world_size})."
                 )
-            batches_per_tar = self.metadata['num_batches'] // len(text_tar_filepaths)
+            batches_per_tar = self.metadata["num_batches"] // len(text_tar_filepaths)
             begin_idx = (len(text_tar_filepaths) // world_size) * global_rank
             end_idx = begin_idx + (len(text_tar_filepaths) // world_size)
-            logging.info('Begin Index : %d' % (begin_idx))
-            logging.info('End Index : %d' % (end_idx))
+            logging.info("Begin Index : %d" % (begin_idx))
+            logging.info("End Index : %d" % (end_idx))
             text_tar_filepaths = text_tar_filepaths[begin_idx:end_idx]
             logging.info(
-                "Partitioning tarred dataset: process (%d) taking shards [%d, %d)", global_rank, begin_idx, end_idx
+                "Partitioning tarred dataset: process (%d) taking shards [%d, %d)",
+                global_rank,
+                begin_idx,
+                end_idx,
             )
             self.length = batches_per_tar * len(text_tar_filepaths) * world_size
 
-        elif shard_strategy == 'replicate':
-            logging.info("All tarred dataset shards will be replicated across all nodes.")
-            self.length = self.metadata['num_batches']
+        elif shard_strategy == "replicate":
+            logging.info(
+                "All tarred dataset shards will be replicated across all nodes."
+            )
+            self.length = self.metadata["num_batches"]
 
         else:
-            raise ValueError(f"Invalid shard strategy ! Allowed values are : {valid_shard_strategies}")
+            raise ValueError(
+                f"Invalid shard strategy ! Allowed values are : {valid_shard_strategies}"
+            )
 
         self.tarpath = text_tar_filepaths
 
@@ -267,8 +282,8 @@ class TarredSentenceDataset(IterableDataset):
             webdataset_split_by_workers,
             wds.shuffle(shuffle_n),
             wds.tarfile_to_samples(),
-            wds.rename(pkl='pkl', key='__key__'),
-            wds.to_tuple('pkl', 'key'),
+            wds.rename(pkl="pkl", key="__key__"),
+            wds.to_tuple("pkl", "key"),
             wds.map(self._build_sample),
         )
 

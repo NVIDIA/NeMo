@@ -32,17 +32,17 @@ from nemo.utils import logging
 from nemo.utils.model_utils import maybe_update_config_version
 
 AVAILABLE_OPTIMIZERS = {
-    'sgd': optim.SGD,
-    'adam': optim.Adam,
-    'adamw': optim.AdamW,
-    'adadelta': adadelta.Adadelta,
-    'adamax': adamax.Adamax,
-    'adagrad': adagrad.Adagrad,
-    'rmsprop': rmsprop.RMSprop,
-    'rprop': rprop.Rprop,
-    'novograd': Novograd,
-    'adafactor': Adafactor,
-    'adan': Adan,
+    "sgd": optim.SGD,
+    "adam": optim.Adam,
+    "adamw": optim.AdamW,
+    "adadelta": adadelta.Adadelta,
+    "adamax": adamax.Adamax,
+    "adagrad": adagrad.Adagrad,
+    "rmsprop": rmsprop.RMSprop,
+    "rprop": rprop.Rprop,
+    "novograd": Novograd,
+    "adafactor": Adafactor,
+    "adan": Adan,
 }
 
 try:
@@ -50,8 +50,8 @@ try:
 
     HAVE_APEX = True
 
-    AVAILABLE_OPTIMIZERS['lamb'] = FusedLAMB
-    AVAILABLE_OPTIMIZERS['fused_adam'] = FusedAdam
+    AVAILABLE_OPTIMIZERS["lamb"] = FusedLAMB
+    AVAILABLE_OPTIMIZERS["fused_adam"] = FusedAdam
 except ModuleNotFoundError:
     HAVE_APEX = False
 
@@ -64,7 +64,7 @@ if HAVE_APEX:
 
         HAVE_APEX_DISTRIBUTED_ADAM = True
 
-        AVAILABLE_OPTIMIZERS['distributed_fused_adam'] = MegatronDistributedFusedAdam
+        AVAILABLE_OPTIMIZERS["distributed_fused_adam"] = MegatronDistributedFusedAdam
     except (ImportError, ModuleNotFoundError):
         HAVE_APEX_DISTRIBUTED_ADAM = False
 
@@ -72,11 +72,11 @@ if HAVE_APEX:
         # Try importing wrapper for Apex FusedAdam optimizer
         from nemo.core.optim.megatron_fused_adam import MegatronFusedAdam
 
-        AVAILABLE_OPTIMIZERS['megatron_fused_adam'] = MegatronFusedAdam
+        AVAILABLE_OPTIMIZERS["megatron_fused_adam"] = MegatronFusedAdam
     except (ImportError, ModuleNotFoundError):
         pass
 
-__all__ = ['get_optimizer', 'register_optimizer', 'parse_optimizer_args']
+__all__ = ["get_optimizer", "register_optimizer", "parse_optimizer_args"]
 
 
 def parse_optimizer_args(
@@ -111,36 +111,42 @@ def parse_optimizer_args(
         optimizer_kwargs = OmegaConf.to_container(optimizer_kwargs, resolve=True)
 
     # If it is a dictionary, perform stepwise resolution
-    if hasattr(optimizer_kwargs, 'keys'):
+    if hasattr(optimizer_kwargs, "keys"):
         # Attempt class path resolution
-        if '_target_' in optimizer_kwargs:  # captures (target, _target_)
+        if "_target_" in optimizer_kwargs:  # captures (target, _target_)
             optimizer_kwargs_config = OmegaConf.create(optimizer_kwargs)
-            optimizer_instance = hydra.utils.instantiate(optimizer_kwargs_config)  # type: DictConfig
+            optimizer_instance = hydra.utils.instantiate(
+                optimizer_kwargs_config
+            )  # type: DictConfig
             optimizer_instance = vars(optimizer_instance)
             return optimizer_instance
 
         # If class path was not provided, perhaps `name` is provided for resolution
-        if 'name' in optimizer_kwargs:
+        if "name" in optimizer_kwargs:
             # If `auto` is passed as name for resolution of optimizer name,
             # then lookup optimizer name and resolve its parameter config
-            if optimizer_kwargs['name'] == 'auto':
+            if optimizer_kwargs["name"] == "auto":
                 optimizer_params_name = "{}_params".format(optimizer_name)
-                optimizer_kwargs.pop('name')
+                optimizer_kwargs.pop("name")
             else:
-                optimizer_params_name = optimizer_kwargs.pop('name')
+                optimizer_params_name = optimizer_kwargs.pop("name")
 
             # Override arguments provided in the config yaml file
-            if 'params' in optimizer_kwargs:
+            if "params" in optimizer_kwargs:
                 # If optimizer kwarg overrides are wrapped in yaml `params`
-                optimizer_params_override = optimizer_kwargs.get('params')
+                optimizer_params_override = optimizer_kwargs.get("params")
             else:
                 # If the kwargs themselves are a DictConfig
                 optimizer_params_override = optimizer_kwargs
 
             if isinstance(optimizer_params_override, DictConfig):
-                optimizer_params_override = OmegaConf.to_container(optimizer_params_override, resolve=True)
+                optimizer_params_override = OmegaConf.to_container(
+                    optimizer_params_override, resolve=True
+                )
 
-            optimizer_params_cls = get_optimizer_config(optimizer_params_name, **optimizer_params_override)
+            optimizer_params_cls = get_optimizer_config(
+                optimizer_params_name, **optimizer_params_override
+            )
 
             # If we are provided just a Config object, simply return the dictionary of that object
             if optimizer_params_name is None:
@@ -150,7 +156,9 @@ def parse_optimizer_args(
             else:
                 # If we are provided a partial class instantiation of a Config,
                 # Instantiate it and retrieve its vars as a dictionary
-                optimizer_params = optimizer_params_cls()  # instantiate the parameters object
+                optimizer_params = (
+                    optimizer_params_cls()
+                )  # instantiate the parameters object
                 optimizer_params = vars(optimizer_params)
                 return optimizer_params
 
@@ -160,7 +168,9 @@ def parse_optimizer_args(
     return kwargs
 
 
-def register_optimizer(name: str, optimizer: Optimizer, optimizer_params: OptimizerParams):
+def register_optimizer(
+    name: str, optimizer: Optimizer, optimizer_params: OptimizerParams
+):
     """
     Checks if the optimizer name exists in the registry, and if it doesnt, adds it.
 
@@ -172,7 +182,9 @@ def register_optimizer(name: str, optimizer: Optimizer, optimizer_params: Optimi
         optimizer_params: The parameters as a dataclass of the optimizer
     """
     if name in AVAILABLE_OPTIMIZERS:
-        raise ValueError(f"Cannot override pre-existing optimizers. Conflicting optimizer name = {name}")
+        raise ValueError(
+            f"Cannot override pre-existing optimizers. Conflicting optimizer name = {name}"
+        )
 
     AVAILABLE_OPTIMIZERS[name] = optimizer
 
@@ -193,11 +205,12 @@ def get_optimizer(name: str, **kwargs: Optional[Dict[str, Any]]) -> Optimizer:
     """
     if name not in AVAILABLE_OPTIMIZERS:
         raise ValueError(
-            f"Cannot resolve optimizer '{name}'. Available optimizers are : " f"{AVAILABLE_OPTIMIZERS.keys()}"
+            f"Cannot resolve optimizer '{name}'. Available optimizers are : "
+            f"{AVAILABLE_OPTIMIZERS.keys()}"
         )
-    if name == 'fused_adam':
+    if name == "fused_adam":
         if not torch.cuda.is_available():
-            raise ValueError(f'CUDA must be available to use fused_adam.')
+            raise ValueError(f"CUDA must be available to use fused_adam.")
 
     optimizer = AVAILABLE_OPTIMIZERS[name]
     optimizer = partial(optimizer, **kwargs)
@@ -210,10 +223,16 @@ def init_optimizer_states(optimizer: Optimizer):
         adam_nondist_optims += (FusedAdam,)
     if isinstance(optimizer, adam_nondist_optims):
         for group in optimizer.param_groups:
-            for p in group['params']:
+            for p in group["params"]:
                 state = optimizer.state[p]
                 if len(state) == 0:
-                    state['exp_avg'] = torch.zeros_like(p.data, memory_format=torch.preserve_format)
-                    state['exp_avg_sq'] = torch.zeros_like(p.data, memory_format=torch.preserve_format)
-                    if group.get('amsgrad'):
-                        state['max_exp_avg_sq'] = torch.zeros_like(p, memory_format=torch.preserve_format)
+                    state["exp_avg"] = torch.zeros_like(
+                        p.data, memory_format=torch.preserve_format
+                    )
+                    state["exp_avg_sq"] = torch.zeros_like(
+                        p.data, memory_format=torch.preserve_format
+                    )
+                    if group.get("amsgrad"):
+                        state["max_exp_avg_sq"] = torch.zeros_like(
+                            p, memory_format=torch.preserve_format
+                        )

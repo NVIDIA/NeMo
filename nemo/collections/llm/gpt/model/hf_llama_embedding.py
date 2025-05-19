@@ -48,7 +48,9 @@ def pool(last_hidden_states: Tensor, attention_mask: Tensor, pool_type: str) -> 
         else:
             sequence_lengths = attention_mask.sum(dim=1) - 1
             batch_size = last_hidden.shape[0]
-            emb = last_hidden[torch.arange(batch_size, device=last_hidden.device), sequence_lengths]
+            emb = last_hidden[
+                torch.arange(batch_size, device=last_hidden.device), sequence_lengths
+            ]
     else:
         raise ValueError(f"pool_type {pool_type} not supported")
 
@@ -133,7 +135,9 @@ class LlamaBidirectionalForSequenceClassification(LlamaForSequenceClassification
             config.num_labels - 1]`. If `config.num_labels == 1` a regression loss is computed (Mean-Square loss), If
             `config.num_labels > 1` a classification loss is computed (Cross-Entropy).
         """
-        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+        return_dict = (
+            return_dict if return_dict is not None else self.config.use_return_dict
+        )
 
         transformer_outputs = self.model(
             input_ids,
@@ -163,7 +167,9 @@ class LlamaBidirectionalForSequenceClassification(LlamaForSequenceClassification
             if self.config.problem_type is None:
                 if self.num_labels == 1:
                     self.config.problem_type = "regression"
-                elif self.num_labels > 1 and (labels.dtype == torch.long or labels.dtype == torch.int):
+                elif self.num_labels > 1 and (
+                    labels.dtype == torch.long or labels.dtype == torch.int
+                ):
                     self.config.problem_type = "single_label_classification"
                 else:
                     self.config.problem_type = "multi_label_classification"
@@ -176,7 +182,9 @@ class LlamaBidirectionalForSequenceClassification(LlamaForSequenceClassification
                     loss = loss_fct(pooled_logits, labels)
             elif self.config.problem_type == "single_label_classification":
                 loss_fct = CrossEntropyLoss()
-                loss = loss_fct(pooled_logits.view(-1, self.num_labels), labels.view(-1))
+                loss = loss_fct(
+                    pooled_logits.view(-1, self.num_labels), labels.view(-1)
+                )
             elif self.config.problem_type == "multi_label_classification":
                 loss_fct = BCEWithLogitsLoss()
                 loss = loss_fct(pooled_logits, labels)
@@ -236,12 +244,15 @@ class LlamaBidirectionalHFAdapter(torch.nn.Module):
             if not torch.all(dimensions > 0):
                 raise ValueError("Dimensions must be positive")
 
-            fill_value = torch.tensor(float("-inf"), dtype=embeddings.dtype, device=embeddings.device)
+            fill_value = torch.tensor(
+                float("-inf"), dtype=embeddings.dtype, device=embeddings.device
+            )
 
             clipped_dimensions = torch.clamp(dimensions, max=embeddings.shape[1])
 
             embeddings = embeddings.masked_fill(
-                torch.arange(embeddings.shape[1], device=embeddings.device) >= clipped_dimensions.unsqueeze(-1),
+                torch.arange(embeddings.shape[1], device=embeddings.device)
+                >= clipped_dimensions.unsqueeze(-1),
                 fill_value,
             )[:, : dimensions.max()]
 
@@ -258,15 +269,21 @@ class Pooling(torch.nn.Module):
         super().__init__()
         self.pooling_mode = pooling_mode
 
-    def forward(self, last_hidden_states: torch.Tensor, attention_mask: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self, last_hidden_states: torch.Tensor, attention_mask: torch.Tensor
+    ) -> torch.Tensor:
         """Forward function of the Pooling layer."""
 
-        last_hidden = last_hidden_states.masked_fill(~attention_mask[..., None].bool(), 0.0)
+        last_hidden = last_hidden_states.masked_fill(
+            ~attention_mask[..., None].bool(), 0.0
+        )
 
         pool_type = self.pooling_mode
         if pool_type == "avg":
             epsilon = 1e-9  # A small value to avoid division by zero
-            emb = last_hidden.sum(dim=1) / (attention_mask.sum(dim=1)[..., None] + epsilon)
+            emb = last_hidden.sum(dim=1) / (
+                attention_mask.sum(dim=1)[..., None] + epsilon
+            )
         elif pool_type == "cls":  # tokenizer padding right
             emb = last_hidden[:, 0]
         elif pool_type == "cls__left":  # tokenizer padding left
@@ -279,7 +296,9 @@ class Pooling(torch.nn.Module):
         elif pool_type == "last__right":  # tokenizer padding right
             sequence_lengths = (attention_mask.sum(dim=1) - 1).to(dtype=torch.long)
             batch_size = last_hidden.shape[0]
-            emb = last_hidden[torch.arange(batch_size, device=last_hidden.device), sequence_lengths]
+            emb = last_hidden[
+                torch.arange(batch_size, device=last_hidden.device), sequence_lengths
+            ]
         else:
             raise ValueError(f"pool_type {pool_type} not supported")
 
@@ -296,7 +315,9 @@ def get_llama_bidirectional_hf_model(
     """Returns the adapter for the Llama bidirectional HF model."""
 
     # check that the tokenizer matches the requirements of the pooling mode
-    tokenizer = AutoTokenizer.from_pretrained(model_name_or_path, trust_remote_code=trust_remote_code)
+    tokenizer = AutoTokenizer.from_pretrained(
+        model_name_or_path, trust_remote_code=trust_remote_code
+    )
     pooling_mode = pooling_mode or "avg"
     if pooling_mode == "last" and tokenizer.padding_side == "right":
         pooling_mode = "last__right"  # type: ignore
@@ -320,5 +341,7 @@ def get_llama_bidirectional_hf_model(
         pooling_module = model.latent_attention_model
         model = model.embedding_model
 
-    adapted_model = LlamaBidirectionalHFAdapter(model=model, normalize=normalize, pooling_module=pooling_module)
+    adapted_model = LlamaBidirectionalHFAdapter(
+        model=model, normalize=normalize, pooling_module=pooling_module
+    )
     return adapted_model, tokenizer

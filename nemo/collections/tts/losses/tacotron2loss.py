@@ -27,11 +27,11 @@ class Tacotron2Loss(Loss):
     @property
     def input_types(self):
         return {
-            "spec_pred_dec": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
-            "spec_pred_postnet": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
-            "gate_pred": NeuralType(('B', 'T'), LogitsType()),
-            "spec_target": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
-            "spec_target_len": NeuralType(('B'), LengthsType()),
+            "spec_pred_dec": NeuralType(("B", "D", "T"), MelSpectrogramType()),
+            "spec_pred_postnet": NeuralType(("B", "D", "T"), MelSpectrogramType()),
+            "gate_pred": NeuralType(("B", "T"), LogitsType()),
+            "spec_target": NeuralType(("B", "D", "T"), MelSpectrogramType()),
+            "spec_target_len": NeuralType(("B"), LengthsType()),
             "pad_value": NeuralType(),
         }
 
@@ -39,11 +39,20 @@ class Tacotron2Loss(Loss):
     def output_types(self):
         return {
             "loss": NeuralType(elements_type=LossType()),
-            "gate_target": NeuralType(('B', 'T'), LogitsType()),  # Used for evaluation
+            "gate_target": NeuralType(("B", "T"), LogitsType()),  # Used for evaluation
         }
 
     @typecheck()
-    def forward(self, *, spec_pred_dec, spec_pred_postnet, gate_pred, spec_target, spec_target_len, pad_value):
+    def forward(
+        self,
+        *,
+        spec_pred_dec,
+        spec_pred_postnet,
+        gate_pred,
+        spec_target,
+        spec_target_len,
+        pad_value,
+    ):
         # Make the gate target
         max_len = spec_target.shape[2]
         gate_target = torch.zeros(spec_target_len.shape[0], max_len)
@@ -66,8 +75,12 @@ class Tacotron2Loss(Loss):
         elif max_len > spec_pred_dec.shape[2]:
             # Need to do padding
             pad_amount = max_len - spec_pred_dec.shape[2]
-            spec_pred_dec = torch.nn.functional.pad(spec_pred_dec, (0, pad_amount), value=pad_value)
-            spec_pred_postnet = torch.nn.functional.pad(spec_pred_postnet, (0, pad_amount), value=pad_value)
+            spec_pred_dec = torch.nn.functional.pad(
+                spec_pred_dec, (0, pad_amount), value=pad_value
+            )
+            spec_pred_postnet = torch.nn.functional.pad(
+                spec_pred_postnet, (0, pad_amount), value=pad_value
+            )
             gate_pred = torch.nn.functional.pad(gate_pred, (0, pad_amount), value=1e3)
 
         mask = ~get_mask_from_lengths(spec_target_len, spec_pred_dec)
@@ -80,5 +93,7 @@ class Tacotron2Loss(Loss):
         gate_pred = gate_pred.view(-1, 1)
         rnn_mel_loss = torch.nn.functional.mse_loss(spec_pred_dec, spec_target)
         postnet_mel_loss = torch.nn.functional.mse_loss(spec_pred_postnet, spec_target)
-        gate_loss = torch.nn.functional.binary_cross_entropy_with_logits(gate_pred, gate_target)
+        gate_loss = torch.nn.functional.binary_cross_entropy_with_logits(
+            gate_pred, gate_target
+        )
         return rnn_mel_loss + postnet_mel_loss + gate_loss, gate_target

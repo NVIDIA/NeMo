@@ -73,19 +73,21 @@ class RequestDataSet(Dataset):
         return len(self.sentences)
 
     def __getitem__(self, idx):
-        return {'prompts': self.sentences[idx], 'neighbors': self.neighbors[idx]}
+        return {"prompts": self.sentences[idx], "neighbors": self.neighbors[idx]}
 
 
 def process_qasample(sample, retro_num_neighbors=2, ft_neighbours=5):
     # process prompt
-    question = sample['question']
+    question = sample["question"]
     if not question.endswith("?"):
         question = question + "?"
     processed_prompt = "Question: {} Answer: The answer is".format(question)
 
     # process neighbors
-    neighbors = sample['ctxs']
-    neighbors = ["title: " + ctx["title"] + ", source: " + ctx["text"] for ctx in neighbors]
+    neighbors = sample["ctxs"]
+    neighbors = [
+        "title: " + ctx["title"] + ", source: " + ctx["text"] for ctx in neighbors
+    ]
     processed_neighbors = neighbors[:retro_num_neighbors]
 
     # # concate neighbors to prompt
@@ -118,7 +120,9 @@ def main(cfg) -> None:
     if cfg.checkpoint_dir:
         app_state = AppState()
         if cfg.tensor_model_parallel_size > 1 or cfg.pipeline_model_parallel_size > 1:
-            app_state.model_parallel_size = cfg.tensor_model_parallel_size * cfg.pipeline_model_parallel_size
+            app_state.model_parallel_size = (
+                cfg.tensor_model_parallel_size * cfg.pipeline_model_parallel_size
+            )
             app_state.tensor_model_parallel_size = cfg.tensor_model_parallel_size
             app_state.pipeline_model_parallel_size = cfg.pipeline_model_parallel_size
             (
@@ -139,12 +143,16 @@ def main(cfg) -> None:
         # checkpoint_path is a dir in case of distributed checkpointing
         if not os.path.isdir(checkpoint_path):
             # legacy checkpoint needs model parallel rank injection
-            checkpoint_path = inject_model_parallel_rank(os.path.join(cfg.checkpoint_dir, cfg.checkpoint_name))
+            checkpoint_path = inject_model_parallel_rank(
+                os.path.join(cfg.checkpoint_dir, cfg.checkpoint_name)
+            )
         model = MegatronRetroModel.load_from_checkpoint(
             checkpoint_path, hparams_file=cfg.hparams_file, trainer=trainer
         )
     else:
-        raise ValueError("Requiring distributed checkpoint dir for loading Mcore RETRO.")
+        raise ValueError(
+            "Requiring distributed checkpoint dir for loading Mcore RETRO."
+        )
 
     model.freeze()
 
@@ -156,7 +164,7 @@ def main(cfg) -> None:
 
     # Reading QA data files
     qa_samples = []
-    with open(cfg.qa_file_path, 'r', encoding='utf-8') as f:
+    with open(cfg.qa_file_path, "r", encoding="utf-8") as f:
         qa_samples = json.load(f)
 
     # Processing prompts and neighbors
@@ -165,12 +173,14 @@ def main(cfg) -> None:
     ground_truths = []
     for sample in qa_samples:
         processed_prompt, processed_neighbors = process_qasample(
-            sample, cfg.inference.retro_inference.retro_num_neighbors, cfg.inference.retro_inference.ft_neighbours
+            sample,
+            cfg.inference.retro_inference.retro_num_neighbors,
+            cfg.inference.retro_inference.ft_neighbours,
         )
         prompts.append(processed_prompt)
         neighbors.append(processed_neighbors)
         ground_truths.append(
-            sample['answers'][0]
+            sample["answers"][0]
         )  # Boxin only takes the first value of sample['answers'] (https://gitlab-master.nvidia.com/ADLR/megatron-lm/-/blob/boxin/instructretro-internal-test/tools/retro/text_generation/evaluate.py?ref_type=heads#L85)
 
     # Running prediction
@@ -198,14 +208,16 @@ def main(cfg) -> None:
     print("***************************")
 
     # Compute metrics
-    predictions = [process_qaresponse(response[i]["sentences"][0]) for i in range(len(response))]
+    predictions = [
+        process_qaresponse(response[i]["sentences"][0]) for i in range(len(response))
+    ]
     formatted_ground_truths = []
     formatted_predictions = []
     for i in range(len(predictions)):  # formatting to use NeMo's QAMetrics methods
         question_id = i
         qaexample = QAExample(
             qas_id=question_id,
-            answers=[{'text': ground_truths[i]}],
+            answers=[{"text": ground_truths[i]}],
             question_text="",
             context_text="",
             context_id="",
@@ -215,9 +227,11 @@ def main(cfg) -> None:
         )
         formatted_ground_truths.append(qaexample)
         formatted_predictions.append(predictions[i])
-    eval_results = QAMetrics.evaluate_predictions(formatted_ground_truths, formatted_predictions)
+    eval_results = QAMetrics.evaluate_predictions(
+        formatted_ground_truths, formatted_predictions
+    )
     print("Eval_results: ", eval_results)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

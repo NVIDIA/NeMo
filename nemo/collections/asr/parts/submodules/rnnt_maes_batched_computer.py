@@ -46,7 +46,9 @@ class ModifiedAESBatchedRNNTComputer(ConfidenceMethodMixin):
         preserve_alignments=False,
         ngram_lm_model: Optional[str | Path] = None,
         ngram_lm_alpha: float = 0.0,
-        blank_lm_score_mode: Optional[str | BlankLMScoreMode] = BlankLMScoreMode.NO_SCORE,
+        blank_lm_score_mode: Optional[
+            str | BlankLMScoreMode
+        ] = BlankLMScoreMode.NO_SCORE,
         pruning_mode: Optional[str | PruningMode] = PruningMode.EARLY,
         allow_cuda_graphs: Optional[bool] = True,
     ):
@@ -97,16 +99,26 @@ class ModifiedAESBatchedRNNTComputer(ConfidenceMethodMixin):
             raise NotImplementedError("Preserve alignments is not supported")
 
         if allow_cuda_graphs:
-            logging.info("CUDA Graphs are unsupported for `maes_batch`; preceeding pure pytorch decoding")
+            logging.info(
+                "CUDA Graphs are unsupported for `maes_batch`; preceeding pure pytorch decoding"
+            )
 
         if ngram_lm_model is not None:
-            expected_blank_index = self.joint.num_classes_with_blank - self.joint.num_extra_outputs - 1
+            expected_blank_index = (
+                self.joint.num_classes_with_blank - self.joint.num_extra_outputs - 1
+            )
             if self._blank_index != expected_blank_index:
-                raise ValueError(f"Invalid blank index: expected {expected_blank_index}, got {self._blank_index}")
+                raise ValueError(
+                    f"Invalid blank index: expected {expected_blank_index}, got {self._blank_index}"
+                )
 
-            self.ngram_lm_batch = NGramGPULanguageModel.from_file(lm_path=ngram_lm_model, vocab_size=self._blank_index)
+            self.ngram_lm_batch = NGramGPULanguageModel.from_file(
+                lm_path=ngram_lm_model, vocab_size=self._blank_index
+            )
 
-            self.pruning_mode = PruningMode.EARLY if pruning_mode is None else PruningMode(pruning_mode)
+            self.pruning_mode = (
+                PruningMode.EARLY if pruning_mode is None else PruningMode(pruning_mode)
+            )
             self.blank_lm_score_mode = (
                 BlankLMScoreMode.LM_WEIGHTED_FULL
                 if blank_lm_score_mode is None
@@ -140,21 +152,32 @@ class ModifiedAESBatchedRNNTComputer(ConfidenceMethodMixin):
             batch_size=batch_size,
             beam_size=self.beam_size,
             blank_index=self._blank_index,
-            init_length=max_time * (self.maes_num_steps + 1) if self.maes_num_steps is not None else max_time,
+            init_length=(
+                max_time * (self.maes_num_steps + 1)
+                if self.maes_num_steps is not None
+                else max_time
+            ),
             device=device,
             float_dtype=float_dtype,
             store_prefix_hashes=True,
         )
 
         last_labels_wb = torch.full(
-            [batch_size, self.beam_size], fill_value=self._SOS, device=device, dtype=torch.long
+            [batch_size, self.beam_size],
+            fill_value=self._SOS,
+            device=device,
+            dtype=torch.long,
         )
 
         batch_indices = (
-            torch.arange(batch_size, device=device)[:, None].expand(batch_size, self.beam_size).clone()
+            torch.arange(batch_size, device=device)[:, None]
+            .expand(batch_size, self.beam_size)
+            .clone()
         )  # size: batch_size x beam_size
         beam_indices = (
-            torch.arange(self.beam_size, device=device)[None, :].expand(batch_size, self.beam_size).clone()
+            torch.arange(self.beam_size, device=device)[None, :]
+            .expand(batch_size, self.beam_size)
+            .clone()
         )  # size: batch_size x beam_size
         expansion_beam_indices = (
             torch.arange(self.beam_size, device=device)[None, :, None]
@@ -164,20 +187,30 @@ class ModifiedAESBatchedRNNTComputer(ConfidenceMethodMixin):
 
         time_indices = torch.zeros_like(batch_indices)
         safe_time_indices = torch.zeros_like(time_indices)
-        last_timesteps = (encoder_output_length - 1)[:, None].expand(batch_size, self.beam_size)
+        last_timesteps = (encoder_output_length - 1)[:, None].expand(
+            batch_size, self.beam_size
+        )
         active_mask = time_indices <= last_timesteps
 
         # setup N-gram LM if available
         if self.ngram_lm_batch is not None:
             self.ngram_lm_batch.to(device)
-            batch_lm_states = self.ngram_lm_batch.get_init_states(batch_size=batch_size * self.beam_size, bos=True)
+            batch_lm_states = self.ngram_lm_batch.get_init_states(
+                batch_size=batch_size * self.beam_size, bos=True
+            )
             lm_scores, batch_lm_states_candidates = self.ngram_lm_batch.advance(
                 states=batch_lm_states
             )  # vocab_size_no_blank
-            lm_scores = lm_scores.to(dtype=float_dtype).view(batch_size, self.beam_size, -1) * self.ngram_lm_alpha
+            lm_scores = (
+                lm_scores.to(dtype=float_dtype).view(batch_size, self.beam_size, -1)
+                * self.ngram_lm_alpha
+            )
 
         decoder_output, decoder_state, *_ = self.decoder.predict(
-            last_labels_wb.view(-1, 1), None, add_sos=False, batch_size=batch_size * self.beam_size
+            last_labels_wb.view(-1, 1),
+            None,
+            add_sos=False,
+            batch_size=batch_size * self.beam_size,
         )
         # do not recalculate joint projection
         decoder_output = self.joint.project_prednet(decoder_output)
@@ -188,58 +221,86 @@ class ModifiedAESBatchedRNNTComputer(ConfidenceMethodMixin):
             # step 1: get joint output
             logits = (
                 self.joint.joint_after_projection(
-                    encoder_output_projected[batch_indices.flatten(), safe_time_indices.flatten()].unsqueeze(1),
+                    encoder_output_projected[
+                        batch_indices.flatten(), safe_time_indices.flatten()
+                    ].unsqueeze(1),
                     decoder_output,
                 )
                 .squeeze(1)
                 .squeeze(1)
             )
-            logps = torch.log_softmax(logits, dim=-1).view(batch_size, self.beam_size, -1)
+            logps = torch.log_softmax(logits, dim=-1).view(
+                batch_size, self.beam_size, -1
+            )
 
             # step 2: perform prefix search
-            updated_logps = self.combine_scores(logps, lm_scores) if self.ngram_lm_batch is not None else logps
+            updated_logps = (
+                self.combine_scores(logps, lm_scores)
+                if self.ngram_lm_batch is not None
+                else logps
+            )
             batched_hyps.recombine_prefixes(updated_logps, active_mask)
 
             expansion_steps = 0
             # step 3: performs `maes_num_steps` non-blank expansions
-            while to_update.any() and expansion_steps < self.maes_num_steps:  # expansions loop
+            while (
+                to_update.any() and expansion_steps < self.maes_num_steps
+            ):  # expansions loop
                 # step 3.1: get `maes_num_expansion` best expansions (in total beam x maes_num_expansion expansions)
                 if self.ngram_lm_batch is None:
                     # step 3.1.1: choose topk expansions (beam x beam hypotheses for each sample)
-                    label_logps, next_labels = logps.topk(self.maes_num_expansions, dim=-1, largest=True, sorted=True)
+                    label_logps, next_labels = logps.topk(
+                        self.maes_num_expansions, dim=-1, largest=True, sorted=True
+                    )
                     next_hyps_probs = batched_hyps.scores.unsqueeze(-1) + label_logps
 
                     # step 3.1.2: prune with threshold parameter gamma
                     next_hyps_probs[
-                        next_hyps_probs <= next_hyps_probs.max(dim=-1, keepdim=True).values - self.maes_expansion_gamma
+                        next_hyps_probs
+                        <= next_hyps_probs.max(dim=-1, keepdim=True).values
+                        - self.maes_expansion_gamma
                     ] = INACTIVE_SCORE
                 else:
-                    next_labels, next_hyps_probs = self.topk_lm(batched_hyps, lm_scores, logps)
+                    next_labels, next_hyps_probs = self.topk_lm(
+                        batched_hyps, lm_scores, logps
+                    )
 
                 # step 3.2: get `beam` best expansions
                 # step 3.2.1: mask inactive hypotheses
-                next_labels = torch.where(to_update.unsqueeze(-1), next_labels, NON_EXISTENT_LABEL_VALUE)
-                next_hyps_probs = torch.where(to_update.unsqueeze(-1), next_hyps_probs, INACTIVE_SCORE)
+                next_labels = torch.where(
+                    to_update.unsqueeze(-1), next_labels, NON_EXISTENT_LABEL_VALUE
+                )
+                next_hyps_probs = torch.where(
+                    to_update.unsqueeze(-1), next_hyps_probs, INACTIVE_SCORE
+                )
 
                 # step 3.2.2: remove duplicate hypotheses
-                next_hyps_probs = batched_hyps.remove_duplicates(next_labels, next_hyps_probs)
+                next_hyps_probs = batched_hyps.remove_duplicates(
+                    next_labels, next_hyps_probs
+                )
 
                 # step 3.2.3: add hypotheses from the previous expansion steps of current frame hypotheses to the beam.
                 # Expansions from step s are compared against the top beam expansions from steps 1 to s-1.
-                next_hyps_probs[..., -1] = torch.where(to_update, next_hyps_probs[..., -1], batched_hyps.scores)
+                next_hyps_probs[..., -1] = torch.where(
+                    to_update, next_hyps_probs[..., -1], batched_hyps.scores
+                )
 
                 # step 3.2.4: get top-k expansions
                 next_hyps_probs, idx = next_hyps_probs.view(batch_size, -1).topk(
                     self.beam_size, dim=-1, largest=True, sorted=True
                 )
                 next_labels = next_labels.view(batch_size, -1)[batch_indices, idx]
-                hyp_indices = expansion_beam_indices.view(batch_size, -1)[batch_indices, idx]
+                hyp_indices = expansion_beam_indices.view(batch_size, -1)[
+                    batch_indices, idx
+                ]
 
                 # step 3.3: update batched beam hypotheses structure
                 batched_hyps.add_results_(hyp_indices, next_labels, next_hyps_probs)
 
                 # step 3.4: update
-                last_labels_wb = torch.where(next_labels >= 0, next_labels, self._blank_index)
+                last_labels_wb = torch.where(
+                    next_labels >= 0, next_labels, self._blank_index
+                )
                 preserve_state = last_labels_wb == self._blank_index
 
                 # size: decoder_output [(B x Beam), 1, Dim]
@@ -264,14 +325,20 @@ class ModifiedAESBatchedRNNTComputer(ConfidenceMethodMixin):
                     add_sos=False,
                     batch_size=batch_size * self.beam_size,
                 )
-                decoder_output = self.joint.project_prednet(decoder_output)  # do not recalculate joint projection
+                decoder_output = self.joint.project_prednet(
+                    decoder_output
+                )  # do not recalculate joint projection
 
                 # step 3.5.3: update decoder state and output only for non-blank and active hypotheses
                 decoder_output = torch.where(
-                    preserve_state.view(-1)[:, None, None], prev_decoder_output, decoder_output
+                    preserve_state.view(-1)[:, None, None],
+                    prev_decoder_output,
+                    decoder_output,
                 )
                 self.decoder.batch_replace_states_mask(
-                    src_states=prev_decoder_state, dst_states=decoder_state, mask=preserve_state.view(-1)
+                    src_states=prev_decoder_state,
+                    dst_states=decoder_state,
+                    mask=preserve_state.view(-1),
                 )
 
                 if self.ngram_lm_batch is not None:
@@ -281,38 +348,62 @@ class ModifiedAESBatchedRNNTComputer(ConfidenceMethodMixin):
                         batch_lm_states_candidates.view(batch_size, self.beam_size, -1),
                         dim=1,
                         index=hyp_indices[:, :, None].expand(
-                            batch_size, self.beam_size, batch_lm_states_candidates.shape[-1]
+                            batch_size,
+                            self.beam_size,
+                            batch_lm_states_candidates.shape[-1],
                         ),
                     )
                     batch_lm_states_prev = torch.gather(
-                        batch_lm_states.view(batch_size, self.beam_size), dim=1, index=hyp_indices
+                        batch_lm_states.view(batch_size, self.beam_size),
+                        dim=1,
+                        index=hyp_indices,
                     )
-                    last_labels_wb_blank_replaced = torch.where(preserve_state, 0, last_labels_wb)
+                    last_labels_wb_blank_replaced = torch.where(
+                        preserve_state, 0, last_labels_wb
+                    )
 
                     batch_lm_states = torch.gather(
-                        batch_lm_states_candidates, dim=-1, index=last_labels_wb_blank_replaced.unsqueeze(-1)
+                        batch_lm_states_candidates,
+                        dim=-1,
+                        index=last_labels_wb_blank_replaced.unsqueeze(-1),
                     ).squeeze(-1)
-                    batch_lm_states = torch.where(preserve_state, batch_lm_states_prev, batch_lm_states).view(-1)
+                    batch_lm_states = torch.where(
+                        preserve_state, batch_lm_states_prev, batch_lm_states
+                    ).view(-1)
 
                     lm_scores, batch_lm_states_candidates = self.ngram_lm_batch.advance(
                         states=batch_lm_states
                     )  # vocab_size_no_blank
                     lm_scores = (
-                        lm_scores.to(dtype=float_dtype).view(batch_size, self.beam_size, -1) * self.ngram_lm_alpha
+                        lm_scores.to(dtype=float_dtype).view(
+                            batch_size, self.beam_size, -1
+                        )
+                        * self.ngram_lm_alpha
                     )
 
                 # step 3.6: get log-probs for next expansion step
                 logits = self.joint.joint_after_projection(
-                    encoder_output_projected[batch_indices.flatten(), safe_time_indices.flatten()].unsqueeze(1),
+                    encoder_output_projected[
+                        batch_indices.flatten(), safe_time_indices.flatten()
+                    ].unsqueeze(1),
                     decoder_output,
                 )
-                logps = torch.log_softmax(logits, dim=-1).squeeze(1).squeeze(1).view(batch_size, self.beam_size, -1)
-                to_update = torch.logical_and(to_update, last_labels_wb != self._blank_index)
+                logps = (
+                    torch.log_softmax(logits, dim=-1)
+                    .squeeze(1)
+                    .squeeze(1)
+                    .view(batch_size, self.beam_size, -1)
+                )
+                to_update = torch.logical_and(
+                    to_update, last_labels_wb != self._blank_index
+                )
 
                 expansion_steps += 1
             if to_update.any():
                 # step 4: force blank to active hypotheses
-                next_hyps_probs = torch.where(to_update, batched_hyps.scores + logps[..., -1], batched_hyps.scores)
+                next_hyps_probs = torch.where(
+                    to_update, batched_hyps.scores + logps[..., -1], batched_hyps.scores
+                )
                 next_labels = torch.where(to_update, self._blank_index, -1)
                 batched_hyps.add_results_(beam_indices, next_labels, next_hyps_probs)
 
@@ -345,8 +436,12 @@ class ModifiedAESBatchedRNNTComputer(ConfidenceMethodMixin):
             res[..., :-1] += lm_scores
         else:
             blank_logprob = log_probs[..., -1]
-            non_blank_logprob = torch.log1p(-torch.clamp(torch.exp(blank_logprob), max=1.0 - 1e-6))
-            res[..., :-1] += non_blank_logprob.unsqueeze(-1) * self.ngram_lm_alpha + lm_scores
+            non_blank_logprob = torch.log1p(
+                -torch.clamp(torch.exp(blank_logprob), max=1.0 - 1e-6)
+            )
+            res[..., :-1] += (
+                non_blank_logprob.unsqueeze(-1) * self.ngram_lm_alpha + lm_scores
+            )
             res[..., -1] *= 1 + self.ngram_lm_alpha
 
         return res
@@ -368,29 +463,42 @@ class ModifiedAESBatchedRNNTComputer(ConfidenceMethodMixin):
         """
 
         match self.pruning_mode, self.blank_lm_score_mode:
-            case PruningMode.LATE, BlankLMScoreMode.NO_SCORE | BlankLMScoreMode.LM_WEIGHTED_FULL:
+            case (
+                PruningMode.LATE,
+                BlankLMScoreMode.NO_SCORE | BlankLMScoreMode.LM_WEIGHTED_FULL,
+            ):
                 # step 1: combining LM and ASR outputs + choosing top `beam` most probable
                 log_probs = self.combine_scores(log_probs, lm_scores)
                 label_logps, labels = log_probs.topk(
-                    self.beam_size + self.maes_expansion_beta, dim=-1, largest=True, sorted=True
+                    self.beam_size + self.maes_expansion_beta,
+                    dim=-1,
+                    largest=True,
+                    sorted=True,
                 )
 
                 # step 2: pruning with threshold gamma
                 total_logps = batched_hyps.scores.unsqueeze(-1) + label_logps
                 total_logps[
-                    total_logps <= total_logps.max(dim=-1, keepdim=True).values - self.maes_expansion_gamma
+                    total_logps
+                    <= total_logps.max(dim=-1, keepdim=True).values
+                    - self.maes_expansion_gamma
                 ] = INACTIVE_SCORE
 
             case PruningMode.EARLY, BlankLMScoreMode.NO_SCORE:
                 # step 1: choosing topk from ASR output
                 label_logps, labels = log_probs.topk(
-                    self.beam_size + self.maes_expansion_beta, dim=-1, largest=True, sorted=True
+                    self.beam_size + self.maes_expansion_beta,
+                    dim=-1,
+                    largest=True,
+                    sorted=True,
                 )
 
                 # step 2: pruning with threshold gamma
                 total_logps = batched_hyps.scores.unsqueeze(-1) + label_logps
                 total_logps[
-                    total_logps <= total_logps.max(dim=-1, keepdim=True).values - self.maes_expansion_gamma
+                    total_logps
+                    <= total_logps.max(dim=-1, keepdim=True).values
+                    - self.maes_expansion_gamma
                 ] = INACTIVE_SCORE
 
                 # step 3: adding scores from ngram LM
@@ -404,18 +512,25 @@ class ModifiedAESBatchedRNNTComputer(ConfidenceMethodMixin):
             case PruningMode.EARLY, BlankLMScoreMode.LM_WEIGHTED_FULL:
                 # step 1: choosing topk from ASR output
                 label_logps, labels = log_probs.topk(
-                    self.beam_size + self.maes_expansion_beta, dim=-1, largest=True, sorted=True
+                    self.beam_size + self.maes_expansion_beta,
+                    dim=-1,
+                    largest=True,
+                    sorted=True,
                 )
 
                 # step 2: pruning with threshold gamma
                 total_logps = batched_hyps.scores.unsqueeze(-1) + label_logps
                 label_logps[
-                    total_logps <= total_logps.max(dim=-1, keepdim=True).values - self.maes_expansion_gamma
+                    total_logps
+                    <= total_logps.max(dim=-1, keepdim=True).values
+                    - self.maes_expansion_gamma
                 ] = INACTIVE_SCORE
 
                 # step 3: adding scores from ngram LM
                 blank_logprob = log_probs[..., -1]
-                non_blank_logprob = torch.log1p(-torch.clamp(torch.exp(blank_logprob), max=1.0 - 1e-6))
+                non_blank_logprob = torch.log1p(
+                    -torch.clamp(torch.exp(blank_logprob), max=1.0 - 1e-6)
+                )
 
                 masked_labels = torch.where(labels == self._blank_index, 0, labels)
                 total_logps = torch.where(
@@ -439,4 +554,6 @@ class ModifiedAESBatchedRNNTComputer(ConfidenceMethodMixin):
         x: torch.Tensor,
         out_len: torch.Tensor,
     ) -> BatchedBeamHyps:
-        return self.batched_modified_adaptive_expansion_search_torch(encoder_output=x, encoder_output_length=out_len)
+        return self.batched_modified_adaptive_expansion_search_torch(
+            encoder_output=x, encoder_output_length=out_len
+        )

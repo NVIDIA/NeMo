@@ -28,44 +28,47 @@ from nemo.utils.config_utils import assert_dataclass_signature_match
 
 @pytest.fixture()
 def speech_classification_model():
-    preprocessor = {'cls': 'nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor', 'params': dict({})}
+    preprocessor = {
+        "cls": "nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor",
+        "params": dict({}),
+    }
     encoder = {
-        'cls': 'nemo.collections.asr.modules.ConvASREncoder',
-        'params': {
-            'feat_in': 64,
-            'activation': 'relu',
-            'conv_mask': True,
-            'jasper': [
+        "cls": "nemo.collections.asr.modules.ConvASREncoder",
+        "params": {
+            "feat_in": 64,
+            "activation": "relu",
+            "conv_mask": True,
+            "jasper": [
                 {
-                    'filters': 32,
-                    'repeat': 1,
-                    'kernel': [1],
-                    'stride': [1],
-                    'dilation': [1],
-                    'dropout': 0.0,
-                    'residual': False,
-                    'separable': True,
-                    'se': True,
-                    'se_context_size': -1,
+                    "filters": 32,
+                    "repeat": 1,
+                    "kernel": [1],
+                    "stride": [1],
+                    "dilation": [1],
+                    "dropout": 0.0,
+                    "residual": False,
+                    "separable": True,
+                    "se": True,
+                    "se_context_size": -1,
                 }
             ],
         },
     }
 
     decoder = {
-        'cls': 'nemo.collections.asr.modules.ConvASRDecoderClassification',
-        'params': {
-            'feat_in': 32,
-            'num_classes': 30,
+        "cls": "nemo.collections.asr.modules.ConvASRDecoderClassification",
+        "params": {
+            "feat_in": 32,
+            "num_classes": 30,
         },
     }
 
     modelConfig = DictConfig(
         {
-            'preprocessor': DictConfig(preprocessor),
-            'encoder': DictConfig(encoder),
-            'decoder': DictConfig(decoder),
-            'labels': ListConfig(["dummy_cls_{}".format(i + 1) for i in range(30)]),
+            "preprocessor": DictConfig(preprocessor),
+            "encoder": DictConfig(encoder),
+            "decoder": DictConfig(decoder),
+            "labels": ListConfig(["dummy_cls_{}".format(i + 1) for i in range(30)]),
         }
     )
     model = EncDecClassificationModel(cfg=modelConfig)
@@ -74,44 +77,47 @@ def speech_classification_model():
 
 @pytest.fixture()
 def frame_classification_model():
-    preprocessor = {'cls': 'nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor', 'params': dict({})}
+    preprocessor = {
+        "cls": "nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor",
+        "params": dict({}),
+    }
     encoder = {
-        'cls': 'nemo.collections.asr.modules.ConvASREncoder',
-        'params': {
-            'feat_in': 64,
-            'activation': 'relu',
-            'conv_mask': True,
-            'jasper': [
+        "cls": "nemo.collections.asr.modules.ConvASREncoder",
+        "params": {
+            "feat_in": 64,
+            "activation": "relu",
+            "conv_mask": True,
+            "jasper": [
                 {
-                    'filters': 32,
-                    'repeat': 1,
-                    'kernel': [1],
-                    'stride': [1],
-                    'dilation': [1],
-                    'dropout': 0.0,
-                    'residual': False,
-                    'separable': True,
-                    'se': True,
-                    'se_context_size': -1,
+                    "filters": 32,
+                    "repeat": 1,
+                    "kernel": [1],
+                    "stride": [1],
+                    "dilation": [1],
+                    "dropout": 0.0,
+                    "residual": False,
+                    "separable": True,
+                    "se": True,
+                    "se_context_size": -1,
                 }
             ],
         },
     }
 
     decoder = {
-        'cls': 'nemo.collections.common.parts.MultiLayerPerceptron',
-        'params': {
-            'hidden_size': 32,
-            'num_classes': 5,
+        "cls": "nemo.collections.common.parts.MultiLayerPerceptron",
+        "params": {
+            "hidden_size": 32,
+            "num_classes": 5,
         },
     }
 
     modelConfig = DictConfig(
         {
-            'preprocessor': DictConfig(preprocessor),
-            'encoder': DictConfig(encoder),
-            'decoder': DictConfig(decoder),
-            'labels': ListConfig(["dummy_cls_{}".format(i + 1) for i in range(5)]),
+            "preprocessor": DictConfig(preprocessor),
+            "encoder": DictConfig(encoder),
+            "decoder": DictConfig(decoder),
+            "labels": ListConfig(["dummy_cls_{}".format(i + 1) for i in range(5)]),
         }
     )
     model = EncDecFrameClassificationModel(cfg=modelConfig)
@@ -123,7 +129,9 @@ class TestEncDecClassificationModel:
     def test_constructor(self, speech_classification_model):
         asr_model = speech_classification_model.train()
 
-        conv_cnt = (64 * 32 * 1 + 32) + (64 * 1 * 1 + 32)  # separable kernel + bias + pointwise kernel + bias
+        conv_cnt = (64 * 32 * 1 + 32) + (
+            64 * 1 * 1 + 32
+        )  # separable kernel + bias + pointwise kernel + bias
         bn_cnt = (4 * 32) * 2  # 2 * moving averages
         dec_cnt = 32 * 30 + 30  # fc + bias
 
@@ -151,13 +159,16 @@ class TestEncDecClassificationModel:
             logprobs_instance = []
             for i in range(input_signal.size(0)):
                 logprobs_ins = asr_model.forward(
-                    input_signal=input_signal[i : i + 1], input_signal_length=length[i : i + 1]
+                    input_signal=input_signal[i : i + 1],
+                    input_signal_length=length[i : i + 1],
                 )
                 logprobs_instance.append(logprobs_ins)
             logprobs_instance = torch.cat(logprobs_instance, 0)
 
             # batch size 4
-            logprobs_batch = asr_model.forward(input_signal=input_signal, input_signal_length=length)
+            logprobs_batch = asr_model.forward(
+                input_signal=input_signal, input_signal_length=length
+            )
 
         assert logprobs_instance.shape == logprobs_batch.shape
         diff = torch.mean(torch.abs(logprobs_instance - logprobs_batch))
@@ -175,9 +186,9 @@ class TestEncDecClassificationModel:
         # No change
         assert nw1 == asr_model.num_weights
         new_labels = copy.deepcopy(old_labels)
-        new_labels.append('dummy_cls_31')
-        new_labels.append('dummy_cls_32')
-        new_labels.append('dummy_cls_33')
+        new_labels.append("dummy_cls_31")
+        new_labels.append("dummy_cls_32")
+        new_labels.append("dummy_cls_33")
         asr_model.change_labels(new_labels=new_labels)
         # fully connected + bias
         assert asr_model.num_weights == nw1 + 3 * (asr_model.decoder._feat_in + 1)
@@ -185,8 +196,11 @@ class TestEncDecClassificationModel:
     @pytest.mark.unit
     def test_transcription(self, speech_classification_model, test_data_dir):
         # Ground truth labels = ["yes", "no"]
-        audio_filenames = ['an22-flrp-b.wav', 'an90-fbbh-b.wav']
-        audio_paths = [os.path.join(test_data_dir, "asr", "train", "an4", "wav", fp) for fp in audio_filenames]
+        audio_filenames = ["an22-flrp-b.wav", "an90-fbbh-b.wav"]
+        audio_paths = [
+            os.path.join(test_data_dir, "asr", "train", "an4", "wav", fp)
+            for fp in audio_filenames
+        ]
 
         model = speech_classification_model.eval()
 
@@ -225,29 +239,29 @@ class TestEncDecClassificationModel:
     def test_EncDecClassificationDatasetConfig_for_AudioToSpeechLabelDataset(self):
         # ignore some additional arguments as dataclass is generic
         IGNORE_ARGS = [
-            'is_tarred',
-            'num_workers',
-            'batch_size',
-            'tarred_audio_filepaths',
-            'shuffle',
-            'pin_memory',
-            'drop_last',
-            'tarred_shard_strategy',
-            'shuffle_n',
+            "is_tarred",
+            "num_workers",
+            "batch_size",
+            "tarred_audio_filepaths",
+            "shuffle",
+            "pin_memory",
+            "drop_last",
+            "tarred_shard_strategy",
+            "shuffle_n",
             # `featurizer` is supplied at runtime
-            'featurizer',
+            "featurizer",
             # additional ignored arguments
-            'vad_stream',
-            'int_values',
-            'sample_rate',
-            'normalize_audio',
-            'augmentor',
-            'bucketing_batch_size',
-            'bucketing_strategy',
-            'bucketing_weights',
+            "vad_stream",
+            "int_values",
+            "sample_rate",
+            "normalize_audio",
+            "augmentor",
+            "bucketing_batch_size",
+            "bucketing_strategy",
+            "bucketing_weights",
         ]
 
-        REMAP_ARGS = {'trim_silence': 'trim'}
+        REMAP_ARGS = {"trim_silence": "trim"}
 
         result = assert_dataclass_signature_match(
             audio_to_label.AudioToSpeechLabelDataset,
@@ -263,7 +277,9 @@ class TestEncDecClassificationModel:
 
 
 class TestEncDecFrameClassificationModel(TestEncDecClassificationModel):
-    @pytest.mark.parametrize(["logits_len", "labels_len"], [(20, 10), (21, 10), (19, 10), (20, 9), (20, 11)])
+    @pytest.mark.parametrize(
+        ["logits_len", "labels_len"], [(20, 10), (21, 10), (19, 10), (20, 9), (20, 11)]
+    )
     @pytest.mark.unit
     def test_reshape_labels(self, frame_classification_model, logits_len, labels_len):
         model = frame_classification_model.eval()
@@ -282,34 +298,34 @@ class TestEncDecFrameClassificationModel(TestEncDecClassificationModel):
     def test_EncDecClassificationDatasetConfig_for_AudioToMultiSpeechLabelDataset(self):
         # ignore some additional arguments as dataclass is generic
         IGNORE_ARGS = [
-            'is_tarred',
-            'num_workers',
-            'batch_size',
-            'tarred_audio_filepaths',
-            'shuffle',
-            'pin_memory',
-            'drop_last',
-            'tarred_shard_strategy',
-            'shuffle_n',
+            "is_tarred",
+            "num_workers",
+            "batch_size",
+            "tarred_audio_filepaths",
+            "shuffle",
+            "pin_memory",
+            "drop_last",
+            "tarred_shard_strategy",
+            "shuffle_n",
             # `featurizer` is supplied at runtime
-            'featurizer',
+            "featurizer",
             # additional ignored arguments
-            'vad_stream',
-            'int_values',
-            'sample_rate',
-            'normalize_audio',
-            'augmentor',
-            'bucketing_batch_size',
-            'bucketing_strategy',
-            'bucketing_weights',
-            'delimiter',
-            'normalize_audio_db',
-            'normalize_audio_db_target',
-            'window_length_in_sec',
-            'shift_length_in_sec',
+            "vad_stream",
+            "int_values",
+            "sample_rate",
+            "normalize_audio",
+            "augmentor",
+            "bucketing_batch_size",
+            "bucketing_strategy",
+            "bucketing_weights",
+            "delimiter",
+            "normalize_audio_db",
+            "normalize_audio_db_target",
+            "window_length_in_sec",
+            "shift_length_in_sec",
         ]
 
-        REMAP_ARGS = {'trim_silence': 'trim'}
+        REMAP_ARGS = {"trim_silence": "trim"}
 
         result = assert_dataclass_signature_match(
             audio_to_label.AudioToMultiLabelDataset,

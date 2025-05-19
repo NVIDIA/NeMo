@@ -30,7 +30,9 @@ class SamplingPipeline:
         if use_fp16:
             model.conditioner.half()
             model.model.half()
-        self.vae_scale_factor = 2 ** (self.model.first_stage_model.encoder.num_resolutions - 1)
+        self.vae_scale_factor = 2 ** (
+            self.model.first_stage_model.encoder.num_resolutions - 1
+        )
         self.is_legacy = is_legacy
 
     def text_to_image(
@@ -77,7 +79,8 @@ class SamplingPipeline:
 
         if params.img2img_strength < 1.0:
             sampler.discretization = Img2ImgDiscretizationWrapper(
-                sampler.discretization, strength=params.img2img_strength,
+                sampler.discretization,
+                strength=params.img2img_strength,
             )
         height, width = image.shape[2], image.shape[3]
         value_dict = OmegaConf.to_container(params, resolve=True)
@@ -91,7 +94,9 @@ class SamplingPipeline:
             sampler,
             value_dict,
             samples,
-            force_uc_zero_embeddings=["txt", "captions"] if not self.model.is_legacy else [],
+            force_uc_zero_embeddings=(
+                ["txt", "captions"] if not self.model.is_legacy else []
+            ),
             return_latents=return_latents,
             filter=None,
             seed=seed,
@@ -110,7 +115,8 @@ class SamplingPipeline:
         sampler = get_sampler_config(params)
         if params.img2img_strength < 1.0:
             sampler.discretization = Img2ImgDiscretizationWrapper(
-                sampler.discretization, strength=params.img2img_strength,
+                sampler.discretization,
+                strength=params.img2img_strength,
             )
         value_dict = {
             "orig_width": image.shape[3] * 8,
@@ -172,7 +178,11 @@ def get_discretization_config(params):
     elif params.discretization == "EDMDiscretization":
         discretization_config = {
             "target": "nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.discretizer.EDMDiscretization",
-            "params": {"sigma_min": params.sigma_min, "sigma_max": params.sigma_max, "rho": params.rho,},
+            "params": {
+                "sigma_min": params.sigma_min,
+                "sigma_max": params.sigma_max,
+                "rho": params.rho,
+            },
         }
     else:
         raise ValueError(f"unknown discretization {params.discretization}")

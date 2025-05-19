@@ -54,7 +54,9 @@ class BaseDiffusionSampler:
         self.device = device
 
     def prepare_sampling_loop(self, x, cond, uc=None, num_steps=None):
-        sigmas = self.discretization(self.num_steps if num_steps is None else num_steps, device=self.device)
+        sigmas = self.discretization(
+            self.num_steps if num_steps is None else num_steps, device=self.device
+        )
         uc = default(uc, cond)
 
         x *= torch.sqrt(1.0 + sigmas[0] ** 2.0)
@@ -93,14 +95,26 @@ class SingleStepDiffusionSampler(BaseDiffusionSampler):
 
 
 class EDMSampler(SingleStepDiffusionSampler):
-    def __init__(self, s_churn=0.0, s_tmin=0.0, s_tmax=float("inf"), s_noise=1.0, *args, **kwargs):
+    def __init__(
+        self, s_churn=0.0, s_tmin=0.0, s_tmax=float("inf"), s_noise=1.0, *args, **kwargs
+    ):
         super().__init__(*args, **kwargs)
         self.s_churn = s_churn
         self.s_tmin = s_tmin
         self.s_tmax = s_tmax
         self.s_noise = s_noise
 
-    def sampler_step(self, sigma, next_sigma, denoiser, x, cond, uc=None, gamma=0.0, return_noise=False):
+    def sampler_step(
+        self,
+        sigma,
+        next_sigma,
+        denoiser,
+        x,
+        cond,
+        uc=None,
+        gamma=0.0,
+        return_noise=False,
+    ):
         # x is actually \bar{x} as in the DDIM paper
         sigma_hat = sigma * (gamma + 1.0)
         if gamma > 0:
@@ -113,20 +127,26 @@ class EDMSampler(SingleStepDiffusionSampler):
         dt = append_dims(next_sigma - sigma_hat, x.ndim)
 
         euler_step = self.euler_step(x, d, dt)  # this is x_{t-\delta{t}}
-        x = self.possible_correction_step(euler_step, x, d, dt, next_sigma, denoiser, cond, uc)
+        x = self.possible_correction_step(
+            euler_step, x, d, dt, next_sigma, denoiser, cond, uc
+        )
         if return_noise:
             return x, d
         return x
 
     def get_gamma(self, sigmas, num_sigmas, index):
         gamma = (
-            min(self.s_churn / (num_sigmas - 1), 2**0.5 - 1) if self.s_tmin <= sigmas[index] <= self.s_tmax else 0.0
+            min(self.s_churn / (num_sigmas - 1), 2**0.5 - 1)
+            if self.s_tmin <= sigmas[index] <= self.s_tmax
+            else 0.0
         )
         return gamma
 
     def __call__(self, denoiser, x, cond, uc=None, num_steps=None):
         # prepare_sampling_loop converts x into \bar{x} = x / \sqrt{\tilde{\alpha_t}}
-        x, s_in, sigmas, num_sigmas, cond, uc = self.prepare_sampling_loop(x, cond, uc, num_steps)
+        x, s_in, sigmas, num_sigmas, cond, uc = self.prepare_sampling_loop(
+            x, cond, uc, num_steps
+        )
 
         for i in self.get_sigma_gen(num_sigmas):
             gamma = self.get_gamma(sigmas, num_sigmas, i)
@@ -165,7 +185,9 @@ class AncestralSampler(SingleStepDiffusionSampler):
         return x
 
     def __call__(self, denoiser, x, cond, uc=None, num_steps=None):
-        x, s_in, sigmas, num_sigmas, cond, uc = self.prepare_sampling_loop(x, cond, uc, num_steps)
+        x, s_in, sigmas, num_sigmas, cond, uc = self.prepare_sampling_loop(
+            x, cond, uc, num_steps
+        )
 
         for i in self.get_sigma_gen(num_sigmas):
             x = self.sampler_step(
@@ -192,32 +214,43 @@ class LinearMultistepSampler(BaseDiffusionSampler):
         self.order = order
 
     def __call__(self, denoiser, x, cond, uc=None, num_steps=None, **kwargs):
-        x, s_in, sigmas, num_sigmas, cond, uc = self.prepare_sampling_loop(x, cond, uc, num_steps)
+        x, s_in, sigmas, num_sigmas, cond, uc = self.prepare_sampling_loop(
+            x, cond, uc, num_steps
+        )
 
         ds = []
         sigmas_cpu = sigmas.detach().cpu().numpy()
         for i in self.get_sigma_gen(num_sigmas):
             sigma = s_in * sigmas[i]
-            denoised = denoiser(*self.guider.prepare_inputs(x, sigma, cond, uc), **kwargs)
+            denoised = denoiser(
+                *self.guider.prepare_inputs(x, sigma, cond, uc), **kwargs
+            )
             denoised = self.guider(denoised, sigma)
             d = to_d(x, sigma, denoised)
             ds.append(d)
             if len(ds) > self.order:
                 ds.pop(0)
             cur_order = min(i + 1, self.order)
-            coeffs = [linear_multistep_coeff(cur_order, sigmas_cpu, i, j) for j in range(cur_order)]
+            coeffs = [
+                linear_multistep_coeff(cur_order, sigmas_cpu, i, j)
+                for j in range(cur_order)
+            ]
             x = x + sum(coeff * d for coeff, d in zip(coeffs, reversed(ds)))
 
         return x
 
 
 class EulerEDMSampler(EDMSampler):
-    def possible_correction_step(self, euler_step, x, d, dt, next_sigma, denoiser, cond, uc):
+    def possible_correction_step(
+        self, euler_step, x, d, dt, next_sigma, denoiser, cond, uc
+    ):
         return euler_step
 
 
 class HeunEDMSampler(EDMSampler):
-    def possible_correction_step(self, euler_step, x, d, dt, next_sigma, denoiser, cond, uc):
+    def possible_correction_step(
+        self, euler_step, x, d, dt, next_sigma, denoiser, cond, uc
+    ):
         if torch.sum(next_sigma) < 1e-14:
             # Save a network evaluation if all noise levels are 0
             return euler_step
@@ -227,7 +260,9 @@ class HeunEDMSampler(EDMSampler):
             d_prime = (d + d_new) / 2.0
 
             # apply correction if noise level is not 0
-            x = torch.where(append_dims(next_sigma, x.ndim) > 0.0, x + d_prime * dt, euler_step)
+            x = torch.where(
+                append_dims(next_sigma, x.ndim) > 0.0, x + d_prime * dt, euler_step
+            )
             return x
 
 
@@ -266,7 +301,9 @@ class DPMPP2SAncestralSampler(AncestralSampler):
             x = x_euler
         else:
             h, s, t, t_next = self.get_variables(sigma, sigma_down)
-            mult = [append_dims(mult, x.ndim) for mult in self.get_mult(h, s, t, t_next)]
+            mult = [
+                append_dims(mult, x.ndim) for mult in self.get_mult(h, s, t, t_next)
+            ]
 
             x2 = mult[0] * x - mult[1] * denoised
             denoised2 = self.denoise(x2, denoiser, to_sigma(s), cond, uc)
@@ -316,7 +353,10 @@ class DPMPP2MSampler(BaseDiffusionSampler):
         denoised = self.denoise(x, denoiser, sigma, cond, uc)
 
         h, r, t, t_next = self.get_variables(sigma, next_sigma, previous_sigma)
-        mult = [append_dims(mult, x.ndim) for mult in self.get_mult(h, r, t, t_next, previous_sigma)]
+        mult = [
+            append_dims(mult, x.ndim)
+            for mult in self.get_mult(h, r, t, t_next, previous_sigma)
+        ]
 
         x_standard = mult[0] * x - mult[1] * denoised
         if old_denoised is None or torch.sum(next_sigma) < 1e-14:
@@ -327,12 +367,16 @@ class DPMPP2MSampler(BaseDiffusionSampler):
             x_advanced = mult[0] * x - mult[1] * denoised_d
 
             # apply correction if noise level is not 0 and not first step
-            x = torch.where(append_dims(next_sigma, x.ndim) > 0.0, x_advanced, x_standard)
+            x = torch.where(
+                append_dims(next_sigma, x.ndim) > 0.0, x_advanced, x_standard
+            )
 
         return x, denoised
 
     def __call__(self, denoiser, x, cond, uc=None, num_steps=None, **kwargs):
-        x, s_in, sigmas, num_sigmas, cond, uc = self.prepare_sampling_loop(x, cond, uc, num_steps)
+        x, s_in, sigmas, num_sigmas, cond, uc = self.prepare_sampling_loop(
+            x, cond, uc, num_steps
+        )
 
         old_denoised = None
         for i in self.get_sigma_gen(num_sigmas):

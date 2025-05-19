@@ -39,8 +39,8 @@ except (ImportError, ModuleNotFoundError):
     HAVE_DALI = False
 
 __all__ = [
-    'AudioToCharDALIDataset',
-    'AudioToBPEDALIDataset',
+    "AudioToCharDALIDataset",
+    "AudioToBPEDALIDataset",
 ]
 
 """
@@ -68,7 +68,7 @@ def is_dali_supported(min_version: str, verbose: bool = False) -> bool:
         bool - whether DALI could be imported or not.
     """
     module_available, _ = model_utils.check_lib_version(
-        'nvidia.dali', checked_version=min_version, operator=operator.ge
+        "nvidia.dali", checked_version=min_version, operator=operator.ge
     )
 
     # If DALI is not installed
@@ -83,23 +83,25 @@ def is_dali_supported(min_version: str, verbose: bool = False) -> bool:
 
 class DALIOutputs(object):
     def __init__(self, out_dict):
-        self._has_processed_signal = 'processed_signal' in out_dict and 'processed_signal_len' in out_dict
+        self._has_processed_signal = (
+            "processed_signal" in out_dict and "processed_signal_len" in out_dict
+        )
         if not self._has_processed_signal:
-            assert 'audio' in out_dict and 'audio_len' in out_dict
-        assert 'transcript' in out_dict and 'transcript_len' in out_dict
+            assert "audio" in out_dict and "audio_len" in out_dict
+        assert "transcript" in out_dict and "transcript_len" in out_dict
         if self._has_processed_signal:
             self._outs = (
-                out_dict['processed_signal'],
-                out_dict['processed_signal_len'].reshape(-1),
-                out_dict['transcript'],
-                out_dict['transcript_len'].reshape(-1),
+                out_dict["processed_signal"],
+                out_dict["processed_signal_len"].reshape(-1),
+                out_dict["transcript"],
+                out_dict["transcript_len"].reshape(-1),
             )
         else:
             self._outs = (
-                out_dict['audio'],
-                out_dict['audio_len'].reshape(-1),
-                out_dict['transcript'],
-                out_dict['transcript_len'].reshape(-1),
+                out_dict["audio"],
+                out_dict["audio_len"].reshape(-1),
+                out_dict["transcript"],
+                out_dict["transcript_len"].reshape(-1),
             )
 
     @property
@@ -184,12 +186,12 @@ class _AudioTextDALIDataset(Iterator):
                 f"See: https://docs.nvidia.com/deeplearning/dali/user-guide/docs/installation.html#id1"
             )
 
-        if device not in ('cpu', 'gpu'):
+        if device not in ("cpu", "gpu"):
             raise ValueError(
                 f"{self} received an unexpected device argument {device}. Supported values are: 'cpu', 'gpu'"
             )
 
-        device_id = device_id if device == 'gpu' else None
+        device_id = device_id if device == "gpu" else None
 
         self.batch_size = batch_size  # Used by NeMo
 
@@ -217,9 +219,15 @@ class _AudioTextDALIDataset(Iterator):
 
         has_preprocessor = preprocessor_cfg is not None
         if has_preprocessor:
-            if preprocessor_cfg._target_ == "nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor":
+            if (
+                preprocessor_cfg._target_
+                == "nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor"
+            ):
                 feature_type = "mel_spectrogram"
-            elif preprocessor_cfg._target_ == "nemo.collections.asr.modules.AudioToMFCCPreprocessor":
+            elif (
+                preprocessor_cfg._target_
+                == "nemo.collections.asr.modules.AudioToMFCCPreprocessor"
+            ):
                 feature_type = "mfcc"
             else:
                 raise ValueError(
@@ -229,18 +237,24 @@ class _AudioTextDALIDataset(Iterator):
 
             # Default values taken from AudioToMelSpectrogramPreprocessor
             params = preprocessor_cfg
-            self.dither = params['dither'] if 'dither' in params else 0.0
-            self.preemph = params['preemph'] if 'preemph' in params else 0.97
-            self.window_size_sec = params['window_size'] if 'window_size' in params else 0.02
-            self.window_stride_sec = params['window_stride'] if 'window_stride' in params else 0.01
-            self.sample_rate = params['sample_rate'] if 'sample_rate' in params else sample_rate
+            self.dither = params["dither"] if "dither" in params else 0.0
+            self.preemph = params["preemph"] if "preemph" in params else 0.97
+            self.window_size_sec = (
+                params["window_size"] if "window_size" in params else 0.02
+            )
+            self.window_stride_sec = (
+                params["window_stride"] if "window_stride" in params else 0.01
+            )
+            self.sample_rate = (
+                params["sample_rate"] if "sample_rate" in params else sample_rate
+            )
             self.window_size = int(self.window_size_sec * self.sample_rate)
             self.window_stride = int(self.window_stride_sec * self.sample_rate)
 
-            normalize = params['normalize'] if 'normalize' in params else 'per_feature'
-            if normalize == 'per_feature':  # Each freq channel independently
+            normalize = params["normalize"] if "normalize" in params else "per_feature"
+            if normalize == "per_feature":  # Each freq channel independently
                 self.normalization_axes = (1,)
-            elif normalize == 'all_features':
+            elif normalize == "all_features":
                 self.normalization_axes = (0, 1)
             else:
                 raise ValueError(
@@ -249,16 +263,16 @@ class _AudioTextDALIDataset(Iterator):
                 )
 
             self.window = None
-            window_name = params['window'] if 'window' in params else 'hann'
+            window_name = params["window"] if "window" in params else "hann"
             torch_windows = {
-                'hann': torch.hann_window,
-                'hamming': torch.hamming_window,
-                'blackman': torch.blackman_window,
-                'bartlett': torch.bartlett_window,
-                'none': None,
+                "hann": torch.hann_window,
+                "hamming": torch.hamming_window,
+                "blackman": torch.blackman_window,
+                "bartlett": torch.bartlett_window,
+                "none": None,
             }
 
-            if window_name == 'ones':
+            if window_name == "ones":
                 window_tensor = torch.ones(self.window_size)
             else:
                 try:
@@ -269,32 +283,48 @@ class _AudioTextDALIDataset(Iterator):
                         f" It must be one of: ('hann', 'ones', 'hamming', 'blackman', 'bartlett', None)."
                         f" None is equivalent to 'hann'."
                     )
-                window_tensor = window_fn(self.window_size, periodic=False) if window_fn else None
-            self.window = window_tensor.numpy().tolist() if window_tensor is not None else None
+                window_tensor = (
+                    window_fn(self.window_size, periodic=False) if window_fn else None
+                )
+            self.window = (
+                window_tensor.numpy().tolist() if window_tensor is not None else None
+            )
 
-            self.n_fft = params['n_fft'] if 'n_fft' in params else 2 ** math.ceil(math.log2(self.window_size))
-            self.n_mels = params['n_mels'] if 'n_mels' in params else 64
-            self.n_mfcc = params['n_mfcc'] if 'n_mfcc' in params else 64
+            self.n_fft = (
+                params["n_fft"]
+                if "n_fft" in params
+                else 2 ** math.ceil(math.log2(self.window_size))
+            )
+            self.n_mels = params["n_mels"] if "n_mels" in params else 64
+            self.n_mfcc = params["n_mfcc"] if "n_mfcc" in params else 64
 
-            features = params['features'] if 'features' in params else 0
+            features = params["features"] if "features" in params else 0
             if features > 0:
-                if feature_type == 'mel_spectrogram':
+                if feature_type == "mel_spectrogram":
                     self.n_mels = features
-                elif feature_type == 'mfcc':
+                elif feature_type == "mfcc":
                     self.n_mfcc = features
 
             # TODO Implement frame splicing
-            if 'frame_splicing' in params:
-                assert params['frame_splicing'] == 1, "Frame splicing is not implemented"
+            if "frame_splicing" in params:
+                assert (
+                    params["frame_splicing"] == 1
+                ), "Frame splicing is not implemented"
 
-            self.freq_low = params['lowfreq'] if 'lowfreq' in params else 0.0
-            self.freq_high = params['highfreq'] if 'highfreq' in params else self.sample_rate / 2.0
-            self.log_features = params['log'] if 'log' in params else True
+            self.freq_low = params["lowfreq"] if "lowfreq" in params else 0.0
+            self.freq_high = (
+                params["highfreq"] if "highfreq" in params else self.sample_rate / 2.0
+            )
+            self.log_features = params["log"] if "log" in params else True
 
             # We want to avoid taking the log of zero
             # There are two options: either adding or clamping to a small value
 
-            self.log_zero_guard_type = params['log_zero_guard_type'] if 'log_zero_guard_type' in params else 'add'
+            self.log_zero_guard_type = (
+                params["log_zero_guard_type"]
+                if "log_zero_guard_type" in params
+                else "add"
+            )
             if self.log_zero_guard_type not in ["add", "clamp"]:
                 raise ValueError(
                     f"{self} received {self.log_zero_guard_type} for the "
@@ -302,7 +332,11 @@ class _AudioTextDALIDataset(Iterator):
                     f"'clamp'."
                 )
 
-            self.log_zero_guard_value = params['log_zero_guard_value'] if 'log_zero_guard_value' in params else 2**-24
+            self.log_zero_guard_value = (
+                params["log_zero_guard_value"]
+                if "log_zero_guard_value" in params
+                else 2**-24
+            )
             if isinstance(self.log_zero_guard_value, str):
                 if self.log_zero_guard_value == "tiny":
                     self.log_zero_guard_value = torch.finfo(torch.float32).tiny
@@ -314,20 +348,21 @@ class _AudioTextDALIDataset(Iterator):
                         f"It must be either a number, 'tiny', or 'eps'"
                     )
 
-            self.mag_power = params['mag_power'] if 'mag_power' in params else 2
+            self.mag_power = params["mag_power"] if "mag_power" in params else 2
             if self.mag_power != 1.0 and self.mag_power != 2.0:
                 raise ValueError(
-                    f"{self} received {self.mag_power} for the mag_power parameter." f" It must be either 1.0 or 2.0."
+                    f"{self} received {self.mag_power} for the mag_power parameter."
+                    f" It must be either 1.0 or 2.0."
                 )
 
-            self.pad_to = max(params['pad_to'], 1) if 'pad_to' in params else 16
-            self.pad_value = params['pad_value'] if 'pad_value' in params else 0.0
+            self.pad_to = max(params["pad_to"], 1) if "pad_to" in params else 16
+            self.pad_value = params["pad_value"] if "pad_value" in params else 0.0
 
         with self.pipe:
             if audio_tar_filepaths is None and audio_tar_index_filepaths is None:
                 audio, indices = dali.fn.readers.nemo_asr(
                     name="Reader",
-                    manifest_filepaths=manifest_filepath.split(','),
+                    manifest_filepaths=manifest_filepath.split(","),
                     dtype=dali.types.FLOAT,
                     downmix=True,
                     sample_rate=float(self.sample_rate),
@@ -344,9 +379,15 @@ class _AudioTextDALIDataset(Iterator):
 
                 self.is_tarred_dataset = False
 
-            elif audio_tar_filepaths is not None and audio_tar_index_filepaths is not None:
+            elif (
+                audio_tar_filepaths is not None
+                and audio_tar_index_filepaths is not None
+            ):
                 audio_tar_filepaths = expand_sharded_filepaths(
-                    audio_tar_filepaths, shard_strategy=shard_strategy, world_size=world_size, global_rank=global_rank
+                    audio_tar_filepaths,
+                    shard_strategy=shard_strategy,
+                    world_size=world_size,
+                    global_rank=global_rank,
                 )
                 audio_tar_index_filepaths = expand_sharded_filepaths(
                     audio_tar_index_filepaths,
@@ -355,7 +396,10 @@ class _AudioTextDALIDataset(Iterator):
                     global_rank=global_rank,
                 )
 
-                if len(audio_tar_filepaths) != len(audio_tar_index_filepaths) and len(audio_tar_index_filepaths) != 0:
+                if (
+                    len(audio_tar_filepaths) != len(audio_tar_index_filepaths)
+                    and len(audio_tar_index_filepaths) != 0
+                ):
                     raise ValueError(
                         f"Number of filepaths provided for `audio_tar_filepaths` must match "
                         f"`audio_tar_index_filepaths`. Got {len(audio_tar_filepaths)} audio_tar_filepaths and "
@@ -395,12 +439,17 @@ class _AudioTextDALIDataset(Iterator):
             if trim:
                 # Need to extract non-silent region before moving to the GPU
                 roi_start, roi_len = dali.fn.nonsilent_region(audio, cutoff_db=-60)
-                audio = audio.gpu() if self.device == 'gpu' else audio
+                audio = audio.gpu() if self.device == "gpu" else audio
                 audio = dali.fn.slice(
-                    audio, roi_start, roi_len, normalized_anchor=False, normalized_shape=False, axes=[0]
+                    audio,
+                    roi_start,
+                    roi_len,
+                    normalized_anchor=False,
+                    normalized_shape=False,
+                    axes=[0],
                 )
             else:
-                audio = audio.gpu() if self.device == 'gpu' else audio
+                audio = audio.gpu() if self.device == "gpu" else audio
 
             if not has_preprocessor:
                 # No preprocessing, the output is the audio signal
@@ -415,7 +464,9 @@ class _AudioTextDALIDataset(Iterator):
 
                 # Preemphasis filter
                 if self.preemph > 0.0:
-                    audio = dali.fn.preemphasis_filter(audio, preemph_coeff=self.preemph, border='zero')
+                    audio = dali.fn.preemphasis_filter(
+                        audio, preemph_coeff=self.preemph, border="zero"
+                    )
 
                 # Power spectrogram
                 spec = dali.fn.spectrogram(
@@ -426,7 +477,7 @@ class _AudioTextDALIDataset(Iterator):
                     window_fn=self.window,
                 )
 
-                if feature_type == 'mel_spectrogram' or feature_type == 'mfcc':
+                if feature_type == "mel_spectrogram" or feature_type == "mfcc":
                     # Spectrogram to Mel Spectrogram
                     spec = dali.fn.mel_filter_bank(
                         spec,
@@ -437,25 +488,36 @@ class _AudioTextDALIDataset(Iterator):
                         freq_high=self.freq_high,
                     )
                     # Mel Spectrogram to MFCC
-                    if feature_type == 'mfcc':
+                    if feature_type == "mfcc":
                         spec = dali.fn.mfcc(spec, n_mfcc=self.n_mfcc)
 
                 # Logarithm
-                if self.log_zero_guard_type == 'add':
+                if self.log_zero_guard_type == "add":
                     spec = spec + self.log_zero_guard_value
 
                 spec = dali.fn.to_decibels(
-                    spec, multiplier=math.log(10), reference=1.0, cutoff_db=math.log(self.log_zero_guard_value)
+                    spec,
+                    multiplier=math.log(10),
+                    reference=1.0,
+                    cutoff_db=math.log(self.log_zero_guard_value),
                 )
 
                 # Normalization
-                spec = dali.fn.normalize(spec, axes=self.normalization_axes, epsilon=1e-5**2, ddof=1)
+                spec = dali.fn.normalize(
+                    spec, axes=self.normalization_axes, epsilon=1e-5**2, ddof=1
+                )
 
                 # Extracting the length of the spectrogram
                 spec_len = dali.fn.slice(dali.fn.shapes(spec), 1, 1, axes=(0,))
 
                 # Pads feature dimension to be a multiple of `pad_to` and the temporal dimension to be as big as the largest sample (shape -1)
-                spec = dali.fn.pad(spec, fill_value=self.pad_value, axes=(0, 1), align=(self.pad_to, 1), shape=(1, -1))
+                spec = dali.fn.pad(
+                    spec,
+                    fill_value=self.pad_value,
+                    axes=(0, 1),
+                    align=(self.pad_to, 1),
+                    shape=(1, -1),
+                )
                 self.pipe.set_outputs(spec, spec_len, indices)
 
         x = time.time()
@@ -466,12 +528,18 @@ class _AudioTextDALIDataset(Iterator):
         logging.info(f"Time for pipe.build() : {(y - x)} seconds")
 
         if has_preprocessor:
-            output_names = ['processed_signal', 'processed_signal_len', 'manifest_indices']
+            output_names = [
+                "processed_signal",
+                "processed_signal_len",
+                "manifest_indices",
+            ]
         else:
-            output_names = ['audio', 'audio_len', 'manifest_indices']
+            output_names = ["audio", "audio_len", "manifest_indices"]
 
         x = time.time()
-        last_batch_policy = LastBatchPolicy.DROP if drop_last else LastBatchPolicy.PARTIAL
+        last_batch_policy = (
+            LastBatchPolicy.DROP if drop_last else LastBatchPolicy.PARTIAL
+        )
         self._iter = DALIPytorchIterator(
             [self.pipe],
             output_map=output_names,
@@ -528,10 +596,10 @@ class _AudioTextDALIDataset(Iterator):
         outputs = self._iter.next()
         assert len(outputs) == 1
         dali_out = outputs[0]
-        manifest_indices = dali_out['manifest_indices'].numpy()
+        manifest_indices = dali_out["manifest_indices"].numpy()
 
         out = {}
-        out_names = ['processed_signal', 'processed_signal_len', 'audio', 'audio_len']
+        out_names = ["processed_signal", "processed_signal_len", "audio", "audio_len"]
         for out_name in out_names:
             if out_name in dali_out:
                 out[out_name] = dali_out[out_name].detach().clone()
@@ -545,26 +613,38 @@ class _AudioTextDALIDataset(Iterator):
             if not self.is_tarred_dataset:
                 # Loose-file dataset. Index is integer based.
                 manifest_index = manifest_index[0]
-                text, text_length = self.manifest_processor.process_text_by_id(manifest_index)
+                text, text_length = self.manifest_processor.process_text_by_id(
+                    manifest_index
+                )
             else:
                 # Tarred-file dataset. Index is filename based.
                 resolved_manifest_indices = manifest_index.tobytes().decode().split(":")
-                resolved_manifest_index = resolved_manifest_indices[2]  # we require just the filename segment
-                resolved_manifest_index = os.path.splitext(resolved_manifest_index)[0]  # we dont need file extension
-                text, text_length = self.manifest_processor.process_text_by_file_id(resolved_manifest_index)
+                resolved_manifest_index = resolved_manifest_indices[
+                    2
+                ]  # we require just the filename segment
+                resolved_manifest_index = os.path.splitext(resolved_manifest_index)[
+                    0
+                ]  # we dont need file extension
+                text, text_length = self.manifest_processor.process_text_by_file_id(
+                    resolved_manifest_index
+                )
 
             text_tokens_len.append(text_length)
             text_tokens.append(text)
             if text_length > max_len:
                 max_len = text_length
 
-        transcript_out = torch.full([batch_size, max_len], fill_value=self.manifest_processor.pad_id, dtype=torch.long)
+        transcript_out = torch.full(
+            [batch_size, max_len],
+            fill_value=self.manifest_processor.pad_id,
+            dtype=torch.long,
+        )
         for i, n in enumerate(text_tokens_len):
             transcript_out[i, :n] = torch.tensor(text_tokens[i], dtype=torch.long)
         transcript_len_out = torch.tensor(text_tokens_len, dtype=torch.long)
 
-        out['transcript'] = transcript_out
-        out['transcript_len'] = transcript_len_out
+        out["transcript"] = transcript_out
+        out["transcript_len"] = transcript_len_out
         return DALIOutputs(out)
 
 
@@ -626,7 +706,7 @@ class AudioToCharDALIDataset(_AudioTextDALIDataset):
         trim: bool = False,
         shuffle: bool = False,
         drop_last: bool = False,
-        parser: Union[str, Callable] = 'en',
+        parser: Union[str, Callable] = "en",
         shard_strategy: str = "scatter",
         device_id: int = 0,
         global_rank: int = 0,
@@ -637,7 +717,11 @@ class AudioToCharDALIDataset(_AudioTextDALIDataset):
         self.labels = labels
 
         parser = parsers.make_parser(
-            labels=labels, name=parser, unk_id=unk_index, blank_id=blank_index, do_normalize=normalize
+            labels=labels,
+            name=parser,
+            unk_id=unk_index,
+            blank_id=blank_index,
+            do_normalize=normalize,
         )
 
         super().__init__(
@@ -705,7 +789,7 @@ class AudioToBPEDALIDataset(_AudioTextDALIDataset):
     def __init__(
         self,
         manifest_filepath: str,
-        tokenizer: 'nemo.collections.common.tokenizers.TokenizerSpec',
+        tokenizer: "nemo.collections.common.tokenizers.TokenizerSpec",
         device: str,
         batch_size: int,
         sample_rate: int = 16000,
@@ -726,17 +810,17 @@ class AudioToBPEDALIDataset(_AudioTextDALIDataset):
         return_sample_id: bool = False,
     ):
 
-        if use_start_end_token and hasattr(tokenizer, 'bos_token'):
+        if use_start_end_token and hasattr(tokenizer, "bos_token"):
             bos_id = tokenizer.bos_id
         else:
             bos_id = None
 
-        if use_start_end_token and hasattr(tokenizer, 'eos_token'):
+        if use_start_end_token and hasattr(tokenizer, "eos_token"):
             eos_id = tokenizer.eos_id
         else:
             eos_id = None
 
-        if hasattr(tokenizer, 'pad_token'):
+        if hasattr(tokenizer, "pad_token"):
             pad_id = tokenizer.pad_id
         else:
             pad_id = 0

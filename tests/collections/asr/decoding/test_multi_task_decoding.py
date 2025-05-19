@@ -82,7 +82,7 @@ def tokenizer():
     return tok
 
 
-@pytest.mark.parametrize('with_confidence', [False, True])
+@pytest.mark.parametrize("with_confidence", [False, True])
 def test_greedy_decoding(inputs, nnet, deterministic_rng, with_confidence):
     gen = GreedySequenceGenerator(*nnet, preserve_step_confidence=with_confidence)
     output = gen(*inputs)
@@ -165,7 +165,9 @@ def test_beam_decoding_beam_scores_true_with_lm(inputs, nnet, tmp_path):
     lm = NGramGPULanguageModel.dummy_unigram_lm(vocab_size=8)
     lm_path = tmp_path / "unigram_lm.nemo"
     lm.save_to(f"{lm_path}")
-    gen = BeamSearchSequenceGeneratorWithNGramLM(*nnet, ngram_lm_model=lm_path, ngram_lm_alpha=0.2, beam_size=2)
+    gen = BeamSearchSequenceGeneratorWithNGramLM(
+        *nnet, ngram_lm_model=lm_path, ngram_lm_alpha=0.2, beam_size=2
+    )
     output = gen(*inputs, return_beam_scores=True)
 
     assert len(output) == 3
@@ -200,7 +202,9 @@ def prompted_inputs():
     )
 
 
-def test_transformer_aed_beam_infer_strips_prompt(prompted_inputs, decoder_nm, nnet, tokenizer):
+def test_transformer_aed_beam_infer_strips_prompt(
+    prompted_inputs, decoder_nm, nnet, tokenizer
+):
     decoder_input_ids, encoder_hidden_states, encoder_input_mask = prompted_inputs
     *_, classifier = nnet
 
@@ -227,7 +231,9 @@ def test_transformer_aed_beam_infer_strips_prompt(prompted_inputs, decoder_nm, n
     )  # stripped the prompt from the beggining
 
 
-def test_transformer_aed_greedy_infer_strips_prompt(prompted_inputs, decoder_nm, nnet, tokenizer):
+def test_transformer_aed_greedy_infer_strips_prompt(
+    prompted_inputs, decoder_nm, nnet, tokenizer
+):
     decoder_input_ids, encoder_hidden_states, encoder_input_mask = prompted_inputs
     decoder_input_ids = torch.tensor([[1, 0, 2, 3, 4]], dtype=torch.long)  # prompt
     *_, classifier = nnet

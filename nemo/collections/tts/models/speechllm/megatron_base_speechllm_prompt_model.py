@@ -54,7 +54,7 @@ except (ImportError, ModuleNotFoundError):
     HAVE_MEGATRON_CORE = False
 
 
-__all__ = ['MegatronBaseSpeechLM']
+__all__ = ["MegatronBaseSpeechLM"]
 
 
 class MegatronBaseSpeechLM(MegatronBaseModel, TextGeneration):
@@ -89,15 +89,17 @@ class MegatronBaseSpeechLM(MegatronBaseModel, TextGeneration):
         self.prompt_encoder = None
         self.tokenizer = self.frozen_model.tokenizer
 
-        if hasattr(self.frozen_model.cfg, "encoder") and hasattr(self.frozen_model.cfg, "decoder"):
+        if hasattr(self.frozen_model.cfg, "encoder") and hasattr(
+            self.frozen_model.cfg, "decoder"
+        ):
             self.hidden_size = (
                 self.frozen_model.cfg.encoder.hidden_size
             )  # Encoder and decoder need to have the same hidden size and we check for this in the frozen enc-dec model.
         else:
             self.hidden_size = self.frozen_model.cfg.hidden_size
 
-        self.existing_tasks = list(self.cfg.get('existing_tasks', []))
-        self.new_tasks = list(self.cfg.get('new_tasks', []))
+        self.existing_tasks = list(self.cfg.get("existing_tasks", []))
+        self.new_tasks = list(self.cfg.get("new_tasks", []))
         self.virtual_prompt_style = VirtualPromptStyle(cfg.virtual_prompt_style)
 
         # Load templates for assigning virtual prompt token positions
@@ -107,7 +109,9 @@ class MegatronBaseSpeechLM(MegatronBaseModel, TextGeneration):
             VirtualPromptStyle.P_TUNING,
         ]:
             # TODO: Handle this when moving GPT prompt learning to the base class.
-            self.word_embeddings = self.frozen_model.enc_dec_model.encoder_embedding.word_embeddings
+            self.word_embeddings = (
+                self.frozen_model.enc_dec_model.encoder_embedding.word_embeddings
+            )
 
         # P-Tuning uses an LSTM Encoder to produce virtual token embeddings
         if self.virtual_prompt_style == VirtualPromptStyle.P_TUNING:
@@ -125,28 +129,41 @@ class MegatronBaseSpeechLM(MegatronBaseModel, TextGeneration):
         if isinstance(self.tokenizer, SentencePieceTokenizer):
             self.tokenizer.add_special_tokens(self.pseudo_tokens)
         else:
-            self.tokenizer.add_special_tokens({'additional_special_tokens': self.pseudo_tokens})
+            self.tokenizer.add_special_tokens(
+                {"additional_special_tokens": self.pseudo_tokens}
+            )
         self.pseudo_token_ids = self.tokenizer.tokens_to_ids(self.pseudo_tokens)
-        self.pseudo_token_ids_start = self.pseudo_token_ids[0] if self.pseudo_token_ids else None
-        self.pad_token_id = self.tokenizer.pad_id if self.tokenizer.pad_id is not None else self.tokenizer.unk_id
-        self.decoder_seq_length = cfg.get('decoder_seq_length', 40)
+        self.pseudo_token_ids_start = (
+            self.pseudo_token_ids[0] if self.pseudo_token_ids else None
+        )
+        self.pad_token_id = (
+            self.tokenizer.pad_id
+            if self.tokenizer.pad_id is not None
+            else self.tokenizer.unk_id
+        )
+        self.decoder_seq_length = cfg.get("decoder_seq_length", 40)
 
-        self.autocast_dtype = utils_funcs.torch_dtype_from_precision(self.cfg.precision)  # Mixed precision datatype
+        self.autocast_dtype = utils_funcs.torch_dtype_from_precision(
+            self.cfg.precision
+        )  # Mixed precision datatype
         # make sure the default pytorch lightning gradient clipping in the basemodel
         self.grad_clip_pl_default = True
         self.lowest_val_loss = None
         self.prompt_encoder = None
 
-        self.enable_autocast = not self.megatron_amp_O2 and self.autocast_dtype in [torch.float16, torch.bfloat16]
+        self.enable_autocast = not self.megatron_amp_O2 and self.autocast_dtype in [
+            torch.float16,
+            torch.bfloat16,
+        ]
 
         # define validation metric
-        if self.cfg.get('report_validation_metric', False):
-            validation_metric = self.cfg.get('validation_metric', 'accuracy')
-            if validation_metric == 'accuracy':
+        if self.cfg.get("report_validation_metric", False):
+            validation_metric = self.cfg.get("validation_metric", "accuracy")
+            if validation_metric == "accuracy":
                 self.validation_metric = AccuracyScore()
-            elif validation_metric == 'bleu':
+            elif validation_metric == "bleu":
                 self.validation_metric = BLEUScore()
-            elif validation_metric == 'rouge':
+            elif validation_metric == "rouge":
                 self.validation_metric = ROUGEScores()
 
     def load_task_templates(self, task_templates):
@@ -164,7 +181,9 @@ class MegatronBaseSpeechLM(MegatronBaseModel, TextGeneration):
         for task in task_templates:
             self.task_templates[task.taskname] = {
                 "prompt_template": task.prompt_template,
-                "prompt_template_fields": re.findall(r"\{(.*?)\}", task.prompt_template),
+                "prompt_template_fields": re.findall(
+                    r"\{(.*?)\}", task.prompt_template
+                ),
                 "answer_only_loss": task.get("answer_only_loss", False),
                 "answer_field": task.get("answer_field", None),
                 "truncate_field": task.truncate_field,
@@ -173,7 +192,9 @@ class MegatronBaseSpeechLM(MegatronBaseModel, TextGeneration):
                 "task_id_num": task_id_num,
             }
 
-            self.max_virtual_tokens = max(self.max_virtual_tokens, task.total_virtual_tokens)
+            self.max_virtual_tokens = max(
+                self.max_virtual_tokens, task.total_virtual_tokens
+            )
             self.task_id_num_to_name[task_id_num] = task.taskname
             task_id_num += 1
 
@@ -181,10 +202,13 @@ class MegatronBaseSpeechLM(MegatronBaseModel, TextGeneration):
         # Num virtual tokens for new tasks don't need to match num used for previously tuned tasks
         if self.new_tasks:
             new_task_name = self.new_tasks[0]
-            self.total_new_task_virtual_tokens = self.task_templates[new_task_name]["total_virtual_tokens"]
+            self.total_new_task_virtual_tokens = self.task_templates[new_task_name][
+                "total_virtual_tokens"
+            ]
 
             assert all(
-                self.task_templates[taskname]["total_virtual_tokens"] == self.total_new_task_virtual_tokens
+                self.task_templates[taskname]["total_virtual_tokens"]
+                == self.total_new_task_virtual_tokens
                 for taskname in self.new_tasks
             ), "Total virtual tokens for each task tuned simultaneously must match. If you want to use a different number of virtual tokens for different tasks, tune them separately."
 
@@ -196,7 +220,9 @@ class MegatronBaseSpeechLM(MegatronBaseModel, TextGeneration):
         new_task = self.new_tasks[0]
         total_virtual_tokens = self.task_templates[new_task]["total_virtual_tokens"]
 
-        encoder_type = PromptEncoderType(self.cfg.p_tuning.get("encoder_type", "tpmlp").lower())
+        encoder_type = PromptEncoderType(
+            self.cfg.p_tuning.get("encoder_type", "tpmlp").lower()
+        )
         self.prompt_encoder = PromptEncoder(
             config=self.model_parallel_config,
             encoder_type=encoder_type,
@@ -223,7 +249,9 @@ class MegatronBaseSpeechLM(MegatronBaseModel, TextGeneration):
         nemo checkpoints at the end of training will contain prompt table parameters only.
         """
         state_dict_ = {}
-        state_dict_["frozen_model_enc_dec_model"] = self.frozen_model.enc_dec_model.state_dict()
+        state_dict_["frozen_model_enc_dec_model"] = (
+            self.frozen_model.enc_dec_model.state_dict()
+        )
         state_dict_["word_embeddings"] = self.word_embeddings.state_dict()
         if self.prompt_encoder is not None:
             state_dict_["prompt_encoder"] = self.prompt_encoder.state_dict()
@@ -236,16 +264,20 @@ class MegatronBaseSpeechLM(MegatronBaseModel, TextGeneration):
         parameters. Matching load method for this class' custom state dict method.
         """
         self.init_prompt_encoder()
-        self.frozen_model.enc_dec_model.load_state_dict(state_dict["frozen_model_enc_dec_model"], strict)
+        self.frozen_model.enc_dec_model.load_state_dict(
+            state_dict["frozen_model_enc_dec_model"], strict
+        )
         self.word_embeddings.load_state_dict(state_dict["word_embeddings"], strict)
-        if 'prompt_encoder' in state_dict:
+        if "prompt_encoder" in state_dict:
             self.prompt_encoder.load_state_dict(state_dict["prompt_encoder"], strict)
 
         # Not sure why when we resume training the prompt encoder is on cpu
         # Because it's not created on init - Should really be moved to init
         self.prompt_encoder.to("cuda")
 
-    def embed_input(self, input_ids: Tensor, taskname_ids: Tensor, use_cached_reps: bool):
+    def embed_input(
+        self, input_ids: Tensor, taskname_ids: Tensor, use_cached_reps: bool
+    ):
         """
         Replaces the virtual tokens in the input_ids with embeddings
         calculated from either the 'prompt_table' or 'prompt_encoder'.
@@ -260,7 +292,9 @@ class MegatronBaseSpeechLM(MegatronBaseModel, TextGeneration):
         """
         # Replace virtual token ids with padding for forward pass through vocab embeddings
         discrete_token_ids = input_ids.clone()
-        discrete_token_ids[(input_ids >= self.pseudo_token_ids_start)] = self.pad_token_id
+        discrete_token_ids[(input_ids >= self.pseudo_token_ids_start)] = (
+            self.pad_token_id
+        )
         discrete_token_embeds = self.word_embeddings(discrete_token_ids).clone()
 
         # Find the indicies where virtual tokens should be inserted
@@ -273,13 +307,17 @@ class MegatronBaseSpeechLM(MegatronBaseModel, TextGeneration):
         if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
             # taskname_embeddings = self.word_embeddings(taskname_ids)
             batch_size, _ = taskname_ids.size()
-            virtual_token_embeds = self.prompt_encoder(batch_size=batch_size, use_cached_reps=use_cached_reps)
+            virtual_token_embeds = self.prompt_encoder(
+                batch_size=batch_size, use_cached_reps=use_cached_reps
+            )
         else:
             raise ValueError("invalid VirtualPromptSource.")
 
         # Create index template specifying where virtual token embeddings should be placed
         batch_size, _, embedding_size = discrete_token_embeds.shape
-        virtual_token_index = virtual_token_locations.nonzero().reshape((batch_size, -1, 2))[:, :, 1][:, :, None]
+        virtual_token_index = virtual_token_locations.nonzero().reshape(
+            (batch_size, -1, 2)
+        )[:, :, 1][:, :, None]
         virtual_token_index = virtual_token_index.expand(
             batch_size, self.total_new_task_virtual_tokens, embedding_size
         )
@@ -298,11 +336,11 @@ class MegatronBaseSpeechLM(MegatronBaseModel, TextGeneration):
         self.save_to(save_path=self.cfg.nemo_path)
 
     def setup(self, stage=None):
-        if stage == 'predict' and self.first_stage_of_pipeline():
+        if stage == "predict" and self.first_stage_of_pipeline():
             return
 
         self.setup_test_data()
-        if stage == 'test':
+        if stage == "test":
             return
 
         if self.first_stage_of_pipeline():
@@ -314,7 +352,7 @@ class MegatronBaseSpeechLM(MegatronBaseModel, TextGeneration):
         self.setup_validation_data()
 
     def setup_training_data(self, training_data_config=None):
-        if self.cfg.data.get('train_ds', None):
+        if self.cfg.data.get("train_ds", None):
             self._train_ds, self._train_dl = self.build_virtual_prompt_dataset(
                 dataset_paths=self.cfg.data.train_ds,
                 batch_size=self.cfg.global_batch_size,
@@ -324,7 +362,7 @@ class MegatronBaseSpeechLM(MegatronBaseModel, TextGeneration):
                 num_workers=self.cfg.data.num_workers,
                 pin_memory=True,
             )
-        elif self.cfg.data.get('train_manifest', None):
+        elif self.cfg.data.get("train_manifest", None):
             self._train_ds, self._train_dl = self.build_virtual_prompt_tarred_dataset(
                 dataset_paths=self.cfg.data.train_manifest,
                 audio_path=self.cfg.data.train_audio_path,
@@ -337,40 +375,50 @@ class MegatronBaseSpeechLM(MegatronBaseModel, TextGeneration):
             )
 
     def setup_validation_data(self, validation_data_config=None):
-        if self.cfg.data.get('validation_ds', None):
-            self._validation_ds, self._validation_dl = self.build_virtual_prompt_dataset(
-                dataset_paths=self.cfg.data.validation_ds,
-                batch_size=self.cfg.get("validation_global_batch_size", self.cfg.global_batch_size),
-                for_train=True,
-                drop_last=self.cfg.get("validation_drop_last", True),
-                shuffle=False,
-                num_workers=self.cfg.data.num_workers,
-                pin_memory=True,
+        if self.cfg.data.get("validation_ds", None):
+            self._validation_ds, self._validation_dl = (
+                self.build_virtual_prompt_dataset(
+                    dataset_paths=self.cfg.data.validation_ds,
+                    batch_size=self.cfg.get(
+                        "validation_global_batch_size", self.cfg.global_batch_size
+                    ),
+                    for_train=True,
+                    drop_last=self.cfg.get("validation_drop_last", True),
+                    shuffle=False,
+                    num_workers=self.cfg.data.num_workers,
+                    pin_memory=True,
+                )
             )
-        elif self.cfg.data.get('validation_manifest', None):
-            self._validation_ds, self._validation_dl = self.build_virtual_prompt_tarred_dataset(
-                dataset_paths=self.cfg.data.validation_manifest,
-                audio_path=self.cfg.data.validation_audio_path,
-                batch_size=self.cfg.get("validation_global_batch_size", self.cfg.global_batch_size),
-                for_train=True,
-                drop_last=self.cfg.get("validation_drop_last", True),
-                shuffle=0,
-                num_workers=self.cfg.data.num_workers,
-                pin_memory=True,
+        elif self.cfg.data.get("validation_manifest", None):
+            self._validation_ds, self._validation_dl = (
+                self.build_virtual_prompt_tarred_dataset(
+                    dataset_paths=self.cfg.data.validation_manifest,
+                    audio_path=self.cfg.data.validation_audio_path,
+                    batch_size=self.cfg.get(
+                        "validation_global_batch_size", self.cfg.global_batch_size
+                    ),
+                    for_train=True,
+                    drop_last=self.cfg.get("validation_drop_last", True),
+                    shuffle=0,
+                    num_workers=self.cfg.data.num_workers,
+                    pin_memory=True,
+                )
             )
 
     def setup_test_data(self, test_data_config=None):
-        if self.cfg.data.get('test_ds', None):
+        if self.cfg.data.get("test_ds", None):
             self._test_ds, self._test_dl = self.build_virtual_prompt_dataset(
                 dataset_paths=self.cfg.data.test_ds,
-                batch_size=self.cfg.get("validation_global_batch_size", self.cfg.global_batch_size),
+                batch_size=self.cfg.get(
+                    "validation_global_batch_size", self.cfg.global_batch_size
+                ),
                 for_train=False,
                 drop_last=False,
                 shuffle=False,
                 num_workers=self.cfg.data.num_workers,
                 pin_memory=True,
             )
-        elif self.cfg.data.get('test_manifest', None):
+        elif self.cfg.data.get("test_manifest", None):
             self._test_ds, self._test_dl = self.build_virtual_prompt_tarred_dataset(
                 dataset_paths=self.cfg.data.test_manifest,
                 audio_path=self.cfg.data.test_audio_path,
@@ -384,13 +432,17 @@ class MegatronBaseSpeechLM(MegatronBaseModel, TextGeneration):
 
     def _reconfigure_and_process_inference_batch(self, global_batch_size_per_gpu, gbs):
         # This should happen only on the last batch of the dataset.
-        if global_batch_size_per_gpu != gbs // parallel_state.get_data_parallel_world_size():
+        if (
+            global_batch_size_per_gpu
+            != gbs // parallel_state.get_data_parallel_world_size()
+        ):
             # NOTE: This is reconfiguring to make sure there is no grad-acc for validation batches.
             app_state = AppState()
             _reconfigure_microbatch_calculator(
                 rank=app_state.global_rank,
                 rampup_batch_size=None,
-                global_batch_size=global_batch_size_per_gpu * parallel_state.get_data_parallel_world_size(),
+                global_batch_size=global_batch_size_per_gpu
+                * parallel_state.get_data_parallel_world_size(),
                 micro_batch_size=global_batch_size_per_gpu,
                 data_parallel_size=parallel_state.get_data_parallel_world_size(),
             )
@@ -440,7 +492,9 @@ def get_pseudo_tokens(num_virtual_tokens):
 
     """
     pseudo_tokens = [
-        VirtualPromptPlaceholderToken.BASE.value + str(i) + VirtualPromptPlaceholderToken.END.value
+        VirtualPromptPlaceholderToken.BASE.value
+        + str(i)
+        + VirtualPromptPlaceholderToken.END.value
         for i in range(num_virtual_tokens)
     ]
 

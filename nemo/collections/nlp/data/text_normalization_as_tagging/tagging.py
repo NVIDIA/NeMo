@@ -36,8 +36,12 @@ output text given the predicted tags.
 class SwapType(Enum):
     """Type of swap"""
 
-    LONG_LEFT = 1  # token should be moved to the leftmost position of the whole semiotic span
-    LONG_RIGHT = 2  # token should be moved to the rightmost position of the whole semiotic span
+    LONG_LEFT = (
+        1  # token should be moved to the leftmost position of the whole semiotic span
+    )
+    LONG_RIGHT = (
+        2  # token should be moved to the rightmost position of the whole semiotic span
+    )
     SHORT_LEFT = 3  # token should be swapped with the left adjacent token
     SHORT_RIGHT = 4  # token should be swapped with the right adjacent token
 
@@ -98,22 +102,24 @@ class Tag(object):
         Raises:
             ValueError: If <TagType> is invalid.
         """
-        if '|' in tag:
-            pos_pipe = tag.index('|')
+        if "|" in tag:
+            pos_pipe = tag.index("|")
             tag_type, added_phrase = tag[:pos_pipe], tag[pos_pipe + 1 :]
         else:
-            tag_type, added_phrase = tag, ''
+            tag_type, added_phrase = tag, ""
         try:
             self.tag_type = TagType[tag_type]
         except KeyError:
-            raise ValueError('TagType should be KEEP or DELETE, not {}'.format(tag_type))
+            raise ValueError(
+                "TagType should be KEEP or DELETE, not {}".format(tag_type)
+            )
         self.added_phrase = added_phrase
 
     def __str__(self) -> str:
         if not self.added_phrase:
             return self.tag_type.name
         else:
-            return '{}|{}'.format(self.tag_type.name, self.added_phrase)
+            return "{}|{}".format(self.tag_type.name, self.added_phrase)
 
 
 class EditingTask(object):
@@ -138,7 +144,9 @@ class EditingTask(object):
         self.first_tokens.append(len(self.source_tokens))
         self.source_tokens.extend(token_list)
 
-    def realize_output(self, tags: List[Tag], semiotic_labels: List[str]) -> Tuple[str, str, str, str]:
+    def realize_output(
+        self, tags: List[Tag], semiotic_labels: List[str]
+    ) -> Tuple[str, str, str, str]:
         """Realize output text based on the source tokens and predicted tags.
 
         Args:
@@ -154,8 +162,8 @@ class EditingTask(object):
         """
         if len(tags) != len(self.source_tokens) or len(tags) != len(semiotic_labels):
             raise ValueError(
-                'The number of tags ({}) should match the number of '
-                'source tokens ({}) and semiotic labels({})'.format(
+                "The number of tags ({}) should match the number of "
+                "source tokens ({}) and semiotic labels({})".format(
                     len(tags), len(self.source_tokens), len(semiotic_labels)
                 )
             )
@@ -181,12 +189,18 @@ class EditingTask(object):
         previous_semiotic_label_end = -1
         current_semiotic_label = ""
         for i in range(len(sequence)):
-            if sequence[i].swap == SwapType.SHORT_LEFT or sequence[i - 1].swap == SwapType.SHORT_RIGHT:
+            if (
+                sequence[i].swap == SwapType.SHORT_LEFT
+                or sequence[i - 1].swap == SwapType.SHORT_RIGHT
+            ):
                 out_tokens_with_swap[i - 1], out_tokens_with_swap[i] = (
                     out_tokens_with_swap[i],
                     out_tokens_with_swap[i - 1],
                 )
-                out_tags_with_swap[i - 1], out_tags_with_swap[i] = out_tags_with_swap[i], out_tags_with_swap[i - 1]
+                out_tags_with_swap[i - 1], out_tags_with_swap[i] = (
+                    out_tags_with_swap[i],
+                    out_tags_with_swap[i - 1],
+                )
             if semiotic_labels[i] != current_semiotic_label:
                 previous_semiotic_label_end = i - 1
                 current_semiotic_label = semiotic_labels[i]
@@ -197,7 +211,9 @@ class EditingTask(object):
                 out_tags_with_swap.insert(previous_semiotic_label_end + 1, tag)
 
         # detokenize
-        output_tokens_str = " ".join(out_tokens_with_swap).replace("<", "").replace(">", "")
+        output_tokens_str = (
+            " ".join(out_tokens_with_swap).replace("<", "").replace(">", "")
+        )
         output_tags_with_swap_str = " ".join(out_tags_with_swap)
         frags = re.split(r"(_[^ ][^_]+[^ ]_)", output_tokens_str)
         output_tokens = []

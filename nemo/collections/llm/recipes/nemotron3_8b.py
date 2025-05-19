@@ -172,7 +172,9 @@ def pretrain_recipe(
             global_batch_size=global_batch_size,
             micro_batch_size=micro_batch_size,
         ),
-        log=default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
+        log=default_log(
+            dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)
+        ),
         optim=distributed_fused_adam_with_cosine_annealing(
             precision=precision,
             warmup_steps=warmup_steps,
@@ -253,7 +255,10 @@ def nemo_resume() -> run.Config[nl.AutoResume]:
         start from the pre-trained Nemotron3 8B model.
     """
     return run.Config(
-        nl.AutoResume, restore_config=run.Config(nl.RestoreConfig, path="nemo://nvidia/nemotron-3-8b-base-4k")
+        nl.AutoResume,
+        restore_config=run.Config(
+            nl.RestoreConfig, path="nemo://nvidia/nemotron-3-8b-base-4k"
+        ),
     )
 
 
@@ -263,7 +268,7 @@ def finetune_recipe(
     name: str = "default",
     num_nodes: int = 1,
     num_gpus_per_node: int = 8,
-    peft_scheme: Optional[str] = 'lora',
+    peft_scheme: Optional[str] = "lora",
     packed_sequence: bool = False,
 ) -> run.Partial:
     """
@@ -299,12 +304,18 @@ def finetune_recipe(
     """
 
     recipe = default_finetune_recipe(
-        model(), "thhaus/nemotron3-8b", dir, name, num_nodes, num_gpus_per_node, packed_sequence
+        model(),
+        "thhaus/nemotron3-8b",
+        dir,
+        name,
+        num_nodes,
+        num_gpus_per_node,
+        packed_sequence,
     )
-    if peft_scheme is None or peft_scheme.lower() == 'none':
+    if peft_scheme is None or peft_scheme.lower() == "none":
         recipe.trainer.strategy.tensor_model_parallel_size = 2
         recipe.optim.config.lr = 5e-6
-    elif peft_scheme.lower() in ['lora', 'dora']:
+    elif peft_scheme.lower() in ["lora", "dora"]:
         recipe.peft = run.Config(PEFT_STR2CLS[peft_scheme.lower()])
         recipe.optim.config.lr = 1e-4
     else:

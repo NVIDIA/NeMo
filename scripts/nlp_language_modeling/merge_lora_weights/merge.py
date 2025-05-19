@@ -83,7 +83,7 @@ def replace_number_add_offset(key, offset_value):
         return key
 
     # Define the pattern to match numbers in the string
-    pattern = r'layers.(\d+)'
+    pattern = r"layers.(\d+)"
 
     # Function to be used as replacement
     # It converts the found number to integer, adds offset, and returns as string
@@ -113,9 +113,11 @@ def load_lora(lora_nemo):
                 elif pp_size == 1:
                     ckpt_file = f"{tmpdir}/mp_rank_{tp:02d}/model_weights.ckpt"
                 else:
-                    ckpt_file = f"{tmpdir}/tp_rank_{tp:02d}_pp_rank_{pp:03d}/model_weights.ckpt"
+                    ckpt_file = (
+                        f"{tmpdir}/tp_rank_{tp:02d}_pp_rank_{pp:03d}/model_weights.ckpt"
+                    )
 
-                l = torch.load(ckpt_file, map_location=torch.device('cpu'))
+                l = torch.load(ckpt_file, map_location=torch.device("cpu"))
                 if pp == 0:
                     lora_state_dict[tp] = l
                 else:
@@ -132,7 +134,7 @@ def fix_for_O2(state_dict):
     new_state_dict = {}
     for k, v in state_dict.items():
         if "model.module." not in k:
-            new_state_dict[k.replace('model.', 'model.module.')] = v
+            new_state_dict[k.replace("model.", "model.module.")] = v
     return new_state_dict
 
 
@@ -180,30 +182,47 @@ def merge(
         for nl in range(num_layers):
             for key in mcore_layer_to_lora.keys():
                 key_base = f'model.decoder.layers.{nl}.{mcore_layer_to_lora[key]["base_model_layer"]}'
-                key_lora_in = f'model.decoder.layers.{nl}.{mcore_layer_to_lora[key]["lora_in"]}'
-                key_lora_out = f'model.decoder.layers.{nl}.{mcore_layer_to_lora[key]["lora_out"]}'
-                if key_lora_in in lora_state_dicts[0] and key_lora_out in lora_state_dicts[0]:
-                    tp_dim_lora_in = 0 if key in ["attention_qkv", 'mlp_fc1'] else 1
+                key_lora_in = (
+                    f'model.decoder.layers.{nl}.{mcore_layer_to_lora[key]["lora_in"]}'
+                )
+                key_lora_out = (
+                    f'model.decoder.layers.{nl}.{mcore_layer_to_lora[key]["lora_out"]}'
+                )
+                if (
+                    key_lora_in in lora_state_dicts[0]
+                    and key_lora_out in lora_state_dicts[0]
+                ):
+                    tp_dim_lora_in = 0 if key in ["attention_qkv", "mlp_fc1"] else 1
 
                     wt_lora_in = torch.cat(
-                        [state_dict[key_lora_in] for state_dict in lora_state_dicts], dim=tp_dim_lora_in
+                        [state_dict[key_lora_in] for state_dict in lora_state_dicts],
+                        dim=tp_dim_lora_in,
                     ).float()
                     wt_lora_out = torch.cat(
-                        [state_dict[key_lora_out] for state_dict in lora_state_dicts], dim=0
+                        [state_dict[key_lora_out] for state_dict in lora_state_dicts],
+                        dim=0,
                     ).float()
                     wt_base = base_model_state_dict[key_base]
                     wt_lora = wt_lora_out @ wt_lora_in
-                    base_model_state_dict[key_base] = (wt_base.float() + wt_lora.to(wt_base.device)).type_as(wt_base)
-                    print(f'merging for weight {key_base}')
+                    base_model_state_dict[key_base] = (
+                        wt_base.float() + wt_lora.to(wt_base.device)
+                    ).type_as(wt_base)
+                    print(f"merging for weight {key_base}")
     else:
-        logging.warning("Non-mcore model only supports merging lora weights for attention_qkv layers")
+        logging.warning(
+            "Non-mcore model only supports merging lora weights for attention_qkv layers"
+        )
         for nl in range(num_layers):
-            key_self_attn_kqv = f'model.language_model.encoder.layers.{nl}.self_attention.query_key_value.weight'
-            key_lora_in = f'model.language_model.encoder.layers.{nl}.self_attention.adapter_layer.lora_kqv_adapter.linear_in.weight'
-            key_lora_out = f'model.language_model.encoder.layers.{nl}.self_attention.adapter_layer.lora_kqv_adapter.linear_out.weight'
+            key_self_attn_kqv = f"model.language_model.encoder.layers.{nl}.self_attention.query_key_value.weight"
+            key_lora_in = f"model.language_model.encoder.layers.{nl}.self_attention.adapter_layer.lora_kqv_adapter.linear_in.weight"
+            key_lora_out = f"model.language_model.encoder.layers.{nl}.self_attention.adapter_layer.lora_kqv_adapter.linear_out.weight"
 
-            wt_lora_in = torch.cat([state_dict[key_lora_in] for state_dict in lora_state_dicts], dim=0).float()
-            wt_lora_out = torch.cat([state_dict[key_lora_out] for state_dict in lora_state_dicts], dim=0).float()
+            wt_lora_in = torch.cat(
+                [state_dict[key_lora_in] for state_dict in lora_state_dicts], dim=0
+            ).float()
+            wt_lora_out = torch.cat(
+                [state_dict[key_lora_out] for state_dict in lora_state_dicts], dim=0
+            ).float()
             wt_self_attn = base_model_state_dict[key_self_attn_kqv]
             wt_lora = wt_lora_out @ wt_lora_in
             base_model_state_dict[key_self_attn_kqv] = (
@@ -249,22 +268,31 @@ def main(cfg) -> None:
             pretrained_cfg.activations_checkpoint_granularity = None
             pretrained_cfg.activations_checkpoint_method = None
             pretrained_cfg.precision = trainer.precision
-            pretrained_cfg.use_cpu_initialization = cfg.trainer.accelerator == 'cpu'
+            pretrained_cfg.use_cpu_initialization = cfg.trainer.accelerator == "cpu"
         model = MegatronGPTModel.restore_from(
             restore_path=cfg.gpt_model_file,
             trainer=trainer,
             override_config_path=pretrained_cfg,
-            map_location=torch.device("cpu") if cfg.trainer.accelerator == 'cpu' else None,
+            map_location=(
+                torch.device("cpu") if cfg.trainer.accelerator == "cpu" else None
+            ),
             save_restore_connector=save_restore_connector,
         )
     else:
-        raise ValueError("You must specify the base model file with gpt_model_file=/path/to/model.nemo")
+        raise ValueError(
+            "You must specify the base model file with gpt_model_file=/path/to/model.nemo"
+        )
 
     # load the lora weights on cpu for all ranks of the lora model
     lora_weights, lora_model_cfg = load_lora(cfg.lora_model_path)
 
     # merge the lora weights with the base model, for this current rank.
-    merged_weights = merge(model.state_dict(), lora_weights, num_layers=model.cfg.num_layers, mcore=model.mcore_gpt)
+    merged_weights = merge(
+        model.state_dict(),
+        lora_weights,
+        num_layers=model.cfg.num_layers,
+        mcore=model.mcore_gpt,
+    )
 
     # load the merged_weights back into the base model, for this current rank.
     if model.cfg.megatron_amp_O2:
@@ -274,12 +302,17 @@ def main(cfg) -> None:
     model.cfg.use_cpu_initialization = False
     model.load_state_dict(merged_weights)
 
-    if cfg.trainer.accelerator != 'cpu' and model.global_rank == 0:
+    if cfg.trainer.accelerator != "cpu" and model.global_rank == 0:
         # Going to go through the motions of inference to force PTL to run subprocess for loading all base model's ranks.
         input = "Context: In 2004, philosopher and psychologist Michel ter Hark (Groningen, The Netherlands) published a book, called Popper, Otto Selz and the rise of evolutionary epistemology, in which he claimed that Popper took some of his ideas from his tutor, the German psychologist Otto Selz. Selz never published his ideas, partly because of the rise of Nazism, which forced him to quit his work in 1933, and the prohibition of referring to Selz' work. Popper, the historian of ideas and his scholarship, is criticised in some academic quarters for his rejection of Plato, Hegel and Marx. Question: Who claimed Otto Selz deserved credit for ideas published by Popper? Answer:"
         ds = RequestDataSet([input])
         request_dl = DataLoader(dataset=ds, batch_size=1)
-        config = {'greedy': True, 'compute_logprob': False, 'tokens_to_generate': 5, 'add_BOS': False}
+        config = {
+            "greedy": True,
+            "compute_logprob": False,
+            "tokens_to_generate": 5,
+            "add_BOS": False,
+        }
         model.set_inference_config(config)
         response = trainer.predict(model, request_dl)
         print(response)
@@ -287,13 +320,19 @@ def main(cfg) -> None:
         with open_dict(model.cfg):
             model.cfg.restore_from_path = cfg.merged_model_path
             model.cfg.data = lora_model_cfg.data
-            model.cfg.target = f"{MegatronGPTSFTModel.__module__}.{MegatronGPTSFTModel.__name__}"
+            model.cfg.target = (
+                f"{MegatronGPTSFTModel.__module__}.{MegatronGPTSFTModel.__name__}"
+            )
     else:
-        logging.info("Skipping inference validation of merged model since device is 'cpu'.")
+        logging.info(
+            "Skipping inference validation of merged model since device is 'cpu'."
+        )
 
-    model.to(dtype=torch_dtype_from_precision(trainer.precision)).save_to(cfg.merged_model_path)
+    model.to(dtype=torch_dtype_from_precision(trainer.precision)).save_to(
+        cfg.merged_model_path
+    )
     logging.info(f"saved merged model to {cfg.merged_model_path}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()  # noqa pylint: disable=no-value-for-parameter

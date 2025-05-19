@@ -44,7 +44,8 @@ def _try_restore_tokenizer(model, ckpt_path):
         tokenizer = load_context(ckpt_path, "model.tokenizer")
     except ValueError as e:
         logging.warning(
-            f"Encountered error while trying to restore tokenizer. Tokenizer is not restored. " f"Original error: {e}"
+            f"Encountered error while trying to restore tokenizer. Tokenizer is not restored. "
+            f"Original error: {e}"
         )
         return model
 
@@ -53,7 +54,9 @@ def _try_restore_tokenizer(model, ckpt_path):
         model.__io__.tokenizer = tokenizer.__io__
     else:
         # Ignore if the ckpt doesn't have a tokenizer. type(tokenizer)==TrainerContext in this case.
-        logging.warning("Checkpoint does not have model.tokenizer field. Tokenizer is not restored.")
+        logging.warning(
+            "Checkpoint does not have model.tokenizer field. Tokenizer is not restored."
+        )
 
     return model
 
@@ -141,7 +144,9 @@ class AutoResume:
             new_path = self._extract_path(
                 path=self.restore_config.path,
             )
-            assert not isinstance(new_path, AdapterPath), "AdapterPath is not supported for restore_config"
+            assert not isinstance(
+                new_path, AdapterPath
+            ), "AdapterPath is not supported for restore_config"
             self.restore_config.path = str(new_path)
             trainer.strategy.restore_config = self.restore_config
             # Load artifacts
@@ -157,7 +162,9 @@ class AutoResume:
 
     def _extract_path(self, path: str) -> BasePath:
         if "://" in path:
-            assert path.startswith("nemo://"), "Only NeMo based paths starting with nemo:// are currently supported."
+            assert path.startswith(
+                "nemo://"
+            ), "Only NeMo based paths starting with nemo:// are currently supported."
             _, _path = path.split("://")
             new_path = os.path.join(NEMO_MODELS_CACHE, _path)
         else:
@@ -225,7 +232,9 @@ class AutoResume:
                 " to maximize chance that there is at least one finished last checkpoint to resume from."
             )
 
-        if not checkpoint_dir.exists() or (not len(end_checkpoints) > 0 and not len(last_checkpoints) > 0):
+        if not checkpoint_dir.exists() or (
+            not len(end_checkpoints) > 0 and not len(last_checkpoints) > 0
+        ):
             if self.resume_ignore_no_checkpoint:
                 warn = (
                     f"There were no checkpoints found in checkpoint_dir or no checkpoint folder at checkpoint_dir "
@@ -254,14 +263,24 @@ class AutoResume:
                 if "mp_rank" in str(end_checkpoints[0]):
                     checkpoint = end_checkpoints[0]
                 else:
-                    raise ValueError(f"Multiple checkpoints {end_checkpoints} that matches *end.ckpt.")
+                    raise ValueError(
+                        f"Multiple checkpoints {end_checkpoints} that matches *end.ckpt."
+                    )
         elif len(last_checkpoints) > 1:
-            if any([s for s in ["mp_rank", "tp_rank", "fsdp_shard"] if s in str(last_checkpoints[0])]):
+            if any(
+                [
+                    s
+                    for s in ["mp_rank", "tp_rank", "fsdp_shard"]
+                    if s in str(last_checkpoints[0])
+                ]
+            ):
                 checkpoint = last_checkpoints[0]
                 checkpoint = uninject_model_parallel_rank(checkpoint)
             else:
                 # Select the checkpoint with the latest modified time
-                checkpoint = sorted(last_checkpoints, key=lambda pth: pth.lstat().st_mtime, reverse=True)[0]
+                checkpoint = sorted(
+                    last_checkpoints, key=lambda pth: pth.lstat().st_mtime, reverse=True
+                )[0]
                 logging.warning(
                     f"Multiple checkpoints {last_checkpoints} matches *last.ckpt. Selecting one with the latest "
                     f"modified time."
@@ -271,7 +290,9 @@ class AutoResume:
 
         return checkpoint
 
-    def get_context_path(self, model: Optional[io.ConnectorMixin] = None) -> Optional[Path]:
+    def get_context_path(
+        self, model: Optional[io.ConnectorMixin] = None
+    ) -> Optional[Path]:
         """Retrieves the path to the context directory of a checkpoint.
 
         The context directory contains serialized objects like tokenizers. This method
@@ -296,7 +317,9 @@ class AutoResume:
                 checkpoint = maybe_context_path
         return checkpoint
 
-    def get_trainer_ckpt_path(self, model: Optional[io.ConnectorMixin] = None) -> Optional[Path]:
+    def get_trainer_ckpt_path(
+        self, model: Optional[io.ConnectorMixin] = None
+    ) -> Optional[Path]:
         """Resolves the path to a checkpoint for resuming training.
 
         This method handles various checkpoint sources with the following priority:
@@ -318,8 +341,12 @@ class AutoResume:
                 adapter_meta_path = maybe_weights_path / ADAPTER_META_FILENAME
                 if adapter_meta_path.exists():
                     # the resume_from_path is an adapter checkpoint
-                    base_model_path = self._get_base_model_path_for_adapter(adapter_meta_path, model)
-                    return AdapterPath(Path(self.resume_from_path), base_model_path=base_model_path)
+                    base_model_path = self._get_base_model_path_for_adapter(
+                        adapter_meta_path, model
+                    )
+                    return AdapterPath(
+                        Path(self.resume_from_path), base_model_path=base_model_path
+                    )
                 else:
                     # the resume_from_path is not PEFT checkpoint
                     return maybe_weights_path
@@ -340,7 +367,9 @@ class AutoResume:
         if checkpoint:
             adapter_meta_path = checkpoint / ADAPTER_META_FILENAME
             if adapter_meta_path.exists():
-                base_model_path = self._get_base_model_path_for_adapter(adapter_meta_path, model)
+                base_model_path = self._get_base_model_path_for_adapter(
+                    adapter_meta_path, model
+                )
                 return AdapterPath(checkpoint, base_model_path=base_model_path)
             else:
                 return Path(checkpoint)
@@ -360,4 +389,6 @@ class AdapterPath(BasePath):
         return output
 
     def __repr__(self):
-        return "{}({!r}, base_model_path={})".format(self.__class__.__name__, self.as_posix(), self.base_model_path)
+        return "{}({!r}, base_model_path={})".format(
+            self.__class__.__name__, self.as_posix(), self.base_model_path
+        )

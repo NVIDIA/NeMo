@@ -70,23 +70,23 @@ class TarOrFolderImageLoader:
     def __init__(self, image_folder):
         self.image_folder = image_folder
         self.tar_index = {}
-        if self.image_folder.endswith('.tar'):
+        if self.image_folder.endswith(".tar"):
             self.build_index()
 
     def build_index(self):
-        with tarfile.open(self.image_folder, 'r') as tar:
+        with tarfile.open(self.image_folder, "r") as tar:
             for member in tar.getmembers():
                 self.tar_index[member.name] = member
 
     def open_image(self, file_name):
-        if self.image_folder.endswith('.tar'):
-            with tarfile.open(self.image_folder, 'r') as tar:
+        if self.image_folder.endswith(".tar"):
+            with tarfile.open(self.image_folder, "r") as tar:
                 member = self.tar_index.get(file_name)
                 if member:
                     f = tar.extractfile(member)
-                    return Image.open(f).convert('RGB')
+                    return Image.open(f).convert("RGB")
         else:
-            return Image.open(os.path.join(self.image_folder, file_name)).convert('RGB')
+            return Image.open(os.path.join(self.image_folder, file_name)).convert("RGB")
         return None
 
 
@@ -118,17 +118,17 @@ class TarOrFolderVideoLoader:
         self.video_folder = video_folder
         self.data_config = data_config
         self.tar_index = {}
-        if self.video_folder.endswith('.tar'):
+        if self.video_folder.endswith(".tar"):
             self.build_index()
 
     def build_index(self):
-        with tarfile.open(self.video_folder, 'r') as tar:
+        with tarfile.open(self.video_folder, "r") as tar:
             for member in tar.getmembers():
                 self.tar_index[member.name] = member
 
     def open_video(self, file_name):
-        if self.video_folder.endswith('.tar'):
-            with tarfile.open(self.video_folder, 'r') as tar:
+        if self.video_folder.endswith(".tar"):
+            with tarfile.open(self.video_folder, "r") as tar:
                 member = self.tar_index.get(file_name)
                 if member:
                     f = tar.extractfile(member)
@@ -141,44 +141,53 @@ class TarOrFolderVideoLoader:
         return None
 
     def flatten_frames(self, cap):
-        if self.data_config.splice_single_frame == 'first':
+        if self.data_config.splice_single_frame == "first":
             frame = cap[0].asnumpy()
-            return Image.fromarray(frame).convert('RGB')
-        elif self.data_config.splice_single_frame == 'middle':
+            return Image.fromarray(frame).convert("RGB")
+        elif self.data_config.splice_single_frame == "middle":
             frame = cap[len(cap) // 2].asnumpy()
-            return Image.fromarray(frame).convert('RGB')
-        elif self.data_config.splice_single_frame == 'last':
+            return Image.fromarray(frame).convert("RGB")
+        elif self.data_config.splice_single_frame == "last":
             frame = cap[-1].asnumpy()
-            return Image.fromarray(frame).convert('RGB')
+            return Image.fromarray(frame).convert("RGB")
         else:
             if self.data_config.num_frames == -1:
                 frames = []
                 for frame in cap:
                     rgb_frame = frame.asnumpy()
-                    img = Image.fromarray(rgb_frame).convert('RGB')
+                    img = Image.fromarray(rgb_frame).convert("RGB")
                     frames.append(img)
                 return frames
             else:
                 num_frames = min(len(cap), self.data_config.num_frames)
                 indices = np.linspace(0, len(cap) - 1, num_frames, dtype=int)
-                frames = [Image.fromarray(cap[i].asnumpy()).convert('RGB') for i in indices]
+                frames = [
+                    Image.fromarray(cap[i].asnumpy()).convert("RGB") for i in indices
+                ]
                 while len(frames) < self.data_config.num_frames:
                     frames.append(frames[-1])
                 return frames
 
 
-def process_image(processor, image, image_process_mode="square"):  # this needs to be merged with conv's process image
-    if isinstance(processor, CLIPImageProcessor) or isinstance(processor, SiglipImageProcessor):
+def process_image(
+    processor, image, image_process_mode="square"
+):  # this needs to be merged with conv's process image
+    if isinstance(processor, CLIPImageProcessor) or isinstance(
+        processor, SiglipImageProcessor
+    ):
         # image processor from HF
-        if image_process_mode == 'keep':
+        if image_process_mode == "keep":
             max_hw, min_hw = max(image.size), min(image.size)
             aspect_ratio = max_hw / min_hw
             max_len, min_len = 448, 224
             shortest_edge = int(min(max_len / aspect_ratio, min_len))
             image = processor.preprocess(
-                image, return_tensors='pt', do_center_crop=False, size={"shortest_edge": shortest_edge}
-            )['pixel_values'][0]
-        elif image_process_mode == 'pad':
+                image,
+                return_tensors="pt",
+                do_center_crop=False,
+                size={"shortest_edge": shortest_edge},
+            )["pixel_values"][0]
+        elif image_process_mode == "pad":
 
             def expand2square(pil_img, background_color):
                 width, height = pil_img.size
@@ -193,12 +202,16 @@ def process_image(processor, image, image_process_mode="square"):  # this needs 
                     result.paste(pil_img, ((height - width) // 2, 0))
                     return result
 
-            image = expand2square(image, tuple(int(x * 255) for x in processor.image_mean))
-            image = processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
+            image = expand2square(
+                image, tuple(int(x * 255) for x in processor.image_mean)
+            )
+            image = processor.preprocess(image, return_tensors="pt")["pixel_values"][0]
         else:
-            image = processor.preprocess(image, return_tensors='pt')['pixel_values'][0]
+            image = processor.preprocess(image, return_tensors="pt")["pixel_values"][0]
     else:
-        assert image_process_mode == 'square', 'NeMo image transform with setting `image_process_mode` to `square`.'
+        assert (
+            image_process_mode == "square"
+        ), "NeMo image transform with setting `image_process_mode` to `square`."
         image = processor(image)
     return image
 
@@ -228,7 +241,9 @@ def tokenize_special_token(prompt, tokenizer, special_token_map=None):
     special_token_dict = {token: index for token, index in special_token_map}
 
     # Split the prompt into chunks and track special tokens
-    regex_pattern = '(' + '|'.join(re.escape(token) for token in special_token_dict.keys()) + ')'
+    regex_pattern = (
+        "(" + "|".join(re.escape(token) for token in special_token_dict.keys()) + ")"
+    )
     chunks = re.split(regex_pattern, prompt)
 
     # Tokenize each chunk and replace special tokens with their indices
@@ -237,12 +252,16 @@ def tokenize_special_token(prompt, tokenizer, special_token_map=None):
         if chunk in special_token_dict:
             tokenized_chunks.append(special_token_dict[chunk])
         elif len(chunk) > 0:
-            tokenized_chunks.extend(tokenizer(chunk, add_special_tokens=False).input_ids)
+            tokenized_chunks.extend(
+                tokenizer(chunk, add_special_tokens=False).input_ids
+            )
 
     return torch.tensor(tokenized_chunks, dtype=torch.long)
 
 
-def find_pattern_indices(template, pattern, search_start_index=0, allow_first_token_mismatch=False):
+def find_pattern_indices(
+    template, pattern, search_start_index=0, allow_first_token_mismatch=False
+):
     template_len = len(template)
     pattern_len = len(pattern)
     for i in range(search_start_index, template_len - pattern_len + 1):
@@ -286,15 +305,21 @@ class LazySupervisedDataset(Dataset):
         image_folder = getattr(data_config, "image_folder", None)
         video_folder = getattr(data_config, "video_folder", None)
 
-        self.image_loader = TarOrFolderImageLoader(image_folder) if image_folder else None
-        self.video_loader = TarOrFolderVideoLoader(video_folder, data_config) if video_folder else None
+        self.image_loader = (
+            TarOrFolderImageLoader(image_folder) if image_folder else None
+        )
+        self.video_loader = (
+            TarOrFolderVideoLoader(video_folder, data_config) if video_folder else None
+        )
 
     def __len__(self):
         return len(self.list_data_dict)
 
     def __getitem__(self, i) -> Dict[str, torch.Tensor]:
         source = self.list_data_dict[i]
-        conversations = self._apply_prompt_templates(source, use_plain=self.conv_template == "plain")
+        conversations = self._apply_prompt_templates(
+            source, use_plain=self.conv_template == "plain"
+        )
         tokens, labels = self._tokenize_and_label(conversations)
 
         media_tensors = self._process_images(source)
@@ -307,16 +332,18 @@ class LazySupervisedDataset(Dataset):
 
     def _process_images(self, source):
         media_tensors = torch.tensor([])
-        if 'image' in source:
-            if not isinstance(source['image'], list):
-                source['image'] = [source['image']]
+        if "image" in source:
+            if not isinstance(source["image"], list):
+                source["image"] = [source["image"]]
 
             images = []
-            for image_file in source['image']:
+            for image_file in source["image"]:
                 image = self.image_loader.open_image(image_file)
                 if image is None:
                     logging.warning(f"Image {image_file} could not be found!")
-                image = process_image(self.image_processor, image, self.image_process_mode)
+                image = process_image(
+                    self.image_processor, image, self.image_process_mode
+                )
                 images.append(image)
 
             if images:
@@ -328,7 +355,7 @@ class LazySupervisedDataset(Dataset):
 
         roles = {"human": conv.roles[0], "gpt": conv.roles[1]}
 
-        source = source['conversations']
+        source = source["conversations"]
 
         def _fix_roles(roles):
             if len(source) < 2:
@@ -344,7 +371,9 @@ class LazySupervisedDataset(Dataset):
             conv.append_message(role, sentence["value"])
 
         if use_plain:
-            assert len(conv.messages) == 2, "Plain template requires image-caption pairs."
+            assert (
+                len(conv.messages) == 2
+            ), "Plain template requires image-caption pairs."
             assert "<image>" in conv.messages[0][1]
             conv.messages[0][1] = "<image>"
 
@@ -364,7 +393,9 @@ class LazySupervisedDataset(Dataset):
                 add_special_tokens=False,
                 return_tensors="pt",
             )[0]
-            answer_start, answer_end = find_pattern_indices(tokens, answer_tokens, search_start_index)
+            answer_start, answer_end = find_pattern_indices(
+                tokens, answer_tokens, search_start_index
+            )
             if answer_start < 0:
                 logging.warning(
                     "Unable to find a valid answer in the conversation. "
@@ -387,7 +418,10 @@ class LazySupervisedDataset(Dataset):
 
     def _get_crop_size(self):
         if isinstance(self.image_processor, CLIPImageProcessor):
-            return [self.image_processor.crop_size['height'], self.image_processor.crop_size['width']]
+            return [
+                self.image_processor.crop_size["height"],
+                self.image_processor.crop_size["width"],
+            ]
         else:
             raise NotImplementedError
 
@@ -411,7 +445,7 @@ class NevaDataset(LazySupervisedDataset):
         elif data_path.endswith(".jsonl"):
             super().__init__(None, data_config, tokenizer, image_processor)
             logging.warning("Loading image inputs from SteerLM Dataset...")
-            if data_config.media_type == 'image':
+            if data_config.media_type == "image":
                 image_folder = data_config.image_folder
                 for line in open(data_path, "r"):
                     record = json.loads(line)
@@ -420,17 +454,19 @@ class NevaDataset(LazySupervisedDataset):
                     # search for <img src="/absolute/path/to/image" in the conversation
                     #   add it as record['image'], remove src tag from the <img> tag
 
-                    record['image'] = []
-                    for turn in record['conversations']:
-                        matches = re.finditer('<img src="([^"]+)"', turn['value'])
+                    record["image"] = []
+                    for turn in record["conversations"]:
+                        matches = re.finditer('<img src="([^"]+)"', turn["value"])
                         for match in matches:
                             image_name = match.group(1).split("/")[-1]
                             image_path = os.path.join(image_folder, image_name)
                             if not os.path.isfile(image_path):
                                 logging.warning(f"Image not found: {image_path}")
                                 continue
-                            record['image'].append(image_name)  # url
-                        turn['value'] = re.sub('<img src="([^"]+)">', "<image>", turn['value'])
+                            record["image"].append(image_name)  # url
+                        turn["value"] = re.sub(
+                            '<img src="([^"]+)">', "<image>", turn["value"]
+                        )
 
                     self.list_data_dict.append(record)
 
@@ -444,11 +480,11 @@ class NevaDataset(LazySupervisedDataset):
         packed_sequence = self.packed_sequence
 
         media_type = data_config.media_type
-        if media_type == 'image':
-            media = [instance.pop('image') for instance in instances]
+        if media_type == "image":
+            media = [instance.pop("image") for instance in instances]
             media = torch.cat(media, dim=0)
-        elif media_type == 'video':
-            media = [instance.pop('video', None) for instance in instances]
+        elif media_type == "video":
+            media = [instance.pop("video", None) for instance in instances]
         else:
             raise ValueError(f"Unsupported media type {media_type}")
 
@@ -457,26 +493,32 @@ class NevaDataset(LazySupervisedDataset):
                 convert_to_packed
 
             media_token_id = self.data_config.media_token.token_index
-            tokens, labels, position_ids, loss_mask, packed_seq_params = convert_to_packed(
-                tokens=[instance['tokens'] for instance in instances],
-                labels=[instance['labels'] for instance in instances],
-                num_image_embeddings_per_tile=self.num_image_embeddings_per_tile,
-                media_token_index=media_token_id,
-                ignore_index=IGNORE_INDEX,
+            tokens, labels, position_ids, loss_mask, packed_seq_params = (
+                convert_to_packed(
+                    tokens=[instance["tokens"] for instance in instances],
+                    labels=[instance["labels"] for instance in instances],
+                    num_image_embeddings_per_tile=self.num_image_embeddings_per_tile,
+                    media_token_index=media_token_id,
+                    ignore_index=IGNORE_INDEX,
+                )
             )
             attention_mask = None
         else:  # regular dataset
-            max_len = max(instance['tokens'].shape[0] for instance in instances)
+            max_len = max(instance["tokens"].shape[0] for instance in instances)
             for instance in instances:
-                pad_len = max_len - instance['tokens'].shape[0]
-                instance['tokens'] = F.pad(instance['tokens'], (0, pad_len), 'constant', 0)
-                instance['labels'] = F.pad(instance['labels'], (0, pad_len), 'constant', IGNORE_INDEX)
+                pad_len = max_len - instance["tokens"].shape[0]
+                instance["tokens"] = F.pad(
+                    instance["tokens"], (0, pad_len), "constant", 0
+                )
+                instance["labels"] = F.pad(
+                    instance["labels"], (0, pad_len), "constant", IGNORE_INDEX
+                )
 
             batch = default_collate(instances)
             tokenizer = self.tokenizer
 
-            tokens = batch['tokens']
-            labels = batch['labels']
+            tokens = batch["tokens"]
+            labels = batch["labels"]
             attention_mask, loss_mask, position_ids = get_ltor_masks_and_position_ids(
                 data=tokens,
                 eod_token=tokenizer.eos_token_id,
@@ -487,12 +529,12 @@ class NevaDataset(LazySupervisedDataset):
             loss_mask[labels < 0] = 0.0
 
         batch = {
-            'tokens': tokens,
-            'labels': labels,
-            'attention_mask': attention_mask,
-            'loss_mask': loss_mask,
-            'position_ids': position_ids,
-            'media': media,
+            "tokens": tokens,
+            "labels": labels,
+            "attention_mask": attention_mask,
+            "loss_mask": loss_mask,
+            "position_ids": position_ids,
+            "media": media,
         }
         if packed_sequence:
             batch["packed_seq_params"] = packed_seq_params
@@ -551,14 +593,18 @@ class NevaPreloadedDataModule(pl.LightningDataModule):
         self.init_global_step = 0
 
         if tokenizer is None or image_processor is None:
-            logging.warning("Processor and tokenizer are not provided! Fall back to `llava-hf/llava-1.5-7b-hf`.")
+            logging.warning(
+                "Processor and tokenizer are not provided! Fall back to `llava-hf/llava-1.5-7b-hf`."
+            )
             from transformers import AutoProcessor
 
             from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import \
                 AutoTokenizer
 
             processor = AutoProcessor.from_pretrained("llava-hf/llava-1.5-7b-hf")
-            self.tokenizer = tokenizer or AutoTokenizer("llava-hf/llava-1.5-7b-hf", use_fast=False)
+            self.tokenizer = tokenizer or AutoTokenizer(
+                "llava-hf/llava-1.5-7b-hf", use_fast=False
+            )
             self.image_processor = image_processor or processor.image_processor
 
         if self.packed_sequence:
@@ -619,7 +665,7 @@ class NevaPreloadedDataModule(pl.LightningDataModule):
             num_workers=self.num_workers,
             pin_memory=self.pin_memory,
             persistent_workers=self.persistent_workers,
-            collate_fn=getattr(dataset, 'collate_fn', data.dataloader.default_collate),
+            collate_fn=getattr(dataset, "collate_fn", data.dataloader.default_collate),
             **kwargs,
         )
 
@@ -630,8 +676,10 @@ class NevaPreloadedDataModule(pl.LightningDataModule):
             A dictionary containing datamodule state.
 
         """
-        consumed_samples = self.data_sampler.compute_consumed_samples(self.trainer.global_step - self.init_global_step)
-        return {'consumed_samples': consumed_samples}
+        consumed_samples = self.data_sampler.compute_consumed_samples(
+            self.trainer.global_step - self.init_global_step
+        )
+        return {"consumed_samples": consumed_samples}
 
     def load_state_dict(self, state_dict: Dict[str, Any]) -> None:
         """Called when loading a checkpoint, implement to reload datamodule state given datamodule stat
@@ -646,13 +694,15 @@ class NevaPreloadedDataModule(pl.LightningDataModule):
         except ModuleNotFoundError:
             from nemo.lightning.apex_utils import \
                 _GLOBAL_NUM_MICROBATCHES_CALCULATOR
-        consumed_samples = state_dict['consumed_samples']
+        consumed_samples = state_dict["consumed_samples"]
         self.data_sampler.init_consumed_samples = consumed_samples
         self.data_sampler.prev_consumed_samples = consumed_samples
         self.if_first_step = 1
 
         if _GLOBAL_NUM_MICROBATCHES_CALCULATOR is not None:
-            num_microbatch_calculator = _GLOBAL_NUM_MICROBATCHES_CALCULATOR  # noqa: SLF001
+            num_microbatch_calculator = (
+                _GLOBAL_NUM_MICROBATCHES_CALCULATOR  # noqa: SLF001
+            )
 
             num_microbatch_calculator.update(
                 consumed_samples=consumed_samples,

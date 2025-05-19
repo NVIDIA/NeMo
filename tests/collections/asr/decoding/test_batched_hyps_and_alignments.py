@@ -30,7 +30,9 @@ def avoid_sync_operations(device: torch.device):
         yield
     finally:
         if device.type == "cuda":
-            torch.cuda.set_sync_debug_mode(0)  # default, blocking operations are allowed
+            torch.cuda.set_sync_debug_mode(
+                0
+            )  # default, blocking operations are allowed
 
 
 DEVICES: List[torch.device] = [torch.device("cpu")]
@@ -126,7 +128,9 @@ class TestBatchedHyps:
         assert hyps.current_lengths.tolist() == [1, 0]
         assert hyps.transcript.tolist()[0][:1] == [5]
         assert hyps.timestamps.tolist()[0][:1] == [1]
-        assert hyps.scores.tolist() == pytest.approx([0.5, 0.0])  # last score should be ignored!
+        assert hyps.scores.tolist() == pytest.approx(
+            [0.5, 0.0]
+        )  # last score should be ignored!
         assert hyps.last_timestamp.tolist() == [1, -1]
         assert hyps.last_timestamp_lasts.tolist() == [1, 0]
 
@@ -150,7 +154,9 @@ class TestBatchedHyps:
         assert hyps.current_lengths.tolist() == [1, 0]
         assert hyps.transcript.tolist()[0][:1] == [5]
         assert hyps.timestamps.tolist()[0][:1] == [1]
-        assert hyps.scores.tolist() == pytest.approx([0.5, 0.0])  # last score should be ignored!
+        assert hyps.scores.tolist() == pytest.approx(
+            [0.5, 0.0]
+        )  # last score should be ignored!
         assert hyps.last_timestamp.tolist() == [1, -1]
         assert hyps.last_timestamp_lasts.tolist() == [1, 0]
 
@@ -185,10 +191,20 @@ class TestBatchedHyps:
     def test_torch_jit_compatibility_add_results(self, device: torch.device):
         @torch.jit.script
         def hyps_add_wrapper(
-            active_indices: torch.Tensor, labels: torch.Tensor, time_indices: torch.Tensor, scores: torch.Tensor
+            active_indices: torch.Tensor,
+            labels: torch.Tensor,
+            time_indices: torch.Tensor,
+            scores: torch.Tensor,
         ):
-            hyps = BatchedHyps(batch_size=2, init_length=3, device=active_indices.device)
-            hyps.add_results_(active_indices=active_indices, labels=labels, time_indices=time_indices, scores=scores)
+            hyps = BatchedHyps(
+                batch_size=2, init_length=3, device=active_indices.device
+            )
+            hyps.add_results_(
+                active_indices=active_indices,
+                labels=labels,
+                time_indices=time_indices,
+                scores=scores,
+            )
             return hyps
 
         scores = torch.tensor([0.1, 0.1], device=device)
@@ -205,10 +221,18 @@ class TestBatchedHyps:
     def test_torch_jit_compatibility_add_results_masked(self, device: torch.device):
         @torch.jit.script
         def hyps_add_wrapper(
-            active_mask: torch.Tensor, labels: torch.Tensor, time_indices: torch.Tensor, scores: torch.Tensor
+            active_mask: torch.Tensor,
+            labels: torch.Tensor,
+            time_indices: torch.Tensor,
+            scores: torch.Tensor,
         ):
             hyps = BatchedHyps(batch_size=2, init_length=3, device=active_mask.device)
-            hyps.add_results_masked_(active_mask=active_mask, labels=labels, time_indices=time_indices, scores=scores)
+            hyps.add_results_masked_(
+                active_mask=active_mask,
+                labels=labels,
+                time_indices=time_indices,
+                scores=scores,
+            )
             return hyps
 
         scores = torch.tensor([0.1, 0.1], device=device)
@@ -225,7 +249,9 @@ class TestBatchedAlignments:
     @pytest.mark.unit
     @pytest.mark.parametrize("device", DEVICES)
     def test_instantiate(self, device: torch.device):
-        alignments = BatchedAlignments(batch_size=2, logits_dim=7, init_length=3, device=device)
+        alignments = BatchedAlignments(
+            batch_size=2, logits_dim=7, init_length=3, device=device
+        )
         assert torch.is_tensor(alignments.logits)
         # device: for mps device we need to use `type`, not directly compare
         assert alignments.logits.device.type == device.type
@@ -250,7 +276,9 @@ class TestBatchedAlignments:
         batch_size = 2
         logits_dim = 7
         sample_logits = torch.rand((batch_size, 1, logits_dim), device=device)
-        alignments = BatchedAlignments(batch_size=batch_size, logits_dim=logits_dim, init_length=1, device=device)
+        alignments = BatchedAlignments(
+            batch_size=batch_size, logits_dim=logits_dim, init_length=1, device=device
+        )
         alignments.add_results_(
             active_indices=torch.arange(batch_size, device=device),
             logits=sample_logits[:, 0],
@@ -268,12 +296,16 @@ class TestBatchedAlignments:
         batch_size = 2
         seq_length = 5
         logits_dim = 7
-        alignments = BatchedAlignments(batch_size=batch_size, logits_dim=logits_dim, init_length=1, device=device)
+        alignments = BatchedAlignments(
+            batch_size=batch_size, logits_dim=logits_dim, init_length=1, device=device
+        )
         sample_logits = torch.rand((batch_size, seq_length, logits_dim), device=device)
         add_logits_mask = torch.rand((batch_size, seq_length), device=device) < 0.6
         for t in range(seq_length):
             alignments.add_results_(
-                active_indices=torch.arange(batch_size, device=device)[add_logits_mask[:, t]],
+                active_indices=torch.arange(batch_size, device=device)[
+                    add_logits_mask[:, t]
+                ],
                 logits=sample_logits[add_logits_mask[:, t], t],
                 labels=torch.argmax(sample_logits[add_logits_mask[:, t], t], dim=-1),
                 time_indices=torch.tensor([0, 0], device=device)[add_logits_mask[:, t]],
@@ -282,7 +314,8 @@ class TestBatchedAlignments:
         assert (alignments.current_lengths == add_logits_mask.sum(dim=-1)).all()
         for i in range(batch_size):
             assert (
-                alignments.logits[i, : alignments.current_lengths[i]] == sample_logits[i, add_logits_mask[i]]
+                alignments.logits[i, : alignments.current_lengths[i]]
+                == sample_logits[i, add_logits_mask[i]]
             ).all()
 
     @pytest.mark.unit
@@ -292,7 +325,9 @@ class TestBatchedAlignments:
         batch_size = 2
         logits_dim = 7
         sample_logits = torch.rand((batch_size, 1, logits_dim), device=device)
-        alignments = BatchedAlignments(batch_size=batch_size, logits_dim=logits_dim, init_length=1, device=device)
+        alignments = BatchedAlignments(
+            batch_size=batch_size, logits_dim=logits_dim, init_length=1, device=device
+        )
         alignments.add_results_masked_(
             active_mask=torch.tensor([True, True], device=device),
             logits=sample_logits[:, 0],
@@ -310,13 +345,18 @@ class TestBatchedAlignments:
         batch_size = 2
         logits_dim = 7
         sample_logits = torch.rand((batch_size, 1, logits_dim), device=device)
-        alignments = BatchedAlignments(batch_size=batch_size, logits_dim=logits_dim, init_length=1, device=device)
+        alignments = BatchedAlignments(
+            batch_size=batch_size, logits_dim=logits_dim, init_length=1, device=device
+        )
         active_mask = torch.tensor([True, True], device=device)
         time_indices = torch.tensor([0, 0], device=device)
         labels = torch.argmax(sample_logits[:, 0], dim=-1)
         with avoid_sync_operations(device=device):
             alignments.add_results_masked_no_checks_(
-                active_mask=active_mask, logits=sample_logits[:, 0], labels=labels, time_indices=time_indices
+                active_mask=active_mask,
+                logits=sample_logits[:, 0],
+                labels=labels,
+                time_indices=time_indices,
             )
         assert alignments.current_lengths.tolist() == [1, 1]
         assert torch.allclose(alignments.logits[:, 0], sample_logits[:, 0])
@@ -329,7 +369,9 @@ class TestBatchedAlignments:
         batch_size = 2
         seq_length = 5
         logits_dim = 7
-        alignments = BatchedAlignments(batch_size=batch_size, logits_dim=logits_dim, init_length=1, device=device)
+        alignments = BatchedAlignments(
+            batch_size=batch_size, logits_dim=logits_dim, init_length=1, device=device
+        )
         sample_logits = torch.rand((batch_size, seq_length, logits_dim), device=device)
         add_logits_mask = torch.rand((batch_size, seq_length), device=device) < 0.6
         for t in range(seq_length):
@@ -343,7 +385,8 @@ class TestBatchedAlignments:
         assert (alignments.current_lengths == add_logits_mask.sum(dim=-1)).all()
         for i in range(batch_size):
             assert (
-                alignments.logits[i, : alignments.current_lengths[i]] == sample_logits[i, add_logits_mask[i]]
+                alignments.logits[i, : alignments.current_lengths[i]]
+                == sample_logits[i, add_logits_mask[i]]
             ).all()
 
     @pytest.mark.unit
@@ -351,10 +394,20 @@ class TestBatchedAlignments:
     def test_torch_jit_compatibility(self, device: torch.device):
         @torch.jit.script
         def alignments_add_wrapper(
-            active_indices: torch.Tensor, logits: torch.Tensor, labels: torch.Tensor, time_indices: torch.Tensor
+            active_indices: torch.Tensor,
+            logits: torch.Tensor,
+            labels: torch.Tensor,
+            time_indices: torch.Tensor,
         ):
-            hyps = BatchedAlignments(batch_size=2, logits_dim=3, init_length=3, device=active_indices.device)
-            hyps.add_results_(active_indices=active_indices, logits=logits, labels=labels, time_indices=time_indices)
+            hyps = BatchedAlignments(
+                batch_size=2, logits_dim=3, init_length=3, device=active_indices.device
+            )
+            hyps.add_results_(
+                active_indices=active_indices,
+                logits=logits,
+                labels=labels,
+                time_indices=time_indices,
+            )
             return hyps
 
         logits = torch.tensor([[0.1, 0.1, 0.3], [0.5, 0.2, 0.9]], device=device)
@@ -399,7 +452,9 @@ class TestConvertToHypotheses:
         logits_dim = 7
         blank_index = 6
         hyps = BatchedHyps(batch_size=batch_size, init_length=1, device=device)
-        alignments = BatchedAlignments(batch_size=batch_size, init_length=1, logits_dim=logits_dim, device=device)
+        alignments = BatchedAlignments(
+            batch_size=batch_size, init_length=1, logits_dim=logits_dim, device=device
+        )
         sample_logits = torch.rand((batch_size, 4, logits_dim), device=device)
         # sequence 0: [[5, blank], [2, blank]] -> [5, 2]
         # sequence 1: [[blank   ], [4, blank]] -> [4]
@@ -465,11 +520,16 @@ class TestConvertToHypotheses:
             ],
             [
                 [(torch.tensor(blank_index), sample_logits[1, 0].cpu())],
-                [(torch.tensor(4), sample_logits[1, 2].cpu()), (torch.tensor(blank_index), sample_logits[1, 3].cpu())],
+                [
+                    (torch.tensor(4), sample_logits[1, 2].cpu()),
+                    (torch.tensor(blank_index), sample_logits[1, 3].cpu()),
+                ],
             ],
         ]
         for batch_i in range(batch_size):
             for t, group_for_timestamp in enumerate(etalon[batch_i]):
                 for step, (label, current_logits) in enumerate(group_for_timestamp):
-                    assert torch.allclose(hypotheses[batch_i].alignments[t][step][0], current_logits)
+                    assert torch.allclose(
+                        hypotheses[batch_i].alignments[t][step][0], current_logits
+                    )
                     assert hypotheses[batch_i].alignments[t][step][1] == label

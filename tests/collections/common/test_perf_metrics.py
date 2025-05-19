@@ -118,23 +118,35 @@ def model_config(cfg):
         ),
     ],
 )
-def test_eval_tflops_per_sec_per_gpu(model_config, model_name, train_step_time, expected_value):
+def test_eval_tflops_per_sec_per_gpu(
+    model_config, model_name, train_step_time, expected_value
+):
     if isinstance(expected_value, (int, float)):
         flops_callback = FLOPsMeasurementCallback(model_config, model_name=model_name)
-        tflops_per_sec_per_gpu = flops_callback.eval_tflops_per_sec_per_gpu(train_step_time)
+        tflops_per_sec_per_gpu = flops_callback.eval_tflops_per_sec_per_gpu(
+            train_step_time
+        )
         assert tflops_per_sec_per_gpu == pytest.approx(expected_value, rel=1e-4)
 
         if model_name is None:
             # extract valid model name with delimiter='-'
             model_config["run"]["name"] = model_config["run"]["name"].replace("_", ".")
-            flops_callback = FLOPsMeasurementCallback(model_config, model_name=model_name)
-            tflops_per_sec_per_gpu = flops_callback.eval_tflops_per_sec_per_gpu(train_step_time)
+            flops_callback = FLOPsMeasurementCallback(
+                model_config, model_name=model_name
+            )
+            tflops_per_sec_per_gpu = flops_callback.eval_tflops_per_sec_per_gpu(
+                train_step_time
+            )
             assert tflops_per_sec_per_gpu == pytest.approx(expected_value, rel=1e-4)
 
             # # extract valid model name from a string
             model_config["run"]["name"] = model_config["run"]["name"].replace("_", "")
-            flops_callback = FLOPsMeasurementCallback(model_config, model_name=model_name)
-            tflops_per_sec_per_gpu = flops_callback.eval_tflops_per_sec_per_gpu(train_step_time)
+            flops_callback = FLOPsMeasurementCallback(
+                model_config, model_name=model_name
+            )
+            tflops_per_sec_per_gpu = flops_callback.eval_tflops_per_sec_per_gpu(
+                train_step_time
+            )
             assert tflops_per_sec_per_gpu == pytest.approx(expected_value, rel=1e-4)
 
     if isinstance(expected_value, str):

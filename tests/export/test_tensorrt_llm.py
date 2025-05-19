@@ -19,33 +19,37 @@ import pytest
 import torch
 
 
-@pytest.mark.run_only_on('GPU')
+@pytest.mark.run_only_on("GPU")
 @pytest.mark.unit
 def test_get_nemo_to_trtllm_conversion_dict_on_nemo_model():
     try:
         from nemo.export.tensorrt_llm import TensorRTLLM
     except ImportError:
-        pytest.skip("Could not import TRTLLM helpers. tensorrt_llm is likely not installed")
+        pytest.skip(
+            "Could not import TRTLLM helpers. tensorrt_llm is likely not installed"
+        )
         return
 
     dummy_state = object()
     model_state_dict = {
-        'model.embedding.word_embeddings.weight': dummy_state,
-        'model.decoder.layers.0.self_attention.linear_proj.weight': dummy_state,
+        "model.embedding.word_embeddings.weight": dummy_state,
+        "model.decoder.layers.0.self_attention.linear_proj.weight": dummy_state,
     }
-    nemo_model_conversion_dict = TensorRTLLM.get_nemo_to_trtllm_conversion_dict(model_state_dict)
+    nemo_model_conversion_dict = TensorRTLLM.get_nemo_to_trtllm_conversion_dict(
+        model_state_dict
+    )
 
     # Check that every key starts with 'model.' and not 'model..' by using a regex
     # This pattern ensures:
     #   - The key starts with 'model.'
     #   - Immediately after 'model.', there must be at least one character that is NOT a '.'
     #     (preventing the 'model..' scenario)
-    pattern = re.compile(r'^model\.[^.].*')
+    pattern = re.compile(r"^model\.[^.].*")
     for key in nemo_model_conversion_dict.keys():
         assert pattern.match(key), f"Key '{key}' does not properly start with 'model.'"
 
 
-@pytest.mark.run_only_on('GPU')
+@pytest.mark.run_only_on("GPU")
 @pytest.mark.unit
 def test_get_nemo_to_trtllm_conversion_dict_on_mcore_model():
     try:
@@ -54,27 +58,33 @@ def test_get_nemo_to_trtllm_conversion_dict_on_mcore_model():
 
         from nemo.export.tensorrt_llm import TensorRTLLM
     except ImportError:
-        pytest.skip("Could not import TRTLLM helpers. tensorrt_llm is likely not installed")
+        pytest.skip(
+            "Could not import TRTLLM helpers. tensorrt_llm is likely not installed"
+        )
         return
 
     dummy_state = object()
     model_state_dict = {
-        'embedding.word_embeddings.weight': dummy_state,
-        'decoder.layers.0.self_attention.linear_proj.weight': dummy_state,
+        "embedding.word_embeddings.weight": dummy_state,
+        "decoder.layers.0.self_attention.linear_proj.weight": dummy_state,
     }
-    nemo_model_conversion_dict = TensorRTLLM.get_nemo_to_trtllm_conversion_dict(model_state_dict)
+    nemo_model_conversion_dict = TensorRTLLM.get_nemo_to_trtllm_conversion_dict(
+        model_state_dict
+    )
 
     # This is essentially a no-op
     assert nemo_model_conversion_dict == DEFAULT_CONVERSION_DICT
 
 
-@pytest.mark.run_only_on('GPU')
+@pytest.mark.run_only_on("GPU")
 @pytest.mark.unit
 def test_tensorrt_llm_initialization():
     try:
         from nemo.export.tensorrt_llm import TensorRTLLM
     except ImportError:
-        pytest.skip("Could not import TRTLLM helpers. tensorrt_llm is likely not installed")
+        pytest.skip(
+            "Could not import TRTLLM helpers. tensorrt_llm is likely not installed"
+        )
         return
 
     # Test basic initialization
@@ -88,7 +98,9 @@ def test_tensorrt_llm_initialization():
 
     # Test initialization with lora checkpoints
     lora_ckpt_list = ["/path/to/lora1", "/path/to/lora2"]
-    trt_llm = TensorRTLLM(model_dir=model_dir, lora_ckpt_list=lora_ckpt_list, load_model=False)
+    trt_llm = TensorRTLLM(
+        model_dir=model_dir, lora_ckpt_list=lora_ckpt_list, load_model=False
+    )
     assert trt_llm.lora_ckpt_list == lora_ckpt_list
 
     # Test initialization with python runtime options
@@ -104,13 +116,15 @@ def test_tensorrt_llm_initialization():
     assert trt_llm.max_tokens_in_paged_kv_cache is None
 
 
-@pytest.mark.run_only_on('GPU')
+@pytest.mark.run_only_on("GPU")
 @pytest.mark.unit
 def test_tensorrt_llm_supported_models():
     try:
         from nemo.export.tensorrt_llm import TensorRTLLM
     except ImportError:
-        pytest.skip("Could not import TRTLLM helpers. tensorrt_llm is likely not installed")
+        pytest.skip(
+            "Could not import TRTLLM helpers. tensorrt_llm is likely not installed"
+        )
         return
 
     model_dir = "/tmp/test_model_dir"
@@ -128,13 +142,15 @@ def test_tensorrt_llm_supported_models():
     assert len(hf_mapping) > 0
 
 
-@pytest.mark.run_only_on('GPU')
+@pytest.mark.run_only_on("GPU")
 @pytest.mark.unit
 def test_tensorrt_llm_input_dtype():
     try:
         from nemo.export.tensorrt_llm import TensorRTLLM
     except ImportError:
-        pytest.skip("Could not import TRTLLM helpers. tensorrt_llm is likely not installed")
+        pytest.skip(
+            "Could not import TRTLLM helpers. tensorrt_llm is likely not installed"
+        )
         return
 
     model_dir = "/tmp/test_model_dir"
@@ -151,16 +167,20 @@ def test_tensorrt_llm_input_dtype():
 
     for storage_dtype, expected_dtype in test_cases:
         input_dtype = trt_llm.get_input_dtype(storage_dtype)
-        assert input_dtype == expected_dtype, f"Expected {expected_dtype} for {storage_dtype}, got {input_dtype}"
+        assert (
+            input_dtype == expected_dtype
+        ), f"Expected {expected_dtype} for {storage_dtype}, got {input_dtype}"
 
 
-@pytest.mark.run_only_on('GPU')
+@pytest.mark.run_only_on("GPU")
 @pytest.mark.unit
 def test_tensorrt_llm_hidden_size():
     try:
         from nemo.export.tensorrt_llm import TensorRTLLM
     except ImportError:
-        pytest.skip("Could not import TRTLLM helpers. tensorrt_llm is likely not installed")
+        pytest.skip(
+            "Could not import TRTLLM helpers. tensorrt_llm is likely not installed"
+        )
         return
 
     model_dir = "/tmp/test_model_dir"
@@ -175,13 +195,15 @@ def test_tensorrt_llm_hidden_size():
         assert hidden_size is None
 
 
-@pytest.mark.run_only_on('GPU')
+@pytest.mark.run_only_on("GPU")
 @pytest.mark.unit
 def test_tensorrt_llm_triton_io():
     try:
         from nemo.export.tensorrt_llm import TensorRTLLM
     except ImportError:
-        pytest.skip("Could not import TRTLLM helpers. tensorrt_llm is likely not installed")
+        pytest.skip(
+            "Could not import TRTLLM helpers. tensorrt_llm is likely not installed"
+        )
         return
 
     model_dir = "/tmp/test_model_dir"
@@ -208,13 +230,15 @@ def test_tensorrt_llm_triton_io():
     assert triton_output[2].name == "context_logits"
 
 
-@pytest.mark.run_only_on('GPU')
+@pytest.mark.run_only_on("GPU")
 @pytest.mark.unit
 def test_tensorrt_llm_pad_logits():
     try:
         from nemo.export.tensorrt_llm import TensorRTLLM
     except ImportError:
-        pytest.skip("Could not import TRTLLM helpers. tensorrt_llm is likely not installed")
+        pytest.skip(
+            "Could not import TRTLLM helpers. tensorrt_llm is likely not installed"
+        )
         return
 
     model_dir = "/tmp/test_model_dir"

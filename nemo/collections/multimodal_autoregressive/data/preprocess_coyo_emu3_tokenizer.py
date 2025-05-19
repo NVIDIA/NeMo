@@ -44,7 +44,9 @@ EMU_HUB = "BAAI/Emu3-Gen"
 VQ_HUB = "BAAI/Emu3-VisionTokenizer"
 
 
-def smart_resize(image, factor: int = 8, min_pixels: int = 512 * 512, max_pixels: int = 1024 * 1024):
+def smart_resize(
+    image, factor: int = 8, min_pixels: int = 512 * 512, max_pixels: int = 1024 * 1024
+):
     """Rescales the image so that the following conditions are met:
 
     1. Both dimensions (height and width) are divisible by 'factor'.
@@ -56,7 +58,9 @@ def smart_resize(image, factor: int = 8, min_pixels: int = 512 * 512, max_pixels
     """
     height, width = image.size
     if height < factor or width < factor:
-        raise ValueError(f"height:{height} or width:{width} must be larger than factor:{factor}")
+        raise ValueError(
+            f"height:{height} or width:{width} must be larger than factor:{factor}"
+        )
     elif max(height, width) / min(height, width) > 5:
         raise ValueError(
             f"absolute aspect ratio must be smaller than 5, got {max(height, width) / min(height, width)}"
@@ -92,7 +96,10 @@ def to_imgstr(image_tokens, tokenizer):
     """
     image_tokens = image_tokens.cpu().numpy().tolist()
     image_token_str = [
-        ['<|visual token {token_id:0>6d}|>'.format(token_id=token_id) for token_id in token_row]
+        [
+            "<|visual token {token_id:0>6d}|>".format(token_id=token_id)
+            for token_id in token_row
+        ]
         for token_row in image_tokens
     ]
     image_row_str = ["".join(token_row) for token_row in image_token_str]
@@ -107,36 +114,42 @@ def main(args):
     world_size = torch.cuda.device_count()
 
     tokenizer = AutoTokenizer.from_pretrained(EMU_HUB, trust_remote_code=True)
-    image_tokenizer = AutoModel.from_pretrained(VQ_HUB, device_map="cuda", trust_remote_code=True).eval()
+    image_tokenizer = AutoModel.from_pretrained(
+        VQ_HUB, device_map="cuda", trust_remote_code=True
+    ).eval()
 
     # prepare input
     text = "Please describe the image"
 
     builders = {}
-    key = 'text'
+    key = "text"
     builders[key] = indexed_dataset.make_builder(
-        f'{args.output_prefix}.bin',
+        f"{args.output_prefix}.bin",
         impl=args.dataset_impl,
         chunk_size=args.chunk_size,
-        pad_id=tokenizer.pad_id if getattr(tokenizer, "pad_id", None) is not None else 0,
+        pad_id=(
+            tokenizer.pad_id if getattr(tokenizer, "pad_id", None) is not None else 0
+        ),
         retrieval_db=None,
         vocab_size=tokenizer.vocab_size,
         stride=args.chunk_stride_size,
     )
 
-    filepaths_final = glob(f'{args.input_image_dir}/*.jpg')
+    filepaths_final = glob(f"{args.input_image_dir}/*.jpg")
 
     pbar = tqdm(filepaths_final)
     total_images_to_process = len(filepaths_final)
-    total_images_to_process_per_gpu = total_images_to_process // torch.cuda.device_count()
+    total_images_to_process_per_gpu = (
+        total_images_to_process // torch.cuda.device_count()
+    )
     if total_images_to_process_per_gpu > 30000:
         print(
-            'WARNING : Found more than 30k images to process per GPU. '
-            'This job might take more than 3 hours to process as tested on H100 gpus'
+            "WARNING : Found more than 30k images to process per GPU. "
+            "This job might take more than 3 hours to process as tested on H100 gpus"
         )
     print(
-        f'Total images to process : {total_images_to_process_per_gpu}. '
-        'Each GPU will get {total_images_to_process_per_gpu} files'
+        f"Total images to process : {total_images_to_process_per_gpu}. "
+        "Each GPU will get {total_images_to_process_per_gpu} files"
     )
 
     for idx, filepath in enumerate(pbar):
@@ -145,23 +158,29 @@ def main(args):
             continue
         try:
             image = Image.open(filepath)
-            caption_filename = filepath.split('/')[-1].replace('.jpg', '.pkl')
+            caption_filename = filepath.split("/")[-1].replace(".jpg", ".pkl")
             caption_path = Path(args.input_captions_dir).joinpath(caption_filename)
             if not os.path.isfile(caption_path):
-                print(f'WARNING : Caption file does not exist {caption_path}. So skipping')
+                print(
+                    f"WARNING : Caption file does not exist {caption_path}. So skipping"
+                )
                 continue
-            if image.mode == 'L':
-                print(f'WARNING : Image {filepath} is gray scale. So skipping')
+            if image.mode == "L":
+                print(f"WARNING : Image {filepath} is gray scale. So skipping")
                 continue
             image = smart_resize(image)
-            image_tensor = torchvision.transforms.functional.pil_to_tensor(image).unsqueeze(0)
-            image_tokens = image_tokenizer.encode(image_tensor.to(image_tokenizer.device, image_tokenizer.dtype))
+            image_tensor = torchvision.transforms.functional.pil_to_tensor(
+                image
+            ).unsqueeze(0)
+            image_tokens = image_tokenizer.encode(
+                image_tensor.to(image_tokenizer.device, image_tokenizer.dtype)
+            )
             bs, h, w = image_tokens.shape
 
             imgstr = to_imgstr(image_tokens[0], tokenizer=tokenizer)
             image_prompt = (
                 tokenizer.boi_token
-                + f'{h}*{w}'
+                + f"{h}*{w}"
                 + tokenizer.img_token
                 + imgstr
                 + tokenizer.eol_token
@@ -170,29 +189,36 @@ def main(args):
             )
 
             caption = ""
-            with open(caption_path, 'rb') as f:
+            with open(caption_path, "rb") as f:
                 caption_data = pickle.load(f)
-                caption = caption_data['captions']['llava']
+                caption = caption_data["captions"]["llava"]
 
             prompt = (
-                f'{tokenizer.bos_token}You are a helpful assistant. '
-                f'USER: {image_prompt}{text}. ASSISTANT: {caption}{tokenizer.eos_token}'
+                f"{tokenizer.bos_token}You are a helpful assistant. "
+                f"USER: {image_prompt}{text}. ASSISTANT: {caption}{tokenizer.eos_token}"
             )
             int_tokens = tokenizer(prompt).input_ids
             builders[key].add_item(torch.IntTensor(int_tokens))
             builders[key].end_document()
         except Exception as e:
-            print(f'Error in handling {filepath}. Exception {e} raised. Continuing to next file')
+            print(
+                f"Error in handling {filepath}. Exception {e} raised. Continuing to next file"
+            )
             continue
 
     builders[key].finalize(
-        f'{args.output_prefix}.idx',
+        f"{args.output_prefix}.idx",
     )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     parser = ArgumentParser()
-    parser.add_argument("--input_image_dir", required=True, type=str, help="The directory which contains images.")
+    parser.add_argument(
+        "--input_image_dir",
+        required=True,
+        type=str,
+        help="The directory which contains images.",
+    )
     parser.add_argument(
         "--input_captions_dir",
         required=True,
@@ -206,39 +232,52 @@ if __name__ == '__main__':
         help="The directory along with the output file name to "
         "write the .idx and .bin files (e.g /path/to/output/sample)",
     )
-    parser.add_argument('--dataset_impl', type=str, default='mmap', choices=['lazy', 'cached', 'mmap', 'retmmap'])
-    parser.add_argument('--chunk_size', type=int, default=64, help='chunk size used for retrieval')
     parser.add_argument(
-        '--resize_image', type=bool, default=True, help='Resizes the image to be between mix_pixels and max_pixels'
+        "--dataset_impl",
+        type=str,
+        default="mmap",
+        choices=["lazy", "cached", "mmap", "retmmap"],
     )
     parser.add_argument(
-        '--spatial_factor',
+        "--chunk_size", type=int, default=64, help="chunk size used for retrieval"
+    )
+    parser.add_argument(
+        "--resize_image",
+        type=bool,
+        default=True,
+        help="Resizes the image to be between mix_pixels and max_pixels",
+    )
+    parser.add_argument(
+        "--spatial_factor",
         type=int,
         default=8,
-        help='The spatial downsample factor the image will be downsampled/upsampled'
-        'to fit between min_pixels and max_pixels if resize_image is set to True',
+        help="The spatial downsample factor the image will be downsampled/upsampled"
+        "to fit between min_pixels and max_pixels if resize_image is set to True",
     )
     parser.add_argument(
-        '--min_pixels',
+        "--min_pixels",
         type=int,
         default=512 * 512,
-        help='The minimum number of pixels in the image. '
-        'Picture will be upsampled if smaller and resize_image is set to True',
+        help="The minimum number of pixels in the image. "
+        "Picture will be upsampled if smaller and resize_image is set to True",
     )
     parser.add_argument(
-        '--max_pixels',
+        "--max_pixels",
         type=int,
         default=1024 * 1024,
-        help='The maximum number of pixels in the image. '
-        'Picture will be downsampled if smaller and resize_image is set to False',
+        help="The maximum number of pixels in the image. "
+        "Picture will be downsampled if smaller and resize_image is set to False",
     )
     parser.add_argument(
-        '--chunk_stride_size', type=int, default=64, help='the stride size for neighbor chunks used for retrieval'
+        "--chunk_stride_size",
+        type=int,
+        default=64,
+        help="the stride size for neighbor chunks used for retrieval",
     )
 
     args = parser.parse_args()
 
-    rank = int(os.environ['LOCAL_RANK'])
+    rank = int(os.environ["LOCAL_RANK"])
     torch.cuda.set_device(rank)
 
     with torch.no_grad():

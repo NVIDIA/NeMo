@@ -49,14 +49,19 @@ def bert_embedding_data_step(dataloder_iter) -> Dict[str, torch.Tensor]:
     if parallel_state.is_pipeline_first_stage(ignore_virtual=False):
         required_keys.add("input_ids")
 
-    _batch = {key: val.cuda(non_blocking=True) if key in required_keys else None for key, val in _batch.items()}
+    _batch = {
+        key: val.cuda(non_blocking=True) if key in required_keys else None
+        for key, val in _batch.items()
+    }
     # slice batch along sequence dimension for context parallelism
     output = get_batch_on_this_cp_rank(_batch)
 
     return output
 
 
-def bert_embedding_forward_step(model: L.LightningModule, batch: Dict[str, torch.Tensor]) -> torch.Tensor:
+def bert_embedding_forward_step(
+    model: L.LightningModule, batch: Dict[str, torch.Tensor]
+) -> torch.Tensor:
     """
     This subsets the batch keys to the ones actually used by forward pass of the model,
     and then calls the model's forward pass. if "cu_seqsens" are defined in the batch,
@@ -80,7 +85,7 @@ def bert_embedding_forward_step(model: L.LightningModule, batch: Dict[str, torch
 class BertEmbeddingConfig(BertConfig):
     """Bert Embedding Config"""
 
-    bert_type: Literal["huggingface", "megatron"] = 'huggingface'
+    bert_type: Literal["huggingface", "megatron"] = "huggingface"
     ce_loss_scale: float = 20
     label_smoothing: float = 0.0
     add_lm_head: bool = False
@@ -88,7 +93,7 @@ class BertEmbeddingConfig(BertConfig):
     num_hard_negatives: int = 1
     num_tokentypes: int = 2
     global_in_batch_negatives: bool = True
-    backprop_type: Literal["local", "global"] = 'local'
+    backprop_type: Literal["local", "global"] = "local"
     forward_step_fn: Callable = bert_embedding_forward_step
     data_step_fn: Callable = bert_embedding_data_step
 
@@ -133,7 +138,9 @@ class BertEmbeddingHead(nn.Module):
     def forward(self, token_embeddings: Tensor, attention_mask: Tensor):
         """Forward function for embedding head. Performs mean pooling."""
         token_embeddings = token_embeddings.permute(1, 0, 2)
-        input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
+        input_mask_expanded = (
+            attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
+        )
         sum_embeddings = torch.sum(token_embeddings * input_mask_expanded, 1)
 
         sum_mask = input_mask_expanded.sum(1)
@@ -173,7 +180,9 @@ class BertEmbeddingModel(BertModel):
         **kwargs,
     ) -> torch.Tensor:
         """Call the forward method of the underlying model, and return whatever it outputs."""
-        assert "attention_mask" in kwargs, "attention mask is required for BERT Embedding Model."
+        assert (
+            "attention_mask" in kwargs
+        ), "attention mask is required for BERT Embedding Model."
         output_tensor = self.module(
             hidden_states_only=True, *args, **kwargs
         )  # for now just pass through to the underlying model
@@ -181,27 +190,35 @@ class BertEmbeddingModel(BertModel):
         return embeddings_out
 
     @property
-    def training_loss_reduction(self) -> BERTInBatchExclusiveHardNegativesRankingLoss:  # pylint: disable=C0115,C0116
+    def training_loss_reduction(
+        self,
+    ) -> BERTInBatchExclusiveHardNegativesRankingLoss:  # pylint: disable=C0115,C0116
         if not self._training_loss_reduction:
-            self._training_loss_reduction = BERTInBatchExclusiveHardNegativesRankingLoss(
-                validation_step=False,
-                num_hard_negatives=self.config.num_hard_negatives,
-                scale=self.config.ce_loss_scale,
-                label_smoothing=self.config.label_smoothing,
-                global_in_batch_negatives=self.config.global_in_batch_negatives,
-                backprop_type=self.config.backprop_type,
+            self._training_loss_reduction = (
+                BERTInBatchExclusiveHardNegativesRankingLoss(
+                    validation_step=False,
+                    num_hard_negatives=self.config.num_hard_negatives,
+                    scale=self.config.ce_loss_scale,
+                    label_smoothing=self.config.label_smoothing,
+                    global_in_batch_negatives=self.config.global_in_batch_negatives,
+                    backprop_type=self.config.backprop_type,
+                )
             )
 
         return self._training_loss_reduction
 
     @property
-    def validation_loss_reduction(self) -> BERTInBatchExclusiveHardNegativesRankingLoss:  # pylint: disable=C0115,C0116
+    def validation_loss_reduction(
+        self,
+    ) -> BERTInBatchExclusiveHardNegativesRankingLoss:  # pylint: disable=C0115,C0116
         if not self._validation_loss_reduction:
-            self._validation_loss_reduction = BERTInBatchExclusiveHardNegativesRankingLoss(
-                validation_step=True,
-                num_hard_negatives=self.config.num_hard_negatives,
-                scale=self.config.ce_loss_scale,
-                label_smoothing=self.config.label_smoothing,
+            self._validation_loss_reduction = (
+                BERTInBatchExclusiveHardNegativesRankingLoss(
+                    validation_step=True,
+                    num_hard_negatives=self.config.num_hard_negatives,
+                    scale=self.config.ce_loss_scale,
+                    label_smoothing=self.config.label_smoothing,
+                )
             )
 
         return self._validation_loss_reduction
@@ -220,7 +237,7 @@ class BertEmbeddingImporter(HuggingFaceBertImporter):
             # and do all their initialization in __new__/ helper methods.
             # Only need to call super().__init__ if version > 3.11
             super().__init__(*args)
-        self.type = 'model'
+        self.type = "model"
 
     def init(self) -> BertEmbeddingModel:
         return BertEmbeddingModel(self.config, tokenizer=self.tokenizer)

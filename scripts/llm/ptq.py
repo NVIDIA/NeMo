@@ -26,13 +26,20 @@ def get_args():
     """Parses PTQ arguments."""
     QUANT_CFG_CHOICES_LIST = ["no_quant", *get_quant_cfg_choices()]
     parser = argparse.ArgumentParser(
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter, description="NeMo PTQ argument parser"
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+        description="NeMo PTQ argument parser",
     )
-    parser.add_argument("-nc", "--nemo_checkpoint", type=str, help="Source NeMo 2.0 checkpoint")
     parser.add_argument(
-        "--tokenizer", type=str, help="Tokenizer to use. If not provided, model tokenizer will be used"
+        "-nc", "--nemo_checkpoint", type=str, help="Source NeMo 2.0 checkpoint"
     )
-    parser.add_argument("--decoder_type", type=str, help="Decoder type for TensorRT-Model-Optimizer")
+    parser.add_argument(
+        "--tokenizer",
+        type=str,
+        help="Tokenizer to use. If not provided, model tokenizer will be used",
+    )
+    parser.add_argument(
+        "--decoder_type", type=str, help="Decoder type for TensorRT-Model-Optimizer"
+    )
     parser.add_argument("-ctp", "--calibration_tp", "--calib_tp", type=int, default=1)
     parser.add_argument("-cpp", "--calibration_pp", "--calib_pp", type=int, default=1)
     parser.add_argument(
@@ -65,9 +72,18 @@ def get_args():
     )
     parser.add_argument("--devices", type=int, help="Number of GPUs to use per node")
     parser.add_argument("-nodes", "--num_nodes", type=int, help="Number of nodes used")
-    parser.add_argument("-out", "--export_path", "--output_path", type=str, help="Path for the exported engine")
     parser.add_argument(
-        "--export_format", default="trtllm", choices=["trtllm", "nemo", "hf"], help="Model format to export as"
+        "-out",
+        "--export_path",
+        "--output_path",
+        type=str,
+        help="Path for the exported engine",
+    )
+    parser.add_argument(
+        "--export_format",
+        default="trtllm",
+        choices=["trtllm", "nemo", "hf"],
+        help="Model format to export as",
     )
     parser.add_argument(
         "-algo",
@@ -78,11 +94,21 @@ def get_args():
         help="TensorRT-Model-Optimizer quantization algorithm",
     )
     parser.add_argument(
-        "-awq_bs", "--awq_block_size", type=int, default=128, help="Block size for AWQ quantization algorithms"
+        "-awq_bs",
+        "--awq_block_size",
+        type=int,
+        default=128,
+        help="Block size for AWQ quantization algorithms",
     )
-    parser.add_argument("--sq_alpha", type=float, default=0.5, help="Smooth-Quant alpha parameter")
-    parser.add_argument("--enable_kv_cache", help="Enables KV-cache quantization", action="store_true")
-    parser.add_argument("--disable_kv_cache", dest="enable_kv_cache", action="store_false")
+    parser.add_argument(
+        "--sq_alpha", type=float, default=0.5, help="Smooth-Quant alpha parameter"
+    )
+    parser.add_argument(
+        "--enable_kv_cache", help="Enables KV-cache quantization", action="store_true"
+    )
+    parser.add_argument(
+        "--disable_kv_cache", dest="enable_kv_cache", action="store_false"
+    )
     parser.set_defaults(enable_kv_cache=None)
     parser.add_argument(
         "--kv_cache_qformat",
@@ -92,12 +118,24 @@ def get_args():
         help="KV-cache quantization format",
     )
     parser.add_argument(
-        "-dt", "--dtype", default="bf16", choices=["16", "bf16"], help="Default precision for non-quantized layers"
+        "-dt",
+        "--dtype",
+        default="bf16",
+        choices=["16", "bf16"],
+        help="Default precision for non-quantized layers",
     )
-    parser.add_argument("-bs", "--batch_size", default=64, type=int, help="Calibration batch size")
-    parser.add_argument("-sl", "--seq_len", default=128, type=int, help="Length of the tokenized text")
     parser.add_argument(
-        "-calib_size", "--calibration_dataset_size", default=512, type=int, help="Size of calibration dataset"
+        "-bs", "--batch_size", default=64, type=int, help="Calibration batch size"
+    )
+    parser.add_argument(
+        "-sl", "--seq_len", default=128, type=int, help="Length of the tokenized text"
+    )
+    parser.add_argument(
+        "-calib_size",
+        "--calibration_dataset_size",
+        default=512,
+        type=int,
+        help="Size of calibration dataset",
     )
     parser.add_argument(
         "-calib_ds",
@@ -107,17 +145,25 @@ def get_args():
         help='Calibration dataset to be used. Should be "wikitext", "cnn_dailymail" or path to a local .json file',
     )
     parser.add_argument(
-        "--generate_sample", help="Generate sample model output after performing PTQ", action="store_true"
+        "--generate_sample",
+        help="Generate sample model output after performing PTQ",
+        action="store_true",
     )
     parser.add_argument(
-        "--trust_remote_code", help="Trust remote code when loading HuggingFace models", action="store_true"
+        "--trust_remote_code",
+        help="Trust remote code when loading HuggingFace models",
+        action="store_true",
     )
-    parser.add_argument("--legacy_ckpt", help="Load ckpt saved with TE < 1.14", action="store_true")
+    parser.add_argument(
+        "--legacy_ckpt", help="Load ckpt saved with TE < 1.14", action="store_true"
+    )
     args = parser.parse_args()
 
     if args.export_path is None:
         if args.export_format == "trtllm":
-            args.export_path = f"./qnemo_{args.algorithm}_tp{args.inference_tp}_pp{args.inference_pp}"
+            args.export_path = (
+                f"./qnemo_{args.algorithm}_tp{args.inference_tp}_pp{args.inference_pp}"
+            )
         else:
             args.export_path = f"./{args.export_format}_{args.algorithm}"
 

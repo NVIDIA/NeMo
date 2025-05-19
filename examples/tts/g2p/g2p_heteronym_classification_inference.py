@@ -60,7 +60,9 @@ class TranscriptionConfig:
     output_manifest: Optional[str] = (
         "predictions.json"  # Path to .json manifest to save prediction, will be saved in "pred_text" field
     )
-    grapheme_field: str = "text_graphemes"  # name of the field in .json manifest for input grapheme text
+    grapheme_field: str = (
+        "text_graphemes"  # name of the field in .json manifest for input grapheme text
+    )
 
     # mapping from wordid predicted by the model to phonemes, e.g.,
     # "../../../scripts/tts_dataset_files/wordid_to_ipa-0.7b_nv22.10.tsv"
@@ -74,45 +76,58 @@ class TranscriptionConfig:
 
 @hydra_runner(config_name="TranscriptionConfig", schema=TranscriptionConfig)
 def main(cfg):
-    logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
+    logging.info(f"Hydra config: {OmegaConf.to_yaml(cfg)}")
 
     if is_dataclass(cfg):
         cfg = OmegaConf.structured(cfg)
 
     if not cfg.pretrained_model:
         raise ValueError(
-            'To run evaluation and inference script a pre-trained model or .nemo file must be provided.'
+            "To run evaluation and inference script a pre-trained model or .nemo file must be provided."
             f'Choose from {HeteronymClassificationModel.list_available_models()} or "pretrained_model"="your_model.nemo"'
         )
 
     logging.info(
-        'During evaluation/testing, it is currently advisable to construct a new Trainer with single GPU and \
-			no DDP to obtain accurate results'
+        "During evaluation/testing, it is currently advisable to construct a new Trainer with single GPU and \
+			no DDP to obtain accurate results"
     )
 
     # setup GPU
     if torch.cuda.is_available():
         device = [0]  # use 0th CUDA device
-        accelerator = 'gpu'
+        accelerator = "gpu"
     else:
         device = 1
-        accelerator = 'cpu'
+        accelerator = "cpu"
 
-    map_location = torch.device('cuda:{}'.format(device[0]) if accelerator == 'gpu' else 'cpu')
-    trainer = pl.Trainer(devices=device, accelerator=accelerator, logger=False, enable_checkpointing=False)
+    map_location = torch.device(
+        "cuda:{}".format(device[0]) if accelerator == "gpu" else "cpu"
+    )
+    trainer = pl.Trainer(
+        devices=device,
+        accelerator=accelerator,
+        logger=False,
+        enable_checkpointing=False,
+    )
 
     if os.path.exists(cfg.pretrained_model):
-        model = HeteronymClassificationModel.restore_from(cfg.pretrained_model, map_location=map_location)
-    elif cfg.pretrained_model in HeteronymClassificationModel.get_available_model_names():
-        model = HeteronymClassificationModel.from_pretrained(cfg.pretrained_model, map_location=map_location)
+        model = HeteronymClassificationModel.restore_from(
+            cfg.pretrained_model, map_location=map_location
+        )
+    elif (
+        cfg.pretrained_model in HeteronymClassificationModel.get_available_model_names()
+    ):
+        model = HeteronymClassificationModel.from_pretrained(
+            cfg.pretrained_model, map_location=map_location
+        )
     else:
         raise ValueError(
-            f'Provide path to the pre-trained .nemo checkpoint or choose from {HeteronymClassificationModel.list_available_models()}'
+            f"Provide path to the pre-trained .nemo checkpoint or choose from {HeteronymClassificationModel.list_available_models()}"
         )
     model.set_trainer(trainer)
     model = model.eval()
 
-    logging.info(f'Config Params: {model._cfg}')
+    logging.info(f"Config Params: {model._cfg}")
 
     if cfg.manifest is not None:
         if not os.path.exists(cfg.manifest):
@@ -149,25 +164,29 @@ def main(cfg):
                         total += 1
                         if idx >= len(predictions) or target_ != predictions[idx]:
                             f_errors.write(f"INPUT: {line[cfg.grapheme_field]}\n")
-                            f_errors.write(f"PRED : {predictions[idx]} -- GT: {target_}\n")
+                            f_errors.write(
+                                f"PRED : {predictions[idx]} -- GT: {target_}\n"
+                            )
                             f_errors.write("===========================\n")
                         else:
                             correct += 1
                 else:
                     save_errors = False
         if save_errors:
-            logging.info(f"Accuracy: {round(correct / total * 100, 2)}% ({total - correct} errors out of {total})")
+            logging.info(
+                f"Accuracy: {round(correct / total * 100, 2)}% ({total - correct} errors out of {total})"
+            )
             logging.info(f"Errors saved at {cfg.errors_file}")
         else:
             logging.info("No 'word_id' values found, skipping evaluation.")
             if os.path.exists(cfg.errors_file):
                 os.remove(cfg.errors_file)
     else:
-        print('Entering interactive mode.')
+        print("Entering interactive mode.")
         done = False
         while not done:
             print('Type "STOP" to exit.')
-            test_input = input('Input a test input:')
+            test_input = input("Input a test input:")
             if test_input == "STOP":
                 done = True
             if not done:
@@ -181,5 +200,5 @@ def main(cfg):
                     print(sentences[0])
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()  # noqa pylint: disable=no-value-for-parameter

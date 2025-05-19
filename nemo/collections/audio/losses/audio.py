@@ -26,7 +26,7 @@ from nemo.core.neural_types import (AudioSignal, LengthsType, LossType,
                                     MaskType, NeuralType, VoidType)
 from nemo.utils import logging
 
-__all__ = ['SDRLoss', 'MSELoss']
+__all__ = ["SDRLoss", "MSELoss"]
 
 
 def calculate_mean(
@@ -54,10 +54,12 @@ def calculate_mean(
     if input_length is not None:
         if mask is not None:
             raise RuntimeError(
-                'Argument `input_length` is mutually exclusive with `mask`. Both cannot be used at the same time.'
+                "Argument `input_length` is mutually exclusive with `mask`. Both cannot be used at the same time."
             )
         # Construct a binary mask
-        mask = make_seq_mask_like(lengths=input_length, like=input, time_dim=-1, valid_ones=True)
+        mask = make_seq_mask_like(
+            lengths=input_length, like=input, time_dim=-1, valid_ones=True
+        )
         mask = mask.expand_as(input)
 
     if mask is None:
@@ -102,15 +104,21 @@ def scale_invariant_target(
     if input_length is not None:
         if mask is not None:
             raise RuntimeError(
-                'Argument `input_length` is mutually exclusive with `mask`. Both cannot be used at the same time.'
+                "Argument `input_length` is mutually exclusive with `mask`. Both cannot be used at the same time."
             )
 
         # Construct a binary mask
-        mask = make_seq_mask_like(lengths=input_length, like=estimate, time_dim=-1, valid_ones=True)
+        mask = make_seq_mask_like(
+            lengths=input_length, like=estimate, time_dim=-1, valid_ones=True
+        )
         mask = mask.expand_as(estimate)
 
-    estimate_dot_target = calculate_mean(estimate * target, mask=mask, dim=-1, keepdim=True, eps=eps)
-    target_pow = calculate_mean(torch.abs(target) ** 2, mask=mask, dim=-1, keepdim=True, eps=eps)
+    estimate_dot_target = calculate_mean(
+        estimate * target, mask=mask, dim=-1, keepdim=True, eps=eps
+    )
+    target_pow = calculate_mean(
+        torch.abs(target) ** 2, mask=mask, dim=-1, keepdim=True, eps=eps
+    )
     scale = estimate_dot_target / (target_pow + eps)
     target_scaled = scale * target
 
@@ -157,18 +165,20 @@ def convolution_invariant_target(
     if input_length is not None:
         if mask is not None:
             raise RuntimeError(
-                'Argument `input_length` is mutually exclusive with `mask`. Both cannot be used at the same time.'
+                "Argument `input_length` is mutually exclusive with `mask`. Both cannot be used at the same time."
             )
 
         if torch.min(input_length) < filter_length:
             logging.warning(
-                'Current min input_length (%d) is smaller than filter_length (%d). This will result in a singular linear system.',
+                "Current min input_length (%d) is smaller than filter_length (%d). This will result in a singular linear system.",
                 torch.min(input_length),
                 filter_length,
             )
 
         # Construct a binary mask
-        mask = make_seq_mask_like(lengths=input_length, like=estimate, time_dim=-1, valid_ones=True)
+        mask = make_seq_mask_like(
+            lengths=input_length, like=estimate, time_dim=-1, valid_ones=True
+        )
         mask = mask.expand_as(estimate)
 
     # Apply a mask, if available
@@ -255,28 +265,38 @@ def calculate_sdr_batch(
         SDR in dB for each channel, shape (B, C)
     """
     if scale_invariant and convolution_invariant:
-        raise ValueError('Arguments scale_invariant and convolution_invariant cannot be used simultaneously.')
+        raise ValueError(
+            "Arguments scale_invariant and convolution_invariant cannot be used simultaneously."
+        )
 
     assert (
         estimate.shape == target.shape
-    ), f'Estimate shape ({estimate.shape}) not matching target shape ({target.shape})'
+    ), f"Estimate shape ({estimate.shape}) not matching target shape ({target.shape})"
 
     if input_length is not None:
         if mask is not None:
             raise RuntimeError(
-                'Argument `input_length` is mutually exclusive with `mask`. Both cannot be used at the same time.'
+                "Argument `input_length` is mutually exclusive with `mask`. Both cannot be used at the same time."
             )
 
         # Construct a binary mask
-        mask = make_seq_mask_like(lengths=input_length, like=estimate, time_dim=-1, valid_ones=True)
+        mask = make_seq_mask_like(
+            lengths=input_length, like=estimate, time_dim=-1, valid_ones=True
+        )
         mask = mask.expand_as(estimate)
 
     if remove_mean:
-        estimate = estimate - calculate_mean(estimate, mask=mask, dim=-1, keepdim=True, eps=eps)
-        target = target - calculate_mean(target, mask=mask, dim=-1, keepdim=True, eps=eps)
+        estimate = estimate - calculate_mean(
+            estimate, mask=mask, dim=-1, keepdim=True, eps=eps
+        )
+        target = target - calculate_mean(
+            target, mask=mask, dim=-1, keepdim=True, eps=eps
+        )
 
     if scale_invariant or (convolution_invariant and convolution_filter_length == 1):
-        target = scale_invariant_target(estimate=estimate, target=target, mask=mask, eps=eps)
+        target = scale_invariant_target(
+            estimate=estimate, target=target, mask=mask, eps=eps
+        )
     elif convolution_invariant:
         target = convolution_invariant_target(
             estimate=estimate,
@@ -289,7 +309,9 @@ def calculate_sdr_batch(
     distortion = estimate - target
 
     target_pow = calculate_mean(torch.abs(target) ** 2, mask=mask, dim=-1, eps=eps)
-    distortion_pow = calculate_mean(torch.abs(distortion) ** 2, mask=mask, dim=-1, eps=eps)
+    distortion_pow = calculate_mean(
+        torch.abs(distortion) ** 2, mask=mask, dim=-1, eps=eps
+    )
 
     if sdr_max is not None:
         distortion_pow = distortion_pow + 10 ** (-sdr_max / 10) * target_pow
@@ -316,7 +338,7 @@ class SDRLoss(Loss, Typing):
     def __init__(
         self,
         weight: Optional[List[float]] = None,
-        reduction: str = 'mean',
+        reduction: str = "mean",
         scale_invariant: bool = False,
         convolution_invariant: bool = False,
         convolution_filter_length: Optional[int] = 512,
@@ -329,25 +351,25 @@ class SDRLoss(Loss, Typing):
         # SDR weight buffer
         if weight is not None:
             if any([w <= 0 for w in weight]):
-                raise ValueError(f'Weight must be positive! Current value: {weight}')
+                raise ValueError(f"Weight must be positive! Current value: {weight}")
             elif not np.isclose(sum(weight), 1, atol=1e-6):
-                raise ValueError(f'Weight should add to one, current weight: {weight}')
+                raise ValueError(f"Weight should add to one, current weight: {weight}")
             weight = torch.tensor(weight).reshape(1, -1)
-            logging.info('Channel weight set to %s', weight)
-        self.register_buffer('weight', weight)
+            logging.info("Channel weight set to %s", weight)
+        self.register_buffer("weight", weight)
         self.weight: Optional[torch.Tensor]
 
         # Batch reduction
         self.reduction = reduction
-        if reduction == 'mean':
+        if reduction == "mean":
             self.reduce = torch.mean
         else:
-            raise ValueError(f'Unexpected reduction mode {reduction}.')
+            raise ValueError(f"Unexpected reduction mode {reduction}.")
 
         # SDR calculation setup
         if scale_invariant and convolution_invariant:
             raise ValueError(
-                f'{self.__class__.__name__}: arguments scale_invariant and convolution_invariant cannot be used simultaneously.'
+                f"{self.__class__.__name__}: arguments scale_invariant and convolution_invariant cannot be used simultaneously."
             )
         self.scale_invariant = scale_invariant
         self.convolution_invariant = convolution_invariant
@@ -359,12 +381,12 @@ class SDRLoss(Loss, Typing):
     @property
     def input_types(self):
         """Input types definitions for SDRLoss."""
-        signal_shape = ('B', 'C', 'T')
+        signal_shape = ("B", "C", "T")
         return {
             "estimate": NeuralType(signal_shape, AudioSignal()),
             "target": NeuralType(signal_shape, AudioSignal()),
-            "input_length": NeuralType(tuple('B'), LengthsType(), optional=True),
-            "mask": NeuralType(('B', 'C', 'T'), MaskType(), optional=True),
+            "input_length": NeuralType(tuple("B"), LengthsType(), optional=True),
+            "mask": NeuralType(("B", "C", "T"), MaskType(), optional=True),
         }
 
     @property
@@ -441,16 +463,18 @@ def calculate_mse_batch(
     """
     assert (
         estimate.shape == target.shape
-    ), f'Estimate shape ({estimate.shape}) not matching target shape ({target.shape})'
+    ), f"Estimate shape ({estimate.shape}) not matching target shape ({target.shape})"
 
     if input_length is not None:
         if mask is not None:
             raise RuntimeError(
-                'Argument `input_length` is mutually exclusive with `mask`. Both cannot be used at the same time.'
+                "Argument `input_length` is mutually exclusive with `mask`. Both cannot be used at the same time."
             )
 
         # Construct a binary mask
-        mask = make_seq_mask_like(lengths=input_length, like=estimate, time_dim=-1, valid_ones=True)
+        mask = make_seq_mask_like(
+            lengths=input_length, like=estimate, time_dim=-1, valid_ones=True
+        )
         mask = mask.expand_as(estimate)
 
     # error
@@ -464,7 +488,7 @@ def calculate_mse_batch(
         # average across time and features
         dim = (-2, -1)
     else:
-        raise RuntimeError(f'Unexpected dimension of the input: {estimate.shape}')
+        raise RuntimeError(f"Unexpected dimension of the input: {estimate.shape}")
 
     # calculate masked mean
     mse = calculate_mean(torch.abs(err) ** 2, mask=mask, dim=dim)
@@ -485,7 +509,7 @@ class MSELoss(Loss, Typing):
     def __init__(
         self,
         weight: Optional[List[float]] = None,
-        reduction: str = 'mean',
+        reduction: str = "mean",
         ndim: int = 3,
     ):
         super().__init__()
@@ -493,38 +517,38 @@ class MSELoss(Loss, Typing):
         # weight buffer
         if weight is not None:
             if any([w <= 0 for w in weight]):
-                raise ValueError(f'Weight must be positive! Current value: {weight}')
+                raise ValueError(f"Weight must be positive! Current value: {weight}")
             elif not np.isclose(sum(weight), 1, atol=1e-6):
-                raise ValueError(f'Weight should add to one, current weight: {weight}')
+                raise ValueError(f"Weight should add to one, current weight: {weight}")
             weight = torch.tensor(weight).reshape(1, -1)
-            logging.info('Channel weight set to %s', weight)
-        self.register_buffer('weight', weight)
+            logging.info("Channel weight set to %s", weight)
+        self.register_buffer("weight", weight)
         self.weight: Optional[torch.Tensor]
 
         # Batch reduction
         self.reduction = reduction
-        if reduction == 'mean':
+        if reduction == "mean":
             self.reduce = torch.mean
         else:
-            raise ValueError(f'Unexpected reduction mode {reduction}.')
+            raise ValueError(f"Unexpected reduction mode {reduction}.")
 
         # Input dimension
         self.ndim = ndim
 
         if self.ndim == 3:
             # Time-domain input
-            self.signal_shape = ('B', 'C', 'T')
+            self.signal_shape = ("B", "C", "T")
         elif self.ndim == 4:
             # Spectral-domain input
-            self.signal_shape = ('B', 'C', 'D', 'T')
+            self.signal_shape = ("B", "C", "D", "T")
         else:
-            raise ValueError(f'Unexpected input dimension: {self.ndim}')
+            raise ValueError(f"Unexpected input dimension: {self.ndim}")
 
-        logging.debug('Initialized %s with', self.__class__.__name__)
-        logging.debug('\tweight:       %s', self.weight)
-        logging.debug('\treduction:    %s', self.reduction)
-        logging.debug('\tndim:         %s', self.ndim)
-        logging.debug('\tsignal_shape: %s', self.signal_shape)
+        logging.debug("Initialized %s with", self.__class__.__name__)
+        logging.debug("\tweight:       %s", self.weight)
+        logging.debug("\treduction:    %s", self.reduction)
+        logging.debug("\tndim:         %s", self.ndim)
+        logging.debug("\tsignal_shape: %s", self.signal_shape)
 
     @property
     def input_types(self):
@@ -532,7 +556,7 @@ class MSELoss(Loss, Typing):
         return {
             "estimate": NeuralType(self.signal_shape, VoidType()),
             "target": NeuralType(self.signal_shape, VoidType()),
-            "input_length": NeuralType(tuple('B'), LengthsType(), optional=True),
+            "input_length": NeuralType(tuple("B"), LengthsType(), optional=True),
             "mask": NeuralType(self.signal_shape, MaskType(), optional=True),
         }
 
@@ -603,16 +627,18 @@ def calculate_mae_batch(
     """
     assert (
         estimate.shape == target.shape
-    ), f'Estimate shape ({estimate.shape}) not matching target shape ({target.shape})'
+    ), f"Estimate shape ({estimate.shape}) not matching target shape ({target.shape})"
 
     if input_length is not None:
         if mask is not None:
             raise RuntimeError(
-                'Argument `input_length` is mutually exclusive with `mask`. Both cannot be used at the same time.'
+                "Argument `input_length` is mutually exclusive with `mask`. Both cannot be used at the same time."
             )
 
         # Construct a binary mask
-        mask = make_seq_mask_like(lengths=input_length, like=estimate, time_dim=-1, valid_ones=True)
+        mask = make_seq_mask_like(
+            lengths=input_length, like=estimate, time_dim=-1, valid_ones=True
+        )
         mask = mask.expand_as(estimate)
 
     # error
@@ -626,7 +652,7 @@ def calculate_mae_batch(
         # average across time and features
         dim = (-2, -1)
     else:
-        raise RuntimeError(f'Unexpected dimension of the input: {estimate.shape}')
+        raise RuntimeError(f"Unexpected dimension of the input: {estimate.shape}")
 
     # calculate masked mean
     mse = calculate_mean(torch.abs(err), mask=mask, dim=dim)
@@ -647,7 +673,7 @@ class MAELoss(Loss, Typing):
     def __init__(
         self,
         weight: Optional[List[float]] = None,
-        reduction: str = 'mean',
+        reduction: str = "mean",
         ndim: int = 3,
     ):
         super().__init__()
@@ -655,38 +681,38 @@ class MAELoss(Loss, Typing):
         # weight buffer
         if weight is not None:
             if any([w <= 0 for w in weight]):
-                raise ValueError(f'Weight must be positive! Current value: {weight}')
+                raise ValueError(f"Weight must be positive! Current value: {weight}")
             elif not np.isclose(sum(weight), 1, atol=1e-6):
-                raise ValueError(f'Weight should add to one, current weight: {weight}')
+                raise ValueError(f"Weight should add to one, current weight: {weight}")
             weight = torch.tensor(weight).reshape(1, -1)
-            logging.info('Channel weight set to %s', weight)
-        self.register_buffer('weight', weight)
+            logging.info("Channel weight set to %s", weight)
+        self.register_buffer("weight", weight)
         self.weight: Optional[torch.Tensor]
 
         # Batch reduction
         self.reduction = reduction
-        if reduction == 'mean':
+        if reduction == "mean":
             self.reduce = torch.mean
         else:
-            raise ValueError(f'Unexpected reduction mode {reduction}.')
+            raise ValueError(f"Unexpected reduction mode {reduction}.")
 
         # Input dimension
         self.ndim = ndim
 
         if self.ndim == 3:
             # Time-domain input
-            self.signal_shape = ('B', 'C', 'T')
+            self.signal_shape = ("B", "C", "T")
         elif self.ndim == 4:
             # Spectral-domain input
-            self.signal_shape = ('B', 'C', 'D', 'T')
+            self.signal_shape = ("B", "C", "D", "T")
         else:
-            raise ValueError(f'Unexpected input dimension: {self.ndim}')
+            raise ValueError(f"Unexpected input dimension: {self.ndim}")
 
-        logging.debug('Initialized %s with', self.__class__.__name__)
-        logging.debug('\tweight:       %s', self.weight)
-        logging.debug('\treduction:    %s', self.reduction)
-        logging.debug('\tndim:         %s', self.ndim)
-        logging.debug('\tsignal_shape: %s', self.signal_shape)
+        logging.debug("Initialized %s with", self.__class__.__name__)
+        logging.debug("\tweight:       %s", self.weight)
+        logging.debug("\treduction:    %s", self.reduction)
+        logging.debug("\tndim:         %s", self.ndim)
+        logging.debug("\tsignal_shape: %s", self.signal_shape)
 
     @property
     def input_types(self):
@@ -694,7 +720,7 @@ class MAELoss(Loss, Typing):
         return {
             "estimate": NeuralType(self.signal_shape, VoidType()),
             "target": NeuralType(self.signal_shape, VoidType()),
-            "input_length": NeuralType(tuple('B'), LengthsType(), optional=True),
+            "input_length": NeuralType(tuple("B"), LengthsType(), optional=True),
             "mask": NeuralType(self.signal_shape, MaskType(), optional=True),
         }
 

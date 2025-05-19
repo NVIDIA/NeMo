@@ -77,25 +77,50 @@ def line_len(line, tokenizer=None):
 # =============================================================================#
 # Main script
 # =============================================================================#
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Collects statistics over tokenized dataset')
-    parser.add_argument('input_files', metavar='N', type=str, nargs='+', help='Input files to parse')
-    parser.add_argument(
-        '--tokenizer_library', type=str, required=True, help='Path to pre-trained nemo-supported tokenizer model'
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Collects statistics over tokenized dataset"
     )
     parser.add_argument(
-        '--tokenizer_model', type=str, required=True, help='Path to pre-trained nemo-supported tokenizer model'
+        "input_files", metavar="N", type=str, nargs="+", help="Input files to parse"
     )
     parser.add_argument(
-        '--num_workers', type=int, default=mp.cpu_count(), help='Number of workers (default to number of CPUs)'
+        "--tokenizer_library",
+        type=str,
+        required=True,
+        help="Path to pre-trained nemo-supported tokenizer model",
     )
-    parser.add_argument('--max_lines', type=int, default=-1, help='Max number of lines to parse')
-    parser.add_argument('--batch_size', type=int, default=10000000, help='Batch size to parse in parallel')
-    parser.add_argument('--out_dir', type=str, default="", help='Path to store data and plots')
+    parser.add_argument(
+        "--tokenizer_model",
+        type=str,
+        required=True,
+        help="Path to pre-trained nemo-supported tokenizer model",
+    )
+    parser.add_argument(
+        "--num_workers",
+        type=int,
+        default=mp.cpu_count(),
+        help="Number of workers (default to number of CPUs)",
+    )
+    parser.add_argument(
+        "--max_lines", type=int, default=-1, help="Max number of lines to parse"
+    )
+    parser.add_argument(
+        "--batch_size",
+        type=int,
+        default=10000000,
+        help="Batch size to parse in parallel",
+    )
+    parser.add_argument(
+        "--out_dir", type=str, default="", help="Path to store data and plots"
+    )
 
     args = parser.parse_args()
 
-    tokenizer = get_nmt_tokenizer(library=args.tokenizer_library, tokenizer_model=args.tokenizer_model,)
+    tokenizer = get_nmt_tokenizer(
+        library=args.tokenizer_library,
+        tokenizer_model=args.tokenizer_model,
+    )
 
     all_len = []
 
@@ -114,7 +139,9 @@ if __name__ == '__main__':
 
             # tokenize lines
             with mp.Pool(
-                args.num_workers, initializer=init_tokenizer, initargs=(args.tokenizer_library, args.tokenizer_model)
+                args.num_workers,
+                initializer=init_tokenizer,
+                initargs=(args.tokenizer_library, args.tokenizer_model),
             ) as p:
                 all_len.extend(p.map(line_len, lines))
 

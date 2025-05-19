@@ -161,7 +161,9 @@ def pretrain_recipe(
             global_batch_size=global_batch_size,
             micro_batch_size=micro_batch_size,
         ),
-        log=default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
+        log=default_log(
+            dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)
+        ),
         optim=distributed_fused_adam_with_cosine_annealing(
             precision=precision,
             warmup_steps=warmup_steps,
@@ -180,7 +182,7 @@ def finetune_recipe(
     name: str = "default",
     num_nodes: int = 1,
     num_gpus_per_node: int = 8,
-    peft_scheme: Optional[str] = 'lora',
+    peft_scheme: Optional[str] = "lora",
     packed_sequence: bool = False,
 ) -> run.Partial:
     """
@@ -215,15 +217,21 @@ def finetune_recipe(
         This recipe uses the SQuAD dataset for fine-tuning.
     """
     recipe = default_finetune_recipe(
-        model(), "google/gemma-2-9b", dir, name, num_nodes, num_gpus_per_node, packed_sequence
+        model(),
+        "google/gemma-2-9b",
+        dir,
+        name,
+        num_nodes,
+        num_gpus_per_node,
+        packed_sequence,
     )
     # Gemma requires BOS
-    recipe.data.dataset_kwargs = {'add_bos': True}
+    recipe.data.dataset_kwargs = {"add_bos": True}
 
-    if peft_scheme is None or peft_scheme.lower() == 'none':
+    if peft_scheme is None or peft_scheme.lower() == "none":
         recipe.optim.config.lr = 5e-6
         recipe.trainer.strategy.tensor_model_parallel_size = 4
-    elif peft_scheme.lower() in ['lora', 'dora']:
+    elif peft_scheme.lower() in ["lora", "dora"]:
         recipe.peft = run.Config(PEFT_STR2CLS[peft_scheme.lower()])
         recipe.optim.config.lr = 1e-4
     else:

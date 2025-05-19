@@ -66,22 +66,32 @@ class TCNNNerf(NeRFBase):
         )
 
         # Set per_level_scale if not set
-        if encoder_cfg.get('per_level_scale') is None:
-            encoder_cfg['per_level_scale'] = np.exp2(np.log2(2048 * self.bound / 16) / (16 - 1))
+        if encoder_cfg.get("per_level_scale") is None:
+            encoder_cfg["per_level_scale"] = np.exp2(
+                np.log2(2048 * self.bound / 16) / (16 - 1)
+            )
         # Build the TCNN encoder
-        self.encoder = tcnn.Encoding(n_input_dims=num_input_dims, encoding_config=dict(encoder_cfg))
+        self.encoder = tcnn.Encoding(
+            n_input_dims=num_input_dims, encoding_config=dict(encoder_cfg)
+        )
 
         # Build the sigma network
-        assert sigma_net_num_output_dims == 1, "sigma_net_num_output_dims!=1 is not supported"
+        assert (
+            sigma_net_num_output_dims == 1
+        ), "sigma_net_num_output_dims!=1 is not supported"
         self.sigma_tcnn = tcnn.Network(
-            self.encoder.n_output_dims, sigma_net_num_output_dims, network_config=dict(sigma_net_cfg)
+            self.encoder.n_output_dims,
+            sigma_net_num_output_dims,
+            network_config=dict(sigma_net_cfg),
         )
 
         # Build the features network
         self.features_tcnn = None
         if features_net_cfg is not None:
             self.features_tcnn = tcnn.Network(
-                self.encoder.n_output_dims, features_net_num_output_dims, network_config=dict(features_net_cfg)
+                self.encoder.n_output_dims,
+                features_net_num_output_dims,
+                network_config=dict(features_net_cfg),
             )
 
     def encode(self, positions: torch.Tensor) -> torch.Tensor:

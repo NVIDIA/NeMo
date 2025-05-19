@@ -33,26 +33,42 @@ from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 
 
 def get_args():
-    parser = argparse.ArgumentParser(description='Train a small T5 model using NeMo 2.0')
-    parser.add_argument('--devices', type=int, help="Number of devices to use for training")
-    parser.add_argument('--max-steps', type=int, help="Number of steps to train for")
-    parser.add_argument('--peft', type=str, default='none', help="none | lora")
-    parser.add_argument('--data-dir', type=str, default=None, help="directory to finetuning data")
-    parser.add_argument('--experiment-dir', type=str, help="directory to write results and checkpoints to")
-    parser.add_argument('--experiment-name', type=str, help="name of experiment")
-    parser.add_argument('--wandb-project', type=str, default=None, help="wandb project name")
-    parser.add_argument('--checkpoint-path', type=str, help="Path to checkpoint dir")
-    parser.add_argument('--index-mapping-dir', type=str, help="directory to write index mappings to")
+    parser = argparse.ArgumentParser(
+        description="Train a small T5 model using NeMo 2.0"
+    )
+    parser.add_argument(
+        "--devices", type=int, help="Number of devices to use for training"
+    )
+    parser.add_argument("--max-steps", type=int, help="Number of steps to train for")
+    parser.add_argument("--peft", type=str, default="none", help="none | lora")
+    parser.add_argument(
+        "--data-dir", type=str, default=None, help="directory to finetuning data"
+    )
+    parser.add_argument(
+        "--experiment-dir",
+        type=str,
+        help="directory to write results and checkpoints to",
+    )
+    parser.add_argument("--experiment-name", type=str, help="name of experiment")
+    parser.add_argument(
+        "--wandb-project", type=str, default=None, help="wandb project name"
+    )
+    parser.add_argument("--checkpoint-path", type=str, help="Path to checkpoint dir")
+    parser.add_argument(
+        "--index-mapping-dir", type=str, help="directory to write index mappings to"
+    )
 
     return parser.parse_args()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
 
     args = get_args()
 
     special_tokens = {}
-    special_tokens['additional_special_tokens'] = [f'<extra_id_{i}>' for i in range(100)]
+    special_tokens["additional_special_tokens"] = [
+        f"<extra_id_{i}>" for i in range(100)
+    ]
     tokenizer = get_nmt_tokenizer(
         "megatron",
         "BertWordPieceCase",
@@ -104,7 +120,7 @@ if __name__ == '__main__':
     )
 
     opt_config = OptimizerConfig(
-        optimizer='adam',
+        optimizer="adam",
         lr=2.0e-5,
         use_distributed_optimizer=False,
         bf16=True,
@@ -114,7 +130,7 @@ if __name__ == '__main__':
         config=opt_config,
     )
 
-    if args.peft == 'lora':
+    if args.peft == "lora":
         peft = llm.peft.LoRA()
     else:
         peft = None

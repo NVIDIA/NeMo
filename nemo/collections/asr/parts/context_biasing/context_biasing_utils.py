@@ -60,9 +60,14 @@ def merge_alignment_with_ws_hyps(
         for idx, token in enumerate(candidate):
             if token != blank_idx:
                 if token == prev_token:
-                    alignment_tokens[-1] = [idx, asr_model.tokenizer.ids_to_tokens([int(token)])[0]]
+                    alignment_tokens[-1] = [
+                        idx,
+                        asr_model.tokenizer.ids_to_tokens([int(token)])[0],
+                    ]
                 else:
-                    alignment_tokens.append([idx, asr_model.tokenizer.ids_to_tokens([int(token)])[0]])
+                    alignment_tokens.append(
+                        [idx, asr_model.tokenizer.ids_to_tokens([int(token)])[0]]
+                    )
             prev_token = token
 
     elif decoder_type == "rnnt":
@@ -127,22 +132,32 @@ def merge_alignment_with_ws_hyps(
             if ws_hyp.start_frame < li:
                 # spotted word starts before first word from alignment
                 if not already_inserted:
-                    new_word_alignment.append((ws_hyp.word, ws_hyp.start_frame, ws_hyp.end_frame))
+                    new_word_alignment.append(
+                        (ws_hyp.word, ws_hyp.start_frame, ws_hyp.end_frame)
+                    )
                     already_inserted = True
             # compute intersection between spotted word and word from alignment in percentage
-            intersection_part = 100 / len(item_interval) * len(ws_interval & item_interval)
+            intersection_part = (
+                100 / len(item_interval) * len(ws_interval & item_interval)
+            )
             if intersection_part <= intersection_threshold:
                 new_word_alignment.append(item)
             elif not already_inserted:
                 # word from alignment will be replaced by spotted word
-                new_word_alignment.append((ws_hyp.word, ws_hyp.start_frame, ws_hyp.end_frame))
+                new_word_alignment.append(
+                    (ws_hyp.word, ws_hyp.start_frame, ws_hyp.end_frame)
+                )
                 already_inserted = True
         # insert last spotted word if not yet
         if not already_inserted:
-            new_word_alignment.append((ws_hyp.word, ws_hyp.start_frame, ws_hyp.end_frame))
+            new_word_alignment.append(
+                (ws_hyp.word, ws_hyp.start_frame, ws_hyp.end_frame)
+            )
         word_alignment = new_word_alignment
         if print_stats:
-            logging.info(f"Spotted word: {ws_hyp.word} [{ws_hyp.start_frame}, {ws_hyp.end_frame}]")
+            logging.info(
+                f"Spotted word: {ws_hyp.word} [{ws_hyp.start_frame}, {ws_hyp.end_frame}]"
+            )
 
     boosted_text_list = [item[0] for item in new_word_alignment]
     boosted_text = " ".join(boosted_text_list)
@@ -170,22 +185,30 @@ def compute_fscore(
     assert key_words_list, "key_words_list is empty"
 
     # get data from manifest
-    assert os.path.isfile(recognition_results_manifest), f"manifest file {recognition_results_manifest} doesn't exist"
+    assert os.path.isfile(
+        recognition_results_manifest
+    ), f"manifest file {recognition_results_manifest} doesn't exist"
     data = read_manifest(recognition_results_manifest)
     assert len(data) > 0, "manifest file is empty"
-    assert data[0].get('text', None), "manifest file should contain text field"
-    assert data[0].get('pred_text', None), "manifest file should contain pred_text field"
+    assert data[0].get("text", None), "manifest file should contain text field"
+    assert data[0].get(
+        "pred_text", None
+    ), "manifest file should contain pred_text field"
 
     # compute max number of words in one context biasing phrase
     max_ngram_order = max([len(item.split()) for item in key_words_list])
     key_words_stat = {}  # a word here can be single word or phareses
     for word in key_words_list:
-        key_words_stat[word] = [0, 0, 0]  # [true positive (tp), groud truth (gt), false positive (fp)]
+        key_words_stat[word] = [
+            0,
+            0,
+            0,
+        ]  # [true positive (tp), groud truth (gt), false positive (fp)]
 
     for item in data:
         # get alignment by texterrors
-        ref = item['text'].split()
-        hyp = item['pred_text'].split()
+        ref = item["text"].split()
+        hyp = item["pred_text"].split()
         texterrors_ali = texterrors.align_texts(ref, hyp, False)
         ali = []
         for i in range(len(texterrors_ali[0])):
@@ -231,7 +254,9 @@ def compute_fscore(
             while idx < len(ali):
                 if item_hyp:
                     item_hyp = [item_hyp[1]]
-                    idx = item_hyp[0][1] + 1  # idex of first non eps word in previous ngram + 1
+                    idx = (
+                        item_hyp[0][1] + 1
+                    )  # idex of first non eps word in previous ngram + 1
                 while len(item_hyp) != ngram_order and idx < len(ali):
                     word = ali[idx][1]
                     idx += 1
@@ -255,7 +280,13 @@ def compute_fscore(
 
     logging.info("=" * 60)
     logging.info("Per words statistic (word: correct/totall | false positive):\n")
-    max_len = max([len(x) for x in key_words_stat if key_words_stat[x][1] > 0 or key_words_stat[x][2] > 0])
+    max_len = max(
+        [
+            len(x)
+            for x in key_words_stat
+            if key_words_stat[x][1] > 0 or key_words_stat[x][2] > 0
+        ]
+    )
     for word in key_words_list:
         if key_words_stat[word][1] > 0 or key_words_stat[word][2] > 0:
             false_positive = ""

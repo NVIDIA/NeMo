@@ -23,7 +23,7 @@ from nemo.core.neural_types import (ChannelType, LengthsType, NeuralType,
                                     SpectrogramType)
 from nemo.utils import logging
 
-__all__ = ['SpectrogramConformer']
+__all__ = ["SpectrogramConformer"]
 
 
 class SpectrogramConformer(NeuralModule):
@@ -46,7 +46,7 @@ class SpectrogramConformer(NeuralModule):
         # Number of input channels for this estimator
         if in_channels < 1:
             raise ValueError(
-                f'Number of input channels needs to be larger or equal to one, current value {in_channels}'
+                f"Number of input channels needs to be larger or equal to one, current value {in_channels}"
             )
 
         self.in_channels = in_channels
@@ -54,27 +54,29 @@ class SpectrogramConformer(NeuralModule):
         # Number of output channels for this estimator
         if out_channels < 1:
             raise ValueError(
-                f'Number of output channels needs to be larger or equal to one, current value {out_channels}'
+                f"Number of output channels needs to be larger or equal to one, current value {out_channels}"
             )
 
         self.out_channels = out_channels
 
         # Conformer-based estimator
         conformer_params = kwargs.copy()
-        conformer_params['feat_in'] = conformer_params['feat_out'] = (
-            2 * self.in_channels * kwargs['feat_in']
+        conformer_params["feat_in"] = conformer_params["feat_out"] = (
+            2 * self.in_channels * kwargs["feat_in"]
         )  # stack real and imag
-        logging.debug('Conformer params: %s', conformer_params)
+        logging.debug("Conformer params: %s", conformer_params)
         self.conformer = ConformerEncoder(**conformer_params)
 
         # Output projection to generate real and imaginary components of the output channels
         self.output_projection = torch.nn.Conv2d(
-            in_channels=2 * self.in_channels, out_channels=2 * self.out_channels, kernel_size=1
+            in_channels=2 * self.in_channels,
+            out_channels=2 * self.out_channels,
+            kernel_size=1,
         )
 
-        logging.debug('Initialized %s with', self.__class__.__name__)
-        logging.debug('\tin_channels:  %s', self.in_channels)
-        logging.debug('\tout_channels: %s', self.out_channels)
+        logging.debug("Initialized %s with", self.__class__.__name__)
+        logging.debug("\tin_channels:  %s", self.in_channels)
+        logging.debug("\tout_channels: %s", self.out_channels)
 
     @property
     def context_size(self):
@@ -106,29 +108,46 @@ class SpectrogramConformer(NeuralModule):
     def input_types(self) -> Dict[str, NeuralType]:
         """Returns definitions of module output ports."""
         return {
-            "input": NeuralType(('B', 'C', 'D', 'T'), SpectrogramType()),
-            "input_length": NeuralType(('B',), LengthsType(), optional=True),
+            "input": NeuralType(("B", "C", "D", "T"), SpectrogramType()),
+            "input_length": NeuralType(("B",), LengthsType(), optional=True),
             # convolutional context
-            "cache_last_channel": NeuralType(('D', 'B', 'T', 'D'), ChannelType(), optional=True),
-            "cache_last_time": NeuralType(('D', 'B', 'D', 'T'), ChannelType(), optional=True),
-            "cache_last_channel_len": NeuralType(tuple('B'), LengthsType(), optional=True),
+            "cache_last_channel": NeuralType(
+                ("D", "B", "T", "D"), ChannelType(), optional=True
+            ),
+            "cache_last_time": NeuralType(
+                ("D", "B", "D", "T"), ChannelType(), optional=True
+            ),
+            "cache_last_channel_len": NeuralType(
+                tuple("B"), LengthsType(), optional=True
+            ),
         }
 
     @property
     def output_types(self) -> Dict[str, NeuralType]:
         """Returns definitions of module output ports."""
         return {
-            "output": NeuralType(('B', 'C', 'D', 'T'), SpectrogramType()),
-            "output_length": NeuralType(('B',), LengthsType(), optional=True),
+            "output": NeuralType(("B", "C", "D", "T"), SpectrogramType()),
+            "output_length": NeuralType(("B",), LengthsType(), optional=True),
             # convolutional context
-            "cache_last_channel_next": NeuralType(('D', 'B', 'T', 'D'), ChannelType(), optional=True),
-            "cache_last_time_next": NeuralType(('D', 'B', 'D', 'T'), ChannelType(), optional=True),
-            "cache_last_channel_next_len": NeuralType(tuple('B'), LengthsType(), optional=True),
+            "cache_last_channel_next": NeuralType(
+                ("D", "B", "T", "D"), ChannelType(), optional=True
+            ),
+            "cache_last_time_next": NeuralType(
+                ("D", "B", "D", "T"), ChannelType(), optional=True
+            ),
+            "cache_last_channel_next_len": NeuralType(
+                tuple("B"), LengthsType(), optional=True
+            ),
         }
 
     @typecheck()
     def forward(
-        self, input, input_length=None, cache_last_channel=None, cache_last_time=None, cache_last_channel_len=None
+        self,
+        input,
+        input_length=None,
+        cache_last_channel=None,
+        cache_last_time=None,
+        cache_last_channel_len=None,
     ):
         """Forward pass for the SpectrogramConformer model.
 
@@ -138,19 +157,29 @@ class SpectrogramConformer(NeuralModule):
         """
         B, C_in, D, T = input.shape
         if C_in != self.in_channels:
-            raise RuntimeError(f'Unexpected input channel size {C_in}, expected {self.in_channels}')
+            raise RuntimeError(
+                f"Unexpected input channel size {C_in}, expected {self.in_channels}"
+            )
 
         # Stack real and imaginary components
         input_real_imag = torch.stack([input.real, input.imag], dim=2)
-        input = einops.rearrange(input_real_imag, 'B C RI D T -> B (C RI D) T')
+        input = einops.rearrange(input_real_imag, "B C RI D T -> B (C RI D) T")
 
         # Conformer
         if cache_last_channel is None:
             # Not using caching mode
-            output, output_length = self.conformer(audio_signal=input, length=input_length)
+            output, output_length = self.conformer(
+                audio_signal=input, length=input_length
+            )
         else:
             # Using caching mode
-            output, output_length, cache_last_channel, cache_last_time, cache_last_channel_len = self.conformer(
+            (
+                output,
+                output_length,
+                cache_last_channel,
+                cache_last_time,
+                cache_last_channel_len,
+            ) = self.conformer(
                 audio_signal=input,
                 length=input_length,
                 cache_last_channel=cache_last_channel,
@@ -159,14 +188,24 @@ class SpectrogramConformer(NeuralModule):
             )
 
         # Output projection
-        output = einops.rearrange(output, 'B (C RI D) T -> B (C RI) D T', C=self.in_channels, RI=2, D=D)
+        output = einops.rearrange(
+            output, "B (C RI D) T -> B (C RI) D T", C=self.in_channels, RI=2, D=D
+        )
         output = self.output_projection(output)
 
         # Convert to complex-valued signal
-        output = einops.rearrange(output, 'B (C RI) D T -> B C D T RI', C=self.out_channels, RI=2, D=D)
+        output = einops.rearrange(
+            output, "B (C RI) D T -> B C D T RI", C=self.out_channels, RI=2, D=D
+        )
         output = torch.view_as_complex(output.contiguous())
 
         if cache_last_channel is None:
             return output, output_length
         else:
-            return output, output_length, cache_last_channel, cache_last_time, cache_last_channel_len
+            return (
+                output,
+                output_length,
+                cache_last_channel,
+                cache_last_time,
+                cache_last_channel_len,
+            )

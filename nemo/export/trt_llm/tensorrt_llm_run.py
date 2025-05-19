@@ -84,7 +84,9 @@ def _read_config(config_path: Path):
     pipeline_parallel_size = config["builder_config"]["pipeline_parallel"]
     world_size = tensor_parallel_size * pipeline_parallel_size
 
-    assert world_size <= torch.cuda.device_count(), f"Not enough GPUs, requesting {world_size}"
+    assert (
+        world_size <= torch.cuda.device_count()
+    ), f"Not enough GPUs, requesting {world_size}"
 
     num_heads = config["builder_config"]["num_heads"]
     num_kv_heads = config["builder_config"].get("num_kv_heads", num_heads)
@@ -102,7 +104,9 @@ def _read_config(config_path: Path):
     if quantization := config["builder_config"].get("quantization"):
         # Field "quantization" (dict) is introduced for quantized Nemo checkpoints support.
         # For regular Nemo checkpoints "quant_mode" field should be used (default: 0).
-        quant_mode = QuantMode.from_quant_algo(quantization['quant_algo'], quantization['kv_cache_quant_algo'])
+        quant_mode = QuantMode.from_quant_algo(
+            quantization["quant_algo"], quantization["kv_cache_quant_algo"]
+        )
     else:
         quant_mode = QuantMode(config["builder_config"]["quant_mode"])
 
@@ -120,12 +124,16 @@ def _read_config(config_path: Path):
         remove_input_padding=config["plugin_config"]["remove_input_padding"],
         paged_kv_cache=config["plugin_config"]["paged_kv_cache"],
         tokens_per_block=tokens_per_block,
-        max_prompt_embedding_table_size=config["builder_config"]["max_prompt_embedding_table_size"],
+        max_prompt_embedding_table_size=config["builder_config"][
+            "max_prompt_embedding_table_size"
+        ],
         dtype=config["builder_config"]["precision"],
         lora_plugin=config["plugin_config"]["lora_plugin"],
         lora_target_modules=config["builder_config"]["lora_target_modules"],
         quant_mode=quant_mode,
-        use_context_fmha_for_generation=config["plugin_config"]["use_context_fmha_for_generation"],
+        use_context_fmha_for_generation=config["plugin_config"][
+            "use_context_fmha_for_generation"
+        ],
         gather_context_logits=config["builder_config"]["gather_context_logits"],
         gather_generation_logits=config["builder_config"]["gather_generation_logits"],
     )
@@ -134,7 +142,15 @@ def _read_config(config_path: Path):
     max_input_len = config["builder_config"]["max_input_len"]
     max_batch_size = config["builder_config"]["max_batch_size"]
 
-    return model_config, world_size, tensor_parallel_size, pipeline_parallel_size, dtype, max_input_len, max_batch_size
+    return (
+        model_config,
+        world_size,
+        tensor_parallel_size,
+        pipeline_parallel_size,
+        dtype,
+        max_input_len,
+        max_batch_size,
+    )
 
 
 def _load(
@@ -167,9 +183,13 @@ def _load(
 
         if use_python_runtime:
             if enable_chunked_context:
-                logging.warning("enable_chunked_context is disabled when using python runtime")
+                logging.warning(
+                    "enable_chunked_context is disabled when using python runtime"
+                )
             if multi_block_mode:
-                logging.warning("multi_block_mode is disabled when using python runtime")
+                logging.warning(
+                    "multi_block_mode is disabled when using python runtime"
+                )
 
             decoder = ModelRunner.from_dir(
                 engine_dir=engine_dir,
@@ -195,7 +215,9 @@ def _load(
             )
 
         sampling_config = SamplingConfig(
-            end_id=tokenizer.eos_token_id, pad_id=tokenizer.eos_token_id, num_beams=num_beams
+            end_id=tokenizer.eos_token_id,
+            pad_id=tokenizer.eos_token_id,
+            num_beams=num_beams,
         )
 
         # Initialize the global context so it can be used during `run` API.
@@ -242,10 +264,14 @@ def _forward(
         max_input_len = tensorrt_llm_worker_context.max_input_len
 
         batch_size = len(input_tensors)
-        assert batch_size <= max_batch_size, f"batch size {batch_size} exceedng max batch size {max_batch_size}"
+        assert (
+            batch_size <= max_batch_size
+        ), f"batch size {batch_size} exceedng max batch size {max_batch_size}"
         input_lengths = [t.shape[0] for t in input_tensors]
         max_length = max(input_lengths)
-        assert max_length <= max_input_len, f"input length {max_length} exceedng max input length {max_input_len}"
+        assert (
+            max_length <= max_input_len
+        ), f"input length {max_length} exceedng max input length {max_input_len}"
         pad_id = sampling_config.pad_id
         end_id = sampling_config.end_id
         num_beams = sampling_config.num_beams
@@ -255,12 +281,14 @@ def _forward(
                 raise TypeError(f"Unknown sampling args '{k}'")
 
         with torch.no_grad():
-            prompt_tasks = None if task_ids is None else ",".join(str(task) for task in task_ids)
+            prompt_tasks = (
+                None if task_ids is None else ",".join(str(task) for task in task_ids)
+            )
 
             if prompt_table is not None:
                 prompt_table = prompt_table.reshape(1, *prompt_table.shape)
                 tmp_dir = tempfile.TemporaryDirectory()
-                prompt_table_path = os.path.join(tmp_dir.name, 'prompt_table.npy')
+                prompt_table_path = os.path.join(tmp_dir.name, "prompt_table.npy")
                 np.save(prompt_table_path, prompt_table.cpu().float().numpy())
                 prompt_table = prompt_table_path
 
@@ -370,7 +398,9 @@ def load(
         "MistralForCausalLM",
         "MixtralForCausalLM",
     ]
-    add_bos = config["pretrained_config"]["architecture"] in architectures_that_need_bos_token
+    add_bos = (
+        config["pretrained_config"]["architecture"] in architectures_that_need_bos_token
+    )
 
     return TensorrtLLMHostContext(
         executor=executor,
@@ -403,10 +433,14 @@ def forward(
     """Run the loaded model with the host_context provided from the `load` API."""
     batch_size = len(input_tensors)
     max_batch_size = host_context.max_batch_size
-    assert batch_size <= max_batch_size, f"batch size {batch_size} exceedng max batch size {max_batch_size}"
+    assert (
+        batch_size <= max_batch_size
+    ), f"batch size {batch_size} exceedng max batch size {max_batch_size}"
     max_length = max([t.shape[0] for t in input_tensors])
     max_input_len = host_context.max_input_len
-    assert max_length <= max_input_len, f"input length {max_length} exceedng max input length {max_input_len}"
+    assert (
+        max_length <= max_input_len
+    ), f"input length {max_length} exceedng max input length {max_input_len}"
 
     world_size = host_context.world_size
     if world_size == 1 or multiprocessed_env:
@@ -479,7 +513,11 @@ def load_distributed(engine_dir, model_parallel_rank, gpus_per_node):
     # is not true for the megatron mapping of TP->DP->PP.
     # So we manipulate TRTLLM to emulate a TP->PP single node setup
     # TRTLLM is expected to fix this in future releases
-    offset = (torch.cuda.current_device() - model_parallel_rank % gpus_per_node + gpus_per_node) % gpus_per_node
+    offset = (
+        torch.cuda.current_device()
+        - model_parallel_rank % gpus_per_node
+        + gpus_per_node
+    ) % gpus_per_node
     device_ids = [i for i in range(gpus_per_node)]
     for _ in range(offset):
         device_ids.append(device_ids.pop(0))
@@ -500,7 +538,11 @@ def load_distributed(engine_dir, model_parallel_rank, gpus_per_node):
     with open(config_path) as f:
         json_config_str = f.read()
 
-    engine = Engine.from_buffer(engine_buffer=engine_data, json_config_str=json_config_str, rank=model_parallel_rank)
+    engine = Engine.from_buffer(
+        engine_buffer=engine_data,
+        json_config_str=json_config_str,
+        rank=model_parallel_rank,
+    )
 
     if not TRTLLM_SUPPORTS_DEVICE_DISABLE:
         raise RuntimeError(
@@ -554,7 +596,9 @@ def maybe_cast_to_trt_dtype(dtype):
     elif isinstance(dtype, torch.dtype):
         return tensorrt_llm._utils.torch_dtype_to_trt(dtype)
     else:
-        raise NotImplementedError(f"Expects the type to be a tensorrt.DataType or torch.dtype, but got {type(dtype)=}")
+        raise NotImplementedError(
+            f"Expects the type to be a tensorrt.DataType or torch.dtype, but got {type(dtype)=}"
+        )
 
 
 def refit(weights_dict: dict):
@@ -584,9 +628,13 @@ def refit(weights_dict: dict):
             skipped_weights.append(trt_name)
             continue
         trt_weight = trt.Weights(model_dtype, weight.data_ptr(), torch.numel(weight))
-        trt_wt_location = trt.TensorLocation.DEVICE if weight.is_cuda else trt.TensorLocation.HOST
+        trt_wt_location = (
+            trt.TensorLocation.DEVICE if weight.is_cuda else trt.TensorLocation.HOST
+        )
         assert (
-            model_dtype == refitter.get_weights_prototype(trt_name).dtype == maybe_cast_to_trt_dtype(weight.dtype)
+            model_dtype
+            == refitter.get_weights_prototype(trt_name).dtype
+            == maybe_cast_to_trt_dtype(weight.dtype)
         ), (
             f"Expected all three of these dtypes to be the same:\n"
             f"  {model_dtype=}\n"
@@ -603,7 +651,9 @@ def refit(weights_dict: dict):
             f"These weights were ignored during refit since they are not present in engine: {skipped_weights}"
         )
     if remaining_refit_weights:
-        logging.warning(f"Weights dict did not contain weights for these named TRT weights: {remaining_refit_weights}")
+        logging.warning(
+            f"Weights dict did not contain weights for these named TRT weights: {remaining_refit_weights}"
+        )
 
     if not refitter.refit_cuda_engine():
         raise ValueError("Refit failed!")
@@ -708,24 +758,34 @@ def generate(
     Returns a 2D string list with shape [batch_size, num_beams].
     """
     tokenizer = host_context.tokenizer
-    input_tensors = prepare_input_tensors(input_texts, host_context, prompt_table, task_vtoken_counts, task_ids)
+    input_tensors = prepare_input_tensors(
+        input_texts, host_context, prompt_table, task_vtoken_counts, task_ids
+    )
 
     stop_words_list_tensors = None
     if stop_words_list is not None:
         stop_words_arrays = to_word_list_format(stop_words_list, tokenizer)
         stop_words_list_tensors = (
-            torch.Tensor(stop_words_arrays).to(torch.int32).to(torch.cuda.current_device()).contiguous()
+            torch.Tensor(stop_words_arrays)
+            .to(torch.int32)
+            .to(torch.cuda.current_device())
+            .contiguous()
         )
 
     bad_words_list_tensors = None
     if bad_words_list is not None:
         bad_words_arrays = to_word_list_format(bad_words_list, tokenizer)
         bad_words_list_tensors = (
-            torch.Tensor(bad_words_arrays).to(torch.int32).to(torch.cuda.current_device()).contiguous()
+            torch.Tensor(bad_words_arrays)
+            .to(torch.int32)
+            .to(torch.cuda.current_device())
+            .contiguous()
         )
 
     if no_repeat_ngram_size is not None:
-        no_repeat_ngram_size = torch.IntTensor(no_repeat_ngram_size).to(torch.cuda.current_device())
+        no_repeat_ngram_size = torch.IntTensor(no_repeat_ngram_size).to(
+            torch.cuda.current_device()
+        )
 
     outputs = forward(
         input_tensors=input_tensors,
@@ -751,19 +811,21 @@ def generate(
     if tensorrt_llm.mpi_rank() != 0:
         return None
 
-    output_ids = outputs['output_ids']
-    sequence_lengths = outputs['sequence_lengths']
+    output_ids = outputs["output_ids"]
+    sequence_lengths = outputs["sequence_lengths"]
     input_lengths = [t.shape[0] for t in input_tensors]
 
     output_lines_list = [
-        tokenizer.batch_decode(output_ids[b, :, input_lengths[b] : sequence_lengths[b][0]])
+        tokenizer.batch_decode(
+            output_ids[b, :, input_lengths[b] : sequence_lengths[b][0]]
+        )
         for b in range(output_ids.shape[0])
     ]
 
     if output_generation_logits:
-        return output_lines_list, outputs['generation_logits']
+        return output_lines_list, outputs["generation_logits"]
     elif output_context_logits:
-        return output_lines_list, outputs['context_logits']
+        return output_lines_list, outputs["context_logits"]
     return output_lines_list
 
 
@@ -789,7 +851,9 @@ def generate_streaming(
     Returns a 2D string list with shape [batch_size, num_beams].
     """
     tokenizer = host_context.tokenizer
-    input_tensors = prepare_input_tensors(input_texts, host_context, prompt_table, task_vtoken_counts, task_ids)
+    input_tensors = prepare_input_tensors(
+        input_texts, host_context, prompt_table, task_vtoken_counts, task_ids
+    )
 
     batch_size = len(input_texts)
 
@@ -798,7 +862,9 @@ def generate_streaming(
         stop_words_list_tensors = [tokenizer.encode(t) for t in stop_words_list]
         stop_words_list_tensors = torch.IntTensor(stop_words_list_tensors)
         stop_words_list_tensors = (
-            stop_words_list_tensors.unsqueeze(0).repeat(batch_size, 1, 1).to(torch.cuda.current_device())
+            stop_words_list_tensors.unsqueeze(0)
+            .repeat(batch_size, 1, 1)
+            .to(torch.cuda.current_device())
         )
 
     bad_words_list_tensors = None
@@ -806,11 +872,15 @@ def generate_streaming(
         bad_words_list_tensors = [tokenizer.encode(t) for t in bad_words_list]
         bad_words_list_tensors = torch.IntTensor(bad_words_list_tensors)
         bad_words_list_tensors = (
-            bad_words_list_tensors.unsqueeze(0).repeat(batch_size, 1, 1).to(torch.cuda.current_device())
+            bad_words_list_tensors.unsqueeze(0)
+            .repeat(batch_size, 1, 1)
+            .to(torch.cuda.current_device())
         )
 
     if no_repeat_ngram_size is not None:
-        no_repeat_ngram_size = torch.IntTensor(no_repeat_ngram_size).to(torch.cuda.current_device())
+        no_repeat_ngram_size = torch.IntTensor(no_repeat_ngram_size).to(
+            torch.cuda.current_device()
+        )
 
     outputs = forward(
         input_tensors=input_tensors,
@@ -835,7 +905,7 @@ def generate_streaming(
 
     # 'outputs' is a generator that yields one generator, not sure why... Unwrap that.
     for output in outputs:
-        output_ids = output['output_ids']
+        output_ids = output["output_ids"]
         # Now iterate over the partial outputs, decode and yield each intermediate result.
         generated_tokens = 0
         for partial_outputs in output_ids:
@@ -852,7 +922,9 @@ def generate_streaming(
                 # Extract the generated part of the output tensor and decode it.
                 input_length = input_lengths[input_index]
                 decoded_output = tokenizer.batch_decode(
-                    partial_outputs[input_index, :, input_length : input_length + generated_tokens]
+                    partial_outputs[
+                        input_index, :, input_length : input_length + generated_tokens
+                    ]
                 )[0]
                 outputs.append(decoded_output)
 
@@ -879,7 +951,7 @@ def to_word_list_format(
     tokenizer=None,
     ref_str="<extra_id_1>",
 ):
-    '''
+    """
     format of word_dict
         len(word_dict) should be same to batch_size
         word_dict[i] means the words for batch i
@@ -887,7 +959,7 @@ def to_word_list_format(
         This string can contains several sentences and split by ",".
         For example, if word_dict[2] = " I am happy, I am sad", then this function will return
         the ids for two short sentences " I am happy" and " I am sad".
-    '''
+    """
     assert tokenizer is not None, "need to set tokenizer"
 
     flat_ids = []
@@ -912,7 +984,9 @@ def to_word_list_format(
                 # Unfortunately the prefix was merged with `word`. We could try with a different prefix, but
                 # for now we just use the basic encoding since this should be a very rare edge case.
                 ids = tokenizer.encode(word)
-                logging.warning(f"The encoding of word '{word}' into tokens {ids} might be incorrect")
+                logging.warning(
+                    f"The encoding of word '{word}' into tokens {ids} might be incorrect"
+                )
 
             if len(ids) == 0:
                 continue

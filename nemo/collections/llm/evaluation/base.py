@@ -44,7 +44,16 @@ class NeMoFWLMEval(LM):
     """
 
     def __init__(
-        self, model_name, api_url, tokenizer, batch_size, max_tokens_to_generate, temperature, top_p, top_k, add_bos
+        self,
+        model_name,
+        api_url,
+        tokenizer,
+        batch_size,
+        max_tokens_to_generate,
+        temperature,
+        top_p,
+        top_k,
+        add_bos,
     ):
         warnings.warn(
             "NeMoFWLMEval is deprecated and will be removed in 25.06. Please refer to "
@@ -64,12 +73,17 @@ class NeMoFWLMEval(LM):
         self.add_bos = add_bos
         super().__init__()
 
-    def _generate_tokens_logits(self, payload, single_prediction_token: bool = False, return_logits: bool = False):
+    def _generate_tokens_logits(
+        self,
+        payload,
+        single_prediction_token: bool = False,
+        return_logits: bool = False,
+    ):
         """
         A private method that sends post request to the model on PyTriton server and returns either generated text or
         logits.
         """
-        nq = NemoQueryLLM(url=self.api_url, model_name=payload['model'])
+        nq = NemoQueryLLM(url=self.api_url, model_name=payload["model"])
 
         output_context_logits = False
         output_generation_logits = False
@@ -81,11 +95,15 @@ class NeMoFWLMEval(LM):
                 # In case of multiple token prediction return the full context logits
                 output_context_logits = True
         response = nq.query_llm(
-            prompts=payload['prompt'] if isinstance(payload['prompt'], list) else [payload['prompt']],
-            max_output_len=payload['max_tokens'],
-            top_k=payload['top_k'],
-            top_p=payload['top_p'],
-            temperature=payload['temperature'],
+            prompts=(
+                payload["prompt"]
+                if isinstance(payload["prompt"], list)
+                else [payload["prompt"]]
+            ),
+            max_output_len=payload["max_tokens"],
+            top_k=payload["top_k"],
+            top_p=payload["top_p"],
+            temperature=payload["temperature"],
             output_context_logits=output_context_logits,
             output_generation_logits=output_generation_logits,
             openai_format_response=True,
@@ -122,9 +140,9 @@ class NeMoFWLMEval(LM):
         special_tokens_kwargs = {}
         tokenizer_type = self.tokenizer_type(self.tokenizer)
         if tokenizer_type == "SentencePieceTokenizer":
-            special_tokens_kwargs['add_bos'] = self.add_bos
+            special_tokens_kwargs["add_bos"] = self.add_bos
         elif tokenizer_type == "AutoTokenizer":
-            special_tokens_kwargs['add_special_tokens'] = self.add_bos
+            special_tokens_kwargs["add_special_tokens"] = self.add_bos
 
         single_prediction_token = False
         # Assuming evaluating on only one benchmark/task at a time, hence all instances in requests are of the same
@@ -153,9 +171,13 @@ class NeMoFWLMEval(LM):
                 # get the output prompt from the request
                 continuation = request.arguments[1]
                 # get encoded tokens of context
-                context_enc = self.tokenizer.tokenizer.encode(context, **special_tokens_kwargs)
+                context_enc = self.tokenizer.tokenizer.encode(
+                    context, **special_tokens_kwargs
+                )
                 # get encoded tokens of continuation
-                continuation_enc = self.tokenizer.tokenizer.encode(continuation, **special_tokens_kwargs)
+                continuation_enc = self.tokenizer.tokenizer.encode(
+                    continuation, **special_tokens_kwargs
+                )
                 # for SentencePeice consider the encoded tokens from the 2nd token since first encoded token is space.
                 if self.tokenizer_type(self.tokenizer) == "SentencePieceTokenizer":
                     context_enc = context_enc[1:]
@@ -164,7 +186,9 @@ class NeMoFWLMEval(LM):
                 num_cont_tokens = len(continuation_enc)
                 # Delete the last token from continuation before passing it to the ip prompt by replacing with empty
                 # string
-                prompt = context + continuation.replace(self.tokenizer.tokenizer.decode(continuation_enc[-1]), "")
+                prompt = context + continuation.replace(
+                    self.tokenizer.tokenizer.decode(continuation_enc[-1]), ""
+                )
 
                 prompts.append(prompt)
                 continuations.append(continuation)
@@ -183,7 +207,9 @@ class NeMoFWLMEval(LM):
             }
 
             # Query the model deployed on PyTriton server with the batched payload to get the logits
-            logits_batch = self._generate_tokens_logits(payload, single_prediction_token, return_logits=True)
+            logits_batch = self._generate_tokens_logits(
+                payload, single_prediction_token, return_logits=True
+            )
 
             # Process each result in the batch
             for j, logits in enumerate(logits_batch):
@@ -203,13 +229,17 @@ class NeMoFWLMEval(LM):
                 # Convert logits to torch tensor to easily get logprobs wo manual implementation of log_softmax
                 logProbs = F.log_softmax(torch.tensor(logits), dim=-1)
                 # Convert encoded continuation tokens to torch tensor
-                cont_toks = torch.tensor(continuation_enc, dtype=torch.long).unsqueeze(0)
+                cont_toks = torch.tensor(continuation_enc, dtype=torch.long).unsqueeze(
+                    0
+                )
                 # Get the greedy token from the logits (i.e token with the highest prob)
                 greedy_tokens = logProbs.argmax(dim=-1)
                 # Check if all greedy_tokens match the the actual continuation tokens
                 is_greedy = (greedy_tokens == cont_toks).all()
                 # Get the logits corresponding to the actual continuation tokens
-                logProbs_actual = torch.gather(logProbs, 2, cont_toks.unsqueeze(-1)).squeeze(-1)
+                logProbs_actual = torch.gather(
+                    logProbs, 2, cont_toks.unsqueeze(-1)
+                ).squeeze(-1)
                 # result is tuple of logProb of generating the continuation token and is_greedy
                 result = (float(logProbs_actual.sum()), bool(is_greedy))
                 # Append the result of this input in the batch to results list
@@ -251,8 +281,8 @@ class NeMoFWLMEval(LM):
 
 
 def wait_for_fastapi_server(
-    base_url: str = 'http://0.0.0.0:8080',
-    model_name: str = 'triton_model',
+    base_url: str = "http://0.0.0.0:8080",
+    model_name: str = "triton_model",
     max_retries: int = 600,
     retry_interval: int = 2,
 ):
@@ -283,33 +313,44 @@ def wait_for_fastapi_server(
             # Check server readiness using HTTP health endpoint
             response = requests.get(health_url)
             if response.status_code != 200:
-                logging.info(f"Server is not ready. HTTP status code: {response.status_code}")
+                logging.info(
+                    f"Server is not ready. HTTP status code: {response.status_code}"
+                )
                 time.sleep(retry_interval)
                 continue
             logging.info("Server is ready.")
 
             # Check model readiness
-            response = requests.post(completions_url, json={"model": model_name, "prompt": "hello", "max_tokens": 1})
+            response = requests.post(
+                completions_url,
+                json={"model": model_name, "prompt": "hello", "max_tokens": 1},
+            )
             if response.status_code != 200:
-                logging.info(f"Model is not ready. HTTP status code: {response.status_code}")
+                logging.info(
+                    f"Model is not ready. HTTP status code: {response.status_code}"
+                )
                 time.sleep(retry_interval)
                 continue
             logging.info(f"Model '{model_name}' is ready.")
             return True
         except requests.exceptions.RequestException:
-            logging.info(f"Pytriton server not ready yet. Retrying in {retry_interval} seconds...")
+            logging.info(
+                f"Pytriton server not ready yet. Retrying in {retry_interval} seconds..."
+            )
 
         # Wait before retrying
         time.sleep(retry_interval)
 
-    logging.error(f"Server or model '{model_name}' not ready after {max_retries} attempts.")
+    logging.error(
+        f"Server or model '{model_name}' not ready after {max_retries} attempts."
+    )
     return False
 
 
 def wait_for_server_ready(
-    url: str = 'http://0.0.0.0:8000',
+    url: str = "http://0.0.0.0:8000",
     triton_http_port: int = 8000,
-    model_name: str = 'triton_model',
+    model_name: str = "triton_model",
     max_retries: int = 600,
     retry_interval: int = 2,
 ):
@@ -341,7 +382,9 @@ def wait_for_server_ready(
         match = re.search(pattern, url)
         grpc_port = match.group(1)
         # Replace 'grpc' with 'http' and replace the grpc_port with http port
-        url = url.replace("grpc://", "http://").replace(f":{grpc_port}", f":{triton_http_port}")
+        url = url.replace("grpc://", "http://").replace(
+            f":{grpc_port}", f":{triton_http_port}"
+        )
     health_url = f"{url}/v2/health/ready"
 
     for _ in range(max_retries):
@@ -351,7 +394,9 @@ def wait_for_server_ready(
             # Check server readiness using HTTP health endpoint
             response = requests.get(health_url)
             if response.status_code != 200:
-                logging.info(f"Server is not ready. HTTP status code: {response.status_code}")
+                logging.info(
+                    f"Server is not ready. HTTP status code: {response.status_code}"
+                )
                 time.sleep(retry_interval)
                 continue
             logging.info("Server is ready.")
@@ -366,12 +411,16 @@ def wait_for_server_ready(
         except PyTritonClientModelUnavailableError:
             logging.info(f"Model '{model_name}' is unavailable on the server.")
         except requests.exceptions.RequestException:
-            logging.info(f"Pytriton server not ready yet. Retrying in {retry_interval} seconds...")
+            logging.info(
+                f"Pytriton server not ready yet. Retrying in {retry_interval} seconds..."
+            )
 
         # Wait before retrying
         time.sleep(retry_interval)
 
-    logging.error(f"Server or model '{model_name}' not ready after {max_retries} attempts.")
+    logging.error(
+        f"Server or model '{model_name}' not ready after {max_retries} attempts."
+    )
     return False
 
 
@@ -398,7 +447,8 @@ def find_framework(eval_task: str) -> str:
             "Please ensure that core_evals is installed in your env as it is required to run evaluations"
         )
     discovered_modules = {
-        name: importlib.import_module('.input', package=name) for finder, name, ispkg in _iter_namespace(core_evals)
+        name: importlib.import_module(".input", package=name)
+        for finder, name, ispkg in _iter_namespace(core_evals)
     }
 
     for framework_name, input_module in discovered_modules.items():
@@ -438,11 +488,15 @@ def _legacy_evaluate(
 
     # Get tokenizer from nemo ckpt. This works only with NeMo 2.0 ckpt.
     endpoint = target_cfg.api_endpoint
-    tokenizer = io.load_context(endpoint.nemo_checkpoint_path + "/context", subpath="model.tokenizer")
+    tokenizer = io.load_context(
+        endpoint.nemo_checkpoint_path + "/context", subpath="model.tokenizer"
+    )
 
     # Wait for server to be ready before starting evaluation
     server_ready = wait_for_server_ready(
-        url=endpoint.url, triton_http_port=endpoint.nemo_triton_http_port, model_name=endpoint.model_id
+        url=endpoint.url,
+        triton_http_port=endpoint.nemo_triton_http_port,
+        model_name=endpoint.model_id,
     )
     if not server_ready:
         raise RuntimeError("Server not ready for evaluation")

@@ -60,7 +60,7 @@ def render_image_with_occgrid(
         t_origins = chunk_rays.origins[ray_indices]
         t_dirs = chunk_rays.viewdirs[ray_indices]
         positions = t_origins + t_dirs * (t_starts + t_ends)[:, None] / 2.0
-        sigmas = nerf.density(positions)['sigma']
+        sigmas = nerf.density(positions)["sigma"]
         return sigmas
 
     def rgb_sigma_fn(t_starts, t_ends, ray_indices):
@@ -104,7 +104,8 @@ def render_image_with_occgrid(
         results.append(chunk_results)
 
     colors, opacities, depths, weights, alphas, n_rendering_samples = [
-        torch.cat(r, dim=0) if isinstance(r[0], torch.Tensor) else r for r in zip(*results)
+        torch.cat(r, dim=0) if isinstance(r[0], torch.Tensor) else r
+        for r in zip(*results)
     ]
 
     return (
@@ -177,7 +178,9 @@ def render_image_with_occgrid_test(
         t_sorted, t_indices = torch.sort(torch.cat([t_mins, t_maxs], -1), -1)
     else:
         t_sorted = torch.cat([t_mins, t_maxs], -1)
-        t_indices = torch.arange(0, n_grids * 2, device=t_mins.device, dtype=torch.int64).expand(num_rays, n_grids * 2)
+        t_indices = torch.arange(
+            0, n_grids * 2, device=t_mins.device, dtype=torch.int64
+        ).expand(num_rays, n_grids * 2)
 
     opc_thre = 1 - early_stop_eps
 
@@ -239,13 +242,22 @@ def render_image_with_occgrid_test(
             )
 
         accumulate_along_rays_(
-            weights, values=rgbs, ray_indices=ray_indices, outputs=rgb,
+            weights,
+            values=rgbs,
+            ray_indices=ray_indices,
+            outputs=rgb,
         )
         accumulate_along_rays_(
-            weights, values=None, ray_indices=ray_indices, outputs=opacity,
+            weights,
+            values=None,
+            ray_indices=ray_indices,
+            outputs=opacity,
         )
         accumulate_along_rays_(
-            weights, values=(t_starts + t_ends)[..., None] / 2.0, ray_indices=ray_indices, outputs=depth,
+            weights,
+            values=(t_starts + t_ends)[..., None] / 2.0,
+            ray_indices=ray_indices,
+            outputs=depth,
         )
         # update near_planes using termination planes
         near_planes = termination_planes
@@ -295,7 +307,9 @@ class NerfaccVolumeBaseRenderer(BaseRenderer):
         self.alpha_thre = alpha_thre
         self.nerf = None
 
-        self.estimator = OccGridEstimator(roi_aabb=self.aabb, resolution=self.grid_resolution, levels=self.grid_levels)
+        self.estimator = OccGridEstimator(
+            roi_aabb=self.aabb, resolution=self.grid_resolution, levels=self.grid_levels
+        )
 
     @torch.no_grad()  # TODO(ahmadki)
     def update_step(
@@ -306,7 +320,7 @@ class NerfaccVolumeBaseRenderer(BaseRenderer):
         decay: float = 0.95,
         occ_thre: float = 0.01,
         warmup_steps: int = 256,
-        **kwargs
+        **kwargs,
     ):
         def occ_eval_fn(x):
             density = self.nerf.forward_density(x)
@@ -321,7 +335,18 @@ class NerfaccVolumeBaseRenderer(BaseRenderer):
             n=update_interval,
         )
 
-    def forward(self, rays_o, rays_d, mvp, h, w, staged=False, max_ray_batch=4096, step=None, **kwargs):
+    def forward(
+        self,
+        rays_o,
+        rays_d,
+        mvp,
+        h,
+        w,
+        staged=False,
+        max_ray_batch=4096,
+        step=None,
+        **kwargs,
+    ):
         return self._render(rays_o=rays_o, rays_d=rays_d, step=step, **kwargs)
 
     def _render(
@@ -330,13 +355,13 @@ class NerfaccVolumeBaseRenderer(BaseRenderer):
         rays_d,
         light_d=None,
         ambient_ratio=1.0,
-        shading='albedo',
+        shading="albedo",
         bg_color=None,
         perturb=False,
         T_thresh=1e-4,
         binarize=False,
         step=None,
-        **kwargs
+        **kwargs,
     ):
         rays_o = rays_o.contiguous().view(-1, 3)
         rays_d = rays_d.contiguous().view(-1, 3)
@@ -346,33 +371,37 @@ class NerfaccVolumeBaseRenderer(BaseRenderer):
         rays = Rays(origins=rays_o, viewdirs=rays_d)
 
         if self.training:
-            rgb, acc, depth, weights, alphas, n_rendering_samples = render_image_with_occgrid(
-                nerf=self.nerf,
-                estimator=self.estimator,
-                rays=rays,
-                near_plane=self.near_plane,
-                render_step_size=self.render_step_size,
-                render_bkgd=bg_color,
-                cone_angle=self.cone_angle,
-                alpha_thre=self.alpha_thre,
+            rgb, acc, depth, weights, alphas, n_rendering_samples = (
+                render_image_with_occgrid(
+                    nerf=self.nerf,
+                    estimator=self.estimator,
+                    rays=rays,
+                    near_plane=self.near_plane,
+                    render_step_size=self.render_step_size,
+                    render_bkgd=bg_color,
+                    cone_angle=self.cone_angle,
+                    alpha_thre=self.alpha_thre,
+                )
             )
         else:
-            rgb, acc, depth, weights, alphas, n_rendering_samples = render_image_with_occgrid_test(
-                max_samples=1024,
-                nerf=self.nerf,
-                estimator=self.estimator,
-                rays=rays,
-                near_plane=self.near_plane,
-                render_step_size=self.render_step_size,
-                render_bkgd=bg_color,
-                cone_angle=self.cone_angle,
-                alpha_thre=self.alpha_thre,
+            rgb, acc, depth, weights, alphas, n_rendering_samples = (
+                render_image_with_occgrid_test(
+                    max_samples=1024,
+                    nerf=self.nerf,
+                    estimator=self.estimator,
+                    rays=rays,
+                    near_plane=self.near_plane,
+                    render_step_size=self.render_step_size,
+                    render_bkgd=bg_color,
+                    cone_angle=self.cone_angle,
+                    alpha_thre=self.alpha_thre,
+                )
             )
 
         results = {}
-        results['weights'] = weights
-        results['image'] = rgb.view(1, -1, 3)
-        results['depth'] = depth.view(1, -1)
-        results['weights_sum'] = acc.view(1, -1)
+        results["weights"] = weights
+        results["image"] = rgb.view(1, -1, 3)
+        results["depth"] = depth.view(1, -1)
+        results["weights_sum"] = acc.view(1, -1)
 
         return results

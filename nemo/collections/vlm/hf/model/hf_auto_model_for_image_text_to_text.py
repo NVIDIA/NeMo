@@ -32,7 +32,7 @@ class HFAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
 
     def __init__(
         self,
-        model_name='gpt2',
+        model_name="gpt2",
         load_pretrained_weights=True,
         processor=None,
         loss_fn=masked_cross_entropy,
@@ -79,7 +79,9 @@ class HFAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
     @staticmethod
     def configure_processor(model_name, trust_remote_code=False):
         """Initializes an AutoProcessor and returns the instance"""
-        return AutoProcessor.from_pretrained(model_name, trust_remote_code=trust_remote_code)
+        return AutoProcessor.from_pretrained(
+            model_name, trust_remote_code=trust_remote_code
+        )
 
     @FirstRankPerNode()
     def configure_model(self):
@@ -98,14 +100,16 @@ class HFAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
         if self.load_pretrained_weights:
             self.model = AutoModelForImageTextToText.from_pretrained(
                 self.model_name,
-                torch_dtype='auto',
+                torch_dtype="auto",
                 trust_remote_code=self.trust_remote_code,
                 quantization_config=quantization_config,
                 **self.kwargs,
             )
         else:
-            config = AutoConfig.from_pretrained(self.model_name, trust_remote_code=self.trust_remote_code)
-            dtype = getattr(config, 'torch_dtype', self.default_dtype)
+            config = AutoConfig.from_pretrained(
+                self.model_name, trust_remote_code=self.trust_remote_code
+            )
+            dtype = getattr(config, "torch_dtype", self.default_dtype)
             self.model = AutoModelForImageTextToText.from_config(
                 config, torch_dtype=dtype, trust_remote_code=self.trust_remote_code
             )
@@ -114,7 +118,7 @@ class HFAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
         self.freeze_model()
 
         # Ugly hack for PEFT: adapters are added here so that can be wrapped correctly with DDP.
-        if getattr(self, 'model_transform', None) is not None:
+        if getattr(self, "model_transform", None) is not None:
             self.model_transform(self)
             self.model_transform.__num_calls__ = 0
 
@@ -125,11 +129,15 @@ class HFAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
     def training_step(self, batch, batch_idx=None):
         """Run one training step"""
         if isinstance(self.trainer.strategy.checkpoint_io, io.pl.MegatronCheckpointIO):
-            logging.warning("Switching CheckpointIO from MegatronCheckpointIO to HFCheckpointIO.")
-            self.trainer.strategy.checkpoint_io = self.make_checkpoint_io(self._has_lora_adapter)
+            logging.warning(
+                "Switching CheckpointIO from MegatronCheckpointIO to HFCheckpointIO."
+            )
+            self.trainer.strategy.checkpoint_io = self.make_checkpoint_io(
+                self._has_lora_adapter
+            )
 
-        labels = batch.pop('labels').to(self.model.device)
-        loss_mask = batch.pop('loss_mask', None)
+        labels = batch.pop("labels").to(self.model.device)
+        loss_mask = batch.pop("loss_mask", None)
 
         outputs = self.forward(batch)
 
@@ -138,16 +146,18 @@ class HFAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
         logits = logits.view(-1, n_cls)
         labels = labels.view(-1)
 
-        assert logits.shape[-2] == labels.shape[-1], "Expected logits & labels to have the same length"
+        assert (
+            logits.shape[-2] == labels.shape[-1]
+        ), "Expected logits & labels to have the same length"
         loss = self.loss_fn(logits, labels, loss_mask)
-        self.log('train_loss', loss, on_step=True, on_epoch=True, prog_bar=True)
+        self.log("train_loss", loss, on_step=True, on_epoch=True, prog_bar=True)
         return loss
 
     @torch.no_grad
     def validation_step(self, batch, batch_idx):
         """Run one validation step"""
-        labels = batch.pop('labels').to(self.model.device)
-        loss_mask = batch.pop('loss_mask', None)
+        labels = batch.pop("labels").to(self.model.device)
+        loss_mask = batch.pop("loss_mask", None)
 
         outputs = self.forward(**batch)
 
@@ -156,10 +166,12 @@ class HFAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
         logits = logits.view(-1, n_cls)
         labels = labels.view(-1)
 
-        assert logits.shape[-2] == labels.shape[-1], "Expected logits & labels to have the same length"
+        assert (
+            logits.shape[-2] == labels.shape[-1]
+        ), "Expected logits & labels to have the same length"
         loss = self.loss_fn(logits, labels, loss_mask)
 
-        self.log('val_loss', loss, on_step=True, on_epoch=True, prog_bar=True)
+        self.log("val_loss", loss, on_step=True, on_epoch=True, prog_bar=True)
 
     def save_pretrained(self, path, state_dict):
         """
@@ -177,11 +189,11 @@ class HFAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
         """
         assert self.model is not None, "Model has to be created first."
 
-        def pop_fqn_prefix(fqn, expected_prefix='model'):
+        def pop_fqn_prefix(fqn, expected_prefix="model"):
             """pops prefix from FQN"""
-            parts = fqn.split('.')
+            parts = fqn.split(".")
             assert parts[0] == expected_prefix
-            return '.'.join(parts[1:])
+            return ".".join(parts[1:])
 
         # Remove the "model." prefix from FQNs.
         # Context: calling state_dict on an HFAutoModelForCausalLM, will prepend "model." in the
@@ -198,8 +210,10 @@ class HFAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
                 state_dict[new_key] = val
 
         if len(io_bytes_state) > 0:
-            logging.warning("State-dict contains _io.BytesIO, those will be saved separately to `io_bytes.pt`.")
-            torch.save(io_bytes_state, path / 'io_bytes.pt')
+            logging.warning(
+                "State-dict contains _io.BytesIO, those will be saved separately to `io_bytes.pt`."
+            )
+            torch.save(io_bytes_state, path / "io_bytes.pt")
 
         self.model.save_pretrained(path, state_dict=state_dict)
         if self._processor is not None:
@@ -212,20 +226,20 @@ class HFAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
         """Returns list of tokens to mask in labels"""
         # qweb2-2b
         QWEN_TOKENS = [
-            '<|im_start|>',
-            '<|im_end|>',
-            '<|vision_start|>',
-            '<|vision_end|>',
-            '<|vision_pad|>',
-            '<|image_pad|>',
-            '<|video_pad|>',
-            '<|im_start|>',
-            '<|im_end|>',
-            '<|vision_start|>',
-            '<|vision_end|>',
-            '<|vision_pad|>',
-            '<|image_pad|>',
-            '<|video_pad|>',
+            "<|im_start|>",
+            "<|im_end|>",
+            "<|vision_start|>",
+            "<|vision_end|>",
+            "<|vision_pad|>",
+            "<|image_pad|>",
+            "<|video_pad|>",
+            "<|im_start|>",
+            "<|im_end|>",
+            "<|vision_start|>",
+            "<|vision_end|>",
+            "<|vision_pad|>",
+            "<|image_pad|>",
+            "<|video_pad|>",
         ]
         # llava-1.5-7b-hf, llava-v1.6-mistral-7b-hf
         LLAVA_TOKENS = [
@@ -233,22 +247,22 @@ class HFAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
             "<pad>",
         ]
         LLAMA_TOKENS = [
-            '<|begin_of_text|>',
-            '<|end_of_text|>',
-            '<|finetune_right_pad_id|>',
-            '<|step_id|>',
-            '<|start_header_id|>',
-            '<|end_header_id|>',
-            '<|eom_id|>',
-            '<|eot_id|>',
-            '<|python_tag|>',
-            '<|image|>',
+            "<|begin_of_text|>",
+            "<|end_of_text|>",
+            "<|finetune_right_pad_id|>",
+            "<|step_id|>",
+            "<|start_header_id|>",
+            "<|end_header_id|>",
+            "<|eom_id|>",
+            "<|eot_id|>",
+            "<|python_tag|>",
+            "<|image|>",
         ]
         GEMMA_TOKENS = [
-            '<image_soft_token>',
+            "<image_soft_token>",
         ]
         PAD_TOKENS = set(QWEN_TOKENS + LLAVA_TOKENS + LLAMA_TOKENS + GEMMA_TOKENS)
-        tokenizer = getattr(tokenizer, 'tokenizer', tokenizer)
+        tokenizer = getattr(tokenizer, "tokenizer", tokenizer)
         skipped_token_ids = []
         for key, val in tokenizer.added_tokens_decoder.items():
             if str(val) in PAD_TOKENS:
@@ -256,25 +270,33 @@ class HFAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
         return torch.IntTensor(list(set(skipped_token_ids)))
 
     def freeze_model(self) -> None:
-        '''
+        """
         Freezes the language and vision models
-        '''
+        """
         modules = []
 
         # Search for language model, atmost one is allowed
         language_model = None
         for attr in dir(self.model):
-            if attr.startswith('language') and isinstance(getattr(self.model, attr), torch.nn.Module):
+            if attr.startswith("language") and isinstance(
+                getattr(self.model, attr), torch.nn.Module
+            ):
                 if language_model is not None:
-                    raise ValueError(f"Found multiple language models: {language_model} and {attr}")
+                    raise ValueError(
+                        f"Found multiple language models: {language_model} and {attr}"
+                    )
                 language_model = getattr(self.model, attr)
 
         # Search for vision model, atmost one is allowed
         vision_model = None
         for attr in dir(self.model):
-            if attr.startswith('vision') and isinstance(getattr(self.model, attr), torch.nn.Module):
+            if attr.startswith("vision") and isinstance(
+                getattr(self.model, attr), torch.nn.Module
+            ):
                 if vision_model is not None:
-                    raise ValueError(f"Found multiple vision models: {vision_model} and {attr}")
+                    raise ValueError(
+                        f"Found multiple vision models: {vision_model} and {attr}"
+                    )
                 vision_model = getattr(self.model, attr)
 
         if self.freeze_language_model and language_model is not None:
@@ -288,7 +310,7 @@ class HFAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
 
     @property
     def _has_lora_adapter(self):
-        return any(map(lambda x: 'lora' in x[0].lower(), self.named_modules()))
+        return any(map(lambda x: "lora" in x[0].lower(), self.named_modules()))
 
     def make_checkpoint_io(self, adapter_only=False):
         """

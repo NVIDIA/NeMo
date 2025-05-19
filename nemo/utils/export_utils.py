@@ -85,11 +85,13 @@ def get_export_format(filename: str):
     try:
         return _EXT_DICT[ext.lower()]
     except KeyError:
-        raise ValueError(f"Export file {filename} extension does not correspond to any export format!")
+        raise ValueError(
+            f"Export file {filename} extension does not correspond to any export format!"
+        )
 
 
 def augment_filename(output: str, prepend: str):
-    if prepend == 'self':
+    if prepend == "self":
         return output
 
     path, filename = os.path.split(output)
@@ -149,14 +151,17 @@ def verify_torchscript(model, output, input_examples, check_tolerance=0.01):
     for input_example in input_examples:
         input_list, input_dict = parse_input_example(input_example)
         # We disable autocast here to make sure exported TS will run under Triton or other C++ env
-        with torch.amp.autocast('cuda', enabled=False):
+        with torch.amp.autocast("cuda", enabled=False):
             output_example = model.forward(*input_list, **input_dict)
             ts_model = torch.jit.load(output)
             all_good = all_good and run_ts_and_compare(
                 ts_model, input_list, input_dict, output_example, check_tolerance
             )
     status = "SUCCESS" if all_good else "FAIL"
-    logging.info(f"Torchscript generated at {output} verified with torchscript forward : " + status)
+    logging.info(
+        f"Torchscript generated at {output} verified with torchscript forward : "
+        + status
+    )
     return all_good
 
 
@@ -166,13 +171,19 @@ def verify_runtime(model, output, input_examples, input_names, check_tolerance=0
 
     global ort_available
     if not ort_available:
-        logging.warning(f"ONNX generated at {output}, not verified - please install onnxruntime_gpu package.\n")
+        logging.warning(
+            f"ONNX generated at {output}, not verified - please install onnxruntime_gpu package.\n"
+        )
         onnx.checker.check_model(onnx_model, full_check=True)
         return
     onnx_session_opt = onnxruntime.SessionOptions()
-    onnx_session_opt.graph_optimization_level = onnxruntime.GraphOptimizationLevel.ORT_ENABLE_BASIC
+    onnx_session_opt.graph_optimization_level = (
+        onnxruntime.GraphOptimizationLevel.ORT_ENABLE_BASIC
+    )
     sess = onnxruntime.InferenceSession(
-        onnx_model.SerializeToString(), sess_options=onnx_session_opt, providers=['CUDAExecutionProvider']
+        onnx_model.SerializeToString(),
+        sess_options=onnx_session_opt,
+        providers=["CUDAExecutionProvider"],
     )
     del onnx_model
     all_good = True
@@ -181,14 +192,20 @@ def verify_runtime(model, output, input_examples, input_names, check_tolerance=0
         output_example = model.forward(*input_list, **input_dict)
         if not isinstance(output_example, tuple):
             output_example = (output_example,)
-        ort_input = to_onnxrt_input(ort_input_names, input_names, input_dict, input_list)
-        all_good = all_good and run_ort_and_compare(sess, ort_input, output_example, check_tolerance)
+        ort_input = to_onnxrt_input(
+            ort_input_names, input_names, input_dict, input_list
+        )
+        all_good = all_good and run_ort_and_compare(
+            sess, ort_input, output_example, check_tolerance
+        )
     status = "SUCCESS" if all_good else "FAIL"
     logging.info(f"ONNX generated at {output} verified with onnxruntime : " + status)
     return all_good
 
 
-def run_ts_and_compare(ts_model, ts_input_list, ts_input_dict, output_example, check_tolerance=0.01):
+def run_ts_and_compare(
+    ts_model, ts_input_list, ts_input_dict, output_example, check_tolerance=0.01
+):
     # Verify the model can be read, and is valid
     ts_out = ts_model(*ts_input_list, **ts_input_dict)
 
@@ -197,16 +214,20 @@ def run_ts_and_compare(ts_model, ts_input_list, ts_input_dict, output_example, c
         expected = output_example[i]
 
         if torch.is_tensor(expected):
-            tout = out.to('cpu')
+            tout = out.to("cpu")
             logging.debug(f"Checking output {i}, shape: {expected.shape}:\n")
             this_good = True
             try:
-                if not torch.allclose(tout, expected.cpu(), rtol=check_tolerance, atol=check_tolerance):
+                if not torch.allclose(
+                    tout, expected.cpu(), rtol=check_tolerance, atol=check_tolerance
+                ):
                     this_good = False
             except Exception:  # there may ne size mismatch and it may be OK
                 this_good = False
             if not this_good:
-                logging.info(f"Results mismatch! PyTorch(expected):\n{expected}\nTorchScript:\n{tout}")
+                logging.info(
+                    f"Results mismatch! PyTorch(expected):\n{expected}\nTorchScript:\n{tout}"
+                )
                 all_good = False
     return all_good
 
@@ -223,7 +244,12 @@ def run_ort_and_compare(sess, ort_input, output_example, check_tolerance=0.01):
             logging.debug(f"Checking output {i}, shape: {expected.shape}:\n")
             this_good = True
             try:
-                if not torch.allclose(tout, expected.cpu(), rtol=check_tolerance, atol=100 * check_tolerance):
+                if not torch.allclose(
+                    tout,
+                    expected.cpu(),
+                    rtol=check_tolerance,
+                    atol=100 * check_tolerance,
+                ):
                     this_good = False
             except Exception:  # there may be size mismatch and it may be OK
                 this_good = False
@@ -269,7 +295,9 @@ try:
             return None
 
         n_state = n.state_dict()
-        mod = nn.LayerNorm(shape, eps=eps, elementwise_affine=affine, device=p.device, dtype=p.dtype)
+        mod = nn.LayerNorm(
+            shape, eps=eps, elementwise_affine=affine, device=p.device, dtype=p.dtype
+        )
 
         mod.load_state_dict(n_state, strict=True)
 
@@ -287,7 +315,7 @@ try:
         p = next(n.parameters())
 
         if isinstance(n, MixedFusedRMSNorm):
-            mod = TorchRMSNorm(n.state_dict()['weight'], n.eps).to(p.device)
+            mod = TorchRMSNorm(n.state_dict()["weight"], n.eps).to(p.device)
         else:
             return None
 
@@ -301,8 +329,12 @@ try:
         Returns:
            Equivalent Linear module
         """
-        if not (isinstance(n, ColumnParallelLinear) or isinstance(n, RowParallelLinear)):
-            raise ValueError("This function can only change the ColumnParallelLinear or RowParallelLinear module.")
+        if not (
+            isinstance(n, ColumnParallelLinear) or isinstance(n, RowParallelLinear)
+        ):
+            raise ValueError(
+                "This function can only change the ColumnParallelLinear or RowParallelLinear module."
+            )
 
         dev = next(n.parameters()).device
         mod = LinearWithBiasSkip(n.weight, n.bias, n.skip_bias_add).to(dev)
@@ -320,12 +352,20 @@ try:
            Equivalent LayerNorm module
         """
         if not isinstance(n, FusedScaleMaskSoftmax):
-            logging.warning(f"This function can only change the FusedScaleMaskSoftmax module, got: {n.__class__}")
+            logging.warning(
+                f"This function can only change the FusedScaleMaskSoftmax module, got: {n.__class__}"
+            )
             return n
 
         # disable the fusion only
         mod = FusedScaleMaskSoftmax(
-            n.input_in_fp16, n.input_in_bf16, n.attn_mask_type, False, n.mask_func, n.softmax_in_fp32, n.scale
+            n.input_in_fp16,
+            n.input_in_bf16,
+            n.attn_mask_type,
+            False,
+            n.mask_func,
+            n.softmax_in_fp32,
+            n.scale,
         )
 
         return mod
@@ -346,7 +386,9 @@ except Exception as e:
     apex_available = False
 
 
-def simple_replace(BaseT: Type[nn.Module], DestT: Type[nn.Module]) -> Callable[[nn.Module], Optional[nn.Module]]:
+def simple_replace(
+    BaseT: Type[nn.Module], DestT: Type[nn.Module]
+) -> Callable[[nn.Module], Optional[nn.Module]]:
     """
     Generic function generator to replace BaseT module with DestT. BaseT and DestT should have same atrributes. No weights are copied.
     Args:
@@ -380,12 +422,20 @@ def replace_MatchedScaleMaskSoftmax(n: nn.Module) -> Optional[nn.Linear]:
 
     # disabling fusion for the MatchedScaleMaskSoftmax
     mod = MatchedScaleMaskSoftmax(
-        n.input_in_fp16, n.input_in_bf16, n.attn_mask_type, False, n.mask_func, n.softmax_in_fp32, n.scale
+        n.input_in_fp16,
+        n.input_in_bf16,
+        n.attn_mask_type,
+        False,
+        n.mask_func,
+        n.softmax_in_fp32,
+        n.scale,
     )
     return mod
 
 
-def wrap_module(BaseT: Type[nn.Module], DestT: Type[nn.Module]) -> Callable[[nn.Module], Optional[nn.Module]]:
+def wrap_module(
+    BaseT: Type[nn.Module], DestT: Type[nn.Module]
+) -> Callable[[nn.Module], Optional[nn.Module]]:
     """
     Generic function generator to replace BaseT module with DestT wrapper.
     Args:
@@ -421,7 +471,8 @@ def swap_modules(model: nn.Module, mapping: Dict[str, nn.Module]):
 
 
 def replace_modules(
-    model: nn.Module, expansions: Dict[str, Callable[[nn.Module], Optional[nn.Module]]] = None
+    model: nn.Module,
+    expansions: Dict[str, Callable[[nn.Module], Optional[nn.Module]]] = None,
 ) -> nn.Module:
     """
     Top-level function to replace modules in model, specified by class name with a desired replacement.

@@ -97,7 +97,10 @@ def to_imgstr(image_tokens, tokenizer):
     """Convert integer image tokens to visual tokens string"""
     image_tokens = image_tokens.cpu().numpy().tolist()
     image_token_str = [
-        ['<|visual token {token_id:0>6d}|>'.format(token_id=token_id) for token_id in token_row]
+        [
+            "<|visual token {token_id:0>6d}|>".format(token_id=token_id)
+            for token_id in token_row
+        ]
         for token_row in image_tokens
     ]
     image_row_str = ["".join(token_row) for token_row in image_token_str]
@@ -114,20 +117,24 @@ def load_prompts(cfg, image_tokenizer, tokenizer):
     text = "Please describe the image"
     for image_path in cfg.images_path:
         image = Image.open(image_path)
-        image_tensor = torchvision.transforms.functional.pil_to_tensor(image).unsqueeze(0)
-        image_tokens = image_tokenizer.encode(image_tensor.to(image_tokenizer.device, image_tokenizer.dtype))
+        image_tensor = torchvision.transforms.functional.pil_to_tensor(image).unsqueeze(
+            0
+        )
+        image_tokens = image_tokenizer.encode(
+            image_tensor.to(image_tokenizer.device, image_tokenizer.dtype)
+        )
         bs, h, w = image_tokens.shape
         imgstr = to_imgstr(image_tokens[0], tokenizer=tokenizer)
         image_prompt = (
             tokenizer.boi_token
-            + f'{h}*{w}'
+            + f"{h}*{w}"
             + tokenizer.img_token
             + imgstr
             + tokenizer.eol_token
             + tokenizer.eof_token
             + tokenizer.eoi_token
         )
-        prompt = f'{tokenizer.bos_token}You are a helpful assistant. USER: {image_prompt}{text}. ASSISTANT:'
+        prompt = f"{tokenizer.bos_token}You are a helpful assistant. USER: {image_prompt}{text}. ASSISTANT:"
         prompts.append(prompt)
     return prompts
 
@@ -136,13 +143,15 @@ if not torch.cuda.is_available():
     raise EnvironmentError("GPU is needed for the inference")
 
 
-@hydra_runner(config_path="conf", config_name="megatron_mm_ar_inference_vision_understanding")
+@hydra_runner(
+    config_path="conf", config_name="megatron_mm_ar_inference_vision_understanding"
+)
 def main(cfg) -> None:
     """Main function"""
 
     callbacks = []
     # enable_progress_bar is True by default. If cfg.trainer.enable_progress_bar=False, CustomProgressBar is not appended to callbacks
-    if 'enable_progress_bar' not in cfg.trainer or cfg.trainer.enable_progress_bar:
+    if "enable_progress_bar" not in cfg.trainer or cfg.trainer.enable_progress_bar:
         callbacks.append(CustomProgressBar())
     # trainer required for restoring model parallel models
     trainer = Trainer(
@@ -152,7 +161,9 @@ def main(cfg) -> None:
     )
 
     tokenizer = AutoTokenizer.from_pretrained(EMU_HUB, trust_remote_code=True)
-    image_tokenizer = AutoModel.from_pretrained(VQ_HUB, device_map="cuda", trust_remote_code=True).eval()
+    image_tokenizer = AutoModel.from_pretrained(
+        VQ_HUB, device_map="cuda", trust_remote_code=True
+    ).eval()
 
     model = load_model_from_config(trainer, cfg)
     model.freeze()
@@ -189,10 +200,12 @@ def main(cfg) -> None:
         padded_len = round_to_mult(len(prompts), 8)
         nb_paddings = padded_len - len(prompts)
         if nb_paddings > 0:
-            nb_paddings += [''] * nb_paddings
+            nb_paddings += [""] * nb_paddings
 
     # First method of running text generation, call model.generate method
-    response = model.generate(inputs=prompts, length_params=length_params, sampling_params=sampling_params)
+    response = model.generate(
+        inputs=prompts, length_params=length_params, sampling_params=sampling_params
+    )
 
     if fp8_enabled:
         response = remove_padded_prompts(response, nb_paddings)
@@ -215,5 +228,5 @@ def main(cfg) -> None:
     print("***************************")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()  # noqa pylint: disable=no-value-for-parameter

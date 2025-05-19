@@ -28,20 +28,20 @@ from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.util 
 
 
 class ParaDDIMSampler(AbstractBaseSampler):
-    """ Parallel version of DDIM sampler. Utilizes Parallel Sampling (https://arxiv.org/abs/2305.16317).
-        It reduces the latency of a model, but the total compute cost is increased.
+    """Parallel version of DDIM sampler. Utilizes Parallel Sampling (https://arxiv.org/abs/2305.16317).
+    It reduces the latency of a model, but the total compute cost is increased.
 
-        The main three parameters that affect the performance of the algorithm are:
-            Parallelism (int): Defines the maximal size of the window. That many diffusion steps can happen in
-                parallel.
-            Tolerance (float): Sets the maximal error tolerance defined as a ratio between drift of the trajectory
-                and noise. The larger the tolerance the faster the method is. The smaller the tolerance the better
-                quality output is achieved.
-            Number of GPUs (int): Number of GPUs utilizing DataParallel parallelism to compute diffusion steps in
-                parallel.
+    The main three parameters that affect the performance of the algorithm are:
+        Parallelism (int): Defines the maximal size of the window. That many diffusion steps can happen in
+            parallel.
+        Tolerance (float): Sets the maximal error tolerance defined as a ratio between drift of the trajectory
+            and noise. The larger the tolerance the faster the method is. The smaller the tolerance the better
+            quality output is achieved.
+        Number of GPUs (int): Number of GPUs utilizing DataParallel parallelism to compute diffusion steps in
+            parallel.
 
-        Different combination of these parameters values can result in different latency-quality-compute trade-off.
-        For more details please refer to the Parallel Sampling paper (https://arxiv.org/abs/2305.16317).
+    Different combination of these parameters values can result in different latency-quality-compute trade-off.
+    For more details please refer to the Parallel Sampling paper (https://arxiv.org/abs/2305.16317).
     """
 
     def __init__(self, model, **kwargs):
@@ -77,8 +77,14 @@ class ParaDDIMSampler(AbstractBaseSampler):
 
         device = self.model.betas.device
         size = (batch_size, *per_latent_shape)
-        x_T = torch.randn(size, generator=self.model.rng, device=device) if x_T is None else x_T
-        time_range = np.flip(self.ddim_timesteps).copy()  # Make a copy to resolve issue with negative strides
+        x_T = (
+            torch.randn(size, generator=self.model.rng, device=device)
+            if x_T is None
+            else x_T
+        )
+        time_range = np.flip(
+            self.ddim_timesteps
+        ).copy()  # Make a copy to resolve issue with negative strides
 
         # Processing window of timesteps [window_start, window_end) in parallel
         window_start = 0
@@ -101,7 +107,7 @@ class ParaDDIMSampler(AbstractBaseSampler):
         latent_dim = noises[0, 0].numel()
         inverse_variance_norm = inverse_variance[:, None] / latent_dim
 
-        scaled_tolerance = tolerance ** 2
+        scaled_tolerance = tolerance**2
 
         with tqdm(total=steps) as progress_bar:
             while window_start < steps:
@@ -109,11 +115,13 @@ class ParaDDIMSampler(AbstractBaseSampler):
 
                 # Prepare the input to the model. Model will perform window_size noise predictions in parallel
                 window_cond = torch.stack([cond] * window_size)
-                window_uncond_cond = torch.stack([unconditional_conditioning] * window_size)
-                window_latents = latents[window_start:window_end]
-                window_timesteps = torch.tensor(time_range[window_start:window_end], device=device).repeat(
-                    1, batch_size
+                window_uncond_cond = torch.stack(
+                    [unconditional_conditioning] * window_size
                 )
+                window_latents = latents[window_start:window_end]
+                window_timesteps = torch.tensor(
+                    time_range[window_start:window_end], device=device
+                ).repeat(1, batch_size)
 
                 # Reshape (w, b, ...) -> (w * b, ...)
                 latents_input = window_latents.flatten(0, 1)
@@ -155,17 +163,23 @@ class ParaDDIMSampler(AbstractBaseSampler):
 
                 # Calculate the error
                 error = torch.linalg.norm(
-                    (block_latents_new - latents[window_start + 1 : window_end + 1]).reshape(
-                        window_size, batch_size, -1
-                    ),
+                    (
+                        block_latents_new - latents[window_start + 1 : window_end + 1]
+                    ).reshape(window_size, batch_size, -1),
                     dim=-1,
                 ).pow(2)
 
                 # Calculate error magnitude
-                error_magnitude = error * inverse_variance_norm[window_start + 1 : window_end + 1]
+                error_magnitude = (
+                    error * inverse_variance_norm[window_start + 1 : window_end + 1]
+                )
                 # Pad so at least one value exceeds tolerance
-                error_magnitude = nn.functional.pad(error_magnitude, (0, 0, 0, 1), value=1e9)
-                error_exceeding = torch.max(error_magnitude > scaled_tolerance, dim=1).values.int()
+                error_magnitude = nn.functional.pad(
+                    error_magnitude, (0, 0, 0, 1), value=1e9
+                )
+                error_exceeding = torch.max(
+                    error_magnitude > scaled_tolerance, dim=1
+                ).values.int()
 
                 # Find how many diffusion steps have error below given threshold tolerance and shift the window
                 ind = torch.argmax(error_exceeding).item()
@@ -174,9 +188,7 @@ class ParaDDIMSampler(AbstractBaseSampler):
 
                 # Update the trajectory
                 latents[window_start + 1 : window_end + 1] = block_latents_new
-                latents[window_end : new_window_end + 1] = latents[window_end][
-                    None,
-                ]
+                latents[window_end : new_window_end + 1] = latents[window_end][None,]
 
                 progress_bar.update(new_window_start - window_start)
                 window_start = new_window_start
@@ -206,7 +218,11 @@ class ParaDDIMSampler(AbstractBaseSampler):
 
         def prepare_tensor(x):
             x = torch.tensor(x, device=device).flip(dims=[0])
-            x = x.unsqueeze(1).repeat(1, batch_size).reshape(window_size, batch_size, 1, 1, 1)
+            x = (
+                x.unsqueeze(1)
+                .repeat(1, batch_size)
+                .reshape(window_size, batch_size, 1, 1, 1)
+            )
             return x
 
         # Select parameters corresponding to the currently considered timesteps. Note that index_end < index_start,
@@ -224,7 +240,7 @@ class ParaDDIMSampler(AbstractBaseSampler):
             pred_x0, _, *_ = self.model.first_stage_model.quantize(pred_x0)
 
         # Direction pointing to x_t
-        dir_xt = (1.0 - a_prev - sigma_t ** 2).sqrt() * e_t
+        dir_xt = (1.0 - a_prev - sigma_t**2).sqrt() * e_t
 
         noise = sigma_t * noise_like(x.shape, device) * temperature
         if noise_dropout > 0.0:

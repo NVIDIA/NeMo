@@ -44,7 +44,7 @@ ALIGNMENT = [
 ]
 
 EXPECTED_OUTPUT_UTTERANCE = Utterance(
-    text='hi world | hey',
+    text="hi world | hey",
     token_ids_with_blanks=[
         28,
         8,
@@ -73,7 +73,7 @@ EXPECTED_OUTPUT_UTTERANCE = Utterance(
         28,
     ],
     segments_and_tokens=[
-        Token(text='<b>', text_cased='<b>', s_start=0, s_end=0, t_start=-1, t_end=-1),
+        Token(text="<b>", text_cased="<b>", s_start=0, s_end=0, t_start=-1, t_end=-1),
         Segment(
             text="hi world",
             s_start=1,
@@ -89,17 +89,24 @@ EXPECTED_OUTPUT_UTTERANCE = Utterance(
                     t_end=4 * OUTPUT_TIMESTEP_DURATION,
                     tokens=[
                         Token(
-                            text='h',
-                            text_cased='h',
+                            text="h",
+                            text_cased="h",
                             s_start=1,
                             s_end=1,
                             t_start=0 * OUTPUT_TIMESTEP_DURATION,
                             t_end=2 * OUTPUT_TIMESTEP_DURATION,
                         ),
-                        Token(text='<b>', text_cased='<b>', s_start=2, s_end=2, t_start=-1, t_end=-1),
                         Token(
-                            text='i',
-                            text_cased='i',
+                            text="<b>",
+                            text_cased="<b>",
+                            s_start=2,
+                            s_end=2,
+                            t_start=-1,
+                            t_end=-1,
+                        ),
+                        Token(
+                            text="i",
+                            text_cased="i",
                             s_start=3,
                             s_end=3,
                             t_start=2 * OUTPUT_TIMESTEP_DURATION,
@@ -108,22 +115,29 @@ EXPECTED_OUTPUT_UTTERANCE = Utterance(
                     ],
                 ),
                 Token(
-                    text='<b>',
-                    text_cased='<b>',
+                    text="<b>",
+                    text_cased="<b>",
                     s_start=4,
                     s_end=4,
                     t_start=4 * OUTPUT_TIMESTEP_DURATION,
                     t_end=5 * OUTPUT_TIMESTEP_DURATION,
                 ),
                 Token(
-                    text='<space>',
-                    text_cased='<space>',
+                    text="<space>",
+                    text_cased="<space>",
                     s_start=5,
                     s_end=5,
                     t_start=5 * OUTPUT_TIMESTEP_DURATION,
                     t_end=6 * OUTPUT_TIMESTEP_DURATION,
                 ),
-                Token(text='<b>', text_cased='<b>', s_start=6, s_end=6, t_start=-1, t_end=-1),
+                Token(
+                    text="<b>",
+                    text_cased="<b>",
+                    s_start=6,
+                    s_end=6,
+                    t_start=-1,
+                    t_end=-1,
+                ),
                 Word(
                     text="world",
                     s_start=7,
@@ -132,58 +146,72 @@ EXPECTED_OUTPUT_UTTERANCE = Utterance(
                     t_end=14 * OUTPUT_TIMESTEP_DURATION,
                     tokens=[
                         Token(
-                            text='w',
-                            text_cased='w',
+                            text="w",
+                            text_cased="w",
                             s_start=7,
                             s_end=7,
                             t_start=6 * OUTPUT_TIMESTEP_DURATION,
                             t_end=8 * OUTPUT_TIMESTEP_DURATION,
                         ),
-                        Token(text='<b>', text_cased='<b>', s_start=8, s_end=8, t_start=-1, t_end=-1),
                         Token(
-                            text='o',
-                            text_cased='o',
+                            text="<b>",
+                            text_cased="<b>",
+                            s_start=8,
+                            s_end=8,
+                            t_start=-1,
+                            t_end=-1,
+                        ),
+                        Token(
+                            text="o",
+                            text_cased="o",
                             s_start=9,
                             s_end=9,
                             t_start=8 * OUTPUT_TIMESTEP_DURATION,
                             t_end=9 * OUTPUT_TIMESTEP_DURATION,
                         ),
                         Token(
-                            text='<b>',
-                            text_cased='<b>',
+                            text="<b>",
+                            text_cased="<b>",
                             s_start=10,
                             s_end=10,
                             t_start=9 * OUTPUT_TIMESTEP_DURATION,
                             t_end=10 * OUTPUT_TIMESTEP_DURATION,
                         ),
                         Token(
-                            text='r',
-                            text_cased='r',
+                            text="r",
+                            text_cased="r",
                             s_start=11,
                             s_end=11,
                             t_start=10 * OUTPUT_TIMESTEP_DURATION,
                             t_end=11 * OUTPUT_TIMESTEP_DURATION,
                         ),
                         Token(
-                            text='<b>',
-                            text_cased='<b>',
+                            text="<b>",
+                            text_cased="<b>",
                             s_start=12,
                             s_end=12,
                             t_start=11 * OUTPUT_TIMESTEP_DURATION,
                             t_end=12 * OUTPUT_TIMESTEP_DURATION,
                         ),
                         Token(
-                            text='l',
-                            text_cased='l',
+                            text="l",
+                            text_cased="l",
                             s_start=13,
                             s_end=13,
                             t_start=12 * OUTPUT_TIMESTEP_DURATION,
                             t_end=13 * OUTPUT_TIMESTEP_DURATION,
                         ),
-                        Token(text='<b>', text_cased='<b>', s_start=14, s_end=14, t_start=-1, t_end=-1),
                         Token(
-                            text='d',
-                            text_cased='d',
+                            text="<b>",
+                            text_cased="<b>",
+                            s_start=14,
+                            s_end=14,
+                            t_start=-1,
+                            t_end=-1,
+                        ),
+                        Token(
+                            text="d",
+                            text_cased="d",
                             s_start=15,
                             s_end=15,
                             t_start=13 * OUTPUT_TIMESTEP_DURATION,
@@ -193,16 +221,16 @@ EXPECTED_OUTPUT_UTTERANCE = Utterance(
                 ),
             ],
         ),
-        Token(text='<b>', text_cased='<b>', s_start=16, s_end=16, t_start=-1, t_end=-1),
+        Token(text="<b>", text_cased="<b>", s_start=16, s_end=16, t_start=-1, t_end=-1),
         Token(
-            text='<space>',
-            text_cased='<space>',
+            text="<space>",
+            text_cased="<space>",
             s_start=17,
             s_end=17,
             t_start=14 * OUTPUT_TIMESTEP_DURATION,
             t_end=16 * OUTPUT_TIMESTEP_DURATION,
         ),
-        Token(text='<b>', text_cased='<b>', s_start=18, s_end=18, t_start=-1, t_end=-1),
+        Token(text="<b>", text_cased="<b>", s_start=18, s_end=18, t_start=-1, t_end=-1),
         Segment(
             text="hey",
             s_start=19,
@@ -218,26 +246,40 @@ EXPECTED_OUTPUT_UTTERANCE = Utterance(
                     t_end=20 * OUTPUT_TIMESTEP_DURATION,
                     tokens=[
                         Token(
-                            text='h',
-                            text_cased='h',
+                            text="h",
+                            text_cased="h",
                             s_start=19,
                             s_end=19,
                             t_start=16 * OUTPUT_TIMESTEP_DURATION,
                             t_end=17 * OUTPUT_TIMESTEP_DURATION,
                         ),
-                        Token(text='<b>', text_cased='<b>', s_start=20, s_end=20, t_start=-1, t_end=-1),
                         Token(
-                            text='e',
-                            text_cased='e',
+                            text="<b>",
+                            text_cased="<b>",
+                            s_start=20,
+                            s_end=20,
+                            t_start=-1,
+                            t_end=-1,
+                        ),
+                        Token(
+                            text="e",
+                            text_cased="e",
                             s_start=21,
                             s_end=21,
                             t_start=17 * OUTPUT_TIMESTEP_DURATION,
                             t_end=18 * OUTPUT_TIMESTEP_DURATION,
                         ),
-                        Token(text='<b>', text_cased='<b>', s_start=22, s_end=22, t_start=-1, t_end=-1),
                         Token(
-                            text='y',
-                            text_cased='y',
+                            text="<b>",
+                            text_cased="<b>",
+                            s_start=22,
+                            s_end=22,
+                            t_start=-1,
+                            t_end=-1,
+                        ),
+                        Token(
+                            text="y",
+                            text_cased="y",
                             s_start=23,
                             s_end=23,
                             t_start=18 * OUTPUT_TIMESTEP_DURATION,
@@ -247,16 +289,20 @@ EXPECTED_OUTPUT_UTTERANCE = Utterance(
                 )
             ],
         ),
-        Token(text='<b>', text_cased='<b>', s_start=24, s_end=24, t_start=-1, t_end=-1),
+        Token(text="<b>", text_cased="<b>", s_start=24, s_end=24, t_start=-1, t_end=-1),
     ],
 )
 
 
 @pytest.mark.parametrize(
     "alignment,expected_output_utterance, output_timestep_duration",
-    [(ALIGNMENT, EXPECTED_OUTPUT_UTTERANCE, OUTPUT_TIMESTEP_DURATION),],
+    [
+        (ALIGNMENT, EXPECTED_OUTPUT_UTTERANCE, OUTPUT_TIMESTEP_DURATION),
+    ],
 )
-def test_add_t_start_end_to_utt_obj(alignment, expected_output_utterance, output_timestep_duration):
+def test_add_t_start_end_to_utt_obj(
+    alignment, expected_output_utterance, output_timestep_duration
+):
     input_utterance = copy.deepcopy(expected_output_utterance)
 
     # set all t_start and t_end to None in input_utterance
@@ -285,5 +331,7 @@ def test_add_t_start_end_to_utt_obj(alignment, expected_output_utterance, output
             token.t_start = None
             token.t_end = None
 
-    output_utterance = add_t_start_end_to_utt_obj(input_utterance, alignment, output_timestep_duration)
+    output_utterance = add_t_start_end_to_utt_obj(
+        input_utterance, alignment, output_timestep_duration
+    )
     assert output_utterance == expected_output_utterance

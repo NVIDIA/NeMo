@@ -27,7 +27,7 @@ class StableDiffusion(Txt2ImgGuidanceBase):
         model_key: str = "stabilityai/stable-diffusion-2-1-base",
         t_range: List[float] = [0.02, 0.98],
         precision: str = "16",
-        device: torch.device = torch.device('cuda'),
+        device: torch.device = torch.device("cuda"),
     ):
         """
         Initialize StableDiffusion with model_key, t_range, precision and device.
@@ -45,7 +45,9 @@ class StableDiffusion(Txt2ImgGuidanceBase):
         self.precision_t = self._get_precision_type(precision)
 
         # Create model
-        pipe = StableDiffusionPipeline.from_pretrained(model_key, torch_dtype=self.precision_t).to(self.device)
+        pipe = StableDiffusionPipeline.from_pretrained(
+            model_key, torch_dtype=self.precision_t
+        ).to(self.device)
         if self.precision_t in [torch.float16, torch.bfloat16]:
             pipe.unet.to(memory_format=torch.channels_last)
 
@@ -53,7 +55,9 @@ class StableDiffusion(Txt2ImgGuidanceBase):
         self.tokenizer = pipe.tokenizer
         self.text_encoder = pipe.text_encoder
         self.unet = pipe.unet
-        self.scheduler = DDIMScheduler.from_pretrained(model_key, subfolder="scheduler", torch_dtype=self.precision_t)
+        self.scheduler = DDIMScheduler.from_pretrained(
+            model_key, subfolder="scheduler", torch_dtype=self.precision_t
+        )
 
         del pipe
 
@@ -87,7 +91,10 @@ class StableDiffusion(Txt2ImgGuidanceBase):
             torch.Tensor: Text embeddings tensor [B, 77, 1024].
         """
         inputs = self.tokenizer(
-            prompt, padding='max_length', max_length=self.tokenizer.model_max_length, return_tensors='pt'
+            prompt,
+            padding="max_length",
+            max_length=self.tokenizer.model_max_length,
+            return_tensors="pt",
         )
         embeddings = self.text_encoder(inputs.input_ids.to(self.device))[0]
         return embeddings
@@ -113,12 +120,24 @@ class StableDiffusion(Txt2ImgGuidanceBase):
             float: Loss value.
         """
         if as_latent:
-            latents = F.interpolate(pred_rgb, (64, 64), mode='bilinear', align_corners=False) * 2 - 1
+            latents = (
+                F.interpolate(pred_rgb, (64, 64), mode="bilinear", align_corners=False)
+                * 2
+                - 1
+            )
         else:
-            pred_rgb_512 = F.interpolate(pred_rgb, (512, 512), mode='bilinear', align_corners=False)
+            pred_rgb_512 = F.interpolate(
+                pred_rgb, (512, 512), mode="bilinear", align_corners=False
+            )
             latents = self.encode_imgs(pred_rgb_512)
 
-        t = torch.randint(self.min_step, self.max_step + 1, (latents.shape[0],), dtype=torch.long, device=self.device)
+        t = torch.randint(
+            self.min_step,
+            self.max_step + 1,
+            (latents.shape[0],),
+            dtype=torch.long,
+            device=self.device,
+        )
 
         with torch.no_grad():
             # add noise
@@ -127,17 +146,25 @@ class StableDiffusion(Txt2ImgGuidanceBase):
             # pred noise
             latent_model_input = torch.cat([latents_noisy] * 2)
             td = torch.cat([t] * 2)
-            noise_pred = self.unet(latent_model_input, td, encoder_hidden_states=text_embeddings).sample
+            noise_pred = self.unet(
+                latent_model_input, td, encoder_hidden_states=text_embeddings
+            ).sample
 
             noise_pred_uncond, noise_pred_pos = noise_pred.chunk(2)
-            noise_pred = noise_pred_uncond + guidance_scale * (noise_pred_pos - noise_pred_uncond)
+            noise_pred = noise_pred_uncond + guidance_scale * (
+                noise_pred_pos - noise_pred_uncond
+            )
 
         w = 1 - self.alphas[t]
         grad = w[:, None, None, None] * (noise_pred - noise)
         grad = torch.nan_to_num(grad)
 
         targets = (latents - grad).detach()
-        loss = 0.5 * F.mse_loss(latents.float(), targets, reduction='sum') / latents.shape[0]
+        loss = (
+            0.5
+            * F.mse_loss(latents.float(), targets, reduction="sum")
+            / latents.shape[0]
+        )
         return loss
 
     def encode_imgs(self, imgs: torch.Tensor) -> torch.Tensor:

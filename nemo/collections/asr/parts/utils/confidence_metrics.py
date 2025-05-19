@@ -24,7 +24,9 @@ from sklearn.metrics import (PrecisionRecallDisplay, RocCurveDisplay,
                              precision_recall_curve, roc_auc_score, roc_curve)
 
 
-def auc_roc(y_true: Union[List[int], np.ndarray], y_score: Union[List[float], np.ndarray]) -> float:
+def auc_roc(
+    y_true: Union[List[int], np.ndarray], y_score: Union[List[float], np.ndarray]
+) -> float:
     """Compute Area Under the Receiver Operating Characteristic Curve (ROC AUC) from prediction scores.
 
     Note: If only one class is present in y_true, 0.5 is returned.
@@ -38,7 +40,9 @@ def auc_roc(y_true: Union[List[int], np.ndarray], y_score: Union[List[float], np
     return roc_auc_score(y_true, y_score)
 
 
-def auc_pr(y_true: Union[List[int], np.ndarray], y_score: Union[List[float], np.ndarray]) -> float:
+def auc_pr(
+    y_true: Union[List[int], np.ndarray], y_score: Union[List[float], np.ndarray]
+) -> float:
     """Compute Area Under the Precision-Recall Curve (PR AUC) from prediction scores.
 
     Note: If only regatives are present in y_true, 0.0 is returned.
@@ -52,7 +56,9 @@ def auc_pr(y_true: Union[List[int], np.ndarray], y_score: Union[List[float], np.
     return average_precision_score(y_true, y_score)
 
 
-def auc_nt(y_true: Union[List[int], np.ndarray], y_score: Union[List[float], np.ndarray]) -> float:
+def auc_nt(
+    y_true: Union[List[int], np.ndarray], y_score: Union[List[float], np.ndarray]
+) -> float:
     """Compute Area Under the Negative Predictive Value vs. True Negative Rate Curve (NT AUC) from prediction scores.
 
     This metric can be thought of as a PR AUC in which errors are treated as positives.
@@ -68,7 +74,9 @@ def auc_nt(y_true: Union[List[int], np.ndarray], y_score: Union[List[float], np.
     return average_precision_score(1 - y_true, 1 - y_score)
 
 
-def nce(y_true: Union[List[int], np.ndarray], y_score: Union[List[float], np.ndarray]) -> float:
+def nce(
+    y_true: Union[List[int], np.ndarray], y_score: Union[List[float], np.ndarray]
+) -> float:
     """Compute Normalized Cross Entropy (NCE) from prediction scores. Also known as the Normalized Mutual Information.
 
     NCE measures how close the correct prediction scores are to one and the incorrect prediction scores are to zero.
@@ -183,7 +191,11 @@ def auc_yc(
         return yc.mean()
 
 
-def save_confidence_hist(y_score: Union[List[float], np.ndarray], plot_dir: Union[str, Path], name: str = "hist"):
+def save_confidence_hist(
+    y_score: Union[List[float], np.ndarray],
+    plot_dir: Union[str, Path],
+    name: str = "hist",
+):
     os.makedirs(plot_dir, exist_ok=True)
     plt.hist(np.array(y_score), 50, range=(0, 1))
     plt.title(name)
@@ -231,7 +243,9 @@ def save_nt_curve(
 ):
     assert len(y_true) == len(y_score)
     os.makedirs(plot_dir, exist_ok=True)
-    precision, recall, _ = precision_recall_curve(1 - np.array(y_true), 1 - np.array(y_score))
+    precision, recall, _ = precision_recall_curve(
+        1 - np.array(y_true), 1 - np.array(y_score)
+    )
     PrecisionRecallDisplay(precision=precision, recall=recall).plot()
     plt.title(name)
     plt.savefig(Path(plot_dir) / Path(name + ".png"), dpi=300)

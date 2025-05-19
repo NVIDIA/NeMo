@@ -43,106 +43,114 @@ from nemo.collections.common.tokenizers import CanaryTokenizer
 @pytest.fixture()
 def asr_model(test_data_dir):
     preprocessor = {
-        'cls': 'nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor',
-        'params': {"window_size": 0.02, "window_stride": 0.01, "features": 64},
+        "cls": "nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor",
+        "params": {"window_size": 0.02, "window_stride": 0.01, "features": 64},
     }
 
-    model_defaults = {'asr_enc_hidden': 128, 'lm_enc_hidden': 64, 'lm_dec_hidden': 64}
+    model_defaults = {"asr_enc_hidden": 128, "lm_enc_hidden": 64, "lm_dec_hidden": 64}
 
     encoder = {
-        'cls': 'nemo.collections.asr.modules.ConformerEncoder',
-        'params': {
-            'feat_in': 64,
-            'n_layers': 1,
-            'd_model': model_defaults['asr_enc_hidden'],
-            'subsampling': 'dw_striding',
-            'subsampling_factor': 2,
-            'ff_expansion_factor': 4,
-            'self_attention_model': 'rel_pos',
-            'n_heads': 4,
-            'conv_kernel_size': 9,
+        "cls": "nemo.collections.asr.modules.ConformerEncoder",
+        "params": {
+            "feat_in": 64,
+            "n_layers": 1,
+            "d_model": model_defaults["asr_enc_hidden"],
+            "subsampling": "dw_striding",
+            "subsampling_factor": 2,
+            "ff_expansion_factor": 4,
+            "self_attention_model": "rel_pos",
+            "n_heads": 4,
+            "conv_kernel_size": 9,
         },
     }
 
     transf_decoder = {
-        '_target_': 'nemo.collections.asr.modules.transformer.get_nemo_transformer',
-        'model_name': None,
-        'pretrained': False,
-        'encoder': None,
-        'pre_ln_final_layer_norm': True,
-        'config_dict': {
-            'max_sequence_length': 512,
-            'num_token_types': 0,
-            'hidden_size': model_defaults['lm_dec_hidden'],
-            'inner_size': 4 * model_defaults['lm_dec_hidden'],
-            'num_layers': 1,
-            'num_attention_heads': 2,
-            'pre_ln': True,
-            'vocab_size': None,
+        "_target_": "nemo.collections.asr.modules.transformer.get_nemo_transformer",
+        "model_name": None,
+        "pretrained": False,
+        "encoder": None,
+        "pre_ln_final_layer_norm": True,
+        "config_dict": {
+            "max_sequence_length": 512,
+            "num_token_types": 0,
+            "hidden_size": model_defaults["lm_dec_hidden"],
+            "inner_size": 4 * model_defaults["lm_dec_hidden"],
+            "num_layers": 1,
+            "num_attention_heads": 2,
+            "pre_ln": True,
+            "vocab_size": None,
         },
     }
 
     head = {
-        '_target_': 'nemo.collections.asr.parts.submodules.token_classifier.TokenClassifier',
-        'num_layers': 1,
-        'activation': 'relu',
-        'log_softmax': True,
-        'hidden_size': model_defaults['lm_dec_hidden'],
-        'num_classes': None,
+        "_target_": "nemo.collections.asr.parts.submodules.token_classifier.TokenClassifier",
+        "num_layers": 1,
+        "activation": "relu",
+        "log_softmax": True,
+        "hidden_size": model_defaults["lm_dec_hidden"],
+        "num_classes": None,
     }
 
-    decoding = {'strategy': 'beam', 'beam': {'beam_size': 1}}
+    decoding = {"strategy": "beam", "beam": {"beam_size": 1}}
 
     # os.path.join(test_data_dir, "asr", "tokenizers", "an4_wpe_128")
     tokenizer = {
-        'dir': None,
-        'type': 'agg',
-        'langs': {
-            'spl_tokens': {
-                'dir': os.path.join(test_data_dir, "asr", "tokenizers", "canary"),
-                'type': 'bpe',
+        "dir": None,
+        "type": "agg",
+        "langs": {
+            "spl_tokens": {
+                "dir": os.path.join(test_data_dir, "asr", "tokenizers", "canary"),
+                "type": "bpe",
             },
-            'en': {
-                'dir': os.path.join(test_data_dir, "asr", "tokenizers", "an4_wpe_128"),
-                'type': 'wpe',
+            "en": {
+                "dir": os.path.join(test_data_dir, "asr", "tokenizers", "an4_wpe_128"),
+                "type": "wpe",
             },
-            'de': {
-                'dir': os.path.join(test_data_dir, "asr", "tokenizers", "an4_wpe_128"),
-                'type': 'wpe',
+            "de": {
+                "dir": os.path.join(test_data_dir, "asr", "tokenizers", "an4_wpe_128"),
+                "type": "wpe",
             },
         },
-        'custom_tokenizer': {
-            '_target_': 'nemo.collections.common.tokenizers.canary_tokenizer.CanaryTokenizer',
-            'tokenizers': None,
+        "custom_tokenizer": {
+            "_target_": "nemo.collections.common.tokenizers.canary_tokenizer.CanaryTokenizer",
+            "tokenizers": None,
         },
     }
 
     optim = {
-        'name': 'adamw',
-        'lr': 1e-4,
+        "name": "adamw",
+        "lr": 1e-4,
     }
 
     loss = {
-        '_target_': 'nemo.collections.common.losses.smoothed_cross_entropy.SmoothedCrossEntropyLoss',
-        'label_smoothing': 0.0,
+        "_target_": "nemo.collections.common.losses.smoothed_cross_entropy.SmoothedCrossEntropyLoss",
+        "label_smoothing": 0.0,
     }
 
     modelConfig = DictConfig(
         {
-            'prompt_format': 'canary',
-            'prompt_defaults': [
-                {"role": "user", "slots": {"source_lang": "en", "target_lang": "en", "task": "asr", "pnc": "yes"}}
+            "prompt_format": "canary",
+            "prompt_defaults": [
+                {
+                    "role": "user",
+                    "slots": {
+                        "source_lang": "en",
+                        "target_lang": "en",
+                        "task": "asr",
+                        "pnc": "yes",
+                    },
+                }
             ],
-            'sample_rate': 16000,
-            'preprocessor': DictConfig(preprocessor),
-            'model_defaults': DictConfig(model_defaults),
-            'encoder': DictConfig(encoder),
-            'transf_decoder': DictConfig(transf_decoder),
-            'head': DictConfig(head),
-            'tokenizer': DictConfig(tokenizer),
-            'decoding': DictConfig(decoding),
-            'optim': DictConfig(optim),
-            'loss': DictConfig(loss),
+            "sample_rate": 16000,
+            "preprocessor": DictConfig(preprocessor),
+            "model_defaults": DictConfig(model_defaults),
+            "encoder": DictConfig(encoder),
+            "transf_decoder": DictConfig(transf_decoder),
+            "head": DictConfig(head),
+            "tokenizer": DictConfig(tokenizer),
+            "decoding": DictConfig(decoding),
+            "optim": DictConfig(optim),
+            "loss": DictConfig(loss),
         }
     )
 
@@ -216,7 +224,12 @@ class TestEncDecMultiTaskModel:
                     with_data=True,
                     supervisions=[
                         SupervisionSegment(
-                            id="cut-0", recording_id="cut-0", start=0, duration=1.0, text="short", language="en"
+                            id="cut-0",
+                            recording_id="cut-0",
+                            start=0,
+                            duration=1.0,
+                            text="short",
+                            language="en",
                         )
                     ],
                 ),
@@ -244,7 +257,8 @@ class TestEncDecMultiTaskModel:
             c.task = "asr"
             c.pnc = "no"
         dataset = PromptedAudioToTextLhotseDataset(
-            tokenizer=asr_model.tokenizer, prompt=CanaryPromptFormatter(asr_model.tokenizer)
+            tokenizer=asr_model.tokenizer,
+            prompt=CanaryPromptFormatter(asr_model.tokenizer),
         )
         batch = dataset[cuts]
 
@@ -262,7 +276,12 @@ class TestEncDecMultiTaskModel:
                     with_data=True,
                     supervisions=[
                         SupervisionSegment(
-                            id="cut-0", recording_id="cut-0", start=0, duration=1.0, text="short", language="en"
+                            id="cut-0",
+                            recording_id="cut-0",
+                            start=0,
+                            duration=1.0,
+                            text="short",
+                            language="en",
                         )
                     ],
                 ),
@@ -290,7 +309,8 @@ class TestEncDecMultiTaskModel:
             c.task = "asr"
             c.pnc = "no"
         dataset = PromptedAudioToTextLhotseDataset(
-            tokenizer=asr_model.tokenizer, prompt=CanaryPromptFormatter(asr_model.tokenizer)
+            tokenizer=asr_model.tokenizer,
+            prompt=CanaryPromptFormatter(asr_model.tokenizer),
         )
         batch = dataset[cuts]
 
@@ -314,7 +334,7 @@ class TestEncDecMultiTaskModel:
         asr_model.train()
 
         with tempfile.TemporaryDirectory() as tmp_dir:
-            path = os.path.join(tmp_dir, 'aed_bpe.nemo')
+            path = os.path.join(tmp_dir, "aed_bpe.nemo")
             asr_model.save_to(path)
 
             new_model = EncDecMultiTaskModel.restore_from(path)
@@ -394,18 +414,22 @@ class TestEncDecMultiTaskModel:
 
     @pytest.mark.unit
     def test_decoding_change(self, asr_model):
-        assert isinstance(asr_model.decoding.decoding, beam_decode.TransformerAEDBeamInfer)
+        assert isinstance(
+            asr_model.decoding.decoding, beam_decode.TransformerAEDBeamInfer
+        )
 
         new_strategy = DictConfig({})
-        new_strategy.strategy = 'beam'
-        new_strategy.beam = DictConfig({'beam_size': 5})
+        new_strategy.strategy = "beam"
+        new_strategy.beam = DictConfig({"beam_size": 5})
         asr_model.change_decoding_strategy(decoding_cfg=new_strategy)
-        assert isinstance(asr_model.decoding.decoding, beam_decode.TransformerAEDBeamInfer)
+        assert isinstance(
+            asr_model.decoding.decoding, beam_decode.TransformerAEDBeamInfer
+        )
         assert asr_model.decoding.decoding.search_type == "default"
 
     @pytest.mark.unit
     def test_prompt_change(self, asr_model):
-        assert asr_model.prompt_format == 'canary'
+        assert asr_model.prompt_format == "canary"
         assert isinstance(asr_model.prompt, CanaryPromptFormatter)
 
         # Default change prompt
@@ -413,14 +437,14 @@ class TestEncDecMultiTaskModel:
         assert asr_model.cfg.prompt_defaults is None
 
         prompt_defaults = asr_model.prompt.get_default_dialog_slots()
-        prompt_defaults[0]['slots']['pnc'] = 'no'
+        prompt_defaults[0]["slots"]["pnc"] = "no"
         asr_model.change_prompt(prompt_defaults=prompt_defaults)
 
-        assert asr_model.cfg.prompt_defaults[0]['slots']['pnc'] == 'no'
+        assert asr_model.cfg.prompt_defaults[0]["slots"]["pnc"] == "no"
 
     @pytest.mark.unit
     def test_prompt_change_subclass(self, asr_model):
-        assert asr_model.prompt_format == 'canary'
+        assert asr_model.prompt_format == "canary"
         assert isinstance(asr_model.prompt, CanaryPromptFormatter)
 
         class CanaryPromptFormatterSubclass(CanaryPromptFormatter):
@@ -431,26 +455,31 @@ class TestEncDecMultiTaskModel:
         assert asr_model.cfg.prompt_defaults is None
 
         prompt_defaults = asr_model.prompt.get_default_dialog_slots()
-        prompt_defaults[0]['slots']['pnc'] = 'no'
-        asr_model.change_prompt(prompt_format='canary-unit-test-stub-format', prompt_defaults=prompt_defaults)
+        prompt_defaults[0]["slots"]["pnc"] = "no"
+        asr_model.change_prompt(
+            prompt_format="canary-unit-test-stub-format",
+            prompt_defaults=prompt_defaults,
+        )
 
-        assert asr_model.cfg.prompt_format == 'canary-unit-test-stub-format'
-        assert asr_model.cfg.prompt_defaults[0]['slots']['pnc'] == 'no'
+        assert asr_model.cfg.prompt_format == "canary-unit-test-stub-format"
+        assert asr_model.cfg.prompt_defaults[0]["slots"]["pnc"] == "no"
         assert isinstance(asr_model.prompt, CanaryPromptFormatterSubclass)
 
         user_prompt = asr_model.prompt.get_default_dialog_slots()[0]
-        slots = user_prompt['slots']
-        slots['source_lang'] = 'en'
-        slots['target_lang'] = 'en'
-        slots['task'] = 'asr'
-        slots['pnc'] = 'no'
+        slots = user_prompt["slots"]
+        slots["source_lang"] = "en"
+        slots["target_lang"] = "en"
+        slots["task"] = "asr"
+        slots["pnc"] = "no"
         ans = asr_model.prompt.encode_dialog([user_prompt])
         recovered = asr_model.tokenizer.ids_to_text(ans["input_ids"])
         assert recovered == "<|startoftranscript|><|en|><|transcribe|><|en|><|nopnc|>"
 
     @pytest.mark.unit
     def test_transcribe_single_file(self, asr_model, test_data_dir):
-        audio_file = os.path.join(test_data_dir, "asr", "train", "an4", "wav", "an46-mmap-b.wav")
+        audio_file = os.path.join(
+            test_data_dir, "asr", "train", "an4", "wav", "an46-mmap-b.wav"
+        )
 
         # Numpy array test
         outputs = asr_model.transcribe(audio_file, batch_size=1)
@@ -459,16 +488,22 @@ class TestEncDecMultiTaskModel:
 
     @pytest.mark.unit
     def test_transcribe_single_file_translation(self, asr_model, test_data_dir):
-        audio_file = os.path.join(test_data_dir, "asr", "train", "an4", "wav", "an46-mmap-b.wav")
+        audio_file = os.path.join(
+            test_data_dir, "asr", "train", "an4", "wav", "an46-mmap-b.wav"
+        )
 
         # Numpy array test
-        outputs = asr_model.transcribe(audio_file, batch_size=1, task="ast", source_lang='en', target_lang='de')
+        outputs = asr_model.transcribe(
+            audio_file, batch_size=1, task="ast", source_lang="en", target_lang="de"
+        )
         assert len(outputs) == 1
         assert isinstance(outputs[0].text, str)
 
     @pytest.mark.unit
     def test_transcribe_return_hypothesis(self, asr_model, test_data_dir):
-        audio_file = os.path.join(test_data_dir, "asr", "train", "an4", "wav", "an46-mmap-b.wav")
+        audio_file = os.path.join(
+            test_data_dir, "asr", "train", "an4", "wav", "an46-mmap-b.wav"
+        )
 
         # Numpy array test
         outputs = asr_model.transcribe(audio_file, batch_size=1, return_hypotheses=True)
@@ -485,8 +520,10 @@ class TestEncDecMultiTaskModel:
         # Load audio file
         import soundfile as sf
 
-        audio_file = os.path.join(test_data_dir, "asr", "train", "an4", "wav", "an46-mmap-b.wav")
-        audio, sr = sf.read(audio_file, dtype='float32')
+        audio_file = os.path.join(
+            test_data_dir, "asr", "train", "an4", "wav", "an46-mmap-b.wav"
+        )
+        audio, sr = sf.read(audio_file, dtype="float32")
 
         # Numpy array test
         outputs = asr_model.transcribe(audio, batch_size=1)
@@ -499,12 +536,23 @@ class TestEncDecMultiTaskModel:
         task_tokens = ["ast", "asr"]
         lang_tokens = ["en", "es", "de", "fr"]
         tokens = task_tokens + lang_tokens
-        spl_tokenizer_from_build = CanaryTokenizer.build_special_tokenizer(tokens, test_data_dir)
+        spl_tokenizer_from_build = CanaryTokenizer.build_special_tokenizer(
+            tokens, test_data_dir
+        )
 
-        tokenizer_cfg = {'dir': os.path.join(test_data_dir), 'type': 'bpe'}
-        spl_tokenizer_from_load = asr_model._make_tokenizer(tokenizer_cfg, "spl_tokens")[0]
+        tokenizer_cfg = {"dir": os.path.join(test_data_dir), "type": "bpe"}
+        spl_tokenizer_from_load = asr_model._make_tokenizer(
+            tokenizer_cfg, "spl_tokens"
+        )[0]
 
-        tokens += ["<|nospeech|>", "<pad>", "<|endoftext|>", "<|startoftranscript|>", "<|pnc|>", "<|nopnc|>"]
+        tokens += [
+            "<|nospeech|>",
+            "<pad>",
+            "<|endoftext|>",
+            "<|startoftranscript|>",
+            "<|pnc|>",
+            "<|nopnc|>",
+        ]
 
         ids1 = [spl_tokenizer_from_build.tokens_to_ids(t)[0] for t in tokens]
         ids2 = [spl_tokenizer_from_load.tokens_to_ids(t)[0] for t in tokens]
@@ -522,7 +570,8 @@ class TestEncDecMultiTaskModel:
         c.task = "asr"
         c.pnc = "no"
         dataset = PromptedAudioToTextLhotseDataset(
-            tokenizer=asr_model.tokenizer, prompt=CanaryPromptFormatter(asr_model.tokenizer)
+            tokenizer=asr_model.tokenizer,
+            prompt=CanaryPromptFormatter(asr_model.tokenizer),
         )
         batch = dataset[cuts]
 
@@ -538,17 +587,21 @@ class TestEncDecMultiTaskModel:
     def test_FrameBatchMultiTaskAED(self, asr_model, test_data_dir):
         model = FrameBatchMultiTaskAED(asr_model, batch_size=1)
 
-        audio_file = os.path.join(test_data_dir, "asr", "train", "an4", "wav", "an46-mmap-b.wav")
+        audio_file = os.path.join(
+            test_data_dir, "asr", "train", "an4", "wav", "an46-mmap-b.wav"
+        )
         meta = {
-            'audio_filepath': audio_file,
-            'duration': 100000,
-            'source_lang': 'en',
-            'taskname': 'asr',
-            'target_lang': 'en',
-            'pnc': 'yes',
-            'answer': 'nothing',
+            "audio_filepath": audio_file,
+            "duration": 100000,
+            "source_lang": "en",
+            "taskname": "asr",
+            "target_lang": "en",
+            "pnc": "yes",
+            "answer": "nothing",
         }
-        model.read_audio_file(audio_file, delay=0.0, model_stride_in_secs=40.0, meta_data=meta)
+        model.read_audio_file(
+            audio_file, delay=0.0, model_stride_in_secs=40.0, meta_data=meta
+        )
         outputs = model.transcribe()
         assert isinstance(outputs, Hypothesis)
 
@@ -565,17 +618,22 @@ class TestEncDecMultiTaskModel:
 
         audio_file = "/home/TestData/asr/longform/earnings22/sample_4469669.wav"
         meta = {
-            'audio_filepath': audio_file,
-            'duration': 100000,
-            'source_lang': 'en',
-            'taskname': 'asr',
-            'target_lang': 'en',
-            'pnc': 'yes',
-            'answer': 'nothing',
-            'timestamp': 'yes',
+            "audio_filepath": audio_file,
+            "duration": 100000,
+            "source_lang": "en",
+            "taskname": "asr",
+            "target_lang": "en",
+            "pnc": "yes",
+            "answer": "nothing",
+            "timestamp": "yes",
         }
         model_stride_in_secs = 0.01 * 8  # feature_stride in sec * model_stride
-        model.read_audio_file(audio_file, delay=0.0, model_stride_in_secs=model_stride_in_secs, meta_data=meta)
+        model.read_audio_file(
+            audio_file,
+            delay=0.0,
+            model_stride_in_secs=model_stride_in_secs,
+            meta_data=meta,
+        )
         outputs = model.transcribe()
 
         # check hypothesis object
@@ -585,8 +643,8 @@ class TestEncDecMultiTaskModel:
         assert outputs.text[:13] == "Now it's time", f"{outputs}"
 
         # check timestamps
-        assert outputs.timestamp['segment'][0]['start'] == pytest.approx(5.68)
-        assert outputs.timestamp['segment'][0]['end'] == pytest.approx(9.68)
+        assert outputs.timestamp["segment"][0]["start"] == pytest.approx(5.68)
+        assert outputs.timestamp["segment"][0]["end"] == pytest.approx(9.68)
 
 
 @pytest.mark.unit
@@ -609,7 +667,9 @@ def test_prompted_dataset(asr_model):
     c.supervisions[0].text = "unerheblich"
     c.source_lang = "en"
     c.target_lang = "de"
-    c.taskname = "ast"  # note: testing for "taskname" as we support it together with "task"
+    c.taskname = (
+        "ast"  # note: testing for "taskname" as we support it together with "task"
+    )
     c.pnc = "yes"
 
     c = cuts[2]
@@ -629,38 +689,52 @@ def test_prompted_dataset(asr_model):
     # Test example 0 (transcription)
     i = 0
     assert (
-        asr_model.tokenizer.ids_to_text(batch.prompt[i]) == '<|startoftranscript|><|en|><|transcribe|><|en|><|nopnc|>'
+        asr_model.tokenizer.ids_to_text(batch.prompt[i])
+        == "<|startoftranscript|><|en|><|transcribe|><|en|><|nopnc|>"
     )
     assert batch.prompt_lens[i] == 5
-    assert asr_model.tokenizer.ids_to_text(batch.transcript[i]) == 'i##r##r##el##e##v##a##nt<pad><pad>'
+    assert (
+        asr_model.tokenizer.ids_to_text(batch.transcript[i])
+        == "i##r##r##el##e##v##a##nt<pad><pad>"
+    )
     assert batch.transcript_lens[i] == 8
     assert (
         asr_model.tokenizer.ids_to_text(batch.prompted_transcript[i])
-        == '<|startoftranscript|><|en|><|transcribe|><|en|><|nopnc|>i##r##r##el##e##v##a##nt<|endoftext|><pad><pad>'
+        == "<|startoftranscript|><|en|><|transcribe|><|en|><|nopnc|>i##r##r##el##e##v##a##nt<|endoftext|><pad><pad>"
     )
     assert batch.prompted_transcript_lens[i] == 14
 
     # Test example 1 (translation)
     i = 1
-    assert asr_model.tokenizer.ids_to_text(batch.prompt[i]) == '<|startoftranscript|><|en|><|translate|><|de|><|pnc|>'
+    assert (
+        asr_model.tokenizer.ids_to_text(batch.prompt[i])
+        == "<|startoftranscript|><|en|><|translate|><|de|><|pnc|>"
+    )
     assert batch.prompt_lens[i] == 5
-    assert asr_model.tokenizer.ids_to_text(batch.transcript[i]) == 'u##ne##r##h##e##b##l##i##c##h'
+    assert (
+        asr_model.tokenizer.ids_to_text(batch.transcript[i])
+        == "u##ne##r##h##e##b##l##i##c##h"
+    )
     assert batch.transcript_lens[i] == 10
     assert (
         asr_model.tokenizer.ids_to_text(batch.prompted_transcript[i])
-        == '<|startoftranscript|><|en|><|translate|><|de|><|pnc|>u##ne##r##h##e##b##l##i##c##h<|endoftext|>'
+        == "<|startoftranscript|><|en|><|translate|><|de|><|pnc|>u##ne##r##h##e##b##l##i##c##h<|endoftext|>"
     )
     assert batch.prompted_transcript_lens[i] == 16
 
     # Test example 2 (no transcript, e.g. noise)
     i = 2
-    assert asr_model.tokenizer.ids_to_text(batch.prompt[i]) == '<|startoftranscript|><|en|><|transcribe|><|en|><|pnc|>'
+    assert (
+        asr_model.tokenizer.ids_to_text(batch.prompt[i])
+        == "<|startoftranscript|><|en|><|transcribe|><|en|><|pnc|>"
+    )
     assert batch.prompt_lens[i] == 5
-    assert asr_model.tokenizer.ids_to_text(batch.transcript[i]) == '<pad>' * 10
+    assert asr_model.tokenizer.ids_to_text(batch.transcript[i]) == "<pad>" * 10
     assert batch.transcript_lens[i] == 0
     assert (
         asr_model.tokenizer.ids_to_text(batch.prompted_transcript[i])
-        == '<|startoftranscript|><|en|><|transcribe|><|en|><|pnc|><|endoftext|>' + '<pad>' * 10
+        == "<|startoftranscript|><|en|><|transcribe|><|en|><|pnc|><|endoftext|>"
+        + "<pad>" * 10
     )
     assert batch.prompted_transcript_lens[i] == 6
 
@@ -759,14 +833,17 @@ def test_prompted_dataset_canary2(canary2_tokenizer):
     i = 0
     assert (
         canary2_tokenizer.ids_to_text(batch.prompt[i])
-        == '<|startofcontext|><|startoftranscript|><|emo:undefined|><|en|><|en|><|pnc|><|noitn|><|notimestamp|><|nodiarize|><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad>'
+        == "<|startofcontext|><|startoftranscript|><|emo:undefined|><|en|><|en|><|pnc|><|noitn|><|notimestamp|><|nodiarize|><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad>"
     )
     assert batch.prompt_lens[i] == 9
-    assert canary2_tokenizer.ids_to_text(batch.transcript[i]) == 'i##r##r##el##e##v##a##nt<pad><pad><pad><pad><pad>'
+    assert (
+        canary2_tokenizer.ids_to_text(batch.transcript[i])
+        == "i##r##r##el##e##v##a##nt<pad><pad><pad><pad><pad>"
+    )
     assert batch.transcript_lens[i] == 8
     assert (
         canary2_tokenizer.ids_to_text(batch.prompted_transcript[i])
-        == '<|startofcontext|><|startoftranscript|><|emo:undefined|><|en|><|en|><|pnc|><|noitn|><|notimestamp|><|nodiarize|>i##r##r##el##e##v##a##nt<|endoftext|><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad>'
+        == "<|startofcontext|><|startoftranscript|><|emo:undefined|><|en|><|en|><|pnc|><|noitn|><|notimestamp|><|nodiarize|>i##r##r##el##e##v##a##nt<|endoftext|><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad>"
     )
     assert batch.prompted_transcript_lens[i] == 18
 
@@ -774,17 +851,17 @@ def test_prompted_dataset_canary2(canary2_tokenizer):
     i = 1
     assert (
         canary2_tokenizer.ids_to_text(batch.prompt[i])
-        == '<|startofcontext|><|startoftranscript|><|emo:happy|><|en|><|en|><|pnc|><|itn|><|timestamp|><|diarize|><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad>'
+        == "<|startofcontext|><|startoftranscript|><|emo:happy|><|en|><|en|><|pnc|><|itn|><|timestamp|><|diarize|><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad>"
     )
     assert batch.prompt_lens[i] == 9
     assert (
         canary2_tokenizer.ids_to_text(batch.transcript[i])
-        == 'a##s##d<pad><pad><pad><pad><pad><pad><pad><pad><pad><pad>'
+        == "a##s##d<pad><pad><pad><pad><pad><pad><pad><pad><pad><pad>"
     )
     assert batch.transcript_lens[i] == 3
     assert (
         canary2_tokenizer.ids_to_text(batch.prompted_transcript[i])
-        == '<|startofcontext|><|startoftranscript|><|emo:happy|><|en|><|en|><|pnc|><|itn|><|timestamp|><|diarize|>a##s##d<|endoftext|><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad>'
+        == "<|startofcontext|><|startoftranscript|><|emo:happy|><|en|><|en|><|pnc|><|itn|><|timestamp|><|diarize|>a##s##d<|endoftext|><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad>"
     )
     assert batch.prompted_transcript_lens[i] == 13
 
@@ -792,17 +869,17 @@ def test_prompted_dataset_canary2(canary2_tokenizer):
     i = 2
     assert (
         canary2_tokenizer.ids_to_text(batch.prompt[i])
-        == '<|startofcontext|>s##o##m##ed##e##c##o##d##erc##o##nt##e##x##t<|startoftranscript|><|emo:happy|><|en|><|en|><|pnc|><|noitn|><|timestamp|><|diarize|>'
+        == "<|startofcontext|>s##o##m##ed##e##c##o##d##erc##o##nt##e##x##t<|startoftranscript|><|emo:happy|><|en|><|en|><|pnc|><|noitn|><|timestamp|><|diarize|>"
     )
     assert batch.prompt_lens[i] == 25
     assert (
         canary2_tokenizer.ids_to_text(batch.transcript[i])
-        == 'a##s##d<pad><pad><pad><pad><pad><pad><pad><pad><pad><pad>'
+        == "a##s##d<pad><pad><pad><pad><pad><pad><pad><pad><pad><pad>"
     )
     assert batch.transcript_lens[i] == 3
     assert (
         canary2_tokenizer.ids_to_text(batch.prompted_transcript[i])
-        == '<|startofcontext|>s##o##m##ed##e##c##o##d##erc##o##nt##e##x##t<|startoftranscript|><|emo:happy|><|en|><|en|><|pnc|><|noitn|><|timestamp|><|diarize|>a##s##d<|endoftext|><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad>'
+        == "<|startofcontext|>s##o##m##ed##e##c##o##d##erc##o##nt##e##x##t<|startoftranscript|><|emo:happy|><|en|><|en|><|pnc|><|noitn|><|timestamp|><|diarize|>a##s##d<|endoftext|><pad><pad><pad><pad><pad><pad><pad><pad><pad><pad>"
     )
     assert batch.prompted_transcript_lens[i] == 29
 
@@ -810,14 +887,17 @@ def test_prompted_dataset_canary2(canary2_tokenizer):
     i = 3
     assert (
         canary2_tokenizer.ids_to_text(batch.prompt[i])
-        == '<|startofcontext|>s##o##m##ed##e##c##o##d##erc##o##nt##e##x##t<|startoftranscript|><|emo:happy|><|en|><|en|><|pnc|><|noitn|><|timestamp|><|diarize|>'
+        == "<|startofcontext|>s##o##m##ed##e##c##o##d##erc##o##nt##e##x##t<|startoftranscript|><|emo:happy|><|en|><|en|><|pnc|><|noitn|><|timestamp|><|diarize|>"
     )
     assert batch.prompt_lens[i] == 25
-    assert canary2_tokenizer.ids_to_text(batch.transcript[i]) == '<|0|>h##el##l##o<|3|><|4|>w##o##r##l##d<|5|>'
+    assert (
+        canary2_tokenizer.ids_to_text(batch.transcript[i])
+        == "<|0|>h##el##l##o<|3|><|4|>w##o##r##l##d<|5|>"
+    )
     assert batch.transcript_lens[i] == 13
     assert (
         canary2_tokenizer.ids_to_text(batch.prompted_transcript[i])
-        == '<|startofcontext|>s##o##m##ed##e##c##o##d##erc##o##nt##e##x##t<|startoftranscript|><|emo:happy|><|en|><|en|><|pnc|><|noitn|><|timestamp|><|diarize|><|0|>h##el##l##o<|3|><|4|>w##o##r##l##d<|5|><|endoftext|>'
+        == "<|startofcontext|>s##o##m##ed##e##c##o##d##erc##o##nt##e##x##t<|startoftranscript|><|emo:happy|><|en|><|en|><|pnc|><|noitn|><|timestamp|><|diarize|><|0|>h##el##l##o<|3|><|4|>w##o##r##l##d<|5|><|endoftext|>"
     )
     assert batch.prompted_transcript_lens[i] == 39
 
@@ -841,30 +921,30 @@ def test_aed_timestamp_processing():
     assert processed[0].text == "hello world"
 
     # Check word-level timestamps
-    word_timestamps = processed[0].timestamp['word']
+    word_timestamps = processed[0].timestamp["word"]
     assert len(word_timestamps) == 2
 
     # Check first word "hello"
-    assert word_timestamps[0]['word'] == 'hello'
-    assert word_timestamps[0]['start_offset'] == 10
-    assert word_timestamps[0]['end_offset'] == 15
-    assert word_timestamps[0]['start'] == 0.1  # 10 * 0.01
-    assert word_timestamps[0]['end'] == 0.15  # 15 * 0.01
+    assert word_timestamps[0]["word"] == "hello"
+    assert word_timestamps[0]["start_offset"] == 10
+    assert word_timestamps[0]["end_offset"] == 15
+    assert word_timestamps[0]["start"] == 0.1  # 10 * 0.01
+    assert word_timestamps[0]["end"] == 0.15  # 15 * 0.01
 
     # Check second word "world"
-    assert word_timestamps[1]['word'] == 'world'
-    assert word_timestamps[1]['start_offset'] == 20
-    assert word_timestamps[1]['end_offset'] == 25
-    assert word_timestamps[1]['start'] == 0.2  # 20 * 0.01
-    assert word_timestamps[1]['end'] == 0.25  # 25 * 0.01
+    assert word_timestamps[1]["word"] == "world"
+    assert word_timestamps[1]["start_offset"] == 20
+    assert word_timestamps[1]["end_offset"] == 25
+    assert word_timestamps[1]["start"] == 0.2  # 20 * 0.01
+    assert word_timestamps[1]["end"] == 0.25  # 25 * 0.01
 
     # Check segment-level timestamps
-    segments = processed[0].timestamp['segment']
+    segments = processed[0].timestamp["segment"]
     assert len(segments) == 1
-    assert segments[0]['start_offset'] == 10
-    assert segments[0]['end_offset'] == 25
-    assert segments[0]['start'] == 0.1
-    assert segments[0]['end'] == 0.25
+    assert segments[0]["start_offset"] == 10
+    assert segments[0]["end_offset"] == 25
+    assert segments[0]["start"] == 0.1
+    assert segments[0]["end"] == 0.25
 
     # Test with different window_stride and subsampling_factor
     hyp = Hypothesis(
@@ -875,17 +955,26 @@ def test_aed_timestamp_processing():
         length=None,
         timestamp={},
     )
-    processed = process_aed_timestamp_outputs(hyp, subsampling_factor=2, window_stride=0.02)
-    word_timestamps = processed[0].timestamp['word']
+    processed = process_aed_timestamp_outputs(
+        hyp, subsampling_factor=2, window_stride=0.02
+    )
+    word_timestamps = processed[0].timestamp["word"]
 
     # Check timing calculations with new parameters
-    assert word_timestamps[0]['start'] == 0.4  # 10 * 0.02 * 2
-    assert word_timestamps[0]['end'] == 0.6  # 15 * 0.02 * 2
-    assert word_timestamps[1]['start'] == 0.8  # 20 * 0.02 * 2
-    assert word_timestamps[1]['end'] == 1.0  # 25 * 0.02 * 2
+    assert word_timestamps[0]["start"] == 0.4  # 10 * 0.02 * 2
+    assert word_timestamps[0]["end"] == 0.6  # 15 * 0.02 * 2
+    assert word_timestamps[1]["start"] == 0.8  # 20 * 0.02 * 2
+    assert word_timestamps[1]["end"] == 1.0  # 25 * 0.02 * 2
 
     # Test case when text doesn't contain timestamps
-    hyp = Hypothesis(text="hello world", y_sequence=None, score=None, alignments=None, length=None, timestamp={})
+    hyp = Hypothesis(
+        text="hello world",
+        y_sequence=None,
+        score=None,
+        alignments=None,
+        length=None,
+        timestamp={},
+    )
 
     # Process timestamps with default parameters
     processed = process_aed_timestamp_outputs(hyp)
@@ -894,5 +983,5 @@ def test_aed_timestamp_processing():
     assert processed[0].text == "hello world"
 
     # Verify no timestamps were extracted
-    assert processed[0].timestamp['word'] == []
-    assert processed[0].timestamp['segment'] == []
+    assert processed[0].timestamp["word"] == []
+    assert processed[0].timestamp["segment"] == []

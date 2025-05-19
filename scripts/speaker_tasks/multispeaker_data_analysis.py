@@ -149,14 +149,25 @@ def run_multispeaker_data_analysis(
     queue = []
     for rttm_file in tqdm(rttm_list):
         queue.append(
-            {"rttm_file": rttm_file, "session_dur": session_dur, "precise": precise,}
+            {
+                "rttm_file": rttm_file,
+                "session_dur": session_dur,
+                "precise": precise,
+            }
         )
 
     if num_workers <= 1:
         results = [process_sample(sess_dict) for sess_dict in tqdm(queue)]
     else:
         with multiprocessing.Pool(processes=num_workers) as p:
-            results = list(tqdm(p.imap(process_sample, queue), total=len(queue), desc='Processing', leave=True,))
+            results = list(
+                tqdm(
+                    p.imap(process_sample, queue),
+                    total=len(queue),
+                    desc="Processing",
+                    leave=True,
+                )
+            )
 
     for item in results:
         total_duration += item["session_dur"]
@@ -177,9 +188,15 @@ def run_multispeaker_data_analysis(
     stats = OrderedDict()
     stats["total duration (hours)"] = f"{total_duration / 3600:.2f}"
     stats["number of sessions"] = len(rttm_list)
-    stats["average session duration (seconds)"] = f"{total_duration / len(rttm_list):.2f}"
-    stats["actual silence ratio mean/var"] = f"{actual_silence_mean:.4f}/{actual_silence_var:.4f}"
-    stats["actual overlap ratio mean/var"] = f"{actual_overlap_mean:.4f}/{actual_overlap_var:.4f}"
+    stats["average session duration (seconds)"] = (
+        f"{total_duration / len(rttm_list):.2f}"
+    )
+    stats["actual silence ratio mean/var"] = (
+        f"{actual_silence_mean:.4f}/{actual_silence_var:.4f}"
+    )
+    stats["actual overlap ratio mean/var"] = (
+        f"{actual_overlap_mean:.4f}/{actual_overlap_var:.4f}"
+    )
     stats["expected silence ratio mean/var"] = f"{silence_mean}/{silence_var}"
     stats["expected overlap ratio mean/var"] = f"{overlap_mean}/{overlap_var}"
     stats["save_path"] = save_path
@@ -204,7 +221,9 @@ def run_multispeaker_data_analysis(
     _, scale = expon.fit(silence_length_all, floc=0)
     sns.histplot(silence_length_all, ax=ax2)
     ax2.set_xlabel("Per-silence length in seconds")
-    ax2.set_title(f"Per-silence length histogram, \nfitted exponential distribution with mean={scale:.4f}")
+    ax2.set_title(
+        f"Per-silence length histogram, \nfitted exponential distribution with mean={scale:.4f}"
+    )
 
     sns.histplot(overlap_ratio_all, ax=ax3)
     ax3.set_title(
@@ -213,7 +232,9 @@ def run_multispeaker_data_analysis(
     ax3.set_xlabel("Overlap ratio in a session")
     _, scale2 = expon.fit(overlap_length_all, floc=0)
     sns.histplot(overlap_length_all, ax=ax4)
-    ax4.set_title(f"Per overlap length histogram, \nfitted exponential distribution with mean={scale2:.4f}")
+    ax4.set_title(
+        f"Per overlap length histogram, \nfitted exponential distribution with mean={scale2:.4f}"
+    )
     ax4.set_xlabel("Duration in seconds")
 
     if save_path:
@@ -223,7 +244,9 @@ def run_multispeaker_data_analysis(
     return stats
 
 
-def visualize_multispeaker_data(input_dir: str, output_dir: str, num_samples: int = 10) -> None:
+def visualize_multispeaker_data(
+    input_dir: str, output_dir: str, num_samples: int = 10
+) -> None:
     """
     Visualize a set of randomly sampled data in the input directory
 
@@ -239,23 +262,74 @@ def visualize_multispeaker_data(input_dir: str, output_dir: str, num_samples: in
         rttm_file = rttm_list[idx]
         audio_file = rttm_file.parent / Path(rttm_file.stem + ".wav")
         output_file = Path(output_dir) / Path(rttm_file.stem + ".png")
-        plot_sample_from_rttm(audio_file=audio_file, rttm_file=rttm_file, save_path=str(output_file), show=False)
+        plot_sample_from_rttm(
+            audio_file=audio_file,
+            rttm_file=rttm_file,
+            save_path=str(output_file),
+            show=False,
+        )
     print(f"Sample plots saved at: {output_dir}")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("input_dir", default="", help="Input directory")
-    parser.add_argument("-sd", "--session_dur", default=None, type=float, help="Duration per session in seconds")
-    parser.add_argument("-sm", "--silence_mean", default=None, type=float, help="Expected silence ratio mean")
-    parser.add_argument("-sv", "--silence_var", default=None, type=float, help="Expected silence ratio variance")
-    parser.add_argument("-om", "--overlap_mean", default=None, type=float, help="Expected overlap ratio mean")
-    parser.add_argument("-ov", "--overlap_var", default=None, type=float, help="Expected overlap ratio variance")
-    parser.add_argument("-w", "--num_workers", default=1, type=int, help="Number of CPU workers to use")
-    parser.add_argument("-s", "--num_samples", default=10, type=int, help="Number of random samples to plot")
-    parser.add_argument("-o", "--output_dir", default="analysis/", type=str, help="Directory for saving output figure")
     parser.add_argument(
-        "--precise", action="store_true", help="Set to get precise duration, with significant time cost"
+        "-sd",
+        "--session_dur",
+        default=None,
+        type=float,
+        help="Duration per session in seconds",
+    )
+    parser.add_argument(
+        "-sm",
+        "--silence_mean",
+        default=None,
+        type=float,
+        help="Expected silence ratio mean",
+    )
+    parser.add_argument(
+        "-sv",
+        "--silence_var",
+        default=None,
+        type=float,
+        help="Expected silence ratio variance",
+    )
+    parser.add_argument(
+        "-om",
+        "--overlap_mean",
+        default=None,
+        type=float,
+        help="Expected overlap ratio mean",
+    )
+    parser.add_argument(
+        "-ov",
+        "--overlap_var",
+        default=None,
+        type=float,
+        help="Expected overlap ratio variance",
+    )
+    parser.add_argument(
+        "-w", "--num_workers", default=1, type=int, help="Number of CPU workers to use"
+    )
+    parser.add_argument(
+        "-s",
+        "--num_samples",
+        default=10,
+        type=int,
+        help="Number of random samples to plot",
+    )
+    parser.add_argument(
+        "-o",
+        "--output_dir",
+        default="analysis/",
+        type=str,
+        help="Directory for saving output figure",
+    )
+    parser.add_argument(
+        "--precise",
+        action="store_true",
+        help="Set to get precise duration, with significant time cost",
     )
     args = parser.parse_args()
 
@@ -280,7 +354,11 @@ if __name__ == "__main__":
         num_workers=args.num_workers,
     )
 
-    visualize_multispeaker_data(input_dir=args.input_dir, output_dir=args.output_dir, num_samples=args.num_samples)
+    visualize_multispeaker_data(
+        input_dir=args.input_dir,
+        output_dir=args.output_dir,
+        num_samples=args.num_samples,
+    )
 
     print("The multispeaker data analysis has been completed.")
     print(f"Please check the output directory: \n{args.output_dir}")

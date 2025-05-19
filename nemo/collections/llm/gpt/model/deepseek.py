@@ -58,9 +58,9 @@ class DeepSeekConfig(MLATransformerConfig, GPTConfig):
     Base config for DeepSeek V2 and V3 models.
     """
 
-    transformer_layer_spec: Union['ModuleSpec', Callable[["GPTConfig"], 'ModuleSpec']] = partial(
-        get_gpt_decoder_block_spec, use_transformer_engine=HAVE_TE
-    )
+    transformer_layer_spec: Union[
+        "ModuleSpec", Callable[["GPTConfig"], "ModuleSpec"]
+    ] = partial(get_gpt_decoder_block_spec, use_transformer_engine=HAVE_TE)
 
     # Model
     normalization: str = "RMSNorm"
@@ -87,9 +87,9 @@ class DeepSeekConfig(MLATransformerConfig, GPTConfig):
     moe_grouped_gemm: bool = True
     moe_router_pre_softmax: bool = True
     moe_token_dispatcher_type: str = "alltoall"
-    moe_router_load_balancing_type: str = 'seq_aux_loss'
+    moe_router_load_balancing_type: str = "seq_aux_loss"
     moe_shared_expert_overlap: bool = True
-    moe_router_dtype: Optional[str] = 'fp32'
+    moe_router_dtype: Optional[str] = "fp32"
 
     # MLA
     q_lora_rank: int = 1536
@@ -142,7 +142,9 @@ class DeepSeekV2Config(DeepSeekConfig):
     num_moe_experts: int = 160
     moe_ffn_hidden_size: int = 1536
     moe_shared_expert_intermediate_size: int = 3072  # 1536 * 2 shared experts
-    moe_layer_freq: Union[int, List[int]] = field(default_factory=lambda: [0] + [1] * 59)  # first layer is dense
+    moe_layer_freq: Union[int, List[int]] = field(
+        default_factory=lambda: [0] + [1] * 59
+    )  # first layer is dense
     moe_router_topk: int = 6
     moe_router_num_groups: int = 8
     moe_router_group_topk: int = 3
@@ -168,7 +170,9 @@ class DeepSeekV2LiteConfig(DeepSeekV2Config):
     num_moe_experts: int = 64
     moe_ffn_hidden_size: int = 1408
     moe_shared_expert_intermediate_size: int = 2816  # 1408 * 2 shared experts
-    moe_layer_freq: Union[int, List[int]] = field(default_factory=lambda: [0] + [1] * 26)  # first layer is dense
+    moe_layer_freq: Union[int, List[int]] = field(
+        default_factory=lambda: [0] + [1] * 26
+    )  # first layer is dense
     moe_router_topk: int = 6
     moe_router_num_groups: int = 1
     moe_router_group_topk: int = 1
@@ -213,7 +217,10 @@ class DeepSeekModel(GPTModel):
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
         super().__init__(
-            config or DeepSeekV2Config(), optim=optim, tokenizer=tokenizer, model_transform=model_transform
+            config or DeepSeekV2Config(),
+            optim=optim,
+            tokenizer=tokenizer,
+            model_transform=model_transform,
         )
 
 
@@ -228,7 +235,9 @@ class HFDeepSeekImporter(io.ModelConnector["AutoModelForCausalLM", DeepSeekModel
 
         self.convert_mtp = convert_mtp
         self._verify_source()
-        source = AutoModelForCausalLM.from_pretrained(str(self), trust_remote_code=True, torch_dtype='auto')
+        source = AutoModelForCausalLM.from_pretrained(
+            str(self), trust_remote_code=True, torch_dtype="auto"
+        )
         target = self.init()
         trainer = self.nemo_setup(target)
         self.convert_state(source, target)
@@ -243,7 +252,7 @@ class HFDeepSeekImporter(io.ModelConnector["AutoModelForCausalLM", DeepSeekModel
 
     def _verify_source(self):
         source_config = AutoConfig.from_pretrained(str(self), trust_remote_code=True)
-        assert 'quantization_config' not in source_config, (
+        assert "quantization_config" not in source_config, (
             "HuggingFace cannot load DeepSeek V3's FP8 checkpoint directly. You must convert the checkpoint "
             "to BF16. See NeMo documentation for more details: "
             "https://nemo-framework-tme.gitlab-master-pages.nvidia.com/documentation/user-guide/latest/llms/"
@@ -263,8 +272,12 @@ class HFDeepSeekImporter(io.ModelConnector["AutoModelForCausalLM", DeepSeekModel
 
         for layer_i, use_moe in enumerate(self.config.moe_layer_freq):
             if use_moe == 0:
-                weight = state_dict.pop(f"model.layers.{layer_i}.post_attention_layernorm.weight")
-                state_dict[f"model.layers.{layer_i}.dense-post_attention_layernorm.weight"] = weight
+                weight = state_dict.pop(
+                    f"model.layers.{layer_i}.post_attention_layernorm.weight"
+                )
+                state_dict[
+                    f"model.layers.{layer_i}.dense-post_attention_layernorm.weight"
+                ] = weight
 
         source = _ModelState(state_dict)
         return source
@@ -272,14 +285,16 @@ class HFDeepSeekImporter(io.ModelConnector["AutoModelForCausalLM", DeepSeekModel
     def _add_mtp_to_source(self, source: nn.Module | _ModelState) -> None:
         # Load MTP weights from disk, since it is not in HF model
         mtp_hf_layer_low = self.config.num_layers  # 61 if DeepSeek V3
-        mtp_hf_layer_high = self.config.num_layers + self.config.mtp_num_layers - 1  # 61 if DeepSeek V3
+        mtp_hf_layer_high = (
+            self.config.num_layers + self.config.mtp_num_layers - 1
+        )  # 61 if DeepSeek V3
         # Identify which file to load
-        with open(self / "model.safetensors.index.json", 'r') as file:
+        with open(self / "model.safetensors.index.json", "r") as file:
             manifest = json.load(file)
 
         safetensor_files_to_load = set()
         mtp_hf_keys = set()
-        for k, fname in manifest['weight_map'].items():
+        for k, fname in manifest["weight_map"].items():
             if match := re.match(r".*\.layers\.(\d+)\.", k):
                 if mtp_hf_layer_low <= int(match.group(1)) <= mtp_hf_layer_high:
                     safetensor_files_to_load.add(fname)
@@ -328,23 +343,36 @@ class HFDeepSeekImporter(io.ModelConnector["AutoModelForCausalLM", DeepSeekModel
         if self.config.q_lora_rank is None:
             del mapping["**.self_attn.q_a_proj.weight"]
             del mapping["**.self_attn.q_b_proj.weight"]
-            mapping["**.self_attn.q_proj.weight"] = "**.self_attention.linear_q_proj.weight"
+            mapping["**.self_attn.q_proj.weight"] = (
+                "**.self_attention.linear_q_proj.weight"
+            )
         # Account for Mcore local spec
         if self.config.q_lora_rank is not None and not isinstance(
             target.module.decoder.layers[0].self_attention.q_layernorm, IdentityOp
         ):
-            mapping["**.self_attn.q_a_layernorm.weight"] = "**.self_attention.q_layernorm.weight"
+            mapping["**.self_attn.q_a_layernorm.weight"] = (
+                "**.self_attention.q_layernorm.weight"
+            )
 
-        if not isinstance(target.module.decoder.layers[0].self_attention.kv_layernorm, IdentityOp):
-            mapping["**.self_attn.kv_a_layernorm.weight"] = "**.self_attention.kv_layernorm.weight"
+        if not isinstance(
+            target.module.decoder.layers[0].self_attention.kv_layernorm, IdentityOp
+        ):
+            mapping["**.self_attn.kv_a_layernorm.weight"] = (
+                "**.self_attention.kv_layernorm.weight"
+            )
 
-        if not isinstance(target.module.decoder.layers[0].pre_mlp_layernorm, IdentityOp):
+        if not isinstance(
+            target.module.decoder.layers[0].pre_mlp_layernorm, IdentityOp
+        ):
             del mapping["**.dense-post_attention_layernorm.weight"]
             source = _ModelState(source.state_dict)
         else:
             source = self._modify_source_state(source)
 
-        if hasattr(self.config, "moe_router_enable_expert_bias") and self.config.moe_router_enable_expert_bias:
+        if (
+            hasattr(self.config, "moe_router_enable_expert_bias")
+            and self.config.moe_router_enable_expert_bias
+        ):
             mapping.update(
                 {
                     "**.mlp.gate.e_score_correction_bias": "**.mlp.router.expert_bias",
@@ -380,10 +408,10 @@ class HFDeepSeekImporter(io.ModelConnector["AutoModelForCausalLM", DeepSeekModel
             self._add_mtp_to_source(source)
             mapping.update(
                 {
-                    'model.mtp.*.eh_proj.weight': "mtp.layers.*.eh_proj.weight",
-                    'model.mtp.*.enorm.weight': "mtp.layers.*.enorm.weight",
-                    'model.mtp.*.hnorm.weight': "mtp.layers.*.hnorm.weight",
-                    'model.mtp.*.shared_head.norm.weight': "mtp.layers.*.shared_head_norm.weight",
+                    "model.mtp.*.eh_proj.weight": "mtp.layers.*.eh_proj.weight",
+                    "model.mtp.*.enorm.weight": "mtp.layers.*.enorm.weight",
+                    "model.mtp.*.hnorm.weight": "mtp.layers.*.hnorm.weight",
+                    "model.mtp.*.shared_head.norm.weight": "mtp.layers.*.shared_head_norm.weight",
                 }
             )
 
@@ -418,7 +446,9 @@ class HFDeepSeekImporter(io.ModelConnector["AutoModelForCausalLM", DeepSeekModel
             v3_kwargs = {
                 "moe_router_score_function": "sigmoid",
                 "moe_router_enable_expert_bias": True,
-                "mtp_num_layers": source.num_nextn_predict_layers if self.convert_mtp else None,
+                "mtp_num_layers": (
+                    source.num_nextn_predict_layers if self.convert_mtp else None
+                ),
             }
         else:
             v3_kwargs = {}
@@ -431,7 +461,8 @@ class HFDeepSeekImporter(io.ModelConnector["AutoModelForCausalLM", DeepSeekModel
             q_lora_rank=source.q_lora_rank,
             num_moe_experts=source.n_routed_experts,
             moe_ffn_hidden_size=source.moe_intermediate_size,
-            moe_shared_expert_intermediate_size=source.moe_intermediate_size * source.n_shared_experts,
+            moe_shared_expert_intermediate_size=source.moe_intermediate_size
+            * source.n_shared_experts,
             moe_layer_freq=[0] * source.first_k_dense_replace + [1] * n_moe_layers,
             moe_router_topk=source.num_experts_per_tok,
             moe_router_num_groups=source.n_group,
@@ -454,7 +485,9 @@ class HFDeepSeekImporter(io.ModelConnector["AutoModelForCausalLM", DeepSeekModel
 @io.model_exporter(DeepSeekModel, "hf")
 class HFDeepSeekExporter(io.ModelConnector[DeepSeekModel, "AutoModelForCausalLM"]):
     # pylint: disable=C0115,C0116
-    def init(self, dtype=torch.bfloat16, model_name="deepseek-ai/DeepSeek-V3") -> "AutoModelForCausalLM":
+    def init(
+        self, dtype=torch.bfloat16, model_name="deepseek-ai/DeepSeek-V3"
+    ) -> "AutoModelForCausalLM":
         from transformers import AutoConfig, AutoModelForCausalLM
         from transformers.modeling_utils import no_init_weights
 
@@ -487,23 +520,27 @@ class HFDeepSeekExporter(io.ModelConnector[DeepSeekModel, "AutoModelForCausalLM"
         """
         model_yaml = path / "context" / "model.yaml"
         if not model_yaml.exists():
-            raise FileNotFoundError("model.yaml is not found in the context folder of the checkpoint.")
-        with open(model_yaml, 'r') as stream:
+            raise FileNotFoundError(
+                "model.yaml is not found in the context folder of the checkpoint."
+            )
+        with open(model_yaml, "r") as stream:
             config = yaml.safe_load(stream)
 
         dist_ckpt_folder = path / "weights"
         state_dict = {}
         for k, v in load_distributed_model_weights(dist_ckpt_folder, True).items():
-            if '_extra_state' in k:
+            if "_extra_state" in k:
                 continue
             new_k = k.replace("module.", "")
-            if '.experts.experts.' in k:
+            if ".experts.experts." in k:
                 # split experts into multiple tensors
                 for i in range(v.size(0)):
-                    state_dict[new_k.replace(".experts.experts.", ".experts.") + str(i)] = v[i]
+                    state_dict[
+                        new_k.replace(".experts.experts.", ".experts.") + str(i)
+                    ] = v[i]
             else:
                 state_dict[new_k] = v
-        return state_dict, config['config']
+        return state_dict, config["config"]
 
     def apply(self, output_path: Path, target_model_name=None) -> Path:
         logging.info("Loading DeepSeek NeMo checkpoint. This may take a while...")
@@ -516,9 +553,9 @@ class HFDeepSeekExporter(io.ModelConnector[DeepSeekModel, "AutoModelForCausalLM"
                 "Before DeepSeek is officially supported in HF, you should pass in a local HF "
                 "checkpoint using llm.export_ckpt(..., target_model_name=<local hf path>)"
             )
-            if source_config['moe_router_enable_expert_bias']:
+            if source_config["moe_router_enable_expert_bias"]:
                 target_model_name = "deepseek-ai/DeepSeek-V3"
-            elif source_config['q_lora_rank'] is not None:
+            elif source_config["q_lora_rank"] is not None:
                 target_model_name = "deepseek-ai/DeepSeek-V2"
             else:
                 target_model_name = "deepseek-ai/DeepSeek-V2-Lite"
@@ -527,11 +564,15 @@ class HFDeepSeekExporter(io.ModelConnector[DeepSeekModel, "AutoModelForCausalLM"
                 f"please pass in a local HF checkpoint."
             )
 
-        target = self.init(torch_dtype_from_dict_config(source_config), model_name=target_model_name)
+        target = self.init(
+            torch_dtype_from_dict_config(source_config), model_name=target_model_name
+        )
         target = self.convert_state(source, target, source_config)
 
         target = target.cpu()
-        logging.info(f"Converted DeepSeek model to HF, saving model to {output_path}...")
+        logging.info(
+            f"Converted DeepSeek model to HF, saving model to {output_path}..."
+        )
         target.save_pretrained(output_path, safe_serialization=False)
         self.tokenizer.save_pretrained(output_path)
 
@@ -566,22 +607,29 @@ class HFDeepSeekExporter(io.ModelConnector[DeepSeekModel, "AutoModelForCausalLM"
             "output_layer.weight": "lm_head.weight",
         }
         # For lite model
-        if source_config['q_lora_rank'] is None:
+        if source_config["q_lora_rank"] is None:
             del mapping["decoder.layers.*.self_attention.linear_q_down_proj.weight"]
             del mapping["decoder.layers.*.self_attention.linear_q_up_proj.weight"]
-            mapping["decoder.layers.*.self_attention.linear_q_proj.weight"] = "model.layers.*.self_attn.q_proj.weight"
+            mapping["decoder.layers.*.self_attention.linear_q_proj.weight"] = (
+                "model.layers.*.self_attn.q_proj.weight"
+            )
         # Account for Mcore local spec
-        if source_config['q_lora_rank'] is not None and 'decoder.layers.0.self_attention.q_layernorm.weight' in source:
+        if (
+            source_config["q_lora_rank"] is not None
+            and "decoder.layers.0.self_attention.q_layernorm.weight" in source
+        ):
             mapping["decoder.layers.*.self_attention.q_layernorm.weight"] = mapping.pop(
                 "decoder.layers.*.self_attention.linear_q_up_proj.layer_norm_weight"
             )
 
-        if 'decoder.layers.0.self_attention.kv_layernorm.weight' in source:
-            mapping["decoder.layers.*.self_attention.kv_layernorm.weight"] = mapping.pop(
-                "decoder.layers.*.self_attention.linear_kv_up_proj.layer_norm_weight"
+        if "decoder.layers.0.self_attention.kv_layernorm.weight" in source:
+            mapping["decoder.layers.*.self_attention.kv_layernorm.weight"] = (
+                mapping.pop(
+                    "decoder.layers.*.self_attention.linear_kv_up_proj.layer_norm_weight"
+                )
             )
 
-        if source_config.get('moe_router_enable_expert_bias', False):
+        if source_config.get("moe_router_enable_expert_bias", False):
             mapping.update(
                 {
                     "decoder.layers.*.mlp.router.expert_bias": "model.layers.*.mlp.gate.e_score_correction_bias",
@@ -591,7 +639,10 @@ class HFDeepSeekExporter(io.ModelConnector[DeepSeekModel, "AutoModelForCausalLM"
         transforms = [
             io.state_transform(
                 source_key="decoder.layers.*.mlp.linear_fc1.weight",
-                target_key=("model.layers.*.mlp.gate_proj.weight", "model.layers.*.mlp.up_proj.weight"),
+                target_key=(
+                    "model.layers.*.mlp.gate_proj.weight",
+                    "model.layers.*.mlp.up_proj.weight",
+                ),
                 fn=TransformFns.split_fc1,
             ),
             io.state_transform(
@@ -620,7 +671,9 @@ class HFDeepSeekExporter(io.ModelConnector[DeepSeekModel, "AutoModelForCausalLM"
             transforms=transforms,
         )
 
-    def _modify_source_state(self, source: Dict[str, Any], source_config: Dict[str, Any]) -> _ModelState:
+    def _modify_source_state(
+        self, source: Dict[str, Any], source_config: Dict[str, Any]
+    ) -> _ModelState:
         """
         In deepseek, HF weight `model.layers.*.post_attention_layernorm.weight` is mapped to mcore weight
         a) `decoder.layers.*.mlp.linear_fc1.layer_norm_weight`, if the layer is dense
@@ -628,15 +681,17 @@ class HFDeepSeekExporter(io.ModelConnector[DeepSeekModel, "AutoModelForCausalLM"
 
         We rename decoder.layers.*.mlp.linear_fc1.layer_norm_weight in the first case to unify key names
         """
-        for layer_i in range(source_config['num_layers']):
+        for layer_i in range(source_config["num_layers"]):
             if f"decoder.layers.{layer_i}.mlp.linear_fc1.layer_norm_weight" in source:
-                weight = source.pop(f"decoder.layers.{layer_i}.mlp.linear_fc1.layer_norm_weight")
+                weight = source.pop(
+                    f"decoder.layers.{layer_i}.mlp.linear_fc1.layer_norm_weight"
+                )
                 source[f"decoder.layers.{layer_i}.pre_mlp_layernorm.weight"] = weight
         modified_source = _ModelState(source)
         return modified_source
 
     @property
-    def tokenizer(self) -> 'AutoTokenizer':
+    def tokenizer(self) -> "AutoTokenizer":
         return io.load_context(self, subpath="model").tokenizer
 
 

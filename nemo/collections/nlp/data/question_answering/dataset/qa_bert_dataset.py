@@ -49,7 +49,11 @@ class BERTQADataset(QADataset):
         deprecated_warning("BERTQADataset")
 
         super().__init__(
-            data_file=data_file, processor=processor, tokenizer=tokenizer, mode=mode, num_samples=num_samples
+            data_file=data_file,
+            processor=processor,
+            tokenizer=tokenizer,
+            mode=mode,
+            num_samples=num_samples,
         )
 
         self.keep_doc_spans = keep_doc_spans
@@ -92,7 +96,9 @@ class BERTQADataset(QADataset):
                     self.segment_mask_id_to_segment_mask,
                     self.segment_mask_to_segment_mask_id,
                 ]
-                QADataset.dump_features_to_cache(self.cached_features_file, items_to_pickle)
+                QADataset.dump_features_to_cache(
+                    self.cached_features_file, items_to_pickle
+                )
 
         logging.info("Converting dict features into object features")
         for i in trange(len(self.features)):
@@ -104,8 +110,8 @@ class BERTQADataset(QADataset):
         vocab_size = getattr(self.tokenizer, "vocab_size", 0)
         self.cached_features_file = (
             self.data_file
-            + '_cache'
-            + '_{}_{}_{}_{}_{}_{}_{}'.format(
+            + "_cache"
+            + "_{}_{}_{}_{}_{}_{}_{}".format(
                 self.mode,
                 self.tokenizer.name,
                 str(vocab_size),
@@ -133,9 +139,11 @@ class BERTQADataset(QADataset):
 
             example = self.examples[example_index]
             if example.question_text not in text_to_tokens_dict:
-                text_to_tokens_dict[example.question_text] = self.tokenizer.text_to_tokens(example.question_text)[
-                    : self.max_query_length
-                ]
+                text_to_tokens_dict[example.question_text] = (
+                    self.tokenizer.text_to_tokens(example.question_text)[
+                        : self.max_query_length
+                    ]
+                )
             query_tokens = text_to_tokens_dict[example.question_text]
 
             # context: index of token -> index of word
@@ -192,13 +200,19 @@ class BERTQADataset(QADataset):
                     tok_end_position = len(all_doc_tokens) - 1
 
                 (tok_start_position, tok_end_position) = QADataset.improve_answer_span(
-                    all_doc_tokens, tok_start_position, tok_end_position, self.tokenizer, example.answer_text
+                    all_doc_tokens,
+                    tok_start_position,
+                    tok_end_position,
+                    self.tokenizer,
+                    example.answer_text,
                 )
 
             # The -3 accounts for tokenizer.cls_token, tokenizer.sep_token and tokenizer.sep_token
             # doc_spans contains all possible contexts options of given length
             max_tokens_for_doc = self.max_seq_length - len(query_tokens) - 3
-            doc_spans = QADataset.get_docspans(all_doc_tokens, max_tokens_for_doc, self.doc_stride)
+            doc_spans = QADataset.get_docspans(
+                all_doc_tokens, max_tokens_for_doc, self.doc_stride
+            )
             doc_spans = QADataset.keep_relevant_docspans(
                 doc_spans, tok_start_position, tok_end_position, self.keep_doc_spans
             )
@@ -208,7 +222,11 @@ class BERTQADataset(QADataset):
 
             for doc_span_index, doc_span in enumerate(doc_spans):
 
-                tokens = [self.tokenizer.cls_token] + query_tokens + [self.tokenizer.sep_token]
+                tokens = (
+                    [self.tokenizer.cls_token]
+                    + query_tokens
+                    + [self.tokenizer.sep_token]
+                )
                 segment_ids = [0 for i in range(len(tokens))]
 
                 token_is_max_context = {}
@@ -218,8 +236,12 @@ class BERTQADataset(QADataset):
 
                 for i in range(doc_span.length):
                     split_token_index = doc_span.start + i
-                    token_to_orig_map[len(tokens)] = tok_to_orig_index[split_token_index]
-                    is_max_context = QADataset.check_is_max_context(doc_spans, doc_span_index, split_token_index)
+                    token_to_orig_map[len(tokens)] = tok_to_orig_index[
+                        split_token_index
+                    ]
+                    is_max_context = QADataset.check_is_max_context(
+                        doc_spans, doc_span_index, split_token_index
+                    )
                     token_is_max_context[len(tokens)] = is_max_context
                     tokens.append(all_doc_tokens[split_token_index])
                     segment_ids.append(1)
@@ -251,7 +273,9 @@ class BERTQADataset(QADataset):
                     doc_start = doc_span.start
                     doc_end = doc_span.start + doc_span.length - 1
                     out_of_span = False
-                    if not (tok_start_position >= doc_start and tok_end_position <= doc_end):
+                    if not (
+                        tok_start_position >= doc_start and tok_end_position <= doc_end
+                    ):
                         out_of_span = True
                     if out_of_span:
                         start_position = 0
@@ -274,19 +298,35 @@ class BERTQADataset(QADataset):
                     logging.info("doc_span_index: %s" % (doc_span_index))
                     logging.info("tokens: %s" % " ".join(tokens))
                     logging.info(
-                        "token_to_orig_map: %s" % " ".join(["%d:%d" % (x, y) for (x, y) in token_to_orig_map.items()])
+                        "token_to_orig_map: %s"
+                        % " ".join(
+                            ["%d:%d" % (x, y) for (x, y) in token_to_orig_map.items()]
+                        )
                     )
                     logging.info(
                         "token_is_max_context: %s"
-                        % " ".join(["%d:%s" % (x, y) for (x, y) in token_is_max_context.items()])
+                        % " ".join(
+                            [
+                                "%d:%s" % (x, y)
+                                for (x, y) in token_is_max_context.items()
+                            ]
+                        )
                     )
-                    logging.info("input_ids: %s" % " ".join([str(x) for x in input_ids]))
-                    logging.info("input_mask: %s" % " ".join([str(x) for x in input_mask]))
-                    logging.info("segment_ids: %s" % " ".join([str(x) for x in segment_ids]))
+                    logging.info(
+                        "input_ids: %s" % " ".join([str(x) for x in input_ids])
+                    )
+                    logging.info(
+                        "input_mask: %s" % " ".join([str(x) for x in input_mask])
+                    )
+                    logging.info(
+                        "segment_ids: %s" % " ".join([str(x) for x in segment_ids])
+                    )
                     if has_groundtruth and example.is_impossible:
                         logging.info("impossible example")
                     if has_groundtruth and not example.is_impossible:
-                        answer_text = " ".join(tokens[start_position : (end_position + 1)])
+                        answer_text = " ".join(
+                            tokens[start_position : (end_position + 1)]
+                        )
                         logging.info("start_position: %d" % (start_position))
                         logging.info("end_position: %d" % (end_position))
                         logging.info("answer: %s" % (answer_text))
@@ -303,10 +343,16 @@ class BERTQADataset(QADataset):
 
                 segment_mask = tuple(segment_ids)
                 if segment_mask in self.segment_mask_to_segment_mask_id:
-                    feature_segment_mask_id = self.segment_mask_to_segment_mask_id[segment_mask]
+                    feature_segment_mask_id = self.segment_mask_to_segment_mask_id[
+                        segment_mask
+                    ]
                 else:
-                    self.segment_mask_id_to_segment_mask[self.segment_mask_id] = segment_mask
-                    self.segment_mask_to_segment_mask_id[segment_mask] = self.segment_mask_id
+                    self.segment_mask_id_to_segment_mask[self.segment_mask_id] = (
+                        segment_mask
+                    )
+                    self.segment_mask_to_segment_mask_id[segment_mask] = (
+                        self.segment_mask_id
+                    )
                     feature_segment_mask_id = self.segment_mask_id
                     self.segment_mask_id += 1
 

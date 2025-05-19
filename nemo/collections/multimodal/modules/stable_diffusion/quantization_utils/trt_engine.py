@@ -42,7 +42,8 @@ numpy_to_torch_dtype_dict = {
 
 class Engine:
     def __init__(
-        self, engine_path,
+        self,
+        engine_path,
     ):
         self.engine_path = engine_path
         self.engine = None
@@ -75,10 +76,14 @@ class Engine:
 
             # trt.Weight and trt.TensorLocation
             trt_wt_tensor = trt.Weights(
-                trt_datatype, refit_weights[trt_weight_name].data_ptr(), torch.numel(refit_weights[trt_weight_name])
+                trt_datatype,
+                refit_weights[trt_weight_name].data_ptr(),
+                torch.numel(refit_weights[trt_weight_name]),
             )
             trt_wt_location = (
-                trt.TensorLocation.DEVICE if refit_weights[trt_weight_name].is_cuda else trt.TensorLocation.HOST
+                trt.TensorLocation.DEVICE
+                if refit_weights[trt_weight_name].is_cuda
+                else trt.TensorLocation.HOST
             )
 
             # apply refit
@@ -112,9 +117,11 @@ class Engine:
 
         config_kwargs = {}
         if not enable_all_tactics:
-            config_kwargs['tactic_sources'] = []
+            config_kwargs["tactic_sources"] = []
 
-        network = network_from_onnx_path(onnx_path, flags=[trt.OnnxParserFlag.NATIVE_INSTANCENORM])
+        network = network_from_onnx_path(
+            onnx_path, flags=[trt.OnnxParserFlag.NATIVE_INSTANCENORM]
+        )
         if update_output_names:
             print(f"Updating network outputs to {update_output_names}")
             network = ModifyNetworkOutputs(network, update_output_names)
@@ -143,7 +150,7 @@ class Engine:
         else:
             self.context = self.engine.create_execution_context()
 
-    def allocate_buffers(self, shape_dict=None, device='cuda'):
+    def allocate_buffers(self, shape_dict=None, device="cuda"):
         for idx in range(self.engine.num_io_tensors):
             binding = self.engine[idx]
             if shape_dict and binding in shape_dict:
@@ -153,7 +160,9 @@ class Engine:
             dtype = trt.nptype(self.engine.get_binding_dtype(binding))
             if self.engine.binding_is_input(binding):
                 self.context.set_binding_shape(idx, shape)
-            tensor = torch.empty(tuple(shape), dtype=numpy_to_torch_dtype_dict[dtype]).to(device=device)
+            tensor = torch.empty(
+                tuple(shape), dtype=numpy_to_torch_dtype_dict[dtype]
+            ).to(device=device)
             self.tensors[binding] = tensor
 
     def infer(self, feed_dict, stream, use_cuda_graph=False):
@@ -175,11 +184,15 @@ class Engine:
                     raise ValueError(f"ERROR: inference failed.")
                 # capture cuda graph
                 CUASSERT(
-                    cudart.cudaStreamBeginCapture(stream, cudart.cudaStreamCaptureMode.cudaStreamCaptureModeGlobal)
+                    cudart.cudaStreamBeginCapture(
+                        stream, cudart.cudaStreamCaptureMode.cudaStreamCaptureModeGlobal
+                    )
                 )
                 self.context.execute_async_v3(stream)
                 self.graph = CUASSERT(cudart.cudaStreamEndCapture(stream))
-                self.cuda_graph_instance = CUASSERT(cudart.cudaGraphInstantiate(self.graph, 0))
+                self.cuda_graph_instance = CUASSERT(
+                    cudart.cudaGraphInstantiate(self.graph, 0)
+                )
         else:
             noerror = self.context.execute_async_v3(stream)
             if not noerror:

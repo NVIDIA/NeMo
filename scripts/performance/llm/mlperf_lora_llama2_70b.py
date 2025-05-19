@@ -113,7 +113,7 @@ def mlperf_lora_llama2_70b_recipe(
         a2a_experimental=True,
         dropout_position="pre",
         lora_A_init_method="kaiming",
-        target_modules=['linear_proj', 'linear_qkv'],
+        target_modules=["linear_proj", "linear_qkv"],
     )
     llama2_config = run.Config(
         llm.Llama2Config70B,
@@ -162,7 +162,7 @@ def mlperf_lora_llama2_70b_recipe(
         grad_reduce_in_fp32=False,
         fp8="hybrid",
         fp8_amax_history_len=32,
-        fp8_amax_compute_algo='max',
+        fp8_amax_compute_algo="max",
         fp8_param_gather=True,
         fp8_dot_product_attention=1,
     )
@@ -181,10 +181,20 @@ def mlperf_lora_llama2_70b_recipe(
             proj_dgrad=RingExchangeOverlapCfg(),
             fc2_dgrad=RingExchangeOverlapCfg(),
             proj_fprop=PipelineOverlapCfg(
-                num_sm=32, cga_size=2, num_splits=4, set_sm_margin=True, atomic_gemm=True, fp8_buf=True
+                num_sm=32,
+                cga_size=2,
+                num_splits=4,
+                set_sm_margin=True,
+                atomic_gemm=True,
+                fp8_buf=True,
             ),
             fc2_fprop=PipelineOverlapCfg(
-                num_sm=16, cga_size=2, num_splits=4, set_sm_margin=True, atomic_gemm=True, fp8_buf=False
+                num_sm=16,
+                cga_size=2,
+                num_splits=4,
+                set_sm_margin=True,
+                atomic_gemm=True,
+                fp8_buf=False,
             ),
             qkv_dgrad=BulkOverlapCfg(num_sm=4, cga_size=2, set_sm_margin=False),
             fc1_dgrad=RingExchangeOverlapCfg(cga_size=2, set_sm_margin=True),
@@ -264,15 +274,25 @@ if __name__ == "__main__":
             f"--expert_parallel_size={args.expert_parallel_size}"
         )
 
-    num_gpus_per_node = NUM_GPUS_PER_NODE if args.gpus_per_node is None else args.gpus_per_node
+    num_gpus_per_node = (
+        NUM_GPUS_PER_NODE if args.gpus_per_node is None else args.gpus_per_node
+    )
     num_gpus = NUM_NODES * num_gpus_per_node if args.num_gpus is None else args.num_gpus
     num_nodes = -(num_gpus // -num_gpus_per_node)
 
     mbs = MICRO_BATCH_SIZE if args.micro_batch_size is None else args.micro_batch_size
-    gbs = GLOBAL_BATCH_SIZE if args.global_batch_size is None else args.global_batch_size
-    tp_size = TP_SIZE if args.tensor_parallel_size is None else args.tensor_parallel_size
-    pp_size = PP_SIZE if args.pipeline_parallel_size is None else args.pipeline_parallel_size
-    cp_size = CP_SIZE if args.context_parallel_size is None else args.context_parallel_size
+    gbs = (
+        GLOBAL_BATCH_SIZE if args.global_batch_size is None else args.global_batch_size
+    )
+    tp_size = (
+        TP_SIZE if args.tensor_parallel_size is None else args.tensor_parallel_size
+    )
+    pp_size = (
+        PP_SIZE if args.pipeline_parallel_size is None else args.pipeline_parallel_size
+    )
+    cp_size = (
+        CP_SIZE if args.context_parallel_size is None else args.context_parallel_size
+    )
 
     exp_name = "_".join(
         [
@@ -288,7 +308,7 @@ if __name__ == "__main__":
     env_vars = {
         # pylint: disable=C0301
         "CUDA_DEVICE_MAX_CONNECTIONS": (
-            "32" if args.gpu.lower() in ['b200', 'gb200'] else "1"
+            "32" if args.gpu.lower() in ["b200", "gb200"] else "1"
         ),  # Limit GPUs to one compute stream so that kernels will be executed in consistent order, for best performance with communication overlap configs
         # pylint: disable=C0301
         "CUBLAS_FORCE_XMMA_KERNEL_INIT": "DEVICE",  # Use a device kernel instead of memset for matrix multiply initialization, which can help reduce CPU-side overhead
@@ -339,13 +359,15 @@ if __name__ == "__main__":
         assert args.wandb_job_name is not None
         from nemo.collections.llm.recipes.log.default import wandb_logger
 
-        recipe.log.wandb = wandb_logger(project=args.wandb_prj_name, name=args.wandb_job_name)
+        recipe.log.wandb = wandb_logger(
+            project=args.wandb_prj_name, name=args.wandb_job_name
+        )
 
     plugins = [
         PerfEnvPlugin(
             enable_vboost=True,
             nccl_pp_comm_chunksize=2097152 if PP_SIZE > 1 else None,
-            gpu_sm100_or_newer=(args.gpu.lower() in ['b200', 'gb200']),
+            gpu_sm100_or_newer=(args.gpu.lower() in ["b200", "gb200"]),
         )
     ]
     if args.enable_nsys:
@@ -356,10 +378,14 @@ if __name__ == "__main__":
 
     with run.Experiment(exp_name) as exp:
         if not SKIP_IMPORT:
-            assert args.hf_token is not None, "HF token is required for importing checkpoint from HuggingFace"
+            assert (
+                args.hf_token is not None
+            ), "HF token is required for importing checkpoint from HuggingFace"
             exp.add(
                 *import_ckpt_experiment(
-                    executor, run.Config(LlamaModel, config=run.Config(Llama2Config70B)), source=f"hf://{HF_MODEL_URI}"
+                    executor,
+                    run.Config(LlamaModel, config=run.Config(Llama2Config70B)),
+                    source=f"hf://{HF_MODEL_URI}",
                 )
             )
         exp.add(

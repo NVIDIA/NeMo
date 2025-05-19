@@ -26,7 +26,7 @@ from nemo.collections.nlp.models.machine_translation.mt_enc_dec_model import \
 from nemo.core.classes.common import typecheck
 from nemo.utils import timers
 
-__all__ = ['MTBottleneckModel']
+__all__ = ["MTBottleneckModel"]
 
 
 def build_linear_or_identity(input_dim, output_dim):
@@ -77,24 +77,34 @@ class MTBottleneckModel(MTEncDecModel):
 
         if not self.recon_per_token:
             # disable reduction for train and eval loss
-            self.eval_loss_fn = NLLLoss(ignore_index=self.decoder_tokenizer.pad_id, reduction='none')
+            self.eval_loss_fn = NLLLoss(
+                ignore_index=self.decoder_tokenizer.pad_id, reduction="none"
+            )
             self.loss_fn._per_token_reduction = False
 
         if self.model_type not in ["nll", "mim", "vae"]:
             raise ValueError(f"Unknown model_type = {self.model_type}")
 
         # project bridge dimension back to decoder hidden dimensions
-        self.latent2hidden = build_linear_or_identity(self.latent_size, self.decoder.hidden_size)
+        self.latent2hidden = build_linear_or_identity(
+            self.latent_size, self.decoder.hidden_size
+        )
 
         if self.model_type == "nll":
             # project dimension of encoder hidden to latent dimension
-            self.hidden2latent_mean = build_linear_or_identity(self.encoder.hidden_size, self.latent_size)
+            self.hidden2latent_mean = build_linear_or_identity(
+                self.encoder.hidden_size, self.latent_size
+            )
         else:
             # MIM or VAE requires two independent projections for mean/variance
             # project dimension of encoder hidden to latent dimension
-            self.hidden2latent_mean = torch.nn.Linear(self.encoder.hidden_size, self.latent_size)
+            self.hidden2latent_mean = torch.nn.Linear(
+                self.encoder.hidden_size, self.latent_size
+            )
             # for probabilistic latent variable models we also need variance
-            self.hidden2latent_logv = torch.nn.Linear(self.encoder.hidden_size, self.latent_size)
+            self.hidden2latent_logv = torch.nn.Linear(
+                self.encoder.hidden_size, self.latent_size
+            )
 
     def _validate_encoder_decoder_hidden_size(self):
         """
@@ -123,7 +133,11 @@ class MTBottleneckModel(MTEncDecModel):
                 if dataloader_idx == 0:
                     self.log(f"{mode}_{k}", np.mean(v), sync_dist=True)
                 else:
-                    self.log(f"{mode}_{k}_dl_index_{dataloader_idx}", np.mean(v), sync_dist=True)
+                    self.log(
+                        f"{mode}_{k}_dl_index_{dataloader_idx}",
+                        np.mean(v),
+                        sync_dist=True,
+                    )
 
     @classmethod
     def list_available_models(cls) -> Optional[Dict[str, str]]:
@@ -164,7 +178,17 @@ class MTBottleneckModel(MTEncDecModel):
         return z, z_mean, z_logv
 
     def loss(
-        self, z, z_mean, z_logv, z_mask, tgt_log_probs, tgt, tgt_mask, tgt_labels, train=False, return_info=False
+        self,
+        z,
+        z_mean,
+        z_logv,
+        z_mask,
+        tgt_log_probs,
+        tgt,
+        tgt_mask,
+        tgt_labels,
+        train=False,
+        return_info=False,
     ):
         """
         Compute the loss from latent (z) and target (x).
@@ -177,13 +201,17 @@ class MTBottleneckModel(MTEncDecModel):
         info_dict = {}
 
         if self.recon_per_token:
-            log_p_x_given_z_per_token = -recon_loss_fn(log_probs=tgt_log_probs, labels=tgt_labels)
+            log_p_x_given_z_per_token = -recon_loss_fn(
+                log_probs=tgt_log_probs, labels=tgt_labels
+            )
 
             log_p_x_given_z = log_p_x_given_z_per_token
             log_p_x_given_z_per_token = log_p_x_given_z_per_token.detach()
         else:
             # averaging of log_p_x_given_z per sample
-            output_mask = (tgt_labels != self.decoder_tokenizer.pad_id).type_as(tgt_log_probs)
+            output_mask = (tgt_labels != self.decoder_tokenizer.pad_id).type_as(
+                tgt_log_probs
+            )
 
             log_p_x_given_z_per_token = (
                 -recon_loss_fn(
@@ -197,11 +225,15 @@ class MTBottleneckModel(MTEncDecModel):
             log_p_x_given_z = log_p_x_given_z_per_token.sum(-1).mean()
 
             tokens = output_mask.sum()
-            log_p_x_given_z_per_token = log_p_x_given_z_per_token.sum().detach() / tokens
+            log_p_x_given_z_per_token = (
+                log_p_x_given_z_per_token.sum().detach() / tokens
+            )
 
             info_dict["log_p_x_given_z"] = log_p_x_given_z.detach().cpu()
 
-        info_dict["log_p_x_given_z_per_token"] = log_p_x_given_z_per_token.detach().cpu()
+        info_dict["log_p_x_given_z_per_token"] = (
+            log_p_x_given_z_per_token.detach().cpu()
+        )
 
         # loss warmup during training only
         if train:
@@ -315,7 +347,11 @@ class MTBottleneckModel(MTEncDecModel):
 
     @torch.no_grad()
     def batch_translate(
-        self, src: torch.LongTensor, src_mask: torch.LongTensor, return_beam_scores: bool = False, cache={}
+        self,
+        src: torch.LongTensor,
+        src_mask: torch.LongTensor,
+        return_beam_scores: bool = False,
+        cache={},
     ):
         """
         Translates a minibatch of inputs from source language to target language.
@@ -335,7 +371,9 @@ class MTBottleneckModel(MTEncDecModel):
             if ("z" not in cache) or ("z_mean" not in cache) or ("z_mask" not in cache):
                 if timer is not None:
                     timer.start("encoder")
-                enc_hiddens, enc_mask = self.encoder(input_ids=src, encoder_mask=src_mask, return_mask=True)
+                enc_hiddens, enc_mask = self.encoder(
+                    input_ids=src, encoder_mask=src_mask, return_mask=True
+                )
                 z, z_mean, _ = self.encode_latent(hidden=enc_hiddens)
                 if timer is not None:
                     timer.stop("encoder")
@@ -364,20 +402,34 @@ class MTBottleneckModel(MTEncDecModel):
                 all_translations, scores, best_translations = best_translations
                 scores = scores.view(-1)
                 all_translations = self.ids_to_postprocessed_text(
-                    all_translations, self.decoder_tokenizer, self.target_processor, filter_beam_ids=True
+                    all_translations,
+                    self.decoder_tokenizer,
+                    self.target_processor,
+                    filter_beam_ids=True,
                 )
 
             best_translations = self.ids_to_postprocessed_text(
-                best_translations, self.decoder_tokenizer, self.target_processor, filter_beam_ids=True
+                best_translations,
+                self.decoder_tokenizer,
+                self.target_processor,
+                filter_beam_ids=True,
             )
             inputs = self.ids_to_postprocessed_text(
-                src, self.encoder_tokenizer, self.source_processor, filter_beam_ids=False
+                src,
+                self.encoder_tokenizer,
+                self.source_processor,
+                filter_beam_ids=False,
             )
 
         finally:
             self.train(mode=mode)
         if return_beam_scores:
-            return inputs, all_translations, scores.data.cpu().numpy().tolist(), best_translations
+            return (
+                inputs,
+                all_translations,
+                scores.data.cpu().numpy().tolist(),
+                best_translations,
+            )
 
         return inputs, best_translations
 
@@ -393,7 +445,9 @@ class MTBottleneckModel(MTEncDecModel):
                 # is excess.
                 batch[i] = batch[i].squeeze(dim=0)
         src_ids, src_mask, tgt_ids, tgt_mask, labels = batch
-        z, z_mean, z_logv, z_mask, tgt_log_probs = self(src_ids, src_mask, tgt_ids, tgt_mask)
+        z, z_mean, z_logv, z_mask, tgt_log_probs = self(
+            src_ids, src_mask, tgt_ids, tgt_mask
+        )
         train_loss, info_dict = self.loss(
             z=z,
             z_mean=z_mean,
@@ -407,12 +461,12 @@ class MTBottleneckModel(MTEncDecModel):
             return_info=True,
         )
         tensorboard_logs = {
-            'train_loss': train_loss,
-            'lr': self._optimizer.param_groups[0]['lr'],
+            "train_loss": train_loss,
+            "lr": self._optimizer.param_groups[0]["lr"],
         }
         tensorboard_logs.update(info_dict)
 
-        return {'loss': train_loss, 'log': tensorboard_logs}
+        return {"loss": train_loss, "log": tensorboard_logs}
 
     def eval_step(self, batch, batch_idx, mode, dataloader_idx=0):
         if self.log_timing:
@@ -431,7 +485,9 @@ class MTBottleneckModel(MTEncDecModel):
             self.target_processor = self.target_processor_list[dataloader_idx]
 
         src_ids, src_mask, tgt_ids, tgt_mask, labels = batch
-        z, z_mean, z_logv, z_mask, tgt_log_probs = self(src_ids, src_mask, tgt_ids, tgt_mask, timer=timer)
+        z, z_mean, z_logv, z_mask, tgt_log_probs = self(
+            src_ids, src_mask, tgt_ids, tgt_mask, timer=timer
+        )
         eval_loss, info_dict = self.loss(
             z=z,
             z_mean=z_mean,
@@ -452,35 +508,44 @@ class MTBottleneckModel(MTEncDecModel):
             timer=timer,
         )
 
-        inputs, translations = self.batch_translate(src=src_ids, src_mask=src_mask, cache=cache)
+        inputs, translations = self.batch_translate(
+            src=src_ids, src_mask=src_mask, cache=cache
+        )
 
         num_measurements = labels.shape[0] * labels.shape[1]
         if dataloader_idx == 0:
-            getattr(self, f'{mode}_loss')(
+            getattr(self, f"{mode}_loss")(
                 loss=eval_loss,
                 num_measurements=num_measurements,
             )
         else:
-            getattr(self, f'{mode}_loss_{dataloader_idx}')(
+            getattr(self, f"{mode}_loss_{dataloader_idx}")(
                 loss=eval_loss,
                 num_measurements=num_measurements,
             )
         np_tgt = tgt_ids.detach().cpu().numpy()
         ground_truths = [self.decoder_tokenizer.ids_to_text(tgt) for tgt in np_tgt]
-        ground_truths = [self.target_processor.detokenize(tgt.split(' ')) for tgt in ground_truths]
-        num_non_pad_tokens = np.not_equal(np_tgt, self.decoder_tokenizer.pad_id).sum().item()
+        ground_truths = [
+            self.target_processor.detokenize(tgt.split(" ")) for tgt in ground_truths
+        ]
+        num_non_pad_tokens = (
+            np.not_equal(np_tgt, self.decoder_tokenizer.pad_id).sum().item()
+        )
 
         # collect logs
-        log_dict = {k: v.detach().cpu().numpy() if torch.is_tensor(v) else v for k, v in info_dict.items()}
+        log_dict = {
+            k: v.detach().cpu().numpy() if torch.is_tensor(v) else v
+            for k, v in info_dict.items()
+        }
         # add timing if required
         if timer is not None:
             for k, v in timer.export().items():
                 log_dict[f"{k}_timing"] = v
 
         return {
-            'inputs': inputs,
-            'translations': translations,
-            'ground_truths': ground_truths,
-            'num_non_pad_tokens': num_non_pad_tokens,
-            'log': log_dict,
+            "inputs": inputs,
+            "translations": translations,
+            "ground_truths": ground_truths,
+            "num_non_pad_tokens": num_non_pad_tokens,
+            "log": log_dict,
         }

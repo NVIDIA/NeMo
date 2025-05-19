@@ -20,7 +20,7 @@ from nemo.collections.llm.bert.model.bert import (HuggingFaceBertBaseConfig,
 
 def test_huggingface_bert_base_config():
     config = HuggingFaceBertBaseConfig()
-    assert config.bert_type == 'huggingface'
+    assert config.bert_type == "huggingface"
     assert config.num_layers == 12
     assert config.hidden_size == 768
     assert config.ffn_hidden_size == 3072
@@ -29,7 +29,7 @@ def test_huggingface_bert_base_config():
 
 def test_huggingface_bert_large_config():
     config = HuggingFaceBertLargeConfig()
-    assert config.bert_type == 'huggingface'
+    assert config.bert_type == "huggingface"
     assert config.num_layers == 24
     assert config.hidden_size == 1024
     assert config.ffn_hidden_size == 4096
@@ -38,7 +38,7 @@ def test_huggingface_bert_large_config():
 
 def test_megatron_bert_base_config():
     config = MegatronBertBaseConfig()
-    assert config.bert_type == 'megatron'
+    assert config.bert_type == "megatron"
     assert config.num_layers == 12
     assert config.hidden_size == 768
     assert config.ffn_hidden_size == 3072
@@ -47,7 +47,7 @@ def test_megatron_bert_base_config():
 
 def test_megatron_bert_large_config():
     config = MegatronBertLargeConfig()
-    assert config.bert_type == 'megatron'
+    assert config.bert_type == "megatron"
     assert config.num_layers == 24
     assert config.hidden_size == 1024
     assert config.ffn_hidden_size == 4096
@@ -132,7 +132,10 @@ class TestBertTransforms:
             vb = torch.randn(num_heads * head_size)
 
             # Test both bias import functions
-            for transform_fn in [_import_qkv_bias.transform, _import_qkv_bias_2.transform]:
+            for transform_fn in [
+                _import_qkv_bias.transform,
+                _import_qkv_bias_2.transform,
+            ]:
                 result = transform_fn(mock_ctx, qb, kb, vb)
 
                 # Check output shape
@@ -145,11 +148,16 @@ class TestBertTransforms:
             embedding = torch.randn(vocab_size, hidden_size)
 
             # Test both embedding import functions
-            for transform_fn in [_import_embedding.transform, _import_embedding_2.transform]:
+            for transform_fn in [
+                _import_embedding.transform,
+                _import_embedding_2.transform,
+            ]:
                 result = transform_fn(mock_ctx, embedding)
 
                 # Check padding
-                expected_padded_size = int(torch.ceil(torch.tensor(vocab_size) / 128) * 128)
+                expected_padded_size = int(
+                    torch.ceil(torch.tensor(vocab_size) / 128) * 128
+                )
                 assert result.shape == (expected_padded_size, hidden_size)
                 # Check original values preserved
                 torch.testing.assert_close(result[:vocab_size], embedding)

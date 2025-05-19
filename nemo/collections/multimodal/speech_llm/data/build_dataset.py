@@ -38,16 +38,19 @@ from nemo.utils import logging
 
 
 def build_speechllm_dataset(model_instance, data_cfg, is_train):
-    if 'augmentor' in data_cfg:
+    if "augmentor" in data_cfg:
         augmentor = process_augmentations(
-            data_cfg['augmentor'], global_rank=model_instance.global_rank, world_size=model_instance.world_size
+            data_cfg["augmentor"],
+            global_rank=model_instance.global_rank,
+            world_size=model_instance.world_size,
         )
     else:
         augmentor = None
 
     # Check dataset max_seq_legnth and max_position_embeddings size
     if (
-        model_instance.cfg.get('position_embedding_type', None) in [None, 'learned_absolute']
+        model_instance.cfg.get("position_embedding_type", None)
+        in [None, "learned_absolute"]
         and data_cfg.max_seq_length > model_instance.cfg.max_position_embeddings
     ):
         logging.warning(
@@ -67,22 +70,22 @@ def build_speechllm_dataset(model_instance, data_cfg, is_train):
         return LhotseAudioQuestionAnswerDataset(
             tp,
             default_context="answer the question according to the previous audio",
-            tokens_to_generate=data_cfg.get('tokens_to_generate', 0),
-            pad_to_max_length=data_cfg.get('pad_to_max_length', False),
+            tokens_to_generate=data_cfg.get("tokens_to_generate", 0),
+            pad_to_max_length=data_cfg.get("pad_to_max_length", False),
             max_seq_length=data_cfg["max_seq_length"],
-            context_key=data_cfg.get('context_key', "context"),
-            default_context_key=data_cfg.get('default_context_key', "default_context"),
+            context_key=data_cfg.get("context_key", "context"),
+            default_context_key=data_cfg.get("default_context_key", "default_context"),
         )
 
     # Notably, the data weights are controlled by either bucketing_weights
     # or concat_sampling_probabilities depending on the dataset type.
-    if data_cfg.get('is_tarred', False):
+    if data_cfg.get("is_tarred", False):
         return get_tarred_audio_text_dataset_from_config(
             config=data_cfg,
             tokenizer=model_instance.tokenizer,
             augmentor=augmentor,
             sep_id=model_instance.sep_id,
-            answer_only_loss=model_instance.cfg.get('answer_only_loss', True),
+            answer_only_loss=model_instance.cfg.get("answer_only_loss", True),
             virtual_tokens=model_instance.virtual_tokens,
             global_rank=parallel_state.get_data_parallel_rank(),
             world_size=parallel_state.get_data_parallel_world_size(),
@@ -95,12 +98,14 @@ def build_speechllm_dataset(model_instance, data_cfg, is_train):
             augmentor=augmentor,
             is_train=is_train,
             sep_id=model_instance.sep_id,
-            answer_only_loss=model_instance.cfg.get('answer_only_loss', True),
+            answer_only_loss=model_instance.cfg.get("answer_only_loss", True),
             virtual_tokens=model_instance.virtual_tokens,
         )
 
 
-def build_speechllm_dataloader(dataset, data_cfg, consumed_samples=0, is_predict=False, is_eval=False):
+def build_speechllm_dataloader(
+    dataset, data_cfg, consumed_samples=0, is_predict=False, is_eval=False
+):
     """Buld dataloader given an input dataset."""
     if data_cfg.get("use_lhotse"):
         if is_eval == False and is_predict == False:
@@ -114,11 +119,11 @@ def build_speechllm_dataloader(dataset, data_cfg, consumed_samples=0, is_predict
         # for eval, we need to create separate dataset so as to report splitted numbers
         else:
             dls = []
-            if data_cfg.get('manifest_filepath') is not None:
+            if data_cfg.get("manifest_filepath") is not None:
                 manifest_filepath = data_cfg.manifest_filepath
                 for cur_manifest_filepath in manifest_filepath:
                     conf = copy.deepcopy(data_cfg)
-                    conf['manifest_filepath'] = cur_manifest_filepath
+                    conf["manifest_filepath"] = cur_manifest_filepath
                     dls.append(
                         get_lhotse_dataloader_from_config(
                             conf,
@@ -133,7 +138,9 @@ def build_speechllm_dataloader(dataset, data_cfg, consumed_samples=0, is_predict
                 if isinstance(input_cfg, (str, Path)):
                     # Resolve /path/to/input_cfg.yaml into config contents if needed.
                     input_cfg = OmegaConf.load(input_cfg)
-                    assert len(input_cfg) == 1, "Only one dataset with multiple manifest paths is supported for eval"
+                    assert (
+                        len(input_cfg) == 1
+                    ), "Only one dataset with multiple manifest paths is supported for eval"
                     data_cfg.input_cfg = input_cfg
                     # for getting names
                     manifest_filepath = []
@@ -158,20 +165,20 @@ def build_speechllm_dataloader(dataset, data_cfg, consumed_samples=0, is_predict
                         )
                     )
 
-            if 'names' not in data_cfg:
+            if "names" not in data_cfg:
                 names = []
                 for cur_manifest_filepath in manifest_filepath:
                     names.append(Path(cur_manifest_filepath).stem)
-                OmegaConf.update(data_cfg, 'names', names, force_add=True)
-                logging.info(f'Update dataset names as {names}')
+                OmegaConf.update(data_cfg, "names", names, force_add=True)
+                logging.info(f"Update dataset names as {names}")
             return dls
 
-    logging.info(f'Building dataloader with consumed samples: {consumed_samples}')
+    logging.info(f"Building dataloader with consumed samples: {consumed_samples}")
     if isinstance(dataset, BlendableDataset):
         collate_fn = dataset.datasets[0].collate_fn
-    elif hasattr(dataset, 'collate_fn'):
+    elif hasattr(dataset, "collate_fn"):
         collate_fn = dataset.collate_fn
-    elif hasattr(dataset.datasets[0], 'collate_fn'):
+    elif hasattr(dataset.datasets[0], "collate_fn"):
         # support datasets that are lists of entries
         collate_fn = dataset.datasets[0].collate_fn
     else:
@@ -180,8 +187,12 @@ def build_speechllm_dataloader(dataset, data_cfg, consumed_samples=0, is_predict
 
     if isinstance(dataset, torch.utils.data.IterableDataset):
         data_parallel_size = parallel_state.get_data_parallel_world_size()
-        num_micro_batches = data_cfg.global_batch_size // (data_cfg.micro_batch_size * data_parallel_size)
-        global_batch_size_on_this_data_parallel_rank = num_micro_batches * data_cfg.micro_batch_size
+        num_micro_batches = data_cfg.global_batch_size // (
+            data_cfg.micro_batch_size * data_parallel_size
+        )
+        global_batch_size_on_this_data_parallel_rank = (
+            num_micro_batches * data_cfg.micro_batch_size
+        )
 
         dataloader = torch.utils.data.DataLoader(
             dataset,
@@ -208,7 +219,9 @@ def build_speechllm_dataloader(dataset, data_cfg, consumed_samples=0, is_predict
     pad_to_global_batch = not data_cfg.drop_last
     if is_eval:
         # don't pad to global batch if in eval mode, unless explicitly set by user (e.g., eval with DDP)
-        pad_to_global_batch = (not data_cfg.drop_last) and data_cfg.get("pad_samples_to_global_batch_size", False)
+        pad_to_global_batch = (not data_cfg.drop_last) and data_cfg.get(
+            "pad_samples_to_global_batch_size", False
+        )
 
     batch_sampler = MegatronPretrainingBatchSampler(
         total_samples=len(dataset),

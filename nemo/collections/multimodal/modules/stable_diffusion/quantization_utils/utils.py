@@ -24,7 +24,9 @@ from .plugin_calib import PercentileCalibrator
 
 
 def filter_func(name):
-    pattern = re.compile(r".*(emb_layers.1|time_embed|input_blocks.0.0|^out\.1$|skip_connection|label_emb).*")
+    pattern = re.compile(
+        r".*(emb_layers.1|time_embed|input_blocks.0.0|^out\.1$|skip_connection|label_emb).*"
+    )
     return pattern.match(name) is not None
 
 
@@ -65,7 +67,14 @@ def load_calib_prompts(batch_size, calib_data_path="./calib_prompts.txt"):
     return [lst[i : i + batch_size] for i in range(0, len(lst), batch_size)]
 
 
-def get_int8_config(model, quant_level=3, alpha=0.8, percentile=1.0, num_inference_steps=20, global_min=False):
+def get_int8_config(
+    model,
+    quant_level=3,
+    alpha=0.8,
+    percentile=1.0,
+    num_inference_steps=20,
+    global_min=False,
+):
     quant_config = {
         "quant_cfg": {
             "*lm_head*": {"enable": False},
@@ -78,14 +87,20 @@ def get_int8_config(model, quant_level=3, alpha=0.8, percentile=1.0, num_inferen
         w_name = f"{name}*weight_quantizer"
         i_name = f"{name}*input_quantizer"
 
-        if w_name in quant_config["quant_cfg"].keys() or i_name in quant_config["quant_cfg"].keys():
+        if (
+            w_name in quant_config["quant_cfg"].keys()
+            or i_name in quant_config["quant_cfg"].keys()
+        ):
             continue
         if filter_func(name):
             continue
         if isinstance(module, (torch.nn.Linear, LinearWrapper)):
             if (
                 (quant_level >= 2 and "ff.net" in name)
-                or (quant_level >= 2.5 and ("to_q" in name or "to_k" in name or "to_v" in name))
+                or (
+                    quant_level >= 2.5
+                    and ("to_q" in name or "to_k" in name or "to_v" in name)
+                )
                 or quant_level == 3
             ):
                 quant_config["quant_cfg"][w_name] = {"num_bits": 8, "axis": 0}
@@ -123,7 +138,10 @@ def quantize_lvl(unet, quant_level=2.5):
         elif isinstance(module, (torch.nn.Linear, LinearWrapper)):
             if (
                 (quant_level >= 2 and "ff.net" in name)
-                or (quant_level >= 2.5 and ("to_q" in name or "to_k" in name or "to_v" in name))
+                or (
+                    quant_level >= 2.5
+                    and ("to_q" in name or "to_k" in name or "to_v" in name)
+                )
                 or quant_level == 3
             ):
                 module.input_quantizer.enable()

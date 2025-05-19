@@ -65,7 +65,9 @@ except ImportError:
 def set_format_recipe():
     """Set the fp8 format recipe. for Hyena."""
     fp8_format = Format.HYBRID  # E4M3 during forward pass, E5M2 during backward pass
-    fp8_recipe = DelayedScaling(fp8_format=fp8_format, amax_history_len=16, amax_compute_algo="max")
+    fp8_recipe = DelayedScaling(
+        fp8_format=fp8_format, amax_history_len=16, amax_compute_algo="max"
+    )
     return fp8_recipe
 
 
@@ -110,12 +112,16 @@ class HyenaMixer(MegatronModule):
 
         # we might expand the hidden size for hyena
         self.input_size = self.transformer_config.hidden_size
-        self.hidden_size = int(self.transformer_config.hidden_size * self.hyena_width_expansion)
+        self.hidden_size = int(
+            self.transformer_config.hidden_size * self.hyena_width_expansion
+        )
 
         # ensures parallizable
         if self.hyena_width_expansion > 1:
             multiple_of = 32
-            self.hidden_size = int(multiple_of * ((self.hidden_size + multiple_of - 1) // multiple_of))
+            self.hidden_size = int(
+                multiple_of * ((self.hidden_size + multiple_of - 1) // multiple_of)
+            )
 
         # checks on the hidden size divisibility
         assert (
@@ -146,7 +152,7 @@ class HyenaMixer(MegatronModule):
             bias=False,
             skip_bias_add=False,
             is_expert=False,
-            tp_comm_buffer_name='fc1',
+            tp_comm_buffer_name="fc1",
         )
 
         hyena_proj_groups = self.proj_groups if not self.grouped_attention else 1
@@ -210,16 +216,18 @@ class HyenaMixer(MegatronModule):
             input_is_parallel=True,
             skip_bias_add=True,
             is_expert=False,
-            tp_comm_buffer_name='fc2',
+            tp_comm_buffer_name="fc2",
         )
 
-    def sharded_state_dict(self, prefix='', sharded_offsets=(), metadata=None):
+    def sharded_state_dict(self, prefix="", sharded_offsets=(), metadata=None):
         """Sharded state dictionary for the HyenaMixer."""
         sharded_state_dict = {}
         # Submodules
         for name, module in self.named_children():
-            if name != 'attention_dropout':
-                module_sharded_sd = sharded_state_dict_default(module, f'{prefix}{name}.', sharded_offsets, metadata)
+            if name != "attention_dropout":
+                module_sharded_sd = sharded_state_dict_default(
+                    module, f"{prefix}{name}.", sharded_offsets, metadata
+                )
 
                 sharded_state_dict.update(module_sharded_sd)
 
@@ -257,9 +265,9 @@ class HyenaMixer(MegatronModule):
         features = rearrange(features, "l b d -> b d l").contiguous()
         features = self.hyena_proj_conv(features, _use_cp=_proj_use_cp)  # [B, D, L]
 
-        x1, x2, v = rearrange(features, "b (g dg p) l -> b (g dg) p l", p=3, g=self.num_groups_per_tp_rank).unbind(
-            dim=2
-        )
+        x1, x2, v = rearrange(
+            features, "b (g dg p) l -> b (g dg) p l", p=3, g=self.num_groups_per_tp_rank
+        ).unbind(dim=2)
 
         z = self.mixer(x1, x2, v, _hyena_use_cp=_proj_use_cp)
         z = rearrange(z, "b d l -> l b d").contiguous()

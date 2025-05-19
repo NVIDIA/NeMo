@@ -30,7 +30,9 @@ class TestLlavaNextSimilarityInterleavedSampleEncoder(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         # Use actual processor
-        cls.processor = AutoProcessor.from_pretrained("llava-hf/llava-v1.6-vicuna-7b-hf")
+        cls.processor = AutoProcessor.from_pretrained(
+            "llava-hf/llava-v1.6-vicuna-7b-hf"
+        )
         cls.tokenizer = cls.processor.tokenizer
         cls.image_processor = cls.processor.image_processor
 
@@ -40,7 +42,9 @@ class TestLlavaNextSimilarityInterleavedSampleEncoder(unittest.TestCase):
             ignore_place_holder=-100,
             image_following_text=True,
         )
-        self.encoder = LlavaNextSimilarityInterleavedSampleEncoder(self.tokenizer, self.image_processor, self.config)
+        self.encoder = LlavaNextSimilarityInterleavedSampleEncoder(
+            self.tokenizer, self.image_processor, self.config
+        )
 
     def test_process_image(self):
         test_image = torch.rand(3, 224, 224)
@@ -51,8 +55,15 @@ class TestLlavaNextSimilarityInterleavedSampleEncoder(unittest.TestCase):
     def test_encode_image_following_text(self):
         # Create dummy input sample with image following text
         images = [torch.rand(3, 224, 224), torch.rand(3, 224, 224)]
-        texts = ["This is the first text.", "This is the second text.", "This is the third text."]
-        matched_text_indices = [0, 2]  # Images should be placed after texts at indices 0 and 2
+        texts = [
+            "This is the first text.",
+            "This is the second text.",
+            "This is the third text.",
+        ]
+        matched_text_indices = [
+            0,
+            2,
+        ]  # Images should be placed after texts at indices 0 and 2
 
         input_sample = SimilarityInterleavedSample(
             __key__="test_interleaved",
@@ -87,7 +98,9 @@ class TestLlavaNextSimilarityInterleavedSampleEncoder(unittest.TestCase):
     def test_encode_image_before_text(self):
         # Set up encoder with image before text
         self.config.image_following_text = False
-        self.encoder = LlavaNextSimilarityInterleavedSampleEncoder(self.tokenizer, self.image_processor, self.config)
+        self.encoder = LlavaNextSimilarityInterleavedSampleEncoder(
+            self.tokenizer, self.image_processor, self.config
+        )
 
         # Create dummy input sample with image before text
         images = [torch.rand(3, 224, 224)]
@@ -120,5 +133,5 @@ class TestLlavaNextSimilarityInterleavedSampleEncoder(unittest.TestCase):
         self.assertIsNotNone(result.image_sizes)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

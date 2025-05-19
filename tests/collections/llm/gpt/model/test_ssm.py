@@ -64,7 +64,7 @@ def test_base_mamba_config_130m():
     assert config.hidden_size == 768
     assert config.ffn_hidden_size == 768
     assert config.make_vocab_size_divisible_by == 16
-    assert config.tokenizer_library == 'huggingface'
+    assert config.tokenizer_library == "huggingface"
     assert config.tokenizer_name == "EleutherAI/gpt-neox-20b"
     assert config.mapping_type == "base"
 
@@ -77,7 +77,7 @@ def test_base_mamba_config_370m():
     assert config.hidden_size == 1024
     assert config.ffn_hidden_size == 1024
     assert config.make_vocab_size_divisible_by == 16
-    assert config.tokenizer_library == 'huggingface'
+    assert config.tokenizer_library == "huggingface"
     assert config.tokenizer_name == "EleutherAI/gpt-neox-20b"
     assert config.mapping_type == "base"
 
@@ -90,7 +90,7 @@ def test_base_mamba_config_780m():
     assert config.hidden_size == 1536
     assert config.ffn_hidden_size == 1536
     assert config.make_vocab_size_divisible_by == 16
-    assert config.tokenizer_library == 'huggingface'
+    assert config.tokenizer_library == "huggingface"
     assert config.tokenizer_name == "EleutherAI/gpt-neox-20b"
     assert config.mapping_type == "base"
 
@@ -103,7 +103,7 @@ def test_base_mamba_config_1_3b():
     assert config.hidden_size == 2048
     assert config.ffn_hidden_size == 2048
     assert config.make_vocab_size_divisible_by == 16
-    assert config.tokenizer_library == 'huggingface'
+    assert config.tokenizer_library == "huggingface"
     assert config.tokenizer_name == "EleutherAI/gpt-neox-20b"
     assert config.mapping_type == "base"
 
@@ -116,7 +116,7 @@ def test_base_mamba_config_2_7b():
     assert config.hidden_size == 2560
     assert config.ffn_hidden_size == 2560
     assert config.make_vocab_size_divisible_by == 16
-    assert config.tokenizer_library == 'huggingface'
+    assert config.tokenizer_library == "huggingface"
     assert config.tokenizer_name == "EleutherAI/gpt-neox-20b"
     assert config.mapping_type == "base"
 
@@ -129,14 +129,17 @@ def test_nvidia_mamba_config_8b():
     assert config.hidden_size == 4096
     assert config.ffn_hidden_size == 4096
     assert config.make_vocab_size_divisible_by == 128
-    assert config.tokenizer_library == 'megatron'
+    assert config.tokenizer_library == "megatron"
     assert config.tokenizer_name == "GPTSentencePieceTokenizer"
     assert config.mapping_type == "nvidia-pure"
 
 
 def test_nvidia_mamba_hybrid_config_8b():
     config = NVIDIAMambaHybridConfig8B()
-    assert config.hybrid_override_pattern == "M-M-M--M-M*-M-M-M-M--M*-M-M-M-M-M*--M-M-M-M-M*-M--M-M-M-"
+    assert (
+        config.hybrid_override_pattern
+        == "M-M-M--M-M*-M-M-M-M--M*-M-M-M-M-M*--M-M-M-M-M*-M--M-M-M-"
+    )
     assert config.num_layers == 56
     assert config.seq_length == 4096
     assert config.hidden_size == 4096
@@ -144,14 +147,17 @@ def test_nvidia_mamba_hybrid_config_8b():
     assert config.num_attention_heads == 32
     assert config.num_query_groups == 8
     assert config.make_vocab_size_divisible_by == 128
-    assert config.tokenizer_library == 'megatron'
+    assert config.tokenizer_library == "megatron"
     assert config.tokenizer_name == "GPTSentencePieceTokenizer"
     assert config.mapping_type == "nvidia-hybrid"
 
 
 def test_nemotronh_config_8b():
     config = NemotronHConfig8B()
-    assert config.hybrid_override_pattern == "M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M-"
+    assert (
+        config.hybrid_override_pattern
+        == "M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M*-M-M-M-M-M-"
+    )
     assert config.num_layers == 52
     assert config.seq_length == 8192
     assert config.hidden_size == 4096
@@ -162,7 +168,7 @@ def test_nemotronh_config_8b():
     assert config.num_attention_heads == 32
     assert config.num_query_groups == 8
     assert config.make_vocab_size_divisible_by == 128
-    assert config.tokenizer_library == 'tiktoken'
+    assert config.tokenizer_library == "tiktoken"
     assert config.tokenizer_name == "TiktokenTokenizer"
     assert config.mapping_type == "nvidia-hybrid-nemotronh"
     assert config.masked_softmax_fusion is True
@@ -189,7 +195,7 @@ def test_nemotronh_config_47b():
     assert config.num_attention_heads == 64
     assert config.num_query_groups == 8
     assert config.make_vocab_size_divisible_by == 128
-    assert config.tokenizer_library == 'tiktoken'
+    assert config.tokenizer_library == "tiktoken"
     assert config.tokenizer_name == "TiktokenTokenizer"
     assert config.mapping_type == "nvidia-hybrid-nemotronh"
     assert config.masked_softmax_fusion is True
@@ -217,7 +223,7 @@ def test_nemotronh_config_56b():
     assert config.num_attention_heads == 64
     assert config.num_query_groups == 8
     assert config.make_vocab_size_divisible_by == 128
-    assert config.tokenizer_library == 'tiktoken'
+    assert config.tokenizer_library == "tiktoken"
     assert config.tokenizer_name == "TiktokenTokenizer"
     assert config.mapping_type == "nvidia-hybrid-nemotronh"
     assert config.masked_softmax_fusion is True

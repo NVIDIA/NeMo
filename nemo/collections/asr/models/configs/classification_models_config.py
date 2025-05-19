@@ -78,10 +78,14 @@ class EncDecClassificationConfig(model_cfg.ModelConfig):
         )
     )
     validation_ds: EncDecClassificationDatasetConfig = field(
-        default_factory=lambda: EncDecClassificationDatasetConfig(manifest_filepath=None, shuffle=False)
+        default_factory=lambda: EncDecClassificationDatasetConfig(
+            manifest_filepath=None, shuffle=False
+        )
     )
     test_ds: EncDecClassificationDatasetConfig = field(
-        default_factory=lambda: EncDecClassificationDatasetConfig(manifest_filepath=None, shuffle=False)
+        default_factory=lambda: EncDecClassificationDatasetConfig(
+            manifest_filepath=None, shuffle=False
+        )
     )
 
     # Optimizer / Scheduler config
@@ -90,7 +94,9 @@ class EncDecClassificationConfig(model_cfg.ModelConfig):
     )
 
     # Model component configs
-    preprocessor: AudioToMFCCPreprocessorConfig = field(default_factory=lambda: AudioToMFCCPreprocessorConfig())
+    preprocessor: AudioToMFCCPreprocessorConfig = field(
+        default_factory=lambda: AudioToMFCCPreprocessorConfig()
+    )
     spec_augment: Optional[SpectrogramAugmentationConfig] = field(
         default_factory=lambda: SpectrogramAugmentationConfig()
     )
@@ -98,8 +104,12 @@ class EncDecClassificationConfig(model_cfg.ModelConfig):
         default_factory=lambda: CropOrPadSpectrogramAugmentationConfig(audio_length=-1)
     )
 
-    encoder: ConvASREncoderConfig = field(default_factory=lambda: ConvASREncoderConfig())
-    decoder: ConvASRDecoderClassificationConfig = field(default_factory=lambda: ConvASRDecoderClassificationConfig())
+    encoder: ConvASREncoderConfig = field(
+        default_factory=lambda: ConvASREncoderConfig()
+    )
+    decoder: ConvASRDecoderClassificationConfig = field(
+        default_factory=lambda: ConvASRDecoderClassificationConfig()
+    )
 
     def __post_init__(self):
         if self.crop_or_pad_augment is not None:
@@ -108,4 +118,6 @@ class EncDecClassificationConfig(model_cfg.ModelConfig):
 
 @dataclass
 class EncDecClassificationModelConfig(model_cfg.NemoConfig):
-    model: EncDecClassificationConfig = field(default_factory=lambda: EncDecClassificationConfig())
+    model: EncDecClassificationConfig = field(
+        default_factory=lambda: EncDecClassificationConfig()
+    )

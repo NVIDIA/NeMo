@@ -32,16 +32,14 @@ from nemo.utils import AppState
 
 logger = logging.getLogger(__name__)
 
-PREFIX_STR = (
-    "\x00"  # the prefix string used in the tokenizer to deal with the added empty token for some of the tokenizers
-)
+PREFIX_STR = "\x00"  # the prefix string used in the tokenizer to deal with the added empty token for some of the tokenizers
 
 IGNORE_INDEX = -100
 SYSTEM_TOKEN = "System"
 
 TYPE_INSTRUCTION = {
-    'TEXT_TO_VALUE': "",
-    'VALUE_TO_TEXT': '',
+    "TEXT_TO_VALUE": "",
+    "VALUE_TO_TEXT": "",
 }
 
 __idx_version__ = "0.2"  # index file version
@@ -90,7 +88,9 @@ class _TextMemMapDataset(Dataset):
         header_lines: Optional[int] = 0,
         workers: Optional[int] = None,
         tokenizer: Optional[Type["TokenizerSpec"]] = None,
-        build_index_fn: Optional[Callable[[str, Optional[int]], bool]] = build_index_from_memdata,
+        build_index_fn: Optional[
+            Callable[[str, Optional[int]], bool]
+        ] = build_index_from_memdata,
         sort_dataset_paths: Optional[bool] = True,
         index_mapping_dir: Optional[str] = None,
     ):
@@ -131,7 +131,9 @@ class _TextMemMapDataset(Dataset):
 
         logger.info("Building data files")
         # load all files into memmap
-        is_distributed = torch.distributed.is_available() and torch.distributed.is_initialized()
+        is_distributed = (
+            torch.distributed.is_available() and torch.distributed.is_initialized()
+        )
 
         if not is_distributed or (is_distributed and torch.distributed.get_rank() == 0):
             # Create index files on global rank 0.
@@ -173,14 +175,18 @@ class _TextMemMapDataset(Dataset):
 
         logger.info("Loading data files")
         start_time = time.time()
-        mdata_midx_list = [self.load_file(fn, index_mapping_dir) for fn in self._files_list]
+        mdata_midx_list = [
+            self.load_file(fn, index_mapping_dir) for fn in self._files_list
+        ]
         logger.info(
             f"Time loading {len(mdata_midx_list)} "
             f"mem-mapped files: {datetime.timedelta(seconds=time.time() - start_time)}"
         )
 
         logger.info("Computing global indices")
-        midx_bins = np.cumsum([(len(midx) - header_lines) for _, midx in mdata_midx_list])
+        midx_bins = np.cumsum(
+            [(len(midx) - header_lines) for _, midx in mdata_midx_list]
+        )
 
         self.midx_bins = midx_bins
         self.mdata_midx_list = mdata_midx_list
@@ -201,7 +207,9 @@ class _TextMemMapDataset(Dataset):
         Return a string from binary memmap
         """
         if (idx >= len(self)) or (idx < 0):
-            raise IndexError(f"Index {idx} if out of dataset range with {len(self)} samples")
+            raise IndexError(
+                f"Index {idx} if out of dataset range with {len(self)} samples"
+            )
 
         # Identify the file containing the record
         file_id = np.digitize(idx, self.midx_bins, right=False)
@@ -229,8 +237,12 @@ class _TextMemMapDataset(Dataset):
         try:
             data = self._build_data_from_text(sample)
         except Exception as e:
-            logger.error(f"Error while building data from text, possible issue with sample expected format: {e}")
-            logger.error(f"sample: {sample}, file_id: {file_id}, file_idx: {file_idx}, i: {i}, j: {j}")
+            logger.error(
+                f"Error while building data from text, possible issue with sample expected format: {e}"
+            )
+            logger.error(
+                f"sample: {sample}, file_id: {file_id}, file_idx: {file_idx}, i: {i}, j: {j}"
+            )
             raise e
 
         return data
@@ -276,7 +288,9 @@ class _TextMemMapDataset(Dataset):
             midx = np.load(idx_fn + ".npy", allow_pickle=True, mmap_mode="r")
             # test for header
             if len(midx) < self._header_lines:
-                raise RuntimeError(f"Missing header, expected {self._header_lines} header lines")
+                raise RuntimeError(
+                    f"Missing header, expected {self._header_lines} header lines"
+                )
 
             # load meta info
             with open(idx_fn + ".info", "rb") as fp:
@@ -285,7 +299,9 @@ class _TextMemMapDataset(Dataset):
             if "newline_int" in idx_info_dict:
                 newline_int = idx_info_dict["newline_int"]
                 if self._newline_int != newline_int:
-                    logger.warning(f"Mismatch in newline_int, expected = {self._newline_int} but loaded {newline_int}")
+                    logger.warning(
+                        f"Mismatch in newline_int, expected = {self._newline_int} but loaded {newline_int}"
+                    )
 
             # test for version mismatch (useful to force recreation of index files)
             idx_version = idx_info_dict.get("version", "0.0")
@@ -429,7 +445,9 @@ class _OnlineSampleMapping:
         self.block_bins = np.cumsum(block_size_list)
 
         # NOTE: MAKE get_sample_block A CACHED FUNCTION!!!
-        self.get_sample_block = lru_cache(maxsize=cache_maxsize, typed=False)(self.get_sample_block)
+        self.get_sample_block = lru_cache(maxsize=cache_maxsize, typed=False)(
+            self.get_sample_block
+        )
 
     def __str__(self):
         return (
@@ -478,7 +496,11 @@ class _OnlineSampleMapping:
             local_idx = idx - self.block_bins[block_idx]
             sample_idx = sample_block[local_idx]
 
-            return sample_idx, None, None  # for comtability with NeMo's get_samples_mapping
+            return (
+                sample_idx,
+                None,
+                None,
+            )  # for comtability with NeMo's get_samples_mapping
 
     def __len__(self) -> int:
         return self.num_samples
@@ -509,7 +531,9 @@ class _OnlineSampleMapping:
         NOTE: This method will be cached using functools.lru_cache for efficiency during construction.
         """
         if block_idx >= self.num_blocks:
-            raise IndexError(f"block_idx {block_idx} is out of range. Maximum block_idx is {self.num_blocks-1}")
+            raise IndexError(
+                f"block_idx {block_idx} is out of range. Maximum block_idx is {self.num_blocks-1}"
+            )
 
         # recover index of original block (before shuffling)
         start_idx = self.block_idx_list[block_idx] * self.block_size
@@ -590,7 +614,7 @@ def handle_index(dataset, idx):
     if idx < 0 and idx > -len(dataset) - 1:
         idx = len(dataset) + idx
     elif idx < 0:
-        raise IndexError(f'Index out of range: {idx}')
+        raise IndexError(f"Index out of range: {idx}")
 
     return idx
 
@@ -605,7 +629,8 @@ def lightning_prepare_data():
 
     return any(
         [
-            frame.function == 'prepare_data' and 'prepare_packed_sequence_data' in frame.code_context[0]
+            frame.function == "prepare_data"
+            and "prepare_packed_sequence_data" in frame.code_context[0]
             for frame in inspect.stack()
         ]
     )
@@ -638,28 +663,36 @@ def _get_samples_mapping(
 
     # Filename of the index mapping
     if index_mapping_dir is not None:
-        indexmap_filename = os.path.join(index_mapping_dir, os.path.basename(data_prefix))
+        indexmap_filename = os.path.join(
+            index_mapping_dir, os.path.basename(data_prefix)
+        )
     else:
         indexmap_filename = data_prefix
-    indexmap_filename += '_{}_indexmap'.format(name)
+    indexmap_filename += "_{}_indexmap".format(name)
     if num_epochs != (np.iinfo(np.int32).max - 1):
-        indexmap_filename += '_{}ep'.format(num_epochs)
+        indexmap_filename += "_{}ep".format(num_epochs)
     if max_num_samples != (np.iinfo(np.int64).max - 1):
-        indexmap_filename += '_{}mns'.format(max_num_samples)
-    indexmap_filename += '_{}msl'.format(max_seq_length)
-    indexmap_filename += '_{:0.2f}ssp'.format(short_seq_prob)
-    indexmap_filename += '_{}s'.format(seed)
-    indexmap_filename += '.npy'
+        indexmap_filename += "_{}mns".format(max_num_samples)
+    indexmap_filename += "_{}msl".format(max_seq_length)
+    indexmap_filename += "_{:0.2f}ssp".format(short_seq_prob)
+    indexmap_filename += "_{}s".format(seed)
+    indexmap_filename += ".npy"
 
     # Build the indexed mapping if not exist and not provided externally.
-    if samples_mapping is None and torch.distributed.get_rank() == 0 and not os.path.isfile(indexmap_filename):
+    if (
+        samples_mapping is None
+        and torch.distributed.get_rank() == 0
+        and not os.path.isfile(indexmap_filename)
+    ):
         # Fake index mapping if missing
-        if (getattr(indexed_dataset, 'doc_idx', None) is None) and (getattr(indexed_dataset, 'sizes', None) is None):
+        if (getattr(indexed_dataset, "doc_idx", None) is None) and (
+            getattr(indexed_dataset, "sizes", None) is None
+        ):
             _make_indexed_dataset_compatibility(indexed_dataset)
 
         print(
-            ' > WARNING: could not find index map file {}, building '
-            'the indices on rank 0 ...'.format(indexmap_filename)
+            " > WARNING: could not find index map file {}, building "
+            "the indices on rank 0 ...".format(indexmap_filename)
         )
 
         # Make sure the types match the helpers input types.
@@ -669,14 +702,14 @@ def _get_samples_mapping(
         # Build samples mapping
         verbose = torch.distributed.get_rank() == 0
         start_time = time.time()
-        logger.info(' > building samples index mapping for {} ...'.format(name))
+        logger.info(" > building samples index mapping for {} ...".format(name))
         # First compile and then import.
         try:
             from megatron.core.datasets import helpers_cpp
         except ImportError:
             raise ImportError(
-                'Could not compile megatron dataset C++ helper functions '
-                'and therefore cannot import helpers python file.'
+                "Could not compile megatron dataset C++ helper functions "
+                "and therefore cannot import helpers python file."
             )
         samples_mapping = helpers_cpp.build_mapping(
             indexed_dataset.doc_idx,
@@ -689,33 +722,45 @@ def _get_samples_mapping(
             verbose,
             2 if binary_head else 1,
         )
-        logger.info(' > done building samples index maping')
+        logger.info(" > done building samples index maping")
         np.save(indexmap_filename, samples_mapping, allow_pickle=True)
-        logger.info(' > saved the index mapping in {}'.format(indexmap_filename))
+        logger.info(" > saved the index mapping in {}".format(indexmap_filename))
         # Make sure all the ranks have built the mapping
         logger.info(
-            ' > elasped time to build and save samples mapping ' '(seconds): {:4f}'.format(time.time() - start_time)
+            " > elasped time to build and save samples mapping "
+            "(seconds): {:4f}".format(time.time() - start_time)
         )
 
     if sanity_check_dist_workers:
         torch.distributed.barrier()
         counts = torch.cuda.LongTensor([1])
-        torch.distributed.all_reduce(counts, group=parallel_state.get_data_parallel_group(with_context_parallel=True))
-        torch.distributed.all_reduce(counts, group=parallel_state.get_pipeline_model_parallel_group())
+        torch.distributed.all_reduce(
+            counts,
+            group=parallel_state.get_data_parallel_group(with_context_parallel=True),
+        )
+        torch.distributed.all_reduce(
+            counts, group=parallel_state.get_pipeline_model_parallel_group()
+        )
         assert counts[0].item() == (
             torch.distributed.get_world_size()
-            // torch.distributed.get_world_size(group=parallel_state.get_tensor_model_parallel_group())
+            // torch.distributed.get_world_size(
+                group=parallel_state.get_tensor_model_parallel_group()
+            )
         )
     # Load indexed dataset if not given externally.
     if samples_mapping is None:
-        logger.info(' > loading indexed mapping from {}'.format(indexmap_filename))
+        logger.info(" > loading indexed mapping from {}".format(indexmap_filename))
         start_time = time.time()
-        samples_mapping = np.load(indexmap_filename, allow_pickle=True, mmap_mode='r')
-        logger.info('    loaded indexed file in {:3.3f} seconds'.format(time.time() - start_time))
-        logger.info('    total number of samples: {}'.format(samples_mapping.shape[0]))
+        samples_mapping = np.load(indexmap_filename, allow_pickle=True, mmap_mode="r")
+        logger.info(
+            "    loaded indexed file in {:3.3f} seconds".format(
+                time.time() - start_time
+            )
+        )
+        logger.info("    total number of samples: {}".format(samples_mapping.shape[0]))
 
     # Deallocate temporary numpy arrays that were created for `get_samples_mapping()` when needed
-    if hasattr(indexed_dataset, 'doc_idx') and hasattr(indexed_dataset, 'sizes'):
+    if hasattr(indexed_dataset, "doc_idx") and hasattr(indexed_dataset, "sizes"):
         _deallocate_indexed_dataset_memory(indexed_dataset)
 
     return samples_mapping
@@ -723,7 +768,9 @@ def _get_samples_mapping(
 
 def _make_indexed_dataset_compatibility(dataset):
     """Make any dataset compatible with IndexedDataset for Megatron samples mapping."""
-    if (getattr(dataset, 'doc_idx', None) is not None) or (getattr(dataset, 'sizes', None) is not None):
+    if (getattr(dataset, "doc_idx", None) is not None) or (
+        getattr(dataset, "sizes", None) is not None
+    ):
         raise AttributeError("Dataset already has doc_idx or sizes attributes.")
 
     dataset.doc_idx = np.arange(len(dataset) + 1, dtype=np.int64)
@@ -747,7 +794,9 @@ def _preprocess(
     3. Tokenize the concatenated conversation;
     4. Make a deepcopy as the target. Mask human words with IGNORE_INDEX.
     """
-    header, conversation, data_type, mask_role = _get_header_conversation_type_mask_role(source, special_tokens)
+    header, conversation, data_type, mask_role = (
+        _get_header_conversation_type_mask_role(source, special_tokens)
+    )
     # tokenize conversations
     input_ids = tokenizer.text_to_ids(conversation)
     target = copy.deepcopy(input_ids)
@@ -761,16 +810,16 @@ def _preprocess(
             "First few tokens of the conversation are not the same as the header tokens. "
             f"{target[:header_len]=}\n {header_tokens=}"
         )
-    for s in source['conversations']:
+    for s in source["conversations"]:
         # hack to remove the extra empty token in front
         id1 = tokenizer.text_to_ids(PREFIX_STR + s["value"])
         id2 = tokenizer.text_to_ids(PREFIX_STR)
         tokenized_sentence = id1[len(id2) :]
         ids.append(torch.tensor(tokenized_sentence))
         tokenized_lens.append(len(tokenized_sentence))
-    speakers = [sentence["from"] for sentence in source['conversations']]
+    speakers = [sentence["from"] for sentence in source["conversations"]]
     # assert mask_role in speakers, "mask role not in the conversation"
-    split_mask = mask_role.split(',')
+    split_mask = mask_role.split(",")
     for s in split_mask:
         assert s in speakers, "mask role not in the conversation"
 
@@ -799,7 +848,9 @@ def _preprocess(
     context_ids = input_ids[:last_ignore_index_pos]
     answer_ids = input_ids[last_ignore_index_pos:]
 
-    return dict(input_ids=input_ids, mask=mask, context_ids=context_ids, answer_ids=answer_ids)
+    return dict(
+        input_ids=input_ids, mask=mask, context_ids=context_ids, answer_ids=answer_ids
+    )
 
 
 def _transform_to_chat_message(source: dict[str, list]):
@@ -839,17 +890,17 @@ def _preprocess_hf_chat_template(
     """
     # Use HuggingFace tokenizer to apply the chat template.
     template_has_generation_kwd = (
-        '{% generation %}' in tokenizer.tokenizer.chat_template
+        "{% generation %}" in tokenizer.tokenizer.chat_template
     )  # assistant mask only works if chat template has generation keyword
     tokens = tokenizer.tokenizer.apply_chat_template(
-        hf_chat_dict['messages'],
+        hf_chat_dict["messages"],
         return_dict=True,
         return_assistant_tokens_mask=template_has_generation_kwd,
-        return_tensors='pt',
+        return_tensors="pt",
     )
-    input_ids = tokens['input_ids'][0]
+    input_ids = tokens["input_ids"][0]
     if template_has_generation_kwd:
-        mask = torch.tensor(tokens['assistant_masks']).to(bool)
+        mask = torch.tensor(tokens["assistant_masks"]).to(bool)
     else:
         mask = torch.ones_like(input_ids)
     return dict(input_ids=input_ids, mask=mask)
@@ -886,14 +937,16 @@ def _mask_targets(
         label_start_ids (list): list of label start token ids,
         num_turn_start_tokens (int): number of tokens of the turn_start str
     """
-    TURN_TOKEN = special_tokens['turn_start']
-    END_NAME_SIGNAL = special_tokens['end_of_name']
+    TURN_TOKEN = special_tokens["turn_start"]
+    END_NAME_SIGNAL = special_tokens["end_of_name"]
     label_start_ids = torch.tensor(label_start_ids)
     name_end_token_ids = torch.tensor(name_end_token_ids)
 
     cur_idx = header_len
     tgt_len = target.shape[0]
-    for i, (tokenized_len, speaker, s_id) in enumerate(zip(tokenized_lens, speakers, s_ids)):
+    for i, (tokenized_len, speaker, s_id) in enumerate(
+        zip(tokenized_lens, speakers, s_ids)
+    ):
         # note, sentence piece will add extra empty token in front. has to compute the diff
         id1 = tokenizer.text_to_ids(PREFIX_STR)
         id2 = tokenizer.text_to_ids(PREFIX_STR + TURN_TOKEN + speaker + END_NAME_SIGNAL)
@@ -905,13 +958,15 @@ def _mask_targets(
 
         if location >= 0:
             # if it contains the label start tokens
-            if gtype == 'VALUE_TO_TEXT':
+            if gtype == "VALUE_TO_TEXT":
                 # handles the case that condition on labels to generate respone
                 # the next token after the name part of the prompt is the beginning of the label start tokens
                 assert skip_name_len == location
                 # find the first new line token after the label part, which indicates the end of the whole label string
                 # newline_loc = torch.where((s_id[skip_name_len:] == name_end_token_ids))[0]
-                newline_loc = _identify_start_index_of_subsequence(name_end_token_ids, s_id[skip_name_len:])
+                newline_loc = _identify_start_index_of_subsequence(
+                    name_end_token_ids, s_id[skip_name_len:]
+                )
                 if newline_loc < 0:
                     # cannot find new line token, which means the the whole turn
                     # is just a partial label string. Mask the whole turn
@@ -921,7 +976,7 @@ def _mask_targets(
                 more_skip_len = newline_loc + len(name_end_token_ids)
                 # skip the name part and the label part
                 skip_name_len += more_skip_len
-            elif gtype == 'TEXT_TO_VALUE':
+            elif gtype == "TEXT_TO_VALUE":
                 # handles the case that condition on response to generate label
                 # skip the name part, response and the label start tokens part,
                 # the remainder is the label string without label start, e.g. 'quality:9,toxicity:8...'
@@ -931,16 +986,23 @@ def _mask_targets(
         elif cur_idx + tokenized_len < tgt_len:
             # Check whether the mask is applied to the correct position, the first token is turn start tokens
             if not torch.equal(target[cur_idx + 1 : cur_idx + tokenized_len], s_id[1:]):
-                logger.warning("a sentence mismatches the corresponding piece " "in the conversation")
-        if i == 0 and (gtype == 'VALUE_TO_TEXT' or gtype is None):
+                logger.warning(
+                    "a sentence mismatches the corresponding piece "
+                    "in the conversation"
+                )
+        if i == 0 and (gtype == "VALUE_TO_TEXT" or gtype is None):
             # mask the first turn completely to provide at least one turn as context for the rest
             target[cur_idx : cur_idx + tokenized_len] = IGNORE_INDEX
-        elif speaker in mask_role and i == 1 and gtype == 'TEXT_TO_VALUE':
+        elif speaker in mask_role and i == 1 and gtype == "TEXT_TO_VALUE":
             # leave the first turn start tag unmasked, servers severs as the end of turn signal
-            target[cur_idx + num_turn_start_tokens : cur_idx + tokenized_len] = IGNORE_INDEX
+            target[cur_idx + num_turn_start_tokens : cur_idx + tokenized_len] = (
+                IGNORE_INDEX
+            )
         elif speaker in mask_role and (i > 1):
             # leave the first turn start tag unmasked, which severs as the end of turn signal
-            target[cur_idx + num_turn_start_tokens : cur_idx + tokenized_len] = IGNORE_INDEX
+            target[cur_idx + num_turn_start_tokens : cur_idx + tokenized_len] = (
+                IGNORE_INDEX
+            )
         elif speaker in mask_role and (i <= 1):
             # mask out everything in the second turn
             target[cur_idx : cur_idx + tokenized_len] = IGNORE_INDEX
@@ -952,31 +1014,35 @@ def _mask_targets(
 
 
 def _get_header_conversation_type_mask_role(source, special_tokens):
-    END_SIGNAL = special_tokens['end_of_turn']
-    END_NAME_SIGNAL = special_tokens['end_of_name']
+    END_SIGNAL = special_tokens["end_of_turn"]
+    END_NAME_SIGNAL = special_tokens["end_of_name"]
 
     data_type = None
-    if 'type' in source:
-        data_type = source['type']
+    if "type" in source:
+        data_type = source["type"]
         if data_type is not None:
-            assert data_type in TYPE_INSTRUCTION, f"source type {data_type} not supported"
+            assert (
+                data_type in TYPE_INSTRUCTION
+            ), f"source type {data_type} not supported"
     # add end signal and concatenate together
-    conversation = source['system']
+    conversation = source["system"]
     if data_type is not None:
-        if TYPE_INSTRUCTION[data_type] != '':
-            conversation = conversation + '\n' + TYPE_INSTRUCTION[data_type]
-    mask_role = source.get('mask', 'User')
+        if TYPE_INSTRUCTION[data_type] != "":
+            conversation = conversation + "\n" + TYPE_INSTRUCTION[data_type]
+    mask_role = source.get("mask", "User")
     header = f"{special_tokens['system_turn_start']}{SYSTEM_TOKEN}{END_NAME_SIGNAL}{conversation}{END_SIGNAL}"
-    conversation = _add_speaker_and_signal(header, source['conversations'], mask_role, data_type, special_tokens)
+    conversation = _add_speaker_and_signal(
+        header, source["conversations"], mask_role, data_type, special_tokens
+    )
 
     return header, conversation, data_type, mask_role
 
 
 def _add_speaker_and_signal(header, source, mask_role, gtype, special_tokens):
-    TURN_TOKEN = special_tokens['turn_start']
-    END_SIGNAL = special_tokens['end_of_turn']
-    LABEL_START = special_tokens['label_start']
-    END_NAME_SIGNAL = special_tokens['end_of_name']
+    TURN_TOKEN = special_tokens["turn_start"]
+    END_SIGNAL = special_tokens["end_of_turn"]
+    LABEL_START = special_tokens["label_start"]
+    END_NAME_SIGNAL = special_tokens["end_of_name"]
 
     """Add speaker and start/end signal on each round."""
     BEGIN_SIGNAL = ""
@@ -986,7 +1052,12 @@ def _add_speaker_and_signal(header, source, mask_role, gtype, special_tokens):
         role_token = TURN_TOKEN
         if gtype is None:
             sentence["value"] = (
-                BEGIN_SIGNAL + role_token + sentence_from + END_NAME_SIGNAL + sentence["value"] + END_SIGNAL
+                BEGIN_SIGNAL
+                + role_token
+                + sentence_from
+                + END_NAME_SIGNAL
+                + sentence["value"]
+                + END_SIGNAL
             )
         elif gtype == "VALUE_TO_TEXT":
             sentence["value"] = (
@@ -995,9 +1066,11 @@ def _add_speaker_and_signal(header, source, mask_role, gtype, special_tokens):
                 + sentence_from
                 + END_NAME_SIGNAL
                 + (
-                    _response_value_formater(sentence['label'], LABEL_START, END_NAME_SIGNAL)
-                    if 'label' in sentence
-                    else ''
+                    _response_value_formater(
+                        sentence["label"], LABEL_START, END_NAME_SIGNAL
+                    )
+                    if "label" in sentence
+                    else ""
                 )
                 + sentence["value"]
                 + END_SIGNAL
@@ -1011,9 +1084,11 @@ def _add_speaker_and_signal(header, source, mask_role, gtype, special_tokens):
                 + sentence["value"]
                 + END_SIGNAL
                 + (
-                    _response_value_formater(sentence['label'], LABEL_START, END_NAME_SIGNAL)
-                    if 'label' in sentence
-                    else ''
+                    _response_value_formater(
+                        sentence["label"], LABEL_START, END_NAME_SIGNAL
+                    )
+                    if "label" in sentence
+                    else ""
                 )
             )
         else:
@@ -1033,9 +1108,11 @@ def _response_value_formater(label, label_start, end_signal):
     if isinstance(label, str):
         return label_start + label + end_signal
     elif label is None:
-        return ''
+        return ""
     else:
-        raise ValueError(f'Unknown label type {type(label)}, only str type is supported')
+        raise ValueError(
+            f"Unknown label type {type(label)}, only str type is supported"
+        )
 
 
 def _identify_start_index_of_subsequence(subsequence, sequence):
@@ -1066,7 +1143,9 @@ def _build_memmap_index_files(newline_int, build_index_fn, fn, index_mapping_dir
         # validate midx
         midx = np.asarray(midx)
         if not np.issubdtype(midx.dtype, np.integer):
-            raise TypeError(f"midx must be an integer array, but got type = {midx.dtype}")
+            raise TypeError(
+                f"midx must be an integer array, but got type = {midx.dtype}"
+            )
 
         # create e metadata file
         data = dict(newline_int=newline_int, version=__idx_version__)
@@ -1144,7 +1223,9 @@ def _reconfigure_limit_batches(limit_batches, dataloader) -> Union[int, float]:
             get_num_microbatches
 
     except (ImportError, ModuleNotFoundError):
-        logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
+        logging.warning(
+            "Megatron num_microbatches_calculator not found, using Apex version."
+        )
         from apex.transformer.pipeline_parallel.utils import \
             get_num_microbatches
 
@@ -1174,6 +1255,8 @@ def _reconfigure_limit_batches(limit_batches, dataloader) -> Union[int, float]:
                 if limit_micro_batches < get_num_microbatches():
                     limit_batches = get_num_microbatches()
                 else:
-                    limit_batches = limit_batches - limit_batches % get_num_microbatches()
+                    limit_batches = (
+                        limit_batches - limit_batches % get_num_microbatches()
+                    )
 
     return limit_batches

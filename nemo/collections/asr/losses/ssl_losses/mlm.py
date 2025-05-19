@@ -30,9 +30,9 @@ class MLMLoss(Loss):
         return {
             "spec_masks": NeuralType(("B", "D", "T"), SpectrogramType(), optional=True),
             "decoder_outputs": NeuralType(("B", "T", "D"), LogprobsType()),
-            "targets": NeuralType(('B', 'T'), LabelsType()),
-            "decoder_lengths": NeuralType(tuple('B'), LengthsType(), optional=True),
-            "target_lengths": NeuralType(tuple('B'), LengthsType(), optional=True),
+            "targets": NeuralType(("B", "T"), LabelsType()),
+            "decoder_lengths": NeuralType(tuple("B"), LengthsType(), optional=True),
+            "target_lengths": NeuralType(tuple("B"), LengthsType(), optional=True),
             "masks": NeuralType(("B", "D", "T"), SpectrogramType(), optional=True),
         }
 
@@ -60,7 +60,13 @@ class MLMLoss(Loss):
 
     @typecheck()
     def forward(
-        self, decoder_outputs, targets, decoder_lengths=None, target_lengths=None, spec_masks=None, masks=None
+        self,
+        decoder_outputs,
+        targets,
+        decoder_lengths=None,
+        target_lengths=None,
+        spec_masks=None,
+        masks=None,
     ):
 
         if masks is None:
@@ -69,7 +75,9 @@ class MLMLoss(Loss):
         # B,D,T -> B,T,D
         masks = masks.transpose(1, 2)
 
-        masks = masks.reshape(masks.shape[0], masks.shape[1] // self.combine_time_steps, -1)
+        masks = masks.reshape(
+            masks.shape[0], masks.shape[1] // self.combine_time_steps, -1
+        )
         masks = masks.mean(-1) > self.mask_threshold
 
         out_masked_only = decoder_outputs[masks]
@@ -93,7 +101,7 @@ class MultiMLMLoss(Loss):
     def input_types(self):
         if self.squeeze_single and self.num_decoders == 1:
             decoder_outputs = NeuralType(("B", "T", "C"), LogprobsType())
-            targets = NeuralType(('B', 'T'), LabelsType())
+            targets = NeuralType(("B", "T"), LabelsType())
         else:
             decoder_outputs = NeuralType(("B", "T", "C", "H"), LogprobsType())
             targets = NeuralType(("B", "T", "H"), LabelsType())
@@ -101,8 +109,8 @@ class MultiMLMLoss(Loss):
             "masks": NeuralType(("B", "D", "T"), SpectrogramType()),
             "decoder_outputs": decoder_outputs,
             "targets": targets,
-            "decoder_lengths": NeuralType(tuple('B'), LengthsType(), optional=True),
-            "target_lengths": NeuralType(tuple('B'), LengthsType(), optional=True),
+            "decoder_lengths": NeuralType(tuple("B"), LengthsType(), optional=True),
+            "target_lengths": NeuralType(tuple("B"), LengthsType(), optional=True),
         }
 
     def __init__(
@@ -118,7 +126,9 @@ class MultiMLMLoss(Loss):
         self.mlm_loss = MLMLoss(combine_time_steps, mask_threshold)
 
     @typecheck()
-    def forward(self, masks, decoder_outputs, targets, decoder_lengths=None, target_lengths=None):
+    def forward(
+        self, masks, decoder_outputs, targets, decoder_lengths=None, target_lengths=None
+    ):
         if self.squeeze_single and self.num_decoders == 1:
             return self.mlm_loss(
                 spec_masks=masks,

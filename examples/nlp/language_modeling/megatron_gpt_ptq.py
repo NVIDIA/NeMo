@@ -47,7 +47,9 @@ python examples/nlp/language_modeling/megatron_gpt_ptq.py \
 """
 
 
-def get_calib_data_iter(data="cnn_dailymail", batch_size=64, calib_size=512, max_sequence_length=512):
+def get_calib_data_iter(
+    data="cnn_dailymail", batch_size=64, calib_size=512, max_sequence_length=512
+):
     if data == "wikitext":
         dataset = load_dataset("wikitext", "wikitext-103-v1", split="train")
         text_column = "text"
@@ -81,7 +83,9 @@ def main(cfg) -> None:
 
     trainer = Trainer(strategy=NLPDDPStrategy(), **cfg.trainer)
     model = MegatronGPTModel.restore_from(
-        restore_path=cfg.model.restore_from_path, override_config_path=model_cfg, trainer=trainer
+        restore_path=cfg.model.restore_from_path,
+        override_config_path=model_cfg,
+        trainer=trainer,
     )
     model.freeze()
 
@@ -108,5 +112,5 @@ def main(cfg) -> None:
     quantizer.export(model)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

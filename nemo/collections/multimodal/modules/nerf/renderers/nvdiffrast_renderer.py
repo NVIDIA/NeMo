@@ -29,7 +29,9 @@ from nemo.collections.multimodal.modules.nerf.renderers.base_renderer import \
 # TODO: self.density_thresh, self.mean_density need a rework, they can be infered at run time
 # and shouldn't be loaded from the checkpoint
 class NVDiffRastRenderer(BaseRenderer):
-    def __init__(self, bound, update_interval, grid_resolution, density_thresh, quartet_file):
+    def __init__(
+        self, bound, update_interval, grid_resolution, density_thresh, quartet_file
+    ):
 
         super().__init__(bound, update_interval)
 
@@ -38,28 +40,34 @@ class NVDiffRastRenderer(BaseRenderer):
         self.quartet_file = quartet_file
 
         self.cascade = 1 + math.ceil(math.log2(bound))
-        density_grid = torch.zeros([self.cascade, self.grid_resolution ** 3])  # [CAS, H * H * H]
+        density_grid = torch.zeros(
+            [self.cascade, self.grid_resolution**3]
+        )  # [CAS, H * H * H]
         density_bitfield = torch.zeros(
-            self.cascade * self.grid_resolution ** 3 // 8, dtype=torch.uint8
+            self.cascade * self.grid_resolution**3 // 8, dtype=torch.uint8
         )  # [CAS * H * H * H // 8]
-        self.register_buffer('density_grid', density_grid)
-        self.register_buffer('density_bitfield', density_bitfield)
+        self.register_buffer("density_grid", density_grid)
+        self.register_buffer("density_bitfield", density_bitfield)
         self.mean_density = 0
         self.iter_density = 0
 
         # load dmtet vertices
         # TODO(ahmadki): hard coded devices
         tets = np.load(quartet_file)
-        self.verts = -torch.tensor(tets['vertices'], dtype=torch.float32, device='cuda') * 2  # covers [-1, 1]
-        self.indices = torch.tensor(tets['indices'], dtype=torch.long, device='cuda')
-        self.tet_scale = torch.tensor([1, 1, 1], dtype=torch.float32, device='cuda')
-        self.dmtet = DeepMarchingTetrahedra(device='cuda')
+        self.verts = (
+            -torch.tensor(tets["vertices"], dtype=torch.float32, device="cuda") * 2
+        )  # covers [-1, 1]
+        self.indices = torch.tensor(tets["indices"], dtype=torch.long, device="cuda")
+        self.tet_scale = torch.tensor([1, 1, 1], dtype=torch.float32, device="cuda")
+        self.dmtet = DeepMarchingTetrahedra(device="cuda")
 
         # vert sdf and deform
-        sdf = torch.nn.Parameter(torch.zeros_like(self.verts[..., 0]), requires_grad=True)
-        self.register_parameter('sdf', sdf)
+        sdf = torch.nn.Parameter(
+            torch.zeros_like(self.verts[..., 0]), requires_grad=True
+        )
+        self.register_parameter("sdf", sdf)
         deform = torch.nn.Parameter(torch.zeros_like(self.verts), requires_grad=True)
-        self.register_parameter('deform', deform)
+        self.register_parameter("deform", deform)
 
         edges = torch.tensor(
             [0, 1, 0, 2, 0, 3, 1, 2, 1, 3, 2, 3], dtype=torch.long, device="cuda"
@@ -79,7 +87,9 @@ class NVDiffRastRenderer(BaseRenderer):
 
     # TODO(ahmkadi): doesn't look good to me !!
     @torch.no_grad()
-    def update_step(self, epoch: int, global_step: int, decay: float = 0.95, S: int = 128, **kwargs):
+    def update_step(
+        self, epoch: int, global_step: int, decay: float = 0.95, S: int = 128, **kwargs
+    ):
         pass
 
     @torch.no_grad()
@@ -119,7 +129,7 @@ class NVDiffRastRenderer(BaseRenderer):
         return_vertices=False,
         return_faces=False,
         return_faces_normals=False,
-        **kwargs
+        **kwargs,
     ):
         if not self.initialized:
             self.init_tet()
@@ -135,7 +145,7 @@ class NVDiffRastRenderer(BaseRenderer):
             return_vertices=return_vertices,
             return_faces=return_faces,
             return_faces_normals=return_faces_normals,
-            **kwargs
+            **kwargs,
         )
 
     def _render(
@@ -150,7 +160,7 @@ class NVDiffRastRenderer(BaseRenderer):
         return_vertices=False,
         return_faces=False,
         return_faces_normals=False,
-        **kwargs
+        **kwargs,
     ):
         # mvp: [B, 4, 4]
         B, H, W, _ = rays_o.shape
@@ -191,7 +201,9 @@ class NVDiffRastRenderer(BaseRenderer):
 
         # rasterization
         verts_clip = torch.bmm(
-            F.pad(verts, pad=(0, 1), mode='constant', value=1.0).unsqueeze(0).repeat(mvp.shape[0], 1, 1),
+            F.pad(verts, pad=(0, 1), mode="constant", value=1.0)
+            .unsqueeze(0)
+            .repeat(mvp.shape[0], 1, 1),
             mvp.permute(0, 2, 1),
         ).float()  # [B, N, 4]
         rast, _ = dr.rasterize(self.glctx, verts_clip, faces, (H, W))
@@ -211,10 +223,16 @@ class NVDiffRastRenderer(BaseRenderer):
             albedo[mask] = masked_albedo.float()
         albedo = albedo.view(B, H, W, 3)
         fg_color = self.material(
-            albedo=albedo, normals=normal, light_d=light_d, ambient_ratio=ambient_ratio, shading_type=shading_type
+            albedo=albedo,
+            normals=normal,
+            light_d=light_d,
+            ambient_ratio=ambient_ratio,
+            shading_type=shading_type,
         )
 
-        fg_color = dr.antialias(fg_color, rast, verts_clip, faces).clamp(0, 1)  # [B, H, W, 3]
+        fg_color = dr.antialias(fg_color, rast, verts_clip, faces).clamp(
+            0, 1
+        )  # [B, H, W, 3]
         alpha = dr.antialias(alpha, rast, verts_clip, faces).clamp(0, 1)  # [B, H, W, 1]
 
         # mix background color
@@ -223,16 +241,18 @@ class NVDiffRastRenderer(BaseRenderer):
         depth = rast[:, :, :, [2]]  # [B, H, W]
         color = fg_color + (1 - alpha) * bg_color
 
-        results['depth'] = depth
-        results['image'] = color
+        results["depth"] = depth
+        results["image"] = color
         if return_normal_image:
-            results['normal_image'] = dr.antialias((normal + 1) / 2, rast, verts_clip, faces).clamp(
+            results["normal_image"] = dr.antialias(
+                (normal + 1) / 2, rast, verts_clip, faces
+            ).clamp(
                 0, 1
             )  # [B, H, W, 3]
         if return_vertices:
-            results['vertices'] = verts
+            results["vertices"] = verts
         if return_faces:
-            results['faces'] = faces
+            results["faces"] = faces
         if return_faces_normals:
-            results['face_normals'] = face_normals
+            results["face_normals"] = face_normals
         return results

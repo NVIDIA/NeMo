@@ -20,7 +20,7 @@ import torch
 from nemo.collections.nlp.modules.common.megatron.alibi_relative_position_embedding import (
     build_relative_position, build_slopes)
 
-__all__ = ['KERPLERelativePositionEmbedding']
+__all__ = ["KERPLERelativePositionEmbedding"]
 
 
 class KERPLERelativePositionEmbedding(torch.nn.Module):
@@ -31,7 +31,12 @@ class KERPLERelativePositionEmbedding(torch.nn.Module):
     """
 
     def __init__(
-        self, bidirectional, num_attention_heads, layer_type, num_attention_heads_kerple=None, max_seq_len=512
+        self,
+        bidirectional,
+        num_attention_heads,
+        layer_type,
+        num_attention_heads_kerple=None,
+        max_seq_len=512,
     ):
         """
         Args:
@@ -62,18 +67,24 @@ class KERPLERelativePositionEmbedding(torch.nn.Module):
         self.max_seq_len = max_seq_len
 
         # initialize the slopes
-        self.kerple_b = torch.nn.Parameter(build_slopes(num_attention_heads, num_attention_heads_kerple))
+        self.kerple_b = torch.nn.Parameter(
+            build_slopes(num_attention_heads, num_attention_heads_kerple)
+        )
         self.kerple_a = torch.zeros_like(self.kerple_b)
         self.kerple_p = torch.ones_like(self.kerple_b)
 
         # cache the relative position bias. shape (num_attention_heads, max_seq_len, max_seq_len)
-        self.relative_position = build_relative_position(max_seq_len, max_seq_len, num_attention_heads)
+        self.relative_position = build_relative_position(
+            max_seq_len, max_seq_len, num_attention_heads
+        )
 
     def forward(self, query_seq_length, key_seq_length):
         # used cached relative position if possible
         max_seq_len = max(query_seq_length, key_seq_length)
         if max_seq_len > self.max_seq_len:
-            relative_position = build_relative_position(max_seq_len, max_seq_len, self.num_attention_heads)
+            relative_position = build_relative_position(
+                max_seq_len, max_seq_len, self.num_attention_heads
+            )
         else:
             relative_position = self.relative_position
         # shape (num_attention_heads, query_seq_length, key_seq_length)
@@ -83,4 +94,6 @@ class KERPLERelativePositionEmbedding(torch.nn.Module):
             relative_position = torch.tril(relative_position)
 
         # shape (1, num_heads, query_length, key_length)
-        return -self.kerple_b * torch.log(1 + self.kerple_a * relative_position.unsqueeze(0).pow(self.kerple_p))
+        return -self.kerple_b * torch.log(
+            1 + self.kerple_a * relative_position.unsqueeze(0).pow(self.kerple_p)
+        )

@@ -35,7 +35,7 @@ from nemo.core.classes.module import NeuralModule
 from nemo.core.neural_types import (AcousticEncodedRepresentation, LengthsType,
                                     NeuralType, SpectrogramType)
 
-__all__ = ['SqueezeformerEncoder']
+__all__ = ["SqueezeformerEncoder"]
 
 
 class SqueezeformerEncoder(NeuralModule, Exportable, AccessMixin):
@@ -106,8 +106,8 @@ class SqueezeformerEncoder(NeuralModule, Exportable, AccessMixin):
         """Returns definitions of module input ports."""
         return OrderedDict(
             {
-                "audio_signal": NeuralType(('B', 'D', 'T'), SpectrogramType()),
-                "length": NeuralType(tuple('B'), LengthsType()),
+                "audio_signal": NeuralType(("B", "D", "T"), SpectrogramType()),
+                "length": NeuralType(tuple("B"), LengthsType()),
             }
         )
 
@@ -116,8 +116,8 @@ class SqueezeformerEncoder(NeuralModule, Exportable, AccessMixin):
         """Returns definitions of module output ports."""
         return OrderedDict(
             {
-                "outputs": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
-                "encoded_lengths": NeuralType(tuple('B'), LengthsType()),
+                "outputs": NeuralType(("B", "D", "T"), AcousticEncodedRepresentation()),
+                "encoded_lengths": NeuralType(tuple("B"), LengthsType()),
             }
         )
 
@@ -127,18 +127,18 @@ class SqueezeformerEncoder(NeuralModule, Exportable, AccessMixin):
         n_layers: int,
         d_model: int,
         feat_out: int = -1,
-        subsampling: str = 'dw_striding',
+        subsampling: str = "dw_striding",
         subsampling_factor: int = 4,
         subsampling_conv_channels: int = -1,
         ff_expansion_factor: int = 4,
-        self_attention_model: str = 'rel_pos',
+        self_attention_model: str = "rel_pos",
         n_heads: int = 4,
         att_context_size: Optional[List[int]] = None,
         xscaling: bool = True,
         untie_biases: bool = True,
         pos_emb_max_len: int = 5000,
         conv_kernel_size: int = 31,
-        conv_norm_type: str = 'batch_norm',
+        conv_norm_type: str = "batch_norm",
         dropout: float = 0.1,
         dropout_emb: float = 0.1,
         dropout_att: float = 0.0,
@@ -173,14 +173,18 @@ class SqueezeformerEncoder(NeuralModule, Exportable, AccessMixin):
             if self.time_reduce_idx < 0 or self.time_recovery_idx >= n_layers:
                 raise ValueError(f"Time reduce index must lie between [0, {n_layers})")
             if self.time_recovery_idx < 0 or self.time_recovery_idx >= n_layers:
-                raise ValueError(f"Time recovery index must lie between [0, {n_layers})")
+                raise ValueError(
+                    f"Time recovery index must lie between [0, {n_layers})"
+                )
 
         if subsampling_conv_channels == -1:
             subsampling_conv_channels = d_model
         if subsampling and subsampling_factor > 1:
-            if subsampling == 'stacking':
+            if subsampling == "stacking":
                 self.pre_encode = StackingSubsampling(
-                    subsampling_factor=subsampling_factor, feat_in=feat_in, feat_out=d_model
+                    subsampling_factor=subsampling_factor,
+                    feat_in=feat_in,
+                    feat_out=d_model,
                 )
             else:
                 self.pre_encode = ConvSubsampling(
@@ -221,10 +225,15 @@ class SqueezeformerEncoder(NeuralModule, Exportable, AccessMixin):
             pos_bias_u = None
             pos_bias_v = None
             self.pos_enc = PositionalEncoding(
-                d_model=d_model, dropout_rate=dropout, max_len=pos_emb_max_len, xscale=self.xscale
+                d_model=d_model,
+                dropout_rate=dropout,
+                max_len=pos_emb_max_len,
+                xscale=self.xscale,
             )
         else:
-            raise ValueError(f"Not valid self_attention_model: '{self_attention_model}'!")
+            raise ValueError(
+                f"Not valid self_attention_model: '{self_attention_model}'!"
+            )
 
         self.layers = nn.ModuleList()
         for i in range(n_layers):
@@ -249,7 +258,9 @@ class SqueezeformerEncoder(NeuralModule, Exportable, AccessMixin):
         self.time_reduce_pos_enc = None
         # Add time reduction layer
         if self.time_reduce_idx is not None:
-            self.time_reduce_layer = TimeReductionModule(d_model, d_model, kernel_size=5, stride=2)
+            self.time_reduce_layer = TimeReductionModule(
+                d_model, d_model, kernel_size=5, stride=2
+            )
             self.time_recovery_layer = nn.Linear(d_model, d_model)
 
             # Chose same type of positional encoding as the originally determined above
@@ -263,7 +274,11 @@ class SqueezeformerEncoder(NeuralModule, Exportable, AccessMixin):
                 )
             else:
                 self.time_reduce_pos_enc = PositionalEncoding(
-                    d_model=d_model, dropout_rate=0.0, max_len=pos_emb_max_len, xscale=None, dropout_rate_emb=0.0
+                    d_model=d_model,
+                    dropout_rate=0.0,
+                    max_len=pos_emb_max_len,
+                    xscale=None,
+                    dropout_rate_emb=0.0,
                 )
 
         self.pre_ln = nn.LayerNorm(d_model)
@@ -288,10 +303,10 @@ class SqueezeformerEncoder(NeuralModule, Exportable, AccessMixin):
         device = next(self.parameters()).device
         dtype = next(self.parameters()).dtype
         seq_range = torch.arange(0, self.max_audio_length, device=device)
-        if hasattr(self, 'seq_range'):
+        if hasattr(self, "seq_range"):
             self.seq_range = seq_range
         else:
-            self.register_buffer('seq_range', seq_range, persistent=False)
+            self.register_buffer("seq_range", seq_range, persistent=False)
         self.pos_enc.extend_pe(max_audio_length, device, dtype)
 
         if self.time_reduce_pos_enc is not None:
@@ -299,7 +314,9 @@ class SqueezeformerEncoder(NeuralModule, Exportable, AccessMixin):
 
     @typecheck()
     def forward(self, audio_signal, length=None):
-        self.update_max_seq_length(seq_length=audio_signal.size(2), device=audio_signal.device)
+        self.update_max_seq_length(
+            seq_length=audio_signal.size(2), device=audio_signal.device
+        )
         return self.forward_for_export(audio_signal=audio_signal, length=length)
 
     @typecheck()
@@ -311,7 +328,10 @@ class SqueezeformerEncoder(NeuralModule, Exportable, AccessMixin):
 
         if length is None:
             length = audio_signal.new_full(
-                audio_signal.size(0), max_audio_length, dtype=torch.int32, device=self.seq_range.device
+                audio_signal.size(0),
+                max_audio_length,
+                dtype=torch.int32,
+                device=self.seq_range.device,
             )
 
         audio_signal = torch.transpose(audio_signal, 1, 2)
@@ -349,7 +369,9 @@ class SqueezeformerEncoder(NeuralModule, Exportable, AccessMixin):
             # Perform time reduction
             if self.time_reduce_layer is not None and lth == self.time_reduce_idx:
                 # Perform time reduction
-                recovery_activation_cache.append((audio_signal, att_mask, pad_mask, pos_emb))
+                recovery_activation_cache.append(
+                    (audio_signal, att_mask, pad_mask, pos_emb)
+                )
                 audio_signal, att_mask, pad_mask = self.time_reduce_layer(
                     x=audio_signal, att_mask=att_mask, pad_mask=pad_mask
                 )
@@ -358,30 +380,45 @@ class SqueezeformerEncoder(NeuralModule, Exportable, AccessMixin):
 
             # Perform time recovery
             if self.time_recovery_layer is not None and lth == self.time_recovery_idx:
-                recovery_audio_signal, att_mask, pad_mask, pos_emb = recovery_activation_cache.pop(0)
+                recovery_audio_signal, att_mask, pad_mask, pos_emb = (
+                    recovery_activation_cache.pop(0)
+                )
                 # repeat interleaved values for 2x seq length
                 audio_signal = torch.repeat_interleave(audio_signal, repeats=2, dim=1)
 
                 B, T, D = recovery_audio_signal.size()
-                audio_signal = audio_signal[:, :T, :]  # Slice off the exact T timesteps as original cache value
-                audio_signal = self.time_recovery_layer(audio_signal)  # learn non linear mapping
-                audio_signal = recovery_audio_signal + audio_signal  # learn just the residual
+                audio_signal = audio_signal[
+                    :, :T, :
+                ]  # Slice off the exact T timesteps as original cache value
+                audio_signal = self.time_recovery_layer(
+                    audio_signal
+                )  # learn non linear mapping
+                audio_signal = (
+                    recovery_audio_signal + audio_signal
+                )  # learn just the residual
 
-            audio_signal = layer(x=audio_signal, att_mask=att_mask, pos_emb=pos_emb, pad_mask=pad_mask)
+            audio_signal = layer(
+                x=audio_signal, att_mask=att_mask, pos_emb=pos_emb, pad_mask=pad_mask
+            )
 
             # saving tensors if required for interctc loss
             if self.is_access_enabled(getattr(self, "model_guid", None)):
                 if self.interctc_capture_at_layers is None:
-                    self.interctc_capture_at_layers = self.access_cfg.get('interctc', {}).get('capture_layers', [])
+                    self.interctc_capture_at_layers = self.access_cfg.get(
+                        "interctc", {}
+                    ).get("capture_layers", [])
                 if lth in self.interctc_capture_at_layers:
                     lth_audio_signal = audio_signal
                     if self.out_proj is not None:
                         lth_audio_signal = self.out_proj(audio_signal)
                     # shape is the same as the shape of audio_signal output, i.e. [B, D, T]
                     self.register_accessible_tensor(
-                        name=f'interctc/layer_output_{lth}', tensor=torch.transpose(lth_audio_signal, 1, 2)
+                        name=f"interctc/layer_output_{lth}",
+                        tensor=torch.transpose(lth_audio_signal, 1, 2),
                     )
-                    self.register_accessible_tensor(name=f'interctc/layer_length_{lth}', tensor=length)
+                    self.register_accessible_tensor(
+                        name=f"interctc/layer_length_{lth}", tensor=length
+                    )
 
         if self.out_proj is not None:
             audio_signal = self.out_proj(audio_signal)
@@ -392,10 +429,14 @@ class SqueezeformerEncoder(NeuralModule, Exportable, AccessMixin):
     def update_max_seq_length(self, seq_length: int, device):
         # Find global max audio length across all nodes
         if torch.distributed.is_initialized():
-            global_max_len = torch.tensor([seq_length], dtype=torch.float32, device=device)
+            global_max_len = torch.tensor(
+                [seq_length], dtype=torch.float32, device=device
+            )
 
             # Update across all ranks in the distributed system
-            torch.distributed.all_reduce(global_max_len, op=torch.distributed.ReduceOp.MAX)
+            torch.distributed.all_reduce(
+                global_max_len, op=torch.distributed.ReduceOp.MAX
+            )
 
             seq_length = global_max_len.int().item()
 
@@ -404,7 +445,9 @@ class SqueezeformerEncoder(NeuralModule, Exportable, AccessMixin):
 
     def make_pad_mask(self, max_audio_length, seq_lens):
         """Make masking for padding."""
-        mask = self.seq_range[:max_audio_length].expand(seq_lens.size(0), -1) < seq_lens.unsqueeze(-1)
+        mask = self.seq_range[:max_audio_length].expand(
+            seq_lens.size(0), -1
+        ) < seq_lens.unsqueeze(-1)
         return mask
 
     def enable_pad_mask(self, on=True):
@@ -414,7 +457,9 @@ class SqueezeformerEncoder(NeuralModule, Exportable, AccessMixin):
         return mask
 
 
-class SqueezeformerEncoderAdapter(SqueezeformerEncoder, adapter_mixins.AdapterModuleMixin):
+class SqueezeformerEncoderAdapter(
+    SqueezeformerEncoder, adapter_mixins.AdapterModuleMixin
+):
 
     # Higher level forwarding
     def add_adapter(self, name: str, cfg: dict):
@@ -423,7 +468,9 @@ class SqueezeformerEncoderAdapter(SqueezeformerEncoder, adapter_mixins.AdapterMo
             conformer_layer.add_adapter(name, cfg)
 
     def is_adapter_available(self) -> bool:
-        return any([conformer_layer.is_adapter_available() for conformer_layer in self.layers])
+        return any(
+            [conformer_layer.is_adapter_available() for conformer_layer in self.layers]
+        )
 
     def set_enabled_adapters(self, name: Optional[str] = None, enabled: bool = True):
         for conformer_layer in self.layers:  # type: adapter_mixins.AdapterModuleMixin
@@ -438,7 +485,9 @@ class SqueezeformerEncoderAdapter(SqueezeformerEncoder, adapter_mixins.AdapterMo
         return names
 
     def _update_adapter_cfg_input_dim(self, cfg: DictConfig):
-        cfg = adapter_utils.update_adapter_cfg_input_dim(self, cfg, module_dim=self.d_model)
+        cfg = adapter_utils.update_adapter_cfg_input_dim(
+            self, cfg, module_dim=self.d_model
+        )
         return cfg
 
     def get_accepted_adapter_types(
@@ -462,4 +511,6 @@ class SqueezeformerEncoderAdapter(SqueezeformerEncoder, adapter_mixins.AdapterMo
 Register any additional information
 """
 if adapter_mixins.get_registered_adapter(SqueezeformerEncoder) is None:
-    adapter_mixins.register_adapter(base_class=SqueezeformerEncoder, adapter_class=SqueezeformerEncoderAdapter)
+    adapter_mixins.register_adapter(
+        base_class=SqueezeformerEncoder, adapter_class=SqueezeformerEncoderAdapter
+    )

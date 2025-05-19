@@ -47,7 +47,7 @@ Currently, the following NGC models are supported:
 @hydra_runner(config_path="../conf/inference", config_name="diar_infer_meeting.yaml")
 def main(cfg):
 
-    logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
+    logging.info(f"Hydra config: {OmegaConf.to_yaml(cfg)}")
 
     # ASR inference for words and word timestamps
     asr_decoder_ts = ASRDecoderTimeStamps(cfg.diarizer)
@@ -60,7 +60,9 @@ def main(cfg):
 
     # Diarization inference for speaker labels
     diar_hyp, diar_score = asr_diar_offline.run_diarization(cfg, word_ts_hyp)
-    trans_info_dict = asr_diar_offline.get_transcript_with_speaker_labels(diar_hyp, word_hyp, word_ts_hyp)
+    trans_info_dict = asr_diar_offline.get_transcript_with_speaker_labels(
+        diar_hyp, word_hyp, word_ts_hyp
+    )
 
     # If RTTM is provided and DER evaluation
     if diar_score is not None:
@@ -80,7 +82,9 @@ def main(cfg):
         )
 
         # Print average DER, WER and cpWER
-        OfflineDiarWithASR.print_errors(der_results=der_results, wer_results=wer_results)
+        OfflineDiarWithASR.print_errors(
+            der_results=der_results, wer_results=wer_results
+        )
 
         # Save detailed session-level evaluation results in `root_path`.
         OfflineDiarWithASR.write_session_level_result_in_csv(
@@ -91,5 +95,5 @@ def main(cfg):
         )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

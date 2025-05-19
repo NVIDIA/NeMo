@@ -62,6 +62,6 @@ configs = {
             max_length=512,
         ),
         scheduler_steps=1000,
-        device='cpu',
+        device="cpu",
     )
 }

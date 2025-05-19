@@ -36,7 +36,9 @@ class VisionRotaryEmbedding(torch.nn.Module):
 
     def forward(self, seqlen: int) -> torch.Tensor:
         # pylint: disable=C0115,C0116
-        seq = torch.arange(seqlen, device=self.inv_freq.device, dtype=self.inv_freq.dtype)
+        seq = torch.arange(
+            seqlen, device=self.inv_freq.device, dtype=self.inv_freq.dtype
+        )
         freqs = torch.outer(seq, self.inv_freq)
         return freqs
 
@@ -83,7 +85,9 @@ class Qwen2VisionModel(VisionModule):
         self.add_class_token = add_class_token
         self.class_token_len = class_token_len
 
-        self.seq_length = self.num_patches + (self.class_token_len if self.add_class_token else 0)
+        self.seq_length = self.num_patches + (
+            self.class_token_len if self.add_class_token else 0
+        )
 
         kernel_size = [temporal_patch_size, patch_dim, patch_dim]
         self.conv1 = torch.nn.Conv3d(
@@ -94,12 +98,16 @@ class Qwen2VisionModel(VisionModule):
             bias=False,
         )
 
-        head_dim = transformer_config.embed_dim // transformer_config.num_attention_heads
+        head_dim = (
+            transformer_config.embed_dim // transformer_config.num_attention_heads
+        )
         self.rotary_pos_emb = VisionRotaryEmbedding(head_dim // 2)
 
         self.add_class_token = add_class_token
         if self.add_class_token:
-            self.class_token = torch.nn.Parameter(torch.randn(1, self.class_token_len, self.visual_hidden_size))
+            self.class_token = torch.nn.Parameter(
+                torch.randn(1, self.class_token_len, self.visual_hidden_size)
+            )
 
         self.model_type = ModelType.encoder_or_decoder
 
@@ -156,9 +164,9 @@ class Qwen2VisionModel(VisionModule):
         # pylint: disable=C0115,C0116
         from megatron.core.packed_seq_params import PackedSeqParams
 
-        cu_seqlens = torch.repeat_interleave(grid_thw[:, 1] * grid_thw[:, 2], grid_thw[:, 0]).cumsum(
-            dim=0, dtype=torch.int32
-        )
+        cu_seqlens = torch.repeat_interleave(
+            grid_thw[:, 1] * grid_thw[:, 2], grid_thw[:, 0]
+        ).cumsum(dim=0, dtype=torch.int32)
         cu_seqlens = F.pad(cu_seqlens, (1, 0), value=0)
 
         cu_seqlens = cu_seqlens.squeeze()  # remove batch size dimension (mbs=1)
@@ -174,11 +182,14 @@ class Qwen2VisionModel(VisionModule):
             cu_seqlens_kv=cu_seqlens,
             max_seqlen_q=max_seqlen,
             max_seqlen_kv=max_seqlen,
-            qkv_format='thd',
+            qkv_format="thd",
         )
 
     def forward(
-        self, x: torch.Tensor, grid_thw: torch.Tensor, attention_mask: Optional[torch.Tensor] = None
+        self,
+        x: torch.Tensor,
+        grid_thw: torch.Tensor,
+        attention_mask: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         """Forward function of the Qwen2 Vision Model. This function passes the input tensors
         through the embedding layer and then the transformer.
@@ -192,7 +203,13 @@ class Qwen2VisionModel(VisionModule):
             x (torch.Tensor): output after final transformer block.
         """
         # pylint: disable=C0301
-        x = x.view(-1, self.in_channels, self.temporal_patch_size, self.patch_dim, self.patch_dim)
+        x = x.view(
+            -1,
+            self.in_channels,
+            self.temporal_patch_size,
+            self.patch_dim,
+            self.patch_dim,
+        )
         x = self.conv1(x).view(-1, self.visual_hidden_size)  # [seqlen, hidden_size]
         # add batch dim
         x = x.unsqueeze(1)  # [seqlen, 1, hidden_size], THD format, bs=1
@@ -203,7 +220,12 @@ class Qwen2VisionModel(VisionModule):
         rotary_pos_emb = rotary_pos_emb[:, None, None, :]
 
         packed_seq_params = self.get_packed_seq_params(grid_thw)
-        x = self.decoder(x, attention_mask, rotary_pos_emb=rotary_pos_emb, packed_seq_params=packed_seq_params)
+        x = self.decoder(
+            x,
+            attention_mask,
+            rotary_pos_emb=rotary_pos_emb,
+            packed_seq_params=packed_seq_params,
+        )
 
         x = x.squeeze(1).view(-1, self.merge_hidden_size)
         return x

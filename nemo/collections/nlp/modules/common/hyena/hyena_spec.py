@@ -66,5 +66,7 @@ def get_hyena_layer_with_transformer_engine_spec(hyena_cfg):
 
 def get_gpt_layer_with_te_and_hyena_spec(hyena_cfg):
     spec = get_gpt_layer_with_transformer_engine_spec()
-    spec.submodules.self_attention = get_hyena_layer_with_transformer_engine_spec(hyena_cfg)
+    spec.submodules.self_attention = get_hyena_layer_with_transformer_engine_spec(
+        hyena_cfg
+    )
     return spec

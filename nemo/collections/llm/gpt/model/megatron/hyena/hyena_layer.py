@@ -91,7 +91,7 @@ class HyenaLayer(MegatronModule):
         )
 
         self.mlp = build_module(submodules.mlp, config=self.transformer_config)
-        if hasattr(self.mlp, 'set_layer_number'):
+        if hasattr(self.mlp, "set_layer_number"):
             self.mlp.set_layer_number(self.layer_number)
 
         self.mlp_bda = build_module(submodules.mlp_bda)
@@ -116,12 +116,14 @@ class HyenaLayer(MegatronModule):
         hidden_states = hidden_states.to(dtype=self.transformer_config.params_dtype)
         hidden_states = self.norm(hidden_states)
 
-        mixer_out_with_bias = self.mixer(hidden_states, inference_context=inference_context)
+        mixer_out_with_bias = self.mixer(
+            hidden_states, inference_context=inference_context
+        )
 
         with self.bias_dropout_add_exec_handler():
-            hidden_states = self.hyena_bda(self.training, self.transformer_config.bias_dropout_fusion)(
-                mixer_out_with_bias, residual, self.hidden_dropout
-            )
+            hidden_states = self.hyena_bda(
+                self.training, self.transformer_config.bias_dropout_fusion
+            )(mixer_out_with_bias, residual, self.hidden_dropout)
 
         residual = hidden_states
 
@@ -130,8 +132,8 @@ class HyenaLayer(MegatronModule):
         mlp_output_with_bias = self.mlp(pre_mlp_layernorm_output)
 
         with self.bias_dropout_add_exec_handler():
-            hidden_states = self.mlp_bda(self.training, self.transformer_config.bias_dropout_fusion)(
-                mlp_output_with_bias, residual, self.hidden_dropout
-            )
+            hidden_states = self.mlp_bda(
+                self.training, self.transformer_config.bias_dropout_fusion
+            )(mlp_output_with_bias, residual, self.hidden_dropout)
 
         return hidden_states

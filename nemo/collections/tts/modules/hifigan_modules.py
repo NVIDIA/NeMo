@@ -64,7 +64,7 @@ def get_padding(kernel_size, dilation=1):
 
 
 class ResBlock1(torch.nn.Module):
-    __constants__ = ['lrelu_slope']
+    __constants__ = ["lrelu_slope"]
 
     def __init__(self, channels, kernel_size, dilation):
         super().__init__()
@@ -108,13 +108,34 @@ class ResBlock1(torch.nn.Module):
         self.convs2 = nn.ModuleList(
             [
                 weight_norm(
-                    Conv1d(channels, channels, kernel_size, 1, dilation=1, padding=get_padding(kernel_size, 1))
+                    Conv1d(
+                        channels,
+                        channels,
+                        kernel_size,
+                        1,
+                        dilation=1,
+                        padding=get_padding(kernel_size, 1),
+                    )
                 ),
                 weight_norm(
-                    Conv1d(channels, channels, kernel_size, 1, dilation=1, padding=get_padding(kernel_size, 1))
+                    Conv1d(
+                        channels,
+                        channels,
+                        kernel_size,
+                        1,
+                        dilation=1,
+                        padding=get_padding(kernel_size, 1),
+                    )
                 ),
                 weight_norm(
-                    Conv1d(channels, channels, kernel_size, 1, dilation=1, padding=get_padding(kernel_size, 1))
+                    Conv1d(
+                        channels,
+                        channels,
+                        kernel_size,
+                        1,
+                        dilation=1,
+                        padding=get_padding(kernel_size, 1),
+                    )
                 ),
             ]
         )
@@ -137,7 +158,7 @@ class ResBlock1(torch.nn.Module):
 
 
 class ResBlock2(torch.nn.Module):
-    __constants__ = ['lrelu_slope']
+    __constants__ = ["lrelu_slope"]
 
     def __init__(self, channels, kernel_size, dilation):
         super().__init__()
@@ -181,7 +202,7 @@ class ResBlock2(torch.nn.Module):
 
 
 class Generator(NeuralModule):
-    __constants__ = ['lrelu_slope', 'num_kernels', 'num_upsamples']
+    __constants__ = ["lrelu_slope", "num_kernels", "num_upsamples"]
 
     def __init__(
         self,
@@ -197,7 +218,9 @@ class Generator(NeuralModule):
         super().__init__()
         self.num_kernels = len(resblock_kernel_sizes)
         self.num_upsamples = len(upsample_rates)
-        self.conv_pre = weight_norm(Conv1d(initial_input_size, upsample_initial_channel, 7, 1, padding=3))
+        self.conv_pre = weight_norm(
+            Conv1d(initial_input_size, upsample_initial_channel, 7, 1, padding=3)
+        )
         self.lrelu_slope = LRELU_SLOPE
         resblock = ResBlock1 if resblock == 1 else ResBlock2
 
@@ -206,7 +229,7 @@ class Generator(NeuralModule):
             self.ups.append(
                 weight_norm(
                     ConvTranspose1d(
-                        upsample_initial_channel // (2 ** i),
+                        upsample_initial_channel // (2**i),
                         upsample_initial_channel // (2 ** (i + 1)),
                         k,
                         u,
@@ -219,7 +242,9 @@ class Generator(NeuralModule):
         for i in range(len(self.ups)):
             resblock_list = nn.ModuleList()
             ch = upsample_initial_channel // (2 ** (i + 1))
-            for j, (k, d) in enumerate(zip(resblock_kernel_sizes, resblock_dilation_sizes)):
+            for j, (k, d) in enumerate(
+                zip(resblock_kernel_sizes, resblock_dilation_sizes)
+            ):
                 resblock_list.append(resblock(ch, k, d))
             self.resblocks.append(resblock_list)
 
@@ -232,13 +257,13 @@ class Generator(NeuralModule):
     @property
     def input_types(self):
         return {
-            "x": NeuralType(('B', 'D', 'T'), MelSpectrogramType()),
+            "x": NeuralType(("B", "D", "T"), MelSpectrogramType()),
         }
 
     @property
     def output_types(self):
         return {
-            "audio": NeuralType(('B', 'S', 'T'), AudioSignal()),
+            "audio": NeuralType(("B", "S", "T"), AudioSignal()),
         }
 
     @typecheck()
@@ -258,7 +283,7 @@ class Generator(NeuralModule):
         return x
 
     def remove_weight_norm(self):
-        print('Removing weight norm...')
+        print("Removing weight norm...")
         for l in self.ups:
             remove_weight_norm(l)
         for group in self.resblocks:
@@ -269,18 +294,54 @@ class Generator(NeuralModule):
 
 
 class DiscriminatorP(NeuralModule):
-    def __init__(self, period, kernel_size=5, stride=3, use_spectral_norm=False, debug=False):
+    def __init__(
+        self, period, kernel_size=5, stride=3, use_spectral_norm=False, debug=False
+    ):
         super().__init__()
         self.period = period
         norm_f = weight_norm if use_spectral_norm == False else spectral_norm
         conv_ch = [32, 128, 512, 1024] if not debug else [8, 12, 32, 64]
         self.convs = nn.ModuleList(
             [
-                norm_f(Conv2d(1, conv_ch[0], (kernel_size, 1), (stride, 1), padding=(get_padding(5, 1), 0))),
-                norm_f(Conv2d(conv_ch[0], conv_ch[1], (kernel_size, 1), (stride, 1), padding=(get_padding(5, 1), 0))),
-                norm_f(Conv2d(conv_ch[1], conv_ch[2], (kernel_size, 1), (stride, 1), padding=(get_padding(5, 1), 0))),
-                norm_f(Conv2d(conv_ch[2], conv_ch[3], (kernel_size, 1), (stride, 1), padding=(get_padding(5, 1), 0))),
-                norm_f(Conv2d(conv_ch[3], conv_ch[3], (kernel_size, 1), 1, padding=(2, 0))),
+                norm_f(
+                    Conv2d(
+                        1,
+                        conv_ch[0],
+                        (kernel_size, 1),
+                        (stride, 1),
+                        padding=(get_padding(5, 1), 0),
+                    )
+                ),
+                norm_f(
+                    Conv2d(
+                        conv_ch[0],
+                        conv_ch[1],
+                        (kernel_size, 1),
+                        (stride, 1),
+                        padding=(get_padding(5, 1), 0),
+                    )
+                ),
+                norm_f(
+                    Conv2d(
+                        conv_ch[1],
+                        conv_ch[2],
+                        (kernel_size, 1),
+                        (stride, 1),
+                        padding=(get_padding(5, 1), 0),
+                    )
+                ),
+                norm_f(
+                    Conv2d(
+                        conv_ch[2],
+                        conv_ch[3],
+                        (kernel_size, 1),
+                        (stride, 1),
+                        padding=(get_padding(5, 1), 0),
+                    )
+                ),
+                norm_f(
+                    Conv2d(conv_ch[3], conv_ch[3], (kernel_size, 1), 1, padding=(2, 0))
+                ),
             ]
         )
         self.conv_post = norm_f(Conv2d(conv_ch[3], 1, (3, 1), 1, padding=(1, 0)))
@@ -288,13 +349,13 @@ class DiscriminatorP(NeuralModule):
     @property
     def input_types(self):
         return {
-            "x": NeuralType(('B', 'S', 'T'), AudioSignal()),
+            "x": NeuralType(("B", "S", "T"), AudioSignal()),
         }
 
     @property
     def output_types(self):
         return {
-            "decision": NeuralType(('B', 'T'), VoidType()),
+            "decision": NeuralType(("B", "T"), VoidType()),
             "feature_maps": [NeuralType(("B", "C", "H", "W"), VoidType())],
         }
 
@@ -337,15 +398,15 @@ class MultiPeriodDiscriminator(NeuralModule):
     @property
     def input_types(self):
         return {
-            "y": NeuralType(('B', 'S', 'T'), AudioSignal()),
-            "y_hat": NeuralType(('B', 'S', 'T'), AudioSignal()),
+            "y": NeuralType(("B", "S", "T"), AudioSignal()),
+            "y_hat": NeuralType(("B", "S", "T"), AudioSignal()),
         }
 
     @property
     def output_types(self):
         return {
-            "real_scores": [NeuralType(('B', 'T'), VoidType())],
-            "fake_scores": [NeuralType(('B', 'T'), VoidType())],
+            "real_scores": [NeuralType(("B", "T"), VoidType())],
+            "fake_scores": [NeuralType(("B", "T"), VoidType())],
             "real_feature_maps": [[NeuralType(("B", "C", "H", "W"), VoidType())]],
             "fake_feature_maps": [[NeuralType(("B", "C", "H", "W"), VoidType())]],
         }
@@ -388,13 +449,13 @@ class DiscriminatorS(NeuralModule):
     @property
     def input_types(self):
         return {
-            "x": NeuralType(('B', 'S', 'T'), AudioSignal()),
+            "x": NeuralType(("B", "S", "T"), AudioSignal()),
         }
 
     @property
     def output_types(self):
         return {
-            "decision": NeuralType(('B', 'T'), VoidType()),
+            "decision": NeuralType(("B", "T"), VoidType()),
             "feature_maps": [NeuralType(("B", "C", "T"), VoidType())],
         }
 
@@ -422,20 +483,22 @@ class MultiScaleDiscriminator(NeuralModule):
                 DiscriminatorS(debug=debug),
             ]
         )
-        self.meanpools = nn.ModuleList([AvgPool1d(4, 2, padding=2), AvgPool1d(4, 2, padding=2)])
+        self.meanpools = nn.ModuleList(
+            [AvgPool1d(4, 2, padding=2), AvgPool1d(4, 2, padding=2)]
+        )
 
     @property
     def input_types(self):
         return {
-            "y": NeuralType(('B', 'S', 'T'), AudioSignal()),
-            "y_hat": NeuralType(('B', 'S', 'T'), AudioSignal()),
+            "y": NeuralType(("B", "S", "T"), AudioSignal()),
+            "y_hat": NeuralType(("B", "S", "T"), AudioSignal()),
         }
 
     @property
     def output_types(self):
         return {
-            "real_scores": [NeuralType(('B', 'T'), VoidType())],
-            "fake_scores": [NeuralType(('B', 'T'), VoidType())],
+            "real_scores": [NeuralType(("B", "T"), VoidType())],
+            "fake_scores": [NeuralType(("B", "T"), VoidType())],
             "real_feature_maps": [[NeuralType(("B", "C", "T"), VoidType())]],
             "fake_feature_maps": [[NeuralType(("B", "C", "T"), VoidType())]],
         }

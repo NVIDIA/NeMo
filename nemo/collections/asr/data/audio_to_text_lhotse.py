@@ -38,11 +38,11 @@ class LhotseSpeechToTextBpeDataset(torch.utils.data.Dataset):
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         return {
-            'audio_signal': NeuralType(('B', 'T'), AudioSignal()),
-            'a_sig_length': NeuralType(tuple('B'), LengthsType()),
-            'transcripts': NeuralType(('B', 'T'), LabelsType()),
-            'transcript_length': NeuralType(tuple('B'), LengthsType()),
-            'sample_id': NeuralType(tuple('B'), LengthsType(), optional=True),
+            "audio_signal": NeuralType(("B", "T"), AudioSignal()),
+            "a_sig_length": NeuralType(tuple("B"), LengthsType()),
+            "transcripts": NeuralType(("B", "T"), LabelsType()),
+            "transcript_length": NeuralType(tuple("B"), LengthsType()),
+            "sample_id": NeuralType(tuple("B"), LengthsType(), optional=True),
         }
 
     def __init__(self, tokenizer: TokenizerSpec, return_cuts: bool = False):
@@ -56,7 +56,11 @@ class LhotseSpeechToTextBpeDataset(torch.utils.data.Dataset):
         tokens = [
             torch.cat(
                 [
-                    torch.as_tensor(s.tokens if hasattr(s, "tokens") else self.tokenizer(s.text or "", s.language))
+                    torch.as_tensor(
+                        s.tokens
+                        if hasattr(s, "tokens")
+                        else self.tokenizer(s.text or "", s.language)
+                    )
                     for s in c.supervisions
                 ],
                 dim=0,

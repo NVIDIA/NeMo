@@ -60,25 +60,71 @@ python infer_transducer_onnx.py \
 def parse_arguments():
     parser = ArgumentParser()
     parser.add_argument(
-        "--nemo_model", type=str, default=None, required=False, help="Path to .nemo file",
+        "--nemo_model",
+        type=str,
+        default=None,
+        required=False,
+        help="Path to .nemo file",
     )
     parser.add_argument(
-        '--pretrained_model', type=str, default=None, required=False, help='Name of a pretrained NeMo file'
+        "--pretrained_model",
+        type=str,
+        default=None,
+        required=False,
+        help="Name of a pretrained NeMo file",
     )
-    parser.add_argument('--onnx_encoder', type=str, default=None, required=False, help="Path to onnx encoder model")
     parser.add_argument(
-        '--onnx_decoder', type=str, default=None, required=False, help="Path to onnx decoder + joint model"
+        "--onnx_encoder",
+        type=str,
+        default=None,
+        required=False,
+        help="Path to onnx encoder model",
     )
-    parser.add_argument('--threshold', type=float, default=0.01, required=False)
+    parser.add_argument(
+        "--onnx_decoder",
+        type=str,
+        default=None,
+        required=False,
+        help="Path to onnx decoder + joint model",
+    )
+    parser.add_argument("--threshold", type=float, default=0.01, required=False)
 
-    parser.add_argument('--dataset_manifest', type=str, default=None, required=False, help='Path to dataset manifest')
-    parser.add_argument('--audio_dir', type=str, default=None, required=False, help='Path to directory of audio files')
-    parser.add_argument('--audio_type', type=str, default='wav', help='File format of audio')
+    parser.add_argument(
+        "--dataset_manifest",
+        type=str,
+        default=None,
+        required=False,
+        help="Path to dataset manifest",
+    )
+    parser.add_argument(
+        "--audio_dir",
+        type=str,
+        default=None,
+        required=False,
+        help="Path to directory of audio files",
+    )
+    parser.add_argument(
+        "--audio_type", type=str, default="wav", help="File format of audio"
+    )
 
-    parser.add_argument('--export', action='store_true', help="Whether to export the model into onnx prior to eval")
-    parser.add_argument('--max_symbold_per_step', type=int, default=5, required=False, help='Number of decoding steps')
-    parser.add_argument('--batch_size', type=int, default=32, help='Batchsize')
-    parser.add_argument('--log', action='store_true', help='Log the predictions between pytorch and onnx')
+    parser.add_argument(
+        "--export",
+        action="store_true",
+        help="Whether to export the model into onnx prior to eval",
+    )
+    parser.add_argument(
+        "--max_symbold_per_step",
+        type=int,
+        default=5,
+        required=False,
+        help="Number of decoding steps",
+    )
+    parser.add_argument("--batch_size", type=int, default=32, help="Batchsize")
+    parser.add_argument(
+        "--log",
+        action="store_true",
+        help="Log the predictions between pytorch and onnx",
+    )
 
     args = parser.parse_args()
     return args
@@ -97,7 +143,9 @@ def assert_args(args):
         )
 
     if args.export and (args.onnx_encoder is not None or args.onnx_decoder is not None):
-        raise ValueError("If `export` is set, then `onnx_encoder` and `onnx_decoder` arguments must be None")
+        raise ValueError(
+            "If `export` is set, then `onnx_encoder` and `onnx_decoder` arguments must be None"
+        )
 
     if args.audio_dir is None and args.dataset_manifest is None:
         raise ValueError("Both `dataset_manifest` and `audio_dir` cannot be None!")
@@ -119,14 +167,16 @@ def export_model_if_required(args, nemo_model):
 def resolve_audio_filepaths(args):
     # get audio filenames
     if args.audio_dir is not None:
-        filepaths = list(glob.glob(os.path.join(args.audio_dir.audio_dir, f"*.{args.audio_type}")))
+        filepaths = list(
+            glob.glob(os.path.join(args.audio_dir.audio_dir, f"*.{args.audio_type}"))
+        )
     else:
         # get filenames from manifest
         filepaths = []
-        with open(args.dataset_manifest, 'r', encoding='utf-8') as f:
+        with open(args.dataset_manifest, "r", encoding="utf-8") as f:
             for line in f:
                 item = json.loads(line)
-                filepaths.append(item['audio_filepath'])
+                filepaths.append(item["audio_filepath"])
 
     logging.info(f"\nTranscribing {len(filepaths)} files...\n")
 
@@ -136,22 +186,26 @@ def resolve_audio_filepaths(args):
 def main():
     args = parse_arguments()
 
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    device = "cuda" if torch.cuda.is_available() else "cpu"
 
     # Instantiate pytorch model
     if args.nemo_model is not None:
         nemo_model = args.nemo_model
-        nemo_model = ASRModel.restore_from(nemo_model, map_location=device)  # type: ASRModel
+        nemo_model = ASRModel.restore_from(
+            nemo_model, map_location=device
+        )  # type: ASRModel
         nemo_model.freeze()
     elif args.pretrained_model is not None:
         nemo_model = args.pretrained_model
-        nemo_model = ASRModel.from_pretrained(nemo_model, map_location=device)  # type: ASRModel
+        nemo_model = ASRModel.from_pretrained(
+            nemo_model, map_location=device
+        )  # type: ASRModel
         nemo_model.freeze()
     else:
         raise ValueError("Please pass either `nemo_model` or `pretrained_model` !")
 
     if torch.cuda.is_available():
-        nemo_model = nemo_model.to('cuda')
+        nemo_model = nemo_model.to("cuda")
 
     export_model_if_required(args, nemo_model)
 
@@ -159,21 +213,33 @@ def main():
     encoder_model = args.onnx_encoder
     decoder_model = args.onnx_decoder
     max_symbols_per_step = args.max_symbold_per_step
-    decoding = ONNXGreedyBatchedRNNTInfer(encoder_model, decoder_model, max_symbols_per_step)
+    decoding = ONNXGreedyBatchedRNNTInfer(
+        encoder_model, decoder_model, max_symbols_per_step
+    )
 
     audio_filepath = resolve_audio_filepaths(args)
 
     # Evaluate Pytorch Model (CPU/GPU)
-    actual_transcripts = nemo_model.transcribe(audio_filepath, batch_size=args.batch_size)[0]
+    actual_transcripts = nemo_model.transcribe(
+        audio_filepath, batch_size=args.batch_size
+    )[0]
 
     # Evaluate ONNX model
     with tempfile.TemporaryDirectory() as tmpdir:
-        with open(os.path.join(tmpdir, 'manifest.json'), 'w', encoding='utf-8') as fp:
+        with open(os.path.join(tmpdir, "manifest.json"), "w", encoding="utf-8") as fp:
             for audio_file in audio_filepath:
-                entry = {'audio_filepath': audio_file, 'duration': 100000, 'text': 'nothing'}
-                fp.write(json.dumps(entry) + '\n')
+                entry = {
+                    "audio_filepath": audio_file,
+                    "duration": 100000,
+                    "text": "nothing",
+                }
+                fp.write(json.dumps(entry) + "\n")
 
-        config = {'paths2audio_files': audio_filepath, 'batch_size': args.batch_size, 'temp_dir': tmpdir}
+        config = {
+            "paths2audio_files": audio_filepath,
+            "batch_size": args.batch_size,
+            "temp_dir": tmpdir,
+        }
 
         nemo_model.preprocessor.featurizer.dither = 0.0
         nemo_model.preprocessor.featurizer.pad_to = 0
@@ -191,10 +257,14 @@ def main():
                 input_signal=input_signal, length=input_signal_length
             )
             # RNNT Decoding loop
-            hypotheses = decoding(audio_signal=processed_audio, length=processed_audio_len)
+            hypotheses = decoding(
+                audio_signal=processed_audio, length=processed_audio_len
+            )
 
             # Process hypothesis (map char/subword token ids to text)
-            hypotheses = nemo_model.decoding.decode_hypothesis(hypotheses)  # type: List[str]
+            hypotheses = nemo_model.decoding.decode_hypothesis(
+                hypotheses
+            )  # type: List[str]
 
             # Extract text from the hypothesis
             texts = [h.text for h in hypotheses]
@@ -216,5 +286,5 @@ def main():
     print("Character error rate between Pytorch and ONNX :", pt_onnx_cer)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()  # noqa pylint: disable=no-value-for-parameter

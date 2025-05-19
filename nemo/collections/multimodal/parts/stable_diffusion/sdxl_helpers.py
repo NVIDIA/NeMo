@@ -39,7 +39,9 @@ def perform_save_locally(save_path, samples):
     for sample in samples:
         sample = sample.squeeze(0)
         sample = 255.0 * rearrange(sample.cpu().numpy(), "c h w -> h w c")
-        Image.fromarray(sample.astype(np.uint8)).save(os.path.join(save_path, f"{base_count:09}.png"))
+        Image.fromarray(sample.astype(np.uint8)).save(
+            os.path.join(save_path, f"{base_count:09}.png")
+        )
         base_count += 1
 
 
@@ -95,7 +97,9 @@ def do_sample(
             with model.ema_scope():
                 num_samples = [num_samples]
                 batch, batch_uc = get_batch(
-                    get_unique_embedder_keys_from_conditioner(model.conditioner), value_dict, num_samples,
+                    get_unique_embedder_keys_from_conditioner(model.conditioner),
+                    value_dict,
+                    num_samples,
                 )
                 for key in batch:
                     if isinstance(batch[key], torch.Tensor):
@@ -105,12 +109,16 @@ def do_sample(
                     else:
                         print(key, batch[key])
                 c, uc = model.conditioner.get_unconditional_conditioning(
-                    batch, batch_uc=batch_uc, force_uc_zero_embeddings=force_uc_zero_embeddings,
+                    batch,
+                    batch_uc=batch_uc,
+                    force_uc_zero_embeddings=force_uc_zero_embeddings,
                 )
 
                 for k in c:
                     if not k == "crossattn":
-                        c[k], uc[k] = map(lambda y: y[k][: math.prod(num_samples)].to(device), (c, uc))
+                        c[k], uc[k] = map(
+                            lambda y: y[k][: math.prod(num_samples)].to(device), (c, uc)
+                        )
 
                 additional_model_inputs = {}
                 for k in batch2model_input:
@@ -120,7 +128,9 @@ def do_sample(
                 randn = torch.randn(shape, generator=rng).to(device)
 
                 def denoiser(input, sigma, c):
-                    return model.denoiser(model.model, input, sigma, c, **additional_model_inputs)
+                    return model.denoiser(
+                        model.model, input, sigma, c, **additional_model_inputs
+                    )
 
                 samples_z = sampler(denoiser, randn, cond=c, uc=uc)
                 samples_x = model.decode_first_stage(samples_z)
@@ -142,28 +152,56 @@ def get_batch(keys, value_dict, N: Union[List, ListConfig], device="cuda"):
 
     for key in keys:
         if key == "txt":
-            batch["txt"] = np.repeat([value_dict["prompt"]], repeats=math.prod(N)).reshape(N).tolist()
-            batch_uc["txt"] = np.repeat([value_dict["negative_prompt"]], repeats=math.prod(N)).reshape(N).tolist()
+            batch["txt"] = (
+                np.repeat([value_dict["prompt"]], repeats=math.prod(N))
+                .reshape(N)
+                .tolist()
+            )
+            batch_uc["txt"] = (
+                np.repeat([value_dict["negative_prompt"]], repeats=math.prod(N))
+                .reshape(N)
+                .tolist()
+            )
         elif key == "captions":
-            batch["captions"] = np.repeat([value_dict["prompt"]], repeats=math.prod(N)).reshape(N).tolist()
-            batch_uc["captions"] = np.repeat([value_dict["negative_prompt"]], repeats=math.prod(N)).reshape(N).tolist()
+            batch["captions"] = (
+                np.repeat([value_dict["prompt"]], repeats=math.prod(N))
+                .reshape(N)
+                .tolist()
+            )
+            batch_uc["captions"] = (
+                np.repeat([value_dict["negative_prompt"]], repeats=math.prod(N))
+                .reshape(N)
+                .tolist()
+            )
         elif key == "original_size_as_tuple":
             batch["original_size_as_tuple"] = (
-                torch.tensor([value_dict["orig_height"], value_dict["orig_width"]]).to(device).repeat(*N, 1)
+                torch.tensor([value_dict["orig_height"], value_dict["orig_width"]])
+                .to(device)
+                .repeat(*N, 1)
             )
         elif key == "crop_coords_top_left":
             batch["crop_coords_top_left"] = (
-                torch.tensor([value_dict["crop_coords_top"], value_dict["crop_coords_left"]]).to(device).repeat(*N, 1)
+                torch.tensor(
+                    [value_dict["crop_coords_top"], value_dict["crop_coords_left"]]
+                )
+                .to(device)
+                .repeat(*N, 1)
             )
         elif key == "aesthetic_score":
-            batch["aesthetic_score"] = torch.tensor([value_dict["aesthetic_score"]]).to(device).repeat(*N, 1)
+            batch["aesthetic_score"] = (
+                torch.tensor([value_dict["aesthetic_score"]]).to(device).repeat(*N, 1)
+            )
             batch_uc["aesthetic_score"] = (
-                torch.tensor([value_dict["negative_aesthetic_score"]]).to(device).repeat(*N, 1)
+                torch.tensor([value_dict["negative_aesthetic_score"]])
+                .to(device)
+                .repeat(*N, 1)
             )
 
         elif key == "target_size_as_tuple":
             batch["target_size_as_tuple"] = (
-                torch.tensor([value_dict["target_height"], value_dict["target_width"]]).to(device).repeat(*N, 1)
+                torch.tensor([value_dict["target_height"], value_dict["target_width"]])
+                .to(device)
+                .repeat(*N, 1)
             )
         else:
             batch[key] = value_dict[key]
@@ -177,7 +215,9 @@ def get_batch(keys, value_dict, N: Union[List, ListConfig], device="cuda"):
 def get_input_image_tensor(image: Image.Image, device="cuda"):
     w, h = image.size
     print(f"loaded input image of size ({w}, {h})")
-    width, height = map(lambda x: x - x % 64, (w, h))  # resize to integer multiple of 64
+    width, height = map(
+        lambda x: x - x % 64, (w, h)
+    )  # resize to integer multiple of 64
     image = image.resize((width, height))
     image_array = np.array(image.convert("RGB"))
     image_array = image_array[None].transpose(0, 3, 1, 2)
@@ -206,10 +246,14 @@ def do_img2img(
         with autocast(device) as precision_scope:
             with model.ema_scope():
                 batch, batch_uc = get_batch(
-                    get_unique_embedder_keys_from_conditioner(model.conditioner), value_dict, [num_samples],
+                    get_unique_embedder_keys_from_conditioner(model.conditioner),
+                    value_dict,
+                    [num_samples],
                 )
                 c, uc = model.conditioner.get_unconditional_conditioning(
-                    batch, batch_uc=batch_uc, force_uc_zero_embeddings=force_uc_zero_embeddings,
+                    batch,
+                    batch_uc=batch_uc,
+                    force_uc_zero_embeddings=force_uc_zero_embeddings,
                 )
 
                 for k in c:
@@ -226,7 +270,9 @@ def do_img2img(
                 sigma = sigmas[0].to(z.device)
 
                 if offset_noise_level > 0.0:
-                    noise = noise + offset_noise_level * append_dims(torch.randn(z.shape[0], device=z.device), z.ndim)
+                    noise = noise + offset_noise_level * append_dims(
+                        torch.randn(z.shape[0], device=z.device), z.ndim
+                    )
                 noised_z = z + noise * append_dims(sigma, z.ndim)
                 noised_z = noised_z / torch.sqrt(
                     1.0 + sigmas[0] ** 2.0

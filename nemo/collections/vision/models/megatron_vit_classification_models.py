@@ -63,7 +63,9 @@ try:
     from megatron.core.num_microbatches_calculator import get_num_microbatches
 
 except (ImportError, ModuleNotFoundError):
-    logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
+    logging.warning(
+        "Megatron num_microbatches_calculator not found, using Apex version."
+    )
     from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 
 
@@ -71,7 +73,13 @@ class VitClassificationModel(MegatronModule):
     """Vision Transformer Model."""
 
     def __init__(
-        self, model_cfg, model_parallel_config, num_classes, finetune=False, pre_process=True, post_process=True
+        self,
+        model_cfg,
+        model_parallel_config,
+        num_classes,
+        finetune=False,
+        pre_process=True,
+        post_process=True,
     ):
         super(VitClassificationModel, self).__init__()
 
@@ -101,7 +109,9 @@ class VitClassificationModel(MegatronModule):
             if not self.finetune:
                 self.head = VitMlpHead(self.hidden_size, self.num_classes)
             else:
-                self.head = get_linear_layer(self.hidden_size, self.num_classes, torch.nn.init.zeros_)
+                self.head = get_linear_layer(
+                    self.hidden_size, self.num_classes, torch.nn.init.zeros_
+                )
 
     def set_input_tensor(self, input_tensor):
         """See megatron.model.transformer.set_input_tensor()"""
@@ -130,10 +140,14 @@ class MegatronVitClassificationModel(MegatronBaseModel):
         self._validate_trainer()
 
         # TODO(yuya): clean up all default values
-        self.megatron_amp_O2 = cfg.get('megatron_amp_O2', False)
+        self.megatron_amp_O2 = cfg.get("megatron_amp_O2", False)
 
-        if not self.megatron_amp_O2 and self.cfg.get('virtual_pipeline_model_parallel_size', None):
-            raise ValueError('Virtual pipeline model parallel is only supported when using megatron_amp_O2')
+        if not self.megatron_amp_O2 and self.cfg.get(
+            "virtual_pipeline_model_parallel_size", None
+        ):
+            raise ValueError(
+                "Virtual pipeline model parallel is only supported when using megatron_amp_O2"
+            )
 
         # build_model returns a list of modules which are used for interleaved pipeline parallelism
         if isinstance(self.trainer.accelerator, CPUAccelerator):
@@ -141,17 +155,21 @@ class MegatronVitClassificationModel(MegatronBaseModel):
                 model_provider_func=self.model_provider_func,
                 wrap_with_ddp=False,
                 on_cpu=True,
-                virtual_pipeline_model_parallel_size=self.cfg.get('virtual_pipeline_model_parallel_size', None),
+                virtual_pipeline_model_parallel_size=self.cfg.get(
+                    "virtual_pipeline_model_parallel_size", None
+                ),
             )
         else:
             self.model = build_model(
                 model_provider_func=self.model_provider_func,
                 wrap_with_ddp=False,
-                virtual_pipeline_model_parallel_size=self.cfg.get('virtual_pipeline_model_parallel_size', None),
+                virtual_pipeline_model_parallel_size=self.cfg.get(
+                    "virtual_pipeline_model_parallel_size", None
+                ),
             )
 
         # if we're not using interleaved, then self.model is a module.
-        if self.cfg.get('virtual_pipeline_model_parallel_size', None) is None:
+        if self.cfg.get("virtual_pipeline_model_parallel_size", None) is None:
             self.model = self.model[0]
 
         if self.megatron_amp_O2:
@@ -169,37 +187,57 @@ class MegatronVitClassificationModel(MegatronBaseModel):
                 converted_model = []
                 for module in self.model:
                     converted_model.append(
-                        Float16Module(config=self.model_parallel_config, module=module, precision=cfg.precision)
+                        Float16Module(
+                            config=self.model_parallel_config,
+                            module=module,
+                            precision=cfg.precision,
+                        )
                     )
                     self.model = converted_model
             else:
                 self.model = Float16Module(
-                    config=self.model_parallel_config, module=self.model, precision=cfg.precision
+                    config=self.model_parallel_config,
+                    module=self.model,
+                    precision=cfg.precision,
                 )
         self.autocast_dtype = torch_dtype_from_precision(self.trainer.precision)
         self.enable_autocast = (
-            True if (not self.megatron_amp_O2) and (self.autocast_dtype in [torch.float16, torch.bfloat16]) else False
+            True
+            if (not self.megatron_amp_O2)
+            and (self.autocast_dtype in [torch.float16, torch.bfloat16])
+            else False
         )
 
-        self.transformer_engine = cfg.get('transformer_engine', False)
+        self.transformer_engine = cfg.get("transformer_engine", False)
 
         # Convert the global-batch-based profile index to micro-batch index
-        if hasattr(self, '_nsys_profile_enabled') or hasattr(self, '_memory_profile_enabled'):
-            mp_size = cfg.get('tensor_model_parallel_size', 1) * cfg.get('pipeline_model_parallel_size', 1)
+        if hasattr(self, "_nsys_profile_enabled") or hasattr(
+            self, "_memory_profile_enabled"
+        ):
+            mp_size = cfg.get("tensor_model_parallel_size", 1) * cfg.get(
+                "pipeline_model_parallel_size", 1
+            )
             data_parallel_world_size = trainer.world_size // mp_size
-            grad_accum_steps = cfg.get('global_batch_size') // (cfg.get('micro_batch_size') * data_parallel_world_size)
-            if hasattr(self, '_nsys_profile_enabled'):
+            grad_accum_steps = cfg.get("global_batch_size") // (
+                cfg.get("micro_batch_size") * data_parallel_world_size
+            )
+            if hasattr(self, "_nsys_profile_enabled"):
                 self._nsys_profile_start_step *= grad_accum_steps
                 self._nsys_profile_end_step *= grad_accum_steps
-            if hasattr(self, '_memory_profile_enabled'):
+            if hasattr(self, "_memory_profile_enabled"):
                 self._memory_profile_start_step *= grad_accum_steps
                 self._memory_profile_end_step *= grad_accum_steps
-        self.get_attention_mask_from_fusion = self.cfg.get('get_attention_mask_from_fusion', True)
-        self.initialize_ub = self.cfg.get('ub_tp_comm_overlap', False)
+        self.get_attention_mask_from_fusion = self.cfg.get(
+            "get_attention_mask_from_fusion", True
+        )
+        self.initialize_ub = self.cfg.get("ub_tp_comm_overlap", False)
 
     def get_module_list(self):
         if isinstance(self.model, list):
-            return [model.module if isinstance(model, Float16Module) else model for model in self.model]
+            return [
+                model.module if isinstance(model, Float16Module) else model
+                for model in self.model
+            ]
         elif isinstance(self.model, Float16Module):
             return [self.model.module]
         else:
@@ -219,14 +257,20 @@ class MegatronVitClassificationModel(MegatronBaseModel):
 
     def setup_optimizer_param_groups(self):
         """ModelPT override. Optimizer will get self._optimizer_param_groups"""
-        if self.cfg.get('do_layer_norm_weight_decay', False):
+        if self.cfg.get("do_layer_norm_weight_decay", False):
             if isinstance(self.model, list):
-                self._optimizer_param_groups = get_all_params_for_weight_decay_optimization(self.model)
+                self._optimizer_param_groups = (
+                    get_all_params_for_weight_decay_optimization(self.model)
+                )
             else:
-                self._optimizer_param_groups = get_all_params_for_weight_decay_optimization([self.model])
+                self._optimizer_param_groups = (
+                    get_all_params_for_weight_decay_optimization([self.model])
+                )
 
         else:
-            self._optimizer_param_groups = get_params_for_weight_decay_optimization(self.model)
+            self._optimizer_param_groups = get_params_for_weight_decay_optimization(
+                self.model
+            )
 
     def configure_optimizers(self):
 
@@ -235,7 +279,7 @@ class MegatronVitClassificationModel(MegatronBaseModel):
             # Disable overlapped grad sync for layer norm grads when
             # sequence parallelism is enabled
             for param in self.parameters():
-                if getattr(param, 'sequence_parallel_enabled', False):
+                if getattr(param, "sequence_parallel_enabled", False):
                     param._disable_greedy_grad_copy = not self.megatron_amp_O2
                     param._disable_overlap_grad_sync = True
 
@@ -245,7 +289,7 @@ class MegatronVitClassificationModel(MegatronBaseModel):
             # Note: Params with disabled overlapping are put in the
             # last param bucket
             buckets = []
-            if self.cfg.get('virtual_pipeline_model_parallel_size', None) is not None:
+            if self.cfg.get("virtual_pipeline_model_parallel_size", None) is not None:
                 # Initialize a bucket for each virtual pipeline stage
                 for module in self.model:
                     if isinstance(module, Float16Module):
@@ -254,7 +298,9 @@ class MegatronVitClassificationModel(MegatronBaseModel):
                     # for layer in module.language_model.encoder.layers:
                     for layer in module.backbone.transformer.layers:
                         stage_bucket.extend(
-                            p for p in layer.parameters() if not getattr(p, '_disable_overlap_grad_sync', False)
+                            p
+                            for p in layer.parameters()
+                            if not getattr(p, "_disable_overlap_grad_sync", False)
                         )
                     buckets.append(stage_bucket)
             else:
@@ -267,7 +313,11 @@ class MegatronVitClassificationModel(MegatronBaseModel):
                     for layer in module.backbone.transformer.layers:
 
                         buckets.append(
-                            [p for p in layer.parameters() if not getattr(p, '_disable_overlap_grad_sync', False)]
+                            [
+                                p
+                                for p in layer.parameters()
+                                if not getattr(p, "_disable_overlap_grad_sync", False)
+                            ]
                         )
             buckets.reverse()
             used_params = set()
@@ -319,17 +369,25 @@ class MegatronVitClassificationModel(MegatronBaseModel):
 
         # only the last stages of the pipeline return losses
         if losses_reduced_per_micro_batch:
-            if (not forward_only) or self.cfg.data.get('validation_drop_last', True):
+            if (not forward_only) or self.cfg.data.get("validation_drop_last", True):
                 # average loss across micro batches
-                loss_tensors_list = [loss_reduced['loss'] for loss_reduced in losses_reduced_per_micro_batch]
+                loss_tensors_list = [
+                    loss_reduced["loss"]
+                    for loss_reduced in losses_reduced_per_micro_batch
+                ]
                 loss_tensor = torch.stack(loss_tensors_list)
                 loss_mean = loss_tensor.mean()
-                acc_tensors_list = [loss_reduced['accuracy'] for loss_reduced in losses_reduced_per_micro_batch]
+                acc_tensors_list = [
+                    loss_reduced["accuracy"]
+                    for loss_reduced in losses_reduced_per_micro_batch
+                ]
                 acc_tensor = torch.stack(acc_tensors_list)
                 accuracy_mean = acc_tensor.mean()
             else:
                 # Get the total loss since micro batches sizes are not uniform
-                raise NotImplementedError("Losses of micro batches sizes must be uniform!")
+                raise NotImplementedError(
+                    "Losses of micro batches sizes must be uniform!"
+                )
         else:
             # we're not on the last pipeline stage so no losses
             if forward_only:
@@ -342,21 +400,21 @@ class MegatronVitClassificationModel(MegatronBaseModel):
         return loss_mean, accuracy_mean
 
     def initialize_ub_func(self):
-        ub_cfgs = self.cfg.get('ub_tp_comm_overlap_cfg', None)
+        ub_cfgs = self.cfg.get("ub_tp_comm_overlap_cfg", None)
         if ub_cfgs is None:
             warnings.warn(
                 "Couldn't find TP config. Please check the path correctness. Initializing TP comm overlap with the default config."
             )
 
         input_shape = [
-            self.cfg.get('encoder_seq_length') * self.cfg.get('micro_batch_size'),
-            self.cfg.get('hidden_size'),
+            self.cfg.get("encoder_seq_length") * self.cfg.get("micro_batch_size"),
+            self.cfg.get("hidden_size"),
         ]
 
         te_module.base.initialize_ub(
             shape=input_shape,
-            tp_size=self.cfg.get('tensor_model_parallel_size'),
-            use_fp8=self.cfg.get('fp8'),
+            tp_size=self.cfg.get("tensor_model_parallel_size"),
+            use_fp8=self.cfg.get("fp8"),
             ub_cfgs=ub_cfgs,
         )
         self.initialize_ub = False
@@ -380,7 +438,9 @@ class MegatronVitClassificationModel(MegatronBaseModel):
         loss_mean, _ = self.fwd_bwd_step(dataloader_iter, False)
 
         # when using sequence parallelism, the sequence parallel layernorm grads must be all-reduced
-        if self.cfg.get('tensor_model_parallel_size', 1) > 1 and self.cfg.get('sequence_parallel', False):
+        if self.cfg.get("tensor_model_parallel_size", 1) > 1 and self.cfg.get(
+            "sequence_parallel", False
+        ):
             self.allreduce_sequence_parallel_gradients()
 
         if self.with_distributed_adam:
@@ -411,18 +471,32 @@ class MegatronVitClassificationModel(MegatronBaseModel):
         # we can avoid this broadcast by updating the PTL log function to accept specific ranks
         torch.distributed.broadcast(loss_mean, get_last_rank())
 
-        if self.cfg.precision in [16, '16', '16-mixed']:
+        if self.cfg.precision in [16, "16", "16-mixed"]:
             loss_scale = self.trainer.precision_plugin.scaler._scale
             if loss_scale is not None:
-                self.log('loss_scale', loss_scale, batch_size=1)
+                self.log("loss_scale", loss_scale, batch_size=1)
 
-        self.log('reduced_train_loss', loss_mean, prog_bar=True, rank_zero_only=True, batch_size=1)
-        lr = self._optimizer.param_groups[0]['lr']
-        self.log('lr', lr, rank_zero_only=True, batch_size=1)
-        self.log('global_step', self.trainer.global_step + 1, prog_bar=True, rank_zero_only=True, batch_size=1)
         self.log(
-            'consumed_samples',
-            self.compute_consumed_samples(self.trainer.global_step + 1 - self.init_global_step),
+            "reduced_train_loss",
+            loss_mean,
+            prog_bar=True,
+            rank_zero_only=True,
+            batch_size=1,
+        )
+        lr = self._optimizer.param_groups[0]["lr"]
+        self.log("lr", lr, rank_zero_only=True, batch_size=1)
+        self.log(
+            "global_step",
+            self.trainer.global_step + 1,
+            prog_bar=True,
+            rank_zero_only=True,
+            batch_size=1,
+        )
+        self.log(
+            "consumed_samples",
+            self.compute_consumed_samples(
+                self.trainer.global_step + 1 - self.init_global_step
+            ),
             prog_bar=True,
             rank_zero_only=True,
             batch_size=1,
@@ -447,7 +521,7 @@ class MegatronVitClassificationModel(MegatronBaseModel):
         """Helper method for allreduce_sequence_parallel_gradients"""
 
         for param in module.parameters():
-            sequence_parallel_param = getattr(param, 'sequence_parallel', False)
+            sequence_parallel_param = getattr(param, "sequence_parallel", False)
             if sequence_parallel_param and param.requires_grad:
                 if self.megatron_amp_O2:
                     grad = param.main_grad
@@ -469,8 +543,12 @@ class MegatronVitClassificationModel(MegatronBaseModel):
             self._append_sequence_parallel_module_grads(self.model, grads)
 
         coalesced = torch._utils._flatten_dense_tensors(grads)
-        torch.distributed.all_reduce(coalesced, group=parallel_state.get_tensor_model_parallel_group())
-        for buf, synced in zip(grads, torch._utils._unflatten_dense_tensors(coalesced, grads)):
+        torch.distributed.all_reduce(
+            coalesced, group=parallel_state.get_tensor_model_parallel_group()
+        )
+        for buf, synced in zip(
+            grads, torch._utils._unflatten_dense_tensors(coalesced, grads)
+        ):
             buf.copy_(synced)
 
     def get_forward_output_and_loss_func(self, validation_step=False):
@@ -523,7 +601,7 @@ class MegatronVitClassificationModel(MegatronBaseModel):
         from the dataloader to produce a list of microbatches.
         The list of microbatches is then piped through the pipeline using megatron-core fwd/bwd functions.
         """
-        mode = 'test' if self.trainer.testing else 'val'
+        mode = "test" if self.trainer.testing else "val"
 
         # Initialize userbuffer communicators.
         if self.initialize_ub:
@@ -533,7 +611,7 @@ class MegatronVitClassificationModel(MegatronBaseModel):
 
         (
             self.validation_step_outputs.append((loss, accuracy))
-            if mode == 'val'
+            if mode == "val"
             else self.test_step_outputs.append((loss, accuracy))
         )
         return loss, accuracy
@@ -548,19 +626,37 @@ class MegatronVitClassificationModel(MegatronBaseModel):
             acc_outputs = [output[1] for output in self.validation_step_outputs]
 
             averaged_metrics = torch.tensor(
-                [torch.stack(loss_outputs).mean(), torch.stack(acc_outputs).mean()], dtype=torch.float32, device='cuda'
+                [torch.stack(loss_outputs).mean(), torch.stack(acc_outputs).mean()],
+                dtype=torch.float32,
+                device="cuda",
             )
         else:
-            averaged_metrics = torch.tensor([0.0, 0.0], dtype=torch.float32, device='cuda')
+            averaged_metrics = torch.tensor(
+                [0.0, 0.0], dtype=torch.float32, device="cuda"
+            )
 
         # we can only log on one rank if it is rank zero so we broadcast from last rank
         torch.distributed.broadcast(averaged_metrics, get_last_rank())
 
         averaged_loss, averaged_acc = averaged_metrics
 
-        self.log('global_step', self.trainer.global_step, prog_bar=True, rank_zero_only=True, batch_size=1)
-        self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True, batch_size=1)
-        self.log('val_accuracy', averaged_acc, prog_bar=True, rank_zero_only=True, batch_size=1)
+        self.log(
+            "global_step",
+            self.trainer.global_step,
+            prog_bar=True,
+            rank_zero_only=True,
+            batch_size=1,
+        )
+        self.log(
+            "val_loss", averaged_loss, prog_bar=True, rank_zero_only=True, batch_size=1
+        )
+        self.log(
+            "val_accuracy",
+            averaged_acc,
+            prog_bar=True,
+            rank_zero_only=True,
+            batch_size=1,
+        )
         self.validation_step_outputs.clear()  # free memory
 
         return averaged_loss
@@ -572,9 +668,13 @@ class MegatronVitClassificationModel(MegatronBaseModel):
         pass
 
     def build_train_valid_test_datasets(self):
-        logging.info('Building datasets for ViT...')
-        if self.trainer.limit_val_batches > 1.0 and isinstance(self.trainer.limit_val_batches, float):
-            raise ValueError("limit_val_batches must be an integer or float less than or equal to 1.0.")
+        logging.info("Building datasets for ViT...")
+        if self.trainer.limit_val_batches > 1.0 and isinstance(
+            self.trainer.limit_val_batches, float
+        ):
+            raise ValueError(
+                "limit_val_batches must be an integer or float less than or equal to 1.0."
+            )
 
         self._train_ds, self._validation_ds = build_train_valid_datasets(
             model_cfg=self.cfg,
@@ -584,22 +684,25 @@ class MegatronVitClassificationModel(MegatronBaseModel):
         self._test_ds = None
 
         if self._train_ds is not None:
-            logging.info(f'Length of train dataset: {len(self._train_ds)}')
+            logging.info(f"Length of train dataset: {len(self._train_ds)}")
         if self._validation_ds is not None:
-            logging.info(f'Length of val dataset: {len(self._validation_ds)}')
+            logging.info(f"Length of val dataset: {len(self._validation_ds)}")
         if self._test_ds is not None:
-            logging.info(f'Length of test dataset: {len(self._test_ds)}')
-        logging.info(f'Finished building datasets for ViT.')
+            logging.info(f"Length of test dataset: {len(self._test_ds)}")
+        logging.info(f"Finished building datasets for ViT.")
 
         return self._train_ds, self._validation_ds, self._test_ds
 
     def build_pretraining_data_loader(self, dataset, consumed_samples, drop_last=True):
         """Buld dataloader given an input dataset."""
 
-        logging.info(f'Building dataloader with consumed samples: {consumed_samples}')
+        logging.info(f"Building dataloader with consumed samples: {consumed_samples}")
         # Megatron sampler
-        if hasattr(self.cfg.data, 'dataloader_type') and self.cfg.data.dataloader_type is not None:
-            if self.cfg.data.dataloader_type == 'single':
+        if (
+            hasattr(self.cfg.data, "dataloader_type")
+            and self.cfg.data.dataloader_type is not None
+        ):
+            if self.cfg.data.dataloader_type == "single":
                 batch_sampler = MegatronPretrainingSampler(
                     total_samples=len(dataset),
                     consumed_samples=consumed_samples,
@@ -609,7 +712,7 @@ class MegatronVitClassificationModel(MegatronBaseModel):
                     data_parallel_size=parallel_state.get_data_parallel_world_size(),
                     drop_last=drop_last,
                 )
-            elif self.cfg.data.dataloader_type == 'cyclic':
+            elif self.cfg.data.dataloader_type == "cyclic":
                 batch_sampler = MegatronVisionPretrainingRandomSampler(
                     dataset=dataset,
                     total_samples=len(dataset),
@@ -622,9 +725,13 @@ class MegatronVitClassificationModel(MegatronBaseModel):
                     data_sharding=self.cfg.data.get("data_sharding", True),
                 )
             else:
-                raise ValueError('cfg.data.dataloader_type must be "single" or "cyclic"')
+                raise ValueError(
+                    'cfg.data.dataloader_type must be "single" or "cyclic"'
+                )
         else:
-            raise ValueError('cfg.data.dataloader_type not found. Must be "single" or "cyclic"')
+            raise ValueError(
+                'cfg.data.dataloader_type not found. Must be "single" or "cyclic"'
+            )
 
         return torch.utils.data.DataLoader(
             dataset,
@@ -647,26 +754,35 @@ class MegatronVitClassificationModel(MegatronBaseModel):
         # log number of parameters
         if isinstance(self.model, list):
             num_parameters_on_device = sum(
-                [sum([p.nelement() for p in model_module.parameters()]) for model_module in self.model]
+                [
+                    sum([p.nelement() for p in model_module.parameters()])
+                    for model_module in self.model
+                ]
             )
         else:
-            num_parameters_on_device = sum([p.nelement() for p in self.model.parameters()])
+            num_parameters_on_device = sum(
+                [p.nelement() for p in self.model.parameters()]
+            )
 
         # to be summed across data parallel group
         total_num_parameters = torch.tensor(num_parameters_on_device).cuda()
 
-        torch.distributed.all_reduce(total_num_parameters, group=parallel_state.get_model_parallel_group())
+        torch.distributed.all_reduce(
+            total_num_parameters, group=parallel_state.get_model_parallel_group()
+        )
 
         logging.info(
-            f'Pipeline model parallel rank: {parallel_state.get_pipeline_model_parallel_rank()}, '
-            f'Tensor model parallel rank: {parallel_state.get_tensor_model_parallel_rank()}, '
-            f'Number of model parameters on device: {num_parameters_on_device:.2e}. '
-            f'Total number of model parameters: {total_num_parameters:.2e}.'
+            f"Pipeline model parallel rank: {parallel_state.get_pipeline_model_parallel_rank()}, "
+            f"Tensor model parallel rank: {parallel_state.get_tensor_model_parallel_rank()}, "
+            f"Number of model parameters on device: {num_parameters_on_device:.2e}. "
+            f"Total number of model parameters: {total_num_parameters:.2e}."
         )
 
         resume_checkpoint_path = self.trainer.ckpt_path
         if resume_checkpoint_path:
-            init_consumed_samples = self._extract_consumed_samples_from_ckpt(resume_checkpoint_path)
+            init_consumed_samples = self._extract_consumed_samples_from_ckpt(
+                resume_checkpoint_path
+            )
         else:
             init_consumed_samples = 0
         self.init_consumed_samples = init_consumed_samples
@@ -686,39 +802,47 @@ class MegatronVitClassificationModel(MegatronBaseModel):
                 parallel_state.set_virtual_pipeline_model_parallel_rank(0)
 
     def setup_training_data(self, cfg):
-        if hasattr(self, '_train_ds') and self._train_ds is not None:
+        if hasattr(self, "_train_ds") and self._train_ds is not None:
             consumed_samples = self.compute_consumed_samples(0)
             logging.info(
-                f'Setting up train dataloader with len(len(self._train_ds)): {len(self._train_ds)} and consumed samples: {consumed_samples}'
+                f"Setting up train dataloader with len(len(self._train_ds)): {len(self._train_ds)} and consumed samples: {consumed_samples}"
             )
-            self._train_dl = self.build_pretraining_data_loader(self._train_ds, consumed_samples)
+            self._train_dl = self.build_pretraining_data_loader(
+                self._train_ds, consumed_samples
+            )
 
     def setup_validation_data(self, cfg):
-        if hasattr(self, '_validation_ds') and self._validation_ds is not None:
+        if hasattr(self, "_validation_ds") and self._validation_ds is not None:
             consumed_samples = 0
             logging.info(
-                f'Setting up validation dataloader with len(len(self._validation_ds)): {len(self._validation_ds)} and consumed samples: {consumed_samples}'
+                f"Setting up validation dataloader with len(len(self._validation_ds)): {len(self._validation_ds)} and consumed samples: {consumed_samples}"
             )
             drop_last = True
-            if not self.cfg.data.get('validation_drop_last', True):
-                logging.info(f'Drop last in validation dataset is set to False')
+            if not self.cfg.data.get("validation_drop_last", True):
+                logging.info(f"Drop last in validation dataset is set to False")
                 drop_last = False
             self._validation_dl = self.build_pretraining_data_loader(
                 self._validation_ds, consumed_samples, drop_last=drop_last
             )
 
     def setup_test_data(self, cfg):
-        if hasattr(self, '_test_ds') and self._test_ds is not None:
+        if hasattr(self, "_test_ds") and self._test_ds is not None:
             consumed_samples = 0
             logging.info(
-                f'Setting up test dataloader with len(len(self._test_ds)): {len(self._test_ds)} and consumed samples: {consumed_samples}'
+                f"Setting up test dataloader with len(len(self._test_ds)): {len(self._test_ds)} and consumed samples: {consumed_samples}"
             )
-            self._test_dl = self.build_pretraining_data_loader(self._test_ds, consumed_samples)
+            self._test_dl = self.build_pretraining_data_loader(
+                self._test_ds, consumed_samples
+            )
 
-    def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:
+    def predict_step(
+        self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None
+    ) -> Any:
         raise NotImplementedError
 
-    def transfer_batch_to_device(self, batch: Any, device: torch.device, dataloader_idx: int) -> Any:
+    def transfer_batch_to_device(
+        self, batch: Any, device: torch.device, dataloader_idx: int
+    ) -> Any:
         """PTL hook: https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#transfer-batch-to-device
         When using pipeline parallelism, we need the global batch to remain on the CPU,
         since the memory overhead will be too high when using a large number of microbatches.
@@ -732,7 +856,7 @@ class MegatronVitClassificationModel(MegatronBaseModel):
         """
         if self.trainer.accumulate_grad_batches > 1:
             raise ValueError(
-                f'Gradient accumulation is done within training_step. trainer.accumulate_grad_batches must equal 1'
+                f"Gradient accumulation is done within training_step. trainer.accumulate_grad_batches must equal 1"
             )
 
     @classmethod
@@ -746,7 +870,9 @@ class MegatronVitClassificationModel(MegatronBaseModel):
         if isinstance(self.model, list):
             for i in range(len(self.model)):
                 parallel_state.set_virtual_pipeline_model_parallel_rank(i)
-                checkpoint[f'model{i}'] = self.model[i].module.state_dict_for_save_checkpoint()
+                checkpoint[f"model{i}"] = self.model[
+                    i
+                ].module.state_dict_for_save_checkpoint()
             parallel_state.set_virtual_pipeline_model_parallel_rank(0)
 
     def on_load_checkpoint(self, checkpoint) -> None:
@@ -756,11 +882,15 @@ class MegatronVitClassificationModel(MegatronBaseModel):
         if isinstance(self.model, list):
             for i in range(len(self.model)):
                 parallel_state.set_virtual_pipeline_model_parallel_rank(i)
-                self.model[i].module.load_state_dict(checkpoint[f'model{i}'], strict=True)
+                self.model[i].module.load_state_dict(
+                    checkpoint[f"model{i}"], strict=True
+                )
             parallel_state.set_virtual_pipeline_model_parallel_rank(0)
 
     def parameters(self):
         if isinstance(self.model, list):
-            return itertools.chain.from_iterable(module.parameters() for module in self.model)
+            return itertools.chain.from_iterable(
+                module.parameters() for module in self.model
+            )
         else:
             return self.model.parameters()

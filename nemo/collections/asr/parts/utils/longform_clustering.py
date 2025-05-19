@@ -28,11 +28,11 @@ class LongFormSpeakerClustering(torch.nn.Module):
     def __init__(self, cuda: bool = False):
         """
         Initializes a speaker clustering class tailored for long-form audio, leveraging methods from the `SpeakerClustering` class.
-        The clustering algorithm for long-form content is executed via the `forward_infer` function (not shown here). Input embedding 
-        vectors are divided into chunks, each of size `embeddings_per_chunk`. Within every chunk, the clustering algorithm aims 
-        to identify `chunk_cluster_count` distinct clusters. The resulting clustering labels are then expanded to match the original 
+        The clustering algorithm for long-form content is executed via the `forward_infer` function (not shown here). Input embedding
+        vectors are divided into chunks, each of size `embeddings_per_chunk`. Within every chunk, the clustering algorithm aims
+        to identify `chunk_cluster_count` distinct clusters. The resulting clustering labels are then expanded to match the original
         length of the input embeddings.
-        
+
         NOTE: torch.jit.script currently does not support inherited methods with a `super()` call.
 
         Args:
@@ -46,10 +46,12 @@ class LongFormSpeakerClustering(torch.nn.Module):
         self.cuda = cuda
         self.device = torch.device("cuda") if self.cuda else torch.device("cpu")
 
-    def check_input(self, embeddings_per_chunk: int, chunk_cluster_count: int, max_num_speakers: int) -> None:
+    def check_input(
+        self, embeddings_per_chunk: int, chunk_cluster_count: int, max_num_speakers: int
+    ) -> None:
         """
         Checks the validity of the input parameters.
-        
+
         Args:
             embeddings_per_chunk (int):
                 The size of the windows in which the algorithm aims to identify `chunk_cluster_count` clusters.
@@ -86,41 +88,46 @@ class LongFormSpeakerClustering(torch.nn.Module):
         Unpack the labels from the aggregated labels to the original labels.
 
         Args:
-            Y_aggr (Tensor): 
+            Y_aggr (Tensor):
                 Aggregated label vector from the merged segments.
-            window_range_list (List[List[int]]): 
+            window_range_list (List[List[int]]):
                 List of window ranges for each of the merged segments.
-            absolute_merge_mapping (List[List[torch.Tensor]]): 
+            absolute_merge_mapping (List[List[torch.Tensor]]):
                 List of absolute mappings for each of the merged segments. Each list element contains two tensors:
                     - The first tensor represents the absolute index of the bypassed segment (segments that remain unchanged).
                     - The second tensor represents the absolute index of the merged segment (segments that have had their indexes changed).
-            org_len (int): 
+            org_len (int):
                 Original length of the labels. In most cases, this is a fairly large number (on the order of 10^5).
 
         Returns:
-            Y_unpack (Tensor): 
+            Y_unpack (Tensor):
                 Unpacked labels derived from the aggregated labels.
         """
         Y_unpack = torch.zeros((org_len,)).long().to(Y_aggr.device)
-        for (win_rng, abs_mapping) in zip(window_range_list, absolute_merge_mapping):
+        for win_rng, abs_mapping in zip(window_range_list, absolute_merge_mapping):
             inferred_merged_embs = Y_aggr[win_rng[0] : win_rng[1]]
             if len(abs_mapping[1]) > 0:
                 Y_unpack[abs_mapping[1]] = inferred_merged_embs[-1].clone()  # Merged
                 if len(abs_mapping[0]) > 0:
-                    Y_unpack[abs_mapping[0]] = inferred_merged_embs[:-1].clone()  # Bypass
+                    Y_unpack[abs_mapping[0]] = inferred_merged_embs[
+                        :-1
+                    ].clone()  # Bypass
             else:
                 if len(abs_mapping[0]) > 0:
                     Y_unpack[abs_mapping[0]] = inferred_merged_embs.clone()
         return Y_unpack
 
     def split_embs_to_windows(
-        self, index: int, emb: torch.Tensor, embeddings_per_chunk: int,
+        self,
+        index: int,
+        emb: torch.Tensor,
+        embeddings_per_chunk: int,
     ) -> Tuple[torch.Tensor, int]:
         """
         Splits the embedding tensor into smaller window-sized tensors based on a given index.
-        
+
         Args:
-            index (int): The index of the desired window. This determines the starting point 
+            index (int): The index of the desired window. This determines the starting point
                          of the window using the formula:
                          start = embeddings_per_chunk * index
             emb (Tensor): The embedding tensor which needs to be split.
@@ -128,16 +135,18 @@ class LongFormSpeakerClustering(torch.nn.Module):
                 The size of the windows in which the algorithm aims to identify `chunk_cluster_count` clusters.
 
         Returns:
-            emb_part (Tensor): 
+            emb_part (Tensor):
                 The window-sized tensor, which is a portion of the `emb`.
-            offset_index (int): 
+            offset_index (int):
                 The starting position of the window in the `emb` tensor.
         """
         if embeddings_per_chunk * (index + 1) > emb.shape[0]:
             emb_part = emb[-1 * embeddings_per_chunk :]
             offset_index = emb.shape[0] - embeddings_per_chunk
         else:
-            emb_part = emb[embeddings_per_chunk * index : embeddings_per_chunk * (index + 1)]
+            emb_part = emb[
+                embeddings_per_chunk * index : embeddings_per_chunk * (index + 1)
+            ]
             offset_index = embeddings_per_chunk * index
         return emb_part, offset_index
 
@@ -146,7 +155,7 @@ class LongFormSpeakerClustering(torch.nn.Module):
         A function wrapper designed for performing inference using an exported script format.
 
         Note:
-            A dictionary is used to facilitate inference with the exported jit model in the Triton server. 
+            A dictionary is used to facilitate inference with the exported jit model in the Triton server.
             This is done using an easy-to-understand naming convention.
             See https://github.com/triton-inference-server/server/blob/main/docs/user_guide/model_configuration.md#special-conventions-for-pytorch-backend
 
@@ -158,16 +167,16 @@ class LongFormSpeakerClustering(torch.nn.Module):
         Returns:
             (LongTensor): Speaker labels for the segments in the given input embeddings.
         """
-        embeddings_in_scales = param_dict['embeddings']
-        timestamps_in_scales = param_dict['timestamps']
-        multiscale_segment_counts = param_dict['multiscale_segment_counts']
-        multiscale_weights = param_dict['multiscale_weights']
-        oracle_num_speakers = int(param_dict['oracle_num_speakers'].item())
-        max_num_speakers = int(param_dict['max_num_speakers'].item())
-        enhanced_count_thres = int(param_dict['enhanced_count_thres'].item())
-        sparse_search_volume = int(param_dict['sparse_search_volume'].item())
-        max_rp_threshold = float(param_dict['max_rp_threshold'].item())
-        fixed_thres = float(param_dict['fixed_thres'].item())
+        embeddings_in_scales = param_dict["embeddings"]
+        timestamps_in_scales = param_dict["timestamps"]
+        multiscale_segment_counts = param_dict["multiscale_segment_counts"]
+        multiscale_weights = param_dict["multiscale_weights"]
+        oracle_num_speakers = int(param_dict["oracle_num_speakers"].item())
+        max_num_speakers = int(param_dict["max_num_speakers"].item())
+        enhanced_count_thres = int(param_dict["enhanced_count_thres"].item())
+        sparse_search_volume = int(param_dict["sparse_search_volume"].item())
+        max_rp_threshold = float(param_dict["max_rp_threshold"].item())
+        fixed_thres = float(param_dict["fixed_thres"].item())
         return self.forward_infer(
             embeddings_in_scales=embeddings_in_scales,
             timestamps_in_scales=timestamps_in_scales,
@@ -184,7 +193,7 @@ class LongFormSpeakerClustering(torch.nn.Module):
     def get_div_ceil_count(self, numer: int, denomin: int) -> int:
         """
         Calculates the ceiling of the division of two integers.
-        
+
         Args:
             numer (int): Numerator, the number of segments or clusters, for example.
             denomin (int): Denominator, the number of speakers or clusters, for example.
@@ -276,17 +285,27 @@ class LongFormSpeakerClustering(torch.nn.Module):
             embeddings_in_scales, timestamps_in_scales, multiscale_segment_counts
         )
         emb, _ = get_scale_interpolated_embs(
-            multiscale_weights, self.embeddings_in_scales, self.timestamps_in_scales, self.device
+            multiscale_weights,
+            self.embeddings_in_scales,
+            self.timestamps_in_scales,
+            self.device,
         )
         offset_index: int = 0
         window_offset: int = 0
         total_emb: List[torch.Tensor] = []
         window_range_list: List[List[int]] = []
         absolute_merge_mapping: List[List[torch.Tensor]] = []
-        total_window_count = self.get_div_ceil_count(numer=emb.shape[0], denomin=embeddings_per_chunk)
+        total_window_count = self.get_div_ceil_count(
+            numer=emb.shape[0], denomin=embeddings_per_chunk
+        )
 
         if not torch.jit.is_scripting():
-            pbar = tqdm(range(total_window_count), desc="Clustering Sub-Windows", leave=True, unit="window")
+            pbar = tqdm(
+                range(total_window_count),
+                desc="Clustering Sub-Windows",
+                leave=True,
+                unit="window",
+            )
         else:
             pbar = range(total_window_count)
 
@@ -311,7 +330,9 @@ class LongFormSpeakerClustering(torch.nn.Module):
                 )
 
             # Step-3: Merge the clusters to form the aggregated clustering labels `Y_aggr`
-            num_to_be_merged = int(min(embeddings_per_chunk, emb_part.shape[0]) - chunk_cluster_count)
+            num_to_be_merged = int(
+                min(embeddings_per_chunk, emb_part.shape[0]) - chunk_cluster_count
+            )
             min_count_per_cluster = self.get_div_ceil_count(
                 numer=chunk_cluster_count, denomin=len(torch.unique(Y_part))
             )
@@ -328,12 +349,17 @@ class LongFormSpeakerClustering(torch.nn.Module):
             # `class_target_vol` is a list of cluster-indices from overclustering
             for spk_idx, merge_quantity in enumerate(list(class_target_vol)):
                 merged_embs, merged_clus_labels, index_mapping = run_reducer(
-                    pre_embs=emb_part, target_spk_idx=spk_idx, merge_quantity=merge_quantity, pre_clus_labels=Y_part,
+                    pre_embs=emb_part,
+                    target_spk_idx=spk_idx,
+                    merge_quantity=merge_quantity,
+                    pre_clus_labels=Y_part,
                 )
                 total_emb.append(merged_embs)
                 absolute_index_mapping = [x + offset_index for x in index_mapping]
                 absolute_merge_mapping.append(absolute_index_mapping)
-                window_range_list.append([window_offset, window_offset + merged_embs.shape[0]])
+                window_range_list.append(
+                    [window_offset, window_offset + merged_embs.shape[0]]
+                )
                 window_offset += merged_embs.shape[0]
 
         if not torch.jit.is_scripting():
@@ -391,7 +417,10 @@ class LongFormSpeakerClustering(torch.nn.Module):
         NOTE: `torch.jit.script` currently does not support `**kwargs` in the function signature therefore,
         we need to use a wrapper function to handle the arguments.
         """
-        if embeddings_per_chunk is not None and torch.max(multiscale_segment_counts) > embeddings_per_chunk:
+        if (
+            embeddings_per_chunk is not None
+            and torch.max(multiscale_segment_counts) > embeddings_per_chunk
+        ):
             return self.long_forward_infer(
                 embeddings_in_scales=embeddings_in_scales,
                 timestamps_in_scales=timestamps_in_scales,

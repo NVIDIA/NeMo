@@ -52,12 +52,17 @@ class DialogueGPTGenerationDataset(DialogueDataset):
 
     def remove_invalid_samples(self, features):
         valid_idxs = []
-        all_fields = self.input_label_type.split('+') + self.output_label_type.split('+')
+        all_fields = self.input_label_type.split("+") + self.output_label_type.split(
+            "+"
+        )
         for i in range(len(features)):
             features[i].data["labels"]["utterance"] = features[i].data["utterance"]
             all_fields_non_empty = True
             for field in all_fields:
-                if not features[i].data["labels"][field] or not features[i].data["labels"][field].strip():
+                if (
+                    not features[i].data["labels"][field]
+                    or not features[i].data["labels"][field].strip()
+                ):
                     all_fields_non_empty = False
             if all_fields_non_empty:
                 valid_idxs.append(i)
@@ -68,35 +73,43 @@ class DialogueGPTGenerationDataset(DialogueDataset):
 
     def get_n_tokens_in_sentence(self, sentence):
         encodings_dict = self.tokenizer.tokenizer(
-            sentence, truncation=True, max_length=self.cfg.max_seq_length, padding=False, return_tensors="pt"
+            sentence,
+            truncation=True,
+            max_length=self.cfg.max_seq_length,
+            padding=False,
+            return_tensors="pt",
         )
-        output = torch.squeeze(encodings_dict['input_ids'])
+        output = torch.squeeze(encodings_dict["input_ids"])
         return len(output) if len(output.size()) > 0 else 0
 
     def default_encode(self, sentence):
         encodings_dict = self.tokenizer.tokenizer(
-            sentence, truncation=True, max_length=self.cfg.max_seq_length, padding="max_length", return_tensors="pt"
+            sentence,
+            truncation=True,
+            max_length=self.cfg.max_seq_length,
+            padding="max_length",
+            return_tensors="pt",
         )
-        input_ids = torch.squeeze(encodings_dict['input_ids'])
-        attn_masks = torch.squeeze(encodings_dict['attention_mask'])
+        input_ids = torch.squeeze(encodings_dict["input_ids"])
+        attn_masks = torch.squeeze(encodings_dict["attention_mask"])
         return encodings_dict, input_ids, attn_masks
 
     def format_prompt(self, ex):
-        '''
+        """
         Formats training prompt based on self.input_field_type
 
         Training example:
             e.g. response: <response> # input_label_type = response
             e.g. utterance: <utterance> # input_label_type = utterance
             e.g. passage: <passage> utterance: <utterance> # input_label_type = passage+utterance
-        '''
+        """
         ex["labels"]["utterance"] = ex["utterance"]
-        parts = self.input_label_type.split('+')
-        input_sentence = ' '.join([part + ': ' + ex["labels"][part] for part in parts])
+        parts = self.input_label_type.split("+")
+        input_sentence = " ".join([part + ": " + ex["labels"][part] for part in parts])
         return input_sentence
 
     def __getitem__(self, idx: int):
-        '''
+        """
         For each example, this function determines the format of input and output sequences based on user-specified conguration.
         This is controlled by model.dataset.input_field and model.dataset.output_field
         For instance:
@@ -106,7 +119,7 @@ class DialogueGPTGenerationDataset(DialogueDataset):
                 Input = "utterance: <utterance>" and output = "utterance: <utterance> response: <response>" (with loss calculated from <response> only)
             If model.dataset.input_field == passage+utterance and model.dataset.output_field == response:
                 Input = "passage: <passage> utterance: <utterance>" and output="passage: <passage> utterance: <utterance> response: <response>" (with loss calculated from <response> only)
-        '''
+        """
         ex = self.features[idx].data
 
         input_sentence = self.format_prompt(ex)
@@ -117,18 +130,21 @@ class DialogueGPTGenerationDataset(DialogueDataset):
 
         base_template = input_sentence
 
-        sentence_without_answer = base_template + ' ' + self.output_label_type + ':'
+        sentence_without_answer = base_template + " " + self.output_label_type + ":"
 
-        sentence = sentence_without_answer + ' ' + output_sentence
+        sentence = sentence_without_answer + " " + output_sentence
 
         encodings_dict, input_ids, attn_masks = self.default_encode(sentence)
 
-        labels = copy.copy(torch.squeeze(encodings_dict['input_ids']))
+        labels = copy.copy(torch.squeeze(encodings_dict["input_ids"]))
 
         training_mask_end = self.get_n_tokens_in_sentence(sentence_without_answer)
 
         labels.data = torch.tensor(
-            [-100 if i < training_mask_end else labels.data[i] for i in range(len(labels.data))]
+            [
+                -100 if i < training_mask_end else labels.data[i]
+                for i in range(len(labels.data))
+            ]
         )
 
         return (input_ids, attn_masks, labels, training_mask_end, utterance_length)

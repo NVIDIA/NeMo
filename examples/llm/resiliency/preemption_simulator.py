@@ -39,7 +39,9 @@ class PreemptionSimulationCallback(Callback):
 
     def __init__(self, preemption_step: int = 4):
         self.preemption_step = preemption_step
-        logging.info(f"Setup to simulate a preemption if step == {self.preemption_step}")
+        logging.info(
+            f"Setup to simulate a preemption if step == {self.preemption_step}"
+        )
 
     def on_train_batch_end(
         self,
@@ -50,5 +52,7 @@ class PreemptionSimulationCallback(Callback):
         batch_idx: Optional[int] = None,
     ) -> None:
         if self.preemption_step and trainer.global_step == self.preemption_step:
-            logging.info(f"Simulating preemption by raising a SIGTERM at step {self.preemption_step}!")
+            logging.info(
+                f"Simulating preemption by raising a SIGTERM at step {self.preemption_step}!"
+            )
             signal.raise_signal(signal.SIGTERM)

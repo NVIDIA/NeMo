@@ -18,7 +18,7 @@ from nemo.core.classes import Loss, typecheck
 from nemo.core.neural_types import (ChannelType, LogitsType, LossType,
                                     NeuralType)
 
-__all__ = ['SpanningLoss']
+__all__ = ["SpanningLoss"]
 
 
 class SpanningLoss(Loss):
@@ -28,25 +28,25 @@ class SpanningLoss(Loss):
 
     @property
     def input_types(self):
-        """Returns definitions of module input ports.
-        """
+        """Returns definitions of module input ports."""
         return {
-            "logits": NeuralType(('B', 'T', 'D'), LogitsType()),
-            "start_positions": NeuralType(tuple('B'), ChannelType()),
-            "end_positions": NeuralType(tuple('B'), ChannelType()),
+            "logits": NeuralType(("B", "T", "D"), LogitsType()),
+            "start_positions": NeuralType(tuple("B"), ChannelType()),
+            "end_positions": NeuralType(tuple("B"), ChannelType()),
         }
 
     @property
     def output_types(self):
-        """Returns definitions of module output ports.
-        """
+        """Returns definitions of module output ports."""
         return {
             "loss": NeuralType(elements_type=LossType()),
-            "start_logits": NeuralType(('B', 'T'), LogitsType()),
-            "end_logits": NeuralType(('B', 'T'), LogitsType()),
+            "start_logits": NeuralType(("B", "T"), LogitsType()),
+            "end_logits": NeuralType(("B", "T"), LogitsType()),
         }
 
-    def __init__(self,):
+    def __init__(
+        self,
+    ):
         super().__init__()
 
     @typecheck()

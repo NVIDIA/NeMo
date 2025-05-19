@@ -50,7 +50,7 @@ class SigLIPViT400M_14_384_Config(CLIPViTConfig):
     bias_activation_fusion: bool = False
     bias_dropout_fusion: bool = False
     attention_softmax_in_fp32: bool = True
-    normalization: str = 'LayerNorm'
+    normalization: str = "LayerNorm"
     apply_rope_fusion: bool = False
     qk_layernorm: bool = False
     layernorm_epsilon: float = 1e-6
@@ -112,7 +112,8 @@ class SigLIPViTImporter(io.ModelConnector["SigLIPVisionModel", SigLIPViTModel]):
             ffn_hidden_size=source.vision_config.intermediate_size,
             num_attention_heads=source.vision_config.num_attention_heads,
             num_layers=source.vision_config.num_hidden_layers,
-            kv_channels=source.vision_config.hidden_size // source.vision_config.num_attention_heads,
+            kv_channels=source.vision_config.hidden_size
+            // source.vision_config.num_attention_heads,
             num_query_groups=source.vision_config.num_attention_heads,
         )
         return output
@@ -151,7 +152,9 @@ class SigLIPViTImporter(io.ModelConnector["SigLIPVisionModel", SigLIPViTModel]):
         )
 
 
-def import_qkv(q, k, v, head_num, num_query_groups, heads_per_group, hidden_size, head_size):
+def import_qkv(
+    q, k, v, head_num, num_query_groups, heads_per_group, hidden_size, head_size
+):
     # pylint: disable=C0115,C0116
     old_tensor_shape = q.size()
     new_q_tensor_shape = (head_num, head_size) + old_tensor_shape[1:]
@@ -168,11 +171,15 @@ def import_qkv(q, k, v, head_num, num_query_groups, heads_per_group, hidden_size
         qkv_weights_l.append(v[i : i + 1, :, :])
     qkv_weights = torch.cat(qkv_weights_l)
     assert qkv_weights.ndim == 3, qkv_weights.shape
-    assert qkv_weights.shape[0] == (heads_per_group + 2) * num_query_groups, qkv_weights.shape
+    assert (
+        qkv_weights.shape[0] == (heads_per_group + 2) * num_query_groups
+    ), qkv_weights.shape
     assert qkv_weights.shape[1] == head_size, qkv_weights.shape
     assert qkv_weights.shape[2] == old_tensor_shape[1], qkv_weights.shape
 
-    qkv_weights = qkv_weights.reshape([head_size * (head_num + 2 * num_query_groups), hidden_size])
+    qkv_weights = qkv_weights.reshape(
+        [head_size * (head_num + 2 * num_query_groups), hidden_size]
+    )
 
     return qkv_weights
 
@@ -194,7 +201,8 @@ def _import_vision_qkv_bias(ctx: io.TransformCTX, q_bias, k_bias, v_bias):
         v_bias.unsqueeze(-1),
         head_num=megatron_config.num_attention_heads,
         num_query_groups=megatron_config.num_query_groups,
-        heads_per_group=megatron_config.num_attention_heads // megatron_config.num_query_groups,
+        heads_per_group=megatron_config.num_attention_heads
+        // megatron_config.num_query_groups,
         hidden_size=1,
         head_size=megatron_config.kv_channels,
     ).squeeze(-1)
@@ -217,7 +225,8 @@ def _import_vision_qkv(ctx: io.TransformCTX, q, k, v):
         v,
         head_num=megatron_config.num_attention_heads,
         num_query_groups=megatron_config.num_query_groups,
-        heads_per_group=megatron_config.num_attention_heads // megatron_config.num_query_groups,
+        heads_per_group=megatron_config.num_attention_heads
+        // megatron_config.num_query_groups,
         hidden_size=megatron_config.hidden_size,
         head_size=megatron_config.kv_channels,
     )

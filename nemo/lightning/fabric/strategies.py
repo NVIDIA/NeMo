@@ -109,7 +109,7 @@ class FabricMegatronStrategy(DDPStrategy):
             **kwargs,
         )
         self.megatron_callbacks = CallbackConnector()
-        self.data_sampler: Optional['DataSampler'] = data_sampler
+        self.data_sampler: Optional["DataSampler"] = data_sampler
         self.tensor_model_parallel_size = tensor_model_parallel_size
         self.pipeline_model_parallel_size = pipeline_model_parallel_size
         self.pipeline_model_parallel_comm_backend = pipeline_model_parallel_comm_backend
@@ -172,7 +172,9 @@ class FabricMegatronStrategy(DDPStrategy):
         #     _strategy_lib.initialize_data(self.cluster_environment.global_rank(), self.data_config)
         _strategy_lib.init_model_parallel()
 
-    def process_datamodule(self, datamodule: LightningDataModule) -> LightningDataModule:
+    def process_datamodule(
+        self, datamodule: LightningDataModule
+    ) -> LightningDataModule:
         """
         Process the datamodule.
         """
@@ -198,7 +200,9 @@ class FabricMegatronStrategy(DDPStrategy):
         # https://github.com/Lightning-AI/pytorch-lightning
         # /blob/6cbe9ceb560d798892bdae9186291acf9bf5d2e3/src/lightning/pytorch/loops/fit_loop.py
         # L258-L260
-        output = _MegatronDataLoaderIterDataFetcher(output_data_idx=self.output_data_idx)
+        output = _MegatronDataLoaderIterDataFetcher(
+            output_data_idx=self.output_data_idx
+        )
         output.setup(CombinedLoader(dataloader, "max_size_cycle"))
         iter(output)
 
@@ -218,7 +222,9 @@ class FabricMegatronStrategy(DDPStrategy):
         if hasattr(self.precision, "convert_config"):
             optimizer_config = self.precision.convert_config(optimizer_config)
 
-        assert optimizer_config.lr is not None, "Learning rate must be set in optimizer config"
+        assert (
+            optimizer_config.lr is not None
+        ), "Learning rate must be set in optimizer config"
 
         return _strategy_lib.setup_megatron_optimizer(
             model,
@@ -341,20 +347,28 @@ class FabricMegatronStrategy(DDPStrategy):
                 state key, where its filter will be applied to the ``state_dict`` generated.
 
         """
-        state = self._convert_stateful_objects_in_state(state, filter=(filter_dict or {}))
-        self.checkpoint_io.save_checkpoint(checkpoint=state, path=path, storage_options=storage_options)
+        state = self._convert_stateful_objects_in_state(
+            state, filter=(filter_dict or {})
+        )
+        self.checkpoint_io.save_checkpoint(
+            checkpoint=state, path=path, storage_options=storage_options
+        )
 
     def load_checkpoint(
         self,
         path: _PATH,
-        state: Optional[Union[Module, Optimizer, Dict[str, Union[Module, Optimizer, Any]]]] = None,
+        state: Optional[
+            Union[Module, Optimizer, Dict[str, Union[Module, Optimizer, Any]]]
+        ] = None,
         strict: bool = True,
     ) -> Dict[str, Any]:
         """
         Load the checkpoint.
         """
         if isinstance(state, Optimizer):
-            raise NotImplementedError("Optimizer loading is not supported, pass it as a dict including the model")
+            raise NotImplementedError(
+                "Optimizer loading is not supported, pass it as a dict including the model"
+            )
 
         torch.cuda.empty_cache()
 
@@ -365,29 +379,41 @@ class FabricMegatronStrategy(DDPStrategy):
         elif strict:
             sharded_state_dict["state_dict"] = state["state_dict"].sharded_state_dict()
             if "optimizer" in state:
-                sharded_state_dict["optimizer"] = _strategy_lib.optimizer_sharded_state_dict(
-                    state["state_dict"], state["optimizer"], is_loading=True
+                sharded_state_dict["optimizer"] = (
+                    _strategy_lib.optimizer_sharded_state_dict(
+                        state["state_dict"], state["optimizer"], is_loading=True
+                    )
                 )
         else:
             for obj in state.items():
                 if isinstance(obj, Module):
                     sharded_state_dict["state_dict"] = obj.sharded_state_dict()
                 elif isinstance(obj, Optimizer):
-                    sharded_state_dict["optimizer"] = _strategy_lib.optimizer_sharded_state_dict(obj, is_loading=True)
+                    sharded_state_dict["optimizer"] = (
+                        _strategy_lib.optimizer_sharded_state_dict(obj, is_loading=True)
+                    )
 
-        checkpoint = self.checkpoint_io.load_checkpoint(path, sharded_state_dict=sharded_state_dict)
+        checkpoint = self.checkpoint_io.load_checkpoint(
+            path, sharded_state_dict=sharded_state_dict
+        )
 
         if isinstance(state, Module):
-            self.load_module_state_dict(module=state, state_dict=checkpoint, strict=strict)
+            self.load_module_state_dict(
+                module=state, state_dict=checkpoint, strict=strict
+            )
             return {}
 
-        _validate_keys_for_strict_loading(state.keys(), checkpoint.keys(), strict=strict)
+        _validate_keys_for_strict_loading(
+            state.keys(), checkpoint.keys(), strict=strict
+        )
         for name, obj in state.copy().items():
             if name not in checkpoint:
                 continue
             if isinstance(obj, _Stateful):
                 if isinstance(obj, Module):
-                    self.load_module_state_dict(module=obj, state_dict=checkpoint.pop(name), strict=strict)
+                    self.load_module_state_dict(
+                        module=obj, state_dict=checkpoint.pop(name), strict=strict
+                    )
                 else:
                     obj.load_state_dict(checkpoint.pop(name))
             else:
@@ -397,7 +423,10 @@ class FabricMegatronStrategy(DDPStrategy):
 
     @override
     def load_module_state_dict(
-        self, module: Module, state_dict: Dict[str, Union[Any, Tensor]], strict: bool = True
+        self,
+        module: Module,
+        state_dict: Dict[str, Union[Any, Tensor]],
+        strict: bool = True,
     ) -> None:
         """
         Load the module state dict.
@@ -416,7 +445,7 @@ class FabricMegatronStrategy(DDPStrategy):
         def _get_extra_te_kwargs_meta(c):
             """Forces device to meta"""
             kwargs = original(c)
-            kwargs['device'] = 'meta'
+            kwargs["device"] = "meta"
             return kwargs
 
         _te._get_extra_te_kwargs = _get_extra_te_kwargs_meta  # noqa: SLF001
@@ -476,7 +505,9 @@ class FabricMegatronStrategy(DDPStrategy):
 
 # TODO: Fix this
 class _MegatronDataLoaderIterDataFetcher(_DataFetcher):
-    def __init__(self, *args: Any, output_data_idx: bool = False, **kwargs: Any) -> None:
+    def __init__(
+        self, *args: Any, output_data_idx: bool = False, **kwargs: Any
+    ) -> None:
         super().__init__(*args, **kwargs)
         self.output_data_idx = output_data_idx
         self._batch: Any = None
@@ -485,7 +516,9 @@ class _MegatronDataLoaderIterDataFetcher(_DataFetcher):
 
     def __iter__(self) -> "_MegatronDataLoaderIterDataFetcher":
         super().__iter__()
-        self.iterator_wrapper = iter(_DataFetcherWrapper(self, output_data_idx=self.output_data_idx))
+        self.iterator_wrapper = iter(
+            _DataFetcherWrapper(self, output_data_idx=self.output_data_idx)
+        )
         return self
 
     def __next__(self) -> Iterator["_DataFetcherWrapper"]:  # type: ignore[override]
@@ -544,7 +577,9 @@ class _DataFetcherWrapper(Iterator):
         fetcher = self.data_fetcher
         if fetcher.done:
             raise StopIteration
-        batch, batch_idx, dataloader_idx = super(_MegatronDataLoaderIterDataFetcher, fetcher).__next__()
+        batch, batch_idx, dataloader_idx = super(
+            _MegatronDataLoaderIterDataFetcher, fetcher
+        ).__next__()
         # save the state so the loops can access it
         fetcher._batch = batch  # noqa: SLF001
         fetcher._batch_idx = batch_idx  # noqa: SLF001

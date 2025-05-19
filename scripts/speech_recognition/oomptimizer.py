@@ -135,13 +135,17 @@ class ProfilingBatchGenerator:
                 tnsr = torch.tensor([])
             elif isinstance(nt.elements_type, AudioSignal):
                 seq_length = select_seq_length[item["seq_length"]]
-                tnsr = torch.randn(B, seq_length, dtype=torch.float32, device=self.device)
+                tnsr = torch.randn(
+                    B, seq_length, dtype=torch.float32, device=self.device
+                )
             elif isinstance(nt.elements_type, LengthsType):
                 seq_length = select_seq_length[item["seq_length"]]
                 tnsr = torch.ones(B, dtype=torch.long, device=self.device) * seq_length
             elif isinstance(nt.elements_type, LabelsType):
                 seq_length = select_seq_length[item["seq_length"]]
-                tnsr = torch.randint(0, item["vocab_size"], size=(B, seq_length), device=self.device)
+                tnsr = torch.randint(
+                    0, item["vocab_size"], size=(B, seq_length), device=self.device
+                )
             elif isinstance(nt.elements_type, MaskType):
                 seq_length = select_seq_length[item["seq_length"]]
                 tnsr = torch.ones(B, seq_length, device=self.device)
@@ -164,7 +168,10 @@ class ProfilingBatchGenerator:
         if (
             self._max_ok is not None
             and self._min_err is not None
-            and (self.current_rel_gap <= self.rel_gap_thresh or self._min_err - self._max_ok <= 1)
+            and (
+                self.current_rel_gap <= self.rel_gap_thresh
+                or self._min_err - self._max_ok <= 1
+            )
         ):
             return self._max_ok
         return None
@@ -197,7 +204,9 @@ class ProfilingBatchGenerator:
         if oom:
             # Training step failed with OOM.
             # Update the minimum known batch size that causes an error.
-            self._min_err = min(float("inf") if self._min_err is None else self._min_err, self._current)
+            self._min_err = min(
+                float("inf") if self._min_err is None else self._min_err, self._current
+            )
             # Training step failed on OOM
             if self._max_ok is None:
                 # We haven't found a batch size that works yet, keep going 2x down.
@@ -208,7 +217,9 @@ class ProfilingBatchGenerator:
         else:
             # Training step successful.
             # Update the maximum known batch size that works.
-            self._max_ok = max(-1 if self._max_ok is None else self._max_ok, self._current)
+            self._max_ok = max(
+                -1 if self._max_ok is None else self._max_ok, self._current
+            )
             if self._min_err is None:
                 # We haven't found a batch size that causes an error yet, keep going 2x higher
                 self._current *= 2
@@ -238,7 +249,7 @@ class FloatList(click.Option):
             raise click.BadParameter(value)
 
 
-@click.command(context_settings={'show_default': True})
+@click.command(context_settings={"show_default": True})
 @click.option(
     "-n",
     "--pretrained-name",
@@ -254,9 +265,19 @@ class FloatList(click.Option):
     help="Full path to NeMo's module corresponding to CONFIG_PATH, e.g. 'nemo.collections.asr.models.EncDecMultiTaskModel'.",
 )
 @click.option(
-    "-c", "--config-path", type=str, default=None, help="Path to the training configuration file for MODULE_NAME."
+    "-c",
+    "--config-path",
+    type=str,
+    default=None,
+    help="Path to the training configuration file for MODULE_NAME.",
 )
-@click.option("-o", "--optimizer-name", type=str, default="adamw", help="Name of optimizer to use.")
+@click.option(
+    "-o",
+    "--optimizer-name",
+    type=str,
+    default="adamw",
+    help="Name of optimizer to use.",
+)
 @click.option(
     "-b",
     "--buckets",
@@ -273,7 +294,13 @@ class FloatList(click.Option):
     default=0.05,
     help="Search stopping criterion in range [0, 1], lower is more precise. Interpret as the uncerainty gap, i.e. (min_oom_batch_size - max_ok_batch_size) / min_oom_batch_size.",
 )
-@click.option("-s", "--start-batch-size", type=int, default=32, help="Initial batch size to start the search from.")
+@click.option(
+    "-s",
+    "--start-batch-size",
+    type=int,
+    default=32,
+    help="Initial batch size to start the search from.",
+)
 @click.option(
     "-r",
     "--ratio",
@@ -361,7 +388,8 @@ def oomptimizer(
     """
     if all(opt is None for opt in (pretrained_name, module_name, config_path)):
         click.secho(
-            "You need to provide either PRETRAINED_NAME or the pair of MODULE_NAME and CONFIG_PATH.", fg="yellow"
+            "You need to provide either PRETRAINED_NAME or the pair of MODULE_NAME and CONFIG_PATH.",
+            fg="yellow",
         )
         sys.exit(1)
     logging.setLevel(logging.CRITICAL)
@@ -375,13 +403,21 @@ def oomptimizer(
             assert (
                 config_path is None and module_name is None
             ), "--pretrained-name cannot be used together with --module-name/--config-path"
-            click.echo(f"Intializing ASR model from pretrained checkpoint {pretrained_name}.")
-            model = ASRModel.from_pretrained(pretrained_name, trainer=trainer).to(device)
+            click.echo(
+                f"Intializing ASR model from pretrained checkpoint {pretrained_name}."
+            )
+            model = ASRModel.from_pretrained(pretrained_name, trainer=trainer).to(
+                device
+            )
         else:
-            assert config_path is not None, "--module-name requires --config-path to be specified as well."
-            assert module_name is not None, "--config-path requires --module-name to be specified as well."
+            assert (
+                config_path is not None
+            ), "--module-name requires --config-path to be specified as well."
+            assert (
+                module_name is not None
+            ), "--config-path requires --module-name to be specified as well."
             cfg = OmegaConf.load(config_path)
-            namespace, name = module_name.rsplit('.', maxsplit=1)
+            namespace, name = module_name.rsplit(".", maxsplit=1)
             model_cls = getattr(importlib.import_module(namespace), name)
             model = model_cls(cfg=cfg.model, trainer=trainer).to(device)
         model_clones.append(model)
@@ -398,10 +434,14 @@ def oomptimizer(
     schema = model.oomptimizer_schema
 
     click.echo("Setting up the optimizers.")
-    optimizer, _ = model.setup_optimization({"name": optimizer_name, "lr": 1e-7, "weight_decay": 0.0})
+    optimizer, _ = model.setup_optimization(
+        {"name": optimizer_name, "lr": 1e-7, "weight_decay": 0.0}
+    )
 
     is_2d_bucketing = all(
-        isinstance(item, (list, tuple)) and len(item) == 2 and all(isinstance(v, Number) for v in item)
+        isinstance(item, (list, tuple))
+        and len(item) == 2
+        and all(isinstance(v, Number) for v in item)
         for item in buckets
     )
     # Determine modality for input and output.
@@ -438,7 +478,10 @@ def oomptimizer(
                         compute_num_samples(output_len, sampling_rate=sampling_rate),
                     )
                 case "audio", "text":
-                    return (compute_num_samples(input_len, sampling_rate=sampling_rate), output_len)
+                    return (
+                        compute_num_samples(input_len, sampling_rate=sampling_rate),
+                        output_len,
+                    )
                 case "text", "audio":
                     return (
                         input_len,
@@ -453,14 +496,20 @@ def oomptimizer(
 
     click.echo("Starting profiling.")
     max_seq_lens = get_max_seq_lens(buckets)
-    gen = ProfilingBatchGenerator(schema=schema, start_batch_size=start_batch_size, rel_gap_thresh=threshold)
+    gen = ProfilingBatchGenerator(
+        schema=schema, start_batch_size=start_batch_size, rel_gap_thresh=threshold
+    )
     profile = {}
 
     # Iterate buckets from the largest to the smallest sequences. This usually ends up creating
     # a tiny bit smaller batches, likely due to worse memory fragmentation.
     with torch.autocast("cuda", getattr(torch, dtype)):
-        for bucket, (seq_len_in, seq_len_out) in reversed(list(zip(buckets, max_seq_lens))):
-            click.echo(f"The current sequence lengths are: input={seq_len_in} output={seq_len_out}.")
+        for bucket, (seq_len_in, seq_len_out) in reversed(
+            list(zip(buckets, max_seq_lens))
+        ):
+            click.echo(
+                f"The current sequence lengths are: input={seq_len_in} output={seq_len_out}."
+            )
             gen.reset()
             batch_idx = 0
 
@@ -474,7 +523,7 @@ def oomptimizer(
                     click.echo(f"\tCurrent gap: {gen.current_rel_gap}... ", nl=False)
                     optimizer.zero_grad()
                     out = model.training_step(batch, batch_idx)
-                    out['loss'].sum().backward()
+                    out["loss"].sum().backward()
                     optimizer.step()
                 except torch.cuda.OutOfMemoryError as e:
                     click.secho(f"OOM!", fg="yellow")
@@ -516,11 +565,16 @@ def oomptimizer(
 
     click.echo("The 1st stage profile is:")
     for (bucket, seq_len_in, seq_len_out), bs in profile.items():
-        click.echo(f"Bucket={bucket} (input={seq_len_in} output={seq_len_out}) => max_batch_size={bs}")
+        click.echo(
+            f"Bucket={bucket} (input={seq_len_in} output={seq_len_out}) => max_batch_size={bs}"
+        )
 
     if is_2d_bucketing:
         # 2D bucketing doesn't support bucket merging.
-        final_profile = [["[" + ",".join(map(str, b)) + "]", bs] for (b, _, __), bs in profile.items()]
+        final_profile = [
+            ["[" + ",".join(map(str, b)) + "]", bs]
+            for (b, _, __), bs in profile.items()
+        ]
     else:
         click.echo("Bucket merging stage...")
         final_profile = []
@@ -529,7 +583,9 @@ def oomptimizer(
                 final_profile.append([bucket, bs])
                 continue
             if bs == final_profile[-1][1]:
-                click.echo(f"Merging bucket {idx} with bucket {idx-1} due to identical batch sizes.")
+                click.echo(
+                    f"Merging bucket {idx} with bucket {idx-1} due to identical batch sizes."
+                )
                 final_profile[-1][0] = bucket
                 continue
             final_profile.append([bucket, bs])
@@ -539,8 +595,18 @@ def oomptimizer(
     click.secho(f"* {'' if ddp else 'not '}simulating DDP memory overhead.")
     click.secho(f"* using AMP with dtype={dtype}.")
     click.secho("The final profile is:", bold=True)
-    click.secho("\tbucket_duration_bins=[" + ",".join(str(seqlen) for seqlen, bs in final_profile) + "]", bold=True)
-    click.secho("\tbucket_batch_size=[" + ",".join(str(bs) for seqlen, bs in final_profile) + "]", bold=True)
+    click.secho(
+        "\tbucket_duration_bins=["
+        + ",".join(str(seqlen) for seqlen, bs in final_profile)
+        + "]",
+        bold=True,
+    )
+    click.secho(
+        "\tbucket_batch_size=["
+        + ",".join(str(bs) for seqlen, bs in final_profile)
+        + "]",
+        bold=True,
+    )
 
 
 if __name__ == "__main__":

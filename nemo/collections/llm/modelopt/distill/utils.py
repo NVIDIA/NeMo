@@ -39,19 +39,28 @@ if TYPE_CHECKING:
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
 mto, HAVE_MODELOPT = safe_import("modelopt.torch.opt")
-DistillationModel, _ = safe_import_from("modelopt.torch.distill", "DistillationModel", alt=object)
-DistillationLossBalancer, _ = safe_import_from("modelopt.torch.distill", "DistillationLossBalancer", alt=object)
+DistillationModel, _ = safe_import_from(
+    "modelopt.torch.distill", "DistillationModel", alt=object
+)
+DistillationLossBalancer, _ = safe_import_from(
+    "modelopt.torch.distill", "DistillationLossBalancer", alt=object
+)
 
 
 def load_distillation_config(cfg: "TransformerConfig") -> Dict[str, Any]:
     """Create a default distillation config for MCore GPT Models."""
-    logit_pair = ("output_layer", "output_layer")  # logit module names for MCoreGPTModel
+    logit_pair = (
+        "output_layer",
+        "output_layer",
+    )  # logit module names for MCoreGPTModel
     distill_cfg = {
         "criterion": {},
         "loss_balancer": _DummyLossBalancer(),  # HACK: to appease ModelOpt until validation relaxed
         "skip_lm_loss": True,
     }
-    if cfg.pipeline_model_parallel_size == 1 or parallel_state.is_pipeline_last_stage(ignore_virtual=False):
+    if cfg.pipeline_model_parallel_size == 1 or parallel_state.is_pipeline_last_stage(
+        ignore_virtual=False
+    ):
         distill_cfg["criterion"][logit_pair] = LogitsKLLoss(cfg)
 
     return distill_cfg
@@ -64,7 +73,10 @@ class _DummyLossBalancer(DistillationLossBalancer):
 
 
 def teacher_provider(
-    config: llm.GPTConfig, ckpt_path: str, tokenizer: "TokenizerSpec", trainer: nl.Trainer
+    config: llm.GPTConfig,
+    ckpt_path: str,
+    tokenizer: "TokenizerSpec",
+    trainer: nl.Trainer,
 ) -> "MCoreGPTModel":
     """Teacher model factory (must be a non-local function to pickle)."""
     logging.info("Distillation: Loading teacher weights...")
@@ -74,8 +86,12 @@ def teacher_provider(
 
     sharded_state_dict = {"state_dict": model.sharded_state_dict(prefix="module.")}
     strict = trainer.strategy.ckpt_load_strictness
-    checkpoint = trainer.strategy.checkpoint_io.load_checkpoint(ckpt_path, sharded_state_dict, strict=strict)
-    state_dict = {k.replace("module.", ""): v for k, v in checkpoint["state_dict"].items()}
+    checkpoint = trainer.strategy.checkpoint_io.load_checkpoint(
+        ckpt_path, sharded_state_dict, strict=strict
+    )
+    state_dict = {
+        k.replace("module.", ""): v for k, v in checkpoint["state_dict"].items()
+    }
 
     # convert from StrictHandling to bool for PTL
     if strict is not None and not isinstance(strict, bool):
@@ -94,15 +110,21 @@ def teacher_provider(
 
 
 def adjust_distillation_model_for_mcore(
-    model: "DistillationModel", model_cfg: "TransformerConfig", distill_cfg: Dict[str, Any]
+    model: "DistillationModel",
+    model_cfg: "TransformerConfig",
+    distill_cfg: Dict[str, Any],
 ):
     """Extra modifications to ``mtd.DistillationModel`` required for Megatron-Core."""
     # Get rid of ModelOpt Distillation state
     # NOTE: If re-placed, above losses need modifcation as `TransformerConfig` has non-pickleable elements.
     existing_state = mto.ModeloptStateManager(model).state_dict()
-    assert len(existing_state) == 1 and existing_state[0][0] == "kd_loss", f"{existing_state=}"
+    assert (
+        len(existing_state) == 1 and existing_state[0][0] == "kd_loss"
+    ), f"{existing_state=}"
     # mto.ModeloptStateManager.remove_state(model)
-    delattr(model, mto.ModeloptStateManager._state_key)  # Use above method from modelopt 0.27
+    delattr(
+        model, mto.ModeloptStateManager._state_key
+    )  # Use above method from modelopt 0.27
 
     # Hide teacher during `sharded_state_dict` method.
     def _sharded_state_dict(self, *args, **kwargs) -> "ShardedStateDict":
@@ -123,19 +145,29 @@ def adjust_distillation_model_for_mcore(
     def _compute_language_model_loss(self, labels, logits) -> torch.Tensor:
         return torch.zeros_like(labels, dtype=logits.dtype)
 
-    model.teacher_model.compute_language_model_loss = MethodType(_compute_language_model_loss, model.teacher_model)
+    model.teacher_model.compute_language_model_loss = MethodType(
+        _compute_language_model_loss, model.teacher_model
+    )
 
     # HACK: Pipeline-parallel Distillation requires splitting input tensor into student and teacher parts.
     def _set_student_input_tensor_shape(self, shapes: List[Tuple[int]]):
         self._tensor_split_idx = shapes[0][-1]
 
     def _set_input_tensor(self, input_tensors: List[torch.Tensor]):
-        teacher_inputs = [t[..., self._tensor_split_idx :] if t is not None else t for t in input_tensors]
-        student_inputs = [t[..., : self._tensor_split_idx] if t is not None else t for t in input_tensors]
+        teacher_inputs = [
+            t[..., self._tensor_split_idx :] if t is not None else t
+            for t in input_tensors
+        ]
+        student_inputs = [
+            t[..., : self._tensor_split_idx] if t is not None else t
+            for t in input_tensors
+        ]
         type(self).set_input_tensor(self.teacher_model, teacher_inputs)
         type(self).set_input_tensor(self, student_inputs)
 
-    model.set_student_input_tensor_shape = MethodType(_set_student_input_tensor_shape, model)
+    model.set_student_input_tensor_shape = MethodType(
+        _set_student_input_tensor_shape, model
+    )
     model.set_input_tensor = MethodType(_set_input_tensor, model)
 
     # HACK: Concatenate output tensors when PP>1 so they can be passed between ranks.
@@ -187,7 +219,10 @@ def get_tensor_shapes_adjust_fn_for_distillation(
     if not isinstance(model, DistillationModel):
         return None
 
-    def adjust_tensor_shapes(recv_tensor_shapes: List[Tuple[int, ...]], send_tensor_shapes: List[Tuple[int, ...]]):
+    def adjust_tensor_shapes(
+        recv_tensor_shapes: List[Tuple[int, ...]],
+        send_tensor_shapes: List[Tuple[int, ...]],
+    ):
         rank = parallel_state.get_pipeline_model_parallel_rank()
         teacher_config = get_model_config(model.teacher_model)
         teacher_model_type = get_model_type(model.teacher_model)

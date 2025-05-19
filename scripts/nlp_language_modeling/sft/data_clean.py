@@ -35,15 +35,26 @@ def data_clean(
     dataset_file,
     output_file,
     seq_len=4096,
-    library='huggingface',
-    model_name='EleutherAI/gpt-neox-20b',
+    library="huggingface",
+    model_name="EleutherAI/gpt-neox-20b",
     tokenizer_model=None,
 ):
     tokenizer = get_nmt_tokenizer(
-        library=library, model_name=model_name, tokenizer_model=tokenizer_model, use_fast=True
+        library=library,
+        model_name=model_name,
+        tokenizer_model=tokenizer_model,
+        use_fast=True,
     )
-    if library == 'huggingface':
-        tokenizer.add_special_tokens({'additional_special_tokens': ['<extra_id_0>', '<extra_id_1>', '<extra_id_2>']})
+    if library == "huggingface":
+        tokenizer.add_special_tokens(
+            {
+                "additional_special_tokens": [
+                    "<extra_id_0>",
+                    "<extra_id_1>",
+                    "<extra_id_2>",
+                ]
+            }
+        )
     d = GPTSFTChatDataset(dataset_file, tokenizer, seq_len, 1, hf_dataset=True)
     total_records = len(d)
     removed_ids = set()
@@ -51,40 +62,46 @@ def data_clean(
         if i % 1000 == 0:
             print(i)
         try:
-            if d[i]['mask'][: seq_len + 1].sum().item() == 0:
+            if d[i]["mask"][: seq_len + 1].sum().item() == 0:
                 removed_ids.add(i)
-                print(f'removed {i}')
+                print(f"removed {i}")
                 continue
         except:
             removed_ids.add(i)
-            print(f'Exception removed {i}')
-    with open(dataset_file, 'r', encoding='utf-8') as f:
-        with open(output_file, 'w', encoding='utf-8') as o:
+            print(f"Exception removed {i}")
+    with open(dataset_file, "r", encoding="utf-8") as f:
+        with open(output_file, "w", encoding="utf-8") as o:
             for i, line in enumerate(f):
                 if i in removed_ids:
                     continue
                 obj = json.loads(line)
-                o.write(json.dumps(obj, ensure_ascii=False) + '\n')
+                o.write(json.dumps(obj, ensure_ascii=False) + "\n")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dataset_file", type=str, required=True, default='/dataset/input.jsonl')
     parser.add_argument(
-        "--model_file", type=str, required=False, default=None, help="Path to the sentence piece model file."
+        "--dataset_file", type=str, required=True, default="/dataset/input.jsonl"
+    )
+    parser.add_argument(
+        "--model_file",
+        type=str,
+        required=False,
+        default=None,
+        help="Path to the sentence piece model file.",
     )
     parser.add_argument(
         "--library",
         type=str,
         required=False,
-        default='huggingface',
+        default="huggingface",
         help="tokenizer library, huggingface or sentencepiece",
     )
     parser.add_argument(
         "--model_name",
         type=str,
         required=False,
-        default='EleutherAI/gpt-neox-20b',
+        default="EleutherAI/gpt-neox-20b",
         help="huggingface tokenizer model name",
     )
     parser.add_argument("--output_file", type=str, required=True)

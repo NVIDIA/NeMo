@@ -43,12 +43,16 @@ class TestEvaluateFunction(unittest.TestCase):
         self.eval_cfg.params.num_fewshot = 4
         self.eval_cfg.params.bootstrap_iters = 1000
 
-    @patch('nemo.lightning.io.load_context')
-    @patch('nemo.collections.llm.evaluation.base.wait_for_server_ready')
-    @patch('lm_eval.evaluator.simple_evaluate')
-    @patch('nemo.collections.llm.evaluation.base.NeMoFWLMEval')
+    @patch("nemo.lightning.io.load_context")
+    @patch("nemo.collections.llm.evaluation.base.wait_for_server_ready")
+    @patch("lm_eval.evaluator.simple_evaluate")
+    @patch("nemo.collections.llm.evaluation.base.NeMoFWLMEval")
     def test_evaluate_success(
-        self, mock_NeMoFWLMEval, mock_simple_evaluate, mock_wait_for_server_ready, mock_load_context
+        self,
+        mock_NeMoFWLMEval,
+        mock_simple_evaluate,
+        mock_wait_for_server_ready,
+        mock_load_context,
     ):
         # Mocking necessary methods
         mock_load_context.return_value = "tokenizer"
@@ -59,7 +63,9 @@ class TestEvaluateFunction(unittest.TestCase):
         evaluate(self.target_cfg, self.eval_cfg)
 
         # Asserts
-        mock_load_context.assert_called_once_with("path/to/checkpoint/context", subpath="model.tokenizer")
+        mock_load_context.assert_called_once_with(
+            "path/to/checkpoint/context", subpath="model.tokenizer"
+        )
         mock_wait_for_server_ready.assert_called_once_with(
             url="http://example.com", triton_http_port=8000, model_name="model_id"
         )
@@ -82,12 +88,16 @@ class TestEvaluateFunction(unittest.TestCase):
             bootstrap_iters=1000,
         )
 
-    @patch('nemo.lightning.io.load_context')
-    @patch('nemo.collections.llm.evaluation.base.wait_for_server_ready')
-    @patch('lm_eval.evaluator.simple_evaluate')
-    @patch('nemo.collections.llm.evaluation.base.NeMoFWLMEval')
+    @patch("nemo.lightning.io.load_context")
+    @patch("nemo.collections.llm.evaluation.base.wait_for_server_ready")
+    @patch("lm_eval.evaluator.simple_evaluate")
+    @patch("nemo.collections.llm.evaluation.base.NeMoFWLMEval")
     def test_evaluate_nemo_checkpoint_path_none(
-        self, mock_NeMoFWLMEval, mock_simple_evaluate, mock_wait_for_server_ready, mock_load_context
+        self,
+        mock_NeMoFWLMEval,
+        mock_simple_evaluate,
+        mock_wait_for_server_ready,
+        mock_load_context,
     ):
         # Set nemo_checkpoint_path to None
         self.target_cfg.api_endpoint.nemo_checkpoint_path = None
@@ -102,15 +112,21 @@ class TestEvaluateFunction(unittest.TestCase):
         mock_NeMoFWLMEval.assert_not_called()
         mock_simple_evaluate.assert_not_called()
 
-    @patch('nemo.lightning.io.load_context')
-    @patch('nemo.collections.llm.evaluation.base.wait_for_server_ready')
-    @patch('lm_eval.evaluator.simple_evaluate')
-    @patch('nemo.collections.llm.evaluation.base.NeMoFWLMEval')
+    @patch("nemo.lightning.io.load_context")
+    @patch("nemo.collections.llm.evaluation.base.wait_for_server_ready")
+    @patch("lm_eval.evaluator.simple_evaluate")
+    @patch("nemo.collections.llm.evaluation.base.NeMoFWLMEval")
     def test_evaluate_import_error(
-        self, mock_NeMoFWLMEval, mock_simple_evaluate, mock_wait_for_server_ready, mock_load_context
+        self,
+        mock_NeMoFWLMEval,
+        mock_simple_evaluate,
+        mock_wait_for_server_ready,
+        mock_load_context,
     ):
         # Mocking ImportError for lm-evaluation-harness
-        with patch('builtins.__import__', side_effect=ImportError("Mocked ImportError")):
+        with patch(
+            "builtins.__import__", side_effect=ImportError("Mocked ImportError")
+        ):
             # Call the function and assert it raises ImportError
             with self.assertRaises(ImportError):
                 evaluate(self.target_cfg, self.eval_cfg)
@@ -122,5 +138,5 @@ class TestEvaluateFunction(unittest.TestCase):
             mock_simple_evaluate.assert_not_called()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

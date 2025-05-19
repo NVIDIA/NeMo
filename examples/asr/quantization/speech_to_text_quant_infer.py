@@ -51,47 +51,67 @@ def main():
         required=True,
         help="Pass: 'QuartzNet15x5Base-En'",
     )
-    parser.add_argument("--dataset", type=str, required=True, help="path to evaluation data")
+    parser.add_argument(
+        "--dataset", type=str, required=True, help="path to evaluation data"
+    )
     parser.add_argument("--wer_target", type=float, default=None, help="used by test")
     parser.add_argument("--batch_size", type=int, default=4)
     parser.add_argument("--wer_tolerance", type=float, default=1.0, help="used by test")
     parser.add_argument(
         "--dont_normalize_text",
         default=False,
-        action='store_false',
+        action="store_false",
         help="Turn off trasnscript normalization. Recommended for non-English.",
     )
     parser.add_argument(
-        "--use_cer", default=False, action='store_true', help="Use Character Error Rate as the evaluation metric"
+        "--use_cer",
+        default=False,
+        action="store_true",
+        help="Use Character Error Rate as the evaluation metric",
     )
-    parser.add_argument('--sensitivity', action="store_true", help="Perform sensitivity analysis")
-    parser.add_argument('--onnx', action="store_true", help="Export to ONNX")
-    parser.add_argument('--quant-disable-keyword', type=str, nargs='+', help='disable quantizers by keyword')
+    parser.add_argument(
+        "--sensitivity", action="store_true", help="Perform sensitivity analysis"
+    )
+    parser.add_argument("--onnx", action="store_true", help="Export to ONNX")
+    parser.add_argument(
+        "--quant-disable-keyword",
+        type=str,
+        nargs="+",
+        help="disable quantizers by keyword",
+    )
     args = parser.parse_args()
     torch.set_grad_enabled(False)
 
     quant_modules.initialize()
 
-    if args.asr_model.endswith('.nemo'):
+    if args.asr_model.endswith(".nemo"):
         logging.info(f"Using local ASR model from {args.asr_model}")
-        asr_model_cfg = EncDecCTCModel.restore_from(restore_path=args.asr_model, return_config=True)
+        asr_model_cfg = EncDecCTCModel.restore_from(
+            restore_path=args.asr_model, return_config=True
+        )
         with open_dict(asr_model_cfg):
             asr_model_cfg.encoder.quantize = True
-        asr_model = EncDecCTCModel.restore_from(restore_path=args.asr_model, override_config_path=asr_model_cfg)
+        asr_model = EncDecCTCModel.restore_from(
+            restore_path=args.asr_model, override_config_path=asr_model_cfg
+        )
 
     else:
         logging.info(f"Using NGC cloud ASR model {args.asr_model}")
-        asr_model_cfg = EncDecCTCModel.from_pretrained(model_name=args.asr_model, return_config=True)
+        asr_model_cfg = EncDecCTCModel.from_pretrained(
+            model_name=args.asr_model, return_config=True
+        )
         with open_dict(asr_model_cfg):
             asr_model_cfg.encoder.quantize = True
-        asr_model = EncDecCTCModel.from_pretrained(model_name=args.asr_model, override_config_path=asr_model_cfg)
+        asr_model = EncDecCTCModel.from_pretrained(
+            model_name=args.asr_model, override_config_path=asr_model_cfg
+        )
     asr_model.setup_test_data(
         test_data_config={
-            'sample_rate': 16000,
-            'manifest_filepath': args.dataset,
-            'labels': asr_model.decoder.vocabulary,
-            'batch_size': args.batch_size,
-            'normalize_transcripts': args.dont_normalize_text,
+            "sample_rate": 16000,
+            "manifest_filepath": args.dataset,
+            "labels": asr_model.decoder.vocabulary,
+            "batch_size": args.batch_size,
+            "normalize_transcripts": args.dont_normalize_text,
         }
     )
     asr_model.preprocessor.featurizer.dither = 0.0
@@ -105,15 +125,20 @@ def main():
             if isinstance(module, quant_nn.TensorQuantizer):
                 for keyword in args.quant_disable_keyword:
                     if keyword in name:
-                        logging.warning(F"Disable {name}")
+                        logging.warning(f"Disable {name}")
                         module.disable()
 
-    labels_map = dict([(i, asr_model.decoder.vocabulary[i]) for i in range(len(asr_model.decoder.vocabulary))])
+    labels_map = dict(
+        [
+            (i, asr_model.decoder.vocabulary[i])
+            for i in range(len(asr_model.decoder.vocabulary))
+        ]
+    )
     decoding_cfg = CTCDecodingConfig()
     char_decoding = CTCDecoding(decoding_cfg, vocabulary=labels_map)
     wer = WER(char_decoding, use_cer=args.use_cer)
     wer_quant = evaluate(asr_model, labels_map, wer)
-    logging.info(f'Got WER of {wer_quant}. Tolerance was {args.wer_tolerance}')
+    logging.info(f"Got WER of {wer_quant}. Tolerance was {args.wer_tolerance}")
 
     if args.sensitivity:
         if wer_quant < args.wer_tolerance:
@@ -123,54 +148,60 @@ def main():
         for name, module in asr_model.named_modules():
             if isinstance(module, quant_nn.TensorQuantizer):
                 module.disable()
-                layer_name = name.replace("._input_quantizer", "").replace("._weight_quantizer", "")
+                layer_name = name.replace("._input_quantizer", "").replace(
+                    "._weight_quantizer", ""
+                )
                 if layer_name not in quant_layer_names:
                     quant_layer_names.append(layer_name)
-        logging.info(F"{len(quant_layer_names)} quantized layers found.")
+        logging.info(f"{len(quant_layer_names)} quantized layers found.")
 
         # Build sensitivity profile
         quant_layer_sensitivity = {}
         for i, quant_layer in enumerate(quant_layer_names):
-            logging.info(F"Enable {quant_layer}")
+            logging.info(f"Enable {quant_layer}")
             for name, module in asr_model.named_modules():
                 if isinstance(module, quant_nn.TensorQuantizer) and quant_layer in name:
                     module.enable()
-                    logging.info(F"{name:40}: {module}")
+                    logging.info(f"{name:40}: {module}")
 
             # Eval the model
             wer_value = evaluate(asr_model, labels_map, wer)
-            logging.info(F"WER: {wer_value}")
+            logging.info(f"WER: {wer_value}")
             quant_layer_sensitivity[quant_layer] = args.wer_tolerance - wer_value
 
             for name, module in asr_model.named_modules():
                 if isinstance(module, quant_nn.TensorQuantizer) and quant_layer in name:
                     module.disable()
-                    logging.info(F"{name:40}: {module}")
+                    logging.info(f"{name:40}: {module}")
 
         # Skip most sensitive layers until WER target is met
         for name, module in asr_model.named_modules():
             if isinstance(module, quant_nn.TensorQuantizer):
                 module.enable()
-        quant_layer_sensitivity = collections.OrderedDict(sorted(quant_layer_sensitivity.items(), key=lambda x: x[1]))
+        quant_layer_sensitivity = collections.OrderedDict(
+            sorted(quant_layer_sensitivity.items(), key=lambda x: x[1])
+        )
         pprint(quant_layer_sensitivity)
         skipped_layers = []
         for quant_layer, _ in quant_layer_sensitivity.items():
             for name, module in asr_model.named_modules():
                 if isinstance(module, quant_nn.TensorQuantizer):
                     if quant_layer in name:
-                        logging.info(F"Disable {name}")
+                        logging.info(f"Disable {name}")
                         if not quant_layer in skipped_layers:
                             skipped_layers.append(quant_layer)
                         module.disable()
             wer_value = evaluate(asr_model, labels_map, wer)
             if wer_value <= args.wer_tolerance:
                 logging.info(
-                    F"WER tolerance {args.wer_tolerance} is met by skipping {len(skipped_layers)} sensitive layers."
+                    f"WER tolerance {args.wer_tolerance} is met by skipping {len(skipped_layers)} sensitive layers."
                 )
                 print(skipped_layers)
                 export_onnx(args, asr_model)
                 return
-        raise ValueError(f"WER tolerance {args.wer_tolerance} can not be met with any layer quantized!")
+        raise ValueError(
+            f"WER tolerance {args.wer_tolerance} can not be met with any layer quantized!"
+        )
 
     export_onnx(args, asr_model)
 
@@ -181,7 +212,7 @@ def export_onnx(args, asr_model):
             onnx_name = args.asr_model.replace(".nemo", ".onnx")
         else:
             onnx_name = args.asr_model
-        logging.info(F"Export to {onnx_name}")
+        logging.info(f"Export to {onnx_name}")
         quant_nn.TensorQuantizer.use_fb_fake_quant = True
         asr_model.export(onnx_name, onnx_opset_version=13)
         quant_nn.TensorQuantizer.use_fb_fake_quant = False
@@ -202,13 +233,15 @@ def evaluate(asr_model, labels_map, wer):
         for batch_ind in range(greedy_predictions.shape[0]):
             seq_len = test_batch[3][batch_ind].cpu().detach().numpy()
             seq_ids = test_batch[2][batch_ind].cpu().detach().numpy()
-            reference = ''.join([labels_map[c] for c in seq_ids[0:seq_len]])
+            reference = "".join([labels_map[c] for c in seq_ids[0:seq_len]])
             references.append(reference)
         del test_batch
-    wer_value = word_error_rate(hypotheses=hypotheses, references=references, use_cer=wer.use_cer)
+    wer_value = word_error_rate(
+        hypotheses=hypotheses, references=references, use_cer=wer.use_cer
+    )
 
     return wer_value
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()  # noqa pylint: disable=no-value-for-parameter

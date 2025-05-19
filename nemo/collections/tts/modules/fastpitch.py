@@ -61,7 +61,9 @@ from nemo.core.neural_types.neural_type import NeuralType
 def average_features(pitch, durs):
     durs_cums_ends = torch.cumsum(durs, dim=1).long()
     durs_cums_starts = torch.nn.functional.pad(durs_cums_ends[:, :-1], (1, 0))
-    pitch_nonzero_cums = torch.nn.functional.pad(torch.cumsum(pitch != 0.0, dim=2), (1, 0))
+    pitch_nonzero_cums = torch.nn.functional.pad(
+        torch.cumsum(pitch != 0.0, dim=2), (1, 0)
+    )
     pitch_cums = torch.nn.functional.pad(torch.cumsum(pitch, dim=2), (1, 0))
 
     bs, l = durs_cums_ends.size()
@@ -69,10 +71,17 @@ def average_features(pitch, durs):
     dcs = durs_cums_starts[:, None, :].expand(bs, n_formants, l)
     dce = durs_cums_ends[:, None, :].expand(bs, n_formants, l)
 
-    pitch_sums = (torch.gather(pitch_cums, 2, dce) - torch.gather(pitch_cums, 2, dcs)).float()
-    pitch_nelems = (torch.gather(pitch_nonzero_cums, 2, dce) - torch.gather(pitch_nonzero_cums, 2, dcs)).float()
+    pitch_sums = (
+        torch.gather(pitch_cums, 2, dce) - torch.gather(pitch_cums, 2, dcs)
+    ).float()
+    pitch_nelems = (
+        torch.gather(pitch_nonzero_cums, 2, dce)
+        - torch.gather(pitch_nonzero_cums, 2, dcs)
+    ).float()
 
-    pitch_avg = torch.where(pitch_nelems == 0.0, pitch_nelems, pitch_sums / pitch_nelems)
+    pitch_avg = torch.where(
+        pitch_nelems == 0.0, pitch_nelems, pitch_sums / pitch_nelems
+    )
     return pitch_avg
 
 
@@ -83,10 +92,25 @@ def log_to_duration(log_dur, min_dur, max_dur, mask):
 
 
 class ConvReLUNorm(torch.nn.Module, adapter_mixins.AdapterModuleMixin):
-    def __init__(self, in_channels, out_channels, kernel_size=1, dropout=0.0, condition_dim=384, condition_types=[]):
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        kernel_size=1,
+        dropout=0.0,
+        condition_dim=384,
+        condition_types=[],
+    ):
         super(ConvReLUNorm, self).__init__()
-        self.conv = torch.nn.Conv1d(in_channels, out_channels, kernel_size=kernel_size, padding=(kernel_size // 2))
-        self.norm = ConditionalLayerNorm(out_channels, condition_dim=condition_dim, condition_types=condition_types)
+        self.conv = torch.nn.Conv1d(
+            in_channels,
+            out_channels,
+            kernel_size=kernel_size,
+            padding=(kernel_size // 2),
+        )
+        self.norm = ConditionalLayerNorm(
+            out_channels, condition_dim=condition_dim, condition_types=condition_types
+        )
         self.dropout = torch.nn.Dropout(dropout)
 
     def forward(self, signal, conditioning=None):
@@ -103,7 +127,15 @@ class ConvReLUNorm(torch.nn.Module, adapter_mixins.AdapterModuleMixin):
 class TemporalPredictor(NeuralModule):
     """Predicts a single float per each temporal location"""
 
-    def __init__(self, input_size, filter_size, kernel_size, dropout, n_layers=2, condition_types=[]):
+    def __init__(
+        self,
+        input_size,
+        filter_size,
+        kernel_size,
+        dropout,
+        n_layers=2,
+        condition_types=[],
+    ):
         super(TemporalPredictor, self).__init__()
         self.cond_input = ConditionalInput(input_size, input_size, condition_types)
         self.layers = torch.nn.ModuleList()
@@ -126,15 +158,17 @@ class TemporalPredictor(NeuralModule):
     @property
     def input_types(self):
         return {
-            "enc": NeuralType(('B', 'T', 'D'), EncodedRepresentation()),
-            "enc_mask": NeuralType(('B', 'T', 1), TokenDurationType()),
-            "conditioning": NeuralType(('B', 'T', 'D'), EncodedRepresentation(), optional=True),
+            "enc": NeuralType(("B", "T", "D"), EncodedRepresentation()),
+            "enc_mask": NeuralType(("B", "T", 1), TokenDurationType()),
+            "conditioning": NeuralType(
+                ("B", "T", "D"), EncodedRepresentation(), optional=True
+            ),
         }
 
     @property
     def output_types(self):
         return {
-            "out": NeuralType(('B', 'T'), EncodedRepresentation()),
+            "out": NeuralType(("B", "T"), EncodedRepresentation()),
         }
 
     def forward(self, enc, enc_mask, conditioning=None):
@@ -210,52 +244,66 @@ class FastPitchModule(NeuralModule, adapter_mixins.AdapterModuleMixin):
             )
 
         # Store values precomputed from training data for convenience
-        self.register_buffer('pitch_mean', torch.zeros(1))
-        self.register_buffer('pitch_std', torch.zeros(1))
+        self.register_buffer("pitch_mean", torch.zeros(1))
+        self.register_buffer("pitch_std", torch.zeros(1))
 
         self.proj = torch.nn.Linear(self.decoder.d_model, n_mel_channels, bias=True)
 
     @property
     def input_types(self):
         return {
-            "text": NeuralType(('B', 'T_text'), TokenIndex()),
-            "durs": NeuralType(('B', 'T_text'), TokenDurationType()),
-            "pitch": NeuralType(('B', 'T_audio'), RegressionValuesType()),
-            "energy": NeuralType(('B', 'T_audio'), RegressionValuesType(), optional=True),
-            "speaker": NeuralType(('B'), Index(), optional=True),
+            "text": NeuralType(("B", "T_text"), TokenIndex()),
+            "durs": NeuralType(("B", "T_text"), TokenDurationType()),
+            "pitch": NeuralType(("B", "T_audio"), RegressionValuesType()),
+            "energy": NeuralType(
+                ("B", "T_audio"), RegressionValuesType(), optional=True
+            ),
+            "speaker": NeuralType(("B"), Index(), optional=True),
             "pace": NeuralType(optional=True),
-            "spec": NeuralType(('B', 'D', 'T_spec'), MelSpectrogramType(), optional=True),
-            "attn_prior": NeuralType(('B', 'T_spec', 'T_text'), ProbsType(), optional=True),
-            "mel_lens": NeuralType(('B'), LengthsType(), optional=True),
-            "input_lens": NeuralType(('B'), LengthsType(), optional=True),
-            "reference_spec": NeuralType(('B', 'D', 'T_spec'), MelSpectrogramType(), optional=True),
-            "reference_spec_lens": NeuralType(('B'), LengthsType(), optional=True),
+            "spec": NeuralType(
+                ("B", "D", "T_spec"), MelSpectrogramType(), optional=True
+            ),
+            "attn_prior": NeuralType(
+                ("B", "T_spec", "T_text"), ProbsType(), optional=True
+            ),
+            "mel_lens": NeuralType(("B"), LengthsType(), optional=True),
+            "input_lens": NeuralType(("B"), LengthsType(), optional=True),
+            "reference_spec": NeuralType(
+                ("B", "D", "T_spec"), MelSpectrogramType(), optional=True
+            ),
+            "reference_spec_lens": NeuralType(("B"), LengthsType(), optional=True),
         }
 
     @property
     def output_types(self):
         return {
-            "spect": NeuralType(('B', 'D', 'T_spec'), MelSpectrogramType()),
-            "num_frames": NeuralType(('B'), TokenDurationType()),
-            "durs_predicted": NeuralType(('B', 'T_text'), TokenDurationType()),
-            "log_durs_predicted": NeuralType(('B', 'T_text'), TokenLogDurationType()),
-            "pitch_predicted": NeuralType(('B', 'T_text'), RegressionValuesType()),
-            "attn_soft": NeuralType(('B', 'S', 'T_spec', 'T_text'), ProbsType()),
-            "attn_logprob": NeuralType(('B', 'S', 'T_spec', 'T_text'), LogprobsType()),
-            "attn_hard": NeuralType(('B', 'S', 'T_spec', 'T_text'), ProbsType()),
-            "attn_hard_dur": NeuralType(('B', 'T_text'), TokenDurationType()),
-            "pitch": NeuralType(('B', 'T_audio'), RegressionValuesType()),
-            "energy_pred": NeuralType(('B', 'T_text'), RegressionValuesType()),
-            "energy_tgt": NeuralType(('B', 'T_audio'), RegressionValuesType()),
+            "spect": NeuralType(("B", "D", "T_spec"), MelSpectrogramType()),
+            "num_frames": NeuralType(("B"), TokenDurationType()),
+            "durs_predicted": NeuralType(("B", "T_text"), TokenDurationType()),
+            "log_durs_predicted": NeuralType(("B", "T_text"), TokenLogDurationType()),
+            "pitch_predicted": NeuralType(("B", "T_text"), RegressionValuesType()),
+            "attn_soft": NeuralType(("B", "S", "T_spec", "T_text"), ProbsType()),
+            "attn_logprob": NeuralType(("B", "S", "T_spec", "T_text"), LogprobsType()),
+            "attn_hard": NeuralType(("B", "S", "T_spec", "T_text"), ProbsType()),
+            "attn_hard_dur": NeuralType(("B", "T_text"), TokenDurationType()),
+            "pitch": NeuralType(("B", "T_audio"), RegressionValuesType()),
+            "energy_pred": NeuralType(("B", "T_text"), RegressionValuesType()),
+            "energy_tgt": NeuralType(("B", "T_audio"), RegressionValuesType()),
         }
 
-    def get_speaker_embedding(self, batch_size, speaker, reference_spec, reference_spec_lens):
+    def get_speaker_embedding(
+        self, batch_size, speaker, reference_spec, reference_spec_lens
+    ):
         """spk_emb: Bx1xD"""
         if self.speaker_encoder is not None:
-            spk_emb = self.speaker_encoder(batch_size, speaker, reference_spec, reference_spec_lens).unsqueeze(1)
+            spk_emb = self.speaker_encoder(
+                batch_size, speaker, reference_spec, reference_spec_lens
+            ).unsqueeze(1)
         elif self.speaker_emb is not None:
             if speaker is None:
-                raise ValueError('Please give speaker id to get lookup speaker embedding.')
+                raise ValueError(
+                    "Please give speaker id to get lookup speaker embedding."
+                )
             spk_emb = self.speaker_emb(speaker).unsqueeze(1)
         else:
             spk_emb = None
@@ -296,16 +344,25 @@ class FastPitchModule(NeuralModule, adapter_mixins.AdapterModuleMixin):
         enc_out, enc_mask = self.encoder(input=text, conditioning=spk_emb)
 
         # Predict duration
-        log_durs_predicted = self.duration_predictor(enc_out, enc_mask, conditioning=spk_emb)
+        log_durs_predicted = self.duration_predictor(
+            enc_out, enc_mask, conditioning=spk_emb
+        )
         durs_predicted = log_to_duration(
-            log_dur=log_durs_predicted, min_dur=self.min_token_duration, max_dur=self.max_token_duration, mask=enc_mask
+            log_dur=log_durs_predicted,
+            min_dur=self.min_token_duration,
+            max_dur=self.max_token_duration,
+            mask=enc_mask,
         )
 
         attn_soft, attn_hard, attn_hard_dur, attn_logprob = None, None, None, None
         if self.learn_alignment and spec is not None:
             text_emb = self.encoder.word_emb(text)
             attn_soft, attn_logprob = self.aligner(
-                spec, text_emb.permute(0, 2, 1), enc_mask == 0, attn_prior, conditioning=spk_emb
+                spec,
+                text_emb.permute(0, 2, 1),
+                enc_mask == 0,
+                attn_prior,
+                conditioning=spk_emb,
             )
             attn_hard = binarize_attention_parallel(attn_soft, input_lens, mel_lens)
             attn_hard_dur = attn_hard.sum(2)[:, 0, :]
@@ -327,7 +384,9 @@ class FastPitchModule(NeuralModule, adapter_mixins.AdapterModuleMixin):
 
         # Predict energy
         if self.energy_predictor is not None:
-            energy_pred = self.energy_predictor(enc_out, enc_mask, conditioning=spk_emb).squeeze(-1)
+            energy_pred = self.energy_predictor(
+                enc_out, enc_mask, conditioning=spk_emb
+            ).squeeze(-1)
 
             if energy is not None:
                 # Average energy over characters
@@ -361,7 +420,9 @@ class FastPitchModule(NeuralModule, adapter_mixins.AdapterModuleMixin):
             )
 
         # Output FFT
-        dec_out, _ = self.decoder(input=len_regulated, seq_lens=dec_lens, conditioning=spk_emb)
+        dec_out, _ = self.decoder(
+            input=len_regulated, seq_lens=dec_lens, conditioning=spk_emb
+        )
         spect = self.proj(dec_out).transpose(1, 2)
         return (
             spect,
@@ -402,20 +463,31 @@ class FastPitchModule(NeuralModule, adapter_mixins.AdapterModuleMixin):
         enc_out, enc_mask = self.encoder(input=text, conditioning=spk_emb)
 
         # Predict duration and pitch
-        log_durs_predicted = self.duration_predictor(enc_out, enc_mask, conditioning=spk_emb)
-        durs_predicted = log_to_duration(
-            log_dur=log_durs_predicted, min_dur=self.min_token_duration, max_dur=self.max_token_duration, mask=enc_mask
+        log_durs_predicted = self.duration_predictor(
+            enc_out, enc_mask, conditioning=spk_emb
         )
-        pitch_predicted = self.pitch_predictor(enc_out, enc_mask, conditioning=spk_emb) + pitch
+        durs_predicted = log_to_duration(
+            log_dur=log_durs_predicted,
+            min_dur=self.min_token_duration,
+            max_dur=self.max_token_duration,
+            mask=enc_mask,
+        )
+        pitch_predicted = (
+            self.pitch_predictor(enc_out, enc_mask, conditioning=spk_emb) + pitch
+        )
         pitch_emb = self.pitch_emb(pitch_predicted.unsqueeze(1))
         enc_out = enc_out + pitch_emb.transpose(1, 2)
 
         if self.energy_predictor is not None:
             if energy is not None:
-                assert energy.shape[-1] == text.shape[-1], f"energy.shape[-1]: {energy.shape[-1]} != len(text)"
+                assert (
+                    energy.shape[-1] == text.shape[-1]
+                ), f"energy.shape[-1]: {energy.shape[-1]} != len(text)"
                 energy_emb = self.energy_emb(energy)
             else:
-                energy_pred = self.energy_predictor(enc_out, enc_mask, conditioning=spk_emb).squeeze(-1)
+                energy_pred = self.energy_predictor(
+                    enc_out, enc_mask, conditioning=spk_emb
+                ).squeeze(-1)
                 energy_emb = self.energy_emb(energy_pred.unsqueeze(1))
             enc_out = enc_out + energy_emb.transpose(1, 2)
 
@@ -423,11 +495,15 @@ class FastPitchModule(NeuralModule, adapter_mixins.AdapterModuleMixin):
         len_regulated, dec_lens = regulate_len(durs_predicted, enc_out, pace)
         volume_extended = None
         if volume is not None:
-            volume_extended, _ = regulate_len(durs_predicted, volume.unsqueeze(-1), pace)
+            volume_extended, _ = regulate_len(
+                durs_predicted, volume.unsqueeze(-1), pace
+            )
             volume_extended = volume_extended.squeeze(-1).float()
 
         # Output FFT
-        dec_out, _ = self.decoder(input=len_regulated, seq_lens=dec_lens, conditioning=spk_emb)
+        dec_out, _ = self.decoder(
+            input=len_regulated, seq_lens=dec_lens, conditioning=spk_emb
+        )
         spect = self.proj(dec_out).transpose(1, 2)
         return (
             spect.to(torch.float),
@@ -471,30 +547,32 @@ class FastPitchSSLModule(NeuralModule):
             )
 
         # Store values precomputed from training data for convenience
-        self.register_buffer('pitch_mean', torch.zeros(1))
-        self.register_buffer('pitch_std', torch.zeros(1))
+        self.register_buffer("pitch_mean", torch.zeros(1))
+        self.register_buffer("pitch_std", torch.zeros(1))
 
         self.proj = torch.nn.Linear(self.decoder.d_model, n_mel_channels, bias=True)
 
     @property
     def input_types(self):
         return {
-            "enc_out": NeuralType(('B', 'T', 'D'), EncodedRepresentation()),
-            "enc_mask": NeuralType(('B', 'T', 'D'), EncodedRepresentation()),
-            "durs": NeuralType(('B', 'T_text'), TokenDurationType(), optional=True),
-            "pitch": NeuralType(('B', 'T_audio'), RegressionValuesType(), optional=True),
+            "enc_out": NeuralType(("B", "T", "D"), EncodedRepresentation()),
+            "enc_mask": NeuralType(("B", "T", "D"), EncodedRepresentation()),
+            "durs": NeuralType(("B", "T_text"), TokenDurationType(), optional=True),
+            "pitch": NeuralType(
+                ("B", "T_audio"), RegressionValuesType(), optional=True
+            ),
             "pace": NeuralType(optional=True),
         }
 
     @property
     def output_types(self):
         return {
-            "spect": NeuralType(('B', 'D', 'T_spec'), MelSpectrogramType()),
-            "num_frames": NeuralType(('B'), TokenDurationType()),
-            "durs_predicted": NeuralType(('B', 'T_text'), TokenDurationType()),
-            "log_durs_predicted": NeuralType(('B', 'T_text'), TokenLogDurationType()),
-            "pitch_predicted": NeuralType(('B', 'T_text'), RegressionValuesType()),
-            "pitch": NeuralType(('B', 'T_audio'), RegressionValuesType()),
+            "spect": NeuralType(("B", "D", "T_spec"), MelSpectrogramType()),
+            "num_frames": NeuralType(("B"), TokenDurationType()),
+            "durs_predicted": NeuralType(("B", "T_text"), TokenDurationType()),
+            "log_durs_predicted": NeuralType(("B", "T_text"), TokenLogDurationType()),
+            "pitch_predicted": NeuralType(("B", "T_text"), RegressionValuesType()),
+            "pitch": NeuralType(("B", "T_audio"), RegressionValuesType()),
         }
 
     @typecheck()
@@ -530,7 +608,9 @@ class FastPitchSSLModule(NeuralModule):
             len_regulated, dec_lens = regulate_len(durs, enc_out, pace)
         else:
             # Use predictions during inference
-            assert self.duration_predictor is not None, "Duration predictor cannot be none if durs is not provided"
+            assert (
+                self.duration_predictor is not None
+            ), "Duration predictor cannot be none if durs is not provided"
             len_regulated, dec_lens = regulate_len(durs_predicted, enc_out, pace)
 
         # Output FFT

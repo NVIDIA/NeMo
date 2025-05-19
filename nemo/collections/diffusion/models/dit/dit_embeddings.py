@@ -89,10 +89,16 @@ def get_pos_emb_on_this_cp_rank(pos_emb, seq_dim):
     """
     cp_size = parallel_state.get_context_parallel_world_size()
     cp_rank = parallel_state.get_context_parallel_rank()
-    cp_idx = torch.tensor([cp_rank], device="cpu", pin_memory=True).cuda(non_blocking=True)
-    pos_emb = pos_emb.view(*pos_emb.shape[:seq_dim], cp_size, -1, *pos_emb.shape[(seq_dim + 1) :])
+    cp_idx = torch.tensor([cp_rank], device="cpu", pin_memory=True).cuda(
+        non_blocking=True
+    )
+    pos_emb = pos_emb.view(
+        *pos_emb.shape[:seq_dim], cp_size, -1, *pos_emb.shape[(seq_dim + 1) :]
+    )
     pos_emb = pos_emb.index_select(seq_dim, cp_idx)
-    pos_emb = pos_emb.view(*pos_emb.shape[:seq_dim], -1, *pos_emb.shape[(seq_dim + 2) :])
+    pos_emb = pos_emb.view(
+        *pos_emb.shape[:seq_dim], -1, *pos_emb.shape[(seq_dim + 2) :]
+    )
     return pos_emb
 
 
@@ -134,15 +140,25 @@ class SinCosPosEmb3D(MegatronModule):
         self.t = t
         # h w t
         param = get_3d_sincos_pos_embed(
-            config.hidden_size, [h, w], t, spatial_interpolation_scale, temporal_interpolation_scale
+            config.hidden_size,
+            [h, w],
+            t,
+            spatial_interpolation_scale,
+            temporal_interpolation_scale,
         )
         param = rearrange(param, "t hw c -> (t hw) c")
         self.pos_embedding = torch.nn.Embedding(param.shape[0], config.hidden_size)
-        self.pos_embedding.weight = torch.nn.Parameter(torch.tensor(param), requires_grad=False)
+        self.pos_embedding.weight = torch.nn.Parameter(
+            torch.tensor(param), requires_grad=False
+        )
 
     def forward(self, pos_ids: torch.Tensor):
         # pos_ids: t h w
-        pos_id = pos_ids[..., 0] * self.h * self.w + pos_ids[..., 1] * self.w + pos_ids[..., 2]
+        pos_id = (
+            pos_ids[..., 0] * self.h * self.w
+            + pos_ids[..., 1] * self.w
+            + pos_ids[..., 2]
+        )
         return self.pos_embedding(pos_id)
 
 
@@ -160,8 +176,8 @@ class FactorizedLearnable3DEmbedding(MegatronModule):
         self.emb_h = torch.nn.Embedding(h, config.hidden_size)
         self.emb_w = torch.nn.Embedding(w, config.hidden_size)
 
-        if 'seed' in kwargs.keys():
-            seed = kwargs['seed']
+        if "seed" in kwargs.keys():
+            seed = kwargs["seed"]
             with torch.random.fork_rng():
                 torch.manual_seed(seed)
                 if config.perform_initialization:
@@ -183,4 +199,8 @@ class FactorizedLearnable3DEmbedding(MegatronModule):
         self.emb_w.reset_parameters()
 
     def forward(self, pos_ids: torch.Tensor):
-        return self.emb_t(pos_ids[..., 0]) + self.emb_h(pos_ids[..., 1]) + self.emb_w(pos_ids[..., 2])
+        return (
+            self.emb_t(pos_ids[..., 0])
+            + self.emb_h(pos_ids[..., 1])
+            + self.emb_w(pos_ids[..., 2])
+        )

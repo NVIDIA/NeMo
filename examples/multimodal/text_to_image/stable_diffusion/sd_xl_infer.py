@@ -24,7 +24,7 @@ from nemo.collections.multimodal.parts.utils import \
 from nemo.core.config import hydra_runner
 
 
-@hydra_runner(config_path='conf', config_name='sd_xl_infer')
+@hydra_runner(config_path="conf", config_name="sd_xl_infer")
 def main(cfg):
     def model_cfg_modifier(model_cfg):
         model_cfg.precision = cfg.trainer.precision
@@ -34,12 +34,14 @@ def main(cfg):
         # model_cfg.unet_config.from_NeMo = True
         # model_cfg.first_stage_config.from_pretrained = "/opt/nemo-aligner/checkpoints/sdxl/vae_nemo.ckpt"
         # model_cfg.first_stage_config.from_NeMo = True
-        model_cfg.first_stage_config._target_ = 'nemo.collections.multimodal.models.text_to_image.stable_diffusion.ldm.autoencoder.AutoencoderKLInferenceWrapper'
+        model_cfg.first_stage_config._target_ = "nemo.collections.multimodal.models.text_to_image.stable_diffusion.ldm.autoencoder.AutoencoderKLInferenceWrapper"
         # model_cfg.fsdp = True
 
     torch.backends.cuda.matmul.allow_tf32 = True
     trainer, megatron_diffusion_model = setup_trainer_and_model_for_inference(
-        model_provider=MegatronDiffusionEngine, cfg=cfg, model_cfg_modifier=model_cfg_modifier
+        model_provider=MegatronDiffusionEngine,
+        cfg=cfg,
+        model_cfg_modifier=model_cfg_modifier,
     )
 
     ### Manually configure sharded model
@@ -51,9 +53,13 @@ def main(cfg):
     model.cuda().eval()
 
     with torch.no_grad():
-        base = SamplingPipeline(model, use_fp16=cfg.use_fp16, is_legacy=cfg.model.is_legacy)
-        use_refiner = cfg.get('use_refiner', False)
-        num_samples_per_batch = cfg.infer.get('num_samples_per_batch', cfg.infer.num_samples)
+        base = SamplingPipeline(
+            model, use_fp16=cfg.use_fp16, is_legacy=cfg.model.is_legacy
+        )
+        use_refiner = cfg.get("use_refiner", False)
+        num_samples_per_batch = cfg.infer.get(
+            "num_samples_per_batch", cfg.infer.num_samples
+        )
         num_batches = cfg.infer.num_samples // num_samples_per_batch
 
         for i, prompt in enumerate(cfg.infer.prompt):

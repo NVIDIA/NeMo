@@ -46,7 +46,9 @@ try:
     from megatron.core.num_microbatches_calculator import get_num_microbatches
 
 except (ImportError, ModuleNotFoundError):
-    logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
+    logging.warning(
+        "Megatron num_microbatches_calculator not found, using Apex version."
+    )
     from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 
 try:
@@ -69,21 +71,31 @@ except (ImportError, ModuleNotFoundError):
 
 
 class ControlledUnetModel(UNetModel):
-    '''
+    """
     Modified Unet class that combines the output of controlling copy and frozen copy during forward pass.
-    '''
+    """
 
-    def forward(self, x, timesteps=None, context=None, control=None, only_mid_control=False, **kwargs):
-        '''
+    def forward(
+        self,
+        x,
+        timesteps=None,
+        context=None,
+        control=None,
+        only_mid_control=False,
+        **kwargs,
+    ):
+        """
         :param x: latents of diffusion process
         :param timesteps: diffusion step
         :param context: text embedding guiding the denoising process
         :param control: output from controlling copy of each corresponding layer
         :param only_mid_control: whether to add the output of controlling copy from middle block only
-        '''
+        """
         hs = []
         with torch.no_grad():
-            t_emb = timestep_embedding(timesteps, self.model_channels, repeat_only=False)
+            t_emb = timestep_embedding(
+                timesteps, self.model_channels, repeat_only=False
+            )
             emb = self.time_embed(t_emb)
             h = x.type(emb.dtype)
             for module in self.input_blocks:
@@ -123,7 +135,9 @@ class ControlLDM(LatentDiffusion):
             self.control_model = torch.compile(self.control_model)
 
         if self.channels_last:
-            self.control_model = self.control_model.to(memory_format=torch.channels_last)
+            self.control_model = self.control_model.to(
+                memory_format=torch.channels_last
+            )
 
     @torch.no_grad()
     def get_input(self, batch, k, bs=None, *args, **kwargs):
@@ -135,7 +149,7 @@ class ControlLDM(LatentDiffusion):
         if self.channels_last:
             control = control.permute(0, 3, 1, 2).to(non_blocking=True)
         else:
-            control = einops.rearrange(control, 'b h w c -> b c h w')
+            control = einops.rearrange(control, "b h w c -> b c h w")
             control = control.to(memory_format=torch.contiguous_format).float()
         return x, dict(c_crossattn=c, c_concat=control)
 
@@ -144,17 +158,27 @@ class ControlLDM(LatentDiffusion):
         diffusion_model = self.model.diffusion_model
 
         # cond_txt = torch.cat(cond['c_crossattn'], 1) ## Has removed this first dim in the get_input function, same for below hint input
-        cond_txt = cond['c_crossattn']
+        cond_txt = cond["c_crossattn"]
 
-        if cond['c_concat'] is None:
+        if cond["c_concat"] is None:
             eps = diffusion_model(
-                x=x_noisy, timesteps=t, context=cond_txt, control=None, only_mid_control=self.only_mid_control
+                x=x_noisy,
+                timesteps=t,
+                context=cond_txt,
+                control=None,
+                only_mid_control=self.only_mid_control,
             )
         else:
-            control = self.control_model(x=x_noisy, hint=cond['c_concat'], timesteps=t, context=cond_txt)
+            control = self.control_model(
+                x=x_noisy, hint=cond["c_concat"], timesteps=t, context=cond_txt
+            )
             control = [c * scale for c, scale in zip(control, self.control_scales)]
             eps = diffusion_model(
-                x=x_noisy, timesteps=t, context=cond_txt, control=control, only_mid_control=self.only_mid_control
+                x=x_noisy,
+                timesteps=t,
+                context=cond_txt,
+                control=control,
+                only_mid_control=self.only_mid_control,
             )
         return eps
 
@@ -186,16 +210,18 @@ class ControlLDM(LatentDiffusion):
 
         log = dict()
         batch = next(batch)
-        batch['images'] = batch['images'].to(torch.cuda.current_device())
-        batch['hint'] = batch['hint'].to(torch.cuda.current_device())
-        N = batch['images'].shape[0]
+        batch["images"] = batch["images"].to(torch.cuda.current_device())
+        batch["hint"] = batch["hint"].to(torch.cuda.current_device())
+        N = batch["images"].shape[0]
         z, c = self.get_input(batch, self.first_stage_key, bs=N)
         c_cat, c = c["c_concat"][:N], c["c_crossattn"][:N]
         N = min(z.shape[0], N)
         n_row = min(z.shape[0], n_row)
         log["reconstruction"] = self.decode_first_stage(z)
         log["control"] = c_cat * 2.0 - 1.0
-        log["conditioning"] = log_txt_as_img((512, 512), batch[self.cond_stage_key], size=16)
+        log["conditioning"] = log_txt_as_img(
+            (512, 512), batch[self.cond_stage_key], size=16
+        )
 
         if plot_diffusion_rows:
             # get diffusion row
@@ -203,16 +229,18 @@ class ControlLDM(LatentDiffusion):
             z_start = z[:n_row]
             for t in range(self.num_timesteps):
                 if t % self.log_every_t == 0 or t == self.num_timesteps - 1:
-                    t = repeat(torch.tensor([t]), '1 -> b', b=n_row)
+                    t = repeat(torch.tensor([t]), "1 -> b", b=n_row)
                     t = t.to(self.device).long()
                     noise = torch.randn_like(z_start)
                     z_noisy = self.q_sample(x_start=z_start, t=t, noise=noise)
                     diffusion_row.append(self.decode_first_stage(z_noisy))
 
             diffusion_row = torch.stack(diffusion_row)  # n_log_step, n_row, C, H, W
-            diffusion_grid = rearrange(diffusion_row, 'n b c h w -> b n c h w')
-            diffusion_grid = rearrange(diffusion_grid, 'b n c h w -> (b n) c h w')
-            assert TORCHVISION_AVAILABLE, "Torchvision imports failed but they are required."
+            diffusion_grid = rearrange(diffusion_row, "n b c h w -> b n c h w")
+            diffusion_grid = rearrange(diffusion_grid, "b n c h w -> (b n) c h w")
+            assert (
+                TORCHVISION_AVAILABLE
+            ), "Torchvision imports failed but they are required."
             diffusion_grid = make_grid(diffusion_grid, nrow=diffusion_row.shape[0])
             log["diffusion_row"] = diffusion_grid
 
@@ -254,7 +282,9 @@ class ControlLDM(LatentDiffusion):
         ddim_sampler = DDIMSampler(self)
         c, h, w = cond["c_concat"][0].shape
         shape = (self.channels, h // 8, w // 8)
-        samples, intermediates = ddim_sampler.sample(ddim_steps, batch_size, shape, cond, verbose=False, **kwargs)
+        samples, intermediates = ddim_sampler.sample(
+            ddim_steps, batch_size, shape, cond, verbose=False, **kwargs
+        )
         return samples, intermediates
 
     def parameters(self):
@@ -315,12 +345,12 @@ class ControlNet(nn.Module):
         if use_spatial_transformer:
             assert (
                 context_dim is not None
-            ), 'Fool!! You forgot to include the dimension of your cross-attention conditioning...'
+            ), "Fool!! You forgot to include the dimension of your cross-attention conditioning..."
 
         if context_dim is not None:
             assert (
                 use_spatial_transformer
-            ), 'Fool!! You forgot to use the spatial transformer for your cross-attention conditioning...'
+            ), "Fool!! You forgot to use the spatial transformer for your cross-attention conditioning..."
             from omegaconf.listconfig import ListConfig
 
             if type(context_dim) == ListConfig:
@@ -330,10 +360,14 @@ class ControlNet(nn.Module):
             num_heads_upsample = num_heads
 
         if num_heads == -1:
-            assert num_head_channels != -1, 'Either num_heads or num_head_channels has to be set'
+            assert (
+                num_head_channels != -1
+            ), "Either num_heads or num_head_channels has to be set"
 
         if num_head_channels == -1:
-            assert num_heads != -1, 'Either num_heads or num_head_channels has to be set'
+            assert (
+                num_heads != -1
+            ), "Either num_heads or num_head_channels has to be set"
 
         self.dims = dims
         self.image_size = image_size
@@ -354,7 +388,10 @@ class ControlNet(nn.Module):
         if num_attention_blocks is not None:
             assert len(num_attention_blocks) == len(self.num_res_blocks)
             assert all(
-                map(lambda i: self.num_res_blocks[i] >= num_attention_blocks[i], range(len(num_attention_blocks)))
+                map(
+                    lambda i: self.num_res_blocks[i] >= num_attention_blocks[i],
+                    range(len(num_attention_blocks)),
+                )
             )
             print(
                 f"Constructor of UNetModel received num_attention_blocks={num_attention_blocks}. "
@@ -382,7 +419,11 @@ class ControlNet(nn.Module):
         )
 
         self.input_blocks = nn.ModuleList(
-            [TimestepEmbedSequential(conv_nd(dims, in_channels, model_channels, 3, padding=1))]
+            [
+                TimestepEmbedSequential(
+                    conv_nd(dims, in_channels, model_channels, 3, padding=1)
+                )
+            ]
         )
         self.zero_convs = nn.ModuleList([self.make_zero_conv(model_channels)])
 
@@ -430,13 +471,20 @@ class ControlNet(nn.Module):
                         dim_head = num_head_channels
                     if legacy:
                         # num_heads = 1
-                        dim_head = ch // num_heads if use_spatial_transformer else num_head_channels
+                        dim_head = (
+                            ch // num_heads
+                            if use_spatial_transformer
+                            else num_head_channels
+                        )
                     if exists(disable_self_attentions):
                         disabled_sa = disable_self_attentions[level]
                     else:
                         disabled_sa = False
 
-                    if not exists(num_attention_blocks) or nr < num_attention_blocks[level]:
+                    if (
+                        not exists(num_attention_blocks)
+                        or nr < num_attention_blocks[level]
+                    ):
                         layers.append(
                             AttentionBlock(
                                 ch,
@@ -477,7 +525,9 @@ class ControlNet(nn.Module):
                             down=True,
                         )
                         if resblock_updown
-                        else Downsample(ch, conv_resample, dims=dims, out_channels=out_ch)
+                        else Downsample(
+                            ch, conv_resample, dims=dims, out_channels=out_ch
+                        )
                     )
                 )
                 ch = out_ch
@@ -537,17 +587,23 @@ class ControlNet(nn.Module):
         self._feature_size += ch
 
         if from_pretrained_unet is not None:
-            self.load_from_unet(from_pretrained_unet=from_pretrained_unet, from_NeMo=from_NeMo)
+            self.load_from_unet(
+                from_pretrained_unet=from_pretrained_unet, from_NeMo=from_NeMo
+            )
 
     def load_from_unet(self, from_pretrained_unet, from_NeMo=True):
         if not from_NeMo:
-            print('loading from other source of unet is experimental! Carefully check if keys are loaded correctly.')
+            print(
+                "loading from other source of unet is experimental! Carefully check if keys are loaded correctly."
+            )
         else:
             print("Loading unet blocks from sd")
 
-            state_dict = torch.load(from_pretrained_unet, map_location='cpu', weights_only=False)
-            if 'state_dict' in state_dict.keys():
-                state_dict = state_dict['state_dict']
+            state_dict = torch.load(
+                from_pretrained_unet, map_location="cpu", weights_only=False
+            )
+            if "state_dict" in state_dict.keys():
+                state_dict = state_dict["state_dict"]
             model_state_dict = self.state_dict()
             model_state_keys = model_state_dict.keys()
 
@@ -558,14 +614,20 @@ class ControlNet(nn.Module):
                     re_state_dict[key_] = value_
                     continue
                 # prune from model prefix
-                if key_.startswith('model.model.diffusion_model'):
-                    re_state_dict[key_.replace('model.model.diffusion_model.', '')] = value_
-                if key_.startswith('model.diffusion_model'):
-                    re_state_dict[key_.replace('model.diffusion_model.', '')] = value_
-                if key_.startswith('model.model._orig_mod.diffusion_model'):
-                    re_state_dict[key_.replace('model.model._orig_mod.diffusion_model.', '')] = value_
-                if key_.startswith('model._orig_mod.diffusion_model'):
-                    re_state_dict[key_.replace('model._orig_mod.diffusion_model.', '')] = value_
+                if key_.startswith("model.model.diffusion_model"):
+                    re_state_dict[key_.replace("model.model.diffusion_model.", "")] = (
+                        value_
+                    )
+                if key_.startswith("model.diffusion_model"):
+                    re_state_dict[key_.replace("model.diffusion_model.", "")] = value_
+                if key_.startswith("model.model._orig_mod.diffusion_model"):
+                    re_state_dict[
+                        key_.replace("model.model._orig_mod.diffusion_model.", "")
+                    ] = value_
+                if key_.startswith("model._orig_mod.diffusion_model"):
+                    re_state_dict[
+                        key_.replace("model._orig_mod.diffusion_model.", "")
+                    ] = value_
 
             expected_keys = list(model_state_dict.keys())
             loaded_keys = list(re_state_dict.keys())
@@ -573,13 +635,15 @@ class ControlNet(nn.Module):
             unexpected_keys = list(set(loaded_keys) - set(expected_keys))
 
             if (
-                'input_blocks.1.0.in_layers.2.weight' in loaded_keys
-                and 'input_blocks.1.0.in_layers.1.weight' in expected_keys
+                "input_blocks.1.0.in_layers.2.weight" in loaded_keys
+                and "input_blocks.1.0.in_layers.1.weight" in expected_keys
             ):
                 # GroupNormOpt fuses activation function to one layer, thus the indexing of weights are shifted for following
                 for key_ in missing_keys:
-                    if key_.startswith('input_blocks') or key_.startswith('middle_block.'):
-                        s = key_.split('.')
+                    if key_.startswith("input_blocks") or key_.startswith(
+                        "middle_block."
+                    ):
+                        s = key_.split(".")
                         idx = int(s[-2])
                         new_key_ = ".".join(s[:-2] + [str(int(idx + 1))] + [s[-1]])
                         re_state_dict[key_] = re_state_dict[new_key_]
@@ -592,16 +656,18 @@ class ControlNet(nn.Module):
 
             if len(missing_keys) > 42:
                 print(
-                    'warning: only input hint blocks and zero conv layers are randomly initialized. This message indicates some unet blocks are not loaded correctly.'
+                    "warning: only input hint blocks and zero conv layers are randomly initialized. This message indicates some unet blocks are not loaded correctly."
                 )
-                print(f'There is {len(missing_keys)} total missing keys')
+                print(f"There is {len(missing_keys)} total missing keys")
                 print("Missing:", missing_keys)
                 print("Unexpected:", unexpected_keys)
             else:
                 print("sd blocks loaded successfully")
 
     def make_zero_conv(self, channels):
-        return TimestepEmbedSequential(zero_module(conv_nd(self.dims, channels, channels, 1, padding=0)))
+        return TimestepEmbedSequential(
+            zero_module(conv_nd(self.dims, channels, channels, 1, padding=0))
+        )
 
     def forward(self, x, hint, timesteps, context, **kwargs):
         t_emb = timestep_embedding(timesteps, self.model_channels, repeat_only=False)
@@ -640,24 +706,29 @@ class MegatronControlNet(MegatronBaseModel):
         self._validate_trainer()
 
         # megatron_amp_O2 is not yet supported in diffusion models
-        self.megatron_amp_O2 = cfg.get('megatron_amp_O2', False)
+        self.megatron_amp_O2 = cfg.get("megatron_amp_O2", False)
 
         self.model = self.model_provider_func()
 
         self.conditioning_keys = []
 
-        if self.trainer.precision in ['bf16', 'bf16-mixed']:
+        if self.trainer.precision in ["bf16", "bf16-mixed"]:
             self.autocast_dtype = torch.bfloat16
-        elif self.trainer.precision in [32, '32', '32-true']:
+        elif self.trainer.precision in [32, "32", "32-true"]:
             self.autocast_dtype = torch.float
-        elif self.trainer.precision in [16, '16', '16-mixed']:
+        elif self.trainer.precision in [16, "16", "16-mixed"]:
             self.autocast_dtype = torch.half
         else:
-            raise ValueError('precision must be in ["32-true", "16-mixed", "bf16-mixed"]')
+            raise ValueError(
+                'precision must be in ["32-true", "16-mixed", "bf16-mixed"]'
+            )
 
     def get_module_list(self):
         if isinstance(self.model, list):
-            return [model.module if isinstance(model, Float16Module) else model for model in self.model]
+            return [
+                model.module if isinstance(model, Float16Module) else model
+                for model in self.model
+            ]
         elif isinstance(self.model, Float16Module):
             return [self.model.module]
         else:
@@ -665,7 +736,9 @@ class MegatronControlNet(MegatronBaseModel):
 
     def model_provider_func(self, pre_process=True, post_process=True):
         """Model depends on pipeline paralellism."""
-        model = ControlLDM(cfg=self.cfg, model_parallel_config=self.model_parallel_config)
+        model = ControlLDM(
+            cfg=self.cfg, model_parallel_config=self.model_parallel_config
+        )
         return model
 
     def forward(self, x, c, *args, **kwargs):
@@ -675,9 +748,18 @@ class MegatronControlNet(MegatronBaseModel):
     @rank_zero_only
     @torch.no_grad()
     def on_train_batch_start(self, batch, batch_idx, dataloader_idx=0):
-        if self.cfg.scale_by_std and self.current_epoch == 0 and self.global_step == 0 and batch_idx == 0:
-            assert self.cfg.scale_factor == 1.0, 'rather not use custom rescaling and std-rescaling simultaneously'
-            batch[self.cfg.first_stage_key] = batch[self.cfg.first_stage_key].cuda(non_blocking=True)
+        if (
+            self.cfg.scale_by_std
+            and self.current_epoch == 0
+            and self.global_step == 0
+            and batch_idx == 0
+        ):
+            assert (
+                self.cfg.scale_factor == 1.0
+            ), "rather not use custom rescaling and std-rescaling simultaneously"
+            batch[self.cfg.first_stage_key] = batch[self.cfg.first_stage_key].cuda(
+                non_blocking=True
+            )
             self.model.on_train_batch_start(batch, batch_idx)
 
     def fwd_bwd_step(self, dataloader_iter, forward_only):
@@ -714,15 +796,20 @@ class MegatronControlNet(MegatronBaseModel):
         # only the last stages of the pipeline return losses
         loss_dict = {}
         if losses_reduced_per_micro_batch:
-            if (not forward_only) or self.cfg.data.get('validation_drop_last', True):
+            if (not forward_only) or self.cfg.data.get("validation_drop_last", True):
                 # average loss across micro batches
                 for key in losses_reduced_per_micro_batch[0]:
-                    loss_tensors_list = [loss_reduced[key] for loss_reduced in losses_reduced_per_micro_batch]
+                    loss_tensors_list = [
+                        loss_reduced[key]
+                        for loss_reduced in losses_reduced_per_micro_batch
+                    ]
                     loss_tensor = torch.stack(loss_tensors_list)
                     loss_dict[key] = loss_tensor.mean()
                 loss_mean = loss_dict["train/loss"]
             else:
-                raise NotImplementedError("Losses of micro batches sizes must be uniform!")
+                raise NotImplementedError(
+                    "Losses of micro batches sizes must be uniform!"
+                )
         else:
             if forward_only:
                 loss_mean = []
@@ -745,7 +832,9 @@ class MegatronControlNet(MegatronBaseModel):
 
         loss_mean, loss_dict = self.fwd_bwd_step(dataloader_iter, False)
 
-        if self.cfg.get('tensor_model_parallel_size', 1) > 1 and self.cfg.get('sequence_parallel', False):
+        if self.cfg.get("tensor_model_parallel_size", 1) > 1 and self.cfg.get(
+            "sequence_parallel", False
+        ):
             self.allreduce_sequence_parallel_gradients()
 
         if self.with_distributed_adam:
@@ -762,19 +851,40 @@ class MegatronControlNet(MegatronBaseModel):
             # so we all-reduce gradients after the pipeline
             self.allreduce_gradients()  # @sangkug we think this is causing memory to blow up (hurts perf)
 
-        if self.cfg.precision == [16, '16', '16-mixed']:
+        if self.cfg.precision == [16, "16", "16-mixed"]:
             loss_scale = self.trainer.precision_plugin.scaler._scale
             if loss_scale is not None:
-                self.log('loss_scale', loss_scale, batch_size=1)
+                self.log("loss_scale", loss_scale, batch_size=1)
 
-        self.log_dict(loss_dict, prog_bar=False, logger=True, on_step=True, rank_zero_only=True, batch_size=1)
-        self.log('reduced_train_loss', loss_mean, prog_bar=True, rank_zero_only=True, batch_size=1)
-        lr = self._optimizer.param_groups[0]['lr']
-        self.log('lr', lr, prog_bar=True, rank_zero_only=True, batch_size=1)
-        self.log('global_step', self.trainer.global_step + 1, prog_bar=True, rank_zero_only=True, batch_size=1)
+        self.log_dict(
+            loss_dict,
+            prog_bar=False,
+            logger=True,
+            on_step=True,
+            rank_zero_only=True,
+            batch_size=1,
+        )
         self.log(
-            'consumed_samples',
-            self.compute_consumed_samples(self.trainer.global_step + 1 - self.init_global_step),
+            "reduced_train_loss",
+            loss_mean,
+            prog_bar=True,
+            rank_zero_only=True,
+            batch_size=1,
+        )
+        lr = self._optimizer.param_groups[0]["lr"]
+        self.log("lr", lr, prog_bar=True, rank_zero_only=True, batch_size=1)
+        self.log(
+            "global_step",
+            self.trainer.global_step + 1,
+            prog_bar=True,
+            rank_zero_only=True,
+            batch_size=1,
+        )
+        self.log(
+            "consumed_samples",
+            self.compute_consumed_samples(
+                self.trainer.global_step + 1 - self.init_global_step
+            ),
             prog_bar=True,
             rank_zero_only=True,
             batch_size=1,
@@ -798,7 +908,7 @@ class MegatronControlNet(MegatronBaseModel):
         """Helper method for allreduce_sequence_parallel_gradients"""
 
         for param in module.parameters():
-            sequence_parallel_param = getattr(param, 'sequence_parallel', False)
+            sequence_parallel_param = getattr(param, "sequence_parallel", False)
             if sequence_parallel_param and param.requires_grad:
                 if self.megatron_amp_O2:
                     grad = param.main_grad
@@ -812,10 +922,14 @@ class MegatronControlNet(MegatronBaseModel):
             Global batch is a list of micro batches.
             """
             # noise_map, condition
-            batch[self.cfg.first_stage_key] = batch[self.cfg.first_stage_key].cuda(non_blocking=True)
+            batch[self.cfg.first_stage_key] = batch[self.cfg.first_stage_key].cuda(
+                non_blocking=True
+            )
             if isinstance(batch[self.cfg.cond_stage_key], torch.Tensor):
                 # in the case of precached text embeddings, cond_stage is also a tensor
-                batch[self.cfg.cond_stage_key] = batch[self.cfg.cond_stage_key].cuda(non_blocking=True)
+                batch[self.cfg.cond_stage_key] = batch[self.cfg.cond_stage_key].cuda(
+                    non_blocking=True
+                )
 
             # SD has more dedicated structure for encoding, so we enable autocasting here as well
             with torch.cuda.amp.autocast(
@@ -872,7 +986,7 @@ class MegatronControlNet(MegatronBaseModel):
             forward_only=True,
             tensor_shape=None,  # required by pipeline parallelism
             dtype=self.autocast_dtype,
-            sequence_parallel=self.cfg.get('sequence_parallel', False),
+            sequence_parallel=self.cfg.get("sequence_parallel", False),
             enable_autocast=True,
         )
         # only the last stages of the pipeline return losses
@@ -880,11 +994,15 @@ class MegatronControlNet(MegatronBaseModel):
         if losses_reduced_per_micro_batch:
             # average loss across micro batches
             for key in losses_reduced_per_micro_batch[0]:
-                loss_tensors_list = [loss_reduced[key] for loss_reduced in losses_reduced_per_micro_batch]
+                loss_tensors_list = [
+                    loss_reduced[key] for loss_reduced in losses_reduced_per_micro_batch
+                ]
                 loss_tensor = torch.stack(loss_tensors_list)
                 val_loss_dict[key] = loss_tensor.mean()
 
-        self.log_dict(val_loss_dict, prog_bar=False, logger=True, on_step=False, on_epoch=True)
+        self.log_dict(
+            val_loss_dict, prog_bar=False, logger=True, on_step=False, on_epoch=True
+        )
 
     def setup(self, stage=None):
         """
@@ -898,31 +1016,44 @@ class MegatronControlNet(MegatronBaseModel):
             stage (str, optional):
                 Can be 'fit', 'validate', 'test', or 'predict'. Defaults to None.
         """
-        self.model.rng.manual_seed(self.cfg.seed + 100 * parallel_state.get_data_parallel_rank())
+        self.model.rng.manual_seed(
+            self.cfg.seed + 100 * parallel_state.get_data_parallel_rank()
+        )
 
         # log number of parameters
         if isinstance(self.model, list):
             num_parameters_on_device = sum(
-                [sum([p.nelement() for p in model_module.parameters()]) for model_module in self.model]
+                [
+                    sum([p.nelement() for p in model_module.parameters()])
+                    for model_module in self.model
+                ]
             )
         else:
-            num_parameters_on_device = sum([p.nelement() for p in self.model.parameters()])
+            num_parameters_on_device = sum(
+                [p.nelement() for p in self.model.parameters()]
+            )
 
         # to be summed across data parallel group
-        total_num_parameters = torch.tensor(num_parameters_on_device).cuda(non_blocking=True)
+        total_num_parameters = torch.tensor(num_parameters_on_device).cuda(
+            non_blocking=True
+        )
 
-        torch.distributed.all_reduce(total_num_parameters, group=parallel_state.get_model_parallel_group())
+        torch.distributed.all_reduce(
+            total_num_parameters, group=parallel_state.get_model_parallel_group()
+        )
 
         logging.info(
-            f'Pipeline model parallel rank: {parallel_state.get_pipeline_model_parallel_rank()}, '
-            f'Tensor model parallel rank: {parallel_state.get_tensor_model_parallel_rank()}, '
-            f'Number of model parameters on device: {num_parameters_on_device:.2e}. '
-            f'Total number of model parameters: {total_num_parameters:.2e}.'
+            f"Pipeline model parallel rank: {parallel_state.get_pipeline_model_parallel_rank()}, "
+            f"Tensor model parallel rank: {parallel_state.get_tensor_model_parallel_rank()}, "
+            f"Number of model parameters on device: {num_parameters_on_device:.2e}. "
+            f"Total number of model parameters: {total_num_parameters:.2e}."
         )
 
         resume_checkpoint_path = self.trainer.ckpt_path
         if resume_checkpoint_path:
-            init_consumed_samples = self._extract_consumed_samples_from_ckpt(resume_checkpoint_path)
+            init_consumed_samples = self._extract_consumed_samples_from_ckpt(
+                resume_checkpoint_path
+            )
         else:
             init_consumed_samples = 0
         self.init_consumed_samples = init_consumed_samples
@@ -940,9 +1071,13 @@ class MegatronControlNet(MegatronBaseModel):
         self.setup_test_data(self.cfg.data)
 
     def build_train_valid_test_datasets(self):
-        logging.info('Building datasets for Stable Diffusion...')
-        if self.trainer.limit_val_batches > 1.0 and isinstance(self.trainer.limit_val_batches, float):
-            raise ValueError("limit_val_batches must be an integer or float less than or equal to 1.0.")
+        logging.info("Building datasets for Stable Diffusion...")
+        if self.trainer.limit_val_batches > 1.0 and isinstance(
+            self.trainer.limit_val_batches, float
+        ):
+            raise ValueError(
+                "limit_val_batches must be an integer or float less than or equal to 1.0."
+            )
 
         if self.cfg.first_stage_key.endswith("encoded"):
             self._train_ds, self._validation_ds = build_train_valid_precached_datasets(
@@ -956,19 +1091,19 @@ class MegatronControlNet(MegatronBaseModel):
         self._test_ds = None
 
         if self._train_ds is not None:
-            logging.info(f'Length of train dataset: {len(self._train_ds)}')
+            logging.info(f"Length of train dataset: {len(self._train_ds)}")
         if self._validation_ds is not None:
-            logging.info(f'Length of val dataset: {len(self._validation_ds)}')
+            logging.info(f"Length of val dataset: {len(self._validation_ds)}")
         if self._test_ds is not None:
-            logging.info(f'Length of test dataset: {len(self._test_ds)}')
-        logging.info(f'Finished building datasets for LatentDiffusion.')
+            logging.info(f"Length of test dataset: {len(self._test_ds)}")
+        logging.info(f"Finished building datasets for LatentDiffusion.")
         return self._train_ds, self._validation_ds, self._test_ds
 
     def setup_training_data(self, cfg):
-        if hasattr(self, '_train_ds') and self._train_ds is not None:
+        if hasattr(self, "_train_ds") and self._train_ds is not None:
             consumed_samples = self.compute_consumed_samples(0)
             logging.info(
-                f'Setting up train dataloader with len(len(self._train_ds)): {len(self._train_ds)} and consumed samples: {consumed_samples}'
+                f"Setting up train dataloader with len(len(self._train_ds)): {len(self._train_ds)} and consumed samples: {consumed_samples}"
             )
             self._train_dl = torch.utils.data.DataLoader(
                 self._train_ds,
@@ -980,10 +1115,10 @@ class MegatronControlNet(MegatronBaseModel):
             )
 
     def setup_validation_data(self, cfg):
-        if hasattr(self, '_validation_ds') and self._validation_ds is not None:
+        if hasattr(self, "_validation_ds") and self._validation_ds is not None:
             consumed_samples = 0
             logging.info(
-                f'Setting up validation dataloader with len(len(self._validation_ds)): {len(self._validation_ds)} and consumed samples: {consumed_samples}'
+                f"Setting up validation dataloader with len(len(self._validation_ds)): {len(self._validation_ds)} and consumed samples: {consumed_samples}"
             )
             self._validation_dl = torch.utils.data.DataLoader(
                 self._validation_ds,
@@ -995,10 +1130,10 @@ class MegatronControlNet(MegatronBaseModel):
             )
 
     def setup_test_data(self, cfg):
-        if hasattr(self, '_test_ds') and self._test_ds is not None:
+        if hasattr(self, "_test_ds") and self._test_ds is not None:
             consumed_samples = 0
             logging.info(
-                f'Setting up test dataloader with len(len(self._test_ds)): {len(self._test_ds)} and consumed samples: {consumed_samples}'
+                f"Setting up test dataloader with len(len(self._test_ds)): {len(self._test_ds)} and consumed samples: {consumed_samples}"
             )
             self._test_dl = torch.utils.data.DataLoader(
                 self._test_ds,
@@ -1007,7 +1142,9 @@ class MegatronControlNet(MegatronBaseModel):
                 pin_memory=True,
             )
 
-    def transfer_batch_to_device(self, batch: Any, device: torch.device, dataloader_idx: int) -> Any:
+    def transfer_batch_to_device(
+        self, batch: Any, device: torch.device, dataloader_idx: int
+    ) -> Any:
         """PTL hook: https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#transfer-batch-to-device
         When using pipeline parallelism, we need the global batch to remain on the CPU,
         since the memory overhead will be too high when using a large number of microbatches.
@@ -1021,7 +1158,7 @@ class MegatronControlNet(MegatronBaseModel):
         """
         if self.trainer.accumulate_grad_batches > 1:
             raise ValueError(
-                f'Gradient accumulation is done within training_step. trainer.accumulate_grad_batches must equal 1'
+                f"Gradient accumulation is done within training_step. trainer.accumulate_grad_batches must equal 1"
             )
 
     @classmethod
@@ -1033,6 +1170,8 @@ class MegatronControlNet(MegatronBaseModel):
 
     def parameters(self):
         if isinstance(self.model, list):
-            return itertools.chain.from_iterable(module.parameters() for module in self.model)
+            return itertools.chain.from_iterable(
+                module.parameters() for module in self.model
+            )
         else:
             return self.model.parameters()

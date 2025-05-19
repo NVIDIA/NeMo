@@ -52,7 +52,11 @@ class GPTQADataset(QADataset):
         deprecated_warning("GPTQADataset")
 
         super().__init__(
-            data_file=data_file, processor=processor, tokenizer=tokenizer, mode=mode, num_samples=num_samples
+            data_file=data_file,
+            processor=processor,
+            tokenizer=tokenizer,
+            mode=mode,
+            num_samples=num_samples,
         )
 
         self.keep_doc_spans = keep_doc_spans
@@ -72,11 +76,15 @@ class GPTQADataset(QADataset):
             if self.mode == TRAINING_MODE:
                 del self.examples
                 del self.processor
-            self.features = QADataset.load_features_from_cache(self.cached_features_file)
+            self.features = QADataset.load_features_from_cache(
+                self.cached_features_file
+            )
         else:
             self._convert_examples_to_features()
             if use_cache:
-                QADataset.dump_features_to_cache(self.cached_features_file, self.features)
+                QADataset.dump_features_to_cache(
+                    self.cached_features_file, self.features
+                )
 
         logging.info("Converting dict features into object features")
         for i in trange(len(self.features)):
@@ -88,8 +96,8 @@ class GPTQADataset(QADataset):
         vocab_size = getattr(self.tokenizer, "vocab_size", 0)
         self.cached_features_file = (
             self.data_file
-            + '_cache'
-            + '_{}_{}_{}_{}_{}_{}_{}'.format(
+            + "_cache"
+            + "_{}_{}_{}_{}_{}_{}_{}".format(
                 self.mode,
                 self.tokenizer.name,
                 str(vocab_size),
@@ -124,7 +132,9 @@ class GPTQADataset(QADataset):
 
             example = self.examples[example_index]
 
-            formatted_query, query_tokens_length = self._prep_query(query_prefix, example)
+            formatted_query, query_tokens_length = self._prep_query(
+                query_prefix, example
+            )
             formatted_answer, answer_tokens_length = self._prep_answer(example)
             context_tokens, context_spans = self._prep_context(
                 example,
@@ -160,7 +170,9 @@ class GPTQADataset(QADataset):
 
         formatted_query = f"{query_prefix}{example.question_text}"
 
-        return self._get_truncated_sentence_and_len(formatted_query, self.max_query_length)
+        return self._get_truncated_sentence_and_len(
+            formatted_query, self.max_query_length
+        )
 
     def _prep_answer(self, example):
         """
@@ -203,7 +215,9 @@ class GPTQADataset(QADataset):
             - len(answer_prefix_tokens)
             - 1  # -1 accounts for EOS token
         )
-        context_spans = GPTQADataset.get_docspans(context_tokens, max_context_length, self.doc_stride)
+        context_spans = GPTQADataset.get_docspans(
+            context_tokens, max_context_length, self.doc_stride
+        )
         context_spans = tuple(context_spans)
 
         return context_tokens, context_spans
@@ -231,22 +245,33 @@ class GPTQADataset(QADataset):
         """
 
         for context_span_idx, context_span in enumerate(context_spans):
-            context_span_tokens = context_tokens[context_span.start : context_span.start + context_span.length]
-            context_span_text = self.tokenizer.tokenizer.convert_tokens_to_string(context_span_tokens)
+            context_span_tokens = context_tokens[
+                context_span.start : context_span.start + context_span.length
+            ]
+            context_span_text = self.tokenizer.tokenizer.convert_tokens_to_string(
+                context_span_tokens
+            )
 
-            input_without_answer = f"{context_prefix}{context_span_text}{formatted_query}{answer_prefix}"
-            _, training_mask_end = self._get_truncated_sentence_and_len(input_without_answer, self.max_seq_length)
+            input_without_answer = (
+                f"{context_prefix}{context_span_text}{formatted_query}{answer_prefix}"
+            )
+            _, training_mask_end = self._get_truncated_sentence_and_len(
+                input_without_answer, self.max_seq_length
+            )
 
             is_answer_in_context_check = (
                 self.check_if_answer_in_context  # checks if the flag for this check is set
                 and example.answer_text  # checks if answer text is valid, i.e. question is not unanswerable
-                and example.answer_text not in context_span_text  # checks if answer text is a substring of context
+                and example.answer_text
+                not in context_span_text  # checks if answer text is a substring of context
             )
 
             if self.mode == INFERENCE_MODE:
                 input_to_encode = input_without_answer
             elif is_answer_in_context_check:
-                input_to_encode = f"{input_without_answer}{self.tokenizer.tokenizer.eos_token}"
+                input_to_encode = (
+                    f"{input_without_answer}{self.tokenizer.tokenizer.eos_token}"
+                )
             else:
                 input_to_encode = f"{input_without_answer}{formatted_answer}"
 
@@ -260,7 +285,9 @@ class GPTQADataset(QADataset):
             input_ids = torch.squeeze(encoded_input_dict["input_ids"])
             input_attn_mask = torch.squeeze(encoded_input_dict["attention_mask"])
 
-            labels = GPTQADataset.update_labels_for_no_pad_loss(input_ids, training_mask_end, input_attn_mask)
+            labels = GPTQADataset.update_labels_for_no_pad_loss(
+                input_ids, training_mask_end, input_attn_mask
+            )
 
             # create dictionary features
             feature = {
@@ -289,7 +316,9 @@ class GPTQADataset(QADataset):
         return trunc_sentence, seq_length
 
     @classmethod
-    def update_labels_for_no_pad_loss(cls, input_ids, training_mask_end, input_attn_mask):
+    def update_labels_for_no_pad_loss(
+        cls, input_ids, training_mask_end, input_attn_mask
+    ):
         """
         Loss mask for GPT is constructed to ignore loss for padding tokens
         GPT eos token is same as pas token and needs to be excluded from loss mask
@@ -300,7 +329,11 @@ class GPTQADataset(QADataset):
         inv_bool_attn_mask = torch.eq(torch.squeeze(input_attn_mask), 0)
         labels.data = torch.tensor(
             [
-                -100 if ((i < training_mask_end) or (inv_bool_attn_mask[i])) else labels.data[i]
+                (
+                    -100
+                    if ((i < training_mask_end) or (inv_bool_attn_mask[i]))
+                    else labels.data[i]
+                )
                 for i in range(len(labels.data))
             ]
         )

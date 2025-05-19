@@ -69,7 +69,7 @@ def main(args):
 
         task_encoder = Llama4TaskEncoder(
             config=Llama4TaskEncoderConfig(
-                hf_path='meta-llama/Llama-4-Scout-17B-16E-Instruct',
+                hf_path="meta-llama/Llama-4-Scout-17B-16E-Instruct",
             )
         )
         data = EnergonDataModule(
@@ -81,7 +81,7 @@ def main(args):
             num_workers=num_workers,
         )
     elif args.data_type == "mock":
-        llama_tokenizer = AutoTokenizer('meta-llama/Llama-4-Scout-17B-16E-Instruct')
+        llama_tokenizer = AutoTokenizer("meta-llama/Llama-4-Scout-17B-16E-Instruct")
 
         data = vlm.Llama4MockDataModule(
             seq_length=decoder_seq_length,
@@ -154,7 +154,11 @@ def main(args):
     nemo_logger = nl.NeMoLogger(
         log_dir=args.log_dir,
         name=args.name,
-        wandb=WandbLogger(project=args.wandb_project, name=args.name) if args.wandb_project is not None else None,
+        wandb=(
+            WandbLogger(project=args.wandb_project, name=args.name)
+            if args.wandb_project is not None
+            else None
+        ),
     )
 
     # Auto resume setup
@@ -162,12 +166,16 @@ def main(args):
         resume_if_exists=True,
         resume_ignore_no_checkpoint=True,
         resume_from_directory=args.log_dir,
-        restore_config=nl.RestoreConfig(path=args.restore_path) if args.restore_path is not None else None,
+        restore_config=(
+            nl.RestoreConfig(path=args.restore_path)
+            if args.restore_path is not None
+            else None
+        ),
     )
 
     # Optimizer and scheduler setup
     opt_config = OptimizerConfig(
-        optimizer='adam',
+        optimizer="adam",
         lr=args.lr,
         adam_beta1=0.9,
         adam_beta2=0.95,
@@ -183,7 +191,7 @@ def main(args):
     opt = MegatronOptimizerModule(opt_config, sched)
 
     # PEFT setup
-    if args.peft == 'lora':
+    if args.peft == "lora":
         peft = vlm.peft.LoRA(
             target_modules=[
                 "linear_qkv",
@@ -210,16 +218,36 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Llama4 Model Training Script")
 
     # Argument parsing
-    parser.add_argument("--data_type", type=str, required=False, default="mock", help="mock | energon")
-    parser.add_argument("--data_path", type=str, required=False, default=None, help="Path to the dataset JSON file")
     parser.add_argument(
-        "--log_dir", type=str, required=False, default="/results", help="Directory for logging and checkpoints"
+        "--data_type", type=str, required=False, default="mock", help="mock | energon"
     )
     parser.add_argument(
-        "--language_model_path", type=str, required=False, default=None, help="Path to the pretrained language model"
+        "--data_path",
+        type=str,
+        required=False,
+        default=None,
+        help="Path to the dataset JSON file",
     )
     parser.add_argument(
-        "--restore_path", type=str, required=False, default=None, help="Path to restore model from checkpoint"
+        "--log_dir",
+        type=str,
+        required=False,
+        default="/results",
+        help="Directory for logging and checkpoints",
+    )
+    parser.add_argument(
+        "--language_model_path",
+        type=str,
+        required=False,
+        default=None,
+        help="Path to the pretrained language model",
+    )
+    parser.add_argument(
+        "--restore_path",
+        type=str,
+        required=False,
+        default=None,
+        help="Path to restore model from checkpoint",
     )
     parser.add_argument("--devices", type=int, required=False, default=1)
     parser.add_argument("--num_workers", type=int, required=False, default=4)
@@ -230,14 +258,28 @@ if __name__ == "__main__":
     parser.add_argument("--cp_size", type=int, required=False, default=1)
     parser.add_argument("--ep_size", type=int, required=False, default=1)
     parser.add_argument("--encoder_pp_size", type=int, required=False, default=0)
-    parser.add_argument("--projector_type", type=str, required=False, default="mcore_mlp")
+    parser.add_argument(
+        "--projector_type", type=str, required=False, default="mcore_mlp"
+    )
     parser.add_argument("--name", type=str, required=False, default="llama4_pretrain")
-    parser.add_argument("--peft", type=str, default='none', help="none | lora")
+    parser.add_argument("--peft", type=str, default="none", help="none | lora")
     parser.add_argument("--wandb_project", type=str, required=False, default=None)
-    parser.add_argument("--gbs", type=int, required=False, default=128, help="Global batch size")
-    parser.add_argument("--mbs", type=int, required=False, default=1, help="Micro batch size")
-    parser.add_argument("--lr", type=float, required=False, default=2.0e-06, help="Learning rate")
-    parser.add_argument("--decoder_seq_length", type=int, required=False, default=8192, help="decoder sequence length")
+    parser.add_argument(
+        "--gbs", type=int, required=False, default=128, help="Global batch size"
+    )
+    parser.add_argument(
+        "--mbs", type=int, required=False, default=1, help="Micro batch size"
+    )
+    parser.add_argument(
+        "--lr", type=float, required=False, default=2.0e-06, help="Learning rate"
+    )
+    parser.add_argument(
+        "--decoder_seq_length",
+        type=int,
+        required=False,
+        default=8192,
+        help="decoder sequence length",
+    )
     parser.add_argument(
         "--use_packed_sequence",
         action="store_true",

@@ -34,65 +34,71 @@ from nemo.utils.config_utils import (assert_dataclass_signature_match,
 
 @pytest.fixture()
 def asr_model():
-    preprocessor = {'_target_': 'nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor'}
+    preprocessor = {
+        "_target_": "nemo.collections.asr.modules.AudioToMelSpectrogramPreprocessor"
+    }
     encoder = {
-        '_target_': 'nemo.collections.asr.modules.ConvASREncoder',
-        'feat_in': 64,
-        'activation': 'relu',
-        'conv_mask': True,
-        'jasper': [
+        "_target_": "nemo.collections.asr.modules.ConvASREncoder",
+        "feat_in": 64,
+        "activation": "relu",
+        "conv_mask": True,
+        "jasper": [
             {
-                'filters': 1024,
-                'repeat': 1,
-                'kernel': [1],
-                'stride': [1],
-                'dilation': [1],
-                'dropout': 0.0,
-                'residual': False,
-                'separable': True,
-                'se': True,
-                'se_context_size': -1,
+                "filters": 1024,
+                "repeat": 1,
+                "kernel": [1],
+                "stride": [1],
+                "dilation": [1],
+                "dropout": 0.0,
+                "residual": False,
+                "separable": True,
+                "se": True,
+                "se_context_size": -1,
             }
         ],
     }
 
     decoder = {
-        '_target_': 'nemo.collections.asr.modules.ConvASRDecoder',
-        'feat_in': 1024,
-        'num_classes': 28,
-        'vocabulary': [
-            ' ',
-            'a',
-            'b',
-            'c',
-            'd',
-            'e',
-            'f',
-            'g',
-            'h',
-            'i',
-            'j',
-            'k',
-            'l',
-            'm',
-            'n',
-            'o',
-            'p',
-            'q',
-            'r',
-            's',
-            't',
-            'u',
-            'v',
-            'w',
-            'x',
-            'y',
-            'z',
+        "_target_": "nemo.collections.asr.modules.ConvASRDecoder",
+        "feat_in": 1024,
+        "num_classes": 28,
+        "vocabulary": [
+            " ",
+            "a",
+            "b",
+            "c",
+            "d",
+            "e",
+            "f",
+            "g",
+            "h",
+            "i",
+            "j",
+            "k",
+            "l",
+            "m",
+            "n",
+            "o",
+            "p",
+            "q",
+            "r",
+            "s",
+            "t",
+            "u",
+            "v",
+            "w",
+            "x",
+            "y",
+            "z",
             "'",
         ],
     }
     modelConfig = DictConfig(
-        {'preprocessor': DictConfig(preprocessor), 'encoder': DictConfig(encoder), 'decoder': DictConfig(decoder)}
+        {
+            "preprocessor": DictConfig(preprocessor),
+            "encoder": DictConfig(encoder),
+            "decoder": DictConfig(decoder),
+        }
     )
 
     model_instance = EncDecCTCModel(cfg=modelConfig)
@@ -124,14 +130,17 @@ class TestEncDecCTCModel:
             logprobs_instance = []
             for i in range(input_signal.size(0)):
                 logprobs_ins, _, _ = asr_model.forward(
-                    input_signal=input_signal[i : i + 1], input_signal_length=length[i : i + 1]
+                    input_signal=input_signal[i : i + 1],
+                    input_signal_length=length[i : i + 1],
                 )
                 logprobs_instance.append(logprobs_ins)
                 print(len(logprobs_ins))
             logprobs_instance = torch.cat(logprobs_instance, 0)
 
             # batch size 4
-            logprobs_batch, _, _ = asr_model.forward(input_signal=input_signal, input_signal_length=length)
+            logprobs_batch, _, _ = asr_model.forward(
+                input_signal=input_signal, input_signal_length=length
+            )
 
         assert logprobs_instance.shape == logprobs_batch.shape
         diff = torch.mean(torch.abs(logprobs_instance - logprobs_batch))
@@ -144,7 +153,9 @@ class TestEncDecCTCModel:
         token_list = [" ", "a", "b", "c"]
         asr_model = asr_model.eval()
         cuts = DummyManifest(CutSet, begin_id=0, end_id=1, with_data=True)
-        dataset = LhotseSpeechToTextBpeDataset(tokenizer=make_parser(labels=token_list), return_cuts=True)
+        dataset = LhotseSpeechToTextBpeDataset(
+            tokenizer=make_parser(labels=token_list), return_cuts=True
+        )
         batch = dataset[cuts]
         outputs = asr_model.predict_step(batch, 0)
         assert len(outputs) == 1
@@ -160,9 +171,9 @@ class TestEncDecCTCModel:
         # No change
         assert nw1 == asr_model.num_weights
         new_vocab = copy.deepcopy(old_vocab)
-        new_vocab.append('!')
-        new_vocab.append('$')
-        new_vocab.append('@')
+        new_vocab.append("!")
+        new_vocab.append("$")
+        new_vocab.append("@")
         asr_model.change_vocabulary(new_vocabulary=new_vocab)
         # fully connected + bias
         assert asr_model.num_weights == nw1 + 3 * (asr_model.decoder._feat_in + 1)
@@ -184,27 +195,31 @@ class TestEncDecCTCModel:
     @pytest.mark.unit
     def test_change_conv_asr_se_context_window(self, asr_model):
         old_cfg = copy.deepcopy(asr_model.cfg)
-        asr_model.change_conv_asr_se_context_window(context_window=32)  # 32 * 0.01s context
+        asr_model.change_conv_asr_se_context_window(
+            context_window=32
+        )  # 32 * 0.01s context
         new_config = asr_model.cfg
 
         assert old_cfg.encoder.jasper[0].se_context_size == -1
         assert new_config.encoder.jasper[0].se_context_size == 32
 
         for name, m in asr_model.encoder.named_modules():
-            if type(m).__class__.__name__ == 'SqueezeExcite':
+            if type(m).__class__.__name__ == "SqueezeExcite":
                 assert m.context_window == 32
 
     @pytest.mark.unit
     def test_change_conv_asr_se_context_window_no_config_update(self, asr_model):
         old_cfg = copy.deepcopy(asr_model.cfg)
-        asr_model.change_conv_asr_se_context_window(context_window=32, update_config=False)  # 32 * 0.01s context
+        asr_model.change_conv_asr_se_context_window(
+            context_window=32, update_config=False
+        )  # 32 * 0.01s context
         new_config = asr_model.cfg
 
         assert old_cfg.encoder.jasper[0].se_context_size == -1
         assert new_config.encoder.jasper[0].se_context_size == -1  # no change
 
         for name, m in asr_model.encoder.named_modules():
-            if type(m).__class__.__name__ == 'SqueezeExcite':
+            if type(m).__class__.__name__ == "SqueezeExcite":
                 assert m.context_window == 32
 
     @pytest.mark.unit
@@ -216,7 +231,7 @@ class TestEncDecCTCModel:
         model_cfg.model.labels = vocabulary
 
         # Update encoder
-        model_cfg.model.encoder.activation = 'relu'
+        model_cfg.model.encoder.activation = "relu"
         model_cfg.model.encoder.feat_in = 64
         model_cfg.model.encoder.jasper = [
             nemo_asr.modules.conv_asr.JasperEncoderConfig(
@@ -238,7 +253,7 @@ class TestEncDecCTCModel:
         model_cfg.model.decoder.vocabulary = vocabulary
 
         # Construct the model
-        asr_cfg = OmegaConf.create({'model': asr_model.cfg})
+        asr_cfg = OmegaConf.create({"model": asr_model.cfg})
         model_cfg_v1 = update_model_config(model_cfg, asr_cfg)
         new_model = EncDecCTCModel(cfg=model_cfg_v1.model)
 
@@ -247,28 +262,30 @@ class TestEncDecCTCModel:
         # assert 'trainer' in model_cfg_v1
         # assert 'exp_manager' in model_cfg_v1
         # datasets and optim/sched should not be there after ModelPT.update_model_dataclass()
-        assert 'train_ds' not in model_cfg_v1.model
-        assert 'validation_ds' not in model_cfg_v1.model
-        assert 'test_ds' not in model_cfg_v1.model
-        assert 'optim' not in model_cfg_v1.model
+        assert "train_ds" not in model_cfg_v1.model
+        assert "validation_ds" not in model_cfg_v1.model
+        assert "test_ds" not in model_cfg_v1.model
+        assert "optim" not in model_cfg_v1.model
 
         # Construct the model, without dropping additional keys
-        asr_cfg = OmegaConf.create({'model': asr_model.cfg})
-        model_cfg_v2 = update_model_config(model_cfg, asr_cfg, drop_missing_subconfigs=False)
+        asr_cfg = OmegaConf.create({"model": asr_model.cfg})
+        model_cfg_v2 = update_model_config(
+            model_cfg, asr_cfg, drop_missing_subconfigs=False
+        )
 
         # Assert all components are in config
         # assert 'trainer' in model_cfg_v2
         # assert 'exp_manager' in model_cfg_v2
-        assert 'train_ds' in model_cfg_v2.model
-        assert 'validation_ds' in model_cfg_v2.model
-        assert 'test_ds' in model_cfg_v2.model
-        assert 'optim' in model_cfg_v2.model
+        assert "train_ds" in model_cfg_v2.model
+        assert "validation_ds" in model_cfg_v2.model
+        assert "test_ds" in model_cfg_v2.model
+        assert "optim" in model_cfg_v2.model
 
         # Remove extra components (optim and sched can be kept without issue)
         with open_dict(model_cfg_v2.model):
-            model_cfg_v2.model.pop('train_ds')
-            model_cfg_v2.model.pop('validation_ds')
-            model_cfg_v2.model.pop('test_ds')
+            model_cfg_v2.model.pop("train_ds")
+            model_cfg_v2.model.pop("validation_ds")
+            model_cfg_v2.model.pop("test_ds")
 
         new_model = EncDecCTCModel(cfg=model_cfg_v2.model)
 
@@ -279,34 +296,34 @@ class TestEncDecCTCModel:
     def test_ASRDatasetConfig_for_AudioToCharDataset(self):
         # ignore some additional arguments as dataclass is generic
         IGNORE_ARGS = [
-            'is_tarred',
-            'num_workers',
-            'batch_size',
-            'tarred_audio_filepaths',
-            'shuffle',
-            'pin_memory',
-            'drop_last',
-            'tarred_shard_strategy',
-            'shard_manifests',
-            'shuffle_n',
-            'use_start_end_token',
-            'use_start_end_token',
-            'bucketing_batch_size',
-            'bucketing_strategy',
-            'bucketing_weights',
-            'channel_selector',
-            'use_lhotse',
-            'tarred_random_access',
-            'use_bucketing',
-            'batch_duration',
-            'quadratic_duration',
-            'bucket_batch_size',
-            'bucket_duration_bins',
-            'num_buckets',
-            'pin_memory',
+            "is_tarred",
+            "num_workers",
+            "batch_size",
+            "tarred_audio_filepaths",
+            "shuffle",
+            "pin_memory",
+            "drop_last",
+            "tarred_shard_strategy",
+            "shard_manifests",
+            "shuffle_n",
+            "use_start_end_token",
+            "use_start_end_token",
+            "bucketing_batch_size",
+            "bucketing_strategy",
+            "bucketing_weights",
+            "channel_selector",
+            "use_lhotse",
+            "tarred_random_access",
+            "use_bucketing",
+            "batch_duration",
+            "quadratic_duration",
+            "bucket_batch_size",
+            "bucket_duration_bins",
+            "num_buckets",
+            "pin_memory",
         ]
 
-        REMAP_ARGS = {'trim_silence': 'trim'}
+        REMAP_ARGS = {"trim_silence": "trim"}
 
         result = assert_dataclass_signature_match(
             audio_to_text.AudioToCharDataset,
@@ -324,35 +341,35 @@ class TestEncDecCTCModel:
     def test_ASRDatasetConfig_for_TarredAudioToCharDataset(self):
         # ignore some additional arguments as dataclass is generic
         IGNORE_ARGS = [
-            'is_tarred',
-            'num_workers',
-            'batch_size',
-            'shuffle',
-            'pin_memory',
-            'drop_last',
-            'global_rank',
-            'world_size',
-            'use_start_end_token',
-            'bucketing_batch_size',
-            'bucketing_strategy',
-            'bucketing_weights',
-            'max_utts',
-            'use_lhotse',
-            'tarred_random_access',
-            'use_bucketing',
-            'batch_duration',
-            'quadratic_duration',
-            'bucket_batch_size',
-            'bucket_duration_bins',
-            'num_buckets',
-            'pin_memory',
+            "is_tarred",
+            "num_workers",
+            "batch_size",
+            "shuffle",
+            "pin_memory",
+            "drop_last",
+            "global_rank",
+            "world_size",
+            "use_start_end_token",
+            "bucketing_batch_size",
+            "bucketing_strategy",
+            "bucketing_weights",
+            "max_utts",
+            "use_lhotse",
+            "tarred_random_access",
+            "use_bucketing",
+            "batch_duration",
+            "quadratic_duration",
+            "bucket_batch_size",
+            "bucket_duration_bins",
+            "num_buckets",
+            "pin_memory",
         ]
 
         REMAP_ARGS = {
-            'trim_silence': 'trim',
-            'tarred_audio_filepaths': 'audio_tar_filepaths',
-            'tarred_shard_strategy': 'shard_strategy',
-            'shuffle_n': 'shuffle',
+            "trim_silence": "trim",
+            "tarred_audio_filepaths": "audio_tar_filepaths",
+            "tarred_shard_strategy": "shard_strategy",
+            "shuffle_n": "shuffle",
         }
 
         result = assert_dataclass_signature_match(

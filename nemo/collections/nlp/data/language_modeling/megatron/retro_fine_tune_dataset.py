@@ -24,7 +24,7 @@ from nemo.collections.nlp.data.language_modeling.text_memmap_dataset import \
 from nemo.core import Dataset
 from nemo.utils import logging
 
-__all__ = ['RetroQAFineTuneDataset']
+__all__ = ["RetroQAFineTuneDataset"]
 
 
 class RetroQAFineTuneDataset(Dataset):
@@ -37,7 +37,7 @@ class RetroQAFineTuneDataset(Dataset):
         task_templates (dict): Dictionary containing all task template information needed to format prompts. Created in the GPTPromptLearningModel class.
         pad_token_id (int): ID of pad token from tokenizer
         max_seq_length (int): maximum sequence length for each dataset examples. Examples will either be truncated to fit this length or dropped if they cannot be truncated.
-        min_seq_length (int): min length of each data example in the dataset. Data examples will be dropped if they do not meet the min length requirements. 
+        min_seq_length (int): min length of each data example in the dataset. Data examples will be dropped if they do not meet the min length requirements.
         add_bos (bool): Whether to add a beginning of sentence token to each data example
         add_eos (bool): Whether to add an end of sentence token to each data example
         for_train (bool): Whether you're creating a dataset for training or inference
@@ -71,7 +71,9 @@ class RetroQAFineTuneDataset(Dataset):
 
         logging.info("Loading and tokenizing dataset ... ")
 
-        self.indexed_dataset = JSONLMemMapDataset(dataset_paths=[data], tokenizer=None, header_lines=0, workers=12)
+        self.indexed_dataset = JSONLMemMapDataset(
+            dataset_paths=[data], tokenizer=None, header_lines=0, workers=12
+        )
         # Will be None after this call if `max_num_samples` is None
         self._build_samples_mapping(data)
 
@@ -85,7 +87,7 @@ class RetroQAFineTuneDataset(Dataset):
                 max_seq_length=self.max_seq_length - 2,
                 short_seq_prob=0,
                 seed=self.seed,
-                name=file_path.split('/')[-1],
+                name=file_path.split("/")[-1],
                 binary_head=False,
             )
         else:
@@ -115,15 +117,15 @@ class RetroQAFineTuneDataset(Dataset):
         """
         Process a single example from the dataset into IDs and other T0-related metadata.
         """
-        question = example['question'].strip()
+        question = example["question"].strip()
         tokenized_input = self.tokenizer.text_to_ids(f"question: {question}\n")
         # add a space between input and output
-        if 'answers' in example:
+        if "answers" in example:
             # sample one answer from answers
-            answer = sample(example['answers'], 1)[0].strip()
+            answer = sample(example["answers"], 1)[0].strip()
             tokenized_output = self.tokenizer.text_to_ids(f"answer: {answer}")
         else:
-            tokenized_output = self.tokenizer.text_to_ids('answer: ')
+            tokenized_output = self.tokenizer.text_to_ids("answer: ")
 
         bos_id = self.tokenizer.bos_id
         if self.add_bos:
@@ -150,11 +152,13 @@ class RetroQAFineTuneDataset(Dataset):
                 # cut both the input and output
                 cut_input_tokens = len(tokenized_input) - 1  # retain at least one token
                 cut_output_tokens = cut_tokens - cut_input_tokens
-                tokenized_input = tokenized_input[: len(tokenized_input) - cut_input_tokens]
+                tokenized_input = tokenized_input[
+                    : len(tokenized_input) - cut_input_tokens
+                ]
                 target = target[: len(target) - cut_output_tokens]
 
         chunks = []
-        contexts = example['ctxs']
+        contexts = example["ctxs"]
         assert self.neighbors <= len(
             contexts
         ), f"specify {self.neighbors}, but only provide {len(contexts)} neighbors in the dataset"
@@ -173,7 +177,7 @@ class RetroQAFineTuneDataset(Dataset):
         return results
 
     def collate_fn(self, batch, tp_workers=0):
-        """ Prepares input_ids, labels, loss mask, attention_mask, and position ids for global batch """
+        """Prepares input_ids, labels, loss mask, attention_mask, and position ids for global batch"""
         input_ids, answer_starts, chunks = zip(*batch)
         # convert chunks into torch tensors
         chunks = torch.tensor(chunks)
@@ -187,7 +191,9 @@ class RetroQAFineTuneDataset(Dataset):
         else:
             resi_padding = 0
         batch_max += resi_padding
-        input_ids, loss_mask = self.pad_batch_and_build_loss_mask(input_ids, batch_max, answer_starts)
+        input_ids, loss_mask = self.pad_batch_and_build_loss_mask(
+            input_ids, batch_max, answer_starts
+        )
         # Should be a label for every token in batch, label is the next token
         labels = input_ids[:, 1:].contiguous()
         input_ids = input_ids[:, :-1].contiguous()
@@ -202,16 +208,16 @@ class RetroQAFineTuneDataset(Dataset):
         # Using causal attention mask for whole input
 
         return {
-            'tokens': input_ids,
-            'labels': labels,
-            'tokens_mask': hidden_mask,
-            'loss_mask': loss_mask,
-            'retrieved_emb_mask': context_mask,
-            'retrieved_ids': chunks,
+            "tokens": input_ids,
+            "labels": labels,
+            "tokens_mask": hidden_mask,
+            "loss_mask": loss_mask,
+            "retrieved_emb_mask": context_mask,
+            "retrieved_ids": chunks,
         }
 
     def pad_batch_and_build_loss_mask(self, input_ids, batch_max, answer_starts):
-        """ Pad input_ids in batch to max batch length while building loss mask """
+        """Pad input_ids in batch to max batch length while building loss mask"""
         batch_loss_masks = []
         padded_input_ids = []
         for ids, answer_start_idx in zip(input_ids, answer_starts):

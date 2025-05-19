@@ -77,7 +77,10 @@ class DreamFusion(Txt2NerfBase):
                 shading_type = None
             else:
                 # random shading
-                ambient_ratio = self.min_ambient_ratio + (1.0 - self.min_ambient_ratio) * random.random()
+                ambient_ratio = (
+                    self.min_ambient_ratio
+                    + (1.0 - self.min_ambient_ratio) * random.random()
+                )
                 rand = random.random()
                 if rand >= (1.0 - self.textureless_ratio):
                     shading_type = ShadingEnum.TEXTURELESS
@@ -92,9 +95,9 @@ class DreamFusion(Txt2NerfBase):
         return_faces = bool(self.lambda_mesh_normal) or bool(self.lambda_mesh_laplacian)
         return_faces_normals = bool(self.lambda_mesh_normal)
         outputs = self(
-            rays_o=batch['rays_o'],  # [B, H, W, 3]
-            rays_d=batch['rays_d'],  # [B, H, W, 3]
-            mvp=batch['mvp'],  # [B, 4, 4]
+            rays_o=batch["rays_o"],  # [B, H, W, 3]
+            rays_d=batch["rays_d"],  # [B, H, W, 3]
+            mvp=batch["mvp"],  # [B, 4, 4]
             perturb=True,
             ambient_ratio=ambient_ratio,
             shading_type=shading_type,
@@ -108,29 +111,31 @@ class DreamFusion(Txt2NerfBase):
 
         if as_latent:
             pred_rgb = (
-                torch.cat([outputs['image'], outputs['opacity']], dim=-1).permute(0, 3, 1, 2).contiguous()
+                torch.cat([outputs["image"], outputs["opacity"]], dim=-1)
+                .permute(0, 3, 1, 2)
+                .contiguous()
             )  # [B, 4, H, W]
         else:
-            pred_rgb = outputs['image'].permute(0, 3, 1, 2).contiguous()  # [B, 3, H, W]
+            pred_rgb = outputs["image"].permute(0, 3, 1, 2).contiguous()  # [B, 3, H, W]
 
         # TODO(ahmadki): move into guidance
-        azimuth = batch['azimuth']
-        text_z = [self.text_z['uncond']] * azimuth.shape[0]
+        azimuth = batch["azimuth"]
+        text_z = [self.text_z["uncond"]] * azimuth.shape[0]
         for b in range(azimuth.shape[0]):
             if azimuth[b] >= -90 and azimuth[b] < 90:
                 if azimuth[b] >= 0:
                     r = 1 - azimuth[b] / 90
                 else:
                     r = 1 + azimuth[b] / 90
-                start_z = self.text_z['front']
-                end_z = self.text_z['side']
+                start_z = self.text_z["front"]
+                end_z = self.text_z["side"]
             else:
                 if azimuth[b] >= 0:
                     r = 1 - (azimuth[b] - 90) / 90
                 else:
                     r = 1 + (azimuth[b] + 90) / 90
-                start_z = self.text_z['side']
-                end_z = self.text_z['back']
+                start_z = self.text_z["side"]
+                end_z = self.text_z["back"]
             pos_z = r * start_z + (1 - r) * end_z
             text_z.append(pos_z)
         text_z = torch.cat(text_z, dim=0)
@@ -141,59 +146,84 @@ class DreamFusion(Txt2NerfBase):
         guidance_loss = self.guidance.train_step(
             text_z, pred_rgb, as_latent=as_latent, guidance_scale=self.guidance_scale
         )
-        loss_dict['lambda_sds'] = guidance_loss * self.lambda_sds
+        loss_dict["lambda_sds"] = guidance_loss * self.lambda_sds
 
         # opacity loss
-        if self.lambda_opacity > 0 and 'opacity' in outputs:
-            loss_opacity = (outputs['opacity'] ** 2).mean()
-            loss_dict['loss_opacity'] = self.lambda_opacity * loss_opacity
+        if self.lambda_opacity > 0 and "opacity" in outputs:
+            loss_opacity = (outputs["opacity"] ** 2).mean()
+            loss_dict["loss_opacity"] = self.lambda_opacity * loss_opacity
 
         # entropy loss
-        if self.lambda_entropy > 0 and 'weights' in outputs:
-            alphas = outputs['weights'].clamp(1e-5, 1 - 1e-5)
-            loss_entropy = (-alphas * torch.log2(alphas) - (1 - alphas) * torch.log2(1 - alphas)).mean()
-            lambda_entropy = self.lambda_entropy * min(1, 2 * self.global_step / self.iters)
-            loss_dict['loss_entropy'] = lambda_entropy * loss_entropy
+        if self.lambda_entropy > 0 and "weights" in outputs:
+            alphas = outputs["weights"].clamp(1e-5, 1 - 1e-5)
+            loss_entropy = (
+                -alphas * torch.log2(alphas) - (1 - alphas) * torch.log2(1 - alphas)
+            ).mean()
+            lambda_entropy = self.lambda_entropy * min(
+                1, 2 * self.global_step / self.iters
+            )
+            loss_dict["loss_entropy"] = lambda_entropy * loss_entropy
 
-        if self.lambda_2d_normal_smooth > 0 and 'normal_image' in outputs:
-            pred_normal = outputs['normal_image']
-            loss_smooth = (pred_normal[:, 1:, :, :] - pred_normal[:, :-1, :, :]).square().mean() + (
+        if self.lambda_2d_normal_smooth > 0 and "normal_image" in outputs:
+            pred_normal = outputs["normal_image"]
+            loss_smooth = (
+                pred_normal[:, 1:, :, :] - pred_normal[:, :-1, :, :]
+            ).square().mean() + (
                 pred_normal[:, :, 1:, :] - pred_normal[:, :, :-1, :]
             ).square().mean()
-            loss_dict['loss_smooth'] = self.lambda_2d_normal_smooth * loss_smooth
+            loss_dict["loss_smooth"] = self.lambda_2d_normal_smooth * loss_smooth
 
         # orientation loss
-        if self.lambda_orientation > 0 and all(key in outputs for key in ['weights', 'normals', 'dirs']):
+        if self.lambda_orientation > 0 and all(
+            key in outputs for key in ["weights", "normals", "dirs"]
+        ):
             loss_orientation = (
-                outputs['weights'].detach() * (outputs['normals'] * outputs['dirs']).sum(-1).clamp(min=0) ** 2
+                outputs["weights"].detach()
+                * (outputs["normals"] * outputs["dirs"]).sum(-1).clamp(min=0) ** 2
             )
             loss_orientation = loss_orientation.mean()
-            loss_dict['loss_orientation'] = self.lambda_orientation * loss_orientation
+            loss_dict["loss_orientation"] = self.lambda_orientation * loss_orientation
 
-        if self.lambda_3d_normal_smooth > 0 and all(key in outputs for key in ['normals', 'normal_perturb']):
-            loss_normal_perturb = (outputs['normal_perturb'] - outputs['normals']).abs().mean()
-            loss_dict['loss_normal_smooth'] = self.lambda_3d_normal_smooth * loss_normal_perturb
-
-        if self.lambda_mesh_normal > 0 and all(key in outputs for key in ['face_normals', 'faces']):
-            normal_consistency_loss = self.normal_consistency_loss_fn(
-                face_normals=outputs['face_normals'], t_pos_idx=outputs['faces']
+        if self.lambda_3d_normal_smooth > 0 and all(
+            key in outputs for key in ["normals", "normal_perturb"]
+        ):
+            loss_normal_perturb = (
+                (outputs["normal_perturb"] - outputs["normals"]).abs().mean()
             )
-            loss_dict['normal_consistency_loss'] = self.lambda_mesh_normal * normal_consistency_loss
+            loss_dict["loss_normal_smooth"] = (
+                self.lambda_3d_normal_smooth * loss_normal_perturb
+            )
 
-        if self.lambda_mesh_laplacian > 0 and all(key in outputs for key in ['verts', 'faces']):
-            laplacian_loss = self.laplacian_smooth_loss_fn(verts=outputs['verts'], faces=outputs['faces'])
-            loss_dict['laplacian_loss'] = self.lambda_mesh_laplacian * laplacian_loss
+        if self.lambda_mesh_normal > 0 and all(
+            key in outputs for key in ["face_normals", "faces"]
+        ):
+            normal_consistency_loss = self.normal_consistency_loss_fn(
+                face_normals=outputs["face_normals"], t_pos_idx=outputs["faces"]
+            )
+            loss_dict["normal_consistency_loss"] = (
+                self.lambda_mesh_normal * normal_consistency_loss
+            )
+
+        if self.lambda_mesh_laplacian > 0 and all(
+            key in outputs for key in ["verts", "faces"]
+        ):
+            laplacian_loss = self.laplacian_smooth_loss_fn(
+                verts=outputs["verts"], faces=outputs["faces"]
+            )
+            loss_dict["laplacian_loss"] = self.lambda_mesh_laplacian * laplacian_loss
 
         loss = sum(loss_dict.values())
 
         self.log_dict(loss_dict, prog_bar=False, rank_zero_only=True)
-        self.log('loss', loss, prog_bar=True, rank_zero_only=True)
+        self.log("loss", loss, prog_bar=True, rank_zero_only=True)
 
         # TODO(ahmadki): LearningRateMonitor
-        lr = self._optimizer.param_groups[0]['lr']
-        self.log('lr', lr, prog_bar=True, rank_zero_only=True)
+        lr = self._optimizer.param_groups[0]["lr"]
+        self.log("lr", lr, prog_bar=True, rank_zero_only=True)
 
-        self.log('global_step', self.global_step + 1, prog_bar=True, rank_zero_only=True)
+        self.log(
+            "global_step", self.global_step + 1, prog_bar=True, rank_zero_only=True
+        )
 
         return loss
 
@@ -201,14 +231,14 @@ class DreamFusion(Txt2NerfBase):
         # save image
         images, depths = self._shared_predict(batch)
 
-        save_path = os.path.join(self.trainer.log_dir, 'validation')
+        save_path = os.path.join(self.trainer.log_dir, "validation")
         os.makedirs(save_path, exist_ok=True)
         for i, (image, depth) in enumerate(zip(images, depths)):
             # Save image
             cv2.imwrite(
                 os.path.join(
                     save_path,
-                    f'{self.current_epoch:04d}_{self.global_step:04d}_{self.global_rank:04d}_{batch_idx:04d}_{i:04d}_rgb.png',
+                    f"{self.current_epoch:04d}_{self.global_step:04d}_{self.global_rank:04d}_{batch_idx:04d}_{i:04d}_rgb.png",
                 ),
                 cv2.cvtColor(image, cv2.COLOR_RGB2BGR),
             )
@@ -216,7 +246,7 @@ class DreamFusion(Txt2NerfBase):
             cv2.imwrite(
                 os.path.join(
                     save_path,
-                    f'{self.current_epoch:04d}_{self.global_step:04d}_{self.global_rank:04d}_{batch_idx:04d}_{i:04d}_depth.png',
+                    f"{self.current_epoch:04d}_{self.global_step:04d}_{self.global_rank:04d}_{batch_idx:04d}_{i:04d}_depth.png",
                 ),
                 depth,
             )
@@ -228,12 +258,17 @@ class DreamFusion(Txt2NerfBase):
         self.test_depths.append(depths)
 
     def on_test_epoch_end(self):
-        save_path = os.path.join(self.trainer.log_dir, 'test')
+        save_path = os.path.join(self.trainer.log_dir, "test")
         os.makedirs(save_path, exist_ok=True)
 
         images = np.concatenate(self.test_images, axis=0)
         imageio.mimwrite(
-            os.path.join(os.path.join(save_path, f'{self.current_epoch:04d}_{self.global_step:04d}_rgb.mp4')),
+            os.path.join(
+                os.path.join(
+                    save_path,
+                    f"{self.current_epoch:04d}_{self.global_step:04d}_rgb.mp4",
+                )
+            ),
             images,
             fps=25,
             quality=8,
@@ -242,7 +277,12 @@ class DreamFusion(Txt2NerfBase):
 
         depths = np.concatenate(self.test_depths, axis=0)
         imageio.mimwrite(
-            os.path.join(os.path.join(save_path, f'{self.current_epoch:04d}_{self.global_step:04d}_depth.mp4')),
+            os.path.join(
+                os.path.join(
+                    save_path,
+                    f"{self.current_epoch:04d}_{self.global_step:04d}_depth.mp4",
+                )
+            ),
             depths,
             fps=25,
             quality=8,
@@ -288,12 +328,16 @@ class DreamFusion(Txt2NerfBase):
 
     def _shared_predict(self, data):
         outputs = self(
-            rays_o=data['rays_o'],  # [B, H, W, 3]
-            rays_d=data['rays_d'],  # [B, H, W, 3]
-            mvp=data['mvp'],
+            rays_o=data["rays_o"],  # [B, H, W, 3]
+            rays_d=data["rays_d"],  # [B, H, W, 3]
+            mvp=data["mvp"],
             perturb=False,
-            ambient_ratio=data['ambient_ratio'] if 'ambient_ratio' in data else 1.0,  # TODO(ahmadki): move to dataset
-            shading_type=data['shading_type'] if 'shading_type' in data else None,  # TODO(ahmadki): move to dataset
+            ambient_ratio=(
+                data["ambient_ratio"] if "ambient_ratio" in data else 1.0
+            ),  # TODO(ahmadki): move to dataset
+            shading_type=(
+                data["shading_type"] if "shading_type" in data else None
+            ),  # TODO(ahmadki): move to dataset
             binarize=False,
             return_normal_image=False,
             return_normal_perturb=False,
@@ -302,10 +346,10 @@ class DreamFusion(Txt2NerfBase):
             return_faces_normals=False,
         )
 
-        images_np = outputs['image'].detach().cpu().numpy()
+        images_np = outputs["image"].detach().cpu().numpy()
         images_np = (images_np * 255).astype(np.uint8)
 
-        depths_np = outputs['depth'].detach().cpu().numpy()
+        depths_np = outputs["depth"].detach().cpu().numpy()
         depths_np = (depths_np - depths_np.min()) / (np.ptp(depths_np) + 1e-6)
         depths_np = (depths_np * 255).astype(np.uint8)
 
@@ -315,7 +359,7 @@ class DreamFusion(Txt2NerfBase):
     def setup_optimization(self):
         cfg = self._cfg.optim
         optimizer_args = dict(cfg)
-        optimizer_args.pop('name', None)
+        optimizer_args.pop("name", None)
 
         optimizer = optim.get_optimizer(cfg.name)
 

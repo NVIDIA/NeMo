@@ -28,12 +28,17 @@ Usage:
 def parse_args():
     parser = ArgumentParser("ARPABET to IPA conversion sctipt")
     parser.add_argument(
-        '--cmu_arpabet',
+        "--cmu_arpabet",
         help="Path to CMU ARPABET dictionary file",
         type=str,
         default="tts_dataset_files/cmudict-0.7b_nv22.10",
     )
-    parser.add_argument("--ipa_out", help="Path to save IPA version of the dictionary", type=str, required=True)
+    parser.add_argument(
+        "--ipa_out",
+        help="Path to save IPA version of the dictionary",
+        type=str,
+        required=True,
+    )
     parser.add_argument(
         "--mapping",
         help="ARPABET to IPA phoneme mapping file",
@@ -43,7 +48,9 @@ def parse_args():
     return parser.parse_args()
 
 
-def convert_arp_to_ipa(arp_to_ipa_dict: Dict[str, str], arp_input: str, remove_space: bool = False) -> str:
+def convert_arp_to_ipa(
+    arp_to_ipa_dict: Dict[str, str], arp_input: str, remove_space: bool = False
+) -> str:
     """
     Converts ARPABET phoneme to IPA based on arp_to_ipa_dict mapping
 
@@ -111,7 +118,9 @@ def _get_arpabet_to_ipa_mapping(arp_ipa_map_file: str) -> Dict[str, str]:
     return arp_to_ipa
 
 
-def convert_cmu_arpabet_to_ipa(arp_ipa_map_file: str, arp_dict_file: str, output_ipa_file: str):
+def convert_cmu_arpabet_to_ipa(
+    arp_ipa_map_file: str, arp_dict_file: str, output_ipa_file: str
+):
     """
     Converts CMU ARPABET-based dictionary to IPA.
 
@@ -121,7 +130,10 @@ def convert_cmu_arpabet_to_ipa(arp_ipa_map_file: str, arp_dict_file: str, output
         output_ipa_file: path to output IPA version of CMU dictionary
     """
     arp_to_ipa_dict = _get_arpabet_to_ipa_mapping(arp_ipa_map_file)
-    with open(arp_dict_file, "r", encoding="utf-8") as f_arp, open(output_ipa_file, "w", encoding="utf-8") as f_ipa:
+    with (
+        open(arp_dict_file, "r", encoding="utf-8") as f_arp,
+        open(output_ipa_file, "w", encoding="utf-8") as f_ipa,
+    ):
         for line in f_arp:
             if line.startswith(";;;"):
                 f_ipa.write(line)
@@ -129,10 +141,14 @@ def convert_cmu_arpabet_to_ipa(arp_ipa_map_file: str, arp_dict_file: str, output
                 # First, split the line at " #" if there are comments in the dictionary file following the mapping entries.
                 # Next, split at default "  " separator.
                 graphemes, phonemes = line.split(" #")[0].strip().split("  ")
-                ipa_form = convert_arp_to_ipa(arp_to_ipa_dict, phonemes, remove_space=True)
+                ipa_form = convert_arp_to_ipa(
+                    arp_to_ipa_dict, phonemes, remove_space=True
+                )
                 f_ipa.write(f"{graphemes}  {ipa_form}\n")
 
-    print(f"IPA version of {os.path.abspath(arp_dict_file)} saved in {os.path.abspath(output_ipa_file)}")
+    print(
+        f"IPA version of {os.path.abspath(arp_dict_file)} saved in {os.path.abspath(output_ipa_file)}"
+    )
 
 
 if __name__ == "__main__":

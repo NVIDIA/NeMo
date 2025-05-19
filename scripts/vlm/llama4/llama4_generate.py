@@ -96,10 +96,14 @@ def main(args) -> None:
 
     # Decide whether to import or load the model based on the input arguments
     if args.load_from_hf:
-        raise NotImplementedError("Please use the convert script to convert the HF checkpoint first.")
+        raise NotImplementedError(
+            "Please use the convert script to convert the HF checkpoint first."
+        )
     else:
         path = Path(args.local_model_path)
-        model: io.TrainerContext = io.load_context(path=ckpt_to_context_subdir(path), subpath="model")
+        model: io.TrainerContext = io.load_context(
+            path=ckpt_to_context_subdir(path), subpath="model"
+        )
         _setup_trainer_and_restore_model(path=path, trainer=trainer, model=model)
 
     model = model.module.cuda()
@@ -107,15 +111,13 @@ def main(args) -> None:
 
     from transformers import AutoProcessor
 
-    model_id = 'meta-llama/Llama-4-Scout-17B-16E-Instruct'
+    model_id = "meta-llama/Llama-4-Scout-17B-16E-Instruct"
     processor = AutoProcessor.from_pretrained(model_id)
     llama_tokenizer = AutoTokenizer(model_id)
     hf_tokenizer = llama_tokenizer.tokenizer
 
     url1 = "https://huggingface.co/datasets/huggingface/documentation-images/resolve/0052a70beed5bf71b92610a43a52df6d286cd5f3/diffusers/rabbit.jpg"
-    url2 = (
-        "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/datasets/cat_style_layout.png"
-    )
+    url2 = "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/datasets/cat_style_layout.png"
     messages = [
         {
             "role": "system",
@@ -128,7 +130,10 @@ def main(args) -> None:
             "content": [
                 {"type": "image", "url": url1},
                 {"type": "image", "url": url2},
-                {"type": "text", "text": "Can you describe how these two images are similar, and how they differ?"},
+                {
+                    "type": "text",
+                    "text": "Can you describe how these two images are similar, and how they differ?",
+                },
             ],
         },
     ]
@@ -144,7 +149,9 @@ def main(args) -> None:
     images = inputs["pixel_values"].cuda()
 
     position_ids = (
-        torch.arange(input_ids.size(1), dtype=torch.long, device=input_ids.device).unsqueeze(0).expand_as(input_ids)
+        torch.arange(input_ids.size(1), dtype=torch.long, device=input_ids.device)
+        .unsqueeze(0)
+        .expand_as(input_ids)
     )
     generated_ids = input_ids.clone()
 
@@ -175,20 +182,28 @@ def main(args) -> None:
                 world_size = parallel_state.get_tensor_model_parallel_world_size()
                 gathered_tensors = [torch.zeros_like(output) for _ in range(world_size)]
                 # All-gather operation
-                dist.all_gather(gathered_tensors, output, group=parallel_state.get_tensor_model_parallel_group())
+                dist.all_gather(
+                    gathered_tensors,
+                    output,
+                    group=parallel_state.get_tensor_model_parallel_group(),
+                )
                 # Concatenate along last dimension (dim=2)
                 output = torch.cat(gathered_tensors, dim=2)
 
                 next_token_ids = torch.argmax(output[:, -1], dim=-1, keepdim=True)
             else:
-                next_token_ids = torch.ones((1, 1), device=generated_ids.device, dtype=generated_ids.dtype)
+                next_token_ids = torch.ones(
+                    (1, 1), device=generated_ids.device, dtype=generated_ids.dtype
+                )
 
             torch.distributed.broadcast(next_token_ids, get_last_rank())
             generated_ids = torch.cat([generated_ids, next_token_ids], dim=-1)
 
             input_ids = generated_ids
             position_ids = (
-                torch.arange(input_ids.size(1), dtype=torch.long, device=input_ids.device)
+                torch.arange(
+                    input_ids.size(1), dtype=torch.long, device=input_ids.device
+                )
                 .unsqueeze(0)
                 .expand_as(input_ids)
             )
@@ -217,9 +232,9 @@ if __name__ == "__main__":
         default="/path/to/nemo_checkpoint",
         help="Local path to the model if not loading from Hugging Face.",
     )
-    parser.add_argument('--tp', default=8)
-    parser.add_argument('--pp', default=1)
-    parser.add_argument('--num_experts', type=int, default=16)
+    parser.add_argument("--tp", default=8)
+    parser.add_argument("--pp", default=1)
+    parser.add_argument("--num_experts", type=int, default=16)
     args = parser.parse_args()
 
     main(args)

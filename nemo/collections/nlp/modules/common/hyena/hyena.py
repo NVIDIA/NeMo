@@ -110,7 +110,9 @@ def auto_assign_attrs(cls, **kwargs):
 class CausalDepthWiseConv1d(nn.Module):
     def __init__(self, channels, width, bias=True):
         if not HAVE_CAUSAL_CONV1D:
-            raise ImportError("Missing causal-conv1d library, please run 'pip install causal-conv1d'")
+            raise ImportError(
+                "Missing causal-conv1d library, please run 'pip install causal-conv1d'"
+            )
 
         super().__init__()
         self.channels = channels
@@ -169,7 +171,7 @@ class SingleHeadHyenaConv(HyenaConv):
         filter_cls: Union[ModuleSpec, type] = HyenaFilter,
         filter_submodules: HyenaFilterSubmodules = None,
         fftconv_type: str = None,
-        precision: str = 'bf16',
+        precision: str = "bf16",
         **filter_kwargs,
     ):
         super().__init__(
@@ -185,20 +187,24 @@ class SingleHeadHyenaConv(HyenaConv):
         if fftconv_type is None:
             if max_seq_length <= 8192 and HAVE_SAFARI_FFTCONV:
                 # safari-fftconv supports seq-len <= 8192 and is a bit faster vs. flashfftconv
-                fftconv_type = 'safari'
+                fftconv_type = "safari"
             else:
-                fftconv_type = 'flash'
+                fftconv_type = "flash"
 
-        if fftconv_type not in ['safari', 'flash']:
+        if fftconv_type not in ["safari", "flash"]:
             raise ValueError("fftconv_type must be one of ['safari', 'flash']")
-        if fftconv_type == 'safari' and max_seq_length > 8192:
-            raise ValueError('Safari-fftconv only supports sequence length up to 8192')
-        if fftconv_type == 'safari' and not HAVE_SAFARI_FFTCONV:
-            raise ImportError('Safari-fftconv library not found. Please see README at <tbd> for instructions.')
-        if fftconv_type == 'flash' and not HAVE_FLASHFFTCONV:
-            raise ImportError('flashfftconv library not found. Please see README at <tbd> for instructions.')
+        if fftconv_type == "safari" and max_seq_length > 8192:
+            raise ValueError("Safari-fftconv only supports sequence length up to 8192")
+        if fftconv_type == "safari" and not HAVE_SAFARI_FFTCONV:
+            raise ImportError(
+                "Safari-fftconv library not found. Please see README at <tbd> for instructions."
+            )
+        if fftconv_type == "flash" and not HAVE_FLASHFFTCONV:
+            raise ImportError(
+                "flashfftconv library not found. Please see README at <tbd> for instructions."
+            )
 
-        if fftconv_type == 'safari':
+        if fftconv_type == "safari":
             self.fftconv_fn = self._safari_fft
         else:  # fftconv_type == 'flash'
             self.flashfftconv = FlashFFTConv(
@@ -216,7 +222,9 @@ class SingleHeadHyenaConv(HyenaConv):
         return y
 
     def forward(self, x, k, recurrence_idx):
-        bias = rearrange(self.bias, '(v o) -> o v', v=self.d_model, o=self.order - 1)[recurrence_idx]
+        bias = rearrange(self.bias, "(v o) -> o v", v=self.d_model, o=self.order - 1)[
+            recurrence_idx
+        ]
         y = self.fftconv_fn(x, k, bias)
         return y
 
@@ -232,15 +240,19 @@ class MultiHeadHyenaConv(HyenaConv):
         filter_cls: Union[ModuleSpec, type] = HyenaFilter,
         filter_submodules: HyenaFilterSubmodules = None,
         fftconv_type: str = None,
-        precision: str = 'bf16',
+        precision: str = "bf16",
         **filter_kwargs,
     ):
         if num_heads == 1:
-            raise ValueError('Expecting num_heads > 1')
+            raise ValueError("Expecting num_heads > 1")
         if order != 2:
-            raise ValueError(f'Multi-head supported only with order == 2 (got order {self.order})')
+            raise ValueError(
+                f"Multi-head supported only with order == 2 (got order {self.order})"
+            )
         if not HAVE_SAFARI_FFTCONV:
-            raise ImportError('Safari-fftconv library not found. Please see README at <tbd> for instructions.')
+            raise ImportError(
+                "Safari-fftconv library not found. Please see README at <tbd> for instructions."
+            )
 
         super().__init__(
             d_model,
@@ -255,7 +267,16 @@ class MultiHeadHyenaConv(HyenaConv):
 
     def forward(self, v, k, x1, x2):
         bias = self.bias.to(dtype=torch.float32)
-        y = safari_fftconv_fn(v, k, bias, gelu=False, output_hbl_layout=True, v=x2, head_dim=self.num_heads, q=x1)
+        y = safari_fftconv_fn(
+            v,
+            k,
+            bias,
+            gelu=False,
+            output_hbl_layout=True,
+            v=x2,
+            head_dim=self.num_heads,
+            q=x1,
+        )
         return y
 
 
@@ -295,11 +316,13 @@ class HyenaOperator(nn.Module):
             )
 
         if order < 2:
-            raise ValueError(f'Order must be at least 2, (got {self.order})')
+            raise ValueError(f"Order must be at least 2, (got {self.order})")
 
         d_model = config.hidden_size
         if d_model % num_heads != 0:
-            raise ValueError(f'Model dimension {d_model} must be divisible by num heads {num_heads}')
+            raise ValueError(
+                f"Model dimension {d_model} must be divisible by num heads {num_heads}"
+            )
         head_dim = d_model // num_heads
 
         auto_assign_attrs(
@@ -327,7 +350,7 @@ class HyenaOperator(nn.Module):
             bias=True,
             skip_bias_add=False,
             is_expert=False,
-            tp_comm_buffer_name='in_proj',
+            tp_comm_buffer_name="in_proj",
         )
 
         self.out_proj = build_module(
@@ -340,17 +363,19 @@ class HyenaOperator(nn.Module):
             input_is_parallel=True,
             skip_bias_add=True,
             is_expert=False,
-            tp_comm_buffer_name='out_proj',
+            tp_comm_buffer_name="out_proj",
         )
 
         # Setup short filter
         total_width = self.d_model * (self.order + 1)
-        self.short_filter = build_module(submodules.short_filter, total_width, self.short_filter_order)
+        self.short_filter = build_module(
+            submodules.short_filter, total_width, self.short_filter_order
+        )
 
         # Setup long convolution with implicit filter
         long_conv_args = [self.head_dim, self.max_seq_length, self.order]
-        long_conv_kwargs['filter_cls'] = submodules.implicit_filter
-        long_conv_kwargs['filter_submodules'] = submodules.implicit_filter.submodules
+        long_conv_kwargs["filter_cls"] = submodules.implicit_filter
+        long_conv_kwargs["filter_submodules"] = submodules.implicit_filter.submodules
         if self.num_heads == 1:
             self.long_conv = SingleHeadHyenaConv(*long_conv_args, **long_conv_kwargs)
             self.conv_fwd_fn = self.conv_single_head
@@ -364,18 +389,20 @@ class HyenaOperator(nn.Module):
         l_filter = min(l, self.max_seq_length)
         u = self.in_proj(u)
         u = u[0] if isinstance(u, tuple) else u
-        u = rearrange(u, 'l b d -> b d l')  # In MCore the leading dimension is the sequence dimension
+        u = rearrange(
+            u, "l b d -> b d l"
+        )  # In MCore the leading dimension is the sequence dimension
 
         k = self.long_conv.filter(l_filter)
         # `c` is always 1 by default
-        k = rearrange(k, 'c l v -> c v l', v=self.head_dim)[0]
+        k = rearrange(k, "c l v -> c v l", v=self.head_dim)[0]
 
         uc = self.short_filter(u)[..., :l_filter]
 
         k = k.to(dtype=torch.float32)
         y = self.conv_fwd_fn(uc, k)
 
-        y = rearrange(y, 'b d l -> b l d')
+        y = rearrange(y, "b d l -> b l d")
         y = self.activation(y)
         y = self.out_proj(y)
         if isinstance(y, tuple):
@@ -384,13 +411,13 @@ class HyenaOperator(nn.Module):
             bias = None
 
         # Convert back to sequence-first for MCore
-        y = rearrange(y, 'b l d -> l b d')
+        y = rearrange(y, "b l d -> l b d")
 
         # MCore TransformerLayer expects tuple where 2nd element represents the bias, it can be None
         return y, bias
 
     def conv_single_head(self, uc, k):
-        k = rearrange(k, '(o v) l -> o v l', v=self.head_dim, o=self.order - 1)
+        k = rearrange(k, "(o v) l -> o v l", v=self.head_dim, o=self.order - 1)
 
         *x, v = uc.split(self.d_model, dim=1)
         for o, x_i in enumerate(reversed(x[1:])):

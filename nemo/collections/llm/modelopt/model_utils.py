@@ -42,7 +42,10 @@ if HAVE_TE and HAVE_MAMBA_SSM and HAVE_CAUSAL_CONV1D:
     from megatron.core.post_training.modelopt.mamba.model_specs import \
         get_mamba_stack_modelopt_spec
 
-__all__ = ["set_modelopt_spec_if_exists_in_ckpt", "setup_trainer_and_restore_model_with_modelopt_spec"]
+__all__ = [
+    "set_modelopt_spec_if_exists_in_ckpt",
+    "setup_trainer_and_restore_model_with_modelopt_spec",
+]
 
 
 def _set_gpt_modelopt_spec(model_cfg: llm.GPTConfig) -> llm.GPTConfig:
@@ -55,14 +58,20 @@ def _set_gpt_modelopt_spec(model_cfg: llm.GPTConfig) -> llm.GPTConfig:
         from megatron.core.post_training.modelopt.gpt.model_specs import \
             get_gpt_modelopt_spec
 
-        modelopt_spec = partial(get_gpt_modelopt_spec, remap_te_layernorm=True, qk_l2_norm=model_cfg.qk_l2_norm)
+        modelopt_spec = partial(
+            get_gpt_modelopt_spec,
+            remap_te_layernorm=True,
+            qk_l2_norm=model_cfg.qk_l2_norm,
+        )
     except ImportError:
         # Older spec: Will be deprecated, doesnt support DeepSeek
         from megatron.core.inference.modelopt_support.gpt.model_specs import \
             get_gpt_layer_modelopt_spec
 
         modelopt_spec = get_gpt_layer_modelopt_spec(
-            num_experts=model_cfg.num_moe_experts, remap_te_layernorm=True, qk_l2_norm=model_cfg.qk_l2_norm
+            num_experts=model_cfg.num_moe_experts,
+            remap_te_layernorm=True,
+            qk_l2_norm=model_cfg.qk_l2_norm,
         )
     model_cfg.transformer_layer_spec = modelopt_spec
     return model_cfg
@@ -84,18 +93,28 @@ def _set_gpt_mamba_modelopt_spec(
     logging.info("Setting model layer specification to the modelopt layer spec")
 
     if isinstance(model_cfg, llm.GPTConfig):
-        model_cfg.transformer_layer_spec = partial(get_gpt_modelopt_spec, remap_te_layernorm=True)
+        model_cfg.transformer_layer_spec = partial(
+            get_gpt_modelopt_spec, remap_te_layernorm=True
+        )
     elif isinstance(model_cfg, llm.SSMConfig):
-        model_cfg.mamba_stack_spec = partial(get_mamba_stack_modelopt_spec, remap_te_layernorm=True)
+        model_cfg.mamba_stack_spec = partial(
+            get_mamba_stack_modelopt_spec, remap_te_layernorm=True
+        )
     else:
-        raise ValueError(f"No modelopt layer spec supported for config type {type(model_cfg)}")
+        raise ValueError(
+            f"No modelopt layer spec supported for config type {type(model_cfg)}"
+        )
     return model_cfg
 
 
 def set_modelopt_spec_if_exists_in_ckpt(model: L.LightningModule, path: str) -> None:
     """Set model.config.transformer_layer_spec to modelopt spec if modelopt_state exists in the checkpoint."""
-    path = str(path).removeprefix("nemo://")  # Remove nemo:// prefix added by finetune_recipe
-    modelopt_state_path = ckpt_to_weights_subdir(path, is_saving=False) / "modelopt_state"
+    path = str(path).removeprefix(
+        "nemo://"
+    )  # Remove nemo:// prefix added by finetune_recipe
+    modelopt_state_path = (
+        ckpt_to_weights_subdir(path, is_saving=False) / "modelopt_state"
+    )
     if not modelopt_state_path.exists() or hasattr(model, "module"):
         return
 
@@ -105,7 +124,9 @@ def set_modelopt_spec_if_exists_in_ckpt(model: L.LightningModule, path: str) -> 
         # Disable gradient accumulation fusion for QAT
         model.config.gradient_accumulation_fusion = False
     else:
-        logging.warning(f"{type(model)} is neither a GPTModel nor MambaModel. Modelopt state will not be loaded.")
+        logging.warning(
+            f"{type(model)} is neither a GPTModel nor MambaModel. Modelopt state will not be loaded."
+        )
 
 
 def setup_trainer_and_restore_model_with_modelopt_spec(
@@ -184,7 +205,10 @@ def setup_trainer_and_restore_model_with_modelopt_spec(
         accelerator="gpu",
         strategy=strategy,
         plugins=nl.MegatronMixedPrecision(
-            precision="bf16-mixed", params_dtype=torch.bfloat16, autocast_enabled=False, grad_reduce_in_fp32=True
+            precision="bf16-mixed",
+            params_dtype=torch.bfloat16,
+            autocast_enabled=False,
+            grad_reduce_in_fp32=True,
         ),
         **trainer_kwargs,
     )
@@ -198,9 +222,13 @@ def setup_trainer_and_restore_model_with_modelopt_spec(
     if inference_only:
         del model.optim
     if num_layers_in_first_pipeline_stage:
-        model.config.num_layers_in_first_pipeline_stage = num_layers_in_first_pipeline_stage
+        model.config.num_layers_in_first_pipeline_stage = (
+            num_layers_in_first_pipeline_stage
+        )
     if num_layers_in_last_pipeline_stage:
-        model.config.num_layers_in_last_pipeline_stage = num_layers_in_last_pipeline_stage
+        model.config.num_layers_in_last_pipeline_stage = (
+            num_layers_in_last_pipeline_stage
+        )
 
     tokenizer = None
     if tokenizer_path:

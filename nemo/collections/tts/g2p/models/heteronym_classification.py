@@ -42,7 +42,7 @@ try:
 except (ModuleNotFoundError, ImportError):
     NLP_AVAILABLE = False
 
-__all__ = ['HeteronymClassificationModel']
+__all__ = ["HeteronymClassificationModel"]
 
 
 class HeteronymClassificationModel(NLPModel):
@@ -60,13 +60,13 @@ class HeteronymClassificationModel(NLPModel):
 
         if cfg.class_labels.class_labels_file is None:
             label_ids_file = "/tmp/label_ids.csv"
-            with open(label_ids_file, 'w') as f:
+            with open(label_ids_file, "w") as f:
                 for idx in range(len(self.idx_to_wordid)):
                     f.write(self.idx_to_wordid[idx] + "\n")
             self.register_artifact("class_labels.class_labels_file", label_ids_file)
 
         super().__init__(cfg=cfg, trainer=trainer)
-        self.lang = self._cfg.get('lang', None)
+        self.lang = self._cfg.get("lang", None)
         num_classes = len(self.wordid_to_idx)
         self.classifier = TokenClassifier(
             hidden_size=self.hidden_size,
@@ -83,7 +83,10 @@ class HeteronymClassificationModel(NLPModel):
 
         # setup to track metrics
         self.classification_report = ClassificationReport(
-            num_classes=num_classes, mode='macro', dist_sync_on_step=True, label_ids=self.wordid_to_idx
+            num_classes=num_classes,
+            mode="macro",
+            dist_sync_on_step=True,
+            label_ids=self.wordid_to_idx,
         )
 
         # used for inference to convert predicted wordids to phonemes
@@ -92,7 +95,9 @@ class HeteronymClassificationModel(NLPModel):
 
     def forward(self, input_ids, attention_mask, token_type_ids):
         hidden_states = self.bert_model(
-            input_ids=input_ids, attention_mask=attention_mask, token_type_ids=token_type_ids
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            token_type_ids=token_type_ids,
         )
         if isinstance(hidden_states, tuple):
             hidden_states = hidden_states[0]
@@ -122,7 +127,7 @@ class HeteronymClassificationModel(NLPModel):
         """
 
         loss, logits = self.make_step(batch)
-        self.log('train_loss', loss)
+        self.log("train_loss", loss)
         return loss
 
     def on_train_epoch_end(self):
@@ -142,21 +147,25 @@ class HeteronymClassificationModel(NLPModel):
         self.log(f"{split}_loss", val_loss)
         tag_preds = torch.argmax(logits, axis=-1)[subtokens_mask > 0]
         tp, fn, fp, _ = self.classification_report(tag_preds, targets)
-        loss = {f'{split}_loss': val_loss, 'tp': tp, 'fn': fn, 'fp': fp}
+        loss = {f"{split}_loss": val_loss, "tp": tp, "fn": fn, "fp": fp}
 
-        if split == 'val':
+        if split == "val":
             self.validation_step_outputs.append(loss)
-        elif split == 'test':
+        elif split == "test":
             self.test_step_outputs.append(loss)
 
         return loss
 
     def on_validation_epoch_end(self):
         split = "test" if self.trainer.testing else "val"
-        if split == 'val':
-            avg_loss = torch.stack([x[f'{split}_loss'] for x in self.validation_step_outputs]).mean()
-        elif split == 'test':
-            avg_loss = torch.stack([x[f'{split}_loss'] for x in self.test_step_outputs]).mean()
+        if split == "val":
+            avg_loss = torch.stack(
+                [x[f"{split}_loss"] for x in self.validation_step_outputs]
+            ).mean()
+        elif split == "test":
+            avg_loss = torch.stack(
+                [x[f"{split}_loss"] for x in self.test_step_outputs]
+            ).mean()
 
         # calculate metrics and classification report
         precision, recall, f1, report = self.classification_report.compute()
@@ -166,7 +175,8 @@ class HeteronymClassificationModel(NLPModel):
             [
                 x
                 for x in report.split("\n")
-                if not x.endswith("          0") and "100.00     100.00     100.00" not in x
+                if not x.endswith("          0")
+                and "100.00     100.00     100.00" not in x
             ]
         )
         logging.info(f"{split}_report: {report}")
@@ -176,16 +186,28 @@ class HeteronymClassificationModel(NLPModel):
         self.log(f"{split}_f1", f1)
         self.log(f"{split}_recall", recall)
 
-        f1_macro = report[report.index("macro") :].split("\n")[0].replace("macro avg", "").strip().split()[-2]
-        f1_micro = report[report.index("micro") :].split("\n")[0].replace("micro avg", "").strip().split()[-2]
+        f1_macro = (
+            report[report.index("macro") :]
+            .split("\n")[0]
+            .replace("macro avg", "")
+            .strip()
+            .split()[-2]
+        )
+        f1_micro = (
+            report[report.index("micro") :]
+            .split("\n")[0]
+            .replace("micro avg", "")
+            .strip()
+            .split()[-2]
+        )
         self.log(f"{split}_f1_macro", torch.Tensor([float(f1_macro)]))
         self.log(f"{split}_f1_micro", torch.Tensor([float(f1_micro)]))
 
         self.classification_report.reset()
 
-        if split == 'val':
+        if split == "val":
             self.validation_step_outputs.clear()  # free memory
-        elif split == 'test':
+        elif split == "test":
             self.test_step_outputs.clear()
 
     def test_step(self, batch, batch_idx):
@@ -204,22 +226,33 @@ class HeteronymClassificationModel(NLPModel):
         return self.on_validation_epoch_end()
 
     def set_wordid_to_phonemes(self, wordid_to_phonemes_file: str):
-        if wordid_to_phonemes_file is None or not os.path.exists(wordid_to_phonemes_file):
-            logging.warning(f"{wordid_to_phonemes_file} not found, skip setting wordid_to_phonemes.")
+        if wordid_to_phonemes_file is None or not os.path.exists(
+            wordid_to_phonemes_file
+        ):
+            logging.warning(
+                f"{wordid_to_phonemes_file} not found, skip setting wordid_to_phonemes."
+            )
         else:
             self.wordid_to_phonemes_file = wordid_to_phonemes_file
-            self.wordid_to_phonemes = get_wordid_to_phonemes(self.wordid_to_phonemes_file)
+            self.wordid_to_phonemes = get_wordid_to_phonemes(
+                self.wordid_to_phonemes_file
+            )
             logging.info(f"Wordid to phonemes file is set to {wordid_to_phonemes_file}")
 
     # Functions for inference
-    def _process_sentence(self, text: str, start_end: List[List[int]], predictions: List[str]):
+    def _process_sentence(
+        self, text: str, start_end: List[List[int]], predictions: List[str]
+    ):
         text_with_heteronym_replaced = ""
         last_idx = 0
         for heteronym_idx, cur_start_end in enumerate(start_end):
             cur_start, cur_end = cur_start_end
             cur_pred = predictions[heteronym_idx]
 
-            if self.wordid_to_phonemes is None or cur_pred not in self.wordid_to_phonemes:
+            if (
+                self.wordid_to_phonemes is None
+                or cur_pred not in self.wordid_to_phonemes
+            ):
                 cur_pred = f"[{cur_pred}]"
             else:
                 cur_pred = self.wordid_to_phonemes[cur_pred]
@@ -267,9 +300,15 @@ class HeteronymClassificationModel(NLPModel):
 
         tmp_manifest = "/tmp/manifest.json"
         with open(tmp_manifest, "w") as f:
-            for cur_sentence, cur_start_ends, cur_heteronyms in zip(sentences, start_end, heteronyms):
-                item = {"text_graphemes": cur_sentence, "start_end": cur_start_ends, "heteronym_span": cur_heteronyms}
-                f.write(json.dumps(item, ensure_ascii=False) + '\n')
+            for cur_sentence, cur_start_ends, cur_heteronyms in zip(
+                sentences, start_end, heteronyms
+            ):
+                item = {
+                    "text_graphemes": cur_sentence,
+                    "start_end": cur_start_ends,
+                    "heteronym_span": cur_heteronyms,
+                }
+                f.write(json.dumps(item, ensure_ascii=False) + "\n")
 
         all_preds = self._disambiguate(
             manifest=tmp_manifest,
@@ -284,24 +323,35 @@ class HeteronymClassificationModel(NLPModel):
         for sent_idx, sent_start_end in enumerate(start_end):
             output.append(
                 self._process_sentence(
-                    text=sentences[sent_idx], start_end=sent_start_end, predictions=all_preds[sent_idx]
+                    text=sentences[sent_idx],
+                    start_end=sent_start_end,
+                    predictions=all_preds[sent_idx],
                 ),
             )
 
         return all_preds, output
 
     @torch.no_grad()
-    def _disambiguate(self, manifest: str, batch_size: int, num_workers: int = 0, grapheme_field="text_graphemes"):
+    def _disambiguate(
+        self,
+        manifest: str,
+        batch_size: int,
+        num_workers: int = 0,
+        grapheme_field="text_graphemes",
+    ):
         # store predictions for all queries in a single list
         all_preds = []
         mode = self.training
         try:
-            device = 'cuda' if torch.cuda.is_available() else 'cpu'
+            device = "cuda" if torch.cuda.is_available() else "cpu"
             # Switch model to evaluation mode
             self.eval()
             self.to(device)
             infer_datalayer = self._setup_infer_dataloader(
-                manifest, grapheme_field=grapheme_field, batch_size=batch_size, num_workers=num_workers
+                manifest,
+                grapheme_field=grapheme_field,
+                batch_size=batch_size,
+                num_workers=num_workers,
             )
 
             for batch in infer_datalayer:
@@ -314,7 +364,10 @@ class HeteronymClassificationModel(NLPModel):
 
                 preds = tensor2list(torch.argmax(logits, axis=-1)[subtokens_mask > 0])
                 # preds are flatten for all the samples, we need to separate predictions per sample
-                preds_num = [len([p_ for p_ in p if p_ == 1]) for p in tensor2list(subtokens_mask)]
+                preds_num = [
+                    len([p_ for p_ in p if p_ == 1])
+                    for p in tensor2list(subtokens_mask)
+                ]
 
                 last_idx = 0
                 for num in preds_num:
@@ -338,12 +391,18 @@ class HeteronymClassificationModel(NLPModel):
         wordid_to_phonemes_file: Optional[str] = None,
     ):
         all_preds = self._disambiguate(
-            manifest=manifest, batch_size=batch_size, num_workers=num_workers, grapheme_field=grapheme_field
+            manifest=manifest,
+            batch_size=batch_size,
+            num_workers=num_workers,
+            grapheme_field=grapheme_field,
         )
 
         self.set_wordid_to_phonemes(wordid_to_phonemes_file)
 
-        with open(manifest, "r", encoding="utf-8") as f_in, open(output_manifest, "w", encoding="utf-8") as f_preds:
+        with (
+            open(manifest, "r", encoding="utf-8") as f_in,
+            open(output_manifest, "w", encoding="utf-8") as f_preds,
+        ):
             for idx, line in enumerate(f_in):
                 line = json.loads(line)
                 start_end = line["start_end"]
@@ -351,12 +410,14 @@ class HeteronymClassificationModel(NLPModel):
                     start_end = [start_end]
 
                 text_with_heteronym_replaced = self._process_sentence(
-                    text=line[grapheme_field], start_end=start_end, predictions=all_preds[idx]
+                    text=line[grapheme_field],
+                    start_end=start_end,
+                    predictions=all_preds[idx],
                 )
 
                 line["pred_text"] = text_with_heteronym_replaced
                 line["pred_wordid"] = all_preds[idx]
-                f_preds.write(json.dumps(line, ensure_ascii=False) + '\n')
+                f_preds.write(json.dumps(line, ensure_ascii=False) + "\n")
 
         logging.info(f"Predictions save at {output_manifest}")
         return all_preds
@@ -369,7 +430,9 @@ class HeteronymClassificationModel(NLPModel):
             )
             self._train_dl = None
             return
-        self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config, data_split="train")
+        self._train_dl = self._setup_dataloader_from_config(
+            cfg=train_data_config, data_split="train"
+        )
 
     def setup_validation_data(self, val_data_config: Optional[DictConfig]):
         if not val_data_config or val_data_config.dataset.manifest is None:
@@ -378,7 +441,9 @@ class HeteronymClassificationModel(NLPModel):
             )
             self._validation_dl = None
             return
-        self._validation_dl = self._setup_dataloader_from_config(cfg=val_data_config, data_split="val")
+        self._validation_dl = self._setup_dataloader_from_config(
+            cfg=val_data_config, data_split="val"
+        )
 
     def setup_test_data(self, test_data_config: Optional[DictConfig]):
         if not test_data_config or test_data_config.dataset.manifest is None:
@@ -387,12 +452,16 @@ class HeteronymClassificationModel(NLPModel):
             )
             self._test_dl = None
             return
-        self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config, data_split="test")
+        self._test_dl = self._setup_dataloader_from_config(
+            cfg=test_data_config, data_split="test"
+        )
 
     def _setup_dataloader_from_config(self, cfg: DictConfig, data_split: str):
         if "dataset" not in cfg or not isinstance(cfg.dataset, DictConfig):
             raise ValueError(f"No dataset for {data_split}")
-        if "dataloader_params" not in cfg or not isinstance(cfg.dataloader_params, DictConfig):
+        if "dataloader_params" not in cfg or not isinstance(
+            cfg.dataloader_params, DictConfig
+        ):
             raise ValueError(f"No dataloader_params for {data_split}")
 
         dataset = instantiate(
@@ -406,11 +475,13 @@ class HeteronymClassificationModel(NLPModel):
             with_labels=True,
         )
 
-        return torch.utils.data.DataLoader(dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params)
+        return torch.utils.data.DataLoader(
+            dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params
+        )
 
     def _setup_infer_dataloader(
         self, manifest: str, grapheme_field: str, batch_size: int, num_workers: int
-    ) -> 'torch.utils.data.DataLoader':
+    ) -> "torch.utils.data.DataLoader":
 
         dataset = HeteronymClassificationDataset(
             manifest=manifest,

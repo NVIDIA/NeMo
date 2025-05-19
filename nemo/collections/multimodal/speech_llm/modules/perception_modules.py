@@ -33,13 +33,19 @@ from nemo.core.neural_types import (AcousticEncodedRepresentation, AudioSignal,
                                     LengthsType, NeuralType, SpectrogramType)
 from nemo.utils.decorators import experimental
 
-__all__ = ["AudioPerceptionModule", "MultiAudioPerceptionModule", "TransformerCrossAttention"]
+__all__ = [
+    "AudioPerceptionModule",
+    "MultiAudioPerceptionModule",
+    "TransformerCrossAttention",
+]
 
 
 class AudioPerceptionModule(NeuralModule, Exportable):
     """Audio perception module that consists of audio encoder(s) and modality adapter."""
 
-    def input_example(self, max_batch: int = 8, max_dim: int = 32000, min_length: int = 200):
+    def input_example(
+        self, max_batch: int = 8, max_dim: int = 32000, min_length: int = 200
+    ):
         batch_size = torch.randint(low=1, high=max_batch, size=[1]).item()
         max_length = torch.randint(low=min_length, high=max_dim, size=[1]).item()
         signals = torch.rand(size=[batch_size, max_length]) * 2 - 1
@@ -52,7 +58,9 @@ class AudioPerceptionModule(NeuralModule, Exportable):
         """Returns definitions of module input ports."""
         return OrderedDict(
             {
-                "input_signal": NeuralType(("B", "T"), AudioSignal(freq=self.preprocessor._sample_rate)),
+                "input_signal": NeuralType(
+                    ("B", "T"), AudioSignal(freq=self.preprocessor._sample_rate)
+                ),
                 "input_signal_length": NeuralType(
                     tuple("B"), LengthsType()
                 ),  # Please note that length should be in samples not seconds.
@@ -82,17 +90,24 @@ class AudioPerceptionModule(NeuralModule, Exportable):
             if "_target_" in cfg.multi_layer_feat.aggregator:
                 aggregator = self.from_config_dict(cfg.multi_layer_feat.aggregator)
             else:
-                aggregator = MultiFeatureAggregator(cfg.multi_layer_feat.aggregator, channel_dim=1)
+                aggregator = MultiFeatureAggregator(
+                    cfg.multi_layer_feat.aggregator, channel_dim=1
+                )
             self.encoder = ConformerMultiLayerFeatureExtractor(
-                encoder=self.encoder, layer_idx_list=cfg.multi_layer_feat.layer_idx_list, aggregator=aggregator
+                encoder=self.encoder,
+                layer_idx_list=cfg.multi_layer_feat.layer_idx_list,
+                aggregator=aggregator,
             )
 
-        if 'spec_augment' in cfg and cfg.spec_augment is not None:
+        if "spec_augment" in cfg and cfg.spec_augment is not None:
             self.spec_augmentation = self.from_config_dict(cfg.spec_augment)
         else:
             self.spec_augmentation = None
         self.modality_adapter = self.from_config_dict(cfg.modality_adapter)
-        if 'output_dim' not in cfg.modality_adapter and "d_model" in cfg.modality_adapter:  # e.g., conformer encoder
+        if (
+            "output_dim" not in cfg.modality_adapter
+            and "d_model" in cfg.modality_adapter
+        ):  # e.g., conformer encoder
             self.proj = nn.Linear(cfg.modality_adapter.d_model, cfg.output_dim)
         else:
             self.proj = nn.Identity()
@@ -105,7 +120,9 @@ class AudioPerceptionModule(NeuralModule, Exportable):
         processed_signal_length=None,
     ):
         has_input_signal = input_signal is not None and input_signal_length is not None
-        has_processed_signal = processed_signal is not None and processed_signal_length is not None
+        has_processed_signal = (
+            processed_signal is not None and processed_signal_length is not None
+        )
         if (has_input_signal ^ has_processed_signal) is False:
             raise ValueError(
                 f"{self.__class__} Arguments ``input_signal`` and ``input_signal_length`` are mutually exclusive "
@@ -134,10 +151,16 @@ class AudioPerceptionModule(NeuralModule, Exportable):
 
         # Spec augment is not applied during evaluation/testing
         if self.spec_augmentation is not None and self.training:
-            processed_signal = self.spec_augmentation(input_spec=processed_signal, length=processed_signal_length)
+            processed_signal = self.spec_augmentation(
+                input_spec=processed_signal, length=processed_signal_length
+            )
 
-        encoded, encoded_len = self.encoder(audio_signal=processed_signal, length=processed_signal_length)
-        encoded, encoded_len = self.modality_adapter(audio_signal=encoded, length=encoded_len)
+        encoded, encoded_len = self.encoder(
+            audio_signal=processed_signal, length=processed_signal_length
+        )
+        encoded, encoded_len = self.modality_adapter(
+            audio_signal=encoded, length=encoded_len
+        )
 
         # b, c, t -> b, t, c
         encoded = self.proj(encoded.transpose(1, 2))
@@ -178,7 +201,11 @@ class MultiFeatureAggregator(nn.Module):
             if self.channel_dim != 1:
                 encoded = [x.transpose(1, self.channel_dim) for x in encoded]
             encoded, encoded_len = align_feat_seq_list(
-                encoded, encoded_len, mode=self.align_mode, pooling=self.pooling, target_len=target_len
+                encoded,
+                encoded_len,
+                mode=self.align_mode,
+                pooling=self.pooling,
+                target_len=target_len,
             )
             if self.channel_dim != 1:
                 encoded = [x.transpose(1, self.channel_dim) for x in encoded]
@@ -186,13 +213,25 @@ class MultiFeatureAggregator(nn.Module):
         if self.mode == "cat":
             return torch.cat(encoded, dim=self.channel_dim), encoded_len[0]
         elif self.mode == "sum":
-            return torch([x.unsqueeze(-1) for x in encoded], dim=-1).sum(dim=-1), encoded_len[0]
+            return (
+                torch([x.unsqueeze(-1) for x in encoded], dim=-1).sum(dim=-1),
+                encoded_len[0],
+            )
         elif self.mode == "mean" or self.mode == "avg":
-            return torch([x.unsqueeze(-1) for x in encoded], dim=-1).mean(dim=-1), encoded_len[0]
+            return (
+                torch([x.unsqueeze(-1) for x in encoded], dim=-1).mean(dim=-1),
+                encoded_len[0],
+            )
         elif self.mode == "max":
-            return torch([x.unsqueeze(-1) for x in encoded], dim=-1).max(dim=-1), encoded_len[0]
+            return (
+                torch([x.unsqueeze(-1) for x in encoded], dim=-1).max(dim=-1),
+                encoded_len[0],
+            )
         elif self.mode == "min":
-            return torch([x.unsqueeze(-1) for x in encoded], dim=-1).min(dim=-1), encoded_len[0]
+            return (
+                torch([x.unsqueeze(-1) for x in encoded], dim=-1).min(dim=-1),
+                encoded_len[0],
+            )
         elif self.mode == "none":
             return encoded, encoded_len
         else:
@@ -260,30 +299,40 @@ class MultiAudioPerceptionModule(NeuralModule, Exportable):
         super().__init__()
         # Initialize components
         self.aggregator = MultiFeatureAggregator(cfg.aggregator, channel_dim=1)
-        if 'spec_augment' in cfg and cfg.spec_augment is not None:
+        if "spec_augment" in cfg and cfg.spec_augment is not None:
             self.spec_augmentation = self.from_config_dict(cfg.spec_augment)
         else:
             self.spec_augmentation = None
 
         self.encoder_cfg = cfg.encoders
         if not isinstance(self.encoder_cfg, DictConfig):
-            raise TypeError(f"cfg.encoders must be a DictConfig, got {type(cfg.encoders)}")
+            raise TypeError(
+                f"cfg.encoders must be a DictConfig, got {type(cfg.encoders)}"
+            )
 
         preprocessor = {}
         encoders = {}
         for key, enc_cfg in self.encoder_cfg.items():
             encoder = self.from_config_dict(enc_cfg.model)
-            if enc_cfg.get("use_multi_layer_feat", False) and enc_cfg.get("multi_layer_feat", None):
+            if enc_cfg.get("use_multi_layer_feat", False) and enc_cfg.get(
+                "multi_layer_feat", None
+            ):
                 if not isinstance(encoder, ConformerEncoder):
                     raise TypeError(
                         f"Encoder {key} must be a ConformerEncoder when use_multi_layer_feat is True, got {type(encoder)}"
                     )
                 if "_target_" in enc_cfg.multi_layer_feat.aggregator:
-                    aggregator = self.from_config_dict(enc_cfg.multi_layer_feat.aggregator)
+                    aggregator = self.from_config_dict(
+                        enc_cfg.multi_layer_feat.aggregator
+                    )
                 else:
-                    aggregator = MultiFeatureAggregator(enc_cfg.multi_layer_feat.aggregator, channel_dim=1)
+                    aggregator = MultiFeatureAggregator(
+                        enc_cfg.multi_layer_feat.aggregator, channel_dim=1
+                    )
                 encoder = ConformerMultiLayerFeatureExtractor(
-                    encoder=encoder, layer_idx_list=enc_cfg.multi_layer_feat.layer_idx_list, aggregator=aggregator
+                    encoder=encoder,
+                    layer_idx_list=enc_cfg.multi_layer_feat.layer_idx_list,
+                    aggregator=aggregator,
                 )
             encoders[key] = encoder
             preprocessor[key] = (
@@ -302,7 +351,8 @@ class MultiAudioPerceptionModule(NeuralModule, Exportable):
             self.speaker_seg_len = 1
             if "preprocessor" in cfg.speaker_model.model:
                 self.speaker_seg_len = int(
-                    cfg.speaker_model.segment_length_in_secs // cfg.speaker_model.model.preprocessor.window_stride
+                    cfg.speaker_model.segment_length_in_secs
+                    // cfg.speaker_model.model.preprocessor.window_stride
                 )
         self.ref_model = cfg.get("ref_model", None)
         if self.ref_model is not None:
@@ -310,11 +360,18 @@ class MultiAudioPerceptionModule(NeuralModule, Exportable):
                 self.ref_model != "speaker_model" and self.speaker_model is not None
             ):
                 if self.ref_model == "speaker_model":
-                    raise ValueError(f"ref_model is `{self.ref_model}` but speaker_model is None")
-                raise ValueError(f"ref_model `{self.ref_model}` not found in encoders [{encoders.keys()}]")
+                    raise ValueError(
+                        f"ref_model is `{self.ref_model}` but speaker_model is None"
+                    )
+                raise ValueError(
+                    f"ref_model `{self.ref_model}` not found in encoders [{encoders.keys()}]"
+                )
 
         self.modality_adapter = self.from_config_dict(cfg.modality_adapter)
-        if 'output_dim' not in cfg.modality_adapter and "d_model" in cfg.modality_adapter:  # e.g., conformer encoder
+        if (
+            "output_dim" not in cfg.modality_adapter
+            and "d_model" in cfg.modality_adapter
+        ):  # e.g., conformer encoder
             self.proj = nn.Linear(cfg.modality_adapter.d_model, cfg.output_dim)
         else:
             self.proj = nn.Identity()
@@ -328,7 +385,9 @@ class MultiAudioPerceptionModule(NeuralModule, Exportable):
         processed_signal_length=None,
     ):
         has_input_signal = input_signal is not None and input_signal_length is not None
-        has_processed_signal = processed_signal is not None and processed_signal_length is not None
+        has_processed_signal = (
+            processed_signal is not None and processed_signal_length is not None
+        )
         if (has_input_signal ^ has_processed_signal) is False:
             raise ValueError(
                 f"{self.__class__} Arguments ``input_signal`` and ``input_signal_length`` are mutually exclusive "
@@ -341,14 +400,23 @@ class MultiAudioPerceptionModule(NeuralModule, Exportable):
                 length=input_signal_length,
             )
         elif not has_processed_signal and preprocessor is None:
-            processed_signal, processed_signal_length = input_signal, input_signal_length
+            processed_signal, processed_signal_length = (
+                input_signal,
+                input_signal_length,
+            )
         return processed_signal, processed_signal_length
 
     def forward_speaker(
-        self, input_signal=None, input_signal_length=None, processed_signal=None, processed_signal_length=None
+        self,
+        input_signal=None,
+        input_signal_length=None,
+        processed_signal=None,
+        processed_signal_length=None,
     ):
         has_input_signal = input_signal is not None and input_signal_length is not None
-        has_processed_signal = processed_signal is not None and processed_signal_length is not None
+        has_processed_signal = (
+            processed_signal is not None and processed_signal_length is not None
+        )
         if (has_input_signal ^ has_processed_signal) is False:
             raise ValueError(
                 f"{self.__class__} Arguments ``input_signal`` and ``input_signal_length`` are mutually exclusive "
@@ -361,7 +429,9 @@ class MultiAudioPerceptionModule(NeuralModule, Exportable):
             )
         # Spec augment is not applied during evaluation/testing
         if self.spec_augmentation is not None and self.training:
-            processed_signal = self.spec_augmentation(input_spec=processed_signal, length=processed_signal_length)
+            processed_signal = self.spec_augmentation(
+                input_spec=processed_signal, length=processed_signal_length
+            )
 
         # encoded has shape [B, D, T], length has shape [B]
         encoded, encoded_len = self.speaker_model.encoder(
@@ -385,10 +455,16 @@ class MultiAudioPerceptionModule(NeuralModule, Exportable):
 
         B, D, T = encoded.shape
         num_seg = int(T // self.speaker_seg_len)
-        encoded = encoded.view(int(B * num_seg), D, self.speaker_seg_len)  # [B*num_seg, D, seg_len]
-        encoded_len_seg = (encoded_len // self.speaker_seg_len).repeat_interleave(num_seg)  # [B*seg_len]
+        encoded = encoded.view(
+            int(B * num_seg), D, self.speaker_seg_len
+        )  # [B*num_seg, D, seg_len]
+        encoded_len_seg = (encoded_len // self.speaker_seg_len).repeat_interleave(
+            num_seg
+        )  # [B*seg_len]
 
-        _, embeds = self.speaker_model.decoder(encoder_output=encoded, length=encoded_len_seg)
+        _, embeds = self.speaker_model.decoder(
+            encoder_output=encoded, length=encoded_len_seg
+        )
 
         embeds = embeds.view(B, -1, num_seg)  # [B, D, num_seg]
 
@@ -406,15 +482,24 @@ class MultiAudioPerceptionModule(NeuralModule, Exportable):
         encoded_len_list = []
         ref_idx = None
         for key, encoder in self.encoders.items():
-            curr_processed_signal, curr_processed_signal_length = self.maybe_preprocess_audio(
-                self.preprocessor[key], input_signal, input_signal_length, processed_signal, processed_signal_length
+            curr_processed_signal, curr_processed_signal_length = (
+                self.maybe_preprocess_audio(
+                    self.preprocessor[key],
+                    input_signal,
+                    input_signal_length,
+                    processed_signal,
+                    processed_signal_length,
+                )
             )
             # Spec augment is not applied during evaluation/testing
             if self.spec_augmentation is not None and self.training:
                 processed_signal = self.spec_augmentation(
-                    input_spec=curr_processed_signal, length=curr_processed_signal_length
+                    input_spec=curr_processed_signal,
+                    length=curr_processed_signal_length,
                 )
-            encoded, encoded_len = encoder(audio_signal=curr_processed_signal, length=curr_processed_signal_length)
+            encoded, encoded_len = encoder(
+                audio_signal=curr_processed_signal, length=curr_processed_signal_length
+            )
             if key == self.ref_model:
                 ref_idx = len(encoded_list)
             encoded_list.append(encoded)
@@ -432,7 +517,9 @@ class MultiAudioPerceptionModule(NeuralModule, Exportable):
         encoded_list, encoded_len_list = self.aggregator(
             encoded=encoded_list, encoded_len=encoded_len_list, ref_idx=ref_idx
         )
-        encoded, encoded_len = self.modality_adapter(audio_signal=encoded_list, length=encoded_len_list)
+        encoded, encoded_len = self.modality_adapter(
+            audio_signal=encoded_list, length=encoded_len_list
+        )
         # b, c, t -> b, t, c
         encoded = self.proj(encoded.transpose(1, 2))
         return encoded, encoded_len
@@ -440,7 +527,9 @@ class MultiAudioPerceptionModule(NeuralModule, Exportable):
 
 def lens_to_mask(lens, max_length):
     batch_size = lens.shape[0]
-    mask = torch.arange(max_length).repeat(batch_size, 1).to(lens.device) < lens[:, None]
+    mask = (
+        torch.arange(max_length).repeat(batch_size, 1).to(lens.device) < lens[:, None]
+    )
     return mask
 
 
@@ -455,8 +544,8 @@ class TransformerCrossAttention(NeuralModule, Exportable):
 
     def __init__(self, cfg: DictConfig, *args, **kwargs):
         super().__init__()
-        xformer_num_layers = cfg.xattn.get('xformer_num_layers', 2)
-        xformer_dims = cfg.xattn.get('xformer_dims', cfg.output_dim)
+        xformer_num_layers = cfg.xattn.get("xformer_num_layers", 2)
+        xformer_dims = cfg.xattn.get("xformer_dims", cfg.output_dim)
         self.cfg = cfg
         cross_attn_cfg = cfg.xattn
         if xformer_dims != cfg.output_dim:
@@ -491,11 +580,16 @@ class TransformerCrossAttention(NeuralModule, Exportable):
         return_mems=False,
     ):
         assert input_embeds.shape[-1] == encoder_states.shape[-1], (
-            f"Last dimension of the following shapes must be equal: " f"{input_embeds.shape=} {encoder_states.shape=}"
+            f"Last dimension of the following shapes must be equal: "
+            f"{input_embeds.shape=} {encoder_states.shape=}"
         )
         with torch.autocast(device_type="cuda"):  # megatron_amp_O2 friendly
-            enc_mask = lens_to_mask(encoded_len, encoder_states.shape[1]).to(encoder_states.dtype)
-            dec_mask = lens_to_mask(input_lengths, input_embeds.shape[1]).to(input_lengths.dtype)
+            enc_mask = lens_to_mask(encoded_len, encoder_states.shape[1]).to(
+                encoder_states.dtype
+            )
+            dec_mask = lens_to_mask(input_lengths, input_embeds.shape[1]).to(
+                input_lengths.dtype
+            )
             y = self.xattn_decoder(
                 decoder_states=self.input_proj1(input_embeds),
                 decoder_mask=dec_mask,
@@ -506,7 +600,7 @@ class TransformerCrossAttention(NeuralModule, Exportable):
                 return_mems_as_list=False,
             )
             if return_mems:
-                extra_outpus = {'decoder_mems_list': y}
+                extra_outpus = {"decoder_mems_list": y}
                 y = y[-1][:, -input_embeds.shape[1] :]
             else:
                 extra_outpus = {}

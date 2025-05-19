@@ -80,10 +80,30 @@ if __name__ == "__main__":
     args_sanity_check(args)
 
     kwargs = get_user_configs(args.gpu.lower(), "pre_train", "flux", "12b", args)
-    num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, _, enable_cuda_graphs = kwargs[:10]
+    (
+        num_nodes,
+        mbs,
+        gbs,
+        tp_size,
+        pp_size,
+        cp_size,
+        vp_size,
+        ep_size,
+        _,
+        enable_cuda_graphs,
+    ) = kwargs[:10]
 
     recipe = override_recipe_configs(
-        args, num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, enable_cuda_graphs
+        args,
+        num_nodes,
+        mbs,
+        gbs,
+        tp_size,
+        pp_size,
+        cp_size,
+        vp_size,
+        ep_size,
+        enable_cuda_graphs,
     )
 
     exp_config = f"{num_nodes}nodes_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_{mbs}mbs_{gbs}gbs"
@@ -107,7 +127,7 @@ if __name__ == "__main__":
         PerfEnvPlugin(
             enable_vboost=True,
             nccl_pp_comm_chunksize=2097152 if pp_size > 1 else None,
-            gpu_sm100_or_newer=(args.gpu.lower() in ['b200', 'gb200']),
+            gpu_sm100_or_newer=(args.gpu.lower() in ["b200", "gb200"]),
         ),
     ]
     if args.enable_nsys:

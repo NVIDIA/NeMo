@@ -71,12 +71,21 @@ def override_recipe_configs(
         nccl_communicator_config_path=args.nccl_communicator_config_path,
     )
     recipe = set_exp_logging_configs(
-        recipe, "pre_train", "llm", "nemotron", args.tensorboard, args.wandb, args.wandb_prj_name, args.wandb_job_name
+        recipe,
+        "pre_train",
+        "llm",
+        "nemotron",
+        args.tensorboard,
+        args.wandb,
+        args.wandb_prj_name,
+        args.wandb_job_name,
     )
 
     # data module configs
     if args.use_hf_tokenizer:
-        logging.warning("HuggingFace tokenizer not supported for Nemotron3 22B. Using NullTokenizer.")
+        logging.warning(
+            "HuggingFace tokenizer not supported for Nemotron3 22B. Using NullTokenizer."
+        )
     recipe.data.tokenizer = run.Config(
         get_nmt_tokenizer, library="null", model_name="NullTokenizer", vocab_size=256000
     )
@@ -144,7 +153,7 @@ if __name__ == "__main__":
         PerfEnvPlugin(
             enable_vboost=True,
             nccl_pp_comm_chunksize=2097152 if pp_size > 1 else None,
-            gpu_sm100_or_newer=(args.gpu.lower() in ['b200', 'gb200']),
+            gpu_sm100_or_newer=(args.gpu.lower() in ["b200", "gb200"]),
         )
     ]
     if args.enable_nsys:

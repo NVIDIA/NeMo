@@ -65,7 +65,9 @@ try:
     from megatron.core.num_microbatches_calculator import get_num_microbatches
 
 except (ImportError, ModuleNotFoundError):
-    logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
+    logging.warning(
+        "Megatron num_microbatches_calculator not found, using Apex version."
+    )
     from apex.transformer.pipeline_parallel.utils import get_num_microbatches
 
 UNCONDITIONAL_CONFIG = {
@@ -81,25 +83,31 @@ class DiffusionEngine(nn.Module, Serialization):
         denoiser_config = cfg.denoiser_config
         first_stage_config = cfg.first_stage_config
         conditioner_config = cfg.conditioner_config
-        sampler_config = cfg.get('sampler_config', None)
-        optimizer_config = cfg.get('optimizer_config', None)
-        scheduler_config = cfg.get('scheduler_config', None)
-        loss_fn_config = cfg.get('loss_fn_config', None)
-        network_wrapper = cfg.get('network_wrapper', None)
-        compile_model = cfg.get('compile_model', False)
+        sampler_config = cfg.get("sampler_config", None)
+        optimizer_config = cfg.get("optimizer_config", None)
+        scheduler_config = cfg.get("scheduler_config", None)
+        loss_fn_config = cfg.get("loss_fn_config", None)
+        network_wrapper = cfg.get("network_wrapper", None)
+        compile_model = cfg.get("compile_model", False)
         self.config = model_parallel_config
 
-        self.channels_last = cfg.get('channels_last', False)
-        self.log_keys = cfg.get('log_keys', None)
-        self.input_key = cfg.get('input_key', 'images')
+        self.channels_last = cfg.get("channels_last", False)
+        self.log_keys = cfg.get("log_keys", None)
+        self.input_key = cfg.get("input_key", "images")
         # Precaching
-        self.precache_mode = cfg.get('precache_mode')
+        self.precache_mode = cfg.get("precache_mode")
 
-        self.loss_fn = DiffusionEngine.from_config_dict(loss_fn_config) if loss_fn_config is not None else None
+        self.loss_fn = (
+            DiffusionEngine.from_config_dict(loss_fn_config)
+            if loss_fn_config is not None
+            else None
+        )
 
         model = DiffusionEngine.from_config_dict(unet_config)
-        self.model = get_obj_from_str(default(network_wrapper, OPENAIUNETWRAPPER))(model, compile_model=compile_model)
-        if cfg.get('inductor', False):
+        self.model = get_obj_from_str(default(network_wrapper, OPENAIUNETWRAPPER))(
+            model, compile_model=compile_model
+        )
+        if cfg.get("inductor", False):
             torch._dynamo.config.cache_size_limit = 256
             torch._dynamo.config.dynamic_shapes = False
             torch._dynamo.config.automatic_dynamic_shapes = False
@@ -107,12 +115,18 @@ class DiffusionEngine(nn.Module, Serialization):
             self.model = torch.compile(self.model)
 
         self.denoiser = DiffusionEngine.from_config_dict(denoiser_config)
-        self.sampler = instantiate_from_config(sampler_config) if sampler_config is not None else None
+        self.sampler = (
+            instantiate_from_config(sampler_config)
+            if sampler_config is not None
+            else None
+        )
 
-        self.conditioner = DiffusionEngine.from_config_dict(default(conditioner_config, UNCONDITIONAL_CONFIG))
+        self.conditioner = DiffusionEngine.from_config_dict(
+            default(conditioner_config, UNCONDITIONAL_CONFIG)
+        )
         self.scheduler_config = scheduler_config
         # Precaching
-        self.precache_mode = cfg.get('precache_mode')
+        self.precache_mode = cfg.get("precache_mode")
         self._init_first_stage(first_stage_config)
         self.model_type = None
 
@@ -127,16 +141,18 @@ class DiffusionEngine(nn.Module, Serialization):
 
         self.scale_factor = cfg.scale_factor
         self.disable_first_stage_autocast = cfg.disable_first_stage_autocast
-        self.no_cond_log = cfg.get('no_cond_log', False)
+        self.no_cond_log = cfg.get("no_cond_log", False)
 
         if self.channels_last:
             if self.first_stage_model:
-                self.first_stage_model = self.first_stage_model.to(memory_format=torch.channels_last)
+                self.first_stage_model = self.first_stage_model.to(
+                    memory_format=torch.channels_last
+                )
             self.model = self.model.to(memory_format=torch.channels_last)
 
     def _init_first_stage(self, config):
-        if self.precache_mode == 'both':
-            logging.info('Do not intialize VAE when caching image features.')
+        if self.precache_mode == "both":
+            logging.info("Do not intialize VAE when caching image features.")
             self.first_stage_model = None
             return
         model = DiffusionEngine.from_config_dict(config).eval()
@@ -172,9 +188,11 @@ class DiffusionEngine(nn.Module, Serialization):
         return z
 
     def forward(self, x, batch):
-        loss = self.loss_fn(self.model, self.denoiser, self.conditioner, x, batch, rng=self.rng)
+        loss = self.loss_fn(
+            self.model, self.denoiser, self.conditioner, x, batch, rng=self.rng
+        )
         loss_mean = loss.mean()
-        log_prefix = 'train' if self.training else 'val'
+        log_prefix = "train" if self.training else "val"
         loss_dict = {f"{log_prefix}/loss": loss_mean}
         return loss_mean, loss_dict
 
@@ -188,7 +206,9 @@ class DiffusionEngine(nn.Module, Serialization):
     def training_step(self, batch, batch_idx):
         loss, loss_dict = self.shared_step(batch)
 
-        self.log_dict(loss_dict, prog_bar=True, logger=True, on_step=True, on_epoch=False)
+        self.log_dict(
+            loss_dict, prog_bar=True, logger=True, on_step=True, on_epoch=False
+        )
 
         self.log(
             "global_step",
@@ -201,7 +221,9 @@ class DiffusionEngine(nn.Module, Serialization):
 
         if self.scheduler_config is not None:
             lr = self.optimizers().param_groups[0]["lr"]
-            self.log("lr_abs", lr, prog_bar=True, logger=True, on_step=True, on_epoch=False)
+            self.log(
+                "lr_abs", lr, prog_bar=True, logger=True, on_step=True, on_epoch=False
+            )
 
         return loss
 
@@ -229,7 +251,9 @@ class DiffusionEngine(nn.Module, Serialization):
                     print(f"{context}: Restored training weights")
 
     def instantiate_optimizer_from_config(self, params, lr, cfg):
-        return get_obj_from_str(cfg["target"])(params, lr=lr, **cfg.get("params", dict()))
+        return get_obj_from_str(cfg["target"])(
+            params, lr=lr, **cfg.get("params", dict())
+        )
 
     def configure_optimizers(self):
         lr = self.learning_rate
@@ -262,7 +286,9 @@ class DiffusionEngine(nn.Module, Serialization):
     ):
         randn = torch.randn(batch_size, *shape, generator=self.rng).to(self.device)
 
-        denoiser = lambda input, sigma, c: self.denoiser(self.model, input, sigma, c, **kwargs)
+        denoiser = lambda input, sigma, c: self.denoiser(
+            self.model, input, sigma, c, **kwargs
+        )
         samples = self.sampler(denoiser, randn, cond, uc=uc)
         return samples
 
@@ -276,7 +302,9 @@ class DiffusionEngine(nn.Module, Serialization):
         log = dict()
 
         for embedder in self.conditioner.embedders:
-            if ((self.log_keys is None) or (embedder.input_key in self.log_keys)) and not self.no_cond_log:
+            if (
+                (self.log_keys is None) or (embedder.input_key in self.log_keys)
+            ) and not self.no_cond_log:
                 x = batch[embedder.input_key][:n]
                 if isinstance(x, torch.Tensor):
                     if x.dim() == 1:
@@ -285,7 +313,10 @@ class DiffusionEngine(nn.Module, Serialization):
                         xc = log_txt_as_img((image_h, image_w), x, size=image_h // 4)
                     elif x.dim() == 2:
                         # size and crop cond and the like
-                        x = ["x".join([str(xx) for xx in x[i].tolist()]) for i in range(x.shape[0])]
+                        x = [
+                            "x".join([str(xx) for xx in x[i].tolist()])
+                            for i in range(x.shape[0])
+                        ]
                         xc = log_txt_as_img((image_h, image_w), x, size=image_h // 20)
                     else:
                         raise NotImplementedError()
@@ -328,7 +359,9 @@ class DiffusionEngine(nn.Module, Serialization):
 
         c, uc = self.conditioner.get_unconditional_conditioning(
             batch,
-            force_uc_zero_embeddings=ucg_keys if len(self.conditioner.embedders) > 0 else [],
+            force_uc_zero_embeddings=(
+                ucg_keys if len(self.conditioner.embedders) > 0 else []
+            ),
         )
 
         sampling_kwargs = {}
@@ -346,7 +379,9 @@ class DiffusionEngine(nn.Module, Serialization):
 
         if sample:
             with self.ema_scope("Plotting"):
-                samples = self.sample(c, shape=z.shape[1:], uc=uc, batch_size=N, **sampling_kwargs)
+                samples = self.sample(
+                    c, shape=z.shape[1:], uc=uc, batch_size=N, **sampling_kwargs
+                )
             samples = self.decode_first_stage(samples)
             log["samples"] = samples
         return log
@@ -368,25 +403,30 @@ class MegatronDiffusionEngine(NLPAdapterModelMixin, MegatronBaseModel):
         self._validate_trainer()
 
         # megatron_amp_O2 is not yet supported in diffusion models
-        self.megatron_amp_O2 = cfg.get('megatron_amp_O2', False)
-        self.use_fsdp = cfg.get('fsdp', False)
+        self.megatron_amp_O2 = cfg.get("megatron_amp_O2", False)
+        self.use_fsdp = cfg.get("fsdp", False)
 
         self.model = self.model_provider_func()
 
         self.conditioning_keys = []
 
-        if self.trainer.precision in ['bf16', 'bf16-mixed']:
+        if self.trainer.precision in ["bf16", "bf16-mixed"]:
             self.autocast_dtype = torch.bfloat16
-        elif self.trainer.precision in [32, '32', '32-true']:
+        elif self.trainer.precision in [32, "32", "32-true"]:
             self.autocast_dtype = torch.float
-        elif self.trainer.precision in [16, '16', '16-mixed']:
+        elif self.trainer.precision in [16, "16", "16-mixed"]:
             self.autocast_dtype = torch.half
         else:
-            raise ValueError('precision must be in ["32-true", "16-mixed", "bf16-mixed"]')
+            raise ValueError(
+                'precision must be in ["32-true", "16-mixed", "bf16-mixed"]'
+            )
 
     def get_module_list(self):
         if isinstance(self.model, list):
-            return [model.module if isinstance(model, Float16Module) else model for model in self.model]
+            return [
+                model.module if isinstance(model, Float16Module) else model
+                for model in self.model
+            ]
         elif isinstance(self.model, Float16Module):
             return [self.model.module]
         else:
@@ -394,7 +434,9 @@ class MegatronDiffusionEngine(NLPAdapterModelMixin, MegatronBaseModel):
 
     def model_provider_func(self, pre_process=True, post_process=True):
         """Model depends on pipeline paralellism."""
-        model = DiffusionEngine(cfg=self.cfg, model_parallel_config=self.model_parallel_config)
+        model = DiffusionEngine(
+            cfg=self.cfg, model_parallel_config=self.model_parallel_config
+        )
         return model
 
     # def forward(self, x, c, *args, **kwargs):
@@ -408,9 +450,18 @@ class MegatronDiffusionEngine(NLPAdapterModelMixin, MegatronBaseModel):
     @rank_zero_only
     @torch.no_grad()
     def on_train_batch_start(self, batch, batch_idx, dataloader_idx=0):
-        if self.cfg.scale_by_std and self.current_epoch == 0 and self.global_step == 0 and batch_idx == 0:
-            assert self.cfg.scale_factor == 1.0, 'rather not use custom rescaling and std-rescaling simultaneously'
-            batch[self.cfg.first_stage_key] = batch[self.cfg.first_stage_key].cuda(non_blocking=True)
+        if (
+            self.cfg.scale_by_std
+            and self.current_epoch == 0
+            and self.global_step == 0
+            and batch_idx == 0
+        ):
+            assert (
+                self.cfg.scale_factor == 1.0
+            ), "rather not use custom rescaling and std-rescaling simultaneously"
+            batch[self.cfg.first_stage_key] = batch[self.cfg.first_stage_key].cuda(
+                non_blocking=True
+            )
             self.model.on_train_batch_start(batch, batch_idx)
 
     def fwd_bwd_step(self, dataloader_iter, forward_only):
@@ -441,15 +492,20 @@ class MegatronDiffusionEngine(NLPAdapterModelMixin, MegatronBaseModel):
 
         loss_dict = {}
         if losses_reduced_per_micro_batch:
-            if (not forward_only) or self.cfg.data.get('validation_drop_last', True):
+            if (not forward_only) or self.cfg.data.get("validation_drop_last", True):
                 # average loss across micro batches
                 for key in losses_reduced_per_micro_batch[0]:
-                    loss_tensors_list = [loss_reduced[key] for loss_reduced in losses_reduced_per_micro_batch]
+                    loss_tensors_list = [
+                        loss_reduced[key]
+                        for loss_reduced in losses_reduced_per_micro_batch
+                    ]
                     loss_tensor = torch.stack(loss_tensors_list)
                     loss_dict[key] = loss_tensor.mean()
                 loss_mean = loss_dict["train/loss"]
             else:
-                raise NotImplementedError("Losses of micro batches sizes must be uniform!")
+                raise NotImplementedError(
+                    "Losses of micro batches sizes must be uniform!"
+                )
         else:
             if forward_only:
                 loss_mean = []
@@ -474,7 +530,9 @@ class MegatronDiffusionEngine(NLPAdapterModelMixin, MegatronBaseModel):
         torch.distributed.broadcast(loss_mean, get_last_rank())
 
         # when using sequence parallelism, the sequence parallel layernorm grads must be all-reduced
-        if self.cfg.get('tensor_model_parallel_size', 1) > 1 and self.cfg.get('sequence_parallel', False):
+        if self.cfg.get("tensor_model_parallel_size", 1) > 1 and self.cfg.get(
+            "sequence_parallel", False
+        ):
             self.allreduce_sequence_parallel_gradients()
 
         if self.use_fsdp:
@@ -488,24 +546,45 @@ class MegatronDiffusionEngine(NLPAdapterModelMixin, MegatronBaseModel):
             #     # main grads are stored in the MainParamsOptimizer wrapper
             #     self._optimizer.allreduce_main_grads()
             self._optimizer.allreduce_main_grads()
-        elif not self.cfg.get('ddp_overlap', True):
+        elif not self.cfg.get("ddp_overlap", True):
             # async grad allreduce is not currently implemented for O1/autocasting mixed precision training
             # so we all-reduce gradients after the pipeline
             self.allreduce_gradients()  # @sangkug we think this is causing memory to blow up (hurts perf)
 
-        if self.cfg.precision in [16, '16', '16-mixed']:
+        if self.cfg.precision in [16, "16", "16-mixed"]:
             loss_scale = self.trainer.precision_plugin.scaler._scale
             if loss_scale is not None:
-                self.log('loss_scale', loss_scale, batch_size=1)
+                self.log("loss_scale", loss_scale, batch_size=1)
 
-        self.log_dict(loss_dict, prog_bar=False, logger=True, on_step=True, rank_zero_only=True, batch_size=1)
-        self.log('reduced_train_loss', loss_mean, prog_bar=True, rank_zero_only=True, batch_size=1)
-        lr = self._optimizer.param_groups[0]['lr']
-        self.log('lr', lr, prog_bar=True, rank_zero_only=True, batch_size=1)
-        self.log('global_step', self.trainer.global_step + 1, prog_bar=True, rank_zero_only=True, batch_size=1)
+        self.log_dict(
+            loss_dict,
+            prog_bar=False,
+            logger=True,
+            on_step=True,
+            rank_zero_only=True,
+            batch_size=1,
+        )
         self.log(
-            'consumed_samples',
-            self.compute_consumed_samples(self.trainer.global_step + 1 - self.init_global_step),
+            "reduced_train_loss",
+            loss_mean,
+            prog_bar=True,
+            rank_zero_only=True,
+            batch_size=1,
+        )
+        lr = self._optimizer.param_groups[0]["lr"]
+        self.log("lr", lr, prog_bar=True, rank_zero_only=True, batch_size=1)
+        self.log(
+            "global_step",
+            self.trainer.global_step + 1,
+            prog_bar=True,
+            rank_zero_only=True,
+            batch_size=1,
+        )
+        self.log(
+            "consumed_samples",
+            self.compute_consumed_samples(
+                self.trainer.global_step + 1 - self.init_global_step
+            ),
             prog_bar=True,
             rank_zero_only=True,
             batch_size=1,
@@ -529,7 +608,7 @@ class MegatronDiffusionEngine(NLPAdapterModelMixin, MegatronBaseModel):
         """Helper method for allreduce_sequence_parallel_gradients"""
 
         for param in module.parameters():
-            sequence_parallel_param = getattr(param, 'sequence_parallel', False)
+            sequence_parallel_param = getattr(param, "sequence_parallel", False)
             if sequence_parallel_param and param.requires_grad:
                 if self.megatron_amp_O2:
                     grad = param.main_grad
@@ -547,22 +626,28 @@ class MegatronDiffusionEngine(NLPAdapterModelMixin, MegatronBaseModel):
                 self.autocast_dtype in (torch.half, torch.bfloat16),
                 dtype=self.autocast_dtype,
             ):
-                if self.model.precache_mode == 'both':
+                if self.model.precache_mode == "both":
                     x = batch[self.model.input_key].to(torch.cuda.current_device())
                     if self.model.channels_last:
                         x = x.to(memory_format=torch.channels_last, non_blocking=True)
                     else:
-                        x = x.to(memory_format=torch.contiguous_format, non_blocking=True)
+                        x = x.to(
+                            memory_format=torch.contiguous_format, non_blocking=True
+                        )
                 else:
                     x = batch[self.model.input_key].to(torch.cuda.current_device())
                     if self.model.channels_last:
-                        x = x.permute(0, 3, 1, 2).to(memory_format=torch.channels_last, non_blocking=True)
+                        x = x.permute(0, 3, 1, 2).to(
+                            memory_format=torch.channels_last, non_blocking=True
+                        )
                     else:
                         x = rearrange(x, "b h w c -> b c h w")
-                        x = x.to(memory_format=torch.contiguous_format, non_blocking=True)
+                        x = x.to(
+                            memory_format=torch.contiguous_format, non_blocking=True
+                        )
                     x = self.model.encode_first_stage(x)
 
-                batch['global_step'] = self.trainer.global_step
+                batch["global_step"] = self.trainer.global_step
 
             return x, batch
 
@@ -583,7 +668,14 @@ class MegatronDiffusionEngine(NLPAdapterModelMixin, MegatronBaseModel):
     def validation_step(self, dataloader_iter, batch_idx):
         loss, val_loss_dict = self.fwd_bwd_step(dataloader_iter, batch_idx, True)
 
-        self.log_dict(val_loss_dict, prog_bar=False, logger=True, on_step=False, on_epoch=True, batch_size=1)
+        self.log_dict(
+            val_loss_dict,
+            prog_bar=False,
+            logger=True,
+            on_step=False,
+            on_epoch=True,
+            batch_size=1,
+        )
 
         return loss
 
@@ -599,31 +691,44 @@ class MegatronDiffusionEngine(NLPAdapterModelMixin, MegatronBaseModel):
             stage (str, optional):
                 Can be 'fit', 'validate', 'test', or 'predict'. Defaults to None.
         """
-        self.model.rng.manual_seed(self.cfg.seed + 100 * parallel_state.get_data_parallel_rank())
+        self.model.rng.manual_seed(
+            self.cfg.seed + 100 * parallel_state.get_data_parallel_rank()
+        )
 
         # log number of parameters
         if isinstance(self.model, list):
             num_parameters_on_device = sum(
-                [sum([p.nelement() for p in model_module.parameters()]) for model_module in self.model]
+                [
+                    sum([p.nelement() for p in model_module.parameters()])
+                    for model_module in self.model
+                ]
             )
         else:
-            num_parameters_on_device = sum([p.nelement() for p in self.model.parameters()])
+            num_parameters_on_device = sum(
+                [p.nelement() for p in self.model.parameters()]
+            )
 
         # to be summed across data parallel group
-        total_num_parameters = torch.tensor(num_parameters_on_device).cuda(non_blocking=True)
+        total_num_parameters = torch.tensor(num_parameters_on_device).cuda(
+            non_blocking=True
+        )
 
-        torch.distributed.all_reduce(total_num_parameters, group=parallel_state.get_model_parallel_group())
+        torch.distributed.all_reduce(
+            total_num_parameters, group=parallel_state.get_model_parallel_group()
+        )
 
         logging.info(
-            f'Pipeline model parallel rank: {parallel_state.get_pipeline_model_parallel_rank()}, '
-            f'Tensor model parallel rank: {parallel_state.get_tensor_model_parallel_rank()}, '
-            f'Number of model parameters on device: {num_parameters_on_device:.2e}. '
-            f'Total number of model parameters: {total_num_parameters:.2e}.'
+            f"Pipeline model parallel rank: {parallel_state.get_pipeline_model_parallel_rank()}, "
+            f"Tensor model parallel rank: {parallel_state.get_tensor_model_parallel_rank()}, "
+            f"Number of model parameters on device: {num_parameters_on_device:.2e}. "
+            f"Total number of model parameters: {total_num_parameters:.2e}."
         )
 
         resume_checkpoint_path = self.trainer.ckpt_path
         if resume_checkpoint_path:
-            init_consumed_samples = self._extract_consumed_samples_from_ckpt(resume_checkpoint_path)
+            init_consumed_samples = self._extract_consumed_samples_from_ckpt(
+                resume_checkpoint_path
+            )
         else:
             init_consumed_samples = 0
         self.init_consumed_samples = init_consumed_samples
@@ -641,39 +746,45 @@ class MegatronDiffusionEngine(NLPAdapterModelMixin, MegatronBaseModel):
         self.setup_test_data(self.cfg.data)
 
     def build_train_valid_test_datasets(self):
-        logging.info('Building datasets for Stable Diffusion...')
-        if self.trainer.limit_val_batches > 1.0 and isinstance(self.trainer.limit_val_batches, float):
-            raise ValueError("limit_val_batches must be an integer or float less than or equal to 1.0.")
+        logging.info("Building datasets for Stable Diffusion...")
+        if self.trainer.limit_val_batches > 1.0 and isinstance(
+            self.trainer.limit_val_batches, float
+        ):
+            raise ValueError(
+                "limit_val_batches must be an integer or float less than or equal to 1.0."
+            )
 
-        if self.model.precache_mode == 'text':
-            logging.info('Precahing text only.')
+        if self.model.precache_mode == "text":
+            logging.info("Precahing text only.")
             build_dataset_cls = build_sdxl_precached_text_train_valid_datasets
-        elif self.model.precache_mode == 'both':
-            logging.info('Precaching text and image.')
+        elif self.model.precache_mode == "both":
+            logging.info("Precaching text and image.")
             build_dataset_cls = build_train_valid_precached_datasets
         elif self.model.precache_mode is None:
             build_dataset_cls = build_sdxl_train_valid_datasets
         else:
-            raise ValueError("unsupported precache mode provided. Check your config file.")
+            raise ValueError(
+                "unsupported precache mode provided. Check your config file."
+            )
         self._train_ds, self._validation_ds = build_dataset_cls(
             model_cfg=self.cfg, consumed_samples=self.compute_consumed_samples(0)
         )
         self._test_ds = None
 
         if self._train_ds is not None:
-            logging.info(f'Length of train dataset: {len(self._train_ds)}')
+            logging.info(f"Length of train dataset: {len(self._train_ds)}")
         if self._validation_ds is not None:
-            logging.info(f'Length of val dataset: {len(self._validation_ds)}')
+            logging.info(f"Length of val dataset: {len(self._validation_ds)}")
         if self._test_ds is not None:
-            logging.info(f'Length of test dataset: {len(self._test_ds)}')
-        logging.info(f'Finished building datasets for LatentDiffusion.')
+            logging.info(f"Length of test dataset: {len(self._test_ds)}")
+        logging.info(f"Finished building datasets for LatentDiffusion.")
         return self._train_ds, self._validation_ds, self._test_ds
 
     def setup_training_data(self, cfg):
-        if hasattr(self, '_train_ds') and self._train_ds is not None:
+        if hasattr(self, "_train_ds") and self._train_ds is not None:
             consumed_samples = self.compute_consumed_samples(0)
             logging.info(
-                f'Setting up train dataloader with len(len(self._train_ds)): {len(self._train_ds)} and consumed samples: {consumed_samples}'
+                f"Setting up train dataloader with len(len(self._train_ds)): {len(self._train_ds)} and consumed samples: {consumed_samples}"
             )
             self._train_dl = torch.utils.data.DataLoader(
                 self._train_ds,
@@ -685,10 +796,10 @@ class MegatronDiffusionEngine(NLPAdapterModelMixin, MegatronBaseModel):
             )
 
     def setup_validation_data(self, cfg):
-        if hasattr(self, '_validation_ds') and self._validation_ds is not None:
+        if hasattr(self, "_validation_ds") and self._validation_ds is not None:
             consumed_samples = 0
             logging.info(
-                f'Setting up validation dataloader with len(len(self._validation_ds)): {len(self._validation_ds)} and consumed samples: {consumed_samples}'
+                f"Setting up validation dataloader with len(len(self._validation_ds)): {len(self._validation_ds)} and consumed samples: {consumed_samples}"
             )
             self._validation_dl = torch.utils.data.DataLoader(
                 self._validation_ds,
@@ -700,10 +811,10 @@ class MegatronDiffusionEngine(NLPAdapterModelMixin, MegatronBaseModel):
             )
 
     def setup_test_data(self, cfg):
-        if hasattr(self, '_test_ds') and self._test_ds is not None:
+        if hasattr(self, "_test_ds") and self._test_ds is not None:
             consumed_samples = 0
             logging.info(
-                f'Setting up test dataloader with len(len(self._test_ds)): {len(self._test_ds)} and consumed samples: {consumed_samples}'
+                f"Setting up test dataloader with len(len(self._test_ds)): {len(self._test_ds)} and consumed samples: {consumed_samples}"
             )
             self._test_dl = torch.utils.data.DataLoader(
                 self._test_ds,
@@ -712,7 +823,9 @@ class MegatronDiffusionEngine(NLPAdapterModelMixin, MegatronBaseModel):
                 pin_memory=True,
             )
 
-    def transfer_batch_to_device(self, batch: Any, device: torch.device, dataloader_idx: int) -> Any:
+    def transfer_batch_to_device(
+        self, batch: Any, device: torch.device, dataloader_idx: int
+    ) -> Any:
         """PTL hook: https://pytorch-lightning.readthedocs.io/en/latest/common/lightning_module.html#transfer-batch-to-device
         When using pipeline parallelism, we need the global batch to remain on the CPU,
         since the memory overhead will be too high when using a large number of microbatches.
@@ -726,7 +839,7 @@ class MegatronDiffusionEngine(NLPAdapterModelMixin, MegatronBaseModel):
         """
         if self.trainer.accumulate_grad_batches > 1:
             raise ValueError(
-                f'Gradient accumulation is done within training_step. trainer.accumulate_grad_batches must equal 1'
+                f"Gradient accumulation is done within training_step. trainer.accumulate_grad_batches must equal 1"
             )
 
     @classmethod
@@ -735,17 +848,27 @@ class MegatronDiffusionEngine(NLPAdapterModelMixin, MegatronBaseModel):
 
     def parameters(self):
         if isinstance(self.model, list):
-            return itertools.chain.from_iterable(module.parameters() for module in self.model)
+            return itertools.chain.from_iterable(
+                module.parameters() for module in self.model
+            )
         else:
             return self.model.parameters()
 
-    def _check_and_add_adapter(self, name, module, peft_name, peft_cfg, name_key_to_mcore_mixins=None):
+    def _check_and_add_adapter(
+        self, name, module, peft_name, peft_cfg, name_key_to_mcore_mixins=None
+    ):
         if isinstance(module, AdapterModuleMixin):
             if isinstance(module, LinearWrapper):
-                peft_cfg.in_features, peft_cfg.out_features = module.in_features, module.out_features
+                peft_cfg.in_features, peft_cfg.out_features = (
+                    module.in_features,
+                    module.out_features,
+                )
             else:
                 return
-            if model_utils.import_class_by_path(peft_cfg._target_) in module.get_accepted_adapter_types():
+            if (
+                model_utils.import_class_by_path(peft_cfg._target_)
+                in module.get_accepted_adapter_types()
+            ):
                 module.add_adapter(
                     name=peft_name,
                     cfg=peft_cfg,

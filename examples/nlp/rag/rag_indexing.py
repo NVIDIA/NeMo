@@ -39,9 +39,13 @@ def main(cfg) -> None:
     model_path = cfg.indexing.embedder.model_path
     embed_batch_size = cfg.indexing.embedder.embed_batch_size
     if cfg.indexing.embedder.model_type == "bert":
-        embed_model = NeMoBertEmbeddings(model_path=model_path, cfg=cfg, embed_batch_size=embed_batch_size)
+        embed_model = NeMoBertEmbeddings(
+            model_path=model_path, cfg=cfg, embed_batch_size=embed_batch_size
+        )
     else:
-        assert cfg.indexing.model_type in ["bert"], "Currently RAG pipeline supports 'bert' for embeddings models."
+        assert cfg.indexing.model_type in [
+            "bert"
+        ], "Currently RAG pipeline supports 'bert' for embeddings models."
         embed_model = None
     Settings.embed_model = embed_model
 
@@ -55,5 +59,5 @@ def main(cfg) -> None:
     index.storage_context.persist(persist_dir=index_path)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

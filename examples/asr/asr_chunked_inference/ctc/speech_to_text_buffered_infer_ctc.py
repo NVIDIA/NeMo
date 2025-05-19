@@ -77,9 +77,15 @@ class TranscriptionConfig:
     output_filename: Optional[str] = None
     batch_size: int = 32
     num_workers: int = 0
-    append_pred: bool = False  # Sets mode of work, if True it will add new field transcriptions.
-    pred_name_postfix: Optional[str] = None  # If you need to use another model name, rather than standard one.
-    random_seed: Optional[int] = None  # seed number going to be used in seed_everything()
+    append_pred: bool = (
+        False  # Sets mode of work, if True it will add new field transcriptions.
+    )
+    pred_name_postfix: Optional[str] = (
+        None  # If you need to use another model name, rather than standard one.
+    )
+    random_seed: Optional[int] = (
+        None  # seed number going to be used in seed_everything()
+    )
 
     # Set to True to output greedy timestamp information (only supported models)
     compute_timestamps: bool = False
@@ -89,7 +95,9 @@ class TranscriptionConfig:
 
     # Chunked configs
     chunk_len_in_secs: float = 1.6  # Chunk length in seconds
-    total_buffer_in_secs: float = 4.0  # Length of buffer (chunk + left and right padding) in seconds
+    total_buffer_in_secs: float = (
+        4.0  # Length of buffer (chunk + left and right padding) in seconds
+    )
     model_stride: int = (
         8  # Model downsampling factor, 8 for Citrinet and FasConformer models and 4 for Conformer models.
     )
@@ -110,7 +118,9 @@ class TranscriptionConfig:
     # Config for word / character error rate calculation
     calculate_wer: bool = True
     clean_groundtruth_text: bool = False
-    langid: str = "en"  # specify this for convert_num_to_words step in groundtruth cleaning
+    langid: str = (
+        "en"  # specify this for convert_num_to_words step in groundtruth cleaning
+    )
     use_cer: bool = False
 
 
@@ -120,7 +130,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     Transcribes the input audio and can be used to infer long audio files by chunking
     them into smaller segments.
     """
-    logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
+    logging.info(f"Hydra config: {OmegaConf.to_yaml(cfg)}")
     torch.set_grad_enabled(False)
 
     cfg = OmegaConf.structured(cfg)
@@ -136,21 +146,27 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     filepaths = None
     manifest = cfg.dataset_manifest
     if cfg.audio_dir is not None:
-        filepaths = list(glob.glob(os.path.join(cfg.audio_dir, f"**/*.{cfg.audio_type}"), recursive=True))
+        filepaths = list(
+            glob.glob(
+                os.path.join(cfg.audio_dir, f"**/*.{cfg.audio_type}"), recursive=True
+            )
+        )
         manifest = None  # ignore dataset_manifest if audio_dir and dataset_manifest both presents
 
     # setup GPU
     if cfg.cuda is None:
         if torch.cuda.is_available():
             device = [0]  # use 0th CUDA device
-            accelerator = 'gpu'
+            accelerator = "gpu"
         else:
             device = 1
-            accelerator = 'cpu'
+            accelerator = "cpu"
     else:
         device = [cfg.cuda]
-        accelerator = 'gpu'
-    map_location = torch.device('cuda:{}'.format(device[0]) if accelerator == 'gpu' else 'cpu')
+        accelerator = "gpu"
+    map_location = torch.device(
+        "cuda:{}".format(device[0]) if accelerator == "gpu" else "cpu"
+    )
     logging.info(f"Inference will be done on device : {device}")
 
     asr_model, model_name = setup_model(cfg, map_location)
@@ -162,7 +178,9 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     model_cfg.preprocessor.pad_to = 0
 
     if model_cfg.preprocessor.normalize != "per_feature":
-        logging.error("Only EncDecCTCModelBPE models trained with per_feature normalization are supported currently")
+        logging.error(
+            "Only EncDecCTCModelBPE models trained with per_feature normalization are supported currently"
+        )
 
     # Disable config overwriting
     OmegaConf.set_struct(model_cfg.preprocessor, True)
@@ -179,18 +197,24 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
         return cfg
 
     # Setup decoding strategy
-    if hasattr(asr_model, 'change_decoding_strategy'):
-        if not isinstance(asr_model, EncDecCTCModel) and not isinstance(asr_model, EncDecHybridRNNTCTCModel):
-            raise ValueError("The script supports ctc model and hybrid model with ctc decodng!")
+    if hasattr(asr_model, "change_decoding_strategy"):
+        if not isinstance(asr_model, EncDecCTCModel) and not isinstance(
+            asr_model, EncDecHybridRNNTCTCModel
+        ):
+            raise ValueError(
+                "The script supports ctc model and hybrid model with ctc decodng!"
+            )
 
         else:
             if cfg.compute_langs:
-                raise ValueError("CTC models do not support `compute_langs` at the moment.")
+                raise ValueError(
+                    "CTC models do not support `compute_langs` at the moment."
+                )
 
             if hasattr(
-                asr_model, 'cur_decoder'
+                asr_model, "cur_decoder"
             ):  # hybrid model with ctc decoding or potential other models containing decoding switch feature
-                asr_model.change_decoding_strategy(cfg.decoding, decoder_type='ctc')
+                asr_model.change_decoding_strategy(cfg.decoding, decoder_type="ctc")
 
             else:  # ctc model
                 asr_model.change_decoding_strategy(cfg.decoding)
@@ -198,13 +222,15 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     asr_model.eval()
     asr_model = asr_model.to(asr_model.device)
 
-    feature_stride = model_cfg.preprocessor['window_stride']
+    feature_stride = model_cfg.preprocessor["window_stride"]
     model_stride_in_secs = feature_stride * cfg.model_stride
     total_buffer = cfg.total_buffer_in_secs
     chunk_len = float(cfg.chunk_len_in_secs)
 
     tokens_per_chunk = math.ceil(chunk_len / model_stride_in_secs)
-    mid_delay = math.ceil((chunk_len + (total_buffer - chunk_len) / 2) / model_stride_in_secs)
+    mid_delay = math.ceil(
+        (chunk_len + (total_buffer - chunk_len) / 2) / model_stride_in_secs
+    )
     logging.info(f"tokens_per_chunk is {tokens_per_chunk}, mid_delay is {mid_delay}")
 
     frame_asr = FrameBatchASR(
@@ -227,7 +253,12 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
             filepaths,
         )
     output_filename, pred_text_attr_name = write_transcription(
-        hyps, cfg, model_name, filepaths=filepaths, compute_langs=False, timestamps=False
+        hyps,
+        cfg,
+        model_name,
+        filepaths=filepaths,
+        compute_langs=False,
+        timestamps=False,
     )
     logging.info(f"Finished writing predictions to {output_filename}!")
 
@@ -241,11 +272,13 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
             output_filename=None,
         )
         if output_manifest_w_wer:
-            logging.info(f"Writing prediction and error rate of each sample to {output_manifest_w_wer}!")
+            logging.info(
+                f"Writing prediction and error rate of each sample to {output_manifest_w_wer}!"
+            )
             logging.info(f"{total_res}")
 
     return cfg
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()  # noqa pylint: disable=no-value-for-parameter

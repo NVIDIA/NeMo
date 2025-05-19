@@ -20,19 +20,18 @@ from nemo.core.classes import Serialization, Typing, typecheck
 from nemo.core.neural_types import (LabelsType, LengthsType, LogprobsType,
                                     LossType, NeuralType)
 
-__all__ = ['CTCLoss']
+__all__ = ["CTCLoss"]
 
 
 class CTCLoss(nn.CTCLoss, Serialization, Typing):
     @property
     def input_types(self):
-        """Input types definitions for CTCLoss.
-        """
+        """Input types definitions for CTCLoss."""
         return {
-            "log_probs": NeuralType(('B', 'T', 'D'), LogprobsType()),
-            "targets": NeuralType(('B', 'T'), LabelsType()),
-            "input_lengths": NeuralType(tuple('B'), LengthsType()),
-            "target_lengths": NeuralType(tuple('B'), LengthsType()),
+            "log_probs": NeuralType(("B", "T", "D"), LogprobsType()),
+            "targets": NeuralType(("B", "T"), LabelsType()),
+            "input_lengths": NeuralType(tuple("B"), LengthsType()),
+            "target_lengths": NeuralType(tuple("B"), LengthsType()),
         }
 
     @property
@@ -43,26 +42,32 @@ class CTCLoss(nn.CTCLoss, Serialization, Typing):
         """
         return {"loss": NeuralType(elements_type=LossType())}
 
-    def __init__(self, num_classes, zero_infinity=False, reduction='mean_batch'):
+    def __init__(self, num_classes, zero_infinity=False, reduction="mean_batch"):
         self._blank = num_classes
         # Don't forget to properly call base constructor
-        if reduction not in ['none', 'mean', 'sum', 'mean_batch', 'mean_volume']:
-            raise ValueError('`reduction` must be one of [mean, sum, mean_batch, mean_volume]')
+        if reduction not in ["none", "mean", "sum", "mean_batch", "mean_volume"]:
+            raise ValueError(
+                "`reduction` must be one of [mean, sum, mean_batch, mean_volume]"
+            )
 
         self.config_reduction = reduction
-        if reduction == 'mean_batch' or reduction == 'mean_volume':
-            ctc_reduction = 'none'
+        if reduction == "mean_batch" or reduction == "mean_volume":
+            ctc_reduction = "none"
             self._apply_reduction = True
-        elif reduction in ['sum', 'mean', 'none']:
+        elif reduction in ["sum", "mean", "none"]:
             ctc_reduction = reduction
             self._apply_reduction = False
-        super().__init__(blank=self._blank, reduction=ctc_reduction, zero_infinity=zero_infinity)
+        super().__init__(
+            blank=self._blank, reduction=ctc_reduction, zero_infinity=zero_infinity
+        )
 
     def reduce(self, losses, target_lengths):
-        if self.config_reduction == 'mean_batch':
+        if self.config_reduction == "mean_batch":
             losses = losses.mean()  # global batch size average
-        elif self.config_reduction == 'mean_volume':
-            losses = losses.sum() / target_lengths.sum()  # same as above but longer samples weigh more
+        elif self.config_reduction == "mean_volume":
+            losses = (
+                losses.sum() / target_lengths.sum()
+            )  # same as above but longer samples weigh more
 
         return losses
 
@@ -76,7 +81,10 @@ class CTCLoss(nn.CTCLoss, Serialization, Typing):
         # here we transpose because we expect [B, T, D] while PyTorch assumes [T, B, D]
         log_probs = log_probs.transpose(1, 0)
         loss = super().forward(
-            log_probs=log_probs, targets=targets, input_lengths=input_lengths, target_lengths=target_lengths
+            log_probs=log_probs,
+            targets=targets,
+            input_lengths=input_lengths,
+            target_lengths=target_lengths,
         )
         if self._apply_reduction:
             loss = self.reduce(loss, target_lengths)

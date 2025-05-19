@@ -45,7 +45,11 @@ def test_llama_config():
 
 def test_llama3_config():
     config = Llama3Config(
-        num_layers=80, hidden_size=1024, num_attention_heads=16, num_query_groups=4, ffn_hidden_size=4096
+        num_layers=80,
+        hidden_size=1024,
+        num_attention_heads=16,
+        num_query_groups=4,
+        ffn_hidden_size=4096,
     )
     assert config.num_query_groups == 4
     assert config.hidden_dropout == 0.0

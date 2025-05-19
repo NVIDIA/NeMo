@@ -75,7 +75,7 @@ class Llama4VisionConfig(CLIPViTConfig):
     bias_activation_fusion: bool = True
     bias_dropout_fusion: bool = True
     attention_softmax_in_fp32: bool = True
-    normalization: str = 'LayerNorm'
+    normalization: str = "LayerNorm"
     layernorm_epsilon: float = 1e-6
     apply_rope_fusion: bool = False
     pixel_shuffle_ratio: float = 0.5
@@ -304,7 +304,9 @@ class Llama4ViTModel(VisionModule):
         self.add_class_token = add_class_token
         self.class_token_len = class_token_len
 
-        self.seq_length = self.num_patches + (self.class_token_len if self.add_class_token else 0)
+        self.seq_length = self.num_patches + (
+            self.class_token_len if self.add_class_token else 0
+        )
 
         self.ln_pre = build_module(
             ln_pre_impl,
@@ -330,7 +332,9 @@ class Llama4ViTModel(VisionModule):
 
         self.position_ids = torch.arange(self.seq_length).expand(1, -1).cuda()
 
-        self.position_embeddings = torch.nn.Embedding(self.seq_length, self.visual_hidden_size)
+        self.position_embeddings = torch.nn.Embedding(
+            self.seq_length, self.visual_hidden_size
+        )
 
         self.add_class_token = add_class_token
         if self.add_class_token:
@@ -376,7 +380,9 @@ class Llama4ViTModel(VisionModule):
         # https://github.com/meta-llama/llama-stack/blob/530d4bdfe130ace4b31f09cb0334195928d4bc08/llama_stack/models/llama/llama4/vision/encoder.py
         patch_h = patch_w = self.patch_dim
         idx_h, idx_w = self.img_h // patch_h, self.img_w // patch_w
-        img_idx = torch.arange(self.img_h * self.img_w // (patch_h * patch_w), dtype=torch.int32)
+        img_idx = torch.arange(
+            self.img_h * self.img_w // (patch_h * patch_w), dtype=torch.int32
+        )
         img_idx = img_idx.reshape(idx_h * idx_w, 1)
         img_idx = torch.cat([img_idx, img_idx[:1]], dim=0)
         img_idx[-1, -1] = PackingIndex.ID_CLS_TOKEN
@@ -395,14 +401,22 @@ class Llama4ViTModel(VisionModule):
         packed_img_idx = packed_img_idx.reshape(1, -1, PackingIndex.NUM_METADATA - 1)
 
         # compute rope freqs
-        rope_freq = self.get_rope_freqs(self.config.hidden_size // self.config.num_attention_heads // 2)
-        freqs_x = self.compute_rope_freqs(rope_freq, packed_img_idx[:, :, PackingIndex.X] + 1)
-        freqs_y = self.compute_rope_freqs(rope_freq, packed_img_idx[:, :, PackingIndex.Y] + 1)
+        rope_freq = self.get_rope_freqs(
+            self.config.hidden_size // self.config.num_attention_heads // 2
+        )
+        freqs_x = self.compute_rope_freqs(
+            rope_freq, packed_img_idx[:, :, PackingIndex.X] + 1
+        )
+        freqs_y = self.compute_rope_freqs(
+            rope_freq, packed_img_idx[:, :, PackingIndex.Y] + 1
+        )
         freqs = torch.cat([freqs_x, freqs_y], dim=-1).float().contiguous()[..., ::2]
         # disable RoPE for padding and cls tokens
         freqs = freqs.masked_fill(packed_img_idx[:, :, PackingIndex.IDX, None] < 0, 0)
         freqs = freqs.squeeze(0)
-        rotary_pos_emb = torch.stack((freqs.view(-1, 1), freqs.view(-1, 1)), dim=-1).view(freqs.shape[0], -1)
+        rotary_pos_emb = torch.stack(
+            (freqs.view(-1, 1), freqs.view(-1, 1)), dim=-1
+        ).view(freqs.shape[0], -1)
         # emb [seq_length, .., dim]
         rotary_pos_emb = rotary_pos_emb[:, None, None, :]
         return rotary_pos_emb.cuda()
@@ -433,7 +447,9 @@ class Llama4ViTModel(VisionModule):
         Returns:
             torch.Tensor: RoPE frequencies corresponding to the input positions `t`.
         """
-        freqs = einsum("..., f -> ... f", t.type(freqs.dtype), freqs)  # outer product, t might be multidim
+        freqs = einsum(
+            "..., f -> ... f", t.type(freqs.dtype), freqs
+        )  # outer product, t might be multidim
         freqs = freqs.repeat_interleave(2, dim=-1)  # Interleave for sin/cos application
         return freqs
 
@@ -445,7 +461,9 @@ class Llama4ViTModel(VisionModule):
         """
         self.decoder.set_input_tensor(input_tensor)
 
-    def _encode(self, x: torch.Tensor, attention_mask: Optional[torch.Tensor] = None) -> torch.Tensor:
+    def _encode(
+        self, x: torch.Tensor, attention_mask: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
         """Forward function of the ViT Model. This function passes the input tensors
         through the embedding layer and then the transformer.
 
@@ -460,8 +478,12 @@ class Llama4ViTModel(VisionModule):
         x = self.conv1(x)  # [batch, grid ** 2, hidden_size]
 
         if self.add_class_token:
-            class_token = self.class_token.expand(x.shape[0], -1, -1)  # [batch, class_token_len, hidden_size]
-            x = torch.cat([x, class_token], dim=1)  # [batch, grid ** 2 + class_token_len, hidden_size]
+            class_token = self.class_token.expand(
+                x.shape[0], -1, -1
+            )  # [batch, class_token_len, hidden_size]
+            x = torch.cat(
+                [x, class_token], dim=1
+            )  # [batch, grid ** 2 + class_token_len, hidden_size]
 
         assert x.shape[1] == self.seq_length, f"{x.shape[1]} != {self.seq_length}"
         x = x + self.position_embeddings(self.position_ids)

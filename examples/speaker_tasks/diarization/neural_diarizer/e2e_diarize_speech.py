@@ -74,7 +74,9 @@ class DiarizationConfig:
     dataset_manifest: Optional[str] = None  # Path to dataset's JSON manifest
     presort_manifest: Optional[bool] = True
 
-    postprocessing_yaml: Optional[str] = None  # Path to a yaml file for postprocessing configurations
+    postprocessing_yaml: Optional[str] = (
+        None  # Path to a yaml file for postprocessing configurations
+    )
     no_der: bool = False
     out_rttm_dir: Optional[str] = None
     save_preds_tensors: bool = False
@@ -83,7 +85,9 @@ class DiarizationConfig:
     session_len_sec: float = -1  # End-to-end diarization session length in seconds
     batch_size: int = 1
     num_workers: int = 0
-    random_seed: Optional[int] = None  # seed number going to be used in seed_everything()
+    random_seed: Optional[int] = (
+        None  # seed number going to be used in seed_everything()
+    )
     bypass_postprocessing: bool = True  # If True, postprocessing will be bypassed
     log: bool = False  # If True, log will be printed
 
@@ -92,7 +96,9 @@ class DiarizationConfig:
 
     # Eval Settings: (0.25, False) should be default setting for sortformer eval.
     collar: float = 0.25  # Collar in seconds for DER calculation
-    ignore_overlap: bool = False  # If True, DER will be calculated only for non-overlapping segments
+    ignore_overlap: bool = (
+        False  # If True, DER will be calculated only for non-overlapping segments
+    )
 
     # Streaming diarization configs
     spkcache_len: int = 188
@@ -107,7 +113,9 @@ class DiarizationConfig:
     matmul_precision: str = "highest"  # Literal["highest", "high", "medium"]
 
     # Optuna Config
-    launch_pp_optim: bool = False  # If True, launch optimization process for postprocessing parameters
+    launch_pp_optim: bool = (
+        False  # If True, launch optimization process for postprocessing parameters
+    )
     optuna_study_name: str = "optim_postprocessing"
     optuna_temp_dir: str = "/tmp/optuna"
     optuna_storage: str = f"sqlite:///{optuna_study_name}.db"
@@ -115,7 +123,9 @@ class DiarizationConfig:
     optuna_n_trials: int = 100000
 
 
-def optuna_suggest_params(postprocessing_cfg: PostProcessingParams, trial: optuna.Trial) -> PostProcessingParams:
+def optuna_suggest_params(
+    postprocessing_cfg: PostProcessingParams, trial: optuna.Trial
+) -> PostProcessingParams:
     """
     Suggests hyperparameters for postprocessing using Optuna.
     See the following link for `trial` instance in Optuna framework.
@@ -131,9 +141,15 @@ def optuna_suggest_params(postprocessing_cfg: PostProcessingParams, trial: optun
     postprocessing_cfg.onset = trial.suggest_float("onset", 0.4, 0.8, step=0.01)
     postprocessing_cfg.offset = trial.suggest_float("offset", 0.4, 0.9, step=0.01)
     postprocessing_cfg.pad_onset = trial.suggest_float("pad_onset", 0.1, 0.5, step=0.01)
-    postprocessing_cfg.pad_offset = trial.suggest_float("pad_offset", 0.0, 0.2, step=0.01)
-    postprocessing_cfg.min_duration_on = trial.suggest_float("min_duration_on", 0.0, 0.75, step=0.01)
-    postprocessing_cfg.min_duration_off = trial.suggest_float("min_duration_off", 0.0, 0.75, step=0.01)
+    postprocessing_cfg.pad_offset = trial.suggest_float(
+        "pad_offset", 0.0, 0.2, step=0.01
+    )
+    postprocessing_cfg.min_duration_on = trial.suggest_float(
+        "min_duration_on", 0.0, 0.75, step=0.01
+    )
+    postprocessing_cfg.min_duration_off = trial.suggest_float(
+        "min_duration_off", 0.0, 0.75, step=0.01
+    )
     return postprocessing_cfg
 
 
@@ -147,9 +163,15 @@ def get_tensor_path(cfg: DiarizationConfig) -> str:
     Returns:
         str: The constructed file path for the prediction tensor.
     """
-    tensor_filename = os.path.basename(cfg.dataset_manifest).replace("manifest.", "").replace(".json", "")
+    tensor_filename = (
+        os.path.basename(cfg.dataset_manifest)
+        .replace("manifest.", "")
+        .replace(".json", "")
+    )
     model_base_path = os.path.dirname(cfg.model_path)
-    model_id = os.path.basename(cfg.model_path).replace(".ckpt", "").replace(".nemo", "")
+    model_id = (
+        os.path.basename(cfg.model_path).replace(".ckpt", "").replace(".nemo", "")
+    )
     bpath = f"{model_base_path}/pred_tensors"
     if not os.path.exists(bpath):
         os.makedirs(bpath)
@@ -189,7 +211,9 @@ def diarization_objective(
     Returns:
         float: The Diarization Error Rate (DER) for the given set of postprocessing parameters.
     """
-    with tempfile.TemporaryDirectory(dir=temp_out_dir, prefix="Diar_PostProcessing_") as _:
+    with tempfile.TemporaryDirectory(
+        dir=temp_out_dir, prefix="Diar_PostProcessing_"
+    ) as _:
         if trial is not None:
             postprocessing_cfg = optuna_suggest_params(postprocessing_cfg, trial)
         all_hyps, all_refs, all_uems = convert_pred_mat_to_segments(
@@ -238,7 +262,10 @@ def run_optuna_hyperparam_search(
         collar=cfg.collar,
     )
     study = optuna.create_study(
-        direction="minimize", study_name=cfg.optuna_study_name, storage=cfg.optuna_storage, load_if_exists=True
+        direction="minimize",
+        study_name=cfg.optuna_study_name,
+        storage=cfg.optuna_storage,
+        load_if_exists=True,
     )
     logger = logging.getLogger()
     logger.setLevel(logging.INFO)  # Setup the root logger.
@@ -281,13 +308,17 @@ def convert_pred_mat_to_segments(
         unit_10ms_frame_count=unit_10ms_frame_count,
         bypass_postprocessing=bypass_postprocessing,
     )
-    for sample_idx, (uniq_id, audio_rttm_values) in enumerate(audio_rttm_map_dict.items()):
+    for sample_idx, (uniq_id, audio_rttm_values) in enumerate(
+        audio_rttm_map_dict.items()
+    ):
         speaker_timestamps = total_speaker_timestamps[sample_idx]
         if uniq_id is None:
             if audio_rttm_values.get("uniq_id", None) is not None:
                 uniq_id = audio_rttm_values["uniq_id"]
             else:
-                uniq_id = get_uniqname_from_filepath(audio_rttm_values["audio_filepath"])
+                uniq_id = get_uniqname_from_filepath(
+                    audio_rttm_values["audio_filepath"]
+                )
         all_hypothesis, all_reference, all_uems = timestamps_to_pyannote_object(
             speaker_timestamps,
             uniq_id,
@@ -304,7 +335,7 @@ def convert_pred_mat_to_segments(
 def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
     """Main function for end-to-end speaker diarization inference."""
     for key in cfg:
-        cfg[key] = None if cfg[key] == 'None' else cfg[key]
+        cfg[key] = None if cfg[key] == "None" else cfg[key]
 
     if is_dataclass(cfg):
         cfg = OmegaConf.structured(cfg)
@@ -313,30 +344,34 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
         pl.seed_everything(cfg.random_seed)
 
     if cfg.model_path is None:
-        raise ValueError("cfg.model_path cannot be None. Please specify the path to the model.")
+        raise ValueError(
+            "cfg.model_path cannot be None. Please specify the path to the model."
+        )
 
     # setup GPU
     torch.set_float32_matmul_precision(cfg.matmul_precision)
     if cfg.cuda is None:
         if torch.cuda.is_available():
             device = [0]  # use 0th CUDA device
-            accelerator = 'gpu'
-            map_location = torch.device('cuda:0')
+            accelerator = "gpu"
+            map_location = torch.device("cuda:0")
         else:
             device = 1
-            accelerator = 'cpu'
-            map_location = torch.device('cpu')
+            accelerator = "cpu"
+            map_location = torch.device("cpu")
     else:
         device = [cfg.cuda]
-        accelerator = 'gpu'
-        map_location = torch.device(f'cuda:{cfg.cuda}')
+        accelerator = "gpu"
+        map_location = torch.device(f"cuda:{cfg.cuda}")
 
     if cfg.model_path.endswith(".ckpt"):
         diar_model = SortformerEncLabelModel.load_from_checkpoint(
             checkpoint_path=cfg.model_path, map_location=map_location, strict=False
         )
     elif cfg.model_path.endswith(".nemo"):
-        diar_model = SortformerEncLabelModel.restore_from(restore_path=cfg.model_path, map_location=map_location)
+        diar_model = SortformerEncLabelModel.restore_from(
+            restore_path=cfg.model_path, map_location=map_location
+        )
     else:
         raise ValueError("cfg.model_path must end with.ckpt or.nemo!")
 
@@ -347,10 +382,14 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
     diar_model = diar_model.eval()
 
     if cfg.presort_manifest:
-        audio_key = cfg.get('audio_key', 'audio_filepath')
-        with NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
-            for item in read_and_maybe_sort_manifest(cfg.dataset_manifest, try_sort=cfg.presort_manifest):
-                audio_file = get_full_path(audio_file=item[audio_key], manifest_file=cfg.dataset_manifest)
+        audio_key = cfg.get("audio_key", "audio_filepath")
+        with NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+            for item in read_and_maybe_sort_manifest(
+                cfg.dataset_manifest, try_sort=cfg.presort_manifest
+            ):
+                audio_file = get_full_path(
+                    audio_file=item[audio_key], manifest_file=cfg.dataset_manifest
+                )
                 item[audio_key] = audio_file
                 f.write(json.dumps(item) + "\n")
             sorted_manifest_path = f.name
@@ -359,7 +398,9 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
     else:
         diar_model._cfg.test_ds.manifest_filepath = cfg.dataset_manifest
         infer_audio_rttm_dict = audio_rttm_map(cfg.dataset_manifest)
-    remove_path_after_done = sorted_manifest_path if sorted_manifest_path is not None else None
+    remove_path_after_done = (
+        sorted_manifest_path if sorted_manifest_path is not None else None
+    )
 
     diar_model._cfg.test_ds.batch_size = cfg.batch_size
     diar_model._cfg.test_ds.pin_memory = False
@@ -387,7 +428,9 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
     postprocessing_cfg = load_postprocessing_from_yaml(cfg.postprocessing_yaml)
     tensor_path, model_id, tensor_filename = get_tensor_path(cfg)
     cfg.optuna_study_name = f"__{model_id}_{tensor_filename}"
-    cfg.optuna_storage: str = f"sqlite:///{cfg.optuna_temp_dir}/{cfg.optuna_study_name}.db"
+    cfg.optuna_storage: str = (
+        f"sqlite:///{cfg.optuna_temp_dir}/{cfg.optuna_study_name}.db"
+    )
     cfg.optuna_log_file: str = f"{cfg.optuna_temp_dir}/{cfg.optuna_study_name}.log"
 
     if os.path.exists(tensor_path) and cfg.save_preds_tensors:
@@ -396,7 +439,9 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
         )
         diar_model_preds_total_list = torch.load(tensor_path)
     else:
-        logging.info("No saved prediction tensors found. Running inference on the dataset...")
+        logging.info(
+            "No saved prediction tensors found. Running inference on the dataset..."
+        )
         diar_model.test_batch()
         diar_model_preds_total_list = diar_model.preds_total_list
         if cfg.save_preds_tensors:
@@ -426,7 +471,9 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
             bypass_postprocessing=cfg.bypass_postprocessing,
             out_rttm_dir=cfg.out_rttm_dir,
         )
-        logging.info(f"Evaluating the model on the {len(diar_model_preds_total_list)} audio segments...")
+        logging.info(
+            f"Evaluating the model on the {len(diar_model_preds_total_list)} audio segments..."
+        )
         score_labels(
             AUDIO_RTTM_MAP=infer_audio_rttm_dict,
             all_reference=all_refs,
@@ -443,5 +490,5 @@ def main(cfg: DiarizationConfig) -> Union[DiarizationConfig]:
             os.unlink(remove_path_after_done)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

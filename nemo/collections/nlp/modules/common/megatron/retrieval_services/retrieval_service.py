@@ -24,7 +24,7 @@ from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.nlp.modules.common.megatron.retrieval_services.util import \
     request_data
 
-log = logging.getLogger('retrieval')
+log = logging.getLogger("retrieval")
 log.setLevel(logging.ERROR)
 
 lock = threading.Lock()
@@ -35,7 +35,7 @@ PORT_NUM_DYN = 17180
 
 class RetrievalService:
     """
-    Abstract class for Retrieval Service. 
+    Abstract class for Retrieval Service.
     """
 
     @abc.abstractmethod
@@ -66,7 +66,11 @@ class FaissRetrievalService(RetrievalService):
     """
 
     def __init__(
-        self, tokenizer: TokenizerSpec, service_ip: str = None, service_port: int = None, updatable: bool = False,
+        self,
+        tokenizer: TokenizerSpec,
+        service_ip: str = None,
+        service_port: int = None,
+        updatable: bool = False,
     ):
         self.updatable = updatable
         self.tokenizer = tokenizer
@@ -87,8 +91,8 @@ class FaissRetrievalService(RetrievalService):
                 text = self.tokenizer.ids_to_text(q)
                 sentence_list.append(text)
             query = sentence_list
-        data = {'sentences': query}
-        data['neighbors'] = neighbors
+        data = {"sentences": query}
+        data["neighbors"] = neighbors
         result = request_data(data, self.service_ip, self.service_port)
         result = np.array(result)
         return result
@@ -102,9 +106,17 @@ class DynamicFaissRetrievalService(FaissRetrievalService):
     """
 
     def __init__(
-        self, tokenizer: TokenizerSpec, service_ip: str = None, service_port: int = None,
+        self,
+        tokenizer: TokenizerSpec,
+        service_ip: str = None,
+        service_port: int = None,
     ):
-        super().__init__(tokenizer=tokenizer, service_ip=service_ip, service_port=service_port, updatable=True)
+        super().__init__(
+            tokenizer=tokenizer,
+            service_ip=service_ip,
+            service_port=service_port,
+            updatable=True,
+        )
 
     def add_docs_to_index(self, query: List[str], add_eos: bool = True):
         """
@@ -119,7 +131,7 @@ class DynamicFaissRetrievalService(FaissRetrievalService):
                 text = self.tokenizer.ids_to_text(q)
                 sentence_list.append(text)
             query = sentence_list
-        data = {'sentences': query, 'add_eos': add_eos}
+        data = {"sentences": query, "add_eos": add_eos}
         return request_data(data, self.service_ip, self.service_port)
 
     def write_index(self, index_name: str):
@@ -128,7 +140,7 @@ class DynamicFaissRetrievalService(FaissRetrievalService):
         Args:
             index_name: str, the index name used for the file name
         """
-        data = {'index_name': index_name}
+        data = {"index_name": index_name}
         return request_data(data, self.service_ip, self.service_port)
 
     def reset(self):
@@ -137,7 +149,7 @@ class DynamicFaissRetrievalService(FaissRetrievalService):
         Args:
             index_name: str, the index name used for the file name
         """
-        data = {'reset': None}
+        data = {"reset": None}
         return request_data(data, self.service_ip, self.service_port)
 
 
@@ -148,12 +160,17 @@ class ComboRetrievalService(DynamicFaissRetrievalService):
     """
 
     def __init__(
-        self, tokenizer: TokenizerSpec, service_ip: str = None, service_port: int = None,
+        self,
+        tokenizer: TokenizerSpec,
+        service_ip: str = None,
+        service_port: int = None,
     ):
-        super().__init__(tokenizer=tokenizer, service_ip=service_ip, service_port=service_port)
+        super().__init__(
+            tokenizer=tokenizer, service_ip=service_ip, service_port=service_port
+        )
 
     def update_weights(self, weights: List[float]):
-        """ update the weights between the children services
+        """update the weights between the children services
         Args:
             weights (List[float]): weights for children services
         """

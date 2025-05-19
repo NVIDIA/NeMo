@@ -62,9 +62,13 @@ class TransformerDecoderBlock(nn.Module):
             hidden_size, num_attention_heads, attn_score_dropout, attn_layer_dropout
         )
         self.layer_norm_3 = nn.LayerNorm(hidden_size, eps=1e-5)
-        self.third_sub_layer = PositionWiseFF(hidden_size, inner_size, ffn_dropout, hidden_act)
+        self.third_sub_layer = PositionWiseFF(
+            hidden_size, inner_size, ffn_dropout, hidden_act
+        )
 
-    def forward_preln(self, decoder_query, decoder_mask, decoder_keys, encoder_states, encoder_mask):
+    def forward_preln(
+        self, decoder_query, decoder_mask, decoder_keys, encoder_states, encoder_mask
+    ):
         """
         Pre-LayerNorm block
         Order of operations: LN -> Self-Attn -> Residual -> LN -> Cross-Attn -> Residual -> LN -> FFN
@@ -72,12 +76,16 @@ class TransformerDecoderBlock(nn.Module):
         residual = decoder_query
         decoder_query = self.layer_norm_1(decoder_query)
         decoder_keys = self.layer_norm_1(decoder_keys)
-        self_attn_output = self.first_sub_layer(decoder_query, decoder_keys, decoder_keys, decoder_mask)
+        self_attn_output = self.first_sub_layer(
+            decoder_query, decoder_keys, decoder_keys, decoder_mask
+        )
         self_attn_output += residual
 
         residual = self_attn_output
         self_attn_output = self.layer_norm_2(self_attn_output)
-        enc_dec_attn_output = self.second_sub_layer(self_attn_output, encoder_states, encoder_states, encoder_mask)
+        enc_dec_attn_output = self.second_sub_layer(
+            self_attn_output, encoder_states, encoder_states, encoder_mask
+        )
         enc_dec_attn_output += residual
 
         residual = enc_dec_attn_output
@@ -87,16 +95,22 @@ class TransformerDecoderBlock(nn.Module):
 
         return output_states
 
-    def forward_postln(self, decoder_query, decoder_mask, decoder_keys, encoder_states, encoder_mask):
+    def forward_postln(
+        self, decoder_query, decoder_mask, decoder_keys, encoder_states, encoder_mask
+    ):
         """
         Post-LayerNorm block
         Order of operations: Self-Attn -> Residual -> LN -> Cross-Attn -> Residual -> LN -> FFN -> Residual -> LN
         """
-        self_attn_output = self.first_sub_layer(decoder_query, decoder_keys, decoder_keys, decoder_mask)
+        self_attn_output = self.first_sub_layer(
+            decoder_query, decoder_keys, decoder_keys, decoder_mask
+        )
         self_attn_output += decoder_query
         self_attn_output = self.layer_norm_1(self_attn_output)
 
-        enc_dec_attn_output = self.second_sub_layer(self_attn_output, encoder_states, encoder_states, encoder_mask)
+        enc_dec_attn_output = self.second_sub_layer(
+            self_attn_output, encoder_states, encoder_states, encoder_mask
+        )
         enc_dec_attn_output += self_attn_output
         enc_dec_attn_output = self.layer_norm_2(enc_dec_attn_output)
 
@@ -104,11 +118,17 @@ class TransformerDecoderBlock(nn.Module):
         output_states += enc_dec_attn_output
         return self.layer_norm_3(output_states)
 
-    def forward(self, decoder_query, decoder_mask, decoder_keys, encoder_states, encoder_mask):
+    def forward(
+        self, decoder_query, decoder_mask, decoder_keys, encoder_states, encoder_mask
+    ):
         if self.pre_ln:
-            return self.forward_preln(decoder_query, decoder_mask, decoder_keys, encoder_states, encoder_mask)
+            return self.forward_preln(
+                decoder_query, decoder_mask, decoder_keys, encoder_states, encoder_mask
+            )
         else:
-            return self.forward_postln(decoder_query, decoder_mask, decoder_keys, encoder_states, encoder_mask)
+            return self.forward_postln(
+                decoder_query, decoder_mask, decoder_keys, encoder_states, encoder_mask
+            )
 
 
 class TransformerDecoder(nn.Module):
@@ -147,7 +167,9 @@ class TransformerDecoder(nn.Module):
 
     def _get_memory_states(self, decoder_states, decoder_mems_list=None, i=0):
         if decoder_mems_list is not None:
-            inp1 = torch.transpose(decoder_mems_list[i], 1, 2)  # Putting seq_len to last dim to handle export cases
+            inp1 = torch.transpose(
+                decoder_mems_list[i], 1, 2
+            )  # Putting seq_len to last dim to handle export cases
             inp2 = torch.transpose(decoder_states, 1, 2)
             memory_states = torch.cat((inp1, inp2), dim=2)
             memory_states = torch.transpose(memory_states, 1, 2)  # Transposing back
@@ -187,20 +209,34 @@ class TransformerDecoder(nn.Module):
             cached_mems_list = memory_states.unsqueeze(0)
 
         for i, layer in enumerate(self.layers):
-            decoder_states = layer(decoder_states, decoder_attn_mask, memory_states, encoder_states, encoder_attn_mask)
-            memory_states = self._get_memory_states(decoder_states, decoder_mems_list, i + 1)
+            decoder_states = layer(
+                decoder_states,
+                decoder_attn_mask,
+                memory_states,
+                encoder_states,
+                encoder_attn_mask,
+            )
+            memory_states = self._get_memory_states(
+                decoder_states, decoder_mems_list, i + 1
+            )
             if return_mems_as_list:
                 cached_mems_list.append(memory_states)
             else:
-                cached_mems_list = torch.cat((cached_mems_list, memory_states.unsqueeze(0)), dim=0)
+                cached_mems_list = torch.cat(
+                    (cached_mems_list, memory_states.unsqueeze(0)), dim=0
+                )
 
         if self.final_layer_norm is not None:
             decoder_states = self.final_layer_norm(decoder_states)
-            memory_states = self._get_memory_states(decoder_states, decoder_mems_list, i + 2)
+            memory_states = self._get_memory_states(
+                decoder_states, decoder_mems_list, i + 2
+            )
             if return_mems_as_list:
                 cached_mems_list.append(memory_states)
             else:
-                cached_mems_list = torch.cat((cached_mems_list, memory_states.unsqueeze(0)), dim=0)
+                cached_mems_list = torch.cat(
+                    (cached_mems_list, memory_states.unsqueeze(0)), dim=0
+                )
 
         if return_mems:
             return cached_mems_list
@@ -214,6 +250,10 @@ class TransformerDecoder(nn.Module):
             A tuple of input examples.
         """
         sample = next(self.parameters())
-        input_ids = torch.randint(low=0, high=2048, size=(max_batch, max_dim, 1024), device=sample.device)
-        encoder_mask = torch.randint(low=0, high=1, size=(max_batch, max_dim), device=sample.device)
+        input_ids = torch.randint(
+            low=0, high=2048, size=(max_batch, max_dim, 1024), device=sample.device
+        )
+        encoder_mask = torch.randint(
+            low=0, high=1, size=(max_batch, max_dim), device=sample.device
+        )
         return tuple([input_ids, encoder_mask, input_ids, encoder_mask])

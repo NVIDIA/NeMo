@@ -25,7 +25,9 @@ try:
 
     HAVE_ZARR = True
 except Exception as e:
-    LOGGER.warning(f"Cannot import zarr, support for zarr-based checkpoints is not available. {type(e).__name__}: {e}")
+    LOGGER.warning(
+        f"Cannot import zarr, support for zarr-based checkpoints is not available. {type(e).__name__}: {e}"
+    )
     BaseStore = object
     HAVE_ZARR = False
 
@@ -46,9 +48,9 @@ class TarPath:
     Only read and enumeration operations are supported.
     """
 
-    def __init__(self, tar: Union[str, tarfile.TarFile, 'TarPath'], *parts):
+    def __init__(self, tar: Union[str, tarfile.TarFile, "TarPath"], *parts):
         self._needs_to_close = False
-        self._relpath = ''
+        self._relpath = ""
         if isinstance(tar, TarPath):
             self._tar = tar._tar
             self._relpath = os.path.join(tar._relpath, *parts)
@@ -58,17 +60,19 @@ class TarPath:
                 self._relpath = os.path.join(*parts)
         elif isinstance(tar, str):
             self._needs_to_close = True
-            self._tar = tarfile.open(tar, 'r')
+            self._tar = tarfile.open(tar, "r")
             if parts:
                 self._relpath = os.path.join(*parts)
         else:
-            raise ValueError(f"Unexpected argument type for TarPath: {type(tar).__name__}")
+            raise ValueError(
+                f"Unexpected argument type for TarPath: {type(tar).__name__}"
+            )
 
     def __del__(self):
         if self._needs_to_close:
             self._tar.close()
 
-    def __truediv__(self, key) -> 'TarPath':
+    def __truediv__(self, key) -> "TarPath":
         return TarPath(self._tar, os.path.join(self._relpath, key))
 
     def __str__(self) -> str:
@@ -101,11 +105,11 @@ class TarPath:
         Returns the suffix of the path.
         """
         name = self.name
-        i = name.rfind('.')
+        i = name.rfind(".")
         if 0 < i < len(name) - 1:
             return name[i:]
         else:
-            return ''
+            return ""
 
     def __enter__(self):
         self._tar.__enter__()
@@ -123,7 +127,7 @@ class TarPath:
             return True
         except KeyError:
             try:
-                self._tar.getmember(os.path.join('.', self._relpath))
+                self._tar.getmember(os.path.join(".", self._relpath))
                 return True
             except KeyError:
                 return False
@@ -137,7 +141,7 @@ class TarPath:
             return True
         except KeyError:
             try:
-                self._tar.getmember(os.path.join('.', self._relpath)).isreg()
+                self._tar.getmember(os.path.join(".", self._relpath)).isreg()
                 return True
             except KeyError:
                 return False
@@ -151,7 +155,7 @@ class TarPath:
             return True
         except KeyError:
             try:
-                self._tar.getmember(os.path.join('.', self._relpath)).isdir()
+                self._tar.getmember(os.path.join(".", self._relpath)).isdir()
                 return True
             except KeyError:
                 return False
@@ -160,7 +164,7 @@ class TarPath:
         """
         Opens a file in the archive.
         """
-        if mode != 'r' and mode != 'rb':
+        if mode != "r" and mode != "rb":
             raise NotImplementedError()
 
         file = None
@@ -170,7 +174,7 @@ class TarPath:
         except KeyError:
             try:
                 # Try the relative path with "./" prefix
-                file = self._tar.extractfile(os.path.join('.', self._relpath))
+                file = self._tar.extractfile(os.path.join(".", self._relpath))
             except KeyError:
                 raise FileNotFoundError()
 
@@ -185,11 +189,11 @@ class TarPath:
         """
         for member in self._tar.getmembers():
             # Remove the "./" prefix, if any
-            name = member.name[2:] if member.name.startswith('./') else member.name
+            name = member.name[2:] if member.name.startswith("./") else member.name
 
             # If we're in a subdirectory, make sure the file is too, and remove that subdir component
             if self._relpath:
-                if not name.startswith(self._relpath + '/'):
+                if not name.startswith(self._relpath + "/"):
                     continue
                 name = name[len(self._relpath) + 1 :]
 
@@ -203,18 +207,18 @@ class TarPath:
         """
         for member in self._tar.getmembers():
             # Remove the "./" prefix, if any
-            name = member.name[2:] if member.name.startswith('./') else member.name
+            name = member.name[2:] if member.name.startswith("./") else member.name
 
             # If we're in a subdirectory, make sure the file is too, and remove that subdir component
             if self._relpath:
-                if not name.startswith(self._relpath + '/'):
+                if not name.startswith(self._relpath + "/"):
                     continue
                 name = name[len(self._relpath) + 1 :]
 
             # See if any tail of the path matches the pattern, return full path if that's true
-            parts = name.split('/')
+            parts = name.split("/")
             for i in range(len(parts)):
-                subname = '/'.join(parts[i:])
+                subname = "/".join(parts[i:])
                 if fnmatch.fnmatch(subname, pattern):
                     yield TarPath(self._tar, os.path.join(self._relpath, name))
                     break
@@ -223,7 +227,7 @@ class TarPath:
         """
         Returns an iterator over the files in the directory.
         """
-        return self.glob('*')
+        return self.glob("*")
 
 
 class ZarrPathStore(BaseStore):
@@ -239,7 +243,7 @@ class ZarrPathStore(BaseStore):
         self._erasable = False
 
     def __getitem__(self, key):
-        with (self._path / key).open('rb') as file:
+        with (self._path / key).open("rb") as file:
             return file.read()
 
     def __contains__(self, key):

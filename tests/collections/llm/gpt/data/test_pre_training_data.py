@@ -19,7 +19,9 @@ from nemo.collections.llm.gpt.data.pre_training import PreTrainingDataModule
 from nemo.collections.nlp.modules.common.tokenizer_utils import \
     get_nmt_tokenizer
 
-DATA_PATH = "/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document"
+DATA_PATH = (
+    "/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document"
+)
 VOCAB_PATH = "/home/TestData/nlp/megatron_gpt/data/gpt/vocab.json"
 MERGES_PATH = "/home/TestData/nlp/megatron_gpt/data/gpt/merges.txt"
 
@@ -66,9 +68,9 @@ def test_single_data_distribution(tokenizer, trainer):
 def test_multiple_data_distributions(tokenizer, trainer):
     data = PreTrainingDataModule(
         paths={
-            "train": ['1', DATA_PATH],
+            "train": ["1", DATA_PATH],
             "validation": [DATA_PATH, DATA_PATH],
-            "test": ['1', DATA_PATH],
+            "test": ["1", DATA_PATH],
         },
         seq_length=512,
         micro_batch_size=2,

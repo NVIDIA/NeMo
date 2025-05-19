@@ -51,10 +51,14 @@ except ImportError:
     from torch.distributed._tensor.placement_types import Replicate, Shard
 
 MixedPrecisionPolicy, HAS_MIXED_PRECISION_POLICY = safe_import_from(
-    "torch.distributed.fsdp", "MixedPrecisionPolicy", fallback_module="torch.distributed._composable.fsdp"
+    "torch.distributed.fsdp",
+    "MixedPrecisionPolicy",
+    fallback_module="torch.distributed._composable.fsdp",
 )
 CPUOffloadPolicy, HAS_CPU_OFFLOAD_POLICY = safe_import_from(
-    "torch.distributed.fsdp", "CPUOffloadPolicy", fallback_module="torch.distributed._composable.fsdp"
+    "torch.distributed.fsdp",
+    "CPUOffloadPolicy",
+    fallback_module="torch.distributed._composable.fsdp",
 )
 
 _logger = _logging.getLogger(__name__)
@@ -73,13 +77,15 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         tensor_parallel_size: Union[Literal["auto"], int] = "auto",
         context_parallel_size: Optional[int] = 1,
         sequence_parallel: bool = False,
-        offload_policy: 'CPUOffloadPolicy' = None,
+        offload_policy: "CPUOffloadPolicy" = None,
         data_sampler=None,
         checkpoint_io=None,
         mp_policy=None,
         parallelize_fn=fsdp2_strategy_parallelize,
         use_hf_tp_plan: bool = True,
-        custom_tp_plan: Optional[Dict[str, Union[RowwiseParallel, ColwiseParallel, SequenceParallel]]] = None,
+        custom_tp_plan: Optional[
+            Dict[str, Union[RowwiseParallel, ColwiseParallel, SequenceParallel]]
+        ] = None,
         **kwargs,
     ):
         """Initializes the FSDP2Strategy with specified parallelization settings.
@@ -111,14 +117,20 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
                 is provided.
             **kwargs: Additional arguments for base class initialization.
         """
-        super().__init__(data_parallel_size=data_parallel_size, tensor_parallel_size=tensor_parallel_size, **kwargs)
+        super().__init__(
+            data_parallel_size=data_parallel_size,
+            tensor_parallel_size=tensor_parallel_size,
+            **kwargs,
+        )
         self._checkpoint_io = checkpoint_io
         self.context_parallel_size = context_parallel_size
         self.data_sampler = data_sampler
         self.checkpoint = None
         self.mp_policy = mp_policy
         if self.mp_policy is None:
-            assert HAS_MIXED_PRECISION_POLICY is not None, "Expected to have MixedPrecisionPolicy"
+            assert (
+                HAS_MIXED_PRECISION_POLICY is not None
+            ), "Expected to have MixedPrecisionPolicy"
             self.mp_policy = MixedPrecisionPolicy(
                 param_dtype=torch.bfloat16,
                 reduce_dtype=torch.bfloat16,
@@ -158,13 +170,21 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
             }
 
             base_model_sp_plan = {
-                "model.embed_tokens": RowwiseParallel(input_layouts=Replicate(), output_layouts=Shard(1)),
+                "model.embed_tokens": RowwiseParallel(
+                    input_layouts=Replicate(), output_layouts=Shard(1)
+                ),
                 "model.norm": SequenceParallel(),
                 "model.layers.*.input_layernorm": SequenceParallel(),
-                "model.layers.*.self_attn.o_proj": RowwiseParallel(output_layouts=Shard(1)),
+                "model.layers.*.self_attn.o_proj": RowwiseParallel(
+                    output_layouts=Shard(1)
+                ),
                 "model.layers.*.post_attention_layernorm": SequenceParallel(),
-                "model.layers.*.mlp.down_proj": RowwiseParallel(output_layouts=Shard(1)),
-                "lm_head": ColwiseParallel(input_layouts=Shard(1), output_layouts=Replicate()),
+                "model.layers.*.mlp.down_proj": RowwiseParallel(
+                    output_layouts=Shard(1)
+                ),
+                "lm_head": ColwiseParallel(
+                    input_layouts=Shard(1), output_layouts=Replicate()
+                ),
             }
 
             if self.sequence_parallel:
@@ -213,7 +233,9 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
             set_optimizer_state_dict
 
         if self.checkpoint is None:
-            for optimizer, opt_state in zip(self.optimizers, self.checkpoint["optimizer_states"]):
+            for optimizer, opt_state in zip(
+                self.optimizers, self.checkpoint["optimizer_states"]
+            ):
                 set_optimizer_state_dict(
                     self.lightning_module,
                     optimizer,
@@ -241,7 +263,11 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         mesh_dim_names = []
         # TP needs to be the last dimension as innermost dimension, DP-CP-TP
         for dim, name in zip(
-            [self._data_parallel_size, self.context_parallel_size, self._tensor_parallel_size],
+            [
+                self._data_parallel_size,
+                self.context_parallel_size,
+                self._tensor_parallel_size,
+            ],
             ["data_parallel", "context_parallel", "tensor_parallel"],
         ):
             mesh_shape.append(int(dim))
@@ -259,7 +285,9 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         # multiple dimensions of parallelism if possible.
         if self._device_mesh["context_parallel"].size() > 1:
             # Context parallelism loss reduction mesh. Remember to divide out CP size in tokens per second throughput.
-            self._device_mesh[("data_parallel", "context_parallel")]._flatten(mesh_dim_name="dp_cp")
+            self._device_mesh[("data_parallel", "context_parallel")]._flatten(
+                mesh_dim_name="dp_cp"
+            )
 
         self.lightning_module._device_mesh = self._device_mesh
 
@@ -274,13 +302,16 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         # connect trainer to accelerator.
         self.accelerator.setup(trainer)
         # Parallelize model
-        if getattr(self, '_init_model_parallel', True):
+        if getattr(self, "_init_model_parallel", True):
             self.parallelize()
         # Corner case, as FSDP2 expected to be used multi-device.
         if self._data_parallel_size == 1:
             self._lightning_module = self._lightning_module.to(self.root_device)
         # setup optim
-        if getattr(self, '_setup_optimizers', True) and trainer.state.fn == TrainerFn.FITTING:
+        if (
+            getattr(self, "_setup_optimizers", True)
+            and trainer.state.fn == TrainerFn.FITTING
+        ):
             super().setup_optimizers(trainer)
 
     def parallelize(self):
@@ -315,7 +346,9 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
 
         assert self.cluster_environment is not None
         if not torch.distributed.is_available():
-            raise RuntimeError("torch.distributed is not available. Cannot initialize distributed process group")
+            raise RuntimeError(
+                "torch.distributed is not available. Cannot initialize distributed process group"
+            )
         if torch.distributed.is_initialized():
             _logger.debug("torch.distributed is already initialized. Exiting early")
             return
@@ -324,9 +357,14 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         world_size = self.cluster_environment.world_size()
         os.environ["MASTER_ADDR"] = self.cluster_environment.main_address
         os.environ["MASTER_PORT"] = str(self.cluster_environment.main_port)
-        _logger.info(f"Initializing distributed: GLOBAL_RANK: {global_rank}, MEMBER: {global_rank + 1}/{world_size}")
+        _logger.info(
+            f"Initializing distributed: GLOBAL_RANK: {global_rank}, MEMBER: {global_rank + 1}/{world_size}"
+        )
         torch.distributed.init_process_group(
-            self._process_group_backend, rank=global_rank, world_size=world_size, store=self.store
+            self._process_group_backend,
+            rank=global_rank,
+            world_size=world_size,
+            store=self.store,
         )
 
         if self._process_group_backend == "nccl":
@@ -367,14 +405,16 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         """
         method_name = f"{step_type}_step"
         if self.model != self.lightning_module:
-            loss = self._forward_redirection(self.model, self.lightning_module, method_name, batch, batch_idx)
+            loss = self._forward_redirection(
+                self.model, self.lightning_module, method_name, batch, batch_idx
+            )
         else:
             loss = getattr(self.lightning_module, method_name)(batch, batch_idx)
 
         _loss_reduction = self._get_loss_reduction(step_type)
         if _loss_reduction:
             return _loss_reduction.forward(batch, loss)
-        return loss, {'avg': loss}
+        return loss, {"avg": loss}
 
     @override
     def optimizer_state(self, optimizer):
@@ -402,12 +442,14 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
 
         if self.context_parallel_size > 1:
             # Only pass context_parallel=True if AutoModel supports and has non-trivial CP.
-            loss = self.lightning_module.training_step(batch, batch_idx, context_parallel=True)
+            loss = self.lightning_module.training_step(
+                batch, batch_idx, context_parallel=True
+            )
         else:
             loss = self.lightning_module.training_step(batch, batch_idx)
 
         self.lightning_module.log(
-            'global_step',
+            "global_step",
             self.trainer.global_step,
             prog_bar=True,
             rank_zero_only=True,
@@ -415,7 +457,7 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         )
 
         self.lightning_module.log(
-            'step',
+            "step",
             self.trainer.global_step,
         )
 
@@ -437,7 +479,9 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         with self.precision_plugin.val_step_context():
             loss, reduced = self._step_proxy("validation", batch, batch_idx)
             if reduced["avg"]:
-                self.lightning_module.log('val_loss', reduced['avg'], rank_zero_only=True, batch_size=1)
+                self.lightning_module.log(
+                    "val_loss", reduced["avg"], rank_zero_only=True, batch_size=1
+                )
             return loss
 
     @override
@@ -455,7 +499,9 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         assert self.model is not None
         with self.precision_plugin.test_step_context():
             loss, reduced = self._step_proxy("test", batch, batch_idx)
-            self.lightning_module.log('test_loss', reduced['avg'], rank_zero_only=True, batch_size=1)
+            self.lightning_module.log(
+                "test_loss", reduced["avg"], rank_zero_only=True, batch_size=1
+            )
 
             return loss
 
@@ -540,8 +586,8 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
 
         assert self.lightning_module is not None
         state_dict = self.lightning_module.state_dict()
-        is_adapter_only = getattr(self._checkpoint_io, 'adapter_only', False)
-        name_has_lora = lambda x: 'lora' in x.lower()
+        is_adapter_only = getattr(self._checkpoint_io, "adapter_only", False)
+        name_has_lora = lambda x: "lora" in x.lower()
 
         module_names = list(state_dict.keys())
         for name in module_names:
@@ -556,14 +602,19 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
 
     @override
     def save_checkpoint(
-        self, checkpoint: Dict[str, Any], filepath: Union[str, Path], storage_options: Optional[Any] = None
+        self,
+        checkpoint: Dict[str, Any],
+        filepath: Union[str, Path],
+        storage_options: Optional[Any] = None,
     ) -> None:
         """
         Unshards FSDP2 checkpoint and passes it to checkpoint_io for saving to a file.
         """
 
         if self.is_global_zero:
-            self.checkpoint_io.save_checkpoint(checkpoint, filepath, storage_options=storage_options)
+            self.checkpoint_io.save_checkpoint(
+                checkpoint, filepath, storage_options=storage_options
+            )
 
     @override
     def load_checkpoint(self, checkpoint_path: str | Path) -> Dict[str, Any]:
@@ -578,42 +629,70 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         strict=False,
     ):
         """Shards a full state dict"""
-        if self._tensor_parallel_size > 1 and self._device_mesh["context_parallel"].size() == 1:
+        if (
+            self._tensor_parallel_size > 1
+            and self._device_mesh["context_parallel"].size() == 1
+        ):
             # Gather TP/SP strategy keys
-            colwise_keys = [k for k in self.tp_shard_plan if isinstance(self.tp_shard_plan[k], ColwiseParallel)]
-            rowwise_keys = [k for k in self.tp_shard_plan if isinstance(self.tp_shard_plan[k], RowwiseParallel)]
-            seq_parallel_keys = [k for k in self.tp_shard_plan if isinstance(self.tp_shard_plan[k], SequenceParallel)]
+            colwise_keys = [
+                k
+                for k in self.tp_shard_plan
+                if isinstance(self.tp_shard_plan[k], ColwiseParallel)
+            ]
+            rowwise_keys = [
+                k
+                for k in self.tp_shard_plan
+                if isinstance(self.tp_shard_plan[k], RowwiseParallel)
+            ]
+            seq_parallel_keys = [
+                k
+                for k in self.tp_shard_plan
+                if isinstance(self.tp_shard_plan[k], SequenceParallel)
+            ]
 
-            sharded_state = {k: v for k, v in ckpt['state_dict'].items()}
+            sharded_state = {k: v for k, v in ckpt["state_dict"].items()}
 
             # placement is (dp, tp)
             for k, v in sharded_state.items():
                 if any(re.match(x, k) for x in seq_parallel_keys):
-                    sharded_state[k] = distribute_tensor(v, self.device_mesh, placements=(Shard(dim=0), Replicate()))
+                    sharded_state[k] = distribute_tensor(
+                        v, self.device_mesh, placements=(Shard(dim=0), Replicate())
+                    )
                 elif any(re.match(x, k) for x in colwise_keys):
-                    sharded_state[k] = distribute_tensor(v, self.device_mesh, placements=(Shard(dim=0), Shard(dim=0)))
+                    sharded_state[k] = distribute_tensor(
+                        v, self.device_mesh, placements=(Shard(dim=0), Shard(dim=0))
+                    )
                 elif any(re.match(x, k) for x in rowwise_keys):
-                    sharded_state[k] = distribute_tensor(v, self.device_mesh, placements=(Shard(dim=0), Shard(dim=1)))
+                    sharded_state[k] = distribute_tensor(
+                        v, self.device_mesh, placements=(Shard(dim=0), Shard(dim=1))
+                    )
                 else:
                     # This is for layers not sharded by TP/SP
                     sharded_state[k] = distribute_tensor(
                         v, self.device_mesh["data_parallel"], placements=(Shard(dim=0),)
                     )
         # TODO(@akoumparouli): update `placements` value once TP is enabled.
-        elif self._tensor_parallel_size == 1 and self._device_mesh["context_parallel"].size() > 1:
+        elif (
+            self._tensor_parallel_size == 1
+            and self._device_mesh["context_parallel"].size() > 1
+        ):
             # Shard across the CP device mesh, associated with the fully_shard() call
             # in utils.fsdp2_strategy_parallelize().
             sharded_state = {
                 k: distribute_tensor(
-                    v, self._device_mesh[("data_parallel", "context_parallel")], placements=(Replicate(), Shard(dim=0))
+                    v,
+                    self._device_mesh[("data_parallel", "context_parallel")],
+                    placements=(Replicate(), Shard(dim=0)),
                 )
-                for k, v in ckpt['state_dict'].items()
+                for k, v in ckpt["state_dict"].items()
             }
         else:
             # Default shard across DP for FSDP2.
             sharded_state = {
-                k: distribute_tensor(v, self._device_mesh["data_parallel"], placements=(Shard(dim=0),))
-                for k, v in ckpt['state_dict'].items()
+                k: distribute_tensor(
+                    v, self._device_mesh["data_parallel"], placements=(Shard(dim=0),)
+                )
+                for k, v in ckpt["state_dict"].items()
             }
 
         self.lightning_module.load_state_dict(sharded_state, strict=strict)

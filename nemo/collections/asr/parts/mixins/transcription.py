@@ -35,8 +35,12 @@ from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.collections.common.data.utils import move_data_to_device
 from nemo.utils import logging, logging_mode
 
-TranscriptionReturnType = Union[List[str], List[Hypothesis], Tuple[List[str]], Tuple[List[Hypothesis]]]
-GenericTranscriptionType = Union[List[Any], List[List[Any]], Tuple[Any], Tuple[List[Any]], Dict[str, List[Any]]]
+TranscriptionReturnType = Union[
+    List[str], List[Hypothesis], Tuple[List[str]], Tuple[List[Hypothesis]]
+]
+GenericTranscriptionType = Union[
+    List[Any], List[List[Any]], Tuple[Any], Tuple[List[Any]], Dict[str, List[Any]]
+]
 
 
 @dataclass
@@ -63,7 +67,9 @@ class TranscribeConfig:
     num_workers: Optional[int] = None
     channel_selector: ChannelSelectorType = None
     augmentor: Optional[DictConfig] = None
-    timestamps: Optional[bool] = None  # returns timestamps for each word and segments if model supports punctuations
+    timestamps: Optional[bool] = (
+        None  # returns timestamps for each word and segments if model supports punctuations
+    )
     verbose: bool = True
 
     # Utility
@@ -98,13 +104,15 @@ def get_value_from_transcription_config(trcfg, key, default):
 class TranscriptionTensorDataset(Dataset):
     def __init__(self, config: Dict[str, Any]):
         super().__init__()
-        self.audio_tensors = config['audio_tensors']
-        self.channel_selector = config['channel_selector']
-        self.augmentor_cfg = config.get('augmentor', None)
-        self.sample_rate = config['sample_rate']
+        self.audio_tensors = config["audio_tensors"]
+        self.channel_selector = config["channel_selector"]
+        self.augmentor_cfg = config.get("augmentor", None)
+        self.sample_rate = config["sample_rate"]
 
         if self.augmentor_cfg is not None:
-            self.augmentor = process_augmentations(self.augmentor_cfg, global_rank=0, world_size=1)
+            self.augmentor = process_augmentations(
+                self.augmentor_cfg, global_rank=0, world_size=1
+            )
         else:
             self.augmentor = None
 
@@ -112,7 +120,9 @@ class TranscriptionTensorDataset(Dataset):
 
     def __getitem__(self, index):
         if index >= self.length:
-            raise IndexError(f"Index {index} out of range for dataset of size {self.length}")
+            raise IndexError(
+                f"Index {index} out of range for dataset of size {self.length}"
+            )
 
         return self.get_item(index)
 
@@ -130,9 +140,12 @@ class TranscriptionTensorDataset(Dataset):
             )
 
             original_dtype = samples.dtype
-            samples = samples.to(device='cpu', dtype=torch.float32).numpy()
+            samples = samples.to(device="cpu", dtype=torch.float32).numpy()
             segment = AudioSegment(
-                samples, self.sample_rate, target_sr=self.sample_rate, channel_selector=self.channel_selector
+                samples,
+                self.sample_rate,
+                target_sr=self.sample_rate,
+                channel_selector=self.channel_selector,
             )
             samples = self.augmentor.perturb(segment)
             samples = torch.tensor(samples.samples, dtype=original_dtype)
@@ -241,7 +254,7 @@ class TranscriptionMixin(ABC):
                 **config_kwargs,
             )
         else:
-            if not hasattr(override_config, '_internal'):
+            if not hasattr(override_config, "_internal"):
                 raise ValueError(
                     "`transcribe_cfg must have an `_internal` argument, which must be of an object of type "
                     "InternalTranscribeConfig or its subclass."
@@ -326,7 +339,7 @@ class TranscriptionMixin(ABC):
         if override_config is None:
             override_config = TranscribeConfig()
 
-        if not hasattr(override_config, '_internal'):
+        if not hasattr(override_config, "_internal"):
             raise ValueError(
                 "`transcribe_cfg must have an `_internal` argument, which must be of an object of type "
                 "InternalTranscribeConfig or its subclass."
@@ -355,21 +368,29 @@ class TranscriptionMixin(ABC):
 
                 # Create a DataLoader if not already present
                 if not isinstance(audio, DataLoader):
-                    dataloader = self._transcribe_input_processing(audio, transcribe_cfg)
+                    dataloader = self._transcribe_input_processing(
+                        audio, transcribe_cfg
+                    )
                 else:
                     dataloader = audio
 
-                if hasattr(transcribe_cfg, 'verbose'):
+                if hasattr(transcribe_cfg, "verbose"):
                     verbose = transcribe_cfg.verbose
                 else:
                     verbose = True
 
-                for test_batch in tqdm(dataloader, desc="Transcribing", disable=not verbose):
+                for test_batch in tqdm(
+                    dataloader, desc="Transcribing", disable=not verbose
+                ):
                     # Move batch to device
-                    test_batch = move_data_to_device(test_batch, transcribe_cfg._internal.device)
+                    test_batch = move_data_to_device(
+                        test_batch, transcribe_cfg._internal.device
+                    )
                     # Run forward pass
                     model_outputs = self._transcribe_forward(test_batch, transcribe_cfg)
-                    processed_outputs = self._transcribe_output_processing(model_outputs, transcribe_cfg)
+                    processed_outputs = self._transcribe_output_processing(
+                        model_outputs, transcribe_cfg
+                    )
 
                     # clear up memory
                     del test_batch, model_outputs
@@ -412,26 +433,34 @@ class TranscriptionMixin(ABC):
             trcfg._internal.dtype = _params.dtype
 
         # Set num_workers
-        num_workers = get_value_from_transcription_config(trcfg, 'num_workers', default=0)
+        num_workers = get_value_from_transcription_config(
+            trcfg, "num_workers", default=0
+        )
 
         if num_workers is None:
-            _batch_size = get_value_from_transcription_config(trcfg, 'batch_size', default=4)
+            _batch_size = get_value_from_transcription_config(
+                trcfg, "batch_size", default=4
+            )
             num_workers = min(_batch_size, os.cpu_count() - 1)
 
         # Assign num_workers if available as key in trcfg
-        if hasattr(trcfg, 'num_workers'):
+        if hasattr(trcfg, "num_workers"):
             trcfg.num_workers = num_workers
 
         # Model's mode and device
         trcfg._internal.training_mode = self.training
 
         # Switch model to evaluation mode
-        if hasattr(self, 'preprocessor'):
-            if hasattr(self.preprocessor, 'featurizer') and hasattr(self.preprocessor.featurizer, 'dither'):
+        if hasattr(self, "preprocessor"):
+            if hasattr(self.preprocessor, "featurizer") and hasattr(
+                self.preprocessor.featurizer, "dither"
+            ):
                 trcfg._internal.dither_value = self.preprocessor.featurizer.dither
                 self.preprocessor.featurizer.dither = 0.0
 
-            if hasattr(self.preprocessor, 'featurizer') and hasattr(self.preprocessor.featurizer, 'pad_to'):
+            if hasattr(self.preprocessor, "featurizer") and hasattr(
+                self.preprocessor.featurizer, "pad_to"
+            ):
                 trcfg._internal.pad_to_value = self.preprocessor.featurizer.pad_to
                 self.preprocessor.featurizer.pad_to = 0
 
@@ -462,7 +491,11 @@ class TranscriptionMixin(ABC):
 
         # Check if audio is a list of strings (filepaths or manifests)
         if isinstance(audio[0], str):
-            if len(audio) == 1 and audio[0].endswith('.json') or audio[0].endswith('.jsonl'):
+            if (
+                len(audio) == 1
+                and audio[0].endswith(".json")
+                or audio[0].endswith(".jsonl")
+            ):
                 # Assume it is a path to a manifest file
                 trcfg._internal.manifest_filepath = audio[0]
                 audio = manifest_utils.read_manifest(audio[0])
@@ -470,7 +503,9 @@ class TranscriptionMixin(ABC):
             audio_files = list(audio)
 
             tmp_dir = trcfg._internal.temp_dir
-            ds_config = self._transcribe_input_manifest_processing(audio_files, tmp_dir, trcfg)
+            ds_config = self._transcribe_input_manifest_processing(
+                audio_files, tmp_dir, trcfg
+            )
 
             temp_dataloader = self._setup_transcribe_dataloader(ds_config)
             return temp_dataloader
@@ -482,12 +517,18 @@ class TranscriptionMixin(ABC):
             # Convert numpy tensors to torch tensors
             if any([isinstance(_tensor, np.ndarray) for _tensor in audio_tensors]):
                 audio_tensors = [
-                    torch.as_tensor(audio_tensor) if isinstance(audio_tensor, np.ndarray) else audio_tensor
+                    (
+                        torch.as_tensor(audio_tensor)
+                        if isinstance(audio_tensor, np.ndarray)
+                        else audio_tensor
+                    )
                     for audio_tensor in audio_tensors
                 ]
 
             tmp_dir = trcfg._internal.temp_dir
-            ds_config = self._transcribe_input_tensor_processing(audio_tensors, tmp_dir, trcfg)
+            ds_config = self._transcribe_input_tensor_processing(
+                audio_tensors, tmp_dir, trcfg
+            )
 
             temp_dataloader = self._setup_transcribe_tensor_dataloader(ds_config, trcfg)
             return temp_dataloader
@@ -500,7 +541,10 @@ class TranscriptionMixin(ABC):
             )
 
     def _transcribe_input_tensor_processing(
-        self, audio_tensors: List[Union[np.ndarray, torch.Tensor]], temp_dir: str, trcfg: TranscribeConfig
+        self,
+        audio_tensors: List[Union[np.ndarray, torch.Tensor]],
+        temp_dir: str,
+        trcfg: TranscribeConfig,
     ):
         """
         Internal function to process the input audio tensors and return a config dict for the dataloader.
@@ -516,9 +560,9 @@ class TranscriptionMixin(ABC):
         """
         # Check if sample rate is set
         sample_rate = None
-        if hasattr(self, 'cfg') and 'sample_rate' in self.cfg:
+        if hasattr(self, "cfg") and "sample_rate" in self.cfg:
             sample_rate = self.cfg.sample_rate
-        elif hasattr(self, 'sample_rate'):
+        elif hasattr(self, "sample_rate"):
             sample_rate = self.sample_rate
 
         if sample_rate is None:
@@ -528,17 +572,19 @@ class TranscriptionMixin(ABC):
             )
 
         ds_config = {
-            'audio_tensors': audio_tensors,
-            'batch_size': get_value_from_transcription_config(trcfg, 'batch_size', 4),
-            'temp_dir': temp_dir,
-            'num_workers': get_value_from_transcription_config(trcfg, 'num_workers', 0),
-            'channel_selector': get_value_from_transcription_config(trcfg, 'channel_selector', None),
-            'sample_rate': sample_rate,
+            "audio_tensors": audio_tensors,
+            "batch_size": get_value_from_transcription_config(trcfg, "batch_size", 4),
+            "temp_dir": temp_dir,
+            "num_workers": get_value_from_transcription_config(trcfg, "num_workers", 0),
+            "channel_selector": get_value_from_transcription_config(
+                trcfg, "channel_selector", None
+            ),
+            "sample_rate": sample_rate,
         }
 
-        augmentor = get_value_from_transcription_config(trcfg, 'augmentor', None)
+        augmentor = get_value_from_transcription_config(trcfg, "augmentor", None)
         if augmentor:
-            ds_config['augmentor'] = augmentor
+            ds_config["augmentor"] = augmentor
 
         return ds_config
 
@@ -591,7 +637,9 @@ class TranscriptionMixin(ABC):
         pass
 
     @abstractmethod
-    def _transcribe_output_processing(self, outputs, trcfg: TranscribeConfig) -> GenericTranscriptionType:
+    def _transcribe_output_processing(
+        self, outputs, trcfg: TranscribeConfig
+    ) -> GenericTranscriptionType:
         """
         Internal function to process the model's outputs to return the results to the user. This function is called by
         `transcribe()` and `transcribe_generator()` to process the model's outputs.
@@ -617,17 +665,23 @@ class TranscriptionMixin(ABC):
         # set mode back to its original value
         self.train(mode=trcfg._internal.training_mode)
 
-        if hasattr(self, 'preprocessor'):
-            if hasattr(self.preprocessor, 'featurizer') and hasattr(self.preprocessor.featurizer, 'dither'):
+        if hasattr(self, "preprocessor"):
+            if hasattr(self.preprocessor, "featurizer") and hasattr(
+                self.preprocessor.featurizer, "dither"
+            ):
                 self.preprocessor.featurizer.dither = trcfg._internal.dither_value
 
-            if hasattr(self.preprocessor, 'featurizer') and hasattr(self.preprocessor.featurizer, 'pad_to'):
+            if hasattr(self.preprocessor, "featurizer") and hasattr(
+                self.preprocessor.featurizer, "pad_to"
+            ):
                 self.preprocessor.featurizer.pad_to = trcfg._internal.pad_to_value
 
         if trcfg._internal.logging_level is not None:
             logging.set_verbosity(trcfg._internal.logging_level)
 
-    def _setup_transcribe_tensor_dataloader(self, config: Dict, trcfg: TranscribeConfig) -> DataLoader:
+    def _setup_transcribe_tensor_dataloader(
+        self, config: Dict, trcfg: TranscribeConfig
+    ) -> DataLoader:
         """
         Internal function to setup the dataloader for transcription. This function is called by
         `transcribe()` and `transcribe_generator()` to setup the input data for transcription.
@@ -646,10 +700,14 @@ class TranscriptionMixin(ABC):
         from nemo.collections.asr.data.audio_to_text import _speech_collate_fn
 
         # Calculate pad id
-        if hasattr(self, 'tokenizer') and hasattr(self.tokenizer, 'pad_id'):
+        if hasattr(self, "tokenizer") and hasattr(self.tokenizer, "pad_id"):
             pad_id = self.tokenizer.pad_id
-        elif hasattr(self, 'transcribe_pad_id'):
-            logging.info("Pad id is explicitly set to `model.transcribe_pad_id` = {}".format(self.transcribe_pad_id))
+        elif hasattr(self, "transcribe_pad_id"):
+            logging.info(
+                "Pad id is explicitly set to `model.transcribe_pad_id` = {}".format(
+                    self.transcribe_pad_id
+                )
+            )
             pad_id = self.transcribe_pad_id
         else:
             logging.info(
@@ -663,8 +721,8 @@ class TranscriptionMixin(ABC):
         return DataLoader(
             dataset=dataset,
             shuffle=False,
-            batch_size=config['batch_size'],
-            num_workers=config['num_workers'],
+            batch_size=config["batch_size"],
+            num_workers=config["num_workers"],
             pin_memory=False,
             drop_last=False,
             collate_fn=partial(_speech_collate_fn, pad_id=pad_id),
@@ -702,13 +760,17 @@ class ASRTranscriptionMixin(TranscriptionMixin):
         Returns:
             A config dict that is used to setup the dataloader for transcription.
         """
-        with open(os.path.join(temp_dir, 'manifest.json'), 'w', encoding='utf-8') as fp:
+        with open(os.path.join(temp_dir, "manifest.json"), "w", encoding="utf-8") as fp:
             for audio_file in audio_files:
                 if isinstance(audio_file, str):
-                    entry = {'audio_filepath': audio_file, 'duration': 100000, 'text': ''}
-                    fp.write(json.dumps(entry) + '\n')
+                    entry = {
+                        "audio_filepath": audio_file,
+                        "duration": 100000,
+                        "text": "",
+                    }
+                    fp.write(json.dumps(entry) + "\n")
                 elif isinstance(audio_file, dict):
-                    fp.write(json.dumps(audio_file) + '\n')
+                    fp.write(json.dumps(audio_file) + "\n")
                 else:
                     raise ValueError(
                         f"Input `audio` is of type {type(audio_file)}. "
@@ -716,18 +778,24 @@ class ASRTranscriptionMixin(TranscriptionMixin):
                     )
 
         ds_config = {
-            'paths2audio_files': audio_files,
-            'batch_size': get_value_from_transcription_config(trcfg, 'batch_size', 4),
-            'temp_dir': temp_dir,
-            'num_workers': get_value_from_transcription_config(trcfg, 'num_workers', 0),
-            'channel_selector': get_value_from_transcription_config(trcfg, 'channel_selector', None),
-            'text_field': get_value_from_transcription_config(trcfg, 'text_field', 'text'),
-            'lang_field': get_value_from_transcription_config(trcfg, 'lang_field', 'lang'),
+            "paths2audio_files": audio_files,
+            "batch_size": get_value_from_transcription_config(trcfg, "batch_size", 4),
+            "temp_dir": temp_dir,
+            "num_workers": get_value_from_transcription_config(trcfg, "num_workers", 0),
+            "channel_selector": get_value_from_transcription_config(
+                trcfg, "channel_selector", None
+            ),
+            "text_field": get_value_from_transcription_config(
+                trcfg, "text_field", "text"
+            ),
+            "lang_field": get_value_from_transcription_config(
+                trcfg, "lang_field", "lang"
+            ),
         }
 
-        augmentor = get_value_from_transcription_config(trcfg, 'augmentor', None)
+        augmentor = get_value_from_transcription_config(trcfg, "augmentor", None)
         if augmentor:
-            ds_config['augmentor'] = augmentor
+            ds_config["augmentor"] = augmentor
 
         return ds_config
 
@@ -742,13 +810,13 @@ class ASRTranscriptionMixin(TranscriptionMixin):
         super()._transcribe_on_begin(audio, trcfg)
 
         # Freeze the encoder and decoder modules
-        if hasattr(self, 'encoder'):
+        if hasattr(self, "encoder"):
             self.encoder.freeze()
 
-        if hasattr(self, 'decoder'):
+        if hasattr(self, "decoder"):
             self.decoder.freeze()
 
-        if hasattr(self, 'joint'):
+        if hasattr(self, "joint"):
             self.joint.freeze()
 
     def _transcribe_on_end(self, trcfg: TranscribeConfig):
@@ -761,13 +829,13 @@ class ASRTranscriptionMixin(TranscriptionMixin):
         super()._transcribe_on_end(trcfg)
 
         # Unfreeze the encoder and decoder modules
-        if hasattr(self, 'encoder'):
+        if hasattr(self, "encoder"):
             self.encoder.unfreeze(partial=True)
 
-        if hasattr(self, 'decoder'):
+        if hasattr(self, "decoder"):
             self.decoder.unfreeze(partial=True)
 
-        if hasattr(self, 'joint'):
+        if hasattr(self, "joint"):
             self.joint.unfreeze(partial=True)
 
     @classmethod

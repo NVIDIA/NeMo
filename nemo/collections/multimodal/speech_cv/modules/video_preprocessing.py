@@ -28,8 +28,7 @@ except (ImportError, ModuleNotFoundError):
 
 
 class VideoPreprocessor(NeuralModule):
-
-    """ Video Pre-processing
+    """Video Pre-processing
 
     args:
         grayscale: convert images to grayscale
@@ -38,7 +37,7 @@ class VideoPreprocessor(NeuralModule):
         resize_size: output image size for resize
         norm_mean: normalize mean
         norm_std: normalize std
-    
+
     """
 
     def __init__(self, grayscale, normalize, resize, resize_size, norm_mean, norm_std):
@@ -56,25 +55,35 @@ class VideoPreprocessor(NeuralModule):
 
         # Convert float32 [0:255] -> [0:1]
         if TORCHVISION_AVAILABLE:
-            self.transforms.append(torchvision.transforms.ConvertImageDtype(dtype=torch.float32))
+            self.transforms.append(
+                torchvision.transforms.ConvertImageDtype(dtype=torch.float32)
+            )
         else:
             raise Exception("ConvertImageDtype transform requires torchvision")
 
         # Convert Channels First
-        self.transforms.append(Permute(dims=(0, 4, 1, 2, 3)))  # (B, T, H, W, C) -> (B, C, T, H, W)
+        self.transforms.append(
+            Permute(dims=(0, 4, 1, 2, 3))
+        )  # (B, T, H, W, C) -> (B, C, T, H, W)
 
         # Resize
         if self.resize:
-            self.transforms.append(ResizeVideo(self.resize_size))  # (B, C, T, H, W) -> (B, C, T, H', W')
+            self.transforms.append(
+                ResizeVideo(self.resize_size)
+            )  # (B, C, T, H, W) -> (B, C, T, H', W')
 
         # Grayscale
         if self.grayscale:
             if TORCHVISION_AVAILABLE:
                 self.transforms.append(
                     nn.Sequential(
-                        Permute(dims=(0, 2, 1, 3, 4)),  # (B, C, T, H, W) -> (B, T, C, H, W)
+                        Permute(
+                            dims=(0, 2, 1, 3, 4)
+                        ),  # (B, C, T, H, W) -> (B, T, C, H, W)
                         torchvision.transforms.Grayscale(),
-                        Permute(dims=(0, 2, 1, 3, 4)),  # (B, T, C, H, W) -> (B, C, T, H, W)
+                        Permute(
+                            dims=(0, 2, 1, 3, 4)
+                        ),  # (B, T, C, H, W) -> (B, C, T, H, W)
                     )
                 )
             else:
@@ -99,10 +108,14 @@ class NormalizeVideo(NeuralModule):
         super().__init__()
 
         self.register_buffer(
-            "mean", torch.tensor(mean, dtype=torch.float32).reshape(len(mean), 1, 1, 1), persistent=False
+            "mean",
+            torch.tensor(mean, dtype=torch.float32).reshape(len(mean), 1, 1, 1),
+            persistent=False,
         )
         self.register_buffer(
-            "std", torch.tensor(std, dtype=torch.float32).reshape(len(std), 1, 1, 1), persistent=False
+            "std",
+            torch.tensor(std, dtype=torch.float32).reshape(len(std), 1, 1, 1),
+            persistent=False,
         )
 
     def forward(self, x):

@@ -55,17 +55,17 @@ from nemo.utils.model_utils import inject_model_parallel_rank
 
 
 def get_model_class(cfg):
-    if cfg.model_type == 'gpt':
+    if cfg.model_type == "gpt":
         return MegatronGPTModel
-    elif cfg.model_type == 'bert':
+    elif cfg.model_type == "bert":
         return MegatronBertModel
-    elif cfg.model_type == 't5':
+    elif cfg.model_type == "t5":
         return MegatronT5Model
-    elif cfg.model_type == 'bart':
+    elif cfg.model_type == "bart":
         return MegatronBARTModel
-    elif cfg.model_type == 'nmt':
+    elif cfg.model_type == "nmt":
         return MegatronNMTModel
-    elif cfg.model_type == 'retro':
+    elif cfg.model_type == "retro":
         return MegatronRetrievalModel
     else:
         raise ValueError("Invalid Model Type")
@@ -79,7 +79,9 @@ def nemo_export(cfg):
         nemo_in = cfg.gpt_model_file
     elif cfg.checkpoint_dir:
         nemo_in = os.path.join(cfg.checkpoint_dir, cfg.checkpoint_name)
-    assert nemo_in is not None, "NeMo model not provided. Please provide the path to the .nemo or .ckpt file"
+    assert (
+        nemo_in is not None
+    ), "NeMo model not provided. Please provide the path to the .nemo or .ckpt file"
 
     onnx_out = cfg.onnx_model_file
 
@@ -118,10 +120,17 @@ def nemo_export(cfg):
             )
         elif cfg.checkpoint_dir:
             app_state = AppState()
-            if cfg.tensor_model_parallel_size > 1 or cfg.pipeline_model_parallel_size > 1:
-                app_state.model_parallel_size = cfg.tensor_model_parallel_size * cfg.pipeline_model_parallel_size
+            if (
+                cfg.tensor_model_parallel_size > 1
+                or cfg.pipeline_model_parallel_size > 1
+            ):
+                app_state.model_parallel_size = (
+                    cfg.tensor_model_parallel_size * cfg.pipeline_model_parallel_size
+                )
                 app_state.tensor_model_parallel_size = cfg.tensor_model_parallel_size
-                app_state.pipeline_model_parallel_size = cfg.pipeline_model_parallel_size
+                app_state.pipeline_model_parallel_size = (
+                    cfg.pipeline_model_parallel_size
+                )
                 (
                     app_state.tensor_model_parallel_rank,
                     app_state.pipeline_model_parallel_rank,
@@ -136,9 +145,13 @@ def nemo_export(cfg):
                     pipeline_model_parallel_size_=cfg.pipeline_model_parallel_size,
                     pipeline_model_parallel_split_rank_=cfg.pipeline_model_parallel_split_rank,
                 )
-            checkpoint_path = inject_model_parallel_rank(os.path.join(cfg.checkpoint_dir, cfg.checkpoint_name))
+            checkpoint_path = inject_model_parallel_rank(
+                os.path.join(cfg.checkpoint_dir, cfg.checkpoint_name)
+            )
             model_cls = get_model_class(cfg)
-            model = model_cls.load_from_checkpoint(checkpoint_path, hparams_file=cfg.hparams_file, trainer=trainer)
+            model = model_cls.load_from_checkpoint(
+                checkpoint_path, hparams_file=cfg.hparams_file, trainer=trainer
+            )
         else:
             raise ValueError("need at least a nemo file or checkpoint dir")
     except Exception as e:
@@ -149,7 +162,9 @@ def nemo_export(cfg):
         )
         raise e
 
-    logging.info("Model {} restored from '{}'".format(model.__class__.__name__, nemo_in))
+    logging.info(
+        "Model {} restored from '{}'".format(model.__class__.__name__, nemo_in)
+    )
 
     # Export
     check_trace = cfg.export_options.runtime_check
@@ -162,9 +177,9 @@ def nemo_export(cfg):
             onnx_opset_version=cfg.export_options.onnx_opset,
             do_constant_folding=cfg.export_options.do_constant_folding,
             dynamic_axes={
-                'input_ids': {0: "sequence", 1: "batch"},
-                'position_ids': {0: "sequence", 1: "batch"},
-                'logits': {0: "sequence", 1: "batch"},
+                "input_ids": {0: "sequence", 1: "batch"},
+                "position_ids": {0: "sequence", 1: "batch"},
+                "logits": {0: "sequence", 1: "batch"},
             },
             check_trace=check_trace,
             check_tolerance=cfg.export_options.check_tolerance,
@@ -179,5 +194,5 @@ def nemo_export(cfg):
         raise e
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     nemo_export()

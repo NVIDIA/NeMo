@@ -29,7 +29,9 @@ from nemo.collections.llm.recipes.precision.mixed_precision import (bf16_mixed,
                                                                     fp16_mixed)
 
 
-def bert_model(version: str, bert_type: str = "megatron") -> run.Config[pl.LightningModule]:
+def bert_model(
+    version: str, bert_type: str = "megatron"
+) -> run.Config[pl.LightningModule]:
     """
     A function to create a Bert models.
 

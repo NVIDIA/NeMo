@@ -36,7 +36,7 @@ class EnglishG2p(BaseG2p):
         apply_to_oov_word=None,
         ignore_ambiguous_words=True,
         heteronyms=None,
-        encoding='latin-1',
+        encoding="latin-1",
         phoneme_probability: Optional[float] = None,
         mapping_file: Optional[str] = None,
     ):
@@ -59,7 +59,9 @@ class EnglishG2p(BaseG2p):
         """
         phoneme_dict = (
             self._parse_as_cmu_dict(phoneme_dict, encoding)
-            if isinstance(phoneme_dict, str) or isinstance(phoneme_dict, pathlib.Path) or phoneme_dict is None
+            if isinstance(phoneme_dict, str)
+            or isinstance(phoneme_dict, pathlib.Path)
+            or phoneme_dict is None
             else phoneme_dict
         )
 
@@ -88,7 +90,7 @@ class EnglishG2p(BaseG2p):
         self._rng = random.Random()
 
     @staticmethod
-    def _parse_as_cmu_dict(phoneme_dict_path=None, encoding='latin-1'):
+    def _parse_as_cmu_dict(phoneme_dict_path=None, encoding="latin-1"):
         if phoneme_dict_path is None:
             # this part of code downloads file, but it is not rank zero guarded
             # Try to check if torch distributed is available, if not get global rank zero to download corpora and make
@@ -97,9 +99,9 @@ class EnglishG2p(BaseG2p):
                 group = torch.distributed.group.WORLD
                 if is_global_rank_zero():
                     try:
-                        nltk.data.find('corpora/cmudict.zip')
+                        nltk.data.find("corpora/cmudict.zip")
                     except LookupError:
-                        nltk.download('cmudict', quiet=True)
+                        nltk.download("cmudict", quiet=True)
                 torch.distributed.barrier(group=group)
             elif is_global_rank_zero():
                 logging.error(
@@ -108,9 +110,9 @@ class EnglishG2p(BaseG2p):
                     "before rank 0, errors might result."
                 )
                 try:
-                    nltk.data.find('corpora/cmudict.zip')
+                    nltk.data.find("corpora/cmudict.zip")
                 except LookupError:
-                    nltk.download('cmudict', quiet=True)
+                    nltk.download("cmudict", quiet=True)
             else:
                 logging.error(
                     f"Torch distributed needs to be initialized before you initialized EnglishG2p. This class is prone to "
@@ -128,13 +130,13 @@ class EnglishG2p(BaseG2p):
 
             return nltk.corpus.cmudict.dict()
 
-        _alt_re = re.compile(r'\([0-9]+\)')
+        _alt_re = re.compile(r"\([0-9]+\)")
         g2p_dict = {}
         with open(phoneme_dict_path, encoding=encoding) as file:
             for line in file:
-                if len(line) and ('A' <= line[0] <= 'Z' or line[0] == "'"):
-                    parts = line.split('  ')
-                    word = re.sub(_alt_re, '', parts[0])
+                if len(line) and ("A" <= line[0] <= "Z" or line[0] == "'"):
+                    parts = line.split("  ")
+                    word = re.sub(_alt_re, "", parts[0])
                     word = word.lower()
 
                     pronunciation = parts[1].strip().split(" ")
@@ -158,7 +160,10 @@ class EnglishG2p(BaseG2p):
         `status` will be `False` if word wasn't handled, `True` otherwise.
         """
 
-        if self.phoneme_probability is not None and self._rng.random() > self.phoneme_probability:
+        if (
+            self.phoneme_probability is not None
+            and self._rng.random() > self.phoneme_probability
+        ):
             return word, True
 
         # punctuation or whitespace.
@@ -175,7 +180,10 @@ class EnglishG2p(BaseG2p):
             and word.endswith("'s")
             and (word not in self.phoneme_dict)
             and (word[:-2] in self.phoneme_dict)
-            and (not self.ignore_ambiguous_words or self.is_unique_in_phoneme_dict(word[:-2]))
+            and (
+                not self.ignore_ambiguous_words
+                or self.is_unique_in_phoneme_dict(word[:-2])
+            )
         ):
             return self.phoneme_dict[word[:-2]][0] + ["Z"], True
 
@@ -185,12 +193,17 @@ class EnglishG2p(BaseG2p):
             and word.endswith("s")
             and (word not in self.phoneme_dict)
             and (word[:-1] in self.phoneme_dict)
-            and (not self.ignore_ambiguous_words or self.is_unique_in_phoneme_dict(word[:-1]))
+            and (
+                not self.ignore_ambiguous_words
+                or self.is_unique_in_phoneme_dict(word[:-1])
+            )
         ):
             return self.phoneme_dict[word[:-1]][0] + ["Z"], True
 
         # phoneme dict
-        if word in self.phoneme_dict and (not self.ignore_ambiguous_words or self.is_unique_in_phoneme_dict(word)):
+        if word in self.phoneme_dict and (
+            not self.ignore_ambiguous_words or self.is_unique_in_phoneme_dict(word)
+        ):
             return self.phoneme_dict[word][0], True
 
         if self.apply_to_oov_word is not None:

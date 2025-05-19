@@ -28,7 +28,7 @@ from nemo.collections.nlp.models import TextClassificationModel
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
 
-__all__ = ['ZeroShotIntentModel']
+__all__ = ["ZeroShotIntentModel"]
 
 
 class ZeroShotIntentModel(TextClassificationModel):
@@ -37,7 +37,9 @@ class ZeroShotIntentModel(TextClassificationModel):
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         super().__init__(cfg=cfg, trainer=trainer)
 
-    def _setup_dataloader_from_config(self, cfg: DictConfig) -> 'torch.utils.data.DataLoader':
+    def _setup_dataloader_from_config(
+        self, cfg: DictConfig
+    ) -> "torch.utils.data.DataLoader":
         data_dir = self._cfg.dataset.data_dir
         file_name = cfg.file_name
         input_file = os.path.join(data_dir, file_name)
@@ -77,7 +79,7 @@ class ZeroShotIntentModel(TextClassificationModel):
         self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config)
 
         # calculate the class weights to be used in the loss function
-        if self.cfg.dataset.class_balancing == 'weighted_loss':
+        if self.cfg.dataset.class_balancing == "weighted_loss":
             self.class_weights = calc_class_weights_from_dataloader(
                 self._train_dl, self.cfg.dataset.num_classes, self.cfg.dataset.data_dir
             )
@@ -111,7 +113,7 @@ class ZeroShotIntentModel(TextClassificationModel):
         hypothesis_template=str,
         batch_size=1,
         max_seq_length: int = -1,
-    ) -> 'torch.utils.data.DataLoader':
+    ) -> "torch.utils.data.DataLoader":
         """
         Setup method for inference data loader. Here the premise-hypothesis pairs are made from queries and candidate labels.
 
@@ -147,7 +149,7 @@ class ZeroShotIntentModel(TextClassificationModel):
         self,
         queries: Union[str, List[str]],
         candidate_labels: Union[str, List[str]],
-        hypothesis_template='This example is {}.',
+        hypothesis_template="This example is {}.",
         batch_size=1,
         multi_label=True,
         entailment_idx=1,
@@ -197,14 +199,18 @@ class ZeroShotIntentModel(TextClassificationModel):
             raise ValueError("No candidate labels were provided!")
 
         queries = [queries] if isinstance(queries, str) else queries
-        candidate_labels = [candidate_labels] if isinstance(candidate_labels, str) else candidate_labels
+        candidate_labels = (
+            [candidate_labels]
+            if isinstance(candidate_labels, str)
+            else candidate_labels
+        )
 
         if len(candidate_labels) == 1:
             multi_label = True
 
         mode = self.training
         try:
-            device = 'cuda' if torch.cuda.is_available() else 'cpu'
+            device = "cuda" if torch.cuda.is_available() else "cpu"
 
             # Switch model to evaluation mode
             self.eval()
@@ -235,11 +241,15 @@ class ZeroShotIntentModel(TextClassificationModel):
             if not multi_label:
                 # softmax the "entailment" logits over all candidate labels
                 entail_logits = outputs[..., entailment_idx]
-                scores = np.exp(entail_logits) / np.exp(entail_logits).sum(-1, keepdims=True)
+                scores = np.exp(entail_logits) / np.exp(entail_logits).sum(
+                    -1, keepdims=True
+                )
             else:
                 # softmax over the entailment vs. contradiction dim for each label independently
                 entail_contr_logits = outputs[..., [contradiction_idx, entailment_idx]]
-                scores = np.exp(entail_contr_logits) / np.exp(entail_contr_logits).sum(-1, keepdims=True)
+                scores = np.exp(entail_contr_logits) / np.exp(entail_contr_logits).sum(
+                    -1, keepdims=True
+                )
                 scores = scores[..., 1]
 
             result = []

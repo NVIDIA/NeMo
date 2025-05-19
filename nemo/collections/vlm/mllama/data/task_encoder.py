@@ -45,23 +45,39 @@ def pad_or_truncate(sequence_batch, seq_length: int, padding_value: int):
 class LlamaImageTextRawBatch:
     __keys__: List[str] = field(default_factory=list)
 
-    tokens: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.long))
-    labels: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.long))
-    loss_mask: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.float))
+    tokens: torch.Tensor = field(
+        default_factory=lambda: torch.empty(0, dtype=torch.long)
+    )
+    labels: torch.Tensor = field(
+        default_factory=lambda: torch.empty(0, dtype=torch.long)
+    )
+    loss_mask: torch.Tensor = field(
+        default_factory=lambda: torch.empty(0, dtype=torch.float)
+    )
 
     batch_images: torch.Tensor = field(default_factory=lambda: torch.empty(0))
     batch_masks: torch.Tensor = field(default_factory=lambda: torch.empty(0))
 
-    aspect_ratio_ids: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.float))
-    aspect_ratio_mask: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.float))
-    num_chunks: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.float))
+    aspect_ratio_ids: torch.Tensor = field(
+        default_factory=lambda: torch.empty(0, dtype=torch.float)
+    )
+    aspect_ratio_mask: torch.Tensor = field(
+        default_factory=lambda: torch.empty(0, dtype=torch.float)
+    )
+    num_chunks: torch.Tensor = field(
+        default_factory=lambda: torch.empty(0, dtype=torch.float)
+    )
 
 
 class LlamaTaskEncoder(MultiModalTaskEncoder):
-    def __init__(self, tokenizer, image_processor, multimodal_sample_config, seq_length=None):
+    def __init__(
+        self, tokenizer, image_processor, multimodal_sample_config, seq_length=None
+    ):
         super().__init__(tokenizer, image_processor, multimodal_sample_config)
         self.encoders: Dict[str, SampleEncoder] = {
-            VQASample.__name__: Llama3SampleEncoder(tokenizer, image_processor, multimodal_sample_config)
+            VQASample.__name__: Llama3SampleEncoder(
+                tokenizer, image_processor, multimodal_sample_config
+            )
         }
         self.seq_length = seq_length
         self.ignore_index = multimodal_sample_config.ignore_place_holder
@@ -85,7 +101,9 @@ class LlamaTaskEncoder(MultiModalTaskEncoder):
         batch_images = batch_pad_stack(images)
 
         batch_tokens = pad_sequence(tokens, batch_first=True)
-        batch_labels = pad_sequence(labels, batch_first=True, padding_value=self.ignore_index)
+        batch_labels = pad_sequence(
+            labels, batch_first=True, padding_value=self.ignore_index
+        )
         batch_loss_mask = batch_pad_stack(loss_mask)
         if self.seq_length is not None:
             seq_length = self.seq_length
@@ -94,7 +112,9 @@ class LlamaTaskEncoder(MultiModalTaskEncoder):
         batch_tokens = pad_or_truncate(batch_tokens, seq_length, 0)
         batch_labels = pad_or_truncate(batch_labels, seq_length, self.ignore_index)
         batch_loss_mask = pad_or_truncate(batch_loss_mask, seq_length, 0)
-        assert batch_loss_mask.sum() > 0, "This batch has nothing to predict! Will trigger a nan loss."
+        assert (
+            batch_loss_mask.sum() > 0
+        ), "This batch has nothing to predict! Will trigger a nan loss."
         batch_vision_mask = batch_pad_stack(vision_mask)
         batch_aspect_ratio_ids = batch_pad_stack(aspect_ratio_ids)
         batch_aspect_ratio_mask = batch_pad_stack(aspect_ratio_mask)

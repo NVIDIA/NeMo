@@ -51,7 +51,7 @@ from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.neural_types import *
 from nemo.utils import logging
 
-__all__ = ['EncDecSpeakerLabelModel']
+__all__ = ["EncDecSpeakerLabelModel"]
 
 
 class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel, VerificationMixin):
@@ -122,9 +122,9 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel, VerificationMixin)
 
         num_classes = cfg.decoder.num_classes
 
-        if 'loss' in cfg:
-            if 'weight' in cfg.loss:
-                if cfg.loss.weight == 'auto':
+        if "loss" in cfg:
+            if "weight" in cfg.loss:
+                if cfg.loss.weight == "auto":
                     weight = num_classes * [1]
                     self.cal_labels_occurrence_train = True
                 else:
@@ -139,17 +139,20 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel, VerificationMixin)
 
         if self.labels_occurrence:
             # Goal is to give more weight to the classes with less samples so as to match the ones with the higher frequencies
-            weight = [sum(self.labels_occurrence) / (len(self.labels_occurrence) * i) for i in self.labels_occurrence]
+            weight = [
+                sum(self.labels_occurrence) / (len(self.labels_occurrence) * i)
+                for i in self.labels_occurrence
+            ]
 
-        if 'loss' in cfg:
+        if "loss" in cfg:
             cfg_eval_loss = copy.deepcopy(cfg.loss)
 
-            if 'angular' in cfg.loss.get('_target_', {}):
+            if "angular" in cfg.loss.get("_target_", {}):
                 OmegaConf.set_struct(cfg, True)
                 with open_dict(cfg):
                     cfg.decoder.angular = True
 
-            if 'weight' in cfg.loss:
+            if "weight" in cfg.loss:
                 cfg.loss.weight = weight
                 cfg_eval_loss.weight = None
 
@@ -159,7 +162,9 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel, VerificationMixin)
 
         else:
             tmp_loss_cfg = OmegaConf.create(
-                {"_target_": "nemo.collections.common.losses.cross_entropy.CrossEntropyLoss"}
+                {
+                    "_target_": "nemo.collections.common.losses.cross_entropy.CrossEntropyLoss"
+                }
             )
 
             self.loss = instantiate(tmp_loss_cfg)
@@ -171,22 +176,32 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel, VerificationMixin)
         self.encoder = EncDecSpeakerLabelModel.from_config_dict(cfg.encoder)
         self.decoder = EncDecSpeakerLabelModel.from_config_dict(cfg.decoder)
 
-        self._macro_accuracy = Accuracy(num_classes=num_classes, top_k=1, average='macro', task='multiclass')
-        self._pair_macro_accuracy = Accuracy(num_classes=2, top_k=1, average='macro', task='multiclass')
+        self._macro_accuracy = Accuracy(
+            num_classes=num_classes, top_k=1, average="macro", task="multiclass"
+        )
+        self._pair_macro_accuracy = Accuracy(
+            num_classes=2, top_k=1, average="macro", task="multiclass"
+        )
 
-        if hasattr(self._cfg, 'spec_augment') and self._cfg.spec_augment is not None:
-            self.spec_augmentation = EncDecSpeakerLabelModel.from_config_dict(self._cfg.spec_augment)
+        if hasattr(self._cfg, "spec_augment") and self._cfg.spec_augment is not None:
+            self.spec_augmentation = EncDecSpeakerLabelModel.from_config_dict(
+                self._cfg.spec_augment
+            )
         else:
             self.spec_augmentation = None
 
     @staticmethod
     def extract_labels(data_layer_config):
         labels = set()
-        manifest_filepath = data_layer_config.get('manifest_filepath', None)
+        manifest_filepath = data_layer_config.get("manifest_filepath", None)
         if manifest_filepath is None:
-            logging.warning("No manifest_filepath was provided, no labels got extracted!")
+            logging.warning(
+                "No manifest_filepath was provided, no labels got extracted!"
+            )
             return None
-        manifest_filepaths = convert_to_config_list(data_layer_config['manifest_filepath'])
+        manifest_filepaths = convert_to_config_list(
+            data_layer_config["manifest_filepath"]
+        )
 
         for manifest_filepath in itertools.chain.from_iterable(manifest_filepaths):
             cache_datastore_manifests(manifest_filepaths=manifest_filepath)
@@ -198,22 +213,29 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel, VerificationMixin)
             )
             labels.update(collection.uniq_labels)
         labels = list(sorted(labels))
-        logging.warning(f"Total number of {len(labels)} labels found in all the manifest files.")
+        logging.warning(
+            f"Total number of {len(labels)} labels found in all the manifest files."
+        )
         return labels
 
     def __setup_dataloader_from_config(self, config: Optional[Dict]):
-        if 'augmentor' in config:
-            augmentor = process_augmentations(config['augmentor'])
+        if "augmentor" in config:
+            augmentor = process_augmentations(config["augmentor"])
         else:
             augmentor = None
 
         featurizer = WaveformFeaturizer(
-            sample_rate=config['sample_rate'], int_values=config.get('int_values', False), augmentor=augmentor
+            sample_rate=config["sample_rate"],
+            int_values=config.get("int_values", False),
+            augmentor=augmentor,
         )
-        shuffle = config.get('shuffle', False)
-        if config.get('is_tarred', False):
-            if ('tarred_audio_filepaths' in config and config['tarred_audio_filepaths'] is None) or (
-                'manifest_filepath' in config and config['manifest_filepath'] is None
+        shuffle = config.get("shuffle", False)
+        if config.get("is_tarred", False):
+            if (
+                "tarred_audio_filepaths" in config
+                and config["tarred_audio_filepaths"] is None
+            ) or (
+                "manifest_filepath" in config and config["manifest_filepath"] is None
             ):
                 logging.warning(
                     "Could not load dataset as `manifest_filepath` was None or "
@@ -221,7 +243,9 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel, VerificationMixin)
                 )
                 return None
 
-            shuffle_n = config.get('shuffle_n', 4 * config['batch_size']) if shuffle else 0
+            shuffle_n = (
+                config.get("shuffle_n", 4 * config["batch_size"]) if shuffle else 0
+            )
             if config.get("is_concat", False):
                 dataset = get_concat_tarred_speech_label_dataset(
                     featurizer=featurizer,
@@ -240,74 +264,87 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel, VerificationMixin)
                 )
             shuffle = False
         else:
-            if 'manifest_filepath' in config and config['manifest_filepath'] is None:
-                logging.warning(f"Could not load dataset as `manifest_filepath` was None. Provided config : {config}")
+            if "manifest_filepath" in config and config["manifest_filepath"] is None:
+                logging.warning(
+                    f"Could not load dataset as `manifest_filepath` was None. Provided config : {config}"
+                )
                 return None
 
             if config.get("is_audio_pair", False):
                 data_cls = AudioPairToLabelDataset
-                logging.warning("Using AudioPairToLabelDataset, where Angular loss will not be computed.")
+                logging.warning(
+                    "Using AudioPairToLabelDataset, where Angular loss will not be computed."
+                )
             else:
                 data_cls = AudioToSpeechLabelDataset
 
             dataset = data_cls(
-                manifest_filepath=config['manifest_filepath'],
-                labels=config['labels'],
+                manifest_filepath=config["manifest_filepath"],
+                labels=config["labels"],
                 featurizer=featurizer,
-                max_duration=config.get('max_duration', None),
-                min_duration=config.get('min_duration', None),
-                trim=config.get('trim_silence', False),
-                channel_selector=config.get('channel_selector', None),
-                normalize_audio=config.get('normalize_audio', False),
-                cal_labels_occurrence=config.get('cal_labels_occurrence', False),
+                max_duration=config.get("max_duration", None),
+                min_duration=config.get("min_duration", None),
+                trim=config.get("trim_silence", False),
+                channel_selector=config.get("channel_selector", None),
+                normalize_audio=config.get("normalize_audio", False),
+                cal_labels_occurrence=config.get("cal_labels_occurrence", False),
             )
             if dataset.labels_occurrence:
                 self.labels_occurrence = dataset.labels_occurrence
 
-        if hasattr(dataset, 'fixed_seq_collate_fn'):
+        if hasattr(dataset, "fixed_seq_collate_fn"):
             collate_fn = dataset.fixed_seq_collate_fn
         else:
             collate_fn = dataset.datasets[0].fixed_seq_collate_fn
 
-        batch_size = config['batch_size']
+        batch_size = config["batch_size"]
         return torch.utils.data.DataLoader(
             dataset=dataset,
             batch_size=batch_size,
             collate_fn=collate_fn,
-            drop_last=config.get('drop_last', False),
+            drop_last=config.get("drop_last", False),
             shuffle=shuffle,
-            num_workers=config.get('num_workers', 0),
-            pin_memory=config.get('pin_memory', False),
+            num_workers=config.get("num_workers", 0),
+            pin_memory=config.get("pin_memory", False),
         )
 
-    def setup_training_data(self, train_data_layer_config: Optional[Union[DictConfig, Dict]]):
+    def setup_training_data(
+        self, train_data_layer_config: Optional[Union[DictConfig, Dict]]
+    ):
         if self.cal_labels_occurrence_train:
             # Calculate labels occurence for weighed CE loss for train set if weight equals 'auto'
             # Note in this case, the cal_labels_occurrence in val_data_layer_config and test_data_layer_params need to be stay as False
             OmegaConf.set_struct(train_data_layer_config, True)
             with open_dict(train_data_layer_config):
-                train_data_layer_config['cal_labels_occurrence'] = True
+                train_data_layer_config["cal_labels_occurrence"] = True
 
         self.labels = self.extract_labels(train_data_layer_config)
-        train_data_layer_config['labels'] = self.labels
-        if 'shuffle' not in train_data_layer_config:
-            train_data_layer_config['shuffle'] = True
-        self._train_dl = self.__setup_dataloader_from_config(config=train_data_layer_config)
+        train_data_layer_config["labels"] = self.labels
+        if "shuffle" not in train_data_layer_config:
+            train_data_layer_config["shuffle"] = True
+        self._train_dl = self.__setup_dataloader_from_config(
+            config=train_data_layer_config
+        )
         # Need to set this because if using an IterableDataset, the length of the dataloader is the total number
         # of samples rather than the number of batches, and this messes up the tqdm progress bar.
         # So we set the number of steps manually (to the correct number) to fix this.
         if (
             self._train_dl is not None
-            and hasattr(self._train_dl, 'dataset')
+            and hasattr(self._train_dl, "dataset")
             and isinstance(self._train_dl.dataset, torch.utils.data.IterableDataset)
         ):
             # We also need to check if limit_train_batches is already set.
             # If it's an int, we assume that the user has set it to something sane, i.e. <= # training batches,
             # and don't change it. Otherwise, adjust batches accordingly if it's a float (including 1.0).
-            if self._trainer is not None and isinstance(self._trainer.limit_train_batches, float):
+            if self._trainer is not None and isinstance(
+                self._trainer.limit_train_batches, float
+            ):
                 self._trainer.limit_train_batches = int(
                     self._trainer.limit_train_batches
-                    * ceil((len(self._train_dl.dataset) / self.world_size) / train_data_layer_config['batch_size'])
+                    * ceil(
+                        (len(self._train_dl.dataset) / self.world_size)
+                        / train_data_layer_config["batch_size"]
+                    )
                 )
             elif self._trainer is None:
                 logging.warning(
@@ -315,23 +352,31 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel, VerificationMixin)
                     "training batches will be used. Please set the trainer and rebuild the dataset."
                 )
 
-    def setup_validation_data(self, val_data_layer_config: Optional[Union[DictConfig, Dict]]):
+    def setup_validation_data(
+        self, val_data_layer_config: Optional[Union[DictConfig, Dict]]
+    ):
         if val_data_layer_config.get("is_audio_pair", False):
-            val_data_layer_config['labels'] = ["0", "1"]
+            val_data_layer_config["labels"] = ["0", "1"]
         else:
-            val_data_layer_config['labels'] = self.labels
-        self._validation_dl = self.__setup_dataloader_from_config(config=val_data_layer_config)
+            val_data_layer_config["labels"] = self.labels
+        self._validation_dl = self.__setup_dataloader_from_config(
+            config=val_data_layer_config
+        )
 
-    def setup_test_data(self, test_data_layer_params: Optional[Union[DictConfig, Dict]]):
-        if hasattr(self, 'dataset'):
+    def setup_test_data(
+        self, test_data_layer_params: Optional[Union[DictConfig, Dict]]
+    ):
+        if hasattr(self, "dataset"):
             if test_data_layer_params.get("is_audio_pair", False):
-                test_data_layer_params['labels'] = ["0", "1"]
+                test_data_layer_params["labels"] = ["0", "1"]
             else:
-                test_data_layer_params['labels'] = self.labels
+                test_data_layer_params["labels"] = self.labels
 
-        self.embedding_dir = test_data_layer_params.get('embedding_dir', './')
-        self._test_dl = self.__setup_dataloader_from_config(config=test_data_layer_params)
-        self.test_manifest = test_data_layer_params.get('manifest_filepath', None)
+        self.embedding_dir = test_data_layer_params.get("embedding_dir", "./")
+        self._test_dl = self.__setup_dataloader_from_config(
+            config=test_data_layer_params
+        )
+        self.test_manifest = test_data_layer_params.get("manifest_filepath", None)
 
     def test_dataloader(self):
         if self._test_dl is not None:
@@ -339,20 +384,20 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel, VerificationMixin)
 
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
-        if hasattr(self.preprocessor, '_sample_rate'):
+        if hasattr(self.preprocessor, "_sample_rate"):
             audio_eltype = AudioSignal(freq=self.preprocessor._sample_rate)
         else:
             audio_eltype = AudioSignal()
         return {
-            "input_signal": NeuralType(('B', 'T'), audio_eltype),
-            "input_signal_length": NeuralType(tuple('B'), LengthsType()),
+            "input_signal": NeuralType(("B", "T"), audio_eltype),
+            "input_signal_length": NeuralType(tuple("B"), LengthsType()),
         }
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         return {
-            "logits": NeuralType(('B', 'D'), LogitsType()),
-            "embs": NeuralType(('B', 'D'), AcousticEncodedRepresentation()),
+            "logits": NeuralType(("B", "D"), LogitsType()),
+            "embs": NeuralType(("B", "D"), AcousticEncodedRepresentation()),
         }
 
     def forward_for_export(self, audio_signal, length):
@@ -367,9 +412,13 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel, VerificationMixin)
         )
 
         if self.spec_augmentation is not None and self.training:
-            processed_signal = self.spec_augmentation(input_spec=processed_signal, length=processed_signal_len)
+            processed_signal = self.spec_augmentation(
+                input_spec=processed_signal, length=processed_signal_len
+            )
 
-        encoder_outputs = self.encoder(audio_signal=processed_signal, length=processed_signal_len)
+        encoder_outputs = self.encoder(
+            audio_signal=processed_signal, length=processed_signal_len
+        )
         if isinstance(encoder_outputs, tuple):
             encoded, length = encoder_outputs
         else:
@@ -385,9 +434,20 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel, VerificationMixin)
     # PTL-specific methods
     def training_step(self, batch, batch_idx):
         if len(batch) > 4:
-            audio_signal_1, audio_signal_len_1, audio_signal_2, audio_signal_len_2, labels, _ = batch
-            _, audio_emb1 = self.forward(input_signal=audio_signal_1, input_signal_length=audio_signal_len_1)
-            _, audio_emb2 = self.forward(input_signal=audio_signal_2, input_signal_length=audio_signal_len_2)
+            (
+                audio_signal_1,
+                audio_signal_len_1,
+                audio_signal_2,
+                audio_signal_len_2,
+                labels,
+                _,
+            ) = batch
+            _, audio_emb1 = self.forward(
+                input_signal=audio_signal_1, input_signal_length=audio_signal_len_1
+            )
+            _, audio_emb2 = self.forward(
+                input_signal=audio_signal_2, input_signal_length=audio_signal_len_2
+            )
 
             # convert binary labels to -1, 1
             loss_labels = (labels.float() - 0.5) * 2
@@ -395,31 +455,37 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel, VerificationMixin)
             loss = torch.nn.functional.mse_loss(cosine_sim, loss_labels)
         else:
             audio_signal, audio_signal_len, labels, _ = batch
-            output = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
+            output = self.forward(
+                input_signal=audio_signal, input_signal_length=audio_signal_len
+            )
             if isinstance(output, tuple):
                 logits, _ = output
             else:
                 logits = output
             loss = self.loss(logits=logits, labels=labels)
 
-        self.log('loss', loss)
-        self.log('learning_rate', self._optimizer.param_groups[0]['lr'])
-        self.log('global_step', self.trainer.global_step)
+        self.log("loss", loss)
+        self.log("learning_rate", self._optimizer.param_groups[0]["lr"])
+        self.log("global_step", self.trainer.global_step)
 
         self._accuracy(logits=logits, labels=labels)
         top_k = self._accuracy.compute()
         self._accuracy.reset()
         for i, top_i in enumerate(top_k):
-            self.log(f'training_batch_accuracy_top_{i}', top_i)
+            self.log(f"training_batch_accuracy_top_{i}", top_i)
 
-        return {'loss': loss}
+        return {"loss": loss}
 
-    def evaluation_step(self, batch, batch_idx, dataloader_idx: int = 0, tag: str = 'val'):
+    def evaluation_step(
+        self, batch, batch_idx, dataloader_idx: int = 0, tag: str = "val"
+    ):
         if len(batch) > 4:
             return self.pair_evaluation_step(batch, batch_idx, dataloader_idx, tag)
 
         audio_signal, audio_signal_len, labels, _ = batch
-        output = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
+        output = self.forward(
+            input_signal=audio_signal, input_signal_length=audio_signal_len
+        )
         if isinstance(output, tuple):
             logits, _ = output
         else:
@@ -427,34 +493,56 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel, VerificationMixin)
         loss_value = self.eval_loss(logits=logits, labels=labels)
 
         acc_top_k = self._accuracy(logits=logits, labels=labels)
-        correct_counts, total_counts = self._accuracy.correct_counts_k, self._accuracy.total_counts_k
+        correct_counts, total_counts = (
+            self._accuracy.correct_counts_k,
+            self._accuracy.total_counts_k,
+        )
         self._macro_accuracy.update(preds=logits, target=labels)
         stats = self._macro_accuracy._final_state()
 
         output = {
-            f'{tag}_loss': loss_value,
-            f'{tag}_correct_counts': correct_counts,
-            f'{tag}_total_counts': total_counts,
-            f'{tag}_acc_micro_top_k': acc_top_k,
-            f'{tag}_acc_macro_stats': stats,
+            f"{tag}_loss": loss_value,
+            f"{tag}_correct_counts": correct_counts,
+            f"{tag}_total_counts": total_counts,
+            f"{tag}_acc_micro_top_k": acc_top_k,
+            f"{tag}_acc_macro_stats": stats,
         }
-        if tag == 'val':
-            if isinstance(self.trainer.val_dataloaders, (list, tuple)) and len(self.trainer.val_dataloaders) > 1:
+        if tag == "val":
+            if (
+                isinstance(self.trainer.val_dataloaders, (list, tuple))
+                and len(self.trainer.val_dataloaders) > 1
+            ):
                 self.validation_step_outputs[dataloader_idx].append(output)
             else:
                 self.validation_step_outputs.append(output)
         else:
-            if isinstance(self.trainer.test_dataloaders, (list, tuple)) and len(self.trainer.test_dataloaders) > 1:
+            if (
+                isinstance(self.trainer.test_dataloaders, (list, tuple))
+                and len(self.trainer.test_dataloaders) > 1
+            ):
                 self.test_step_outputs[dataloader_idx].append(output)
             else:
                 self.test_step_outputs.append(output)
 
         return output
 
-    def pair_evaluation_step(self, batch, batch_idx, dataloader_idx: int = 0, tag: str = 'val'):
-        audio_signal_1, audio_signal_len_1, audio_signal_2, audio_signal_len_2, labels, _ = batch
-        _, audio_emb1 = self.forward(input_signal=audio_signal_1, input_signal_length=audio_signal_len_1)
-        _, audio_emb2 = self.forward(input_signal=audio_signal_2, input_signal_length=audio_signal_len_2)
+    def pair_evaluation_step(
+        self, batch, batch_idx, dataloader_idx: int = 0, tag: str = "val"
+    ):
+        (
+            audio_signal_1,
+            audio_signal_len_1,
+            audio_signal_2,
+            audio_signal_len_2,
+            labels,
+            _,
+        ) = batch
+        _, audio_emb1 = self.forward(
+            input_signal=audio_signal_1, input_signal_length=audio_signal_len_1
+        )
+        _, audio_emb2 = self.forward(
+            input_signal=audio_signal_2, input_signal_length=audio_signal_len_2
+        )
 
         # convert binary labels to -1, 1
         loss_labels = (labels.float() - 0.5) * 2
@@ -463,37 +551,48 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel, VerificationMixin)
 
         logits = torch.stack([1 - cosine_sim, cosine_sim], dim=-1)
         acc_top_k = self._accuracy(logits=logits, labels=labels)
-        correct_counts, total_counts = self._accuracy.correct_counts_k, self._accuracy.total_counts_k
+        correct_counts, total_counts = (
+            self._accuracy.correct_counts_k,
+            self._accuracy.total_counts_k,
+        )
         self._pair_macro_accuracy.update(preds=logits, target=labels)
         stats = self._pair_macro_accuracy._final_state()
 
         output = {
-            f'{tag}_loss': loss_value,
-            f'{tag}_correct_counts': correct_counts,
-            f'{tag}_total_counts': total_counts,
-            f'{tag}_acc_micro_top_k': acc_top_k,
-            f'{tag}_acc_macro_stats': stats,
+            f"{tag}_loss": loss_value,
+            f"{tag}_correct_counts": correct_counts,
+            f"{tag}_total_counts": total_counts,
+            f"{tag}_acc_micro_top_k": acc_top_k,
+            f"{tag}_acc_macro_stats": stats,
             f"{tag}_scores": cosine_sim,
             f"{tag}_labels": labels,
         }
 
-        if tag == 'val':
-            if isinstance(self.trainer.val_dataloaders, (list, tuple)) and len(self.trainer.val_dataloaders) > 1:
+        if tag == "val":
+            if (
+                isinstance(self.trainer.val_dataloaders, (list, tuple))
+                and len(self.trainer.val_dataloaders) > 1
+            ):
                 self.validation_step_outputs[dataloader_idx].append(output)
             else:
                 self.validation_step_outputs.append(output)
         else:
-            if isinstance(self.trainer.test_dataloaders, (list, tuple)) and len(self.trainer.test_dataloaders) > 1:
+            if (
+                isinstance(self.trainer.test_dataloaders, (list, tuple))
+                and len(self.trainer.test_dataloaders) > 1
+            ):
                 self.test_step_outputs[dataloader_idx].append(output)
             else:
                 self.test_step_outputs.append(output)
 
         return output
 
-    def pair_multi_eval_epoch_end(self, outputs, dataloader_idx: int = 0, tag: str = 'val'):
-        loss_mean = torch.stack([x[f'{tag}_loss'] for x in outputs]).mean()
-        scores = torch.cat([x[f'{tag}_scores'] for x in outputs]).cpu().numpy()
-        labels = torch.cat([x[f'{tag}_labels'] for x in outputs]).long().cpu().numpy()
+    def pair_multi_eval_epoch_end(
+        self, outputs, dataloader_idx: int = 0, tag: str = "val"
+    ):
+        loss_mean = torch.stack([x[f"{tag}_loss"] for x in outputs]).mean()
+        scores = torch.cat([x[f"{tag}_scores"] for x in outputs]).cpu().numpy()
+        labels = torch.cat([x[f"{tag}_labels"] for x in outputs]).long().cpu().numpy()
         fpr, tpr, thresholds = roc_curve(y_true=labels, y_score=scores, pos_label=1)
         fnr = 1 - tpr
         try:
@@ -502,30 +601,44 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel, VerificationMixin)
             logging.warning(f"Got ValueError while calculating EER: {e}")
             eer = 100.0
 
-        correct_counts = torch.stack([x[f'{tag}_correct_counts'] for x in outputs]).sum(axis=0)
-        total_counts = torch.stack([x[f'{tag}_total_counts'] for x in outputs]).sum(axis=0)
+        correct_counts = torch.stack([x[f"{tag}_correct_counts"] for x in outputs]).sum(
+            axis=0
+        )
+        total_counts = torch.stack([x[f"{tag}_total_counts"] for x in outputs]).sum(
+            axis=0
+        )
 
         self._accuracy.correct_counts_k = correct_counts
         self._accuracy.total_counts_k = total_counts
         topk_scores = self._accuracy.compute()
 
-        self._pair_macro_accuracy.tp = torch.stack([x[f'{tag}_acc_macro_stats'][0] for x in outputs]).sum(axis=0)
-        self._pair_macro_accuracy.fp = torch.stack([x[f'{tag}_acc_macro_stats'][1] for x in outputs]).sum(axis=0)
-        self._pair_macro_accuracy.tn = torch.stack([x[f'{tag}_acc_macro_stats'][2] for x in outputs]).sum(axis=0)
-        self._pair_macro_accuracy.fn = torch.stack([x[f'{tag}_acc_macro_stats'][3] for x in outputs]).sum(axis=0)
+        self._pair_macro_accuracy.tp = torch.stack(
+            [x[f"{tag}_acc_macro_stats"][0] for x in outputs]
+        ).sum(axis=0)
+        self._pair_macro_accuracy.fp = torch.stack(
+            [x[f"{tag}_acc_macro_stats"][1] for x in outputs]
+        ).sum(axis=0)
+        self._pair_macro_accuracy.tn = torch.stack(
+            [x[f"{tag}_acc_macro_stats"][2] for x in outputs]
+        ).sum(axis=0)
+        self._pair_macro_accuracy.fn = torch.stack(
+            [x[f"{tag}_acc_macro_stats"][3] for x in outputs]
+        ).sum(axis=0)
         macro_accuracy_score = self._pair_macro_accuracy.compute()
 
         self._accuracy.reset()
         self._pair_macro_accuracy.reset()
 
-        tensorboard_logs = {f'{tag}_loss': loss_mean, f"{tag}_eer": eer}
+        tensorboard_logs = {f"{tag}_loss": loss_mean, f"{tag}_eer": eer}
         for top_k, score in zip(self._accuracy.top_k, topk_scores):
-            tensorboard_logs[f'{tag}_acc_micro_top_{top_k}'] = score
-        tensorboard_logs[f'{tag}_acc_macro'] = macro_accuracy_score
+            tensorboard_logs[f"{tag}_acc_micro_top_{top_k}"] = score
+        tensorboard_logs[f"{tag}_acc_macro"] = macro_accuracy_score
 
-        return {f'{tag}_loss': loss_mean, 'log': tensorboard_logs}
+        return {f"{tag}_loss": loss_mean, "log": tensorboard_logs}
 
-    def multi_evaluation_epoch_end(self, outputs, dataloader_idx: int = 0, tag: str = 'val'):
+    def multi_evaluation_epoch_end(
+        self, outputs, dataloader_idx: int = 0, tag: str = "val"
+    ):
         # Check if all outputs are non-empty
         if not outputs or not all([bool(x) for x in outputs]):
             logging.warning(
@@ -536,42 +649,54 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel, VerificationMixin)
         if f"{tag}_scores" in outputs[0]:
             return self.pair_multi_eval_epoch_end(outputs, dataloader_idx, tag)
 
-        loss_mean = torch.stack([x[f'{tag}_loss'] for x in outputs]).mean()
+        loss_mean = torch.stack([x[f"{tag}_loss"] for x in outputs]).mean()
 
-        correct_counts = torch.stack([x[f'{tag}_correct_counts'] for x in outputs]).sum(axis=0)
-        total_counts = torch.stack([x[f'{tag}_total_counts'] for x in outputs]).sum(axis=0)
+        correct_counts = torch.stack([x[f"{tag}_correct_counts"] for x in outputs]).sum(
+            axis=0
+        )
+        total_counts = torch.stack([x[f"{tag}_total_counts"] for x in outputs]).sum(
+            axis=0
+        )
 
         self._accuracy.correct_counts_k = correct_counts
         self._accuracy.total_counts_k = total_counts
         topk_scores = self._accuracy.compute()
 
-        self._macro_accuracy.tp = torch.stack([x[f'{tag}_acc_macro_stats'][0] for x in outputs]).sum(axis=0)
-        self._macro_accuracy.fp = torch.stack([x[f'{tag}_acc_macro_stats'][1] for x in outputs]).sum(axis=0)
-        self._macro_accuracy.tn = torch.stack([x[f'{tag}_acc_macro_stats'][2] for x in outputs]).sum(axis=0)
-        self._macro_accuracy.fn = torch.stack([x[f'{tag}_acc_macro_stats'][3] for x in outputs]).sum(axis=0)
+        self._macro_accuracy.tp = torch.stack(
+            [x[f"{tag}_acc_macro_stats"][0] for x in outputs]
+        ).sum(axis=0)
+        self._macro_accuracy.fp = torch.stack(
+            [x[f"{tag}_acc_macro_stats"][1] for x in outputs]
+        ).sum(axis=0)
+        self._macro_accuracy.tn = torch.stack(
+            [x[f"{tag}_acc_macro_stats"][2] for x in outputs]
+        ).sum(axis=0)
+        self._macro_accuracy.fn = torch.stack(
+            [x[f"{tag}_acc_macro_stats"][3] for x in outputs]
+        ).sum(axis=0)
         macro_accuracy_score = self._macro_accuracy.compute()
 
         self._accuracy.reset()
         self._macro_accuracy.reset()
 
-        tensorboard_logs = {f'{tag}_loss': loss_mean}
+        tensorboard_logs = {f"{tag}_loss": loss_mean}
         for top_k, score in zip(self._accuracy.top_k, topk_scores):
-            tensorboard_logs[f'{tag}_acc_micro_top_{top_k}'] = score
-        tensorboard_logs[f'{tag}_acc_macro'] = macro_accuracy_score
+            tensorboard_logs[f"{tag}_acc_micro_top_{top_k}"] = score
+        tensorboard_logs[f"{tag}_acc_macro"] = macro_accuracy_score
 
-        return {f'{tag}_loss': loss_mean, 'log': tensorboard_logs}
+        return {f"{tag}_loss": loss_mean, "log": tensorboard_logs}
 
     def validation_step(self, batch, batch_idx, dataloader_idx: int = 0):
-        return self.evaluation_step(batch, batch_idx, dataloader_idx, 'val')
+        return self.evaluation_step(batch, batch_idx, dataloader_idx, "val")
 
     def multi_validation_epoch_end(self, outputs, dataloader_idx: int = 0):
-        return self.multi_evaluation_epoch_end(outputs, dataloader_idx, 'val')
+        return self.multi_evaluation_epoch_end(outputs, dataloader_idx, "val")
 
     def test_step(self, batch, batch_idx, dataloader_idx: int = 0):
-        return self.evaluation_step(batch, batch_idx, dataloader_idx, 'test')
+        return self.evaluation_step(batch, batch_idx, dataloader_idx, "test")
 
     def multi_test_epoch_end(self, outputs, dataloader_idx: int = 0):
-        return self.multi_evaluation_epoch_end(outputs, dataloader_idx, 'test')
+        return self.multi_evaluation_epoch_end(outputs, dataloader_idx, "test")
 
     @torch.no_grad()
     def infer_file(self, path2audio_file):
@@ -584,7 +709,7 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel, VerificationMixin)
             logits: logits corresponding of final layer
         """
         audio, sr = sf.read(path2audio_file)
-        target_sr = self._cfg.train_ds.get('sample_rate', 16000)
+        target_sr = self._cfg.train_ds.get("sample_rate", 16000)
         if sr != target_sr:
             audio = librosa.core.resample(audio, orig_sr=sr, target_sr=target_sr)
         audio_length = audio.shape[0]
@@ -597,7 +722,9 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel, VerificationMixin)
         mode = self.training
         self.freeze()
 
-        logits, emb = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
+        logits, emb = self.forward(
+            input_signal=audio_signal, input_signal_length=audio_signal_len
+        )
 
         self.train(mode=mode)
         if mode is True:
@@ -626,7 +753,9 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel, VerificationMixin)
         mode = self.training
         self.freeze()
 
-        logits, emb = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
+        logits, emb = self.forward(
+            input_signal=audio_signal, input_signal_length=audio_signal_len
+        )
 
         self.train(mode=mode)
         if mode is True:
@@ -635,7 +764,11 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel, VerificationMixin)
         return emb, logits
 
     def get_label(
-        self, path2audio_file: str, segment_duration: float = np.inf, num_segments: int = 1, random_seed: int = None
+        self,
+        path2audio_file: str,
+        segment_duration: float = np.inf,
+        num_segments: int = 1,
+        random_seed: int = None,
     ):
         """
         Returns label of path2audio_file from classes the model was trained on.
@@ -649,7 +782,7 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel, VerificationMixin)
             label: label corresponding to the trained model
         """
         audio, sr = sf.read(path2audio_file)
-        target_sr = self._cfg.train_ds.get('sample_rate', 16000)
+        target_sr = self._cfg.train_ds.get("sample_rate", 16000)
         if sr != target_sr:
             audio = librosa.core.resample(audio, orig_sr=sr, target_sr=target_sr)
         audio_length = audio.shape[0]
@@ -670,12 +803,14 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel, VerificationMixin)
 
         m_label_id = Counter(label_id_list).most_common(1)[0][0]
 
-        trained_labels = self._cfg['train_ds'].get('labels', None)
+        trained_labels = self._cfg["train_ds"].get("labels", None)
         if trained_labels is not None:
             trained_labels = list(trained_labels)
             label = trained_labels[m_label_id]
         else:
-            logging.info("labels are not saved to model, hence only outputting the label id index")
+            logging.info(
+                "labels are not saved to model, hence only outputting the label id index"
+            )
             label = m_label_id
 
         return label
@@ -714,7 +849,9 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel, VerificationMixin)
         X = embs1 / torch.linalg.norm(embs1)
         Y = embs2 / torch.linalg.norm(embs2)
         # Score
-        similarity_score = torch.dot(X, Y) / ((torch.dot(X, X) * torch.dot(Y, Y)) ** 0.5)
+        similarity_score = torch.dot(X, Y) / (
+            (torch.dot(X, X) * torch.dot(Y, Y)) ** 0.5
+        )
         similarity_score = (similarity_score + 1) / 2
 
         # Decision
@@ -726,7 +863,14 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel, VerificationMixin)
             return False
 
     @torch.no_grad()
-    def verify_speakers_batch(self, audio_files_pairs, threshold=0.7, batch_size=32, sample_rate=16000, device='cuda'):
+    def verify_speakers_batch(
+        self,
+        audio_files_pairs,
+        threshold=0.7,
+        batch_size=32,
+        sample_rate=16000,
+        device="cuda",
+    ):
         """
         Verify if audio files from the first and second manifests are from the same speaker or not.
 
@@ -743,18 +887,30 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel, VerificationMixin)
 
         if type(audio_files_pairs) is list:
             tmp_dir = tempfile.TemporaryDirectory()
-            manifest_filepath1 = os.path.join(tmp_dir.name, 'tmp_manifest1.json')
-            manifest_filepath2 = os.path.join(tmp_dir.name, 'tmp_manifest2.json')
-            self.path2audio_files_to_manifest([p[0] for p in audio_files_pairs], manifest_filepath1)
-            self.path2audio_files_to_manifest([p[1] for p in audio_files_pairs], manifest_filepath2)
+            manifest_filepath1 = os.path.join(tmp_dir.name, "tmp_manifest1.json")
+            manifest_filepath2 = os.path.join(tmp_dir.name, "tmp_manifest2.json")
+            self.path2audio_files_to_manifest(
+                [p[0] for p in audio_files_pairs], manifest_filepath1
+            )
+            self.path2audio_files_to_manifest(
+                [p[1] for p in audio_files_pairs], manifest_filepath2
+            )
         else:
-            raise ValueError("audio_files_pairs must be of type list of tuples containing a pair of audio files")
+            raise ValueError(
+                "audio_files_pairs must be of type list of tuples containing a pair of audio files"
+            )
 
         embs1, _, _, _ = self.batch_inference(
-            manifest_filepath1, batch_size=batch_size, sample_rate=sample_rate, device=device
+            manifest_filepath1,
+            batch_size=batch_size,
+            sample_rate=sample_rate,
+            device=device,
         )
         embs2, _, _, _ = self.batch_inference(
-            manifest_filepath2, batch_size=batch_size, sample_rate=sample_rate, device=device
+            manifest_filepath2,
+            batch_size=batch_size,
+            sample_rate=sample_rate,
+            device=device,
         )
 
         embs1 = torch.Tensor(embs1).to(device)
@@ -767,7 +923,11 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel, VerificationMixin)
         Y = embs2.unsqueeze(dim=2)
         # Score
         similarity_scores = torch.matmul(X, Y).squeeze() / (
-            (torch.matmul(X, X.permute(0, 2, 1)).squeeze() * torch.matmul(Y.permute(0, 2, 1), Y).squeeze()) ** 0.5
+            (
+                torch.matmul(X, X.permute(0, 2, 1)).squeeze()
+                * torch.matmul(Y.permute(0, 2, 1), Y).squeeze()
+            )
+            ** 0.5
         )
         similarity_scores = (similarity_scores + 1) / 2
 
@@ -778,7 +938,9 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel, VerificationMixin)
         return decision.cpu().numpy()
 
     @torch.no_grad()
-    def batch_inference(self, manifest_filepath, batch_size=32, sample_rate=16000, device='cuda'):
+    def batch_inference(
+        self, manifest_filepath, batch_size=32, sample_rate=16000, device="cuda"
+    ):
         """
         Perform batch inference on EncDecSpeakerLabelModel.
         To perform inference on single audio file, once can use infer_model, get_label or get_embedding
@@ -805,18 +967,18 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel, VerificationMixin)
         self.freeze()
         self.eval()
         self.to(device)
-        trained_labels = self._cfg['train_ds']['labels']
+        trained_labels = self._cfg["train_ds"]["labels"]
         if trained_labels is not None:
             trained_labels = list(trained_labels)
 
         dl_config = {
-            'manifest_filepath': manifest_filepath,
-            'sample_rate': sample_rate,
-            'channel_selector': 0,
-            'batch_size': batch_size,
+            "manifest_filepath": manifest_filepath,
+            "sample_rate": sample_rate,
+            "channel_selector": 0,
+            "batch_size": batch_size,
         }
         self.labels = self.extract_labels(dl_config)
-        dl_config['labels'] = self.labels
+        dl_config["labels"] = self.labels
         dataloader = self.__setup_dataloader_from_config(config=dl_config)
 
         logits = []
@@ -824,10 +986,12 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel, VerificationMixin)
         gt_labels = []
 
         for test_batch in tqdm(dataloader):
-            if device == 'cuda':
+            if device == "cuda":
                 test_batch = [x.to(device) for x in test_batch]
             audio_signal, audio_signal_len, labels, _ = test_batch
-            logit, emb = self.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
+            logit, emb = self.forward(
+                input_signal=audio_signal, input_signal_length=audio_signal_len
+            )
 
             logits.extend(logit.cpu().numpy())
             gt_labels.extend(labels.cpu().numpy())
@@ -839,6 +1003,10 @@ class EncDecSpeakerLabelModel(ModelPT, ExportableEncDecModel, VerificationMixin)
         if mode is True:
             self.unfreeze()
 
-        logits, embs, gt_labels = np.asarray(logits), np.asarray(embs), np.asarray(gt_labels)
+        logits, embs, gt_labels = (
+            np.asarray(logits),
+            np.asarray(embs),
+            np.asarray(gt_labels),
+        )
 
         return embs, logits, gt_labels, trained_labels

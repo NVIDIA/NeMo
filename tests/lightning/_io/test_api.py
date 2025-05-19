@@ -60,7 +60,9 @@ class TestLoad:
             tokenizer=tokenizer,
         )
 
-        ckpt = io.TrainerContext(model, trainer, extra={"dummy": partial_function_with_pos_and_key_args})
+        ckpt = io.TrainerContext(
+            model, trainer, extra={"dummy": partial_function_with_pos_and_key_args}
+        )
         ckpt.io_dump(tmpdir, yaml_attrs=["model"])
         loaded = io.load_context(tmpdir)
 

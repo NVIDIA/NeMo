@@ -59,7 +59,9 @@ class LhotseHfNeMoDataset(torch.utils.data.Dataset):
                 )
             )
 
-        input_features = collate_matrices(tensors=[f["input_features"].squeeze(0) for f in features])
+        input_features = collate_matrices(
+            tensors=[f["input_features"].squeeze(0) for f in features]
+        )
         labels = collate_vectors(tensors=[c.supervisions[0].tokens for c in cuts])
         decoder_input_ids = labels[:, :-1]
         decoder_input_ids = decoder_input_ids.masked_fill(
@@ -74,20 +76,22 @@ class LhotseHfNeMoDataset(torch.utils.data.Dataset):
         }
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
 
     # Models can be one of the supported ones by AutoModelForSpeechSeq2Seq such as
     # openai/whisper-large-v3 and facebook/s2t-small-librispeech-asr
-    parser.add_argument('--model', default='openai/whisper-large-v3')
-    parser.add_argument('--data-path', type=str, required=True)
-    parser.add_argument('--strategy', type=str, default='auto', choices=['auto', 'ddp', 'fsdp'])
-    parser.add_argument('--devices', default=1)
-    parser.add_argument('--accelerator', default='gpu', choices=['gpu'])
-    parser.add_argument('--max-steps', type=int, default=100)
-    parser.add_argument('--model-save-path', type=str, default=None)
+    parser.add_argument("--model", default="openai/whisper-large-v3")
+    parser.add_argument("--data-path", type=str, required=True)
+    parser.add_argument(
+        "--strategy", type=str, default="auto", choices=["auto", "ddp", "fsdp"]
+    )
+    parser.add_argument("--devices", default=1)
+    parser.add_argument("--accelerator", default="gpu", choices=["gpu"])
+    parser.add_argument("--max-steps", type=int, default=100)
+    parser.add_argument("--model-save-path", type=str, default=None)
     args = parser.parse_args()
 
     model = HFAutoModelForSpeechSeq2Seq(model_name=args.model)

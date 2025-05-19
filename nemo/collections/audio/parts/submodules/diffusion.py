@@ -33,17 +33,21 @@ class StochasticDifferentialEquation(NeuralModule, ABC):
 
         # min and max time
         if time_min <= 0:
-            raise ValueError(f'time_min should be positive, current value {time_min}')
+            raise ValueError(f"time_min should be positive, current value {time_min}")
 
         if time_max <= time_min:
-            raise ValueError(f'time_max should be larger than time_min, current max {time_max} and min {time_min}')
+            raise ValueError(
+                f"time_max should be larger than time_min, current max {time_max} and min {time_min}"
+            )
 
         self.time_min = time_min
         self.time_max = time_max
 
         # number of steps
         if num_steps <= 0:
-            raise ValueError(f'num_steps needs to be positive: current value {num_steps}')
+            raise ValueError(
+                f"num_steps needs to be positive: current value {num_steps}"
+            )
 
         self.num_steps = num_steps
 
@@ -75,7 +79,9 @@ class StochasticDifferentialEquation(NeuralModule, ABC):
         return time
 
     @abstractmethod
-    def coefficients(self, state: torch.Tensor, time: torch.Tensor, **kwargs) -> Tuple[torch.Tensor, torch.Tensor]:
+    def coefficients(
+        self, state: torch.Tensor, time: torch.Tensor, **kwargs
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
         Args:
             state: tensor of shape (B, C, D, T)
@@ -88,10 +94,10 @@ class StochasticDifferentialEquation(NeuralModule, ABC):
 
     @typecheck(
         input_types={
-            "prior_mean": NeuralType(('B', 'C', 'D', 'T'), VoidType()),
+            "prior_mean": NeuralType(("B", "C", "D", "T"), VoidType()),
         },
         output_types={
-            "sample": NeuralType(('B', 'C', 'D', 'T'), VoidType()),
+            "sample": NeuralType(("B", "C", "D", "T"), VoidType()),
         },
     )
     @abstractmethod
@@ -107,7 +113,12 @@ class StochasticDifferentialEquation(NeuralModule, ABC):
         pass
 
     def discretize(
-        self, *, state: torch.Tensor, time: torch.Tensor, state_length: Optional[torch.Tensor] = None, **kwargs
+        self,
+        *,
+        state: torch.Tensor,
+        time: torch.Tensor,
+        state_length: Optional[torch.Tensor] = None,
+        **kwargs,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """Assume we have the following SDE:
 
@@ -151,9 +162,9 @@ class StochasticDifferentialEquation(NeuralModule, ABC):
         pass
 
     def __repr__(self):
-        desc = f'{self.__class__.__name__}(time_min={self.time_min}, time_max={self.time_max}, num_steps={self.num_steps})'
-        desc += f'\n\tdt:         {self.dt}'
-        desc += f'\n\ttime_delta: {self.time_delta}'
+        desc = f"{self.__class__.__name__}(time_min={self.time_min}, time_max={self.time_max}, num_steps={self.num_steps})"
+        desc += f"\n\tdt:         {self.dt}"
+        desc += f"\n\ttime_delta: {self.time_delta}"
         return desc
 
 
@@ -186,7 +197,7 @@ class OrnsteinUhlenbeckVarianceExplodingSDE(StochasticDifferentialEquation):
 
         # Small regularization
         if eps <= 0:
-            raise ValueError(f'eps should be positive, current value {eps}')
+            raise ValueError(f"eps should be positive, current value {eps}")
         self.eps = eps
 
         # stifness
@@ -194,22 +205,24 @@ class OrnsteinUhlenbeckVarianceExplodingSDE(StochasticDifferentialEquation):
 
         # noise schedule
         if std_min <= 0:
-            raise ValueError(f'std_min should be positive, current value {std_min}')
+            raise ValueError(f"std_min should be positive, current value {std_min}")
 
         if std_max <= std_min:
-            raise ValueError(f'std_max should be larger than std_min, current max {std_max} and min {std_min}')
+            raise ValueError(
+                f"std_max should be larger than std_min, current max {std_max} and min {std_min}"
+            )
 
         self.std_min = std_min
         self.std_max = std_max
 
-        logging.debug('Initialized %s with', self.__class__.__name__)
-        logging.debug('\tstiffness:     %s', self.stiffness)
-        logging.debug('\tstd_min:       %s', self.std_min)
-        logging.debug('\tstd_max:       %s', self.std_max)
-        logging.debug('\tnum_steps:     %s', self.num_steps)
-        logging.debug('\ttime_min:      %s', self.time_min)
-        logging.debug('\ttime_max:      %s', self.time_max)
-        logging.debug('\teps:           %s', self.eps)
+        logging.debug("Initialized %s with", self.__class__.__name__)
+        logging.debug("\tstiffness:     %s", self.stiffness)
+        logging.debug("\tstd_min:       %s", self.std_min)
+        logging.debug("\tstd_max:       %s", self.std_max)
+        logging.debug("\tnum_steps:     %s", self.num_steps)
+        logging.debug("\ttime_min:      %s", self.time_min)
+        logging.debug("\ttime_max:      %s", self.time_max)
+        logging.debug("\teps:           %s", self.eps)
 
     @property
     def std_ratio(self) -> float:
@@ -221,15 +234,17 @@ class OrnsteinUhlenbeckVarianceExplodingSDE(StochasticDifferentialEquation):
 
     @typecheck(
         input_types={
-            "state": NeuralType(('B', 'C', 'D', 'T'), VoidType()),
-            "prior_mean": NeuralType(('B', 'C', 'D', 'T'), VoidType()),
-            "time": NeuralType(tuple('B'), FloatType()),
+            "state": NeuralType(("B", "C", "D", "T"), VoidType()),
+            "prior_mean": NeuralType(("B", "C", "D", "T"), VoidType()),
+            "time": NeuralType(tuple("B"), FloatType()),
         },
         output_types={
-            "mean": NeuralType(('B', 'C', 'D', 'T'), FloatType()),
+            "mean": NeuralType(("B", "C", "D", "T"), FloatType()),
         },
     )
-    def perturb_kernel_mean(self, state: torch.Tensor, prior_mean: torch.Tensor, time: torch.Tensor) -> torch.Tensor:
+    def perturb_kernel_mean(
+        self, state: torch.Tensor, prior_mean: torch.Tensor, time: torch.Tensor
+    ) -> torch.Tensor:
         """Return the mean of the perturbation kernel for this SDE.
 
         Args:
@@ -253,10 +268,10 @@ class OrnsteinUhlenbeckVarianceExplodingSDE(StochasticDifferentialEquation):
 
     @typecheck(
         input_types={
-            "time": NeuralType(tuple('B'), FloatType()),
+            "time": NeuralType(tuple("B"), FloatType()),
         },
         output_types={
-            "std": NeuralType(tuple('B'), FloatType()),
+            "std": NeuralType(tuple("B"), FloatType()),
         },
     )
     def perturb_kernel_std(self, time: torch.Tensor) -> torch.Tensor:
@@ -272,23 +287,27 @@ class OrnsteinUhlenbeckVarianceExplodingSDE(StochasticDifferentialEquation):
             A tensor of shape (B,)
         """
         var = (self.std_min**2) * self.log_std_ratio
-        var *= torch.pow(self.std_ratio, 2 * time) - torch.exp(-2 * self.stiffness * time)
+        var *= torch.pow(self.std_ratio, 2 * time) - torch.exp(
+            -2 * self.stiffness * time
+        )
         var /= self.stiffness + self.log_std_ratio
         std = torch.sqrt(var)
         return std
 
     @typecheck(
         input_types={
-            "state": NeuralType(('B', 'C', 'D', 'T'), VoidType()),
-            "prior_mean": NeuralType(('B', 'C', 'D', 'T'), VoidType()),
-            "time": NeuralType(tuple('B'), FloatType()),
+            "state": NeuralType(("B", "C", "D", "T"), VoidType()),
+            "prior_mean": NeuralType(("B", "C", "D", "T"), VoidType()),
+            "time": NeuralType(tuple("B"), FloatType()),
         },
         output_types={
-            "mean": NeuralType(('B', 'C', 'D', 'T'), FloatType()),
-            "std": NeuralType(('B', 'C', 'D', 'T'), FloatType()),
+            "mean": NeuralType(("B", "C", "D", "T"), FloatType()),
+            "std": NeuralType(("B", "C", "D", "T"), FloatType()),
         },
     )
-    def perturb_kernel_params(self, state: torch.Tensor, prior_mean: torch.Tensor, time: torch.Tensor) -> torch.Tensor:
+    def perturb_kernel_params(
+        self, state: torch.Tensor, prior_mean: torch.Tensor, time: torch.Tensor
+    ) -> torch.Tensor:
         """Return the mean and standard deviation of the perturbation kernel for this SDE.
 
         Args:
@@ -311,14 +330,14 @@ class OrnsteinUhlenbeckVarianceExplodingSDE(StochasticDifferentialEquation):
 
     @typecheck(
         input_types={
-            "state": NeuralType(('B', 'C', 'D', 'T'), VoidType()),
-            "time": NeuralType(tuple('B'), VoidType()),
-            "prior_mean": NeuralType(('B', 'C', 'D', 'T'), VoidType()),
-            "state_length": NeuralType(tuple('B'), LengthsType(), optional=True),
+            "state": NeuralType(("B", "C", "D", "T"), VoidType()),
+            "time": NeuralType(tuple("B"), VoidType()),
+            "prior_mean": NeuralType(("B", "C", "D", "T"), VoidType()),
+            "state_length": NeuralType(tuple("B"), LengthsType(), optional=True),
         },
         output_types={
-            "drift_coefficient": NeuralType(('B', 'C', 'D', 'T'), FloatType()),
-            "diffusion_coefficient": NeuralType(('B', 'C', 'D', 'T'), FloatType()),
+            "drift_coefficient": NeuralType(("B", "C", "D", "T"), FloatType()),
+            "diffusion_coefficient": NeuralType(("B", "C", "D", "T"), FloatType()),
         },
     )
     def coefficients(
@@ -343,13 +362,21 @@ class OrnsteinUhlenbeckVarianceExplodingSDE(StochasticDifferentialEquation):
         drift_coefficient = self.stiffness * (prior_mean - state)
 
         # Diffusion coefficient
-        diffusion_coefficient = self.std_min * torch.pow(self.std_ratio, time) * np.sqrt(2 * self.log_std_ratio)
+        diffusion_coefficient = (
+            self.std_min
+            * torch.pow(self.std_ratio, time)
+            * np.sqrt(2 * self.log_std_ratio)
+        )
         # View in the same shape as the state
-        diffusion_coefficient = diffusion_coefficient.view(-1, *([1] * (state.dim() - 1)))
+        diffusion_coefficient = diffusion_coefficient.view(
+            -1, *([1] * (state.dim() - 1))
+        )
 
         if state_length is not None:
             drift_coefficient = mask_sequence_tensor(drift_coefficient, state_length)
-            diffusion_coefficient = mask_sequence_tensor(diffusion_coefficient, state_length)
+            diffusion_coefficient = mask_sequence_tensor(
+                diffusion_coefficient, state_length
+            )
 
         return drift_coefficient, diffusion_coefficient
 
@@ -385,28 +412,35 @@ class OrnsteinUhlenbeckVarianceExplodingSDE(StochasticDifferentialEquation):
         )
 
     def __repr__(self):
-        desc = f'{self.__class__.__name__}(stiffness={self.stiffness}, std_min={self.std_min}, std_max={self.std_max}, num_steps={self.num_steps}, time_min={self.time_min}, time_max={self.time_max}, eps={self.eps})'
-        desc += f'\n\tdt:         {self.dt}'
-        desc += f'\n\ttime_delta: {self.time_delta}'
-        desc += f'\n\tstd_ratio:  {self.std_ratio}'
-        desc += f'\n\tlog_std_ratio:  {self.log_std_ratio}'
+        desc = f"{self.__class__.__name__}(stiffness={self.stiffness}, std_min={self.std_min}, std_max={self.std_max}, num_steps={self.num_steps}, time_min={self.time_min}, time_max={self.time_max}, eps={self.eps})"
+        desc += f"\n\tdt:         {self.dt}"
+        desc += f"\n\ttime_delta: {self.time_delta}"
+        desc += f"\n\tstd_ratio:  {self.std_ratio}"
+        desc += f"\n\tlog_std_ratio:  {self.log_std_ratio}"
 
         return desc
 
 
 class ReverseStochasticDifferentialEquation(StochasticDifferentialEquation):
-    def __init__(self, *, sde: Type[StochasticDifferentialEquation], score_estimator: Type[NeuralModule]):
+    def __init__(
+        self,
+        *,
+        sde: Type[StochasticDifferentialEquation],
+        score_estimator: Type[NeuralModule],
+    ):
         """Use the forward SDE and a score estimator to define the reverse SDE.
 
         Args:
             sde: forward SDE
             score_estimator: neural score estimator
         """
-        super().__init__(time_min=sde.time_min, time_max=sde.time_max, num_steps=sde.num_steps)
+        super().__init__(
+            time_min=sde.time_min, time_max=sde.time_max, num_steps=sde.num_steps
+        )
         self.score_estimator = score_estimator
         self.forward_sde = sde
 
-        logging.debug('Initialized %s', self.__class__.__name__)
+        logging.debug("Initialized %s", self.__class__.__name__)
 
     def coefficients(
         self,
@@ -422,11 +456,11 @@ class ReverseStochasticDifferentialEquation(StochasticDifferentialEquation):
             state: current state of the process, shape (B, C, D, T)
             time: current time of the process, shape (B,)
         """
-        raise NotImplementedError('Coefficients not necessary for the reverse SDE.')
+        raise NotImplementedError("Coefficients not necessary for the reverse SDE.")
 
     def prior_sampling(self, shape: torch.Size, device: torch.device) -> torch.Tensor:
         """Prior sampling is not necessary for the reverse SDE."""
-        raise NotImplementedError('Prior sampling not necessary for the reverse SDE.')
+        raise NotImplementedError("Prior sampling not necessary for the reverse SDE.")
 
     def discretize(
         self,
@@ -447,15 +481,23 @@ class ReverseStochasticDifferentialEquation(StochasticDifferentialEquation):
             **kwargs: other parameters for discretization of the forward SDE
         """
         # Drift and diffusion from the forward SDE
-        forward_drift, forward_diffusion = self.forward_sde.discretize(state=state, time=time, **kwargs)
+        forward_drift, forward_diffusion = self.forward_sde.discretize(
+            state=state, time=time, **kwargs
+        )
 
         # For input for the score estimator:
         # - if no condition is provided, use the state
         # - if a condition is provided, concatenate the state and the condition along the channel dimension
-        score_input = state if score_condition is None else torch.cat([state, score_condition], dim=1)
+        score_input = (
+            state
+            if score_condition is None
+            else torch.cat([state, score_condition], dim=1)
+        )
 
         # Estimate score
-        score, _ = self.score_estimator(input=score_input, input_length=state_length, condition=time)
+        score, _ = self.score_estimator(
+            input=score_input, input_length=state_length, condition=time
+        )
 
         # Adjust drift
         drift = forward_drift - forward_diffusion.pow(2) * score
@@ -470,10 +512,12 @@ class ReverseStochasticDifferentialEquation(StochasticDifferentialEquation):
         return drift, diffusion
 
     def copy(self):
-        return ReverseStochasticDifferentialEquation(sde=self.forward_sde.copy(), score_estimator=self.score_estimator)
+        return ReverseStochasticDifferentialEquation(
+            sde=self.forward_sde.copy(), score_estimator=self.score_estimator
+        )
 
     def __repr__(self):
-        desc = f'{self.__class__.__name__}(sde={self.forward_sde}, score_estimator={self.score_estimator})'
+        desc = f"{self.__class__.__name__}(sde={self.forward_sde}, score_estimator={self.score_estimator})"
         return desc
 
 
@@ -500,14 +544,14 @@ class PredictorCorrectorSampler(NeuralModule):
         self,
         sde,
         score_estimator,
-        predictor: str = 'reverse_diffusion',
-        corrector: str = 'annealed_langevin_dynamics',
+        predictor: str = "reverse_diffusion",
+        corrector: str = "annealed_langevin_dynamics",
         num_steps: int = 50,
         num_corrector_steps: int = 1,
         time_max: Optional[float] = None,
         time_min: Optional[float] = None,
         snr: float = 0.5,
-        output_type: str = 'mean',
+        output_type: str = "mean",
     ):
         super().__init__()
         # Create a copy of SDE
@@ -516,14 +560,14 @@ class PredictorCorrectorSampler(NeuralModule):
         # Update SDE parameters for sampling
         if time_max is not None:
             self.sde.time_max = time_max
-            logging.info('sde.time_max set to: %s', self.sde.time_max)
+            logging.info("sde.time_max set to: %s", self.sde.time_max)
 
         if time_min is not None:
             self.sde.time_min = time_min
-            logging.info('sde.time_min set to: %s', self.sde.time_min)
+            logging.info("sde.time_min set to: %s", self.sde.time_min)
 
         self.sde.num_steps = num_steps
-        logging.info('sde.num_steps set to: %s', self.sde.num_steps)
+        logging.info("sde.num_steps set to: %s", self.sde.num_steps)
 
         # Update local values
         self.time_max = self.sde.time_max
@@ -531,47 +575,57 @@ class PredictorCorrectorSampler(NeuralModule):
         self.num_steps = self.sde.num_steps
 
         # Predictor setup
-        if predictor == 'reverse_diffusion':
-            self.predictor = ReverseDiffusionPredictor(sde=self.sde, score_estimator=score_estimator)
-        else:
-            raise RuntimeError(f'Unexpected predictor: {predictor}')
-
-        # Corrector setup
-        if corrector == 'annealed_langevin_dynamics':
-            self.corrector = AnnealedLangevinDynamics(
-                sde=self.sde, score_estimator=score_estimator, snr=snr, num_steps=num_corrector_steps
+        if predictor == "reverse_diffusion":
+            self.predictor = ReverseDiffusionPredictor(
+                sde=self.sde, score_estimator=score_estimator
             )
         else:
-            raise RuntimeError(f'Unexpected corrector: {corrector}')
+            raise RuntimeError(f"Unexpected predictor: {predictor}")
 
-        if output_type not in ['mean', 'state']:
-            raise ValueError(f'Unexpected output type: {output_type}')
+        # Corrector setup
+        if corrector == "annealed_langevin_dynamics":
+            self.corrector = AnnealedLangevinDynamics(
+                sde=self.sde,
+                score_estimator=score_estimator,
+                snr=snr,
+                num_steps=num_corrector_steps,
+            )
+        else:
+            raise RuntimeError(f"Unexpected corrector: {corrector}")
+
+        if output_type not in ["mean", "state"]:
+            raise ValueError(f"Unexpected output type: {output_type}")
         self.output_type = output_type
 
-        logging.debug('Initialized %s with', self.__class__.__name__)
-        logging.debug('\tpredictor:           %s', predictor)
-        logging.debug('\tcorrector:           %s', corrector)
-        logging.debug('\tnum_steps:           %s', self.num_steps)
-        logging.debug('\ttime_min:            %s', self.time_min)
-        logging.debug('\ttime_max:            %s', self.time_max)
-        logging.debug('\tnum_corrector_steps: %s', num_corrector_steps)
-        logging.debug('\tsnr:                 %s', snr)
-        logging.debug('\toutput_type:         %s', self.output_type)
+        logging.debug("Initialized %s with", self.__class__.__name__)
+        logging.debug("\tpredictor:           %s", predictor)
+        logging.debug("\tcorrector:           %s", corrector)
+        logging.debug("\tnum_steps:           %s", self.num_steps)
+        logging.debug("\ttime_min:            %s", self.time_min)
+        logging.debug("\ttime_max:            %s", self.time_max)
+        logging.debug("\tnum_corrector_steps: %s", num_corrector_steps)
+        logging.debug("\tsnr:                 %s", snr)
+        logging.debug("\toutput_type:         %s", self.output_type)
 
     @typecheck(
         input_types={
-            "prior_mean": NeuralType(('B', 'C', 'D', 'T'), SpectrogramType()),
-            "score_condition": NeuralType(('B', 'C', 'D', 'T'), SpectrogramType(), optional=True),
-            "state_length": NeuralType(tuple('B'), LengthsType(), optional=True),
+            "prior_mean": NeuralType(("B", "C", "D", "T"), SpectrogramType()),
+            "score_condition": NeuralType(
+                ("B", "C", "D", "T"), SpectrogramType(), optional=True
+            ),
+            "state_length": NeuralType(tuple("B"), LengthsType(), optional=True),
         },
         output_types={
-            "sample": NeuralType(('B', 'C', 'D', 'T'), SpectrogramType()),
-            "state_length": NeuralType(tuple('B'), LengthsType(), optional=True),
+            "sample": NeuralType(("B", "C", "D", "T"), SpectrogramType()),
+            "state_length": NeuralType(tuple("B"), LengthsType(), optional=True),
         },
     )
     @torch.inference_mode()
     def forward(
-        self, prior_mean: torch.Tensor, score_condition: torch.Tensor, state_length: Optional[torch.Tensor] = None
+        self,
+        prior_mean: torch.Tensor,
+        score_condition: torch.Tensor,
+        state_length: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         """Takes prior (noisy) mean and generates a sample by solving the reverse SDE.
 
@@ -590,7 +644,9 @@ class PredictorCorrectorSampler(NeuralModule):
             state = mask_sequence_tensor(state, state_length)
 
         # Time steps for evaluation
-        time_steps = torch.linspace(self.time_max, self.time_min, self.num_steps, device=state.device)
+        time_steps = torch.linspace(
+            self.time_max, self.time_min, self.num_steps, device=state.device
+        )
 
         # Sampling
         for t in time_steps:
@@ -599,7 +655,10 @@ class PredictorCorrectorSampler(NeuralModule):
 
             # corrector step
             state, _ = self.corrector(
-                state=state, time=time, score_condition=score_condition, state_length=state_length
+                state=state,
+                time=time,
+                score_condition=score_condition,
+                state_length=state_length,
             )
 
             # predictor step
@@ -612,12 +671,12 @@ class PredictorCorrectorSampler(NeuralModule):
             )
 
         # Final output
-        if self.output_type == 'state':
+        if self.output_type == "state":
             sample = state
-        elif self.output_type == 'mean':
+        elif self.output_type == "mean":
             sample = state_mean
         else:
-            raise RuntimeError(f'Unexpected output type: {self.output_type}')
+            raise RuntimeError(f"Unexpected output type: {self.output_type}")
 
         if state_length is not None:
             sample = mask_sequence_tensor(sample, state_length)
@@ -635,7 +694,9 @@ class Predictor(torch.nn.Module, ABC):
 
     def __init__(self, sde, score_estimator):
         super().__init__()
-        self.reverse_sde = ReverseStochasticDifferentialEquation(sde=sde, score_estimator=score_estimator)
+        self.reverse_sde = ReverseStochasticDifferentialEquation(
+            sde=sde, score_estimator=score_estimator
+        )
 
     @abstractmethod
     @torch.inference_mode()
@@ -674,7 +735,9 @@ class ReverseDiffusionPredictor(Predictor):
         super().__init__(sde=sde, score_estimator=score_estimator)
 
     @torch.inference_mode()
-    def forward(self, *, state, time, score_condition=None, state_length=None, **kwargs):
+    def forward(
+        self, *, state, time, score_condition=None, state_length=None, **kwargs
+    ):
         """Predict the next state of the reverse process using the reverse diffusion process.
 
         Args:
@@ -687,7 +750,11 @@ class ReverseDiffusionPredictor(Predictor):
             New state and mean of the diffusion process.
         """
         drift, diffusion = self.reverse_sde.discretize(
-            state=state, time=time, score_condition=score_condition, state_length=state_length, **kwargs
+            state=state,
+            time=time,
+            score_condition=score_condition,
+            state_length=state_length,
+            **kwargs,
         )
 
         # Generate a random sample from a standard normal distribution
@@ -729,20 +796,22 @@ class Corrector(NeuralModule, ABC):
         self.snr = snr
         self.num_steps = num_steps
 
-        logging.debug('Initialized %s with', self.__class__.__name__)
-        logging.debug('\tsnr:             %s', snr)
-        logging.debug('\tnum_steps:       %s', num_steps)
+        logging.debug("Initialized %s with", self.__class__.__name__)
+        logging.debug("\tsnr:             %s", snr)
+        logging.debug("\tnum_steps:       %s", num_steps)
 
     @abstractmethod
     @typecheck(
         input_types={
-            "state": NeuralType(('B', 'C', 'D', 'T'), VoidType()),
-            "time": NeuralType(tuple('B'), FloatType()),
-            "score_condition": NeuralType(('B', 'C', 'D', 'T'), VoidType(), optional=True),
-            "state_length": NeuralType(tuple('B'), LengthsType(), optional=True),
+            "state": NeuralType(("B", "C", "D", "T"), VoidType()),
+            "time": NeuralType(tuple("B"), FloatType()),
+            "score_condition": NeuralType(
+                ("B", "C", "D", "T"), VoidType(), optional=True
+            ),
+            "state_length": NeuralType(tuple("B"), LengthsType(), optional=True),
         },
         output_types={
-            "state": NeuralType(('B', 'C', 'D', 'T'), VoidType()),
+            "state": NeuralType(("B", "C", "D", "T"), VoidType()),
         },
     )
     @torch.inference_mode()
@@ -769,7 +838,9 @@ class AnnealedLangevinDynamics(Corrector):
 
     def __init__(self, sde, **kwargs):
         if not isinstance(sde, OrnsteinUhlenbeckVarianceExplodingSDE):
-            raise ValueError(f'Expected an instance of OrnsteinUhlenbeckVarianceExplodingSDE, got {type(sde)}')
+            raise ValueError(
+                f"Expected an instance of OrnsteinUhlenbeckVarianceExplodingSDE, got {type(sde)}"
+            )
         super().__init__(sde=sde, **kwargs)
 
     @torch.inference_mode()
@@ -795,10 +866,16 @@ class AnnealedLangevinDynamics(Corrector):
 
         for i in range(self.num_steps):
             # prepare input for the score estimator, concatenate conditioning along the channel dimension
-            score_input = state if score_condition is None else torch.cat([state, score_condition], dim=1)
+            score_input = (
+                state
+                if score_condition is None
+                else torch.cat([state, score_condition], dim=1)
+            )
 
             # calculate the score
-            score, _ = self.score_estimator(input=score_input, input_length=state_length, condition=time)
+            score, _ = self.score_estimator(
+                input=score_input, input_length=state_length, condition=time
+            )
 
             # generate a sample from a standard normal distribution
             z_norm = torch.randn_like(state)

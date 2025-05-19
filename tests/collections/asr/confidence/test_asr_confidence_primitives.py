@@ -28,18 +28,26 @@ for vocab_size in VOCAB_SIZES:
     ONE_VEC_SET[vocab_size] = torch.nan_to_num(
         torch.cat(
             [
-                torch.tensor([[0] + [float('-inf')] * (vocab_size - 1)]),
-                torch.tensor([[float('-inf')] * (vocab_size - 3) + [0] + [float('-inf')] * 2]),
+                torch.tensor([[0] + [float("-inf")] * (vocab_size - 1)]),
+                torch.tensor(
+                    [[float("-inf")] * (vocab_size - 3) + [0] + [float("-inf")] * 2]
+                ),
             ]
         )
     )
-    ZERO_VEC_SET[vocab_size] = torch.nan_to_num(torch.tensor([[math.log(1 / vocab_size)] * vocab_size] * 2))
+    ZERO_VEC_SET[vocab_size] = torch.nan_to_num(
+        torch.tensor([[math.log(1 / vocab_size)] * vocab_size] * 2)
+    )
     # batch size 1
     rand_logit = torch.rand((1, vocab_size))
     rand_logit_overfit = rand_logit.clone()
     rand_logit_overfit[0, 0] += vocab_size
-    RAND_VEC_SET[vocab_size] = torch.nan_to_num(torch.nn.functional.log_softmax(rand_logit, -1))
-    OVERFIT_RAND_VEC_SET[vocab_size] = torch.nan_to_num(torch.nn.functional.log_softmax(rand_logit_overfit, -1))
+    RAND_VEC_SET[vocab_size] = torch.nan_to_num(
+        torch.nn.functional.log_softmax(rand_logit, -1)
+    )
+    OVERFIT_RAND_VEC_SET[vocab_size] = torch.nan_to_num(
+        torch.nn.functional.log_softmax(rand_logit_overfit, -1)
+    )
 AGGREGATION_VEC_SIMPLE = [0.0, 0.5, 1]
 
 TOL_DEGREE = 6
@@ -80,31 +88,44 @@ class TestConfidenceMeasureBank:
         assert len(self.measure_bank) > 0
 
     @pytest.mark.unit
-    @pytest.mark.parametrize('measure_name', measure_bank.keys())
-    @pytest.mark.parametrize('alpha', alphas)
-    @pytest.mark.parametrize('vocab_size', VOCAB_SIZES)
+    @pytest.mark.parametrize("measure_name", measure_bank.keys())
+    @pytest.mark.parametrize("alpha", alphas)
+    @pytest.mark.parametrize("vocab_size", VOCAB_SIZES)
     def test_confidence_measures_one(self, measure_name, alpha, vocab_size):
         measure = self.measure_bank[measure_name]
 
-        assert torch.allclose(measure(ONE_VEC_SET[vocab_size], vocab_size, alpha), torch.tensor([1.0, 1.0]), atol=TOL)
+        assert torch.allclose(
+            measure(ONE_VEC_SET[vocab_size], vocab_size, alpha),
+            torch.tensor([1.0, 1.0]),
+            atol=TOL,
+        )
 
     @pytest.mark.unit
-    @pytest.mark.parametrize('measure_name', measure_bank.keys())
-    @pytest.mark.parametrize('alpha', alphas)
-    @pytest.mark.parametrize('vocab_size', VOCAB_SIZES)
+    @pytest.mark.parametrize("measure_name", measure_bank.keys())
+    @pytest.mark.parametrize("alpha", alphas)
+    @pytest.mark.parametrize("vocab_size", VOCAB_SIZES)
     def test_confidence_measures_zero(self, measure_name, alpha, vocab_size):
         measure = self.measure_bank[measure_name]
 
-        assert torch.allclose(measure(ZERO_VEC_SET[vocab_size], vocab_size, alpha), torch.tensor([0.0, 0.0]), atol=TOL)
+        assert torch.allclose(
+            measure(ZERO_VEC_SET[vocab_size], vocab_size, alpha),
+            torch.tensor([0.0, 0.0]),
+            atol=TOL,
+        )
 
     @pytest.mark.unit
-    @pytest.mark.parametrize('measure_name', measure_bank.keys())
-    @pytest.mark.parametrize('alpha', alphas)
-    @pytest.mark.parametrize('vocab_size', VOCAB_SIZES)
+    @pytest.mark.parametrize("measure_name", measure_bank.keys())
+    @pytest.mark.parametrize("alpha", alphas)
+    @pytest.mark.parametrize("vocab_size", VOCAB_SIZES)
     def test_confidence_measures_partial_order(self, measure_name, alpha, vocab_size):
         measure = self.measure_bank[measure_name]
-        value_normal = round(float(measure(RAND_VEC_SET[vocab_size], vocab_size, alpha)[0]), TOL_DEGREE)
-        value_overfit = round(float(measure(OVERFIT_RAND_VEC_SET[vocab_size], vocab_size, alpha)[0]), TOL_DEGREE)
+        value_normal = round(
+            float(measure(RAND_VEC_SET[vocab_size], vocab_size, alpha)[0]), TOL_DEGREE
+        )
+        value_overfit = round(
+            float(measure(OVERFIT_RAND_VEC_SET[vocab_size], vocab_size, alpha)[0]),
+            TOL_DEGREE,
+        )
 
         assert 0 <= value_normal < value_overfit <= 1, (
             measure(RAND_VEC_SET[vocab_size], vocab_size, alpha),
@@ -124,7 +145,7 @@ class TestConfidenceAggregationBank:
         assert len(self.aggregation_bank) > 0
 
     @pytest.mark.unit
-    @pytest.mark.parametrize('aggregation_name', aggregation_bank.keys())
+    @pytest.mark.parametrize("aggregation_name", aggregation_bank.keys())
     def test_confidence_agregation_simple(self, aggregation_name):
         # alaptev: would skipif work with parametrize arguments?
         if aggregation_name not in ("mean", "min", "max", "prod"):

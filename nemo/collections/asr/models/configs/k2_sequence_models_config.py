@@ -33,7 +33,9 @@ class GraphModuleConfig:
 
 @dataclass
 class EncDecK2SeqConfig(EncDecCTCConfig):
-    graph_module_cfg: GraphModuleConfig = field(default_factory=lambda: GraphModuleConfig())
+    graph_module_cfg: GraphModuleConfig = field(
+        default_factory=lambda: GraphModuleConfig()
+    )
 
 
 @dataclass

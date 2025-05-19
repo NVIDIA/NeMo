@@ -71,12 +71,14 @@ try:
         get_micro_batch_size, get_num_microbatches)
 
 except (ImportError, ModuleNotFoundError):
-    logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
+    logging.warning(
+        "Megatron num_microbatches_calculator not found, using Apex version."
+    )
     from apex.transformer.pipeline_parallel.utils import (get_micro_batch_size,
                                                           get_num_microbatches)
 
 
-__all__ = ['MegatronGPTPromptLearningModel']
+__all__ = ["MegatronGPTPromptLearningModel"]
 
 
 class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
@@ -114,17 +116,17 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
         self.cfg = cfg
         self.config: ModelParallelConfig = self.model_parallel_config
         save_restore_connector = NLPSaveRestoreConnector()
-        if os.path.isdir(cfg.get('language_model_path')):
-            save_restore_connector.model_extracted_dir = cfg.get('language_model_path')
+        if os.path.isdir(cfg.get("language_model_path")):
+            save_restore_connector.model_extracted_dir = cfg.get("language_model_path")
         frozen_model_cfg = MegatronGPTModel.restore_from(
-            cfg.get('language_model_path'),
+            cfg.get("language_model_path"),
             trainer=trainer,
             return_config=True,
             save_restore_connector=save_restore_connector,
         )
 
         # set hidden size in the model parallel config for pipeline parallel schedules
-        setattr(self.config, 'hidden_size', frozen_model_cfg.hidden_size)
+        setattr(self.config, "hidden_size", frozen_model_cfg.hidden_size)
 
         # Need to overwrite some params in frozen model's config before restoring
         with open_dict(frozen_model_cfg):
@@ -133,29 +135,33 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
             frozen_model_cfg.micro_batch_size = self.cfg.micro_batch_size
             frozen_model_cfg.global_batch_size = self.cfg.global_batch_size
             frozen_model_cfg.precision = trainer.precision
-            frozen_model_cfg.sequence_parallel = self.cfg.get("sequence_parallel", False)
+            frozen_model_cfg.sequence_parallel = self.cfg.get(
+                "sequence_parallel", False
+            )
             frozen_model_cfg.activations_checkpoint_granularity = self.cfg.get(
                 "activations_checkpoint_granularity", None
             )
             frozen_model_cfg.activations_checkpoint_num_layers = self.cfg.get(
                 "activations_checkpoint_num_layers", None
             )
-            frozen_model_cfg.activations_checkpoint_method = self.cfg.get("activations_checkpoint_method", None)
+            frozen_model_cfg.activations_checkpoint_method = self.cfg.get(
+                "activations_checkpoint_method", None
+            )
 
-        if cfg.get('language_model_path', None):
+        if cfg.get("language_model_path", None):
             self.frozen_model = MegatronGPTModel.restore_from(
-                cfg.get('language_model_path'),
+                cfg.get("language_model_path"),
                 trainer=trainer,
                 save_restore_connector=save_restore_connector,
                 override_config_path=frozen_model_cfg,
             ).to(dtype=self.autocast_dtype)
 
-        self.megatron_amp_O2 = self.cfg.get('megatron_amp_O2', False)
-        self.pipeline_parallel = self.cfg.get('pipeline_model_parallel_size', 1) > 1
+        self.megatron_amp_O2 = self.cfg.get("megatron_amp_O2", False)
+        self.pipeline_parallel = self.cfg.get("pipeline_model_parallel_size", 1) > 1
         self.tokenizer = self.frozen_model.tokenizer
         self.hidden_size = self.frozen_model.cfg.hidden_size
-        self.existing_tasks = list(self.cfg.get('existing_tasks', []))
-        self.new_tasks = list(self.cfg.get('new_tasks', []))
+        self.existing_tasks = list(self.cfg.get("existing_tasks", []))
+        self.new_tasks = list(self.cfg.get("new_tasks", []))
         with open_dict(self.cfg):
             self.cfg.existing_tasks = (
                 self.existing_tasks + self.new_tasks
@@ -165,7 +171,10 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
         self.model_type = ModelType.encoder_or_decoder
 
         self.enable_autocast = (
-            True if (not self.megatron_amp_O2) and (self.autocast_dtype in [torch.float16, torch.bfloat16]) else False
+            True
+            if (not self.megatron_amp_O2)
+            and (self.autocast_dtype in [torch.float16, torch.bfloat16])
+            else False
         )
 
         if self.pipeline_parallel:
@@ -182,7 +191,9 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
             if self.frozen_model.mcore_gpt:
                 self.word_embeddings = self.frozen_model.model.embedding.word_embeddings
             else:
-                self.word_embeddings = self.frozen_model.model.language_model.embedding.word_embeddings
+                self.word_embeddings = (
+                    self.frozen_model.model.language_model.embedding.word_embeddings
+                )
 
         self.padded_vocab_size = self.frozen_model.padded_vocab_size
 
@@ -191,18 +202,34 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
         if isinstance(self.tokenizer, SentencePieceTokenizer):
             if not self.tokenizer.legacy:
                 if self.tokenizer.pad_id != -1:
-                    self.tokenizer.pad_token = self.tokenizer.ids_to_tokens([self.tokenizer.pad_id])[0]
+                    self.tokenizer.pad_token = self.tokenizer.ids_to_tokens(
+                        [self.tokenizer.pad_id]
+                    )[0]
                 else:
-                    self.tokenizer.pad_token = self.tokenizer.ids_to_tokens([self.tokenizer.eos_id])[0]
-                self.tokenizer.bos_token = self.tokenizer.ids_to_tokens([self.tokenizer.bos_id])[0]
-                self.tokenizer.eos_token = self.tokenizer.ids_to_tokens([self.tokenizer.eos_id])[0]
+                    self.tokenizer.pad_token = self.tokenizer.ids_to_tokens(
+                        [self.tokenizer.eos_id]
+                    )[0]
+                self.tokenizer.bos_token = self.tokenizer.ids_to_tokens(
+                    [self.tokenizer.bos_id]
+                )[0]
+                self.tokenizer.eos_token = self.tokenizer.ids_to_tokens(
+                    [self.tokenizer.eos_id]
+                )[0]
                 self.tokenizer.legacy = True
             self.tokenizer.add_special_tokens(self.pseudo_tokens)
         else:
-            self.tokenizer.add_special_tokens({'additional_special_tokens': self.pseudo_tokens})
+            self.tokenizer.add_special_tokens(
+                {"additional_special_tokens": self.pseudo_tokens}
+            )
         self.pseudo_token_ids = self.tokenizer.tokens_to_ids(self.pseudo_tokens)
-        self.pseudo_token_ids_start = self.pseudo_token_ids[0] if self.pseudo_token_ids else None
-        self.pad_token_id = self.tokenizer.pad_id if self.tokenizer.pad_id is not None else self.tokenizer.unk_id
+        self.pseudo_token_ids_start = (
+            self.pseudo_token_ids[0] if self.pseudo_token_ids else None
+        )
+        self.pad_token_id = (
+            self.tokenizer.pad_id
+            if self.tokenizer.pad_id is not None
+            else self.tokenizer.unk_id
+        )
 
         # P-Tuning uses an LSTM Encoder to produce virtual token embeddings
         if self.virtual_prompt_style == VirtualPromptStyle.P_TUNING:
@@ -221,34 +248,40 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
         self.prompt_encoder = None
 
         # default inference related params -> for evaluation metrics
-        if hasattr(self.cfg, 'inference') and self.cfg.get("report_validation_metric", False):
+        if hasattr(self.cfg, "inference") and self.cfg.get(
+            "report_validation_metric", False
+        ):
             self.length_params: LengthParam = {
-                "max_length": self.cfg.inference.get('tokens_to_generate', 30),
-                "min_length": self.cfg.inference.get('min_tokens_to_generate', 0),
+                "max_length": self.cfg.inference.get("tokens_to_generate", 30),
+                "min_length": self.cfg.inference.get("min_tokens_to_generate", 0),
             }
 
             self.sampling_params: SamplingParam = {
-                "use_greedy": self.cfg.inference.get('greedy', False),
-                "temperature": self.cfg.inference.get('temperature', 1.0),
-                "top_k": self.cfg.inference.get('tok_k', 0),
-                "top_p": self.cfg.inference.get('top_p', 0.9),
-                "repetition_penalty": self.cfg.inference.get('repetition_penalty', 1.2),
+                "use_greedy": self.cfg.inference.get("greedy", False),
+                "temperature": self.cfg.inference.get("temperature", 1.0),
+                "top_k": self.cfg.inference.get("tok_k", 0),
+                "top_p": self.cfg.inference.get("top_p", 0.9),
+                "repetition_penalty": self.cfg.inference.get("repetition_penalty", 1.2),
                 "add_BOS": True,
                 "all_probs": False,
                 "compute_logprob": False,
-                "end_strings": self.cfg.inference.get('end_strings', ["<|endoftext|>"]),
+                "end_strings": self.cfg.inference.get("end_strings", ["<|endoftext|>"]),
             }
-        elif self.cfg.get("report_validation_metric", False) and not hasattr(self.cfg, 'inference'):
-            raise ValueError("Must provide inference parameters for reporting validation metric!")
+        elif self.cfg.get("report_validation_metric", False) and not hasattr(
+            self.cfg, "inference"
+        ):
+            raise ValueError(
+                "Must provide inference parameters for reporting validation metric!"
+            )
 
         # define validation metric
-        if self.cfg.get('report_validation_metric', False):
-            validation_metric = self.cfg.get('validation_metric', 'accuracy')
-            if validation_metric == 'accuracy':
+        if self.cfg.get("report_validation_metric", False):
+            validation_metric = self.cfg.get("validation_metric", "accuracy")
+            if validation_metric == "accuracy":
                 self.validation_metric = AccuracyScore()
-            elif validation_metric == 'bleu':
+            elif validation_metric == "bleu":
                 self.validation_metric = BLEUScore()
-            elif validation_metric == 'rouge':
+            elif validation_metric == "rouge":
                 self.validation_metric = ROUGEScores()
 
     def first_stage_of_pipeline(self):
@@ -273,9 +306,15 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
         """
         # Get embeddings for text tokens and insert virtual token embeddings
         if self.first_stage_of_pipeline():
-            input_embeds = self.embed_input(input_ids, taskname_ids, use_cached_reps=inference)
-            if self.frozen_model.mcore_gpt and hasattr(self.frozen_model.model.embedding, "position_embeddings"):
-                position_embeddings = self.frozen_model.model.embedding.position_embeddings(position_ids)
+            input_embeds = self.embed_input(
+                input_ids, taskname_ids, use_cached_reps=inference
+            )
+            if self.frozen_model.mcore_gpt and hasattr(
+                self.frozen_model.model.embedding, "position_embeddings"
+            ):
+                position_embeddings = (
+                    self.frozen_model.model.embedding.position_embeddings(position_ids)
+                )
                 encoder_input = input_embeds + position_embeddings
             elif not self.frozen_model.mcore_gpt and hasattr(
                 self.frozen_model.model.language_model.embedding, "position_embeddings"
@@ -288,7 +327,11 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
                 encoder_input = input_embeds
             encoder_input = encoder_input.transpose(0, 1).contiguous()
             if self.cfg.get("sequence_parallel", False):
-                encoder_input = tensor_parallel.mappings.scatter_to_sequence_parallel_region(encoder_input)
+                encoder_input = (
+                    tensor_parallel.mappings.scatter_to_sequence_parallel_region(
+                        encoder_input
+                    )
+                )
         else:
             encoder_input = None
 
@@ -340,7 +383,9 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
         # only the last stages of the pipeline return losses
         if losses_reduced_per_micro_batch:
             # average loss across micro batches
-            loss_tensors_list = [loss_reduced['avg'] for loss_reduced in losses_reduced_per_micro_batch]
+            loss_tensors_list = [
+                loss_reduced["avg"] for loss_reduced in losses_reduced_per_micro_batch
+            ]
             loss_tensor = torch.concat(loss_tensors_list)
             loss_mean = loss_tensor.mean()
         else:
@@ -353,7 +398,9 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
         # we zero grads here because we also call backward in the megatron-core fwd/bwd functions
         self._optimizer.zero_grad()
         batch, batch_idx, _ = next(dataloader_iter)
-        loss_mean = self.fwd_bwd_step(itertools.chain([batch]), batch_idx, forward_only=False)
+        loss_mean = self.fwd_bwd_step(
+            itertools.chain([batch]), batch_idx, forward_only=False
+        )
         self.allreduce_gradients()
 
         ## logging
@@ -361,15 +408,29 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
         # we can avoid this broadcast by updating the PTL log function to accept specific ranks
         torch.distributed.broadcast(loss_mean, get_last_rank())
 
-        if self.torch_dtype == torch.float16 and hasattr(self.trainer.precision_plugin.scaler, "_scale"):
+        if self.torch_dtype == torch.float16 and hasattr(
+            self.trainer.precision_plugin.scaler, "_scale"
+        ):
             loss_scale = self.trainer.precision_plugin.scaler._scale
             if loss_scale is not None:
-                self.log('loss_scale', loss_scale, batch_size=1)
+                self.log("loss_scale", loss_scale, batch_size=1)
 
-        self.log('reduced_train_loss', loss_mean, prog_bar=True, rank_zero_only=True, batch_size=1)
-        lr = self._optimizer.param_groups[0]['lr']
-        self.log('lr', lr, rank_zero_only=True, batch_size=1)
-        self.log('global_step', self.trainer.global_step, prog_bar=True, rank_zero_only=True, batch_size=1)
+        self.log(
+            "reduced_train_loss",
+            loss_mean,
+            prog_bar=True,
+            rank_zero_only=True,
+            batch_size=1,
+        )
+        lr = self._optimizer.param_groups[0]["lr"]
+        self.log("lr", lr, rank_zero_only=True, batch_size=1)
+        self.log(
+            "global_step",
+            self.trainer.global_step,
+            prog_bar=True,
+            rank_zero_only=True,
+            batch_size=1,
+        )
         return loss_mean
 
     def backward(self, *args, **kwargs):
@@ -386,17 +447,21 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
         return
 
     def validation_step(self, dataloader_iter):
-        mode = 'test' if self.trainer.testing else 'val'
+        mode = "test" if self.trainer.testing else "val"
         batch, batch_idx, _ = next(dataloader_iter)
-        gbs = self.cfg.get('validation_global_batch_size', self.cfg.global_batch_size)
+        gbs = self.cfg.get("validation_global_batch_size", self.cfg.global_batch_size)
         self._reconfigure_and_process_inference_batch(batch[0].size(0), gbs)
-        loss_mean = self.fwd_bwd_step(itertools.chain([batch]), batch_idx, forward_only=True)
+        loss_mean = self.fwd_bwd_step(
+            itertools.chain([batch]), batch_idx, forward_only=True
+        )
         if loss_mean.item == 0.0:
             loss_mean = []
 
-        if self.cfg.get('report_validation_metric', False):
+        if self.cfg.get("report_validation_metric", False):
             preds_text, labels_text = [], []
-            input_ids, labels, loss_mask, position_ids, attention_mask, taskname_ids = batch
+            input_ids, labels, loss_mask, position_ids, attention_mask, taskname_ids = (
+                batch
+            )
             input_lenghts = torch.argmax(loss_mask, 1, keepdim=True)
 
             res = megatron_gpt_generate(
@@ -406,7 +471,9 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
                         (
                             input_ids,
                             torch.zeros(
-                                input_ids.shape[0], self.length_params['max_length'], dtype=input_ids.dtype
+                                input_ids.shape[0],
+                                self.length_params["max_length"],
+                                dtype=input_ids.dtype,
                             ).to(self.device),
                         ),
                         axis=1,
@@ -419,40 +486,40 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
                 task_ids=taskname_ids,
             )
 
-            for pred, label in zip(res['token_ids'], labels):
+            for pred, label in zip(res["token_ids"], labels):
                 # ids_to_text ignores special tokens by default
                 pred = self.tokenizer.ids_to_text(pred)
                 label = self.tokenizer.ids_to_text(label)
                 preds_text.append(pred)
                 labels_text.append(label)
-            if mode == 'val':
+            if mode == "val":
                 self.validation_step_outputs.append(
                     {
-                        'loss': loss_mean,
-                        'preds': preds_text,
-                        'labels': labels_text,
+                        "loss": loss_mean,
+                        "preds": preds_text,
+                        "labels": labels_text,
                     }
                 )
             else:
                 self.test_step_outputs.append(
                     {
-                        'loss': loss_mean,
-                        'preds': preds_text,
-                        'labels': labels_text,
+                        "loss": loss_mean,
+                        "preds": preds_text,
+                        "labels": labels_text,
                     }
                 )
             return {
-                'loss': loss_mean,
-                'preds': preds_text,
-                'labels': labels_text,
+                "loss": loss_mean,
+                "preds": preds_text,
+                "labels": labels_text,
             }
 
         (
-            self.validation_step_outputs.append({'loss': loss_mean})
-            if mode == 'val'
-            else self.test_step_outputs.append({'loss': loss_mean})
+            self.validation_step_outputs.append({"loss": loss_mean})
+            if mode == "val"
+            else self.test_step_outputs.append({"loss": loss_mean})
         )
-        return {'loss': loss_mean}
+        return {"loss": loss_mean}
 
     def on_train_epoch_start(self) -> None:
         gbs = self.cfg.global_batch_size
@@ -461,8 +528,8 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
         return super().on_train_epoch_start()
 
     def on_validation_epoch_start(self) -> None:
-        gbs = self.cfg.get('validation_global_batch_size', self.cfg.global_batch_size)
-        mbs = self.cfg.get('validation_micro_batch_size', self.cfg.micro_batch_size)
+        gbs = self.cfg.get("validation_global_batch_size", self.cfg.global_batch_size)
+        mbs = self.cfg.get("validation_micro_batch_size", self.cfg.micro_batch_size)
         self._reconfigure_batch_sizes(gbs, mbs)
         return super().on_validation_epoch_start()
 
@@ -472,21 +539,35 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
 
         if parallel_state.is_pipeline_last_stage(ignore_virtual=False):
             # only the last pipeline parallel stages return loss
-            averaged_loss = torch.stack([i['loss'] for i in self.validation_step_outputs]).mean()
+            averaged_loss = torch.stack(
+                [i["loss"] for i in self.validation_step_outputs]
+            ).mean()
         else:
             averaged_loss = torch.tensor(0.0).cuda()
 
         # we can only log on one rank if it is rank zero so we broadcast from last rank
         torch.distributed.broadcast(averaged_loss, get_last_rank())
 
-        self.log('val_loss', averaged_loss, prog_bar=True, rank_zero_only=True, batch_size=1)
-        logging.info(f'val_loss: {averaged_loss}')
+        self.log(
+            "val_loss", averaged_loss, prog_bar=True, rank_zero_only=True, batch_size=1
+        )
+        logging.info(f"val_loss: {averaged_loss}")
 
         if self.cfg.get("report_validation_metric", False):
-            gather_results = [None for _ in range(parallel_state.get_data_parallel_world_size())]
+            gather_results = [
+                None for _ in range(parallel_state.get_data_parallel_world_size())
+            ]
 
-            all_preds = list(itertools.chain(*[item['preds'] for item in self.validation_step_outputs]))
-            all_labels = list(itertools.chain(*[item['labels'] for item in self.validation_step_outputs]))
+            all_preds = list(
+                itertools.chain(
+                    *[item["preds"] for item in self.validation_step_outputs]
+                )
+            )
+            all_labels = list(
+                itertools.chain(
+                    *[item["labels"] for item in self.validation_step_outputs]
+                )
+            )
 
             assert len(all_preds) == len(all_labels)
 
@@ -508,14 +589,20 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
                 )
 
                 for metric, val in val_metric_dict.items():
-                    logging.info(f'Validation {metric}: {val}')
+                    logging.info(f"Validation {metric}: {val}")
                 val_metric = list(val_metric_dict.items())[0][1]
                 metric_name = list(val_metric_dict.items())[0][0]
             else:
                 val_metric = torch.tensor(0.0).cuda()
-                metric_name = ''
+                metric_name = ""
 
-            self.log(f'val_{metric_name}', val_metric, prog_bar=True, rank_zero_only=True, batch_size=1)
+            self.log(
+                f"val_{metric_name}",
+                val_metric,
+                prog_bar=True,
+                rank_zero_only=True,
+                batch_size=1,
+            )
 
         gbs = self.cfg.global_batch_size
         mbs = self.cfg.micro_batch_size
@@ -526,18 +613,22 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
         return self.validation_step(dataloader_iter)
 
     def on_test_epoch_end(self):
-        averaged_loss = average_losses_across_data_parallel_group(self.test_step_outputs)
-        logging.info(f'test_loss: {averaged_loss[0]}')
+        averaged_loss = average_losses_across_data_parallel_group(
+            self.test_step_outputs
+        )
+        logging.info(f"test_loss: {averaged_loss[0]}")
         self.test_step_outputs.clear()  # free memory
 
     def setup(self, stage=None):
         super().setup(stage)
 
-        if self.cfg.get('transformer_engine', False) or self.cfg.get('mcore_gpt', False):
+        if self.cfg.get("transformer_engine", False) or self.cfg.get(
+            "mcore_gpt", False
+        ):
             self.frozen_model.setup_transformer_engine_tp_groups()
 
     def setup_training_data(self, training_data_config=None):
-        if self.cfg.data.get('train_ds', None):
+        if self.cfg.data.get("train_ds", None):
             max_seq_length = self.frozen_model.cfg.encoder_seq_length
             if "max_seq_length" in self.cfg.data and self.cfg.data.max_seq_length:
                 max_seq_length = min(self.cfg.data.max_seq_length, max_seq_length)
@@ -545,55 +636,63 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
                 data=self.cfg.data.train_ds,
                 batch_size=self.cfg.global_batch_size,
                 max_seq_length=max_seq_length,
-                min_seq_length=self.cfg.data.get('min_seq_length', 1),
-                add_bos=self.cfg.data.get('add_bos', False),
-                add_eos=self.cfg.data.get('add_eos', True),
+                min_seq_length=self.cfg.data.get("min_seq_length", 1),
+                add_bos=self.cfg.data.get("add_bos", False),
+                add_eos=self.cfg.data.get("add_eos", True),
                 for_train=True,
                 drop_last=True,
                 shuffle=True,
                 num_workers=self.cfg.data.num_workers,
                 pin_memory=True,
-                cache_data_path=self.cfg.data.get('train_cache_data_path', None),
-                load_cache=self.cfg.data.get('load_cache', False),
+                cache_data_path=self.cfg.data.get("train_cache_data_path", None),
+                load_cache=self.cfg.data.get("load_cache", False),
             )
 
     def setup_validation_data(self, validation_data_config=None):
-        if self.cfg.data.get('validation_ds', None):
+        if self.cfg.data.get("validation_ds", None):
             max_seq_length = self.frozen_model.cfg.encoder_seq_length
             if "max_seq_length" in self.cfg.data and self.cfg.data.max_seq_length:
                 max_seq_length = min(self.cfg.data.max_seq_length, max_seq_length)
-            self._validation_ds, self._validation_dl = self.build_virtual_prompt_dataset(
-                data=self.cfg.data.validation_ds,
-                batch_size=self.cfg.get('validation_global_batch_size', self.cfg.global_batch_size),
-                max_seq_length=max_seq_length,
-                min_seq_length=self.cfg.data.get('min_seq_length', 1),
-                add_bos=self.cfg.data.get('add_bos', False),
-                add_eos=self.cfg.data.get('add_eos', True),
-                for_train=True,
-                drop_last=self.cfg.get('validation_drop_last', True),
-                shuffle=False,
-                num_workers=self.cfg.data.num_workers,
-                pin_memory=True,
-                cache_data_path=self.cfg.data.get('validation_cache_data_path', None),
-                load_cache=self.cfg.data.get('load_cache', False),
+            self._validation_ds, self._validation_dl = (
+                self.build_virtual_prompt_dataset(
+                    data=self.cfg.data.validation_ds,
+                    batch_size=self.cfg.get(
+                        "validation_global_batch_size", self.cfg.global_batch_size
+                    ),
+                    max_seq_length=max_seq_length,
+                    min_seq_length=self.cfg.data.get("min_seq_length", 1),
+                    add_bos=self.cfg.data.get("add_bos", False),
+                    add_eos=self.cfg.data.get("add_eos", True),
+                    for_train=True,
+                    drop_last=self.cfg.get("validation_drop_last", True),
+                    shuffle=False,
+                    num_workers=self.cfg.data.num_workers,
+                    pin_memory=True,
+                    cache_data_path=self.cfg.data.get(
+                        "validation_cache_data_path", None
+                    ),
+                    load_cache=self.cfg.data.get("load_cache", False),
+                )
             )
 
     def setup_test_data(self, test_data_config=None):
-        if self.cfg.data.get('test_ds', None):
+        if self.cfg.data.get("test_ds", None):
             self._test_ds, self._test_dl = self.build_virtual_prompt_dataset(
                 data=self.cfg.data.test_ds,
-                batch_size=self.cfg.get('validation_global_batch_size', self.cfg.global_batch_size),
+                batch_size=self.cfg.get(
+                    "validation_global_batch_size", self.cfg.global_batch_size
+                ),
                 max_seq_length=self.frozen_model.cfg.encoder_seq_length,
-                min_seq_length=self.cfg.data.get('min_seq_length', 1),
-                add_bos=self.cfg.data.get('add_bos', False),
-                add_eos=self.cfg.data.get('add_eos', True),
+                min_seq_length=self.cfg.data.get("min_seq_length", 1),
+                add_bos=self.cfg.data.get("add_bos", False),
+                add_eos=self.cfg.data.get("add_eos", True),
                 for_train=False,
                 drop_last=False,
                 shuffle=False,
                 num_workers=self.cfg.data.num_workers,
                 pin_memory=True,
-                cache_data_path=self.cfg.data.get('test_cache_data_path', None),
-                load_cache=self.cfg.data.get('load_cache', False),
+                cache_data_path=self.cfg.data.get("test_cache_data_path", None),
+                load_cache=self.cfg.data.get("load_cache", False),
             )
 
     def build_virtual_prompt_dataset(
@@ -638,15 +737,22 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
         rank = parallel_state.get_data_parallel_rank()
         data_parallel_size = parallel_state.get_data_parallel_world_size()
         sampler = torch.utils.data.distributed.DistributedSampler(
-            dataset, num_replicas=data_parallel_size, rank=rank, shuffle=shuffle, seed=self.cfg.seed
+            dataset,
+            num_replicas=data_parallel_size,
+            rank=rank,
+            shuffle=shuffle,
+            seed=self.cfg.seed,
         )
 
-        assert batch_size % data_parallel_size == 0, "Global batch size must be evenly divisible by data parallel size"
+        assert (
+            batch_size % data_parallel_size == 0
+        ), "Global batch size must be evenly divisible by data parallel size"
 
         if for_train:
             if self.cfg.get("sequence_parallel", False):
                 collate_fn = partial(
-                    dataset.collate_fn, tp_workers=parallel_state.get_tensor_model_parallel_world_size()
+                    dataset.collate_fn,
+                    tp_workers=parallel_state.get_tensor_model_parallel_world_size(),
                 )
             else:
                 collate_fn = partial(dataset.collate_fn, tp_workers=0)
@@ -682,8 +788,17 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
         def fwd_output_and_loss_func(dataloader_iter, model):
             batch, _, _ = next(dataloader_iter)
             batch = [x.cuda(non_blocking=True) for x in batch]
-            input_ids, labels, loss_mask, position_ids, attention_mask, taskname_ids = batch
-            output_tensor = model(input_ids, position_ids, attention_mask, taskname_ids, labels, inference=False)
+            input_ids, labels, loss_mask, position_ids, attention_mask, taskname_ids = (
+                batch
+            )
+            output_tensor = model(
+                input_ids,
+                position_ids,
+                attention_mask,
+                taskname_ids,
+                labels,
+                inference=False,
+            )
 
             if isinstance(output_tensor, tuple):
                 output_tensor, _ = output_tensor
@@ -691,7 +806,7 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
             def loss_func(output_tensor):
                 loss = self.frozen_model.loss_func(loss_mask, output_tensor)
                 reduced_loss = average_losses_across_data_parallel_group([loss])
-                return loss, {'avg': reduced_loss}
+                return loss, {"avg": reduced_loss}
 
             return output_tensor, loss_func
 
@@ -723,21 +838,28 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
                 # if first step, then clear KV cache, otherwise reuse inference_paarms
                 if set_inference_key_value_memory[0].item():
                     self.inference_params = InferenceParams(
-                        max_batch_size=tokens.size(0), max_sequence_length=inference_max_sequence_len[0].item()
+                        max_batch_size=tokens.size(0),
+                        max_sequence_length=inference_max_sequence_len[0].item(),
                     )
-                extra_arg['inference_params'] = self.inference_params
+                extra_arg["inference_params"] = self.inference_params
             else:
-                extra_arg['set_inference_key_value_memory'] = set_inference_key_value_memory[0].item()
-                extra_arg['inference_max_sequence_len'] = inference_max_sequence_len[0].item()
+                extra_arg["set_inference_key_value_memory"] = (
+                    set_inference_key_value_memory[0].item()
+                )
+                extra_arg["inference_max_sequence_len"] = inference_max_sequence_len[
+                    0
+                ].item()
 
-            output_tensor = model(tokens, position_ids, attention_mask, task_ids, **extra_arg)
+            output_tensor = model(
+                tokens, position_ids, attention_mask, task_ids, **extra_arg
+            )
 
             # Advance inference sequence offset.
             if self.inference_params:
                 self.inference_params.sequence_len_offset += output_tensor.size(1)
 
             def id_func(output_tensor):
-                return output_tensor, {'logits': output_tensor}
+                return output_tensor, {"logits": output_tensor}
 
             return output_tensor, id_func
 
@@ -770,7 +892,9 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
         if length_params is None:
             length_params = get_default_length_params()
 
-        max_input_length = self.frozen_model.cfg.encoder_seq_length - length_params["max_length"]
+        max_input_length = (
+            self.frozen_model.cfg.encoder_seq_length - length_params["max_length"]
+        )
 
         # input dicts are either dataset paths or already loaded example dicts
         if "taskname" not in inputs[0].keys():
@@ -782,7 +906,7 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
             data=data,
             batch_size=batch_size,
             max_seq_length=max_input_length,
-            min_seq_length=self.cfg.data.get('min_seq_length', 1),
+            min_seq_length=self.cfg.data.get("min_seq_length", 1),
             add_bos=sampling_params["add_BOS"],
             add_eos=False,
             for_train=False,
@@ -796,10 +920,17 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
 
         # Call same generate code as in MegatronGPT
         return megatron_gpt_generate(
-            self.cuda(), processed_inputs, self.tokenizer, length_params, sampling_params, task_ids=task_ids
+            self.cuda(),
+            processed_inputs,
+            self.tokenizer,
+            length_params,
+            sampling_params,
+            task_ids=task_ids,
         )
 
-    def predict_step(self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None) -> Any:
+    def predict_step(
+        self, batch: Any, batch_idx: int, dataloader_idx: Optional[int] = None
+    ) -> Any:
         inference_config = self.get_inference_config()
         if inference_config is None:
             return None
@@ -818,8 +949,10 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
                 "add_BOS": inference_config["add_BOS"],
                 "all_probs": inference_config["all_probs"],
                 "compute_logprob": inference_config["compute_logprob"],
-                "compute_attention_mask": inference_config.get("compute_attention_mask", True),
-                "end_strings": inference_config.get('end_strings', ["<|endoftext|>"]),
+                "compute_attention_mask": inference_config.get(
+                    "compute_attention_mask", True
+                ),
+                "end_strings": inference_config.get("end_strings", ["<|endoftext|>"]),
             }
 
             task_ids, processed_inputs = batch
@@ -827,7 +960,12 @@ class MegatronGPTPromptLearningModel(MegatronBasePromptLearningModel):
 
             # Call same generate code as in MegatronGPT
             return megatron_gpt_generate(
-                self.cuda(), processed_inputs, self.tokenizer, length_params, sampling_params, task_ids=task_ids
+                self.cuda(),
+                processed_inputs,
+                self.tokenizer,
+                length_params,
+                sampling_params,
+                task_ids=task_ids,
             )
 
     @classmethod
@@ -850,7 +988,9 @@ def get_pseudo_tokens(num_virtual_tokens):
 
     """
     pseudo_tokens = [
-        VirtualPromptPlaceholderToken.BASE.value + str(i) + VirtualPromptPlaceholderToken.END.value
+        VirtualPromptPlaceholderToken.BASE.value
+        + str(i)
+        + VirtualPromptPlaceholderToken.END.value
         for i in range(num_virtual_tokens)
     ]
 

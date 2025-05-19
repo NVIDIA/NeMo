@@ -40,7 +40,9 @@ class TestBertEmbedding:
         assert model_config.config.__fn_or_cls__ == BertEmbeddingLargeConfig
 
     def test_bert_embedding_model_invalid_version(self):
-        with pytest.raises(AssertionError, match="Invalid BERT version: invalid_version"):
+        with pytest.raises(
+            AssertionError, match="Invalid BERT version: invalid_version"
+        ):
             bert_embedding.bert_embedding_model("invalid_version")
 
     def test_bert_trainer_default_settings(self):

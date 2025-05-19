@@ -37,30 +37,43 @@ def main(cfg) -> None:
     trainer = MegatronLMPPTrainerBuilder(cfg).create_trainer()
 
     if cfg.model.peft.restore_from_path:
-        model_cfg = MegatronMambaSFTModel.merge_inference_cfg(cfg.model.peft.restore_from_path, cfg)
+        model_cfg = MegatronMambaSFTModel.merge_inference_cfg(
+            cfg.model.peft.restore_from_path, cfg
+        )
     else:
-        model_cfg = MegatronMambaSFTModel.merge_inference_cfg(cfg.model.restore_from_path, cfg)
+        model_cfg = MegatronMambaSFTModel.merge_inference_cfg(
+            cfg.model.restore_from_path, cfg
+        )
 
-    model = MegatronMambaSFTModel.restore_from(cfg.model.restore_from_path, model_cfg, trainer=trainer)
+    model = MegatronMambaSFTModel.restore_from(
+        cfg.model.restore_from_path, model_cfg, trainer=trainer
+    )
 
     if cfg.model.peft.restore_from_path:
         model.load_adapters(cfg.model.peft.restore_from_path)
-    elif cfg.model.peft.restore_from_ckpt.checkpoint_dir and cfg.model.peft.restore_from_ckpt.checkpoint_name:
+    elif (
+        cfg.model.peft.restore_from_ckpt.checkpoint_dir
+        and cfg.model.peft.restore_from_ckpt.checkpoint_name
+    ):
         peft_cfg_cls = PEFT_CONFIG_MAP[cfg.model.peft.peft_scheme]
         checkpoint_path = os.path.join(
-            cfg.model.peft.restore_from_ckpt.checkpoint_dir, cfg.model.peft.restore_from_ckpt.checkpoint_name
+            cfg.model.peft.restore_from_ckpt.checkpoint_dir,
+            cfg.model.peft.restore_from_ckpt.checkpoint_name,
         )
         # checkpoint_path is a dir in case of distributed checkpointing
         if not os.path.isdir(checkpoint_path):
             # legacy checkpoint needs model parallel rank injection
             checkpoint_path = inject_model_parallel_rank(
                 os.path.join(
-                    cfg.model.peft.restore_from_ckpt.checkpoint_dir, cfg.model.peft.restore_from_ckpt.checkpoint_name
+                    cfg.model.peft.restore_from_ckpt.checkpoint_dir,
+                    cfg.model.peft.restore_from_ckpt.checkpoint_name,
                 )
             )
             model.load_adapters(checkpoint_path, peft_cfgs=peft_cfg_cls(model_cfg))
         else:
-            raise NotImplementedError("distributed checkpointing of PEFT weights is not supported")
+            raise NotImplementedError(
+                "distributed checkpointing of PEFT weights is not supported"
+            )
 
     model.freeze()
     logging.info(f"Freezing parameters for PEFT eval:\n{model.summarize()}")

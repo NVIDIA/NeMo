@@ -65,7 +65,9 @@ class MegatronBaseHiddenTransform(torch.nn.Module):
         """Validate inputs"""
         # validate inputs
         if not set(self.input_names).issubset(set(inputs.keys())):
-            raise ValueError(f"Inputs should contain {self.input_names}, but got {inputs.keys()}")
+            raise ValueError(
+                f"Inputs should contain {self.input_names}, but got {inputs.keys()}"
+            )
 
     def _transform(self, inputs, batch_data=None):
         """
@@ -140,7 +142,7 @@ class MegatronGaussianHiddenTransform(MegatronBaseHiddenTransform):
 
         inputs:
             hiddens: accepts a tensor of shape [S x B x H]
-        
+
         outputs:
             z: a sample from Gaussian a tensor of shape [S x B x H]
             z_mean: mean of Gaussian a tensor of shape [S x B x H]
@@ -168,7 +170,9 @@ class MegatronGaussianHiddenTransform(MegatronBaseHiddenTransform):
 
         if z_log_prob is None:
             # compute log probability of z under a diagonal Gaussian distribution
-            z_log_prob = -0.5 * (math.log(2 * math.pi) + z_logvar + (z - z_mean).pow(2) / z_logvar.exp())
+            z_log_prob = -0.5 * (
+                math.log(2 * math.pi) + z_logvar + (z - z_mean).pow(2) / z_logvar.exp()
+            )
             # sum over the last dimension (hidden_size)
             z_log_prob = z_log_prob.sum(dim=-1)
 

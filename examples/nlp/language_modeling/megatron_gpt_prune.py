@@ -97,7 +97,9 @@ python examples/nlp/language_modeling/megatron_gpt_prune.py \
 """
 
 
-def get_calib_data_iter(data="wikitext", batch_size=1, calib_size=1024, max_sequence_length=512):
+def get_calib_data_iter(
+    data="wikitext", batch_size=1, calib_size=1024, max_sequence_length=512
+):
     """Get a data iterator for calibration."""
     if data == "wikitext":
         dataset = load_dataset("wikitext", "wikitext-103-v1", split="train")
@@ -127,7 +129,9 @@ def main(cfg) -> None:
 
     trainer = Trainer(strategy=NLPDDPStrategy(), **cfg.trainer)
     model = MegatronGPTModel.restore_from(
-        restore_path=cfg.model.restore_from_path, override_config_path=model_cfg, trainer=trainer
+        restore_path=cfg.model.restore_from_path,
+        override_config_path=model_cfg,
+        trainer=trainer,
     )
 
     def forward_loop(model):
@@ -157,12 +161,16 @@ def main(cfg) -> None:
         if cfg.prune.get(k) is not None
     }
 
-    drop_layers = OmegaConf.to_object(cfg.prune.drop_layers)  # convert to native python list
+    drop_layers = OmegaConf.to_object(
+        cfg.prune.drop_layers
+    )  # convert to native python list
     if drop_layers:
         assert (
             not export_config
         ), f"Cannot specify `prune.drop_layers` with other prune constraints. Recieved: {cfg.prune}"
-        mtp.plugins.megatron.drop_mcore_gpt_layers(model.model, layers_to_drop=drop_layers)
+        mtp.plugins.megatron.drop_mcore_gpt_layers(
+            model.model, layers_to_drop=drop_layers
+        )
         setattr(model.cfg, "num_layers", model.model.config.num_layers)
     else:
         assert (

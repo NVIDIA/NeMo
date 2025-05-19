@@ -119,7 +119,11 @@ def speech_to_text_llm_data_step(dataloader_iter) -> Dict[str, Any]:
         required_keys.update(("labels", "loss_mask"))
 
     _batch = {
-        key: move_data_to_device(val, "cuda", non_blocking=True) if key in required_keys and val is not None else None
+        key: (
+            move_data_to_device(val, "cuda", non_blocking=True)
+            if key in required_keys and val is not None
+            else None
+        )
         for key, val in _batch.items()
     }
 
@@ -136,7 +140,9 @@ def speech_to_text_llm_data_step(dataloader_iter) -> Dict[str, Any]:
     return _batch
 
 
-def speech_to_text_llm_forward_step(model: pl.LightningModule, batch: Dict[str, Any]) -> torch.Tensor:
+def speech_to_text_llm_forward_step(
+    model: pl.LightningModule, batch: Dict[str, Any]
+) -> torch.Tensor:
     forward_args = {
         "input_ids": batch.get("tokens", None),
         "input_length": batch.get("tokens_length", None),
@@ -152,8 +158,8 @@ def speech_to_text_llm_forward_step(model: pl.LightningModule, batch: Dict[str, 
         "inference_params": batch.get("inference_params", None),
     }
 
-    if 'cu_seqlens' in batch:
-        forward_args['packed_seq_params'] = get_packed_seq_params(batch)
+    if "cu_seqlens" in batch:
+        forward_args["packed_seq_params"] = get_packed_seq_params(batch)
 
     return model(**forward_args)
 
@@ -172,7 +178,7 @@ class SpeechToTextLLMConfig(TransformerConfig, io.IOMixin):
     modality_adapter_config: Optional[ModalityAdapterConfig] = None
 
     language_model_from_pretrained: Optional[str] = None
-    language_model_hub: Optional[str] = 'hf://'
+    language_model_hub: Optional[str] = "hf://"
 
     freeze_language_model: bool = True
     freeze_speech_model: bool = True
@@ -181,7 +187,9 @@ class SpeechToTextLLMConfig(TransformerConfig, io.IOMixin):
     forward_step_fn: Callable = speech_to_text_llm_forward_step
     data_step_fn: Callable = speech_to_text_llm_data_step
 
-    text_generation_strategy: SpeechToTextGenerationStrategy = SpeechToTextGenerationStrategy
+    text_generation_strategy: SpeechToTextGenerationStrategy = (
+        SpeechToTextGenerationStrategy
+    )
 
     inference_config: Optional[Dict[str, Any]] = None
 
@@ -200,7 +208,9 @@ class SpeechToTextLLMConfig(TransformerConfig, io.IOMixin):
         if not self.language_model_from_pretrained:
             return model
 
-        logging.info(f"Loading language model weights from {self.language_model_from_pretrained}")
+        logging.info(
+            f"Loading language model weights from {self.language_model_from_pretrained}"
+        )
 
         ckpt_path = self.language_model_from_pretrained
 
@@ -214,9 +224,13 @@ class SpeechToTextLLMConfig(TransformerConfig, io.IOMixin):
         # Sleep to avoid racing condition when multiple GPUs try to import the same checkpoint
         time.sleep(rank / 2)
 
-        llm_model_cls = model_utils.import_class_by_path(self.language_model_class)  # type: GPTModel
+        llm_model_cls = model_utils.import_class_by_path(
+            self.language_model_class
+        )  # type: GPTModel
         ckpt_path = import_ckpt(
-            llm_model_cls(self.language_model_config), f"{self.language_model_hub}{ckpt_path}", on_import_ckpt=False
+            llm_model_cls(self.language_model_config),
+            f"{self.language_model_hub}{ckpt_path}",
+            on_import_ckpt=False,
         )
 
         sharded_state_dict = dict(state_dict=model.sharded_state_dict(prefix="module."))
@@ -226,9 +240,14 @@ class SpeechToTextLLMConfig(TransformerConfig, io.IOMixin):
             checkpoint_dir=ckpt_to_weights_subdir(ckpt_path, is_saving=False),
             validate_access_integrity=False,
         )
-        loaded_state_dict = {k.removeprefix("module."): v for k, v in loaded_state_dict["state_dict"].items()}
+        loaded_state_dict = {
+            k.removeprefix("module."): v
+            for k, v in loaded_state_dict["state_dict"].items()
+        }
         model.load_state_dict(loaded_state_dict)
-        logging.info(f"Restored language model weights from {self.language_model_from_pretrained}")
+        logging.info(
+            f"Restored language model weights from {self.language_model_from_pretrained}"
+        )
         return model
 
     def _maybe_load_asr_and_modality_adapter(
@@ -237,18 +256,32 @@ class SpeechToTextLLMConfig(TransformerConfig, io.IOMixin):
         if self.resume_speech_model_from_path:
             logging.info(f"Loading speech model weights from {self.resume_from_path}")
             state_dict, _ = load_distributed_ckpt(self.resume_from_path)
-            prefix = 'module.speech_model.'
-            speech_state_dict = {k[len(prefix) :]: v for k, v in state_dict.items() if k.startswith(prefix)}
+            prefix = "module.speech_model."
+            speech_state_dict = {
+                k[len(prefix) :]: v
+                for k, v in state_dict.items()
+                if k.startswith(prefix)
+            }
             asr_model.load_state_dict(speech_state_dict, strict=True)
             logging.info(f"Restored speech model weights from {self.resume_from_path}")
 
         if self.resume_modality_adapter_from_path:
-            logging.info(f"Loading modality adapter weights from {self.resume_modality_adapter_from_path}")
-            state_dict, _ = load_distributed_ckpt(self.resume_modality_adapter_from_path)
-            prefix = 'module.modality_adapter.'
-            modality_adapter_state_dict = {k[len(prefix) :]: v for k, v in state_dict.items() if k.startswith(prefix)}
+            logging.info(
+                f"Loading modality adapter weights from {self.resume_modality_adapter_from_path}"
+            )
+            state_dict, _ = load_distributed_ckpt(
+                self.resume_modality_adapter_from_path
+            )
+            prefix = "module.modality_adapter."
+            modality_adapter_state_dict = {
+                k[len(prefix) :]: v
+                for k, v in state_dict.items()
+                if k.startswith(prefix)
+            }
             modality_adapter.load_state_dict(modality_adapter_state_dict, strict=True)
-            logging.info(f"Restored modality adapter weights from {self.resume_modality_adapter_from_path}")
+            logging.info(
+                f"Restored modality adapter weights from {self.resume_modality_adapter_from_path}"
+            )
 
         return asr_model, modality_adapter
 
@@ -257,50 +290,76 @@ class SpeechToTextLLMConfig(TransformerConfig, io.IOMixin):
         propagate key attributes to the language/speech model config
         """
         # LLM
-        self.language_model_config.tensor_model_parallel_size = self.tensor_model_parallel_size
+        self.language_model_config.tensor_model_parallel_size = (
+            self.tensor_model_parallel_size
+        )
         self.language_model_config.sequence_parallel = self.sequence_parallel
-        self.language_model_config.pipeline_model_parallel_size = self.pipeline_model_parallel_size
+        self.language_model_config.pipeline_model_parallel_size = (
+            self.pipeline_model_parallel_size
+        )
         self.language_model_config.context_parallel_size = self.context_parallel_size
 
         # ASR
-        self.speech_model_config.tensor_model_parallel_size = self.tensor_model_parallel_size
+        self.speech_model_config.tensor_model_parallel_size = (
+            self.tensor_model_parallel_size
+        )
         self.speech_model_config.sequence_parallel = self.sequence_parallel
-        self.speech_model_config.pipeline_model_parallel_size = self.pipeline_model_parallel_size
+        self.speech_model_config.pipeline_model_parallel_size = (
+            self.pipeline_model_parallel_size
+        )
         self.speech_model_config.context_parallel_size = self.context_parallel_size
 
         # modality adapter
-        self.modality_adapter_config.tensor_model_parallel_size = self.tensor_model_parallel_size
+        self.modality_adapter_config.tensor_model_parallel_size = (
+            self.tensor_model_parallel_size
+        )
         self.modality_adapter_config.sequence_parallel = self.sequence_parallel
-        self.modality_adapter_config.pipeline_model_parallel_size = self.pipeline_model_parallel_size
+        self.modality_adapter_config.pipeline_model_parallel_size = (
+            self.pipeline_model_parallel_size
+        )
         self.modality_adapter_config.context_parallel_size = self.context_parallel_size
 
     def configure_model(
         self, tokenizer: TokenizerSpec, speech_model: Optional[ASRModel] = None
     ) -> "MCoreSpeechToTextLLM":
         self._propagate_model_configs()
-        language_model = self.language_model_config.configure_model(tokenizer=tokenizer)  # type: "MCoreGPTModel"
+        language_model = self.language_model_config.configure_model(
+            tokenizer=tokenizer
+        )  # type: "MCoreGPTModel"
         language_model = self._maybe_load_pretrained_llm(language_model)
 
         if speech_model is None:
             # propagate key attributes to the speech model config
-            speech_model = self.speech_model_config.configure_model()  # type: MCoreASRModel
+            speech_model = (
+                self.speech_model_config.configure_model()
+            )  # type: MCoreASRModel
         speech_model.set_input_tensor = MethodType(set_input_tensor, speech_model)
 
         self.modality_adapter_config.output_dim = self.language_model_config.hidden_size
         input_key = self.modality_adapter_config.input_key_from
         if input_key:
             if hasattr(self.speech_model_config.config, input_key):
-                self.modality_adapter_config.input_dim = getattr(self.speech_model_config.config, input_key)
+                self.modality_adapter_config.input_dim = getattr(
+                    self.speech_model_config.config, input_key
+                )
             else:
                 if isinstance(speech_model.encoder, HFWrappedEncoder):
-                    self.modality_adapter_config.input_dim = get_nested_attr(speech_model.encoder.encoder, input_key)
+                    self.modality_adapter_config.input_dim = get_nested_attr(
+                        speech_model.encoder.encoder, input_key
+                    )
                 else:
-                    self.modality_adapter_config.input_dim = get_nested_attr(speech_model.encoder, input_key)
+                    self.modality_adapter_config.input_dim = get_nested_attr(
+                        speech_model.encoder, input_key
+                    )
 
         modality_adapter = self.modality_adapter_config.configure_model()
-        modality_adapter.set_input_tensor = MethodType(set_input_tensor, modality_adapter)
+        modality_adapter.set_input_tensor = MethodType(
+            set_input_tensor, modality_adapter
+        )
 
-        speech_model, modality_adapter = self._maybe_load_asr_and_modality_adapter(speech_model, modality_adapter)
+        speech_model, modality_adapter = self._maybe_load_asr_and_modality_adapter(
+            speech_model, modality_adapter
+        )
         model = MCoreSpeechToTextLLM(
             config=self,
             language_model=language_model,
@@ -336,7 +395,9 @@ class MCoreSpeechToTextLLM(MegatronModule, fn.FNMixin):
         self.model_type = ModelType.encoder_or_decoder
         # This attribute is needed to check if an all-reduce is required
         # on the word embeddings inside `finalize_model_grads._allreduce_word_embedding_grads`.
-        self.share_embeddings_and_output_weights = self.language_model.share_embeddings_and_output_weights
+        self.share_embeddings_and_output_weights = (
+            self.language_model.share_embeddings_and_output_weights
+        )
         self._language_max_sequence_length = self.language_model.max_sequence_length
 
     def set_input_tensor(self, input_tensor: torch.Tensor) -> None:
@@ -360,9 +421,9 @@ class MCoreSpeechToTextLLM(MegatronModule, fn.FNMixin):
         # Create causal attention mask for whole input
         batch_size = encoder_input.shape[0]
         max_len = encoder_input.shape[1]
-        attention_mask = torch.tril(torch.ones((batch_size, max_len, max_len), device=encoder_input.device)).view(
-            batch_size, 1, max_len, max_len
-        )
+        attention_mask = torch.tril(
+            torch.ones((batch_size, max_len, max_len), device=encoder_input.device)
+        ).view(batch_size, 1, max_len, max_len)
         # Convert attention mask from float to bool
         attention_mask = attention_mask < 0.5
         # [batch, 1, seq_len, seq_len]
@@ -376,7 +437,10 @@ class MCoreSpeechToTextLLM(MegatronModule, fn.FNMixin):
             new_len = emb1_len + emb2_len
             new_emb = torch.concat([emb1[:emb1_len], emb2[:emb2_len]], axis=0)
             padded_new_emb = torch.zeros(
-                emb1.shape[0] + emb2.shape[0], emb1.shape[-1], device=emb1.device, dtype=emb1.dtype
+                emb1.shape[0] + emb2.shape[0],
+                emb1.shape[-1],
+                device=emb1.device,
+                dtype=emb1.dtype,
             )
             padded_new_emb[:new_len, ...] = new_emb
             concat_emb.append(padded_new_emb)
@@ -404,20 +468,28 @@ class MCoreSpeechToTextLLM(MegatronModule, fn.FNMixin):
             start_idx_list_i = context_start_idx[i] + [
                 input_embeds.size(1)
             ]  # use input_embeds instead of input_length to handle tokens_to_generate in inference
-            input_len_list = [start_idx_list_i[j + 1] - start_idx_list_i[j] for j in range(len(start_idx_list_i) - 1)]
+            input_len_list = [
+                start_idx_list_i[j + 1] - start_idx_list_i[j]
+                for j in range(len(start_idx_list_i) - 1)
+            ]
             input_emb_list = input_embeds[i].split(input_len_list)
             encoder_input_i = [input_emb_list[0]]
             for j in range(1, len(input_emb_list)):
                 encoder_input_i.append(encoded[i][j - 1][: encoded_len[i][j - 1]])
                 encoder_input_i.append(input_emb_list[j])
             encoder_input_i = torch.cat(encoder_input_i)  # T, C
-            encoder_length_i = encoded_len[i].sum() + input_length[i]  # total length of audio and text features
+            encoder_length_i = (
+                encoded_len[i].sum() + input_length[i]
+            )  # total length of audio and text features
             max_length = max(max_length, encoder_input_i.size(0))
             encoder_input_list.append(encoder_input_i)
             encoder_length_list.append(encoder_length_i)
 
         encoder_input = torch.stack(
-            [torch.nn.functional.pad(f, (0, 0, 0, max_length - f.size(0))) for f in encoder_input_list]
+            [
+                torch.nn.functional.pad(f, (0, 0, 0, max_length - f.size(0)))
+                for f in encoder_input_list
+            ]
         )
         encoder_length = torch.LongTensor(encoder_length_list).to(encoder_input.device)
         return encoder_input, encoder_length
@@ -466,7 +538,7 @@ class MCoreSpeechToTextLLM(MegatronModule, fn.FNMixin):
         # Add position embeddings
         if (
             getattr(lm_embedding, "position_embeddings", None) is not None
-            and lm_embedding.position_embedding_type == 'learned_absolute'
+            and lm_embedding.position_embedding_type == "learned_absolute"
         ):
             position_embeddings = lm_embedding.position_embeddings(position_ids)
             combined_embed = combined_embed + position_embeddings
@@ -481,7 +553,9 @@ class MCoreSpeechToTextLLM(MegatronModule, fn.FNMixin):
 
         # Dropout.
         if lm_embedding.config.sequence_parallel:
-            combined_embed = tensor_parallel.scatter_to_sequence_parallel_region(combined_embed)
+            combined_embed = tensor_parallel.scatter_to_sequence_parallel_region(
+                combined_embed
+            )
             # `scatter_to_sequence_parallel_region` returns a view, which prevents
             # the original tensor from being garbage collected. Clone to facilitate GC.
             # Has a small runtime cost (~0.5%).
@@ -491,13 +565,23 @@ class MCoreSpeechToTextLLM(MegatronModule, fn.FNMixin):
                 combined_embed = lm_embedding.embedding_dropout(combined_embed)
         else:
             combined_embed = lm_embedding.embedding_dropout(combined_embed)
-        return combined_embed, attention_mask, combined_embed_length, position_ids, encoder_max_length
+        return (
+            combined_embed,
+            attention_mask,
+            combined_embed_length,
+            position_ids,
+            encoder_max_length,
+        )
 
-    def _shift_labels_by_emb_len(self, labels, label_lens, emb_lens, max_len, pad_token=0):
+    def _shift_labels_by_emb_len(
+        self, labels, label_lens, emb_lens, max_len, pad_token=0
+    ):
         """Shift labels to the right by the length of the audio embeddings."""
         shifted_labels = []
         for label, label_len, emb_len in zip(labels, label_lens, emb_lens):
-            shifted_label = torch.full([max_len], pad_token, device=label.device, dtype=label.dtype)
+            shifted_label = torch.full(
+                [max_len], pad_token, device=label.device, dtype=label.dtype
+            )
             shifted_label[emb_len : emb_len + label_len] = label[:label_len]
             shifted_labels.append(shifted_label)
         shifted_labels = torch.stack(shifted_labels, dim=0)
@@ -506,8 +590,10 @@ class MCoreSpeechToTextLLM(MegatronModule, fn.FNMixin):
     def _get_text_embeddings(self, text_tokens, position_ids):
         """Get text embeddings for the input text tokens for inference decoding."""
         lm_embedding = self.language_model.embedding
-        text_embeddings = lm_embedding.word_embeddings(text_tokens)  # (batch_size, seq_len, hidden_size)
-        if hasattr(lm_embedding, 'position_embeddings'):
+        text_embeddings = lm_embedding.word_embeddings(
+            text_tokens
+        )  # (batch_size, seq_len, hidden_size)
+        if hasattr(lm_embedding, "position_embeddings"):
             position_embeddings = lm_embedding.position_embeddings(position_ids)
             text_embeddings = text_embeddings + position_embeddings
 
@@ -519,7 +605,9 @@ class MCoreSpeechToTextLLM(MegatronModule, fn.FNMixin):
 
         # Dropout.
         if lm_embedding.config.sequence_parallel:
-            text_embeddings = tensor_parallel.scatter_to_sequence_parallel_region(text_embeddings)
+            text_embeddings = tensor_parallel.scatter_to_sequence_parallel_region(
+                text_embeddings
+            )
             # `scatter_to_sequence_parallel_region` returns a view, which prevents
             # the original tensor from being garbage collected. Clone to facilitate GC.
             # Has a small runtime cost (~0.5%).
@@ -559,10 +647,16 @@ class MCoreSpeechToTextLLM(MegatronModule, fn.FNMixin):
             return attention_mask, decoder_input, labels, loss_masks
 
         shard_factor = 2 * cp_size  # 2x required by megatron context parallel
-        decoder_input = decoder_input.transpose(0, 1).contiguous()  # [t, b, h] -> [b, t, h]
-        decoder_input = pad_or_trim_to_max_length(decoder_input, max_length, 0, ceil_to=shard_factor)
+        decoder_input = decoder_input.transpose(
+            0, 1
+        ).contiguous()  # [t, b, h] -> [b, t, h]
+        decoder_input = pad_or_trim_to_max_length(
+            decoder_input, max_length, 0, ceil_to=shard_factor
+        )
         labels = pad_or_trim_to_max_length(labels, max_length, 0, ceil_to=shard_factor)
-        loss_masks = pad_or_trim_to_max_length(loss_masks, max_length, 0, ceil_to=shard_factor)
+        loss_masks = pad_or_trim_to_max_length(
+            loss_masks, max_length, 0, ceil_to=shard_factor
+        )
         attention_mask = self._create_attention_mask(decoder_input)
 
         batch = {
@@ -575,12 +669,20 @@ class MCoreSpeechToTextLLM(MegatronModule, fn.FNMixin):
         # Split the batch for context parallelism
         batch_cp = get_batch_on_this_cp_rank(batch)
         attention_mask_cp = batch_cp["attention_mask"]
-        decoder_input_cp = batch_cp["decoder_input"].transpose(0, 1).contiguous()  # [b, t, h] -> [t, b, h]
+        decoder_input_cp = (
+            batch_cp["decoder_input"].transpose(0, 1).contiguous()
+        )  # [b, t, h] -> [t, b, h]
         labels_cp = batch_cp["labels"]
         loss_masks_cp = batch_cp["loss_mask"]
         return attention_mask_cp, decoder_input_cp, labels_cp, loss_masks_cp
 
-    def perception(self, input_signal, input_signal_length, processed_signal, processed_signal_length):
+    def perception(
+        self,
+        input_signal,
+        input_signal_length,
+        processed_signal,
+        processed_signal_length,
+    ):
         encoded, encoded_len = self.speech_model(
             input_signal=input_signal,
             input_signal_length=input_signal_length,
@@ -619,8 +721,10 @@ class MCoreSpeechToTextLLM(MegatronModule, fn.FNMixin):
             encoded = encoded.split(num_audios.tolist())
             encoded_len = encoded_len.split(num_audios.tolist())
 
-        combined_embeddings, attention_mask, _, _, max_length = self.inject_perception_input(
-            encoded, encoded_len, input_ids, input_length, context_start_idx
+        combined_embeddings, attention_mask, _, _, max_length = (
+            self.inject_perception_input(
+                encoded, encoded_len, input_ids, input_length, context_start_idx
+            )
         )
 
         if num_audios is not None:
@@ -629,7 +733,9 @@ class MCoreSpeechToTextLLM(MegatronModule, fn.FNMixin):
 
         if labels is not None:
             # Shift labels to the right
-            final_labels = self._shift_labels_by_emb_len(labels, input_length, encoded_len, max_length, pad_token=0)
+            final_labels = self._shift_labels_by_emb_len(
+                labels, input_length, encoded_len, max_length, pad_token=0
+            )
         else:
             final_labels = None
 
@@ -641,8 +747,14 @@ class MCoreSpeechToTextLLM(MegatronModule, fn.FNMixin):
         else:
             final_loss_mask = None
 
-        attention_mask, combined_embeddings, final_labels, final_loss_mask = self._get_llm_input_for_context_parallel(
-            attention_mask, combined_embeddings, final_labels, final_loss_mask, max_length
+        attention_mask, combined_embeddings, final_labels, final_loss_mask = (
+            self._get_llm_input_for_context_parallel(
+                attention_mask,
+                combined_embeddings,
+                final_labels,
+                final_loss_mask,
+                max_length,
+            )
         )
         output = self.language_model(
             input_ids=None,
@@ -672,7 +784,9 @@ class SpeechToTextLLM(SpeechLanguageModel):
         super().__init__()
         self.config = config
         self.tokenizer = tokenizer
-        self.optim = optim or MegatronOptimizerModule(config=OptimizerConfig(lr=1e-4, use_distributed_optimizer=True))
+        self.optim = optim or MegatronOptimizerModule(
+            config=OptimizerConfig(lr=1e-4, use_distributed_optimizer=True)
+        )
         self.optim.connect(self)  # This will bind the `configure_optimizers` method
         self.model_transform = model_transform
         self._training_loss_reduction = None
@@ -682,7 +796,9 @@ class SpeechToTextLLM(SpeechLanguageModel):
 
     def configure_model(self) -> None:
         if not hasattr(self, "module"):
-            self.module = self.config.configure_model(self.tokenizer, self._speech_model)  # type: MCoreSpeechToTextLLM
+            self.module = self.config.configure_model(
+                self.tokenizer, self._speech_model
+            )  # type: MCoreSpeechToTextLLM
             self.module.language_model = self.module.language_model.to(self.device)
             self.module.speech_model = self.module.speech_model.to(self.device)
             self.module.modality_adapter = self.module.modality_adapter.to(self.device)
@@ -691,18 +807,34 @@ class SpeechToTextLLM(SpeechLanguageModel):
     def setup(self, stage: str):
         super().setup(stage)
         if hasattr(self.cfg.data, "validation_ds"):
-            self.val_metric, self.val_metric_name = self.setup_metric(self.cfg.data.validation_ds)
-            self.val_metric = torch.nn.ModuleList(self.val_metric) if self.val_metric is not None else None
+            self.val_metric, self.val_metric_name = self.setup_metric(
+                self.cfg.data.validation_ds
+            )
+            self.val_metric = (
+                torch.nn.ModuleList(self.val_metric)
+                if self.val_metric is not None
+                else None
+            )
             # Used other keys from metadata to calulate metrics
             if hasattr(self.cfg.data.validation_ds, "metric"):
-                self.val_metric_label_key = self.cfg.data.validation_ds.metric.get('label_key', 'labels')
+                self.val_metric_label_key = self.cfg.data.validation_ds.metric.get(
+                    "label_key", "labels"
+                )
 
         if hasattr(self.cfg.data, "test_ds"):
-            self.test_metric, self.test_metric_name = self.setup_metric(self.cfg.data.test_ds)
-            self.test_metric = torch.nn.ModuleList(self.test_metric) if self.test_metric is not None else None
+            self.test_metric, self.test_metric_name = self.setup_metric(
+                self.cfg.data.test_ds
+            )
+            self.test_metric = (
+                torch.nn.ModuleList(self.test_metric)
+                if self.test_metric is not None
+                else None
+            )
             # Used other keys from metadata to calulate metrics
             if hasattr(self.cfg.data.test_ds, "metric"):
-                self.test_metric_label_key = self.cfg.data.test_ds.metric.get('label_key', 'labels')
+                self.test_metric_label_key = self.cfg.data.test_ds.metric.get(
+                    "label_key", "labels"
+                )
 
         if self.get_inference_config() is None:
             self.set_inference_config(self.config.inference_config)
@@ -785,11 +917,20 @@ class SpeechToTextLLM(SpeechLanguageModel):
         trainable_params = []
         # must use state_dict() to include params like batchnorm running mean/var
         for name, param in self.state_dict().items():
-            if name.startswith("module.speech_model.") and not self.config.freeze_speech_model:
+            if (
+                name.startswith("module.speech_model.")
+                and not self.config.freeze_speech_model
+            ):
                 trainable_params.append((name, param))
-            elif name.startswith("module.modality_adapter.") and not self.config.freeze_modality_adapter:
+            elif (
+                name.startswith("module.modality_adapter.")
+                and not self.config.freeze_modality_adapter
+            ):
                 trainable_params.append((name, param))
-            elif name.startswith("module.language_model.") and not self.config.freeze_language_model:
+            elif (
+                name.startswith("module.language_model.")
+                and not self.config.freeze_language_model
+            ):
                 trainable_params.append((name, param))
             elif (
                 name.startswith("module.language_model.")
@@ -811,7 +952,7 @@ class SpeechToTextLLM(SpeechLanguageModel):
         return self.forward_step(batch)
 
     def validation_step(self, batch, batch_idx=None) -> torch.Tensor:
-        return self.inference_step(batch, mode='validation')
+        return self.inference_step(batch, mode="validation")
 
     @property
     def _metrics_require_string2category_map(self):
@@ -836,7 +977,7 @@ class SpeechToTextLLM(SpeechLanguageModel):
                         f"{data_cfg.metric.name} requires specifying whether you want to compute a micro or macro average. Found None."
                     )
             if (
-                data_cfg.metric.get('labels_are_strings', False)
+                data_cfg.metric.get("labels_are_strings", False)
                 and data_cfg.metric.name in self._metrics_require_string2category_map
             ):
                 if data_cfg.metric.num_classes is None:
@@ -844,14 +985,17 @@ class SpeechToTextLLM(SpeechLanguageModel):
                         "Number of classes is not provided in the metric section within the data config. "
                         f"Please provide the number of classes in the data config to use the {data_cfg.metric.name} metric."
                     )
-                if data_cfg.metric.get('class_labels', None) is None or not isinstance(
-                    data_cfg.metric.get('class_labels', None), ListConfig
+                if data_cfg.metric.get("class_labels", None) is None or not isinstance(
+                    data_cfg.metric.get("class_labels", None), ListConfig
                 ):
                     raise ValueError(
                         "Class labels are not provided properly in the metric section witnin the data config. "
                         f"Please provide the class labels as a list of strings in the data config to use the {data_cfg.metric.name} metric."
                     )
-                if len(data_cfg.metric.get('class_labels', None)) != data_cfg.metric.num_classes:
+                if (
+                    len(data_cfg.metric.get("class_labels", None))
+                    != data_cfg.metric.num_classes
+                ):
                     raise ValueError(
                         f"Number of class labels {len(data_cfg.metric.get('class_labels', None))} does not match `num_classes` : {data_cfg.metric.num_classes}"
                     )
@@ -871,54 +1015,80 @@ class SpeechToTextLLM(SpeechLanguageModel):
         batch_idx = batch.pop("batch_idx", None)
         dataloader_idx = batch.pop("dataloader_idx", None)
 
-        data_cfg = self.cfg.data.validation_ds if mode == 'validation' else self.cfg.data.test_ds
+        data_cfg = (
+            self.cfg.data.validation_ds
+            if mode == "validation"
+            else self.cfg.data.test_ds
+        )
 
         self._reconfigure_and_process_inference_batch(batch, data_cfg)
         # Meta data from dataset
-        metadata = batch.get('metadata', [{}] * len(batch['tokens']))
+        metadata = batch.get("metadata", [{}] * len(batch["tokens"]))
         forward_output = self.forward_step(batch)
 
         if isinstance(forward_output, tuple):
             # reduce validation loss
-            loss = self.validation_loss_reduction.forward(batch=batch, forward_out=forward_output)[-1]
+            loss = self.validation_loss_reduction.forward(
+                batch=batch, forward_out=forward_output
+            )[-1]
             loss = self.validation_loss_reduction.reduce([loss])
         else:
             # no labels provided, use a dummy loss value
             loss = 0.0
 
-        metric_name = self.val_metric_name if mode == 'validation' else self.test_metric_name
+        metric_name = (
+            self.val_metric_name if mode == "validation" else self.test_metric_name
+        )
         preds_text = []
         labels_text = []
         inputs_text = []
         if metric_name != "loss":
             # We need _inference_config to get generation params, tokens_to_generate are set in dataset
             if self.get_inference_config() is None:
-                logging.warning(f'inference_config is not set. Use default: {default_inference_config}')
+                logging.warning(
+                    f"inference_config is not set. Use default: {default_inference_config}"
+                )
                 self.set_inference_config(inference_config=default_inference_config)
-            self._inference_config['tokens_to_generate'] = data_cfg.get('tokens_to_generate')
+            self._inference_config["tokens_to_generate"] = data_cfg.get(
+                "tokens_to_generate"
+            )
 
             output = self.predict_step(batch, batch_idx, dataloader_idx)
 
-            inputs_text = [self.tokenizer.ids_to_text(c.tolist()) for c in batch['contexts']]
-            labels_text = [self.tokenizer.ids_to_text(a.tolist()) for a in batch['answers']]
+            inputs_text = [
+                self.tokenizer.ids_to_text(c.tolist()) for c in batch["contexts"]
+            ]
+            labels_text = [
+                self.tokenizer.ids_to_text(a.tolist()) for a in batch["answers"]
+            ]
             preds_text = [
-                self.tokenizer.ids_to_text(t[l.item() :][: data_cfg.get('tokens_to_generate')])
-                for t, l in zip(output['token_ids'], batch['context_lengths'])
+                self.tokenizer.ids_to_text(
+                    t[l.item() :][: data_cfg.get("tokens_to_generate")]
+                )
+                for t, l in zip(output["token_ids"], batch["context_lengths"])
             ]
 
             if data_cfg.get("end_string", None):
                 # sometimes data_cfg.end_string != self.tokenizer.ids_to_text(self.tokenizer.text_to_ids(data_cfg.end_string))
                 # for example when data_cfg.end_string = "<end>", the end_string_re will start with " ?? "
-                preds_text = clean_end_string(preds_text, self.tokenizer, data_cfg.end_string)
-                labels_text = clean_end_string(labels_text, self.tokenizer, data_cfg.end_string)
+                preds_text = clean_end_string(
+                    preds_text, self.tokenizer, data_cfg.end_string
+                )
+                labels_text = clean_end_string(
+                    labels_text, self.tokenizer, data_cfg.end_string
+                )
 
             if data_cfg.get("remove_text_pc", False):
                 preds_text = [
-                    remove_punctuations(pred_text.lower(), data_cfg.get("punctuations", None))
+                    remove_punctuations(
+                        pred_text.lower(), data_cfg.get("punctuations", None)
+                    )
                     for pred_text in preds_text
                 ]
                 labels_text = [
-                    remove_punctuations(label_text.lower(), data_cfg.get("punctuations", None))
+                    remove_punctuations(
+                        label_text.lower(), data_cfg.get("punctuations", None)
+                    )
                     for label_text in labels_text
                 ]
 
@@ -929,14 +1099,14 @@ class SpeechToTextLLM(SpeechLanguageModel):
                     logging.info(f"Pred: `{preds_text[0]}`")
 
         outputs = {
-            'loss': loss,
-            'preds': preds_text,  # [str]
-            'labels': labels_text,  # [str]
-            'inputs': inputs_text,  # [str]
-            'metadata': metadata,  # [dict]
+            "loss": loss,
+            "preds": preds_text,  # [str]
+            "labels": labels_text,  # [str]
+            "inputs": inputs_text,  # [str]
+            "metadata": metadata,  # [dict]
         }
 
-        if mode == 'validation':
+        if mode == "validation":
             if self._num_validation_dl > 1:
                 self.validation_step_outputs[dataloader_idx].append(outputs)
             else:
@@ -951,7 +1121,9 @@ class SpeechToTextLLM(SpeechLanguageModel):
     def get_inference_strategy(self):
         return self.config.text_generation_strategy(self.module)
 
-    def predict_step(self, batch: dict, batch_idx: int, dataloader_idx: Optional[int] = None):
+    def predict_step(
+        self, batch: dict, batch_idx: int, dataloader_idx: Optional[int] = None
+    ):
         """
         Used to get LLM predictions for validation and test steps based on the given inference config.
         """
@@ -961,44 +1133,46 @@ class SpeechToTextLLM(SpeechLanguageModel):
             inference_config = inference_config.copy()
         else:
             self.set_inference_config(inference_config=default_inference_config)
-            logging.warning(f'inference_config is not set. Use default: {default_inference_config}')
+            logging.warning(
+                f"inference_config is not set. Use default: {default_inference_config}"
+            )
             inference_config = self.get_inference_config()
 
-        if self.cfg.data.get('end_string', None):
-            inference_config['end_strings'] = [self.cfg.data.end_string]
+        if self.cfg.data.get("end_string", None):
+            inference_config["end_strings"] = [self.cfg.data.end_string]
 
-        inference_config['strategy'] = self.get_inference_strategy()
+        inference_config["strategy"] = self.get_inference_strategy()
 
-        global_batch_size_per_gpu = batch['tokens'].size(0)
+        global_batch_size_per_gpu = batch["tokens"].size(0)
         num_micro_batches_before_decode = get_num_microbatches()
 
-        compute_logprob = inference_config.get('compute_logprob', False)
+        compute_logprob = inference_config.get("compute_logprob", False)
 
         if compute_logprob:
-            inference_config['inputs'] = batch
-            inference_config['tokens_to_generate'] = 1
-            inference_config['all_probs'] = True
-            inference_config['greedy'] = True
+            inference_config["inputs"] = batch
+            inference_config["tokens_to_generate"] = 1
+            inference_config["all_probs"] = True
+            inference_config["greedy"] = True
             response = generate(self, **inference_config)
             response = get_computeprob_response(self.tokenizer, response, batch)
         else:
             if isinstance(batch, list):
-                inference_config['inputs'] = batch
-            elif 'num_audios' in batch:
-                inference_config['inputs'] = (
-                    batch['contexts'].cuda(),
-                    batch['context_lengths'].cuda(),
-                    batch['audio_signal'].cuda(),
-                    batch['audio_signal_length'].cuda(),
-                    batch['num_audios'].cuda(),
-                    batch['context_start_idx'],
+                inference_config["inputs"] = batch
+            elif "num_audios" in batch:
+                inference_config["inputs"] = (
+                    batch["contexts"].cuda(),
+                    batch["context_lengths"].cuda(),
+                    batch["audio_signal"].cuda(),
+                    batch["audio_signal_length"].cuda(),
+                    batch["num_audios"].cuda(),
+                    batch["context_start_idx"],
                 )
             else:
-                inference_config['inputs'] = (
-                    batch['contexts'].cuda(),
-                    batch['context_lengths'].cuda(),
-                    batch['audio_signal'].cuda(),
-                    batch['audio_signal_length'].cuda(),
+                inference_config["inputs"] = (
+                    batch["contexts"].cuda(),
+                    batch["context_lengths"].cuda(),
+                    batch["audio_signal"].cuda(),
+                    batch["audio_signal_length"].cuda(),
                 )
             response = generate(self, **inference_config)
 
@@ -1006,32 +1180,36 @@ class SpeechToTextLLM(SpeechLanguageModel):
         reconfigure_num_microbatches_calculator(
             rank=app_state.global_rank,
             rampup_batch_size=None,
-            global_batch_size=global_batch_size_per_gpu * parallel_state.get_data_parallel_world_size(),
-            micro_batch_size=global_batch_size_per_gpu // num_micro_batches_before_decode,
+            global_batch_size=global_batch_size_per_gpu
+            * parallel_state.get_data_parallel_world_size(),
+            micro_batch_size=global_batch_size_per_gpu
+            // num_micro_batches_before_decode,
             data_parallel_size=parallel_state.get_data_parallel_world_size(),
         )
 
         # add audio offsets to context lengths for properly decoding only the response
-        batch['context_lengths'] = batch['context_lengths'].cuda() + response['audio_feat_lens']
+        batch["context_lengths"] = (
+            batch["context_lengths"].cuda() + response["audio_feat_lens"]
+        )
 
         return response
 
     def _determine_log_key(self, dataloader_idx, metric_name, mode):
         # If the user provided names for each validation/test dataset, use those.
-        if mode == 'validation':
+        if mode == "validation":
             prefix = self.get_validation_dataloader_prefix(dataloader_idx)
-            if prefix.startswith('val_'):
+            if prefix.startswith("val_"):
                 # no user provided name, use the dataloader idx
-                log_key = f'val_{metric_name}_{dataloader_idx}'
+                log_key = f"val_{metric_name}_{dataloader_idx}"
             else:
-                log_key = f'val_{metric_name}_{prefix}'
+                log_key = f"val_{metric_name}_{prefix}"
         else:
-            prefix = self.get_test_dataloader_prefix(dataloader_idx).strip('test_')
-            if prefix.startswith('test_'):
+            prefix = self.get_test_dataloader_prefix(dataloader_idx).strip("test_")
+            if prefix.startswith("test_"):
                 # no user provided name, use the dataloader idx
-                log_key = f'test_{metric_name}_{dataloader_idx}'
+                log_key = f"test_{metric_name}_{dataloader_idx}"
             else:
-                log_key = f'test_{metric_name}_{prefix}'
+                log_key = f"test_{metric_name}_{prefix}"
         return log_key
 
     def inference_epoch_end(self, outputs, mode, data_cfg):
@@ -1050,7 +1228,7 @@ class SpeechToTextLLM(SpeechLanguageModel):
                 logging.warning(f"Empty output for dataloader_idx: {dataloader_idx}")
                 continue
             # Expand on_validation_epoch_end from parent class MegatronGPTModel as on_validation_epoch_end doesnt take outputs arg
-            loss_vals = [x['loss'].view(-1, 1) for x in output]  # each loss is [1, B]
+            loss_vals = [x["loss"].view(-1, 1) for x in output]  # each loss is [1, B]
             if parallel_state.is_pipeline_last_stage(ignore_virtual=False):
                 # only the last pipeline parallel stages return loss with their batch size
                 loss = torch.vstack(loss_vals).mean().type(torch.float32).cuda()
@@ -1065,35 +1243,55 @@ class SpeechToTextLLM(SpeechLanguageModel):
             self.log(loss_log_key, loss, batch_size=1)
             averaged_loss.append(loss)
 
-            metric_name = self.val_metric_name if mode == 'validation' else self.test_metric_name
-            if metric_name != 'loss':
-                self.gather_and_maybe_write_predictions(data_cfg, output, averaged_metric, mode, dataloader_idx)
+            metric_name = (
+                self.val_metric_name if mode == "validation" else self.test_metric_name
+            )
+            if metric_name != "loss":
+                self.gather_and_maybe_write_predictions(
+                    data_cfg, output, averaged_metric, mode, dataloader_idx
+                )
 
             torch.distributed.barrier(group=parallel_state.get_data_parallel_group())
             outputs[dataloader_idx].clear()  # free memory
 
         # Logging of the averaged metrics:
         averaged_loss = sum(averaged_loss) / len(averaged_loss)
-        averaged_metric = sum(averaged_metric) / len(averaged_metric) if len(averaged_metric) > 0 else None
+        averaged_metric = (
+            sum(averaged_metric) / len(averaged_metric)
+            if len(averaged_metric) > 0
+            else None
+        )
         averaged_loss = averaged_loss.to(self.device)
         if averaged_metric is not None:
             averaged_metric = averaged_metric.to(self.device)
 
         # Handle case where metrics can be nan or inf. This can break checkpoint save/load.
-        if averaged_metric is not None and (torch.isinf(averaged_metric) or torch.isnan(averaged_metric)):
+        if averaged_metric is not None and (
+            torch.isinf(averaged_metric) or torch.isnan(averaged_metric)
+        ):
             app_state = AppState()
             monitor_mode = app_state.checkpoint_callback_params.mode
-            assert monitor_mode in ['min', 'max']
-            averaged_metric = 0.0 if monitor_mode == 'max' else 1e5
+            assert monitor_mode in ["min", "max"]
+            averaged_metric = 0.0 if monitor_mode == "max" else 1e5
 
-        if mode == 'validation':
+        if mode == "validation":
             self.log("val_loss", averaged_loss, batch_size=1, sync_dist=True)
             if averaged_metric is not None:
-                self.log(f"val_{self.val_metric_name}", averaged_metric, sync_dist=True, batch_size=1)
-        elif mode == 'test':
+                self.log(
+                    f"val_{self.val_metric_name}",
+                    averaged_metric,
+                    sync_dist=True,
+                    batch_size=1,
+                )
+        elif mode == "test":
             self.log("test_loss", averaged_loss, batch_size=1, sync_dist=True)
             if averaged_metric is not None:
-                self.log(f"test_{self.test_metric_name}", averaged_metric, sync_dist=True, batch_size=1)
+                self.log(
+                    f"test_{self.test_metric_name}",
+                    averaged_metric,
+                    sync_dist=True,
+                    batch_size=1,
+                )
 
         # Merge the functionality of previous on_inference_epoch_end() within inference_epoch_end() func here
         app_state = AppState()
@@ -1108,7 +1306,9 @@ class SpeechToTextLLM(SpeechLanguageModel):
             )
         # When running `trainer.validate()`, the training dataset is not available.
         else:
-            logging.warning('No training data found, reconfiguring microbatches based on validation batch sizes.')
+            logging.warning(
+                "No training data found, reconfiguring microbatches based on validation batch sizes."
+            )
             reconfigure_num_microbatches_calculator(
                 rank=app_state.global_rank,
                 rampup_batch_size=None,
@@ -1118,13 +1318,22 @@ class SpeechToTextLLM(SpeechLanguageModel):
             )
         return averaged_loss, averaged_metric
 
-    def gather_and_maybe_write_predictions(self, data_cfg, output, averaged_metric, mode, dataloader_idx):
+    def gather_and_maybe_write_predictions(
+        self, data_cfg, output, averaged_metric, mode, dataloader_idx
+    ):
         # Gather the outputs object from all data parallel ranks since we are using the DistributedSampler which splits data across DDP ranks.
-        gathered_outputs = [None for _ in range(parallel_state.get_data_parallel_world_size())]
+        gathered_outputs = [
+            None for _ in range(parallel_state.get_data_parallel_world_size())
+        ]
         torch.distributed.all_gather_object(
             gathered_outputs,
             [
-                {'preds': x['preds'], 'labels': x['labels'], 'inputs': x['inputs'], 'metadata': x['metadata']}
+                {
+                    "preds": x["preds"],
+                    "labels": x["labels"],
+                    "inputs": x["inputs"],
+                    "metadata": x["metadata"],
+                }
                 for x in output
             ],
             group=parallel_state.get_data_parallel_group(),
@@ -1133,41 +1342,49 @@ class SpeechToTextLLM(SpeechLanguageModel):
         # Remove duplicate examples due to distributed sampler.
         inp_label_set = set()
         deduplicated_outputs = {
-            'preds': [],
-            'labels': [],
-            'inputs': [],
-            'metadata': [],
+            "preds": [],
+            "labels": [],
+            "inputs": [],
+            "metadata": [],
         }
         total_size = 0
         for rank in range(0, parallel_state.get_data_parallel_world_size()):
             for batch in gathered_outputs[rank]:
                 for pred, label, input, metadata in zip(
-                    batch['preds'], batch['labels'], batch['inputs'], batch['metadata']
+                    batch["preds"], batch["labels"], batch["inputs"], batch["metadata"]
                 ):
                     key = input + label + str(metadata)
                     total_size += 1
                     if key not in inp_label_set:
                         inp_label_set.add(key)
-                        deduplicated_outputs['preds'].append(pred)
-                        deduplicated_outputs['labels'].append(label)
-                        deduplicated_outputs['inputs'].append(input)
-                        deduplicated_outputs['metadata'].append(metadata)
+                        deduplicated_outputs["preds"].append(pred)
+                        deduplicated_outputs["labels"].append(label)
+                        deduplicated_outputs["inputs"].append(input)
+                        deduplicated_outputs["metadata"].append(metadata)
 
         # Compute metric score
-        metric_name = self.val_metric_name if mode == 'validation' else self.test_metric_name
-        metric_label_key = self.val_metric_label_key if mode == 'validation' else self.test_metric_label_key
-        if metric_name != 'loss':
+        metric_name = (
+            self.val_metric_name if mode == "validation" else self.test_metric_name
+        )
+        metric_label_key = (
+            self.val_metric_label_key
+            if mode == "validation"
+            else self.test_metric_label_key
+        )
+        if metric_name != "loss":
             metric_log_key = self._determine_log_key(dataloader_idx, metric_name, mode)
-            metric_fn = self.val_metric[0] if mode == 'validation' else self.test_metric[0]
-            if metric_label_key in deduplicated_outputs['metadata'][0]:
-                labels = [m[metric_label_key] for m in deduplicated_outputs['metadata']]
+            metric_fn = (
+                self.val_metric[0] if mode == "validation" else self.test_metric[0]
+            )
+            if metric_label_key in deduplicated_outputs["metadata"][0]:
+                labels = [m[metric_label_key] for m in deduplicated_outputs["metadata"]]
             else:
-                labels = deduplicated_outputs['labels']
+                labels = deduplicated_outputs["labels"]
 
             # Compute metrics
             # SacreBLEU does not share the same interface as other metrics. We handle it separately.
-            for pred, label in zip(deduplicated_outputs['preds'], labels):
-                if metric_name == 'bleu':
+            for pred, label in zip(deduplicated_outputs["preds"], labels):
+                if metric_name == "bleu":
                     _ = metric_fn([pred], [[label]])
                 else:
                     _ = metric_fn(pred, label)
@@ -1175,14 +1392,21 @@ class SpeechToTextLLM(SpeechLanguageModel):
             metric_result = metric_fn.compute()
 
             # log the metrics
-            if metric_name == 'rouge':
+            if metric_name == "rouge":
                 for k, v in metric_result.items():
-                    if 'fmeasure' in k:
-                        self.log(metric_log_key + f'_{k}', v.item(), sync_dist=True, batch_size=1)
+                    if "fmeasure" in k:
+                        self.log(
+                            metric_log_key + f"_{k}",
+                            v.item(),
+                            sync_dist=True,
+                            batch_size=1,
+                        )
                         logging.info(f"{metric_log_key}_{k}]: {v.item()}")
-                metric_result = metric_result['rouge1_fmeasure']
+                metric_result = metric_result["rouge1_fmeasure"]
             else:
-                self.log(metric_log_key, metric_result.item(), sync_dist=True, batch_size=1)
+                self.log(
+                    metric_log_key, metric_result.item(), sync_dist=True, batch_size=1
+                )
                 logging.info(f"{metric_log_key}: {metric_result.item()}")
 
             metric_fn.reset()
@@ -1195,9 +1419,13 @@ class SpeechToTextLLM(SpeechLanguageModel):
             )
 
             # Check if the user provided a prefix path to the file(s) they want to write.
-            filename_log_key = self._determine_log_key(dataloader_idx, metric_name, mode)
+            filename_log_key = self._determine_log_key(
+                dataloader_idx, metric_name, mode
+            )
             output_dir = data_cfg.get("output_dir", "./")
-            self.write_predictions_to_file(deduplicated_outputs, f"speechlm_pred_{filename_log_key}", output_dir)
+            self.write_predictions_to_file(
+                deduplicated_outputs, f"speechlm_pred_{filename_log_key}", output_dir
+            )
 
     # consistent with speech models
     @rank_zero_only
@@ -1207,35 +1435,46 @@ class SpeechToTextLLM(SpeechLanguageModel):
         output_file_path = os.path.join(output_dir, output_file_path)
         with open(output_file_path, "w") as f_json:
             assert (
-                len(outputs['inputs']) == len(outputs['preds']) == len(outputs['labels']) == len(outputs['metadata'])
+                len(outputs["inputs"])
+                == len(outputs["preds"])
+                == len(outputs["labels"])
+                == len(outputs["metadata"])
             )
-            for i, p, l, m in zip(outputs['inputs'], outputs['preds'], outputs['labels'], outputs['metadata']):
-                json_string = {'input': i, 'pred_text': p, 'text': l}
+            for i, p, l, m in zip(
+                outputs["inputs"],
+                outputs["preds"],
+                outputs["labels"],
+                outputs["metadata"],
+            ):
+                json_string = {"input": i, "pred_text": p, "text": l}
                 for k, v in m.items():
                     if k not in json_string:
                         json_string[k] = v
-                f_json.write(json.dumps(json_string) + '\n')
+                f_json.write(json.dumps(json_string) + "\n")
 
-        logging.info(f'Predictions saved to {output_file_path}')
+        logging.info(f"Predictions saved to {output_file_path}")
 
     # Override the parent batch reconfiguring logic.
     def _reconfigure_and_process_inference_batch(self, batch, data_cfg):
-        global_batch_size_per_gpu = batch['tokens'].size(0)
+        global_batch_size_per_gpu = batch["tokens"].size(0)
         # This should happen only on the last batch of the dataset.
         if (
             global_batch_size_per_gpu
-            != get_current_global_batch_size() // parallel_state.get_data_parallel_world_size()
+            != get_current_global_batch_size()
+            // parallel_state.get_data_parallel_world_size()
         ):
             # NOTE: This is reconfiguring to make sure there is no grad-acc for validation batches.
             if (
                 global_batch_size_per_gpu
-                != data_cfg.global_batch_size // parallel_state.get_data_parallel_world_size()
+                != data_cfg.global_batch_size
+                // parallel_state.get_data_parallel_world_size()
             ):
                 app_state = AppState()
                 reconfigure_num_microbatches_calculator(
                     rank=app_state.global_rank,
                     rampup_batch_size=None,
-                    global_batch_size=global_batch_size_per_gpu * parallel_state.get_data_parallel_world_size(),
+                    global_batch_size=global_batch_size_per_gpu
+                    * parallel_state.get_data_parallel_world_size(),
                     micro_batch_size=global_batch_size_per_gpu,
                     data_parallel_size=parallel_state.get_data_parallel_world_size(),
                 )
@@ -1251,10 +1490,14 @@ class SpeechToTextLLM(SpeechLanguageModel):
                 )
 
     def set_inference_config(self, inference_config: Optional[Dict] = None):
-        self._inference_config = dict(inference_config) if inference_config is not None else None
+        self._inference_config = (
+            dict(inference_config) if inference_config is not None else None
+        )
 
     def get_inference_config(self):
-        return dict(self._inference_config) if self._inference_config is not None else None
+        return (
+            dict(self._inference_config) if self._inference_config is not None else None
+        )
 
     def on_validation_epoch_start(self):
         # self._reset_activation_checkpointing_args()
@@ -1284,12 +1527,16 @@ class SpeechToTextLLM(SpeechLanguageModel):
         return self.on_test_epoch_start()
 
     def on_test_epoch_end(self):
-        _ = self.inference_epoch_end(self.test_step_outputs, 'test', self.cfg.data.test_ds)
+        _ = self.inference_epoch_end(
+            self.test_step_outputs, "test", self.cfg.data.test_ds
+        )
         # Commenting as on_test_epoch_end was a no-op in PTL 1.9
         # return super().on_test_epoch_end()
 
     def on_validation_epoch_end(self):
-        _ = self.inference_epoch_end(self.validation_step_outputs, 'validation', self.cfg.data.validation_ds)
+        _ = self.inference_epoch_end(
+            self.validation_step_outputs, "validation", self.cfg.data.validation_ds
+        )
         # Commenting as on_validation_epoch_end was a no-op in PTL 1.9
         # return super().on_validation_epoch_end()
 

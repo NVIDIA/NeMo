@@ -37,7 +37,9 @@ from nemo.utils import logging
 from nemo.utils.decorators import experimental
 from nemo.utils.distributed import webdataset_split_by_workers
 
-VALID_FILE_FORMATS = ';'.join(['wav', 'mp3', 'flac', 'opus'] + [fmt.lower() for fmt in valid_sf_formats.keys()])
+VALID_FILE_FORMATS = ";".join(
+    ["wav", "mp3", "flac", "opus"] + [fmt.lower() for fmt in valid_sf_formats.keys()]
+)
 
 
 @dataclass
@@ -102,7 +104,11 @@ def preprocess_manifest(
     samples = []
     sample_weights = []
     for entry in filtered_entries:
-        sample = DatasetSample(dataset_name=dataset_name, manifest_entry=entry, audio_dir=Path(dataset.audio_dir))
+        sample = DatasetSample(
+            dataset_name=dataset_name,
+            manifest_entry=entry,
+            audio_dir=Path(dataset.audio_dir),
+        )
         samples.append(sample)
         sample_weights.append(dataset.sample_weight)
 
@@ -171,7 +177,9 @@ class VocoderDataset(Dataset):
             self.data_samples += samples
             self.sample_weights += weights
 
-    def get_sampler(self, batch_size: int, world_size: int) -> Optional[torch.utils.data.Sampler]:
+    def get_sampler(
+        self, batch_size: int, world_size: int
+    ) -> Optional[torch.utils.data.Sampler]:
         if not self.weighted_sampling_steps_per_epoch:
             return None
 
@@ -335,7 +343,9 @@ class TarredVocoderDataset(IterableDataset):
 
         self.file_id_to_sample_map = {}
         for sample in self.data_samples:
-            file_id = os.path.splitext(os.path.basename(sample.manifest_entry["audio_filepath"]))[0]
+            file_id = os.path.splitext(
+                os.path.basename(sample.manifest_entry["audio_filepath"])
+            )[0]
             if file_id not in self.file_id_to_sample_map:
                 self.file_id_to_sample_map[file_id] = sample
             else:
@@ -356,8 +366,8 @@ class TarredVocoderDataset(IterableDataset):
             webdataset_split_by_workers,
             wds.shuffle(shuffle_n),
             wds.tarfile_to_samples(),
-            wds.rename(audio=VALID_FILE_FORMATS, key='__key__'),
-            wds.to_tuple('audio', 'key'),
+            wds.rename(audio=VALID_FILE_FORMATS, key="__key__"),
+            wds.to_tuple("audio", "key"),
             self._filter,
             wds.map(self._build_sample),
         )
@@ -385,12 +395,14 @@ class TarredVocoderDataset(IterableDataset):
         file_id = os.path.splitext(os.path.basename(audio_filename))[0]
         data = self.file_id_to_sample_map[file_id]
 
-        audio_array, sr = sf.read(file=io.BytesIO(audio_bytes), dtype='float32')
+        audio_array, sr = sf.read(file=io.BytesIO(audio_bytes), dtype="float32")
         if sr != self.sample_rate:
             logging.warning(
                 f"Sample rate of {sr} does not match target sample rate of {self.sample_rate}. Resampling audio."
             )
-            audio_array = librosa.core.resample(audio_array, orig_sr=sr, target_sr=self.sample_rate)
+            audio_array = librosa.core.resample(
+                audio_array, orig_sr=sr, target_sr=self.sample_rate
+            )
 
         audio_array = torch.from_numpy(audio_array)
         if self.n_samples:

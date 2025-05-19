@@ -56,10 +56,14 @@ class InternalDiarizeConfig:
 class DiarizeConfig:
     """Configuration parameters for diarization inference."""
 
-    session_len_sec: float = -1  # End-to-end diarization session length limit in seconds
+    session_len_sec: float = (
+        -1
+    )  # End-to-end diarization session length limit in seconds
     batch_size: int = 1
     num_workers: int = 1
-    postprocessing_yaml: Optional[str] = None  # Path to a yaml file for postprocessing configurations
+    postprocessing_yaml: Optional[str] = (
+        None  # Path to a yaml file for postprocessing configurations
+    )
     verbose: bool = True
     include_tensor_outputs: bool = False
     postprocessing_params: PostProcessingParams = None
@@ -146,7 +150,7 @@ class SpkDiarizationMixin(ABC):
                 **config_kwargs,
             )
         else:
-            if not hasattr(override_config, '_internal'):
+            if not hasattr(override_config, "_internal"):
                 raise ValueError(
                     "`diarize_cfg must have an `_internal` argument, which must be of an object of type "
                     "InternalDiarizeConfig or its subclass."
@@ -164,7 +168,8 @@ class SpkDiarizationMixin(ABC):
             # Check if internal config is valid
             if not isinstance(diarize_cfg._internal, InternalDiarizeConfig):
                 raise ValueError(
-                    "`diarize_cfg._internal` must be of an object of type InternalDiarizeConfig or " "its subclass"
+                    "`diarize_cfg._internal` must be of an object of type InternalDiarizeConfig or "
+                    "its subclass"
                 )
 
         # Hold the results here
@@ -214,7 +219,7 @@ class SpkDiarizationMixin(ABC):
         if override_config is None:
             override_config = DiarizeConfig()
 
-        if not hasattr(override_config, '_internal'):
+        if not hasattr(override_config, "_internal"):
             raise ValueError(
                 "`diarize_cfg must have an `_internal` argument, which must be of an object of type "
                 "InternalDiarizeConfig or its subclass."
@@ -227,7 +232,8 @@ class SpkDiarizationMixin(ABC):
             # Check if internal config is valid
             if not isinstance(override_config._internal, InternalDiarizeConfig):
                 raise ValueError(
-                    "`diarize_cfg._internal` must be of an object of type InternalDiarizeConfig or " "its subclass"
+                    "`diarize_cfg._internal` must be of an object of type InternalDiarizeConfig or "
+                    "its subclass"
                 )
 
         diarize_cfg = override_config
@@ -246,21 +252,29 @@ class SpkDiarizationMixin(ABC):
                 else:
                     dataloader = audio
 
-                if hasattr(diarize_cfg, 'verbose'):
+                if hasattr(diarize_cfg, "verbose"):
                     verbose = diarize_cfg.verbose
                 else:
                     verbose = True
 
-                for batch_idx, test_batch in enumerate(tqdm(dataloader, desc="Diarizing", disable=not verbose)):
+                for batch_idx, test_batch in enumerate(
+                    tqdm(dataloader, desc="Diarizing", disable=not verbose)
+                ):
                     # Move batch to device
-                    test_batch = move_data_to_device(test_batch, diarize_cfg._internal.device)
+                    test_batch = move_data_to_device(
+                        test_batch, diarize_cfg._internal.device
+                    )
                     uniq_ids = list(self._diarize_audio_rttm_map.keys())[
-                        batch_idx * diarize_cfg.batch_size : (batch_idx + 1) * diarize_cfg.batch_size
+                        batch_idx
+                        * diarize_cfg.batch_size : (batch_idx + 1)
+                        * diarize_cfg.batch_size
                     ]
 
                     # Run forward pass
                     pred_outputs = self._diarize_forward(test_batch)
-                    processed_outputs = self._diarize_output_processing(pred_outputs, uniq_ids, diarize_cfg)
+                    processed_outputs = self._diarize_output_processing(
+                        pred_outputs, uniq_ids, diarize_cfg
+                    )
 
                     # Yield results if generator
                     yield processed_outputs
@@ -273,7 +287,9 @@ class SpkDiarizationMixin(ABC):
             # set mode back to its original value
             self._diarize_on_end(diarize_cfg)
 
-    def _input_audio_to_rttm_processing(self, audio_files: List[str]) -> List[Dict[str, Union[str, float]]]:
+    def _input_audio_to_rttm_processing(
+        self, audio_files: List[str]
+    ) -> List[Dict[str, Union[str, float]]]:
         """
         Generate manifest style dict if `audio` is a list of paths to audio files.
 
@@ -287,12 +303,12 @@ class SpkDiarizationMixin(ABC):
         for audio_file in audio_files:
             uniq_id = get_uniqname_from_filepath(audio_file)
             entry = {
-                'uniq_id': uniq_id,
-                'audio_filepath': audio_file,
-                'offset': 0.0,
-                'duration': None,
-                'text': '-',
-                'label': 'infer',
+                "uniq_id": uniq_id,
+                "audio_filepath": audio_file,
+                "offset": 0.0,
+                "duration": None,
+                "text": "-",
+                "label": "infer",
             }
             audio_rttm_map_dict[uniq_id] = entry
         return audio_rttm_map_dict
@@ -315,26 +331,34 @@ class SpkDiarizationMixin(ABC):
             return {}
 
         # Set num_workers
-        num_workers = get_value_from_diarization_config(diarcfg, 'num_workers', default=1)
+        num_workers = get_value_from_diarization_config(
+            diarcfg, "num_workers", default=1
+        )
 
         if num_workers is None:
-            _batch_size = get_value_from_diarization_config(diarcfg, 'batch_size', default=1)
+            _batch_size = get_value_from_diarization_config(
+                diarcfg, "batch_size", default=1
+            )
             num_workers = min(_batch_size, os.cpu_count() - 1)
 
         # Assign num_workers if available as key in diarcfg
-        if hasattr(diarcfg, 'num_workers'):
+        if hasattr(diarcfg, "num_workers"):
             diarcfg.num_workers = num_workers
 
         # Model's mode and device
         diarcfg._internal.training_mode = self.training
 
         # Switch model to evaluation mode
-        if hasattr(self, 'preprocessor'):
-            if hasattr(self.preprocessor, 'featurizer') and hasattr(self.preprocessor.featurizer, 'dither'):
+        if hasattr(self, "preprocessor"):
+            if hasattr(self.preprocessor, "featurizer") and hasattr(
+                self.preprocessor.featurizer, "dither"
+            ):
                 diarcfg._internal.dither_value = self.preprocessor.featurizer.dither
                 self.preprocessor.featurizer.dither = 0.0
 
-            if hasattr(self.preprocessor, 'featurizer') and hasattr(self.preprocessor.featurizer, 'pad_to'):
+            if hasattr(self.preprocessor, "featurizer") and hasattr(
+                self.preprocessor.featurizer, "pad_to"
+            ):
                 diarcfg._internal.pad_to_value = self.preprocessor.featurizer.pad_to
                 self.preprocessor.featurizer.pad_to = 0
 
@@ -366,27 +390,36 @@ class SpkDiarizationMixin(ABC):
 
         # Check if audio is a list of strings (filepaths or manifests)
         if isinstance(audio[0], str):
-            if len(audio) == 1 and audio[0].endswith('.json') or audio[0].endswith('.jsonl'):
+            if (
+                len(audio) == 1
+                and audio[0].endswith(".json")
+                or audio[0].endswith(".jsonl")
+            ):
                 # Assume it is a path to a manifest file
                 diarcfg._internal.manifest_filepath = audio[0]
                 self._diarize_audio_rttm_map = audio_rttm_map(audio[0])
                 audio_files = []
                 for uniq_id, meta_dict in self._diarize_audio_rttm_map.items():
-                    audio_files.append(meta_dict['audio_filepath'])
+                    audio_files.append(meta_dict["audio_filepath"])
             else:
                 # Make `audio_files` a list of audio file paths
                 audio_files = list(audio)
-                self._diarize_audio_rttm_map = self._input_audio_to_rttm_processing(audio_files=audio_files)
+                self._diarize_audio_rttm_map = self._input_audio_to_rttm_processing(
+                    audio_files=audio_files
+                )
 
             tmp_dir = diarcfg._internal.temp_dir
-            ds_config = self._diarize_input_manifest_processing(audio_files, tmp_dir, diarcfg)
+            ds_config = self._diarize_input_manifest_processing(
+                audio_files, tmp_dir, diarcfg
+            )
 
             temp_dataloader = self._setup_diarize_dataloader(ds_config)
             return temp_dataloader
 
         else:
             raise ValueError(
-                f"Input `audio` is of type {type(audio[0])}. " "Only `str` (path to audio file) is supported as input."
+                f"Input `audio` is of type {type(audio[0])}. "
+                "Only `str` (path to audio file) is supported as input."
             )
 
     def _diarize_input_manifest_processing(
@@ -403,13 +436,17 @@ class SpkDiarizationMixin(ABC):
         Returns:
             A config dict that is used to setup the dataloader for diarization.
         """
-        with open(os.path.join(temp_dir, 'manifest.json'), 'w', encoding='utf-8') as fp:
+        with open(os.path.join(temp_dir, "manifest.json"), "w", encoding="utf-8") as fp:
             for audio_file in audio_files:
                 if isinstance(audio_file, str):
-                    entry = {'audio_filepath': audio_file, 'duration': 100000, 'text': ''}
-                    fp.write(json.dumps(entry) + '\n')
+                    entry = {
+                        "audio_filepath": audio_file,
+                        "duration": 100000,
+                        "text": "",
+                    }
+                    fp.write(json.dumps(entry) + "\n")
                 elif isinstance(audio_file, dict):
-                    fp.write(json.dumps(audio_file) + '\n')
+                    fp.write(json.dumps(audio_file) + "\n")
                 else:
                     raise ValueError(
                         f"Input `audio` is of type {type(audio_file)}. "
@@ -417,11 +454,13 @@ class SpkDiarizationMixin(ABC):
                     )
 
         ds_config = {
-            'paths2audio_files': audio_files,
-            'batch_size': get_value_from_diarization_config(diarcfg, 'batch_size', 1),
-            'temp_dir': temp_dir,
-            'session_len_sec': get_value_from_diarization_config(diarcfg, 'session_len_sec', diarcfg.session_len_sec),
-            'num_workers': get_value_from_diarization_config(diarcfg, 'num_workers', 1),
+            "paths2audio_files": audio_files,
+            "batch_size": get_value_from_diarization_config(diarcfg, "batch_size", 1),
+            "temp_dir": temp_dir,
+            "session_len_sec": get_value_from_diarization_config(
+                diarcfg, "session_len_sec", diarcfg.session_len_sec
+            ),
+            "num_workers": get_value_from_diarization_config(diarcfg, "num_workers", 1),
         }
 
         return ds_config
@@ -457,7 +496,9 @@ class SpkDiarizationMixin(ABC):
         pass
 
     @abstractmethod
-    def _diarize_output_processing(self, outputs, uniq_ids, diarcfg: DiarizeConfig) -> GenericDiarizationType:
+    def _diarize_output_processing(
+        self, outputs, uniq_ids, diarcfg: DiarizeConfig
+    ) -> GenericDiarizationType:
         """
         Internal function to process the model's outputs to return the results to the user. This function is called by
         `diarize()` and `diarize_generator()` to process the model's outputs.
@@ -484,11 +525,15 @@ class SpkDiarizationMixin(ABC):
         # set mode back to its original value
         self.train(mode=diarcfg._internal.training_mode)
 
-        if hasattr(self, 'preprocessor'):
-            if hasattr(self.preprocessor, 'featurizer') and hasattr(self.preprocessor.featurizer, 'dither'):
+        if hasattr(self, "preprocessor"):
+            if hasattr(self.preprocessor, "featurizer") and hasattr(
+                self.preprocessor.featurizer, "dither"
+            ):
                 self.preprocessor.featurizer.dither = diarcfg._internal.dither_value
 
-            if hasattr(self.preprocessor, 'featurizer') and hasattr(self.preprocessor.featurizer, 'pad_to'):
+            if hasattr(self.preprocessor, "featurizer") and hasattr(
+                self.preprocessor.featurizer, "pad_to"
+            ):
                 self.preprocessor.featurizer.pad_to = diarcfg._internal.pad_to_value
 
         if diarcfg._internal.logging_level is not None:

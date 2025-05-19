@@ -67,36 +67,42 @@ def _parse_manifest_item(line: str, manifest_file: str) -> Dict[str, Any]:
     item = json.loads(line)
 
     # Audio file
-    if 'audio_filename' in item:
-        item['audio_file'] = item.pop('audio_filename')
-    elif 'audio_filepath' in item:
-        item['audio_file'] = item.pop('audio_filepath')
+    if "audio_filename" in item:
+        item["audio_file"] = item.pop("audio_filename")
+    elif "audio_filepath" in item:
+        item["audio_file"] = item.pop("audio_filepath")
     else:
-        raise KeyError(f"No 'audio_filename' or 'audio_filepath' in manifest item: {item}")
+        raise KeyError(
+            f"No 'audio_filename' or 'audio_filepath' in manifest item: {item}"
+        )
 
-    item['audio_file'] = get_full_path(audio_file=item['audio_file'], manifest_file=manifest_file)
+    item["audio_file"] = get_full_path(
+        audio_file=item["audio_file"], manifest_file=manifest_file
+    )
 
     # Duration.
-    if 'duration' not in item:
-        item['duration'] = None
+    if "duration" not in item:
+        item["duration"] = None
 
     # dummy text
-    item['text'] = ""
+    item["text"] = ""
 
     item = dict(
-        audio_file=item['audio_file'],
-        duration=item['duration'],
-        text=item['text'],
-        offset=item.get('offset', None),
-        speaker=item.get('speaker', None),
-        orig_sr=item.get('orig_sample_rate', None),
-        token_labels=item.get('token_labels', None),
-        lang=item.get('lang', None),
+        audio_file=item["audio_file"],
+        duration=item["duration"],
+        text=item["text"],
+        offset=item.get("offset", None),
+        speaker=item.get("speaker", None),
+        orig_sr=item.get("orig_sample_rate", None),
+        token_labels=item.get("token_labels", None),
+        lang=item.get("lang", None),
     )
     return item
 
 
-def _audio_noise_collate_fn(batch: List[AudioNoiseItem], batch_augmentor: Any = None) -> AudioNoiseBatch:
+def _audio_noise_collate_fn(
+    batch: List[AudioNoiseItem], batch_augmentor: Any = None
+) -> AudioNoiseBatch:
     audios = [x.audio for x in batch]
     audio_lengths = [x.audio_len for x in batch]
     max_audio_len = max(audio_lengths).item()
@@ -161,13 +167,15 @@ def load_noise_manifest(noise_manifest: Union[str, ListConfig, None]):
         return []
 
     if isinstance(noise_manifest, str):
-        noise_manifest = noise_manifest.split(',')
+        noise_manifest = noise_manifest.split(",")
 
     noise_data = []
     for manifest in noise_manifest:
         curr_data = read_manifest(manifest)
         for i in range(len(curr_data)):
-            curr_data[i]['audio_filepath'] = get_full_path(curr_data[i]['audio_filepath'], manifest)
+            curr_data[i]["audio_filepath"] = get_full_path(
+                curr_data[i]["audio_filepath"], manifest
+            )
         noise_data.extend(curr_data)
     return noise_data
 
@@ -196,8 +204,8 @@ def load_noise_audio(
         noise_len: the length of the loaded noise audio
     """
     max_dur = None if max_audio_len is None else max_audio_len / sample_rate
-    duration = sample.get('duration', None)
-    offset = sample.get('offset', 0.0)
+    duration = sample.get("duration", None)
+    offset = sample.get("offset", 0.0)
 
     if max_dur is not None and duration is not None and duration > max_dur:
         cnt = 0
@@ -206,7 +214,7 @@ def load_noise_audio(
             offset = np.random.uniform(0, duration - max_dur)
 
             audio_segment = AudioSegment.from_file(
-                audio_file=sample['audio_filepath'],
+                audio_file=sample["audio_filepath"],
                 offset=offset,
                 duration=max_dur,
                 target_sr=sample_rate,
@@ -218,7 +226,7 @@ def load_noise_audio(
             cnt += 1
     else:
         audio_segment = AudioSegment.from_file(
-            audio_file=sample['audio_filepath'],
+            audio_file=sample["audio_filepath"],
             offset=offset,
             duration=duration,
             target_sr=sample_rate,
@@ -228,7 +236,9 @@ def load_noise_audio(
         logging.warning(
             f"Loaded noise audio is empty: {sample}, with sampled offset={offset}, duration={max_dur}. Adding white noise."
         )
-        WhiteNoisePerturbation(min_level=min_white_noise_db, max_level=max_white_noise_db).perturb(audio_segment)
+        WhiteNoisePerturbation(
+            min_level=min_white_noise_db, max_level=max_white_noise_db
+        ).perturb(audio_segment)
 
     noise = torch.tensor(audio_segment.samples, dtype=torch.float)
     noise_len = torch.tensor(noise.size(0)).long()
@@ -243,7 +253,12 @@ def load_noise_audio(
     return noise, noise_len
 
 
-def sample_noise(noise_data: List[Dict], sample_rate: int, max_audio_len: int | None = None, max_trial: int = 20):
+def sample_noise(
+    noise_data: List[Dict],
+    sample_rate: int,
+    max_audio_len: int | None = None,
+    max_trial: int = 20,
+):
     """
     Randomly sample noise audio from the noise manifest.
     Args:
@@ -261,14 +276,23 @@ def sample_noise(noise_data: List[Dict], sample_rate: int, max_audio_len: int | 
     while cnt < max_trial and len(noise_data) > 0:
         try:
             noise_sample = noise_data[np.random.randint(len(noise_data))]
-            noise_audio, noise_len = load_noise_audio(noise_sample, sample_rate, max_audio_len)
+            noise_audio, noise_len = load_noise_audio(
+                noise_sample, sample_rate, max_audio_len
+            )
             break
         except Exception as e:
-            logging.warning(f"Error loading noise audio with config {noise_sample} and exception: {e}, retrying.")
+            logging.warning(
+                f"Error loading noise audio with config {noise_sample} and exception: {e}, retrying."
+            )
             cnt += 1
             if cnt == max_trial:
-                logging.warning(f"Failed to load noise audio after {max_trial} attempts, returning zero noise.")
-                return torch.zeros(max_audio_len).float(), torch.tensor(max_audio_len).long()
+                logging.warning(
+                    f"Failed to load noise audio after {max_trial} attempts, returning zero noise."
+                )
+                return (
+                    torch.zeros(max_audio_len).float(),
+                    torch.tensor(max_audio_len).long(),
+                )
     return noise_audio, noise_len
 
 
@@ -282,15 +306,17 @@ def pad_audio(audio: Tensor, min_len: int, pad_audio_mode) -> Tensor:
     Returns:
         audio: the padded audio tensor
     """
-    allowed_mode = ['repeat', 'zero']
+    allowed_mode = ["repeat", "zero"]
     if audio.size(0) < min_len:
-        if pad_audio_mode == 'repeat' and audio.size(0) > 0:
+        if pad_audio_mode == "repeat" and audio.size(0) > 0:
             num_repeats = int(np.ceil(min_len / audio.size(0)))
             audio = audio.repeat(num_repeats)[:min_len]
-        elif pad_audio_mode == 'zero' or audio.size(0) == 0:
+        elif pad_audio_mode == "zero" or audio.size(0) == 0:
             audio = torch.nn.functional.pad(audio, (0, min_len - audio.size(0)))
         else:
-            raise ValueError(f"Unsupported pad_audio_mode: {pad_audio_mode}, must be one of {allowed_mode}")
+            raise ValueError(
+                f"Unsupported pad_audio_mode: {pad_audio_mode}, must be one of {allowed_mode}"
+            )
     return audio
 
 
@@ -305,7 +331,7 @@ class AudioNoiseDataset(audio_to_text.AudioToCharDataset):
         noise_manifest: str | None = None,
         batch_augmentor: Any | None = None,
         min_audio_len_secs: float = 1.0,
-        pad_audio_mode: str = 'repeat',
+        pad_audio_mode: str = "repeat",
         **kwargs,
     ):
         # add bos_id=0 to avoid empty text token
@@ -337,7 +363,9 @@ class AudioNoiseDataset(audio_to_text.AudioToCharDataset):
         min_len = int(self.min_audio_len_secs * self.featurizer.sample_rate)
         audio = pad_audio(audio, min_len, self.pad_audio_mode)
         audio_len = torch.tensor(audio.shape[0]).long()
-        noise, noise_len = sample_noise(self.noise_data, self.featurizer.sample_rate, audio_len.item())
+        noise, noise_len = sample_noise(
+            self.noise_data, self.featurizer.sample_rate, audio_len.item()
+        )
 
         item = AudioNoiseItem(
             sample_id=str(index),
@@ -365,7 +393,7 @@ class TarredAudioNoiseDataset(audio_to_text.TarredAudioToCharDataset):
         noise_manifest: str | None = None,
         batch_augmentor: Any | None = None,
         min_audio_len_secs: float = 1.0,
-        pad_audio_mode: str = 'repeat',
+        pad_audio_mode: str = "repeat",
         **kwargs,
     ):
         """
@@ -409,12 +437,16 @@ class TarredAudioNoiseDataset(audio_to_text.TarredAudioToCharDataset):
             )
             audio_filestream.close()
         except Exception as e:
-            raise RuntimeError(f"Error reading audio sample: {manifest_entry}, with exception: {e}.")
+            raise RuntimeError(
+                f"Error reading audio sample: {manifest_entry}, with exception: {e}."
+            )
 
         min_len = int(self.min_audio_len_secs * self.featurizer.sample_rate)
         audio = pad_audio(audio, min_len, self.pad_audio_mode)
         audio_len = torch.tensor(audio.shape[0]).long()
-        noise, noise_len = sample_noise(self.noise_data, self.featurizer.sample_rate, audio_len.item())
+        noise, noise_len = sample_noise(
+            self.noise_data, self.featurizer.sample_rate, audio_len.item()
+        )
 
         item = AudioNoiseItem(
             sample_id=str(manifest_idx),
@@ -430,10 +462,10 @@ class TarredAudioNoiseDataset(audio_to_text.TarredAudioToCharDataset):
     def _pad_audio(self, audio: Tensor) -> Tensor:
         min_len = int(self.min_audio_len_secs * self.featurizer.sample_rate)
         if audio.size(0) < min_len:
-            if self.pad_audio_mode == 'repeat':
+            if self.pad_audio_mode == "repeat":
                 num_repeats = int(np.ceil(min_len / audio.size(0)))
                 audio = audio.repeat(num_repeats)[:min_len]
-            elif self.pad_audio_mode == 'zero':
+            elif self.pad_audio_mode == "zero":
                 audio = torch.nn.functional.pad(audio, (0, min_len - audio.size(0)))
             else:
                 raise ValueError(
@@ -446,7 +478,9 @@ class TarredAudioNoiseDataset(audio_to_text.TarredAudioToCharDataset):
 
 
 class LhotseAudioNoiseDataset(torch.utils.data.Dataset):
-    def __init__(self, noise_manifest: str | None = None, batch_augmentor_cfg: DictConfig = None):
+    def __init__(
+        self, noise_manifest: str | None = None, batch_augmentor_cfg: DictConfig = None
+    ):
         super().__init__()
 
         if batch_augmentor_cfg:
@@ -461,7 +495,10 @@ class LhotseAudioNoiseDataset(torch.utils.data.Dataset):
     def __getitem__(self, cuts):
 
         audios, audio_lens, cuts = self.load_audio(cuts)
-        sampled_noises = [sample_noise(self.noise_data, cut.sampling_rate, cut.num_samples) for cut in cuts]
+        sampled_noises = [
+            sample_noise(self.noise_data, cut.sampling_rate, cut.num_samples)
+            for cut in cuts
+        ]
 
         items = [
             AudioNoiseItem(
@@ -482,62 +519,72 @@ def get_audio_noise_dataset(
     config: Dict[str, Any], augmentor: Any = None, batch_augmentor: Any = None
 ) -> AudioNoiseDataset:
     dataset = AudioNoiseDataset(
-        noise_manifest=config.get('noise_manifest', None),
+        noise_manifest=config.get("noise_manifest", None),
         batch_augmentor=batch_augmentor,
-        manifest_filepath=config['manifest_filepath'],
-        labels=config.get('labels', None),
-        sample_rate=config['sample_rate'],
-        int_values=config.get('int_values', False),
+        manifest_filepath=config["manifest_filepath"],
+        labels=config.get("labels", None),
+        sample_rate=config["sample_rate"],
+        int_values=config.get("int_values", False),
         augmentor=augmentor,
-        max_duration=config.get('max_duration', None),
-        min_duration=config.get('min_duration', None),
-        trim=config.get('trim_silence', False),
-        channel_selector=config.get('channel_selector', None),
+        max_duration=config.get("max_duration", None),
+        min_duration=config.get("min_duration", None),
+        trim=config.get("trim_silence", False),
+        channel_selector=config.get("channel_selector", None),
     )
     return dataset
 
 
 def get_concat_audio_noise_dataset(
-    config: Dict[str, Any], global_rank: int, world_size: int, augmentor: Any = None, batch_augmentor: Any = None
+    config: Dict[str, Any],
+    global_rank: int,
+    world_size: int,
+    augmentor: Any = None,
+    batch_augmentor: Any = None,
 ) -> ConcatDataset:
-    manifest_filepaths = config['manifest_filepath']
+    manifest_filepaths = config["manifest_filepath"]
     datasets = []
 
     # needed to support validation Concat Datasets that arrive here as
     # [[dataset1,dataset2]] otherwise ModelPT would interfere
     if len(manifest_filepaths) == 1 and not isinstance(manifest_filepaths[0], str):
         logging.info(f"removing an extra nesting level from {manifest_filepaths}")
-        manifest_filepaths = config['manifest_filepath'][0]
+        manifest_filepaths = config["manifest_filepath"][0]
 
     for manifest_filepath in manifest_filepaths:
         conf = copy.deepcopy(config)
-        conf['manifest_filepath'] = manifest_filepath
+        conf["manifest_filepath"] = manifest_filepath
 
         dataset = get_audio_noise_dataset(config=conf, augmentor=augmentor)
         datasets.append(dataset)
 
     dataset = ConcatDataset(
         datasets,
-        sampling_technique=config.get('concat_sampling_technique', 'temperature'),
-        sampling_temperature=config.get('concat_sampling_temperature', 5),
-        sampling_scale=config.get('concat_sampling_scale', 1),
-        sampling_probabilities=config.get('concat_sampling_probabilities', None),
-        shuffle=config.get('concat_shuffle', True),
-        seed=config.get('concat_sampling_seed', None),
+        sampling_technique=config.get("concat_sampling_technique", "temperature"),
+        sampling_temperature=config.get("concat_sampling_temperature", 5),
+        sampling_scale=config.get("concat_sampling_scale", 1),
+        sampling_probabilities=config.get("concat_sampling_probabilities", None),
+        shuffle=config.get("concat_shuffle", True),
+        seed=config.get("concat_sampling_seed", None),
         global_rank=global_rank,
         world_size=world_size,
     )
     return dataset
 
 
-def get_tarred_audio_noise_dataset(config, shuffle_n, global_rank, world_size, augmentor, batch_augmentor: Any = None):
-    tarred_audio_filepaths = config['tarred_audio_filepaths']
-    manifest_filepaths = config['manifest_filepath']
+def get_tarred_audio_noise_dataset(
+    config, shuffle_n, global_rank, world_size, augmentor, batch_augmentor: Any = None
+):
+    tarred_audio_filepaths = config["tarred_audio_filepaths"]
+    manifest_filepaths = config["manifest_filepath"]
     datasets = []
-    tarred_audio_filepaths = audio_to_text_dataset.convert_to_config_list(tarred_audio_filepaths)
-    manifest_filepaths = audio_to_text_dataset.convert_to_config_list(manifest_filepaths)
+    tarred_audio_filepaths = audio_to_text_dataset.convert_to_config_list(
+        tarred_audio_filepaths
+    )
+    manifest_filepaths = audio_to_text_dataset.convert_to_config_list(
+        manifest_filepaths
+    )
 
-    bucketing_weights = config.get('bucketing_weights', None)  # For upsampling buckets
+    bucketing_weights = config.get("bucketing_weights", None)  # For upsampling buckets
     if bucketing_weights:
         for idx, weight in enumerate(bucketing_weights):
             if not isinstance(weight, int) or weight <= 0:
@@ -556,24 +603,28 @@ def get_tarred_audio_noise_dataset(config, shuffle_n, global_rank, world_size, a
         if len(manifest_filepath) == 1:
             manifest_filepath = manifest_filepath[0]
 
-        is_sharded_manifest = True if "_OP_" in manifest_filepath and "_CL_" in manifest_filepath else False
+        is_sharded_manifest = (
+            True
+            if "_OP_" in manifest_filepath and "_CL_" in manifest_filepath
+            else False
+        )
         logging.info(
             f"Loading TarredAudioNoiseDataset from {tarred_audio_filepath} and {manifest_filepath}, shard={is_sharded_manifest}"
         )
         dataset = TarredAudioNoiseDataset(
-            noise_manifest=config.get('noise_manifest', None),
+            noise_manifest=config.get("noise_manifest", None),
             batch_augmentor=batch_augmentor,
             audio_tar_filepaths=tarred_audio_filepath,
             manifest_filepath=manifest_filepath,
-            labels=config.get('labels', None),
-            sample_rate=config['sample_rate'],
-            int_values=config.get('int_values', False),
+            labels=config.get("labels", None),
+            sample_rate=config["sample_rate"],
+            int_values=config.get("int_values", False),
             augmentor=augmentor,
             shuffle_n=shuffle_n,
-            max_duration=config.get('max_duration', None),
-            min_duration=config.get('min_duration', None),
-            trim=config.get('trim_silence', False),
-            shard_strategy=config.get('tarred_shard_strategy', 'scatter'),
+            max_duration=config.get("max_duration", None),
+            min_duration=config.get("min_duration", None),
+            trim=config.get("trim_silence", False),
+            shard_strategy=config.get("tarred_shard_strategy", "scatter"),
             shard_manifests=is_sharded_manifest,
             global_rank=global_rank,
             world_size=world_size,
@@ -583,21 +634,23 @@ def get_tarred_audio_noise_dataset(config, shuffle_n, global_rank, world_size, a
         else:
             datasets.append(dataset)
 
-    return audio_to_text_dataset.get_chain_dataset(datasets=datasets, ds_config=config, rank=global_rank)
+    return audio_to_text_dataset.get_chain_dataset(
+        datasets=datasets, ds_config=config, rank=global_rank
+    )
 
 
 def get_concat_tarred_audio_noise_dataset(
     config, shuffle_n, global_rank, world_size, augmentor, batch_augmentor: Any = None
 ):
-    tarred_audio_filepaths = config['tarred_audio_filepaths']
-    manifest_filepaths = config['manifest_filepath']
+    tarred_audio_filepaths = config["tarred_audio_filepaths"]
+    manifest_filepaths = config["manifest_filepath"]
     datasets = []
     for dataset_idx, (tarred_audio_filepath, manifest_filepath) in enumerate(
         zip(tarred_audio_filepaths, manifest_filepaths)
     ):
         conf = copy.deepcopy(config)
-        conf['manifest_filepath'] = manifest_filepath
-        conf['tarred_audio_filepaths'] = tarred_audio_filepath
+        conf["manifest_filepath"] = manifest_filepath
+        conf["tarred_audio_filepaths"] = tarred_audio_filepath
         dataset = get_tarred_audio_noise_dataset(
             config=conf,
             shuffle_n=shuffle_n,
@@ -610,12 +663,12 @@ def get_concat_tarred_audio_noise_dataset(
 
     dataset = ConcatDataset(
         datasets,
-        sampling_technique=config.get('concat_sampling_technique', 'temperature'),
-        sampling_temperature=config.get('concat_sampling_temperature', 5),
-        sampling_scale=config.get('concat_sampling_scale', 1),
-        sampling_probabilities=config.get('concat_sampling_probabilities', None),
-        shuffle=config.get('concat_shuffle', True),
-        seed=config.get('concat_sampling_seed', None),
+        sampling_technique=config.get("concat_sampling_technique", "temperature"),
+        sampling_temperature=config.get("concat_sampling_temperature", 5),
+        sampling_scale=config.get("concat_sampling_scale", 1),
+        sampling_probabilities=config.get("concat_sampling_probabilities", None),
+        shuffle=config.get("concat_shuffle", True),
+        seed=config.get("concat_sampling_seed", None),
         global_rank=global_rank,
         world_size=world_size,
     )
@@ -627,50 +680,55 @@ def get_audio_noise_dataset_from_config(
     global_rank: int,
     world_size: int,
 ):
-    if 'augmentor' in config:
-        augmentor = process_augmentations(config['augmentor'], global_rank=global_rank, world_size=world_size)
+    if "augmentor" in config:
+        augmentor = process_augmentations(
+            config["augmentor"], global_rank=global_rank, world_size=world_size
+        )
     else:
         augmentor = None
 
-    if 'batch_augmentor' in config:
-        batch_augmentor = Serialization.from_config_dict(config['batch_augmentor'])
+    if "batch_augmentor" in config:
+        batch_augmentor = Serialization.from_config_dict(config["batch_augmentor"])
     else:
         batch_augmentor = None
 
-    is_concat = config.get('is_concat', False)
+    is_concat = config.get("is_concat", False)
     if is_concat:
-        if config.get('concat_sampling_technique', None) is None:
+        if config.get("concat_sampling_technique", None) is None:
             logging.warning(
                 f"Concat dataset requires `concat_sampling_technique` but it was not provided, using round-robin. Config: {config}"
             )
-            config['concat_sampling_technique'] = 'round-robin'
+            config["concat_sampling_technique"] = "round-robin"
 
-        if config['concat_sampling_technique'] == 'random':
-            if not 'concat_sampling_probabilities' in config:
+        if config["concat_sampling_technique"] == "random":
+            if not "concat_sampling_probabilities" in config:
                 logging.warning(
                     f"Concat dataset requires `concat_sampling_probabilities` list, using uniform weights. Config: {config}"
                 )
                 with open_dict(config):
-                    config['concat_sampling_probabilities'] = [1 / len(config['manifest_filepath'])] * len(
-                        config['manifest_filepath']
-                    )
-            elif not isclose(sum(config['concat_sampling_probabilities']), 1, abs_tol=1e-6):
+                    config["concat_sampling_probabilities"] = [
+                        1 / len(config["manifest_filepath"])
+                    ] * len(config["manifest_filepath"])
+            elif not isclose(
+                sum(config["concat_sampling_probabilities"]), 1, abs_tol=1e-6
+            ):
                 raise ValueError(
                     f"`concat_sampling_probabilities` need to sum to 1 with 1e-6 tolerance. Config: {config}"
                 )
 
-    shuffle = config['shuffle']
-    if config.get('is_tarred', False):
-        if ('tarred_audio_filepaths' in config and config['tarred_audio_filepaths'] is None) or (
-            'manifest_filepath' in config and config['manifest_filepath'] is None
-        ):
+    shuffle = config["shuffle"]
+    if config.get("is_tarred", False):
+        if (
+            "tarred_audio_filepaths" in config
+            and config["tarred_audio_filepaths"] is None
+        ) or ("manifest_filepath" in config and config["manifest_filepath"] is None):
             logging.warning(
                 "Could not load dataset as `manifest_filepath` was None or "
                 f"`tarred_audio_filepaths` is None. Provided config : {config}"
             )
             return None
 
-        shuffle_n = config.get('shuffle_n', 4 * config['batch_size']) if shuffle else 0
+        shuffle_n = config.get("shuffle_n", 4 * config["batch_size"]) if shuffle else 0
         if is_concat:
             dataset = get_concat_tarred_audio_noise_dataset(
                 config=config,
@@ -690,8 +748,10 @@ def get_audio_noise_dataset_from_config(
                 batch_augmentor=batch_augmentor,
             )
     else:
-        if 'manifest_filepath' in config and config['manifest_filepath'] is None:
-            logging.warning(f"Could not load dataset as `manifest_filepath` was None. Provided config : {config}")
+        if "manifest_filepath" in config and config["manifest_filepath"] is None:
+            logging.warning(
+                f"Could not load dataset as `manifest_filepath` was None. Provided config : {config}"
+            )
             return None
         if is_concat:
             dataset = get_concat_audio_noise_dataset(
@@ -702,5 +762,7 @@ def get_audio_noise_dataset_from_config(
                 batch_augmentor=batch_augmentor,
             )
         else:
-            dataset = get_audio_noise_dataset(config=config, augmentor=augmentor, batch_augmentor=batch_augmentor)
+            dataset = get_audio_noise_dataset(
+                config=config, augmentor=augmentor, batch_augmentor=batch_augmentor
+            )
     return dataset

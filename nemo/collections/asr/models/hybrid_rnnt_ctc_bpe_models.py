@@ -52,8 +52,10 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
         cfg = model_utils.maybe_update_config_version(cfg)
 
         # Tokenizer is necessary for this model
-        if 'tokenizer' not in cfg:
-            raise ValueError("`cfg` must have `tokenizer` config to create a tokenizer !")
+        if "tokenizer" not in cfg:
+            raise ValueError(
+                "`cfg` must have `tokenizer` config to create a tokenizer !"
+            )
 
         if not isinstance(cfg, DictConfig):
             cfg = OmegaConf.create(cfg)
@@ -78,7 +80,7 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
             cfg.joint.jointnet.pred_hidden = cfg.model_defaults.pred_hidden
 
         # setup auxiliary CTC decoder
-        if 'aux_ctc' not in cfg:
+        if "aux_ctc" not in cfg:
             raise ValueError(
                 "The config need to have a section for the CTC decoder named as aux_ctc for Hybrid models."
             )
@@ -112,8 +114,8 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
         self.wer = WER(
             decoding=self.decoding,
             batch_dim_index=0,
-            use_cer=self.cfg.get('use_cer', False),
-            log_prediction=self.cfg.get('log_prediction', True),
+            use_cer=self.cfg.get("use_cer", False),
+            log_prediction=self.cfg.get("log_prediction", True),
             dist_sync_on_step=True,
         )
 
@@ -123,17 +125,19 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
             self.joint.set_wer(self.wer)
 
         # Setup CTC decoding
-        ctc_decoding_cfg = self.cfg.aux_ctc.get('decoding', None)
+        ctc_decoding_cfg = self.cfg.aux_ctc.get("decoding", None)
         if ctc_decoding_cfg is None:
             ctc_decoding_cfg = OmegaConf.structured(CTCBPEDecodingConfig)
             with open_dict(self.cfg.aux_ctc):
                 self.cfg.aux_ctc.decoding = ctc_decoding_cfg
-        self.ctc_decoding = CTCBPEDecoding(self.cfg.aux_ctc.decoding, tokenizer=self.tokenizer)
+        self.ctc_decoding = CTCBPEDecoding(
+            self.cfg.aux_ctc.decoding, tokenizer=self.tokenizer
+        )
 
         # Setup CTC WER
         self.ctc_wer = WER(
             decoding=self.ctc_decoding,
-            use_cer=self.cfg.aux_ctc.get('use_cer', False),
+            use_cer=self.cfg.aux_ctc.get("use_cer", False),
             dist_sync_on_step=True,
             log_prediction=self.cfg.get("log_prediction", False),
         )
@@ -149,8 +153,16 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
                 # During transcription, the model is initially loaded on the CPU.
                 # To ensure the correct global_rank and world_size are set,
                 # these values must be passed from the configuration.
-                global_rank=self.global_rank if not config.get("do_transcribe", False) else config.get("global_rank"),
-                world_size=self.world_size if not config.get("do_transcribe", False) else config.get("world_size"),
+                global_rank=(
+                    self.global_rank
+                    if not config.get("do_transcribe", False)
+                    else config.get("global_rank")
+                ),
+                world_size=(
+                    self.world_size
+                    if not config.get("do_transcribe", False)
+                    else config.get("world_size")
+                ),
                 dataset=LhotseSpeechToTextBpeDataset(
                     tokenizer=self.tokenizer,
                     return_cuts=config.get("do_transcribe", False),
@@ -174,13 +186,13 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
             # DALI Dataset implements dataloader interface
             return dataset
 
-        shuffle = config['shuffle']
+        shuffle = config["shuffle"]
         if isinstance(dataset, torch.utils.data.IterableDataset):
             shuffle = False
 
-        if hasattr(dataset, 'collate_fn'):
+        if hasattr(dataset, "collate_fn"):
             collate_fn = dataset.collate_fn
-        elif hasattr(dataset.datasets[0], 'collate_fn'):
+        elif hasattr(dataset.datasets[0], "collate_fn"):
             # support datasets that are lists of entries
             collate_fn = dataset.datasets[0].collate_fn
         else:
@@ -188,7 +200,7 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
             collate_fn = dataset.datasets[0].datasets[0].collate_fn
 
         batch_sampler = None
-        if config.get('use_semi_sorted_batching', False):
+        if config.get("use_semi_sorted_batching", False):
             if not isinstance(dataset, _AudioTextDataset):
                 raise RuntimeError(
                     "Semi Sorted Batch sampler can be used with AudioToCharDataset or AudioToBPEDataset "
@@ -196,23 +208,25 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
                 )
             # set batch_size and batch_sampler to None to disable automatic batching
             batch_sampler = get_semi_sorted_batch_sampler(self, dataset, config)
-            config['batch_size'] = None
-            config['drop_last'] = False
+            config["batch_size"] = None
+            config["drop_last"] = False
             shuffle = False
 
         return torch.utils.data.DataLoader(
             dataset=dataset,
-            batch_size=config['batch_size'],
+            batch_size=config["batch_size"],
             sampler=batch_sampler,
             batch_sampler=None,
             collate_fn=collate_fn,
-            drop_last=config.get('drop_last', False),
+            drop_last=config.get("drop_last", False),
             shuffle=shuffle,
-            num_workers=config.get('num_workers', 0),
-            pin_memory=config.get('pin_memory', False),
+            num_workers=config.get("num_workers", 0),
+            pin_memory=config.get("pin_memory", False),
         )
 
-    def _setup_transcribe_dataloader(self, config: Dict) -> 'torch.utils.data.DataLoader':
+    def _setup_transcribe_dataloader(
+        self, config: Dict
+    ) -> "torch.utils.data.DataLoader":
         """
         Setup function for a temporary data loader which wraps the provided audio file.
 
@@ -231,28 +245,34 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
             A pytorch DataLoader for the given audio file(s).
         """
 
-        if 'manifest_filepath' in config:
-            manifest_filepath = config['manifest_filepath']
-            batch_size = config['batch_size']
+        if "manifest_filepath" in config:
+            manifest_filepath = config["manifest_filepath"]
+            batch_size = config["batch_size"]
         else:
-            manifest_filepath = os.path.join(config['temp_dir'], 'manifest.json')
-            batch_size = min(config['batch_size'], len(config['paths2audio_files']))
+            manifest_filepath = os.path.join(config["temp_dir"], "manifest.json")
+            batch_size = min(config["batch_size"], len(config["paths2audio_files"]))
 
         dl_config = {
-            'manifest_filepath': manifest_filepath,
-            'sample_rate': self.preprocessor._sample_rate,
-            'batch_size': batch_size,
-            'shuffle': False,
-            'num_workers': config.get('num_workers', min(batch_size, os.cpu_count() - 1)),
-            'pin_memory': True,
-            'channel_selector': config.get('channel_selector', None),
-            'use_start_end_token': self.cfg.validation_ds.get('use_start_end_token', False),
+            "manifest_filepath": manifest_filepath,
+            "sample_rate": self.preprocessor._sample_rate,
+            "batch_size": batch_size,
+            "shuffle": False,
+            "num_workers": config.get(
+                "num_workers", min(batch_size, os.cpu_count() - 1)
+            ),
+            "pin_memory": True,
+            "channel_selector": config.get("channel_selector", None),
+            "use_start_end_token": self.cfg.validation_ds.get(
+                "use_start_end_token", False
+            ),
         }
 
         if config.get("augmentor"):
-            dl_config['augmentor'] = config.get("augmentor")
+            dl_config["augmentor"] = config.get("augmentor")
 
-        temporary_datalayer = self._setup_dataloader_from_config(config=DictConfig(dl_config))
+        temporary_datalayer = self._setup_dataloader_from_config(
+            config=DictConfig(dl_config)
+        )
         return temporary_datalayer
 
     def change_vocabulary(
@@ -280,11 +300,11 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
 
         """
         if isinstance(new_tokenizer_dir, DictConfig):
-            if new_tokenizer_type == 'agg':
+            if new_tokenizer_type == "agg":
                 new_tokenizer_cfg = new_tokenizer_dir
             else:
                 raise ValueError(
-                    f'New tokenizer dir should be a string unless the tokenizer is `agg`, but this tokenizer type is: {new_tokenizer_type}'
+                    f"New tokenizer dir should be a string unless the tokenizer is `agg`, but this tokenizer type is: {new_tokenizer_type}"
                 )
         else:
             new_tokenizer_cfg = None
@@ -294,13 +314,15 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
         else:
             if not os.path.isdir(new_tokenizer_dir):
                 raise NotADirectoryError(
-                    f'New tokenizer dir must be non-empty path to a directory. But I got: {new_tokenizer_dir}'
+                    f"New tokenizer dir must be non-empty path to a directory. But I got: {new_tokenizer_dir}"
                 )
 
-            if new_tokenizer_type.lower() not in ('bpe', 'wpe'):
-                raise ValueError(f'New tokenizer type must be either `bpe` or `wpe`')
+            if new_tokenizer_type.lower() not in ("bpe", "wpe"):
+                raise ValueError(f"New tokenizer type must be either `bpe` or `wpe`")
 
-            tokenizer_cfg = OmegaConf.create({'dir': new_tokenizer_dir, 'type': new_tokenizer_type})
+            tokenizer_cfg = OmegaConf.create(
+                {"dir": new_tokenizer_dir, "type": new_tokenizer_type}
+            )
 
         # Setup the tokenizer
         self._setup_tokenizer(tokenizer_cfg)
@@ -315,7 +337,7 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
         else:
             new_joint_config["vocabulary"] = ListConfig(list(vocabulary.keys()))
 
-        new_joint_config['num_classes'] = len(vocabulary)
+        new_joint_config["num_classes"] = len(vocabulary)
         del self.joint
         self.joint = EncDecHybridRNNTCTCBPEModel.from_config_dict(new_joint_config)
 
@@ -355,7 +377,8 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
 
         # Setup fused Joint step
         if self.joint.fuse_loss_wer or (
-            self.decoding.joint_fused_batch_size is not None and self.decoding.joint_fused_batch_size > 0
+            self.decoding.joint_fused_batch_size is not None
+            and self.decoding.joint_fused_batch_size > 0
         ):
             self.joint.set_loss(self.loss)
             self.joint.set_wer(self.wer)
@@ -370,10 +393,12 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
         with open_dict(self.cfg.decoding):
             self.cfg.decoding = decoding_cfg
 
-        logging.info(f"Changed tokenizer of the RNNT decoder to {self.joint.vocabulary} vocabulary.")
+        logging.info(
+            f"Changed tokenizer of the RNNT decoder to {self.joint.vocabulary} vocabulary."
+        )
 
         # set up the new tokenizer for the CTC decoder
-        if hasattr(self, 'ctc_decoder'):
+        if hasattr(self, "ctc_decoder"):
             ctc_decoder_config = copy.deepcopy(self.ctc_decoder.to_config_dict())
             # sidestepping the potential overlapping tokens issue in aggregate tokenizers
             if self.tokenizer_type == "agg":
@@ -381,17 +406,19 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
             else:
                 ctc_decoder_config.vocabulary = ListConfig(list(vocabulary.keys()))
 
-            decoder_num_classes = ctc_decoder_config['num_classes']
+            decoder_num_classes = ctc_decoder_config["num_classes"]
             # Override number of classes if placeholder provided
             logging.info(
                 "\nReplacing old number of classes ({}) with new number of classes - {}".format(
                     decoder_num_classes, len(vocabulary)
                 )
             )
-            ctc_decoder_config['num_classes'] = len(vocabulary)
+            ctc_decoder_config["num_classes"] = len(vocabulary)
 
             del self.ctc_decoder
-            self.ctc_decoder = EncDecHybridRNNTCTCBPEModel.from_config_dict(ctc_decoder_config)
+            self.ctc_decoder = EncDecHybridRNNTCTCBPEModel.from_config_dict(
+                ctc_decoder_config
+            )
             del self.ctc_loss
             self.ctc_loss = CTCLoss(
                 num_classes=self.ctc_decoder.num_classes_with_blank - 1,
@@ -405,14 +432,18 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
 
             # Assert the decoding config with all hyper parameters
             ctc_decoding_cls = OmegaConf.structured(CTCBPEDecodingConfig)
-            ctc_decoding_cls = OmegaConf.create(OmegaConf.to_container(ctc_decoding_cls))
+            ctc_decoding_cls = OmegaConf.create(
+                OmegaConf.to_container(ctc_decoding_cls)
+            )
             ctc_decoding_cfg = OmegaConf.merge(ctc_decoding_cls, ctc_decoding_cfg)
 
-            self.ctc_decoding = CTCBPEDecoding(decoding_cfg=ctc_decoding_cfg, tokenizer=self.tokenizer)
+            self.ctc_decoding = CTCBPEDecoding(
+                decoding_cfg=ctc_decoding_cfg, tokenizer=self.tokenizer
+            )
 
             self.ctc_wer = WER(
                 decoding=self.ctc_decoding,
-                use_cer=self.cfg.aux_ctc.get('use_cer', False),
+                use_cer=self.cfg.aux_ctc.get("use_cer", False),
                 log_prediction=self.cfg.get("log_prediction", False),
                 dist_sync_on_step=True,
             )
@@ -424,10 +455,15 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
             with open_dict(self.cfg.aux_ctc):
                 self.cfg.aux_ctc.decoding = ctc_decoding_cfg
 
-            logging.info(f"Changed tokenizer of the CTC decoder to {self.ctc_decoder.vocabulary} vocabulary.")
+            logging.info(
+                f"Changed tokenizer of the CTC decoder to {self.ctc_decoder.vocabulary} vocabulary."
+            )
 
     def change_decoding_strategy(
-        self, decoding_cfg: DictConfig = None, decoder_type: str = None, verbose: bool = True
+        self,
+        decoding_cfg: DictConfig = None,
+        decoder_type: str = None,
+        verbose: bool = True,
     ):
         """
         Changes decoding strategy used during RNNT decoding process.
@@ -439,10 +475,12 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
                 used. If set to 'ctc', it raises error if 'ctc_decoder' is not an attribute of the model.
             verbose: bool whether to display change of decoder config or not.
         """
-        if decoder_type is None or decoder_type == 'rnnt':
+        if decoder_type is None or decoder_type == "rnnt":
             if decoding_cfg is None:
                 # Assume same decoding config as before
-                logging.info("No `decoding_cfg` passed when changing decoding strategy, using internal config")
+                logging.info(
+                    "No `decoding_cfg` passed when changing decoding strategy, using internal config"
+                )
                 decoding_cfg = self.cfg.decoding
 
             # Assert the decoding config with all hyper parameters
@@ -468,12 +506,13 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
 
             # Setup fused Joint step
             if self.joint.fuse_loss_wer or (
-                self.decoding.joint_fused_batch_size is not None and self.decoding.joint_fused_batch_size > 0
+                self.decoding.joint_fused_batch_size is not None
+                and self.decoding.joint_fused_batch_size > 0
             ):
                 self.joint.set_loss(self.loss)
                 self.joint.set_wer(self.wer)
 
-            self.joint.temperature = decoding_cfg.get('temperature', 1.0)
+            self.joint.temperature = decoding_cfg.get("temperature", 1.0)
 
             # Update config
             with open_dict(self.cfg.decoding):
@@ -485,12 +524,16 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
                     f"Changed decoding strategy of the RNNT decoder to \n{OmegaConf.to_yaml(self.cfg.decoding)}"
                 )
 
-        elif decoder_type == 'ctc':
-            if not hasattr(self, 'ctc_decoding'):
-                raise ValueError("The model does not have the ctc_decoding module and does not support ctc decoding.")
+        elif decoder_type == "ctc":
+            if not hasattr(self, "ctc_decoding"):
+                raise ValueError(
+                    "The model does not have the ctc_decoding module and does not support ctc decoding."
+                )
             if decoding_cfg is None:
                 # Assume same decoding config as before
-                logging.info("No `decoding_cfg` passed when changing decoding strategy, using internal config")
+                logging.info(
+                    "No `decoding_cfg` passed when changing decoding strategy, using internal config"
+                )
                 decoding_cfg = self.cfg.aux_ctc.decoding
 
             # Assert the decoding config with all hyper parameters
@@ -498,7 +541,9 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
             decoding_cls = OmegaConf.create(OmegaConf.to_container(decoding_cls))
             decoding_cfg = OmegaConf.merge(decoding_cls, decoding_cfg)
 
-            self.ctc_decoding = CTCBPEDecoding(decoding_cfg=decoding_cfg, tokenizer=self.tokenizer)
+            self.ctc_decoding = CTCBPEDecoding(
+                decoding_cfg=decoding_cfg, tokenizer=self.tokenizer
+            )
 
             self.ctc_wer = WER(
                 decoding=self.ctc_decoding,
@@ -507,7 +552,7 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
                 dist_sync_on_step=True,
             )
 
-            self.ctc_decoder.temperature = decoding_cfg.get('temperature', 1.0)
+            self.ctc_decoder.temperature = decoding_cfg.get("temperature", 1.0)
 
             # Update config
             with open_dict(self.cfg.aux_ctc.decoding):
@@ -519,7 +564,9 @@ class EncDecHybridRNNTCTCBPEModel(EncDecHybridRNNTCTCModel, ASRBPEMixin):
                     f"Changed decoding strategy of the CTC decoder to \n{OmegaConf.to_yaml(self.cfg.aux_ctc.decoding)}"
                 )
         else:
-            raise ValueError(f"decoder_type={decoder_type} is not supported. Supported values: [ctc,rnnt]")
+            raise ValueError(
+                f"decoder_type={decoder_type} is not supported. Supported values: [ctc,rnnt]"
+            )
 
     @classmethod
     def list_available_models(cls) -> List[PretrainedModelInfo]:

@@ -119,13 +119,15 @@ class HATJoint(rnnt.RNNTJoint):
             experimental_fuse_loss_wer=experimental_fuse_loss_wer,
         )
 
-        self.pred, self.enc, self.joint_net, self.blank_pred = self._joint_hat_net_modules(
-            num_classes=self._vocab_size,  # non blank symbol
-            pred_n_hidden=self.pred_hidden,
-            enc_n_hidden=self.encoder_hidden,
-            joint_n_hidden=self.joint_hidden,
-            activation=self.activation,
-            dropout=jointnet.get('dropout', 0.0),
+        self.pred, self.enc, self.joint_net, self.blank_pred = (
+            self._joint_hat_net_modules(
+                num_classes=self._vocab_size,  # non blank symbol
+                pred_n_hidden=self.pred_hidden,
+                enc_n_hidden=self.encoder_hidden,
+                joint_n_hidden=self.joint_hidden,
+                activation=self.activation,
+                dropout=jointnet.get("dropout", 0.0),
+            )
         )
         self._return_hat_ilm = False
 
@@ -137,7 +139,9 @@ class HATJoint(rnnt.RNNTJoint):
     def return_hat_ilm(self, hat_subtract_ilm):
         self._return_hat_ilm = hat_subtract_ilm
 
-    def joint_after_projection(self, f: torch.Tensor, g: torch.Tensor) -> Union[torch.Tensor, HATJointOutput]:
+    def joint_after_projection(
+        self, f: torch.Tensor, g: torch.Tensor
+    ) -> Union[torch.Tensor, HATJointOutput]:
         """
         Compute the joint step of the network after Encoder/Decoder projection.
 
@@ -187,20 +191,37 @@ class HATJoint(rnnt.RNNTJoint):
         scale_prob = torch.clamp(1 - torch.exp(blank_logprob), min=1e-6)
         label_logprob_scaled = torch.log(scale_prob) + label_logprob  # [B, T, U, V]
 
-        res = torch.cat((label_logprob_scaled, blank_logprob), dim=-1).contiguous()  # [B, T, U, V+1]
+        res = torch.cat(
+            (label_logprob_scaled, blank_logprob), dim=-1
+        ).contiguous()  # [B, T, U, V+1]
 
         if self.return_hat_ilm:
             ilm_logprobs = self.joint_net(g).log_softmax(dim=-1)  # [B, 1, U, V]
             res = HATJointOutput(hat_logprobs=res, ilm_logprobs=ilm_logprobs)
 
-        del g, blank_logprob, label_logprob, label_logit, scale_prob, label_logprob_scaled
+        del (
+            g,
+            blank_logprob,
+            label_logprob,
+            label_logit,
+            scale_prob,
+            label_logprob_scaled,
+        )
 
         if self.preserve_memory:
             torch.cuda.empty_cache()
 
         return res
 
-    def _joint_hat_net_modules(self, num_classes, pred_n_hidden, enc_n_hidden, joint_n_hidden, activation, dropout):
+    def _joint_hat_net_modules(
+        self,
+        num_classes,
+        pred_n_hidden,
+        enc_n_hidden,
+        joint_n_hidden,
+        activation,
+        dropout,
+    ):
         """
         Prepare the trainable modules of the Joint Network
 
@@ -215,19 +236,25 @@ class HATJoint(rnnt.RNNTJoint):
         pred = torch.nn.Linear(pred_n_hidden, joint_n_hidden)
         enc = torch.nn.Linear(enc_n_hidden, joint_n_hidden)
         blank_pred = torch.nn.Sequential(
-            torch.nn.Tanh(), torch.nn.Dropout(p=dropout), torch.nn.Linear(joint_n_hidden, 1), torch.nn.LogSigmoid()
+            torch.nn.Tanh(),
+            torch.nn.Dropout(p=dropout),
+            torch.nn.Linear(joint_n_hidden, 1),
+            torch.nn.LogSigmoid(),
         )
 
-        if activation not in ['relu', 'sigmoid', 'tanh']:
-            raise ValueError("Unsupported activation for joint step - please pass one of " "[relu, sigmoid, tanh]")
+        if activation not in ["relu", "sigmoid", "tanh"]:
+            raise ValueError(
+                "Unsupported activation for joint step - please pass one of "
+                "[relu, sigmoid, tanh]"
+            )
 
         activation = activation.lower()
 
-        if activation == 'relu':
+        if activation == "relu":
             activation = torch.nn.ReLU(inplace=True)
-        elif activation == 'sigmoid':
+        elif activation == "sigmoid":
             activation = torch.nn.Sigmoid()
-        elif activation == 'tanh':
+        elif activation == "tanh":
             activation = torch.nn.Tanh()
 
         layers = (

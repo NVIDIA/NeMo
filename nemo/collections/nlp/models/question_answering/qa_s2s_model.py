@@ -47,7 +47,9 @@ class S2SQAModel(BaseQAModel):
         elif self.cfg.library == "megatron":
             # supporting MegatronT5Model in precision = fp16
             t5_cfg = MegatronT5Model.restore_from(
-                restore_path=cfg.language_model.lm_checkpoint, trainer=trainer, return_config=True
+                restore_path=cfg.language_model.lm_checkpoint,
+                trainer=trainer,
+                return_config=True,
             )
             # Override the T5 configuration with the one from the config file.
             OmegaConf.set_struct(t5_cfg, True)
@@ -56,29 +58,37 @@ class S2SQAModel(BaseQAModel):
                 t5_cfg.precision = 16
 
             language_model = MegatronT5Model.restore_from(
-                restore_path=cfg.language_model.lm_checkpoint, trainer=trainer, override_config_path=t5_cfg
+                restore_path=cfg.language_model.lm_checkpoint,
+                trainer=trainer,
+                override_config_path=t5_cfg,
             )
             self.tokenizer = language_model.tokenizer
 
         super().__init__(cfg=cfg, trainer=trainer, no_lm_init=True)
 
         if self.cfg.library == "huggingface":
-            self.language_model = AutoModelForSeq2SeqLM.from_pretrained(cfg.language_model.pretrained_model_name)
+            self.language_model = AutoModelForSeq2SeqLM.from_pretrained(
+                cfg.language_model.pretrained_model_name
+            )
             self.language_model.resize_token_embeddings(len(self.tokenizer.tokenizer))
             if self.cfg.language_model.lm_checkpoint:
-                self.language_model.load_state_dict(torch.load(self.cfg.language_model.lm_checkpoint))
+                self.language_model.load_state_dict(
+                    torch.load(self.cfg.language_model.lm_checkpoint)
+                )
         elif self.cfg.library == "megatron":
             self.language_model = language_model
 
     def training_step(self, batch, batch_idx):
         input_ids, input_attn_mask, unique_ids, labels = batch
         loss, _ = self.forward(input_ids, input_attn_mask, labels)
-        lr = self._optimizer.param_groups[0]['lr']
+        lr = self._optimizer.param_groups[0]["lr"]
 
-        self.log('lr', lr, prog_bar=True)
-        self.log("train_loss", loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
+        self.log("lr", lr, prog_bar=True)
+        self.log(
+            "train_loss", loss, on_step=True, on_epoch=True, prog_bar=True, logger=True
+        )
 
-        return {'loss': loss}
+        return {"loss": loss}
 
     def validation_step(self, batch, batch_idx):
         prefix = "test" if self.trainer.testing else "val"
@@ -93,11 +103,15 @@ class S2SQAModel(BaseQAModel):
             "unique_ids": unique_ids,
             f"{prefix}_loss": loss,
             "per_sample_perplexity": per_sample_perplexity,
-            "input": self.tokenizer.tokenizer.batch_decode(input_ids, skip_special_tokens=True),
-            "ground_truth_answers": self.tokenizer.tokenizer.batch_decode(labels, skip_special_tokens=True),
+            "input": self.tokenizer.tokenizer.batch_decode(
+                input_ids, skip_special_tokens=True
+            ),
+            "ground_truth_answers": self.tokenizer.tokenizer.batch_decode(
+                labels, skip_special_tokens=True
+            ),
             "generated_answers": generated_answers,
         }
-        if prefix == 'val':
+        if prefix == "val":
             self.validation_step_outputs.append(loss)
         else:
             self.test_step_outputs.append(loss)
@@ -110,22 +124,32 @@ class S2SQAModel(BaseQAModel):
     def on_validation_epoch_end(self):
         prefix = "test" if self.trainer.testing else "val"
 
-        if prefix == 'val':
+        if prefix == "val":
             loss_terms = [x[f"{prefix}_loss"] for x in self.validation_step_outputs]
-            generated_answers, unique_ids, per_sample_perplexity = QAMetrics.convert_dict_outputs_to_lists(
-                self.validation_step_outputs, ["generated_answers", "unique_ids", "per_sample_perplexity"]
+            generated_answers, unique_ids, per_sample_perplexity = (
+                QAMetrics.convert_dict_outputs_to_lists(
+                    self.validation_step_outputs,
+                    ["generated_answers", "unique_ids", "per_sample_perplexity"],
+                )
             )
             self.validation_step_outputs.clear()  # free memory
         else:
             loss_terms = [x[f"{prefix}_loss"] for x in self.test_step_outputs]
-            generated_answers, unique_ids, per_sample_perplexity = QAMetrics.convert_dict_outputs_to_lists(
-                self.test_step_outputs, ["generated_answers", "unique_ids", "per_sample_perplexity"]
+            generated_answers, unique_ids, per_sample_perplexity = (
+                QAMetrics.convert_dict_outputs_to_lists(
+                    self.test_step_outputs,
+                    ["generated_answers", "unique_ids", "per_sample_perplexity"],
+                )
             )
             self.test_step_outputs.clear()  # free memory
 
         avg_loss = torch.stack(loss_terms).mean()
 
-        eval_dataset = self._test_dl.dataset if self.trainer.testing else self._validation_dl.dataset
+        eval_dataset = (
+            self._test_dl.dataset
+            if self.trainer.testing
+            else self._validation_dl.dataset
+        )
         eval_results, _, _ = self.evaluate(
             eval_dataset.features,
             eval_dataset.examples,
@@ -134,7 +158,7 @@ class S2SQAModel(BaseQAModel):
             generated_answers,
         )
 
-        self.log(f'{prefix}_loss', avg_loss)
+        self.log(f"{prefix}_loss", avg_loss)
         for eval_key in eval_results:
             logging.info(f"{prefix} {eval_key}: {eval_results[eval_key]}")
             self.log(f"{prefix}_{eval_key}", eval_results[eval_key])
@@ -147,14 +171,18 @@ class S2SQAModel(BaseQAModel):
         loss, per_sample_perplexity = None, None
         if self.cfg.library == "huggingface":
             with autocast(enabled=False):
-                output = self.language_model(input_ids=input_ids, attention_mask=input_attn_mask, labels=labels)
-            loss = output['loss']
-            lm_logits = output['logits']
+                output = self.language_model(
+                    input_ids=input_ids, attention_mask=input_attn_mask, labels=labels
+                )
+            loss = output["loss"]
+            lm_logits = output["logits"]
             per_sample_perplexity = self._get_per_sample_perplexity(lm_logits, labels)
 
         elif self.cfg.library == "megatron":
             labels = torch.where(labels != -100, labels, torch.zeros_like(labels))
-            output_attn_masks = torch.where(labels > 0, torch.ones_like(labels), torch.zeros_like(labels))
+            output_attn_masks = torch.where(
+                labels > 0, torch.ones_like(labels), torch.zeros_like(labels)
+            )
             unmasked_unreduced_loss = self.language_model(
                 input_ids,
                 labels[:, :-1],
@@ -162,7 +190,9 @@ class S2SQAModel(BaseQAModel):
                 output_attn_masks[:, :-1],
                 lm_labels=labels[:, 1:],
             )
-            loss = self.language_model.loss_func(output_attn_masks[:, 1:], unmasked_unreduced_loss)
+            loss = self.language_model.loss_func(
+                output_attn_masks[:, 1:], unmasked_unreduced_loss
+            )
             per_sample_perplexity = torch.exp(unmasked_unreduced_loss)
 
         return loss, per_sample_perplexity
@@ -187,11 +217,16 @@ class S2SQAModel(BaseQAModel):
                 logging_level = logging.get_verbosity()
                 logging.set_verbosity(logging.WARNING)
 
-                inference_dl = self.setup_inference_data(file, batch_size=batch_size, num_samples=num_samples)
+                inference_dl = self.setup_inference_data(
+                    file, batch_size=batch_size, num_samples=num_samples
+                )
 
                 outputs = self._inference(inference_dl, device)
-                generated_answers, unique_ids, per_sample_perplexity = QAMetrics.convert_dict_outputs_to_lists(
-                    outputs, ["generated_answers", "unique_ids", "per_sample_perplexity"]
+                generated_answers, unique_ids, per_sample_perplexity = (
+                    QAMetrics.convert_dict_outputs_to_lists(
+                        outputs,
+                        ["generated_answers", "unique_ids", "per_sample_perplexity"],
+                    )
                 )
                 all_predictions, all_nbest_predictions = self._get_predictions(
                     inference_dl.dataset.features,
@@ -203,7 +238,9 @@ class S2SQAModel(BaseQAModel):
 
                 if output_prediction_file:
                     QAMetrics.dump_predicted_answers_to_file(
-                        output_prediction_file, inference_dl.dataset.examples, all_predictions
+                        output_prediction_file,
+                        inference_dl.dataset.examples,
+                        all_predictions,
                     )
 
                 if output_nbest_file:
@@ -219,7 +256,7 @@ class S2SQAModel(BaseQAModel):
                 self.train(mode=mode)
                 logging.set_verbosity(logging_level)
 
-        elif self.cfg.library == 'megatron':
+        elif self.cfg.library == "megatron":
             raise ValueError("Megatron Inference is not supported by S2SQAModel")
 
         return all_predictions, all_nbest_predictions
@@ -309,12 +346,16 @@ class S2SQAModel(BaseQAModel):
                 pos = unique_id_to_pos[feature.unique_id]
                 curr_perplexity = per_sample_perplexity[pos]
                 curr_generated_text = generated_texts[pos]
-                prelim_prediction = _PrelimPrediction(feature_index, curr_perplexity, curr_generated_text)
+                prelim_prediction = _PrelimPrediction(
+                    feature_index, curr_perplexity, curr_generated_text
+                )
                 prelim_predictions.append(prelim_prediction)
 
             prelim_predictions = sorted(prelim_predictions, key=lambda x: x.perplexity)
             all_predictions[example.qas_id] = prelim_predictions[0].generated_text
-            all_nbest_json[example.qas_id] = [pred._asdict() for pred in prelim_predictions]
+            all_nbest_json[example.qas_id] = [
+                pred._asdict() for pred in prelim_predictions
+            ]
 
         return all_predictions, all_nbest_json
 
@@ -324,7 +365,9 @@ class S2SQAModel(BaseQAModel):
 
             # get predictions
             input_ids, input_attn_mask, unique_ids = batch
-            input_ids, input_attn_mask = (tensor.to(device) for tensor in [input_ids, input_attn_mask])
+            input_ids, input_attn_mask = (
+                tensor.to(device) for tensor in [input_ids, input_attn_mask]
+            )
             generated_texts = self._generate_candidates(input_ids, input_attn_mask)
 
             labels = self._prep_inference_labels(generated_texts, device)
@@ -374,7 +417,7 @@ class S2SQAModel(BaseQAModel):
             )
             generated_answers = [ans.strip() for ans in generated_answers]
 
-        elif self.cfg.library == 'megatron':
+        elif self.cfg.library == "megatron":
             raise ValueError("Megatron Generation is not supported by S2SQAModel")
 
         return generated_answers

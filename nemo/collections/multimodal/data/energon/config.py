@@ -41,11 +41,17 @@ class ImageToken(MultiModalToken):
 class ImageTextSample:
     """Sample type for template formatted raw image text sample"""
 
-    __key__: str = ''
+    __key__: str = ""
     images: torch.Tensor = field(default_factory=lambda: torch.empty(0))
-    tokens: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.long))
-    labels: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.long))
-    loss_mask: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.float))
+    tokens: torch.Tensor = field(
+        default_factory=lambda: torch.empty(0, dtype=torch.long)
+    )
+    labels: torch.Tensor = field(
+        default_factory=lambda: torch.empty(0, dtype=torch.long)
+    )
+    loss_mask: torch.Tensor = field(
+        default_factory=lambda: torch.empty(0, dtype=torch.float)
+    )
     num_image_tiles: Optional[List[int]] = None
 
 
@@ -54,8 +60,12 @@ class PackedImageTextSample(ImageTextSample):
     """Sample type for packed image text sample"""
 
     __restore_key__: Tuple[Union[str, int, tuple], ...] = ()
-    position_ids: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.float))
-    packed_seq_params: PackedSeqParams = field(default_factory=lambda: PackedSeqParams())
+    position_ids: torch.Tensor = field(
+        default_factory=lambda: torch.empty(0, dtype=torch.float)
+    )
+    packed_seq_params: PackedSeqParams = field(
+        default_factory=lambda: PackedSeqParams()
+    )
 
 
 @dataclass
@@ -66,9 +76,15 @@ class ImageTextRawBatch:
     #: Input images (N, C, H, W)
     images: torch.Tensor = field(default_factory=lambda: torch.empty(0))
     #: Context string
-    tokens: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.long))
-    labels: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.long))
-    loss_mask: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.float))
+    tokens: torch.Tensor = field(
+        default_factory=lambda: torch.empty(0, dtype=torch.long)
+    )
+    labels: torch.Tensor = field(
+        default_factory=lambda: torch.empty(0, dtype=torch.long)
+    )
+    loss_mask: torch.Tensor = field(
+        default_factory=lambda: torch.empty(0, dtype=torch.float)
+    )
     num_image_tiles: Optional[List[int]] = None
 
 
@@ -76,13 +92,19 @@ class ImageTextRawBatch:
 class PackedImageTextRawBatch(ImageTextRawBatch):
     """Sample type for image text raw batch"""
 
-    position_ids: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.float))
-    packed_seq_params: PackedSeqParams = field(default_factory=lambda: PackedSeqParams())
+    position_ids: torch.Tensor = field(
+        default_factory=lambda: torch.empty(0, dtype=torch.float)
+    )
+    packed_seq_params: PackedSeqParams = field(
+        default_factory=lambda: PackedSeqParams()
+    )
 
 
 @dataclass
 class MultiModalSampleConfig:
     image_token: ImageToken = field(default_factory=ImageToken)
     ignore_place_holder: int = -100
-    conversation_template_config: BaseConversationTemplateConfig = field(default_factory=LLaVATemplateConfig)
+    conversation_template_config: BaseConversationTemplateConfig = field(
+        default_factory=LLaVATemplateConfig
+    )
     image_following_text: bool = True

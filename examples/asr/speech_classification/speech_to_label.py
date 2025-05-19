@@ -157,12 +157,12 @@ from nemo.utils.exp_manager import exp_manager
 @hydra_runner(config_path="../conf/matchboxnet", config_name="matchboxnet_3x1x64_v1")
 def main(cfg):
 
-    logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
+    logging.info(f"Hydra config: {OmegaConf.to_yaml(cfg)}")
 
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
 
-    if 'titanet' in cfg.name.lower():
+    if "titanet" in cfg.name.lower():
         model = EncDecSpeakerLabelModel(cfg=cfg.model, trainer=trainer)
     else:
         model = EncDecClassificationModel(cfg=cfg.model, trainer=trainer)
@@ -172,12 +172,19 @@ def main(cfg):
     trainer.fit(model)
     torch.distributed.destroy_process_group()
 
-    if hasattr(cfg.model, 'test_ds') and cfg.model.test_ds.manifest_filepath is not None:
+    if (
+        hasattr(cfg.model, "test_ds")
+        and cfg.model.test_ds.manifest_filepath is not None
+    ):
         if trainer.is_global_zero:
-            trainer = pl.Trainer(devices=1, accelerator=cfg.trainer.accelerator, strategy=cfg.trainer.strategy)
+            trainer = pl.Trainer(
+                devices=1,
+                accelerator=cfg.trainer.accelerator,
+                strategy=cfg.trainer.strategy,
+            )
             if model.prepare_test(trainer):
                 trainer.test(model)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()  # noqa pylint: disable=no-value-for-parameter

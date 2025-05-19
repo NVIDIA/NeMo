@@ -54,8 +54,12 @@ if TYPE_CHECKING:
 class Llama4ScoutExperts16Config(Llama4OmniConfig):
     """Llava v1.5 Config 7B"""
 
-    language_transformer_config: TransformerConfig = field(default_factory=lambda: Llama4Experts16Config())
-    vision_transformer_config: TransformerConfig = field(default_factory=lambda: Llama4VisionConfig())
+    language_transformer_config: TransformerConfig = field(
+        default_factory=lambda: Llama4Experts16Config()
+    )
+    vision_transformer_config: TransformerConfig = field(
+        default_factory=lambda: Llama4VisionConfig()
+    )
     vision_projection_config: TransformerConfig = field(
         default_factory=lambda: MultimodalProjectorConfig(
             projector_type="mcore_affine",
@@ -72,8 +76,12 @@ class Llama4ScoutExperts16Config(Llama4OmniConfig):
 class Llama4MaverickExperts128Config(Llama4OmniConfig):
     """Llava v1.5 Config 13B"""
 
-    language_transformer_config: TransformerConfig = field(default_factory=lambda: Llama4Experts128Config())
-    vision_transformer_config: TransformerConfig = field(default_factory=lambda: Llama4VisionConfig())
+    language_transformer_config: TransformerConfig = field(
+        default_factory=lambda: Llama4Experts128Config()
+    )
+    vision_transformer_config: TransformerConfig = field(
+        default_factory=lambda: Llama4VisionConfig()
+    )
     vision_projection_config: TransformerConfig = field(
         default_factory=lambda: MultimodalProjectorConfig(
             projector_type="mcore_affine",
@@ -87,7 +95,9 @@ class Llama4MaverickExperts128Config(Llama4OmniConfig):
 
 
 @io.model_importer(Llama4OmniModel, "hf")
-class HFLlama4OmniImporter(io.ModelConnector["Llama4ForConditionalGeneration", Llama4OmniModel]):
+class HFLlama4OmniImporter(
+    io.ModelConnector["Llama4ForConditionalGeneration", Llama4OmniModel]
+):
     """Importer for converting Hugging Face Llama models to NeMo format.
 
     This class handles the conversion of Hugging Face's LlamaForCausalLM models
@@ -115,7 +125,9 @@ class HFLlama4OmniImporter(io.ModelConnector["Llama4ForConditionalGeneration", L
 
         from transformers import Llama4ForConditionalGeneration
 
-        source = Llama4ForConditionalGeneration.from_pretrained(str(self), torch_dtype='auto')
+        source = Llama4ForConditionalGeneration.from_pretrained(
+            str(self), torch_dtype="auto"
+        )
 
         target = self.init()
         trainer = self.nemo_setup(target)
@@ -124,7 +136,9 @@ class HFLlama4OmniImporter(io.ModelConnector["Llama4ForConditionalGeneration", L
         self.convert_state(source, target)
         self.nemo_save(output_path, trainer)
 
-        print(f"Converted Llama model to Nemo, model saved to {output_path} in {source.dtype}.")
+        print(
+            f"Converted Llama model to Nemo, model saved to {output_path} in {source.dtype}."
+        )
 
         teardown(trainer, target)
         del trainer, target
@@ -153,8 +167,12 @@ class HFLlama4OmniImporter(io.ModelConnector["Llama4ForConditionalGeneration", L
             "vision_model.layernorm_pre.bias": "vision_model.ln_pre.bias",
             "vision_model.layernorm_post.weight": "vision_model.ln_post.weight",
             "vision_model.layernorm_post.bias": "vision_model.ln_post.bias",
-            "vision_model.vision_adapter.mlp.fc1.weight": ("vision_model.adapter.mlp.encoder.linear_fc1.weight"),
-            'vision_model.vision_adapter.mlp.fc2.weight': ("vision_model.adapter.mlp.encoder.linear_fc2.weight"),
+            "vision_model.vision_adapter.mlp.fc1.weight": (
+                "vision_model.adapter.mlp.encoder.linear_fc1.weight"
+            ),
+            "vision_model.vision_adapter.mlp.fc2.weight": (
+                "vision_model.adapter.mlp.encoder.linear_fc2.weight"
+            ),
             "vision_model.model.layers.*.self_attn.o_proj.weight": (
                 "vision_model.decoder.layers.*.self_attention.linear_proj.weight"
             ),
@@ -238,7 +256,9 @@ class HFLlama4OmniImporter(io.ModelConnector["Llama4ForConditionalGeneration", L
             ),
         ]
 
-        return io.apply_transforms(source, target, mapping=mapping, transforms=transforms)
+        return io.apply_transforms(
+            source, target, mapping=mapping, transforms=transforms
+        )
 
     @property
     def tokenizer(self) -> "AutoTokenizer":
@@ -265,26 +285,37 @@ class HFLlama4OmniImporter(io.ModelConnector["Llama4ForConditionalGeneration", L
         for layer_i in range(language_transformer_config.num_layers):
             is_moe_layer = True
             if isinstance(language_transformer_config.moe_layer_freq, list):
-                assert len(language_transformer_config.moe_layer_freq) == language_transformer_config.num_layers
+                assert (
+                    len(language_transformer_config.moe_layer_freq)
+                    == language_transformer_config.num_layers
+                )
                 is_moe_layer = language_transformer_config.moe_layer_freq[layer_i]
             if is_moe_layer:
                 # gate_up_proj
-                weight = state_dict.pop(f"language_model.model.layers.{layer_i}.feed_forward.experts.gate_up_proj")
+                weight = state_dict.pop(
+                    f"language_model.model.layers.{layer_i}.feed_forward.experts.gate_up_proj"
+                )
                 weights = torch.chunk(weight, num_experts, dim=0)
                 for expert_i, expert_weight in enumerate(weights):
                     state_dict[
                         f"language_model.model.layers.{layer_i}.feed_forward.experts.{expert_i}.gate_up_proj"
                     ] = expert_weight.squeeze().transpose(0, 1)
                 # down_proj
-                weight = state_dict.pop(f"language_model.model.layers.{layer_i}.feed_forward.experts.down_proj")
+                weight = state_dict.pop(
+                    f"language_model.model.layers.{layer_i}.feed_forward.experts.down_proj"
+                )
                 weights = torch.chunk(weight, num_experts, dim=0)
                 for expert_i, expert_weight in enumerate(weights):
-                    state_dict[f"language_model.model.layers.{layer_i}.feed_forward.experts.{expert_i}.down_proj"] = (
-                        expert_weight.squeeze().transpose(0, 1)
-                    )
+                    state_dict[
+                        f"language_model.model.layers.{layer_i}.feed_forward.experts.{expert_i}.down_proj"
+                    ] = expert_weight.squeeze().transpose(0, 1)
             else:
-                weight = state_dict.pop(f"language_model.model.layers.{layer_i}.post_attention_layernorm.weight")
-                state_dict[f"language_model.model.layers.{layer_i}.dense-post_attention_layernorm.weight"] = weight
+                weight = state_dict.pop(
+                    f"language_model.model.layers.{layer_i}.post_attention_layernorm.weight"
+                )
+                state_dict[
+                    f"language_model.model.layers.{layer_i}.dense-post_attention_layernorm.weight"
+                ] = weight
 
         source = _ModelState(state_dict)
         return source
@@ -316,31 +347,45 @@ class HFLlama4OmniImporter(io.ModelConnector["Llama4ForConditionalGeneration", L
         src_text_config = source.text_config
         src_vision_config = source.vision_config
         args = {
-            'moe_router_topk': src_text_config.num_experts_per_tok,
-            'num_moe_experts': src_text_config.num_local_experts,
-            'qk_l2_norm': src_text_config.use_qk_norm,
-            'moe_shared_expert_intermediate_size': src_text_config.intermediate_size,
-            'moe_ffn_hidden_size': src_text_config.intermediate_size,
+            "moe_router_topk": src_text_config.num_experts_per_tok,
+            "num_moe_experts": src_text_config.num_local_experts,
+            "qk_l2_norm": src_text_config.use_qk_norm,
+            "moe_shared_expert_intermediate_size": src_text_config.intermediate_size,
+            "moe_ffn_hidden_size": src_text_config.intermediate_size,
         }
         if (
-            getattr(src_text_config, 'rope_scaling', None) is not None
-            and src_text_config.rope_scaling.get('rope_type') == 'llama3'
+            getattr(src_text_config, "rope_scaling", None) is not None
+            and src_text_config.rope_scaling.get("rope_type") == "llama3"
         ):
-            args.update({'rope_scaling': True, 'rope_scaling_factor': src_text_config.rope_scaling.get("factor", 8.0)})
+            args.update(
+                {
+                    "rope_scaling": True,
+                    "rope_scaling_factor": src_text_config.rope_scaling.get(
+                        "factor", 8.0
+                    ),
+                }
+            )
         else:
-            args.update({'rope_scaling': False})
-        if getattr(src_text_config, 'interleave_moe_layer_step', 1) != 1:
-            assert src_text_config.num_hidden_layers % src_text_config.interleave_moe_layer_step == 0
+            args.update({"rope_scaling": False})
+        if getattr(src_text_config, "interleave_moe_layer_step", 1) != 1:
+            assert (
+                src_text_config.num_hidden_layers
+                % src_text_config.interleave_moe_layer_step
+                == 0
+            )
             pattern = [0] * (src_text_config.interleave_moe_layer_step - 1) + [1]
-            num_patterns = src_text_config.num_hidden_layers // src_text_config.interleave_moe_layer_step
-            args.update({'moe_layer_freq': pattern * num_patterns})
+            num_patterns = (
+                src_text_config.num_hidden_layers
+                // src_text_config.interleave_moe_layer_step
+            )
+            args.update({"moe_layer_freq": pattern * num_patterns})
 
         language_transformer_config = Llama4TextConfig(
             num_layers=src_text_config.num_hidden_layers,
             hidden_size=src_text_config.hidden_size,
             ffn_hidden_size=(
                 src_text_config.intermediate_size
-                if not getattr(src_text_config, 'intermediate_size_mlp', None)
+                if not getattr(src_text_config, "intermediate_size_mlp", None)
                 else src_text_config.intermediate_size_mlp
             ),
             num_attention_heads=src_text_config.num_attention_heads,
@@ -350,8 +395,12 @@ class HFLlama4OmniImporter(io.ModelConnector["Llama4ForConditionalGeneration", L
             seq_length=src_text_config.max_position_embeddings,
             rotary_base=src_text_config.rope_theta,
             gated_linear_unit=True,
-            make_vocab_size_divisible_by=make_vocab_size_divisible_by(src_text_config.vocab_size),
-            share_embeddings_and_output_weights=getattr(src_text_config, "tie_word_embeddings", False),
+            make_vocab_size_divisible_by=make_vocab_size_divisible_by(
+                src_text_config.vocab_size
+            ),
+            share_embeddings_and_output_weights=getattr(
+                src_text_config, "tie_word_embeddings", False
+            ),
             vocab_size=src_text_config.vocab_size,
             kv_channels=getattr(src_text_config, "head_dim"),
             generation_config=generation_config,
@@ -359,7 +408,9 @@ class HFLlama4OmniImporter(io.ModelConnector["Llama4ForConditionalGeneration", L
         )
 
         # vision config doesn't change
-        vision_transformer_config = Llama4VisionConfig(num_layers=src_vision_config.num_hidden_layers)
+        vision_transformer_config = Llama4VisionConfig(
+            num_layers=src_vision_config.num_hidden_layers
+        )
 
         vision_projection_config = MultimodalProjectorConfig(
             projector_type="mcore_affine",
@@ -380,7 +431,9 @@ class HFLlama4OmniImporter(io.ModelConnector["Llama4ForConditionalGeneration", L
 
 
 @io.model_exporter(Llama4OmniModel, "hf")
-class HFLlama4OmniExporter(io.ModelConnector[Llama4OmniModel, "Llama4ForConditionalGeneration"]):
+class HFLlama4OmniExporter(
+    io.ModelConnector[Llama4OmniModel, "Llama4ForConditionalGeneration"]
+):
     """Exporter for converting NeMo Llama4 Omni models to Hugging Face format.
 
     This class handles the conversion of NeMo's Llama4OmniModel to Hugging Face's
@@ -400,7 +453,9 @@ class HFLlama4OmniExporter(io.ModelConnector[Llama4OmniModel, "Llama4ForConditio
         from transformers.modeling_utils import no_init_weights
 
         with no_init_weights():
-            return Llama4ForConditionalGeneration._from_config(self.config, torch_dtype=dtype)
+            return Llama4ForConditionalGeneration._from_config(
+                self.config, torch_dtype=dtype
+            )
 
     @property
     def config(self) -> "HFLlama4Config":
@@ -422,23 +477,25 @@ class HFLlama4OmniExporter(io.ModelConnector[Llama4OmniModel, "Llama4ForConditio
         # Text config
         rope_scaling = (
             {
-                'factor': source_language.rope_scaling_factor,
-                'low_freq_factor': 1.0,
-                'high_freq_factor': 4.0,
-                'original_max_position_embeddings': 8192,
-                'rope_type': 'llama3',
+                "factor": source_language.rope_scaling_factor,
+                "low_freq_factor": 1.0,
+                "high_freq_factor": 4.0,
+                "original_max_position_embeddings": 8192,
+                "rope_type": "llama3",
             }
             if source_language.rope_scaling
             else None
         )
-        if getattr(source_language, 'moe_layer_freq') is not None:
+        if getattr(source_language, "moe_layer_freq") is not None:
             moe_layer_freq = source_language.moe_layer_freq
             if isinstance(moe_layer_freq, int):
                 interleave_moe_layer_step = moe_layer_freq
             elif isinstance(moe_layer_freq, list):
-                interleave_moe_layer_step = source_language.num_layers // sum(moe_layer_freq)
+                interleave_moe_layer_step = source_language.num_layers // sum(
+                    moe_layer_freq
+                )
             else:
-                raise ValueError(f'Unexpected moe_layer_freq {moe_layer_freq}')
+                raise ValueError(f"Unexpected moe_layer_freq {moe_layer_freq}")
         else:
             interleave_moe_layer_step = None
 
@@ -460,7 +517,7 @@ class HFLlama4OmniExporter(io.ModelConnector[Llama4OmniModel, "Llama4ForConditio
             vocab_size=source_language.vocab_size,
             rope_scaling=rope_scaling,
             interleave_moe_layer_step=interleave_moe_layer_step,
-            pad_token_id=self.tokenizer.tokens_to_ids(['<|finetune_right_pad|>'])[0],
+            pad_token_id=self.tokenizer.tokens_to_ids(["<|finetune_right_pad|>"])[0],
             # no rope
         )
         # Vision config
@@ -498,9 +555,9 @@ class HFLlama4OmniExporter(io.ModelConnector[Llama4OmniModel, "Llama4ForConditio
         logging.info("Loading Llama4Omni NeMo checkpoint. This may take a while...")
         source, source_config = self.ckpt_load(self)
         logging.info("Llama4Omni NeMo checkpoint loaded.")
-        logging.info('Initializing the HF model..')
+        logging.info("Initializing the HF model..")
         target = self.init(torch.bfloat16)
-        logging.info('Start Converting the model..')
+        logging.info("Start Converting the model..")
         target = self.convert_state(source, target, source_config)
         target = target.cpu()
         target.save_pretrained(output_path)
@@ -535,7 +592,7 @@ class HFLlama4OmniExporter(io.ModelConnector[Llama4OmniModel, "Llama4ForConditio
             "vision_model.ln_post.weight": "vision_model.layernorm_post.weight",
             "vision_model.ln_post.bias": "vision_model.layernorm_post.bias",
             "vision_model.adapter.mlp.encoder.linear_fc1.weight": "vision_model.vision_adapter.mlp.fc1.weight",
-            "vision_model.adapter.mlp.encoder.linear_fc2.weight": 'vision_model.vision_adapter.mlp.fc2.weight',
+            "vision_model.adapter.mlp.encoder.linear_fc2.weight": "vision_model.vision_adapter.mlp.fc2.weight",
             "vision_model.decoder.layers.*.self_attention.linear_proj.weight": (
                 "vision_model.model.layers.*.self_attn.o_proj.weight"
             ),
@@ -618,7 +675,9 @@ class HFLlama4OmniExporter(io.ModelConnector[Llama4OmniModel, "Llama4ForConditio
                 fn=TransformFns.split_fc1,
             ),
         ]
-        return io.apply_transforms(source, target, mapping=mapping, transforms=transforms)
+        return io.apply_transforms(
+            source, target, mapping=mapping, transforms=transforms
+        )
 
     @property
     def tokenizer(self) -> "TokenizerSpec":
@@ -644,26 +703,32 @@ class HFLlama4OmniExporter(io.ModelConnector[Llama4OmniModel, "Llama4ForConditio
         """
         model_yaml = path / "context" / "model.yaml"
         if not model_yaml.exists():
-            raise FileNotFoundError("model.yaml is not found in the context folder of the checkpoint.")
-        with open(model_yaml, 'r') as stream:
+            raise FileNotFoundError(
+                "model.yaml is not found in the context folder of the checkpoint."
+            )
+        with open(model_yaml, "r") as stream:
             config = yaml.safe_load(stream)
 
         dist_ckpt_folder = path / "weights"
         state_dict = {}
 
-        langauge_layers = config['config']['language_transformer_config']['num_layers']
-        vision_layers = config['config']['vision_transformer_config']['num_layers']
-        distributed_model_weights = load_distributed_model_weights(dist_ckpt_folder, True).items()
+        langauge_layers = config["config"]["language_transformer_config"]["num_layers"]
+        vision_layers = config["config"]["vision_transformer_config"]["num_layers"]
+        distributed_model_weights = load_distributed_model_weights(
+            dist_ckpt_folder, True
+        ).items()
         for k, v in distributed_model_weights:
-            if '_extra_state' in k:
+            if "_extra_state" in k:
                 continue
             new_k = k.replace("module.", "")
-            if 'layers' in new_k and (v.size(0) == langauge_layers or v.size(0) == vision_layers):
+            if "layers" in new_k and (
+                v.size(0) == langauge_layers or v.size(0) == vision_layers
+            ):
                 # Only split layers
                 for i in range(v.size(0)):
-                    state_dict[new_k.replace('layers', f'layers.{str(i)}')] = v[i]
+                    state_dict[new_k.replace("layers", f"layers.{str(i)}")] = v[i]
             state_dict[new_k] = v
-        return state_dict, config['config']
+        return state_dict, config["config"]
 
     def _modify_llama4_source_state(self, state_dict, source_config):
         """
@@ -671,35 +736,48 @@ class HFLlama4OmniExporter(io.ModelConnector[Llama4OmniModel, "Llama4ForConditio
         For dense layer, we change the name for the post attention layer norm to
         avoid the many-to-one mapping in the conversion.
         """
-        for layer_i in range(source_config['language_transformer_config']['num_layers']):
+        for layer_i in range(
+            source_config["language_transformer_config"]["num_layers"]
+        ):
             is_moe_layer = True
-            if isinstance(source_config['language_transformer_config']['moe_layer_freq'], list):
+            if isinstance(
+                source_config["language_transformer_config"]["moe_layer_freq"], list
+            ):
                 assert (
-                    len(source_config['language_transformer_config']['moe_layer_freq'])
-                    == source_config['language_transformer_config']['num_layers']
+                    len(source_config["language_transformer_config"]["moe_layer_freq"])
+                    == source_config["language_transformer_config"]["num_layers"]
                 )
-                is_moe_layer = source_config['language_transformer_config']['moe_layer_freq'][layer_i]
+                is_moe_layer = source_config["language_transformer_config"][
+                    "moe_layer_freq"
+                ][layer_i]
             if is_moe_layer:
                 # gate_up_proj
                 weight = state_dict.pop(
                     f"language_model.decoder.layers.{layer_i}.mlp.experts.experts.linear_fc1.weight"
                 )
-                state_dict[f"language_model.decoder.layers.{layer_i}.mlp.experts.linear_fc1.weight"] = weight.permute(
-                    0, 2, 1
-                ).contiguous()
+                state_dict[
+                    f"language_model.decoder.layers.{layer_i}.mlp.experts.linear_fc1.weight"
+                ] = weight.permute(0, 2, 1).contiguous()
 
                 # down_proj
                 weight = state_dict.pop(
                     f"language_model.decoder.layers.{layer_i}.mlp.experts.experts.linear_fc2.weight"
                 )
-                state_dict[f"language_model.decoder.layers.{layer_i}.mlp.experts.linear_fc2.weight"] = weight.permute(
-                    0, 2, 1
-                ).contiguous()
+                state_dict[
+                    f"language_model.decoder.layers.{layer_i}.mlp.experts.linear_fc2.weight"
+                ] = weight.permute(0, 2, 1).contiguous()
 
             else:
-                assert f"language_model.decoder.layers.{layer_i}.mlp.linear_fc1.layer_norm_weight" in state_dict
-                weight = state_dict.pop(f"language_model.decoder.layers.{layer_i}.mlp.linear_fc1.layer_norm_weight")
-                state_dict[f"language_model.decoder.layers.{layer_i}.pre_mlp_layernorm.weight"] = weight
+                assert (
+                    f"language_model.decoder.layers.{layer_i}.mlp.linear_fc1.layer_norm_weight"
+                    in state_dict
+                )
+                weight = state_dict.pop(
+                    f"language_model.decoder.layers.{layer_i}.mlp.linear_fc1.layer_norm_weight"
+                )
+                state_dict[
+                    f"language_model.decoder.layers.{layer_i}.pre_mlp_layernorm.weight"
+                ] = weight
 
         source = _ModelState(state_dict)
         return source
@@ -740,7 +818,8 @@ def _import_language_qkv(ctx: io.TransformCTX, q, k, v):
         v,
         head_num=megatron_config.num_attention_heads,
         num_query_groups=megatron_config.num_query_groups,
-        heads_per_group=megatron_config.num_attention_heads // megatron_config.num_query_groups,
+        heads_per_group=megatron_config.num_attention_heads
+        // megatron_config.num_query_groups,
         hidden_size=megatron_config.hidden_size,
         head_size=megatron_config.kv_channels,
     )
@@ -784,7 +863,8 @@ def _import_vision_qkv(ctx: io.TransformCTX, q, k, v):
         v,
         head_num=megatron_config.num_attention_heads,
         num_query_groups=megatron_config.num_query_groups,
-        heads_per_group=megatron_config.num_attention_heads // megatron_config.num_query_groups,
+        heads_per_group=megatron_config.num_attention_heads
+        // megatron_config.num_query_groups,
         hidden_size=megatron_config.hidden_size,
         head_size=megatron_config.kv_channels,
     )
@@ -828,7 +908,8 @@ def _import_vision_qkv_bias(ctx: io.TransformCTX, q_bias, k_bias, v_bias):
         v_bias.unsqueeze(-1),
         head_num=megatron_config.num_attention_heads,
         num_query_groups=megatron_config.num_query_groups,
-        heads_per_group=megatron_config.num_attention_heads // megatron_config.num_query_groups,
+        heads_per_group=megatron_config.num_attention_heads
+        // megatron_config.num_query_groups,
         hidden_size=1,
         head_size=megatron_config.kv_channels,
     ).squeeze(-1)

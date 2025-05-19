@@ -87,6 +87,8 @@ class BertJointIRModel(BaseIRModel):
         scores = torch.log_softmax(unnormalized_scores, dim=-1)
 
         labels = torch.zeros_like(input_ids[:, :1, 0])
-        loss = self.loss(log_probs=scores, labels=labels, output_mask=torch.ones_like(labels))
+        loss = self.loss(
+            log_probs=scores, labels=labels, output_mask=torch.ones_like(labels)
+        )
 
         return unnormalized_scores[:, 0], loss

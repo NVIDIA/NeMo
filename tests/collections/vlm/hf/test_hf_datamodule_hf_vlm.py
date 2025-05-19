@@ -247,9 +247,11 @@ def test_hfdatamodule_map(simple_dataset_dict):
 
     # Map to train split only
     dm.map(add_one, split_names="train")
-    print(dm.dataset_splits['train'][0])
+    print(dm.dataset_splits["train"][0])
     # Confirm the first row "input_ids" is incremented
-    assert dm.train[0]["input_ids"][0] == 11, dm.train[0]  # was 10 originally in simple_dataset fixture
+    assert dm.train[0]["input_ids"][0] == 11, dm.train[
+        0
+    ]  # was 10 originally in simple_dataset fixture
 
     # Map to all splits
     dm.map(add_one)  # now modifies train, val, and test

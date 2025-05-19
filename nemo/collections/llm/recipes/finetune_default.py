@@ -76,7 +76,12 @@ def default_finetune_recipe(
             packed_sequence_specs=PackedSequenceSpecs(packed_sequence_size=2048),
         )
     else:
-        datamodule = run.Config(llm.SquadDataModule, seq_length=2048, global_batch_size=128, micro_batch_size=1)
+        datamodule = run.Config(
+            llm.SquadDataModule,
+            seq_length=2048,
+            global_batch_size=128,
+            micro_batch_size=1,
+        )
     recipe = run.Partial(
         llm.finetune,
         model=model,
@@ -85,8 +90,12 @@ def default_finetune_recipe(
             num_gpus_per_node=num_gpus_per_node,
         ),
         data=datamodule,
-        log=default_finetune_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
-        optim=distributed_fused_adam_with_cosine_annealing(max_lr=1e-4, min_lr=0, warmup_steps=50, adam_beta2=0.98),
+        log=default_finetune_log(
+            dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)
+        ),
+        optim=distributed_fused_adam_with_cosine_annealing(
+            max_lr=1e-4, min_lr=0, warmup_steps=50, adam_beta2=0.98
+        ),
         resume=nemo_resume(resume_path),
         tokenizer=tokenizer,
     )
@@ -156,8 +165,8 @@ def default_finetune_trainer(
 def default_finetune_log(
     dir: Optional[str] = None,
     name: str = "default",
-    tensorboard_logger: Optional[run.Config['TensorBoardLogger']] = None,
-    wandb_logger: Optional[run.Config['WandbLogger']] = None,
+    tensorboard_logger: Optional[run.Config["TensorBoardLogger"]] = None,
+    wandb_logger: Optional[run.Config["WandbLogger"]] = None,
 ) -> run.Config[nl.NeMoLogger]:
     """
     Create a default fine-tuning logger for any model.
@@ -214,7 +223,7 @@ def nemo_resume(model_id: str) -> run.Config[nl.AutoResume]:
     )
 
 
-@run.cli.factory(name='lora')
+@run.cli.factory(name="lora")
 def lora() -> run.Config[PEFT]:
     """
     Factory function to create a LoRA configuration.
@@ -233,7 +242,7 @@ def lora() -> run.Config[PEFT]:
     return run.Config(LoRA)
 
 
-@run.cli.factory(name='dora')
+@run.cli.factory(name="dora")
 def dora() -> run.Config[PEFT]:
     """
     Factory function to create a DoRA configuration.

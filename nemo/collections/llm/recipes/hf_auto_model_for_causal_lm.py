@@ -78,7 +78,7 @@ def trainer(
     num_gpus_per_node: int = 8,
     max_steps: int = 100,
     callbacks: Optional[list[run.Config[Callback]]] = None,
-    strategy: Optional[str] = 'ddp',
+    strategy: Optional[str] = "ddp",
     gradient_clip_val: float = 1.0,
 ) -> run.Config[nl.Trainer]:
     """
@@ -105,8 +105,8 @@ def trainer(
             >>> print(trainer_config)
     """
     strategy = str(strategy).lower()
-    assert strategy in ['', 'ddp', 'fsdp'], strategy
-    if strategy == 'fsdp':
+    assert strategy in ["", "ddp", "fsdp"], strategy
+    if strategy == "fsdp":
         # See: https://github.com/Lightning-AI/pytorch-lightning/blob/8ad3e29816a63d8ce5c00ac104b14729a4176f4f/src/lightning/pytorch/plugins/precision/fsdp.py#L81 # pylint: disable=line-too-long
         gradient_clip_val = None
 
@@ -115,7 +115,7 @@ def trainer(
         num_nodes=num_nodes,
         devices=num_gpus_per_node,
         max_steps=max_steps,
-        accelerator='gpu',
+        accelerator="gpu",
         strategy=strategy,
         log_every_n_steps=1,
         limit_val_batches=0.0,
@@ -135,7 +135,7 @@ def pretrain_recipe(
     num_nodes: int = 1,
     num_gpus_per_node: int = 8,
     fn=pretrain,
-    model_name: str = '',
+    model_name: str = "",
     max_steps: int = 100,
 ) -> run.Partial:
     """
@@ -171,8 +171,12 @@ def pretrain_recipe(
             callbacks=[run.Config(TimingCallback)],
             max_steps=max_steps,
         ),
-        data=run.Config(MockDataModule, seq_length=4096, global_batch_size=512, micro_batch_size=1),
-        log=default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
+        data=run.Config(
+            MockDataModule, seq_length=4096, global_batch_size=512, micro_batch_size=1
+        ),
+        log=default_log(
+            dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)
+        ),
         optim=pytorch_adam_with_cosine_annealing(max_lr=3e-4),
         resume=default_resume(),
     )
@@ -184,11 +188,11 @@ def finetune_recipe(
     name: str = "default",
     num_nodes: int = 1,
     num_gpus_per_node: int = 8,
-    peft_scheme: Optional[str] = 'lora',
-    model_name: str = '',
+    peft_scheme: Optional[str] = "lora",
+    model_name: str = "",
     max_steps: int = 100,
     trust_remote_code: bool = False,
-    attn_implementation: str = 'sdpa',
+    attn_implementation: str = "sdpa",
     use_linear_ce_loss: bool = True,
 ) -> run.Partial:
     """
@@ -241,14 +245,16 @@ def finetune_recipe(
             split="train",
             tokenizer=run.Config(AutoTokenizer, pretrained_model_name=model_name),
         ),
-        log=default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
+        log=default_log(
+            dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)
+        ),
         optim=pytorch_adam_with_cosine_annealing(max_lr=3e-4),
         resume=default_resume(),
     )
-    if peft_scheme is None or peft_scheme.lower() == 'none':
+    if peft_scheme is None or peft_scheme.lower() == "none":
         recipe.optim.optimizer_fn.lr = 5e-6
-    elif peft_scheme.lower() == 'lora':
-        recipe.peft = run.Config(LoRA, target_modules=['*_proj'])
+    elif peft_scheme.lower() == "lora":
+        recipe.peft = run.Config(LoRA, target_modules=["*_proj"])
         recipe.optim.optimizer_fn.lr = 1e-4
     else:
         raise ValueError(f"Unrecognized peft scheme: {peft_scheme}")

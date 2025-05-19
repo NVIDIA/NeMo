@@ -35,7 +35,9 @@ from .vlm_engine import VLMEngine
 from .vlm_inference_controller import VLMTextGenerationController
 
 
-def _setup_trainer_and_restore_model(path: str, trainer: nl.Trainer, model: pl.LightningModule):
+def _setup_trainer_and_restore_model(
+    path: str, trainer: nl.Trainer, model: pl.LightningModule
+):
     """Setup trainer and restore model from path"""
     fabric = trainer.to_fabric()
     model = fabric.load_model(path, model)
@@ -132,10 +134,14 @@ def generate(
         image_processor=image_processor,
     )
     mcore_engine = VLMEngine(
-        text_generation_controller=text_generation_controller, max_batch_size=max_batch_size, random_seed=random_seed
+        text_generation_controller=text_generation_controller,
+        max_batch_size=max_batch_size,
+        random_seed=random_seed,
     )
 
-    common_inference_params = inference_params or CommonInferenceParams(num_tokens_to_generate=50)
+    common_inference_params = inference_params or CommonInferenceParams(
+        num_tokens_to_generate=50
+    )
 
     results = mcore_engine.generate(
         prompts=prompts,

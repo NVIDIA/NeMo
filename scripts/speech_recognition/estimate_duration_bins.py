@@ -33,15 +33,17 @@ def parse_args():
     )
     parser.add_argument(
         "input",
-        help='Data input. Options: '
+        help="Data input. Options: "
         '1) "path.json" - any single NeMo manifest; '
         '2) "[[path1.json],[path2.json],...]" - any collection of NeMo manifests; '
         '3) "[[path1.json,weight1],[path2.json,weight2],...]" - any collection of weighted NeMo manifests; '
-        '4) "input_cfg.yaml" - a new option supporting input configs, same as in model training \'input_cfg\' arg; '
+        "4) \"input_cfg.yaml\" - a new option supporting input configs, same as in model training 'input_cfg' arg; "
         '5) "path/to/shar_data" - a path to Lhotse Shar data directory; '
         '6) "key=val" - in case none of the previous variants cover your case: "key" is the key you\'d use in NeMo training config with its corresponding value ',
     )
-    parser.add_argument("-b", "--buckets", type=int, default=30, help="The desired number of buckets.")
+    parser.add_argument(
+        "-b", "--buckets", type=int, default=30, help="The desired number of buckets."
+    )
     parser.add_argument(
         "-n",
         "--num_examples",
@@ -65,14 +67,18 @@ def parse_args():
         help="If specified, we'll filter out utterances longer than this.",
     )
     parser.add_argument(
-        "-q", "--quiet", type=bool, default=False, help="When specified, only print the estimated duration bins."
+        "-q",
+        "--quiet",
+        type=bool,
+        default=False,
+        help="When specified, only print the estimated duration bins.",
     )
     return parser.parse_args()
 
 
 def main():
     args = parse_args()
-    if '=' in args.input:
+    if "=" in args.input:
         inp_arg = args.input
     elif args.input.endswith(".yaml"):
         inp_arg = f"input_cfg={args.input}"
@@ -109,9 +115,13 @@ def main():
         return
     if discarded:
         ratio = discarded / tot
-        print(f"Note: we discarded {discarded}/{tot} ({ratio:.2%}) utterances due to min/max duration filtering.")
+        print(
+            f"Note: we discarded {discarded}/{tot} ({ratio:.2%}) utterances due to min/max duration filtering."
+        )
     if nonaudio:
-        print(f"Note: we discarded {nonaudio} non-audio examples found during iteration.")
+        print(
+            f"Note: we discarded {nonaudio} non-audio examples found during iteration."
+        )
     print(f"Used {tot - nonaudio - discarded} examples for the estimation.")
     print("Use the following options in your config:")
     print(f"\tnum_buckets={args.buckets}")

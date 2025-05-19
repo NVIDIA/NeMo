@@ -36,9 +36,9 @@ from nemo.core.neural_types import NeuralType
 from nemo.utils import logging
 from nemo.utils.decorators import deprecated_warning
 
-__all__ = ['GLUEModel']
+__all__ = ["GLUEModel"]
 
-'''
+"""
 Some transformer of this code were adapted from the HuggingFace library at
 https://github.com/huggingface/transformers
 Example of running a pretrained BERT model on the 9 GLUE tasks, read more
@@ -62,7 +62,7 @@ QNLI	Accuracy	                    89.31
 RTE	    Accuracy	                    71.43
 WNLI	Accuracy	                    43.66
 
-'''
+"""
 
 
 class GLUEModel(NLPModel):
@@ -86,7 +86,9 @@ class GLUEModel(NLPModel):
         deprecated_warning("GLUEModel")
 
         if cfg.task_name not in cfg.supported_tasks:
-            raise ValueError(f'{cfg.task_name} not in supported task. Choose from {cfg.supported_tasks}')
+            raise ValueError(
+                f"{cfg.task_name} not in supported task. Choose from {cfg.supported_tasks}"
+            )
         self.task_name = cfg.task_name
 
         # needed to setup validation on multiple datasets
@@ -94,24 +96,32 @@ class GLUEModel(NLPModel):
         if not self._is_model_being_restored():
             if self.task_name == "mnli":
                 cfg.validation_ds.ds_item = [
-                    os.path.join(cfg.dataset.data_dir, 'dev_matched.tsv'),
-                    os.path.join(cfg.dataset.data_dir, 'dev_mismatched.tsv'),
+                    os.path.join(cfg.dataset.data_dir, "dev_matched.tsv"),
+                    os.path.join(cfg.dataset.data_dir, "dev_mismatched.tsv"),
                 ]
             else:
-                cfg.validation_ds.ds_item = os.path.join(cfg.dataset.data_dir, cfg.validation_ds.ds_item)
-            cfg.train_ds.ds_item = os.path.join(cfg.dataset.data_dir, cfg.train_ds.ds_item)
-            logging.info(f'Using {cfg.validation_ds.ds_item} for model evaluation.')
+                cfg.validation_ds.ds_item = os.path.join(
+                    cfg.dataset.data_dir, cfg.validation_ds.ds_item
+                )
+            cfg.train_ds.ds_item = os.path.join(
+                cfg.dataset.data_dir, cfg.train_ds.ds_item
+            )
+            logging.info(f"Using {cfg.validation_ds.ds_item} for model evaluation.")
 
         super().__init__(cfg=cfg, trainer=trainer)
 
         num_labels = GLUE_TASKS_NUM_LABELS[self.task_name]
         # uses [CLS] token for classification (the first token)
         if self.task_name == "sts-b":
-            self.pooler = SequenceRegression(hidden_size=self.bert_model.config.hidden_size)
+            self.pooler = SequenceRegression(
+                hidden_size=self.bert_model.config.hidden_size
+            )
             self.loss = MSELoss()
         else:
             self.pooler = SequenceClassifier(
-                hidden_size=self.bert_model.config.hidden_size, num_classes=num_labels, log_softmax=False
+                hidden_size=self.bert_model.config.hidden_size,
+                num_classes=num_labels,
+                log_softmax=False,
             )
             self.loss = CrossEntropyLoss()
 
@@ -124,22 +134,24 @@ class GLUEModel(NLPModel):
             data_dir: path to data directory
         """
         self._cfg.dataset.data_dir = data_dir
-        logging.info(f'Setting model.dataset.data_dir to {data_dir}.')
+        logging.info(f"Setting model.dataset.data_dir to {data_dir}.")
         if self.task_name == "mnli":
             self._cfg.validation_ds.ds_item = [
-                os.path.join(data_dir, 'dev_matched.tsv'),
-                os.path.join(data_dir, 'dev_mismatched.tsv'),
+                os.path.join(data_dir, "dev_matched.tsv"),
+                os.path.join(data_dir, "dev_mismatched.tsv"),
             ]
         else:
-            self._cfg.validation_ds.ds_item = os.path.join(data_dir, 'dev.tsv')
+            self._cfg.validation_ds.ds_item = os.path.join(data_dir, "dev.tsv")
 
-        self._cfg.train_ds.ds_item = os.path.join(data_dir, 'train.tsv')
-        logging.info(f'Using {self._cfg.validation_ds.ds_item} for model evaluation.')
+        self._cfg.train_ds.ds_item = os.path.join(data_dir, "train.tsv")
+        logging.info(f"Using {self._cfg.validation_ds.ds_item} for model evaluation.")
 
     @typecheck()
     def forward(self, input_ids, token_type_ids, attention_mask):
         hidden_states = self.bert_model(
-            input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask
+            input_ids=input_ids,
+            token_type_ids=token_type_ids,
+            attention_mask=attention_mask,
         )
         if isinstance(hidden_states, tuple):
             hidden_states = hidden_states[0]
@@ -149,37 +161,45 @@ class GLUEModel(NLPModel):
 
     def training_step(self, batch, batch_idx):
         input_ids, input_type_ids, input_mask, labels = batch
-        model_output = self(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
+        model_output = self(
+            input_ids=input_ids,
+            token_type_ids=input_type_ids,
+            attention_mask=input_mask,
+        )
 
         if self.task_name == "sts-b":
             loss = self.loss(preds=model_output, labels=labels)
         else:
             loss = self.loss(logits=model_output, labels=labels)
 
-        lr = self._optimizer.param_groups[0]['lr']
+        lr = self._optimizer.param_groups[0]["lr"]
 
-        self.log('train_loss', loss)
-        self.log('lr', lr, prog_bar=True)
+        self.log("train_loss", loss)
+        self.log("lr", lr, prog_bar=True)
 
         return {
-            'loss': loss,
-            'lr': lr,
+            "loss": loss,
+            "lr": lr,
         }
 
     def validation_step(self, batch, batch_idx, dataloader_idx=0):
         input_ids, input_type_ids, input_mask, labels = batch
-        model_output = self(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
+        model_output = self(
+            input_ids=input_ids,
+            token_type_ids=input_type_ids,
+            attention_mask=input_mask,
+        )
 
         if self.task_name == "sts-b":
             val_loss = self.loss(preds=model_output, labels=labels)
         else:
             val_loss = self.loss(logits=model_output, labels=labels)
 
-        if self.task_name != 'sts-b':
+        if self.task_name != "sts-b":
             model_output = torch.argmax(model_output, 1)
 
-        eval_tensors = {'preds': model_output, 'labels': labels}
-        output = {'val_loss': val_loss, 'eval_tensors': eval_tensors}
+        eval_tensors = {"preds": model_output, "labels": labels}
+        output = {"val_loss": val_loss, "eval_tensors": eval_tensors}
         self.validation_step_outputs.append(output)
         return output
 
@@ -188,9 +208,15 @@ class GLUEModel(NLPModel):
         Called at the end of validation to aggregate outputs.
         outputs: list of individual outputs of each validation step.
         """
-        avg_loss = torch.stack([x['val_loss'] for x in self.validation_step_outputs]).mean()
-        preds = torch.cat([x['eval_tensors']['preds'] for x in self.validation_step_outputs])
-        labels = torch.cat([x['eval_tensors']['labels'] for x in self.validation_step_outputs])
+        avg_loss = torch.stack(
+            [x["val_loss"] for x in self.validation_step_outputs]
+        ).mean()
+        preds = torch.cat(
+            [x["eval_tensors"]["preds"] for x in self.validation_step_outputs]
+        )
+        labels = torch.cat(
+            [x["eval_tensors"]["labels"] for x in self.validation_step_outputs]
+        )
 
         all_preds = []
         all_labels = []
@@ -215,22 +241,22 @@ class GLUEModel(NLPModel):
 
             results = compute_metrics(self.task_name, np.array(preds), np.array(labels))
             val_name = self._validation_names[dataloader_idx].upper()
-            logging.info(f'{val_name} evaluation: {results}')
+            logging.info(f"{val_name} evaluation: {results}")
 
             # writing labels and predictions to a file in output_dir is specified in the config
             output_dir = self._cfg.output_dir
             if output_dir:
                 os.makedirs(output_dir, exist_ok=True)
-                filename = os.path.join(output_dir, f'{self.task_name}_{val_name}.txt')
-                logging.info(f'Saving labels and predictions to {filename}')
-                with open(filename, 'w') as f:
-                    f.write('labels\t' + list2str(labels) + '\n')
-                    f.write('preds\t' + list2str(preds) + '\n')
+                filename = os.path.join(output_dir, f"{self.task_name}_{val_name}.txt")
+                logging.info(f"Saving labels and predictions to {filename}")
+                with open(filename, "w") as f:
+                    f.write("labels\t" + list2str(labels) + "\n")
+                    f.write("preds\t" + list2str(preds) + "\n")
 
-        self.log('val_loss', avg_loss)
+        self.log("val_loss", avg_loss)
         if self.trainer.is_global_zero:
             for k, v in results.items():
-                self.log(f'{val_name}_{k}', v, rank_zero_only=True)
+                self.log(f"{val_name}_{k}", v, rank_zero_only=True)
 
     def setup_training_data(self, train_data_config: Optional[DictConfig] = None):
         if train_data_config is None:
@@ -244,7 +270,9 @@ class GLUEModel(NLPModel):
 
         self._validation_dl = self._setup_dataloader_from_config(cfg=val_data_config)
 
-    def setup_multiple_validation_data(self, val_data_config: Union[DictConfig, Dict] = None):
+    def setup_multiple_validation_data(
+        self, val_data_config: Union[DictConfig, Dict] = None
+    ):
         if val_data_config is None:
             val_data_config = self._cfg.validation_ds
 

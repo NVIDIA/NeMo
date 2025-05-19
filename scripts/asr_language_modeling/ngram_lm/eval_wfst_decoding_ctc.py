@@ -158,7 +158,7 @@ def beam_search_eval(
 
     # Update model's decoding strategy
     if isinstance(model, EncDecHybridRNNTCTCModel):
-        model.change_decoding_strategy(model.cfg.decoding, decoder_type='ctc')
+        model.change_decoding_strategy(model.cfg.decoding, decoder_type="ctc")
         decoding = model.ctc_decoding
     else:
         model.change_decoding_strategy(model.cfg.decoding)
@@ -171,7 +171,7 @@ def beam_search_eval(
     chars_count = 0
     sample_idx = 0
     if preds_output_file:
-        out_file = open(preds_output_file, 'w', encoding='utf_8', newline='\n')
+        out_file = open(preds_output_file, "w", encoding="utf_8", newline="\n")
 
     if progress_bar:
         it = tqdm(
@@ -183,15 +183,22 @@ def beam_search_eval(
         it = range(int(np.ceil(len(all_probs) / beam_batch_size)))
     for batch_idx in it:
         # disabling type checking
-        probs_batch = all_probs[batch_idx * beam_batch_size : (batch_idx + 1) * beam_batch_size]
+        probs_batch = all_probs[
+            batch_idx * beam_batch_size : (batch_idx + 1) * beam_batch_size
+        ]
         probs_lens = torch.tensor([prob.shape[0] for prob in probs_batch])
         with torch.no_grad():
-            packed_batch = torch.zeros(len(probs_batch), max(probs_lens), probs_batch[0].shape[-1], device='cpu')
+            packed_batch = torch.zeros(
+                len(probs_batch),
+                max(probs_lens),
+                probs_batch[0].shape[-1],
+                device="cpu",
+            )
 
             for prob_index in range(len(probs_batch)):
-                packed_batch[prob_index, : probs_lens[prob_index], :] = probs_batch[prob_index].to(
-                    device=packed_batch.device, dtype=packed_batch.dtype
-                )
+                packed_batch[prob_index, : probs_lens[prob_index], :] = probs_batch[
+                    prob_index
+                ].to(device=packed_batch.device, dtype=packed_batch.dtype)
 
             _, beams_batch = decoding.ctc_decoder_predictions_tensor(
                 packed_batch,
@@ -206,14 +213,20 @@ def beam_search_eval(
             words_count += len(target_split_w)
             chars_count += len(target_split_c)
             wer_dist_min = cer_dist_min = 10000
-            for candidate_idx, candidate in enumerate(beams):  # type: (int, ctc_beam_decoding.rnnt_utils.Hypothesis)
+            for candidate_idx, candidate in enumerate(
+                beams
+            ):  # type: (int, ctc_beam_decoding.rnnt_utils.Hypothesis)
                 pred_text = candidate.text
                 if cfg.text_processing.do_lowercase:
                     pred_text = punctuation_capitalization.do_lowercase([pred_text])[0]
                 if cfg.text_processing.rm_punctuation:
-                    pred_text = punctuation_capitalization.rm_punctuation([pred_text])[0]
+                    pred_text = punctuation_capitalization.rm_punctuation([pred_text])[
+                        0
+                    ]
                 if cfg.text_processing.separate_punctuation:
-                    pred_text = punctuation_capitalization.separate_punctuation([pred_text])[0]
+                    pred_text = punctuation_capitalization.separate_punctuation(
+                        [pred_text]
+                    )[0]
                 pred_split_w = pred_text.split()
                 wer_dist = editdistance.eval(target_split_w, pred_split_w)
                 pred_split_c = list(pred_text)
@@ -229,37 +242,45 @@ def beam_search_eval(
 
                 score = candidate.score
                 if preds_output_file:
-                    out_file.write(f'{pred_text}\t{score}\n')
+                    out_file.write(f"{pred_text}\t{score}\n")
             wer_dist_best += wer_dist_min
             cer_dist_best += cer_dist_min
         sample_idx += len(probs_batch)
 
     if preds_output_file:
         out_file.close()
-        logging.info(f"Stored the predictions of beam search decoding at '{preds_output_file}'.")
+        logging.info(
+            f"Stored the predictions of beam search decoding at '{preds_output_file}'."
+        )
 
     logging.info(
-        'WER/CER with beam search decoding and N-gram model = {:.2%}/{:.2%}'.format(
+        "WER/CER with beam search decoding and N-gram model = {:.2%}/{:.2%}".format(
             wer_dist_first / words_count, cer_dist_first / chars_count
         )
     )
     logging.info(
-        'Oracle WER/CER in candidates with perfect LM= {:.2%}/{:.2%}'.format(
+        "Oracle WER/CER in candidates with perfect LM= {:.2%}/{:.2%}".format(
             wer_dist_best / words_count, cer_dist_best / chars_count
         )
     )
-    logging.info(f"=================================================================================")
+    logging.info(
+        f"================================================================================="
+    )
 
     return wer_dist_first / words_count, cer_dist_first / chars_count
 
 
-@hydra_runner(config_path=None, config_name='EvalWFSTNGramConfig', schema=EvalWFSTNGramConfig)
+@hydra_runner(
+    config_path=None, config_name="EvalWFSTNGramConfig", schema=EvalWFSTNGramConfig
+)
 def main(cfg: EvalWFSTNGramConfig):
     if is_dataclass(cfg):
         cfg = OmegaConf.structured(cfg)  # type: EvalWFSTNGramConfig
 
-    if cfg.nemo_model_file.endswith('.nemo'):
-        asr_model = nemo_asr.models.ASRModel.restore_from(cfg.nemo_model_file, map_location=torch.device(cfg.device))
+    if cfg.nemo_model_file.endswith(".nemo"):
+        asr_model = nemo_asr.models.ASRModel.restore_from(
+            cfg.nemo_model_file, map_location=torch.device(cfg.device)
+        )
     else:
         logging.warning(
             "nemo_model_file does not end with .nemo, therefore trying to load a pretrained model with this name."
@@ -270,28 +291,40 @@ def main(cfg: EvalWFSTNGramConfig):
 
     target_transcripts = []
     manifest_dir = Path(cfg.input_manifest).parent
-    with open(cfg.input_manifest, 'r', encoding='utf_8') as manifest_file:
+    with open(cfg.input_manifest, "r", encoding="utf_8") as manifest_file:
         audio_file_paths = []
-        for line in tqdm(manifest_file, desc=f"Reading Manifest {cfg.input_manifest} ...", ncols=120):
+        for line in tqdm(
+            manifest_file, desc=f"Reading Manifest {cfg.input_manifest} ...", ncols=120
+        ):
             data = json.loads(line)
-            audio_file = Path(data['audio_filepath'])
+            audio_file = Path(data["audio_filepath"])
             if not audio_file.is_file() and not audio_file.is_absolute():
                 audio_file = manifest_dir / audio_file
-            target_transcripts.append(data['text'])
+            target_transcripts.append(data["text"])
             audio_file_paths.append(str(audio_file.absolute()))
 
-    punctuation_capitalization = PunctuationCapitalization(cfg.text_processing.punctuation_marks)
+    punctuation_capitalization = PunctuationCapitalization(
+        cfg.text_processing.punctuation_marks
+    )
     if cfg.text_processing.do_lowercase:
         target_transcripts = punctuation_capitalization.do_lowercase(target_transcripts)
     if cfg.text_processing.rm_punctuation:
-        target_transcripts = punctuation_capitalization.rm_punctuation(target_transcripts)
+        target_transcripts = punctuation_capitalization.rm_punctuation(
+            target_transcripts
+        )
     if cfg.text_processing.separate_punctuation:
-        target_transcripts = punctuation_capitalization.separate_punctuation(target_transcripts)
+        target_transcripts = punctuation_capitalization.separate_punctuation(
+            target_transcripts
+        )
 
     if cfg.probs_cache_file and os.path.exists(cfg.probs_cache_file):
-        logging.info(f"Found a pickle file of probabilities at '{cfg.probs_cache_file}'.")
-        logging.info(f"Loading the cached pickle file of probabilities from '{cfg.probs_cache_file}' ...")
-        with open(cfg.probs_cache_file, 'rb') as probs_file:
+        logging.info(
+            f"Found a pickle file of probabilities at '{cfg.probs_cache_file}'."
+        )
+        logging.info(
+            f"Loading the cached pickle file of probabilities from '{cfg.probs_cache_file}' ..."
+        )
+        with open(cfg.probs_cache_file, "rb") as probs_file:
             all_probs = pickle.load(probs_file)
 
         if len(all_probs) != len(audio_file_paths):
@@ -304,17 +337,21 @@ def main(cfg: EvalWFSTNGramConfig):
         with torch.amp.autocast(asr_model.device.type, enabled=cfg.use_amp):
             with torch.no_grad():
                 if isinstance(asr_model, EncDecHybridRNNTCTCModel):
-                    asr_model.cur_decoder = 'ctc'
+                    asr_model.cur_decoder = "ctc"
                 all_hyps = asr_model.transcribe(
-                    audio_file_paths, batch_size=cfg.acoustic_batch_size, return_hypotheses=True
+                    audio_file_paths,
+                    batch_size=cfg.acoustic_batch_size,
+                    return_hypotheses=True,
                 )
                 all_logits = [h.y_sequence for h in all_hyps]
 
         all_probs = all_logits
         if cfg.probs_cache_file:
             os.makedirs(os.path.split(cfg.probs_cache_file)[0], exist_ok=True)
-            logging.info(f"Writing pickle files of probabilities at '{cfg.probs_cache_file}'...")
-            with open(cfg.probs_cache_file, 'wb') as f_dump:
+            logging.info(
+                f"Writing pickle files of probabilities at '{cfg.probs_cache_file}'..."
+            )
+            with open(cfg.probs_cache_file, "wb") as f_dump:
                 pickle.dump(all_probs, f_dump)
 
     wer_dist_greedy = 0
@@ -323,12 +360,16 @@ def main(cfg: EvalWFSTNGramConfig):
     chars_count = 0
     for batch_idx, probs in enumerate(all_probs):
         preds = np.argmax(probs, axis=1)
-        preds_tensor = preds.to(device='cpu').unsqueeze(0)
-        preds_lens = torch.tensor([preds_tensor.shape[1]], device='cpu')
+        preds_tensor = preds.to(device="cpu").unsqueeze(0)
+        preds_lens = torch.tensor([preds_tensor.shape[1]], device="cpu")
         if isinstance(asr_model, EncDecHybridRNNTCTCModel):
-            pred_text = asr_model.ctc_decoding.ctc_decoder_predictions_tensor(preds_tensor, preds_lens)[0]
+            pred_text = asr_model.ctc_decoding.ctc_decoder_predictions_tensor(
+                preds_tensor, preds_lens
+            )[0]
         else:
-            pred_text = asr_model.decoding.ctc_decoder_predictions_tensor(preds_tensor, preds_lens)[0]
+            pred_text = asr_model.decoding.ctc_decoder_predictions_tensor(
+                preds_tensor, preds_lens
+            )[0]
 
         if cfg.text_processing.do_lowercase:
             pred_text = punctuation_capitalization.do_lowercase([pred_text])[0]
@@ -350,9 +391,13 @@ def main(cfg: EvalWFSTNGramConfig):
         words_count += len(target_split_w)
         chars_count += len(target_split_c)
 
-    logging.info('Greedy WER/CER = {:.2%}/{:.2%}'.format(wer_dist_greedy / words_count, cer_dist_greedy / chars_count))
+    logging.info(
+        "Greedy WER/CER = {:.2%}/{:.2%}".format(
+            wer_dist_greedy / words_count, cer_dist_greedy / chars_count
+        )
+    )
 
-    asr_model = asr_model.to('cpu')
+    asr_model = asr_model.to("cpu")
 
     if (cfg.arpa_model_file is None or not os.path.exists(cfg.arpa_model_file)) and (
         cfg.decoding_wfst_file is None or not os.path.exists(cfg.decoding_wfst_file)
@@ -363,8 +408,10 @@ def main(cfg: EvalWFSTNGramConfig):
         )
 
     if cfg.beam_width is None or cfg.lm_weight is None:
-        raise ValueError("beam_width and lm_weight are needed to perform WFST decoding.")
-    params = {'beam_width': cfg.beam_width, 'lm_weight': cfg.lm_weight}
+        raise ValueError(
+            "beam_width and lm_weight are needed to perform WFST decoding."
+        )
+    params = {"beam_width": cfg.beam_width, "lm_weight": cfg.lm_weight}
     hp_grid = ParameterGrid(params)
     hp_grid = list(hp_grid)
 
@@ -372,10 +419,14 @@ def main(cfg: EvalWFSTNGramConfig):
     best_wer_lm_weight, best_cer_lm_weight = None, None
     best_wer, best_cer = 1e6, 1e6
 
-    logging.info(f"==============================Starting the beam search decoding===============================")
+    logging.info(
+        f"==============================Starting the beam search decoding==============================="
+    )
     logging.info(f"Grid search size: {len(hp_grid)}")
     logging.info(f"It may take some time...")
-    logging.info(f"==============================================================================================")
+    logging.info(
+        f"=============================================================================================="
+    )
 
     if cfg.preds_output_folder and not os.path.exists(cfg.preds_output_folder):
         os.mkdir(cfg.preds_output_folder)
@@ -412,14 +463,16 @@ def main(cfg: EvalWFSTNGramConfig):
             best_wer = candidate_wer
 
     logging.info(
-        f'Best WER Candidate = {best_wer:.2%} :: Beam size = {best_wer_beam_width}, LM weight = {best_wer_lm_weight}'
+        f"Best WER Candidate = {best_wer:.2%} :: Beam size = {best_wer_beam_width}, LM weight = {best_wer_lm_weight}"
     )
 
     logging.info(
-        f'Best CER Candidate = {best_cer:.2%} :: Beam size = {best_cer_beam_width}, LM weight = {best_cer_lm_weight}'
+        f"Best CER Candidate = {best_cer:.2%} :: Beam size = {best_cer_beam_width}, LM weight = {best_cer_lm_weight}"
     )
-    logging.info(f"=================================================================================")
+    logging.info(
+        f"================================================================================="
+    )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

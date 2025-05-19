@@ -60,14 +60,18 @@ class MockDataModule(pl.LightningDataModule):
         self.packed_sequence = packed_sequence
 
         if tokenizer is None or image_processor is None:
-            logging.warning("Processor or tokenizer are not provided! Fall back to `llava-hf/llava-1.5-7b-hf`.")
+            logging.warning(
+                "Processor or tokenizer are not provided! Fall back to `llava-hf/llava-1.5-7b-hf`."
+            )
             from transformers import AutoProcessor
 
             from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import \
                 AutoTokenizer
 
             processor = AutoProcessor.from_pretrained("llava-hf/llava-1.5-7b-hf")
-            self.tokenizer = tokenizer or AutoTokenizer("llava-hf/llava-1.5-7b-hf", use_fast=False)
+            self.tokenizer = tokenizer or AutoTokenizer(
+                "llava-hf/llava-1.5-7b-hf", use_fast=False
+            )
             self.image_processor = image_processor or processor.image_processor
         self.data_sampler = MegatronDataSampler(
             seq_len=self.seq_length,
@@ -162,7 +166,9 @@ class _MockNevaDataset(Dataset):
         self.packed_sequence = packed_sequence
         self.num_image_embeddings_per_tile = num_image_embeddings_per_tile
 
-        self.loss_mask = torch.ones(self.seq_length + 1 - num_image_embeddings_per_tile, dtype=torch.float)
+        self.loss_mask = torch.ones(
+            self.seq_length + 1 - num_image_embeddings_per_tile, dtype=torch.float
+        )
         self.position_ids = torch.arange(self.seq_length, dtype=torch.int64)
 
     def __len__(self) -> int:
@@ -177,12 +183,18 @@ class _MockNevaDataset(Dataset):
         np_gen = np.random.default_rng(seed=(self.seed + idx))
         tokens = torch.from_numpy(
             np_gen.integers(
-                self.vocab_size, size=[self.seq_length + 2 - self.num_image_embeddings_per_tile], dtype=np.int64
+                self.vocab_size,
+                size=[self.seq_length + 2 - self.num_image_embeddings_per_tile],
+                dtype=np.int64,
             )
         )
         tokens[2] = IMAGE_TOKEN_INDEX  # ImageToken token index
         labels = tokens.clone()
-        images = torch.from_numpy(np_gen.random(size=[3, self.image_height, self.image_width], dtype=np.float32))
+        images = torch.from_numpy(
+            np_gen.random(
+                size=[3, self.image_height, self.image_width], dtype=np.float32
+            )
+        )
         tokens = tokens[:-1]
         labels = labels[1:]
         return {
@@ -207,12 +219,20 @@ class _MockNevaDataset(Dataset):
             batch_size = tokens.shape[0]
             valid_seqlen = self.seq_length
             cu_seqlens = torch.arange(
-                0, (batch_size + 1) * (valid_seqlen), step=(valid_seqlen), dtype=torch.int32, device=tokens.device
+                0,
+                (batch_size + 1) * (valid_seqlen),
+                step=(valid_seqlen),
+                dtype=torch.int32,
+                device=tokens.device,
             )
             cu_seqlens_padded = torch.arange(
-                0, (batch_size + 1) * (valid_seqlen), step=(valid_seqlen), dtype=torch.int32, device=tokens.device
+                0,
+                (batch_size + 1) * (valid_seqlen),
+                step=(valid_seqlen),
+                dtype=torch.int32,
+                device=tokens.device,
             )
-            qkv_format = 'thd'
+            qkv_format = "thd"
             packed_seq_params = PackedSeqParams(
                 cu_seqlens_q=cu_seqlens,
                 cu_seqlens_kv=cu_seqlens,

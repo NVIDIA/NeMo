@@ -32,5 +32,5 @@ def main(cfg):
     diarizer_model.diarize()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

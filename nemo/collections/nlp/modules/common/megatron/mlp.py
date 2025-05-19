@@ -82,10 +82,10 @@ class ParallelMLP(MegatronModule, adapter_mixins.AdapterModuleMixin):
         bias_activation_fusion=True,
         openai_gelu=False,
         onnx_safe=False,
-        activation='gelu',
+        activation="gelu",
         bias=True,
-        transformer_block_type='pre_ln',
-        normalization='layernorm',
+        transformer_block_type="pre_ln",
+        normalization="layernorm",
         layernorm_epsilon=1e-5,
         persist_layer_norm=False,
         dropout=0.0,
@@ -101,19 +101,23 @@ class ParallelMLP(MegatronModule, adapter_mixins.AdapterModuleMixin):
         self.dropout = dropout
         self.dtype = dtype
         self.set_accepted_adapter_types(
-            [LoraHto4HAdapterConfig._target_, Lora4HtoHAdapterConfig._target_, MLPInfusedAdapterConfig._target_]
+            [
+                LoraHto4HAdapterConfig._target_,
+                Lora4HtoHAdapterConfig._target_,
+                MLPInfusedAdapterConfig._target_,
+            ]
         )
 
         supported_activations = [
-            'gelu',
-            'geglu',
-            'reglu',
-            'swiglu',
-            'squared-relu',
-            'fast-geglu',
-            'fast-swiglu',
-            'fast-reglu',
-            'approx-gelu',
+            "gelu",
+            "geglu",
+            "reglu",
+            "swiglu",
+            "squared-relu",
+            "fast-geglu",
+            "fast-swiglu",
+            "fast-reglu",
+            "approx-gelu",
         ]
 
         if activation not in supported_activations:
@@ -121,14 +125,18 @@ class ParallelMLP(MegatronModule, adapter_mixins.AdapterModuleMixin):
                 f"Activation {activation} not supported. Supported activations are {supported_activations}"
             )
 
-        self.fast_glu_activation = activation in ['fast-geglu', 'fast-swiglu', 'fast-reglu']
+        self.fast_glu_activation = activation in [
+            "fast-geglu",
+            "fast-swiglu",
+            "fast-reglu",
+        ]
 
         # Project to 4h.
         self.dense_h_to_4h = tensor_parallel.ColumnParallelLinear(
             hidden_size,
-            ffn_hidden_size * 2
-            if self.fast_glu_activation
-            else ffn_hidden_size,  # NOTE: When using geglu, divide ffn dim by 2/3 to keep overall params the same.
+            (
+                ffn_hidden_size * 2 if self.fast_glu_activation else ffn_hidden_size
+            ),  # NOTE: When using geglu, divide ffn dim by 2/3 to keep overall params the same.
             config=config,
             gather_output=False,
             init_method=init_method,
@@ -136,7 +144,7 @@ class ParallelMLP(MegatronModule, adapter_mixins.AdapterModuleMixin):
             bias=bias,
         )
 
-        if activation in ['geglu', 'reglu', 'swiglu']:
+        if activation in ["geglu", "reglu", "swiglu"]:
             # Separate linear layer for *GLU activations.
             # Source: https://github.com/huggingface/transformers/blob/bee361c6f1f7704f8c688895f2f86f6e5ff84727/src/transformers/models/t5/modeling_t5.py#L292
             self.dense_h_to_4h_2 = tensor_parallel.ColumnParallelLinear(
@@ -150,14 +158,14 @@ class ParallelMLP(MegatronModule, adapter_mixins.AdapterModuleMixin):
             )
 
         self.glu_activation_family = activation in [
-            'geglu',
-            'reglu',
-            'swiglu',
-            'fast-geglu',
-            'fast-reglu',
-            'fast-swiglu',
+            "geglu",
+            "reglu",
+            "swiglu",
+            "fast-geglu",
+            "fast-reglu",
+            "fast-swiglu",
         ]
-        bias_activation_fusion_unavailable = activation in ['reglu', 'swiglu']
+        bias_activation_fusion_unavailable = activation in ["reglu", "swiglu"]
 
         if bias_activation_fusion_unavailable and bias_activation_fusion:
             raise ValueError(
@@ -181,7 +189,7 @@ class ParallelMLP(MegatronModule, adapter_mixins.AdapterModuleMixin):
             self.activation_func = openai_gelu_func
         elif activation in ["gelu", "geglu", "fast-geglu"]:
             self.activation_func = F.gelu
-        elif activation == 'approx-gelu':
+        elif activation == "approx-gelu":
             self.activation_func = ApproxGELUActivation
         elif onnx_safe:
             self.activation_func = erf_gelu
@@ -190,7 +198,7 @@ class ParallelMLP(MegatronModule, adapter_mixins.AdapterModuleMixin):
         elif activation in ["swiglu", "fast-swiglu"]:
             # SiLU or sigmoid linear unit is the same as swish with beta = 1 (which is what https://arxiv.org/pdf/2002.05202.pdf uses.)
             self.activation_func = F.silu
-        elif activation == 'squared-relu':
+        elif activation == "squared-relu":
             self.activation_func = squared_relu
 
         # Project back to h.
@@ -205,12 +213,14 @@ class ParallelMLP(MegatronModule, adapter_mixins.AdapterModuleMixin):
         )
 
         # Normformer normalization
-        if transformer_block_type == 'normformer':
-            if normalization == 'layernorm':
+        if transformer_block_type == "normformer":
+            if normalization == "layernorm":
                 self.normalization = get_layer_norm(
-                    ffn_hidden_size // get_tensor_model_parallel_world_size(), layernorm_epsilon, persist_layer_norm
+                    ffn_hidden_size // get_tensor_model_parallel_world_size(),
+                    layernorm_epsilon,
+                    persist_layer_norm,
                 )
-            elif normalization == 'layernorm1p':
+            elif normalization == "layernorm1p":
                 self.normalization = LayerNorm1P(
                     ffn_hidden_size // get_tensor_model_parallel_world_size(),
                     layernorm_epsilon,
@@ -218,7 +228,8 @@ class ParallelMLP(MegatronModule, adapter_mixins.AdapterModuleMixin):
                 )
             else:
                 self.normalization = MixedFusedRMSNorm(
-                    ffn_hidden_size // get_tensor_model_parallel_world_size(), layernorm_epsilon
+                    ffn_hidden_size // get_tensor_model_parallel_world_size(),
+                    layernorm_epsilon,
                 )
 
     def forward(self, hidden_states):
@@ -226,56 +237,84 @@ class ParallelMLP(MegatronModule, adapter_mixins.AdapterModuleMixin):
         # [s, b, 4hp]
         intermediate_parallel, bias_parallel = self.dense_h_to_4h(hidden_states)
         if self.is_adapter_available():
-            lora_dense_h_to_4h_adapter = self.get_adapter_module(AdapterName.LORA_Hto4H_ADAPTER)
-            if lora_dense_h_to_4h_adapter and self.adapter_cfg[AdapterName.LORA_Hto4H_ADAPTER]['enabled']:
+            lora_dense_h_to_4h_adapter = self.get_adapter_module(
+                AdapterName.LORA_Hto4H_ADAPTER
+            )
+            if (
+                lora_dense_h_to_4h_adapter
+                and self.adapter_cfg[AdapterName.LORA_Hto4H_ADAPTER]["enabled"]
+            ):
                 lora_intermediate_parallel = lora_dense_h_to_4h_adapter(hidden_states)
-                intermediate_parallel = intermediate_parallel + lora_intermediate_parallel
+                intermediate_parallel = (
+                    intermediate_parallel + lora_intermediate_parallel
+                )
 
         if self.fast_glu_activation:
-            intermediate_parallel, intermediate_parallel_2 = torch.chunk(intermediate_parallel, 2, dim=-1)
+            intermediate_parallel, intermediate_parallel_2 = torch.chunk(
+                intermediate_parallel, 2, dim=-1
+            )
             if bias_parallel is not None:
                 bias_parallel, bias_parallel_2 = torch.chunk(bias_parallel, 2, dim=-1)
         elif self.glu_activation_family and not self.fast_glu_activation:
-            intermediate_parallel_2, bias_parallel_2 = self.dense_h_to_4h_2(hidden_states)
+            intermediate_parallel_2, bias_parallel_2 = self.dense_h_to_4h_2(
+                hidden_states
+            )
 
         if self.bias_activation_fusion:
-            if self.activation == 'gelu':
-                intermediate_parallel = fused_bias_gelu(intermediate_parallel, bias_parallel)
-            elif self.activation in ['geglu', 'fast-geglu']:
+            if self.activation == "gelu":
+                intermediate_parallel = fused_bias_gelu(
+                    intermediate_parallel, bias_parallel
+                )
+            elif self.activation in ["geglu", "fast-geglu"]:
                 intermediate_parallel = fused_bias_geglu(
-                    intermediate_parallel, bias_parallel, intermediate_parallel_2, bias_parallel_2
+                    intermediate_parallel,
+                    bias_parallel,
+                    intermediate_parallel_2,
+                    bias_parallel_2,
                 )
 
         elif self.glu_activation_family and not self.bias_activation_fusion:
             if bias_parallel is not None:
-                intermediate_parallel = self.activation_func(intermediate_parallel + bias_parallel) * (
-                    intermediate_parallel_2 + bias_parallel_2
-                )
+                intermediate_parallel = self.activation_func(
+                    intermediate_parallel + bias_parallel
+                ) * (intermediate_parallel_2 + bias_parallel_2)
             else:
-                intermediate_parallel = self.activation_func(intermediate_parallel) * intermediate_parallel_2
+                intermediate_parallel = (
+                    self.activation_func(intermediate_parallel)
+                    * intermediate_parallel_2
+                )
 
         else:
             if bias_parallel is not None:
-                intermediate_parallel = self.activation_func(intermediate_parallel + bias_parallel)
+                intermediate_parallel = self.activation_func(
+                    intermediate_parallel + bias_parallel
+                )
             else:
                 intermediate_parallel = self.activation_func(intermediate_parallel)
 
         if self.dropout > 0:
-            intermediate_parallel = F.dropout(intermediate_parallel, p=self.dropout, training=self.training)
+            intermediate_parallel = F.dropout(
+                intermediate_parallel, p=self.dropout, training=self.training
+            )
 
         infused_adapter = self.get_adapter_module(AdapterName.MLP_INFUSED)
         if infused_adapter:
             intermediate_parallel = infused_adapter(intermediate_parallel)
 
         # Normformer normalization
-        if self.transformer_block_type == 'normformer':
+        if self.transformer_block_type == "normformer":
             intermediate_parallel = self.normalization(intermediate_parallel)
 
         # [s, b, h]
         output, output_bias = self.dense_4h_to_h(intermediate_parallel)
         if self.is_adapter_available():
-            lora_dense_4h_to_h_adapter = self.get_adapter_module(AdapterName.LORA_4HtoH_ADAPTER)
-            if lora_dense_4h_to_h_adapter and self.adapter_cfg[AdapterName.LORA_4HtoH_ADAPTER]['enabled']:
+            lora_dense_4h_to_h_adapter = self.get_adapter_module(
+                AdapterName.LORA_4HtoH_ADAPTER
+            )
+            if (
+                lora_dense_4h_to_h_adapter
+                and self.adapter_cfg[AdapterName.LORA_4HtoH_ADAPTER]["enabled"]
+            ):
                 lora_output = lora_dense_4h_to_h_adapter(intermediate_parallel)
                 output = output + lora_output
         return output, output_bias
@@ -283,7 +322,7 @@ class ParallelMLP(MegatronModule, adapter_mixins.AdapterModuleMixin):
 
 class SwitchMLP(MegatronModule):
     """Top-1 MoE
-    
+
     Curently supports Sinkhorn based expert routing."""
 
     def __init__(
@@ -297,10 +336,10 @@ class SwitchMLP(MegatronModule):
         bias_activation_fusion=True,
         openai_gelu=False,
         onnx_safe=False,
-        activation='gelu',
+        activation="gelu",
         bias=True,
-        transformer_block_type='pre_ln',
-        normalization='layernorm',
+        transformer_block_type="pre_ln",
+        normalization="layernorm",
         layernorm_epsilon=1e-5,
         persist_layer_norm=False,
         sequence_parallel=False,
@@ -321,23 +360,25 @@ class SwitchMLP(MegatronModule):
         )
 
         mlp_args = {
-            'config': config,
-            'init_method': init_method,
-            'output_layer_init_method': output_layer_init_method,
-            'hidden_size': hidden_size,
-            'ffn_hidden_size': ffn_hidden_size,
-            'bias_activation_fusion': bias_activation_fusion,
-            'openai_gelu': openai_gelu,
-            'onnx_safe': onnx_safe,
-            'activation': activation,
-            'bias': bias,
-            'transformer_block_type': transformer_block_type,
-            'normalization': normalization,
-            'layernorm_epsilon': layernorm_epsilon,
-            'persist_layer_norm': persist_layer_norm,
-            'dropout': dropout,
+            "config": config,
+            "init_method": init_method,
+            "output_layer_init_method": output_layer_init_method,
+            "hidden_size": hidden_size,
+            "ffn_hidden_size": ffn_hidden_size,
+            "bias_activation_fusion": bias_activation_fusion,
+            "openai_gelu": openai_gelu,
+            "onnx_safe": onnx_safe,
+            "activation": activation,
+            "bias": bias,
+            "transformer_block_type": transformer_block_type,
+            "normalization": normalization,
+            "layernorm_epsilon": layernorm_epsilon,
+            "persist_layer_norm": persist_layer_norm,
+            "dropout": dropout,
         }
-        self.experts = torch.nn.ModuleList([ParallelMLP(**mlp_args) for _ in range(num_experts)])
+        self.experts = torch.nn.ModuleList(
+            [ParallelMLP(**mlp_args) for _ in range(num_experts)]
+        )
 
     def forward(self, hidden_states):
         hidden_shape = hidden_states.shape

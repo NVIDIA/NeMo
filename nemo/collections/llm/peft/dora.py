@@ -48,13 +48,18 @@ class ParallelLinearDoRAAdapter(ParallelLinearAdapter):
         return self.weight_magnitude
 
     def sharded_state_dict(
-        self, prefix: str = '', sharded_offsets: tuple = (), metadata: Optional[dict] = None
+        self,
+        prefix: str = "",
+        sharded_offsets: tuple = (),
+        metadata: Optional[dict] = None,
     ) -> ShardedStateDict:
         """
         Sharded state dict implementation for DoRA adapter.
         Weight magnitude is TP sharded for linear_qkv and linear_fc1 only.
         """
-        sharded_state_dict = super().sharded_state_dict(prefix, sharded_offsets, metadata)
+        sharded_state_dict = super().sharded_state_dict(
+            prefix, sharded_offsets, metadata
+        )
 
         magnitude_key = f"{prefix}weight_magnitude"
         if self.input_is_parallel:
@@ -86,13 +91,19 @@ class DoRALinear(AdapterWrapper):
 
     def _get_weight_norm(self):
         if self.adapter.input_is_parallel:
-            linear_out_weight = gather_from_tensor_model_parallel_region(self.adapter.linear_out.weight.T).T
+            linear_out_weight = gather_from_tensor_model_parallel_region(
+                self.adapter.linear_out.weight.T
+            ).T
             linear_in_weight = self.adapter.linear_in.weight
         else:
             linear_out_weight = self.adapter.linear_out.weight
-            linear_in_weight = gather_from_tensor_model_parallel_region(self.adapter.linear_in.weight.T).T
+            linear_in_weight = gather_from_tensor_model_parallel_region(
+                self.adapter.linear_in.weight.T
+            ).T
 
-        weight = self.to_wrap.weight + self.scaling * linear_out_weight @ linear_in_weight
+        weight = (
+            self.to_wrap.weight + self.scaling * linear_out_weight @ linear_in_weight
+        )
         return torch.linalg.norm(weight, dim=1).to(weight.dtype).detach()
 
     def forward(self, x):
@@ -115,7 +126,9 @@ class DoRALinear(AdapterWrapper):
         adapter_output = self.adapter(layernorm_output.contiguous())
 
         # mag_norm_scale is  ||W_0 + B_0 A_0|| / ||W_0 + B A||  (scaling in front of BA not shown)
-        mag_norm_scale = (self.adapter.get_weight_magnitude() / self._get_weight_norm()).view(1, 1, -1)
+        mag_norm_scale = (
+            self.adapter.get_weight_magnitude() / self._get_weight_norm()
+        ).view(1, 1, -1)
         if self.adapter.dropout is None or not self.training:
             dropout_correction = 0
         else:
@@ -123,7 +136,10 @@ class DoRALinear(AdapterWrapper):
                 self.adapter.dropout(layernorm_output) - layernorm_output
             )[0]
 
-        return mag_norm_scale * (linear_output + adapter_output) + dropout_correction, bias
+        return (
+            mag_norm_scale * (linear_output + adapter_output) + dropout_correction,
+            bias,
+        )
 
 
 @dataclass
@@ -155,18 +171,24 @@ class DoRA(PEFT, ModuleMatcher):
     """
 
     target_modules: List[str] = field(
-        default_factory=lambda: ['linear_qkv', 'linear_proj', 'linear_fc1', 'linear_fc2']
+        default_factory=lambda: [
+            "linear_qkv",
+            "linear_proj",
+            "linear_fc1",
+            "linear_fc2",
+        ]
     )
     dim: int = 32
     alpha: int = 64
     dropout: float = 0.0
-    dropout_position: Literal['pre', 'post'] = 'pre'
+    dropout_position: Literal["pre", "post"] = "pre"
     lora_A_init_method: str = "xavier"
     lora_B_init_method: str = "zero"
 
     def __post_init__(self):
         assert self.dropout_position == "pre", (
-            "DoRA only supports pre-adapter dropout at this time." "Please set DoRA(..., dropout_position='pre')"
+            "DoRA only supports pre-adapter dropout at this time."
+            "Please set DoRA(..., dropout_position='pre')"
         )
 
     def transform(self, m: nn.Module, name=None, prefix=None):
@@ -183,14 +205,16 @@ class DoRA(PEFT, ModuleMatcher):
         """
         if (ans := self.match(m, name, prefix)) is not None:
             (match, full_name) = ans
-            input_is_parallel, in_features, out_features, disable_sp_comm = get_adapter_attributes_from_linear(m)
+            input_is_parallel, in_features, out_features, disable_sp_comm = (
+                get_adapter_attributes_from_linear(m)
+            )
             logging.info(f"Adding DoRA to: {full_name}")
             adapter = ParallelLinearDoRAAdapter(
                 in_features,
                 out_features,
                 self.dim,
                 base_linear_name=full_name,
-                activation='identity',
+                activation="identity",
                 norm_type=None,
                 column_init_method=self.lora_A_init_method,
                 row_init_method=self.lora_B_init_method,

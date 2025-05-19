@@ -67,13 +67,19 @@ def override_recipe_configs(
     recipe.model.config.recompute_num_layers = None
     recipe.model.config.recompute_method = None
     recipe.model.config.cross_entropy_fusion_impl = "te"
-    recipe.model.config.moe_router_dtype = 'fp32'
+    recipe.model.config.moe_router_dtype = "fp32"
 
-    assert pp_size is None or pp_size == 1 or (64 % pp_size == 0), "pp_size must be 1 or a factor of 64"
+    assert (
+        pp_size is None or pp_size == 1 or (64 % pp_size == 0)
+    ), "pp_size must be 1 or a factor of 64"
     num_layers_in_middle_pipeline_stages = 64 // pp_size
 
-    recipe.trainer.strategy.num_layers_in_first_pipeline_stage = num_layers_in_middle_pipeline_stages - 1
-    recipe.trainer.strategy.num_layers_in_last_pipeline_stage = num_layers_in_middle_pipeline_stages - 2
+    recipe.trainer.strategy.num_layers_in_first_pipeline_stage = (
+        num_layers_in_middle_pipeline_stages - 1
+    )
+    recipe.trainer.strategy.num_layers_in_last_pipeline_stage = (
+        num_layers_in_middle_pipeline_stages - 2
+    )
 
     callbacks = []
     if USE_TOKEN_DROP:
@@ -128,13 +134,18 @@ def override_recipe_configs(
         recipe.data.tokenizer = hf_tokenizer(HF_MODEL_URI)
     else:
         recipe.data.tokenizer = run.Config(
-            get_nmt_tokenizer, library="null", model_name="NullTokenizer", vocab_size=129280
+            get_nmt_tokenizer,
+            library="null",
+            model_name="NullTokenizer",
+            vocab_size=129280,
         )
     recipe.model.tokenizer = recipe.data.tokenizer
 
     # compute dtype configs
     if args.compute_dtype.lower() == "fp8":
-        raise ValueError("Deepseek FP8 recipe requires subchannel scaling which will be supported soon.")
+        raise ValueError(
+            "Deepseek FP8 recipe requires subchannel scaling which will be supported soon."
+        )
 
     return recipe
 
@@ -201,7 +212,7 @@ if __name__ == "__main__":
         PerfEnvPlugin(
             enable_vboost=True,
             nccl_pp_comm_chunksize=2097152 if pp_size > 1 else None,
-            gpu_sm100_or_newer=(args.gpu.lower() in ['b200', 'gb200']),
+            gpu_sm100_or_newer=(args.gpu.lower() in ["b200", "gb200"]),
         )
     ]
     if args.enable_nsys:

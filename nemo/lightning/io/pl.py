@@ -84,11 +84,17 @@ class TrainerContext(IOMixin, Generic[LightningModuleT]):
             ValueError: If the trainer or its LightningModule does not extend `IOMixin`.
         """
         if not hasattr(trainer, "__io__"):
-            raise ValueError(f"Trainer must be an instance of {IOProtocol}. Please use the Trainer from nemo.")
+            raise ValueError(
+                f"Trainer must be an instance of {IOProtocol}. Please use the Trainer from nemo."
+            )
         if not hasattr(trainer.lightning_module, "__io__"):
             raise ValueError("LightningModule must extend IOMixin.")
 
-        return cls(trainer=trainer, model=trainer.lightning_module, extra=cls.construct_extra(trainer))
+        return cls(
+            trainer=trainer,
+            model=trainer.lightning_module,
+            extra=cls.construct_extra(trainer),
+        )
 
     @classmethod
     def construct_extra(cls, trainer: pl.Trainer) -> Dict[str, Any]:
@@ -121,7 +127,10 @@ def ckpt_to_weights_subdir(filepath: Union[str, Path], is_saving) -> Path:
         if maybe_base_dir.is_dir() or is_saving:
             base_dir = maybe_base_dir
     # handle adapter paths
-    if hasattr(base_dir, "base_model_path") and base_dir.base_model_path.parts[-1] != WEIGHTS_PATH:
+    if (
+        hasattr(base_dir, "base_model_path")
+        and base_dir.base_model_path.parts[-1] != WEIGHTS_PATH
+    ):
         maybe_base_model_path = base_dir.base_model_path / WEIGHTS_PATH
         if maybe_base_model_path.is_dir() or is_saving:
             base_dir.base_model_path = base_dir.base_model_path / WEIGHTS_PATH
@@ -141,7 +150,7 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
 
     def __init__(
         self,
-        save_ckpt_format: str = 'torch_dist',
+        save_ckpt_format: str = "torch_dist",
         load_directly_on_device: bool = True,
         async_save: bool = False,
         torch_dist_multiproc: Optional[int] = None,
@@ -163,7 +172,12 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
         self.validated_consistency = False
 
     @override
-    def save_checkpoint(self, checkpoint: Dict[str, Any], path: _PATH, storage_options: Optional[Any] = None) -> None:
+    def save_checkpoint(
+        self,
+        checkpoint: Dict[str, Any],
+        path: _PATH,
+        storage_options: Optional[Any] = None,
+    ) -> None:
         """Save model/training states as a checkpoint file through state-dump and file-write.
 
         Args:
@@ -190,7 +204,9 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
         fs = get_filesystem(checkpoint_dir)
         fs.makedirs(checkpoint_dir, exist_ok=True)
 
-        validate_sharding_integrity = not (self.validated_consistency and self.assume_constant_structure)
+        validate_sharding_integrity = not (
+            self.validated_consistency and self.assume_constant_structure
+        )
         self.validated_consistency = True
 
         rank = torch.distributed.get_rank()
@@ -215,7 +231,9 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
         logging.info(log_message)
 
         def iter_finalize_fn():
-            logging.info(f'Successfully saved checkpoint from iteration {int(iteration):7d} to {path}')
+            logging.info(
+                f"Successfully saved checkpoint from iteration {int(iteration):7d} to {path}"
+            )
 
         if self.async_save:
             assert async_save_request is not None
@@ -229,7 +247,7 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
         path: _PATH,
         sharded_state_dict=None,
         map_location: Optional[Callable] = None,
-        strict: Optional['StrictHandling'] | bool = None,  # noqa: F821
+        strict: Optional["StrictHandling"] | bool = None,  # noqa: F821
     ) -> Dict[str, Any]:
         """Loads checkpoint using :func:`torch.load`, with additional handling for ``fsspec`` remote loading of files.
 
@@ -249,25 +267,31 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
         from megatron.core.dist_checkpointing.validation import StrictHandling
 
         if map_location is not None:
-            raise ValueError("`map_location` argument is not supported for `MegatronCheckpointIO.load_checkpoint`.")
+            raise ValueError(
+                "`map_location` argument is not supported for `MegatronCheckpointIO.load_checkpoint`."
+            )
 
         # Try to read the checkpoint at `path`. If not exist, do not restore checkpoint.
         fs = get_filesystem(path)
         if not fs.exists(path):
             raise FileNotFoundError(f"Checkpoint file not found: {path}")
         if not fs.isdir(path):
-            raise ValueError(f"Distributed checkpoints should be a directory. Found: {path}.")
+            raise ValueError(
+                f"Distributed checkpoints should be a directory. Found: {path}."
+            )
 
         # Load from ckpt_path/weights (new format) if it exists
         path = ckpt_to_weights_subdir(path, is_saving=False)
         if hasattr(path, "base_model_path") and not path.base_model_path.exists():
             path.base_model_path = path.base_model_path.parent
 
-        if self.save_ckpt_format == 'zarr' and self.load_directly_on_device:
+        if self.save_ckpt_format == "zarr" and self.load_directly_on_device:
             from megatron.core.dist_checkpointing.strategies.tensorstore import \
                 TensorStoreLoadShardedStrategy
 
-            sharded_strategy = TensorStoreLoadShardedStrategy(load_directly_on_device=True)
+            sharded_strategy = TensorStoreLoadShardedStrategy(
+                load_directly_on_device=True
+            )
         else:
             sharded_strategy = None
 
@@ -279,14 +303,20 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
             )
 
         if sharded_strategy is not None:
-            logging.info(f'Using {sharded_strategy} dist-ckpt load strategy.')
+            logging.info(f"Using {sharded_strategy} dist-ckpt load strategy.")
 
         if isinstance(strict, bool):
             # For backward-compatibility reasons and a bug in MCore (strict check not applied to factories)
             # we must apply a simple strict check here.
             if not strict:
-                sharded_state_dict = self.adjust_non_strict_load(path, sharded_state_dict)
-            strict = StrictHandling.ASSUME_OK_UNEXPECTED if strict else StrictHandling.LOG_ALL
+                sharded_state_dict = self.adjust_non_strict_load(
+                    path, sharded_state_dict
+                )
+            strict = (
+                StrictHandling.ASSUME_OK_UNEXPECTED
+                if strict
+                else StrictHandling.LOG_ALL
+            )
         if strict is None:
             # Default behavior
             strict = StrictHandling.ASSUME_OK_UNEXPECTED
@@ -329,39 +359,49 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
         are passed in config or in case of a fully parallel save in which case
         a parallelization wrapper is applied.
         """
-        if self.save_ckpt_format == 'zarr':
+        if self.save_ckpt_format == "zarr":
             logging.warning(
-                '`zarr` distributed checkpoint backend is deprecated.'
-                ' Distributed optimizer checkpoint saving might be extremely slow.'
-                ' Please switch to PyTorch Distributed format (model.dist_ckpt_format=torch_dist).'
+                "`zarr` distributed checkpoint backend is deprecated."
+                " Distributed optimizer checkpoint saving might be extremely slow."
+                " Please switch to PyTorch Distributed format (model.dist_ckpt_format=torch_dist)."
             )
 
-        if self.async_save and self.save_ckpt_format != 'torch_dist':
-            raise ValueError('Async dist-ckpt save supported only for torch_dist format')
+        if self.async_save and self.save_ckpt_format != "torch_dist":
+            raise ValueError(
+                "Async dist-ckpt save supported only for torch_dist format"
+            )
 
-        torch_dist_kwargs = {} if self.torch_dist_multiproc is None else dict(thread_count=self.torch_dist_multiproc)
-        if self.save_ckpt_format == 'torch_dist' and torch_dist_kwargs:
-            save_strategy = TorchDistSaveShardedStrategy(self.save_ckpt_format, 1, **torch_dist_kwargs)
+        torch_dist_kwargs = (
+            {}
+            if self.torch_dist_multiproc is None
+            else dict(thread_count=self.torch_dist_multiproc)
+        )
+        if self.save_ckpt_format == "torch_dist" and torch_dist_kwargs:
+            save_strategy = TorchDistSaveShardedStrategy(
+                self.save_ckpt_format, 1, **torch_dist_kwargs
+            )
         else:
             save_strategy = get_default_save_sharded_strategy(self.save_ckpt_format, 1)
 
         # MCore v0.8 introduces `use_cached_ckpt_structure` attribute
-        if hasattr(save_strategy, 'use_cached_ckpt_structure'):
+        if hasattr(save_strategy, "use_cached_ckpt_structure"):
             save_strategy.use_cached_ckpt_structure = self.assume_constant_structure
 
         if self.parallel_save:
             parallelization_group = (
-                get_data_parallel_group(with_context_parallel=True) if self.parallel_save_within_dp else None
+                get_data_parallel_group(with_context_parallel=True)
+                if self.parallel_save_within_dp
+                else None
             )
             save_strategy = FullyParallelSaveStrategyWrapper(
                 save_strategy, parallelization_group, self.assume_constant_structure
             )
 
-        logging.info(f'Using {save_strategy} dist-ckpt save strategy.')
+        logging.info(f"Using {save_strategy} dist-ckpt save strategy.")
         return save_strategy
 
     @property
-    def save_sharded_strategy(self) -> 'SaveShardedStrategy':
+    def save_sharded_strategy(self) -> "SaveShardedStrategy":
         """
         initializes (if needed) the sharding strategy and returns its"""
         if self._save_sharded_strategy is None:
@@ -419,8 +459,12 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
                     return True
             return False
 
-        _, sharded_state_dict = extract_matching_values(sharded_state_dict, should_remove_missing_sharded_base)
-        logging.info(f'The following keys are not in the checkpoint and will not be loaded: {unexpected_keys}')
+        _, sharded_state_dict = extract_matching_values(
+            sharded_state_dict, should_remove_missing_sharded_base
+        )
+        logging.info(
+            f"The following keys are not in the checkpoint and will not be loaded: {unexpected_keys}"
+        )
 
         # TODO: compute missing_keys by:
         #  1. all_gather_object of loaded_keys
@@ -430,7 +474,10 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
 
 def _fix_tensors_device(ckpt: Dict) -> Dict:
     """Ensure checkpoint tensors are on the correct device."""
-    assert torch.cuda.is_initialized(), (torch.cuda.is_available(), torch.cuda.is_initialized())
+    assert torch.cuda.is_initialized(), (
+        torch.cuda.is_available(),
+        torch.cuda.is_initialized(),
+    )
     cur_dev = torch.device("cuda", index=torch.cuda.current_device())
     from megatron.core.dist_checkpointing.dict_utils import \
         dict_list_map_outplace
@@ -461,7 +508,9 @@ def is_distributed_ckpt(path) -> bool:
 
     checkpoint_dir = ckpt_to_dir(path)
     fs = get_filesystem(checkpoint_dir)
-    return fs.isdir(checkpoint_dir) and dist_checkpointing.check_is_distributed_checkpoint(checkpoint_dir)
+    return fs.isdir(
+        checkpoint_dir
+    ) and dist_checkpointing.check_is_distributed_checkpoint(checkpoint_dir)
 
 
 def _get_iteration_from_checkpoint(checkpoint: Dict[str, Any]) -> Optional[int]:

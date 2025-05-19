@@ -50,12 +50,18 @@ class LlavaNextConfig7B(LlavaNextConfig):
 
     from transformers import PretrainedConfig
 
-    language_transformer_config: TransformerConfig = field(default_factory=lambda: Llama2Config7B())
+    language_transformer_config: TransformerConfig = field(
+        default_factory=lambda: Llama2Config7B()
+    )
     vision_transformer_config: Union[TransformerConfig, PretrainedConfig] = field(
-        default_factory=lambda: HFCLIPVisionConfig(pretrained_model_name_or_path="openai/clip-vit-large-patch14-336")
+        default_factory=lambda: HFCLIPVisionConfig(
+            pretrained_model_name_or_path="openai/clip-vit-large-patch14-336"
+        )
     )
     vision_projection_config: TransformerConfig = field(
-        default_factory=lambda: MultimodalProjectorConfig(input_size=1024, hidden_size=4096, ffn_hidden_size=4096)
+        default_factory=lambda: MultimodalProjectorConfig(
+            input_size=1024, hidden_size=4096, ffn_hidden_size=4096
+        )
     )
 
 
@@ -69,12 +75,18 @@ class LlavaNextConfig13B(LlavaNextConfig):
 
     from transformers import PretrainedConfig
 
-    language_transformer_config: TransformerConfig = field(default_factory=lambda: Llama2Config13B())
+    language_transformer_config: TransformerConfig = field(
+        default_factory=lambda: Llama2Config13B()
+    )
     vision_transformer_config: Union[TransformerConfig, PretrainedConfig] = field(
-        default_factory=lambda: HFCLIPVisionConfig(pretrained_model_name_or_path="openai/clip-vit-large-patch14-336")
+        default_factory=lambda: HFCLIPVisionConfig(
+            pretrained_model_name_or_path="openai/clip-vit-large-patch14-336"
+        )
     )
     vision_projection_config: TransformerConfig = field(
-        default_factory=lambda: MultimodalProjectorConfig(input_size=1024, hidden_size=5120, ffn_hidden_size=5120)
+        default_factory=lambda: MultimodalProjectorConfig(
+            input_size=1024, hidden_size=5120, ffn_hidden_size=5120
+        )
     )
 
 
@@ -109,7 +121,10 @@ class LlavaNextModel(NevaModel):
         """
         super().__init__(
             config=config,
-            optim=optim or MegatronOptimizerModule(config=OptimizerConfig(lr=1e-4, use_distributed_optimizer=True)),
+            optim=optim
+            or MegatronOptimizerModule(
+                config=OptimizerConfig(lr=1e-4, use_distributed_optimizer=True)
+            ),
             tokenizer=tokenizer,
             model_transform=model_transform,
         )
@@ -254,13 +269,17 @@ class HFLlavaNextImporter(
             num_query_groups=text_conifg.num_key_value_heads,
             rotary_base=text_conifg.rope_theta,
             gated_linear_unit=True,
-            make_vocab_size_divisible_by=make_vocab_size_divisible_by(text_conifg.vocab_size),
+            make_vocab_size_divisible_by=make_vocab_size_divisible_by(
+                text_conifg.vocab_size
+            ),
             share_embeddings_and_output_weights=False,
         )
         vision_transformer_config = HFCLIPVisionConfig(
             pretrained_model_name_or_path="openai/clip-vit-large-patch14-336"
         )
-        vision_projection_config = MultimodalProjectorConfig(input_size=1024, hidden_size=4096, ffn_hidden_size=4096)
+        vision_projection_config = MultimodalProjectorConfig(
+            input_size=1024, hidden_size=4096, ffn_hidden_size=4096
+        )
 
         output = LlavaNextConfig(
             language_transformer_config=language_transformer_config,
@@ -273,7 +292,9 @@ class HFLlavaNextImporter(
 
 
 @io.model_exporter(LlavaNextModel, "hf")
-class HFLlavaNextExporter(io.ModelConnector[LlavaNextModel, "LlavaNextForConditionalGeneration"]):
+class HFLlavaNextExporter(
+    io.ModelConnector[LlavaNextModel, "LlavaNextForConditionalGeneration"]
+):
     """
     Exporter class for converting NeMo LLaVA Next model to HuggingFace format.
 
@@ -347,7 +368,10 @@ class HFLlavaNextExporter(io.ModelConnector[LlavaNextModel, "LlavaNextForConditi
         }
 
         # Map vision projection components
-        if "vision_projection.encoder.linear_fc1.weight" in source.module.state_dict().keys():
+        if (
+            "vision_projection.encoder.linear_fc1.weight"
+            in source.module.state_dict().keys()
+        ):
             mapping.update(
                 {
                     "vision_projection.encoder.linear_fc1.weight": "multi_modal_projector.linear_1.weight",
@@ -371,7 +395,10 @@ class HFLlavaNextExporter(io.ModelConnector[LlavaNextModel, "LlavaNextForConditi
             mapping.update({"image_newline": "image_newline"})
 
         # Map vision model components
-        if "vision_model.vision_model.embeddings.class_embedding" in source.module.state_dict().keys():
+        if (
+            "vision_model.vision_model.embeddings.class_embedding"
+            in source.module.state_dict().keys()
+        ):
             mapping.update(
                 {
                     "vision_model.vision_model.**": "vision_tower.vision_model.**",
@@ -407,7 +434,9 @@ class HFLlavaNextExporter(io.ModelConnector[LlavaNextModel, "LlavaNextForConditi
         ]
 
         # If word embeddings are not shared, add the head export transform
-        if not source.config.language_transformer_config.share_embeddings_and_output_weights:
+        if (
+            not source.config.language_transformer_config.share_embeddings_and_output_weights
+        ):
             transforms.append(_export_language_head)
 
         return io.apply_transforms(
@@ -440,7 +469,9 @@ class HFLlavaNextExporter(io.ModelConnector[LlavaNextModel, "LlavaNextForConditi
         source = io.load_context(str(self), subpath="model.config")
         language_config = source.language_transformer_config
         vit_path = getattr(
-            source.vision_transformer_config, "pretrained_model_name_or_path", "openai/clip-vit-large-patch14-336"
+            source.vision_transformer_config,
+            "pretrained_model_name_or_path",
+            "openai/clip-vit-large-patch14-336",
         )
         vision_config = CLIPVisionConfig.from_pretrained(vit_path)
 
@@ -493,7 +524,9 @@ def _export_language_qkv(ctx: io.TransformCTX, linear_qkv):
     linear_qkv = linear_qkv.reshape([qkv_total_dim, head_size, hidden_size])
     q_slice = torch.cat(
         [
-            torch.arange((heads_per_group + 2) * i, (heads_per_group + 2) * i + heads_per_group)
+            torch.arange(
+                (heads_per_group + 2) * i, (heads_per_group + 2) * i + heads_per_group
+            )
             for i in range(num_query_groups)
         ]
     )
@@ -529,7 +562,9 @@ def _export_vision_qkv(ctx: io.TransformCTX, linear_qkv):
     linear_qkv = linear_qkv.reshape([qkv_total_dim, head_size, hidden_size])
     q_slice = torch.cat(
         [
-            torch.arange((heads_per_group + 2) * i, (heads_per_group + 2) * i + heads_per_group)
+            torch.arange(
+                (heads_per_group + 2) * i, (heads_per_group + 2) * i + heads_per_group
+            )
             for i in range(num_query_groups)
         ]
     )
@@ -564,7 +599,9 @@ def _export_vision_qkv_bias(ctx: io.TransformCTX, linear_qkv_bias):
     linear_qkv_bias = linear_qkv_bias.reshape([qkv_total_dim, head_size])
     q_slice = torch.cat(
         [
-            torch.arange((heads_per_group + 2) * i, (heads_per_group + 2) * i + heads_per_group)
+            torch.arange(
+                (heads_per_group + 2) * i, (heads_per_group + 2) * i + heads_per_group
+            )
             for i in range(num_query_groups)
         ]
     )

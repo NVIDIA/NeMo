@@ -50,7 +50,7 @@ CUDA_VISIBLE_DEVICES="0,1" python modular_audio_gpt_train.py --config-path="./co
 @hydra_runner(config_path="conf", config_name="modular_audio_gpt_config_peft")
 def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
-    logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
+    logging.info(f"\n{OmegaConf.to_yaml(cfg)}")
     # hydra interpolation does not work here as the interpolation key is lost when PTL saves hparams
     with open_dict(cfg):
         cfg.model.precision = cfg.trainer.precision
@@ -61,9 +61,9 @@ def main(cfg) -> None:
 
     exp_manager(trainer, cfg.exp_manager)
     # update resume from checkpoint found by exp_manager
-    logging.info(f'Resuming training from checkpoint: {trainer.ckpt_path}')
+    logging.info(f"Resuming training from checkpoint: {trainer.ckpt_path}")
 
-    if hasattr(cfg, 'model_target'):
+    if hasattr(cfg, "model_target"):
         imported_cls = model_utils.import_class_by_path(cfg.model_target)
     else:
         imported_cls = ModularAudioGPTModel
@@ -72,5 +72,5 @@ def main(cfg) -> None:
     trainer.fit(model)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

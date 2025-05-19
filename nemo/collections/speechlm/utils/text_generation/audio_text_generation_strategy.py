@@ -26,7 +26,7 @@ from nemo.collections.multimodal.speech_llm.parts.utils.data_utils import \
     shift_tokens_by_multi_audios
 
 # the text representation of eos_id, it applies for all tokenizers
-END_OF_SEQ = '<|endoftext|>'
+END_OF_SEQ = "<|endoftext|>"
 
 
 def pad_batch(batch, pad_id, max_len):
@@ -98,17 +98,26 @@ class TextGenerationStrategy:
         tokenizer = self.model.tokenizer
         if is_chat_input(sentences):
             assert getattr(
-                tokenizer, 'has_chat_template', False
+                tokenizer, "has_chat_template", False
             ), "Got chat-template input but tokenizer does not support chat template formating."
-            context_tokens = list(map(tokenizer.text_to_ids, explode_chat_template_input(sentences)))
+            context_tokens = list(
+                map(tokenizer.text_to_ids, explode_chat_template_input(sentences))
+            )
         elif add_BOS:
-            context_tokens = [[tokenizer.bos_id] + tokenizer.text_to_ids(s) for s in sentences]
+            context_tokens = [
+                [tokenizer.bos_id] + tokenizer.text_to_ids(s) for s in sentences
+            ]
         elif hasattr(tokenizer.tokenizer, "get_prefix_tokens"):
             # chatglm: add tokenizer.gmask_id, tokenizer.sop_id
-            context_tokens = [tokenizer.tokenizer.get_prefix_tokens() + tokenizer.text_to_ids(s) for s in sentences]
+            context_tokens = [
+                tokenizer.tokenizer.get_prefix_tokens() + tokenizer.text_to_ids(s)
+                for s in sentences
+            ]
         else:
             context_tokens = [tokenizer.text_to_ids(s) for s in sentences]
-        context_tokens, context_lengths = pad_batch(context_tokens, tokenizer.eos_id, max_len)
+        context_tokens, context_lengths = pad_batch(
+            context_tokens, tokenizer.eos_id, max_len
+        )
         context_tokens_tensor = torch.cuda.LongTensor(context_tokens)
         context_length_tensor = torch.cuda.LongTensor(context_lengths)
         return context_tokens_tensor, context_length_tensor
@@ -126,7 +135,12 @@ class TextGenerationStrategy:
 
     @classmethod
     @abstractmethod
-    def init_batch(self, context_tokens: torch.Tensor, context_length: int, compute_attention_mask: bool):
+    def init_batch(
+        self,
+        context_tokens: torch.Tensor,
+        context_length: int,
+        compute_attention_mask: bool,
+    ):
         """initialize the batch data before the inference steps.
            It will save the intermediate results as object attributes
            context_length (int): the context token length
@@ -139,7 +153,12 @@ class TextGenerationStrategy:
     @classmethod
     @abstractmethod
     def prepare_batch_at_step(
-        self, tokens: torch.Tensor, maxlen: int, micro_batch_size: int, step: int, context_length: int
+        self,
+        tokens: torch.Tensor,
+        maxlen: int,
+        micro_batch_size: int,
+        step: int,
+        context_length: int,
     ) -> Dict[str, torch.Tensor]:
         """
         generate the batch used in inference for each of the steps
@@ -156,7 +175,9 @@ class TextGenerationStrategy:
 
     @classmethod
     @abstractmethod
-    def post_process(self, tokens: torch.Tensor, new_tokens: torch.Tensor, context_length: int):
+    def post_process(
+        self, tokens: torch.Tensor, new_tokens: torch.Tensor, context_length: int
+    ):
         """
         At the end of the single step inference, post process the inference results
         Args:
@@ -167,7 +188,11 @@ class TextGenerationStrategy:
         pass
 
     def end_of_generation_condition(
-        self, tokens: torch.Tensor, prev: torch.Tensor, eod_id: int, end_strings: List[str]
+        self,
+        tokens: torch.Tensor,
+        prev: torch.Tensor,
+        eod_id: int,
+        end_strings: List[str],
     ) -> torch.Tensor:
         """
         return whether the generation should stop based on the previous token
@@ -183,10 +208,14 @@ class TextGenerationStrategy:
             # Simple scenario: only finish on end of document token.
             return prev == eod_id
 
-        end_tokens, end_strings_to_check = self._get_end_of_generation_tokens_and_strings(eod_id, end_strings)
+        end_tokens, end_strings_to_check = (
+            self._get_end_of_generation_tokens_and_strings(eod_id, end_strings)
+        )
         assert end_tokens
 
-        is_end = torch.isin(prev, torch.tensor(list(end_tokens), dtype=prev.dtype, device=prev.device))
+        is_end = torch.isin(
+            prev, torch.tensor(list(end_tokens), dtype=prev.dtype, device=prev.device)
+        )
 
         if end_strings_to_check:
             # The loop below is inefficient (see warning in `_get_end_of_generation_tokens_and_strings()`)
@@ -198,7 +227,9 @@ class TextGenerationStrategy:
             # ==> this is left for future work if there is a compelling use case requiring this feature.
             for idx, token_seq in enumerate(tokens):
                 text = self.model.tokenizer.ids_to_text(token_seq.tolist())
-                is_end[idx] |= any(text.endswith(end_string) for end_string in end_strings_to_check)
+                is_end[idx] |= any(
+                    text.endswith(end_string) for end_string in end_strings_to_check
+                )
 
         return is_end
 
@@ -226,7 +257,10 @@ class TextGenerationStrategy:
         tokenizer = self.model.tokenizer
         # A cache is used to remember which end strings are associated to unique tokens vs. which ones
         # require an actual string comparison.
-        if self._end_of_generation_cache is None or self._end_of_generation_cache["tokenizer"] is not tokenizer:
+        if (
+            self._end_of_generation_cache is None
+            or self._end_of_generation_cache["tokenizer"] is not tokenizer
+        ):
             # Invalidate the cache.
             self._end_of_generation_cache = {
                 "tokenizer": tokenizer,
@@ -235,8 +269,12 @@ class TextGenerationStrategy:
             }
         end_string_to_token = self._end_of_generation_cache["end_string_to_token"]
 
-        end_tokens = {eod_id}  # always include `eod_id`, even if `END_OF_SEQ` is not within `end_strings`
-        end_strings_to_check = []  # will contain end strings that have no associated special token
+        end_tokens = {
+            eod_id
+        }  # always include `eod_id`, even if `END_OF_SEQ` is not within `end_strings`
+        end_strings_to_check = (
+            []
+        )  # will contain end strings that have no associated special token
 
         for end_string in end_strings:
             try:
@@ -255,7 +293,10 @@ class TextGenerationStrategy:
             # risk of the tokenizer merging it with `end_string`, but this is somewhat arbitrary.
             ids_ref = tokenizer.text_to_ids("<extra_id_1>")
             ids_with_end_string = tokenizer.text_to_ids(f"<extra_id_1>{end_string}")
-            if len(ids_with_end_string) == len(ids_ref) + 1 and ids_with_end_string[:-1] == ids_ref:
+            if (
+                len(ids_with_end_string) == len(ids_ref) + 1
+                and ids_with_end_string[:-1] == ids_ref
+            ):
                 # We can assume that the extra token is the one corresponding to `end_string`.
                 end_string_to_token[end_string] = ids_with_end_string[-1]
                 end_tokens.add(ids_with_end_string[-1])
@@ -311,8 +352,14 @@ class SpeechToTextGenerationStrategy(TextGenerationStrategy):
             audio_feats = audio_feats.split(num_audios.tolist())
             audio_feat_lens = audio_feat_lens.split(num_audios.tolist())
 
-        encoder_input, attention_mask, _, position_ids, encoder_max_length = self.model.inject_perception_input(
-            audio_feats, audio_feat_lens, context_tokens, context_lengths, context_start_idx
+        encoder_input, attention_mask, _, position_ids, encoder_max_length = (
+            self.model.inject_perception_input(
+                audio_feats,
+                audio_feat_lens,
+                context_tokens,
+                context_lengths,
+                context_start_idx,
+            )
         )
 
         self.attention_mask = attention_mask
@@ -321,12 +368,22 @@ class SpeechToTextGenerationStrategy(TextGenerationStrategy):
         if num_audios is not None:
             # handle multiple audio files per sample
             new_context_tokens = shift_tokens_by_multi_audios(
-                context_tokens, context_lengths, audio_feat_lens, context_start_idx, encoder_max_length
+                context_tokens,
+                context_lengths,
+                audio_feat_lens,
+                context_start_idx,
+                encoder_max_length,
             )
-            audio_feat_lens = torch.stack([torch.sum(lens) for lens in audio_feat_lens])  # [batch,]
+            audio_feat_lens = torch.stack(
+                [torch.sum(lens) for lens in audio_feat_lens]
+            )  # [batch,]
         else:
             new_context_tokens = self.model._shift_labels_by_emb_len(
-                context_tokens, context_lengths, audio_feat_lens, encoder_max_length, pad_token=0
+                context_tokens,
+                context_lengths,
+                audio_feat_lens,
+                encoder_max_length,
+                pad_token=0,
             )
 
         return new_context_tokens, encoder_input, audio_feat_lens
@@ -356,13 +413,29 @@ class SpeechToTextGenerationStrategy(TextGenerationStrategy):
             # positions2use = self.position_ids[:, :curr_context_length].contiguous()
             embeddings2use = input_embeddings[:curr_context_length].contiguous()
             # Prepare KV cache for the entire context at first step, and reuse afterwards.
-            self.inference_params = InferenceParams(max_batch_size=tokens2use.size(0), max_sequence_length=maxlen)
+            self.inference_params = InferenceParams(
+                max_batch_size=tokens2use.size(0), max_sequence_length=maxlen
+            )
         else:
-            tokens2use = tokens[:, curr_context_length - 1].view(micro_batch_size, -1).contiguous()
-            positions2use = self.position_ids[:, curr_context_length - 1].view(micro_batch_size, -1).contiguous()
-            embeddings2use = self.model._get_text_embeddings(tokens2use, positions2use).contiguous()
+            tokens2use = (
+                tokens[:, curr_context_length - 1]
+                .view(micro_batch_size, -1)
+                .contiguous()
+            )
+            positions2use = (
+                self.position_ids[:, curr_context_length - 1]
+                .view(micro_batch_size, -1)
+                .contiguous()
+            )
+            embeddings2use = self.model._get_text_embeddings(
+                tokens2use, positions2use
+            ).contiguous()
             started = context_lengths <= curr_context_length
-            embeddings2use = switch(input_embeddings[curr_context_length - 1].unsqueeze(0), embeddings2use, started)
+            embeddings2use = switch(
+                input_embeddings[curr_context_length - 1].unsqueeze(0),
+                embeddings2use,
+                started,
+            )
             embeddings2use = embeddings2use.contiguous()
 
         attention_mask = self.attention_mask if compute_attention_mask else None
@@ -375,14 +448,20 @@ class SpeechToTextGenerationStrategy(TextGenerationStrategy):
         }
         return batch
 
-    def post_process(self, tokens: torch.Tensor, new_tokens: torch.Tensor, context_length: int):
+    def post_process(
+        self, tokens: torch.Tensor, new_tokens: torch.Tensor, context_length: int
+    ):
         """
         At the end of the inference, post process the inference results
         """
         pass
 
     def end_of_generation_condition(
-        self, tokens: torch.Tensor, prev: torch.Tensor, eod_id: int, end_strings: List[str]
+        self,
+        tokens: torch.Tensor,
+        prev: torch.Tensor,
+        eod_id: int,
+        end_strings: List[str],
     ) -> torch.Tensor:
         """
         return whether the generation should stop based on the previous token
@@ -404,8 +483,8 @@ class SpeechToTextGenerationStrategy(TextGenerationStrategy):
             for end_string in end_strings:
                 if len(end_string) > 1:
                     continue
-                ids_1 = tokenizer.text_to_ids(f'<extra_id_1>{end_string}')
-                ids_2 = tokenizer.text_to_ids('<extra_id_1>')
+                ids_1 = tokenizer.text_to_ids(f"<extra_id_1>{end_string}")
+                ids_2 = tokenizer.text_to_ids("<extra_id_1>")
                 if len(ids_1) <= len(ids_2):
                     continue
                 token_id = ids_1[len(ids_2) :][0]
@@ -415,7 +494,10 @@ class SpeechToTextGenerationStrategy(TextGenerationStrategy):
             for p, token_item in zip(prev, tokens):
                 text = tokenizer.ids_to_text(token_item.tolist())
                 conditions.append(
-                    any([text.endswith(end_string) for end_string in end_strings] + [p.item() in end_tokens])
+                    any(
+                        [text.endswith(end_string) for end_string in end_strings]
+                        + [p.item() in end_tokens]
+                    )
                 )
             return torch.tensor(conditions, dtype=torch.bool, device=tokens.device)
 
@@ -427,4 +509,6 @@ def model_inference_strategy_dispatcher(model, **args):
     if isinstance(model, SpeechToTextLLM):
         return SpeechToTextGenerationStrategy(model, **args)
     else:
-        raise ValueError(f"Unsupported model type for text generation: {model.__class__.__name__}")
+        raise ValueError(
+            f"Unsupported model type for text generation: {model.__class__.__name__}"
+        )

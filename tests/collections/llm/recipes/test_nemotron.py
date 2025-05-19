@@ -60,8 +60,12 @@ class TestNemotron:
         assert trainer_config.strategy.sequence_parallel is False
 
     @pytest.mark.parametrize("num_nodes,num_gpus_per_node", [(1, 8), (2, 4), (4, 2)])
-    def test_trainer_with_different_gpu_configs(self, recipe_module, num_nodes, num_gpus_per_node):
-        trainer_config = recipe_module.nemotron_trainer(num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node)
+    def test_trainer_with_different_gpu_configs(
+        self, recipe_module, num_nodes, num_gpus_per_node
+    ):
+        trainer_config = recipe_module.nemotron_trainer(
+            num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node
+        )
         assert isinstance(trainer_config, run.Config)
         assert trainer_config.__fn_or_cls__ == Trainer
         assert trainer_config.accelerator == "gpu"
@@ -86,7 +90,13 @@ class TestNemotron:
             context_parallelism=context_parallel_size,
             sequence_parallelism=sequence_parallel,
         )
-        assert trainer_config.strategy.tensor_model_parallel_size == tensor_model_parallel_size
-        assert trainer_config.strategy.pipeline_model_parallel_size == pipeline_model_parallel_size
+        assert (
+            trainer_config.strategy.tensor_model_parallel_size
+            == tensor_model_parallel_size
+        )
+        assert (
+            trainer_config.strategy.pipeline_model_parallel_size
+            == pipeline_model_parallel_size
+        )
         assert trainer_config.strategy.context_parallel_size == context_parallel_size
         assert trainer_config.strategy.sequence_parallel == sequence_parallel

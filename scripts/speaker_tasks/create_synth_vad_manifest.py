@@ -48,14 +48,14 @@ Usage:
 
 def generate_manifest_entry(inputs):
     """
-    Generates a manifest entry for a single audio file. 
+    Generates a manifest entry for a single audio file.
     This function is parallelized using multiprocessing.Pool.
 
     Args:
         inputs (tuple): Tuple containing audio file path and frame length in seconds.
-            inputs[0]: 
+            inputs[0]:
                 audio_filepath (str): Path to audio file.
-            inputs[1]: 
+            inputs[1]:
                 vad_frame_unit_secs (float): Duration in seconds for each frame label.
 
     Returns:
@@ -92,7 +92,9 @@ def main(args):
 
     inputs = zip(wav_list, repeat(args.frame_length))
     with mp.Pool(processes=mp.cpu_count()) as pool:
-        manifest_data = list(tqdm(pool.imap(generate_manifest_entry, inputs), total=len(wav_list)))
+        manifest_data = list(
+            tqdm(pool.imap(generate_manifest_entry, inputs), total=len(wav_list))
+        )
 
     write_manifest(args.output_file, manifest_data)
     print(f"Manifest saved to: {args.output_file}")
@@ -100,11 +102,19 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("input_dir", default=None, help="Path to directory containing synthetic data")
     parser.add_argument(
-        "-l", "--frame_length", default=0.04, type=float, help="Duration in seconds for each frame label"
+        "input_dir", default=None, help="Path to directory containing synthetic data"
     )
-    parser.add_argument("-o", "--output_file", default=None, help="Path to output manifest file")
+    parser.add_argument(
+        "-l",
+        "--frame_length",
+        default=0.04,
+        type=float,
+        help="Duration in seconds for each frame label",
+    )
+    parser.add_argument(
+        "-o", "--output_file", default=None, help="Path to output manifest file"
+    )
 
     args = parser.parse_args()
     main(args)

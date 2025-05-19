@@ -133,7 +133,9 @@ class BertLMHead(MegatronModule):
         hidden_states = self.dense(hidden_states)
         hidden_states = self.gelu(hidden_states)
         hidden_states = self.layernorm(hidden_states)
-        async_tensor_model_parallel_allreduce = self.config.async_tensor_model_parallel_allreduce
+        async_tensor_model_parallel_allreduce = (
+            self.config.async_tensor_model_parallel_allreduce
+        )
         output = parallel_lm_logits(
             hidden_states,
             word_embeddings_weight,
@@ -172,7 +174,9 @@ def post_language_model_processing(
             assert lm_logits.dtype == torch.half
             lm_loss = tensor_parallel.vocab_parallel_cross_entropy(lm_logits, lm_labels)
         else:
-            lm_loss = tensor_parallel.vocab_parallel_cross_entropy(lm_logits.float(), lm_labels)
+            lm_loss = tensor_parallel.vocab_parallel_cross_entropy(
+                lm_logits.float(), lm_labels
+            )
         # lm_loss: [s, b]
         return lm_loss, binary_logits
 
@@ -237,9 +241,9 @@ class TransformerLayerWithPostLNSupport(TransformerLayer):
         # TODO: could we move `bias_dropout_add_exec_handler` itself
         # inside the module provided in the `bias_dropout_add_spec` module?
         with self.bias_dropout_add_exec_handler():
-            hidden_states = self.self_attn_bda(self.training, self.config.bias_dropout_fusion)(
-                attention_output_with_bias, residual, self.hidden_dropout
-            )
+            hidden_states = self.self_attn_bda(
+                self.training, self.config.bias_dropout_fusion
+            )(attention_output_with_bias, residual, self.hidden_dropout)
 
         # Residual connection.
         residual = hidden_states
@@ -258,15 +262,18 @@ class TransformerLayerWithPostLNSupport(TransformerLayer):
             inference_params=inference_params,
         )
 
-        if isinstance(attention_output_with_bias, dict) and "context" in attention_output_with_bias:
+        if (
+            isinstance(attention_output_with_bias, dict)
+            and "context" in attention_output_with_bias
+        ):
             context = attention_output_with_bias["context"]
 
         # TODO: could we move `bias_dropout_add_exec_handler` itself
         # inside the module provided in the `bias_dropout_add_spec` module?
         with self.bias_dropout_add_exec_handler():
-            hidden_states = self.cross_attn_bda(self.training, self.config.bias_dropout_fusion)(
-                attention_output_with_bias, residual, self.hidden_dropout
-            )
+            hidden_states = self.cross_attn_bda(
+                self.training, self.config.bias_dropout_fusion
+            )(attention_output_with_bias, residual, self.hidden_dropout)
 
         # Residual connection.
         residual = hidden_states
@@ -280,9 +287,9 @@ class TransformerLayerWithPostLNSupport(TransformerLayer):
         # TODO: could we move `bias_dropout_add_exec_handler` itself
         # inside the module provided in the `bias_dropout_add_spec` module?
         with self.bias_dropout_add_exec_handler():
-            hidden_states = self.mlp_bda(self.training, self.config.bias_dropout_fusion)(
-                mlp_output_with_bias, residual, self.hidden_dropout
-            )
+            hidden_states = self.mlp_bda(
+                self.training, self.config.bias_dropout_fusion
+            )(mlp_output_with_bias, residual, self.hidden_dropout)
 
         # Post-LN after MLP
         hidden_states = self.post_mlp_layernorm(hidden_states)
@@ -293,19 +300,25 @@ class TransformerLayerWithPostLNSupport(TransformerLayer):
         # won't result in memory savings (like the data loader, or
         # p2p_communication), it serves to document the origin of this
         # 'view' tensor.
-        output = make_viewless_tensor(inp=hidden_states, requires_grad=hidden_states.requires_grad, keep_graph=True)
+        output = make_viewless_tensor(
+            inp=hidden_states,
+            requires_grad=hidden_states.requires_grad,
+            keep_graph=True,
+        )
 
         return output, context
 
 
 class TransformerBlockWithPostLNSupport(TransformerBlock):
-    def __init__(self, transformer_block_type='post_ln', *args, **kwargs):
+    def __init__(self, transformer_block_type="post_ln", *args, **kwargs):
 
         super(TransformerBlockWithPostLNSupport, self).__init__(*args, **kwargs)
         self.transformer_block_type = transformer_block_type
-        if self.transformer_block_type == 'post_ln':
+        if self.transformer_block_type == "post_ln":
             self.initial_layernorm = FusedLayerNorm(
-                config=self.config, hidden_size=self.config.hidden_size, eps=self.config.layernorm_epsilon
+                config=self.config,
+                hidden_size=self.config.hidden_size,
+                eps=self.config.layernorm_epsilon,
             )
 
     def forward(
@@ -325,21 +338,29 @@ class TransformerBlockWithPostLNSupport(TransformerBlock):
         if not self.pre_process:
             # See set_input_tensor()
             hidden_states = self.input_tensor
-        if self.transformer_block_type == 'post_ln':
+        if self.transformer_block_type == "post_ln":
             hidden_states = self.initial_layernorm(hidden_states)
         return super(TransformerBlockWithPostLNSupport, self).forward(
-            hidden_states, attention_mask, context, context_mask, rotary_pos_emb, inference_params, packed_seq_params
+            hidden_states,
+            attention_mask,
+            context,
+            context_mask,
+            rotary_pos_emb,
+            inference_params,
+            packed_seq_params,
         )
 
 
-'''
+"""
 This class is used for working with HF Bert Checkpoints. These checkpoints
 by default have post layer norm, while the vanilla mcore bert model does not support it.
-'''
+"""
 
 
 class MCoreBertModelWrapperWithPostLNSupport(MCoreBert):
-    def __init__(self, transformer_block_type='pre-ln', add_pooler=True, *args, **kwargs):
+    def __init__(
+        self, transformer_block_type="pre-ln", add_pooler=True, *args, **kwargs
+    ):
 
         super(MCoreBertModelWrapperWithPostLNSupport, self).__init__(*args, **kwargs)
         self.add_pooler = add_pooler
@@ -356,7 +377,10 @@ class MCoreBertModelWrapperWithPostLNSupport(MCoreBert):
 
         if self.add_pooler:
             self.pooler = Pooler(
-                self.config.hidden_size, self.config.init_method, self.config, self.config.sequence_parallel
+                self.config.hidden_size,
+                self.config.init_method,
+                self.config,
+                self.config.sequence_parallel,
             )
 
         # Output
@@ -376,14 +400,18 @@ class MCoreBertModelWrapperWithPostLNSupport(MCoreBert):
                 bias=True,
                 skip_bias_add=False,
                 gather_output=not self.parallel_output,
-                skip_weight_param_allocation=self.pre_process and self.share_embeddings_and_output_weights,
+                skip_weight_param_allocation=self.pre_process
+                and self.share_embeddings_and_output_weights,
             )
 
             self.binary_head = None
             if self.add_binary_head:
                 # TODO: Shoudl switch this to TE ?
                 self.binary_head = mcore_get_linear_layer(
-                    self.config.hidden_size, 2, self.config.init_method, self.config.perform_initialization
+                    self.config.hidden_size,
+                    2,
+                    self.config.init_method,
+                    self.config.perform_initialization,
                 )
 
     def forward(
@@ -406,7 +434,9 @@ class MCoreBertModelWrapperWithPostLNSupport(MCoreBert):
 
         # We set this to false since we just want to get the hidden states from the encoder
         self.post_process = False
-        hidden_states = super().forward(input_ids, attention_mask, tokentype_ids, lm_labels, inference_params)
+        hidden_states = super().forward(
+            input_ids, attention_mask, tokentype_ids, lm_labels, inference_params
+        )
         self.post_process = original_post_process
 
         if not self.post_process:
@@ -480,8 +510,8 @@ class NeMoBertModel(MegatronModule):
         activations_checkpoint_num_layers=1,
         activations_checkpoint_layers_per_pipeline=None,
         layernorm_epsilon=1e-5,
-        normalization='layernorm',
-        transformer_block_type='pre_ln',
+        normalization="layernorm",
+        transformer_block_type="pre_ln",
         masked_softmax_fusion=False,
         bias_gelu_fusion=True,
         bias_dropout_add_fusion=True,
@@ -492,7 +522,7 @@ class NeMoBertModel(MegatronModule):
         add_lm_head=True,
         megatron_legacy=False,
         sequence_parallel=False,
-        position_embedding_type='learned_absolute',
+        position_embedding_type="learned_absolute",
     ):
         # deprecation warning
         deprecated_warning("NeMoBertModel", "MCoreBertModelWrapperWithPostLNSupport")
@@ -549,7 +579,9 @@ class NeMoBertModel(MegatronModule):
         )
 
         self.initialize_word_embeddings(
-            init_method=init_method_normal(init_method_std), vocab_size=vocab_size, hidden_size=hidden_size
+            init_method=init_method_normal(init_method_std),
+            vocab_size=vocab_size,
+            hidden_size=hidden_size,
         )
 
         if self.post_process and self.add_lm_head:
@@ -563,11 +595,11 @@ class NeMoBertModel(MegatronModule):
                 openai_gelu,
                 onnx_safe,
             )
-            self._lm_head_key = 'lm_head'
+            self._lm_head_key = "lm_head"
             self.binary_head = None
             if self.add_binary_head:
                 self.binary_head = get_linear_layer(hidden_size, 2, init_method)
-                self._binary_head_key = 'binary_head'
+                self._binary_head_key = "binary_head"
 
     def set_input_tensor(self, input_tensor):
         """See megatron.model.transformer.set_input_tensor()"""
@@ -617,35 +649,49 @@ class NeMoBertModel(MegatronModule):
         else:
             return lm_output
 
-    def state_dict_for_save_checkpoint(self, destination=None, prefix='', keep_vars=False):
+    def state_dict_for_save_checkpoint(
+        self, destination=None, prefix="", keep_vars=False
+    ):
         """For easy load when model is combined with other heads,
         add an extra key."""
 
         state_dict_ = {}
-        state_dict_[self._language_model_key] = self.language_model.state_dict_for_save_checkpoint(
-            destination, prefix, keep_vars
-        )
-        if self.post_process and self.add_lm_head:
-            state_dict_[self._lm_head_key] = self.lm_head.state_dict_for_save_checkpoint(
+        state_dict_[self._language_model_key] = (
+            self.language_model.state_dict_for_save_checkpoint(
                 destination, prefix, keep_vars
             )
+        )
+        if self.post_process and self.add_lm_head:
+            state_dict_[self._lm_head_key] = (
+                self.lm_head.state_dict_for_save_checkpoint(
+                    destination, prefix, keep_vars
+                )
+            )
         if self.post_process and self.add_binary_head and self.add_lm_head:
-            state_dict_[self._binary_head_key] = self.binary_head.state_dict(destination, prefix, keep_vars)
+            state_dict_[self._binary_head_key] = self.binary_head.state_dict(
+                destination, prefix, keep_vars
+            )
         # Save word_embeddings.
         if self.post_process and not self.pre_process and self.add_lm_head:
-            state_dict_[self._word_embeddings_for_head_key] = self.word_embeddings.state_dict(
-                destination, prefix, keep_vars
+            state_dict_[self._word_embeddings_for_head_key] = (
+                self.word_embeddings.state_dict(destination, prefix, keep_vars)
             )
         return state_dict_
 
     def load_state_dict(self, state_dict, strict=True):
         """Customized load."""
 
-        self.language_model.load_state_dict(state_dict[self._language_model_key], strict=strict)
+        self.language_model.load_state_dict(
+            state_dict[self._language_model_key], strict=strict
+        )
         if self.post_process:
             self.lm_head.load_state_dict(state_dict[self._lm_head_key], strict=strict)
         if self.post_process and self.add_binary_head:
-            self.binary_head.load_state_dict(state_dict[self._binary_head_key], strict=strict)
+            self.binary_head.load_state_dict(
+                state_dict[self._binary_head_key], strict=strict
+            )
         # Load word_embeddings.
         if self.post_process and not self.pre_process:
-            self.word_embeddings.load_state_dict(state_dict[self._word_embeddings_for_head_key], strict=strict)
+            self.word_embeddings.load_state_dict(
+                state_dict[self._word_embeddings_for_head_key], strict=strict
+            )

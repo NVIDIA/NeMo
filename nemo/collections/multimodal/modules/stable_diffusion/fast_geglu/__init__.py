@@ -36,9 +36,15 @@ def geglu_fprop(x_and_gate: torch.Tensor) -> torch.Tensor:
     geglu_ext = get_geglu_ext()
     dim_batch = x_and_gate.shape[:-1]
     dim_last = x_and_gate.shape[-1] // 2
-    out = torch.empty(dim_batch + (dim_last,), dtype=x_and_gate.dtype, device=x_and_gate.device)
+    out = torch.empty(
+        dim_batch + (dim_last,), dtype=x_and_gate.dtype, device=x_and_gate.device
+    )
     geglu_ext.geglu(
-        out.data_ptr(), x_and_gate.data_ptr(), dim_batch.numel(), dim_last, torch.cuda.current_stream().cuda_stream
+        out.data_ptr(),
+        x_and_gate.data_ptr(),
+        dim_batch.numel(),
+        dim_last,
+        torch.cuda.current_stream().cuda_stream,
     )
     return out
 
@@ -50,7 +56,9 @@ def geglu_fprop_fake(x_and_gate: torch.Tensor) -> torch.Tensor:
     assert x_and_gate.is_contiguous()
     dim_batch = x_and_gate.shape[:-1]
     dim_last = x_and_gate.shape[-1] // 2
-    out = torch.empty(dim_batch + (dim_last,), dtype=x_and_gate.dtype, device=x_and_gate.device)
+    out = torch.empty(
+        dim_batch + (dim_last,), dtype=x_and_gate.dtype, device=x_and_gate.device
+    )
     return out
 
 
@@ -112,7 +120,9 @@ def geglu(x_and_gate):
     ):
         return geglu_fprop(x_and_gate)
     else:
-        warnings.warn("Fast GeGLU is not applied. Falling back to the PyTorch.", UserWarning)
+        warnings.warn(
+            "Fast GeGLU is not applied. Falling back to the PyTorch.", UserWarning
+        )
         x, gate = x_and_gate.chunk(2, dim=-1)
         return x * torch.nn.functional.gelu(gate)
 

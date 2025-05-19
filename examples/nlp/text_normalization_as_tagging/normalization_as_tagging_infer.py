@@ -50,7 +50,7 @@ from nemo.utils import logging
 
 @hydra_runner(config_path="conf", config_name="thutmose_tagger_itn_config")
 def main(cfg: DictConfig) -> None:
-    logging.debug(f'Config Params: {OmegaConf.to_yaml(cfg)}')
+    logging.debug(f"Config Params: {OmegaConf.to_yaml(cfg)}")
 
     if cfg.pretrained_model is None:
         raise ValueError("A pre-trained model should be provided.")
@@ -68,7 +68,9 @@ def main(cfg: DictConfig) -> None:
 
     batch, all_preds = [], []
     for i, line in enumerate(lines):
-        s = spoken_preprocessing(line)  # this is the same input transformation as in corpus preparation
+        s = spoken_preprocessing(
+            line
+        )  # this is the same input transformation as in corpus preparation
         batch.append(s.strip())
         if len(batch) == batch_size or i == len(lines) - 1:
             outputs = model._infer(batch)

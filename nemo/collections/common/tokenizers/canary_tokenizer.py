@@ -23,7 +23,7 @@ from nemo.collections.common.tokenizers.sentencepiece_tokenizer import (
     SentencePieceTokenizer, create_spt_model)
 from nemo.utils import logging
 
-__all__ = ['CanaryTokenizer']
+__all__ = ["CanaryTokenizer"]
 
 # Default tokens for compatibility with Canary.
 CANARY_BOS = "<|startoftranscript|>"
@@ -33,7 +33,14 @@ CANARY_NOSPEECH = "<|nospeech|>"
 CANARY_PNC = "<|pnc|>"
 CANARY_NOPNC = "<|nopnc|>"
 CANARY2_BOCTX = "<|startofcontext|>"
-DEFAULT_TOKENS = [CANARY_NOSPEECH, CANARY_PAD, CANARY_EOS, CANARY_BOS, CANARY_PNC, CANARY_NOPNC]
+DEFAULT_TOKENS = [
+    CANARY_NOSPEECH,
+    CANARY_PAD,
+    CANARY_EOS,
+    CANARY_BOS,
+    CANARY_PNC,
+    CANARY_NOPNC,
+]
 
 CANARY_SPECIAL_TOKENIZER = "spl_tokens"
 
@@ -50,8 +57,12 @@ class CanaryTokenizer(AggregateTokenizer):
         self.special_tokens = {}
         for special in tokenizers[CANARY_SPECIAL_TOKENIZER].vocab:
             # Search for special prompting tokens
-            if (special.startswith("<|") and special.endswith("|>")) or special == CANARY_PAD:
-                self.special_tokens[special] = self.token_to_id(special, lang_id=CANARY_SPECIAL_TOKENIZER)
+            if (
+                special.startswith("<|") and special.endswith("|>")
+            ) or special == CANARY_PAD:
+                self.special_tokens[special] = self.token_to_id(
+                    special, lang_id=CANARY_SPECIAL_TOKENIZER
+                )
 
     @cached_property
     def eos_id(self) -> int:
@@ -69,7 +80,9 @@ class CanaryTokenizer(AggregateTokenizer):
     def pad_id(self) -> int:
         return self.special_tokens[CANARY_PAD]
 
-    def _text_with_timestamps_to_ids(self, text_without_timestamps, time_text, lang_id) -> list[int]:
+    def _text_with_timestamps_to_ids(
+        self, text_without_timestamps, time_text, lang_id
+    ) -> list[int]:
         trans_words = text_without_timestamps.split()
 
         # Get timestamp ids
@@ -93,7 +106,11 @@ class CanaryTokenizer(AggregateTokenizer):
             result_ids += super().text_to_ids(word, lang_id)
             word_index += 1
             # Insert time ids every N words after the first one
-            if word_index % timestamp_every_n_words == 0 and word_index != 0 and time_index < len(time_ids):
+            if (
+                word_index % timestamp_every_n_words == 0
+                and word_index != 0
+                and time_index < len(time_ids)
+            ):
                 result_ids.append(time_ids[time_index])
                 time_index += 1
                 if time_index < len(time_ids):
@@ -117,14 +134,18 @@ class CanaryTokenizer(AggregateTokenizer):
             return super().text_to_ids(text_no_eos, lang_id)
         else:
             text_without_timestamps = time_pattern.sub("", text_no_eos).strip()
-            return self._text_with_timestamps_to_ids(text_without_timestamps, time_text, lang_id)
+            return self._text_with_timestamps_to_ids(
+                text_without_timestamps, time_text, lang_id
+            )
 
     def text_to_ids(self, text, lang_id) -> list[int]:
         if lang_id == CANARY_SPECIAL_TOKENIZER:
             return self._tokenize_special_prompt(text)
         lang_id = _map_canary1_to_canary2_lang(lang_id, self.langs)
         if text.endswith(CANARY_EOS):
-            return self._text_to_ids_maybe_with_timestamps(text[: -len(CANARY_EOS)], lang_id) + [self.eos_id]
+            return self._text_to_ids_maybe_with_timestamps(
+                text[: -len(CANARY_EOS)], lang_id
+            ) + [self.eos_id]
         return self._text_to_ids_maybe_with_timestamps(text, lang_id)
 
     def _tokenize_special_prompt(self, text: str) -> list[int]:
@@ -168,11 +189,18 @@ class CanaryTokenizer(AggregateTokenizer):
         if force_rebuild:
             logging.info("Building special tokenizer")
             # Checks for artifacts of previous build.
-            for file in ["tokenizer.model", "tokenizer.vocab", "vocab.txt", "train_text.txt"]:
+            for file in [
+                "tokenizer.model",
+                "tokenizer.vocab",
+                "vocab.txt",
+                "train_text.txt",
+            ]:
                 if os.path.exists(file):
                     os.remove(file)
         spl_tok_re = re.compile(r"<\|.+\|>")
-        tokens = DEFAULT_TOKENS + [f"<|{t}|>" if spl_tok_re.match(t) is None else t for t in tokens]
+        tokens = DEFAULT_TOKENS + [
+            f"<|{t}|>" if spl_tok_re.match(t) is None else t for t in tokens
+        ]
         tokens = list(dict.fromkeys(tokens))  # remove duplicates while preserving order
         output_dir = Path(model_dir)
         output_dir.mkdir(exist_ok=True, parents=True)
@@ -224,4 +252,6 @@ def _map_canary1_to_canary2_lang(lang: str, available_langs: list[str]) -> str:
     ) is not None and mapped in available_langs:
         return mapped
 
-    raise RuntimeError(f"Unsupported language: '{lang}' for CanaryTokenizer with languages: {available_langs}")
+    raise RuntimeError(
+        f"Unsupported language: '{lang}' for CanaryTokenizer with languages: {available_langs}"
+    )

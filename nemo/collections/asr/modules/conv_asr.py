@@ -39,7 +39,7 @@ from nemo.core.neural_types import (AcousticEncodedRepresentation, LengthsType,
                                     SpectrogramType)
 from nemo.utils import logging
 
-__all__ = ['ConvASRDecoder', 'ConvASREncoder', 'ConvASRDecoderClassification']
+__all__ = ["ConvASRDecoder", "ConvASREncoder", "ConvASRDecoderClassification"]
 
 
 class ConvASREncoder(NeuralModule, Exportable, AccessMixin):
@@ -69,7 +69,9 @@ class ConvASREncoder(NeuralModule, Exportable, AccessMixin):
         """
         device = next(self.parameters()).device
         input_example = torch.randn(max_batch, self._feat_in, max_dim, device=device)
-        lens = torch.full(size=(input_example.shape[0],), fill_value=max_dim, device=device)
+        lens = torch.full(
+            size=(input_example.shape[0],), fill_value=max_dim, device=device
+        )
         return tuple([input_example, lens])
 
     @property
@@ -77,8 +79,8 @@ class ConvASREncoder(NeuralModule, Exportable, AccessMixin):
         """Returns definitions of module input ports."""
         return OrderedDict(
             {
-                "audio_signal": NeuralType(('B', 'D', 'T'), SpectrogramType()),
-                "length": NeuralType(tuple('B'), LengthsType()),
+                "audio_signal": NeuralType(("B", "D", "T"), SpectrogramType()),
+                "length": NeuralType(tuple("B"), LengthsType()),
             }
         )
 
@@ -87,8 +89,8 @@ class ConvASREncoder(NeuralModule, Exportable, AccessMixin):
         """Returns definitions of module output ports."""
         return OrderedDict(
             {
-                "outputs": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
-                "encoded_lengths": NeuralType(tuple('B'), LengthsType()),
+                "outputs": NeuralType(("B", "D", "T"), AcousticEncodedRepresentation()),
+                "encoded_lengths": NeuralType(tuple("B"), LengthsType()),
             }
         )
 
@@ -102,7 +104,7 @@ class ConvASREncoder(NeuralModule, Exportable, AccessMixin):
         norm_groups: int = -1,
         conv_mask: bool = True,
         frame_splicing: int = 1,
-        init_mode: Optional[str] = 'xavier_uniform',
+        init_mode: Optional[str] = "xavier_uniform",
         quantize: bool = False,
     ):
         super().__init__()
@@ -112,7 +114,7 @@ class ConvASREncoder(NeuralModule, Exportable, AccessMixin):
         activation = jasper_activations[activation]()
 
         # If the activation can be executed in place, do so.
-        if hasattr(activation, 'inplace'):
+        if hasattr(activation, "inplace"):
             activation.inplace = True
 
         feat_in = feat_in * frame_splicing
@@ -125,31 +127,31 @@ class ConvASREncoder(NeuralModule, Exportable, AccessMixin):
         self._subsampling_factor = 1
         for layer_idx, lcfg in enumerate(jasper):
             dense_res = []
-            if lcfg.get('residual_dense', False):
+            if lcfg.get("residual_dense", False):
                 residual_panes.append(feat_in)
                 dense_res = residual_panes
                 self.dense_residual = True
-            groups = lcfg.get('groups', 1)
-            separable = lcfg.get('separable', False)
-            heads = lcfg.get('heads', -1)
-            residual_mode = lcfg.get('residual_mode', residual_mode)
-            se = lcfg.get('se', False)
-            se_reduction_ratio = lcfg.get('se_reduction_ratio', 8)
-            se_context_window = lcfg.get('se_context_size', -1)
-            se_interpolation_mode = lcfg.get('se_interpolation_mode', 'nearest')
-            kernel_size_factor = lcfg.get('kernel_size_factor', 1.0)
-            stride_last = lcfg.get('stride_last', False)
-            future_context = lcfg.get('future_context', -1)
+            groups = lcfg.get("groups", 1)
+            separable = lcfg.get("separable", False)
+            heads = lcfg.get("heads", -1)
+            residual_mode = lcfg.get("residual_mode", residual_mode)
+            se = lcfg.get("se", False)
+            se_reduction_ratio = lcfg.get("se_reduction_ratio", 8)
+            se_context_window = lcfg.get("se_context_size", -1)
+            se_interpolation_mode = lcfg.get("se_interpolation_mode", "nearest")
+            kernel_size_factor = lcfg.get("kernel_size_factor", 1.0)
+            stride_last = lcfg.get("stride_last", False)
+            future_context = lcfg.get("future_context", -1)
             encoder_layers.append(
                 JasperBlock(
                     feat_in,
-                    lcfg['filters'],
-                    repeat=lcfg['repeat'],
-                    kernel_size=lcfg['kernel'],
-                    stride=lcfg['stride'],
-                    dilation=lcfg['dilation'],
-                    dropout=lcfg['dropout'],
-                    residual=lcfg['residual'],
+                    lcfg["filters"],
+                    repeat=lcfg["repeat"],
+                    kernel_size=lcfg["kernel"],
+                    stride=lcfg["stride"],
+                    dilation=lcfg["dilation"],
+                    dropout=lcfg["dropout"],
+                    residual=lcfg["residual"],
                     groups=groups,
                     separable=separable,
                     heads=heads,
@@ -170,9 +172,11 @@ class ConvASREncoder(NeuralModule, Exportable, AccessMixin):
                     layer_idx=layer_idx,
                 )
             )
-            feat_in = lcfg['filters']
+            feat_in = lcfg["filters"]
             self._subsampling_factor *= (
-                int(lcfg['stride'][0]) if isinstance(lcfg['stride'], List) else int(lcfg['stride'])
+                int(lcfg["stride"][0])
+                if isinstance(lcfg["stride"], List)
+                else int(lcfg["stride"])
             )
 
         self._feat_out = feat_in
@@ -184,7 +188,9 @@ class ConvASREncoder(NeuralModule, Exportable, AccessMixin):
 
     @typecheck()
     def forward(self, audio_signal, length):
-        self.update_max_sequence_length(seq_length=audio_signal.size(2), device=audio_signal.device)
+        self.update_max_sequence_length(
+            seq_length=audio_signal.size(2), device=audio_signal.device
+        )
         s_input, length = self.encoder(([audio_signal], length))
         if length is None:
             return s_input[-1]
@@ -196,10 +202,14 @@ class ConvASREncoder(NeuralModule, Exportable, AccessMixin):
         Find global max audio length across all nodes in distributed training and update the max_audio_length
         """
         if torch.distributed.is_initialized():
-            global_max_len = torch.tensor([seq_length], dtype=torch.float32, device=device)
+            global_max_len = torch.tensor(
+                [seq_length], dtype=torch.float32, device=device
+            )
 
             # Update across all ranks in the distributed system
-            torch.distributed.all_reduce(global_max_len, op=torch.distributed.ReduceOp.MAX)
+            torch.distributed.all_reduce(
+                global_max_len, op=torch.distributed.ReduceOp.MAX
+            )
 
             seq_length = global_max_len.int().item()
 
@@ -212,15 +222,17 @@ class ConvASREncoder(NeuralModule, Exportable, AccessMixin):
 
             device = next(self.parameters()).device
             seq_range = torch.arange(0, self.max_audio_length, device=device)
-            if hasattr(self, 'seq_range'):
+            if hasattr(self, "seq_range"):
                 self.seq_range = seq_range
             else:
-                self.register_buffer('seq_range', seq_range, persistent=False)
+                self.register_buffer("seq_range", seq_range, persistent=False)
 
             # Update all submodules
             for name, m in self.named_modules():
                 if isinstance(m, MaskedConv1d):
-                    m.update_masked_length(self.max_audio_length, seq_range=self.seq_range)
+                    m.update_masked_length(
+                        self.max_audio_length, seq_range=self.seq_range
+                    )
                 elif isinstance(m, SqueezeExcite):
                     m.set_max_len(self.max_audio_length, seq_range=self.seq_range)
 
@@ -248,7 +260,9 @@ class ParallelConvASREncoder(NeuralModule, Exportable):
         Returns:
             A tuple of input examples.
         """
-        input_example = torch.randn(max_batch, self._feat_in, max_dim).to(next(self.parameters()).device)
+        input_example = torch.randn(max_batch, self._feat_in, max_dim).to(
+            next(self.parameters()).device
+        )
         return tuple([input_example])
 
     @property
@@ -273,8 +287,8 @@ class ParallelConvASREncoder(NeuralModule, Exportable):
         """Returns definitions of module input ports."""
         return OrderedDict(
             {
-                "audio_signal": NeuralType(('B', 'D', 'T'), SpectrogramType()),
-                "length": NeuralType(tuple('B'), LengthsType()),
+                "audio_signal": NeuralType(("B", "D", "T"), SpectrogramType()),
+                "length": NeuralType(tuple("B"), LengthsType()),
             }
         )
 
@@ -283,8 +297,8 @@ class ParallelConvASREncoder(NeuralModule, Exportable):
         """Returns definitions of module output ports."""
         return OrderedDict(
             {
-                "outputs": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
-                "encoded_lengths": NeuralType(tuple('B'), LengthsType()),
+                "outputs": NeuralType(("B", "D", "T"), AcousticEncodedRepresentation()),
+                "encoded_lengths": NeuralType(tuple("B"), LengthsType()),
             }
         )
 
@@ -298,7 +312,7 @@ class ParallelConvASREncoder(NeuralModule, Exportable):
         norm_groups: int = -1,
         conv_mask: bool = True,
         frame_splicing: int = 1,
-        init_mode: Optional[str] = 'xavier_uniform',
+        init_mode: Optional[str] = "xavier_uniform",
         aggregation_mode: Optional[str] = None,
         quantize: bool = False,
     ):
@@ -316,36 +330,36 @@ class ParallelConvASREncoder(NeuralModule, Exportable):
         self.dense_residual = False
         for lcfg in jasper:
             dense_res = []
-            if lcfg.get('residual_dense', False):
+            if lcfg.get("residual_dense", False):
                 residual_panes.append(feat_in)
                 dense_res = residual_panes
                 self.dense_residual = True
-            groups = lcfg.get('groups', 1)
-            separable = lcfg.get('separable', False)
-            heads = lcfg.get('heads', -1)
-            residual_mode = lcfg.get('residual_mode', residual_mode)
-            se = lcfg.get('se', False)
-            se_reduction_ratio = lcfg.get('se_reduction_ratio', 8)
-            se_context_window = lcfg.get('se_context_size', -1)
-            se_interpolation_mode = lcfg.get('se_interpolation_mode', 'nearest')
-            kernel_size_factor = lcfg.get('kernel_size_factor', 1.0)
-            stride_last = lcfg.get('stride_last', False)
-            aggregation_mode = lcfg.get('aggregation_mode', 'sum')
-            block_dropout = lcfg.get('block_dropout', 0.0)
-            parallel_residual_mode = lcfg.get('parallel_residual_mode', 'sum')
+            groups = lcfg.get("groups", 1)
+            separable = lcfg.get("separable", False)
+            heads = lcfg.get("heads", -1)
+            residual_mode = lcfg.get("residual_mode", residual_mode)
+            se = lcfg.get("se", False)
+            se_reduction_ratio = lcfg.get("se_reduction_ratio", 8)
+            se_context_window = lcfg.get("se_context_size", -1)
+            se_interpolation_mode = lcfg.get("se_interpolation_mode", "nearest")
+            kernel_size_factor = lcfg.get("kernel_size_factor", 1.0)
+            stride_last = lcfg.get("stride_last", False)
+            aggregation_mode = lcfg.get("aggregation_mode", "sum")
+            block_dropout = lcfg.get("block_dropout", 0.0)
+            parallel_residual_mode = lcfg.get("parallel_residual_mode", "sum")
 
             parallel_blocks = []
-            for kernel_size in lcfg['kernel']:
+            for kernel_size in lcfg["kernel"]:
                 parallel_blocks.append(
                     JasperBlock(
                         feat_in,
-                        lcfg['filters'],
-                        repeat=lcfg['repeat'],
+                        lcfg["filters"],
+                        repeat=lcfg["repeat"],
                         kernel_size=[kernel_size],
-                        stride=lcfg['stride'],
-                        dilation=lcfg['dilation'],
-                        dropout=lcfg['dropout'],
-                        residual=lcfg['residual'],
+                        stride=lcfg["stride"],
+                        dilation=lcfg["dilation"],
+                        dropout=lcfg["dropout"],
+                        residual=lcfg["residual"],
                         groups=groups,
                         separable=separable,
                         heads=heads,
@@ -374,10 +388,10 @@ class ParallelConvASREncoder(NeuralModule, Exportable):
                         block_dropout_prob=block_dropout,
                         residual_mode=parallel_residual_mode,
                         in_filters=feat_in,
-                        out_filters=lcfg['filters'],
+                        out_filters=lcfg["filters"],
                     )
                 )
-            feat_in = lcfg['filters']
+            feat_in = lcfg["filters"]
 
         self._feat_out = feat_in
 
@@ -404,21 +418,38 @@ class ConvASRDecoder(NeuralModule, Exportable, adapter_mixins.AdapterModuleMixin
 
     @property
     def input_types(self):
-        return OrderedDict({"encoder_output": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation())})
+        return OrderedDict(
+            {
+                "encoder_output": NeuralType(
+                    ("B", "D", "T"), AcousticEncodedRepresentation()
+                )
+            }
+        )
 
     @property
     def output_types(self):
-        return OrderedDict({"logprobs": NeuralType(('B', 'T', 'D'), LogprobsType())})
+        return OrderedDict({"logprobs": NeuralType(("B", "T", "D"), LogprobsType())})
 
-    def __init__(self, feat_in, num_classes, init_mode="xavier_uniform", vocabulary=None, add_blank=True):
+    def __init__(
+        self,
+        feat_in,
+        num_classes,
+        init_mode="xavier_uniform",
+        vocabulary=None,
+        add_blank=True,
+    ):
         super().__init__()
 
         if vocabulary is None and num_classes < 0:
-            raise ValueError("Neither of the vocabulary and num_classes are set! At least one of them need to be set.")
+            raise ValueError(
+                "Neither of the vocabulary and num_classes are set! At least one of them need to be set."
+            )
 
         if num_classes <= 0:
             num_classes = len(vocabulary)
-            logging.info(f"num_classes of ConvASRDecoder is set to the size of the vocabulary: {num_classes}.")
+            logging.info(
+                f"num_classes of ConvASRDecoder is set to the size of the vocabulary: {num_classes}."
+            )
 
         if vocabulary is not None:
             if num_classes != len(vocabulary):
@@ -452,9 +483,12 @@ class ConvASRDecoder(NeuralModule, Exportable, adapter_mixins.AdapterModuleMixin
 
         if self.temperature != 1.0:
             return torch.nn.functional.log_softmax(
-                self.decoder_layers(encoder_output).transpose(1, 2) / self.temperature, dim=-1
+                self.decoder_layers(encoder_output).transpose(1, 2) / self.temperature,
+                dim=-1,
             )
-        return torch.nn.functional.log_softmax(self.decoder_layers(encoder_output).transpose(1, 2), dim=-1)
+        return torch.nn.functional.log_softmax(
+            self.decoder_layers(encoder_output).transpose(1, 2), dim=-1
+        )
 
     def input_example(self, max_batch=1, max_dim=256):
         """
@@ -462,7 +496,9 @@ class ConvASRDecoder(NeuralModule, Exportable, adapter_mixins.AdapterModuleMixin
         Returns:
             A tuple of input examples.
         """
-        input_example = torch.randn(max_batch, self._feat_in, max_dim).to(next(self.parameters()).device)
+        input_example = torch.randn(max_batch, self._feat_in, max_dim).to(
+            next(self.parameters()).device
+        )
         return tuple([input_example])
 
     def _prepare_for_export(self, **kwargs):
@@ -483,7 +519,9 @@ class ConvASRDecoder(NeuralModule, Exportable, adapter_mixins.AdapterModuleMixin
         super().add_adapter(name=name, cfg=cfg)
 
     def _update_adapter_cfg_input_dim(self, cfg: DictConfig):
-        cfg = adapter_utils.update_adapter_cfg_input_dim(self, cfg, module_dim=self._feat_in)
+        cfg = adapter_utils.update_adapter_cfg_input_dim(
+            self, cfg, module_dim=self._feat_in
+        )
         return cfg
 
     @property
@@ -500,14 +538,22 @@ class ConvASRDecoderReconstruction(NeuralModule, Exportable):
 
     @property
     def input_types(self):
-        return OrderedDict({"encoder_output": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation())})
+        return OrderedDict(
+            {
+                "encoder_output": NeuralType(
+                    ("B", "D", "T"), AcousticEncodedRepresentation()
+                )
+            }
+        )
 
     @property
     def output_types(self):
         if self.apply_softmax:
-            return OrderedDict({"out": NeuralType(('B', 'T', 'D'), LogprobsType())})
+            return OrderedDict({"out": NeuralType(("B", "T", "D"), LogprobsType())})
         else:
-            return OrderedDict({"out": NeuralType(('B', 'T', 'D'), AcousticEncodedRepresentation())})
+            return OrderedDict(
+                {"out": NeuralType(("B", "T", "D"), AcousticEncodedRepresentation())}
+            )
 
     def __init__(
         self,
@@ -524,8 +570,12 @@ class ConvASRDecoderReconstruction(NeuralModule, Exportable):
     ):
         super().__init__()
 
-        if ((stride_layers + non_stride_layers) > 0) and (kernel_size < 3 or kernel_size % 2 == 0):
-            raise ValueError("Kernel size in this decoder needs to be >= 3 and odd when using at least 1 conv layer.")
+        if ((stride_layers + non_stride_layers) > 0) and (
+            kernel_size < 3 or kernel_size % 2 == 0
+        ):
+            raise ValueError(
+                "Kernel size in this decoder needs to be >= 3 and odd when using at least 1 conv layer."
+            )
 
         activation = jasper_activations[activation]()
 
@@ -533,7 +583,9 @@ class ConvASRDecoderReconstruction(NeuralModule, Exportable):
         self.feat_out = feat_out
         self.feat_hidden = feat_hidden
 
-        self.decoder_layers = [nn.Conv1d(self.feat_in, self.feat_hidden, kernel_size=1, bias=True)]
+        self.decoder_layers = [
+            nn.Conv1d(self.feat_in, self.feat_hidden, kernel_size=1, bias=True)
+        ]
         for i in range(stride_layers):
             self.decoder_layers.append(activation)
             if stride_transpose:
@@ -561,8 +613,12 @@ class ConvASRDecoderReconstruction(NeuralModule, Exportable):
                         groups=self.feat_hidden,
                     )
                 )
-            self.decoder_layers.append(nn.Conv1d(self.feat_hidden, self.feat_hidden, kernel_size=1, bias=True))
-            self.decoder_layers.append(nn.BatchNorm1d(self.feat_hidden, eps=1e-3, momentum=0.1))
+            self.decoder_layers.append(
+                nn.Conv1d(self.feat_hidden, self.feat_hidden, kernel_size=1, bias=True)
+            )
+            self.decoder_layers.append(
+                nn.BatchNorm1d(self.feat_hidden, eps=1e-3, momentum=0.1)
+            )
         for i in range(non_stride_layers):
             self.decoder_layers.append(activation)
             self.decoder_layers.append(
@@ -575,11 +631,17 @@ class ConvASRDecoderReconstruction(NeuralModule, Exportable):
                     padding=kernel_size // 2,
                 )
             )
-            self.decoder_layers.append(nn.Conv1d(self.feat_hidden, self.feat_hidden, kernel_size=1, bias=True))
-            self.decoder_layers.append(nn.BatchNorm1d(self.feat_hidden, eps=1e-3, momentum=0.1))
+            self.decoder_layers.append(
+                nn.Conv1d(self.feat_hidden, self.feat_hidden, kernel_size=1, bias=True)
+            )
+            self.decoder_layers.append(
+                nn.BatchNorm1d(self.feat_hidden, eps=1e-3, momentum=0.1)
+            )
 
         self.decoder_layers.append(activation)
-        self.decoder_layers.append(nn.Conv1d(self.feat_hidden, self.feat_out, kernel_size=1, bias=True))
+        self.decoder_layers.append(
+            nn.Conv1d(self.feat_hidden, self.feat_out, kernel_size=1, bias=True)
+        )
 
         self.decoder_layers = nn.Sequential(*self.decoder_layers)
         self.apply_softmax = apply_softmax
@@ -599,7 +661,9 @@ class ConvASRDecoderReconstruction(NeuralModule, Exportable):
         Returns:
             A tuple of input examples.
         """
-        input_example = torch.randn(max_batch, self._feat_in, max_dim).to(next(self.parameters()).device)
+        input_example = torch.randn(max_batch, self._feat_in, max_dim).to(
+            next(self.parameters()).device
+        )
         return tuple([input_example])
 
     def _prepare_for_export(self, **kwargs):
@@ -626,16 +690,24 @@ class ConvASRDecoderClassification(NeuralModule, Exportable):
         Returns:
             A tuple of input examples.
         """
-        input_example = torch.randn(max_batch, self._feat_in, max_dim).to(next(self.parameters()).device)
+        input_example = torch.randn(max_batch, self._feat_in, max_dim).to(
+            next(self.parameters()).device
+        )
         return tuple([input_example])
 
     @property
     def input_types(self):
-        return OrderedDict({"encoder_output": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation())})
+        return OrderedDict(
+            {
+                "encoder_output": NeuralType(
+                    ("B", "D", "T"), AcousticEncodedRepresentation()
+                )
+            }
+        )
 
     @property
     def output_types(self):
-        return OrderedDict({"logits": NeuralType(('B', 'D'), LogitsType())})
+        return OrderedDict({"logits": NeuralType(("B", "D"), LogitsType())})
 
     def __init__(
         self,
@@ -643,7 +715,7 @@ class ConvASRDecoderClassification(NeuralModule, Exportable):
         num_classes: int,
         init_mode: Optional[str] = "xavier_uniform",
         return_logits: bool = True,
-        pooling_type='avg',
+        pooling_type="avg",
     ):
         super().__init__()
 
@@ -651,14 +723,18 @@ class ConvASRDecoderClassification(NeuralModule, Exportable):
         self._return_logits = return_logits
         self._num_classes = num_classes
 
-        if pooling_type == 'avg':
+        if pooling_type == "avg":
             self.pooling = torch.nn.AdaptiveAvgPool1d(1)
-        elif pooling_type == 'max':
+        elif pooling_type == "max":
             self.pooling = torch.nn.AdaptiveMaxPool1d(1)
         else:
-            raise ValueError('Pooling type chosen is not valid. Must be either `avg` or `max`')
+            raise ValueError(
+                "Pooling type chosen is not valid. Must be either `avg` or `max`"
+            )
 
-        self.decoder_layers = torch.nn.Sequential(torch.nn.Linear(self._feat_in, self._num_classes, bias=True))
+        self.decoder_layers = torch.nn.Sequential(
+            torch.nn.Linear(self._feat_in, self._num_classes, bias=True)
+        )
         self.apply(lambda x: init_weights(x, mode=init_mode))
 
     def forward(self, encoder_output, **kwargs):
@@ -700,8 +776,8 @@ class ECAPAEncoder(NeuralModule, Exportable):
         """Returns definitions of module input ports."""
         return OrderedDict(
             {
-                "audio_signal": NeuralType(('B', 'D', 'T'), SpectrogramType()),
-                "length": NeuralType(tuple('B'), LengthsType()),
+                "audio_signal": NeuralType(("B", "D", "T"), SpectrogramType()),
+                "length": NeuralType(tuple("B"), LengthsType()),
             }
         )
 
@@ -710,8 +786,8 @@ class ECAPAEncoder(NeuralModule, Exportable):
         """Returns definitions of module output ports."""
         return OrderedDict(
             {
-                "outputs": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
-                "encoded_lengths": NeuralType(tuple('B'), LengthsType()),
+                "outputs": NeuralType(("B", "D", "T"), AcousticEncodedRepresentation()),
+                "encoded_lengths": NeuralType(tuple("B"), LengthsType()),
             }
         )
 
@@ -722,11 +798,15 @@ class ECAPAEncoder(NeuralModule, Exportable):
         kernel_sizes: list,
         dilations: list,
         scale: int = 8,
-        init_mode: str = 'xavier_uniform',
+        init_mode: str = "xavier_uniform",
     ):
         super().__init__()
         self.layers = nn.ModuleList()
-        self.layers.append(TDNNModule(feat_in, filters[0], kernel_size=kernel_sizes[0], dilation=dilations[0]))
+        self.layers.append(
+            TDNNModule(
+                feat_in, filters[0], kernel_size=kernel_sizes[0], dilation=dilations[0]
+            )
+        )
 
         for i in range(len(filters) - 2):
             self.layers.append(
@@ -739,7 +819,9 @@ class ECAPAEncoder(NeuralModule, Exportable):
                     dilation=dilations[i + 1],
                 )
             )
-        self.feature_agg = TDNNModule(filters[-1], filters[-1], kernel_sizes[-1], dilations[-1])
+        self.feature_agg = TDNNModule(
+            filters[-1], filters[-1], kernel_sizes[-1], dilations[-1]
+        )
         self.apply(lambda x: init_weights(x, mode=init_mode))
 
     def forward(self, audio_signal, length=None):
@@ -781,15 +863,19 @@ class SpeakerDecoder(NeuralModule, Exportable):
         Returns:
             A tuple of input examples.
         """
-        input_example = torch.randn(max_batch, self.input_feat_in, max_dim).to(next(self.parameters()).device)
+        input_example = torch.randn(max_batch, self.input_feat_in, max_dim).to(
+            next(self.parameters()).device
+        )
         return tuple([input_example])
 
     @property
     def input_types(self):
         return OrderedDict(
             {
-                "encoder_output": NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
-                "length": NeuralType(('B',), LengthsType(), optional=True),
+                "encoder_output": NeuralType(
+                    ("B", "D", "T"), AcousticEncodedRepresentation()
+                ),
+                "length": NeuralType(("B",), LengthsType(), optional=True),
             }
         )
 
@@ -797,8 +883,8 @@ class SpeakerDecoder(NeuralModule, Exportable):
     def output_types(self):
         return OrderedDict(
             {
-                "logits": NeuralType(('B', 'D'), LogitsType()),
-                "embs": NeuralType(('B', 'D'), AcousticEncodedRepresentation()),
+                "logits": NeuralType(("B", "D"), LogitsType()),
+                "embs": NeuralType(("B", "D"), AcousticEncodedRepresentation()),
             }
         )
 
@@ -807,7 +893,7 @@ class SpeakerDecoder(NeuralModule, Exportable):
         feat_in: int,
         num_classes: int,
         emb_sizes: Optional[Union[int, list]] = 256,
-        pool_mode: str = 'xvector',
+        pool_mode: str = "xvector",
         angular: bool = False,
         attention_channels: int = 128,
         init_mode: str = "xavier_uniform",
@@ -820,12 +906,14 @@ class SpeakerDecoder(NeuralModule, Exportable):
 
         self._num_classes = num_classes
         self.pool_mode = pool_mode.lower()
-        if self.pool_mode == 'xvector' or self.pool_mode == 'tap':
+        if self.pool_mode == "xvector" or self.pool_mode == "tap":
             self._pooling = StatsPoolLayer(feat_in=feat_in, pool_mode=self.pool_mode)
-            affine_type = 'linear'
-        elif self.pool_mode == 'attention':
-            self._pooling = AttentivePoolLayer(inp_filters=feat_in, attention_channels=attention_channels)
-            affine_type = 'conv'
+            affine_type = "linear"
+        elif self.pool_mode == "attention":
+            self._pooling = AttentivePoolLayer(
+                inp_filters=feat_in, attention_channels=attention_channels
+            )
+            affine_type = "conv"
 
         shapes = [self._pooling.feat_in]
         for size in emb_sizes:
@@ -833,7 +921,9 @@ class SpeakerDecoder(NeuralModule, Exportable):
 
         emb_layers = []
         for shape_in, shape_out in zip(shapes[:-1], shapes[1:]):
-            layer = self.affine_layer(shape_in, shape_out, learn_mean=False, affine_type=affine_type)
+            layer = self.affine_layer(
+                shape_in, shape_out, learn_mean=False, affine_type=affine_type
+            )
             emb_layers.append(layer)
 
         self.emb_layers = nn.ModuleList(emb_layers)
@@ -847,9 +937,9 @@ class SpeakerDecoder(NeuralModule, Exportable):
         inp_shape,
         out_shape,
         learn_mean=True,
-        affine_type='conv',
+        affine_type="conv",
     ):
-        if affine_type == 'conv':
+        if affine_type == "conv":
             layer = nn.Sequential(
                 nn.BatchNorm1d(inp_shape, affine=True, track_running_stats=True),
                 nn.Conv1d(inp_shape, out_shape, kernel_size=1),
@@ -895,7 +985,9 @@ class ConvASREncoderAdapter(ConvASREncoder, adapter_mixins.AdapterModuleMixin):
             jasper_block.add_adapter(name, cfg)
 
     def is_adapter_available(self) -> bool:
-        return any([jasper_block.is_adapter_available() for jasper_block in self.encoder])
+        return any(
+            [jasper_block.is_adapter_available() for jasper_block in self.encoder]
+        )
 
     def set_enabled_adapters(self, name: Optional[str] = None, enabled: bool = True):
         for jasper_block in self.encoder:  # type: adapter_mixins.AdapterModuleMixin
@@ -910,7 +1002,9 @@ class ConvASREncoderAdapter(ConvASREncoder, adapter_mixins.AdapterModuleMixin):
         return names
 
     def _update_adapter_cfg_input_dim(self, block: JasperBlock, cfg):
-        cfg = adapter_utils.update_adapter_cfg_input_dim(self, cfg, module_dim=block.planes)
+        cfg = adapter_utils.update_adapter_cfg_input_dim(
+            self, cfg, module_dim=block.planes
+        )
         return cfg
 
     def get_accepted_adapter_types(
@@ -947,14 +1041,14 @@ class JasperEncoderConfig:
     se: bool = False
     se_reduction_ratio: int = 8
     se_context_size: int = -1
-    se_interpolation_mode: str = 'nearest'
+    se_interpolation_mode: str = "nearest"
     kernel_size_factor: float = 1.0
     stride_last: bool = False
 
 
 @dataclass
 class ConvASREncoderConfig:
-    _target_: str = 'nemo.collections.asr.modules.ConvASREncoder'
+    _target_: str = "nemo.collections.asr.modules.ConvASREncoder"
     jasper: Optional[List[JasperEncoderConfig]] = field(default_factory=list)
     activation: str = MISSING
     feat_in: int = MISSING
@@ -968,7 +1062,7 @@ class ConvASREncoderConfig:
 
 @dataclass
 class ConvASRDecoderConfig:
-    _target_: str = 'nemo.collections.asr.modules.ConvASRDecoder'
+    _target_: str = "nemo.collections.asr.modules.ConvASRDecoder"
     feat_in: int = MISSING
     num_classes: int = MISSING
     init_mode: Optional[str] = "xavier_uniform"
@@ -977,16 +1071,18 @@ class ConvASRDecoderConfig:
 
 @dataclass
 class ConvASRDecoderClassificationConfig:
-    _target_: str = 'nemo.collections.asr.modules.ConvASRDecoderClassification'
+    _target_: str = "nemo.collections.asr.modules.ConvASRDecoderClassification"
     feat_in: int = MISSING
     num_classes: int = MISSING
     init_mode: Optional[str] = "xavier_uniform"
     return_logits: bool = True
-    pooling_type: str = 'avg'
+    pooling_type: str = "avg"
 
 
 """
 Register any additional information
 """
 if adapter_mixins.get_registered_adapter(ConvASREncoder) is None:
-    adapter_mixins.register_adapter(base_class=ConvASREncoder, adapter_class=ConvASREncoderAdapter)
+    adapter_mixins.register_adapter(
+        base_class=ConvASREncoder, adapter_class=ConvASREncoderAdapter
+    )

@@ -26,7 +26,9 @@ from nemo.collections.llm.gpt.data.chat import ChatDataModule
 @pytest.fixture
 def mock_tokenizer():
     tokenizer = MagicMock()
-    tokenizer.text_to_ids.side_effect = lambda text: [ord(c) for c in text]  # Mock character-based token IDs
+    tokenizer.text_to_ids.side_effect = lambda text: [
+        ord(c) for c in text
+    ]  # Mock character-based token IDs
     tokenizer.bos_id = 1
     tokenizer.eos_id = 2
     return tokenizer
@@ -47,11 +49,17 @@ def sample_chat_dataset():
             "conversations": [
                 [
                     {"from": "human", "value": "Hello, how are you?"},
-                    {"from": "assistant", "value": "I'm doing well, thank you! How can I help you today?"},
+                    {
+                        "from": "assistant",
+                        "value": "I'm doing well, thank you! How can I help you today?",
+                    },
                 ],
                 [
                     {"from": "human", "value": "What's the weather like?"},
-                    {"from": "assistant", "value": "I don't have access to real-time weather information."},
+                    {
+                        "from": "assistant",
+                        "value": "I don't have access to real-time weather information.",
+                    },
                 ],
             ]
         }
@@ -66,7 +74,9 @@ def temp_dataset_dir():
 
 @pytest.fixture
 def chat_data_module(mock_tokenizer, temp_dataset_dir):
-    with patch('nemo.collections.llm.gpt.data.core.create_sft_dataset') as mock_create_dataset:
+    with patch(
+        "nemo.collections.llm.gpt.data.core.create_sft_dataset"
+    ) as mock_create_dataset:
         mock_create_dataset.return_value = MagicMock()
         data_module = ChatDataModule(
             tokenizer=mock_tokenizer,
@@ -89,7 +99,15 @@ def test_create_dataset(chat_data_module, temp_dataset_dir):
     dataset_path = temp_dataset_dir / "chat_dataset.jsonl"
     with open(dataset_path, "w") as f:
         json.dump(
-            {"conversations": [[{"from": "human", "value": "Hello"}, {"from": "assistant", "value": "Hi there!"}]]}, f
+            {
+                "conversations": [
+                    [
+                        {"from": "human", "value": "Hello"},
+                        {"from": "assistant", "value": "Hi there!"},
+                    ]
+                ]
+            },
+            f,
         )
 
     # Test dataset creation

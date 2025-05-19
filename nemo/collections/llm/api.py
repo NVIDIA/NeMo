@@ -217,7 +217,9 @@ def finetune(
         PosixPath('/path/to/log_dir')
     """
     model = _load_model_from_path(model)
-    _validate_config(model, data, trainer, log=log, resume=resume, optim=optim, model_transform=peft)
+    _validate_config(
+        model, data, trainer, log=log, resume=resume, optim=optim, model_transform=peft
+    )
     return train(
         model=model,
         data=data,
@@ -337,7 +339,9 @@ def prune(
             )
     """
     if data is not None:
-        assert data.global_batch_size == data.micro_batch_size, "Global batch size must be equal to micro batch size"
+        assert (
+            data.global_batch_size == data.micro_batch_size
+        ), "Global batch size must be equal to micro batch size"
         steps = num_train_samples // data.global_batch_size
     else:
         steps = num_train_samples
@@ -352,14 +356,20 @@ def prune(
         tokenizer_path=tokenizer_path,
         legacy_ckpt=legacy_ckpt,
         strategy_kwargs={"sequence_parallel": False, "replace_progress_bar": False},
-        trainer_kwargs={"max_steps": steps, "limit_val_batches": steps, "val_check_interval": steps},
+        trainer_kwargs={
+            "max_steps": steps,
+            "limit_val_batches": steps,
+            "val_check_interval": steps,
+        },
         model_config_overrides={"sequence_parallel": False},
     )
     prune_gpt_model(model, pruning_config, data, trainer)
     save_pruned_model(trainer, save_path)
 
     console = Console()
-    console.print(f"[green]✓ Pruning succeded, pruned checkpoint saved to {save_path}[/green]")
+    console.print(
+        f"[green]✓ Pruning succeded, pruned checkpoint saved to {save_path}[/green]"
+    )
 
     return save_path
 
@@ -413,13 +423,23 @@ def distill(
         >>> llm.distill(student, teacher, data, trainer, tokenizer="model")
         PosixPath('/path/to/log_dir')
     """
-    _student_model = io.load_context(ckpt_to_context_subdir(student_model_path), subpath="model")
-    _teacher_model = io.load_context(ckpt_to_context_subdir(teacher_model_path), subpath="model")
-    assert isinstance(_student_model, GPTModel), "Only models based on `llm.GPTModel` are supported currently."
-    assert isinstance(_teacher_model, GPTModel), "Only models based on `llm.GPTModel` are supported currently."
+    _student_model = io.load_context(
+        ckpt_to_context_subdir(student_model_path), subpath="model"
+    )
+    _teacher_model = io.load_context(
+        ckpt_to_context_subdir(teacher_model_path), subpath="model"
+    )
+    assert isinstance(
+        _student_model, GPTModel
+    ), "Only models based on `llm.GPTModel` are supported currently."
+    assert isinstance(
+        _teacher_model, GPTModel
+    ), "Only models based on `llm.GPTModel` are supported currently."
 
     if tokenizer is None:
-        tokenizer = getattr(_student_model, "tokenizer", None) or getattr(_teacher_model, "tokenizer", None)
+        tokenizer = getattr(_student_model, "tokenizer", None) or getattr(
+            _teacher_model, "tokenizer", None
+        )
         assert tokenizer is not None, "Tokenizer neither provided nor found in models."
 
     model = DistillationGPTModel(
@@ -451,7 +471,9 @@ def ptq(
     num_layers_in_last_pipeline_stage: int | None = None,
     devices: int | None = None,
     num_nodes: int | None = None,
-    quantization_config: Annotated[Optional[QuantizationConfig], run.Config[QuantizationConfig]] = None,
+    quantization_config: Annotated[
+        Optional[QuantizationConfig], run.Config[QuantizationConfig]
+    ] = None,
     forward_loop: Callable | None = None,
     tokenizer_path: str | None = None,
     legacy_ckpt: bool = False,
@@ -520,12 +542,18 @@ def ptq(
 
     quantizer = Quantizer(quantization_config, export_config)
     assert Path(model_path).exists(), f"Path {model_path} does not exist"
-    is_automodel = (Path(model_path) / 'config.json').exists()
+    is_automodel = (Path(model_path) / "config.json").exists()
 
     trainer = None
     if is_automodel:
-        assert export_config.export_format != "nemo", "Automodel PTQ does not support export format nemo"
-        model = HFAutoModelForCausalLM(model_name=model_path, trust_remote_code=trust_remote_code, device_map="auto")
+        assert (
+            export_config.export_format != "nemo"
+        ), "Automodel PTQ does not support export format nemo"
+        model = HFAutoModelForCausalLM(
+            model_name=model_path,
+            trust_remote_code=trust_remote_code,
+            device_map="auto",
+        )
         model.configure_model()
     else:
         model, trainer = setup_trainer_and_restore_model_with_modelopt_spec(
@@ -549,7 +577,9 @@ def ptq(
 
     if is_global_rank_zero():
         console = Console()
-        console.print(f"[green]✓ PTQ succeded, quantized checkpoint exported to {export_config.path}[/green]")
+        console.print(
+            f"[green]✓ PTQ succeded, quantized checkpoint exported to {export_config.path}[/green]"
+        )
     return export_config.path
 
 
@@ -637,11 +667,13 @@ def deploy(
     if backend == "in-framework":
         assert (
             start_fastapi_server is True
-        ), 'in-framework deployment exposes OAI API endpoints v1/completions and \
+        ), "in-framework deployment exposes OAI API endpoints v1/completions and \
         v1/chat/completions hence needs fastAPI interface to expose these endpoints to PyTriton. Please set \
-        start_fastapi_server to True'
+        start_fastapi_server to True"
         if triton_http_port == fastapi_port:
-            raise ValueError("FastAPI port and Triton server port cannot use the same port. Please change them")
+            raise ValueError(
+                "FastAPI port and Triton server port cannot use the same port. Please change them"
+            )
         # Store triton ip, port relevant for FastAPI as env vars to be accessible by fastapi_interface_to_pytriton.py
         os.environ["TRITON_HTTP_ADDRESS"] = triton_http_address
         os.environ["TRITON_PORT"] = str(triton_http_port)
@@ -686,7 +718,10 @@ def deploy(
                     nm.deploy()
                     nm.run()
                 except Exception as error:
-                    logging.error("Error message has occurred during deploy function. Error message: " + str(error))
+                    logging.error(
+                        "Error message has occurred during deploy function. Error message: "
+                        + str(error)
+                    )
                     return
 
                 try:
@@ -694,19 +729,23 @@ def deploy(
                         try:
                             logging.info("REST service will be started.")
                             uvicorn.run(
-                                'nemo.deploy.service.fastapi_interface_to_pytriton:app',
+                                "nemo.deploy.service.fastapi_interface_to_pytriton:app",
                                 host=fastapi_http_address,
                                 port=fastapi_port,
                                 reload=True,
                             )
                         except Exception as error:
                             logging.error(
-                                "Error message has occurred during REST service start. Error message: " + str(error)
+                                "Error message has occurred during REST service start. Error message: "
+                                + str(error)
                             )
                     logging.info("Model serving on Triton will be started.")
                     nm.serve()
                 except Exception as error:
-                    logging.error("Error message has occurred during deploy function. Error message: " + str(error))
+                    logging.error(
+                        "Error message has occurred during deploy function. Error message: "
+                        + str(error)
+                    )
                     return
 
                 logging.info("Model serving will be stopped.")
@@ -748,20 +787,28 @@ def deploy(
             nm.deploy()
             nm.run()
         except Exception as error:
-            logging.error("Error message has occurred during deploy function. Error message: " + str(error))
+            logging.error(
+                "Error message has occurred during deploy function. Error message: "
+                + str(error)
+            )
             return
 
         try:
             logging.info("Model serving on Triton will be started.")
             nm.serve()
         except Exception as error:
-            logging.error("Error message has occurred during deploy function. Error message: " + str(error))
+            logging.error(
+                "Error message has occurred during deploy function. Error message: "
+                + str(error)
+            )
             return
 
         logging.info("Model serving will be stopped.")
         nm.stop()
     else:
-        raise ValueError(f"Invalid backend '{backend}'. Supported backends are 'in-framework' and 'trtllm'.")
+        raise ValueError(
+            f"Invalid backend '{backend}'. Supported backends are 'in-framework' and 'trtllm'."
+        )
 
 
 @run.cli.entrypoint(namespace="llm")
@@ -809,8 +856,10 @@ def evaluate(
             f"as it is required to run {eval_cfg.type} evaluation"
         )
 
-    base_url, _ = target_cfg.api_endpoint.url.split('/v1')
-    server_ready = wait_for_fastapi_server(base_url=base_url, model_name=target_cfg.api_endpoint.model_id)
+    base_url, _ = target_cfg.api_endpoint.url.split("/v1")
+    server_ready = wait_for_fastapi_server(
+        base_url=base_url, model_name=target_cfg.api_endpoint.model_id
+    )
     if not server_ready:
         raise RuntimeError("Server not ready for evaluation")
 
@@ -894,9 +943,17 @@ def import_ckpt(
     if output_path:
         output_path = Path(output_path)
         if output_path.exists() and not overwrite:
-            raise FileExistsError(f"Output path {output_path} exists. Use overwrite=True to force overwrite.")
+            raise FileExistsError(
+                f"Output path {output_path} exists. Use overwrite=True to force overwrite."
+            )
 
-    output = io.import_ckpt(model=model, source=source, output_path=output_path, overwrite=overwrite, **kwargs)
+    output = io.import_ckpt(
+        model=model,
+        source=source,
+        output_path=output_path,
+        overwrite=overwrite,
+        **kwargs,
+    )
 
     console = Console()
     if output_path:
@@ -924,7 +981,9 @@ def export_ckpt(
     target: str,
     output_path: Optional[AnyPath] = None,
     overwrite: bool = False,
-    load_connector: Callable[[Path, str], io.ModelConnector] = load_connector_from_trainer_ckpt,
+    load_connector: Callable[
+        [Path, str], io.ModelConnector
+    ] = load_connector_from_trainer_ckpt,
     **kwargs,
 ) -> Path:
     """
@@ -981,9 +1040,13 @@ def export_ckpt(
     if output_path and not isinstance(output_path, Path):
         output_path = Path(output_path)
         if output_path.exists() and not overwrite:
-            raise FileExistsError(f"Output path {output_path} exists. Use overwrite=True to force overwrite.")
+            raise FileExistsError(
+                f"Output path {output_path} exists. Use overwrite=True to force overwrite."
+            )
 
-    output = io.export_ckpt(path, target, output_path, overwrite, load_connector, **kwargs)
+    output = io.export_ckpt(
+        path, target, output_path, overwrite, load_connector, **kwargs
+    )
 
     console = Console()
     console.print(f"[green]✓ Checkpoint exported to {output}[/green]")
@@ -1082,7 +1145,9 @@ def generate(
     from nemo.collections.llm import inference
 
     if input_dataset is not None:
-        input_path = input_dataset if isinstance(input_dataset, str) else input_dataset.test_path
+        input_path = (
+            input_dataset if isinstance(input_dataset, str) else input_dataset.test_path
+        )
         with open(input_path) as f:
             dataset = [json.loads(sample) for sample in f.readlines()]
             inputs = [sample["input"] for sample in dataset]
@@ -1099,13 +1164,17 @@ def generate(
         enable_flash_decode=enable_flash_decode,
     )
 
-    max_seq_length = inference_params.num_tokens_to_generate + max(len(mcore_tokenizer.tokenize(p)) for p in inputs)
+    max_seq_length = inference_params.num_tokens_to_generate + max(
+        len(mcore_tokenizer.tokenize(p)) for p in inputs
+    )
     # set kv cache allocation to only num tokens in prompt + max tokens to generate
-    inference_wrapped_model.inference_wrapper_config.inference_max_seq_length = max_seq_length
+    inference_wrapped_model.inference_wrapper_config.inference_max_seq_length = (
+        max_seq_length
+    )
     inference_wrapped_model.inference_context.max_sequence_length = max_seq_length
 
-    dp_size = trainer.strategy.distributed_sampler_kwargs['num_replicas']
-    dp_rank = trainer.strategy.distributed_sampler_kwargs['rank']
+    dp_size = trainer.strategy.distributed_sampler_kwargs["num_replicas"]
+    dp_rank = trainer.strategy.distributed_sampler_kwargs["rank"]
     chunk_size = (len(inputs) + dp_size - 1) // dp_size
     start_idx = dp_rank * chunk_size
     end_idx = min(start_idx + chunk_size, len(inputs))
@@ -1134,19 +1203,26 @@ def generate(
 
     if output_path is not None and is_global_rank_zero():
         with open(output_path, "w") as f:
-            for sample, pred in zip(dataset if input_dataset else inputs, gathered_results):
+            for sample, pred in zip(
+                dataset if input_dataset else inputs, gathered_results
+            ):
                 if type(sample) == dict:
                     sample["label"] = sample.pop("output", None)
                     sample["prediction"] = pred if text_only else pred.generated_text
                 elif type(sample) == str:
-                    sample = {"input": sample, "prediction": pred if text_only else pred.generated_text}
+                    sample = {
+                        "input": sample,
+                        "prediction": pred if text_only else pred.generated_text,
+                    }
                 f.write(json.dumps(sample) + "\n")
         logging.info(f"Predictions written to {output_path}")
 
     return gathered_results
 
 
-def _use_tokenizer(model: pl.LightningModule, data: pl.LightningDataModule, tokenizer: TokenizerType) -> None:
+def _use_tokenizer(
+    model: pl.LightningModule, data: pl.LightningDataModule, tokenizer: TokenizerType
+) -> None:
     if tokenizer == "data":
         _set_with_io(model, "tokenizer", data.tokenizer)
     elif tokenizer == "model":
@@ -1160,7 +1236,9 @@ def _use_tokenizer(model: pl.LightningModule, data: pl.LightningDataModule, toke
                 _set_with_io(model, "tokenizer", tokenizer)
                 _set_with_io(data, "tokenizer", tokenizer)
             else:
-                raise ValueError(f"Expected TokenizerSpec or 'data' or 'model', got: {tokenizer}")
+                raise ValueError(
+                    f"Expected TokenizerSpec or 'data' or 'model', got: {tokenizer}"
+                )
         except ImportError:
             raise ValueError("TokenizerSpec is not available")
 
@@ -1241,7 +1319,9 @@ def _validate_config(
         assert model.config.num_attention_heads > 0
         assert model.config.ffn_hidden_size > 0
     else:
-        assert not isinstance(trainer.strategy, nl.MegatronStrategy), "Expected model.config to exist"
+        assert not isinstance(
+            trainer.strategy, nl.MegatronStrategy
+        ), "Expected model.config to exist"
 
     # Data validation
     assert data.micro_batch_size > 0
@@ -1288,7 +1368,9 @@ def _validate_config(
         # TP/SP validation
         if trainer.strategy.tensor_model_parallel_size == 1:
             if trainer.strategy.sequence_parallel == True:
-                warnings.warn("Disabling sequence parallelism because tensor model parallelism is disabled")
+                warnings.warn(
+                    "Disabling sequence parallelism because tensor model parallelism is disabled"
+                )
                 trainer.strategy.sequence_parallel = False
 
         # PP/VP validation
@@ -1298,10 +1380,14 @@ def _validate_config(
             ), "pipeline_dtype must be set if pipeline model parallelism is enabled"
         else:
             if trainer.strategy.virtual_pipeline_model_parallel_size is not None:
-                warnings.warn("Disabling virtual pipeline parallelism because pipeline model parallelism is disabled")
+                warnings.warn(
+                    "Disabling virtual pipeline parallelism because pipeline model parallelism is disabled"
+                )
                 trainer.strategy.virtual_pipeline_model_parallel_size = None
             if trainer.strategy.pipeline_dtype is not None:
-                warnings.warn("Setting pipeline dtype to None because pipeline model parallelism is disabled")
+                warnings.warn(
+                    "Setting pipeline dtype to None because pipeline model parallelism is disabled"
+                )
                 trainer.strategy.pipeline_dtype = None
 
         # CP validation
@@ -1309,8 +1395,10 @@ def _validate_config(
             if hasattr(model, "config"):
                 if model.config.seq_length is not None:
                     assert (
-                        model.config.seq_length % (trainer.strategy.context_parallel_size * 2) == 0
-                    ), 'Sequence length must be divisible by 2 * context parallel size if context parallel is used.'
+                        model.config.seq_length
+                        % (trainer.strategy.context_parallel_size * 2)
+                        == 0
+                    ), "Sequence length must be divisible by 2 * context parallel size if context parallel is used."
 
         # EP validation
         if trainer.strategy.expert_model_parallel_size > 1:
@@ -1319,7 +1407,9 @@ def _validate_config(
                     model.config.num_moe_experts is not None
                 ), "num_experts must be non None to use expert model parallelism"
                 assert (
-                    model.config.num_moe_experts % trainer.strategy.expert_model_parallel_size == 0
+                    model.config.num_moe_experts
+                    % trainer.strategy.expert_model_parallel_size
+                    == 0
                 ), "Number of experts should be a multiple of expert model parallel_size."
 
 
@@ -1340,11 +1430,11 @@ def _build_directory_tree(path, tree=None, root_name=None):
             _build_directory_tree(item, branch)
         else:
             # Color differently based on file extension
-            if item.suffix in ('.json', '.jsonl'):
+            if item.suffix in (".json", ".jsonl"):
                 tree.add(f"[yellow]{item.name}[/yellow]")
-            elif item.suffix in ('.pt', '.bin', '.ckpt', '.nemo'):
+            elif item.suffix in (".pt", ".bin", ".ckpt", ".nemo"):
                 tree.add(f"[magenta]{item.name}[/magenta]")
-            elif item.suffix in ('.py', '.sh'):
+            elif item.suffix in (".py", ".sh"):
                 tree.add(f"[green]{item.name}[/green]")
             else:
                 tree.add(f"[white]{item.name}[/white]")

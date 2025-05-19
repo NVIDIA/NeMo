@@ -50,11 +50,11 @@ from nemo.collections.nlp.modules.common.megatron.mup.infshape import (
 from nemo.collections.nlp.modules.common.megatron.mup.layer import (
     MuReadout, rescale_linear_bias)
 
-__BSH_COMMENT__ = '''\
+__BSH_COMMENT__ = """\
 # This is a base shape file encoded in yaml
 # - `null` indicates a dimension is "finite", i.e. a non-"width" dimension
 # - a number indicates the base dimension of an "infinite" dimension, i.e. some notion of "width"
-'''
+"""
 
 
 def get_shapes(model):
@@ -75,34 +75,38 @@ def save_base_shapes(model_or_shapes, file):
     sh = {k: s.base_shape() for k, s in sh.items()}
     s = yaml.dump(sh, None, indent=4)
     s = __BSH_COMMENT__ + s
-    with open(file, 'w') as f:
+    with open(file, "w") as f:
         f.write(s)
 
 
 def load_base_shapes(filename):
-    '''Get a dict of `InfShape` from a filename.'''
-    with open(filename, 'r') as f:
+    """Get a dict of `InfShape` from a filename."""
+    with open(filename, "r") as f:
         d = yaml.safe_load(f)
     return {k: InfShape.from_base_shape(v) for k, v in d.items()}
 
 
 def _dataparallel_hack(base_shapes, shapes):
-    '''Fix module name discrepancy caused by (Distributed)DataParallel module.
+    """Fix module name discrepancy caused by (Distributed)DataParallel module.
 
     The parameters of a (Distributed)DataParallel module all have names that
     start with 'module'. This causes a mismatch from non-DataParallel modules.
     This function tries to match `base_shapes` to `shapes`: if the latter starts
     with 'module', then make the former too; likewise if not.
-    '''
-    if all(k.startswith('module.') for k in shapes) and all(not k.startswith('module.') for k in base_shapes):
-        return {'module.' + k: v for k, v in base_shapes.items()}, shapes
-    if all(not k.startswith('module.') for k in shapes) and all(k.startswith('module.') for k in base_shapes):
-        return {k.strip('module.'): v for k, v in base_shapes.items()}, shapes
+    """
+    if all(k.startswith("module.") for k in shapes) and all(
+        not k.startswith("module.") for k in base_shapes
+    ):
+        return {"module." + k: v for k, v in base_shapes.items()}, shapes
+    if all(not k.startswith("module.") for k in shapes) and all(
+        k.startswith("module.") for k in base_shapes
+    ):
+        return {k.strip("module."): v for k, v in base_shapes.items()}, shapes
     return base_shapes, shapes
 
 
 def _extract_shapes(x):
-    '''
+    """
     Input:
         x: can be any of the following:
             - `nn.Module`
@@ -113,7 +117,7 @@ def _extract_shapes(x):
         If `x` is dict of `InfShape`, then output itself.
         If `x` is path, then output a dict of `InfShapes` loaded from `x`.
         Else, output the shapes (not `InfShape`) associated to `x`
-    '''
+    """
     if isinstance(x, nn.Module):
         x_shapes = get_shapes(x)
     elif isinstance(x, dict):
@@ -122,23 +126,24 @@ def _extract_shapes(x):
         # x is file name
         x_shapes = load_base_shapes(x)
     else:
-        raise ValueError(f'unhandled x type: {type(x)}')
+        raise ValueError(f"unhandled x type: {type(x)}")
     return x_shapes
 
 
 def _zip_infshape_dict(base_shapes, shapes):
-    '''make a dict of `InfShape` from two dicts of shapes.
+    """make a dict of `InfShape` from two dicts of shapes.
     Inputs:
         base_shapes: dict of base shapes or InfShape objects
         shapes: dict of shapes
     Output:
         dict of `InfShape` using `zip_infshape`
-    '''
+    """
     base_shapes, shapes = _dataparallel_hack(base_shapes, shapes)
     basenames = set(base_shapes.keys())
     names = set(shapes.keys())
     assert basenames == names, (
-        f'`base_shapes` has extra names {basenames - names}. ' f'`shapes` has extra names {names - basenames}.'
+        f"`base_shapes` has extra names {basenames - names}. "
+        f"`shapes` has extra names {names - basenames}."
     )
     infshapes = {}
     for name, bsh in base_shapes.items():
@@ -147,26 +152,26 @@ def _zip_infshape_dict(base_shapes, shapes):
 
 
 def zip_infshapes(base, target):
-    '''make a dict of `InfShape` from models or dicts.
+    """make a dict of `InfShape` from models or dicts.
     Inputs:
         base: a base `nn.Module` or a dict of shapes
         target: a target `nn.Module` or a dict of shapes
     Output:
         dict of `InfShape` using `zip_infshape`
-    '''
+    """
     base_shapes = _extract_shapes(base)
     target_shapes = _extract_shapes(target)
     return _zip_infshape_dict(base_shapes, target_shapes)
 
 
 def clear_dims(infshape_dict):
-    '''
+    """
     Input:
         infshape_dict: dict of `InfShape`
     Output:
         the same dict but where all `InfDim` in all `InfShape`
         have their `dim` attribute set to None
-    '''
+    """
     d = deepcopy(infshape_dict)
     for _, v in d.items():
         for infdim in v:
@@ -175,7 +180,7 @@ def clear_dims(infshape_dict):
 
 
 def make_base_shapes(base_shapes, delta_shapes, savefile=None):
-    '''Make a base shape object from a base model/shapes and a delta model/shapes.
+    """Make a base shape object from a base model/shapes and a delta model/shapes.
 
     Inputs:
         base:
@@ -189,7 +194,7 @@ def make_base_shapes(base_shapes, delta_shapes, savefile=None):
             this location via yaml encoding.
     Outputs:
         base infshapes
-    '''
+    """
     bsh = clear_dims(zip_infshapes(base_shapes, delta_shapes))
     if savefile is not None:
         save_base_shapes(bsh, savefile)
@@ -201,8 +206,10 @@ def apply_infshapes(model, infshapes):
         p.infshape = infshapes[name]
 
 
-def set_base_shapes(model, base, rescale_params=True, delta=None, savefile=None, do_assert=True):
-    '''Sets the `p.infshape` attribute for each parameter `p` of `model`.
+def set_base_shapes(
+    model, base, rescale_params=True, delta=None, savefile=None, do_assert=True
+):
+    """Sets the `p.infshape` attribute for each parameter `p` of `model`.
 
     Inputs:
         model: nn.Module instance
@@ -214,10 +221,10 @@ def set_base_shapes(model, base, rescale_params=True, delta=None, savefile=None,
             assuming the model is initialized using the default pytorch init (or
             He initialization etc that scale the same way with fanin): If True
             (default), rescales parameters to have the correct (μP) variances.
-        do_assert: 
+        do_assert:
     Output:
         same object as `model`, after setting the `infshape` attribute of each parameter.
-    '''
+    """
     if base is None:
         base = model
     base_shapes = _extract_shapes(base)
@@ -241,15 +248,18 @@ def set_base_shapes(model, base, rescale_params=True, delta=None, savefile=None,
 
 
 def assert_hidden_size_inf(model):
-    '''
+    """
     This tests for any `nn.Linear` whose output dimension is finite but input
     dimension is infinite and is not of type `MuReadout`. Such `nn.Linear`
     modules should not exist in a correctly parametrized models.
-    '''
+    """
     for name, module in model.named_modules():
         if isinstance(module, Linear) and not isinstance(module, MuReadout):
-            if not module.weight.infshape[0].isinf() and module.weight.infshape[1].isinf():
+            if (
+                not module.weight.infshape[0].isinf()
+                and module.weight.infshape[1].isinf()
+            ):
                 assert False, (
-                    f'{name} has infinite fan-in and finite fan-out dimensions but is not type `MuReadout`. '
-                    'To resolve this, either change the module to `MuReadout` or change the fan-out to an infinite dimension.'
+                    f"{name} has infinite fan-in and finite fan-out dimensions but is not type `MuReadout`. "
+                    "To resolve this, either change the module to `MuReadout` or change the fan-out to an infinite dimension."
                 )

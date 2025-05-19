@@ -53,13 +53,17 @@ _, HAVE_TE = safe_import("transformer_engine")
 
 def _local_layer_spec(config: "GPTConfig") -> ModuleSpec:
     gpt_layer_spec = GPTBase.local_layer_spec(config)
-    gpt_layer_spec.submodules.self_attention.params['attn_mask_type'] = AttnMaskType.padding
+    gpt_layer_spec.submodules.self_attention.params["attn_mask_type"] = (
+        AttnMaskType.padding
+    )
     return gpt_layer_spec
 
 
 def _transformer_engine_layer_spec(config: "GPTConfig") -> ModuleSpec:
     gpt_layer_spec = GPTBase.transformer_engine_layer_spec(config)
-    gpt_layer_spec.submodules.self_attention.params['attn_mask_type'] = AttnMaskType.padding
+    gpt_layer_spec.submodules.self_attention.params["attn_mask_type"] = (
+        AttnMaskType.padding
+    )
     return gpt_layer_spec
 
 
@@ -90,14 +94,19 @@ def nv_embedding_data_step(dataloder_iter) -> Dict[str, torch.Tensor]:
         required_keys.add("input_ids")
         required_keys.add("position_ids")
 
-    _batch = {key: val.cuda(non_blocking=True) if key in required_keys else None for key, val in _batch.items()}
+    _batch = {
+        key: val.cuda(non_blocking=True) if key in required_keys else None
+        for key, val in _batch.items()
+    }
     # slice batch along sequence dimension for context parallelism
     output = get_batch_on_this_cp_rank(_batch)
 
     return output
 
 
-def nv_embedding_forward_step(model: L.LightningModule, batch: Dict[str, torch.Tensor]) -> torch.Tensor:
+def nv_embedding_forward_step(
+    model: L.LightningModule, batch: Dict[str, torch.Tensor]
+) -> torch.Tensor:
     """
     This subsets the batch keys to the ones actually used by forward pass of the model,
     and then calls the model's forward pass. if "cu_seqsens" are defined in the batch,
@@ -116,21 +125,25 @@ def nv_embedding_forward_step(model: L.LightningModule, batch: Dict[str, torch.T
 class Llama32EmbeddingConfig1B(Llama32Config1B):
     """Llama3.2 Embedding 1B Config"""
 
-    transformer_layer_spec: Union[ModuleSpec, Callable[["GPTConfig"], ModuleSpec]] = get_nv_embedding_layer_spec
+    transformer_layer_spec: Union[ModuleSpec, Callable[["GPTConfig"], ModuleSpec]] = (
+        get_nv_embedding_layer_spec
+    )
     forward_step_fn: Callable = nv_embedding_forward_step
     data_step_fn: Callable = nv_embedding_data_step
 
     # Training Configs
-    truncation_method: Literal["left", "right"] = 'right'
+    truncation_method: Literal["left", "right"] = "right"
     num_hard_negatives: int = 4
     ce_loss_scale: float = 50
     label_smoothing: float = 0.0
     in_batch_negatives: bool = False
-    negative_sample_strategy: Literal["random", "first"] = 'first'
+    negative_sample_strategy: Literal["random", "first"] = "first"
     add_bos: bool = True
     add_eos: bool = False
 
-    def configure_model(self, tokenizer, pre_process=None, post_process=None) -> "MCoreGPTModel":
+    def configure_model(
+        self, tokenizer, pre_process=None, post_process=None
+    ) -> "MCoreGPTModel":
         """Configure the NV Embedding Llama3.2 1B Model"""
         model = super().configure_model(tokenizer, pre_process, post_process)
         # post_process need to be overwritten to False after model init because
@@ -144,21 +157,25 @@ class Llama32EmbeddingConfig1B(Llama32Config1B):
 class Llama32EmbeddingConfig3B(Llama32Config3B):
     """Llama3.2 Embedding 3B Config"""
 
-    transformer_layer_spec: Union[ModuleSpec, Callable[["GPTConfig"], ModuleSpec]] = get_nv_embedding_layer_spec
+    transformer_layer_spec: Union[ModuleSpec, Callable[["GPTConfig"], ModuleSpec]] = (
+        get_nv_embedding_layer_spec
+    )
     forward_step_fn: Callable = nv_embedding_forward_step
     data_step_fn: Callable = nv_embedding_data_step
 
     # Training Configs
-    truncation_method: Literal["left", "right"] = 'right'
+    truncation_method: Literal["left", "right"] = "right"
     num_hard_negatives: int = 4
     ce_loss_scale: float = 50
     label_smoothing: float = 0.0
     in_batch_negatives: bool = False
-    negative_sample_strategy: Literal["random", "first"] = 'first'
+    negative_sample_strategy: Literal["random", "first"] = "first"
     add_bos: bool = True
     add_eos: bool = False
 
-    def configure_model(self, tokenizer, pre_process=None, post_process=None) -> "MCoreGPTModel":
+    def configure_model(
+        self, tokenizer, pre_process=None, post_process=None
+    ) -> "MCoreGPTModel":
         """Configure the NV Embedding Llama3.2 3B Model"""
         model = super().configure_model(tokenizer, pre_process, post_process)
         # post_process need to be overwritten to False after model init because
@@ -171,7 +188,7 @@ class Llama32EmbeddingConfig3B(Llama32Config3B):
 def _average_pool(last_hidden_states: Tensor, attention_mask: Tensor):
     """Average the hidden states on the non-masking tokens."""
     # [sq, b, h] -> [b, sq, h]
-    last_hidden_states = einops.rearrange(last_hidden_states, 's b h -> b s h')
+    last_hidden_states = einops.rearrange(last_hidden_states, "s b h -> b s h")
     last_hidden = last_hidden_states.masked_fill(~attention_mask[..., None].bool(), 0.0)
     return last_hidden.sum(dim=1) / attention_mask.sum(dim=1)[..., None]
 
@@ -186,16 +203,21 @@ class LlamaEmbeddingModel(LlamaModel):
         tokenizer: Optional["TokenizerSpec"] = None,
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
-        super().__init__(config or LlamaConfig(), optim=optim, tokenizer=tokenizer, model_transform=model_transform)
+        super().__init__(
+            config or LlamaConfig(),
+            optim=optim,
+            tokenizer=tokenizer,
+            model_transform=model_transform,
+        )
 
     @property
     def dataset_kwargs(self):
         """Getter for dataset_kwargs from model config"""
         return {
-            'num_hard_negatives': self.config.num_hard_negatives,
-            'negative_sample_strategy': self.config.negative_sample_strategy,
-            'add_bos': self.config.add_bos,
-            'add_eos': self.config.add_eos,
+            "num_hard_negatives": self.config.num_hard_negatives,
+            "negative_sample_strategy": self.config.negative_sample_strategy,
+            "add_bos": self.config.add_bos,
+            "add_eos": self.config.add_eos,
         }
 
     def encode(
@@ -213,7 +235,9 @@ class LlamaEmbeddingModel(LlamaModel):
             # Also convert attention mask to binary
             extended_mask = attention_mask.unsqueeze(1).unsqueeze(1) < 0.5
         elif attention_mask.ndim == 4:
-            assert attention_mask.shape[1] == 1 and attention_mask.shape[2] == 1, "Attention mask shape incorrect"
+            assert (
+                attention_mask.shape[1] == 1 and attention_mask.shape[2] == 1
+            ), "Attention mask shape incorrect"
             extended_mask = attention_mask
             # Squeeze attention mask to [b, sq] for averaging pooling later
 
@@ -232,7 +256,9 @@ class LlamaEmbeddingModel(LlamaModel):
         return embeddings
 
     @property
-    def training_loss_reduction(self) -> BERTInBatchExclusiveHardNegativesRankingLoss:  # pylint: disable=C0115,C0116
+    def training_loss_reduction(
+        self,
+    ) -> BERTInBatchExclusiveHardNegativesRankingLoss:  # pylint: disable=C0115,C0116
         if not self._training_loss_reduction:
             if self.config.in_batch_negatives:
                 loss_func = BERTInBatchExclusiveHardNegativesRankingLoss
@@ -248,7 +274,9 @@ class LlamaEmbeddingModel(LlamaModel):
         return self._training_loss_reduction
 
     @property
-    def validation_loss_reduction(self) -> BERTInBatchExclusiveHardNegativesRankingLoss:  # pylint: disable=C0115,C0116
+    def validation_loss_reduction(
+        self,
+    ) -> BERTInBatchExclusiveHardNegativesRankingLoss:  # pylint: disable=C0115,C0116
         if not self._validation_loss_reduction:
             if self.config.in_batch_negatives:
                 loss_func = BERTInBatchExclusiveHardNegativesRankingLoss
@@ -294,8 +322,12 @@ class LlamaEmbeddingImporter(HFLlamaImporter):
             num_query_groups=source.num_key_value_heads,
             rotary_base=source.rope_theta,
             gated_linear_unit=True,
-            make_vocab_size_divisible_by=make_vocab_size_divisible_by(source.vocab_size),
-            share_embeddings_and_output_weights=getattr(source, "tie_word_embeddings", False),
+            make_vocab_size_divisible_by=make_vocab_size_divisible_by(
+                source.vocab_size
+            ),
+            share_embeddings_and_output_weights=getattr(
+                source, "tie_word_embeddings", False
+            ),
             fp16=(dtype_from_hf(source) == torch.float16),
             bf16=(dtype_from_hf(source) == torch.bfloat16),
             params_dtype=dtype_from_hf(source),
@@ -305,7 +337,9 @@ class LlamaEmbeddingImporter(HFLlamaImporter):
 
 
 @io.model_exporter(LlamaEmbeddingModel, "hf")
-class LlamaEmbeddingExporter(io.ModelConnector[LlamaEmbeddingModel, "LlamaBidirectionalModel"]):
+class LlamaEmbeddingExporter(
+    io.ModelConnector[LlamaEmbeddingModel, "LlamaBidirectionalModel"]
+):
     """HF Exporter for NV Embedding Llama Model.
     Note that NV Embedding LLama uses customized LlamaBidirectionalConfig config.
     """
@@ -384,7 +418,10 @@ class LlamaEmbeddingExporter(io.ModelConnector[LlamaEmbeddingModel, "LlamaBidire
             ),
             io.state_transform(
                 source_key="decoder.layers.*.mlp.linear_fc1.weight",
-                target_key=("layers.*.mlp.gate_proj.weight", "layers.*.mlp.up_proj.weight"),
+                target_key=(
+                    "layers.*.mlp.gate_proj.weight",
+                    "layers.*.mlp.up_proj.weight",
+                ),
                 fn=TransformFns.split_fc1,
             ),
             io.state_transform(

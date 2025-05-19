@@ -146,7 +146,9 @@ class TestUtils:
             100,
             "mistral",
         )
-        assert model_size == 799.37, f"expected model_size is 799.37 but got {model_size}."
+        assert (
+            model_size == 799.37
+        ), f"expected model_size is 799.37 but got {model_size}."
 
         # Gemma
         model_size = calculate_model_size(
@@ -157,7 +159,9 @@ class TestUtils:
             100,
             "gemma",
         )
-        assert model_size == 398.13, f"expected model_size is 398.13 but got {model_size}."
+        assert (
+            model_size == 398.13
+        ), f"expected model_size is 398.13 but got {model_size}."
 
         # Nemotron
         model_size = calculate_model_size(
@@ -168,7 +172,9 @@ class TestUtils:
             120,
             "gemma",
         )
-        assert model_size == 82.94, f"expected model_size is 82.94 but got {model_size}."
+        assert (
+            model_size == 82.94
+        ), f"expected model_size is 82.94 but got {model_size}."
 
         # Qwen
         model_size = calculate_model_size(
@@ -179,7 +185,9 @@ class TestUtils:
             100,
             "qwen",
         )
-        assert model_size == 27.65, f"expected model_size is 27.65 but got {model_size}."
+        assert (
+            model_size == 27.65
+        ), f"expected model_size is 27.65 but got {model_size}."
 
         # Starcoder
         model_size = calculate_model_size(
@@ -201,7 +209,9 @@ class TestUtils:
             340,
             "t5",
         )
-        assert model_size == 637.53, f"expected model_size is 637.53 but got {model_size}."
+        assert (
+            model_size == 637.53
+        ), f"expected model_size is 637.53 but got {model_size}."
 
         # Bert
         model_size = calculate_model_size(
@@ -212,7 +222,9 @@ class TestUtils:
             100,
             "bert",
         )
-        assert model_size == 54.19, f"expected model_size is 54.19 but got {model_size}."
+        assert (
+            model_size == 54.19
+        ), f"expected model_size is 54.19 but got {model_size}."
 
     def test_calculate_train_time(self):
         # GPT
@@ -223,7 +235,9 @@ class TestUtils:
             300,
             "gpt3",
         )
-        assert train_time == 33.91, f"expected train_time is 33.91 but got {train_time}."
+        assert (
+            train_time == 33.91
+        ), f"expected train_time is 33.91 but got {train_time}."
 
         # Llama
         train_time = _estimate_training_time(
@@ -233,7 +247,9 @@ class TestUtils:
             3000,
             "llama",
         )
-        assert train_time == 316.48, f"expected train_time is 316.48 but got {train_time}."
+        assert (
+            train_time == 316.48
+        ), f"expected train_time is 316.48 but got {train_time}."
 
         # Mixtral
         train_time = _estimate_training_time(
@@ -253,7 +269,9 @@ class TestUtils:
             250,
             "mistral",
         )
-        assert train_time == 176.83, f"expected train_time is 176.83 but got {train_time}."
+        assert (
+            train_time == 176.83
+        ), f"expected train_time is 176.83 but got {train_time}."
 
         # Gemma
         train_time = _estimate_training_time(
@@ -263,7 +281,9 @@ class TestUtils:
             100,
             "gemma",
         )
-        assert train_time == 147.31, f"expected train_time is 147.31 but got {train_time}."
+        assert (
+            train_time == 147.31
+        ), f"expected train_time is 147.31 but got {train_time}."
 
         # Nemotron
         train_time = _estimate_training_time(
@@ -273,7 +293,9 @@ class TestUtils:
             55,
             "nemotron",
         )
-        assert train_time == 540.12, f"expected train_time is 540.12 but got {train_time}."
+        assert (
+            train_time == 540.12
+        ), f"expected train_time is 540.12 but got {train_time}."
 
         # Qwen
         train_time = _estimate_training_time(
@@ -284,7 +306,9 @@ class TestUtils:
             "qwen",
         )
 
-        assert train_time == 19.78, f"expected train_time is 19.78 but got {train_time}."
+        assert (
+            train_time == 19.78
+        ), f"expected train_time is 19.78 but got {train_time}."
 
         # Starcoder
         train_time = _estimate_training_time(
@@ -304,7 +328,9 @@ class TestUtils:
             1000,
             "bert",
         )
-        assert train_time == 14.24, f"expected train_time is 14.24 but got {train_time}."
+        assert (
+            train_time == 14.24
+        ), f"expected train_time is 14.24 but got {train_time}."
 
         # T5
         train_time = _estimate_training_time(
@@ -314,12 +340,16 @@ class TestUtils:
             346,
             "t5",
         )
-        assert train_time == 10.01, f"expected train_time is 10.01 but got {train_time}."
+        assert (
+            train_time == 10.01
+        ), f"expected train_time is 10.01 but got {train_time}."
 
     def test_modify_cfg(self):
         from nemo.collections import llm
 
-        base_cfg = partial(llm.bert_110m.pretrain_recipe, num_nodes=1, num_gpus_per_node=1)()
+        base_cfg = partial(
+            llm.bert_110m.pretrain_recipe, num_nodes=1, num_gpus_per_node=1
+        )()
         config = modify_cfg(
             base_cfg=base_cfg,
             act=None,
@@ -442,9 +472,7 @@ class TestUtils:
                     params.hs,
                     params.att_h,
                     params.lr,
-                ) == model_params, (
-                    f"expected model params are {model_params} but got {(params.hs, params.att_h, params.lr)}."
-                )
+                ) == model_params, f"expected model params are {model_params} but got {(params.hs, params.att_h, params.lr)}."
             except ValueError:
                 assert True
 
@@ -463,9 +491,7 @@ class TestUtils:
                     params.hs,
                     params.att_h,
                     params.lr,
-                ) == model_params, (
-                    f"expected model params are {model_params} but got {(params.hs, params.att_h, params.lr)}."
-                )
+                ) == model_params, f"expected model params are {model_params} but got {(params.hs, params.att_h, params.lr)}."
             except ValueError:
                 assert True
 
@@ -480,7 +506,13 @@ class TestUtils:
                 )
                 params.init_params()
 
-                gen_model_params = (params.hs, params.att_h, params.ffn, params.kv, params.lr)
+                gen_model_params = (
+                    params.hs,
+                    params.att_h,
+                    params.ffn,
+                    params.kv,
+                    params.lr,
+                )
                 assert (
                     gen_model_params == model_params
                 ), f"expected model params are {model_params} but got {gen_model_params}."

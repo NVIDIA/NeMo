@@ -56,7 +56,7 @@ def load_dcp(ckpt_dir, torch_tensor=True):
     state_dict = {
         k: torch.empty(tp.size, dtype=tp.properties.dtype)
         for k, tp in metadata.state_dict_metadata.items()
-        if type(tp).__name__ == 'TensorStorageMetadata'
+        if type(tp).__name__ == "TensorStorageMetadata"
     }
 
     dcp.load(
@@ -102,7 +102,7 @@ def main(args):
         global_batch_size=2,
         micro_batch_size=1,
         num_workers=1,
-        split='99,1,0',
+        split="99,1,0",
         tokenizer=tokenizer(args.vocab_path, args.merges_path),
     )
 
@@ -159,15 +159,24 @@ def main(args):
         data=data,
         trainer=trainer,
         log=nemo_logger,
-        tokenizer='data',
+        tokenizer="data",
         optim=opt,
     )
 
     # Confirm checkpoint directory structure
-    output_path = Path(args.experiment_dir) / "checkpoints/--None=0.0000-epoch=0-consumed_samples=8.0/weights"
+    output_path = (
+        Path(args.experiment_dir)
+        / "checkpoints/--None=0.0000-epoch=0-consumed_samples=8.0/weights"
+    )
     assert output_path.exists(), f"Expected {output_path} to exist"
     assert output_path.is_dir(), f"Expected {output_path} to be a directory"
-    output_files = ['__0_0.distcp', '__0_1.distcp', 'common.pt', 'metadata.json', '.metadata']
+    output_files = [
+        "__0_0.distcp",
+        "__0_1.distcp",
+        "common.pt",
+        "metadata.json",
+        ".metadata",
+    ]
     for file in output_files:
         path = output_path / file
         assert path.exists(), f"Expected {file} to exist"
@@ -180,16 +189,36 @@ def main(args):
 
     # Finally confirm checkpoint contents
     expected_ckpt = {
-        "module.embedding.word_embeddings.weight": (torch.Size([50304, 128]), torch.bfloat16, "cpu"),
-        "module.decoder.layers.self_attention.linear_proj.weight": (torch.Size([2, 128, 128]), torch.bfloat16, "cpu"),
+        "module.embedding.word_embeddings.weight": (
+            torch.Size([50304, 128]),
+            torch.bfloat16,
+            "cpu",
+        ),
+        "module.decoder.layers.self_attention.linear_proj.weight": (
+            torch.Size([2, 128, 128]),
+            torch.bfloat16,
+            "cpu",
+        ),
         "module.decoder.layers.self_attention.linear_qkv.layer_norm_weight": (
             torch.Size([2, 128]),
             torch.bfloat16,
             "cpu",
         ),
-        "module.decoder.layers.self_attention.linear_qkv.weight": (torch.Size([2, 384, 128]), torch.bfloat16, "cpu"),
-        "module.decoder.layers.pre_mlp_layernorm.weight": (torch.Size([2, 128]), torch.bfloat16, "cpu"),
-        "module.decoder.layers.mlp.router.weight": (torch.Size([2, 8, 128]), torch.bfloat16, "cpu"),
+        "module.decoder.layers.self_attention.linear_qkv.weight": (
+            torch.Size([2, 384, 128]),
+            torch.bfloat16,
+            "cpu",
+        ),
+        "module.decoder.layers.pre_mlp_layernorm.weight": (
+            torch.Size([2, 128]),
+            torch.bfloat16,
+            "cpu",
+        ),
+        "module.decoder.layers.mlp.router.weight": (
+            torch.Size([2, 8, 128]),
+            torch.bfloat16,
+            "cpu",
+        ),
         "module.decoder.layers.mlp.experts.experts.linear_fc1.weight": (
             torch.Size([2, 8, 640, 128]),
             torch.bfloat16,
@@ -200,14 +229,42 @@ def main(args):
             torch.bfloat16,
             "cpu",
         ),
-        "module.decoder.final_layernorm.weight": (torch.Size([128]), torch.bfloat16, "cpu"),
+        "module.decoder.final_layernorm.weight": (
+            torch.Size([128]),
+            torch.bfloat16,
+            "cpu",
+        ),
         "module.output_layer.weight": (torch.Size([50304, 128]), torch.bfloat16, "cpu"),
-        "optimizer.state.fp32_param.module.output_layer.weight": (torch.Size([1, 1, 6438912]), torch.float32, "cpu"),
-        "optimizer.state.exp_avg.module.output_layer.weight": (torch.Size([1, 1, 6438912]), torch.float32, "cpu"),
-        "optimizer.state.exp_avg_sq.module.output_layer.weight": (torch.Size([1, 1, 6438912]), torch.float32, "cpu"),
-        "optimizer.state.fp32_param.module.decoder.final_layernorm.weight": (torch.Size([128]), torch.float32, "cpu"),
-        "optimizer.state.exp_avg.module.decoder.final_layernorm.weight": (torch.Size([128]), torch.float32, "cpu"),
-        "optimizer.state.exp_avg_sq.module.decoder.final_layernorm.weight": (torch.Size([128]), torch.float32, "cpu"),
+        "optimizer.state.fp32_param.module.output_layer.weight": (
+            torch.Size([1, 1, 6438912]),
+            torch.float32,
+            "cpu",
+        ),
+        "optimizer.state.exp_avg.module.output_layer.weight": (
+            torch.Size([1, 1, 6438912]),
+            torch.float32,
+            "cpu",
+        ),
+        "optimizer.state.exp_avg_sq.module.output_layer.weight": (
+            torch.Size([1, 1, 6438912]),
+            torch.float32,
+            "cpu",
+        ),
+        "optimizer.state.fp32_param.module.decoder.final_layernorm.weight": (
+            torch.Size([128]),
+            torch.float32,
+            "cpu",
+        ),
+        "optimizer.state.exp_avg.module.decoder.final_layernorm.weight": (
+            torch.Size([128]),
+            torch.float32,
+            "cpu",
+        ),
+        "optimizer.state.exp_avg_sq.module.decoder.final_layernorm.weight": (
+            torch.Size([128]),
+            torch.float32,
+            "cpu",
+        ),
         "optimizer.state.fp32_param.module.decoder.layers.mlp.experts.experts.linear_fc2.weight": (
             torch.Size([2, 8, 1, 1, 40960]),
             torch.float32,
@@ -342,29 +399,53 @@ def main(args):
         assert key in ckpt, f"Expected {key} to be in ckpt"
         assert isinstance(ckpt[key], torch.Tensor), f"Expected {key} to be a tensor"
 
-        if len(shape) == 1 and key.startswith('optimizer.state'):
+        if len(shape) == 1 and key.startswith("optimizer.state"):
             assert ckpt[key].shape == (
                 1,
                 shape[0],
             ), f"Expected {key} shapes to match {ckpt[key].shape} & (1, {shape[0]})"
         else:
-            assert ckpt[key].shape == shape, f"Expected {key} shapes to match {ckpt[key].shape} & {shape}"
+            assert (
+                ckpt[key].shape == shape
+            ), f"Expected {key} shapes to match {ckpt[key].shape} & {shape}"
 
-        assert ckpt[key].dtype == dtype, f"Expected {key} dtype to match {ckpt[key].dtype} & {dtype}"
-        assert str(ckpt[key].device) == device, f"Expected {key} device to match {ckpt[key].device} & {device}"
+        assert (
+            ckpt[key].dtype == dtype
+        ), f"Expected {key} dtype to match {ckpt[key].dtype} & {dtype}"
+        assert (
+            str(ckpt[key].device) == device
+        ), f"Expected {key} device to match {ckpt[key].device} & {device}"
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description='Train a small Mixtral model using NeMo 2.0')
-    parser.add_argument('--devices', type=int, default=1, help="Number of devices to use for training")
-    parser.add_argument('--max-steps', type=int, default=4, help="Number of steps to train for")
-    parser.add_argument(
-        '--experiment-dir', type=str, default='/tmp/exp_dir', help="directory to write results and checkpoints to"
+    parser = argparse.ArgumentParser(
+        description="Train a small Mixtral model using NeMo 2.0"
     )
-    parser.add_argument('--experiment-name', type=str, default='mini_mixtral_test', help="name of experiment")
-    parser.add_argument('--data-path', type=str, help="Path to data file")
-    parser.add_argument('--vocab-path', type=str, default=None, help="Path to vocab file")
-    parser.add_argument('--merges-path', type=str, default=None, help="Path to merges file")
+    parser.add_argument(
+        "--devices", type=int, default=1, help="Number of devices to use for training"
+    )
+    parser.add_argument(
+        "--max-steps", type=int, default=4, help="Number of steps to train for"
+    )
+    parser.add_argument(
+        "--experiment-dir",
+        type=str,
+        default="/tmp/exp_dir",
+        help="directory to write results and checkpoints to",
+    )
+    parser.add_argument(
+        "--experiment-name",
+        type=str,
+        default="mini_mixtral_test",
+        help="name of experiment",
+    )
+    parser.add_argument("--data-path", type=str, help="Path to data file")
+    parser.add_argument(
+        "--vocab-path", type=str, default=None, help="Path to vocab file"
+    )
+    parser.add_argument(
+        "--merges-path", type=str, default=None, help="Path to merges file"
+    )
 
     return parser.parse_args()
 

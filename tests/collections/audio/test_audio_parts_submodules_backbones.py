@@ -25,32 +25,60 @@ from nemo.collections.audio.parts.submodules.transformerunet import (
     SpectrogramTransformerUNet, TransformerUNet)
 
 
-@pytest.fixture(params=[True, False], ids=["conditioned_on_time", "not_conditioned_on_time"])
+@pytest.fixture(
+    params=[True, False], ids=["conditioned_on_time", "not_conditioned_on_time"]
+)
 def ncsnpp(request):
     return NoiseConditionalScoreNetworkPlusPlus(
-        in_channels=2, out_channels=1, num_resolutions=2, channels=(16, 16, 16), conditioned_on_time=request.param
+        in_channels=2,
+        out_channels=1,
+        num_resolutions=2,
+        channels=(16, 16, 16),
+        conditioned_on_time=request.param,
     )
 
 
-@pytest.fixture(params=[True, False], ids=["conditioned_on_time", "not_conditioned_on_time"])
+@pytest.fixture(
+    params=[True, False], ids=["conditioned_on_time", "not_conditioned_on_time"]
+)
 def transformerunet(request):
     dim = 16
     return TransformerUNet(
-        dim=dim, depth=2, heads=4, ff_mult=2, adaptive_rmsnorm=request.param, adaptive_rmsnorm_cond_dim_in=dim
+        dim=dim,
+        depth=2,
+        heads=4,
+        ff_mult=2,
+        adaptive_rmsnorm=request.param,
+        adaptive_rmsnorm_cond_dim_in=dim,
     )
 
 
-@pytest.fixture(params=[True, False], ids=["conditioned_on_time", "not_conditioned_on_time"])
+@pytest.fixture(
+    params=[True, False], ids=["conditioned_on_time", "not_conditioned_on_time"]
+)
 def spectrogram_ncsnpp(request):
     return SpectrogramNoiseConditionalScoreNetworkPlusPlus(
-        in_channels=2, out_channels=1, num_resolutions=2, channels=(16, 16, 16), conditioned_on_time=request.param
+        in_channels=2,
+        out_channels=1,
+        num_resolutions=2,
+        channels=(16, 16, 16),
+        conditioned_on_time=request.param,
     )
 
 
-@pytest.fixture(params=[True, False], ids=["conditioned_on_time", "not_conditioned_on_time"])
+@pytest.fixture(
+    params=[True, False], ids=["conditioned_on_time", "not_conditioned_on_time"]
+)
 def spectrogram_transformerunet(request):
     return SpectrogramTransformerUNet(
-        in_channels=2, out_channels=1, freq_dim=16, dim=16, depth=2, heads=4, ff_mult=2, adaptive_rmsnorm=request.param
+        in_channels=2,
+        out_channels=1,
+        freq_dim=16,
+        dim=16,
+        depth=2,
+        heads=4,
+        ff_mult=2,
+        adaptive_rmsnorm=request.param,
     )
 
 
@@ -100,7 +128,9 @@ def test_ncsnpp_forward(ncsnpp, mock_input_4d):
     batch_size, _, input_dim, time_steps = input_.shape
 
     output, output_length = ncsnpp(
-        input=input_, input_length=input_length, condition=condition if ncsnpp.conditioned_on_time else None
+        input=input_,
+        input_length=input_length,
+        condition=condition if ncsnpp.conditioned_on_time else None,
     )
     assert output.shape[0] == batch_size
     assert output.shape[1] == ncsnpp.out_channels
@@ -116,7 +146,9 @@ def test_transformerunet_forward(transformerunet, mock_input_3d):
     batch_size, *_ = input_.shape
 
     if transformerunet.adaptive_rmsnorm:
-        adaptive_rmsnorm_cond = torch.ones((batch_size, transformerunet.adaptive_rmsnorm_cond_dim_in)).float()
+        adaptive_rmsnorm_cond = torch.ones(
+            (batch_size, transformerunet.adaptive_rmsnorm_cond_dim_in)
+        ).float()
     else:
         adaptive_rmsnorm_cond = None
 
@@ -142,7 +174,9 @@ def test_spectrogram_ncsnpp_forward(spectrogram_ncsnpp, mock_input_4d):
     assert torch.all(output_length == input_length)
 
 
-def test_spectrogram_transformerunet_forward(spectrogram_transformerunet, mock_input_4d):
+def test_spectrogram_transformerunet_forward(
+    spectrogram_transformerunet, mock_input_4d
+):
     input_, input_length, condition = mock_input_4d
     input_ = torch.view_as_complex(torch.stack([input_, input_], dim=-1)).contiguous()
 
@@ -151,7 +185,9 @@ def test_spectrogram_transformerunet_forward(spectrogram_transformerunet, mock_i
     output, output_length = spectrogram_transformerunet(
         input=input_,
         input_length=input_length,
-        condition=condition if hasattr(spectrogram_transformerunet, 'sinu_pos_emb') else None,
+        condition=(
+            condition if hasattr(spectrogram_transformerunet, "sinu_pos_emb") else None
+        ),
     )
     assert output.shape[0] == batch_size
     assert output.shape[1] == spectrogram_transformerunet.out_channels
@@ -166,7 +202,9 @@ def test_spectrogram_conformer_forward(spectrogram_conformer, mock_input_4d):
 
     batch_size, _, input_dim, time_steps = input_.shape
 
-    output, output_length = spectrogram_conformer(input=input_, input_length=input_length)
+    output, output_length = spectrogram_conformer(
+        input=input_, input_length=input_length
+    )
     assert output.shape[0] == batch_size
     assert output.shape[1] == spectrogram_conformer.out_channels
     assert output.shape[2] == input_dim

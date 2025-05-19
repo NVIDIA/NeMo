@@ -54,7 +54,9 @@ class BertEmbeddingHead(nn.Module):
     def forward(self, token_embeddings: Tensor, attention_mask: Tensor):
         # pylint: disable=C0116
         token_embeddings = token_embeddings.permute(1, 0, 2)
-        input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
+        input_mask_expanded = (
+            attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
+        )
         sum_embeddings = torch.sum(token_embeddings * input_mask_expanded, 1)
 
         sum_mask = input_mask_expanded.sum(1)
@@ -125,7 +127,8 @@ class NeMoBertEmbeddingModel(NeMoBertModel):
 
     def __init__(self, *args, **kwargs):
         warnings.warn(
-            "NeMoBertModel will be deprecated mid 2024. Use MCoreBertEmbeddingModel instead.", DeprecationWarning
+            "NeMoBertModel will be deprecated mid 2024. Use MCoreBertEmbeddingModel instead.",
+            DeprecationWarning,
         )
         super().__init__(*args, **kwargs)
         self.embedding_head = BertEmbeddingHead(
@@ -143,7 +146,11 @@ class NeMoBertEmbeddingModel(NeMoBertModel):
     ):
 
         lm_output = super(NeMoBertEmbeddingModel, self).forward(
-            bert_model_input, attention_mask, token_type_ids, lm_labels, checkpoint_activations_all_layers
+            bert_model_input,
+            attention_mask,
+            token_type_ids,
+            lm_labels,
+            checkpoint_activations_all_layers,
         )
         embeddings_out = self.embedding_head(lm_output[0], attention_mask)
         return embeddings_out

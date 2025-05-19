@@ -39,17 +39,20 @@ class Text2SparqlModel(ModelPT):
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
         return {
-            "input_ids": NeuralType(('B', 'T'), ChannelType()),
-            "attention_mask": NeuralType(('B', 'T'), MaskType(), optional=True),
-            "decoder_input_ids": NeuralType(('B', 'T'), ChannelType(), optional=True),
-            "labels": NeuralType(('B', 'T'), ChannelType(), optional=True),
+            "input_ids": NeuralType(("B", "T"), ChannelType()),
+            "attention_mask": NeuralType(("B", "T"), MaskType(), optional=True),
+            "decoder_input_ids": NeuralType(("B", "T"), ChannelType(), optional=True),
+            "labels": NeuralType(("B", "T"), ChannelType(), optional=True),
         }
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
 
         # must assign tokenizers before init
         if cfg.language_model.pretrained_model_name:
-            if cfg.language_model.pretrained_encoder_model_name or cfg.language_model.pretrained_decoder_model_name:
+            if (
+                cfg.language_model.pretrained_encoder_model_name
+                or cfg.language_model.pretrained_decoder_model_name
+            ):
                 raise ValueError(
                     "Must have either pretrained_model_name or both pretrained_encoder_model name and "
                     "pretrained_decoder_model_name."
@@ -63,7 +66,8 @@ class Text2SparqlModel(ModelPT):
             self.decoder_add_special_tokens = self.encoder_add_special_tokens
         else:
             if not (
-                cfg.language_model.pretrained_encoder_model_name and cfg.language_model.pretrained_decoder_model_name
+                cfg.language_model.pretrained_encoder_model_name
+                and cfg.language_model.pretrained_decoder_model_name
             ):
                 raise ValueError("Both encoder and decoder must be specified")
 
@@ -86,12 +90,17 @@ class Text2SparqlModel(ModelPT):
         if cfg.language_model.pretrained_model_name:
             # Setup end-to-end model
             if "bart" in cfg.language_model.pretrained_model_name:
-                self.model = BartForConditionalGeneration.from_pretrained(cfg.language_model.pretrained_model_name)
+                self.model = BartForConditionalGeneration.from_pretrained(
+                    cfg.language_model.pretrained_model_name
+                )
             else:
-                self.model = AutoModel.from_pretrained(cfg.language_model.pretrained_model_name)
+                self.model = AutoModel.from_pretrained(
+                    cfg.language_model.pretrained_model_name
+                )
         else:
             if not (
-                cfg.language_model.pretrained_encoder_model_name and cfg.language_model.pretrained_decoder_model_name
+                cfg.language_model.pretrained_encoder_model_name
+                and cfg.language_model.pretrained_decoder_model_name
             ):
                 raise ValueError("Both encoder and decoder must be specified")
 
@@ -152,7 +161,10 @@ class Text2SparqlModel(ModelPT):
             labels=labels,
         )[0]
 
-        tensorboard_logs = {"train_loss": loss, "lr": self._optimizer.param_groups[0]["lr"]}
+        tensorboard_logs = {
+            "train_loss": loss,
+            "lr": self._optimizer.param_groups[0]["lr"],
+        }
 
         return {"loss": loss, "log": tensorboard_logs}
 
@@ -197,7 +209,11 @@ class Text2SparqlModel(ModelPT):
     @typecheck.disable_checks()
     def on_test_epoch_end(self, outputs: List[torch.Tensor]) -> Dict[str, List[str]]:
         """Called at the end of test to aggregate outputs and decode them."""
-        texts = [self.encoder_tokenizer.ids_to_text(seq) for batch in outputs for seq in batch]
+        texts = [
+            self.encoder_tokenizer.ids_to_text(seq)
+            for batch in outputs
+            for seq in batch
+        ]
         self.test_output = [{"texts": texts}]
         return {"texts": texts}
 
@@ -205,7 +221,11 @@ class Text2SparqlModel(ModelPT):
         tokenizer = get_tokenizer(
             tokenizer_name=cfg.tokenizer_name,
             tokenizer_model=cfg.tokenizer_model,
-            special_tokens=OmegaConf.to_container(cfg.special_tokens) if cfg.special_tokens else None,
+            special_tokens=(
+                OmegaConf.to_container(cfg.special_tokens)
+                if cfg.special_tokens
+                else None
+            ),
             vocab_file=cfg.vocab_file,
         )
         return tokenizer

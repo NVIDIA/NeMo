@@ -78,24 +78,34 @@ class FastPitchModel_SSL(ModelPT):
         duration_predictor = None
         self.use_duration_predictor = cfg.get("use_duration_predictor", False)
         if self.use_duration_predictor:
-            assert self.encoder is not None, "use_encoder must be True if use_duration_predictor is True"
+            assert (
+                self.encoder is not None
+            ), "use_encoder must be True if use_duration_predictor is True"
             # this means we are using unique tokens
             duration_predictor = instantiate(self._cfg.duration_predictor)
 
-        self.pitch_conditioning = pitch_conditioning = cfg.get("pitch_conditioning", True)
+        self.pitch_conditioning = pitch_conditioning = cfg.get(
+            "pitch_conditioning", True
+        )
         if pitch_conditioning:
             pitch_predictor = instantiate(self._cfg.pitch_predictor)
         else:
             pitch_predictor = None
 
-        self.content_projection_layer = torch.nn.Linear(self._cfg.content_emb_indim, self._cfg.content_emb_outdim)
-        self.speaker_projection_layer = torch.nn.Linear(self._cfg.speaker_emb_indim, self._cfg.speaker_emb_outdim)
+        self.content_projection_layer = torch.nn.Linear(
+            self._cfg.content_emb_indim, self._cfg.content_emb_outdim
+        )
+        self.speaker_projection_layer = torch.nn.Linear(
+            self._cfg.speaker_emb_indim, self._cfg.speaker_emb_outdim
+        )
 
         self.num_datasets = cfg.get("n_datasets", 1)
         if self.num_datasets > 1:
             # Data ID conditioning if num_datasets > 1. During inference, can set data_id to be that of the cleaner dataset.
             # Maybe useful if we have clean and noisy datasets
-            self.dataset_embedding_layer = torch.nn.Embedding(self.num_datasets, self._cfg.symbols_embedding_dim)
+            self.dataset_embedding_layer = torch.nn.Embedding(
+                self.num_datasets, self._cfg.symbols_embedding_dim
+            )
 
         self.fastpitch = FastPitchSSLModule(
             input_fft,
@@ -108,17 +118,24 @@ class FastPitchModel_SSL(ModelPT):
         )
 
         self.non_trainable_models = {}
-        self.non_trainable_models['vocoder'] = vocoder
+        self.non_trainable_models["vocoder"] = vocoder
 
     def vocode_spectrogram(self, spectrogram):
         # spectrogram [C, T] numpy
-        if self.non_trainable_models['vocoder'] is None:
-            logging.error("Vocoder is none, should be instantiated as a HiFiGAN vocoder")
+        if self.non_trainable_models["vocoder"] is None:
+            logging.error(
+                "Vocoder is none, should be instantiated as a HiFiGAN vocoder"
+            )
 
         with torch.no_grad():
-            vocoder_device = self.non_trainable_models['vocoder'].device
-            _spec = torch.from_numpy(spectrogram).unsqueeze(0).to(torch.float32).to(vocoder_device)
-            wav_generated = self.non_trainable_models['vocoder'].generator(x=_spec)[0]
+            vocoder_device = self.non_trainable_models["vocoder"].device
+            _spec = (
+                torch.from_numpy(spectrogram)
+                .unsqueeze(0)
+                .to(torch.float32)
+                .to(vocoder_device)
+            )
+            wav_generated = self.non_trainable_models["vocoder"].generator(x=_spec)[0]
             return wav_generated.cpu().numpy()
 
     @property
@@ -158,19 +175,25 @@ class FastPitchModel_SSL(ModelPT):
         # pitch_contour is (B, T)
         content_embedding = content_embedding.permute(0, 2, 1)  # (B, C, T) -> (B, T, C)
         content_embedding_projected = self.content_projection_layer(content_embedding)
-        content_embedding_projected = content_embedding_projected.permute(0, 2, 1)  # (B, T, C) -> (B, C, T)
+        content_embedding_projected = content_embedding_projected.permute(
+            0, 2, 1
+        )  # (B, T, C) -> (B, C, T)
         speaker_embedding_projected = self.speaker_projection_layer(speaker_embedding)
         speaker_embedding_repeated = speaker_embedding_projected[:, :, None].repeat(
             1, 1, content_embedding_projected.shape[2]
         )
 
-        encoded = torch.cat([content_embedding_projected, speaker_embedding_repeated], dim=1)
+        encoded = torch.cat(
+            [content_embedding_projected, speaker_embedding_repeated], dim=1
+        )
 
         encoded = encoded.permute(0, 2, 1)  # (B, C, T) -> (B, T, C)
 
         if self.num_datasets > 1:
             dataset_embedding = self.dataset_embedding_layer(dataset_id)  # (B, C)
-            dataset_embedding_repeated = dataset_embedding[:, None, :].repeat(1, encoded.shape[1], 1)
+            dataset_embedding_repeated = dataset_embedding[:, None, :].repeat(
+                1, encoded.shape[1], 1
+            )
             encoded = encoded + dataset_embedding_repeated
 
         return encoded
@@ -184,7 +207,9 @@ class FastPitchModel_SSL(ModelPT):
         dataset_id = batch["dataset_id"]
         durs = batch["duration"]
 
-        enc_out = self.compute_encoding(content_embedding, speaker_embedding, dataset_id)
+        enc_out = self.compute_encoding(
+            content_embedding, speaker_embedding, dataset_id
+        )
         if self.use_encoder:
             enc_out, _ = self.encoder(input=enc_out, seq_lens=encoded_len)
 
@@ -203,12 +228,16 @@ class FastPitchModel_SSL(ModelPT):
         mel_loss = self.mel_loss(spect_predicted=mels_pred, spect_tgt=mels)
         loss += mel_loss
         if self.use_duration_predictor:
-            dur_loss = self.duration_loss(log_durs_predicted=log_durs_pred, durs_tgt=durs, len=encoded_len)
+            dur_loss = self.duration_loss(
+                log_durs_predicted=log_durs_pred, durs_tgt=durs, len=encoded_len
+            )
             self.log("t_dur_loss", dur_loss)
             loss += dur_loss
 
         if self.pitch_conditioning:
-            pitch_loss = self.pitch_loss(pitch_predicted=pitch_pred, pitch_tgt=pitch, len=encoded_len)
+            pitch_loss = self.pitch_loss(
+                pitch_predicted=pitch_pred, pitch_tgt=pitch, len=encoded_len
+            )
             loss += pitch_loss
             self.log("t_pitch_loss", pitch_loss)
 
@@ -245,7 +274,9 @@ class FastPitchModel_SSL(ModelPT):
         dataset_id = batch["dataset_id"]
         durs = batch["duration"]
 
-        enc_out = self.compute_encoding(content_embedding, speaker_embedding, dataset_id)
+        enc_out = self.compute_encoding(
+            content_embedding, speaker_embedding, dataset_id
+        )
         if self.use_encoder:
             enc_out, _ = self.encoder(input=enc_out, seq_lens=encoded_len)
 
@@ -269,11 +300,15 @@ class FastPitchModel_SSL(ModelPT):
         }
 
         if self.use_duration_predictor:
-            dur_loss = self.duration_loss(log_durs_predicted=log_durs_pred, durs_tgt=durs, len=encoded_len)
+            dur_loss = self.duration_loss(
+                log_durs_predicted=log_durs_pred, durs_tgt=durs, len=encoded_len
+            )
             val_out["dur_loss"] = dur_loss
 
         if self.pitch_conditioning:
-            pitch_loss = self.pitch_loss(pitch_predicted=pitch_pred, pitch_tgt=pitch, len=encoded_len)
+            pitch_loss = self.pitch_loss(
+                pitch_predicted=pitch_pred, pitch_tgt=pitch, len=encoded_len
+            )
             val_out["pitch_loss"] = pitch_loss
             val_out["val_loss"] = mel_loss + pitch_loss
 
@@ -292,17 +327,19 @@ class FastPitchModel_SSL(ModelPT):
             self.log("v_pitch_loss", pitch_loss)
 
         single_output = outputs[0]
-        spec_target = single_output['mel_target']
-        spec_predict = single_output['mel_pred']
-        spec_len = single_output['spec_len']
-        pitch_target = single_output['pitch_target']
-        pitch_pred = single_output['pitch_pred']
+        spec_target = single_output["mel_target"]
+        spec_predict = single_output["mel_pred"]
+        spec_len = single_output["spec_len"]
+        pitch_target = single_output["pitch_target"]
+        pitch_pred = single_output["pitch_pred"]
 
         if isinstance(self.logger, TensorBoardLogger):
             _rand_idx = random.randint(0, spec_target.shape[0] - 1)
             self.tb_logger.add_image(
                 "val_mel_target",
-                plot_spectrogram_to_numpy(spec_target[_rand_idx].data.cpu().float().numpy()),
+                plot_spectrogram_to_numpy(
+                    spec_target[_rand_idx].data.cpu().float().numpy()
+                ),
                 self.global_step,
                 dataformats="HWC",
             )
@@ -326,11 +363,17 @@ class FastPitchModel_SSL(ModelPT):
                 )
 
             _spec_len = spec_len[_rand_idx].data.cpu().item()
-            wav_vocoded = self.vocode_spectrogram(spec_target[_rand_idx].data.cpu().float().numpy()[:, :_spec_len])
-            self.tb_logger.add_audio("Real audio", wav_vocoded[0], self.global_step, 22050)
+            wav_vocoded = self.vocode_spectrogram(
+                spec_target[_rand_idx].data.cpu().float().numpy()[:, :_spec_len]
+            )
+            self.tb_logger.add_audio(
+                "Real audio", wav_vocoded[0], self.global_step, 22050
+            )
 
             wav_vocoded = self.vocode_spectrogram(spec_predict[:, :_spec_len])
-            self.tb_logger.add_audio("Generated Audio", wav_vocoded[0], self.global_step, 22050)
+            self.tb_logger.add_audio(
+                "Generated Audio", wav_vocoded[0], self.global_step, 22050
+            )
             self.log_train_images = True
 
     def generate_wav(
@@ -362,7 +405,9 @@ class FastPitchModel_SSL(ModelPT):
             encoded_len = (torch.ones(_bs) * _n_time).long().to(self.device)
 
         dataset_id = (torch.ones(_bs) * dataset_id).long().to(self.device)
-        enc_out = self.compute_encoding(content_embedding, speaker_embedding, dataset_id=dataset_id)
+        enc_out = self.compute_encoding(
+            content_embedding, speaker_embedding, dataset_id=dataset_id
+        )
         if self.use_encoder:
             enc_out, _ = self.encoder(input=enc_out, seq_lens=encoded_len)
 
@@ -373,7 +418,9 @@ class FastPitchModel_SSL(ModelPT):
         elif durs_gt is not None:
             durs = durs_gt
         else:
-            ssl_downsampling_factor = self._cfg.get("ssl_downsampling_factor", 4)  # backward compatibility
+            ssl_downsampling_factor = self._cfg.get(
+                "ssl_downsampling_factor", 4
+            )  # backward compatibility
             durs = torch.ones_like(enc_mask) * ssl_downsampling_factor
 
         enc_mask = enc_mask[:, :, None]
@@ -388,7 +435,9 @@ class FastPitchModel_SSL(ModelPT):
         else:
             pitch = None
 
-        mels_pred, *_ = self(enc_out=enc_out, enc_mask=enc_mask, durs=durs, pitch=pitch, pace=1.0)
+        mels_pred, *_ = self(
+            enc_out=enc_out, enc_mask=enc_mask, durs=durs, pitch=pitch, pace=1.0
+        )
 
         wavs = []
         for idx in range(_bs):
@@ -401,7 +450,9 @@ class FastPitchModel_SSL(ModelPT):
     def __setup_dataloader_from_config(self, cfg):
         dataset = instantiate(cfg.dataset)
 
-        return torch.utils.data.DataLoader(dataset, collate_fn=dataset.pad_collate_fn, **cfg.dataloader_params)
+        return torch.utils.data.DataLoader(
+            dataset, collate_fn=dataset.pad_collate_fn, **cfg.dataloader_params
+        )
 
     def setup_training_data(self, cfg):
         self._train_dl = self.__setup_dataloader_from_config(cfg)
@@ -414,5 +465,5 @@ class FastPitchModel_SSL(ModelPT):
         pass
 
     @classmethod
-    def list_available_models(cls) -> 'List[PretrainedModelInfo]':
+    def list_available_models(cls) -> "List[PretrainedModelInfo]":
         return []

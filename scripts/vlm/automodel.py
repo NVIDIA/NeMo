@@ -34,17 +34,17 @@ from nemo.collections.vlm.hf.data.automodel_datasets import (
 
 
 def make_strategy(strategy, model, devices, num_nodes, adapter_only=False):
-    if strategy == 'auto':
+    if strategy == "auto":
         return pl.strategies.SingleDeviceStrategy(
-            device='cuda:0',
+            device="cuda:0",
             checkpoint_io=model.make_checkpoint_io(adapter_only=adapter_only),
         )
-    elif strategy == 'ddp':
+    elif strategy == "ddp":
         return pl.strategies.DDPStrategy(
             checkpoint_io=model.make_checkpoint_io(adapter_only=adapter_only),
             find_unused_parameters=True,
         )
-    elif strategy == 'fsdp2':
+    elif strategy == "fsdp2":
         return nl.FSDP2Strategy(
             data_parallel_size=devices * num_nodes,
             tensor_parallel_size=1,
@@ -54,34 +54,54 @@ def make_strategy(strategy, model, devices, num_nodes, adapter_only=False):
         raise NotImplementedError("Encountered unknown strategy")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--name', default='gemma3_automodel')
-    parser.add_argument('--model', type=str, default="google/gemma-3-4b-it")
-    parser.add_argument('--strategy', type=str, default='auto', choices=['auto', 'ddp', 'fsdp2'])
-    parser.add_argument('--devices', default=1, type=int)
-    parser.add_argument('--num-nodes', default=1, type=int)
-    parser.add_argument('--mbs', default=1, type=int)
-    parser.add_argument('--gbs', default=4, type=int)
+    parser.add_argument("--name", default="gemma3_automodel")
+    parser.add_argument("--model", type=str, default="google/gemma-3-4b-it")
     parser.add_argument(
-        "--log_dir", type=str, required=False, default="/results", help="Directory for logging and checkpoints"
+        "--strategy", type=str, default="auto", choices=["auto", "ddp", "fsdp2"]
     )
-    parser.add_argument('--accelerator', default='gpu', choices=['gpu'])
-    parser.add_argument('--max-steps', type=int, default=1000)
-    parser.add_argument('--wandb-project', type=str, default=None)
-    parser.add_argument('--disable-ckpt', action='store_false')
-    parser.add_argument('--use-4bit', help="Load model in 4bit", action="store_true")
+    parser.add_argument("--devices", default=1, type=int)
+    parser.add_argument("--num-nodes", default=1, type=int)
+    parser.add_argument("--mbs", default=1, type=int)
+    parser.add_argument("--gbs", default=4, type=int)
+    parser.add_argument(
+        "--log_dir",
+        type=str,
+        required=False,
+        default="/results",
+        help="Directory for logging and checkpoints",
+    )
+    parser.add_argument("--accelerator", default="gpu", choices=["gpu"])
+    parser.add_argument("--max-steps", type=int, default=1000)
+    parser.add_argument("--wandb-project", type=str, default=None)
+    parser.add_argument("--disable-ckpt", action="store_false")
+    parser.add_argument("--use-4bit", help="Load model in 4bit", action="store_true")
     parser.add_argument(
         "--data_path",
         type=str,
         default="quintend/rdr-items",
         help="Path to the dataset. Can be a local path or a HF dataset name",
     )
-    parser.add_argument("--peft", type=str, default="none", choices=["lora", "none"], help="Which peft to use")
-    parser.add_argument("--freeze-vision-model", action="store_true", help="Freeze the vision model parameters")
-    parser.add_argument("--freeze-language-model", action="store_true", help="Freeze the language model parameters")
+    parser.add_argument(
+        "--peft",
+        type=str,
+        default="none",
+        choices=["lora", "none"],
+        help="Which peft to use",
+    )
+    parser.add_argument(
+        "--freeze-vision-model",
+        action="store_true",
+        help="Freeze the vision model parameters",
+    )
+    parser.add_argument(
+        "--freeze-language-model",
+        action="store_true",
+        help="Freeze the language model parameters",
+    )
     args = parser.parse_args()
 
     dataset_fn = None
@@ -110,7 +130,9 @@ if __name__ == '__main__':
     # Currently freezing language model is not supported as it gives error related to no grad
     # TODO: Fix this
     if args.freeze_language_model:
-        raise ValueError("Freezing language model is not supported for current version of VLM automodel")
+        raise ValueError(
+            "Freezing language model is not supported for current version of VLM automodel"
+        )
 
     model = vlm.HFAutoModelForImageTextToText(
         args.model,
@@ -122,16 +144,20 @@ if __name__ == '__main__':
     )
 
     peft = None
-    if args.peft == 'lora':
+    if args.peft == "lora":
         peft = llm.peft.LoRA(
-            target_modules=['*_proj'],
+            target_modules=["*_proj"],
             dim=16,
             lora_dtype=torch.bfloat16 if args.use_4bit else None,
         )
     nemo_logger = nl.NeMoLogger(
         log_dir=args.log_dir,
         name=args.name,
-        wandb=WandbLogger(project=args.wandb_project, name=args.name) if args.wandb_project is not None else None,
+        wandb=(
+            WandbLogger(project=args.wandb_project, name=args.name)
+            if args.wandb_project is not None
+            else None
+        ),
     )
 
     llm.finetune(
@@ -141,7 +167,9 @@ if __name__ == '__main__':
             devices=args.devices,
             max_steps=args.max_steps,
             accelerator=args.accelerator,
-            strategy=make_strategy(args.strategy, model, args.devices, args.num_nodes, adapter_only=False),
+            strategy=make_strategy(
+                args.strategy, model, args.devices, args.num_nodes, adapter_only=False
+            ),
             log_every_n_steps=1,
             limit_val_batches=0.0,
             num_sanity_val_steps=0,
@@ -149,7 +177,7 @@ if __name__ == '__main__':
             gradient_clip_val=1,
             use_distributed_sampler=False,
             enable_checkpointing=args.disable_ckpt,
-            precision='bf16-mixed',
+            precision="bf16-mixed",
             num_nodes=args.num_nodes,
         ),
         # llm.adam.pytorch_adam_with_flat_lr is returns a fiddle

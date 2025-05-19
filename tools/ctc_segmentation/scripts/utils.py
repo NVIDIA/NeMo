@@ -68,16 +68,22 @@ def get_segments(
             text = [t.strip() for t in text if t.strip()]
 
         # add corresponding original text without pre-processing
-        transcript_file_no_preprocessing = transcript_file.replace(".txt", "_with_punct.txt")
+        transcript_file_no_preprocessing = transcript_file.replace(
+            ".txt", "_with_punct.txt"
+        )
         if not os.path.exists(transcript_file_no_preprocessing):
             raise ValueError(f"{transcript_file_no_preprocessing} not found.")
 
         with open(transcript_file_no_preprocessing, "r") as f:
             text_no_preprocessing = f.readlines()
-            text_no_preprocessing = [t.strip() for t in text_no_preprocessing if t.strip()]
+            text_no_preprocessing = [
+                t.strip() for t in text_no_preprocessing if t.strip()
+            ]
 
         # add corresponding normalized original text
-        transcript_file_normalized = transcript_file.replace(".txt", "_with_punct_normalized.txt")
+        transcript_file_normalized = transcript_file.replace(
+            ".txt", "_with_punct_normalized.txt"
+        )
         if not os.path.exists(transcript_file_normalized):
             raise ValueError(f"{transcript_file_normalized} not found.")
 
@@ -86,10 +92,14 @@ def get_segments(
             text_normalized = [t.strip() for t in text_normalized if t.strip()]
 
         if len(text_no_preprocessing) != len(text):
-            raise ValueError(f"{transcript_file} and {transcript_file_no_preprocessing} do not match")
+            raise ValueError(
+                f"{transcript_file} and {transcript_file_no_preprocessing} do not match"
+            )
 
         if len(text_normalized) != len(text):
-            raise ValueError(f"{transcript_file} and {transcript_file_normalized} do not match")
+            raise ValueError(
+                f"{transcript_file} and {transcript_file_normalized} do not match"
+            )
 
         config = cs.CtcSegmentationParameters()
         config.char_list = vocabulary
@@ -97,7 +107,9 @@ def get_segments(
         config.index_duration = index_duration
 
         if bpe_model:
-            ground_truth_mat, utt_begin_indices = _prepare_tokenized_text_for_bpe_model(text, tokenizer, vocabulary, 0)
+            ground_truth_mat, utt_begin_indices = _prepare_tokenized_text_for_bpe_model(
+                text, tokenizer, vocabulary, 0
+            )
         else:
             config.excluded_characters = ".,-?!:»«;'›‹()"
             config.blank = vocabulary.index(" ")
@@ -113,11 +125,22 @@ def get_segments(
             f"Text length {os.path.basename(transcript_file)}: {len(ground_truth_mat)}"
         )
 
-        timings, char_probs, char_list = cs.ctc_segmentation(config, log_probs, ground_truth_mat)
+        timings, char_probs, char_list = cs.ctc_segmentation(
+            config, log_probs, ground_truth_mat
+        )
         _print(ground_truth_mat, vocabulary)
-        segments = determine_utterance_segments(config, utt_begin_indices, char_probs, timings, text, char_list)
+        segments = determine_utterance_segments(
+            config, utt_begin_indices, char_probs, timings, text, char_list
+        )
 
-        write_output(output_file, path_wav, segments, text, text_no_preprocessing, text_normalized)
+        write_output(
+            output_file,
+            path_wav,
+            segments,
+            text,
+            text_no_preprocessing,
+            text_normalized,
+        )
 
         # Also writes labels in audacity format
         output_file_audacity = output_file[:-4] + "_audacity.txt"
@@ -126,15 +149,19 @@ def get_segments(
 
         for i, (word, segment) in enumerate(zip(text, segments)):
             if i < 5:
-                logging.debug(f"{segment[0]:.2f} {segment[1]:.2f} {segment[2]:3.4f} {word}")
+                logging.debug(
+                    f"{segment[0]:.2f} {segment[1]:.2f} {segment[2]:3.4f} {word}"
+                )
         logging.info(f"segmentation of {transcript_file} complete.")
 
     except Exception as e:
         logging.info(f"{e} -- segmentation of {transcript_file} failed")
 
 
-def _prepare_tokenized_text_for_bpe_model(text: List[str], tokenizer, vocabulary: List[str], blank_idx: int = 0):
-    """ Creates a transition matrix for BPE-based models"""
+def _prepare_tokenized_text_for_bpe_model(
+    text: List[str], tokenizer, vocabulary: List[str], blank_idx: int = 0
+):
+    """Creates a transition matrix for BPE-based models"""
     space_idx = vocabulary.index("▁")
     ground_truth_mat = [[-1, -1]]
     utt_begin_indices = []
@@ -211,7 +238,9 @@ def _compute_time(index, align_type, timings):
         return min(timings[index - 1] + 0.5, middle)
 
 
-def determine_utterance_segments(config, utt_begin_indices, char_probs, timings, text, char_list):
+def determine_utterance_segments(
+    config, utt_begin_indices, char_probs, timings, text, char_list
+):
     """Utterance-wise alignments from char-wise alignments.
     Adapted from https://github.com/lumaku/ctc-segmentation
 
@@ -237,7 +266,10 @@ def determine_utterance_segments(config, utt_begin_indices, char_probs, timings,
         if char_list[start_t_floor] == config.char_list[config.blank]:
             start_blank = None
             j = start_t_floor - 1
-            while char_list[j] == config.char_list[config.blank] and j > start_t_floor - 20:
+            while (
+                char_list[j] == config.char_list[config.blank]
+                and j > start_t_floor - 20
+            ):
                 start_blank = j
                 j -= 1
             if start_blank:
@@ -302,7 +334,9 @@ def write_output(
 
 
 def write_labels_for_audacity(
-    out_path: str, segments: List[Tuple[float]], text_no_preprocessing: str,
+    out_path: str,
+    segments: List[Tuple[float]],
+    text_no_preprocessing: str,
 ):
     """
     Write the segmentation output to a file ready to be imported in Audacity with the unprocessed text as labels
@@ -321,7 +355,11 @@ def write_labels_for_audacity(
             if isinstance(segment, list):
                 for j, x in enumerate(segment):
                     start, end, _ = x
-                    outfile.write(f"{start}{TAB_CHAR}{end}{TAB_CHAR}{text_no_preprocessing[i][j]} \n")
+                    outfile.write(
+                        f"{start}{TAB_CHAR}{end}{TAB_CHAR}{text_no_preprocessing[i][j]} \n"
+                    )
             else:
                 start, end, _ = segment
-                outfile.write(f"{start}{TAB_CHAR}{end}{TAB_CHAR}{text_no_preprocessing[i]} \n")
+                outfile.write(
+                    f"{start}{TAB_CHAR}{end}{TAB_CHAR}{text_no_preprocessing[i]} \n"
+                )

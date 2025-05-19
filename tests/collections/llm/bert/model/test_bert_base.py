@@ -49,7 +49,7 @@ class TestBertBase:
         )
 
     def test_get_batch_on_this_cp_rank_no_cp(self, sample_batch):
-        with patch('megatron.core.parallel_state') as mock_parallel_state:
+        with patch("megatron.core.parallel_state") as mock_parallel_state:
             mock_parallel_state.get_context_parallel_world_size.return_value = 1
 
             result = get_batch_on_this_cp_rank(sample_batch)
@@ -139,7 +139,7 @@ class TestBertBase:
         model.forward_step.assert_called_once_with(batch)
 
     def test_get_batch_with_context_parallel(self, sample_batch):
-        with patch('megatron.core.parallel_state') as mock_parallel_state:
+        with patch("megatron.core.parallel_state") as mock_parallel_state:
             mock_parallel_state.get_context_parallel_world_size.return_value = 2
             mock_parallel_state.get_context_parallel_rank.return_value = 0
 

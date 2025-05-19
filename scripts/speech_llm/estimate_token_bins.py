@@ -49,8 +49,8 @@ def parse_args():
     )
     parser.add_argument(
         "input",
-        help='Path to a data input configuration YAML file. '
-        'This is the only type of input specification supported for text data.',
+        help="Path to a data input configuration YAML file. "
+        "This is the only type of input specification supported for text data.",
     )
     parser.add_argument(
         "-t",
@@ -60,7 +60,10 @@ def parse_args():
         help="Path to one or more SPE tokenizers. More than one means we'll use AggregateTokenizer and --langs argument must also be used. When provided, we'll estimate a 2D distribution for input and output sequence lengths.",
     )
     parser.add_argument(
-        "-a", "--langs", nargs="+", help="Language names for each of AggregateTokenizer sub-tokenizers."
+        "-a",
+        "--langs",
+        nargs="+",
+        help="Language names for each of AggregateTokenizer sub-tokenizers.",
     )
     parser.add_argument(
         "-b",
@@ -106,7 +109,11 @@ def parse_args():
         help="If specified, we'll filter out examples with more output tokens per input token than this. ",
     )
     parser.add_argument(
-        "-q", "--quiet", type=bool, default=False, help="When specified, only print the estimated duration bins."
+        "-q",
+        "--quiet",
+        type=bool,
+        default=False,
+        help="When specified, only print the estimated duration bins.",
     )
     parser.add_argument(
         "-f",
@@ -147,7 +154,9 @@ def estimate_token_buckets(
     is_2d = num_subbuckets is not None
 
     if is_2d:
-        constraint = MultimodalFixedBucketBatchSizeConstraint2D([(0.0, 0.0)], [0], measure_total_length=False)
+        constraint = MultimodalFixedBucketBatchSizeConstraint2D(
+            [(0.0, 0.0)], [0], measure_total_length=False
+        )
     else:
         constraint = MultimodalSamplingConstraint(measure_total_length=True)
 
@@ -178,14 +187,22 @@ def estimate_token_buckets(
 
     if not quiet:
         print("Duration distribution:")
-        print(pd.Series(num_input_tokens).describe(percentiles=[0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99]))
+        print(
+            pd.Series(num_input_tokens).describe(
+                percentiles=[0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99]
+            )
+        )
     max_input_tokens = num_input_tokens[-1]
 
     if is_2d:
         tpt = num_output_tokens / num_input_tokens
         if not quiet:
             print("Output tokens per input token distribution:")
-            print(pd.Series(tpt).describe(percentiles=[0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99]))
+            print(
+                pd.Series(tpt).describe(
+                    percentiles=[0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 0.9, 0.95, 0.99]
+                )
+            )
         max_tpt = tpt.max()
         del tpt
 
@@ -238,7 +255,9 @@ def load_tokenizer(paths: list[str], langs: list[str] = None) -> TokenizerWrappe
         assert langs is not None and len(paths) == len(
             langs
         ), f"Cannot create AggregateTokenizer; each tokenizer must have assigned a language via --langs option (we got --tokenizers={paths} and --langs={langs})"
-        tok = AggregateTokenizer({lang: SentencePieceTokenizer(p) for lang, p in zip(langs, paths)})
+        tok = AggregateTokenizer(
+            {lang: SentencePieceTokenizer(p) for lang, p in zip(langs, paths)}
+        )
     return TokenizerWrapper(tok)
 
 
@@ -273,7 +292,7 @@ def main():
     args = parse_args()
 
     if not args.quiet:
-        pd.set_option('display.float_format', lambda x: '%.2f' % x)
+        pd.set_option("display.float_format", lambda x: "%.2f" % x)
 
     tokenizer = None
     prompt = None
@@ -283,7 +302,9 @@ def main():
             prompt_defaults = None
             if args.prompt is not None:
                 prompt_defaults = ast.literal_eval(args.prompt)
-            prompt = PromptFormatter.resolve(args.prompt_format)(tokenizer._tokenizer, defaults=prompt_defaults)
+            prompt = PromptFormatter.resolve(args.prompt_format)(
+                tokenizer._tokenizer, defaults=prompt_defaults
+            )
 
     assert args.input.endswith(".yaml")
     config = OmegaConf.merge(
@@ -291,14 +312,19 @@ def main():
         OmegaConf.from_dotlist([f"input_cfg={args.input}"]),
     )
     cuts, _ = read_cutset_from_config(config)
-    cuts = cuts.map(partial(apply_tokenizer, tokenizer=tokenizer, prompt=prompt), apply_fn=None)
+    cuts = cuts.map(
+        partial(apply_tokenizer, tokenizer=tokenizer, prompt=prompt), apply_fn=None
+    )
     if hasattr(cuts, "prefetch"):
         cuts = cuts.prefetch()  # to be released in lhotse 1.27
     token_filter = RejectionsCounter(
-        TokenCountFilter(args.min_tokens, args.max_tokens, args.measure_total_length), "Token count filtering"
+        TokenCountFilter(args.min_tokens, args.max_tokens, args.measure_total_length),
+        "Token count filtering",
     )
     cuts = cuts.filter(token_filter)
-    tpt_filter = RejectionsCounter(TokenPerTokenFilter(-1, args.max_tpt), "Output tokens per input token filtering")
+    tpt_filter = RejectionsCounter(
+        TokenPerTokenFilter(-1, args.max_tpt), "Output tokens per input token filtering"
+    )
     cuts = cuts.filter(tpt_filter)
     if (N := args.num_examples) > 0:
         cuts = islice(cuts, N)
@@ -310,9 +336,9 @@ def main():
         quiet=args.quiet,
     )
     if args.sub_buckets is not None:
-        token_bins = "[" + ','.join(f"[{b:d},{sb:d}]" for b, sb in token_bins) + "]"
+        token_bins = "[" + ",".join(f"[{b:d},{sb:d}]" for b, sb in token_bins) + "]"
     else:
-        token_bins = "[" + ','.join(f"{b:d}" for b in token_bins) + "]"
+        token_bins = "[" + ",".join(f"{b:d}" for b in token_bins) + "]"
     if args.quiet:
         print(token_bins)
         return

@@ -79,7 +79,7 @@ from nemo.utils.exp_manager import exp_manager
 
 @hydra_runner(config_path="./configs/", config_name="conformer_transformer_large_bpe")
 def main(cfg):
-    logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
+    logging.info(f"Hydra config: {OmegaConf.to_yaml(cfg)}")
 
     trainer = pl.Trainer(**cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
@@ -90,29 +90,42 @@ def main(cfg):
     if pretrained_encoder_name is not None:
         if Path(pretrained_encoder_name).is_file():
             if not pretrained_encoder_name.endswith(".nemo"):
-                logging.info(f"Loading encoder from PyTorch Lightning checkpoint: {pretrained_encoder_name}")
-                state_dict = torch.load(pretrained_encoder_name, map_location='cpu')['state_dict']
+                logging.info(
+                    f"Loading encoder from PyTorch Lightning checkpoint: {pretrained_encoder_name}"
+                )
+                state_dict = torch.load(pretrained_encoder_name, map_location="cpu")[
+                    "state_dict"
+                ]
                 pretraind_model = None
             else:
-                logging.info(f"Loading pretrained encoder from NeMo file: {pretrained_encoder_name}")
+                logging.info(
+                    f"Loading pretrained encoder from NeMo file: {pretrained_encoder_name}"
+                )
                 pretraind_model = ASRModel.restore_from(
-                    restore_path=pretrained_encoder_name, map_location=torch.device("cpu")
+                    restore_path=pretrained_encoder_name,
+                    map_location=torch.device("cpu"),
                 )
                 state_dict = pretraind_model.state_dict()
             model.load_state_dict(state_dict, strict=False)
             del pretraind_model
         else:
-            logging.info(f"Loading pretrained encoder from NGC: {pretrained_encoder_name}")
+            logging.info(
+                f"Loading pretrained encoder from NGC: {pretrained_encoder_name}"
+            )
             if pretrained_encoder_name.startswith("ssl_"):
                 model_cls = SpeechEncDecSelfSupervisedModel
             elif pretrained_encoder_name.startswith("stt_"):
                 model_cls = ASRModel
             else:
-                raise ValueError(f"Unknown pretrained encoder: {pretrained_encoder_name}")
+                raise ValueError(
+                    f"Unknown pretrained encoder: {pretrained_encoder_name}"
+                )
             pretraind_model = model_cls.from_pretrained(
                 model_name=pretrained_encoder_name, map_location=torch.device("cpu")
             )
-            model.encoder.load_state_dict(pretraind_model.encoder.state_dict(), strict=False)
+            model.encoder.load_state_dict(
+                pretraind_model.encoder.state_dict(), strict=False
+            )
             del pretraind_model
     else:
         logging.info("Not using pretrained encoder.")
@@ -125,10 +138,13 @@ def main(cfg):
 
     trainer.fit(model)
 
-    if hasattr(cfg.model, 'test_ds') and cfg.model.test_ds.manifest_filepath is not None:
+    if (
+        hasattr(cfg.model, "test_ds")
+        and cfg.model.test_ds.manifest_filepath is not None
+    ):
         if model.prepare_test(trainer):
             trainer.test(model)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

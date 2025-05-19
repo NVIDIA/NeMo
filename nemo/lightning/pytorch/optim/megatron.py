@@ -81,7 +81,9 @@ class MegatronOptimizerModule(OptimizerModule):
         def finalize_model_grads_func(*args, **kwargs):
             return self.finalize_model_grads(*args, **kwargs)
 
-        get_model_config(pl_module).finalize_model_grads_func = finalize_model_grads_func
+        get_model_config(pl_module).finalize_model_grads_func = (
+            finalize_model_grads_func
+        )
 
     def optimizers(self, model: MegatronParallel) -> List[Optimizer]:
         """Defines the optimizers.

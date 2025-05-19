@@ -30,7 +30,11 @@ from nemo.collections.nlp.modules.common.huggingface.roberta import \
     RobertaEncoder
 from nemo.utils import logging
 
-__all__ = ["get_huggingface_lm_model", "get_huggingface_pretrained_lm_models_list", "VOCAB_FILE_NAME"]
+__all__ = [
+    "get_huggingface_lm_model",
+    "get_huggingface_pretrained_lm_models_list",
+    "VOCAB_FILE_NAME",
+]
 
 # Manually specify the model archive lists since these are now removed in HF
 # https://github.com/huggingface/transformers/blob/v4.40-release/src/transformers/models/deprecated/_archive_maps.py
@@ -141,13 +145,13 @@ HUGGINGFACE_MODELS = {
 }
 
 VOCAB_FILE_NAME = {
-    'AlbertTokenizer': "spiece.model",
-    'RobertaTokenizer': "vocab.json",
-    'BertTokenizer': "vocab.txt",
-    'DistilBertTokenizer': "vocab.txt",
-    'CamembertTokenizer': "sentencepiece.bpe.model",
-    'GPT2Tokenizer': "vocab.json",
-    'T5Tokenizer': "spiece.model",
+    "AlbertTokenizer": "spiece.model",
+    "RobertaTokenizer": "vocab.json",
+    "BertTokenizer": "vocab.txt",
+    "DistilBertTokenizer": "vocab.txt",
+    "CamembertTokenizer": "sentencepiece.bpe.model",
+    "GPT2Tokenizer": "vocab.json",
+    "T5Tokenizer": "spiece.model",
     "BartTokenizer": "vocab.json",
 }
 
@@ -173,7 +177,9 @@ def get_huggingface_lm_model(
     try:
         automodel = AutoModel.from_pretrained(pretrained_model_name)
     except Exception as e:
-        raise ValueError(f"{pretrained_model_name} is not supported by HuggingFace. {e}")
+        raise ValueError(
+            f"{pretrained_model_name} is not supported by HuggingFace. {e}"
+        )
 
     model_type = type(automodel).__name__
 
@@ -193,7 +199,9 @@ def get_huggingface_lm_model(
         else:
             return model_class.from_pretrained(pretrained_model_name)
     else:
-        raise ValueError(f"Use HuggingFace API directly in NeMo for {pretrained_model_name}")
+        raise ValueError(
+            f"Use HuggingFace API directly in NeMo for {pretrained_model_name}"
+        )
 
 
 def get_huggingface_pretrained_lm_models_list(

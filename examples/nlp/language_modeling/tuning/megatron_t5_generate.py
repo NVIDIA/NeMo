@@ -72,7 +72,7 @@ python examples/nlp/language_modeling/tuning/megatron_t5_generate.py \
 
 def use_inference_server(cfg, model, trainer):
     if not HAVE_MEGATRON_CORE:
-        raise ValueError('Megatron-core needs to be installed to use this feature!')
+        raise ValueError("Megatron-core needs to be installed to use this feature!")
 
     from nemo.collections.nlp.modules.common.megatron_web_server import (
         get_chatbot_demo, get_demo)
@@ -86,9 +86,9 @@ def use_inference_server(cfg, model, trainer):
         if cfg.web_server:
             if cfg.chat:
                 defaults = {
-                    'user': cfg.chatbot_config.user,
-                    'assistant': cfg.chatbot_config.assistant,
-                    'system': cfg.chatbot_config.system,
+                    "user": cfg.chatbot_config.user,
+                    "assistant": cfg.chatbot_config.assistant,
+                    "system": cfg.chatbot_config.system,
                 }
                 web_ui = partial(
                     get_chatbot_demo,
@@ -102,7 +102,14 @@ def use_inference_server(cfg, model, trainer):
             thread = threading.Thread(
                 target=web_ui,
                 daemon=True,
-                args=(cfg.share, cfg.username, cfg.password, cfg.port, cfg.web_port, loop),
+                args=(
+                    cfg.share,
+                    cfg.username,
+                    cfg.password,
+                    cfg.port,
+                    cfg.web_port,
+                    loop,
+                ),
             )
             thread.start()
         server = MegatronServer(model.cuda())
@@ -121,15 +128,19 @@ def main(cfg) -> None:
     logging.info(f"\n{OmegaConf.to_yaml(cfg)}")
     trainer = MegatronLMPPTrainerBuilder(cfg).create_trainer()
 
-    model_cfg = MegatronT5SFTModel.merge_inference_cfg(cfg.model.peft.restore_from_path, cfg)
-    model = MegatronT5SFTModel.restore_from(cfg.model.restore_from_path, model_cfg, trainer=trainer)
+    model_cfg = MegatronT5SFTModel.merge_inference_cfg(
+        cfg.model.peft.restore_from_path, cfg
+    )
+    model = MegatronT5SFTModel.restore_from(
+        cfg.model.restore_from_path, model_cfg, trainer=trainer
+    )
 
     model.load_adapters(cfg.model.peft.restore_from_path)
 
     model.freeze()
     logging.info(f"Freezing parameters for PEFT eval:\n{model.summarize()}")
 
-    if not cfg.model.get('use_flash_attention', False):
+    if not cfg.model.get("use_flash_attention", False):
         cfg.inference.compute_attention_mask = True
 
     if not cfg.server:

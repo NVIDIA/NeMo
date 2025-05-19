@@ -151,7 +151,7 @@ def finetune_recipe(
     num_gpus_per_node: int = 8,
     micro_batch_size: int = 4,
     global_batch_size: int = 64,
-    peft_scheme: Optional[str] = 'lora',
+    peft_scheme: Optional[str] = "lora",
     seq_length: Optional[int] = None,
     packed_sequence: Optional[bool] = None,
 ) -> run.Partial:
@@ -194,12 +194,16 @@ def finetune_recipe(
     if seq_length is None:
         seq_length = 512
 
-    assert packed_sequence is None, 'pack_sequence is not supported for Embedding model finetuning.'
-    recipe = default_finetune_recipe(model(), resume_path, dir, name, num_nodes, num_gpus_per_node, packed_sequence)
-    if peft_scheme is None or peft_scheme.lower() == 'none':
+    assert (
+        packed_sequence is None
+    ), "pack_sequence is not supported for Embedding model finetuning."
+    recipe = default_finetune_recipe(
+        model(), resume_path, dir, name, num_nodes, num_gpus_per_node, packed_sequence
+    )
+    if peft_scheme is None or peft_scheme.lower() == "none":
         recipe.trainer.strategy.tensor_model_parallel_size = 1
         recipe.optim.config.lr = 5e-6
-    elif peft_scheme.lower() in ['lora', 'dora']:
+    elif peft_scheme.lower() in ["lora", "dora"]:
         recipe.peft = run.Config(PEFT_STR2CLS[peft_scheme.lower()])
         recipe.peft.dim = 8
         recipe.peft.alpha = 16
@@ -221,10 +225,10 @@ def finetune_recipe(
         micro_batch_size=micro_batch_size,
         global_batch_size=global_batch_size,
         dataset_kwargs={
-            'num_hard_negatives': recipe.model.config.num_hard_negatives,
-            'negative_sample_strategy': recipe.model.config.negative_sample_strategy,
-            'add_bos': recipe.model.config.add_bos,
-            'add_eos': recipe.model.config.add_eos,
+            "num_hard_negatives": recipe.model.config.num_hard_negatives,
+            "negative_sample_strategy": recipe.model.config.negative_sample_strategy,
+            "add_bos": recipe.model.config.add_bos,
+            "add_eos": recipe.model.config.add_eos,
         },
     )
 
@@ -258,7 +262,7 @@ def finetune_performance_optimizations(
     if not hasattr(recipe.trainer, "callbacks"):
         recipe.trainer.callbacks = []
 
-    if peft_scheme is None or peft_scheme.lower() == 'none':
+    if peft_scheme is None or peft_scheme.lower() == "none":
         recipe.trainer.plugins.grad_reduce_in_fp32 = False
         recipe.trainer.strategy.ddp = run.Config(
             DistributedDataParallelConfig,
@@ -275,7 +279,7 @@ def finetune_performance_optimizations(
             )
         )
     else:
-        recipe.peft.target_modules = ['linear_qkv']
+        recipe.peft.target_modules = ["linear_qkv"]
 
     recipe.trainer.callbacks.append(run.Config(TimingCallback))
     recipe.trainer.callbacks.append(

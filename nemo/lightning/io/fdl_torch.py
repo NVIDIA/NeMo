@@ -34,7 +34,9 @@ from nemo.lightning.io.to_config import to_config
 
 def _make_torch_importable(name: str) -> special_value_codegen.Importable:
     """Make a torch importable."""
-    return special_value_codegen.SingleImportable("torch", lambda torch_name: f"{torch_name}.{name}")
+    return special_value_codegen.SingleImportable(
+        "torch", lambda torch_name: f"{torch_name}.{name}"
+    )
 
 
 _torch_type_importables = (
@@ -71,7 +73,9 @@ _import_aliases = (("torch.nn.init", "from torch.nn import init"),)
 
 def _make_torch_nn_importable(name: str) -> special_value_codegen.Importable:
     """Make a torch.nn importable."""
-    return special_value_codegen.SingleImportable("torch", lambda torch_mod_name: f"{torch_mod_name}.nn.{name}")
+    return special_value_codegen.SingleImportable(
+        "torch", lambda torch_mod_name: f"{torch_mod_name}.nn.{name}"
+    )
 
 
 _nn_type_importables = (
@@ -116,7 +120,9 @@ def enable():
     for module_str, import_stmt in _import_aliases:
         import_manager.register_import_alias(module_str, import_stmt)
 
-    py_val_to_cst_converter.register_py_val_to_cst_converter(is_torch_tensor)(convert_torch_tensor_to_cst)
+    py_val_to_cst_converter.register_py_val_to_cst_converter(is_torch_tensor)(
+        convert_torch_tensor_to_cst
+    )
 
     for dtype, _ in _torch_type_importables:
         daglish_extensions.register_immutable(dtype)
@@ -134,5 +140,7 @@ def enable():
             return self._pyref(value, current_path)
         return self._original_serialize(to_config(value), current_path, all_paths)
 
-    serialization.Serialization._original_serialize = serialization.Serialization._serialize
+    serialization.Serialization._original_serialize = (
+        serialization.Serialization._serialize
+    )
     serialization.Serialization._serialize = _modified_serialize

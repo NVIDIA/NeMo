@@ -39,7 +39,9 @@ class VLMEngine(MCoreEngine):
         for i in range(len(prompts)):
             prompt = prompts[i]
             image = images[i] if images is not None else None
-            prompt_tokens, image_dict = self.text_generation_controller.tokenize_prompt(prompt, image)
+            prompt_tokens, image_dict = self.text_generation_controller.tokenize_prompt(
+                prompt, image
+            )
 
             # Reuse encoder_prompt from scheduler to pass image
             request_id = self.scheduler.add_request(
@@ -53,6 +55,7 @@ class VLMEngine(MCoreEngine):
         self.run_engine()
 
         result: List[InferenceRequest] = [
-            self.scheduler.completed_request_pool[request_id] for request_id in request_ids
+            self.scheduler.completed_request_pool[request_id]
+            for request_id in request_ids
         ]
         return result

@@ -63,7 +63,9 @@ python partial_convertion_to_tarred_audio_dataset.py \
 """
 
 
-def select_shards(manifest_filepath: str, shards_to_tar: str, slice_with_offset: bool = False):
+def select_shards(
+    manifest_filepath: str, shards_to_tar: str, slice_with_offset: bool = False
+):
     """
     Selects and returns a subset of shards from the tarred manifest file.
 
@@ -85,27 +87,31 @@ def select_shards(manifest_filepath: str, shards_to_tar: str, slice_with_offset:
             shard_ids = [int(shards_to_tar)]
         else:
             start_shard_idx, end_shard_idx = map(
-                lambda x: int(x.strip()) if x.strip() else None, shards_to_tar.split(":")
+                lambda x: int(x.strip()) if x.strip() else None,
+                shards_to_tar.split(":"),
             )
             shard_ids = list(range(start_shard_idx, end_shard_idx))
 
     entries_to_shard = {}
-    with open(manifest_filepath, 'r') as manifest:
+    with open(manifest_filepath, "r") as manifest:
         for line in tqdm(manifest, desc="Selecting shards"):
             entry = json.loads(line)
-            if shards_to_tar == "all" or entry['shard_id'] in shard_ids:
-                if entry['shard_id'] not in entries_to_shard:
-                    entries_to_shard[entry['shard_id']] = []
+            if shards_to_tar == "all" or entry["shard_id"] in shard_ids:
+                if entry["shard_id"] not in entries_to_shard:
+                    entries_to_shard[entry["shard_id"]] = []
 
                 if slice_with_offset:
-                    if 'abs_audio_filepath' not in entry or 'source_audio_offset' not in entry:
+                    if (
+                        "abs_audio_filepath" not in entry
+                        or "source_audio_offset" not in entry
+                    ):
                         raise KeyError(
                             f"`slice_with_offset` is enabled, but `abs_audio_filepath` and/or `source_audio_offset` are not found in the entry:\n{entry}."
                         )
-                    entry['audio_filepath'] = entry.pop('abs_audio_filepath')
-                    entry['offset'] = entry.pop('source_audio_offset')
+                    entry["audio_filepath"] = entry.pop("abs_audio_filepath")
+                    entry["offset"] = entry.pop("source_audio_offset")
 
-                entries_to_shard[entry['shard_id']].append(entry)
+                entries_to_shard[entry["shard_id"]].append(entry)
 
     return entries_to_shard
 
@@ -150,7 +156,9 @@ def create_shards(cfg: PartialASRTarredDatasetConfig):
         - The `dataset_metadata_filepath` is inferred if not provided.
     """
     if cfg.tarred_manifest_filepath is None:
-        raise ValueError("The `tarred_manifest_filepath` cannot be `None`. Please check your configuration.")
+        raise ValueError(
+            "The `tarred_manifest_filepath` cannot be `None`. Please check your configuration."
+        )
 
     if not os.path.exists(cfg.tarred_manifest_filepath):
         raise FileNotFoundError(
@@ -158,7 +166,9 @@ def create_shards(cfg: PartialASRTarredDatasetConfig):
         )
 
     if cfg.dataset_metadata_filepath is None:
-        cfg.dataset_metadata_filepath = os.path.join(os.path.dirname(cfg.tarred_manifest_filepath), "metadata.yaml")
+        cfg.dataset_metadata_filepath = os.path.join(
+            os.path.dirname(cfg.tarred_manifest_filepath), "metadata.yaml"
+        )
 
     if cfg.output_dir is None:
         cfg.output_dir = os.path.dirname(cfg.tarred_manifest_filepath)
@@ -168,10 +178,14 @@ def create_shards(cfg: PartialASRTarredDatasetConfig):
             f"The `dataset_metadata_filepath` was not found: {cfg.dataset_metadata_filepath}. Please verify that the filepath is correct."
         )
     else:
-        cfg.dataset_metadata = ASRTarredDatasetMetadata.from_file(cfg.dataset_metadata_filepath)
+        cfg.dataset_metadata = ASRTarredDatasetMetadata.from_file(
+            cfg.dataset_metadata_filepath
+        )
 
     entries_to_shard = select_shards(
-        cfg.tarred_manifest_filepath, cfg.shards_to_tar, cfg.dataset_metadata.dataset_config.slice_with_offset
+        cfg.tarred_manifest_filepath,
+        cfg.shards_to_tar,
+        cfg.dataset_metadata.dataset_config.slice_with_offset,
     )
 
     builder = ASRTarredDatasetBuilder()
@@ -189,12 +203,14 @@ def create_shards(cfg: PartialASRTarredDatasetConfig):
         )
 
 
-@hydra.main(config_path=None, config_name='partial_tar_config')
+@hydra.main(config_path=None, config_name="partial_tar_config")
 def main(cfg: PartialASRTarredDatasetConfig):
     create_shards(cfg)
 
 
-ConfigStore.instance().store(name='partial_tar_config', node=PartialASRTarredDatasetConfig)
+ConfigStore.instance().store(
+    name="partial_tar_config", node=PartialASRTarredDatasetConfig
+)
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

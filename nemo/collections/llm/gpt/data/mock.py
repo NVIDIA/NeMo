@@ -86,7 +86,10 @@ class MockDataModule(pl.LightningDataModule):
                 get_nmt_tokenizer
 
             self.tokenizer = get_nmt_tokenizer(
-                "megatron", "GPT2BPETokenizer", vocab_file=vocab_file, merges_file=merges_file
+                "megatron",
+                "GPT2BPETokenizer",
+                vocab_file=vocab_file,
+                merges_file=merges_file,
             )
         else:
             self.tokenizer = tokenizer
@@ -103,13 +106,25 @@ class MockDataModule(pl.LightningDataModule):
         Setup the data module.
         """
         self._train_ds = _MockGPTDataset(
-            self.tokenizer, "train", self.num_train_samples, self.seq_length, self.create_attention_mask
+            self.tokenizer,
+            "train",
+            self.num_train_samples,
+            self.seq_length,
+            self.create_attention_mask,
         )
         self._validation_ds = _MockGPTDataset(
-            self.tokenizer, "valid", self.num_val_samples, self.seq_length, self.create_attention_mask
+            self.tokenizer,
+            "valid",
+            self.num_val_samples,
+            self.seq_length,
+            self.create_attention_mask,
         )
         self._test_ds = _MockGPTDataset(
-            self.tokenizer, "test", self.num_test_samples, self.seq_length, self.create_attention_mask
+            self.tokenizer,
+            "test",
+            self.num_test_samples,
+            self.seq_length,
+            self.create_attention_mask,
         )
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
@@ -154,7 +169,9 @@ class MockDataModule(pl.LightningDataModule):
             _reconfigure_limit_batches
 
         # Override limit_train_batches in terms of num of microbatches
-        self.trainer.limit_train_batches = _reconfigure_limit_batches(self.trainer.limit_train_batches, self._train_ds)
+        self.trainer.limit_train_batches = _reconfigure_limit_batches(
+            self.trainer.limit_train_batches, self._train_ds
+        )
         # Override limit_val_batches to be a multiple of num microbatches to prevent val_step from exiting
         #   in between a step
         self.trainer.limit_val_batches = _reconfigure_limit_batches(
@@ -192,7 +209,9 @@ class _MockGPTDataset(Dataset):
         self.create_attention_mask = create_attention_mask
 
         if create_attention_mask:
-            self.attention_mask = torch.tril(torch.ones((self.seq_length, self.seq_length), device='cpu')).unsqueeze(0)
+            self.attention_mask = torch.tril(
+                torch.ones((self.seq_length, self.seq_length), device="cpu")
+            ).unsqueeze(0)
             self.attention_mask = self.attention_mask < 0.5
 
         self.loss_mask = torch.ones(self.seq_length, dtype=torch.float)
@@ -208,7 +227,9 @@ class _MockGPTDataset(Dataset):
     def __getitem__(self, idx) -> Dict[str, torch.Tensor]:
         # Generate data of the expected size and datatype (based on GPTDataset).
         np_gen = np.random.default_rng(seed=(self.seed + idx))
-        tokens = torch.from_numpy(np_gen.integers(self.vocab_size, size=[self.seq_length + 1], dtype=np.int64))
+        tokens = torch.from_numpy(
+            np_gen.integers(self.vocab_size, size=[self.seq_length + 1], dtype=np.int64)
+        )
 
         batch = {
             "tokens": tokens[:-1],

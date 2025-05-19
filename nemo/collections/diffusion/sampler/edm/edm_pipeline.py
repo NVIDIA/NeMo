@@ -132,10 +132,10 @@ class EDMPipeline:
         self.sampler = EDMSampler()
         self.scaling = EDMScaling(sigma_data)
 
-        self.input_data_key = 'video'
-        self.input_image_key = 'images_1024'
+        self.input_data_key = "video"
+        self.input_image_key = "images_1024"
         self.tensor_kwargs = {"device": "cuda", "dtype": torch.bfloat16}
-        self.loss_reduce = 'mean'
+        self.loss_reduce = "mean"
         self.loss_scale = 1.0
 
     @property
@@ -159,9 +159,13 @@ class EDMPipeline:
         Returns:
             None
         """
-        noise_seed = self.seed + 100 * parallel_state.get_data_parallel_rank(with_context_parallel=True)
-        noise_level_seed = self.seed + 100 * parallel_state.get_data_parallel_rank(with_context_parallel=False)
-        self._noise_generator = torch.Generator(device='cuda')
+        noise_seed = self.seed + 100 * parallel_state.get_data_parallel_rank(
+            with_context_parallel=True
+        )
+        noise_level_seed = self.seed + 100 * parallel_state.get_data_parallel_rank(
+            with_context_parallel=False
+        )
+        self._noise_generator = torch.Generator(device="cuda")
         self._noise_generator.manual_seed(noise_seed)
         self._noise_level_generator = np.random.default_rng(noise_level_seed)
         self.sde._generator = self._noise_level_generator
@@ -202,7 +206,9 @@ class EDMPipeline:
             )
             return net_output
 
-    def denoise(self, xt: torch.Tensor, sigma: torch.Tensor, condition: dict[str, torch.Tensor]):
+    def denoise(
+        self, xt: torch.Tensor, sigma: torch.Tensor, condition: dict[str, torch.Tensor]
+    ):
         """
         Performs denoising on the input noise data, noise level, and condition
 
@@ -302,12 +308,16 @@ class EDMPipeline:
         """Returns conditioning and unconditioning for classifier-free guidance."""
         _, _, condition = self.get_data_and_condition(data_batch, dropout_rate=0.0)
 
-        if 'neg_t5_text_embeddings' in data_batch:
-            data_batch['t5_text_embeddings'] = data_batch['neg_t5_text_embeddings']
+        if "neg_t5_text_embeddings" in data_batch:
+            data_batch["t5_text_embeddings"] = data_batch["neg_t5_text_embeddings"]
             data_batch["t5_text_mask"] = data_batch["neg_t5_text_mask"]
-            _, _, uncondition = self.get_data_and_condition(data_batch, dropout_rate=1.0)
+            _, _, uncondition = self.get_data_and_condition(
+                data_batch, dropout_rate=1.0
+            )
         else:
-            _, _, uncondition = self.get_data_and_condition(data_batch, dropout_rate=1.0)
+            _, _, uncondition = self.get_data_and_condition(
+                data_batch, dropout_rate=1.0
+            )
 
         return condition, uncondition
 
@@ -363,15 +373,22 @@ class EDMPipeline:
 
         if self._noise_generator is None:
             self._initialize_generators()
-        x0_fn = self.get_x0_fn_from_batch(data_batch, guidance, is_negative_prompt=is_negative_prompt)
+        x0_fn = self.get_x0_fn_from_batch(
+            data_batch, guidance, is_negative_prompt=is_negative_prompt
+        )
 
         state_shape = list(state_shape)
         state_shape[1] //= parallel_state.get_context_parallel_world_size()
         x_sigma_max = (
-            torch.randn(state_shape, **self.tensor_kwargs, generator=self._noise_generator) * self.sde.sigma_max
+            torch.randn(
+                state_shape, **self.tensor_kwargs, generator=self._noise_generator
+            )
+            * self.sde.sigma_max
         )
 
-        samples = self.sampler(x0_fn, x_sigma_max, num_steps=num_steps, sigma_max=self.sde.sigma_max)
+        samples = self.sampler(
+            x0_fn, x_sigma_max, num_steps=num_steps, sigma_max=self.sde.sigma_max
+        )
 
         if cp_enabled:
             cp_group = parallel_state.get_context_parallel_group()
@@ -379,7 +396,9 @@ class EDMPipeline:
 
         return samples
 
-    def draw_training_sigma_and_epsilon(self, x0_size: int, condition: Any) -> torch.Tensor:
+    def draw_training_sigma_and_epsilon(
+        self, x0_size: int, condition: Any
+    ) -> torch.Tensor:
         """
         Draws training noise (epsilon) and noise levels (sigma).
 
@@ -394,10 +413,14 @@ class EDMPipeline:
         batch_size = x0_size[0]
         if self._noise_generator is None:
             self._initialize_generators()
-        epsilon = torch.randn(x0_size, **self.tensor_kwargs, generator=self._noise_generator)
+        epsilon = torch.randn(
+            x0_size, **self.tensor_kwargs, generator=self._noise_generator
+        )
         return self.sde.sample_t(batch_size).to(**self.tensor_kwargs), epsilon
 
-    def random_dropout_input(self, in_tensor: torch.Tensor, dropout_rate: Optional[float] = None) -> torch.Tensor:
+    def random_dropout_input(
+        self, in_tensor: torch.Tensor, dropout_rate: Optional[float] = None
+    ) -> torch.Tensor:
         """
         Applies random dropout to the input tensor.
 
@@ -410,11 +433,15 @@ class EDMPipeline:
         """
         dropout_rate = dropout_rate if dropout_rate is not None else self.dropout_rate
         return batch_mul(
-            torch.bernoulli((1.0 - dropout_rate) * torch.ones(in_tensor.shape[0])).type_as(in_tensor),
+            torch.bernoulli(
+                (1.0 - dropout_rate) * torch.ones(in_tensor.shape[0])
+            ).type_as(in_tensor),
             in_tensor,
         )
 
-    def get_data_and_condition(self, data_batch: dict[str, Tensor], dropout_rate=0.2) -> Tuple[Tensor]:
+    def get_data_and_condition(
+        self, data_batch: dict[str, Tensor], dropout_rate=0.2
+    ) -> Tuple[Tensor]:
         """
         Retrieves data and conditioning for model input.
 
@@ -434,10 +461,10 @@ class EDMPipeline:
         condition = {}  # Create a new dictionary for condition
         # Copy all keys from data_batch except 'video'
         for key, value in data_batch.items():
-            if key not in ['video', 't5_text_embeddings']:
+            if key not in ["video", "t5_text_embeddings"]:
                 condition[key] = value
-        condition['crossattn_emb'] = self.random_dropout_input(
-            data_batch['t5_text_embeddings'], dropout_rate=dropout_rate
+        condition["crossattn_emb"] = self.random_dropout_input(
+            data_batch["t5_text_embeddings"], dropout_rate=dropout_rate
         )
 
         return raw_state, latent_state, condition

@@ -93,9 +93,13 @@ def get_batch_size(train_dataloader):
         if train_dataloader.batch_sampler.micro_batch_size is not None:
             return train_dataloader.batch_sampler.micro_batch_size
         else:
-            raise ValueError(f'Could not find batch_size from batch_sampler: {train_dataloader.batch_sampler}')
+            raise ValueError(
+                f"Could not find batch_size from batch_sampler: {train_dataloader.batch_sampler}"
+            )
     else:
-        raise ValueError(f'Could not find batch_size from train_dataloader: {train_dataloader}')
+        raise ValueError(
+            f"Could not find batch_size from train_dataloader: {train_dataloader}"
+        )
 
 
 def get_num_workers(trainer):
@@ -119,7 +123,9 @@ def binarize_attention(attn, in_len, out_len):
         attn_out = torch.zeros_like(attn)
         for ind in range(b_size):
             hard_attn = mas(attn_cpu[ind, 0, : out_len[ind], : in_len[ind]])
-            attn_out[ind, 0, : out_len[ind], : in_len[ind]] = torch.tensor(hard_attn, device=attn.device)
+            attn_out[ind, 0, : out_len[ind], : in_len[ind]] = torch.tensor(
+                hard_attn, device=attn.device
+            )
     return attn_out
 
 
@@ -132,7 +138,9 @@ def binarize_attention_parallel(attn, in_lens, out_lens):
     """
     with torch.no_grad():
         log_attn_cpu = torch.log(attn.data).cpu().numpy()
-        attn_out = b_mas(log_attn_cpu, in_lens.cpu().numpy(), out_lens.cpu().numpy(), width=1)
+        attn_out = b_mas(
+            log_attn_cpu, in_lens.cpu().numpy(), out_lens.cpu().numpy(), width=1
+        )
     return torch.from_numpy(attn_out).to(attn.device)
 
 
@@ -162,7 +170,10 @@ def get_mask_from_lengths(
 
 
 def sort_tensor(
-    context: torch.Tensor, lens: torch.Tensor, dim: Optional[int] = 0, descending: Optional[bool] = True
+    context: torch.Tensor,
+    lens: torch.Tensor,
+    dim: Optional[int] = 0,
+    descending: Optional[bool] = True,
 ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """Sorts elements in context by the dim lengths specified in lens
     Args:
@@ -180,7 +191,9 @@ def sort_tensor(
     return context, lens_sorted, ids_sorted
 
 
-def unsort_tensor(ordered: torch.Tensor, indices: torch.Tensor, dim: Optional[int] = 0) -> torch.Tensor:
+def unsort_tensor(
+    ordered: torch.Tensor, indices: torch.Tensor, dim: Optional[int] = 0
+) -> torch.Tensor:
     """Reverses the result of sort_tensor function:
        o, _, ids = sort_tensor(x,l)
        assert unsort_tensor(o,ids) == x
@@ -350,18 +363,27 @@ def tacotron2_log_to_tb_func(
         )
 
         if add_audio:
-            filterbank = librosa.filters.mel(sr=sr, n_fft=n_fft, n_mels=n_mels, fmax=fmax)
+            filterbank = librosa.filters.mel(
+                sr=sr, n_fft=n_fft, n_mels=n_mels, fmax=fmax
+            )
             log_mel = mel_postnet[0].data.cpu().numpy().T
             mel = np.exp(log_mel)
             magnitude = np.dot(mel, filterbank) * griffin_lim_mag_scale
             audio = griffin_lim(magnitude.T**griffin_lim_power)
-            swriter.add_audio(f"audio/{tag}_predicted", audio / max(np.abs(audio)), step, sample_rate=sr)
+            swriter.add_audio(
+                f"audio/{tag}_predicted",
+                audio / max(np.abs(audio)),
+                step,
+                sample_rate=sr,
+            )
 
             log_mel = spec_target[0].data.cpu().numpy().T
             mel = np.exp(log_mel)
             magnitude = np.dot(mel, filterbank) * griffin_lim_mag_scale
             audio = griffin_lim(magnitude.T**griffin_lim_power)
-            swriter.add_audio(f"audio/{tag}_target", audio / max(np.abs(audio)), step, sample_rate=sr)
+            swriter.add_audio(
+                f"audio/{tag}_target", audio / max(np.abs(audio)), step, sample_rate=sr
+            )
 
 
 def tacotron2_log_to_wandb_func(
@@ -416,7 +438,9 @@ def tacotron2_log_to_wandb_func(
 
         if add_audio:
             audios = []
-            filterbank = librosa.filters.mel(sr=sr, n_fft=n_fft, n_mels=n_mels, fmax=fmax)
+            filterbank = librosa.filters.mel(
+                sr=sr, n_fft=n_fft, n_mels=n_mels, fmax=fmax
+            )
             log_mel = mel_postnet[0].data.cpu().numpy().T
             mel = np.exp(log_mel)
             magnitude = np.dot(mel, filterbank) * griffin_lim_mag_scale
@@ -443,19 +467,28 @@ def tacotron2_log_to_wandb_func(
             swriter.log({"audios": audios})
 
 
-def plot_alignment_to_numpy(alignment, title='', info=None, phoneme_seq=None, vmin=None, vmax=None):
+def plot_alignment_to_numpy(
+    alignment, title="", info=None, phoneme_seq=None, vmin=None, vmax=None
+):
     if phoneme_seq:
         fig, ax = plt.subplots(figsize=(15, 10))
     else:
         fig, ax = plt.subplots(figsize=(6, 4))
-    im = ax.imshow(alignment, aspect='auto', origin='lower', interpolation='none', vmin=vmin, vmax=vmax)
+    im = ax.imshow(
+        alignment,
+        aspect="auto",
+        origin="lower",
+        interpolation="none",
+        vmin=vmin,
+        vmax=vmax,
+    )
     ax.set_title(title)
     fig.colorbar(im, ax=ax)
-    xlabel = 'Decoder timestep'
+    xlabel = "Decoder timestep"
     if info is not None:
-        xlabel += '\n\n' + info
+        xlabel += "\n\n" + info
     plt.xlabel(xlabel)
-    plt.ylabel('Encoder timestep')
+    plt.ylabel("Encoder timestep")
     plt.tight_layout()
 
     if phoneme_seq != None:
@@ -472,7 +505,7 @@ def plot_alignment_to_numpy(alignment, title='', info=None, phoneme_seq=None, vm
 
 def plot_alignment_to_numpy_for_speechllm(
     alignment,
-    title='',
+    title="",
     info=None,
     phoneme_seq=None,
     vmin=None,
@@ -483,14 +516,21 @@ def plot_alignment_to_numpy_for_speechllm(
 ):
     alignment = np.clip(alignment, a_min=0, a_max=None)
     fig, ax = plt.subplots(figsize=(8, 6))
-    im = ax.imshow(alignment, aspect='auto', origin='lower', interpolation='none', vmin=vmin, vmax=vmax)
+    im = ax.imshow(
+        alignment,
+        aspect="auto",
+        origin="lower",
+        interpolation="none",
+        vmin=vmin,
+        vmax=vmax,
+    )
     ax.set_title(title)
     fig.colorbar(im, ax=ax)
-    xlabel = 'Decoder timestep'
+    xlabel = "Decoder timestep"
     if info is not None:
-        xlabel += '\n\n' + info
+        xlabel += "\n\n" + info
     plt.xlabel(xlabel)
-    plt.ylabel('Encoder timestep')
+    plt.ylabel("Encoder timestep")
 
     if phoneme_seq is not None:
         if phoneme_ver == 0:
@@ -511,7 +551,12 @@ def plot_alignment_to_numpy_for_speechllm(
             phones = phoneme_seq[phone_offset:]
             ax.set_yticks(np.arange(len(phones)))
             ax.set_yticklabels(phones)
-            ax.hlines(np.arange(0.5, len(phones) - 0.5, 1.0), xmin=0.0, xmax=alignment.shape[1] - 0.5, colors="black")
+            ax.hlines(
+                np.arange(0.5, len(phones) - 0.5, 1.0),
+                xmin=0.0,
+                xmax=alignment.shape[1] - 0.5,
+                colors="black",
+            )
 
             if h_offset:
                 xticks = ax.get_xticks()
@@ -527,7 +572,7 @@ def plot_alignment_to_numpy_for_speechllm(
     return data
 
 
-def plot_codec_to_numpy(codes, title=''):
+def plot_codec_to_numpy(codes, title=""):
     fig, ax = plt.subplots(figsize=(10, 3))
     sns.heatmap(codes, ax=ax)
 
@@ -573,7 +618,7 @@ def plot_multipitch_to_numpy(pitch_gt, pitch_pred, ylim_range=None):
 def plot_spectrogram_to_numpy(spectrogram):
     spectrogram = spectrogram.astype(np.float32)
     fig, ax = plt.subplots(figsize=(12, 3))
-    im = ax.imshow(spectrogram, aspect="auto", origin="lower", interpolation='none')
+    im = ax.imshow(spectrogram, aspect="auto", origin="lower", interpolation="none")
     plt.colorbar(im, ax=ax)
     plt.xlabel("Frames")
     plt.ylabel("Channels")
@@ -608,19 +653,19 @@ def plot_gate_outputs_to_numpy(gate_targets, gate_outputs):
         range(len(gate_targets)),
         gate_targets,
         alpha=0.5,
-        color='green',
-        marker='+',
+        color="green",
+        marker="+",
         s=1,
-        label='target',
+        label="target",
     )
     ax.scatter(
         range(len(gate_outputs)),
         gate_outputs,
         alpha=0.5,
-        color='red',
-        marker='.',
+        color="red",
+        marker=".",
         s=1,
-        label='predicted',
+        label="predicted",
     )
 
     plt.xlabel("Frames (Green target, Red predicted)")
@@ -712,14 +757,21 @@ def regulate_len(
     reps = (reps + 0.5).floor().long()
     dec_lens = reps.sum(dim=1)
     if group_size > 1:
-        to_pad = group_size * (torch.div(dec_lens + 1, group_size, rounding_mode='floor')) - dec_lens
+        to_pad = (
+            group_size * (torch.div(dec_lens + 1, group_size, rounding_mode="floor"))
+            - dec_lens
+        )
         reps.index_put_(
-            indices=[torch.arange(dur_lens.shape[0], dtype=torch.long), dur_lens - 1], values=to_pad, accumulate=True
+            indices=[torch.arange(dur_lens.shape[0], dtype=torch.long), dur_lens - 1],
+            values=to_pad,
+            accumulate=True,
         )
         dec_lens = reps.sum(dim=1)
 
     max_len = dec_lens.max()
-    reps_cumsum = torch.cumsum(torch.nn.functional.pad(reps, (1, 0, 0, 0), value=0.0), dim=1)[:, None, :]
+    reps_cumsum = torch.cumsum(
+        torch.nn.functional.pad(reps, (1, 0, 0, 0), value=0.0), dim=1
+    )[:, None, :]
     reps_cumsum = reps_cumsum.to(dtype=dtype, device=enc_out.device)
 
     range_ = torch.arange(max_len).to(enc_out.device)[None, :, None]
@@ -745,7 +797,11 @@ def split_view(tensor, split_size: int, dim: int = 0):
         padding.reverse()
         tensor = torch.nn.functional.pad(tensor, padding)
     cur_shape = tensor.shape
-    new_shape = cur_shape[:dim] + (tensor.shape[dim] // split_size, split_size) + cur_shape[dim + 1 :]
+    new_shape = (
+        cur_shape[:dim]
+        + (tensor.shape[dim] // split_size, split_size)
+        + cur_shape[dim + 1 :]
+    )
     return tensor.reshape(*new_shape)
 
 
@@ -815,9 +871,16 @@ def generate_path(duration, mask):
     cum_duration = torch.cumsum(duration, -1)
 
     cum_duration_flat = cum_duration.view(b * t_x)
-    path = get_mask_from_lengths(cum_duration_flat, torch.Tensor(t_y).reshape(1, 1, -1)).to(mask.dtype)
+    path = get_mask_from_lengths(
+        cum_duration_flat, torch.Tensor(t_y).reshape(1, 1, -1)
+    ).to(mask.dtype)
     path = path.view(b, t_x, t_y)
-    path = path - torch.nn.functional.pad(path, convert_pad_shape([[0, 0], [1, 0], [0, 0]]))[:, :-1]
+    path = (
+        path
+        - torch.nn.functional.pad(path, convert_pad_shape([[0, 0], [1, 0], [0, 0]]))[
+            :, :-1
+        ]
+    )
     path = path.unsqueeze(1).transpose(2, 3) * mask
     return path
 
@@ -869,10 +932,17 @@ def batch_from_ragged(
 
     index = 1
     num_batches = batch_lengths.shape[0] - 1
-    texts = torch.zeros(num_batches, max_len, dtype=torch.int64, device=text.device) + padding_idx
+    texts = (
+        torch.zeros(num_batches, max_len, dtype=torch.int64, device=text.device)
+        + padding_idx
+    )
     pitches = torch.ones(num_batches, max_len, dtype=torch.float32, device=text.device)
-    paces = torch.zeros(num_batches, max_len, dtype=torch.float32, device=text.device) + 1.0
-    volumes = torch.zeros(num_batches, max_len, dtype=torch.float32, device=text.device) + 1.0
+    paces = (
+        torch.zeros(num_batches, max_len, dtype=torch.float32, device=text.device) + 1.0
+    )
+    volumes = (
+        torch.zeros(num_batches, max_len, dtype=torch.float32, device=text.device) + 1.0
+    )
     lens = torch.zeros(num_batches, dtype=torch.int64, device=text.device)
     last_index = index - 1
     while index < batch_lengths.shape[0]:
@@ -902,18 +972,28 @@ def sample_tts_input(
     Returns:
         A tuple of input examples.
     """
-    sz = (max_batch * max_dim,) if export_config["enable_ragged_batches"] else (max_batch, max_dim)
-    inp = torch.randint(*export_config["emb_range"], sz, device=device, dtype=torch.int64)
+    sz = (
+        (max_batch * max_dim,)
+        if export_config["enable_ragged_batches"]
+        else (max_batch, max_dim)
+    )
+    inp = torch.randint(
+        *export_config["emb_range"], sz, device=device, dtype=torch.int64
+    )
     pitch = torch.randn(sz, device=device, dtype=torch.float32) * 0.5
-    pace = torch.clamp(torch.randn(sz, device=device, dtype=torch.float32) * 0.1 + 1.0, min=0.2)
-    inputs = {'text': inp, 'pitch': pitch, 'pace': pace}
+    pace = torch.clamp(
+        torch.randn(sz, device=device, dtype=torch.float32) * 0.1 + 1.0, min=0.2
+    )
+    inputs = {"text": inp, "pitch": pitch, "pace": pace}
     if export_config["enable_ragged_batches"]:
         batch_lengths = torch.zeros((max_batch + 1), device=device, dtype=torch.int32)
         left_over_size = sz[0]
         batch_lengths[0] = 0
         for i in range(1, max_batch):
             equal_len = (left_over_size - (max_batch - i)) // (max_batch - i)
-            length = torch.randint(equal_len // 2, equal_len, (1,), device=device, dtype=torch.int32)
+            length = torch.randint(
+                equal_len // 2, equal_len, (1,), device=device, dtype=torch.int32
+            )
             batch_lengths[i] = length + batch_lengths[i - 1]
             left_over_size -= length.detach().cpu().numpy()[0]
         batch_lengths[-1] = left_over_size + batch_lengths[-2]
@@ -925,17 +1005,25 @@ def sample_tts_input(
             index += 1
         assert sum == sz[0], f"sum: {sum}, sz: {sz[0]}, lengths:{batch_lengths}"
     else:
-        batch_lengths = torch.randint(max_dim // 2, max_dim, (max_batch,), device=device, dtype=torch.int32)
+        batch_lengths = torch.randint(
+            max_dim // 2, max_dim, (max_batch,), device=device, dtype=torch.int32
+        )
         batch_lengths[0] = max_dim
-    inputs['batch_lengths'] = batch_lengths
+    inputs["batch_lengths"] = batch_lengths
 
     if export_config["enable_volume"]:
-        volume = torch.clamp(torch.randn(sz, device=device, dtype=torch.float32) * 0.1 + 1, min=0.01)
-        inputs['volume'] = volume
+        volume = torch.clamp(
+            torch.randn(sz, device=device, dtype=torch.float32) * 0.1 + 1, min=0.01
+        )
+        inputs["volume"] = volume
 
     if "num_speakers" in export_config:
-        inputs['speaker'] = torch.randint(
-            0, export_config["num_speakers"], (max_batch,), device=device, dtype=torch.int64
+        inputs["speaker"] = torch.randint(
+            0,
+            export_config["num_speakers"],
+            (max_batch,),
+            device=device,
+            dtype=torch.int64,
         )
     return inputs
 
@@ -947,5 +1035,7 @@ def sample_tts_input(
 )
 def g2p_backward_compatible_support(g2p_target: str) -> str:
     # for backward compatibility
-    g2p_target_new = g2p_target.replace("nemo_text_processing.g2p", "nemo.collections.tts.g2p")
+    g2p_target_new = g2p_target.replace(
+        "nemo_text_processing.g2p", "nemo.collections.tts.g2p"
+    )
     return g2p_target_new

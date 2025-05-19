@@ -35,17 +35,26 @@ from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 
 def get_args():
     # pylint: disable=C0115,C0116
-    parser = argparse.ArgumentParser(description='Train a small Llava Next model using NeMo 2.0')
-    parser.add_argument('--devices', type=int, default=1, help="Number of devices to use for training")
-    parser.add_argument('--max-steps', type=int, default=5, help="Number of steps to train for")
+    parser = argparse.ArgumentParser(
+        description="Train a small Llava Next model using NeMo 2.0"
+    )
     parser.add_argument(
-        '--experiment-dir', type=str, default=None, help="directory to write results and checkpoints to"
+        "--devices", type=int, default=1, help="Number of devices to use for training"
+    )
+    parser.add_argument(
+        "--max-steps", type=int, default=5, help="Number of steps to train for"
+    )
+    parser.add_argument(
+        "--experiment-dir",
+        type=str,
+        default=None,
+        help="directory to write results and checkpoints to",
     )
 
     return parser.parse_args()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
 
     args = get_args()
 
@@ -65,9 +74,13 @@ if __name__ == '__main__':
     )
 
     # Transformer configurations
-    language_transformer_config = llm.Llama2Config7B(seq_length=decoder_seq_length, num_layers=2)
+    language_transformer_config = llm.Llama2Config7B(
+        seq_length=decoder_seq_length, num_layers=2
+    )
 
-    vision_transformer_config = vlm.InternViT_6B_448px_Config(img_h=336, img_w=336, patch_dim=14, num_layers=2)
+    vision_transformer_config = vlm.InternViT_6B_448px_Config(
+        img_h=336, img_w=336, patch_dim=14, num_layers=2
+    )
     vision_projection_config = vlm.MultimodalProjectorConfig(
         projector_type="mcore_mlp",
         input_size=3200,
@@ -112,12 +125,12 @@ if __name__ == '__main__':
 
     loggers = []
     tensorboard_logger = TensorBoardLogger(
-        save_dir='dummy',  ## NOTE: this gets overwritten by default
+        save_dir="dummy",  ## NOTE: this gets overwritten by default
     )
     loggers.append(tensorboard_logger)
 
     opt_config = OptimizerConfig(
-        optimizer='adam',
+        optimizer="adam",
         lr=6e-4,
         min_lr=6e-5,
         use_distributed_optimizer=False,

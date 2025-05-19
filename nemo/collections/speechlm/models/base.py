@@ -29,10 +29,12 @@ from nemo.lightning.megatron_parallel import \
 from nemo.utils import logging
 from nemo.utils.app_state import AppState
 
-__all__ = ['SpeechLanguageModel']
+__all__ = ["SpeechLanguageModel"]
 
 
-class SpeechLanguageModel(pl.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
+class SpeechLanguageModel(
+    pl.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin
+):
     def __init__(self):
         super().__init__()
         app_state = AppState()
@@ -100,7 +102,7 @@ class SpeechLanguageModel(pl.LightningModule, io.IOMixin, io.ConnectorMixin, fn.
         logging.info(self.summarize())
 
     def _set_model_guid(self):
-        if not hasattr(self, 'model_guid'):
+        if not hasattr(self, "model_guid"):
             appstate = AppState()
 
             # Generate a unique uuid for the instance
@@ -124,13 +126,17 @@ class SpeechLanguageModel(pl.LightningModule, io.IOMixin, io.ConnectorMixin, fn.
 
     def setup_multi_validation_data(self):
         if self.trainer is None:
-            logging.warning("Trainer is not set. Cannot setup multi validation/test data.")
+            logging.warning(
+                "Trainer is not set. Cannot setup multi validation/test data."
+            )
             return
 
         data_module = self.trainer.datamodule
 
         if getattr(data_module, "_validation_ds", None) is None:
-            logging.info("No validation dataset found. Skipping setup of multi validation data.")
+            logging.info(
+                "No validation dataset found. Skipping setup of multi validation data."
+            )
             return
 
         self._num_validation_dl = getattr(data_module, "_num_validation_dl", None)
@@ -144,7 +150,9 @@ class SpeechLanguageModel(pl.LightningModule, io.IOMixin, io.ConnectorMixin, fn.
                 raise ValueError(
                     f"`_num_validation_dl` not found/valid in data module: { getattr(data_module, '_num_validation_dl', None) }"
                 )
-            self._validation_names = [f'val_{idx}' for idx in range(self._num_validation_dl)]
+            self._validation_names = [
+                f"val_{idx}" for idx in range(self._num_validation_dl)
+            ]
             logging.info(
                 f"`_validation_names` not found in data module. Setting default names: {self._validation_names}"
             )
@@ -155,7 +163,9 @@ class SpeechLanguageModel(pl.LightningModule, io.IOMixin, io.ConnectorMixin, fn.
 
     def setup_multi_test_data(self):
         if self.trainer is None:
-            logging.warning("Trainer is not set. Cannot setup multi validation/test data.")
+            logging.warning(
+                "Trainer is not set. Cannot setup multi validation/test data."
+            )
             return
 
         data_module = self.trainer.datamodule
@@ -175,8 +185,10 @@ class SpeechLanguageModel(pl.LightningModule, io.IOMixin, io.ConnectorMixin, fn.
                 raise ValueError(
                     f"`_num_test_dl` not found/valid in data module: {getattr(data_module, '_num_test_dl', None)}"
                 )
-            self._test_names = [f'test_{idx}' for idx in range(self._num_test_dl)]
-            logging.info(f"`_test_names` not found in data module. Setting default names: {self._test_names}")
+            self._test_names = [f"test_{idx}" for idx in range(self._num_test_dl)]
+            logging.info(
+                f"`_test_names` not found in data module. Setting default names: {self._test_names}"
+            )
         elif len(self._test_names) != self._num_test_dl:
             raise ValueError(
                 f"Number of test names provided ({len(self._test_names)}) does not match number of test datasets ({self._num_test_dl})."
@@ -255,40 +267,52 @@ class SpeechLanguageModel(pl.LightningModule, io.IOMixin, io.ConnectorMixin, fn.
             along with merged logs from all data loaders.
         """
         # Case where we dont provide data loaders
-        if self.validation_step_outputs is not None and len(self.validation_step_outputs) == 0:
+        if (
+            self.validation_step_outputs is not None
+            and len(self.validation_step_outputs) == 0
+        ):
             return {}
 
         # Case where we provide exactly 1 data loader
         if isinstance(self.validation_step_outputs[0], dict):
-            output_dict = self.multi_validation_epoch_end(self.validation_step_outputs, dataloader_idx=0)
+            output_dict = self.multi_validation_epoch_end(
+                self.validation_step_outputs, dataloader_idx=0
+            )
 
-            if output_dict is not None and 'log' in output_dict:
-                self.log_dict(output_dict.pop('log'), on_epoch=True)
+            if output_dict is not None and "log" in output_dict:
+                self.log_dict(output_dict.pop("log"), on_epoch=True)
 
             self.validation_step_outputs.clear()  # free memory
             return output_dict
 
         else:  # Case where we provide more than 1 data loader
-            output_dict = {'log': {}}
+            output_dict = {"log": {}}
 
             # The output is a list of list of dicts, outer list corresponds to dataloader idx
             for dataloader_idx, val_outputs in enumerate(self.validation_step_outputs):
                 # Get prefix and dispatch call to multi epoch end
-                dataloader_prefix = self.get_validation_dataloader_prefix(dataloader_idx)
-                dataloader_logs = self.multi_validation_epoch_end(val_outputs, dataloader_idx=dataloader_idx)
+                dataloader_prefix = self.get_validation_dataloader_prefix(
+                    dataloader_idx
+                )
+                dataloader_logs = self.multi_validation_epoch_end(
+                    val_outputs, dataloader_idx=dataloader_idx
+                )
 
                 # If result was not provided, generate empty dict
                 dataloader_logs = dataloader_logs or {}
 
                 # Perform `val_loss` resolution first (if provided outside logs)
-                if 'val_loss' in dataloader_logs:
-                    if 'val_loss' not in output_dict and dataloader_idx == self._val_dl_idx:
-                        output_dict['val_loss'] = dataloader_logs['val_loss']
+                if "val_loss" in dataloader_logs:
+                    if (
+                        "val_loss" not in output_dict
+                        and dataloader_idx == self._val_dl_idx
+                    ):
+                        output_dict["val_loss"] = dataloader_logs["val_loss"]
 
                 # For every item in the result dictionary
                 for k, v in dataloader_logs.items():
                     # If the key is `log`
-                    if k == 'log':
+                    if k == "log":
                         # Parse every element of the log, and attach the prefix name of the data loader
                         log_dict = {}
 
@@ -296,35 +320,38 @@ class SpeechLanguageModel(pl.LightningModule, io.IOMixin, io.ConnectorMixin, fn.
                             # If we are logging the metric, but dont provide it at result level,
                             # store it twice - once in log and once in result level.
                             # Also mark log with prefix name to avoid log level clash with other data loaders
-                            if k_log not in output_dict['log'] and dataloader_idx == self._val_dl_idx:
+                            if (
+                                k_log not in output_dict["log"]
+                                and dataloader_idx == self._val_dl_idx
+                            ):
                                 new_k_log = k_log
 
                                 # Also insert duplicate key with prefix for ease of comparison / avoid name clash
-                                log_dict[f'{dataloader_prefix}_{k_log}'] = v_log
+                                log_dict[f"{dataloader_prefix}_{k_log}"] = v_log
 
                             else:
                                 # Simply prepend prefix to key and save
-                                new_k_log = f'{dataloader_prefix}_{k_log}'
+                                new_k_log = f"{dataloader_prefix}_{k_log}"
 
                             # Store log value
                             log_dict[new_k_log] = v_log
 
                         # Update log storage of individual data loader
-                        output_logs = output_dict['log']
+                        output_logs = output_dict["log"]
                         output_logs.update(log_dict)
 
                         # Update global log storage
-                        output_dict['log'] = output_logs
+                        output_dict["log"] = output_logs
 
                     else:
                         # If any values are stored outside 'log', simply prefix name and store
-                        new_k = f'{dataloader_prefix}_{k}'
+                        new_k = f"{dataloader_prefix}_{k}"
                         output_dict[new_k] = v
 
                 self.validation_step_outputs[dataloader_idx].clear()  # free memory
 
-            if 'log' in output_dict:
-                self.log_dict(output_dict.pop('log'), on_epoch=True)
+            if "log" in output_dict:
+                self.log_dict(output_dict.pop("log"), on_epoch=True)
             # return everything else
             return output_dict
 
@@ -355,68 +382,78 @@ class SpeechLanguageModel(pl.LightningModule, io.IOMixin, io.ConnectorMixin, fn.
 
         # Case where we provide exactly 1 data loader
         if isinstance(self.test_step_outputs[0], dict):
-            output_dict = self.multi_test_epoch_end(self.test_step_outputs, dataloader_idx=0)
+            output_dict = self.multi_test_epoch_end(
+                self.test_step_outputs, dataloader_idx=0
+            )
 
-            if output_dict is not None and 'log' in output_dict:
-                self.log_dict(output_dict.pop('log'), on_epoch=True)
+            if output_dict is not None and "log" in output_dict:
+                self.log_dict(output_dict.pop("log"), on_epoch=True)
 
             self.test_step_outputs.clear()  # free memory
             return output_dict
 
         else:  # Case where we provide more than 1 data loader
-            output_dict = {'log': {}}
+            output_dict = {"log": {}}
 
             # The output is a list of list of dicts, outer list corresponds to dataloader idx
             for dataloader_idx, test_outputs in enumerate(self.test_step_outputs):
                 # Get prefix and dispatch call to multi epoch end
                 dataloader_prefix = self.get_test_dataloader_prefix(dataloader_idx)
-                dataloader_logs = self.multi_test_epoch_end(test_outputs, dataloader_idx=dataloader_idx)
+                dataloader_logs = self.multi_test_epoch_end(
+                    test_outputs, dataloader_idx=dataloader_idx
+                )
 
                 # If result was not provided, generate empty dict
                 dataloader_logs = dataloader_logs or {}
 
                 # Perform `test_loss` resolution first (if provided outside logs)
-                if 'test_loss' in dataloader_logs:
-                    if 'test_loss' not in output_dict and dataloader_idx == self._test_dl_idx:
-                        output_dict['test_loss'] = dataloader_logs['test_loss']
+                if "test_loss" in dataloader_logs:
+                    if (
+                        "test_loss" not in output_dict
+                        and dataloader_idx == self._test_dl_idx
+                    ):
+                        output_dict["test_loss"] = dataloader_logs["test_loss"]
 
                 # For every item in the result dictionary
                 for k, v in dataloader_logs.items():
                     # If the key is `log`
-                    if k == 'log':
+                    if k == "log":
                         # Parse every element of the log, and attach the prefix name of the data loader
                         log_dict = {}
                         for k_log, v_log in v.items():
                             # If we are logging the loss, but dont provide it at result level,
                             # store it twice - once in log and once in result level.
                             # Also mark log with prefix name to avoid log level clash with other data loaders
-                            if k_log not in output_dict['log'] and dataloader_idx == self._test_dl_idx:
+                            if (
+                                k_log not in output_dict["log"]
+                                and dataloader_idx == self._test_dl_idx
+                            ):
                                 new_k_log = k_log
 
                                 # Also insert duplicate key with prefix for ease of comparison / avoid name clash
-                                log_dict[f'{dataloader_prefix}_{k_log}'] = v_log
+                                log_dict[f"{dataloader_prefix}_{k_log}"] = v_log
 
                             else:
                                 # Simply prepend prefix to key and save
-                                new_k_log = f'{dataloader_prefix}_{k_log}'
+                                new_k_log = f"{dataloader_prefix}_{k_log}"
 
                             log_dict[new_k_log] = v_log
 
                         # Update log storage of individual data loader
-                        output_logs = output_dict.get('log', {})
+                        output_logs = output_dict.get("log", {})
                         output_logs.update(log_dict)
 
                         # Update global log storage
-                        output_dict['log'] = output_logs
+                        output_dict["log"] = output_logs
 
                     else:
                         # If any values are stored outside 'log', simply prefix name and store
-                        new_k = f'{dataloader_prefix}_{k}'
+                        new_k = f"{dataloader_prefix}_{k}"
                         output_dict[new_k] = v
                 self.test_step_outputs[dataloader_idx].clear()  # free memory
 
-            if 'log' in output_dict:
-                self.log_dict(output_dict.pop('log'), on_epoch=True)
+            if "log" in output_dict:
+                self.log_dict(output_dict.pop("log"), on_epoch=True)
 
             # return everything else
             return output_dict
@@ -503,6 +540,8 @@ class SpeechLanguageModel(pl.LightningModule, io.IOMixin, io.ConnectorMixin, fn.
     @property
     def validation_loss_reduction(self) -> MaskedTokenLossReductionWithLossMask:
         if not self._validation_loss_reduction:
-            self._validation_loss_reduction = MaskedTokenLossReductionWithLossMask(validation_step=True)
+            self._validation_loss_reduction = MaskedTokenLossReductionWithLossMask(
+                validation_step=True
+            )
 
         return self._validation_loss_reduction

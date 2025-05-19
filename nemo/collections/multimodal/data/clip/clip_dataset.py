@@ -36,7 +36,9 @@ except (ImportError, ModuleNotFoundError):
     HAVE_MEGATRON_CORE = False
 
 
-def tokenize(texts: Union[str, List[str]], tokenizer: Any, context_length: int = 77) -> torch.LongTensor:
+def tokenize(
+    texts: Union[str, List[str]], tokenizer: Any, context_length: int = 77
+) -> torch.LongTensor:
     """
     Returns the tokenized representation of given input string(s)
 
@@ -61,7 +63,12 @@ def tokenize(texts: Union[str, List[str]], tokenizer: Any, context_length: int =
     bos_id = tokenizer.bos_id
     eos_id = tokenizer.eos_id
     pad_id = tokenizer.pad_id
-    all_tokens = [([bos_id] if bos_id is not None else []) + tokenizer.text_to_ids(text) + [eos_id] for text in texts]
+    all_tokens = [
+        ([bos_id] if bos_id is not None else [])
+        + tokenizer.text_to_ids(text)
+        + [eos_id]
+        for text in texts
+    ]
     result = torch.ones(len(all_tokens), context_length, dtype=torch.long) * pad_id
 
     for i, tokens in enumerate(all_tokens):
@@ -77,7 +84,13 @@ def tokenize(texts: Union[str, List[str]], tokenizer: Any, context_length: int =
 
 # pylint: disable=C0116
 def get_preprocess_fns_params(
-    img_h, img_w, img_mean=None, img_std=None, is_train=True, max_position_embedding=None, tokenizer=None
+    img_h,
+    img_w,
+    img_mean=None,
+    img_std=None,
+    is_train=True,
+    max_position_embedding=None,
+    tokenizer=None,
 ):
 
     # This is equivalent to `get_preprocess_fns` but does not need the whole config to get the functions. This is
@@ -125,8 +138,8 @@ def get_preprocess_fns(model_cfg, tokenizer=None, is_train=True):
 def tuple_to_dict(inp):
     for input in inp:
         out_dict = dict()
-        out_dict['images'] = input[0]
-        out_dict['captions'] = input[1]
+        out_dict["images"] = input[0]
+        out_dict["captions"] = input[1]
         yield out_dict
 
 
@@ -143,22 +156,36 @@ def build_train_valid_datasets(
 ):
     data_cfg = model_cfg.data
 
-    train_img_transform, text_transform = get_preprocess_fns(model_cfg, tokenizer, is_train=True)
+    train_img_transform, text_transform = get_preprocess_fns(
+        model_cfg, tokenizer, is_train=True
+    )
     train_data = WebDatasetCommon(
         dataset_cfg=data_cfg,
         consumed_samples=consumed_samples,
-        map_fn=partial(transform_fn, img_transform=train_img_transform, text_transform=text_transform),
+        map_fn=partial(
+            transform_fn,
+            img_transform=train_img_transform,
+            text_transform=text_transform,
+        ),
         compose_fn=tuple_to_dict,
         is_train=True,
     )
 
     val_data = None
-    if data_cfg.get("validation") is not None and data_cfg.validation.get("dataset_path"):
-        val_img_transform, text_transform = get_preprocess_fns(model_cfg, tokenizer, is_train=False)
+    if data_cfg.get("validation") is not None and data_cfg.validation.get(
+        "dataset_path"
+    ):
+        val_img_transform, text_transform = get_preprocess_fns(
+            model_cfg, tokenizer, is_train=False
+        )
         val_data = WebDatasetCommon(
             dataset_cfg=data_cfg,
             consumed_samples=0,
-            map_fn=partial(transform_fn, img_transform=val_img_transform, text_transform=text_transform),
+            map_fn=partial(
+                transform_fn,
+                img_transform=val_img_transform,
+                text_transform=text_transform,
+            ),
             compose_fn=tuple_to_dict,
             is_train=False,
         )
@@ -228,7 +255,9 @@ def build_imagenet_validation_dataloader_params(
         pin_memory=pin_memory,
         persistent_workers=True,
     )
-    text_dataset = ImagenetClassnameDataset(imagenet_classnames, openai_imagenet_template, text_transform)
+    text_dataset = ImagenetClassnameDataset(
+        imagenet_classnames, openai_imagenet_template, text_transform
+    )
 
     imagenet_val_data["texts"] = torch.utils.data.DataLoader(
         text_dataset,
@@ -246,7 +275,9 @@ def build_imagenet_validation_dataloader_params(
 # For zero-shot imagenet validation
 def build_imagenet_validation_dataloader(model_cfg, tokenizer=None):
     """Build dataloaders"""
-    val_image_transform, text_transform = get_preprocess_fns(model_cfg, tokenizer, is_train=False)
+    val_image_transform, text_transform = get_preprocess_fns(
+        model_cfg, tokenizer, is_train=False
+    )
     data_cfg = model_cfg.data
 
     imagenet_val = {}
@@ -279,7 +310,9 @@ def build_imagenet_validation_dataloader(model_cfg, tokenizer=None):
         persistent_workers=True,
     )
 
-    text_dataset = ImagenetClassnameDataset(imagenet_classnames, openai_imagenet_template, text_transform)
+    text_dataset = ImagenetClassnameDataset(
+        imagenet_classnames, openai_imagenet_template, text_transform
+    )
     imagenet_val["texts"] = torch.utils.data.DataLoader(
         text_dataset,
         batch_size=text_dataset.num_templates,

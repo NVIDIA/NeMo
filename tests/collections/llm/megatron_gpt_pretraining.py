@@ -35,25 +35,35 @@ from tests.collections.llm.common import \
 
 
 def get_args():
-    parser = argparse.ArgumentParser(description='Train a small GPT model using NeMo 2.0')
-    parser.add_argument('--devices', type=int, help="Number of devices to use for training")
-    parser.add_argument('--max-steps', type=int, help="Number of steps to train for")
-    parser.add_argument('--experiment-dir', type=str, help="directory to write results and checkpoints to")
-    parser.add_argument('--data-path', type=str, help="Path to data file")
-    parser.add_argument('--vocab-path', type=str, help="Path to vocab file")
-    parser.add_argument('--merges-path', type=str, help="Path to merges file")
-    parser.add_argument('--index-mapping-dir', type=str, help="directory to write index mappings to")
+    parser = argparse.ArgumentParser(
+        description="Train a small GPT model using NeMo 2.0"
+    )
     parser.add_argument(
-        '--no-masked-softmax-fusion',
-        action='store_false',
-        help='Disable fusion of softmax.',
-        dest='masked_softmax_fusion',
+        "--devices", type=int, help="Number of devices to use for training"
+    )
+    parser.add_argument("--max-steps", type=int, help="Number of steps to train for")
+    parser.add_argument(
+        "--experiment-dir",
+        type=str,
+        help="directory to write results and checkpoints to",
+    )
+    parser.add_argument("--data-path", type=str, help="Path to data file")
+    parser.add_argument("--vocab-path", type=str, help="Path to vocab file")
+    parser.add_argument("--merges-path", type=str, help="Path to merges file")
+    parser.add_argument(
+        "--index-mapping-dir", type=str, help="directory to write index mappings to"
+    )
+    parser.add_argument(
+        "--no-masked-softmax-fusion",
+        action="store_false",
+        help="Disable fusion of softmax.",
+        dest="masked_softmax_fusion",
     )
 
     return parser.parse_args()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
 
     args = get_args()
 
@@ -111,12 +121,12 @@ if __name__ == '__main__':
 
     loggers = []
     tensorboard_logger = TensorBoardLogger(
-        save_dir='dummy',  ## NOTE: this gets overwritten by default
+        save_dir="dummy",  ## NOTE: this gets overwritten by default
     )
     loggers.append(tensorboard_logger)
 
     opt_config = OptimizerConfig(
-        optimizer='adam',
+        optimizer="adam",
         lr=6e-4,
         min_lr=6e-5,
         use_distributed_optimizer=False,
@@ -151,6 +161,6 @@ if __name__ == '__main__':
         trainer=trainer,
         log=nemo_logger,
         resume=resume,
-        tokenizer='data',
+        tokenizer="data",
         optim=opt,
     )

@@ -81,7 +81,11 @@ class Quantizer:
     for TensorRT-LLM deployment. This is useful to getting baseline results for a full-precision model.
     """
 
-    def __init__(self, quantization_config: Optional[DictConfig], export_config: Optional[DictConfig]):
+    def __init__(
+        self,
+        quantization_config: Optional[DictConfig],
+        export_config: Optional[DictConfig],
+    ):
         """Initialize Quantizer with quantization and export configurations.
 
         Expected keys in `quantization_config`:
@@ -99,14 +103,17 @@ class Quantizer:
             - save_path: str
         """
         if not HAVE_MODELOPT:
-            raise RuntimeError("nvidia-modelopt is needed to use Quantizer") from HAVE_MODELOPT_ERROR
+            raise RuntimeError(
+                "nvidia-modelopt is needed to use Quantizer"
+            ) from HAVE_MODELOPT_ERROR
 
         self.quantization_config = quantization_config
         self.export_config = export_config
 
         # Quantization sanity checks
         assert (
-            quantization_config.algorithm is None or quantization_config.algorithm in QUANT_CFG_CHOICES
+            quantization_config.algorithm is None
+            or quantization_config.algorithm in QUANT_CFG_CHOICES
         ), f"Unsupported quantization algorithm: {quantization_config.algorithm}"
         if quantization_config.algorithm is not None:
             quant_cfg = QUANT_CFG_CHOICES[quantization_config.algorithm]
@@ -123,9 +130,12 @@ class Quantizer:
             enable_quant_kv_cache = quantization_config.get("enable_kv_cache", None)
             if enable_quant_kv_cache is None:
                 enable_quant_kv_cache = (
-                    "int8" not in quantization_config.algorithm and quantization_config.decoder_type != "gpt"
+                    "int8" not in quantization_config.algorithm
+                    and quantization_config.decoder_type != "gpt"
                 )
-            logging.info(f'{"Enabled" if enable_quant_kv_cache else "Disabled"} KV cache quantization')
+            logging.info(
+                f'{"Enabled" if enable_quant_kv_cache else "Disabled"} KV cache quantization'
+            )
             quant_cfg["quant_cfg"]["*output_quantizer"] = {
                 "num_bits": 8 if quantization_config.algorithm == "int8_sq" else (4, 3),
                 "axis": None,
@@ -133,7 +143,10 @@ class Quantizer:
             }
             if quantization_config.algorithm == "int8_sq":
                 logging.info(f"Using int8_sq alpha = {quantization_config.sq_alpha}")
-                quant_cfg["algorithm"] = {"method": "smoothquant", "alpha": quantization_config.sq_alpha}
+                quant_cfg["algorithm"] = {
+                    "method": "smoothquant",
+                    "alpha": quantization_config.sq_alpha,
+                }
 
             self.quant_cfg = quant_cfg
         else:
@@ -141,13 +154,17 @@ class Quantizer:
 
         # Export sanity checks
         if export_config is not None:
-            assert export_config.dtype in SUPPORTED_DTYPE, f"Unsupported export dtype: {export_config.dtype}"
+            assert (
+                export_config.dtype in SUPPORTED_DTYPE
+            ), f"Unsupported export dtype: {export_config.dtype}"
 
     @staticmethod
     def _setup(model: MegatronGPTModel):
         """Setup model for quantization."""
         try:
-            model.model.module.language_model.encoder.activations_checkpoint_method = None
+            model.model.module.language_model.encoder.activations_checkpoint_method = (
+                None
+            )
         except AttributeError:
             pass
 
@@ -190,7 +207,9 @@ class Quantizer:
 
         logging.info(f'Example NeMo output before export: {response["sentences"]}"')
 
-    def quantize(self, model: MegatronGPTModel, forward_loop: Callable[[MegatronGPTModel], None]):
+    def quantize(
+        self, model: MegatronGPTModel, forward_loop: Callable[[MegatronGPTModel], None]
+    ):
         """Quantize the model and calibrate using given forward loop."""
         assert self.quant_cfg is not None, "Quantization algorithm is not set"
 
@@ -208,7 +227,9 @@ class Quantizer:
             elif self.quantization_config.algorithm == "int8_sq":
                 maxbound = 127
             model = mtq.postprocess_amax(
-                model, "*input_quantizer", lambda amax: torch.clamp(amax, min=0.01 * maxbound)
+                model,
+                "*input_quantizer",
+                lambda amax: torch.clamp(amax, min=0.01 * maxbound),
             )
 
         if dist.get_rank() == 0:
@@ -253,6 +274,8 @@ class Quantizer:
             if dist.get_rank() == 0:
                 save_artifacts(model, export_dir)
                 if compress:
-                    os.makedirs(os.path.dirname(self.export_config.save_path), exist_ok=True)
+                    os.makedirs(
+                        os.path.dirname(self.export_config.save_path), exist_ok=True
+                    )
                     with tarfile.open(self.export_config.save_path, "w") as tar:
                         tar.add(export_dir, arcname="./")

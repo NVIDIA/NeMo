@@ -103,7 +103,9 @@ def test_data_module_train_dataloader(mock_data_module):
     train_dl = mock_data_module.train_dataloader()
     batch = next(iter(train_dl))
     assert isinstance(batch, dict)
-    assert set(["input_ids", "labels", "loss_mask", "position_ids"]).issubset(batch.keys())
+    assert set(["input_ids", "labels", "loss_mask", "position_ids"]).issubset(
+        batch.keys()
+    )
     assert batch["input_ids"].shape == torch.Size([2, 16])
     assert batch["labels"].shape == torch.Size([2, 16])
     # Attention mask may be optional, check if included

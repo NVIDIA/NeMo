@@ -44,16 +44,28 @@ class DiscreteImageTokenizer(nn.Module):
 
         quantizer_name = kwargs.get("quantizer", DiscreteQuantizer.RESFSQ.name)
         if quantizer_name == DiscreteQuantizer.VQ.name:
-            assert "num_embeddings" in kwargs, f"`num_embeddings` must be provided for {quantizer_name}."
+            assert (
+                "num_embeddings" in kwargs
+            ), f"`num_embeddings` must be provided for {quantizer_name}."
             kwargs.update(dict(embedding_dim=embedding_dim))
         elif quantizer_name == DiscreteQuantizer.LFQ.name:
-            assert "codebook_size" in kwargs, f"`codebook_size` must be provided for {quantizer_name}."
-            assert "codebook_dim" in kwargs, f"`codebook_dim` must be provided for {quantizer_name}."
+            assert (
+                "codebook_size" in kwargs
+            ), f"`codebook_size` must be provided for {quantizer_name}."
+            assert (
+                "codebook_dim" in kwargs
+            ), f"`codebook_dim` must be provided for {quantizer_name}."
         elif quantizer_name == DiscreteQuantizer.FSQ.name:
-            assert "levels" in kwargs, f"`levels` must be provided for {quantizer_name}."
+            assert (
+                "levels" in kwargs
+            ), f"`levels` must be provided for {quantizer_name}."
         elif quantizer_name == DiscreteQuantizer.RESFSQ.name:
-            assert "levels" in kwargs, f"`levels` must be provided for {quantizer_name}.name."
-            assert "num_quantizers" in kwargs, f"`num_quantizers` must be provided for {quantizer_name}."
+            assert (
+                "levels" in kwargs
+            ), f"`levels` must be provided for {quantizer_name}.name."
+            assert (
+                "num_quantizers" in kwargs
+            ), f"`num_quantizers` must be provided for {quantizer_name}."
         self.quantizer = DiscreteQuantizer[quantizer_name].value(**kwargs)
 
     def to(self, *args, **kwargs):

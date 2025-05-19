@@ -22,7 +22,9 @@ from nemo.utils.decorators import experimental
 def fixed_pos_embedding(x):
     seq_len, dim = x.shape
     inv_freq = 1.0 / (10000 ** (torch.arange(0, dim) / dim))
-    sinusoid_inp = torch.einsum("i , j -> i j", torch.arange(0, seq_len, dtype=torch.float), inv_freq).to(x)
+    sinusoid_inp = torch.einsum(
+        "i , j -> i j", torch.arange(0, seq_len, dtype=torch.float), inv_freq
+    ).to(x)
     return torch.sin(sinusoid_inp), torch.cos(sinusoid_inp)
 
 
@@ -56,14 +58,21 @@ class XPOSPositionEmbedding(nn.Module):
         super().__init__()
         self.head_dim = head_dim
         self.scale_base = scale_base
-        self.register_buffer("scale", (torch.arange(0, head_dim, 2) + 0.4 * head_dim) / (1.4 * head_dim))
+        self.register_buffer(
+            "scale", (torch.arange(0, head_dim, 2) + 0.4 * head_dim) / (1.4 * head_dim)
+        )
 
     def forward(self, x, offset=0, downscale=False):
         length, b = x.shape[0], x.shape[1]
-        x = rearrange(x, 's b np hn -> (b np) s hn')
+        x = rearrange(x, "s b np hn -> (b np) s hn")
         min_pos = -(length + offset) // 2
         max_pos = length + offset + min_pos
-        scale = self.scale ** torch.arange(min_pos, max_pos, 1).to(self.scale).div(self.scale_base)[:, None]
+        scale = (
+            self.scale
+            ** torch.arange(min_pos, max_pos, 1)
+            .to(self.scale)
+            .div(self.scale_base)[:, None]
+        )
         sin, cos = fixed_pos_embedding(scale)
 
         if scale.shape[0] > length:
@@ -75,5 +84,5 @@ class XPOSPositionEmbedding(nn.Module):
             scale = 1 / scale
 
         x = apply_rotary_pos_emb(x, sin, cos, scale)
-        x = rearrange(x, '(b np) s hn -> s b np hn', b=b)
+        x = rearrange(x, "(b np) s hn -> s b np hn", b=b)
         return x

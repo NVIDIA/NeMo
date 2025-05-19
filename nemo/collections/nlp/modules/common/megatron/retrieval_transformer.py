@@ -51,8 +51,7 @@ MIN_DIM_HEAD = 32
 
 
 class MegatronRetrievalTransformerEncoderModule(MegatronModule):
-    """Transformer encoder model.
-    """
+    """Transformer encoder model."""
 
     def __init__(
         self,
@@ -82,10 +81,10 @@ class MegatronRetrievalTransformerEncoderModule(MegatronModule):
         persist_layer_norm=False,
         openai_gelu=False,
         onnx_safe=False,
-        activation='gelu',
+        activation="gelu",
         bias=True,
-        normalization='layernorm',
-        transformer_block_type='pre_ln',
+        normalization="layernorm",
+        transformer_block_type="pre_ln",
         parent_model_type=ModelType.encoder_or_decoder,
         chunk_size=64,
         layer_number_offset=0,  # this is use only for attention norm_factor scaling
@@ -112,7 +111,7 @@ class MegatronRetrievalTransformerEncoderModule(MegatronModule):
 
             assert (
                 hidden_size % num_attention_heads == 0
-            ), 'hidden_size must be divisible by num_attention_heads if kv_channels is None'
+            ), "hidden_size must be divisible by num_attention_heads if kv_channels is None"
             kv_channels = hidden_size // num_attention_heads
 
         # Transformer.
@@ -154,16 +153,18 @@ class MegatronRetrievalTransformerEncoderModule(MegatronModule):
             normalize_attention_scores=normalize_attention_scores,
             megatron_legacy=megatron_legacy,
         )
-        rot_dim = hidden_size // num_attention_heads if kv_channels is None else kv_channels
+        rot_dim = (
+            hidden_size // num_attention_heads if kv_channels is None else kv_channels
+        )
         # partial rotary embeddings, which is better than full rotary
         # Wang and Komatsuzaki et al https://github.com/kingoflolz/mesh-transformer-jax/
         if not turn_off_rop:
             self.rotary_pos_emb = RotaryEmbedding(min(rot_dim, MIN_DIM_HEAD))
         self.chunk_size = chunk_size
-        self._model_key = 'model'
+        self._model_key = "model"
 
     def set_input_tensor(self, input_tensor):
-        """ See megatron.model.transformer.set_input_tensor()"""
+        """See megatron.model.transformer.set_input_tensor()"""
         self.model.set_input_tensor(input_tensor)
 
     def _allocate_memory(self, *shape, dtype):
@@ -194,22 +195,34 @@ class MegatronRetrievalTransformerEncoderModule(MegatronModule):
             num_seq_chunks = n // self.chunk_size
             num_chunks = inference_max_sequence_len // self.chunk_size
             self.cache_output = self._allocate_memory(
-                b, num_chunks, neighbors, self.chunk_size * 2, dim, dtype=encoder_output.dtype
+                b,
+                num_chunks,
+                neighbors,
+                self.chunk_size * 2,
+                dim,
+                dtype=encoder_output.dtype,
             )
             self.seq_pos_in_chunk = n
             self.current_chunk = n // self.chunk_size
-            self.encoder_output = self._allocate_memory(b, self.chunk_size, dim, dtype=encoder_output.dtype)
-            self.context_attn_mask = self._allocate_memory(b, self.chunk_size, dtype=context_attn_mask.dtype)
+            self.encoder_output = self._allocate_memory(
+                b, self.chunk_size, dim, dtype=encoder_output.dtype
+            )
+            self.context_attn_mask = self._allocate_memory(
+                b, self.chunk_size, dtype=context_attn_mask.dtype
+            )
             self.context_attn_mask
             chunk_beg = self.chunk_size * num_seq_chunks
-            chunk_end = self.chunk_size * num_seq_chunks + self.seq_pos_in_chunk % self.chunk_size
+            chunk_end = (
+                self.chunk_size * num_seq_chunks
+                + self.seq_pos_in_chunk % self.chunk_size
+            )
             # store the remainders
-            self.encoder_output[:, : self.seq_pos_in_chunk % self.chunk_size, :] = encoder_output[
-                :, chunk_beg:chunk_end, :
-            ]
-            self.context_attn_mask[:, : self.seq_pos_in_chunk % self.chunk_size] = context_attn_mask[
-                :, chunk_beg:chunk_end
-            ]
+            self.encoder_output[:, : self.seq_pos_in_chunk % self.chunk_size, :] = (
+                encoder_output[:, chunk_beg:chunk_end, :]
+            )
+            self.context_attn_mask[:, : self.seq_pos_in_chunk % self.chunk_size] = (
+                context_attn_mask[:, chunk_beg:chunk_end]
+            )
         elif inference_max_sequence_len is not None:
             # second time of running
             # only support one token at a time
@@ -238,7 +251,9 @@ class MegatronRetrievalTransformerEncoderModule(MegatronModule):
             if enc_input is not None:
                 # only need one chunk for the later calculation
                 enc_input = enc_input[:, self.current_chunk - 1 : self.current_chunk]
-                enc_attn_mask = enc_attn_mask[:, self.current_chunk - 1 : self.current_chunk]
+                enc_attn_mask = enc_attn_mask[
+                    :, self.current_chunk - 1 : self.current_chunk
+                ]
 
         if enc_input is None:
             return None
@@ -248,46 +263,80 @@ class MegatronRetrievalTransformerEncoderModule(MegatronModule):
         assert r == neighbors
         if inference_max_sequence_len is None:
             num_seq_chunks = n // self.chunk_size
-            assert k == num_seq_chunks, f'sequence requires {num_seq_chunks} retrieved chunks, but only {k} passed in'
+            assert (
+                k == num_seq_chunks
+            ), f"sequence requires {num_seq_chunks} retrieved chunks, but only {k} passed in"
         else:
             pass
 
         seq_index = num_seq_chunks * self.chunk_size
 
-        retrieved = rearrange(enc_input, 'b k r n d -> n (b k r) d')
-        enc_attn_mask = rearrange(enc_attn_mask, 'b k r n -> (b k r) n')
+        retrieved = rearrange(enc_input, "b k r n d -> n (b k r) d")
+        enc_attn_mask = rearrange(enc_attn_mask, "b k r n -> (b k r) n")
         # embed_as_context = repeat(encoder_output[:, :seq_index], 'b (k n) d -> (b k r) n d', n=self.chunk_size, r=r)
         # context_attn_mask = repeat(context_attn_mask[:, :seq_index], 'b (k n) -> (b k r) n', n=self.chunk_size, r=r)
 
-        if inference_max_sequence_len is not None and not set_inference_key_value_memory:
-            embed_as_context = repeat(encoder_output[:, :seq_index], 'b (k n) d -> n (b k r) d', n=pos_beg + 1, r=r)
-            context_attn_mask = repeat(context_attn_mask[:, :seq_index], 'b (k n) -> (b k r) n', n=pos_beg + 1, r=r)
-        else:
+        if (
+            inference_max_sequence_len is not None
+            and not set_inference_key_value_memory
+        ):
             embed_as_context = repeat(
-                encoder_output[:, :seq_index], 'b (k n) d -> n (b k r) d', n=self.chunk_size, r=r
+                encoder_output[:, :seq_index],
+                "b (k n) d -> n (b k r) d",
+                n=pos_beg + 1,
+                r=r,
             )
             context_attn_mask = repeat(
-                context_attn_mask[:, :seq_index], 'b (k n) -> (b k r) n', n=self.chunk_size, r=r
+                context_attn_mask[:, :seq_index],
+                "b (k n) -> (b k r) n",
+                n=pos_beg + 1,
+                r=r,
+            )
+        else:
+            embed_as_context = repeat(
+                encoder_output[:, :seq_index],
+                "b (k n) d -> n (b k r) d",
+                n=self.chunk_size,
+                r=r,
+            )
+            context_attn_mask = repeat(
+                context_attn_mask[:, :seq_index],
+                "b (k n) -> (b k r) n",
+                n=self.chunk_size,
+                r=r,
             )
 
         if not self.turn_off_rop:
-            if inference_max_sequence_len is not None and not set_inference_key_value_memory:
-                cross_attn_k_pos_emb = self.rotary_pos_emb(n % self.chunk_size, offset=pos_beg)
+            if (
+                inference_max_sequence_len is not None
+                and not set_inference_key_value_memory
+            ):
+                cross_attn_k_pos_emb = self.rotary_pos_emb(
+                    n % self.chunk_size, offset=pos_beg
+                )
             else:
                 cross_attn_k_pos_emb = self.rotary_pos_emb(self.chunk_size, offset=0)
             cross_attn_q_pos_emb = self.rotary_pos_emb(rn, offset=0)
-            attn_pos_emb = (cross_attn_q_pos_emb, cross_attn_q_pos_emb, cross_attn_k_pos_emb)
+            attn_pos_emb = (
+                cross_attn_q_pos_emb,
+                cross_attn_q_pos_emb,
+                cross_attn_k_pos_emb,
+            )
         else:
             attn_pos_emb = None
 
         # # convert to Megatron mask
         enc_attn_mask_3d = build_attention_mask_3d(
-            source_mask=enc_attn_mask, target_mask=enc_attn_mask, attn_mask_type=AttnMaskType.padding,
+            source_mask=enc_attn_mask,
+            target_mask=enc_attn_mask,
+            attn_mask_type=AttnMaskType.padding,
         )
         enc_attn_mask_3d = enc_attn_mask_3d[:, None, :, :]
 
         enc_dec_attn_mask_3d = build_attention_mask_3d(
-            source_mask=enc_attn_mask, target_mask=context_attn_mask, attn_mask_type=AttnMaskType.padding,
+            source_mask=enc_attn_mask,
+            target_mask=context_attn_mask,
+            attn_mask_type=AttnMaskType.padding,
         )
         enc_dec_attn_mask_3d = enc_dec_attn_mask_3d[:, None, :, :]
 
@@ -302,7 +351,7 @@ class MegatronRetrievalTransformerEncoderModule(MegatronModule):
             rotary_pos_emb=attn_pos_emb,
         )
         # revert back to original retrieved shape
-        enc_output = rearrange(enc_output, 'n (b k r) d -> b k r n d', b=b, k=k)
+        enc_output = rearrange(enc_output, "n (b k r) d -> b k r n d", b=b, k=k)
 
         if inference_max_sequence_len is not None:
             # update encoded for current chunk
@@ -311,12 +360,16 @@ class MegatronRetrievalTransformerEncoderModule(MegatronModule):
             enc_output = self.cache_output[:, : self.current_chunk]
         return enc_output
 
-    def state_dict_for_save_checkpoint(self, destination=None, prefix='', keep_vars=False):
+    def state_dict_for_save_checkpoint(
+        self, destination=None, prefix="", keep_vars=False
+    ):
         """For easy load."""
 
         state_dict_ = {}
 
-        state_dict_[self._model_key] = self.model.state_dict_for_save_checkpoint(destination, prefix, keep_vars)
+        state_dict_[self._model_key] = self.model.state_dict_for_save_checkpoint(
+            destination, prefix, keep_vars
+        )
 
         return state_dict_
 
@@ -330,8 +383,7 @@ class MegatronRetrievalTransformerEncoderModule(MegatronModule):
 
 
 class MegatronRetrievalTransformerDecoderModule(MegatronModule):
-    """Transformer decoder model.
-    """
+    """Transformer decoder model."""
 
     def __init__(
         self,
@@ -361,10 +413,10 @@ class MegatronRetrievalTransformerDecoderModule(MegatronModule):
         persist_layer_norm=False,
         openai_gelu=False,
         onnx_safe=False,
-        activation='gelu',
+        activation="gelu",
         bias=True,
-        normalization='layernorm',
-        transformer_block_type='pre_ln',
+        normalization="layernorm",
+        transformer_block_type="pre_ln",
         parent_model_type=ModelType.encoder_or_decoder,
         chunk_size=64,
         layer_number_offset=0,  # this is use only for attention norm_factor scaling
@@ -390,7 +442,7 @@ class MegatronRetrievalTransformerDecoderModule(MegatronModule):
 
             assert (
                 hidden_size % num_attention_heads == 0
-            ), 'hidden_size must be divisible by num_attention_heads if kv_channels is None'
+            ), "hidden_size must be divisible by num_attention_heads if kv_channels is None"
             kv_channels = hidden_size // num_attention_heads
 
         # Transformer.
@@ -432,16 +484,18 @@ class MegatronRetrievalTransformerDecoderModule(MegatronModule):
             normalize_attention_scores=normalize_attention_scores,
             megatron_legacy=megatron_legacy,
         )
-        rot_dim = hidden_size // num_attention_heads if kv_channels is None else kv_channels
+        rot_dim = (
+            hidden_size // num_attention_heads if kv_channels is None else kv_channels
+        )
         # partial rotary embeddings, which is better than full rotary
         # Wang and Komatsuzaki et al https://github.com/kingoflolz/mesh-transformer-jax/
         if not turn_off_rop:
             self.rotary_pos_emb = RotaryEmbedding(min(rot_dim, MIN_DIM_HEAD))
         self.chunk_size = chunk_size
-        self._model_key = 'model'
+        self._model_key = "model"
 
     def set_input_tensor(self, input_tensor):
-        """ See megatron.model.transformer.set_input_tensor()"""
+        """See megatron.model.transformer.set_input_tensor()"""
         self.model.set_input_tensor(input_tensor)
 
     def _calculate_dec_att_mask(self, dec_attn_mask, eod_positions):
@@ -449,7 +503,9 @@ class MegatronRetrievalTransformerDecoderModule(MegatronModule):
 
         # customized attention mask, starts with causal attention mask
         dec_attn_mask_3d = build_attention_mask_3d(
-            source_mask=dec_attn_mask, target_mask=dec_attn_mask, attn_mask_type=AttnMaskType.causal,
+            source_mask=dec_attn_mask,
+            target_mask=dec_attn_mask,
+            attn_mask_type=AttnMaskType.causal,
         )
         # add the attention mask reset
         if eod_positions is not None:
@@ -509,7 +565,7 @@ class MegatronRetrievalTransformerDecoderModule(MegatronModule):
             b, k, r, rn, dim = retrieved_emb.shape
             assert (
                 k == num_seq_chunks
-            ), f'sequence requires {num_seq_chunks} retrieved chunks, but only {k} passed in'  # need to add extra chunk size, since it will be shifted
+            ), f"sequence requires {num_seq_chunks} retrieved chunks, but only {k} passed in"  # need to add extra chunk size, since it will be shifted
 
         if not self.turn_off_rop:
             if set_inference_key_value_memory:
@@ -520,16 +576,24 @@ class MegatronRetrievalTransformerDecoderModule(MegatronModule):
                 self_attn_emb = self.rotary_pos_emb(n)
             if retrieved_emb is not None:
                 # -63, -62, ... 63  will be cut into -> [0, ... 63] in the chunk cross attention layer
-                cross_attn_q_pos_emb = self.rotary_pos_emb(self.chunk_size * 2 - 1, offset=-self.chunk_size + 1)
+                cross_attn_q_pos_emb = self.rotary_pos_emb(
+                    self.chunk_size * 2 - 1, offset=-self.chunk_size + 1
+                )
                 if self.version == 1:
                     cross_attn_k_pos_emb = self.rotary_pos_emb(rn, offset=0)
                 elif self.version > 1:
                     # the first 64 tokens in retrieved is from the last chunk, align the continuation part with the query tokens
                     # use the following in the future. [-63, -62, ..., 63, 64]
-                    cross_attn_k_pos_emb = self.rotary_pos_emb(rn, offset=-self.chunk_size + 1)
+                    cross_attn_k_pos_emb = self.rotary_pos_emb(
+                        rn, offset=-self.chunk_size + 1
+                    )
                 else:
-                    raise ValueError(f'incorrect version number {self.version}')
-                attn_pos_emb = (self_attn_emb, cross_attn_q_pos_emb, cross_attn_k_pos_emb)
+                    raise ValueError(f"incorrect version number {self.version}")
+                attn_pos_emb = (
+                    self_attn_emb,
+                    cross_attn_q_pos_emb,
+                    cross_attn_k_pos_emb,
+                )
             else:
                 attn_pos_emb = (self_attn_emb, None, None)
         else:
@@ -541,14 +605,22 @@ class MegatronRetrievalTransformerDecoderModule(MegatronModule):
             # need to shift the dec_attn_mask as first causal_padding elements are ignored
             # also pad it to be the multiple of self.chunk_size
             causal_padding = self.chunk_size - 1
-            reminder = (self.chunk_size - (dec_attn_mask.shape[1] + 1)) % self.chunk_size
-            dec_attn_mask = F.pad(dec_attn_mask, (-causal_padding, reminder), value=False)
+            reminder = (
+                self.chunk_size - (dec_attn_mask.shape[1] + 1)
+            ) % self.chunk_size
+            dec_attn_mask = F.pad(
+                dec_attn_mask, (-causal_padding, reminder), value=False
+            )
 
-            dec_attn_mask = rearrange(dec_attn_mask, 'b (k n) -> (b k) n', k=k)
-            retrieved_attn_mask = rearrange(retrieved_attn_mask, 'b k r n -> (b k) (r n)')
+            dec_attn_mask = rearrange(dec_attn_mask, "b (k n) -> (b k) n", k=k)
+            retrieved_attn_mask = rearrange(
+                retrieved_attn_mask, "b k r n -> (b k) (r n)"
+            )
 
             enc_dec_attn_mask_3d = build_attention_mask_3d(
-                source_mask=dec_attn_mask, target_mask=retrieved_attn_mask, attn_mask_type=AttnMaskType.padding,
+                source_mask=dec_attn_mask,
+                target_mask=retrieved_attn_mask,
+                attn_mask_type=AttnMaskType.padding,
             )
             enc_dec_attn_mask_3d = enc_dec_attn_mask_3d[:, None, :, :]
         else:
@@ -556,7 +628,7 @@ class MegatronRetrievalTransformerDecoderModule(MegatronModule):
 
         # transformer encoder
         if not isinstance(dec_input, tuple):
-            dec_input = rearrange(dec_input, 'b s d -> s b d').contiguous()
+            dec_input = rearrange(dec_input, "b s d -> s b d").contiguous()
         enc_output = self.model(
             dec_input,
             dec_attn_mask_3d,
@@ -572,12 +644,16 @@ class MegatronRetrievalTransformerDecoderModule(MegatronModule):
         # enc_output = rearrange(dec_input, 's b d -> b s d')
         return enc_output
 
-    def state_dict_for_save_checkpoint(self, destination=None, prefix='', keep_vars=False):
+    def state_dict_for_save_checkpoint(
+        self, destination=None, prefix="", keep_vars=False
+    ):
         """For easy load."""
 
         state_dict_ = {}
 
-        state_dict_[self._model_key] = self.model.state_dict_for_save_checkpoint(destination, prefix, keep_vars)
+        state_dict_[self._model_key] = self.model.state_dict_for_save_checkpoint(
+            destination, prefix, keep_vars
+        )
 
         return state_dict_
 

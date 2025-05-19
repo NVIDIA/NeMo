@@ -44,69 +44,85 @@ def sampler():
 
 def get_data_simulation_configs():
     config_dict = {
-        'data_simulator': {
-            'manifest_filepath': '???',
-            'sr': 16000,
-            'random_seed': 42,
-            'multiprocessing_chunksize': 10000,
-            'session_config': {'num_speakers': 4, 'num_sessions': 60, 'session_length': 600},
-            'session_params': {
-                'max_audio_read_sec': 20,
-                'sentence_length_params': [0.4, 0.05],
-                'dominance_var': 0.11,
-                'min_dominance': 0.05,
-                'turn_prob': 0.875,
-                'min_turn_prob': 0.5,
-                'mean_silence': 0.15,
-                'mean_silence_var': 0.01,
-                'per_silence_var': 900,
-                'per_silence_min': 0.0,
-                'per_silence_max': -1,
-                'mean_overlap': 0.1,
-                'mean_overlap_var': 0.01,
-                'per_overlap_var': 900,
-                'per_overlap_min': 0.0,
-                'per_overlap_max': -1,
-                'start_window': True,
-                'window_type': 'hamming',
-                'window_size': 0.05,
-                'start_buffer': 0.1,
-                'split_buffer': 0.1,
-                'release_buffer': 0.1,
-                'normalize': True,
-                'normalization_type': 'equal',
-                'normalization_var': 0.1,
-                'min_volume': 0.75,
-                'max_volume': 1.25,
-                'end_buffer': 0.5,
+        "data_simulator": {
+            "manifest_filepath": "???",
+            "sr": 16000,
+            "random_seed": 42,
+            "multiprocessing_chunksize": 10000,
+            "session_config": {
+                "num_speakers": 4,
+                "num_sessions": 60,
+                "session_length": 600,
             },
-            'outputs': {
-                'output_dir': '???',
-                'output_filename': 'multispeaker_session',
-                'overwrite_output': True,
-                'output_precision': 3,
+            "session_params": {
+                "max_audio_read_sec": 20,
+                "sentence_length_params": [0.4, 0.05],
+                "dominance_var": 0.11,
+                "min_dominance": 0.05,
+                "turn_prob": 0.875,
+                "min_turn_prob": 0.5,
+                "mean_silence": 0.15,
+                "mean_silence_var": 0.01,
+                "per_silence_var": 900,
+                "per_silence_min": 0.0,
+                "per_silence_max": -1,
+                "mean_overlap": 0.1,
+                "mean_overlap_var": 0.01,
+                "per_overlap_var": 900,
+                "per_overlap_min": 0.0,
+                "per_overlap_max": -1,
+                "start_window": True,
+                "window_type": "hamming",
+                "window_size": 0.05,
+                "start_buffer": 0.1,
+                "split_buffer": 0.1,
+                "release_buffer": 0.1,
+                "normalize": True,
+                "normalization_type": "equal",
+                "normalization_var": 0.1,
+                "min_volume": 0.75,
+                "max_volume": 1.25,
+                "end_buffer": 0.5,
             },
-            'background_noise': {
-                'add_bg': False,
-                'background_manifest': None,
-                'num_noise_files': 10,
-                'snr': 60,
-                'snr_min': None,
+            "outputs": {
+                "output_dir": "???",
+                "output_filename": "multispeaker_session",
+                "overwrite_output": True,
+                "output_precision": 3,
             },
-            'segment_augmentor': {
-                'add_seg_aug': False,
-                'augmentor': {
-                    'gain': {'prob': 0.5, 'min_gain_dbfs': -10.0, 'max_gain_dbfs': 10.0},
+            "background_noise": {
+                "add_bg": False,
+                "background_manifest": None,
+                "num_noise_files": 10,
+                "snr": 60,
+                "snr_min": None,
+            },
+            "segment_augmentor": {
+                "add_seg_aug": False,
+                "augmentor": {
+                    "gain": {
+                        "prob": 0.5,
+                        "min_gain_dbfs": -10.0,
+                        "max_gain_dbfs": 10.0,
+                    },
                 },
             },
-            'session_augmentor': {
-                'add_sess_aug': False,
-                'augmentor': {
-                    'white_noise': {'prob': 1.0, 'min_level': -90, 'max_level': -46},
+            "session_augmentor": {
+                "add_sess_aug": False,
+                "augmentor": {
+                    "white_noise": {"prob": 1.0, "min_level": -90, "max_level": -46},
                 },
             },
-            'speaker_enforcement': {'enforce_num_speakers': True, 'enforce_time': [0.25, 0.75]},
-            'segment_manifest': {'window': 0.5, 'shift': 0.25, 'step_count': 50, 'deci': 3},
+            "speaker_enforcement": {
+                "enforce_num_speakers": True,
+                "enforce_time": [0.25, 0.75],
+            },
+            "segment_manifest": {
+                "window": 0.5,
+                "shift": 0.25,
+                "step_count": 50,
+                "deci": 3,
+            },
         }
     }
     return DictConfig(config_dict)
@@ -114,17 +130,17 @@ def get_data_simulation_configs():
 
 def generate_words_and_alignments(sample_index):
     if sample_index == 0:
-        words = ['', 'hello', 'world']
+        words = ["", "hello", "world"]
         alignments = [0.5, 1.0, 1.5]
     elif sample_index == 1:
         words = ["", "stephanos", "dedalos", ""]
         alignments = [0.51, 1.31, 2.04, 2.215]
     elif sample_index == 2:
-        words = ['', 'hello', 'world', '', 'welcome', 'to', 'nemo', '']
+        words = ["", "hello", "world", "", "welcome", "to", "nemo", ""]
         alignments = [0.5, 1.0, 1.5, 1.7, 1.8, 2.2, 2.7, 2.8]
     else:
         raise ValueError(f"sample_index {sample_index} not supported")
-    speaker_id = 'speaker_0'
+    speaker_id = "speaker_0"
     return words, alignments, speaker_id
 
 
@@ -163,7 +179,10 @@ class TestGetCtmLine:
             speaker="speaker1",
             output_precision=output_precision,
         )
-        expected = "test_source 1 0.12 0.46 word" + f" {conf:.{output_precision}f} lex speaker1\n"
+        expected = (
+            "test_source 1 0.12 0.46 word"
+            + f" {conf:.{output_precision}f} lex speaker1\n"
+        )
         assert result == expected, f"Failed on valid conf value {conf}"
 
     @pytest.mark.unit
@@ -185,9 +204,17 @@ class TestGetCtmLine:
     @pytest.mark.unit
     @pytest.mark.parametrize(
         "start_time, duration, output_precision",
-        [(0.123, 0.456, 2), (1.0, 2.0, 1), (0.0, 0.0, 2), (0.01, 0.99, 3), (1.23, 4.56, 2)],
+        [
+            (0.123, 0.456, 2),
+            (1.0, 2.0, 1),
+            (0.0, 0.0, 2),
+            (0.01, 0.99, 3),
+            (1.23, 4.56, 2),
+        ],
     )
-    def test_valid_start_time_duration_with_precision(self, start_time, duration, output_precision):
+    def test_valid_start_time_duration_with_precision(
+        self, start_time, duration, output_precision
+    ):
         # Test with valid beginning time, duration values and output precision
         confidence = 0.5
         result = get_ctm_line(
@@ -201,13 +228,9 @@ class TestGetCtmLine:
             speaker="speaker1",
             output_precision=output_precision,
         )
-        expected_start_time = (
-            f"{start_time:.{output_precision}f}"  # Adjusted to match the output format with precision
-        )
+        expected_start_time = f"{start_time:.{output_precision}f}"  # Adjusted to match the output format with precision
         expected_duration = f"{duration:.{output_precision}f}"  # Adjusted to match the output format with precision
-        expected_confidence = (
-            f"{confidence:.{output_precision}f}"  # Adjusted to match the output format with precision
-        )
+        expected_confidence = f"{confidence:.{output_precision}f}"  # Adjusted to match the output format with precision
         expected = f"test_source 1 {expected_start_time} {expected_duration} word {expected_confidence} lex speaker1\n"
         assert (
             result == expected
@@ -292,9 +315,30 @@ class TestDataSimulatorUtils:
     @pytest.mark.parametrize("min_alignment_count", [2, 3, 4])
     def test_binary_search_alignments(self, max_audio_read_sec, min_alignment_count):
         inds = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
-        alignments = [0.5, 11.0, 11.5, 12.0, 13.0, 14.0, 14.5, 15.0, 16.0, 17.0, 18.0, 19.0, 20.0, 30, 40.0]
-        offset_max = binary_search_alignments(inds, max_audio_read_sec, min_alignment_count, alignments)
-        assert max_audio_read_sec <= alignments[-1 * min_alignment_count] - alignments[inds[offset_max]]
+        alignments = [
+            0.5,
+            11.0,
+            11.5,
+            12.0,
+            13.0,
+            14.0,
+            14.5,
+            15.0,
+            16.0,
+            17.0,
+            18.0,
+            19.0,
+            20.0,
+            30,
+            40.0,
+        ]
+        offset_max = binary_search_alignments(
+            inds, max_audio_read_sec, min_alignment_count, alignments
+        )
+        assert (
+            max_audio_read_sec
+            <= alignments[-1 * min_alignment_count] - alignments[inds[offset_max]]
+        )
 
     @pytest.mark.parametrize("sample_len", [100, 16000])
     @pytest.mark.parametrize("gain", [0.1, 0.5, 1.0, 2.0, 5.0])
@@ -317,9 +361,9 @@ class TestDataSimulatorUtils:
     @pytest.mark.parametrize(
         "words, alignments, answers",
         [
-            (['', 'hello', 'world'], [0.5, 1.0, 1.5], [[0, 16000.0]]),
+            (["", "hello", "world"], [0.5, 1.0, 1.5], [[0, 16000.0]]),
             (
-                ['', 'hello', 'world', '', 'welcome', 'to', 'nemo', ''],
+                ["", "hello", "world", "", "welcome", "to", "nemo", ""],
                 [0.27, 1.0, 1.7, 2.7, 2.8, 3.2, 3.7, 3.9],
                 [[0, (1.7 + 0.5) * 16000], [(2.7 - 0.5) * 16000, (3.9 - 0.27) * 16000]],
             ),
@@ -328,33 +372,38 @@ class TestDataSimulatorUtils:
     @pytest.mark.parametrize("sr", [16000])
     @pytest.mark.parametrize("split_buffer", [0.5])
     @pytest.mark.parametrize("new_start", [0.0])
-    def test_get_split_points_in_alignments(self, words, alignments, sr, new_start, split_buffer, answers):
+    def test_get_split_points_in_alignments(
+        self, words, alignments, sr, new_start, split_buffer, answers
+    ):
         sentence_audio_len = sr * (alignments[-1] - alignments[0])
-        splits = get_split_points_in_alignments(words, alignments, split_buffer, sr, sentence_audio_len, new_start)
+        splits = get_split_points_in_alignments(
+            words, alignments, split_buffer, sr, sentence_audio_len, new_start
+        )
         assert len(splits) == len(answers)
         for k, interval in enumerate(splits):
             assert abs(answers[k][0] - interval[0]) < 1e-4
             assert abs(answers[k][1] - interval[1]) < 1e-4
 
     @pytest.mark.parametrize(
-        "alignments, words", [(['hello', 'world'], [1.0, 1.5]), (['', 'hello', 'world'], [0.0, 1.0, 1.5])]
+        "alignments, words",
+        [(["hello", "world"], [1.0, 1.5]), (["", "hello", "world"], [0.0, 1.0, 1.5])],
     )
     def test_add_silence_to_alignments(self, alignments, words):
         """
         Test add_silence_to_alignments function.
         """
         audio_manifest = {
-            'audio_filepath': 'test.wav',
-            'alignments': alignments,
-            'words': words,
+            "audio_filepath": "test.wav",
+            "alignments": alignments,
+            "words": words,
         }
         audio_manifest = add_silence_to_alignments(audio_manifest)
-        if words[0] == '':
-            assert audio_manifest['alignments'] == [0.0] + alignments
-            assert audio_manifest['words'] == [''] + words
+        if words[0] == "":
+            assert audio_manifest["alignments"] == [0.0] + alignments
+            assert audio_manifest["words"] == [""] + words
         else:
-            assert audio_manifest['alignments'] == alignments
-            assert audio_manifest['words'] == words
+            assert audio_manifest["alignments"] == alignments
+            assert audio_manifest["words"] == words
 
 
 class TestDataAnnotator:
@@ -365,16 +414,20 @@ class TestDataAnnotator:
         words, alignments, speaker_id = generate_words_and_alignments(sample_index=0)
         start, end = alignments[0], alignments[-1]
         rttm_list = annotator.create_new_rttm_entry(
-            words=words, alignments=alignments, start=start, end=end, speaker_id=speaker_id
+            words=words,
+            alignments=alignments,
+            start=start,
+            end=end,
+            speaker_id=speaker_id,
         )
         assert rttm_list[0] == f"{start} {end} {speaker_id}"
 
     def test_create_new_json_entry(self, annotator):
         words, alignments, speaker_id = generate_words_and_alignments(sample_index=0)
         start, end = alignments[0], alignments[-1]
-        test_wav_filename = '/path/to/test_wav_filename.wav'
-        test_rttm_filename = '/path/to/test_rttm_filename.rttm'
-        test_ctm_filename = '/path/to/test_ctm_filename.ctm'
+        test_wav_filename = "/path/to/test_wav_filename.wav"
+        test_rttm_filename = "/path/to/test_rttm_filename.rttm"
+        test_ctm_filename = "/path/to/test_ctm_filename.ctm"
         text = " ".join(words)
 
         one_line_json_dict = annotator.create_new_json_entry(
@@ -386,8 +439,13 @@ class TestDataAnnotator:
             rttm_filepath=test_rttm_filename,
             ctm_filepath=test_ctm_filename,
         )
-        start = round(float(start), annotator._params.data_simulator.outputs.output_precision)
-        length = round(float(end - start), annotator._params.data_simulator.outputs.output_precision)
+        start = round(
+            float(start), annotator._params.data_simulator.outputs.output_precision
+        )
+        length = round(
+            float(end - start),
+            annotator._params.data_simulator.outputs.output_precision,
+        )
         meta = {
             "audio_filepath": test_wav_filename,
             "offset": start,
@@ -403,9 +461,13 @@ class TestDataAnnotator:
 
     def test_create_new_ctm_entry(self, annotator):
         words, alignments, speaker_id = generate_words_and_alignments(sample_index=0)
-        session_name = 'test_session'
+        session_name = "test_session"
         ctm_list = annotator.create_new_ctm_entry(
-            words=words, alignments=alignments, session_name=session_name, speaker_id=speaker_id, start=alignments[0]
+            words=words,
+            alignments=alignments,
+            session_name=session_name,
+            speaker_id=speaker_id,
+            start=alignments[0],
         )
         assert ctm_list[0] == (
             alignments[1],
@@ -416,7 +478,7 @@ class TestDataAnnotator:
                 duration=float(alignments[1] - alignments[0]),
                 token=words[1],
                 conf=None,
-                type_of_token='lex',
+                type_of_token="lex",
                 speaker=speaker_id,
             ),
         )
@@ -429,7 +491,7 @@ class TestDataAnnotator:
                 duration=float(alignments[2] - alignments[1]),
                 token=words[2],
                 conf=None,
-                type_of_token='lex',
+                type_of_token="lex",
                 speaker=speaker_id,
             ),
         )
@@ -498,19 +560,27 @@ class TestSpeechSampler:
 
     @pytest.mark.parametrize("non_silence_len_samples", [16000, 32000])
     @pytest.mark.parametrize("running_overlap_len_samples", [8000, 12000])
-    def test_sample_from_overlap_model(self, sampler, non_silence_len_samples, running_overlap_len_samples):
+    def test_sample_from_overlap_model(
+        self, sampler, non_silence_len_samples, running_overlap_len_samples
+    ):
         sampler.get_session_overlap_mean()
         sampler.running_overlap_len_samples = running_overlap_len_samples
-        overlap_amount = sampler.sample_from_overlap_model(non_silence_len_samples=non_silence_len_samples)
+        overlap_amount = sampler.sample_from_overlap_model(
+            non_silence_len_samples=non_silence_len_samples
+        )
         assert type(overlap_amount) == int
         assert 0 <= overlap_amount
 
     @pytest.mark.parametrize("running_len_samples", [8000, 16000])
     @pytest.mark.parametrize("running_overlap_len_samples", [8000, 12000])
-    def test_sample_from_silence_model(self, sampler, running_len_samples, running_overlap_len_samples):
+    def test_sample_from_silence_model(
+        self, sampler, running_len_samples, running_overlap_len_samples
+    ):
         sampler.get_session_silence_mean()
         self.running_overlap_len_samples = running_overlap_len_samples
-        silence_amount = sampler.sample_from_silence_model(running_len_samples=running_len_samples)
+        silence_amount = sampler.sample_from_silence_model(
+            running_len_samples=running_len_samples
+        )
         assert type(silence_amount) == int
         assert 0 <= silence_amount
 
@@ -518,9 +588,13 @@ class TestSpeechSampler:
     @pytest.mark.parametrize("num_noise_files", [1, 2, 4])
     def test_sample_noise_manifest(self, sampler, num_noise_files, test_data_dir):
         sampler.num_noise_files = num_noise_files
-        manifest_path = os.path.abspath(os.path.join(test_data_dir, 'asr/an4_val.json'))
-        noise_manifest = read_noise_manifest(add_bg=True, background_manifest=manifest_path)
-        sampled_noise_manifests = sampler.sample_noise_manifest(noise_manifest=noise_manifest)
+        manifest_path = os.path.abspath(os.path.join(test_data_dir, "asr/an4_val.json"))
+        noise_manifest = read_noise_manifest(
+            add_bg=True, background_manifest=manifest_path
+        )
+        sampled_noise_manifests = sampler.sample_noise_manifest(
+            noise_manifest=noise_manifest
+        )
         assert len(sampled_noise_manifests) == num_noise_files
 
     @pytest.mark.parametrize("running_speech_len_samples", [32000, 64000])
@@ -538,6 +612,7 @@ class TestSpeechSampler:
         sampler.running_overlap_len_samples = running_overlap_len_samples
         sampler.running_speech_len_samples = running_speech_len_samples
         add_overlap = sampler.silence_vs_overlap_selector(
-            running_len_samples=running_len_samples, non_silence_len_samples=non_silence_len_samples
+            running_len_samples=running_len_samples,
+            non_silence_len_samples=non_silence_len_samples,
         )
         assert type(add_overlap) == bool

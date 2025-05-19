@@ -34,8 +34,10 @@ from tests.lightning.mcore_microbatch_utils import \
 
 VOCAB_PATH = "/home/TestData/nlp/megatron_gpt/data/gpt/vocab.json"
 MERGES_PATH = "/home/TestData/nlp/megatron_gpt/data/gpt/merges.txt"
-DATA_PATH = "/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document"
-EXP_DIR = '/tmp/nemo_exp/'
+DATA_PATH = (
+    "/home/TestData/nlp/megatron_gpt/data/gpt/simple_wiki_gpt_preproc_text_document"
+)
+EXP_DIR = "/tmp/nemo_exp/"
 # @akoumparouli: post-https://github.com/NVIDIA/Megatron-LM/commit/e6759409675b9911c529d3054ca9dc40c10802e5
 # return value is ProxyDict even for all models (dense and moe).
 from megatron.core.optimizer.optimizer import ProxyDict
@@ -48,42 +50,63 @@ def teardown(exp_dir=EXP_DIR):
 
 
 class ValidateOptStateRestoration(Callback):
-    def on_fit_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
+    def on_fit_start(
+        self, trainer: "pl.Trainer", pl_module: "pl.LightningModule"
+    ) -> None:
         # PTL has no on_load_checkpoint_start event to be triggered before
         # the checkpoint restoration.
         opt_state = trainer.optimizers[0].state
-        assert isinstance(opt_state, (dict, ProxyDict)), "Expected state to be a dictionary"
+        assert isinstance(
+            opt_state, (dict, ProxyDict)
+        ), "Expected state to be a dictionary"
         assert len(opt_state) == 0, "Expected state to be empty"
 
     def on_load_checkpoint(self, trainer, pl_module, checkpoint) -> None:
         # This runs after the checkpoint restoration
         # on_load_checkpoint == on_load_checkpoint_end
         opt_state = trainer.optimizers[0].state
-        assert isinstance(opt_state, (dict, ProxyDict)), "Expected state to be a dictionary"
+        assert isinstance(
+            opt_state, (dict, ProxyDict)
+        ), "Expected state to be a dictionary"
         assert len(opt_state) > 0, "Expected a non-empty state"
         for key, val in opt_state.items():
             for param in val.values():
-                assert not torch.all(param == 0).item() and not torch.all(param == 1.0).item()
+                assert (
+                    not torch.all(param == 0).item()
+                    and not torch.all(param == 1.0).item()
+                )
 
 
 class ValidateOptStateScratchInit(Callback):
-    def on_fit_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
+    def on_fit_start(
+        self, trainer: "pl.Trainer", pl_module: "pl.LightningModule"
+    ) -> None:
         opt_state = trainer.optimizers[0].state
-        assert isinstance(opt_state, (dict, ProxyDict)), "Expected state to be a dictionary "
+        assert isinstance(
+            opt_state, (dict, ProxyDict)
+        ), "Expected state to be a dictionary "
         assert len(opt_state) == 0, "Expected state to be empty"
 
-    def on_train_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
+    def on_train_start(
+        self, trainer: "pl.Trainer", pl_module: "pl.LightningModule"
+    ) -> None:
         opt_state = trainer.optimizers[0].state
-        assert isinstance(opt_state, (dict, ProxyDict)), "Expected state to be a dictionary"
+        assert isinstance(
+            opt_state, (dict, ProxyDict)
+        ), "Expected state to be a dictionary"
         assert len(opt_state) == 0, "Expected state to be empty"
 
 
 class ValidateModelScratchInit(Callback):
-    def on_fit_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
+    def on_fit_start(
+        self, trainer: "pl.Trainer", pl_module: "pl.LightningModule"
+    ) -> None:
         for p in pl_module.parameters():
             p.detach().zero_()
 
-    def on_train_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
+    def on_train_start(
+        self, trainer: "pl.Trainer", pl_module: "pl.LightningModule"
+    ) -> None:
         for p in pl_module.parameters():
             assert torch.all(p == 0), "Expected params (scratch) to be zero"
         with torch.no_grad():
@@ -92,7 +115,9 @@ class ValidateModelScratchInit(Callback):
 
 
 class ValidateModelRestoration(Callback):
-    def on_fit_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
+    def on_fit_start(
+        self, trainer: "pl.Trainer", pl_module: "pl.LightningModule"
+    ) -> None:
         for p in pl_module.parameters():
             p.detach().zero_()
         self.called_on_load_checkpoint = False
@@ -100,11 +125,15 @@ class ValidateModelRestoration(Callback):
     def on_load_checkpoint(self, trainer, pl_module, checkpoint) -> None:
         self.called_on_load_checkpoint = True
 
-    def on_train_start(self, trainer: "pl.Trainer", pl_module: "pl.LightningModule") -> None:
+    def on_train_start(
+        self, trainer: "pl.Trainer", pl_module: "pl.LightningModule"
+    ) -> None:
         for p in pl_module.parameters():
             assert not torch.all(p == 0), "Expected params (resume) to be non-zero"
-        assert hasattr(self, 'called_on_load_checkpoint')
-        assert self.called_on_load_checkpoint == True, "Expected to have called on_load_checkpoint"
+        assert hasattr(self, "called_on_load_checkpoint")
+        assert (
+            self.called_on_load_checkpoint == True
+        ), "Expected to have called on_load_checkpoint"
 
 
 def setup_data(mbs=1, gbs=2, seq_length=2048):
@@ -144,7 +173,7 @@ def make_model_optim(tokenizer, mbs=1, gbs=2, seq_length=2048):
 
     opt = MegatronOptimizerModule(
         config=OptimizerConfig(
-            optimizer='adam',
+            optimizer="adam",
             lr=1e-2,
             bf16=True,
             use_distributed_optimizer=False,
@@ -190,7 +219,7 @@ def run_train_from_scratch(mbs, gbs, num_dev):
             trainer=trainer,
             log=NeMoLogger(
                 log_dir=EXP_DIR,
-                version='v1',
+                version="v1",
                 use_datetime_version=True,
                 update_logger_directory=True,
                 wandb=None,
@@ -199,7 +228,7 @@ def run_train_from_scratch(mbs, gbs, num_dev):
                 resume_if_exists=True,
                 resume_ignore_no_checkpoint=True,
             ),
-            tokenizer='data',
+            tokenizer="data",
             optim=opt,
         )
         trainer._teardown()
@@ -232,11 +261,11 @@ def run_resume_train(mbs, gbs, num_dev):
             model=model,
             data=data,
             trainer=trainer,
-            tokenizer='data',
+            tokenizer="data",
             optim=opt,
             log=NeMoLogger(
                 log_dir=EXP_DIR,
-                version='v1',
+                version="v1",
                 use_datetime_version=True,
                 update_logger_directory=True,
                 wandb=None,
@@ -244,13 +273,13 @@ def run_resume_train(mbs, gbs, num_dev):
             resume=AutoResume(
                 resume_if_exists=True,
                 resume_ignore_no_checkpoint=False,
-                resume_from_path=f'{EXP_DIR}default/v1/checkpoints/default--None=0.0000-epoch=0-consumed_samples=20.0/',
+                resume_from_path=f"{EXP_DIR}default/v1/checkpoints/default--None=0.0000-epoch=0-consumed_samples=20.0/",
             ),
         )
         trainer._teardown()
 
 
-@pytest.mark.run_only_on('GPU')
+@pytest.mark.run_only_on("GPU")
 def test_optim_state_restoration():
     mbs, gbs = 1, 2
     num_devices = 1

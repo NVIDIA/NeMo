@@ -72,7 +72,9 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
             )
 
         self.hiddens_module = hiddens_module
-        if self.hiddens_module is not None and not isinstance(self.hiddens_module, MegatronHiddensModule):
+        if self.hiddens_module is not None and not isinstance(
+            self.hiddens_module, MegatronHiddensModule
+        ):
             raise TypeError(
                 f"hiddens_module must be of type MegatronHiddensModule, but got {type(self.hiddens_module)} instead."
             )
@@ -84,9 +86,11 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
             # Perceiver does not have a `.model` attribute, assume it always uses padding mask.
             elif isinstance(encoder, MegatronPerceiverEncoderModule):
                 encoder_attn_mask_type = AttnMaskType.padding
-            elif hasattr(encoder.model, 'self_attn_mask_type'):
+            elif hasattr(encoder.model, "self_attn_mask_type"):
                 encoder_attn_mask_type = encoder.model.self_attn_mask_type
-            elif isinstance(encoder.model, torch.nn.ModuleList) and hasattr(encoder.model[0], 'self_attn_mask_type'):
+            elif isinstance(encoder.model, torch.nn.ModuleList) and hasattr(
+                encoder.model[0], "self_attn_mask_type"
+            ):
                 encoder_attn_mask_type = encoder.model[0].self_attn_mask_type
             else:
                 raise AttributeError(
@@ -95,7 +99,7 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
         if decoder_attn_mask_type is None:
             if decoder is None:
                 decoder_attn_mask_type = None
-            elif hasattr(decoder.model, 'self_attn_mask_type'):
+            elif hasattr(decoder.model, "self_attn_mask_type"):
                 decoder_attn_mask_type = decoder.model.self_attn_mask_type
             else:
                 raise AttributeError(
@@ -114,9 +118,13 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
         Returns the attention mask for the output of the encoder.
         Required for fixed-size bottleneck models.
         """
-        if self.encoder is not None and isinstance(self.encoder, MegatronPerceiverEncoderModule):
+        if self.encoder is not None and isinstance(
+            self.encoder, MegatronPerceiverEncoderModule
+        ):
             # Attention mask is expected to be of shape [B x S]
-            hiddens_mask = torch.ones(enc_attn_mask.size(0), self.hidden_steps).to(enc_attn_mask.device)
+            hiddens_mask = torch.ones(enc_attn_mask.size(0), self.hidden_steps).to(
+                enc_attn_mask.device
+            )
         else:
             hiddens_mask = enc_attn_mask
 
@@ -230,7 +238,10 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
                 enc_output = self.encoder_hidden_state
         else:
             if isinstance(enc_output_attn_mask, list):
-                enc_attn_mask = [mask.to(enc_attn_mask[midx]) for midx, mask in enumerate(enc_output_attn_mask)]
+                enc_attn_mask = [
+                    mask.to(enc_attn_mask[midx])
+                    for midx, mask in enumerate(enc_output_attn_mask)
+                ]
             else:
                 enc_attn_mask = enc_output_attn_mask.to(enc_attn_mask)
 
@@ -242,7 +253,9 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
             dec_input=dec_input,
             dec_attn_mask=dec_attn_mask,
             enc_output=(
-                enc_output["enc_output"]  # enc_output is a dict if we used hidden transformations
+                enc_output[
+                    "enc_output"
+                ]  # enc_output is a dict if we used hidden transformations
                 if self.hiddens_module is not None
                 else enc_output
             ),
@@ -262,16 +275,24 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
         # if self.hiddens_module is not None enc_output is a dict, else it is a torch.tensor
         return dec_output, enc_output
 
-    def state_dict_for_save_checkpoint(self, destination=None, prefix='', keep_vars=False):
+    def state_dict_for_save_checkpoint(
+        self, destination=None, prefix="", keep_vars=False
+    ):
         """For easy load."""
 
         state_dict_ = {}
 
-        state_dict_[self._encoder_key] = self.encoder.state_dict_for_save_checkpoint(destination, prefix, keep_vars)
-        state_dict_[self._decoder_key] = self.decoder.state_dict_for_save_checkpoint(destination, prefix, keep_vars)
+        state_dict_[self._encoder_key] = self.encoder.state_dict_for_save_checkpoint(
+            destination, prefix, keep_vars
+        )
+        state_dict_[self._decoder_key] = self.decoder.state_dict_for_save_checkpoint(
+            destination, prefix, keep_vars
+        )
 
         if self.hiddens_module is not None:
-            state_dict_[self._hiddens_module] = self.hiddens_module.state_dict(destination, prefix, keep_vars)
+            state_dict_[self._hiddens_module] = self.hiddens_module.state_dict(
+                destination, prefix, keep_vars
+            )
 
         return state_dict_
 
@@ -282,6 +303,8 @@ class MegatronTransformerEncoderDecoderModule(MegatronModule):
             self.encoder.load_state_dict(state_dict[self._encoder_key], strict=strict)
             self.decoder.load_state_dict(state_dict[self._decoder_key], strict=strict)
             if self.hiddens_module is not None:
-                self.hiddens_module.load_state_dict(state_dict[self._hiddens_module], strict=strict)
+                self.hiddens_module.load_state_dict(
+                    state_dict[self._hiddens_module], strict=strict
+                )
         except KeyError as e:
             super().load_state_dict(state_dict, strict=strict)

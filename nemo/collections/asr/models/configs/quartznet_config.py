@@ -175,13 +175,19 @@ class JasperModelConfig(ctc_cfg.EncDecCTCConfig):
 
     # Dataset configs
     train_ds: ctc_cfg.ASRDatasetConfig = field(
-        default_factory=lambda: ctc_cfg.ASRDatasetConfig(manifest_filepath=None, shuffle=True, trim_silence=True)
+        default_factory=lambda: ctc_cfg.ASRDatasetConfig(
+            manifest_filepath=None, shuffle=True, trim_silence=True
+        )
     )
     validation_ds: ctc_cfg.ASRDatasetConfig = field(
-        default_factory=lambda: ctc_cfg.ASRDatasetConfig(manifest_filepath=None, shuffle=False)
+        default_factory=lambda: ctc_cfg.ASRDatasetConfig(
+            manifest_filepath=None, shuffle=False
+        )
     )
     test_ds: ctc_cfg.ASRDatasetConfig = field(
-        default_factory=lambda: ctc_cfg.ASRDatasetConfig(manifest_filepath=None, shuffle=False)
+        default_factory=lambda: ctc_cfg.ASRDatasetConfig(
+            manifest_filepath=None, shuffle=False
+        )
     )
 
     # Optimizer / Scheduler config
@@ -196,8 +202,12 @@ class JasperModelConfig(ctc_cfg.EncDecCTCConfig):
     spec_augment: Optional[SpectrogramAugmentationConfig] = field(
         default_factory=lambda: SpectrogramAugmentationConfig()
     )
-    encoder: ConvASREncoderConfig = field(default_factory=lambda: ConvASREncoderConfig(activation="relu"))
-    decoder: ConvASRDecoderConfig = field(default_factory=lambda: ConvASRDecoderConfig())
+    encoder: ConvASREncoderConfig = field(
+        default_factory=lambda: ConvASREncoderConfig(activation="relu")
+    )
+    decoder: ConvASRDecoderConfig = field(
+        default_factory=lambda: ConvASRDecoderConfig()
+    )
 
 
 @dataclass
@@ -206,45 +216,62 @@ class QuartzNetModelConfig(JasperModelConfig):
 
 
 class EncDecCTCModelConfigBuilder(model_cfg.ModelConfigBuilder):
-    VALID_CONFIGS = ['quartznet_15x5', 'quartznet_15x5_zh', 'jasper_10x5dr']
+    VALID_CONFIGS = ["quartznet_15x5", "quartznet_15x5_zh", "jasper_10x5dr"]
 
-    def __init__(self, name: str = 'quartznet_15x5', encoder_cfg_func: Optional[Callable[[], List[Any]]] = None):
+    def __init__(
+        self,
+        name: str = "quartznet_15x5",
+        encoder_cfg_func: Optional[Callable[[], List[Any]]] = None,
+    ):
         if name not in EncDecCTCModelConfigBuilder.VALID_CONFIGS:
-            raise ValueError("`name` must be one of : \n" f"{EncDecCTCModelConfigBuilder.VALID_CONFIGS}")
+            raise ValueError(
+                "`name` must be one of : \n"
+                f"{EncDecCTCModelConfigBuilder.VALID_CONFIGS}"
+            )
 
         self.name = name
 
-        if 'quartznet_15x5' in name:
+        if "quartznet_15x5" in name:
             if encoder_cfg_func is None:
                 encoder_cfg_func = qn_15x5
 
             model_cfg = QuartzNetModelConfig(
                 repeat=5,
                 separable=True,
-                spec_augment=SpectrogramAugmentationConfig(rect_masks=5, rect_freq=50, rect_time=120),
-                encoder=ConvASREncoderConfig(jasper=encoder_cfg_func(), activation="relu"),
+                spec_augment=SpectrogramAugmentationConfig(
+                    rect_masks=5, rect_freq=50, rect_time=120
+                ),
+                encoder=ConvASREncoderConfig(
+                    jasper=encoder_cfg_func(), activation="relu"
+                ),
                 decoder=ConvASRDecoderConfig(),
             )
 
-        elif 'jasper_10x5' in name:
+        elif "jasper_10x5" in name:
             if encoder_cfg_func is None:
                 encoder_cfg_func = jasper_10x5_dr
 
             model_cfg = JasperModelConfig(
                 repeat=5,
                 separable=False,
-                spec_augment=SpectrogramAugmentationConfig(rect_masks=5, rect_freq=50, rect_time=120),
-                encoder=ConvASREncoderConfig(jasper=encoder_cfg_func(), activation="relu"),
+                spec_augment=SpectrogramAugmentationConfig(
+                    rect_masks=5, rect_freq=50, rect_time=120
+                ),
+                encoder=ConvASREncoderConfig(
+                    jasper=encoder_cfg_func(), activation="relu"
+                ),
                 decoder=ConvASRDecoderConfig(),
             )
 
         else:
-            raise ValueError(f"Invalid config name submitted to {self.__class__.__name__}")
+            raise ValueError(
+                f"Invalid config name submitted to {self.__class__.__name__}"
+            )
 
         super(EncDecCTCModelConfigBuilder, self).__init__(model_cfg)
         self.model_cfg: ctc_cfg.EncDecCTCConfig = model_cfg  # enable type hinting
 
-        if 'zh' in name:
+        if "zh" in name:
             self.set_dataset_normalize(normalize=False)
 
     def set_labels(self, labels: List[str]):

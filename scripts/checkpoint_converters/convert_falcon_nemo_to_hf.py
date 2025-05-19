@@ -57,7 +57,9 @@ def get_args():
         required=True,
         help="Path to .nemo file",
     )
-    parser.add_argument("--output_path", type=str, required=True, help="Path to HF .bin file")
+    parser.add_argument(
+        "--output_path", type=str, required=True, help="Path to HF .bin file"
+    )
     parser.add_argument(
         "--hf_input_path",
         type=str,
@@ -69,7 +71,8 @@ def get_args():
         "--hf_output_path",
         type=str,
         default=None,
-        help="Output HF model path, " "with the same format as above but user's own weights",
+        help="Output HF model path, "
+        "with the same format as above but user's own weights",
     )
     parser.add_argument(
         "--precision",
@@ -92,26 +95,36 @@ def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> 
     """
     Convert NeMo weights to HF weights
     """
-    dummy_trainer = Trainer(devices=1, accelerator='cpu', strategy=NLPDDPStrategy())
+    dummy_trainer = Trainer(devices=1, accelerator="cpu", strategy=NLPDDPStrategy())
     if cpu_only:
-        map_location = torch.device('cpu')
-        model_config = MegatronGPTModel.restore_from(input_nemo_file, trainer=dummy_trainer, return_config=True)
+        map_location = torch.device("cpu")
+        model_config = MegatronGPTModel.restore_from(
+            input_nemo_file, trainer=dummy_trainer, return_config=True
+        )
         model_config.use_cpu_initialization = True
         model_config.tensor_model_parallel_size = 1
     else:
         map_location, model_config = None, None
 
     if cpu_only:
-        logging.info("******** Loading model on CPU. This will take a significant amount of time.")
+        logging.info(
+            "******** Loading model on CPU. This will take a significant amount of time."
+        )
     model = MegatronGPTModel.restore_from(
-        input_nemo_file, trainer=dummy_trainer, override_config_path=model_config, map_location=map_location
+        input_nemo_file,
+        trainer=dummy_trainer,
+        override_config_path=model_config,
+        map_location=map_location,
     )
     if precision is None:
         precision = model.cfg.precision
     try:
         dtype = torch_dtype_from_precision(precision)
     except ValueError as e:
-        logging.warning(str(e) + f", precision string '{precision}' is not recognized, falling back to fp32")
+        logging.warning(
+            str(e)
+            + f", precision string '{precision}' is not recognized, falling back to fp32"
+        )
         dtype = torch.float32  # fallback
 
     param_to_weights = lambda param: param.to(dtype)
@@ -135,7 +148,9 @@ def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> 
         else:
             key = key.replace("input_layernorm", "input_layernorm")
             if not model.cfg.mcore_customization_config.parallel_attention:
-                key = key.replace("post_self_attn_layernorm", "post_attention_layernorm")
+                key = key.replace(
+                    "post_self_attn_layernorm", "post_attention_layernorm"
+                )
 
         key = key.replace("self_attention.linear_proj", "self_attention.dense")
         key = key.replace("self_attention.linear_qkv", "self_attention.query_key_value")
@@ -143,10 +158,14 @@ def convert(input_nemo_file, output_hf_file, precision=None, cpu_only=False) -> 
         key = key.replace("linear_fc2", "dense_4h_to_h")
         return key
 
-    prefix = 'model.module.' if any(k.startswith('model.module.') for k in model.state_dict()) else 'model.'
+    prefix = (
+        "model.module."
+        if any(k.startswith("model.module.") for k in model.state_dict())
+        else "model."
+    )
 
     for key, value in model.state_dict().items():
-        if '_extra_state' in key:
+        if "_extra_state" in key:
             continue
         orig_key = get_original_key(key)
         checkpoint[orig_key] = param_to_weights(value)
@@ -165,11 +184,18 @@ def replace_hf_weights(weights_file, input_hf_path, output_hf_path):
     logging.info(f"Full HF model saved to {output_hf_path}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     args = get_args()
-    convert(args.input_name_or_path, args.output_path, precision=args.precision, cpu_only=args.cpu_only)
+    convert(
+        args.input_name_or_path,
+        args.output_path,
+        precision=args.precision,
+        cpu_only=args.cpu_only,
+    )
     if args.hf_input_path and args.hf_output_path:
         replace_hf_weights(args.output_path, args.hf_input_path, args.hf_output_path)
     else:
-        logging.info("`hf-in-path` and/or `hf-out-path` not provided, not generating full HF model.")
+        logging.info(
+            "`hf-in-path` and/or `hf-out-path` not provided, not generating full HF model."
+        )
         logging.info(f".bin file is saved to {args.output_path}")

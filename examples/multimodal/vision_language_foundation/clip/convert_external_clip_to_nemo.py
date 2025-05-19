@@ -78,10 +78,20 @@ def get_args():
         required=False,
         help="Path config for restoring. It's created during training and may need to be modified during restore if restore environment is different than training. Ex: /raid/nemo_experiments/megatron_gpt/hparams.yaml",
     )
-    parser.add_argument("--nemo_file_path", type=str, default=None, required=True, help="Path to output .nemo file.")
+    parser.add_argument(
+        "--nemo_file_path",
+        type=str,
+        default=None,
+        required=True,
+        help="Path to output .nemo file.",
+    )
     parser.add_argument("--gpus_per_node", type=int, required=False, default=1)
-    parser.add_argument("--tensor_model_parallel_size", type=int, required=False, default=1)
-    parser.add_argument("--pipeline_model_parallel_size", type=int, required=False, default=1)
+    parser.add_argument(
+        "--tensor_model_parallel_size", type=int, required=False, default=1
+    )
+    parser.add_argument(
+        "--pipeline_model_parallel_size", type=int, required=False, default=1
+    )
     parser.add_argument(
         "--pipeline_model_parallel_split_rank",
         type=int,
@@ -89,7 +99,9 @@ def get_args():
         default=None,
         help="If pipeline parallel size > 1, this is the rank at which the encoder ends and the decoder begins.",
     )
-    parser.add_argument("--local_rank", type=int, required=False, default=os.getenv('LOCAL_RANK', -1))
+    parser.add_argument(
+        "--local_rank", type=int, required=False, default=os.getenv("LOCAL_RANK", -1)
+    )
     parser.add_argument("--bcp", action="store_true", help="Whether on BCP platform")
 
     args = parser.parse_args()
@@ -130,10 +142,15 @@ def mapping_openclip_state_dict(open_model):
     nemo_state_dict = {}
     for key in open_state_dict.keys():
         if key.startswith("transformer.resblocks."):
-            key_ = key.replace("transformer.resblocks.", "text_encoder.language_model.encoder.layers.")
+            key_ = key.replace(
+                "transformer.resblocks.", "text_encoder.language_model.encoder.layers."
+            )
         elif key.startswith("visual.transformer.resblocks."):
-            key_ = key.replace("visual.transformer.resblocks.", "vision_encoder.backbone.transformer.layers.")
-        elif key.startswith('visual.'):
+            key_ = key.replace(
+                "visual.transformer.resblocks.",
+                "vision_encoder.backbone.transformer.layers.",
+            )
+        elif key.startswith("visual."):
             key_ = key.replace("visual.", "vision_encoder.backbone.")
         else:
             key_ = key
@@ -146,8 +163,12 @@ def mapping_openclip_state_dict(open_model):
                 break
         nemo_state_dict[key_] = open_state_dict[key]
 
-    nemo_state_dict["text_encoder.head.weight"] = nemo_state_dict["text_encoder.head.weight"].T
-    nemo_state_dict["vision_encoder.head.weight"] = nemo_state_dict["vision_encoder.head.weight"].T
+    nemo_state_dict["text_encoder.head.weight"] = nemo_state_dict[
+        "text_encoder.head.weight"
+    ].T
+    nemo_state_dict["vision_encoder.head.weight"] = nemo_state_dict[
+        "vision_encoder.head.weight"
+    ].T
     nemo_state_dict["vision_encoder.backbone.cls_token"] = nemo_state_dict[
         "vision_encoder.backbone.cls_token"
     ].reshape(1, 1, -1)
@@ -189,13 +210,19 @@ def mapping_hf_state_dict(hf_model):
     nemo_state_dict = {}
     for key in hf_state_dict.keys():
         if key.startswith("text_model.encoder.layers"):
-            key_ = key.replace("text_model.encoder.layers", "text_encoder.language_model.encoder.layers")
+            key_ = key.replace(
+                "text_model.encoder.layers",
+                "text_encoder.language_model.encoder.layers",
+            )
         elif key.startswith("vision_model.encoder.layers"):
-            key_ = key.replace("vision_model.encoder.layers", "vision_encoder.backbone.transformer.layers")
-        elif key.startswith('vision_model.'):
+            key_ = key.replace(
+                "vision_model.encoder.layers",
+                "vision_encoder.backbone.transformer.layers",
+            )
+        elif key.startswith("vision_model."):
             key_ = key.replace("vision_model.", "vision_encoder.backbone.")
-        elif key.startswith('text_model.'):
-            key_ = key.replace('text_model.', 'text_encoder.language_model.')
+        elif key.startswith("text_model."):
+            key_ = key.replace("text_model.", "text_encoder.language_model.")
         else:
             key_ = key
         for pat in key_mapping:
@@ -205,13 +232,15 @@ def mapping_hf_state_dict(hf_model):
             if key_.endswith(pat):
                 key_ = key_[: -len(pat)] + layer_mapping[pat]
                 break
-        if 'q_proj' in key_:
-            key_k = key.replace('q_proj', 'k_proj')
-            key_v = key.replace('q_proj', 'v_proj')
-            key_new = key_.replace('self_attn.q_proj', 'self_attention.query_key_value')
-            value_new = torch.concat((hf_state_dict[key], hf_state_dict[key_k], hf_state_dict[key_v]), dim=0)
+        if "q_proj" in key_:
+            key_k = key.replace("q_proj", "k_proj")
+            key_v = key.replace("q_proj", "v_proj")
+            key_new = key_.replace("self_attn.q_proj", "self_attention.query_key_value")
+            value_new = torch.concat(
+                (hf_state_dict[key], hf_state_dict[key_k], hf_state_dict[key_v]), dim=0
+            )
             nemo_state_dict[key_new] = value_new
-        elif not ('k_proj' in key_ or 'v_proj' in key_ or 'position_ids' in key_):
+        elif not ("k_proj" in key_ or "v_proj" in key_ or "position_ids" in key_):
             nemo_state_dict[key_] = hf_state_dict[key]
 
     nemo_state_dict["vision_encoder.backbone.cls_token"] = nemo_state_dict[
@@ -227,10 +256,15 @@ def convert(local_rank, rank, world_size, args):
     num_nodes = world_size // args.gpus_per_node
     if args.bcp:
         trainer = Trainer(
-            devices=args.gpus_per_node, num_nodes=num_nodes, accelerator='gpu', plugins=[TorchElasticEnvironment()]
+            devices=args.gpus_per_node,
+            num_nodes=num_nodes,
+            accelerator="gpu",
+            plugins=[TorchElasticEnvironment()],
         )
     else:
-        trainer = Trainer(devices=args.gpus_per_node, num_nodes=num_nodes, accelerator='gpu')
+        trainer = Trainer(
+            devices=args.gpus_per_node, num_nodes=num_nodes, accelerator="gpu"
+        )
 
     app_state.pipeline_model_parallel_size = args.pipeline_model_parallel_size
     app_state.tensor_model_parallel_size = args.tensor_model_parallel_size
@@ -238,7 +272,9 @@ def convert(local_rank, rank, world_size, args):
     # no use atm, use to split ranks in encoder/decoder models.
     if args.pipeline_model_parallel_size > 1 and args.model_type in []:
         if args.pipeline_model_parallel_split_rank is not None:
-            app_state.pipeline_model_parallel_split_rank = args.pipeline_model_parallel_split_rank
+            app_state.pipeline_model_parallel_split_rank = (
+                args.pipeline_model_parallel_split_rank
+            )
         else:
             if args.pipeline_model_parallel_size % 2 != 0:
                 raise ValueError(
@@ -246,11 +282,15 @@ def convert(local_rank, rank, world_size, args):
                 )
             else:
                 # If split rank is not set, then we set it to be pipeline_model_parallel_size // 2 - this is because in most cases we have the same number of enc/dec layers.
-                app_state.pipeline_model_parallel_split_rank = args.pipeline_model_parallel_size // 2
+                app_state.pipeline_model_parallel_split_rank = (
+                    args.pipeline_model_parallel_size // 2
+                )
     else:
         app_state.pipeline_model_parallel_split_rank = None
 
-    app_state.model_parallel_size = app_state.tensor_model_parallel_size * app_state.pipeline_model_parallel_size
+    app_state.model_parallel_size = (
+        app_state.tensor_model_parallel_size * app_state.pipeline_model_parallel_size
+    )
 
     parallel_state.initialize_model_parallel(
         tensor_model_parallel_size=app_state.tensor_model_parallel_size,
@@ -258,8 +298,12 @@ def convert(local_rank, rank, world_size, args):
         pipeline_model_parallel_split_rank=app_state.pipeline_model_parallel_split_rank,
     )
 
-    app_state.pipeline_model_parallel_rank = parallel_state.get_pipeline_model_parallel_rank()
-    app_state.tensor_model_parallel_rank = parallel_state.get_tensor_model_parallel_rank()
+    app_state.pipeline_model_parallel_rank = (
+        parallel_state.get_pipeline_model_parallel_rank()
+    )
+    app_state.tensor_model_parallel_rank = (
+        parallel_state.get_tensor_model_parallel_rank()
+    )
 
     cfg = OmegaConf.load(args.hparams_file)
     model = MegatronCLIPModel(cfg.model, trainer)
@@ -268,7 +312,9 @@ def convert(local_rank, rank, world_size, args):
         hf_model = CLIPModel.from_pretrained(args.arch)
         state_dict = mapping_hf_state_dict(hf_model)
     else:
-        open_model, _, _ = open_clip.create_model_and_transforms(args.arch, pretrained=args.version)
+        open_model, _, _ = open_clip.create_model_and_transforms(
+            args.arch, pretrained=args.version
+        )
         state_dict = mapping_openclip_state_dict(open_model)
 
     model.model.load_state_dict(state_dict)
@@ -280,10 +326,10 @@ def convert(local_rank, rank, world_size, args):
 
     model.save_to(args.nemo_file_path)
 
-    logging.info(f'NeMo model saved to: {args.nemo_file_path}')
+    logging.info(f"NeMo model saved to: {args.nemo_file_path}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     logging.warning(
         "This script is going to be deprecated soon. Please use "
         "`scripts/checkpoint_converters/convert_clip_hf_to_nemo.py`"

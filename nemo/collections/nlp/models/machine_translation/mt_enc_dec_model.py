@@ -59,7 +59,7 @@ from nemo.core.classes import Exportable
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.utils import logging, model_utils, timers
 
-__all__ = ['MTEncDecModel']
+__all__ = ["MTEncDecModel"]
 
 
 class MTEncDecModel(EncDecNLPModel, Exportable):
@@ -85,12 +85,18 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         self.multilingual_ids = []
         self.special_tokens = {}
 
-        self.encoder_tokenizer_library = cfg.encoder_tokenizer.get('library', 'sentencepiece')
-        self.decoder_tokenizer_library = cfg.decoder_tokenizer.get('library', 'sentencepiece')
+        self.encoder_tokenizer_library = cfg.encoder_tokenizer.get(
+            "library", "sentencepiece"
+        )
+        self.decoder_tokenizer_library = cfg.decoder_tokenizer.get(
+            "library", "sentencepiece"
+        )
 
         self.validate_input_ids = cfg.get("validate_input_ids", True)
         if self.multilingual:
-            if isinstance(self.src_language, ListConfig) and isinstance(self.tgt_language, ListConfig):
+            if isinstance(self.src_language, ListConfig) and isinstance(
+                self.tgt_language, ListConfig
+            ):
                 raise ValueError(
                     "cfg.src_language and cfg.tgt_language cannot both be lists. We only support many-to-one or one-to-many multilingual models."
                 )
@@ -109,47 +115,71 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         # After this call, ther will be self.encoder_tokenizer and self.decoder_tokenizer
         # Which can convert between tokens and token_ids for SRC and TGT languages correspondingly.
 
-        encoder_tokenizer_model, decoder_tokenizer_model, encoder_vocab_file = None, None, None
-        if cfg.encoder_tokenizer.get('tokenizer_model') is not None:
+        encoder_tokenizer_model, decoder_tokenizer_model, encoder_vocab_file = (
+            None,
+            None,
+            None,
+        )
+        if cfg.encoder_tokenizer.get("tokenizer_model") is not None:
             encoder_tokenizer_model = self.register_artifact(
-                "encoder_tokenizer.tokenizer_model", cfg.encoder_tokenizer.get('tokenizer_model')
+                "encoder_tokenizer.tokenizer_model",
+                cfg.encoder_tokenizer.get("tokenizer_model"),
             )
 
-        if cfg.decoder_tokenizer.get('tokenizer_model') is not None:
+        if cfg.decoder_tokenizer.get("tokenizer_model") is not None:
             decoder_tokenizer_model = self.register_artifact(
-                "decoder_tokenizer.tokenizer_model", cfg.decoder_tokenizer.get('tokenizer_model')
+                "decoder_tokenizer.tokenizer_model",
+                cfg.decoder_tokenizer.get("tokenizer_model"),
             )
 
-        if cfg.encoder_tokenizer.get('vocab_file') is not None:
+        if cfg.encoder_tokenizer.get("vocab_file") is not None:
             encoder_vocab_file = (
-                self.register_artifact("encoder_tokenizer.vocab_file", cfg.encoder_tokenizer.get('vocab_file')),
+                self.register_artifact(
+                    "encoder_tokenizer.vocab_file",
+                    cfg.encoder_tokenizer.get("vocab_file"),
+                ),
             )
 
         encoder_tokenizer, decoder_tokenizer = MTEncDecModel.setup_enc_dec_tokenizers(
             encoder_tokenizer_library=self.encoder_tokenizer_library,
             encoder_tokenizer_model=encoder_tokenizer_model,
             encoder_bpe_dropout=(
-                cfg.encoder_tokenizer.get('bpe_dropout', 0.0)
-                if cfg.encoder_tokenizer.get('bpe_dropout', 0.0) is not None
+                cfg.encoder_tokenizer.get("bpe_dropout", 0.0)
+                if cfg.encoder_tokenizer.get("bpe_dropout", 0.0) is not None
                 else 0.0
             ),
-            encoder_model_name=cfg.encoder.get('model_name') if hasattr(cfg.encoder, 'model_name') else None,
-            encoder_r2l=cfg.encoder_tokenizer.get('r2l', False),
+            encoder_model_name=(
+                cfg.encoder.get("model_name")
+                if hasattr(cfg.encoder, "model_name")
+                else None
+            ),
+            encoder_r2l=cfg.encoder_tokenizer.get("r2l", False),
             decoder_tokenizer_library=self.decoder_tokenizer_library,
             encoder_tokenizer_vocab_file=encoder_vocab_file,
             decoder_tokenizer_model=decoder_tokenizer_model,
             decoder_bpe_dropout=(
-                cfg.decoder_tokenizer.get('bpe_dropout', 0.0)
-                if cfg.decoder_tokenizer.get('bpe_dropout', 0.0) is not None
+                cfg.decoder_tokenizer.get("bpe_dropout", 0.0)
+                if cfg.decoder_tokenizer.get("bpe_dropout", 0.0) is not None
                 else 0.0
             ),
-            decoder_model_name=cfg.decoder.get('model_name') if hasattr(cfg.decoder, 'model_name') else None,
-            decoder_r2l=cfg.decoder_tokenizer.get('r2l', False),
+            decoder_model_name=(
+                cfg.decoder.get("model_name")
+                if hasattr(cfg.decoder, "model_name")
+                else None
+            ),
+            decoder_r2l=cfg.decoder_tokenizer.get("r2l", False),
             special_tokens=self.special_tokens,
-            encoder_sentencepiece_legacy=cfg.encoder_tokenizer.get('sentencepiece_legacy', False),
-            decoder_sentencepiece_legacy=cfg.decoder_tokenizer.get('sentencepiece_legacy', False),
+            encoder_sentencepiece_legacy=cfg.encoder_tokenizer.get(
+                "sentencepiece_legacy", False
+            ),
+            decoder_sentencepiece_legacy=cfg.decoder_tokenizer.get(
+                "sentencepiece_legacy", False
+            ),
         )
-        self.encoder_tokenizer, self.decoder_tokenizer = encoder_tokenizer, decoder_tokenizer
+        self.encoder_tokenizer, self.decoder_tokenizer = (
+            encoder_tokenizer,
+            decoder_tokenizer,
+        )
 
         if self.multilingual:
             (
@@ -167,8 +197,13 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
             self.multilingual_ids = list(self.multilingual_lang_to_id.values())
         else:
             # After this call, the model will have  self.source_processor and self.target_processor objects
-            self.source_processor, self.target_processor = MTEncDecModel.setup_pre_and_post_processing_utils(
-                self.src_language, self.tgt_language, self.encoder_tokenizer_library, self.decoder_tokenizer_library
+            self.source_processor, self.target_processor = (
+                MTEncDecModel.setup_pre_and_post_processing_utils(
+                    self.src_language,
+                    self.tgt_language,
+                    self.encoder_tokenizer_library,
+                    self.decoder_tokenizer_library,
+                )
             )
             self.multilingual_ids = [None]
 
@@ -176,12 +211,12 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         super().__init__(cfg=cfg, trainer=trainer)
 
         # encoder from NeMo, Megatron-LM, or HuggingFace
-        encoder_cfg_dict = OmegaConf.to_container(cfg.get('encoder'))
-        encoder_cfg_dict['vocab_size'] = self.encoder_vocab_size
-        library = encoder_cfg_dict.pop('library', 'nemo')
-        model_name = encoder_cfg_dict.pop('model_name', None)
-        pretrained = encoder_cfg_dict.pop('pretrained', False)
-        checkpoint_file = encoder_cfg_dict.pop('checkpoint_file', None)
+        encoder_cfg_dict = OmegaConf.to_container(cfg.get("encoder"))
+        encoder_cfg_dict["vocab_size"] = self.encoder_vocab_size
+        library = encoder_cfg_dict.pop("library", "nemo")
+        model_name = encoder_cfg_dict.pop("model_name", None)
+        pretrained = encoder_cfg_dict.pop("pretrained", False)
+        checkpoint_file = encoder_cfg_dict.pop("checkpoint_file", None)
         if isinstance(self.encoder_tokenizer, TabularTokenizer):
             # TabularTokenizer does not include a padding token, so this uses the prior default of 0.
             encoder_padding_idx = 0
@@ -193,17 +228,19 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
             pretrained=pretrained,
             config_dict=encoder_cfg_dict,
             encoder=True,
-            pre_ln_final_layer_norm=encoder_cfg_dict.get('pre_ln_final_layer_norm', False),
+            pre_ln_final_layer_norm=encoder_cfg_dict.get(
+                "pre_ln_final_layer_norm", False
+            ),
             checkpoint_file=checkpoint_file,
             padding_idx=encoder_padding_idx,
         )
 
         # decoder from NeMo, Megatron-LM, or HuggingFace
-        decoder_cfg_dict = OmegaConf.to_container(cfg.get('decoder'))
-        decoder_cfg_dict['vocab_size'] = self.decoder_vocab_size
-        library = decoder_cfg_dict.pop('library', 'nemo')
-        model_name = decoder_cfg_dict.pop('model_name', None)
-        pretrained = decoder_cfg_dict.pop('pretrained', False)
+        decoder_cfg_dict = OmegaConf.to_container(cfg.get("decoder"))
+        decoder_cfg_dict["vocab_size"] = self.decoder_vocab_size
+        library = decoder_cfg_dict.pop("library", "nemo")
+        model_name = decoder_cfg_dict.pop("model_name", None)
+        pretrained = decoder_cfg_dict.pop("pretrained", False)
         if isinstance(self.decoder_tokenizer, TabularTokenizer):
             # TabularTokenizer does not include a padding token, so this uses the prior default of 0.
             decoder_padding_idx = 0
@@ -215,7 +252,9 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
             pretrained=pretrained,
             config_dict=decoder_cfg_dict,
             encoder=False,
-            pre_ln_final_layer_norm=decoder_cfg_dict.get('pre_ln_final_layer_norm', False),
+            pre_ln_final_layer_norm=decoder_cfg_dict.get(
+                "pre_ln_final_layer_norm", False
+            ),
             padding_idx=decoder_padding_idx,
         )
 
@@ -247,7 +286,9 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         # tie embedding weights
         if self.shared_embeddings:
             if not cfg.get("shared_tokenizer", True):
-                raise ValueError("shared_tokenizer cannot be False when shared_embeddings is True")
+                raise ValueError(
+                    "shared_tokenizer cannot be False when shared_embeddings is True"
+                )
 
             # validate vocabulary size and embedding dimension
             if (
@@ -260,22 +301,32 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
                     f"{self.decoder.embedding.token_embedding.weight.shape} (decoder)"
                 )
 
-            self.encoder.embedding.token_embedding.weight = self.decoder.embedding.token_embedding.weight
+            self.encoder.embedding.token_embedding.weight = (
+                self.decoder.embedding.token_embedding.weight
+            )
 
         # tie weights of embedding and softmax matrices
-        self.log_softmax.mlp.layer0.weight = self.decoder.embedding.token_embedding.weight
+        self.log_softmax.mlp.layer0.weight = (
+            self.decoder.embedding.token_embedding.weight
+        )
 
         # TODO: encoder and decoder with different hidden size?
         std_init_range = 1 / self.encoder.hidden_size**0.5
 
         # initialize weights if not using pretrained encoder/decoder
-        if not self._cfg.encoder.get('pretrained', False):
-            self.encoder.apply(lambda module: transformer_weights_init(module, std_init_range))
+        if not self._cfg.encoder.get("pretrained", False):
+            self.encoder.apply(
+                lambda module: transformer_weights_init(module, std_init_range)
+            )
 
-        if not self._cfg.decoder.get('pretrained', False):
-            self.decoder.apply(lambda module: transformer_weights_init(module, std_init_range))
+        if not self._cfg.decoder.get("pretrained", False):
+            self.decoder.apply(
+                lambda module: transformer_weights_init(module, std_init_range)
+            )
 
-        self.log_softmax.apply(lambda module: transformer_weights_init(module, std_init_range))
+        self.log_softmax.apply(
+            lambda module: transformer_weights_init(module, std_init_range)
+        )
 
         self.loss_fn = SmoothedCrossEntropyLoss(
             pad_id=self.decoder_tokenizer.pad_id, label_smoothing=cfg.label_smoothing
@@ -295,12 +346,16 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         multilingual_ids = OrderedDict()
 
         # Determine all of the language IDs that need to be added as special tokens.
-        if isinstance(src_language, ListConfig) and isinstance(tgt_language, ListConfig):
+        if isinstance(src_language, ListConfig) and isinstance(
+            tgt_language, ListConfig
+        ):
             assert len(src_language) == len(tgt_language)
             all_languages = list(set(tgt_language + src_language))
         elif isinstance(tgt_language, ListConfig):
             all_languages = tgt_language
-        elif not isinstance(src_language, ListConfig) and not isinstance(tgt_language, ListConfig):
+        elif not isinstance(src_language, ListConfig) and not isinstance(
+            tgt_language, ListConfig
+        ):
             all_languages = [src_language, tgt_language]
         else:
             all_languages = []
@@ -315,12 +370,19 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
                 if len(decoder_tokenizer.text_to_ids(f"<{lng}>")) != 1:
                     decoder_tokenizer.add_special_tokens({f"<{lng}>": f"<{lng}>"})
                 # Make sure that we are adding the same language ID to both tokenizers. If this assert fails it means the tokenizers were different to begin with.
-                assert encoder_tokenizer.text_to_ids(f"<{lng}>")[0] == decoder_tokenizer.text_to_ids(f"<{lng}>")[0]
+                assert (
+                    encoder_tokenizer.text_to_ids(f"<{lng}>")[0]
+                    == decoder_tokenizer.text_to_ids(f"<{lng}>")[0]
+                )
                 multilingual_ids[lng] = encoder_tokenizer.text_to_ids(f"<{lng}>")[0]
 
-        if isinstance(src_language, ListConfig) and not isinstance(tgt_language, ListConfig):
+        if isinstance(src_language, ListConfig) and not isinstance(
+            tgt_language, ListConfig
+        ):
             tgt_language = [tgt_language] * len(src_language)
-        elif isinstance(tgt_language, ListConfig) and not isinstance(src_language, ListConfig):
+        elif isinstance(tgt_language, ListConfig) and not isinstance(
+            src_language, ListConfig
+        ):
             src_language = [src_language] * len(tgt_language)
         else:
             pass
@@ -359,7 +421,9 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         )
 
         if raise_error and invalid_ids:
-            raise ValueError("Encoder ids are out of range (tip: check encoder tokenizer)")
+            raise ValueError(
+                "Encoder ids are out of range (tip: check encoder tokenizer)"
+            )
 
         return not invalid_ids
 
@@ -370,7 +434,9 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         )
 
         if raise_error and invalid_ids:
-            raise ValueError("Decoder ids are out of range (tip: check decoder tokenizer)")
+            raise ValueError(
+                "Decoder ids are out of range (tip: check decoder tokenizer)"
+            )
 
         return not invalid_ids
 
@@ -383,7 +449,10 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
 
         src_hiddens = self.encoder(input_ids=src, encoder_mask=src_mask)
         tgt_hiddens = self.decoder(
-            input_ids=tgt, decoder_mask=tgt_mask, encoder_embeddings=src_hiddens, encoder_mask=src_mask
+            input_ids=tgt,
+            decoder_mask=tgt_mask,
+            encoder_embeddings=src_hiddens,
+            encoder_mask=src_mask,
         )
         log_probs = self.log_softmax(hidden_states=tgt_hiddens)
         return log_probs
@@ -403,11 +472,11 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         log_probs = self(src_ids, src_mask, tgt_ids, tgt_mask)
         train_loss = self.loss_fn(log_probs=log_probs, labels=labels)
         tensorboard_logs = {
-            'train_loss': train_loss,
-            'lr': self._optimizer.param_groups[0]['lr'],
+            "train_loss": train_loss,
+            "lr": self._optimizer.param_groups[0]["lr"],
         }
 
-        return {'loss': train_loss, 'log': tensorboard_logs}
+        return {"loss": train_loss, "log": tensorboard_logs}
 
     def eval_step(self, batch, batch_idx, mode, dataloader_idx=0):
         for i in range(len(batch)):
@@ -426,25 +495,34 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         # this will run encoder twice -- TODO: potentially fix
         inputs, translations = self.batch_translate(src=src_ids, src_mask=src_mask)
         if dataloader_idx == 0:
-            getattr(self, f'{mode}_loss')(loss=eval_loss, num_measurements=log_probs.shape[0] * log_probs.shape[1])
+            getattr(self, f"{mode}_loss")(
+                loss=eval_loss, num_measurements=log_probs.shape[0] * log_probs.shape[1]
+            )
         else:
-            getattr(self, f'{mode}_loss_{dataloader_idx}')(
+            getattr(self, f"{mode}_loss_{dataloader_idx}")(
                 loss=eval_loss, num_measurements=log_probs.shape[0] * log_probs.shape[1]
             )
         np_tgt = tgt_ids.detach().cpu().numpy()
         ground_truths = [self.decoder_tokenizer.ids_to_text(tgt) for tgt in np_tgt]
-        ground_truths = [self.target_processor.detokenize(tgt.split(' ')) for tgt in ground_truths]
-        num_non_pad_tokens = np.not_equal(np_tgt, self.decoder_tokenizer.pad_id).sum().item()
+        ground_truths = [
+            self.target_processor.detokenize(tgt.split(" ")) for tgt in ground_truths
+        ]
+        num_non_pad_tokens = (
+            np.not_equal(np_tgt, self.decoder_tokenizer.pad_id).sum().item()
+        )
         return {
-            'inputs': inputs,
-            'translations': translations,
-            'ground_truths': ground_truths,
-            'num_non_pad_tokens': num_non_pad_tokens,
+            "inputs": inputs,
+            "translations": translations,
+            "ground_truths": ground_truths,
+            "num_non_pad_tokens": num_non_pad_tokens,
         }
 
     def test_step(self, batch, batch_idx, dataloader_idx=0):
-        loss = self.eval_step(batch, batch_idx, 'test', dataloader_idx)
-        if type(self.trainer.test_dataloaders) == list and len(self.trainer.test_dataloaders) > 1:
+        loss = self.eval_step(batch, batch_idx, "test", dataloader_idx)
+        if (
+            type(self.trainer.test_dataloaders) == list
+            and len(self.trainer.test_dataloaders) > 1
+        ):
             self.test_step_outputs[dataloader_idx].append(loss)
         else:
             self.test_step_outputs.append(loss)
@@ -453,10 +531,17 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
     def log_param_stats(self):
         for name, p in self.named_parameters():
             if p.requires_grad:
-                self.trainer.logger.experiment.add_histogram(name + '_hist', p, global_step=self.global_step)
+                self.trainer.logger.experiment.add_histogram(
+                    name + "_hist", p, global_step=self.global_step
+                )
                 self.trainer.logger.experiment.add_scalars(
                     name,
-                    {'mean': p.mean(), 'stddev': p.std(), 'max': p.max(), 'min': p.min()},
+                    {
+                        "mean": p.mean(),
+                        "stddev": p.std(),
+                        "max": p.max(),
+                        "min": p.min(),
+                    },
                     global_step=self.global_step,
                 )
 
@@ -465,8 +550,11 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         Lightning calls this inside the validation loop with the data from the validation dataloader
         passed in as `batch`.
         """
-        loss = self.eval_step(batch, batch_idx, 'val', dataloader_idx)
-        if type(self.trainer.val_dataloaders) == list and len(self.trainer.val_dataloaders) > 1:
+        loss = self.eval_step(batch, batch_idx, "val", dataloader_idx)
+        if (
+            type(self.trainer.val_dataloaders) == list
+            and len(self.trainer.val_dataloaders) > 1
+        ):
             self.validation_step_outputs[dataloader_idx].append(loss)
         else:
             self.validation_step_outputs.append(loss)
@@ -482,13 +570,13 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         sb_score_list = []
         for dataloader_idx, output in enumerate(outputs):
             if dataloader_idx == 0:
-                eval_loss = getattr(self, f'{mode}_loss').compute()
+                eval_loss = getattr(self, f"{mode}_loss").compute()
             else:
-                eval_loss = getattr(self, f'{mode}_loss_{dataloader_idx}').compute()
+                eval_loss = getattr(self, f"{mode}_loss_{dataloader_idx}").compute()
 
-            inputs = list(itertools.chain(*[x['inputs'] for x in output]))
-            translations = list(itertools.chain(*[x['translations'] for x in output]))
-            ground_truths = list(itertools.chain(*[x['ground_truths'] for x in output]))
+            inputs = list(itertools.chain(*[x["inputs"] for x in output]))
+            translations = list(itertools.chain(*[x["translations"] for x in output]))
+            ground_truths = list(itertools.chain(*[x["ground_truths"] for x in output]))
             assert len(translations) == len(inputs)
             assert len(translations) == len(ground_truths)
 
@@ -496,7 +584,12 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
             tr_and_gt = [None for _ in range(self.world_size)]
             # we also need to drop pairs where ground truth is an empty string
             dist.all_gather_object(
-                tr_and_gt, [(t, g) for (t, g) in zip(translations, ground_truths) if g.strip() != '']
+                tr_and_gt,
+                [
+                    (t, g)
+                    for (t, g) in zip(translations, ground_truths)
+                    if g.strip() != ""
+                ],
             )
             if global_rank == 0:
                 _translations = []
@@ -509,17 +602,23 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
                     tgt_language = self.tgt_language[dataloader_idx]
                 else:
                     tgt_language = self.tgt_language
-                if tgt_language in ['ja', 'ja-mecab']:
-                    sacre_bleu = corpus_bleu(_translations, [_ground_truths], tokenize="ja-mecab")
-                elif tgt_language in ['zh']:
-                    sacre_bleu = corpus_bleu(_translations, [_ground_truths], tokenize="zh")
+                if tgt_language in ["ja", "ja-mecab"]:
+                    sacre_bleu = corpus_bleu(
+                        _translations, [_ground_truths], tokenize="ja-mecab"
+                    )
+                elif tgt_language in ["zh"]:
+                    sacre_bleu = corpus_bleu(
+                        _translations, [_ground_truths], tokenize="zh"
+                    )
                 else:
-                    sacre_bleu = corpus_bleu(_translations, [_ground_truths], tokenize="13a")
+                    sacre_bleu = corpus_bleu(
+                        _translations, [_ground_truths], tokenize="13a"
+                    )
 
                 # because the reduction op later is average (over word_size)
                 sb_score = sacre_bleu.score * self.world_size
 
-                dataset_name = "Validation" if mode == 'val' else "Test"
+                dataset_name = "Validation" if mode == "val" else "Test"
                 logging.info(
                     f"Dataset name: {dataset_name}, Dataloader index: {dataloader_idx}, Set size: {len(translations)}"
                 )
@@ -534,7 +633,7 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
                 )
                 for i in range(0, 3):
                     ind = random.randint(0, len(translations) - 1)
-                    logging.info("    " + '\u0332'.join(f"Example {i}:"))
+                    logging.info("    " + "\u0332".join(f"Example {i}:"))
                     logging.info(f"    Input:        {inputs[ind]}")
                     logging.info(f"    Prediction:   {translations[ind]}")
                     logging.info(f"    Ground Truth: {ground_truths[ind]}")
@@ -546,11 +645,17 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
             if dataloader_idx == 0:
                 self.log(f"{mode}_loss", eval_loss, sync_dist=True)
                 self.log(f"{mode}_sacreBLEU", sb_score, sync_dist=True)
-                getattr(self, f'{mode}_loss').reset()
+                getattr(self, f"{mode}_loss").reset()
             else:
-                self.log(f"{mode}_loss_dl_index_{dataloader_idx}", eval_loss, sync_dist=True)
-                self.log(f"{mode}_sacreBLEU_dl_index_{dataloader_idx}", sb_score, sync_dist=True)
-                getattr(self, f'{mode}_loss_{dataloader_idx}').reset()
+                self.log(
+                    f"{mode}_loss_dl_index_{dataloader_idx}", eval_loss, sync_dist=True
+                )
+                self.log(
+                    f"{mode}_sacreBLEU_dl_index_{dataloader_idx}",
+                    sb_score,
+                    sync_dist=True,
+                )
+                getattr(self, f"{mode}_loss_{dataloader_idx}").reset()
             outputs[dataloader_idx].clear()  # free memory
 
         if len(loss_list) > 1:
@@ -562,10 +667,10 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         Called at the end of validation to aggregate outputs.
         :param outputs: list of individual outputs of each validation step.
         """
-        self.eval_epoch_end(self.validation_step_outputs, 'val', self.global_rank)
+        self.eval_epoch_end(self.validation_step_outputs, "val", self.global_rank)
 
     def on_test_epoch_end(self):
-        self.eval_epoch_end(self.test_step_outputs, 'test', self.global_rank)
+        self.eval_epoch_end(self.test_step_outputs, "test", self.global_rank)
 
     @classmethod
     def setup_enc_dec_tokenizers(
@@ -586,12 +691,19 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         special_tokens={},
     ):
 
-        supported_tokenizers = ['huggingface', 'sentencepiece', 'megatron', 'byte-level']
+        supported_tokenizers = [
+            "huggingface",
+            "sentencepiece",
+            "megatron",
+            "byte-level",
+        ]
         if (
             encoder_tokenizer_library not in supported_tokenizers
             or decoder_tokenizer_library not in supported_tokenizers
         ):
-            raise NotImplementedError(f"Currently we only support tokenizers in {supported_tokenizers}.")
+            raise NotImplementedError(
+                f"Currently we only support tokenizers in {supported_tokenizers}."
+            )
 
         encoder_tokenizer = get_nmt_tokenizer(
             library=encoder_tokenizer_library,
@@ -619,10 +731,20 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
 
         # validate no token is negative for sentencepiece tokenizers
         for tok_name, tok_library, tok_model, legacy in [
-            ("encoder_tokenizer", encoder_tokenizer_library, encoder_tokenizer, encoder_sentencepiece_legacy),
-            ("decoder_tokenizer", decoder_tokenizer_library, decoder_tokenizer, decoder_sentencepiece_legacy),
+            (
+                "encoder_tokenizer",
+                encoder_tokenizer_library,
+                encoder_tokenizer,
+                encoder_sentencepiece_legacy,
+            ),
+            (
+                "decoder_tokenizer",
+                decoder_tokenizer_library,
+                decoder_tokenizer,
+                decoder_sentencepiece_legacy,
+            ),
         ]:
-            if tok_library == 'sentencepiece':
+            if tok_library == "sentencepiece":
                 negative_tokens = []
                 for n in ["eos_id", "bos_id", "unk_id", "pad_id"]:
                     v = getattr(tok_model.tokenizer, n)()
@@ -637,29 +759,44 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
                     # If using sentencepiece legacy, eos, bos and pad need to be set/added differently.
                     if legacy:
                         # bos, eos, pad and unk may be present in the provided spm .model file, if they are, use it.
-                        if not hasattr(tok_model, 'pad_token'):
-                            if hasattr(tok_model.tokenizer, 'pad_id') and tok_model.tokenizer.pad_id() > 0:
-                                tok_model.pad_token = tok_model.tokenizer.id_to_piece(tok_model.tokenizer.pad_id())
+                        if not hasattr(tok_model, "pad_token"):
+                            if (
+                                hasattr(tok_model.tokenizer, "pad_id")
+                                and tok_model.tokenizer.pad_id() > 0
+                            ):
+                                tok_model.pad_token = tok_model.tokenizer.id_to_piece(
+                                    tok_model.tokenizer.pad_id()
+                                )
                             else:
-                                tok_model.add_special_tokens({'pad_token': '<pad>'})
+                                tok_model.add_special_tokens({"pad_token": "<pad>"})
                         else:
-                            tok_model.add_special_tokens({'pad_token': '<pad>'})
+                            tok_model.add_special_tokens({"pad_token": "<pad>"})
 
-                        if not hasattr(tok_model, 'bos_token'):
-                            if hasattr(tok_model.tokenizer, 'bos_id') and tok_model.tokenizer.bos_id() > 0:
-                                tok_model.bos_token = tok_model.tokenizer.id_to_piece(tok_model.tokenizer.bos_id())
+                        if not hasattr(tok_model, "bos_token"):
+                            if (
+                                hasattr(tok_model.tokenizer, "bos_id")
+                                and tok_model.tokenizer.bos_id() > 0
+                            ):
+                                tok_model.bos_token = tok_model.tokenizer.id_to_piece(
+                                    tok_model.tokenizer.bos_id()
+                                )
                             else:
-                                tok_model.add_special_tokens({'bos_token': '<bos>'})
+                                tok_model.add_special_tokens({"bos_token": "<bos>"})
                         else:
-                            tok_model.add_special_tokens({'bos_token': '<s>'})
+                            tok_model.add_special_tokens({"bos_token": "<s>"})
 
-                        if not hasattr(tok_model, 'eos_token'):
-                            if hasattr(tok_model.tokenizer, 'eos_id') and tok_model.tokenizer.eos_id() > 0:
-                                tok_model.eos_token = tok_model.tokenizer.id_to_piece(tok_model.tokenizer.eos_id())
+                        if not hasattr(tok_model, "eos_token"):
+                            if (
+                                hasattr(tok_model.tokenizer, "eos_id")
+                                and tok_model.tokenizer.eos_id() > 0
+                            ):
+                                tok_model.eos_token = tok_model.tokenizer.id_to_piece(
+                                    tok_model.tokenizer.eos_id()
+                                )
                             else:
-                                tok_model.add_special_tokens({'eos_token': '<eos>'})
+                                tok_model.add_special_tokens({"eos_token": "<eos>"})
                         else:
-                            tok_model.add_special_tokens({'eos_token': '</s>'})
+                            tok_model.add_special_tokens({"eos_token": "</s>"})
 
         return encoder_tokenizer, decoder_tokenizer
 
@@ -681,13 +818,19 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         # Need to set this because if using an IterableDataset, the length of the dataloader is the total number
         # of samples rather than the number of batches, and this messes up the tqdm progress bar.
         # So we set the number of steps manually (to the correct number) to fix this.
-        if 'use_tarred_dataset' in train_data_config and train_data_config['use_tarred_dataset']:
+        if (
+            "use_tarred_dataset" in train_data_config
+            and train_data_config["use_tarred_dataset"]
+        ):
             # We also need to check if limit_train_batches is already set.
             # If it's an int, we assume that the user has set it to something sane, i.e. <= # training batches,
             # and don't change it. Otherwise, adjust batches accordingly if it's a float (including 1.0).
-            if self._trainer is not None and isinstance(self._trainer.limit_train_batches, float):
+            if self._trainer is not None and isinstance(
+                self._trainer.limit_train_batches, float
+            ):
                 self._trainer.limit_train_batches = int(
-                    self._trainer.limit_train_batches * ceil(len(self._train_dl.dataset) / self.world_size)
+                    self._trainer.limit_train_batches
+                    * ceil(len(self._train_dl.dataset) / self.world_size)
                 )
             elif self._trainer is None:
                 logging.warning(
@@ -716,13 +859,19 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         # Need to set this because if using an IterableDataset, the length of the dataloader is the total number
         # of samples rather than the number of batches, and this messes up the tqdm progress bar.
         # So we set the number of steps manually (to the correct number) to fix this.
-        if 'use_tarred_dataset' in val_data_config and val_data_config['use_tarred_dataset']:
+        if (
+            "use_tarred_dataset" in val_data_config
+            and val_data_config["use_tarred_dataset"]
+        ):
             # We also need to check if limit_val_batches is already set.
             # If it's an int, we assume that the user has set it to something sane, i.e. <= # validation batches,
             # and don't change it. Otherwise, adjust batches accordingly if it's a float (including 1.0).
-            if self._trainer is not None and isinstance(self._trainer.limit_val_batches, float):
+            if self._trainer is not None and isinstance(
+                self._trainer.limit_val_batches, float
+            ):
                 self._trainer.limit_val_batches = int(
-                    self._trainer.limit_val_batches * ceil(len(self._validation_dl.dataset) / self.world_size)
+                    self._trainer.limit_val_batches
+                    * ceil(len(self._validation_dl.dataset) / self.world_size)
                 )
             elif self._trainer is None:
                 logging.warning(
@@ -736,14 +885,18 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
                 if dataloader_idx == 0:
                     setattr(
                         self,
-                        f'val_loss',
-                        GlobalAverageLossMetric(dist_sync_on_step=False, take_avg_loss=True),
+                        f"val_loss",
+                        GlobalAverageLossMetric(
+                            dist_sync_on_step=False, take_avg_loss=True
+                        ),
                     )
                 else:
                     setattr(
                         self,
-                        f'val_loss_{dataloader_idx}',
-                        GlobalAverageLossMetric(dist_sync_on_step=False, take_avg_loss=True),
+                        f"val_loss_{dataloader_idx}",
+                        GlobalAverageLossMetric(
+                            dist_sync_on_step=False, take_avg_loss=True
+                        ),
                     )
 
     def setup_test_data(self, test_data_config: Optional[DictConfig]):
@@ -754,21 +907,27 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
             encoder_tokenizer=self.encoder_tokenizer,
             decoder_tokenizer=self.decoder_tokenizer,
         )
-        self._test_dl = MTEncDecModel._setup_eval_dataloader_from_config(cfg=test_data_config, datasets=self._test_ds)
+        self._test_dl = MTEncDecModel._setup_eval_dataloader_from_config(
+            cfg=test_data_config, datasets=self._test_ds
+        )
         # instantiate Torchmetric for each test dataloader
         if self._test_dl is not None:
             for dataloader_idx in range(len(self._test_dl)):
                 if dataloader_idx == 0:
                     setattr(
                         self,
-                        f'test_loss',
-                        GlobalAverageLossMetric(dist_sync_on_step=False, take_avg_loss=True),
+                        f"test_loss",
+                        GlobalAverageLossMetric(
+                            dist_sync_on_step=False, take_avg_loss=True
+                        ),
                     )
                 else:
                     setattr(
                         self,
-                        f'test_loss_{dataloader_idx}',
-                        GlobalAverageLossMetric(dist_sync_on_step=False, take_avg_loss=True),
+                        f"test_loss_{dataloader_idx}",
+                        GlobalAverageLossMetric(
+                            dist_sync_on_step=False, take_avg_loss=True
+                        ),
                     )
 
     @classmethod
@@ -782,28 +941,39 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         multilingual,
         multilingual_ids,
     ):
-        if cfg.get("use_tarred_dataset", False) or cfg.get("dataset_type", "") == "tarred":
+        if (
+            cfg.get("use_tarred_dataset", False)
+            or cfg.get("dataset_type", "") == "tarred"
+        ):
             if cfg.get("metadata_file") is None:
-                raise FileNotFoundError("Trying to use tarred data set but could not find metadata path in config.")
-            metadata_file_list = cfg.get('metadata_file')
-            tar_files_list = cfg.get('tar_files', None)
+                raise FileNotFoundError(
+                    "Trying to use tarred data set but could not find metadata path in config."
+                )
+            metadata_file_list = cfg.get("metadata_file")
+            tar_files_list = cfg.get("tar_files", None)
             if isinstance(metadata_file_list, str):
                 metadata_file_list = [metadata_file_list]
             if tar_files_list is not None and isinstance(tar_files_list, str):
                 tar_files_list = [tar_files_list]
-            if tar_files_list is not None and len(tar_files_list) != len(metadata_file_list):
-                raise ValueError('The config must have the same number of tarfile paths and metadata file paths.')
+            if tar_files_list is not None and len(tar_files_list) != len(
+                metadata_file_list
+            ):
+                raise ValueError(
+                    "The config must have the same number of tarfile paths and metadata file paths."
+                )
 
             datasets = []
             for idx, metadata_file in enumerate(metadata_file_list):
                 with open(metadata_file) as metadata_reader:
                     metadata = json.load(metadata_reader)
                 if tar_files_list is None:
-                    tar_files = metadata.get('tar_files')
+                    tar_files = metadata.get("tar_files")
                     if tar_files is not None:
                         # update absolute path of tar files based on metadata_file path
                         valid_tar_files = []
-                        metadata_basedir = os.path.abspath(os.path.dirname(metadata_file))
+                        metadata_basedir = os.path.abspath(
+                            os.path.dirname(metadata_file)
+                        )
                         updated_fn = 0
                         for fn in tar_files:
                             # if a file does not exist, look in metadata file directory
@@ -811,7 +981,9 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
                                 valid_fn = fn
                             else:
                                 updated_fn += 1
-                                valid_fn = os.path.join(metadata_basedir, os.path.basename(fn))
+                                valid_fn = os.path.join(
+                                    metadata_basedir, os.path.basename(fn)
+                                )
                                 if not os.path.exists(valid_fn):
                                     raise RuntimeError(
                                         f"File in tarred dataset is missing from absolute and relative paths {fn}"
@@ -821,13 +993,13 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
 
                         tar_files = valid_tar_files
 
-                        logging.info(f'Updated the path of {updated_fn} tarred files')
-                        logging.info(f'Loading from tarred dataset {tar_files}')
+                        logging.info(f"Updated the path of {updated_fn} tarred files")
+                        logging.info(f"Loading from tarred dataset {tar_files}")
                 else:
                     tar_files = tar_files_list[idx]
-                    if metadata.get('tar_files') is not None:
+                    if metadata.get("tar_files") is not None:
                         logging.info(
-                            f'Tar file paths found in both cfg and metadata using one in cfg by default - {tar_files}'
+                            f"Tar file paths found in both cfg and metadata using one in cfg by default - {tar_files}"
                         )
 
                 dataset = TarredTranslationDataset(
@@ -847,9 +1019,9 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
             if len(datasets) > 1:
                 dataset = ConcatDataset(
                     datasets=datasets,
-                    sampling_technique=cfg.get('concat_sampling_technique'),
-                    sampling_temperature=cfg.get('concat_sampling_temperature'),
-                    sampling_probabilities=cfg.get('concat_sampling_probabilities'),
+                    sampling_technique=cfg.get("concat_sampling_technique"),
+                    sampling_temperature=cfg.get("concat_sampling_temperature"),
+                    sampling_probabilities=cfg.get("concat_sampling_probabilities"),
                     global_rank=global_rank,
                     world_size=world_size,
                 )
@@ -864,7 +1036,9 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
                 tgt_file_list = [tgt_file_list]
 
             if len(src_file_list) != len(tgt_file_list):
-                raise ValueError('The same number of filepaths must be passed in for source and target.')
+                raise ValueError(
+                    "The same number of filepaths must be passed in for source and target."
+                )
 
             datasets = []
             for idx, src_file in enumerate(src_file_list):
@@ -889,10 +1063,10 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
             if len(datasets) > 1:
                 dataset = ConcatDataset(
                     datasets=datasets,
-                    shuffle=cfg.get('shuffle'),
-                    sampling_technique=cfg.get('concat_sampling_technique'),
-                    sampling_temperature=cfg.get('concat_sampling_temperature'),
-                    sampling_probabilities=cfg.get('concat_sampling_probabilities'),
+                    shuffle=cfg.get("shuffle"),
+                    sampling_technique=cfg.get("concat_sampling_technique"),
+                    sampling_temperature=cfg.get("concat_sampling_temperature"),
+                    sampling_probabilities=cfg.get("concat_sampling_probabilities"),
                     global_rank=global_rank,
                     world_size=world_size,
                 )
@@ -947,12 +1121,12 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         decoder_tokenizer,
         add_bos_eos_to_encoder=True,
     ):
-        src_file_name = cfg.get('src_file_name')
-        tgt_file_name = cfg.get('tgt_file_name')
+        src_file_name = cfg.get("src_file_name")
+        tgt_file_name = cfg.get("tgt_file_name")
 
         if src_file_name is None or tgt_file_name is None:
             raise ValueError(
-                'Validation dataloader needs both cfg.src_file_name and cfg.tgt_file_name to not be None.'
+                "Validation dataloader needs both cfg.src_file_name and cfg.tgt_file_name to not be None."
             )
         else:
             # convert src_file_name and tgt_file_name to list of strings
@@ -969,7 +1143,9 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
             else:
                 raise ValueError("cfg.tgt_file_name must be string or list of strings")
         if len(src_file_list) != len(tgt_file_list):
-            raise ValueError('The same number of filepaths must be passed in for source and target validation.')
+            raise ValueError(
+                "The same number of filepaths must be passed in for source and target validation."
+            )
 
         datasets = []
         prepend_idx = 0
@@ -1012,7 +1188,10 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
                     batch_size=1,
                     sampler=(
                         None
-                        if (cfg.get("use_tarred_dataset", False) or isinstance(datasets[0], ConcatDataset))
+                        if (
+                            cfg.get("use_tarred_dataset", False)
+                            or isinstance(datasets[0], ConcatDataset)
+                        )
                         else sampler
                     ),
                     num_workers=cfg.get("num_workers", 2),
@@ -1025,57 +1204,76 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
 
     @classmethod
     def setup_pre_and_post_processing_utils(
-        cls, source_lang, target_lang, encoder_tokenizer_library, decoder_tokenizer_library
+        cls,
+        source_lang,
+        target_lang,
+        encoder_tokenizer_library,
+        decoder_tokenizer_library,
     ):
         """
         Creates source and target processor objects for input and output pre/post-processing.
         """
         source_processor, target_processor = None, None
 
-        if encoder_tokenizer_library == 'byte-level':
+        if encoder_tokenizer_library == "byte-level":
             source_processor = ByteLevelProcessor()
-        elif (source_lang == 'en' and target_lang == 'ja') or (source_lang == 'ja' and target_lang == 'en'):
+        elif (source_lang == "en" and target_lang == "ja") or (
+            source_lang == "ja" and target_lang == "en"
+        ):
             source_processor = EnJaProcessor(source_lang)
-        elif source_lang == 'ja-mecab':
+        elif source_lang == "ja-mecab":
             source_processor = JaMecabProcessor()
-        elif source_lang == 'zh':
+        elif source_lang == "zh":
             source_processor = ChineseProcessor()
-        elif source_lang == 'hi':
+        elif source_lang == "hi":
             source_processor = IndicProcessor(source_lang)
-        elif source_lang == 'ignore':
+        elif source_lang == "ignore":
             source_processor = None
-        elif source_lang is not None and source_lang not in ['ja', 'zh', 'hi']:
+        elif source_lang is not None and source_lang not in ["ja", "zh", "hi"]:
             source_processor = MosesProcessor(source_lang)
 
-        if decoder_tokenizer_library == 'byte-level':
+        if decoder_tokenizer_library == "byte-level":
             target_processor = ByteLevelProcessor()
-        elif (source_lang == 'en' and target_lang == 'ja') or (source_lang == 'ja' and target_lang == 'en'):
+        elif (source_lang == "en" and target_lang == "ja") or (
+            source_lang == "ja" and target_lang == "en"
+        ):
             target_processor = EnJaProcessor(target_lang)
-        elif target_lang == 'ja-mecab':
+        elif target_lang == "ja-mecab":
             target_processor = JaMecabProcessor()
-        elif target_lang == 'zh':
+        elif target_lang == "zh":
             target_processor = ChineseProcessor()
-        elif target_lang == 'hi':
+        elif target_lang == "hi":
             target_processor = IndicProcessor(target_lang)
-        elif target_lang == 'ignore':
+        elif target_lang == "ignore":
             target_processor = None
-        elif target_lang is not None and target_lang not in ['ja', 'zh', 'hi']:
+        elif target_lang is not None and target_lang not in ["ja", "zh", "hi"]:
             target_processor = MosesProcessor(target_lang)
 
         return source_processor, target_processor
 
     @classmethod
-    def ids_to_postprocessed_text(cls, beam_ids, tokenizer, processor, filter_beam_ids=True):
+    def ids_to_postprocessed_text(
+        cls, beam_ids, tokenizer, processor, filter_beam_ids=True
+    ):
         if filter_beam_ids:
-            beam_ids = MTEncDecModel.filter_predicted_ids(beam_ids, decoder_tokenizer=tokenizer)
+            beam_ids = MTEncDecModel.filter_predicted_ids(
+                beam_ids, decoder_tokenizer=tokenizer
+            )
         translations = [tokenizer.ids_to_text(tr) for tr in beam_ids.cpu().numpy()]
         if processor is not None:
-            translations = [processor.detokenize(translation.split(' ')) for translation in translations]
+            translations = [
+                processor.detokenize(translation.split(" "))
+                for translation in translations
+            ]
         return translations
 
     @torch.no_grad()
     def batch_translate(
-        self, src: torch.LongTensor, src_mask: torch.LongTensor, return_beam_scores: bool = False, cache={}
+        self,
+        src: torch.LongTensor,
+        src_mask: torch.LongTensor,
+        return_beam_scores: bool = False,
+        cache={},
     ):
         """
         Translates a minibatch of inputs from source language to target language.
@@ -1097,7 +1295,9 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
                 timer.stop("encoder")
                 timer.start("sampler")
             best_translations = self.beam_search(
-                encoder_hidden_states=src_hiddens, encoder_input_mask=src_mask, return_beam_scores=return_beam_scores
+                encoder_hidden_states=src_hiddens,
+                encoder_input_mask=src_mask,
+                return_beam_scores=return_beam_scores,
             )
             if timer is not None:
                 timer.stop("sampler")
@@ -1105,20 +1305,34 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
                 all_translations, scores, best_translations = best_translations
                 scores = scores.view(-1)
                 all_translations = MTEncDecModel.ids_to_postprocessed_text(
-                    all_translations, self.decoder_tokenizer, self.target_processor, filter_beam_ids=True
+                    all_translations,
+                    self.decoder_tokenizer,
+                    self.target_processor,
+                    filter_beam_ids=True,
                 )
 
             best_translations = MTEncDecModel.ids_to_postprocessed_text(
-                best_translations, self.decoder_tokenizer, self.target_processor, filter_beam_ids=True
+                best_translations,
+                self.decoder_tokenizer,
+                self.target_processor,
+                filter_beam_ids=True,
             )
             inputs = MTEncDecModel.ids_to_postprocessed_text(
-                src, self.encoder_tokenizer, self.source_processor, filter_beam_ids=False
+                src,
+                self.encoder_tokenizer,
+                self.source_processor,
+                filter_beam_ids=False,
             )
 
         finally:
             self.train(mode=mode)
         if return_beam_scores:
-            return inputs, all_translations, scores.data.cpu().numpy().tolist(), best_translations
+            return (
+                inputs,
+                all_translations,
+                scores.data.cpu().numpy().tolist(),
+                best_translations,
+            )
 
         return inputs, best_translations
 
@@ -1178,17 +1392,24 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         """
         # __TODO__: This will reset both source and target processors even if you want to reset just one.
         if source_lang is not None or target_lang is not None:
-            self.source_processor, self.target_processor = MTEncDecModel.setup_pre_and_post_processing_utils(
-                source_lang, target_lang, self.encoder_tokenizer_library, self.decoder_tokenizer_library
+            self.source_processor, self.target_processor = (
+                MTEncDecModel.setup_pre_and_post_processing_utils(
+                    source_lang,
+                    target_lang,
+                    self.encoder_tokenizer_library,
+                    self.decoder_tokenizer_library,
+                )
             )
 
         mode = self.training
         prepend_ids = []
         if self.multilingual:
             if source_lang is None or target_lang is None:
-                raise ValueError("Expect source_lang and target_lang to infer for multilingual model.")
-            src_symbol = self.encoder_tokenizer.token_to_id('<' + source_lang + '>')
-            tgt_symbol = self.encoder_tokenizer.token_to_id('<' + target_lang + '>')
+                raise ValueError(
+                    "Expect source_lang and target_lang to infer for multilingual model."
+                )
+            src_symbol = self.encoder_tokenizer.token_to_id("<" + source_lang + ">")
+            tgt_symbol = self.encoder_tokenizer.token_to_id("<" + target_lang + ">")
             if src_symbol in self.multilingual_ids:
                 prepend_ids = [src_symbol]
             elif tgt_symbol in self.multilingual_ids:
@@ -1224,7 +1445,9 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
                 )
                 return_val = all_translations, scores, best_translations
             else:
-                _, best_translations = self.batch_translate(src, src_mask, return_beam_scores=False, cache=cache)
+                _, best_translations = self.batch_translate(
+                    src, src_mask, return_beam_scores=False, cache=cache
+                )
                 return_val = best_translations
         finally:
             self.train(mode=mode)
@@ -1278,14 +1501,16 @@ class MTEncDecModel(EncDecNLPModel, Exportable):
         """
         if inverse_normalizer is not None:
             text = [inverse_normalizer.normalize(example) for example in text]
-        translations = self.translate(text, source_lang, target_lang, return_beam_scores, log_timing)
+        translations = self.translate(
+            text, source_lang, target_lang, return_beam_scores, log_timing
+        )
         if normalizer is not None:
             translations = [normalizer.normalize(example) for example in translations]
         return translations
 
     # EncDecRNNTModel is exported in 2 parts
     def list_export_subnets(self):
-        return ['encoder', 'decoder']
+        return ["encoder", "decoder"]
 
     @classmethod
     def list_available_models(cls) -> Optional[Dict[str, str]]:

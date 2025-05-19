@@ -46,7 +46,7 @@ from nemo.collections.multimodal.modules.imagen.diffusionmodules.layers import (
 
 def check_cuda():
     if not th.cuda.is_available():
-        raise RuntimeError('CUDA is not available')
+        raise RuntimeError("CUDA is not available")
     cur_device = th.cuda.current_device()
     dprops = th.cuda.get_device_properties(cur_device)
 
@@ -178,13 +178,17 @@ class ResBlock(TimestepBlock):
             normalization(self.out_channels),
             nn.SiLU(),
             nn.Dropout(p=dropout),
-            zero_module(conv_nd(dims, self.out_channels, self.out_channels, 3, padding=1)),
+            zero_module(
+                conv_nd(dims, self.out_channels, self.out_channels, 3, padding=1)
+            ),
         )
 
         if self.out_channels == channels:
             self.skip_connection = nn.Identity()
         elif use_conv:
-            self.skip_connection = conv_nd(dims, channels, self.out_channels, 3, padding=1)
+            self.skip_connection = conv_nd(
+                dims, channels, self.out_channels, 3, padding=1
+            )
         else:
             self.skip_connection = conv_nd(dims, channels, self.out_channels, 1)
 
@@ -258,7 +262,9 @@ class EfficientResBlock(TimestepBlock):
         self.use_checkpoint = use_checkpoint
 
         self.in_layers = nn.Sequential(
-            normalization(channels), nn.SiLU(), conv_nd(dims, channels, out_channels, 3, padding=1)
+            normalization(channels),
+            nn.SiLU(),
+            conv_nd(dims, channels, out_channels, 3, padding=1),
         )
 
         self.emb_layers = nn.Sequential(
@@ -364,20 +370,20 @@ class Block(nn.Module):
         # Self - Self-attention blocks
         # fused - Single attention layer for fusing self and cross attention.
         if self.attention_type is not None:
-            assert self.attention_type in ('self', 'cross', 'fused', 'stacked')
+            assert self.attention_type in ("self", "cross", "fused", "stacked")
             attention_kwargs = dict()
 
-            if self.attention_type == 'self':
+            if self.attention_type == "self":
                 attention_fn = SelfAttentionBlock
-            elif self.attention_type == 'cross':
+            elif self.attention_type == "cross":
                 attention_fn = CrossAttentionBlock
-                attention_kwargs['context_dim'] = self.text_embed_dim
-            elif self.attention_type == 'stacked':
+                attention_kwargs["context_dim"] = self.text_embed_dim
+            elif self.attention_type == "stacked":
                 attention_fn = StackedCrossAttentionBlock
-                attention_kwargs['context_dim'] = self.text_embed_dim
+                attention_kwargs["context_dim"] = self.text_embed_dim
             else:
                 attention_fn = FusedCrossAttentionBlock
-                attention_kwargs['context_dim'] = self.text_embed_dim
+                attention_kwargs["context_dim"] = self.text_embed_dim
 
             self.attention_layer = attention_fn(
                 out_channels,
@@ -443,9 +449,9 @@ class DBlock(Block):
         for block in self.blocks:
             x = block(x, emb)
 
-        if self.attention_type in ('cross', 'fused', 'stacked'):
+        if self.attention_type in ("cross", "fused", "stacked"):
             x = self.attention_layer(x, text_embed, text_mask)
-        elif self.attention_type == 'self':
+        elif self.attention_type == "self":
             x = self.attention_layer(x)
 
         return x
@@ -496,9 +502,9 @@ class UBlock(Block):
         for block in self.blocks:
             x = block(x, emb)
 
-        if self.attention_type in ('cross', 'fused', 'stacked'):
+        if self.attention_type in ("cross", "fused", "stacked"):
             x = self.attention_layer(x, text_embed, text_mask)
-        elif self.attention_type == 'self':
+        elif self.attention_type == "self":
             x = self.attention_layer(x)
 
         if self.conv_up:
@@ -549,7 +555,9 @@ class FusedCrossAttentionBlock(TextConditionedBlock):
 
         if flash_attention:
             assert flash_attn_installed, "FlashAttention is not installed."
-            assert not stable_attention, "FlashAttention doesn't support the stable form."
+            assert (
+                not stable_attention
+            ), "FlashAttention doesn't support the stable form."
 
         elif stable_attention:
             self.attention = QKVStableMaskedAttention(self.num_heads)
@@ -593,9 +601,11 @@ class FusedCrossAttentionBlock(TextConditionedBlock):
             # q: b (h d) s, k_context: b (h d) s
             batch_size = q.shape[0]
             max_seqlen_q, max_seqlen_k = q.shape[2], q.shape[2] + k_context.shape[2]
-            q = rearrange(q, 'b (h d) s -> (b s) h d', h=self.num_heads)
+            q = rearrange(q, "b (h d) s -> (b s) h d", h=self.num_heads)
 
-            mask_self = th.ones((batch_size, max_seqlen_q), device=q.device, dtype=th.bool)
+            mask_self = th.ones(
+                (batch_size, max_seqlen_q), device=q.device, dtype=th.bool
+            )
             mask_context = mask.bool()
             mask_full = th.cat([mask_self, mask_context], dim=1)
 
@@ -610,19 +620,33 @@ class FusedCrossAttentionBlock(TextConditionedBlock):
             kv_full_unpadded = th.stack([k_full_unpadded, v_full_unpadded], dim=1)
 
             cu_seqlens_q = th.arange(
-                0, (batch_size + 1) * max_seqlen_q, step=max_seqlen_q, dtype=th.int32, device=q.device
+                0,
+                (batch_size + 1) * max_seqlen_q,
+                step=max_seqlen_q,
+                dtype=th.int32,
+                device=q.device,
             )
-            cu_seqlens_k = th.zeros((batch_size + 1), dtype=th.int32, device=k_full.device)
+            cu_seqlens_k = th.zeros(
+                (batch_size + 1), dtype=th.int32, device=k_full.device
+            )
             cu_seqlens_k[1:] = th.cumsum(mask.sum(dim=1), dim=0)
             cu_seqlens_k += cu_seqlens_q
 
             out = flash_attn_varlen_kvpacked_func(
-                q, kv_full_unpadded, cu_seqlens_q, cu_seqlens_k, max_seqlen_q, max_seqlen_k, 0.0
+                q,
+                kv_full_unpadded,
+                cu_seqlens_q,
+                cu_seqlens_k,
+                max_seqlen_q,
+                max_seqlen_k,
+                0.0,
             )
-            h = rearrange(out, '(b s) h d -> b (h d) s', b=batch_size, h=self.num_heads)
+            h = rearrange(out, "(b s) h d -> b (h d) s", b=batch_size, h=self.num_heads)
         else:
             # Computing mask for self attention
-            mask_self = th.ones(k_self.shape[0], q.shape[2], k_self.shape[2], device=mask.device)
+            mask_self = th.ones(
+                k_self.shape[0], q.shape[2], k_self.shape[2], device=mask.device
+            )
 
             # Mask for cross attention
             mask_context = mask.view(mask.shape[0], 1, mask.shape[1])
@@ -670,7 +694,9 @@ class SelfAttentionBlock(nn.Module):
         self.flash_attention = flash_attention
         if flash_attention:
             assert flash_attn_installed, "FlashAttention is not installed."
-            assert not stable_attention, "FlashAttention doesn't support the stable form."
+            assert (
+                not stable_attention
+            ), "FlashAttention doesn't support the stable form."
         elif stable_attention:
             self.attention = QKVStableAttention(self.num_heads)
         else:
@@ -696,13 +722,27 @@ class SelfAttentionBlock(nn.Module):
             h = self.num_heads
             q, k, v = qkv.chunk(3, dim=1)
             max_seqlen_q, max_seqlen_k = q.shape[2], k.shape[2]
-            q = rearrange(q, 'b (h d) s -> (b s) h d', h=self.num_heads)
-            k = rearrange(k, 'b (h d) s -> (b s) h d', h=self.num_heads)
-            v = rearrange(v, 'b (h d) s -> (b s) h d', h=self.num_heads)
-            cu_seqlens_q = th.arange(0, (b + 1) * max_seqlen_q, step=max_seqlen_q, dtype=th.int32, device=q.device)
-            cu_seqlens_k = th.arange(0, (b + 1) * max_seqlen_k, step=max_seqlen_k, dtype=th.int32, device=k.device)
-            h = flash_attn_varlen_func(q, k, v, cu_seqlens_q, cu_seqlens_k, max_seqlen_q, max_seqlen_k, 0.0)
-            h = rearrange(h, '(b s) h d -> b (h d) s', b=b, h=self.num_heads)
+            q = rearrange(q, "b (h d) s -> (b s) h d", h=self.num_heads)
+            k = rearrange(k, "b (h d) s -> (b s) h d", h=self.num_heads)
+            v = rearrange(v, "b (h d) s -> (b s) h d", h=self.num_heads)
+            cu_seqlens_q = th.arange(
+                0,
+                (b + 1) * max_seqlen_q,
+                step=max_seqlen_q,
+                dtype=th.int32,
+                device=q.device,
+            )
+            cu_seqlens_k = th.arange(
+                0,
+                (b + 1) * max_seqlen_k,
+                step=max_seqlen_k,
+                dtype=th.int32,
+                device=k.device,
+            )
+            h = flash_attn_varlen_func(
+                q, k, v, cu_seqlens_q, cu_seqlens_k, max_seqlen_q, max_seqlen_k, 0.0
+            )
+            h = rearrange(h, "(b s) h d -> b (h d) s", b=b, h=self.num_heads)
         else:
             h, _ = self.attention(qkv)
         h = self.proj_out(h)
@@ -751,7 +791,9 @@ class CrossAttentionBlock(TextConditionedBlock):
 
         if flash_attention:
             assert flash_attn_installed, "FlashAttention is not installed."
-            assert not stable_attention, "FlashAttention doesn't support the stable form."
+            assert (
+                not stable_attention
+            ), "FlashAttention doesn't support the stable form."
         elif stable_attention:
             self.attention = QKVStableMaskedAttention(self.num_heads)
         else:
@@ -781,7 +823,7 @@ class CrossAttentionBlock(TextConditionedBlock):
         if self.flash_attention:
             batch_size = q.shape[0]
             max_seqlen_q, max_seqlen_k = q.shape[2], k.shape[2]
-            q = rearrange(q, 'b (h d) s -> (b s) h d', h=self.num_heads)
+            q = rearrange(q, "b (h d) s -> (b s) h d", h=self.num_heads)
             mask = mask.to(th.bool)
             k_unpadded = k.transpose(1, 2)[mask]
             total_k = k_unpadded.shape[0]
@@ -790,15 +832,25 @@ class CrossAttentionBlock(TextConditionedBlock):
             v_unpadded = v_unpadded.view(total_k, self.num_heads, -1)
             kv_unpadded = th.stack([k_unpadded, v_unpadded], dim=1)
             cu_seqlens_q = th.arange(
-                0, (batch_size + 1) * max_seqlen_q, step=max_seqlen_q, dtype=th.int32, device=q.device
+                0,
+                (batch_size + 1) * max_seqlen_q,
+                step=max_seqlen_q,
+                dtype=th.int32,
+                device=q.device,
             )
             cu_seqlens_k = th.zeros((batch_size + 1), dtype=th.int32, device=q.device)
             cu_seqlens_k[1:] = th.cumsum(mask.sum(dim=1), dim=0)
 
             out = flash_attn_varlen_kvpacked_func(
-                q, kv_unpadded, cu_seqlens_q, cu_seqlens_k, max_seqlen_q, max_seqlen_k, 0.0
+                q,
+                kv_unpadded,
+                cu_seqlens_q,
+                cu_seqlens_k,
+                max_seqlen_q,
+                max_seqlen_k,
+                0.0,
             )
-            h = rearrange(out, '(b s) h d -> b (h d) s', b=batch_size, h=self.num_heads)
+            h = rearrange(out, "(b s) h d -> b (h d) s", b=batch_size, h=self.num_heads)
         else:
             # Computing mask for cross attention
             mask = mask.view(mask.shape[0], 1, mask.shape[1])
@@ -824,10 +876,16 @@ class FeedForward(nn.Module):
     def __init__(self, dim, mult=4, glu=False, dropout=0.0):
         super().__init__()
         inner_dim = int(dim * mult)
-        project_in = nn.Sequential(nn.Linear(dim, inner_dim), nn.GELU()) if not glu else GEGLU(dim, inner_dim)
+        project_in = (
+            nn.Sequential(nn.Linear(dim, inner_dim), nn.GELU())
+            if not glu
+            else GEGLU(dim, inner_dim)
+        )
 
         self.norm = normalization(dim)
-        self.net = nn.Sequential(project_in, nn.Dropout(dropout), nn.Linear(inner_dim, dim))
+        self.net = nn.Sequential(
+            project_in, nn.Dropout(dropout), nn.Linear(inner_dim, dim)
+        )
 
     def forward(self, x):
         b, c, *spatial = x.shape

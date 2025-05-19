@@ -21,55 +21,67 @@ from nemo.collections.nlp.data.language_modeling.megatron.gpt_sft_dataset import
     GPTSFTDataset
 from nemo.utils import logging
 
-__all__ = ['GPTSFTChatDataset', 'get_prompt_template_example']
+__all__ = ["GPTSFTChatDataset", "get_prompt_template_example"]
 
 
-PREFIX_STR = (
-    "\x00"  # the prefix string used in the tokenizer to deal with the added empty token for some of the tokenizers
-)
+PREFIX_STR = "\x00"  # the prefix string used in the tokenizer to deal with the added empty token for some of the tokenizers
 
 IGNORE_INDEX = -100
 SYSTEM_TOKEN = "System"
 
 TYPE_INSTRUCTION = {
-    'TEXT_TO_VALUE': "",
-    'VALUE_TO_TEXT': '',
+    "TEXT_TO_VALUE": "",
+    "VALUE_TO_TEXT": "",
 }
 
 
 def _get_header_conversation_type_mask_role(source, special_tokens):
-    END_SIGNAL = special_tokens['end_of_turn']
-    END_NAME_SIGNAL = special_tokens['end_of_name']
+    END_SIGNAL = special_tokens["end_of_turn"]
+    END_NAME_SIGNAL = special_tokens["end_of_name"]
 
     data_type = None
-    if 'type' in source:
-        data_type = source['type']
+    if "type" in source:
+        data_type = source["type"]
         if data_type is not None:
-            assert data_type in TYPE_INSTRUCTION, f"source type {data_type} not supported"
+            assert (
+                data_type in TYPE_INSTRUCTION
+            ), f"source type {data_type} not supported"
     # add end signal and concatenate together
-    conversation = source['system']
+    conversation = source["system"]
     if data_type is not None:
-        if TYPE_INSTRUCTION[data_type] != '':
-            conversation = conversation + '\n' + TYPE_INSTRUCTION[data_type]
-    mask_role = source.get('mask', 'User')
+        if TYPE_INSTRUCTION[data_type] != "":
+            conversation = conversation + "\n" + TYPE_INSTRUCTION[data_type]
+    mask_role = source.get("mask", "User")
     header = f"{special_tokens['system_turn_start']}{SYSTEM_TOKEN}{END_NAME_SIGNAL}{conversation}{END_SIGNAL}"
-    conversation = _add_speaker_and_signal(header, source['conversations'], mask_role, data_type, special_tokens)
+    conversation = _add_speaker_and_signal(
+        header, source["conversations"], mask_role, data_type, special_tokens
+    )
     return header, conversation, data_type, mask_role
 
 
 def get_prompt_template_example(special_tokens):
     source = {
-        'system': '{system message}',
-        'conversations': [
-            {'from': 'User', 'value': '{turn 1 user message}', 'label': None},
-            {'from': 'Assistant', 'value': '{turn 1 assistant message}', 'label': '{turn 1 assistant label}'},
-            {'from': 'User', 'value': '{turn 2 user message}', 'label': None},
-            {'from': 'Assistant', 'value': '{turn 2 assistant message}', 'label': '{turn 2 assistant label}'},
+        "system": "{system message}",
+        "conversations": [
+            {"from": "User", "value": "{turn 1 user message}", "label": None},
+            {
+                "from": "Assistant",
+                "value": "{turn 1 assistant message}",
+                "label": "{turn 1 assistant label}",
+            },
+            {"from": "User", "value": "{turn 2 user message}", "label": None},
+            {
+                "from": "Assistant",
+                "value": "{turn 2 assistant message}",
+                "label": "{turn 2 assistant label}",
+            },
         ],
         "mask": "User",
         "type": "VALUE_TO_TEXT",
     }
-    _, conversation, _, _ = _get_header_conversation_type_mask_role(source, special_tokens)
+    _, conversation, _, _ = _get_header_conversation_type_mask_role(
+        source, special_tokens
+    )
     return conversation
 
 
@@ -120,14 +132,16 @@ def _mask_targets(
         label_start_ids (list): list of label start token ids,
         num_turn_start_tokens (int): number of tokens of the turn_start str
     """
-    TURN_TOKEN = special_tokens['turn_start']
-    END_NAME_SIGNAL = special_tokens['end_of_name']
+    TURN_TOKEN = special_tokens["turn_start"]
+    END_NAME_SIGNAL = special_tokens["end_of_name"]
     label_start_ids = torch.tensor(label_start_ids)
     name_end_token_ids = torch.tensor(name_end_token_ids)
 
     cur_idx = header_len
     tgt_len = target.shape[0]
-    for i, (tokenized_len, speaker, s_id) in enumerate(zip(tokenized_lens, speakers, s_ids)):
+    for i, (tokenized_len, speaker, s_id) in enumerate(
+        zip(tokenized_lens, speakers, s_ids)
+    ):
         # note, sentence piece will add extra empty token in front. has to compute the diff
         id1 = tokenizer.text_to_ids(PREFIX_STR)
         id2 = tokenizer.text_to_ids(PREFIX_STR + TURN_TOKEN + speaker + END_NAME_SIGNAL)
@@ -139,13 +153,15 @@ def _mask_targets(
 
         if location >= 0:
             # if it contains the label start tokens
-            if gtype == 'VALUE_TO_TEXT':
+            if gtype == "VALUE_TO_TEXT":
                 # handles the case that condition on labels to generate respone
                 # the next token after the name part of the prompt is the beginning of the label start tokens
                 assert skip_name_len == location
                 # find the first new line token after the label part, which indicates the end of the whole label string
                 # newline_loc = torch.where((s_id[skip_name_len:] == name_end_token_ids))[0]
-                newline_loc = identify_start_index_of_subsequence(name_end_token_ids, s_id[skip_name_len:])
+                newline_loc = identify_start_index_of_subsequence(
+                    name_end_token_ids, s_id[skip_name_len:]
+                )
                 if newline_loc < 0:
                     # cannot find new line token, which means the the whole turn is just a partial label string.
                     # Mask the whole turn
@@ -155,7 +171,7 @@ def _mask_targets(
                 more_skip_len = newline_loc + len(name_end_token_ids)
                 # skip the name part and the label part
                 skip_name_len += more_skip_len
-            elif gtype == 'TEXT_TO_VALUE':
+            elif gtype == "TEXT_TO_VALUE":
                 # handles the case that condition on response to generate label
                 # skip the name part, response and the label start tokens part, the remainder is
                 # the label string without label start, e.g. 'quality:9,toxicity:8...'
@@ -165,16 +181,23 @@ def _mask_targets(
         elif cur_idx + tokenized_len < tgt_len:
             # Check whether the mask is applied to the correct position, the first token is turn start tokens
             if not torch.equal(target[cur_idx + 1 : cur_idx + tokenized_len], s_id[1:]):
-                logging.warning("a sentence mismatches the corresponding piece " "in the conversation")
-        if i == 0 and (gtype == 'VALUE_TO_TEXT' or gtype is None):
+                logging.warning(
+                    "a sentence mismatches the corresponding piece "
+                    "in the conversation"
+                )
+        if i == 0 and (gtype == "VALUE_TO_TEXT" or gtype is None):
             # mask the first turn completely to provide at least one turn as context for the rest
             target[cur_idx : cur_idx + tokenized_len] = IGNORE_INDEX
-        elif speaker in mask_role and i == 1 and gtype == 'TEXT_TO_VALUE':
+        elif speaker in mask_role and i == 1 and gtype == "TEXT_TO_VALUE":
             # leave the first turn start tag unmasked, servers severs as the end of turn signal
-            target[cur_idx + num_turn_start_tokens : cur_idx + tokenized_len] = IGNORE_INDEX
+            target[cur_idx + num_turn_start_tokens : cur_idx + tokenized_len] = (
+                IGNORE_INDEX
+            )
         elif speaker in mask_role and (i > 1):
             # leave the first turn start tag unmasked, which severs as the end of turn signal
-            target[cur_idx + num_turn_start_tokens : cur_idx + tokenized_len] = IGNORE_INDEX
+            target[cur_idx + num_turn_start_tokens : cur_idx + tokenized_len] = (
+                IGNORE_INDEX
+            )
         elif speaker in mask_role and (i <= 1):
             # mask out everything in the second turn
             target[cur_idx : cur_idx + tokenized_len] = IGNORE_INDEX
@@ -189,16 +212,18 @@ def response_value_formater(label, label_start, end_signal):
     if isinstance(label, str):
         return label_start + label + end_signal
     elif label is None:
-        return ''
+        return ""
     else:
-        raise ValueError(f'Unknown label type {type(label)}, only str type is supported')
+        raise ValueError(
+            f"Unknown label type {type(label)}, only str type is supported"
+        )
 
 
 def _add_speaker_and_signal(header, source, mask_role, gtype, special_tokens):
-    TURN_TOKEN = special_tokens['turn_start']
-    END_SIGNAL = special_tokens['end_of_turn']
-    LABEL_START = special_tokens['label_start']
-    END_NAME_SIGNAL = special_tokens['end_of_name']
+    TURN_TOKEN = special_tokens["turn_start"]
+    END_SIGNAL = special_tokens["end_of_turn"]
+    LABEL_START = special_tokens["label_start"]
+    END_NAME_SIGNAL = special_tokens["end_of_name"]
 
     """Add speaker and start/end signal on each round."""
     BEGIN_SIGNAL = ""
@@ -208,7 +233,12 @@ def _add_speaker_and_signal(header, source, mask_role, gtype, special_tokens):
         role_token = TURN_TOKEN
         if gtype is None:
             sentence["value"] = (
-                BEGIN_SIGNAL + role_token + sentence_from + END_NAME_SIGNAL + sentence["value"] + END_SIGNAL
+                BEGIN_SIGNAL
+                + role_token
+                + sentence_from
+                + END_NAME_SIGNAL
+                + sentence["value"]
+                + END_SIGNAL
             )
         elif gtype == "VALUE_TO_TEXT":
             sentence["value"] = (
@@ -217,9 +247,11 @@ def _add_speaker_and_signal(header, source, mask_role, gtype, special_tokens):
                 + sentence_from
                 + END_NAME_SIGNAL
                 + (
-                    response_value_formater(sentence['label'], LABEL_START, END_NAME_SIGNAL)
-                    if 'label' in sentence
-                    else ''
+                    response_value_formater(
+                        sentence["label"], LABEL_START, END_NAME_SIGNAL
+                    )
+                    if "label" in sentence
+                    else ""
                 )
                 + sentence["value"]
                 + END_SIGNAL
@@ -233,9 +265,11 @@ def _add_speaker_and_signal(header, source, mask_role, gtype, special_tokens):
                 + sentence["value"]
                 + END_SIGNAL
                 + (
-                    response_value_formater(sentence['label'], LABEL_START, END_NAME_SIGNAL)
-                    if 'label' in sentence
-                    else ''
+                    response_value_formater(
+                        sentence["label"], LABEL_START, END_NAME_SIGNAL
+                    )
+                    if "label" in sentence
+                    else ""
                 )
             )
         else:
@@ -265,7 +299,9 @@ def preprocess(
     3. Tokenize the concatenated conversation;
     4. Make a deepcopy as the target. Mask human words with IGNORE_INDEX.
     """
-    header, conversation, data_type, mask_role = _get_header_conversation_type_mask_role(source, special_tokens)
+    header, conversation, data_type, mask_role = (
+        _get_header_conversation_type_mask_role(source, special_tokens)
+    )
     # tokenize conversations
     input_ids = tokenizer.text_to_ids(conversation)
     target = copy.deepcopy(input_ids)
@@ -275,16 +311,16 @@ def preprocess(
     ids = []
     tokenized_lens = []
     assert torch.equal(torch.tensor(target[:header_len]), torch.tensor(header_tokens))
-    for s in source['conversations']:
+    for s in source["conversations"]:
         # hack to remove the extra empty token in front
         id1 = tokenizer.text_to_ids(PREFIX_STR + s["value"])
         id2 = tokenizer.text_to_ids(PREFIX_STR)
         tokenized_sentence = id1[len(id2) :]
         ids.append(torch.tensor(tokenized_sentence))
         tokenized_lens.append(len(tokenized_sentence))
-    speakers = [sentence["from"] for sentence in source['conversations']]
+    speakers = [sentence["from"] for sentence in source["conversations"]]
     # assert mask_role in speakers, "mask role not in the conversation"
-    split_mask = mask_role.split(',')
+    split_mask = mask_role.split(",")
     for s in split_mask:
         assert s in speakers, "mask role not in the conversation"
 
@@ -312,7 +348,9 @@ def preprocess(
     last_ignore_index_pos = torch.nonzero(target == IGNORE_INDEX)[-1].item() + 1
     context_ids = input_ids[:last_ignore_index_pos]
     answer_ids = input_ids[last_ignore_index_pos:]
-    return dict(input_ids=input_ids, mask=mask, context_ids=context_ids, answer_ids=answer_ids)
+    return dict(
+        input_ids=input_ids, mask=mask, context_ids=context_ids, answer_ids=answer_ids
+    )
 
 
 class GPTSFTChatDataset(GPTSFTDataset):
@@ -321,8 +359,8 @@ class GPTSFTChatDataset(GPTSFTDataset):
 
     def _build_samples_mapping(self):
         super()._build_samples_mapping()
-        LABEL_START = self.special_tokens['label_start']
-        END_NAME_SIGNAL = self.special_tokens['end_of_name']
+        LABEL_START = self.special_tokens["label_start"]
+        END_NAME_SIGNAL = self.special_tokens["end_of_name"]
 
         id1 = self.tokenizer.text_to_ids(PREFIX_STR)
         id2 = self.tokenizer.text_to_ids(PREFIX_STR + LABEL_START)
@@ -332,7 +370,7 @@ class GPTSFTChatDataset(GPTSFTDataset):
         id2 = self.tokenizer.text_to_ids(PREFIX_STR)
         self.name_end_token_ids = id1[len(id2) :]
 
-        id1 = self.tokenizer.text_to_ids(PREFIX_STR + self.special_tokens['turn_start'])
+        id1 = self.tokenizer.text_to_ids(PREFIX_STR + self.special_tokens["turn_start"])
         id2 = self.tokenizer.text_to_ids(PREFIX_STR)
         self.num_turn_start_tokens = len(id1) - len(id2)
 
@@ -352,22 +390,25 @@ class GPTSFTChatDataset(GPTSFTDataset):
         )
 
         # store metadata in dataset, in case user may have keys required in the prediction json files
-        metadata = {k: v for k, v in example.items() if k not in ['conversations']}
-        result['metadata'] = metadata
+        metadata = {k: v for k, v in example.items() if k not in ["conversations"]}
+        result["metadata"] = metadata
         if self.output_original_text:
-            result['metadata']['conversations'] = example['conversations']
+            result["metadata"]["conversations"] = example["conversations"]
 
         return result
 
     def collate_fn(self, batch):
-        input_ids = [item['input_ids'][:-1].tolist() for item in batch]
-        labels = [item['input_ids'][1:].tolist() for item in batch]
-        contexts = [item['context_ids'].tolist() for item in batch]
-        answers = [item['answer_ids'].tolist() for item in batch]
-        loss_mask = [item['mask'][1:].tolist() for item in batch]
-        metadata = [item['metadata'] for item in batch]
+        input_ids = [item["input_ids"][:-1].tolist() for item in batch]
+        labels = [item["input_ids"][1:].tolist() for item in batch]
+        contexts = [item["context_ids"].tolist() for item in batch]
+        answers = [item["answer_ids"].tolist() for item in batch]
+        loss_mask = [item["mask"][1:].tolist() for item in batch]
+        metadata = [item["metadata"] for item in batch]
 
-        max_length = max(max([len(x) for x in input_ids]), max([len(x) for x in contexts]) + self.tokens_to_generate)
+        max_length = max(
+            max([len(x) for x in input_ids]),
+            max([len(x) for x in contexts]) + self.tokens_to_generate,
+        )
         if max_length > self.max_seq_length:
             # truncate the sequences if it is longer than max_seq_length
             input_ids = [x[: self.max_seq_length] for x in input_ids]
@@ -380,7 +421,10 @@ class GPTSFTChatDataset(GPTSFTDataset):
         if self.pad_to_max_length:
             max_length = self.max_seq_length
         else:
-            max_length = min(self.max_seq_length, self._ceil_to_nearest(max_length, self.pad_seq_length_to_mult))
+            max_length = min(
+                self.max_seq_length,
+                self._ceil_to_nearest(max_length, self.pad_seq_length_to_mult),
+            )
         assert max_length <= self.max_seq_length
 
         if not self.get_attention_mask_from_fusion:
@@ -389,26 +433,42 @@ class GPTSFTChatDataset(GPTSFTDataset):
         position_ids = [list(range(max_length)) for _ in batch]
         position_ids = torch.LongTensor(position_ids)
         input_ids = torch.LongTensor(
-            self._collate_item(input_ids, max_length=max_length, pad_id=self.tokenizer.eos_id)
+            self._collate_item(
+                input_ids, max_length=max_length, pad_id=self.tokenizer.eos_id
+            )
         )
-        labels = torch.LongTensor(self._collate_item(labels, max_length=max_length, pad_id=self.tokenizer.eos_id))
-        loss_mask = torch.LongTensor(self._collate_item(loss_mask, max_length=max_length, pad_id=0))
+        labels = torch.LongTensor(
+            self._collate_item(
+                labels, max_length=max_length, pad_id=self.tokenizer.eos_id
+            )
+        )
+        loss_mask = torch.LongTensor(
+            self._collate_item(loss_mask, max_length=max_length, pad_id=0)
+        )
         context_lengths = torch.LongTensor([len(x) for x in contexts])
-        contexts = torch.LongTensor(self._collate_item(contexts, max_length=max_length, pad_id=self.tokenizer.eos_id))
-        answers = torch.LongTensor(self._collate_item(answers, max_length=max_length, pad_id=self.tokenizer.eos_id))
+        contexts = torch.LongTensor(
+            self._collate_item(
+                contexts, max_length=max_length, pad_id=self.tokenizer.eos_id
+            )
+        )
+        answers = torch.LongTensor(
+            self._collate_item(
+                answers, max_length=max_length, pad_id=self.tokenizer.eos_id
+            )
+        )
 
         processed_batch = {
-            'tokens': input_ids,
-            'labels': labels,
-            'loss_mask': loss_mask,
-            'position_ids': position_ids,
-            'contexts': contexts,
-            'context_lengths': context_lengths,
-            'answers': answers,
-            'metadata': metadata,
+            "tokens": input_ids,
+            "labels": labels,
+            "loss_mask": loss_mask,
+            "position_ids": position_ids,
+            "contexts": contexts,
+            "context_lengths": context_lengths,
+            "answers": answers,
+            "metadata": metadata,
         }
 
         if not self.get_attention_mask_from_fusion:
-            processed_batch['attention_mask'] = attention_mask
+            processed_batch["attention_mask"] = attention_mask
 
         return processed_batch

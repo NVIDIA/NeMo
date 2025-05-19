@@ -63,7 +63,7 @@ def get_args() -> argparse.Namespace:
         "IWSLT 2019 test dataset.",
     )
     parser.add_argument(
-        '--use_audio',
+        "--use_audio",
         required=False,
         action="store_true",
         help="If set `PunctuationCapitalizationLexicalAudioModel` will be used for inference",
@@ -86,7 +86,7 @@ def get_args() -> argparse.Namespace:
         "`--input_manifest` and `--input_text` should be provided.",
     )
     parser.add_argument(
-        '--audio_file',
+        "--audio_file",
         required=False,
         type=Path,
         help="Path to file with paths to audio. One path per row. Required if '--input_text' provided. Else 'audio_filepath' from manifest will be used.",
@@ -115,8 +115,14 @@ def get_args() -> argparse.Namespace:
         help=f"The name of NGC pretrained model. No more than one of parameters `--pretrained_name`, `--model_path`"
         f"should be provided. If neither of parameters `--pretrained_name` and `--model_path` are provided, then the "
         f"script is run with `--{default_model_parameter}={default_model}`.",
-        choices=[m.pretrained_model_name for m in PunctuationCapitalizationModel.list_available_models()]
-        + [m.pretrained_model_name for m in PunctuationCapitalizationLexicalAudioModel.list_available_models()],
+        choices=[
+            m.pretrained_model_name
+            for m in PunctuationCapitalizationModel.list_available_models()
+        ]
+        + [
+            m.pretrained_model_name
+            for m in PunctuationCapitalizationLexicalAudioModel.list_available_models()
+        ],
     )
     model.add_argument(
         "--model_path",
@@ -158,7 +164,11 @@ def get_args() -> argparse.Namespace:
         "'[SEP]'*], ['[CLS]'*, 'e'*, 'l', 'l'*, '[SEP]'*], ['[CLS]'*, 'l'*, 'l', 'o', '[SEP]'*]]`.",
     )
     parser.add_argument(
-        "--batch_size", "-b", type=int, default=128, help="Number of segments which are processed simultaneously.",
+        "--batch_size",
+        "-b",
+        type=int,
+        default=128,
+        help="Number of segments which are processed simultaneously.",
     )
     parser.add_argument(
         "--save_labels_instead_of_text",
@@ -172,7 +182,7 @@ def get_args() -> argparse.Namespace:
     parser.add_argument(
         "--device",
         "-d",
-        choices=['cpu', 'cuda'],
+        choices=["cpu", "cuda"],
         help="Which device to use. If device is not set and CUDA is available, then GPU will be used. If device is "
         "not set and CUDA is not available, then CPU is used.",
     )
@@ -190,7 +200,14 @@ def get_args() -> argparse.Namespace:
         parser.error("--use_audio and --input_text require --audio_file")
     if args.pretrained_name is None and args.model_path is None:
         setattr(args, default_model_parameter, default_model)
-    for name in ["input_manifest", "input_text", "output_manifest", "output_text", "model_path", "audio_file"]:
+    for name in [
+        "input_manifest",
+        "input_text",
+        "output_manifest",
+        "output_text",
+        "model_path",
+        "audio_file",
+    ]:
         if getattr(args, name) is not None:
             setattr(args, name, getattr(args, name).expanduser())
     return args
@@ -211,13 +228,17 @@ def main() -> None:
         model = (
             PunctuationCapitalizationModel.restore_from(args.model_path)
             if not args.use_audio
-            else PunctuationCapitalizationLexicalAudioModel.restore_from(args.model_path)
+            else PunctuationCapitalizationLexicalAudioModel.restore_from(
+                args.model_path
+            )
         )
     else:
         model = (
             PunctuationCapitalizationModel.from_pretrained(args.pretrained_name)
             if not args.use_audio
-            else PunctuationCapitalizationLexicalAudioModel.restore_from(args.model_path)
+            else PunctuationCapitalizationLexicalAudioModel.restore_from(
+                args.model_path
+            )
         )
     if args.device is None:
         if torch.cuda.is_available():
@@ -267,15 +288,15 @@ def main() -> None:
         )
     if args.output_manifest is None:
         args.output_text.parent.mkdir(exist_ok=True, parents=True)
-        with args.output_text.open('w') as f:
+        with args.output_text.open("w") as f:
             for t in processed_texts:
-                f.write(t + '\n')
+                f.write(t + "\n")
     else:
         args.output_manifest.parent.mkdir(exist_ok=True, parents=True)
-        with args.output_manifest.open('w') as f:
+        with args.output_manifest.open("w") as f:
             for item, t in zip(manifest, processed_texts):
                 item[text_key] = t
-                f.write(json.dumps(item) + '\n')
+                f.write(json.dumps(item) + "\n")
 
 
 if __name__ == "__main__":

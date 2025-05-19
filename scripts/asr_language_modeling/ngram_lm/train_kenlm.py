@@ -64,7 +64,9 @@ class TrainKenlmConfig:
         MISSING  # List of training files or folders. Files can be a plain text file or ".json" manifest or ".json.gz". Example: [/path/to/manifest/file,/path/to/folder]
     )
 
-    nemo_model_file: str = MISSING  # The path to '.nemo' file of the ASR model, or name of a pretrained NeMo model
+    nemo_model_file: str = (
+        MISSING  # The path to '.nemo' file of the ASR model, or name of a pretrained NeMo model
+    )
     kenlm_model_file: str = MISSING  # The path to store the KenLM binary model file
     ngram_length: int = MISSING  # The order of N-gram LM
     kenlm_bin_path: str = MISSING  # The path to the bin folder of KenLM.
@@ -76,18 +78,20 @@ class TrainKenlmConfig:
     cache_path: str = ""  # Cache path to save tokenized files.
     verbose: int = 1  # Verbose level, default is 1.
     save_nemo: bool = False  # Save .nemo checkpoint to use with NGramGPULanguageModel
-    normalize_unk_nemo: bool = True  # Normalize the UNK token in the NGramGPULanguageModel model
+    normalize_unk_nemo: bool = (
+        True  # Normalize the UNK token in the NGramGPULanguageModel model
+    )
 
 
-@hydra_runner(config_path=None, config_name='TrainKenlmConfig', schema=TrainKenlmConfig)
+@hydra_runner(config_path=None, config_name="TrainKenlmConfig", schema=TrainKenlmConfig)
 def main(args: TrainKenlmConfig):
     train_paths = kenlm_utils.get_train_list(args.train_paths)
 
     if isinstance(args.ngram_prune, str):
         args.ngram_prune = [args.ngram_prune]
 
-    tokenizer, encoding_level, is_aggregate_tokenizer, full_vocab_size = kenlm_utils.setup_tokenizer(
-        args.nemo_model_file
+    tokenizer, encoding_level, is_aggregate_tokenizer, full_vocab_size = (
+        kenlm_utils.setup_tokenizer(args.nemo_model_file)
     )
 
     if encoding_level == "subword":
@@ -98,7 +102,7 @@ def main(args: TrainKenlmConfig):
     arpa_file = f"{args.kenlm_model_file}.tmp.arpa"
     """ LMPLZ ARGUMENT SETUP """
     kenlm_args = [
-        os.path.join(args.kenlm_bin_path, 'lmplz'),
+        os.path.join(args.kenlm_bin_path, "lmplz"),
         "-o",
         str(args.ngram_length),
         "--arpa",
@@ -114,10 +118,16 @@ def main(args: TrainKenlmConfig):
         """ DATASET SETUP """
         encoded_train_files = []
         for file_num, train_file in enumerate(train_paths):
-            logging.info(f"Encoding the train file '{train_file}' number {file_num+1} out of {len(train_paths)} ...")
+            logging.info(
+                f"Encoding the train file '{train_file}' number {file_num+1} out of {len(train_paths)} ..."
+            )
 
-            cached_files = glob(os.path.join(args.cache_path, os.path.split(train_file)[1]) + "*")
-            encoded_train_file = os.path.join(args.cache_path, os.path.split(train_file)[1] + f"_{file_num}.tmp.txt")
+            cached_files = glob(
+                os.path.join(args.cache_path, os.path.split(train_file)[1]) + "*"
+            )
+            encoded_train_file = os.path.join(
+                args.cache_path, os.path.split(train_file)[1] + f"_{file_num}.tmp.txt"
+            )
             if (
                 cached_files and cached_files[0] != encoded_train_file
             ):  # cached_files exists but has another file name: f"_{file_num}.tmp.txt"
@@ -136,7 +146,9 @@ def main(args: TrainKenlmConfig):
         )
 
         first_process_args = ["cat"] + encoded_train_files
-        first_process = subprocess.Popen(first_process_args, stdout=subprocess.PIPE, stderr=sys.stderr)
+        first_process = subprocess.Popen(
+            first_process_args, stdout=subprocess.PIPE, stderr=sys.stderr
+        )
 
         logging.info(f"Running lmplz command \n\n{' '.join(kenlm_args)}\n\n")
         kenlm_p = subprocess.run(
@@ -151,7 +163,9 @@ def main(args: TrainKenlmConfig):
 
     else:
         logging.info(f"Running lmplz command \n\n{' '.join(kenlm_args)}\n\n")
-        kenlm_p = subprocess.Popen(kenlm_args, stdout=sys.stdout, stdin=subprocess.PIPE, stderr=sys.stderr)
+        kenlm_p = subprocess.Popen(
+            kenlm_args, stdout=sys.stdout, stdin=subprocess.PIPE, stderr=sys.stderr
+        )
         kenlm_utils.iter_files(
             source_path=train_paths,
             dest_path=kenlm_p.stdin,
@@ -175,7 +189,13 @@ def main(args: TrainKenlmConfig):
         args.kenlm_model_file,
     ]
     logging.info(f"Running binary_build command \n\n{' '.join(kenlm_args)}\n\n")
-    ret = subprocess.run(kenlm_args, capture_output=False, text=True, stdout=sys.stdout, stderr=sys.stderr)
+    ret = subprocess.run(
+        kenlm_args,
+        capture_output=False,
+        text=True,
+        stdout=sys.stdout,
+        stderr=sys.stderr,
+    )
 
     if ret.returncode != 0:
         raise RuntimeError("Training KenLM was not successful!")
@@ -184,7 +204,9 @@ def main(args: TrainKenlmConfig):
         if full_vocab_size is None:
             raise NotImplementedError("Unknown vocab size, cannot convert the model")
         nemo_model = NGramGPULanguageModel.from_arpa(
-            lm_path=arpa_file, vocab_size=full_vocab_size, normalize_unk=args.normalize_unk_nemo
+            lm_path=arpa_file,
+            vocab_size=full_vocab_size,
+            normalize_unk=args.normalize_unk_nemo,
         )
         nemo_model.save_to(f"{args.kenlm_model_file}.nemo")
 
@@ -193,5 +215,5 @@ def main(args: TrainKenlmConfig):
         logging.info(f"Deleted the arpa file '{arpa_file}'.")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

@@ -61,7 +61,11 @@ class TestPreTrainingHelperFunctions:
             validate_dataset_asset_accessibility(weighted_paths)
 
             # Test valid dictionary paths
-            dict_paths = {"train": [valid_path], "validation": [paths[1]], "test": [valid_path]}
+            dict_paths = {
+                "train": [valid_path],
+                "validation": [paths[1]],
+                "test": [valid_path],
+            }
             validate_dataset_asset_accessibility(dict_paths)
 
             # Test invalid path
@@ -152,7 +156,9 @@ class TestPreTrainingDataModule:
         assert datamodule.data_sampler.rampup_batch_size == rampup_config
 
     def test_build_with_custom_samples(self, basic_datamodule):
-        with pytest.raises(AssertionError, match="num_val_samples must be greater than"):
+        with pytest.raises(
+            AssertionError, match="num_val_samples must be greater than"
+        ):
             basic_datamodule.num_train_samples = 10000
             basic_datamodule.num_val_samples = 1000
             basic_datamodule.num_test_samples = 1000
@@ -173,7 +179,9 @@ class TestPreTrainingDataModule:
         mock_trainer.global_step = 0
         basic_datamodule.trainer = mock_trainer
 
-        dataloader = basic_datamodule._create_dataloader(dataset=mock_dataset, mode="train")
+        dataloader = basic_datamodule._create_dataloader(
+            dataset=mock_dataset, mode="train"
+        )
         assert dataloader is not None
         assert dataloader.mode == "train"
 
@@ -192,12 +200,12 @@ class TestPreTrainingDataModule:
 
     def test_build_pretraining_datamodule(self, basic_datamodule, mocker):
         # Mock torch.distributed
-        mock_dist = mocker.patch('torch.distributed')
+        mock_dist = mocker.patch("torch.distributed")
         mock_dist.is_initialized.return_value = False
 
         # Mock BlendedMegatronDatasetBuilder
         mock_builder = mocker.patch(
-            'megatron.core.datasets.blended_megatron_dataset_builder.BlendedMegatronDatasetBuilder'
+            "megatron.core.datasets.blended_megatron_dataset_builder.BlendedMegatronDatasetBuilder"
         )
         mock_builder_instance = mocker.MagicMock()
         mock_builder.return_value = mock_builder_instance
@@ -205,7 +213,11 @@ class TestPreTrainingDataModule:
         mock_train_ds = mocker.MagicMock()
         mock_valid_ds = mocker.MagicMock()
         mock_test_ds = mocker.MagicMock()
-        mock_builder_instance.build.return_value = (mock_train_ds, mock_valid_ds, mock_test_ds)
+        mock_builder_instance.build.return_value = (
+            mock_train_ds,
+            mock_valid_ds,
+            mock_test_ds,
+        )
 
         # Test the build_pretraining_datamodule function
         from nemo.collections.llm.gpt.data.pre_training import \
@@ -225,7 +237,11 @@ class TestPreTrainingDataModule:
         # Verify BlendedMegatronDatasetBuilder was called with correct arguments
         mock_builder.assert_called_once()
         _, call_args, _ = mock_builder.mock_calls[0]
-        assert call_args[0] == basic_datamodule.dataset_cls  # First arg should be dataset class
-        assert isinstance(call_args[1], list)  # Second arg should be list of num samples
+        assert (
+            call_args[0] == basic_datamodule.dataset_cls
+        )  # First arg should be dataset class
+        assert isinstance(
+            call_args[1], list
+        )  # Second arg should be list of num samples
         assert len(call_args[1]) == 3  # Should have train, valid, test samples
         assert mock_builder_instance.build.called  # Verify build() was called

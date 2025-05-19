@@ -24,7 +24,7 @@ from nemo.deploy.nlp.megatronllm_deployable import MegatronLLMDeployableNemo2
 @pytest.fixture
 def mock_model_and_tokenizer():
     """Fixture to mock the model and tokenizer setup."""
-    with patch('nemo.collections.llm.inference.setup_mcore_engine') as mock_setup:
+    with patch("nemo.collections.llm.inference.setup_mcore_engine") as mock_setup:
         mock_engine = MagicMock()
         mock_model = MagicMock()
         mock_tokenizer = MagicMock()
@@ -77,7 +77,7 @@ def test_generate(deployable):
     )
 
     # Mock the generate method
-    with patch.object(deployable.mcore_engine, 'generate') as mock_generate:
+    with patch.object(deployable.mcore_engine, "generate") as mock_generate:
         mock_result = MagicMock()
         mock_result.generated_text = "Generated text"
         mock_generate.return_value = [mock_result]

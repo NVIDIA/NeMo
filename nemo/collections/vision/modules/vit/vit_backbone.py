@@ -129,9 +129,15 @@ def twod_interpolate_position_embeddings_hook(
         input_param = state_dict[key]
 
         input_seq_len = input_param.shape[0]
-        assert isPerfectSquare(input_seq_len) or isPerfectSquare(input_seq_len - class_token_length)
+        assert isPerfectSquare(input_seq_len) or isPerfectSquare(
+            input_seq_len - class_token_length
+        )
         input_has_class_token = not isPerfectSquare(input_seq_len)
-        num_tok_input = input_seq_len - class_token_length if input_has_class_token else input_seq_len
+        num_tok_input = (
+            input_seq_len - class_token_length
+            if input_has_class_token
+            else input_seq_len
+        )
         num_tok_output = num_patches
         output_has_class_token = class_token_present
 
@@ -140,7 +146,9 @@ def twod_interpolate_position_embeddings_hook(
             input_param_tok = input_param[:class_token_length, :]
             input_param_grid = input_param[class_token_length:, :]
         else:
-            input_param_tok = torch.zeros(class_token_length, hidden_size, device=input_param.device)
+            input_param_tok = torch.zeros(
+                class_token_length, hidden_size, device=input_param.device
+            )
             input_param_grid = input_param
 
         assert input_param.shape[1] == hidden_size
@@ -154,7 +162,9 @@ def twod_interpolate_position_embeddings_hook(
             input_param_grid = input_param_grid.float()
             scale_factor = (gs_new[0] / gs_input, gs_new[1] / gs_input)
 
-            input_param_grid = F.interpolate(input_param_grid, scale_factor=scale_factor, mode="bilinear")
+            input_param_grid = F.interpolate(
+                input_param_grid, scale_factor=scale_factor, mode="bilinear"
+            )
 
             input_param_grid = input_param_grid.half()
             input_param_grid = input_param_grid.reshape((-1, num_tok_output))
@@ -163,7 +173,10 @@ def twod_interpolate_position_embeddings_hook(
             assert input_param_grid.shape[1] == hidden_size
 
         input_param = input_param_grid
-        assert input_param.shape[0] == num_tok_output and input_param.shape[1] == hidden_size
+        assert (
+            input_param.shape[0] == num_tok_output
+            and input_param.shape[1] == hidden_size
+        )
 
         if output_has_class_token:
             input_param = torch.cat((input_param_tok, input_param), dim=0)
@@ -212,7 +225,9 @@ class VitBackbone(MegatronModule):
         self.num_patches_per_dim_h = self.img_h // self.patch_dim
         self.num_patches_per_dim_w = self.img_w // self.patch_dim
         self.num_patches = self.num_patches_per_dim_h * self.num_patches_per_dim_w
-        self.class_token_length = model_cfg.get("class_token_length", 8) if self.class_token else 0
+        self.class_token_length = (
+            model_cfg.get("class_token_length", 8) if self.class_token else 0
+        )
         self.seq_length = self.num_patches + self.class_token_length
         self.flatten_dim = self.patch_dim * self.patch_dim * model_cfg.num_channels
         self.input_tensor = None
@@ -222,7 +237,9 @@ class VitBackbone(MegatronModule):
         if self.pre_process:
             # cls_token
             if self.class_token:
-                self.cls_token = torch.nn.Parameter(torch.randn(1, self.class_token_length, self.hidden_size))
+                self.cls_token = torch.nn.Parameter(
+                    torch.randn(1, self.class_token_length, self.hidden_size)
+                )
                 torch.nn.init.zeros_(self.cls_token)
             self.position_ids = torch.arange(self.seq_length).expand(1, -1).cuda()
 
@@ -230,31 +247,50 @@ class VitBackbone(MegatronModule):
             self.conv1 = torch.nn.Conv2d(
                 in_channels=model_cfg.num_channels,  # Number of input channels
                 out_channels=self.hidden_size,  # Number of output channels
-                kernel_size=(self.patch_dim, self.patch_dim),  # Kernel size (height, width)
+                kernel_size=(
+                    self.patch_dim,
+                    self.patch_dim,
+                ),  # Kernel size (height, width)
                 stride=(self.patch_dim, self.patch_dim),  # Stride (height, width)
                 bias=False,
             )  # Disable bias
 
             # embedding
-            self.position_embedding_type = model_cfg.get("position_embedding_type", "learned_absolute")
+            self.position_embedding_type = model_cfg.get(
+                "position_embedding_type", "learned_absolute"
+            )
 
             if self.position_embedding_type == "learned_absolute":
-                self.position_embeddings = torch.nn.Embedding(self.seq_length, self.hidden_size)
-                init_method_normal(model_cfg.init_method_std)(self.position_embeddings.weight)
+                self.position_embeddings = torch.nn.Embedding(
+                    self.seq_length, self.hidden_size
+                )
+                init_method_normal(model_cfg.init_method_std)(
+                    self.position_embeddings.weight
+                )
 
                 class_token_present = self.class_token
                 self.position_embeddings._register_load_state_dict_pre_hook(
-                    partial(twod_interpolate_position_embeddings_hook, model_cfg, class_token_present)
+                    partial(
+                        twod_interpolate_position_embeddings_hook,
+                        model_cfg,
+                        class_token_present,
+                    )
                 )
             elif self.position_embedding_type == "learned_parameters":
-                self.position_embeddings = torch.nn.Parameter(torch.empty(self.seq_length, self.hidden_size))
+                self.position_embeddings = torch.nn.Parameter(
+                    torch.empty(self.seq_length, self.hidden_size)
+                )
                 init_method_normal(model_cfg.init_method_std)(self.position_embeddings)
             else:
-                raise ValueError(f"Unrecognized positional embedding type {self.position_embedding_type}!")
+                raise ValueError(
+                    f"Unrecognized positional embedding type {self.position_embedding_type}!"
+                )
 
             self.embedding_dropout = torch.nn.Dropout(model_cfg.hidden_dropout)
             self.drop_patch = DropPatch(
-                self.drop_patch_rate, class_token_length=self.class_token_length, exclude_cls_tokens=self.class_token
+                self.drop_patch_rate,
+                class_token_length=self.class_token_length,
+                exclude_cls_tokens=self.class_token,
             )
 
             if preprocess_layernorm:
@@ -295,9 +331,9 @@ class VitBackbone(MegatronModule):
             masked_softmax_fusion=model_cfg.masked_softmax_fusion,
             megatron_legacy=model_cfg.megatron_legacy,
             activations_checkpoint_granularity=model_cfg.activations_checkpoint_granularity,
-            activation=model_cfg.get('activation', 'gelu'),
-            ub_tp_comm_overlap=model_cfg.get('ub_tp_comm_overlap', False),
-            use_flash_attention=model_cfg.get('use_flash_attention', False),
+            activation=model_cfg.get("activation", "gelu"),
+            ub_tp_comm_overlap=model_cfg.get("ub_tp_comm_overlap", False),
+            use_flash_attention=model_cfg.get("use_flash_attention", False),
         )
 
     def set_input_tensor(self, input_tensor):
@@ -305,7 +341,8 @@ class VitBackbone(MegatronModule):
         self.transformer.set_input_tensor(input_tensor)
 
     def interpolate_pos_encoding(
-        self, x,
+        self,
+        x,
     ):
         output_seq_len = x.shape[1]
         assert isPerfectSquare(output_seq_len - self.class_token_length)
@@ -327,7 +364,9 @@ class VitBackbone(MegatronModule):
         embed_grid = embed_grid.float()
         scale_factor = (gs_new / gs_input[0], gs_new / gs_input[1])
 
-        embed_grid = F.interpolate(embed_grid, scale_factor=scale_factor, mode="bicubic")
+        embed_grid = F.interpolate(
+            embed_grid, scale_factor=scale_factor, mode="bicubic"
+        )
 
         embed_grid = embed_grid.reshape((-1, num_tok_output))
         embed_grid = embed_grid.transpose(0, 1).contiguous()
@@ -338,7 +377,9 @@ class VitBackbone(MegatronModule):
 
         if self.pre_process:
             rearranged_input = self.conv1(input)
-            rearranged_input = rearranged_input.reshape(rearranged_input.shape[0], rearranged_input.shape[1], -1)
+            rearranged_input = rearranged_input.reshape(
+                rearranged_input.shape[0], rearranged_input.shape[1], -1
+            )
             encoder_output = rearranged_input.permute(0, 2, 1)
 
             concatenated_tokens = encoder_output
@@ -351,9 +392,13 @@ class VitBackbone(MegatronModule):
                     self.position_ids[:, : concatenated_tokens.shape[1]]
                 )
             elif self.position_embedding_type == "learned_parameters":
-                token_embeddings = concatenated_tokens + self.interpolate_pos_encoding(concatenated_tokens)
+                token_embeddings = concatenated_tokens + self.interpolate_pos_encoding(
+                    concatenated_tokens
+                )
             else:
-                raise ValueError(f"Unrecognized position embedding type: {self.position_embedding_type}.")
+                raise ValueError(
+                    f"Unrecognized position embedding type: {self.position_embedding_type}."
+                )
 
             # a patch_dropout of 0. would mean it is disabled and this function would do nothing but return what was passed in
             token_embeddings = self.drop_patch(token_embeddings)

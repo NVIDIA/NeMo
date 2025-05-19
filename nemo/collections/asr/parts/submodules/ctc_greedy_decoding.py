@@ -33,8 +33,8 @@ def pack_hypotheses(
 ) -> List[rnnt_utils.Hypothesis]:
 
     if logitlen is not None:
-        if hasattr(logitlen, 'cpu'):
-            logitlen_cpu = logitlen.to('cpu')
+        if hasattr(logitlen, "cpu"):
+            logitlen_cpu = logitlen.to("cpu")
         else:
             logitlen_cpu = logitlen
 
@@ -50,7 +50,7 @@ def pack_hypotheses(
     return hypotheses
 
 
-def _states_to_device(dec_state, device='cpu'):
+def _states_to_device(dec_state, device="cpu"):
     if torch.is_tensor(dec_state):
         dec_state = dec_state.to(device)
 
@@ -122,7 +122,7 @@ class GreedyCTCInfer(Typing, ConfidenceMethodMixin):
 
         return {
             "decoder_output": NeuralType(None, LogprobsType()),
-            "decoder_lengths": NeuralType(tuple('B'), LengthsType()),
+            "decoder_lengths": NeuralType(tuple("B"), LengthsType()),
         }
 
     @property
@@ -185,13 +185,18 @@ class GreedyCTCInfer(Typing, ConfidenceMethodMixin):
                 # cpu() does not use pinned memory, meaning that a slow pageable
                 # copy must be done instead.
                 prediction_cpu_tensor = torch.empty(
-                    decoder_output.shape, dtype=decoder_output.dtype, device=torch.device("cpu"), pin_memory=True
+                    decoder_output.shape,
+                    dtype=decoder_output.dtype,
+                    device=torch.device("cpu"),
+                    pin_memory=True,
                 )
                 prediction_cpu_tensor.copy_(decoder_output, non_blocking=True)
             else:
                 prediction_cpu_tensor = decoder_output
 
-            if decoder_lengths is not None and isinstance(decoder_lengths, torch.Tensor):
+            if decoder_lengths is not None and isinstance(
+                decoder_lengths, torch.Tensor
+            ):
                 # Before this change, self._greedy_decode_labels would copy
                 # each scalar from GPU to CPU one at a time, in the line:
                 # prediction = prediction[:out_len]
@@ -226,7 +231,9 @@ class GreedyCTCInfer(Typing, ConfidenceMethodMixin):
         # out_len: [seq_len]
 
         # Initialize blank state and empty label set in Hypothesis
-        hypothesis = rnnt_utils.Hypothesis(score=0.0, y_sequence=[], dec_state=None, timestamp=[], last_token=None)
+        hypothesis = rnnt_utils.Hypothesis(
+            score=0.0, y_sequence=[], dec_state=None, timestamp=[], last_token=None
+        )
         prediction = x.cpu()
 
         if out_len is not None:
@@ -243,7 +250,9 @@ class GreedyCTCInfer(Typing, ConfidenceMethodMixin):
             hypothesis.alignments = (prediction.clone(), prediction_labels.clone())
 
         if self.compute_timestamps:
-            hypothesis.timestamp = torch.nonzero(non_blank_ids, as_tuple=False)[:, 0].tolist()
+            hypothesis.timestamp = torch.nonzero(non_blank_ids, as_tuple=False)[
+                :, 0
+            ].tolist()
 
         if self.preserve_frame_confidence:
             hypothesis.frame_confidence = self._get_confidence(prediction)
@@ -256,7 +265,9 @@ class GreedyCTCInfer(Typing, ConfidenceMethodMixin):
         # out_len: [seq_len]
 
         # Initialize blank state and empty label set in Hypothesis
-        hypothesis = rnnt_utils.Hypothesis(score=0.0, y_sequence=[], dec_state=None, timestamp=[], last_token=None)
+        hypothesis = rnnt_utils.Hypothesis(
+            score=0.0, y_sequence=[], dec_state=None, timestamp=[], last_token=None
+        )
         prediction_labels = x.cpu()
 
         if out_len is not None:
@@ -267,10 +278,14 @@ class GreedyCTCInfer(Typing, ConfidenceMethodMixin):
         hypothesis.score = -1.0
 
         if self.preserve_alignments:
-            raise ValueError("Requested for alignments, but predictions provided were labels, not log probabilities.")
+            raise ValueError(
+                "Requested for alignments, but predictions provided were labels, not log probabilities."
+            )
 
         if self.compute_timestamps:
-            hypothesis.timestamp = torch.nonzero(non_blank_ids, as_tuple=False)[:, 0].tolist()
+            hypothesis.timestamp = torch.nonzero(non_blank_ids, as_tuple=False)[
+                :, 0
+            ].tolist()
 
         if self.preserve_frame_confidence:
             raise ValueError(
@@ -347,7 +362,7 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin):
 
         return {
             "decoder_output": NeuralType(None, LogprobsType()),
-            "decoder_lengths": NeuralType(tuple('B'), LengthsType()),
+            "decoder_lengths": NeuralType(tuple("B"), LengthsType()),
         }
 
     @property
@@ -397,7 +412,9 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin):
         if decoder_lengths is None:
             logging.warning(_DECODER_LENGTHS_NONE_WARNING, mode=logging_mode.ONCE)
             decoder_lengths = torch.tensor(
-                [decoder_output.shape[1]], dtype=torch.long, device=decoder_output.device
+                [decoder_output.shape[1]],
+                dtype=torch.long,
+                device=decoder_output.device,
             ).expand(decoder_output.shape[0])
 
         # GreedyCTCInfer::forward(), by accident, works with
@@ -409,9 +426,13 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin):
         decoder_lengths = decoder_lengths.to(decoder_output.device)
 
         if decoder_output.ndim == 2:
-            hypotheses = self._greedy_decode_labels_batched(decoder_output, decoder_lengths)
+            hypotheses = self._greedy_decode_labels_batched(
+                decoder_output, decoder_lengths
+            )
         else:
-            hypotheses = self._greedy_decode_logprobs_batched(decoder_output, decoder_lengths)
+            hypotheses = self._greedy_decode_logprobs_batched(
+                decoder_output, decoder_lengths
+            )
         packed_result = pack_hypotheses(hypotheses, input_decoder_lengths)
         return (packed_result,)
 
@@ -430,8 +451,14 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin):
 
         # Since predictions_logprobs is a padded matrix in the time
         # dimension, we consider invalid timesteps to be "blank".
-        time_steps = torch.arange(max_time, device=x.device).unsqueeze(0).expand(batch_size, max_time)
-        non_blank_ids_mask = torch.logical_and(predictions_labels != self.blank_id, time_steps < out_len.unsqueeze(1))
+        time_steps = (
+            torch.arange(max_time, device=x.device)
+            .unsqueeze(0)
+            .expand(batch_size, max_time)
+        )
+        non_blank_ids_mask = torch.logical_and(
+            predictions_labels != self.blank_id, time_steps < out_len.unsqueeze(1)
+        )
         # Sum the non-blank labels to compute the score of the
         # transcription. This follows from Eq. (3) of "Connectionist
         # Temporal Classification: Labelling Unsegmented Sequence Data
@@ -449,7 +476,9 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin):
 
         # This mimics the for loop in GreedyCTCInfer::forward.
         for i in range(batch_size):
-            hypothesis = rnnt_utils.Hypothesis(score=0.0, y_sequence=[], dec_state=None, timestamp=[], last_token=None)
+            hypothesis = rnnt_utils.Hypothesis(
+                score=0.0, y_sequence=[], dec_state=None, timestamp=[], last_token=None
+            )
             hypothesis.score = scores[i]
 
             prediction_labels_no_padding = predictions_labels[i, : out_len[i]].tolist()
@@ -466,9 +495,15 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin):
                 # TOOD: Could do this in a vectorized manner... Would
                 # prefer to have nonzero_static, though, for sanity.
                 # Or do a prefix sum on out_len
-                hypothesis.timestamp = torch.nonzero(non_blank_ids_mask[i], as_tuple=False)[:, 0].cpu().tolist()
+                hypothesis.timestamp = (
+                    torch.nonzero(non_blank_ids_mask[i], as_tuple=False)[:, 0]
+                    .cpu()
+                    .tolist()
+                )
             if self.preserve_frame_confidence:
-                hypothesis.frame_confidence = self._get_confidence(predictions[i, : out_len[i], :])
+                hypothesis.frame_confidence = self._get_confidence(
+                    predictions[i, : out_len[i], :]
+                )
 
             hypotheses.append(hypothesis)
 
@@ -487,15 +522,23 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin):
         max_time = x.shape[1]
 
         predictions_labels = x
-        time_steps = torch.arange(max_time, device=x.device).unsqueeze(0).expand(batch_size, max_time)
-        non_blank_ids_mask = torch.logical_and(predictions_labels != self.blank_id, time_steps < out_len.unsqueeze(1))
+        time_steps = (
+            torch.arange(max_time, device=x.device)
+            .unsqueeze(0)
+            .expand(batch_size, max_time)
+        )
+        non_blank_ids_mask = torch.logical_and(
+            predictions_labels != self.blank_id, time_steps < out_len.unsqueeze(1)
+        )
         predictions_labels = predictions_labels.cpu()
         out_len = out_len.cpu()
 
         hypotheses = []
 
         for i in range(batch_size):
-            hypothesis = rnnt_utils.Hypothesis(score=0.0, y_sequence=[], dec_state=None, timestamp=[], last_token=None)
+            hypothesis = rnnt_utils.Hypothesis(
+                score=0.0, y_sequence=[], dec_state=None, timestamp=[], last_token=None
+            )
             hypothesis.y_sequence = predictions_labels[i, : out_len[i]].tolist()
             hypothesis.score = -1.0
 
@@ -507,7 +550,11 @@ class GreedyBatchedCTCInfer(Typing, ConfidenceMethodMixin):
                 # TOOD: Could do this in a vectorized manner... Would
                 # prefer to have nonzero_static, though, for sanity.
                 # Or do a prefix sum on out_len
-                hypothesis.timestamp = torch.nonzero(non_blank_ids_mask[i], as_tuple=False)[:, 0].cpu().tolist()
+                hypothesis.timestamp = (
+                    torch.nonzero(non_blank_ids_mask[i], as_tuple=False)[:, 0]
+                    .cpu()
+                    .tolist()
+                )
             if self.preserve_frame_confidence:
                 raise ValueError(
                     "Requested for per-frame confidence, but predictions provided were labels, not log probabilities."
@@ -526,7 +573,9 @@ class GreedyCTCInferConfig:
     preserve_alignments: bool = False
     compute_timestamps: bool = False
     preserve_frame_confidence: bool = False
-    confidence_method_cfg: Optional[ConfidenceMethodConfig] = field(default_factory=lambda: ConfidenceMethodConfig())
+    confidence_method_cfg: Optional[ConfidenceMethodConfig] = field(
+        default_factory=lambda: ConfidenceMethodConfig()
+    )
 
     def __post_init__(self):
         # OmegaConf.structured ensures that post_init check is always executed

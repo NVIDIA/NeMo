@@ -33,9 +33,11 @@ from nemo.utils.decorators import experimental
 
 
 class BaseTokenizer(ABC):
-    PAD, BLANK, OOV = '<pad>', '<blank>', '<oov>'
+    PAD, BLANK, OOV = "<pad>", "<blank>", "<oov>"
 
-    def __init__(self, tokens, *, pad=PAD, blank=BLANK, oov=OOV, sep='', add_blank_at=None):
+    def __init__(
+        self, tokens, *, pad=PAD, blank=BLANK, oov=OOV, sep="", add_blank_at=None
+    ):
         """Abstract class for creating an arbitrary tokenizer to convert string to list of int tokens.
         Args:
             tokens: List of tokens.
@@ -55,7 +57,9 @@ class BaseTokenizer(ABC):
         self.pad, tokens = len(tokens), tokens + [pad]  # Padding
 
         if add_blank_at is not None:
-            self.blank, tokens = len(tokens), tokens + [blank]  # Reserved for blank from asr-model
+            self.blank, tokens = len(tokens), tokens + [
+                blank
+            ]  # Reserved for blank from asr-model
         else:
             # use add_blank_at=None only for ASR where blank is added automatically, disable blank here
             self.blank = None
@@ -83,7 +87,9 @@ class BaseTokenizer(ABC):
 
     def decode(self, tokens: List[int]) -> str:
         """Turns ints tokens into str text."""
-        return self.sep.join(self._id2token[t] for t in tokens if t not in self._util_ids)
+        return self.sep.join(
+            self._id2token[t] for t in tokens if t not in self._util_ids
+        )
 
 
 class BaseCharsTokenizer(BaseTokenizer):
@@ -119,7 +125,7 @@ class BaseCharsTokenizer(BaseTokenizer):
         """
 
         tokens = []
-        self.space, tokens = len(tokens), tokens + [' ']  # Space
+        self.space, tokens = len(tokens), tokens + [" "]  # Space
         tokens.extend(chars)
         if apostrophe:
             tokens.append("'")  # Apostrophe for saving "don't" and "Joe's"
@@ -153,7 +159,9 @@ class BaseCharsTokenizer(BaseTokenizer):
                 cs.append(c)
             # Warn about unknown char
             elif c != space:
-                logging.warning(f"Text: [{text}] contains unknown char: [{c}]. Symbol will be skipped.")
+                logging.warning(
+                    f"Text: [{text}] contains unknown char: [{c}]. Symbol will be skipped."
+                )
 
         # Remove trailing spaces
         if cs:
@@ -345,7 +353,12 @@ class ItalianCharsTokenizer(BaseCharsTokenizer):
     PUNCT_LIST = get_ipa_punctuation_list("it-IT")
 
     def __init__(
-        self, punct=True, apostrophe=True, add_blank_at=None, pad_with_space=False, non_default_punct_list=None
+        self,
+        punct=True,
+        apostrophe=True,
+        add_blank_at=None,
+        pad_with_space=False,
+        non_default_punct_list=None,
     ):
         """Italian grapheme tokenizer.
         Args:
@@ -428,7 +441,9 @@ class GermanPhonemesTokenizer(BaseCharsTokenizer):
                 cs.append(c)
             # Warn about unknown char
             elif c != space:
-                logging.warning(f"Text: [{text}] contains unknown char: [{c}]. Symbol will be skipped.")
+                logging.warning(
+                    f"Text: [{text}] contains unknown char: [{c}]. Symbol will be skipped."
+                )
 
         # Remove trailing spaces
         while cs[-1] == space:
@@ -502,7 +517,9 @@ class ItalianPhonemesTokenizer(BaseCharsTokenizer):
                 cs.append(c)
             # Warn about unknown char
             elif c != space:
-                logging.warning(f"Text: [{text}] contains unknown char: [{c}]. Symbol will be skipped.")
+                logging.warning(
+                    f"Text: [{text}] contains unknown char: [{c}]. Symbol will be skipped."
+                )
 
         # Remove trailing spaces
         while cs[-1] == space:
@@ -542,14 +559,16 @@ class EnglishPhonemesTokenizer(BaseTokenizer):
         stresses=False,
         chars=False,
         *,
-        space=' ',
+        space=" ",
         silence=None,
         apostrophe=True,
         oov=BaseTokenizer.OOV,
-        sep='|',  # To be able to distinguish between 2/3 letters codes.
+        sep="|",  # To be able to distinguish between 2/3 letters codes.
         add_blank_at=None,
         pad_with_space=False,
-        text_preprocessing_func=lambda text: english_text_preprocessing(text, lower=False),
+        text_preprocessing_func=lambda text: english_text_preprocessing(
+            text, lower=False
+        ),
     ):
         """English phoneme-based tokenizer.
         Args:
@@ -586,7 +605,7 @@ class EnglishPhonemesTokenizer(BaseTokenizer):
         vowels = list(self.VOWELS)
 
         if stresses:
-            vowels = [f'{p}{s}' for p, s in itertools.product(vowels, (0, 1, 2))]
+            vowels = [f"{p}{s}" for p, s in itertools.product(vowels, (0, 1, 2))]
         tokens.extend(vowels)
 
         if chars or self.phoneme_probability is not None:
@@ -649,7 +668,9 @@ class EnglishPhonemesTokenizer(BaseTokenizer):
                 ps.append(p)
             # Warn about unknown char/phoneme
             elif p != space:
-                message = f"Text: [{''.join(g2p_text)}] contains unknown char/phoneme: [{p}]."
+                message = (
+                    f"Text: [{''.join(g2p_text)}] contains unknown char/phoneme: [{p}]."
+                )
                 if raw_text is not None:
                     message += f"Original text: [{raw_text}]. Symbol will be skipped."
                 logging.warning(message)
@@ -685,11 +706,11 @@ class IPATokenizer(BaseTokenizer):
         non_default_punct_list=None,
         fixed_vocab=None,
         *,
-        space=' ',
+        space=" ",
         silence=None,
         apostrophe=False,
         oov=BaseTokenizer.OOV,
-        sep='|',  # To be able to distinguish between symbols
+        sep="|",  # To be able to distinguish between symbols
         add_blank_at=None,
         pad_with_space=False,
     ):
@@ -722,7 +743,9 @@ class IPATokenizer(BaseTokenizer):
                 f"This is required in order to build the tokenizer vocabulary.\n"
                 f"Expected e.g. IpaG2p, found {type(g2p)}"
             )
-            raise ValueError("G2P modules passed into the IPATokenizer must have `symbols` defined.")
+            raise ValueError(
+                "G2P modules passed into the IPATokenizer must have `symbols` defined."
+            )
 
         if locale is not None:
             validate_locale(locale)
@@ -732,14 +755,18 @@ class IPATokenizer(BaseTokenizer):
             self.phoneme_probability = g2p.phoneme_probability
 
         if locale == "en-US":
-            self.text_preprocessing_func = lambda text: english_text_preprocessing(text, lower=False)
+            self.text_preprocessing_func = lambda text: english_text_preprocessing(
+                text, lower=False
+            )
         else:
             self.text_preprocessing_func = any_locale_text_preprocessing
 
         # Build tokens list if fixed_vocab isn't set
         if fixed_vocab:
             tokens = {self.text_preprocessing_func(c) for c in fixed_vocab}
-            self.set_fixed_vocab = True  # Used to check whether dataset entries need filtering
+            self.set_fixed_vocab = (
+                True  # Used to check whether dataset entries need filtering
+            )
 
             if g2p.symbols == tokens:
                 logging.info(
@@ -776,7 +803,9 @@ class IPATokenizer(BaseTokenizer):
 
         super().__init__(tokens, oov=oov, sep=sep, add_blank_at=add_blank_at)
 
-        self.tokens_set = set(self.tokens)  # To save some repeated work when filtering entries
+        self.tokens_set = set(
+            self.tokens
+        )  # To save some repeated work when filtering entries
 
         self.punct = punct
         self.pad_with_space = pad_with_space
@@ -793,7 +822,9 @@ class IPATokenizer(BaseTokenizer):
 
         return self.encode_from_g2p(g2p_text, text)
 
-    def encode_from_g2p(self, g2p_text: List[str], raw_text: Optional[str] = None) -> List[int]:
+    def encode_from_g2p(
+        self, g2p_text: List[str], raw_text: Optional[str] = None
+    ) -> List[int]:
         """
         Tokenize the `g2p_text` that has been already run through G2P. Each item in the `g2p_text` would be encoded as
         one of the integer IDs predefined in `self._token2id`. Note that this function should be called after
@@ -822,7 +853,9 @@ class IPATokenizer(BaseTokenizer):
                 # Add punct
                 ps.append(p)
             elif p != space:
-                message = f"Text: [{''.join(g2p_text)}] contains unknown char/phoneme: [{p}]."
+                message = (
+                    f"Text: [{''.join(g2p_text)}] contains unknown char/phoneme: [{p}]."
+                )
                 if raw_text is not None:
                     message += f"Original text: [{raw_text}]. Symbol will be skipped."
                 logging.warning(message)
@@ -978,10 +1011,10 @@ class JapanesePhonemeTokenizer(BaseTokenizer):
         punct=True,
         non_default_punct_list=None,
         *,
-        space=' ',
+        space=" ",
         silence=None,
         apostrophe=True,
-        sep='|',  # To be able to distinguish between 2/3 letters codes.
+        sep="|",  # To be able to distinguish between 2/3 letters codes.
         add_blank_at=None,
         pad_with_space=False,
         text_preprocessing_func=japanese_text_preprocessing,
@@ -1055,7 +1088,11 @@ class JapanesePhonemeTokenizer(BaseTokenizer):
             if p == space and len(ps) > 0 and ps[-1] != space:
                 ps.append(p)
             # Add next phoneme or tone or ascii letter or apostrophe.
-            elif (p.isalnum() or p == "'" or p in self.phoneme_list + self.ascii_letter_list) and p in tokens:
+            elif (
+                p.isalnum()
+                or p == "'"
+                or p in self.phoneme_list + self.ascii_letter_list
+            ) and p in tokens:
                 ps.append(p)
             # Add punctuation
             elif (p in self.PUNCT_LIST) and self.punct:
@@ -1079,14 +1116,20 @@ class JapanesePhonemeTokenizer(BaseTokenizer):
 
 
 class AggregatedTTSTokenizer:
-    def __init__(self, tokenizers: List[Union[BaseTokenizer, PreTrainedTokenizerBase]], tokenizer_names: List[str]):
+    def __init__(
+        self,
+        tokenizers: List[Union[BaseTokenizer, PreTrainedTokenizerBase]],
+        tokenizer_names: List[str],
+    ):
         """A simple aggregated tokenizer. Aggregates multiple tokenizers into one by combining (simply concatenating)
         their tokens into one vocabulary.
         Args:
             tokenizers: List of tokenizers to aggregate.
             tokenizer_names: List of names for each tokenizer (usually the language identifier).
         """
-        assert len(tokenizers) == len(tokenizer_names), "Number of tokenizers and tokenizer names must be the same."
+        assert len(tokenizers) == len(
+            tokenizer_names
+        ), "Number of tokenizers and tokenizer names must be the same."
         tokens = []
         toknizer_offsets = {}
         tokenizer_offset = 0
@@ -1102,13 +1145,17 @@ class AggregatedTTSTokenizer:
                 tokens.extend(_tokens)
                 num_tokens = len(_tokens)
             else:
-                raise ValueError("Tokenizers must be either BaseTokenizer or HuggingFace PreTrainedTokenizerBase.")
+                raise ValueError(
+                    "Tokenizers must be either BaseTokenizer or HuggingFace PreTrainedTokenizerBase."
+                )
             tokenizer_offset += num_tokens
 
         self.tokens = tokens
         self.tokenizer_names = tokenizer_names
         self.toknizer_offsets = toknizer_offsets
-        self.pad = self.tokenizers[tokenizer_names[0]].pad  # Use the first tokenizer's pad token
+        self.pad = self.tokenizers[
+            tokenizer_names[0]
+        ].pad  # Use the first tokenizer's pad token
 
     def encode(self, text: str, tokenizer_name: str) -> List[int]:
         tokenizer = self.tokenizers[tokenizer_name]
@@ -1117,4 +1164,6 @@ class AggregatedTTSTokenizer:
 
     def decode(self, tokens: List[int], tokenizer_name: str) -> str:
         tokenizer = self.tokenizers[tokenizer_name]
-        return tokenizer.decode([token - self.toknizer_offsets[tokenizer_name] for token in tokens])
+        return tokenizer.decode(
+            [token - self.toknizer_offsets[tokenizer_name] for token in tokens]
+        )

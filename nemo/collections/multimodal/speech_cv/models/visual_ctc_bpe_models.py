@@ -30,7 +30,7 @@ from nemo.collections.multimodal.speech_cv.models.visual_ctc_models import \
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging, model_utils
 
-__all__ = ['VisualEncDecCTCModelBPE']
+__all__ = ["VisualEncDecCTCModelBPE"]
 
 
 class VisualEncDecCTCModelBPE(VisualEncDecCTCModel, ASRBPEMixin):
@@ -41,8 +41,10 @@ class VisualEncDecCTCModelBPE(VisualEncDecCTCModel, ASRBPEMixin):
         cfg = model_utils.convert_model_config_to_dict_config(cfg)
         cfg = model_utils.maybe_update_config_version(cfg)
 
-        if 'tokenizer' not in cfg:
-            raise ValueError("`cfg` must have `tokenizer` config to create a tokenizer !")
+        if "tokenizer" not in cfg:
+            raise ValueError(
+                "`cfg` must have `tokenizer` config to create a tokenizer !"
+            )
 
         # Setup the tokenizer
         self._setup_tokenizer(cfg.tokenizer)
@@ -72,7 +74,7 @@ class VisualEncDecCTCModelBPE(VisualEncDecCTCModel, ASRBPEMixin):
         super().__init__(cfg=cfg, trainer=trainer)
 
         # Setup decoding objects
-        decoding_cfg = self.cfg.get('decoding', None)
+        decoding_cfg = self.cfg.get("decoding", None)
 
         # In case decoding config not found, use default config
         if decoding_cfg is None:
@@ -85,7 +87,7 @@ class VisualEncDecCTCModelBPE(VisualEncDecCTCModel, ASRBPEMixin):
         # Setup metric with decoding strategy
         self._wer = WER(
             decoding=self.decoding,
-            use_cer=self._cfg.get('use_cer', False),
+            use_cer=self._cfg.get("use_cer", False),
             dist_sync_on_step=True,
             log_prediction=self._cfg.get("log_prediction", False),
         )
@@ -103,27 +105,29 @@ class VisualEncDecCTCModelBPE(VisualEncDecCTCModel, ASRBPEMixin):
         if dataset is None:
             return None
 
-        shuffle = config['shuffle']
-        if config.get('is_tarred', False):
+        shuffle = config["shuffle"]
+        if config.get("is_tarred", False):
             shuffle = False
 
-        if hasattr(dataset, 'collate_fn'):
+        if hasattr(dataset, "collate_fn"):
             collate_fn = dataset.collate_fn
         else:
             collate_fn = dataset.datasets[0].collate_fn
 
         return torch.utils.data.DataLoader(
             dataset=dataset,
-            batch_size=config['batch_size'],
+            batch_size=config["batch_size"],
             collate_fn=collate_fn,
-            drop_last=config.get('drop_last', False),
+            drop_last=config.get("drop_last", False),
             shuffle=shuffle,
-            num_workers=config.get('num_workers', 0),
-            pin_memory=config.get('pin_memory', False),
-            prefetch_factor=config.get('prefetch_factor', 2),
+            num_workers=config.get("num_workers", 0),
+            pin_memory=config.get("pin_memory", False),
+            prefetch_factor=config.get("prefetch_factor", 2),
         )
 
-    def _setup_transcribe_dataloader(self, config: Dict) -> 'torch.utils.data.DataLoader':
+    def _setup_transcribe_dataloader(
+        self, config: Dict
+    ) -> "torch.utils.data.DataLoader":
         """
         Setup function for a temporary data loader which wraps the provided video file.
 
@@ -141,27 +145,33 @@ class VisualEncDecCTCModelBPE(VisualEncDecCTCModel, ASRBPEMixin):
             A pytorch DataLoader for the given video file(s).
         """
 
-        if 'manifest_filepath' in config:
-            manifest_filepath = config['manifest_filepath']
-            batch_size = config['batch_size']
+        if "manifest_filepath" in config:
+            manifest_filepath = config["manifest_filepath"]
+            batch_size = config["batch_size"]
         else:
-            manifest_filepath = os.path.join(config['temp_dir'], 'manifest.json')
-            batch_size = min(config['batch_size'], len(config['paths2video_files']))
+            manifest_filepath = os.path.join(config["temp_dir"], "manifest.json")
+            batch_size = min(config["batch_size"], len(config["paths2video_files"]))
 
         dl_config = {
-            'manifest_filepath': manifest_filepath,
-            'batch_size': batch_size,
-            'shuffle': False,
-            'num_workers': config.get('num_workers', min(batch_size, os.cpu_count() - 1)),
-            'pin_memory': True,
-            'channel_selector': config.get('channel_selector', None),
-            'use_start_end_token': self.cfg.validation_ds.get('use_start_end_token', False),
+            "manifest_filepath": manifest_filepath,
+            "batch_size": batch_size,
+            "shuffle": False,
+            "num_workers": config.get(
+                "num_workers", min(batch_size, os.cpu_count() - 1)
+            ),
+            "pin_memory": True,
+            "channel_selector": config.get("channel_selector", None),
+            "use_start_end_token": self.cfg.validation_ds.get(
+                "use_start_end_token", False
+            ),
         }
 
         if config.get("augmentor"):
-            dl_config['augmentor'] = config.get("augmentor")
+            dl_config["augmentor"] = config.get("augmentor")
 
-        temporary_datalayer = self._setup_dataloader_from_config(config=DictConfig(dl_config))
+        temporary_datalayer = self._setup_dataloader_from_config(
+            config=DictConfig(dl_config)
+        )
         return temporary_datalayer
 
     def change_vocabulary(
@@ -187,11 +197,11 @@ class VisualEncDecCTCModelBPE(VisualEncDecCTCModel, ASRBPEMixin):
 
         """
         if isinstance(new_tokenizer_dir, DictConfig):
-            if new_tokenizer_type == 'agg':
+            if new_tokenizer_type == "agg":
                 new_tokenizer_cfg = new_tokenizer_dir
             else:
                 raise ValueError(
-                    f'New tokenizer dir should be a string unless the tokenizer is `agg`, but this tokenizer type is: {new_tokenizer_type}'
+                    f"New tokenizer dir should be a string unless the tokenizer is `agg`, but this tokenizer type is: {new_tokenizer_type}"
                 )
         else:
             new_tokenizer_cfg = None
@@ -201,14 +211,16 @@ class VisualEncDecCTCModelBPE(VisualEncDecCTCModel, ASRBPEMixin):
         else:
             if not os.path.isdir(new_tokenizer_dir):
                 raise NotADirectoryError(
-                    f'New tokenizer dir must be non-empty path to a directory. But I got: {new_tokenizer_dir}'
+                    f"New tokenizer dir must be non-empty path to a directory. But I got: {new_tokenizer_dir}"
                     f"New tokenizer dir must be non-empty path to a directory. But I got: {new_tokenizer_dir}"
                 )
 
-            if new_tokenizer_type.lower() not in ('bpe', 'wpe'):
-                raise ValueError(f'New tokenizer type must be either `bpe` or `wpe`')
+            if new_tokenizer_type.lower() not in ("bpe", "wpe"):
+                raise ValueError(f"New tokenizer type must be either `bpe` or `wpe`")
 
-            tokenizer_cfg = OmegaConf.create({'dir': new_tokenizer_dir, 'type': new_tokenizer_type})
+            tokenizer_cfg = OmegaConf.create(
+                {"dir": new_tokenizer_dir, "type": new_tokenizer_type}
+            )
 
         # Setup the tokenizer
         self._setup_tokenizer(tokenizer_cfg)
@@ -224,7 +236,7 @@ class VisualEncDecCTCModelBPE(VisualEncDecCTCModel, ASRBPEMixin):
         else:
             decoder_config.vocabulary = ListConfig(list(vocabulary.keys()))
 
-        decoder_num_classes = decoder_config['num_classes']
+        decoder_num_classes = decoder_config["num_classes"]
 
         # Override number of classes if placeholder provided
         logging.info(
@@ -233,7 +245,7 @@ class VisualEncDecCTCModelBPE(VisualEncDecCTCModel, ASRBPEMixin):
             )
         )
 
-        decoder_config['num_classes'] = len(vocabulary)
+        decoder_config["num_classes"] = len(vocabulary)
 
         del self.decoder
         self.decoder = VisualEncDecCTCModelBPE.from_config_dict(decoder_config)
@@ -253,11 +265,13 @@ class VisualEncDecCTCModelBPE(VisualEncDecCTCModel, ASRBPEMixin):
         decoding_cls = OmegaConf.create(OmegaConf.to_container(decoding_cls))
         decoding_cfg = OmegaConf.merge(decoding_cls, decoding_cfg)
 
-        self.decoding = CTCBPEDecoding(decoding_cfg=decoding_cfg, tokenizer=self.tokenizer)
+        self.decoding = CTCBPEDecoding(
+            decoding_cfg=decoding_cfg, tokenizer=self.tokenizer
+        )
 
         self._wer = WER(
             decoding=self.decoding,
-            use_cer=self._cfg.get('use_cer', False),
+            use_cer=self._cfg.get("use_cer", False),
             log_prediction=self._cfg.get("log_prediction", False),
             dist_sync_on_step=True,
         )
@@ -281,7 +295,9 @@ class VisualEncDecCTCModelBPE(VisualEncDecCTCModel, ASRBPEMixin):
         """
         if decoding_cfg is None:
             # Assume same decoding config as before
-            logging.info("No `decoding_cfg` passed when changing decoding strategy, using internal config")
+            logging.info(
+                "No `decoding_cfg` passed when changing decoding strategy, using internal config"
+            )
             decoding_cfg = self.cfg.decoding
 
         # Assert the decoding config with all hyper parameters
@@ -289,7 +305,10 @@ class VisualEncDecCTCModelBPE(VisualEncDecCTCModel, ASRBPEMixin):
         decoding_cls = OmegaConf.create(OmegaConf.to_container(decoding_cls))
         decoding_cfg = OmegaConf.merge(decoding_cls, decoding_cfg)
 
-        self.decoding = CTCBPEDecoding(decoding_cfg=decoding_cfg, tokenizer=self.tokenizer,)
+        self.decoding = CTCBPEDecoding(
+            decoding_cfg=decoding_cfg,
+            tokenizer=self.tokenizer,
+        )
 
         self._wer = WER(
             decoding=self.decoding,
@@ -302,7 +321,9 @@ class VisualEncDecCTCModelBPE(VisualEncDecCTCModel, ASRBPEMixin):
         with open_dict(self.cfg.decoding):
             self.cfg.decoding = decoding_cfg
 
-        logging.info(f"Changed decoding strategy to \n{OmegaConf.to_yaml(self.cfg.decoding)}")
+        logging.info(
+            f"Changed decoding strategy to \n{OmegaConf.to_yaml(self.cfg.decoding)}"
+        )
 
     @classmethod
     def list_available_models(cls) -> List[PretrainedModelInfo]:

@@ -34,40 +34,75 @@ from tests.collections.llm.common import (
 
 def get_args():
     parser = argparse.ArgumentParser(prog="", description="")
-    parser.add_argument('--devices', type=int, required=True, help="Number of devices to use for training")
-    parser.add_argument('--max-steps', type=int, required=True, help="Number of steps to train for")
     parser.add_argument(
-        '--early-stop',
+        "--devices",
+        type=int,
+        required=True,
+        help="Number of devices to use for training",
+    )
+    parser.add_argument(
+        "--max-steps", type=int, required=True, help="Number of steps to train for"
+    )
+    parser.add_argument(
+        "--early-stop",
         type=int,
         default=None,
         help="Stop training early at this global step (for testing resume training)",
     )
     parser.add_argument(
-        '--experiment-dir', type=str, required=True, help="directory to write results and checkpoints to"
+        "--experiment-dir",
+        type=str,
+        required=True,
+        help="directory to write results and checkpoints to",
     )
     parser.add_argument(
-        '--data-path', type=str, default=None, help="Path to data file. If not specified, uses mock data."
+        "--data-path",
+        type=str,
+        default=None,
+        help="Path to data file. If not specified, uses mock data.",
     )
     parser.add_argument(
-        '--tokenizer-path',
+        "--tokenizer-path",
         type=str,
         default=None,
         help="Path to a sentencepiece tokenizer model file. If not specified, uses mock data.",
     )
-    parser.add_argument('--index-mapping-dir', type=str, help="directory to write index mappings to")
-    parser.add_argument('--seq-length', type=int, default=8192, help="Sequence length. default is 8k")
-    parser.add_argument('--tp', type=int, default=None, help="Override tensor parallelism")
-    parser.add_argument('--pp', type=int, default=None, help="Override pipeline parallelism")
-    parser.add_argument('--vp', type=int, default=None, help="Override virtual pipeline parallelism")
-    parser.add_argument('--cp', type=int, default=None, help="Override context parallelism")
-    parser.add_argument('--sp', type=int, choices=[0, 1], default=None, help="Override sequence parallel")
     parser.add_argument(
-        '--precision', type=str, choices=['bf16', 'fp16', 'fp32'], default='bf16', help="Override recipe precision"
+        "--index-mapping-dir", type=str, help="directory to write index mappings to"
     )
-    parser.add_argument('--fp8', action='store_true', help="Enable FP8")
     parser.add_argument(
-        '--profiler',
-        action='store_true',
+        "--seq-length", type=int, default=8192, help="Sequence length. default is 8k"
+    )
+    parser.add_argument(
+        "--tp", type=int, default=None, help="Override tensor parallelism"
+    )
+    parser.add_argument(
+        "--pp", type=int, default=None, help="Override pipeline parallelism"
+    )
+    parser.add_argument(
+        "--vp", type=int, default=None, help="Override virtual pipeline parallelism"
+    )
+    parser.add_argument(
+        "--cp", type=int, default=None, help="Override context parallelism"
+    )
+    parser.add_argument(
+        "--sp",
+        type=int,
+        choices=[0, 1],
+        default=None,
+        help="Override sequence parallel",
+    )
+    parser.add_argument(
+        "--precision",
+        type=str,
+        choices=["bf16", "fp16", "fp32"],
+        default="bf16",
+        help="Override recipe precision",
+    )
+    parser.add_argument("--fp8", action="store_true", help="Enable FP8")
+    parser.add_argument(
+        "--profiler",
+        action="store_true",
         help="Attach PytorchProfilerCallback and verify trace files after training",
     )
 
@@ -101,10 +136,14 @@ def main():
     pretrain_recipe.trainer.limit_val_batches = 2
 
     if args.early_stop:
-        pretrain_recipe.trainer.callbacks.append(StopBeforeEnd(stop_on_step=args.early_stop))
-    pretrain_recipe.trainer.callbacks.append(AssertOptimizerParamGroupsHaveAtLeastTwoWeightDecays())
+        pretrain_recipe.trainer.callbacks.append(
+            StopBeforeEnd(stop_on_step=args.early_stop)
+        )
+    pretrain_recipe.trainer.callbacks.append(
+        AssertOptimizerParamGroupsHaveAtLeastTwoWeightDecays()
+    )
 
-    if not args.precision == 'bf16' or args.fp8:  # default case is bf16 without fp8
+    if not args.precision == "bf16" or args.fp8:  # default case is bf16 without fp8
         import llm.recipes.precision.mixed_precision as mp_recipes
 
         key = (args.precision, args.fp8)
@@ -151,7 +190,7 @@ def main():
             warmup_steps=0,
             active_steps=args.max_steps,
             trace_dir=trace_dir,
-            profiler_kwargs={'with_stack': True},
+            profiler_kwargs={"with_stack": True},
         )
         pretrain_recipe.trainer.callbacks.append(profiler_cb)
 
@@ -170,7 +209,9 @@ def main():
         device_dir = os.path.join(trace_root, "device")
         host_dir = os.path.join(trace_root, "host")
 
-        assert os.path.isdir(device_dir), f"Missing device traces directory: {device_dir}"
+        assert os.path.isdir(
+            device_dir
+        ), f"Missing device traces directory: {device_dir}"
         assert os.path.isdir(host_dir), f"Missing host traces directory: {host_dir}"
 
         device_jsons = [f for f in os.listdir(device_dir) if f.endswith(".json")]
@@ -184,5 +225,5 @@ def main():
         ), f"Expected {args.devices} JSON files in {host_dir}, found {len(host_jsons)}"
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

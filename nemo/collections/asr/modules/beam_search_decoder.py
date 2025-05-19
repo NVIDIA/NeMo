@@ -44,21 +44,28 @@ class BeamSearchDecoderWithLM(NeuralModule):
 
     @property
     def input_types(self):
-        """Returns definitions of module input ports.
-        """
+        """Returns definitions of module input ports."""
         return {
-            "log_probs": NeuralType(('B', 'T', 'D'), LogprobsType()),
-            "log_probs_length": NeuralType(tuple('B'), LengthsType()),
+            "log_probs": NeuralType(("B", "T", "D"), LogprobsType()),
+            "log_probs_length": NeuralType(tuple("B"), LengthsType()),
         }
 
     @property
     def output_types(self):
-        """Returns definitions of module output ports.
-        """
-        return {"predictions": NeuralType(('B', 'T'), PredictionsType())}
+        """Returns definitions of module output ports."""
+        return {"predictions": NeuralType(("B", "T"), PredictionsType())}
 
     def __init__(
-        self, vocab, beam_width, alpha, beta, lm_path, num_cpus, cutoff_prob=1.0, cutoff_top_n=40, input_tensor=False
+        self,
+        vocab,
+        beam_width,
+        alpha,
+        beta,
+        lm_path,
+        num_cpus,
+        cutoff_prob=1.0,
+        cutoff_top_n=40,
+        input_tensor=False,
     ):
 
         try:

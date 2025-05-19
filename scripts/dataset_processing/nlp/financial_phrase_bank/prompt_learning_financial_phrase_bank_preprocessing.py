@@ -53,18 +53,28 @@ def main():
     parser.add_argument("--data-dir", type=str, default="data/FinancialPhraseBank-v1.0")
     parser.add_argument("--file-name", type=str, default="Sentences_AllAgree.txt")
     parser.add_argument("--save-name-base", type=str, default="financial_phrase_bank")
-    parser.add_argument("--make-ground-truth", action='store_true')
+    parser.add_argument("--make-ground-truth", action="store_true")
     parser.add_argument("--random-seed", type=int, default=1234)
     parser.add_argument("--train-percent", type=float, default=0.8)
     args = parser.parse_args()
 
-    data = open(f"{args.data_dir}/{args.file_name}", "r", encoding="ISO-8859-1").readlines()
+    data = open(
+        f"{args.data_dir}/{args.file_name}", "r", encoding="ISO-8859-1"
+    ).readlines()
     save_name_base = f"{args.data_dir}/{args.save_name_base}"
 
-    process_data(data, save_name_base, args.train_percent, args.random_seed, args.make_ground_truth)
+    process_data(
+        data,
+        save_name_base,
+        args.train_percent,
+        args.random_seed,
+        args.make_ground_truth,
+    )
 
 
-def process_data(data, save_name_base, train_percent, random_seed, make_ground_truth=False):
+def process_data(
+    data, save_name_base, train_percent, random_seed, make_ground_truth=False
+):
     random.seed(random_seed)
     random.shuffle(data)
 
@@ -76,19 +86,19 @@ def process_data(data, save_name_base, train_percent, random_seed, make_ground_t
     val_set = data[train_total : train_total + val_total]
     test_set = data[train_total + val_total :]
 
-    gen_file(train_set, save_name_base, 'train')
-    gen_file(val_set, save_name_base, 'val')
-    gen_file(test_set, save_name_base, 'test', make_ground_truth)
+    gen_file(train_set, save_name_base, "train")
+    gen_file(val_set, save_name_base, "val")
+    gen_file(test_set, save_name_base, "test", make_ground_truth)
 
 
 def gen_file(data, save_name_base, split_type, make_ground_truth=False):
     save_path = f"{save_name_base}_{split_type}.jsonl"
     print(f"Saving {split_type} split to {save_path}")
 
-    with open(save_path, 'w') as save_file:
+    with open(save_path, "w") as save_file:
         for line in tqdm(data):
             example_json = {"taskname": "sentiment"}
-            sent, label = line.split('@')
+            sent, label = line.split("@")
             sent = sent.strip()
             label = label.strip()
             example_json["sentence"] = sent
@@ -97,7 +107,7 @@ def gen_file(data, save_name_base, split_type, make_ground_truth=False):
             if split_type != "test" or make_ground_truth:
                 example_json["label"] = " " + label
 
-            save_file.write(json.dumps(example_json) + '\n')
+            save_file.write(json.dumps(example_json) + "\n")
 
 
 if __name__ == "__main__":

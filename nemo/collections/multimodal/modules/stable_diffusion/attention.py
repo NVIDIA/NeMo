@@ -29,7 +29,7 @@ else:
 
         OPT_GROUP_NORM = True
     except Exception:
-        print('Fused optimized group norm has not been installed.')
+        print("Fused optimized group norm has not been installed.")
         OPT_GROUP_NORM = False
 
 from nemo.collections.multimodal.modules.stable_diffusion import fast_geglu
@@ -41,15 +41,21 @@ from nemo.core import adapter_mixins
 from nemo.utils import logging
 from nemo.utils.import_utils import safe_import_from
 
-DotProductAttention, HAVE_DPA = safe_import_from("transformer_engine.pytorch.attention", "DotProductAttention")
-LayerNormLinear, HAVE_LN_LINEAR = safe_import_from("transformer_engine.pytorch.module", "LayerNormLinear")
-LayerNormMLP, HAVE_LN_MLP = safe_import_from("transformer_engine.pytorch.module", "LayerNormMLP")
+DotProductAttention, HAVE_DPA = safe_import_from(
+    "transformer_engine.pytorch.attention", "DotProductAttention"
+)
+LayerNormLinear, HAVE_LN_LINEAR = safe_import_from(
+    "transformer_engine.pytorch.module", "LayerNormLinear"
+)
+LayerNormMLP, HAVE_LN_MLP = safe_import_from(
+    "transformer_engine.pytorch.module", "LayerNormMLP"
+)
 HAVE_TE = HAVE_DPA and HAVE_LN_LINEAR and HAVE_LN_MLP
 
 
 def check_cuda():
     if not torch.cuda.is_available():
-        raise ImportError('CUDA is not available')
+        raise ImportError("CUDA is not available")
     cur_device = torch.cuda.current_device()
     dprops = torch.cuda.get_device_properties(cur_device)
 
@@ -117,7 +123,7 @@ class FeedForward(nn.Module):
         dim_out = default(dim_out, dim)
 
         if use_te:
-            activation = 'gelu' if not glu else 'geglu'
+            activation = "gelu" if not glu else "geglu"
             # TODO: more parameters to be confirmed, dropout, seq_length
             self.net = LayerNormMLP(
                 hidden_size=dim,
@@ -126,8 +132,14 @@ class FeedForward(nn.Module):
             )
         else:
             norm = nn.LayerNorm(dim)
-            project_in = nn.Sequential(LinearWrapper(dim, inner_dim), nn.GELU()) if not glu else GEGLU(dim, inner_dim)
-            self.net = nn.Sequential(norm, project_in, nn.Dropout(dropout), LinearWrapper(inner_dim, dim_out))
+            project_in = (
+                nn.Sequential(LinearWrapper(dim, inner_dim), nn.GELU())
+                if not glu
+                else GEGLU(dim, inner_dim)
+            )
+            self.net = nn.Sequential(
+                norm, project_in, nn.Dropout(dropout), LinearWrapper(inner_dim, dim_out)
+            )
 
     def forward(self, x):
         return self.net(x)
@@ -143,7 +155,9 @@ def zero_module(module):
 
 
 def Normalize(in_channels, num_groups=32, act=""):
-    return GroupNorm(num_groups=num_groups, num_channels=in_channels, eps=1e-6, affine=True, act=act)
+    return GroupNorm(
+        num_groups=num_groups, num_channels=in_channels, eps=1e-6, affine=True, act=act
+    )
 
 
 class LinearAttention(nn.Module):
@@ -157,11 +171,15 @@ class LinearAttention(nn.Module):
     def forward(self, x):
         b, c, h, w = x.shape
         qkv = self.to_qkv(x)
-        q, k, v = rearrange(qkv, 'b (qkv heads c) h w -> qkv b heads c (h w)', heads=self.heads, qkv=3)
+        q, k, v = rearrange(
+            qkv, "b (qkv heads c) h w -> qkv b heads c (h w)", heads=self.heads, qkv=3
+        )
         k = k.softmax(dim=-1)
-        context = torch.einsum('bhdn,bhen->bhde', k, v)
-        out = torch.einsum('bhde,bhdn->bhen', context, q)
-        out = rearrange(out, 'b heads c (h w) -> b (heads c) h w', heads=self.heads, h=h, w=w)
+        context = torch.einsum("bhdn,bhen->bhde", k, v)
+        out = torch.einsum("bhde,bhdn->bhen", context, q)
+        out = rearrange(
+            out, "b heads c (h w) -> b (heads c) h w", heads=self.heads, h=h, w=w
+        )
         return self.to_out(out)
 
 
@@ -171,10 +189,18 @@ class SpatialSelfAttention(nn.Module):
         self.in_channels = in_channels
 
         self.norm = Normalize(in_channels)
-        self.q = torch.nn.Conv2d(in_channels, in_channels, kernel_size=1, stride=1, padding=0)
-        self.k = torch.nn.Conv2d(in_channels, in_channels, kernel_size=1, stride=1, padding=0)
-        self.v = torch.nn.Conv2d(in_channels, in_channels, kernel_size=1, stride=1, padding=0)
-        self.proj_out = torch.nn.Conv2d(in_channels, in_channels, kernel_size=1, stride=1, padding=0)
+        self.q = torch.nn.Conv2d(
+            in_channels, in_channels, kernel_size=1, stride=1, padding=0
+        )
+        self.k = torch.nn.Conv2d(
+            in_channels, in_channels, kernel_size=1, stride=1, padding=0
+        )
+        self.v = torch.nn.Conv2d(
+            in_channels, in_channels, kernel_size=1, stride=1, padding=0
+        )
+        self.proj_out = torch.nn.Conv2d(
+            in_channels, in_channels, kernel_size=1, stride=1, padding=0
+        )
 
     def forward(self, x):
         h_ = x
@@ -185,18 +211,18 @@ class SpatialSelfAttention(nn.Module):
 
         # compute attention
         b, c, h, w = q.shape
-        q = rearrange(q, 'b c h w -> b (h w) c')
-        k = rearrange(k, 'b c h w -> b c (h w)')
-        w_ = torch.einsum('bij,bjk->bik', q, k)
+        q = rearrange(q, "b c h w -> b (h w) c")
+        k = rearrange(k, "b c h w -> b c (h w)")
+        w_ = torch.einsum("bij,bjk->bik", q, k)
 
         w_ = w_ * (int(c) ** (-0.5))
         w_ = torch.nn.functional.softmax(w_, dim=2)
 
         # attend to values
-        v = rearrange(v, 'b c h w -> b c (h w)')
-        w_ = rearrange(w_, 'b i j -> b j i')
-        h_ = torch.einsum('bij,bjk->bik', v, w_)
-        h_ = rearrange(h_, 'b c (h w) -> b c h w', h=h)
+        v = rearrange(v, "b c h w -> b c (h w)")
+        w_ = rearrange(w_, "b i j -> b j i")
+        h_ = torch.einsum("bij,bjk->bik", v, w_)
+        h_ = rearrange(h_, "b c (h w) -> b c h w", h=h)
         h_ = self.proj_out(h_)
 
         return x + h_
@@ -226,14 +252,18 @@ class LinearWrapper(nn.Linear, adapter_mixins.AdapterModuleMixin):
         if self.is_adapter_available():
             # return this output if lora is not enabled
             cfg = self.get_adapter_cfg(AdapterName.PARALLEL_LINEAR_ADAPTER)
-            if not cfg['enabled']:
+            if not cfg["enabled"]:
                 return mixed_x
-            lora_linear_adapter = self.get_adapter_module(AdapterName.PARALLEL_LINEAR_ADAPTER)
+            lora_linear_adapter = self.get_adapter_module(
+                AdapterName.PARALLEL_LINEAR_ADAPTER
+            )
             lora_mixed_x = lora_linear_adapter(x)
             # This value has the same meaning as the `--network_alpha` option in the kohya-ss trainer script.
             # See https://github.com/darkstorm2150/sd-scripts/blob/main/docs/train_network_README-en.md#execute-learning
             if self.lora_network_alpha:
-                mixed_x = mixed_x + lora_mixed_x * (self.lora_network_alpha / lora_linear_adapter.dim)
+                mixed_x = mixed_x + lora_mixed_x * (
+                    self.lora_network_alpha / lora_linear_adapter.dim
+                )
             else:
                 mixed_x = mixed_x + lora_mixed_x
         return mixed_x
@@ -261,12 +291,12 @@ class CrossAttention(nn.Module):
 
         assert not (
             use_te_dpa and use_flash_attention
-        ), 'use_te_dpa and use_flash_attention cannot be True together. Please specify the attention you want to use.'
+        ), "use_te_dpa and use_flash_attention cannot be True together. Please specify the attention you want to use."
 
         if use_flash_attention:
-            assert flash_attn_installed, 'Flash-attention must be installed.'
+            assert flash_attn_installed, "Flash-attention must be installed."
         if use_te_dpa:
-            assert HAVE_TE, 'TransformerEngine is required to run with TE DPA.'
+            assert HAVE_TE, "TransformerEngine is required to run with TE DPA."
 
         self.inner_dim = dim_head * heads
         if context_dim is None:
@@ -282,22 +312,38 @@ class CrossAttention(nn.Module):
         self.scale = dim_head**-0.5
         self.heads = heads
 
-        self.to_k = LinearWrapper(context_dim, self.inner_dim, bias=False, lora_network_alpha=lora_network_alpha)
-        self.to_v = LinearWrapper(context_dim, self.inner_dim, bias=False, lora_network_alpha=lora_network_alpha)
+        self.to_k = LinearWrapper(
+            context_dim,
+            self.inner_dim,
+            bias=False,
+            lora_network_alpha=lora_network_alpha,
+        )
+        self.to_v = LinearWrapper(
+            context_dim,
+            self.inner_dim,
+            bias=False,
+            lora_network_alpha=lora_network_alpha,
+        )
 
         self.use_te_dpa = use_te_dpa
         self.use_te = use_te
         if use_te:
             return_layernorm_output = True if self.is_self_attn else False
             self.norm_to_q = LayerNormLinear(
-                query_dim, self.inner_dim, bias=False, return_layernorm_output=return_layernorm_output
+                query_dim,
+                self.inner_dim,
+                bias=False,
+                return_layernorm_output=return_layernorm_output,
             )
         else:
             self.norm = nn.LayerNorm(query_dim)
             self.to_q = LinearWrapper(query_dim, self.inner_dim, bias=False)
 
         self.to_out = nn.Sequential(
-            LinearWrapper(self.inner_dim, query_dim, lora_network_alpha=lora_network_alpha), nn.Dropout(dropout)
+            LinearWrapper(
+                self.inner_dim, query_dim, lora_network_alpha=lora_network_alpha
+            ),
+            nn.Dropout(dropout),
         )
         self.use_flash_attention = use_flash_attention
 
@@ -311,13 +357,20 @@ class CrossAttention(nn.Module):
                 self.te_dpa = DotProductAttention(
                     kv_channels=dim_head,
                     num_attention_heads=self.inner_dim // dim_head,
-                    attn_mask_type='no_mask',
-                    attention_type='self' if context_dim == query_dim else 'cross',
-                    qkv_format='bshd',  # `sbhd`, `bshd`, `thd`
+                    attn_mask_type="no_mask",
+                    attention_type="self" if context_dim == query_dim else "cross",
+                    qkv_format="bshd",  # `sbhd`, `bshd`, `thd`
                     softmax_scale=self.scale,
                 )
 
-    def forward(self, x, context=None, mask=None, additional_tokens=None, n_times_crossframe_attn_in_self=0):
+    def forward(
+        self,
+        x,
+        context=None,
+        mask=None,
+        additional_tokens=None,
+        n_times_crossframe_attn_in_self=0,
+    ):
         h = self.heads
 
         if additional_tokens is not None:
@@ -345,8 +398,12 @@ class CrossAttention(nn.Module):
             # reprogramming cross-frame attention as in https://arxiv.org/abs/2303.13439
             assert x.shape[0] % n_times_crossframe_attn_in_self == 0
             n_cp = x.shape[0] // n_times_crossframe_attn_in_self
-            k = repeat(k[::n_times_crossframe_attn_in_self], "b ... -> (b n) ...", n=n_cp)
-            v = repeat(v[::n_times_crossframe_attn_in_self], "b ... -> (b n) ...", n=n_cp)
+            k = repeat(
+                k[::n_times_crossframe_attn_in_self], "b ... -> (b n) ...", n=n_cp
+            )
+            v = repeat(
+                v[::n_times_crossframe_attn_in_self], "b ... -> (b n) ...", n=n_cp
+            )
 
         out = self._attention(q, k, v, mask, additional_tokens=None)
 
@@ -368,19 +425,21 @@ class CrossAttention(nn.Module):
             k = rearrange_heads_outer(k, h)
             v = rearrange_heads_outer(v, h)
 
-            sim = einsum('b i d, b j d -> b i j', q, k) * self.scale
+            sim = einsum("b i d, b j d -> b i j", q, k) * self.scale
 
             if exists(mask):
                 # standard stable diffusion does not run into here
                 mask = mask.view(mask.shape[0], -1)
                 b, j = mask.shape
-                mask = mask.unsqueeze(1).expand(b, h, j).reshape(b * h, 1, j)  # b j -> (b h) () j
+                mask = (
+                    mask.unsqueeze(1).expand(b, h, j).reshape(b * h, 1, j)
+                )  # b j -> (b h) () j
                 sim.masked_fill_(~mask, self.max_neg[sim.dtype])
 
             # attention, what we cannot get enough of
             attn = sim.softmax(dim=-1)
 
-            out = einsum('b i j, b j d -> b i d', attn, v)
+            out = einsum("b i j, b j d -> b i d", attn, v)
 
             # (b h) n d -> b n (h d)
             out = rearrange_heads_inner(out, h)
@@ -389,7 +448,9 @@ class CrossAttention(nn.Module):
             b, s_kv, hd = k.shape
             s_q = q.shape[1]
             d = hd // h
-            out = self.te_dpa(q.view(b, s_q, h, d), k.view(b, s_kv, h, d), v.view(b, s_kv, h, d))
+            out = self.te_dpa(
+                q.view(b, s_q, h, d), k.view(b, s_kv, h, d), v.view(b, s_kv, h, d)
+            )
 
         elif self.context_dim == self.query_dim:
             # self-attention
@@ -462,7 +523,9 @@ class BasicTransformerBlock(nn.Module):
         )  # is self-attn if context is none
         self.use_checkpoint = use_checkpoint
 
-    def forward(self, x, context=None, additional_tokens=None, n_times_crossframe_attn_in_self=0):
+    def forward(
+        self, x, context=None, additional_tokens=None, n_times_crossframe_attn_in_self=0
+    ):
         kwargs = {"x": x}
 
         if context is not None:
@@ -471,20 +534,28 @@ class BasicTransformerBlock(nn.Module):
             kwargs.update({"additional_tokens": additional_tokens})
 
         if n_times_crossframe_attn_in_self:
-            kwargs.update({"n_times_crossframe_attn_in_self": n_times_crossframe_attn_in_self})
+            kwargs.update(
+                {"n_times_crossframe_attn_in_self": n_times_crossframe_attn_in_self}
+            )
 
         if self.use_checkpoint:
-            return checkpoint(self._forward, (x, context), self.parameters(), self.use_checkpoint)
+            return checkpoint(
+                self._forward, (x, context), self.parameters(), self.use_checkpoint
+            )
         else:
             return self._forward(x, context)
 
-    def _forward(self, x, context=None, additional_tokens=None, n_times_crossframe_attn_in_self=0):
+    def _forward(
+        self, x, context=None, additional_tokens=None, n_times_crossframe_attn_in_self=0
+    ):
         x = (
             self.attn1(
                 x,
                 context=context if self.disable_self_attn else None,
                 additional_tokens=additional_tokens,
-                n_times_crossframe_attn_in_self=n_times_crossframe_attn_in_self if not self.disable_self_attn else 0,
+                n_times_crossframe_attn_in_self=(
+                    n_times_crossframe_attn_in_self if not self.disable_self_attn else 0
+                ),
             )
             + x
         )
@@ -544,7 +615,9 @@ class SpatialTransformer(nn.Module):
         self.norm = Normalize(in_channels)
 
         if not use_linear:
-            self.proj_in = nn.Conv2d(in_channels, inner_dim, kernel_size=1, stride=1, padding=0)
+            self.proj_in = nn.Conv2d(
+                in_channels, inner_dim, kernel_size=1, stride=1, padding=0
+            )
         else:
             self.proj_in = nn.Linear(in_channels, inner_dim)
         self.transformer_blocks = nn.ModuleList(
@@ -567,7 +640,9 @@ class SpatialTransformer(nn.Module):
         )
 
         if not use_linear:
-            self.proj_out = zero_module(nn.Conv2d(inner_dim, in_channels, kernel_size=1, stride=1, padding=0))
+            self.proj_out = zero_module(
+                nn.Conv2d(inner_dim, in_channels, kernel_size=1, stride=1, padding=0)
+            )
         else:
             self.proj_out = zero_module(nn.Linear(in_channels, inner_dim))
             # self.proj_out = zero_module(nn.Linear(inner_dim, in_channels))

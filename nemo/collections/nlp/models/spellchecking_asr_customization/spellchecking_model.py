@@ -56,7 +56,7 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         return {
-            "logits": NeuralType(('B', 'T', 'D'), LogitsType()),
+            "logits": NeuralType(("B", "T", "D"), LogitsType()),
         }
 
     @property
@@ -74,7 +74,9 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
         super().__init__(cfg=cfg, trainer=trainer)
 
         # Label map contains 11 labels: 0 for nothing, 1..10 for target candidate ids
-        label_map_file = self.register_artifact("label_map", cfg.label_map, verify_src_exists=True)
+        label_map_file = self.register_artifact(
+            "label_map", cfg.label_map, verify_src_exists=True
+        )
 
         # Semiotic classes for this model consist only of classes CUSTOM(means fragment containing custom candidate) and PLAIN (any other single-character fragment)
         # They are used only during validation step, to calculate accuracy for CUSTOM and PLAIN classes separately
@@ -87,8 +89,13 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
         self.num_labels = len(self.label_map)
         self.num_semiotic_labels = len(self.semiotic_classes)
         self.id_2_tag = {tag_id: tag for tag, tag_id in self.label_map.items()}
-        self.id_2_semiotic = {semiotic_id: semiotic for semiotic, semiotic_id in self.semiotic_classes.items()}
-        self.max_sequence_len = cfg.get('max_sequence_len', self.tokenizer.tokenizer.model_max_length)
+        self.id_2_semiotic = {
+            semiotic_id: semiotic
+            for semiotic, semiotic_id in self.semiotic_classes.items()
+        }
+        self.max_sequence_len = cfg.get(
+            "max_sequence_len", self.tokenizer.tokenizer.model_max_length
+        )
 
         # Setup to track metrics
         # We will have (len(self.semiotic_classes) + 1) labels.
@@ -97,20 +104,30 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
         label_ids = self.semiotic_classes.copy()
         label_ids["WRONG"] = len(self.semiotic_classes)
         self.tag_classification_report = ClassificationReport(
-            len(self.semiotic_classes) + 1, label_ids=label_ids, mode='micro', dist_sync_on_step=True
+            len(self.semiotic_classes) + 1,
+            label_ids=label_ids,
+            mode="micro",
+            dist_sync_on_step=True,
         )
 
         self.hidden_size = cfg.hidden_size
 
         # hidden size is doubled because in forward we concatenate embeddings for characters and embeddings for subwords
         self.logits = TokenClassifier(
-            self.hidden_size * 2, num_classes=self.num_labels, num_layers=1, log_softmax=False, dropout=0.1
+            self.hidden_size * 2,
+            num_classes=self.num_labels,
+            num_layers=1,
+            log_softmax=False,
+            dropout=0.1,
         )
 
         self.loss_fn = CrossEntropyLoss(logits_ndim=3)
 
         self.builder = bert_example.BertExampleBuilder(
-            self.label_map, self.semiotic_classes, self.tokenizer.tokenizer, self.max_sequence_len
+            self.label_map,
+            self.semiotic_classes,
+            self.tokenizer.tokenizer,
+            self.max_sequence_len,
         )
 
     @typecheck()
@@ -140,7 +157,9 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
         """
 
         # src_hiddens.shape = [batch_size, char_seq_len, bert_hidden_size]; .dtype=float32
-        src_hiddens = self.bert_model(input_ids=input_ids, token_type_ids=segment_ids, attention_mask=input_mask)
+        src_hiddens = self.bert_model(
+            input_ids=input_ids, token_type_ids=segment_ids, attention_mask=input_mask
+        )
         # src_hiddens_for_subwords.shape = [batch_size, subword_seq_len, bert_hidden_size]; .dtype=float32
         src_hiddens_for_subwords = self.bert_model(
             input_ids=input_ids_for_subwords,
@@ -150,7 +169,9 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
 
         # Next three commands concatenate subword embeddings to each character embedding of the corresponding subword
         # index.shape = [batch_size, char_seq_len, bert_hidden_size]; .dtype=int64
-        index = character_pos_to_subword_pos.unsqueeze(-1).expand((-1, -1, src_hiddens_for_subwords.shape[2]))
+        index = character_pos_to_subword_pos.unsqueeze(-1).expand(
+            (-1, -1, src_hiddens_for_subwords.shape[2])
+        )
         # src_hiddens_2.shape = [batch_size, char_seq_len, bert_hidden_size]; .dtype=float32
         src_hiddens_2 = torch.gather(src_hiddens_for_subwords, 1, index)
         # src_hiddens.shape = [batch_size, char_seq_len, bert_hidden_size * 2]; .dtype=float32
@@ -189,10 +210,10 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
             character_pos_to_subword_pos=character_pos_to_subword_pos,
         )
         loss = self.loss_fn(logits=logits, labels=labels, loss_mask=labels_mask)
-        lr = self._optimizer.param_groups[0]['lr']
-        self.log('train_loss', loss)
-        self.log('lr', lr, prog_bar=True)
-        return {'loss': loss, 'lr': lr}
+        lr = self._optimizer.param_groups[0]["lr"]
+        self.log("train_loss", loss)
+        self.log("lr", lr, prog_bar=True)
+        return {"loss": loss, "lr": lr}
 
     # Validation and Testing
     def validation_step(self, batch, batch_idx, split="val"):
@@ -225,7 +246,11 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
 
         # Update tag classification_report
         for input_mask_seq, segment_seq, prediction_seq, label_seq, span_seq in zip(
-            input_mask.tolist(), segment_ids.tolist(), tag_preds.tolist(), labels.tolist(), spans.tolist()
+            input_mask.tolist(),
+            segment_ids.tolist(),
+            tag_preds.tolist(),
+            labels.tolist(),
+            spans.tolist(),
         ):
             # Here we want to track whether the predicted output matches ground truth labels for each whole span.
             # We construct the special input for classification report, for example:
@@ -243,7 +268,9 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
             for i in range(len(segment_seq)):
                 if input_mask_seq[i] == 0:
                     continue
-                if segment_seq[i] > 0:  # token does not belong to ASR-hypothesis => it's over
+                if (
+                    segment_seq[i] > 0
+                ):  # token does not belong to ASR-hypothesis => it's over
                     break
                 if label_seq[i] == 0:
                     span_labels.append(plain_cid)
@@ -272,17 +299,18 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
                     + str(len(span_predictions))
                 )
             self.tag_classification_report(
-                torch.tensor(span_predictions).to(self.device), torch.tensor(span_labels).to(self.device)
+                torch.tensor(span_predictions).to(self.device),
+                torch.tensor(span_labels).to(self.device),
             )
 
         loss = self.loss_fn(logits=logits, labels=labels, loss_mask=labels_mask)
 
-        if split == 'val':
-            self.validation_step_outputs.append({f'{split}_loss': loss})
-        elif split == 'test':
-            self.test_step_outputs.append({f'{split}_loss': loss})
+        if split == "val":
+            self.validation_step_outputs.append({f"{split}_loss": loss})
+        elif split == "test":
+            self.test_step_outputs.append({f"{split}_loss": loss})
 
-        return {f'{split}_loss': loss}
+        return {f"{split}_loss": loss}
 
     def on_validation_epoch_end(self):
         """
@@ -290,10 +318,14 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
         :param outputs: list of individual outputs of each validation step.
         """
         split = "test" if self.trainer.testing else "val"
-        if split == 'val':
-            avg_loss = torch.stack([x[f'{split}_loss'] for x in self.validation_step_outputs]).mean()
+        if split == "val":
+            avg_loss = torch.stack(
+                [x[f"{split}_loss"] for x in self.validation_step_outputs]
+            ).mean()
         else:
-            avg_loss = torch.stack([x[f'{split}_loss'] for x in self.test_step_outputs]).mean()
+            avg_loss = torch.stack(
+                [x[f"{split}_loss"] for x in self.test_step_outputs]
+            ).mean()
 
         # Calculate metrics and classification report
         # Note that in our task recall = accuracy, and the recall column is the per class accuracy
@@ -324,7 +356,9 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
     # Functions for inference
 
     @torch.no_grad()
-    def infer(self, dataloader_cfg: DictConfig, input_name: str, output_name: str) -> None:
+    def infer(
+        self, dataloader_cfg: DictConfig, input_name: str, output_name: str
+    ) -> None:
         """Main function for Inference
 
         Args:
@@ -377,7 +411,9 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
                     input_ids_for_subwords=input_ids_for_subwords.to(self.device),
                     input_mask_for_subwords=input_mask_for_subwords.to(self.device),
                     segment_ids_for_subwords=segment_ids_for_subwords.to(self.device),
-                    character_pos_to_subword_pos=character_pos_to_subword_pos.to(self.device),
+                    character_pos_to_subword_pos=character_pos_to_subword_pos.to(
+                        self.device
+                    ),
                 )
 
                 # fragment_indices.shape=[batsh_size, num_fragments, 3], where last dimension is [start, end, label], where label is candidate id from 1 to 10
@@ -393,7 +429,9 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
                     batch_size,
                     seq_len,
                     num_labels,
-                ) = padded_logits.shape  # seq_len is +1 compared to that of tag_logits, because of padding
+                ) = (
+                    padded_logits.shape
+                )  # seq_len is +1 compared to that of tag_logits, because of padding
                 # cumsum.shape=[batch_size, seq_len, num_labels]
                 cumsum = padded_logits.cumsum(dim=1)
                 # the size -1 is inferred from other dimensions. We get rid of batch dimension.
@@ -405,16 +443,26 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
                 ).view(-1)
                 lower_index = (fragment_indices[..., 0]).view(-1) + word_index
                 higher_index = (fragment_indices[..., 1]).view(-1) + word_index
-                d_index = (higher_index - lower_index).reshape((-1, 1)).to(self.device)  # word lengths
-                dlog = cumsum_view[higher_index, :] - cumsum_view[lower_index, :]  # sum of logits
+                d_index = (
+                    (higher_index - lower_index).reshape((-1, 1)).to(self.device)
+                )  # word lengths
+                dlog = (
+                    cumsum_view[higher_index, :] - cumsum_view[lower_index, :]
+                )  # sum of logits
                 # word_logits.shape=[batch_size, indices_len, num_labels]
-                word_logits = (dlog / d_index.float()).view(batch_size, indices_len, num_labels)
+                word_logits = (dlog / d_index.float()).view(
+                    batch_size, indices_len, num_labels
+                )
                 # convert logits to probs, same shape
-                word_probs = torch.nn.functional.softmax(word_logits, dim=-1).to(self.device)
+                word_probs = torch.nn.functional.softmax(word_logits, dim=-1).to(
+                    self.device
+                )
                 # candidate_index.shape=[batch_size, indices_len]
                 candidate_index = fragment_indices[:, :, 2].to(self.device)
                 # candidate_probs.shape=[batch_size, indices_len]
-                candidate_probs = torch.take_along_dim(word_probs, candidate_index.unsqueeze(2), dim=-1).squeeze(2)
+                candidate_probs = torch.take_along_dim(
+                    word_probs, candidate_index.unsqueeze(2), dim=-1
+                ).squeeze(2)
                 for i in range(batch_size):
                     possible_replacements = []
                     for j in range(indices_len):
@@ -430,7 +478,13 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
                             continue
                         # -1 because in the output file we will not have a [CLS] token
                         possible_replacements.append(
-                            str(start - 1) + " " + str(end - 1) + " " + str(candidate_id) + " " + str(prob)
+                            str(start - 1)
+                            + " "
+                            + str(end - 1)
+                            + " "
+                            + str(candidate_id)
+                            + " "
+                            + str(prob)
                         )
                     all_possible_replacements.append(possible_replacements)
 
@@ -439,9 +493,9 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
                 character_preds = tensor2list(torch.argmax(tag_logits, dim=-1))
                 all_tag_preds.extend(character_preds)
 
-            if len(all_possible_replacements) != len(all_tag_preds) or len(all_possible_replacements) != len(
-                infer_datalayer.dataset.examples
-            ):
+            if len(all_possible_replacements) != len(all_tag_preds) or len(
+                all_possible_replacements
+            ) != len(infer_datalayer.dataset.examples):
                 raise IndexError(
                     "number of sentences mismatch: len(all_possible_replacements)="
                     + str(len(all_possible_replacements))
@@ -455,9 +509,20 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
                 for i in range(len(infer_datalayer.dataset.examples)):
                     hyp, ref = infer_datalayer.dataset.hyps_refs[i]
                     num_letters = hyp.count(" ") + 1
-                    tag_pred_str = " ".join(list(map(str, all_tag_preds[i][1 : (num_letters + 1)])))
+                    tag_pred_str = " ".join(
+                        list(map(str, all_tag_preds[i][1 : (num_letters + 1)]))
+                    )
                     possible_replacements_str = ";".join(all_possible_replacements[i])
-                    out.write(hyp + "\t" + ref + "\t" + possible_replacements_str + "\t" + tag_pred_str + "\n")
+                    out.write(
+                        hyp
+                        + "\t"
+                        + ref
+                        + "\t"
+                        + possible_replacements_str
+                        + "\t"
+                        + tag_pred_str
+                        + "\n"
+                    )
 
         except Exception as e:
             raise ValueError("Error processing file " + input_name)
@@ -475,7 +540,9 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
             )
             self._train_dl = None
             return
-        self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config, data_split="train")
+        self._train_dl = self._setup_dataloader_from_config(
+            cfg=train_data_config, data_split="train"
+        )
 
     def setup_validation_data(self, val_data_config: Optional[DictConfig]):
         if not val_data_config or not val_data_config.data_path:
@@ -484,7 +551,9 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
             )
             self._validation_dl = None
             return
-        self._validation_dl = self._setup_dataloader_from_config(cfg=val_data_config, data_split="val")
+        self._validation_dl = self._setup_dataloader_from_config(
+            cfg=val_data_config, data_split="val"
+        )
 
     def setup_test_data(self, test_data_config: Optional[DictConfig]):
         if not test_data_config or test_data_config.data_path is None:
@@ -493,11 +562,13 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
             )
             self._test_dl = None
             return
-        self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config, data_split="test")
+        self._test_dl = self._setup_dataloader_from_config(
+            cfg=test_data_config, data_split="test"
+        )
 
     def _setup_dataloader_from_config(self, cfg: DictConfig, data_split: str):
         start_time = perf_counter()
-        logging.info(f'Creating {data_split} dataset')
+        logging.info(f"Creating {data_split} dataset")
         if cfg.get("use_tarred_dataset", False):
             dataset = TarredSpellcheckingAsrCustomizationDataset(
                 cfg.data_path,
@@ -508,15 +579,22 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
             )
         else:
             input_file = cfg.data_path
-            dataset = SpellcheckingAsrCustomizationDataset(input_file=input_file, example_builder=self.builder)
+            dataset = SpellcheckingAsrCustomizationDataset(
+                input_file=input_file, example_builder=self.builder
+            )
         dl = torch.utils.data.DataLoader(
-            dataset=dataset, batch_size=cfg.batch_size, shuffle=cfg.shuffle, collate_fn=dataset.collate_fn
+            dataset=dataset,
+            batch_size=cfg.batch_size,
+            shuffle=cfg.shuffle,
+            collate_fn=dataset.collate_fn,
         )
         running_time = perf_counter() - start_time
-        logging.info(f'Took {running_time} seconds')
+        logging.info(f"Took {running_time} seconds")
         return dl
 
-    def _setup_infer_dataloader(self, cfg: DictConfig, input_name: str) -> 'torch.utils.data.DataLoader':
+    def _setup_infer_dataloader(
+        self, cfg: DictConfig, input_name: str
+    ) -> "torch.utils.data.DataLoader":
         """
         Setup function for a infer data loader.
         Args:
@@ -525,7 +603,9 @@ class SpellcheckingAsrCustomizationModel(NLPModel):
         Returns:
             A pytorch DataLoader.
         """
-        dataset = SpellcheckingAsrCustomizationTestDataset(input_name, example_builder=self.builder)
+        dataset = SpellcheckingAsrCustomizationTestDataset(
+            input_name, example_builder=self.builder
+        )
         return torch.utils.data.DataLoader(
             dataset=dataset,
             batch_size=cfg["batch_size"],

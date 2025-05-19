@@ -146,13 +146,18 @@ class IpaG2p(BaseG2p):
         self.ignore_ambiguous_words = ignore_ambiguous_words
         if isinstance(heteronyms, str) or isinstance(heteronyms, pathlib.Path):
             self.heteronyms = set(self._parse_file_by_lines(heteronyms))
-        elif isinstance(heteronyms, list) and all(isinstance(het, str) for het in heteronyms):
+        elif isinstance(heteronyms, list) and all(
+            isinstance(het, str) for het in heteronyms
+        ):
             self.heteronyms = set(heteronyms)
         else:
             self.heteronyms = None
 
         if self.heteronyms:
-            self.heteronyms = {set_grapheme_case(het, case=self.grapheme_case) for het in self.heteronyms}
+            self.heteronyms = {
+                set_grapheme_case(het, case=self.grapheme_case)
+                for het in self.heteronyms
+            }
 
     @staticmethod
     def _parse_phoneme_dict(
@@ -187,11 +192,11 @@ class IpaG2p(BaseG2p):
                     line = normalize_unicode_text(line)
 
                     if (
-                        'A' <= line[0] <= 'Z'
-                        or 'a' <= line[0] <= 'z'
-                        or 'À' <= line[0] <= 'Ö'
-                        or 'Ø' <= line[0] <= 'ö'
-                        or 'ø' <= line[0] <= 'ÿ'
+                        "A" <= line[0] <= "Z"
+                        or "a" <= line[0] <= "z"
+                        or "À" <= line[0] <= "Ö"
+                        or "Ø" <= line[0] <= "ö"
+                        or "ø" <= line[0] <= "ÿ"
                         or line[0] == "'"
                     ):
                         parts = line.strip().split(maxsplit=1)
@@ -200,7 +205,9 @@ class IpaG2p(BaseG2p):
                         phoneme_dict_obj[word].append(list(prons))
         else:
             # Load phoneme_dict as dictionary object
-            logging.info("Loading phoneme_dict as a Dict object, and validating its entry format.")
+            logging.info(
+                "Loading phoneme_dict as a Dict object, and validating its entry format."
+            )
 
             phoneme_dict_obj = {}
             for word, prons in phoneme_dict.items():
@@ -219,7 +226,9 @@ class IpaG2p(BaseG2p):
 
         return phoneme_dict_obj
 
-    def replace_dict(self, phoneme_dict: Union[str, pathlib.Path, Dict[str, List[List[str]]]]):
+    def replace_dict(
+        self, phoneme_dict: Union[str, pathlib.Path, Dict[str, List[List[str]]]]
+    ):
         """
         Replace model's phoneme dictionary with a custom one
         """
@@ -227,13 +236,15 @@ class IpaG2p(BaseG2p):
 
     @staticmethod
     def _parse_file_by_lines(p: Union[str, pathlib.Path]) -> List[str]:
-        with open(p, 'r', encoding='utf-8') as f:
+        with open(p, "r", encoding="utf-8") as f:
             return [line.rstrip() for line in f.readlines()]
 
     def _prepend_prefix_for_one_word(self, word: str) -> List[str]:
         return [f"{self.grapheme_prefix}{character}" for character in word]
 
-    def _normalize_dict(self, phoneme_dict_obj: Dict[str, List[List[str]]]) -> Tuple[Dict[str, List[List[str]]], Set]:
+    def _normalize_dict(
+        self, phoneme_dict_obj: Dict[str, List[List[str]]]
+    ) -> Tuple[Dict[str, List[List[str]]], Set]:
         """
         Parse a python dict object according to the decision on word cases and removal of lexical stress markers.
 
@@ -256,7 +267,7 @@ class IpaG2p(BaseG2p):
             # add grapheme symbols if `use_chars=True`.
             if self.use_chars:
                 # remove punctuations within a word. Punctuations can exist at the start, middle, and end of a word.
-                word_no_punct = self.PUNCT_REGEX.sub('', word_new)
+                word_no_punct = self.PUNCT_REGEX.sub("", word_new)
 
                 # add prefix to distinguish graphemes from phonemes.
                 symbols.update(self._prepend_prefix_for_one_word(word_no_punct))
@@ -266,7 +277,9 @@ class IpaG2p(BaseG2p):
             prons_new = list()
             if not self.use_stresses:
                 for pron in prons:
-                    prons_new.append([symbol for symbol in pron if symbol not in self.STRESS_SYMBOLS])
+                    prons_new.append(
+                        [symbol for symbol in pron if symbol not in self.STRESS_SYMBOLS]
+                    )
             else:
                 prons_new = prons
 
@@ -308,7 +321,11 @@ class IpaG2p(BaseG2p):
 
         for word, prons in self.phoneme_dict.items():
             # Check for illegal grapheme in the word itself
-            word_graphemes = set(self._prepend_prefix_for_one_word(set_grapheme_case(word, self.grapheme_case)))
+            word_graphemes = set(
+                self._prepend_prefix_for_one_word(
+                    set_grapheme_case(word, self.grapheme_case)
+                )
+            )
             word_diff = word_graphemes - new_symbols
             if word_diff:
                 deletion_words.append(word)
@@ -352,7 +369,10 @@ class IpaG2p(BaseG2p):
             return list(word), True
 
         # Keep graphemes of a word with a probability.
-        if self.phoneme_probability is not None and self._rng.random() > self.phoneme_probability:
+        if (
+            self.phoneme_probability is not None
+            and self._rng.random() > self.phoneme_probability
+        ):
             return self._prepend_prefix_for_one_word(word), True
 
         # Heteronyms
@@ -365,20 +385,23 @@ class IpaG2p(BaseG2p):
             # `'s` suffix (with apostrophe) - not in phoneme dict
             if len(word) > 2 and (word.endswith("'s") or word.endswith("'S")):
                 word_found = None
-                if (word not in self.phoneme_dict) and (word.upper() not in self.phoneme_dict):
+                if (word not in self.phoneme_dict) and (
+                    word.upper() not in self.phoneme_dict
+                ):
                     if word[:-2] in self.phoneme_dict:
                         word_found = word[:-2]
                     elif word[:-2].upper() in self.phoneme_dict:
                         word_found = word[:-2].upper()
 
                 if word_found is not None and (
-                    not self.ignore_ambiguous_words or self.is_unique_in_phoneme_dict(word_found)
+                    not self.ignore_ambiguous_words
+                    or self.is_unique_in_phoneme_dict(word_found)
                 ):
-                    if word_found[-1] in ['T', 't']:
+                    if word_found[-1] in ["T", "t"]:
                         # for example, "airport's" doesn't exist in the dict while "airport" exists. So append a phoneme
                         # /s/ at the end of "airport"'s first pronunciation.
                         return self.phoneme_dict[word_found][0] + ["s"], True
-                    elif word_found[-1] in ['S', 's']:
+                    elif word_found[-1] in ["S", "s"]:
                         # for example, "jones's" doesn't exist in the dict while "jones" exists. So append two phonemes,
                         # /ɪ/ and /z/ at the end of "jones"'s first pronunciation.
                         return self.phoneme_dict[word_found][0] + ["ɪ", "z"], True
@@ -388,16 +411,19 @@ class IpaG2p(BaseG2p):
             # `s` suffix (without apostrophe) - not in phoneme dict
             if len(word) > 1 and (word.endswith("s") or word.endswith("S")):
                 word_found = None
-                if (word not in self.phoneme_dict) and (word.upper() not in self.phoneme_dict):
+                if (word not in self.phoneme_dict) and (
+                    word.upper() not in self.phoneme_dict
+                ):
                     if word[:-1] in self.phoneme_dict:
                         word_found = word[:-1]
                     elif word[:-1].upper() in self.phoneme_dict:
                         word_found = word[:-1].upper()
 
                 if word_found is not None and (
-                    not self.ignore_ambiguous_words or self.is_unique_in_phoneme_dict(word_found)
+                    not self.ignore_ambiguous_words
+                    or self.is_unique_in_phoneme_dict(word_found)
                 ):
-                    if word_found[-1] in ['T', 't']:
+                    if word_found[-1] in ["T", "t"]:
                         # for example, "airports" doesn't exist in the dict while "airport" exists. So append a phoneme
                         # /s/ at the end of "airport"'s first pronunciation.
                         return self.phoneme_dict[word_found][0] + ["s"], True
@@ -406,14 +432,44 @@ class IpaG2p(BaseG2p):
 
         if self.locale == "fr-FR":
             # contracted prefix (with apostrophe) - not in phoneme dict
-            contractions_g = ['l', 'c', 'd', 'j', 'm', 'n', 'qu', 's', 't', 'puisqu', 'lorsqu', 'jusqu']
-            contractions_p = ['l', 's', 'd', 'ʒ', 'm', 'n', 'k', 's', 't', 'pyisk', 'loʁsk', 'ʒysk']
+            contractions_g = [
+                "l",
+                "c",
+                "d",
+                "j",
+                "m",
+                "n",
+                "qu",
+                "s",
+                "t",
+                "puisqu",
+                "lorsqu",
+                "jusqu",
+            ]
+            contractions_p = [
+                "l",
+                "s",
+                "d",
+                "ʒ",
+                "m",
+                "n",
+                "k",
+                "s",
+                "t",
+                "pyisk",
+                "loʁsk",
+                "ʒysk",
+            ]
 
             for cont_g, cont_p in zip(contractions_g, contractions_p):
                 starter = cont_g + "'"
-                if len(word) > 2 and (word.startswith(starter) or word.startswith(starter.upper())):
+                if len(word) > 2 and (
+                    word.startswith(starter) or word.startswith(starter.upper())
+                ):
                     word_found = None
-                    if (word not in self.phoneme_dict) and (word.upper() not in self.phoneme_dict):
+                    if (word not in self.phoneme_dict) and (
+                        word.upper() not in self.phoneme_dict
+                    ):
                         start_index = len(starter)
                         if word[start_index:] in self.phoneme_dict:
                             word_found = word[start_index:]
@@ -421,9 +477,12 @@ class IpaG2p(BaseG2p):
                             word_found = word[start_index:].upper()
 
                     if word_found is not None and (
-                        not self.ignore_ambiguous_words or self.is_unique_in_phoneme_dict(word_found)
+                        not self.ignore_ambiguous_words
+                        or self.is_unique_in_phoneme_dict(word_found)
                     ):
-                        return [c for c in cont_p] + self.phoneme_dict[word_found][0], True
+                        return [c for c in cont_p] + self.phoneme_dict[word_found][
+                            0
+                        ], True
 
         # For the words that have a single pronunciation, directly look it up in the phoneme_dict; for the
         # words that have multiple pronunciation variants, if we don't want to ignore them, then directly choose their
@@ -431,7 +490,9 @@ class IpaG2p(BaseG2p):
         # TODO @xueyang: this is a temporary solution, but it is not optimal if always choosing the first pronunciation
         #  variant as the target if a word has multiple pronunciation variants. We need explore better approach to
         #  select its optimal pronunciation variant aligning with its reference audio.
-        if word in self.phoneme_dict and (not self.ignore_ambiguous_words or self.is_unique_in_phoneme_dict(word)):
+        if word in self.phoneme_dict and (
+            not self.ignore_ambiguous_words or self.is_unique_in_phoneme_dict(word)
+        ):
             return self.phoneme_dict[word][0], True
 
         if (

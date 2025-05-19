@@ -23,7 +23,7 @@ from nemo.collections.multimodal.data.energon.config import (ImageTextRawBatch,
 
 @dataclass
 class LlavaNextTextSample(ImageTextSample):
-    '''
+    """
     Sample type for LLaVA-Next, extending ImageTextSample to support tiled image data.
 
     This class adds additional attributes for handling high-resolution images processed as tiles,
@@ -34,7 +34,7 @@ class LlavaNextTextSample(ImageTextSample):
         image_sizes (torch.Tensor): A tensor representing the sizes of the tiled images.
         attention_mask (Optional[torch.Tensor]): An optional attention mask for the sample,
         used to determine which tokens or tiles are attended to during processing. Defaults to None.
-    '''
+    """
 
     num_media_tiles: int = 0
     image_sizes: torch.tensor = field(default_factory=lambda: torch.tensor([]))
@@ -46,8 +46,12 @@ class PackedLlavaNextTextSample(LlavaNextTextSample):
     """Sample type for packed image text sample"""
 
     __restore_key__: tuple[Union[str, int, tuple], ...] = ()
-    position_ids: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.float))
-    packed_seq_params: PackedSeqParams = field(default_factory=lambda: PackedSeqParams())
+    position_ids: torch.Tensor = field(
+        default_factory=lambda: torch.empty(0, dtype=torch.float)
+    )
+    packed_seq_params: PackedSeqParams = field(
+        default_factory=lambda: PackedSeqParams()
+    )
 
 
 @dataclass
@@ -73,5 +77,9 @@ class LlavaNextTextRawBatch(ImageTextRawBatch):
 class PackedLlavaNextTextRawBatch(LlavaNextTextRawBatch):
     """Sample type for image text raw batch"""
 
-    position_ids: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.float))
-    packed_seq_params: PackedSeqParams = field(default_factory=lambda: PackedSeqParams())
+    position_ids: torch.Tensor = field(
+        default_factory=lambda: torch.empty(0, dtype=torch.float)
+    )
+    packed_seq_params: PackedSeqParams = field(
+        default_factory=lambda: PackedSeqParams()
+    )

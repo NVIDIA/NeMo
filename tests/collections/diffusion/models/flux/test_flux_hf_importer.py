@@ -17,8 +17,13 @@ from nemo.collections import llm
 from nemo.collections.diffusion.models.flux.model import (FluxModelParams,
                                                           MegatronFluxModel)
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     params = FluxModelParams()
     model = MegatronFluxModel(flux_params=params)
 
-    llm.import_ckpt(model, "hf://black-forest-labs/FLUX.1-dev", "/tmp_flux_dist_ckpt", overwrite=True)
+    llm.import_ckpt(
+        model,
+        "hf://black-forest-labs/FLUX.1-dev",
+        "/tmp_flux_dist_ckpt",
+        overwrite=True,
+    )

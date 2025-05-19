@@ -60,12 +60,14 @@ pretrained_model   - pretrained TokenClassification model from list_available_mo
 @hydra_runner(config_path="conf", config_name="token_classification_config")
 def main(cfg: DictConfig) -> None:
     logging.info(
-        'During evaluation/testing, it is currently advisable to construct a new Trainer with single GPU and \
-            no DDP to obtain accurate results'
+        "During evaluation/testing, it is currently advisable to construct a new Trainer with single GPU and \
+            no DDP to obtain accurate results"
     )
 
-    if not hasattr(cfg.model, 'test_ds'):
-        raise ValueError(f'model.test_ds was not found in the config, skipping evaluation')
+    if not hasattr(cfg.model, "test_ds"):
+        raise ValueError(
+            f"model.test_ds was not found in the config, skipping evaluation"
+        )
 
     trainer = pl.Trainer(
         devices=1,
@@ -78,7 +80,7 @@ def main(cfg: DictConfig) -> None:
 
     if not cfg.pretrained_model:
         raise ValueError(
-            'To run evaluation and inference script a pre-trained model or .nemo file must be provided.'
+            "To run evaluation and inference script a pre-trained model or .nemo file must be provided."
             f'Choose from {TokenClassificationModel.list_available_models()} or "pretrained_model"="your_model.nemo"'
         )
 
@@ -88,23 +90,25 @@ def main(cfg: DictConfig) -> None:
         model = TokenClassificationModel.from_pretrained(cfg.pretrained_model)
     else:
         raise ValueError(
-            f'Provide path to the pre-trained .nemo checkpoint or choose from {TokenClassificationModel.list_available_models()}'
+            f"Provide path to the pre-trained .nemo checkpoint or choose from {TokenClassificationModel.list_available_models()}"
         )
 
-    data_dir = cfg.model.dataset.get('data_dir', None)
+    data_dir = cfg.model.dataset.get("data_dir", None)
     if data_dir is None:
         logging.error(
-            'No dataset directory provided. Skipping evaluation. '
+            "No dataset directory provided. Skipping evaluation. "
             'To run evaluation on a file, specify path to the directory that contains test_ds.text_file and test_ds.labels_file with "model.dataset.data_dir" argument.'
         )
     elif not os.path.exists(data_dir):
-        logging.error(f'{data_dir} is not found, skipping evaluation on the test set.')
+        logging.error(f"{data_dir} is not found, skipping evaluation on the test set.")
     else:
         model.update_data_dir(data_dir=data_dir)
         model._cfg.dataset = cfg.model.dataset
 
-        if not hasattr(cfg.model, 'test_ds'):
-            logging.error(f'model.test_ds was not found in the config, skipping evaluation')
+        if not hasattr(cfg.model, "test_ds"):
+            logging.error(
+                f"model.test_ds was not found in the config, skipping evaluation"
+            )
         elif model.prepare_test(trainer):
             model.setup_test_data(cfg.model.test_ds)
             trainer.test(model)
@@ -117,18 +121,21 @@ def main(cfg: DictConfig) -> None:
                 normalize_confusion_matrix=True,
             )
         else:
-            logging.error('Skipping the evaluation. The trainer is not setup properly.')
+            logging.error("Skipping the evaluation. The trainer is not setup properly.")
 
     # run an inference on a few examples
-    queries = ['we bought four shirts from the nvidia gear store in santa clara.', 'Nvidia is a company.']
-    results = model.add_predictions(queries, output_file='predictions.txt')
+    queries = [
+        "we bought four shirts from the nvidia gear store in santa clara.",
+        "Nvidia is a company.",
+    ]
+    results = model.add_predictions(queries, output_file="predictions.txt")
 
     for query, result in zip(queries, results):
-        logging.info(f'Query : {query}')
-        logging.info(f'Result: {result.strip()}\n')
+        logging.info(f"Query : {query}")
+        logging.info(f"Result: {result.strip()}\n")
 
-    logging.info(f'Results are saved at {exp_dir}')
+    logging.info(f"Results are saved at {exp_dir}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

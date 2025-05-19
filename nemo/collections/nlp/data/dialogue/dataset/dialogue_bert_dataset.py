@@ -25,7 +25,7 @@ from nemo.core.neural_types import (ChannelType, LabelsType, MaskType,
 from nemo.utils import logging
 from nemo.utils.decorators import deprecated_warning
 
-__all__ = ['DialogueBERTDataset', 'DialogueIntentSlotInferenceDataset']
+__all__ = ["DialogueBERTDataset", "DialogueIntentSlotInferenceDataset"]
 
 
 class DialogueBERTDataset(DialogueDataset):
@@ -41,13 +41,13 @@ class DialogueBERTDataset(DialogueDataset):
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         """Returns definitions of module output ports."""
         return {
-            'input_ids': NeuralType(('B', 'T'), ChannelType()),
-            'segment_ids': NeuralType(('B', 'T'), ChannelType()),
-            'input_mask': NeuralType(('B', 'T'), MaskType()),
-            'loss_mask': NeuralType(('B', 'T'), MaskType()),
-            'subtokens_mask': NeuralType(('B', 'T'), MaskType()),
-            'intent_labels': NeuralType(('B'), LabelsType()),
-            'slot_labels': NeuralType(('B', 'T'), LabelsType()),
+            "input_ids": NeuralType(("B", "T"), ChannelType()),
+            "segment_ids": NeuralType(("B", "T"), ChannelType()),
+            "input_mask": NeuralType(("B", "T"), MaskType()),
+            "loss_mask": NeuralType(("B", "T"), MaskType()),
+            "subtokens_mask": NeuralType(("B", "T"), MaskType()),
+            "intent_labels": NeuralType(("B"), LabelsType()),
+            "slot_labels": NeuralType(("B", "T"), LabelsType()),
         }
 
     def __init__(self, dataset_split: str, dialogues_processor: object, tokenizer, cfg):
@@ -63,19 +63,33 @@ class DialogueBERTDataset(DialogueDataset):
 
         self.cfg = cfg
         self.all_possible_labels = dialogues_processor.intents
-        self.label_to_label_id = {self.all_possible_labels[i]: i for i in range(len(self.all_possible_labels))}
+        self.label_to_label_id = {
+            self.all_possible_labels[i]: i for i in range(len(self.all_possible_labels))
+        }
         self.all_possible_slots = dialogues_processor.slots
-        self.slot_name_to_slot_id = {self.all_possible_slots[i]: i for i in range(len(self.all_possible_slots))}
-        self.empty_slot_name = 'O'
+        self.slot_name_to_slot_id = {
+            self.all_possible_slots[i]: i for i in range(len(self.all_possible_slots))
+        }
+        self.empty_slot_name = "O"
 
         self.features = dialogues_processor.get_dialog_examples(dataset_split)
-        self.features = self.features if self.cfg.num_samples == -1 else self.features[: self.cfg.num_samples]
+        self.features = (
+            self.features
+            if self.cfg.num_samples == -1
+            else self.features[: self.cfg.num_samples]
+        )
 
         queries = [feature.data["utterance"] for feature in self.features]
         if self.cfg.do_lowercase:
             queries = [query.lower() for query in queries]
-        intents = [self.label_to_label_id[feature.data["labels"]["intent"]] for feature in self.features]
-        word_level_slots = [self.convert_slot_position_to_slot_ids(feature.data) for feature in self.features]
+        intents = [
+            self.label_to_label_id[feature.data["labels"]["intent"]]
+            for feature in self.features
+        ]
+        word_level_slots = [
+            self.convert_slot_position_to_slot_ids(feature.data)
+            for feature in self.features
+        ]
 
         features = DialogueBERTDataset.get_features(
             queries,
@@ -96,7 +110,10 @@ class DialogueBERTDataset(DialogueDataset):
         self.all_intents = intents
 
     def convert_slot_position_to_slot_ids(self, feature):
-        slot_ids = [self.slot_name_to_slot_id[self.empty_slot_name] for i in range(len(feature["utterance"].split()))]
+        slot_ids = [
+            self.slot_name_to_slot_id[self.empty_slot_name]
+            for i in range(len(feature["utterance"].split()))
+        ]
         slot_name_to_positions = feature["label_positions"]["slots"]
 
         for slot_name in slot_name_to_positions:
@@ -144,8 +161,12 @@ class DialogueBERTDataset(DialogueDataset):
             if len(subtokens) > max_seq_length:
                 subtokens = [tokenizer.cls_token] + subtokens[-max_seq_length + 1 :]
                 all_input_mask[i] = [1] + all_input_mask[i][-max_seq_length + 1 :]
-                all_loss_mask[i] = [1 - ignore_start_end] + all_loss_mask[i][-max_seq_length + 1 :]
-                all_subtokens_mask[i] = [0] + all_subtokens_mask[i][-max_seq_length + 1 :]
+                all_loss_mask[i] = [1 - ignore_start_end] + all_loss_mask[i][
+                    -max_seq_length + 1 :
+                ]
+                all_subtokens_mask[i] = [0] + all_subtokens_mask[i][
+                    -max_seq_length + 1 :
+                ]
 
                 if with_label:
                     all_slots[i] = [pad_label] + all_slots[i][-max_seq_length + 1 :]
@@ -165,7 +186,7 @@ class DialogueBERTDataset(DialogueDataset):
 
             all_segment_ids.append([0] * max_seq_length)
 
-        logging.info(f'{too_long_count} are longer than {max_seq_length}')
+        logging.info(f"{too_long_count} are longer than {max_seq_length}")
         return (
             all_slots,
             all_subtokens,
@@ -220,7 +241,9 @@ class DialogueBERTDataset(DialogueDataset):
                 # mask all sub-word tokens except the first token in a word
                 # use the label for the first sub-word token as the label for the entire word to eliminate need for disambiguation
                 loss_mask.append(1)
-                loss_mask.extend([int(not ignore_extra_tokens)] * (len(word_tokens) - 1))
+                loss_mask.extend(
+                    [int(not ignore_extra_tokens)] * (len(word_tokens) - 1)
+                )
 
                 subtokens_mask.append(1)
                 subtokens_mask.extend([0] * (len(word_tokens) - 1))
@@ -240,8 +263,12 @@ class DialogueBERTDataset(DialogueDataset):
                 slots.append(pad_label)
                 all_slots.append(slots)
         max_seq_length_data = max(sent_lengths)
-        max_seq_length = min(max_seq_length, max_seq_length_data) if max_seq_length > 0 else max_seq_length_data
-        logging.info(f'Setting max length to: {max_seq_length}')
+        max_seq_length = (
+            min(max_seq_length, max_seq_length_data)
+            if max_seq_length > 0
+            else max_seq_length_data
+        )
+        logging.info(f"Setting max length to: {max_seq_length}")
         get_stats(sent_lengths)
 
         # truncate and pad samples
@@ -274,12 +301,25 @@ class DialogueBERTDataset(DialogueDataset):
             logging.debug("i: %s" % (i))
             logging.debug("subtokens: %s" % " ".join(list(map(str, all_subtokens[i]))))
             logging.debug("loss_mask: %s" % " ".join(list(map(str, all_loss_mask[i]))))
-            logging.debug("input_mask: %s" % " ".join(list(map(str, all_input_mask[i]))))
-            logging.debug("subtokens_mask: %s" % " ".join(list(map(str, all_subtokens_mask[i]))))
+            logging.debug(
+                "input_mask: %s" % " ".join(list(map(str, all_input_mask[i])))
+            )
+            logging.debug(
+                "subtokens_mask: %s" % " ".join(list(map(str, all_subtokens_mask[i])))
+            )
             if with_label:
-                logging.debug("slots_label: %s" % " ".join(list(map(str, all_slots[i]))))
+                logging.debug(
+                    "slots_label: %s" % " ".join(list(map(str, all_slots[i])))
+                )
 
-        return (all_input_ids, all_segment_ids, all_input_mask, all_loss_mask, all_subtokens_mask, all_slots)
+        return (
+            all_input_ids,
+            all_segment_ids,
+            all_input_mask,
+            all_loss_mask,
+            all_subtokens_mask,
+            all_slots,
+        )
 
 
 class DialogueIntentSlotInferenceDataset(DialogueBERTDataset):
@@ -304,11 +344,11 @@ class DialogueIntentSlotInferenceDataset(DialogueBERTDataset):
         Returns definitions of module output ports.
         """
         return {
-            'input_ids': NeuralType(('B', 'T'), ChannelType()),
-            'segment_ids': NeuralType(('B', 'T'), ChannelType()),
-            'input_mask': NeuralType(('B', 'T'), MaskType()),
-            'loss_mask': NeuralType(('B', 'T'), MaskType()),
-            'subtokens_mask': NeuralType(('B', 'T'), MaskType()),
+            "input_ids": NeuralType(("B", "T"), ChannelType()),
+            "segment_ids": NeuralType(("B", "T"), ChannelType()),
+            "input_mask": NeuralType(("B", "T"), MaskType()),
+            "loss_mask": NeuralType(("B", "T"), MaskType()),
+            "subtokens_mask": NeuralType(("B", "T"), MaskType()),
         }
 
     def __init__(self, queries, max_seq_length, tokenizer, do_lower_case):

@@ -84,7 +84,7 @@ class MockDataModule(pl.LightningDataModule):
         self.persistent_workers = persistent_workers
         self.micro_batch_size = micro_batch_size
         self.global_batch_size = global_batch_size
-        model_name = ''
+        model_name = ""
         processor = None
         if tokenizer is None or image_processor is None:
             logging.warning(
@@ -112,13 +112,25 @@ class MockDataModule(pl.LightningDataModule):
             stage (str): Stage of the setup ('train', 'valid', 'test').
         """
         self._train_ds = _MockLlavaNextDataset(
-            self.tokenizer, self.image_processor, "train", self.num_train_samples, self.seq_length
+            self.tokenizer,
+            self.image_processor,
+            "train",
+            self.num_train_samples,
+            self.seq_length,
         )
         self._validation_ds = _MockLlavaNextDataset(
-            self.tokenizer, self.image_processor, "valid", self.num_val_samples, self.seq_length
+            self.tokenizer,
+            self.image_processor,
+            "valid",
+            self.num_val_samples,
+            self.seq_length,
         )
         self._test_ds = _MockLlavaNextDataset(
-            self.tokenizer, self.image_processor, "test", self.num_test_samples, self.seq_length
+            self.tokenizer,
+            self.image_processor,
+            "test",
+            self.num_test_samples,
+            self.seq_length,
         )
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
@@ -258,7 +270,9 @@ class _MockLlavaNextDataset(Dataset):
         """
         # Generate data of the expected size and datatype (based on GPTDataset).
         np_gen = np.random.default_rng(seed=(self.seed + idx))
-        tokens = torch.from_numpy(np_gen.integers(self.vocab_size, size=[self.seq_length + 1], dtype=np.int64))
+        tokens = torch.from_numpy(
+            np_gen.integers(self.vocab_size, size=[self.seq_length + 1], dtype=np.int64)
+        )
         num_image_tokens = get_number_of_features(
             self.image_height,
             self.image_width,
@@ -267,9 +281,20 @@ class _MockLlavaNextDataset(Dataset):
             self.hf_config.image_grid_pinpoints,
             self.hf_config.vision_config.patch_size,
         )
-        tokens = torch.concatenate([tokens[:2], torch.tensor([IMAGE_TOKEN_INDEX] * num_image_tokens), tokens[2:]], 0)
+        tokens = torch.concatenate(
+            [
+                tokens[:2],
+                torch.tensor([IMAGE_TOKEN_INDEX] * num_image_tokens),
+                tokens[2:],
+            ],
+            0,
+        )
         labels = tokens.clone()
-        images = torch.from_numpy(np_gen.random(size=[3, self.image_height, self.image_width], dtype=np.float32))
+        images = torch.from_numpy(
+            np_gen.random(
+                size=[3, self.image_height, self.image_width], dtype=np.float32
+            )
+        )
         tokens = tokens[:-1]
         labels = labels[1:]
 
@@ -279,8 +304,12 @@ class _MockLlavaNextDataset(Dataset):
 
         #  attention_mask, image_sizes, num_media_tiles required for llava-next. Neva model will ignore these
         attention_mask = torch.ones(len(tokens), dtype=torch.long)
-        image_sizes = torch.tensor([[self.image_height, self.image_width]], dtype=torch.long)
-        image_array = self.image_processor.preprocess(images, return_tensors='pt', do_rescale=False)['pixel_values'][0]
+        image_sizes = torch.tensor(
+            [[self.image_height, self.image_width]], dtype=torch.long
+        )
+        image_array = self.image_processor.preprocess(
+            images, return_tensors="pt", do_rescale=False
+        )["pixel_values"][0]
         num_media_tiles = image_array.shape[0]
         return {
             "media": image_array,
@@ -300,9 +329,15 @@ class _MockLlavaNextDataset(Dataset):
         """
         collated_batch = data.dataloader.default_collate(batch)
 
-        collated_batch['media'] = collated_batch['media'].contiguous().view(-1, *collated_batch['media'].shape[2:])
-        collated_batch['image_sizes'] = (
-            collated_batch['image_sizes'].contiguous().view(-1, *collated_batch['image_sizes'].shape[2:])
+        collated_batch["media"] = (
+            collated_batch["media"]
+            .contiguous()
+            .view(-1, *collated_batch["media"].shape[2:])
+        )
+        collated_batch["image_sizes"] = (
+            collated_batch["image_sizes"]
+            .contiguous()
+            .view(-1, *collated_batch["image_sizes"].shape[2:])
         )
         return collated_batch
 

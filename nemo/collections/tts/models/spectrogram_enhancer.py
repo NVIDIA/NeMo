@@ -81,18 +81,28 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
         self.generator_loss = GeneratorLoss()
         self.discriminator_loss = HingeLoss()
         self.consistency_loss = ConsistencyLoss(cfg.consistency_loss_weight)
-        self.gradient_penalty_loss = GradientPenaltyLoss(cfg.gradient_penalty_loss_weight)
+        self.gradient_penalty_loss = GradientPenaltyLoss(
+            cfg.gradient_penalty_loss_weight
+        )
 
     def move_to_correct_device(self, e):
         return to_device_recursive(e, next(iter(self.generator.parameters())).device)
 
-    def normalize_spectrograms(self, spectrogram: torch.Tensor, lengths: torch.Tensor) -> torch.Tensor:
+    def normalize_spectrograms(
+        self, spectrogram: torch.Tensor, lengths: torch.Tensor
+    ) -> torch.Tensor:
         spectrogram = spectrogram - self._cfg.spectrogram_min_value
-        spectrogram = spectrogram / (self._cfg.spectrogram_max_value - self._cfg.spectrogram_min_value)
+        spectrogram = spectrogram / (
+            self._cfg.spectrogram_max_value - self._cfg.spectrogram_min_value
+        )
         return mask_sequence_tensor(spectrogram, lengths)
 
-    def unnormalize_spectrograms(self, spectrogram: torch.Tensor, lengths: torch.Tensor) -> torch.Tensor:
-        spectrogram = spectrogram * (self._cfg.spectrogram_max_value - self._cfg.spectrogram_min_value)
+    def unnormalize_spectrograms(
+        self, spectrogram: torch.Tensor, lengths: torch.Tensor
+    ) -> torch.Tensor:
+        spectrogram = spectrogram * (
+            self._cfg.spectrogram_max_value - self._cfg.spectrogram_min_value
+        )
         spectrogram = spectrogram + self._cfg.spectrogram_min_value
         return mask_sequence_tensor(spectrogram, lengths)
 
@@ -100,10 +110,14 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
         if mixing and self._cfg.mixed_prob < random():
             mixing_point = randrange(1, self.generator.num_layers)
             first_part = [torch.randn(batch_size, self._cfg.latent_dim)] * mixing_point
-            second_part = [torch.randn(batch_size, self._cfg.latent_dim)] * (self.generator.num_layers - mixing_point)
+            second_part = [torch.randn(batch_size, self._cfg.latent_dim)] * (
+                self.generator.num_layers - mixing_point
+            )
             zs = [*first_part, *second_part]
         else:
-            zs = [torch.randn(batch_size, self._cfg.latent_dim)] * self.generator.num_layers
+            zs = [
+                torch.randn(batch_size, self._cfg.latent_dim)
+            ] * self.generator.num_layers
 
         return self.move_to_correct_device(zs)
 
@@ -118,7 +132,9 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
 
     @typecheck(
         input_types={
-            "input_spectrograms": NeuralType(("B", "D", "T_spec"), MelSpectrogramType()),
+            "input_spectrograms": NeuralType(
+                ("B", "D", "T_spec"), MelSpectrogramType()
+            ),
             "lengths": NeuralType(("B",), LengthsType()),
             "mixing": NeuralType(None, BoolType(), optional=True),
             "normalize": NeuralType(None, BoolType(), optional=True),
@@ -202,7 +218,9 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
         input_spectrograms = rearrange(input_spectrograms, "b c l -> b 1 c l")
         # normalize if needed, mask and pad appropriately
         if normalize:
-            input_spectrograms = self.normalize_spectrograms(input_spectrograms, lengths)
+            input_spectrograms = self.normalize_spectrograms(
+                input_spectrograms, lengths
+            )
         input_spectrograms = self.pad_spectrograms(input_spectrograms)
 
         # the main call
@@ -210,7 +228,9 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
 
         # denormalize if needed, mask and remove padding
         if normalize:
-            enhanced_spectrograms = self.unnormalize_spectrograms(enhanced_spectrograms, lengths)
+            enhanced_spectrograms = self.unnormalize_spectrograms(
+                enhanced_spectrograms, lengths
+            )
         enhanced_spectrograms = enhanced_spectrograms[:, :, :, :max_length]
         enhanced_spectrograms = rearrange(enhanced_spectrograms, "b 1 c l -> b c l")
 
@@ -220,19 +240,32 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
         input_spectrograms, target_spectrograms, lengths = batch
 
         with torch.no_grad():
-            input_spectrograms = self.normalize_spectrograms(input_spectrograms, lengths)
-            target_spectrograms = self.normalize_spectrograms(target_spectrograms, lengths)
+            input_spectrograms = self.normalize_spectrograms(
+                input_spectrograms, lengths
+            )
+            target_spectrograms = self.normalize_spectrograms(
+                target_spectrograms, lengths
+            )
 
         # train discriminator
         if optimizer_idx == 0:
             enhanced_spectrograms = self.forward(
-                input_spectrograms=input_spectrograms, lengths=lengths, mixing=True, normalize=False
+                input_spectrograms=input_spectrograms,
+                lengths=lengths,
+                mixing=True,
+                normalize=False,
             )
             enhanced_spectrograms = rearrange(enhanced_spectrograms, "b c l -> b 1 c l")
-            fake_logits = self.discriminator(enhanced_spectrograms, input_spectrograms, lengths)
+            fake_logits = self.discriminator(
+                enhanced_spectrograms, input_spectrograms, lengths
+            )
 
-            target_spectrograms_ = rearrange(target_spectrograms, "b c l -> b 1 c l").requires_grad_()
-            real_logits = self.discriminator(target_spectrograms_, input_spectrograms, lengths)
+            target_spectrograms_ = rearrange(
+                target_spectrograms, "b c l -> b 1 c l"
+            ).requires_grad_()
+            real_logits = self.discriminator(
+                target_spectrograms_, input_spectrograms, lengths
+            )
             d_loss = self.discriminator_loss(real_logits, fake_logits)
             self.log("d_loss", d_loss, prog_bar=True)
 
@@ -246,22 +279,34 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
         # train generator
         if optimizer_idx == 1:
             enhanced_spectrograms = self.forward(
-                input_spectrograms=input_spectrograms, lengths=lengths, mixing=True, normalize=False
+                input_spectrograms=input_spectrograms,
+                lengths=lengths,
+                mixing=True,
+                normalize=False,
             )
 
             input_spectrograms = rearrange(input_spectrograms, "b c l -> b 1 c l")
             enhanced_spectrograms = rearrange(enhanced_spectrograms, "b c l -> b 1 c l")
 
-            fake_logits = self.discriminator(enhanced_spectrograms, input_spectrograms, lengths)
+            fake_logits = self.discriminator(
+                enhanced_spectrograms, input_spectrograms, lengths
+            )
             g_loss = self.generator_loss(fake_logits)
-            c_loss = self.consistency_loss(input_spectrograms, enhanced_spectrograms, lengths)
+            c_loss = self.consistency_loss(
+                input_spectrograms, enhanced_spectrograms, lengths
+            )
 
             self.log("g_loss", g_loss, prog_bar=True)
             self.log("c_loss", c_loss, prog_bar=True)
 
             with torch.no_grad():
                 target_spectrograms = rearrange(target_spectrograms, "b c l -> b 1 c l")
-                self.log_illustration(target_spectrograms, input_spectrograms, enhanced_spectrograms, lengths)
+                self.log_illustration(
+                    target_spectrograms,
+                    input_spectrograms,
+                    enhanced_spectrograms,
+                    lengths,
+                )
             return g_loss + c_loss
 
     def configure_optimizers(self):
@@ -269,13 +314,17 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
             self._cfg.generator_opt,
             params=self.generator.parameters(),
         )
-        discriminator_opt = instantiate(self._cfg.discriminator_opt, params=self.discriminator.parameters())
+        discriminator_opt = instantiate(
+            self._cfg.discriminator_opt, params=self.discriminator.parameters()
+        )
         return [discriminator_opt, generator_opt], []
 
     def setup_training_data(self, train_data_config):
         dataset = instantiate(train_data_config.dataset)
         self._train_dl = torch.utils.data.DataLoader(
-            dataset, collate_fn=dataset.collate_fn, **train_data_config.dataloader_params
+            dataset,
+            collate_fn=dataset.collate_fn,
+            **train_data_config.dataloader_params,
         )
 
     def setup_validation_data(self, val_data_config):
@@ -306,7 +355,9 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
 
         return list_of_models
 
-    def log_illustration(self, target_spectrograms, input_spectrograms, enhanced_spectrograms, lengths):
+    def log_illustration(
+        self, target_spectrograms, input_spectrograms, enhanced_spectrograms, lengths
+    ):
         if self.global_rank != 0:
             return
 
@@ -329,7 +380,9 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
             dim=0,
         ).cpu()[:, idx, :, :, :length]
 
-        assert TORCHVISION_AVAILABLE, "Torchvision imports failed but they are required."
+        assert (
+            TORCHVISION_AVAILABLE
+        ), "Torchvision imports failed but they are required."
         grid = torchvision.utils.make_grid(tensor, nrow=1).clamp(0.0, 1.0)
 
         for logger in self.loggers:
@@ -338,6 +391,11 @@ class SpectrogramEnhancerModel(ModelPT, Exportable):
                 writer.add_image("spectrograms", grid, global_step=step)
                 writer.flush()
             elif isinstance(logger, WandbLogger):
-                logger.log_image("spectrograms", [grid], caption=["residual, input, output, ground truth"], step=step)
+                logger.log_image(
+                    "spectrograms",
+                    [grid],
+                    caption=["residual, input, output, ground truth"],
+                    step=step,
+                )
             else:
                 logging.warning("Unsupported logger type: %s", str(type(logger)))

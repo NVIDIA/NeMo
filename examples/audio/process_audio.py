@@ -83,7 +83,9 @@ class ProcessConfig:
     max_utts: Optional[int] = None  # max number of utterances to process
 
     # Audio configs
-    input_channel_selector: Optional[List] = None  # Union types not supported Optional[Union[List, int]]
+    input_channel_selector: Optional[List] = (
+        None  # Union types not supported Optional[Union[List, int]]
+    )
     input_key: Optional[str] = None  # Can be used with a manifest
 
     # General configs
@@ -93,7 +95,9 @@ class ProcessConfig:
     num_workers: int = 0
 
     # Override model config
-    override_config_path: Optional[str] = None  # path to a yaml config that will override the internal config file
+    override_config_path: Optional[str] = (
+        None  # path to a yaml config that will override the internal config file
+    )
 
     # Override sampler config
     # For example, to set number of steps, use `++sampler.num_samples=42`
@@ -112,7 +116,7 @@ class ProcessConfig:
 
 @hydra_runner(config_name="ProcessConfig", schema=ProcessConfig)
 def main(cfg: ProcessConfig) -> ProcessConfig:
-    logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
+    logging.info(f"Hydra config: {OmegaConf.to_yaml(cfg)}")
 
     if is_dataclass(cfg):
         cfg = OmegaConf.structured(cfg)
@@ -126,25 +130,33 @@ def main(cfg: ProcessConfig) -> ProcessConfig:
     if cfg.cuda is None:
         if torch.cuda.is_available():
             device = [0]  # use 0th CUDA device
-            accelerator = 'gpu'
+            accelerator = "gpu"
         else:
             device = 1
-            accelerator = 'cpu'
+            accelerator = "cpu"
     else:
         device = [cfg.cuda]
-        accelerator = 'gpu'
+        accelerator = "gpu"
 
-    map_location = torch.device('cuda:{}'.format(device[0]) if accelerator == 'gpu' else 'cpu')
+    map_location = torch.device(
+        "cuda:{}".format(device[0]) if accelerator == "gpu" else "cpu"
+    )
 
     # setup model
     if cfg.model_path is not None:
         # restore model from .nemo file path
-        model_cfg = AudioToAudioModel.restore_from(restore_path=cfg.model_path, return_config=True)
+        model_cfg = AudioToAudioModel.restore_from(
+            restore_path=cfg.model_path, return_config=True
+        )
         classpath = model_cfg.target  # original class path
-        imported_class = model_utils.import_class_by_path(classpath)  # type: AudioToAudioModel
+        imported_class = model_utils.import_class_by_path(
+            classpath
+        )  # type: AudioToAudioModel
         logging.info(f"Restoring model : {imported_class.__name__}")
         audio_to_audio_model = imported_class.restore_from(
-            restore_path=cfg.model_path, override_config_path=cfg.override_config_path, map_location=map_location
+            restore_path=cfg.model_path,
+            override_config_path=cfg.override_config_path,
+            map_location=map_location,
         )  # type: AudioToAudioModel
         model_name = os.path.splitext(os.path.basename(cfg.model_path))[0]
     else:
@@ -160,32 +172,40 @@ def main(cfg: ProcessConfig) -> ProcessConfig:
 
     # override sampler if necessary
     if cfg.sampler:
-        logging.info('Overriding sampler with %s', cfg.sampler)
+        logging.info("Overriding sampler with %s", cfg.sampler)
 
-        if hasattr(audio_to_audio_model, 'sampler'):
+        if hasattr(audio_to_audio_model, "sampler"):
             for key, value in cfg.sampler.items():
                 if not hasattr(audio_to_audio_model.sampler, key):
-                    raise RuntimeError(f'Model sampler does not have attribute {key}')
-                logging.debug('Try to set model.sampler.%s to %s', key, value)
+                    raise RuntimeError(f"Model sampler does not have attribute {key}")
+                logging.debug("Try to set model.sampler.%s to %s", key, value)
                 setattr(audio_to_audio_model.sampler, key, value)
                 if getattr(audio_to_audio_model.sampler, key) != value:
-                    raise RuntimeError(f'Failed to set model sampler attribute {key} to {value}')
-                logging.info('model.sampler.%s was set to %s', key, value)
+                    raise RuntimeError(
+                        f"Failed to set model sampler attribute {key} to {value}"
+                    )
+                logging.info("model.sampler.%s was set to %s", key, value)
         else:
-            raise RuntimeError('Model does not have a sampler')
+            raise RuntimeError("Model does not have a sampler")
 
     if cfg.audio_dir is not None:
         input_dir = cfg.audio_dir
-        filepaths = list(glob.glob(os.path.join(cfg.audio_dir, f"**/*.{cfg.audio_type}"), recursive=True))
+        filepaths = list(
+            glob.glob(
+                os.path.join(cfg.audio_dir, f"**/*.{cfg.audio_type}"), recursive=True
+            )
+        )
     else:
         # get filenames from manifest
         filepaths = []
         if os.stat(cfg.dataset_manifest).st_size == 0:
-            raise RuntimeError(f"The input dataset_manifest {cfg.dataset_manifest} is empty.")
+            raise RuntimeError(
+                f"The input dataset_manifest {cfg.dataset_manifest} is empty."
+            )
 
-        input_key = 'audio_filepath' if cfg.input_key is None else cfg.input_key
+        input_key = "audio_filepath" if cfg.input_key is None else cfg.input_key
         manifest_dir = Path(cfg.dataset_manifest).parent
-        with open(cfg.dataset_manifest, 'r') as f:
+        with open(cfg.dataset_manifest, "r") as f:
             for line in f:
                 item = json.loads(line)
                 audio_file = Path(item[input_key])
@@ -209,7 +229,12 @@ def main(cfg: ProcessConfig) -> ProcessConfig:
     logging.info(f"\nProcessing {len(filepaths)} files...\n")
 
     # setup AMP (optional)
-    if cfg.amp and torch.cuda.is_available() and hasattr(torch.cuda, 'amp') and hasattr(torch.cuda.amp, 'autocast'):
+    if (
+        cfg.amp
+        and torch.cuda.is_available()
+        and hasattr(torch.cuda, "amp")
+        and hasattr(torch.cuda.amp, "autocast")
+    ):
         logging.info("AMP enabled!\n")
         autocast = torch.cuda.amp.autocast
     else:
@@ -222,14 +247,19 @@ def main(cfg: ProcessConfig) -> ProcessConfig:
     if cfg.output_dir is None:
         # create default output filename
         if cfg.audio_dir is not None:
-            cfg.output_dir = os.path.dirname(os.path.join(cfg.audio_dir, '.')) + f'_processed_{model_name}'
+            cfg.output_dir = (
+                os.path.dirname(os.path.join(cfg.audio_dir, "."))
+                + f"_processed_{model_name}"
+            )
         else:
-            cfg.output_dir = os.path.dirname(cfg.dataset_manifest) + f'_processed_{model_name}'
+            cfg.output_dir = (
+                os.path.dirname(cfg.dataset_manifest) + f"_processed_{model_name}"
+            )
 
     # Compute output filename
     if cfg.output_filename is None:
         # create default output filename
-        cfg.output_filename = cfg.output_dir.rstrip('/') + '_manifest.json'
+        cfg.output_filename = cfg.output_dir.rstrip("/") + "_manifest.json"
 
     # if transcripts should not be overwritten, and already exists, skip re-transcription step and return
     if not cfg.overwrite_output and os.path.exists(cfg.output_dir):
@@ -251,26 +281,28 @@ def main(cfg: ProcessConfig) -> ProcessConfig:
             )
 
     logging.info(f"Finished processing {len(filepaths)} files!")
-    logging.info(f"Processed audio is available in the output directory: {cfg.output_dir}")
+    logging.info(
+        f"Processed audio is available in the output directory: {cfg.output_dir}"
+    )
 
     # Prepare new/updated manifest with a new key for processed audio
-    with open(cfg.output_filename, 'w', encoding='utf-8') as f:
+    with open(cfg.output_filename, "w", encoding="utf-8") as f:
         if cfg.dataset_manifest is not None:
-            with open(cfg.dataset_manifest, 'r') as fr:
+            with open(cfg.dataset_manifest, "r") as fr:
                 for idx, line in enumerate(fr):
                     item = json.loads(line)
-                    item['processed_audio_filepath'] = paths2processed_files[idx]
+                    item["processed_audio_filepath"] = paths2processed_files[idx]
                     f.write(json.dumps(item) + "\n")
 
                     if cfg.max_utts is not None and idx >= cfg.max_utts - 1:
                         break
         else:
             for idx, processed_file in enumerate(paths2processed_files):
-                item = {'processed_audio_filepath': processed_file}
+                item = {"processed_audio_filepath": processed_file}
                 f.write(json.dumps(item) + "\n")
 
     return cfg
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()  # noqa pylint: disable=no-value-for-parameter

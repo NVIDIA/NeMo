@@ -56,12 +56,12 @@ class NeMoTransformerConfig:
     ffn_dropout: float = 0.0
     attn_score_dropout: float = 0.0
     attn_layer_dropout: float = 0.0
-    hidden_act: str = 'relu'
+    hidden_act: str = "relu"
     pre_ln: bool = False
     pre_ln_final_layer_norm: bool = True
 
     # named model arguments
-    library: str = 'nemo'
+    library: str = "nemo"
     model_name: Optional[str] = None
     pretrained: bool = False
 
@@ -91,7 +91,7 @@ class TransformerEncoderNM(EncoderModule, Exportable):
         ffn_dropout: float = 0.0,
         attn_score_dropout: float = 0.0,
         attn_layer_dropout: float = 0.0,
-        hidden_act: str = 'relu',
+        hidden_act: str = "relu",
         mask_future: bool = False,
         pre_ln: bool = False,
         pre_ln_final_layer_norm: bool = True,
@@ -130,7 +130,9 @@ class TransformerEncoderNM(EncoderModule, Exportable):
     @typecheck()
     def forward(self, input_ids, encoder_mask):
         embeddings = self._embedding(input_ids=input_ids)
-        encoder_hidden_states = self._encoder(encoder_states=embeddings, encoder_mask=encoder_mask)
+        encoder_hidden_states = self._encoder(
+            encoder_states=embeddings, encoder_mask=encoder_mask
+        )
         return encoder_hidden_states
 
     @property
@@ -181,7 +183,7 @@ class TransformerDecoderNM(DecoderModule, Exportable):
         ffn_dropout: float = 0.0,
         attn_score_dropout: float = 0.0,
         attn_layer_dropout: float = 0.0,
-        hidden_act: str = 'relu',
+        hidden_act: str = "relu",
         pre_ln: bool = False,
         pre_ln_final_layer_norm: bool = True,
         padding_idx: int = 0,
@@ -221,7 +223,12 @@ class TransformerDecoderNM(DecoderModule, Exportable):
 
     @typecheck()
     def forward(
-        self, input_ids, decoder_mask, encoder_embeddings, encoder_mask, decoder_mems=None,
+        self,
+        input_ids,
+        decoder_mask,
+        encoder_embeddings,
+        encoder_mask,
+        decoder_mems=None,
     ):
         start_pos = 0
         if decoder_mems is not None:
@@ -275,7 +282,15 @@ class TransformerDecoderNM(DecoderModule, Exportable):
         encoder_mask = torch.randint(low=0, high=1, size=sz, device=sample.device)
         mem_size = [max_batch, self.num_states, max_dim - 1, self._hidden_size]
         decoder_mems = torch.rand(mem_size, device=sample.device)
-        return tuple([input_ids, encoder_mask, self._embedding(input_ids), encoder_mask, decoder_mems])
+        return tuple(
+            [
+                input_ids,
+                encoder_mask,
+                self._embedding(input_ids),
+                encoder_mask,
+                decoder_mems,
+            ]
+        )
 
     def _prepare_for_export(self, **kwargs):
         self._decoder.diagonal = None
@@ -285,6 +300,8 @@ class TransformerDecoderNM(DecoderModule, Exportable):
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         if self.return_mems:
-            return {"last_hidden_states": NeuralType(('B', 'D', 'T', 'D'), ChannelType())}
+            return {
+                "last_hidden_states": NeuralType(("B", "D", "T", "D"), ChannelType())
+            }
         else:
-            return {"last_hidden_states": NeuralType(('B', 'T', 'D'), ChannelType())}
+            return {"last_hidden_states": NeuralType(("B", "T", "D"), ChannelType())}

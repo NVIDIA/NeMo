@@ -75,7 +75,11 @@ class FLOPsMeasurementCallback(Callback):
         attention_heads = self.model_cfg.num_attention_heads
         moe_router_topk = self.model_cfg.moe_router_topk
         model_pattern = getattr(self.model_cfg, "hybrid_override_pattern", None)
-        vocab_size = self.data_cfg.tokenizer.vocab_size if hasattr(self.data_cfg, "tokenizer") else None
+        vocab_size = (
+            self.data_cfg.tokenizer.vocab_size
+            if hasattr(self.data_cfg, "tokenizer")
+            else None
+        )
 
         # this handles both- 1. key is present, value is None; 2. key is absent
         query_groups = self.model_cfg.num_query_groups
@@ -105,7 +109,9 @@ class FLOPsMeasurementCallback(Callback):
             config_kwargs["q_lora_rank"] = self.model_cfg.q_lora_rank
             config_kwargs["kv_lora_rank"] = self.model_cfg.kv_lora_rank
         config_kwargs["moe_layer_freq"] = self.model_cfg.moe_layer_freq
-        config_kwargs["moe_shared_expert_intermediate_size"] = self.model_cfg.moe_shared_expert_intermediate_size
+        config_kwargs["moe_shared_expert_intermediate_size"] = (
+            self.model_cfg.moe_shared_expert_intermediate_size
+        )
         config_kwargs["moe_ffn_hidden_size"] = self.model_cfg.moe_ffn_hidden_size
         config_kwargs["mtp_num_layers"] = self.model_cfg.mtp_num_layers
 
@@ -122,22 +128,30 @@ class FLOPsMeasurementCallback(Callback):
         """
         for callback in trainer.callbacks:
             if isinstance(callback, PEFT):
-                raise NotImplementedError("FLOPs measurement not supported for finetuning jobs")
+                raise NotImplementedError(
+                    "FLOPs measurement not supported for finetuning jobs"
+                )
 
     def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx: int):
         """
         PyTorch Lightning callback hook to calculate TFLOPs per sec per GPU after training
         """
         try:
-            self.avg_train_step_time += trainer.progress_bar_metrics['train_step_timing in s']
+            self.avg_train_step_time += trainer.progress_bar_metrics[
+                "train_step_timing in s"
+            ]
         except KeyError:
-            print("'train_step_timing in s' not found. Make sure to use TimingCallback with FLOPsMeasurementCallback.")
+            print(
+                "'train_step_timing in s' not found. Make sure to use TimingCallback with FLOPsMeasurementCallback."
+            )
         n = trainer.strategy.current_epoch_step
         if n % trainer.log_every_n_steps == 0:
             # skip calculation if we haven't accumulated any timing data
             if self.avg_train_step_time == 0:
                 return
-            tflops_per_gpu = self.eval_tflops_per_sec_per_gpu(self.avg_train_step_time / trainer.log_every_n_steps)
+            tflops_per_gpu = self.eval_tflops_per_sec_per_gpu(
+                self.avg_train_step_time / trainer.log_every_n_steps
+            )
             self.avg_train_step_time = 0
             pl_module.log(
                 "TFLOPS_per_GPU",
@@ -176,11 +190,19 @@ class FLOPsMeasurementCallback(Callback):
             model_matches = [model for model in _model_flops_map if model in self.model]
             self.model = model_matches[0] if len(model_matches) > 0 else self.model
         if self.model not in _model_flops_map:
-            logging.info(f"FLOPs measurement supported for {list(_model_flops_map.keys())}")
-            raise KeyError(f"Failed to extract valid model name from or missing FLOPs calculations for {self.model}")
+            logging.info(
+                f"FLOPs measurement supported for {list(_model_flops_map.keys())}"
+            )
+            raise KeyError(
+                f"Failed to extract valid model name from or missing FLOPs calculations for {self.model}"
+            )
 
         total_flops = _model_flops_map[self.model](self.flops_config)
-        num_devices = torch.distributed.get_world_size() if torch.distributed.is_initialized() else 1
+        num_devices = (
+            torch.distributed.get_world_size()
+            if torch.distributed.is_initialized()
+            else 1
+        )
         flops_per_gpu = total_flops / num_devices
 
         return total_flops, flops_per_gpu
@@ -219,15 +241,22 @@ class MM_FLOPsMeasurementCallback(FLOPsMeasurementCallback):
                 kwargs["img_w"] = model_cfg.image_size
                 kwargs["patch_dim"] = model_cfg.patch_size
                 kwargs["in_channels"] = model_cfg.num_channels
-                kwargs["class_token_len"] = 1  # TODO: Add directly to HFCLIPVisionConfig
+                kwargs["class_token_len"] = (
+                    1  # TODO: Add directly to HFCLIPVisionConfig
+                )
             elif model_name in ["neva_projection"]:
                 kwargs["projector_type"] = model_cfg.projector_type
                 kwargs["ffn_hs"] = model_cfg.ffn_hidden_size
                 kwargs["inp_s"] = model_cfg.input_size
                 # TODO: Add img_seq_len directly to MultimodalProjectorConfig
-                kwargs["img_seq_len"] = model_name_config_dict["hf_clip_vit_l"].num_image_embeddings_per_tile
+                kwargs["img_seq_len"] = model_name_config_dict[
+                    "hf_clip_vit_l"
+                ].num_image_embeddings_per_tile
             elif model_name in ["flux"]:
-                kwargs["layers"] = [model_cfg.num_joint_layers, model_cfg.num_single_layers]
+                kwargs["layers"] = [
+                    model_cfg.num_joint_layers,
+                    model_cfg.num_single_layers,
+                ]
                 kwargs["hs"] = model_cfg.hidden_size
                 kwargs["model_channels"] = model_cfg.model_channels
                 kwargs["inp_s"] = model_cfg.context_dim
@@ -269,12 +298,18 @@ class MM_FLOPsMeasurementCallback(FLOPsMeasurementCallback):
         total_flops = flops_per_gpu = 0
         for model_name, flops_cfg in self.flops_config_dict.items():
             if model_name not in mm_model_flops_map:
-                logging.info(f"FLOPs measurement supported for {list(mm_model_flops_map.keys())}")
+                logging.info(
+                    f"FLOPs measurement supported for {list(mm_model_flops_map.keys())}"
+                )
                 raise KeyError(
                     f"Failed to extract valid model name from or missing FLOPs calculations for {model_name}"
                 )
             total_flops += mm_model_flops_map[model_name](flops_cfg)
-        num_devices = torch.distributed.get_world_size() if torch.distributed.is_initialized() else 1
+        num_devices = (
+            torch.distributed.get_world_size()
+            if torch.distributed.is_initialized()
+            else 1
+        )
         flops_per_gpu = total_flops / num_devices
 
         return total_flops, flops_per_gpu

@@ -30,7 +30,7 @@ def main(cfg) -> None:
         mp.set_start_method("spawn", force=True)
 
     logging.info("\n\n************** Experiment configuration ***********")
-    logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
+    logging.info(f"\n{OmegaConf.to_yaml(cfg)}")
 
     trainer = MegatronBertTrainerBuilder(cfg).create_trainer()
     exp_manager(trainer, cfg.exp_manager)
@@ -40,5 +40,5 @@ def main(cfg) -> None:
     trainer.fit(model)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

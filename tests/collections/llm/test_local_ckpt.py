@@ -109,9 +109,13 @@ class CrashCallback(Callback):
             raise ValueError("crash_step must be a positive integer or None")
         self.crash_step = crash_step
         if self.crash_step:
-            logger.debug(f"CrashCallback initialized. Will simulate crash if global_step reaches {self.crash_step}")
+            logger.debug(
+                f"CrashCallback initialized. Will simulate crash if global_step reaches {self.crash_step}"
+            )
         else:
-            logger.debug("CrashCallback initialized. Crash simulation is disabled (crash_step is None).")
+            logger.debug(
+                "CrashCallback initialized. Crash simulation is disabled (crash_step is None)."
+            )
 
     def on_train_batch_end(self, trainer, *args) -> None:
         current_global_step = trainer.global_step
@@ -179,7 +183,7 @@ def get_megatron_strategy(args, async_save: bool = True) -> nl.MegatronStrategy:
 def get_optimizer(bf16_enabled: bool = True) -> MegatronOptimizerModule:
     """Creates a MegatronOptimizerModule instance."""
     opt_config = OptimizerConfig(
-        optimizer='adam',
+        optimizer="adam",
         lr=1e-4,
         weight_decay=0.1,
         adam_beta1=0.9,
@@ -199,16 +203,20 @@ def get_my_local_ckpt_node_dir(log_dir: str, rank: int) -> Path:
     return Path(log_dir) / "local_ckpt" / socket.gethostname() / str(rank)
 
 
-def find_latest_local_ckpt_step(local_ckpt_node_dir: Path, global_rank: int) -> Optional[int]:
+def find_latest_local_ckpt_step(
+    local_ckpt_node_dir: Path, global_rank: int
+) -> Optional[int]:
     """Finds the step number of the latest local checkpoint based on the input path."""
     latest_step = -1
 
     if not local_ckpt_node_dir.is_dir():
-        logger.warning(f"Local checkpoint node directory not found: {local_ckpt_node_dir}")
+        logger.warning(
+            f"Local checkpoint node directory not found: {local_ckpt_node_dir}"
+        )
         return None
 
     # Pattern to match the local checkpoint file name
-    pattern = re.compile(fr"iter_(\d+)_{global_rank}_local")
+    pattern = re.compile(rf"iter_(\d+)_{global_rank}_local")
 
     for item in local_ckpt_node_dir.iterdir():
         match = pattern.match(item.name)
@@ -224,17 +232,50 @@ def find_latest_local_ckpt_step(local_ckpt_node_dir: Path, global_rank: int) -> 
 def get_parser() -> argparse.ArgumentParser:
     """Creates the argument parser."""
     parser = argparse.ArgumentParser(description="Llama3 Local Ckpt Crash Test")
-    parser.add_argument("--log-dir", type=str, required=True, help="Filesystem output dir.")
-    parser.add_argument("--num-nodes", type=int, default=1, help="Total nodes in the job (usually from SLURM)")
-    parser.add_argument("--devices", type=int, default=2, help="GPUs per node (usually from SLURM)")
-    parser.add_argument('--max-steps', type=int, default=200, help="Total steps for training")
-    parser.add_argument('--checkpoint-interval', type=int, default=80, help="Global checkpoint interval")
-    parser.add_argument('--local-checkpoint-interval', type=int, default=45, help="Local checkpoint interval")
-    parser.add_argument('--val-check-interval', type=int, default=80, help="Validation interval")
-    parser.add_argument('--limit_val_batches', type=int, default=10, help="Validation batches limit")
-    parser.add_argument("--async-save", action="store_true", help="Use async global ckpt save")
-    parser.add_argument("--crash-step", type=int, default=100, help="Global step for Rank 0 to simulate crash")
-    parser.add_argument("--cleanup-log-dir", action="store_true", help="Rank 0 cleans up log dir before starting")
+    parser.add_argument(
+        "--log-dir", type=str, required=True, help="Filesystem output dir."
+    )
+    parser.add_argument(
+        "--num-nodes",
+        type=int,
+        default=1,
+        help="Total nodes in the job (usually from SLURM)",
+    )
+    parser.add_argument(
+        "--devices", type=int, default=2, help="GPUs per node (usually from SLURM)"
+    )
+    parser.add_argument(
+        "--max-steps", type=int, default=200, help="Total steps for training"
+    )
+    parser.add_argument(
+        "--checkpoint-interval", type=int, default=80, help="Global checkpoint interval"
+    )
+    parser.add_argument(
+        "--local-checkpoint-interval",
+        type=int,
+        default=45,
+        help="Local checkpoint interval",
+    )
+    parser.add_argument(
+        "--val-check-interval", type=int, default=80, help="Validation interval"
+    )
+    parser.add_argument(
+        "--limit_val_batches", type=int, default=10, help="Validation batches limit"
+    )
+    parser.add_argument(
+        "--async-save", action="store_true", help="Use async global ckpt save"
+    )
+    parser.add_argument(
+        "--crash-step",
+        type=int,
+        default=100,
+        help="Global step for Rank 0 to simulate crash",
+    )
+    parser.add_argument(
+        "--cleanup-log-dir",
+        action="store_true",
+        help="Rank 0 cleans up log dir before starting",
+    )
     parser.add_argument(
         "--log-level",
         type=str,
@@ -251,7 +292,7 @@ def main() -> None:
     log_level_numeric = getattr(logging, args.log_level.upper(), logging.INFO)
     logging.basicConfig(
         level=log_level_numeric,
-        format='%(asctime)s - %(levelname)s - %(message)s',
+        format="%(asctime)s - %(levelname)s - %(message)s",
         stream=sys.stdout,  # Log to standard output
     )
 
@@ -261,7 +302,9 @@ def main() -> None:
         args.crash_step > args.local_checkpoint_interval
     ), "Crash step must be after the first local checkpoint interval"
     assert args.crash_step < args.max_steps, "Crash step must be before max_steps"
-    assert args.local_checkpoint_interval > 0, "Local checkpoint interval must be positive"
+    assert (
+        args.local_checkpoint_interval > 0
+    ), "Local checkpoint interval must be positive"
 
     executor = run.LocalExecutor(ntasks_per_node=args.devices, launcher="torchrun")
     # Convert Namespace to dict for serialization
@@ -299,12 +342,16 @@ def run_test(args_dict: dict) -> None:
         dist.barrier()
 
     my_local_ckpt_node_dir = get_my_local_ckpt_node_dir(args.log_dir, global_rank)
-    logger.debug(f"Expecting local checkpoints for this node in: {my_local_ckpt_node_dir}")
+    logger.debug(
+        f"Expecting local checkpoints for this node in: {my_local_ckpt_node_dir}"
+    )
 
     mbs = 1
     gbs = mbs * world_size
     model_config = Llama3Config145M()
-    data = MockDataModule(seq_length=model_config.seq_length, global_batch_size=gbs, micro_batch_size=mbs)
+    data = MockDataModule(
+        seq_length=model_config.seq_length, global_batch_size=gbs, micro_batch_size=mbs
+    )
     precision_plugin = nl.MegatronMixedPrecision(precision="bf16-mixed")
     strategy = get_megatron_strategy(args, async_save=args.async_save)
 
@@ -318,14 +365,18 @@ def run_test(args_dict: dict) -> None:
         every_n_train_steps=args.checkpoint_interval,
         save_on_train_epoch_end=True,
         save_optim_on_train_end=True,
-        filename='{model_name}--{val_loss:.2f}-{step}-{consumed_samples}',
+        filename="{model_name}--{val_loss:.2f}-{step}-{consumed_samples}",
     )
-    local_checkpoint_callback = res_module.local_checkpoint_callback.LocalCheckpointCallback(
-        every_n_train_steps=args.local_checkpoint_interval
+    local_checkpoint_callback = (
+        res_module.local_checkpoint_callback.LocalCheckpointCallback(
+            every_n_train_steps=args.local_checkpoint_interval
+        )
     )
 
     # Instantiate the CrashCallback for Run 1 if crash_step is positive
-    crash_callback = CrashCallback(crash_step=args.crash_step if args.crash_step > 0 else None)
+    crash_callback = CrashCallback(
+        crash_step=args.crash_step if args.crash_step > 0 else None
+    )
 
     # Define the callback list for Run 1
     # Place LocalCheckpointCallback before CrashCallback
@@ -346,7 +397,7 @@ def run_test(args_dict: dict) -> None:
         plugins=[precision_plugin],
         strategy=strategy,
     )
-    assert hasattr(trainer_run1, 'global_rank'), "Trainer needs global_rank populated."
+    assert hasattr(trainer_run1, "global_rank"), "Trainer needs global_rank populated."
 
     logger.debug(f"Initializing Run 1 Trainer complete. Patching for local I/O.")
     update_trainer_local_checkpoint_io(
@@ -355,7 +406,9 @@ def run_test(args_dict: dict) -> None:
         get_global_step_from_global_checkpoint_path,
     )
 
-    resume_logic = nl.AutoResume(resume_if_exists=True, resume_ignore_no_checkpoint=True)
+    resume_logic = nl.AutoResume(
+        resume_if_exists=True, resume_ignore_no_checkpoint=True
+    )
     crashed = False
     # Run 1: Train until Crash
     if global_rank == 0:
@@ -385,10 +438,16 @@ def run_test(args_dict: dict) -> None:
     assert crashed, "Training did not crash as expected!"
     logger.debug(f"Run 1 finished (crashed at step {args.crash_step}).")
 
-    latest_local_step_run1 = find_latest_local_ckpt_step(my_local_ckpt_node_dir, global_rank)
-    assert latest_local_step_run1 is not None, f"No local checkpoints found in {my_local_ckpt_node_dir} after crash!"
+    latest_local_step_run1 = find_latest_local_ckpt_step(
+        my_local_ckpt_node_dir, global_rank
+    )
+    assert (
+        latest_local_step_run1 is not None
+    ), f"No local checkpoints found in {my_local_ckpt_node_dir} after crash!"
 
-    expected_latest_step = (args.crash_step // args.local_checkpoint_interval) * args.local_checkpoint_interval
+    expected_latest_step = (
+        args.crash_step // args.local_checkpoint_interval
+    ) * args.local_checkpoint_interval
     logger.debug(f"Expected latest local checkpoint step: {expected_latest_step}")
     assert (
         latest_local_step_run1 == expected_latest_step
@@ -400,19 +459,26 @@ def run_test(args_dict: dict) -> None:
     if global_rank == 0:
         # Use logger
         logger.info(
-            "\n" + "=" * 20 + f" Starting Run 2: All ranks resuming from step {latest_local_step_run1} " + "=" * 20
+            "\n"
+            + "=" * 20
+            + f" Starting Run 2: All ranks resuming from step {latest_local_step_run1} "
+            + "=" * 20
         )
 
     if torch.distributed.is_initialized():
         dist.barrier()
 
-    data = MockDataModule(seq_length=model_config.seq_length, global_batch_size=gbs, micro_batch_size=mbs)
+    data = MockDataModule(
+        seq_length=model_config.seq_length, global_batch_size=gbs, micro_batch_size=mbs
+    )
     precision_plugin_run2 = nl.MegatronMixedPrecision(precision="bf16-mixed")
     strategy_run2 = get_megatron_strategy(args, async_save=args.async_save)
 
     model_run2 = LlamaModel(config=model_config)
     optim_run2 = get_optimizer(bf16_enabled=True)
-    data = MockDataModule(seq_length=model_config.seq_length, global_batch_size=gbs, micro_batch_size=mbs)
+    data = MockDataModule(
+        seq_length=model_config.seq_length, global_batch_size=gbs, micro_batch_size=mbs
+    )
 
     checkpoint_callback_run2 = ModelCheckpoint(
         save_last=True,
@@ -421,13 +487,17 @@ def run_test(args_dict: dict) -> None:
         every_n_train_steps=args.checkpoint_interval,
         save_on_train_epoch_end=True,
         save_optim_on_train_end=True,
-        filename='{model_name}--{val_loss:.2f}-{step}-{consumed_samples}',
+        filename="{model_name}--{val_loss:.2f}-{step}-{consumed_samples}",
     )
-    local_checkpoint_callback_run2 = res_module.local_checkpoint_callback.LocalCheckpointCallback(
-        every_n_train_steps=args.local_checkpoint_interval
+    local_checkpoint_callback_run2 = (
+        res_module.local_checkpoint_callback.LocalCheckpointCallback(
+            every_n_train_steps=args.local_checkpoint_interval
+        )
     )
     # Instantiate the check callback with the expected resume step
-    check_resume_step_callback = CheckResumeStepCallback(expected_resume_step=latest_local_step_run1)
+    check_resume_step_callback = CheckResumeStepCallback(
+        expected_resume_step=latest_local_step_run1
+    )
     callbacks_run2 = [local_checkpoint_callback_run2, check_resume_step_callback]
 
     nemo_logger_plugin_run2 = nl.NeMoLogger(
@@ -443,9 +513,13 @@ def run_test(args_dict: dict) -> None:
         strategy=strategy_run2,
     )
 
-    assert hasattr(trainer_run2, 'global_rank'), "Trainer needs global_rank populated."
-    assert trainer_run2.global_rank == global_rank, "Trainer rank differs from env var rank!"
-    assert trainer_run2.world_size == world_size, "Trainer world size differs from env var world size!"
+    assert hasattr(trainer_run2, "global_rank"), "Trainer needs global_rank populated."
+    assert (
+        trainer_run2.global_rank == global_rank
+    ), "Trainer rank differs from env var rank!"
+    assert (
+        trainer_run2.world_size == world_size
+    ), "Trainer world size differs from env var world size!"
 
     update_trainer_local_checkpoint_io(
         trainer_run2,
@@ -468,13 +542,17 @@ def run_test(args_dict: dict) -> None:
         tokenizer="data",
     )
     logger.debug(f"Run 2 resumed from step {latest_local_step_run1}.")
-    latest_local_step_run2 = find_latest_local_ckpt_step(my_local_ckpt_node_dir, global_rank)
+    latest_local_step_run2 = find_latest_local_ckpt_step(
+        my_local_ckpt_node_dir, global_rank
+    )
 
     assert (
         latest_local_step_run2 is not None
     ), f"No local checkpoints found in {my_local_ckpt_node_dir} after resuming!"
 
-    expected_latest_step = (args.max_steps // args.local_checkpoint_interval) * args.local_checkpoint_interval
+    expected_latest_step = (
+        args.max_steps // args.local_checkpoint_interval
+    ) * args.local_checkpoint_interval
     logger.debug(f"Expected latest local checkpoint step: {expected_latest_step}")
     assert (
         latest_local_step_run2 == expected_latest_step

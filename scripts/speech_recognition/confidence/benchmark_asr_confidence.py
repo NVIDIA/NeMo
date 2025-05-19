@@ -99,7 +99,17 @@ def get_experiment_params(cfg):
             entropy_norm,
             str(alpha),
         ]
-        experiment_str = "-".join([aggregation, blank, duration, method_name, entropy_type, entropy_norm, str(alpha)])
+        experiment_str = "-".join(
+            [
+                aggregation,
+                blank,
+                duration,
+                method_name,
+                entropy_type,
+                entropy_norm,
+                str(alpha),
+            ]
+        )
     else:
         experiment_param_list = [
             aggregation,
@@ -110,7 +120,9 @@ def get_experiment_params(cfg):
             "-",
             str(alpha),
         ]
-        experiment_str = "-".join([aggregation, blank, duration, method_name, str(alpha)])
+        experiment_str = "-".join(
+            [aggregation, blank, duration, method_name, str(alpha)]
+        )
     return experiment_param_list, experiment_str
 
 
@@ -134,18 +146,26 @@ class ConfidenceBenchmarkingConfig:
     audio_type: str = "wav"
 
     # Confidence configs
-    target_level: str = "auto"  # Choices: "word", "token", "auto" (for both word- and token-level confidence)
-    confidence_cfg: ConfidenceConfig = field(
-        default_factory=lambda: ConfidenceConfig(preserve_word_confidence=True, preserve_token_confidence=True)
+    target_level: str = (
+        "auto"  # Choices: "word", "token", "auto" (for both word- and token-level confidence)
     )
-    grid_params: Optional[str] = None  # a dictionary with lists of parameters to iteratively benchmark on
+    confidence_cfg: ConfidenceConfig = field(
+        default_factory=lambda: ConfidenceConfig(
+            preserve_word_confidence=True, preserve_token_confidence=True
+        )
+    )
+    grid_params: Optional[str] = (
+        None  # a dictionary with lists of parameters to iteratively benchmark on
+    )
 
 
-@hydra_runner(config_name="ConfidenceBenchmarkingConfig", schema=ConfidenceBenchmarkingConfig)
+@hydra_runner(
+    config_name="ConfidenceBenchmarkingConfig", schema=ConfidenceBenchmarkingConfig
+)
 def main(cfg: ConfidenceBenchmarkingConfig):
     torch.set_grad_enabled(False)
 
-    logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
+    logging.info(f"Hydra config: {OmegaConf.to_yaml(cfg)}")
 
     if is_dataclass(cfg):
         cfg = OmegaConf.structured(cfg)
@@ -157,20 +177,24 @@ def main(cfg: ConfidenceBenchmarkingConfig):
     if cfg.cuda is None:
         if torch.cuda.is_available():
             device = [0]  # use 0th CUDA device
-            accelerator = 'gpu'
+            accelerator = "gpu"
         else:
             device = 1
-            accelerator = 'cpu'
+            accelerator = "cpu"
     else:
         device = [cfg.cuda]
-        accelerator = 'gpu'
+        accelerator = "gpu"
 
-    map_location = torch.device('cuda:{}'.format(device[0]) if accelerator == 'gpu' else 'cpu')
+    map_location = torch.device(
+        "cuda:{}".format(device[0]) if accelerator == "gpu" else "cpu"
+    )
 
     # setup model
     if cfg.model_path is not None:
         # restore model from .nemo file path
-        model_cfg = ASRModel.restore_from(restore_path=cfg.model_path, return_config=True)
+        model_cfg = ASRModel.restore_from(
+            restore_path=cfg.model_path, return_config=True
+        )
         classpath = model_cfg.target  # original class path
         imported_class = model_utils.import_class_by_path(classpath)  # type: ASRModel
         logging.info(f"Restoring model : {imported_class.__name__}")
@@ -191,24 +215,28 @@ def main(cfg: ConfidenceBenchmarkingConfig):
     is_rnnt = isinstance(asr_model, EncDecRNNTModel)
 
     # Check that the model has the `change_decoding_strategy` method
-    if not hasattr(asr_model, 'change_decoding_strategy'):
-        raise RuntimeError("The asr_model you are using must have the `change_decoding_strategy` method.")
+    if not hasattr(asr_model, "change_decoding_strategy"):
+        raise RuntimeError(
+            "The asr_model you are using must have the `change_decoding_strategy` method."
+        )
 
     # get filenames and reference texts from manifest
     filepaths = []
     reference_texts = []
     if os.stat(cfg.dataset_manifest).st_size == 0:
-        logging.error(f"The input dataset_manifest {cfg.dataset_manifest} is empty. Exiting!")
+        logging.error(
+            f"The input dataset_manifest {cfg.dataset_manifest} is empty. Exiting!"
+        )
         return None
     manifest_dir = Path(cfg.dataset_manifest).parent
-    with open(cfg.dataset_manifest, 'r') as f:
+    with open(cfg.dataset_manifest, "r") as f:
         for line in f:
             item = json.loads(line)
-            audio_file = Path(item['audio_filepath'])
+            audio_file = Path(item["audio_filepath"])
             if not audio_file.is_file() and not audio_file.is_absolute():
                 audio_file = manifest_dir / audio_file
             filepaths.append(str(audio_file.absolute()))
-            reference_texts.append(item['text'])
+            reference_texts.append(item["text"])
 
     # do grid-based benchmarking if grid_params is provided, otherwise a regular one
     work_dir = Path(cfg.output_dir)
@@ -241,7 +269,11 @@ def main(cfg: ConfidenceBenchmarkingConfig):
     report_file = work_dir / Path("report.csv")
     if cfg.grid_params:
         asr_model.change_decoding_strategy(
-            RNNTDecodingConfig(fused_batch_size=-1, strategy="greedy_batch", confidence_cfg=cfg.confidence_cfg)
+            RNNTDecodingConfig(
+                fused_batch_size=-1,
+                strategy="greedy_batch",
+                confidence_cfg=cfg.confidence_cfg,
+            )
             if is_rnnt
             else CTCDecodingConfig(confidence_cfg=cfg.confidence_cfg)
         )
@@ -249,18 +281,28 @@ def main(cfg: ConfidenceBenchmarkingConfig):
         hp_grid = ParameterGrid(params)
         hp_grid = list(hp_grid)
 
-        logging.info(f"==============================Running a benchmarking with grid search=========================")
+        logging.info(
+            f"==============================Running a benchmarking with grid search========================="
+        )
         logging.info(f"Grid search size: {len(hp_grid)}")
-        logging.info(f"Results will be written to:\nreport file `{report_file}`\nand plot directories near the file")
-        logging.info(f"==============================================================================================")
+        logging.info(
+            f"Results will be written to:\nreport file `{report_file}`\nand plot directories near the file"
+        )
+        logging.info(
+            f"=============================================================================================="
+        )
 
         with open(report_file, "tw", encoding="utf-8") as f:
             f.write(report_legend)
             f.flush()
             for i, hp in enumerate(hp_grid):
                 logging.info(f"Run # {i + 1}, grid: `{hp}`")
-                asr_model.change_decoding_strategy(apply_confidence_parameters(asr_model.cfg.decoding, hp))
-                param_list, experiment_name = get_experiment_params(asr_model.cfg.decoding.confidence_cfg)
+                asr_model.change_decoding_strategy(
+                    apply_confidence_parameters(asr_model.cfg.decoding, hp)
+                )
+                param_list, experiment_name = get_experiment_params(
+                    asr_model.cfg.decoding.confidence_cfg
+                )
                 plot_dir = work_dir / Path(experiment_name)
                 results = run_confidence_benchmark(
                     asr_model,
@@ -273,19 +315,31 @@ def main(cfg: ConfidenceBenchmarkingConfig):
                     cfg.amp,
                 )
                 for level, result in results.items():
-                    f.write(f"{model_typename},{','.join(param_list)},{level},{','.join([str(r) for r in result])}\n")
+                    f.write(
+                        f"{model_typename},{','.join(param_list)},{level},{','.join([str(r) for r in result])}\n"
+                    )
                     f.flush()
     else:
         asr_model.change_decoding_strategy(
-            RNNTDecodingConfig(fused_batch_size=-1, strategy="greedy_batch", confidence_cfg=cfg.confidence_cfg)
+            RNNTDecodingConfig(
+                fused_batch_size=-1,
+                strategy="greedy_batch",
+                confidence_cfg=cfg.confidence_cfg,
+            )
             if is_rnnt
             else CTCDecodingConfig(confidence_cfg=cfg.confidence_cfg)
         )
-        param_list, experiment_name = get_experiment_params(asr_model.cfg.decoding.confidence_cfg)
+        param_list, experiment_name = get_experiment_params(
+            asr_model.cfg.decoding.confidence_cfg
+        )
         plot_dir = work_dir / Path(experiment_name)
 
-        logging.info(f"==============================Running a single benchmarking===================================")
-        logging.info(f"Results will be written to:\nreport file `{report_file}`\nand plot directory `{plot_dir}`")
+        logging.info(
+            f"==============================Running a single benchmarking==================================="
+        )
+        logging.info(
+            f"Results will be written to:\nreport file `{report_file}`\nand plot directory `{plot_dir}`"
+        )
 
         with open(report_file, "tw", encoding="utf-8") as f:
             f.write(report_legend)
@@ -301,9 +355,13 @@ def main(cfg: ConfidenceBenchmarkingConfig):
                 cfg.amp,
             )
             for level, result in results.items():
-                f.write(f"{model_typename},{','.join(param_list)},{level},{','.join([str(r) for r in result])}\n")
-    logging.info(f"===========================================Done===============================================")
+                f.write(
+                    f"{model_typename},{','.join(param_list)},{level},{','.join([str(r) for r in result])}\n"
+                )
+    logging.info(
+        f"===========================================Done==============================================="
+    )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

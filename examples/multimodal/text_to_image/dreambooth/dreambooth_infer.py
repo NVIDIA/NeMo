@@ -22,7 +22,7 @@ from nemo.collections.multimodal.parts.utils import \
 from nemo.core.config import hydra_runner
 
 
-@hydra_runner(config_path='conf', config_name='dreambooth_infer')
+@hydra_runner(config_path="conf", config_name="dreambooth_infer")
 def main(cfg):
     def model_cfg_modifier(model_cfg):
         model_cfg.precision = cfg.trainer.precision
@@ -31,12 +31,12 @@ def main(cfg):
         model_cfg.unet_config.use_flash_attention = False
         model_cfg.unet_config.from_pretrained = None
         model_cfg.first_stage_config.from_pretrained = None
-        model_cfg.target = (
-            'nemo.collections.multimodal.models.text_to_image.stable_diffusion.ldm.ddpm.MegatronLatentDiffusion'
-        )
+        model_cfg.target = "nemo.collections.multimodal.models.text_to_image.stable_diffusion.ldm.ddpm.MegatronLatentDiffusion"
 
     trainer, megatron_diffusion_model = setup_trainer_and_model_for_inference(
-        model_provider=MegatronLatentDiffusion, cfg=cfg, model_cfg_modifier=model_cfg_modifier
+        model_provider=MegatronLatentDiffusion,
+        cfg=cfg,
+        model_cfg_modifier=model_cfg_modifier,
     )
     model = megatron_diffusion_model.model
     model.cuda().eval()

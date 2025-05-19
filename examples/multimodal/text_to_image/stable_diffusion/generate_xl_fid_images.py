@@ -29,7 +29,7 @@ from nemo.collections.multimodal.parts.utils import \
 from nemo.core.config import hydra_runner
 
 
-@hydra_runner(config_path='conf', config_name='sd_xl_fid_images')
+@hydra_runner(config_path="conf", config_name="sd_xl_fid_images")
 def main(cfg):
     # pylint: disable=C0116
     # Read configuration parameters
@@ -38,7 +38,7 @@ def main(cfg):
     local_task_id = cfg.fid.local_task_id
     num_images_to_eval = cfg.fid.num_images_to_eval
     path = cfg.fid.coco_captions_path
-    use_refiner = cfg.get('use_refiner', False)
+    use_refiner = cfg.get("use_refiner", False)
 
     node_id = int(os.environ.get("SLURM_ARRAY_TASK_ID", 0))
     node_id_per_cfg = node_id % nnodes_per_cfg
@@ -55,21 +55,33 @@ def main(cfg):
     caption_files = sorted(os.listdir(path))
     assert len(caption_files) >= num_images_to_eval
     for file in caption_files[:num_images_to_eval]:
-        with open(os.path.join(path, file), 'r') as f:
+        with open(os.path.join(path, file), "r") as f:
             captions += f.readlines()
 
     # Calculate partition sizes and select the partition for the current node
     partition_size_per_node = num_images_to_eval // nnodes_per_cfg
     start_idx = node_id_per_cfg * partition_size_per_node
-    end_idx = (node_id_per_cfg + 1) * partition_size_per_node if node_id_per_cfg != nnodes_per_cfg - 1 else None
+    end_idx = (
+        (node_id_per_cfg + 1) * partition_size_per_node
+        if node_id_per_cfg != nnodes_per_cfg - 1
+        else None
+    )
     captions = captions[start_idx:end_idx]
 
-    local_task_id = int(local_task_id) if local_task_id is not None else int(os.environ.get("SLURM_LOCALID", 0))
+    local_task_id = (
+        int(local_task_id)
+        if local_task_id is not None
+        else int(os.environ.get("SLURM_LOCALID", 0))
+    )
     partition_size_per_task = int(len(captions) // ntasks_per_node)
 
     # Select the partition for the current task
     start_idx = local_task_id * partition_size_per_task
-    end_idx = (local_task_id + 1) * partition_size_per_task if local_task_id != ntasks_per_node - 1 else None
+    end_idx = (
+        (local_task_id + 1) * partition_size_per_task
+        if local_task_id != ntasks_per_node - 1
+        else None
+    )
     input = captions[start_idx:end_idx]
 
     print(f"Current worker {node_id}:{local_task_id} will generate {len(input)} images")
@@ -91,7 +103,9 @@ def main(cfg):
 
     torch.backends.cuda.matmul.allow_tf32 = True
     trainer, megatron_diffusion_model = setup_trainer_and_model_for_inference(
-        model_provider=MegatronDiffusionEngine, cfg=cfg, model_cfg_modifier=model_cfg_modifier
+        model_provider=MegatronDiffusionEngine,
+        cfg=cfg,
+        model_cfg_modifier=model_cfg_modifier,
     )
     model = megatron_diffusion_model.model
     model.cuda().eval()
@@ -104,7 +118,9 @@ def main(cfg):
     # Generate images using the model and save them
     for i, prompt in enumerate(input):
         cfg.infer.prompt = [prompt]
-        seed = int(cfg.infer.seed + local_task_id * 10 + node_id_per_cfg * 100 + i * 1000)
+        seed = int(
+            cfg.infer.seed + local_task_id * 10 + node_id_per_cfg * 100 + i * 1000
+        )
         output = base.text_to_image(
             params=cfg.sampling.base,
             prompt=cfg.infer.prompt,
@@ -132,10 +148,14 @@ def main(cfg):
             )
 
         for sample in output:
-            image_num = i + partition_size_per_node * node_id_per_cfg + partition_size_per_task * local_task_id
+            image_num = (
+                i
+                + partition_size_per_node * node_id_per_cfg
+                + partition_size_per_task * local_task_id
+            )
             sample = 255.0 * rearrange(sample.cpu().numpy(), "c h w -> h w c")
             image = Image.fromarray(sample.astype(np.uint8))
-            image.save(os.path.join(save_path, f'image{image_num:06d}.png'))
+            image.save(os.path.join(save_path, f"image{image_num:06d}.png"))
 
 
 if __name__ == "__main__":

@@ -39,7 +39,7 @@ from nemo.collections.tts.parts.utils.tts_dataset_utils import (
 from nemo.core.classes import IterableDataset
 from nemo.utils import logging
 
-__all__ = ['T5SpeechLMTarredDataset']
+__all__ = ["T5SpeechLMTarredDataset"]
 
 
 @dataclass
@@ -52,7 +52,9 @@ class G2PConfig:
 
 @dataclass
 class TextTokenizer:
-    _target_: str = "nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers.EnglishPhonemesTokenizer"
+    _target_: str = (
+        "nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers.EnglishPhonemesTokenizer"
+    )
     punct: bool = True
     stresses: bool = True
     chars: bool = True
@@ -74,7 +76,10 @@ def _get_default_text_tokenizer_conf():
 
 def pad_text_to_speech_dims(text_tensor, pad_id):
     token_len = text_tensor.shape[0]
-    empty_padding = torch.ones((7, token_len), dtype=text_tensor.dtype, device=text_tensor.device) * pad_id
+    empty_padding = (
+        torch.ones((7, token_len), dtype=text_tensor.dtype, device=text_tensor.device)
+        * pad_id
+    )
     return torch.cat((text_tensor.unsqueeze(0), empty_padding), dim=0)
 
 
@@ -198,8 +203,8 @@ class _TarredInstructionTuningDataset(IterableDataset):
             logging.info("WebDataset will not shuffle files within the tar files.")
 
         self._dataset = (
-            self._dataset.rename(key='__key__', answer='pt', context='context.pt')
-            .to_tuple('key', 'answer', 'context')
+            self._dataset.rename(key="__key__", answer="pt", context="context.pt")
+            .to_tuple("key", "answer", "context")
             .pipe(self._filter)
             .pipe(self._loop_offsets)
             .map(f=self._build_sample)
@@ -247,17 +252,28 @@ class _TarredInstructionTuningDataset(IterableDataset):
 
             def __next__(self):
                 if self.current_fn is None:
-                    self.current_fn, self.current_bytes, self.current_context_bytes = next(self.iterator)
+                    self.current_fn, self.current_bytes, self.current_context_bytes = (
+                        next(self.iterator)
+                    )
                     self.offset_id = 0
                 else:
                     offset_list = self.collection.mapping[self.current_fn]
                     if len(offset_list) == self.offset_id + 1:
-                        self.current_fn, self.current_bytes, self.current_context_bytes = next(self.iterator)
+                        (
+                            self.current_fn,
+                            self.current_bytes,
+                            self.current_context_bytes,
+                        ) = next(self.iterator)
                         self.offset_id = 0
                     else:
                         self.offset_id += 1
 
-                return self.current_fn, self.current_bytes, self.current_context_bytes, self.offset_id
+                return (
+                    self.current_fn,
+                    self.current_bytes,
+                    self.current_context_bytes,
+                    self.offset_id,
+                )
 
         return TarredAudioLoopOffsets(self.manifest_processor.collection)
 
@@ -276,11 +292,17 @@ class _TarredInstructionTuningDataset(IterableDataset):
         return self._dataset.__iter__()
 
     def _compute_len(self):
-        if self.shard_manifests and torch.distributed.is_available() and torch.distributed.is_initialized():
-            my_len = torch.tensor(len(self.manifest_processor.collection), dtype=torch.int32).cuda()
+        if (
+            self.shard_manifests
+            and torch.distributed.is_available()
+            and torch.distributed.is_initialized()
+        ):
+            my_len = torch.tensor(
+                len(self.manifest_processor.collection), dtype=torch.int32
+            ).cuda()
             torch.distributed.all_reduce(my_len)
             my_len = my_len.int()
-            logging.info(f'Sharded manifests: Total length: {my_len}')
+            logging.info(f"Sharded manifests: Total length: {my_len}")
         else:
             my_len = len(self.manifest_processor.collection)
 
@@ -370,16 +392,22 @@ class T5SpeechLMTarredDataset(_TarredInstructionTuningDataset):
         self.trim = trim
         self.trim_ref = trim_ref if trim_ref is not None else np.max
         self.trim_top_db = trim_top_db if trim_top_db is not None else 60
-        self.trim_frame_length = trim_frame_length if trim_frame_length is not None else 2048
+        self.trim_frame_length = (
+            trim_frame_length if trim_frame_length is not None else 2048
+        )
         self.trim_hop_length = trim_hop_length if trim_hop_length is not None else 512
         self.speech_offset = speech_offset if speech_offset is not None else 3
         self.seq_pattern = seq_pattern
-        self.min_duration = kwargs.get('min_duration', 0.1)
-        self.max_duration = kwargs.get('max_duration', 20)
+        self.min_duration = kwargs.get("min_duration", 0.1)
+        self.max_duration = kwargs.get("max_duration", 20)
         self.use_attention_prior = use_attention_prior
         self.attention_prior_scaling_factor = attention_prior_scaling_factor
-        self.cross_attention_epsilon = cross_attention_epsilon  # value of prior for context tokens (b/w 0 and 1)
-        assert self.cross_attention_epsilon >= 0.0 and self.cross_attention_epsilon <= 1.0
+        self.cross_attention_epsilon = (
+            cross_attention_epsilon  # value of prior for context tokens (b/w 0 and 1)
+        )
+        assert (
+            self.cross_attention_epsilon >= 0.0 and self.cross_attention_epsilon <= 1.0
+        )
 
         self.train_task = train_task
 
@@ -397,13 +425,19 @@ class T5SpeechLMTarredDataset(_TarredInstructionTuningDataset):
         self.for_train = for_train
         self.use_phoneme_tokenizer = use_phoneme_tokenizer
         self.examples = []
-        self.lm_vocab_size = tokenizer.vocab_size if lm_vocab_size is None else lm_vocab_size
+        self.lm_vocab_size = (
+            tokenizer.vocab_size if lm_vocab_size is None else lm_vocab_size
+        )
         self.num_speech_codebooks = num_speech_codebooks
 
-        assert self.min_seq_length <= max_seq_length, "Min sequence length should be less than or equal to max"
+        assert (
+            self.min_seq_length <= max_seq_length
+        ), "Min sequence length should be less than or equal to max"
         assert self.max_seq_length > 0, "Max sequence length should be greater than 0"
 
-        self.context_length = kwargs.pop('context_length', None)  # only used in gpt dataset atm
+        self.context_length = kwargs.pop(
+            "context_length", None
+        )  # only used in gpt dataset atm
 
         logging.info("Loading and tokenizing dataset ... ")
 
@@ -434,7 +468,9 @@ class T5SpeechLMTarredDataset(_TarredInstructionTuningDataset):
             split_start = total_inserted_tokens
             split_end = total_inserted_tokens + virtual_token_splits[idx]
             pseudo_tokens_for_split = "".join(self.pseudo_tokens[split_start:split_end])
-            input_example = input_example.replace(f'<|VIRTUAL_PROMPT_{idx}|>', pseudo_tokens_for_split)
+            input_example = input_example.replace(
+                f"<|VIRTUAL_PROMPT_{idx}|>", pseudo_tokens_for_split
+            )
             total_inserted_tokens = split_end
 
         return input_example
@@ -443,7 +479,10 @@ class T5SpeechLMTarredDataset(_TarredInstructionTuningDataset):
         # Pad taskname_ids to be the same length for the prompt encoder
         if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
             max_taskname_length = max(len(ids) for ids in taskname_ids)
-            taskname_ids = [ids + [self.pad_token_id] * (max_taskname_length - len(ids)) for ids in taskname_ids]
+            taskname_ids = [
+                ids + [self.pad_token_id] * (max_taskname_length - len(ids))
+                for ids in taskname_ids
+            ]
             taskname_ids = torch.tensor(taskname_ids)
 
         # Task ids are just used for a look up embeddings for prompt-table
@@ -459,14 +498,14 @@ class T5SpeechLMTarredDataset(_TarredInstructionTuningDataset):
         manifest_idx = self.manifest_processor.collection.mapping[file_id][offset_id]
         manifest_entry = self.manifest_processor.collection[manifest_idx]
         doc = {}
-        doc['context'] = manifest_entry.context
-        doc['context_type'] = manifest_entry.context_type
-        doc['context_duration'] = manifest_entry.context_duration
-        doc['answer'] = manifest_entry.answer
-        doc['answer_type'] = manifest_entry.answer_type
-        doc['answer_duration'] = manifest_entry.answer_duration
-        doc['question'] = manifest_entry.question
-        doc['question_type'] = manifest_entry.question_type
+        doc["context"] = manifest_entry.context
+        doc["context_type"] = manifest_entry.context_type
+        doc["context_duration"] = manifest_entry.context_duration
+        doc["answer"] = manifest_entry.answer
+        doc["answer_type"] = manifest_entry.answer_type
+        doc["answer_duration"] = manifest_entry.answer_duration
+        doc["question"] = manifest_entry.question
+        doc["question_type"] = manifest_entry.question_type
 
         taskname = "squad"
         prompt_template = self.task_templates[taskname]["prompt_template"]
@@ -480,9 +519,11 @@ class T5SpeechLMTarredDataset(_TarredInstructionTuningDataset):
 
         # Format the input example according to the template
         # Get context, question and answer codes in a dict.
-        input_dict = self._insert_data_in_template(input_example, prompt_template_fields, doc, answer_field)
-        context_tokens = input_dict['context']
-        question_tokens = input_dict['question']
+        input_dict = self._insert_data_in_template(
+            input_example, prompt_template_fields, doc, answer_field
+        )
+        context_tokens = input_dict["context"]
+        question_tokens = input_dict["question"]
 
         # Logic to prune context
         # In case of TTS task, the entire reference speech is not required, so we randomly select a portion
@@ -505,7 +546,10 @@ class T5SpeechLMTarredDataset(_TarredInstructionTuningDataset):
                 0, total_context_len - reduced_len
             )  # start index can be greater than 440
             context_tokens[0] = context_tokens[0][
-                :, start_token_index : min(start_token_index + 440, start_token_index + reduced_len)
+                :,
+                start_token_index : min(
+                    start_token_index + 440, start_token_index + reduced_len
+                ),
             ]
         elif "Next token prediction" in question_in_manifest:
             total_context_len = context_tokens[0].size()[1]
@@ -513,13 +557,17 @@ class T5SpeechLMTarredDataset(_TarredInstructionTuningDataset):
             context_tokens[0] = context_tokens[0][:, :end_token_index]
 
         # Get virtual tokens
-        virtual_tokens = self._insert_virtual_token_placeholders(input_example.split(' ')[0], virtual_token_splits)
+        virtual_tokens = self._insert_virtual_token_placeholders(
+            input_example.split(" ")[0], virtual_token_splits
+        )
 
         # a trick to align with the data format in t5 pretraining
         # new
         virtual_tokens = self.tokenizer.text_to_ids(virtual_tokens)
         if self.add_sentinel_to_input:
-            question_tokens = question_tokens + self.tokenizer.text_to_ids(T5Sentinel.FIRST.value)
+            question_tokens = question_tokens + self.tokenizer.text_to_ids(
+                T5Sentinel.FIRST.value
+            )
 
         # Add BOS/EOS to the input of encoder if desired, adds EOS by default
         if self.ul2_prompt_token is not None:
@@ -532,9 +580,14 @@ class T5SpeechLMTarredDataset(_TarredInstructionTuningDataset):
             question_tokens = question_tokens + [self.tokenizer.eos_id]
 
         # Try to truncate input text to fit into the max sequence length
-        if self._get_len(context_tokens, question_tokens, virtual_tokens) > self.max_seq_length:
-            context_tokens, question_tokens, virtual_tokens = self._truncate_input_speech(
-                context_tokens, question_tokens, virtual_tokens
+        if (
+            self._get_len(context_tokens, question_tokens, virtual_tokens)
+            > self.max_seq_length
+        ):
+            context_tokens, question_tokens, virtual_tokens = (
+                self._truncate_input_speech(
+                    context_tokens, question_tokens, virtual_tokens
+                )
             )
 
         virtual_tokens, virtual_tokens_len = self.list_to_tensor(virtual_tokens)
@@ -542,11 +595,17 @@ class T5SpeechLMTarredDataset(_TarredInstructionTuningDataset):
         question_tokens, question_tokens_len = self.list_to_tensor(question_tokens)
 
         if doc["question_type"] != "SPEECH" and doc["context_type"] == "SPEECH":
-            question_tokens = pad_text_to_speech_dims(question_tokens, self.tokenizer.pad_id)
+            question_tokens = pad_text_to_speech_dims(
+                question_tokens, self.tokenizer.pad_id
+            )
         if doc["context_type"] != "SPEECH" and doc["question_type"] == "SPEECH":
-            context_tokens = pad_text_to_speech_dims(context_tokens, self.tokenizer.pad_id)
+            context_tokens = pad_text_to_speech_dims(
+                context_tokens, self.tokenizer.pad_id
+            )
         context_tokens = context_tokens.to(question_tokens.device)
-        context_and_question_tokens = torch.cat([context_tokens, question_tokens], dim=1)
+        context_and_question_tokens = torch.cat(
+            [context_tokens, question_tokens], dim=1
+        )
 
         # get answer ids
         if answer_field in doc.keys():  # training and validation
@@ -569,9 +628,12 @@ class T5SpeechLMTarredDataset(_TarredInstructionTuningDataset):
         # Skip example if the final length doesn't fit length requirements even after truncation
         if (
             self.min_seq_length
-            <= self._get_element_len(context_and_question_tokens) + self._get_element_len(virtual_tokens)
+            <= self._get_element_len(context_and_question_tokens)
+            + self._get_element_len(virtual_tokens)
             <= self.max_seq_length
-            and self.min_seq_length <= self._get_element_len(answer_text_ids) <= self.max_seq_length
+            and self.min_seq_length
+            <= self._get_element_len(answer_text_ids)
+            <= self.max_seq_length
         ):
             if self.virtual_prompt_source == VirtualPromptSource.PROMPT_ENCODER:
                 taskname_id = self.tokenizer.text_to_ids(taskname)
@@ -619,7 +681,9 @@ class T5SpeechLMTarredDataset(_TarredInstructionTuningDataset):
                         et_decoder_input = dec_input_padded.shape[1] - _c
                         et_decoder_labels = dec_labels_padded.shape[1] - _c
                         dec_input_new.append(dec_input_padded[_c, st:et_decoder_input])
-                        dec_labels_new.append(dec_labels_padded[_c, st:et_decoder_labels])
+                        dec_labels_new.append(
+                            dec_labels_padded[_c, st:et_decoder_labels]
+                        )
                     dec_input = torch.stack(dec_input_new, dim=0)
                     dec_labels = torch.stack(dec_labels_new, dim=0)
                     dec_input_len = torch.tensor(dec_input.shape[1]).long()
@@ -629,7 +693,9 @@ class T5SpeechLMTarredDataset(_TarredInstructionTuningDataset):
             # TODO: Remove hardcoding
             num_question_offset = 4  # For "Text to Speech this"
 
-            cross_attention_prior = torch.zeros(dec_labels_len, enc_len) + self.cross_attention_epsilon
+            cross_attention_prior = (
+                torch.zeros(dec_labels_len, enc_len) + self.cross_attention_epsilon
+            )
             if self.use_attention_prior:
                 cross_attention_question_prior = torch.from_numpy(
                     beta_binomial_prior_distribution(
@@ -638,9 +704,9 @@ class T5SpeechLMTarredDataset(_TarredInstructionTuningDataset):
                         scaling_factor=self.attention_prior_scaling_factor,
                     )
                 )
-                cross_attention_prior[:, virtual_tokens_len + context_tokens_len + num_question_offset :] = (
-                    cross_attention_question_prior
-                )
+                cross_attention_prior[
+                    :, virtual_tokens_len + context_tokens_len + num_question_offset :
+                ] = cross_attention_question_prior
 
             return (
                 taskname_id,
@@ -707,7 +773,13 @@ class T5SpeechLMTarredDataset(_TarredInstructionTuningDataset):
         if self.pad_multiple > 1:
             if wav.shape[0] % self.pad_multiple != 0:
                 wav = torch.cat(
-                    [wav, torch.zeros(self.pad_multiple - wav.shape[0] % self.pad_multiple, dtype=torch.float)]
+                    [
+                        wav,
+                        torch.zeros(
+                            self.pad_multiple - wav.shape[0] % self.pad_multiple,
+                            dtype=torch.float,
+                        ),
+                    ]
                 )
         return wav
 
@@ -741,16 +813,22 @@ class T5SpeechLMTarredDataset(_TarredInstructionTuningDataset):
         # Convert to codes
         codec_codes, codec_codes_length = None, None  # Codes
 
-        if self.train_task == 'tts':
-            if field == 'context':
-                self.ref_encodec = torch.load(io.BytesIO(self.ref_encodec), map_location="cpu").long()
+        if self.train_task == "tts":
+            if field == "context":
+                self.ref_encodec = torch.load(
+                    io.BytesIO(self.ref_encodec), map_location="cpu"
+                ).long()
                 codec_codes = self.ref_encodec
-            elif field == 'answer':
-                self.encodec = torch.load(io.BytesIO(self.encodec), map_location="cpu").long()
+            elif field == "answer":
+                self.encodec = torch.load(
+                    io.BytesIO(self.encodec), map_location="cpu"
+                ).long()
                 codec_codes = self.encodec
-        elif self.train_task == 'asr':
-            if field == 'context':
-                self.ref_encodec = torch.load(io.BytesIO(self.ref_encodec), map_location="cpu").long()
+        elif self.train_task == "asr":
+            if field == "context":
+                self.ref_encodec = torch.load(
+                    io.BytesIO(self.ref_encodec), map_location="cpu"
+                ).long()
                 codec_codes = self.ref_encodec
 
         # codec_codes_length = torch.tensor(codec_codes.shape[1]).long()
@@ -763,26 +841,30 @@ class T5SpeechLMTarredDataset(_TarredInstructionTuningDataset):
     def _get_tokens(self, doc, field, field_data):
         if f"{field}_type" not in doc.keys():
             field_tokens = self._get_text_tokens(field_data.strip(" "))  # list of ids
-        elif doc[f"{field}_type"] == 'TEXT':
+        elif doc[f"{field}_type"] == "TEXT":
             _text = field_data.strip(" ")
             if self.use_phoneme_tokenizer:
                 instruction_tokens = self._get_text_tokens("Phoneme TTS")
-                field_tokens = self._get_phoneme_tokens(_text.replace("Text to speech this ", ""))
+                field_tokens = self._get_phoneme_tokens(
+                    _text.replace("Text to speech this ", "")
+                )
                 field_tokens = instruction_tokens + field_tokens
             else:
                 field_tokens = self._get_text_tokens(_text)  # list of ids
-        elif doc[f"{field}_type"] == 'SPEECH':
+        elif doc[f"{field}_type"] == "SPEECH":
             field_tokens = self._get_speech_tokens(field)  # list of ids
             if not isinstance(field_tokens, list):
                 field_tokens = [field_tokens]
-        elif doc[f"{field}_type"] == 'TOKENS':
+        elif doc[f"{field}_type"] == "TOKENS":
             # Do nothing; already tokenized
             field_tokens = field_data
         else:
             raise Exception(f"{field}_type not recognized")
         return field_tokens
 
-    def _insert_data_in_template(self, input_example, prompt_template_fields, doc, answer_field):
+    def _insert_data_in_template(
+        self, input_example, prompt_template_fields, doc, answer_field
+    ):
         """Format the input example according to the template"""
         out_dict = {}
         for field in prompt_template_fields:
@@ -820,21 +902,23 @@ class T5SpeechLMTarredDataset(_TarredInstructionTuningDataset):
 
         data_dict = self.pad_batch_and_build_loss_mask(batch)
 
-        position_ids = self.get_position_ids(data_dict['virtual_tokens'], data_dict['context_and_question_tokens'])
+        position_ids = self.get_position_ids(
+            data_dict["virtual_tokens"], data_dict["context_and_question_tokens"]
+        )
 
         return (
-            data_dict['virtual_tokens'],
-            data_dict['context_and_question_tokens'],
-            data_dict['enc_mask'],
-            data_dict['dec_input'],
-            data_dict['dec_input_mask'],
-            data_dict['dec_labels'],
-            data_dict['dec_labels_mask'],
+            data_dict["virtual_tokens"],
+            data_dict["context_and_question_tokens"],
+            data_dict["enc_mask"],
+            data_dict["dec_input"],
+            data_dict["dec_input_mask"],
+            data_dict["dec_labels"],
+            data_dict["dec_labels_mask"],
             position_ids,
-            data_dict['taskname_id'],
-            data_dict['speech_mask'],
-            data_dict['context_and_question_tokens_lens'],
-            data_dict['cross_attention_prior'],
+            data_dict["taskname_id"],
+            data_dict["speech_mask"],
+            data_dict["context_and_question_tokens_lens"],
+            data_dict["cross_attention_prior"],
         )
 
     def pad_batch_and_build_loss_mask(self, batch):
@@ -855,20 +939,32 @@ class T5SpeechLMTarredDataset(_TarredInstructionTuningDataset):
 
         taskname_ids = self.pad_taskname_ids(taskname_ids)
 
-        max_virtual_tokens_len = max(virtual_tokens_len).item() if virtual_tokens_len is not None else 0
+        max_virtual_tokens_len = (
+            max(virtual_tokens_len).item() if virtual_tokens_len is not None else 0
+        )
         if isinstance(virtual_tokens_len, tuple):
             virtual_tokens_len = torch.stack(virtual_tokens_len)
         virtual_mask = get_mask_from_lengths(virtual_tokens_len)
 
         max_context_and_question_tokens_len = (
-            max(context_and_question_tokens_len).item() if context_and_question_tokens_len is not None else 0
+            max(context_and_question_tokens_len).item()
+            if context_and_question_tokens_len is not None
+            else 0
         )
         if isinstance(context_and_question_tokens_len, tuple):
-            context_and_question_tokens_len = torch.stack(context_and_question_tokens_len)
-        context_and_question_mask = get_mask_from_lengths(context_and_question_tokens_len)
+            context_and_question_tokens_len = torch.stack(
+                context_and_question_tokens_len
+            )
+        context_and_question_mask = get_mask_from_lengths(
+            context_and_question_tokens_len
+        )
 
-        max_dec_input_len = max(dec_input_len).item() if dec_input_len is not None else 0
-        max_dec_labels_len = max(dec_labels_len).item() if dec_labels_len is not None else 0
+        max_dec_input_len = (
+            max(dec_input_len).item() if dec_input_len is not None else 0
+        )
+        max_dec_labels_len = (
+            max(dec_labels_len).item() if dec_labels_len is not None else 0
+        )
         enc_mask = torch.cat([virtual_mask, context_and_question_mask], dim=1)
 
         (
@@ -908,7 +1004,10 @@ class T5SpeechLMTarredDataset(_TarredInstructionTuningDataset):
 
             virtual_tokens_list.append(
                 general_padding(
-                    virtual_token, virtual_token_len.item(), max_virtual_tokens_len, pad_value=self.tokenizer.pad_id
+                    virtual_token,
+                    virtual_token_len.item(),
+                    max_virtual_tokens_len,
+                    pad_value=self.tokenizer.pad_id,
                 )
             )
 
@@ -919,18 +1018,28 @@ class T5SpeechLMTarredDataset(_TarredInstructionTuningDataset):
                 pad_value=self.tokenizer.pad_id,
             )
             if len(context_tokens_padded.shape) < 2:
-                context_tokens_padded = pad_text_to_speech_dims(context_tokens_padded, self.tokenizer.pad_id)
+                context_tokens_padded = pad_text_to_speech_dims(
+                    context_tokens_padded, self.tokenizer.pad_id
+                )
             context_question_tokens_list.append(context_tokens_padded)
 
             if max_dec_input_len > 0:
                 dec_input_padded = general_padding(
-                    dec_input, dec_input_len.item(), max_dec_input_len, pad_value=self.tokenizer.pad_id
+                    dec_input,
+                    dec_input_len.item(),
+                    max_dec_input_len,
+                    pad_value=self.tokenizer.pad_id,
                 )
                 if len(dec_input_padded.shape) < 2:
-                    dec_input_padded = pad_text_to_speech_dims(dec_input_padded, self.tokenizer.pad_id)
+                    dec_input_padded = pad_text_to_speech_dims(
+                        dec_input_padded, self.tokenizer.pad_id
+                    )
                 dec_input_list.append(dec_input_padded)
                 dec_mask = (
-                    torch.as_tensor(([1] * dec_input_len) + ([0] * (max_dec_input_len - dec_input_len)))
+                    torch.as_tensor(
+                        ([1] * dec_input_len)
+                        + ([0] * (max_dec_input_len - dec_input_len))
+                    )
                     .long()
                     .contiguous()
                 )
@@ -940,15 +1049,23 @@ class T5SpeechLMTarredDataset(_TarredInstructionTuningDataset):
 
             if max_dec_labels_len > 0:
                 loss_mask = (
-                    torch.as_tensor(([1] * dec_label_len) + ([0] * (max_dec_labels_len - dec_label_len)))
+                    torch.as_tensor(
+                        ([1] * dec_label_len)
+                        + ([0] * (max_dec_labels_len - dec_label_len))
+                    )
                     .long()
                     .contiguous()
                 )
                 dec_label_padded = general_padding(
-                    dec_label, dec_label_len.item(), max_dec_labels_len, pad_value=self.tokenizer.pad_id
+                    dec_label,
+                    dec_label_len.item(),
+                    max_dec_labels_len,
+                    pad_value=self.tokenizer.pad_id,
                 )
                 if len(dec_label_padded.shape) < 2:
-                    dec_label_padded = pad_text_to_speech_dims(dec_label_padded, self.tokenizer.pad_id)
+                    dec_label_padded = pad_text_to_speech_dims(
+                        dec_label_padded, self.tokenizer.pad_id
+                    )
                 dec_labels_list.append(dec_label_padded)
                 dec_labels_mask_list.append(loss_mask)
 
@@ -973,14 +1090,30 @@ class T5SpeechLMTarredDataset(_TarredInstructionTuningDataset):
             "virtual_tokens": torch.stack(virtual_tokens_list),
             "context_and_question_tokens": torch.stack(context_question_tokens_list),
             "enc_mask": enc_mask,
-            "dec_input": torch.stack(dec_input_list) if len(dec_input_list) > 0 else None,
-            "dec_input_mask": torch.stack(dec_input_mask_list) if len(dec_input_mask_list) > 0 else None,
-            "dec_labels": torch.stack(dec_labels_list) if len(dec_labels_list) > 0 else None,
-            "dec_labels_mask": torch.stack(dec_labels_mask_list) if len(dec_labels_mask_list) > 0 else None,
-            "speech_mask": torch.stack(speech_mask_list) if len(speech_mask_list) > 0 else None,
+            "dec_input": (
+                torch.stack(dec_input_list) if len(dec_input_list) > 0 else None
+            ),
+            "dec_input_mask": (
+                torch.stack(dec_input_mask_list)
+                if len(dec_input_mask_list) > 0
+                else None
+            ),
+            "dec_labels": (
+                torch.stack(dec_labels_list) if len(dec_labels_list) > 0 else None
+            ),
+            "dec_labels_mask": (
+                torch.stack(dec_labels_mask_list)
+                if len(dec_labels_mask_list) > 0
+                else None
+            ),
+            "speech_mask": (
+                torch.stack(speech_mask_list) if len(speech_mask_list) > 0 else None
+            ),
             "context_and_question_tokens_lens": context_and_question_tokens_len,
             "cross_attention_prior": (
-                torch.stack(cross_attention_prior_list) if len(cross_attention_prior_list) > 0 else None
+                torch.stack(cross_attention_prior_list)
+                if len(cross_attention_prior_list) > 0
+                else None
             ),
         }
 

@@ -49,7 +49,7 @@ from nemo.core.neural_types import (BoolType, FloatType, LengthsType,
                                     NeuralType, SpectrogramType)
 from nemo.utils import logging
 
-__all__ = ['TransformerUNet']
+__all__ = ["TransformerUNet"]
 
 
 class LearnedSinusoidalPosEmb(Module):
@@ -70,8 +70,8 @@ class LearnedSinusoidalPosEmb(Module):
         Return:
           fouriered: the encoded time conditional embedding, shape (B, D)
         """
-        t = einops.rearrange(t, 'b -> b 1')
-        freqs = t * einops.rearrange(self.weights, 'd -> 1 d') * 2 * math.pi
+        t = einops.rearrange(t, "b -> b 1")
+        freqs = t * einops.rearrange(self.weights, "d -> 1 d") * 2 * math.pi
         fouriered = torch.cat((freqs.sin(), freqs.cos()), dim=-1)
         return fouriered
 
@@ -88,7 +88,8 @@ class ConvPositionEmbed(Module):
             groups = dim
 
         self.dw_conv1d = nn.Sequential(
-            nn.Conv1d(dim, dim, kernel_size, groups=groups, padding=kernel_size // 2), nn.GELU()
+            nn.Conv1d(dim, dim, kernel_size, groups=groups, padding=kernel_size // 2),
+            nn.GELU(),
         )
 
     def forward(self, x, mask=None):
@@ -104,9 +105,9 @@ class ConvPositionEmbed(Module):
             mask = mask[..., None]
             x = x.masked_fill(mask, 0.0)
 
-        x = einops.rearrange(x, 'b n c -> b c n')
+        x = einops.rearrange(x, "b n c -> b c n")
         x = self.dw_conv1d(x)
-        out = einops.rearrange(x, 'b c n -> b n c')
+        out = einops.rearrange(x, "b c n -> b n c")
 
         if mask is not None:
             out = out.masked_fill(mask, 0.0)
@@ -157,8 +158,8 @@ class AdaptiveRMSNorm(Module):
         normed = F.normalize(x, dim=-1) * self.scale
 
         gamma, beta = self.to_gamma(cond), self.to_beta(cond)
-        gamma = einops.rearrange(gamma, 'B D -> B 1 D')
-        beta = einops.rearrange(beta, 'B D -> B 1 D')
+        gamma = einops.rearrange(gamma, "B D -> B 1 D")
+        beta = einops.rearrange(beta, "B D -> B 1 D")
 
         return normed * gamma + beta
 
@@ -177,7 +178,12 @@ def get_feedforward_layer(dim: int, mult: int = 4, dropout: float = 0.0):
     GeGLU activation is used in this FF layer
     """
     dim_inner = int(dim * mult * 2 / 3)
-    return nn.Sequential(nn.Linear(dim, dim_inner * 2), GEGLU(), nn.Dropout(dropout), nn.Linear(dim_inner, dim))
+    return nn.Sequential(
+        nn.Linear(dim, dim_inner * 2),
+        GEGLU(),
+        nn.Dropout(dropout),
+        nn.Linear(dim_inner, dim),
+    )
 
 
 class TransformerUNet(NeuralModule):
@@ -226,12 +232,16 @@ class TransformerUNet(NeuralModule):
         self.init_alibi(max_positions=max_positions, heads=heads)
 
         if adaptive_rmsnorm and adaptive_rmsnorm_cond_dim_in is None:
-            raise ValueError("adaptive_rmsnorm_cond_dim_in must be provided if adaptive_rmsnorm is True")
+            raise ValueError(
+                "adaptive_rmsnorm_cond_dim_in must be provided if adaptive_rmsnorm is True"
+            )
         self.adaptive_rmsnorm = adaptive_rmsnorm
         self.adaptive_rmsnorm_cond_dim_in = adaptive_rmsnorm_cond_dim_in
 
         if self.adaptive_rmsnorm:
-            rmsnorm_class = partial(AdaptiveRMSNorm, cond_dim=adaptive_rmsnorm_cond_dim_in)
+            rmsnorm_class = partial(
+                AdaptiveRMSNorm, cond_dim=adaptive_rmsnorm_cond_dim_in
+            )
         else:
             rmsnorm_class = RMSNorm
 
@@ -256,26 +266,28 @@ class TransformerUNet(NeuralModule):
                             batch_first=True,
                         ),
                         rmsnorm_class(dim=dim),
-                        get_feedforward_layer(dim=dim, mult=ff_mult, dropout=ff_dropout),
+                        get_feedforward_layer(
+                            dim=dim, mult=ff_mult, dropout=ff_dropout
+                        ),
                     ]
                 )
             )
 
         self.final_norm = RMSNorm(dim)
 
-        logging.debug('Initialized %s with', self.__class__.__name__)
-        logging.debug('\tembedding dim:       %s', dim)
-        logging.debug('\tNumber of Layer:     %s', depth)
-        logging.debug('\tfeedforward dim:     %s', dim * ff_mult)
-        logging.debug('\tnumber of heads:     %s', heads)
-        logging.debug('\tDropout rate of MHA: %s', attn_dropout)
-        logging.debug('\tDropout rate of FF:  %s', ff_dropout)
-        logging.debug('\tnumber of heads:     %s', heads)
-        logging.debug('\tmaximun time length: %s', max_positions)
-        logging.debug('\tuse AdaptiveRMS:     %s', adaptive_rmsnorm)
-        logging.debug('\tConditional  dim:    %s', adaptive_rmsnorm_cond_dim_in)
-        logging.debug('\tUse UNet connection: %s', use_unet_skip_connection)
-        logging.debug('\tskip connect scale:  %s', self.skip_connect_scale)
+        logging.debug("Initialized %s with", self.__class__.__name__)
+        logging.debug("\tembedding dim:       %s", dim)
+        logging.debug("\tNumber of Layer:     %s", depth)
+        logging.debug("\tfeedforward dim:     %s", dim * ff_mult)
+        logging.debug("\tnumber of heads:     %s", heads)
+        logging.debug("\tDropout rate of MHA: %s", attn_dropout)
+        logging.debug("\tDropout rate of FF:  %s", ff_dropout)
+        logging.debug("\tnumber of heads:     %s", heads)
+        logging.debug("\tmaximun time length: %s", max_positions)
+        logging.debug("\tuse AdaptiveRMS:     %s", adaptive_rmsnorm)
+        logging.debug("\tConditional  dim:    %s", adaptive_rmsnorm_cond_dim_in)
+        logging.debug("\tUse UNet connection: %s", use_unet_skip_connection)
+        logging.debug("\tskip connect scale:  %s", self.skip_connect_scale)
 
     def init_alibi(
         self,
@@ -301,29 +313,38 @@ class TransformerUNet(NeuralModule):
         self.slopes = nn.Parameter(einops.rearrange(get_slopes(heads), "B -> B 1 1"))
 
         pos_matrix = (
-            -1 * torch.abs(torch.arange(max_positions).unsqueeze(0) - torch.arange(max_positions).unsqueeze(1)).float()
+            -1
+            * torch.abs(
+                torch.arange(max_positions).unsqueeze(0)
+                - torch.arange(max_positions).unsqueeze(1)
+            ).float()
         )
         pos_matrix = einops.rearrange(pos_matrix, "T1 T2 -> 1 T1 T2")
-        self.register_buffer('pos_matrix', pos_matrix, persistent=False)
+        self.register_buffer("pos_matrix", pos_matrix, persistent=False)
 
     @property
     def input_types(self) -> Dict[str, NeuralType]:
         """Returns definitions of module output ports."""
         return {
-            "x": NeuralType(('B', 'T', 'D'), FloatType()),
-            "key_padding_mask": NeuralType(('B', 'T'), BoolType(), optional=True),
-            "adaptive_rmsnorm_cond": NeuralType(('B', 'D'), FloatType(), optional=True),
+            "x": NeuralType(("B", "T", "D"), FloatType()),
+            "key_padding_mask": NeuralType(("B", "T"), BoolType(), optional=True),
+            "adaptive_rmsnorm_cond": NeuralType(("B", "D"), FloatType(), optional=True),
         }
 
     @property
     def output_types(self) -> Dict[str, NeuralType]:
         """Returns definitions of module output ports."""
         return {
-            "output": NeuralType(('B', 'T', 'D'), FloatType()),
+            "output": NeuralType(("B", "T", "D"), FloatType()),
         }
 
     @typecheck()
-    def forward(self, x, key_padding_mask: Optional[torch.Tensor] = None, adaptive_rmsnorm_cond=None):
+    def forward(
+        self,
+        x,
+        key_padding_mask: Optional[torch.Tensor] = None,
+        adaptive_rmsnorm_cond=None,
+    ):
         """Forward pass of the model.
 
         Args:
@@ -352,7 +373,9 @@ class TransformerUNet(NeuralModule):
             if key_padding_mask is not None:
                 # Since Alibi_bias is a float-type attn_mask, the padding_mask need to be float-type.
                 float_key_padding_mask = key_padding_mask.float()
-                float_key_padding_mask = float_key_padding_mask.masked_fill(key_padding_mask, float('-inf'))
+                float_key_padding_mask = float_key_padding_mask.masked_fill(
+                    key_padding_mask, float("-inf")
+                )
             else:
                 float_key_padding_mask = None
 
@@ -417,10 +440,14 @@ class SpectrogramTransformerUNet(NeuralModule):
 
         self.proj_in = nn.Linear(dim_in, dim)
         if adaptive_rmsnorm:
-            self.sinu_pos_emb = nn.Sequential(LearnedSinusoidalPosEmb(dim), nn.Linear(dim, time_hidden_dim), nn.SiLU())
+            self.sinu_pos_emb = nn.Sequential(
+                LearnedSinusoidalPosEmb(dim), nn.Linear(dim, time_hidden_dim), nn.SiLU()
+            )
 
         self.conv_embed = ConvPositionEmbed(
-            dim=dim, kernel_size=conv_pos_embed_kernel_size, groups=conv_pos_embed_groups
+            dim=dim,
+            kernel_size=conv_pos_embed_kernel_size,
+            groups=conv_pos_embed_groups,
         )
 
         self.transformerunet = TransformerUNet(
@@ -441,26 +468,26 @@ class SpectrogramTransformerUNet(NeuralModule):
 
         self.proj_out = nn.Linear(dim, dim_out)
 
-        logging.debug('Initialized %s with', self.__class__.__name__)
-        logging.debug('\tin_channels:  %s', self.in_channels)
-        logging.debug('\tout_channels: %s', self.out_channels)
-        logging.debug('\tInput frequency dimension: %s', freq_dim)
+        logging.debug("Initialized %s with", self.__class__.__name__)
+        logging.debug("\tin_channels:  %s", self.in_channels)
+        logging.debug("\tout_channels: %s", self.out_channels)
+        logging.debug("\tInput frequency dimension: %s", freq_dim)
 
     @property
     def input_types(self) -> Dict[str, NeuralType]:
         """Returns definitions of module output ports."""
         return {
-            "input": NeuralType(('B', 'C', 'D', 'T'), SpectrogramType()),
-            "input_length": NeuralType(('B',), LengthsType(), optional=True),
-            "condition": NeuralType(('B',), FloatType(), optional=True),
+            "input": NeuralType(("B", "C", "D", "T"), SpectrogramType()),
+            "input_length": NeuralType(("B",), LengthsType(), optional=True),
+            "condition": NeuralType(("B",), FloatType(), optional=True),
         }
 
     @property
     def output_types(self) -> Dict[str, NeuralType]:
         """Returns definitions of module output ports."""
         return {
-            "output": NeuralType(('B', 'C', 'D', 'T'), SpectrogramType()),
-            "output_length": NeuralType(('B',), LengthsType(), optional=True),
+            "output": NeuralType(("B", "C", "D", "T"), SpectrogramType()),
+            "output_length": NeuralType(("B",), LengthsType(), optional=True),
         }
 
     @staticmethod
@@ -475,7 +502,11 @@ class SpectrogramTransformerUNet(NeuralModule):
         return:
           key_padding_mask: shape (B, T)
         """
-        key_padding_mask = torch.arange(max_length).expand(len(input_length), max_length).to(input_length.device)
+        key_padding_mask = (
+            torch.arange(max_length)
+            .expand(len(input_length), max_length)
+            .to(input_length.device)
+        )
         key_padding_mask = key_padding_mask >= input_length.unsqueeze(1)
         return key_padding_mask
 
@@ -491,10 +522,12 @@ class SpectrogramTransformerUNet(NeuralModule):
         # Stack real and imaginary components
         B, C_in, D, T = input.shape
         if C_in != self.in_channels:
-            raise RuntimeError(f'Unexpected input channel size {C_in}, expected {self.in_channels}')
+            raise RuntimeError(
+                f"Unexpected input channel size {C_in}, expected {self.in_channels}"
+            )
 
         input_real_imag = torch.stack([input.real, input.imag], dim=2)
-        input = einops.rearrange(input_real_imag, 'B C RI D T -> B T (C RI D)')
+        input = einops.rearrange(input_real_imag, "B C RI D T -> B T (C RI D)")
 
         x = self.proj_in(input)
         key_padding_mask = self._get_key_padding_mask(input_length, max_length=T)
@@ -505,10 +538,14 @@ class SpectrogramTransformerUNet(NeuralModule):
         else:
             time_emb = self.sinu_pos_emb(condition)
 
-        x = self.transformerunet(x=x, key_padding_mask=key_padding_mask, adaptive_rmsnorm_cond=time_emb)
+        x = self.transformerunet(
+            x=x, key_padding_mask=key_padding_mask, adaptive_rmsnorm_cond=time_emb
+        )
 
         output = self.proj_out(x)
-        output = einops.rearrange(output, "B T (C RI D) -> B C D T RI", C=self.out_channels, RI=2, D=D)
+        output = einops.rearrange(
+            output, "B T (C RI D) -> B C D T RI", C=self.out_channels, RI=2, D=D
+        )
         output = torch.view_as_complex(output.contiguous())
 
         return output, input_length

@@ -59,7 +59,9 @@ class MegatronVisionPretrainingRandomSampler(MegatronPretrainingRandomSampler):
 
         # data sharding and random sampling
         if self.data_sharding:
-            bucket_size = (self.total_samples // self.micro_batch_times_data_parallel_size) * self.micro_batch_size
+            bucket_size = (
+                self.total_samples // self.micro_batch_times_data_parallel_size
+            ) * self.micro_batch_size
             bucket_offset = current_epoch_samples // self.data_parallel_size
             start_idx = self.data_parallel_rank * bucket_size
 
@@ -76,7 +78,9 @@ class MegatronVisionPretrainingRandomSampler(MegatronPretrainingRandomSampler):
             g.manual_seed(self.epoch)
             idx_range_total = torch.randperm(full_bucket_size, generator=g).tolist()
             idx_range_active = idx_range_total[full_bucket_offset:]
-            idx_range = idx_range_active[self.data_parallel_rank :: self.data_parallel_size]
+            idx_range = idx_range_active[
+                self.data_parallel_rank :: self.data_parallel_size
+            ]
 
         batch = []
         # Last batch if not complete will be dropped.

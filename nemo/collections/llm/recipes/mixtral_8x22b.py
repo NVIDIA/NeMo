@@ -190,10 +190,16 @@ def pretrain_recipe(
         fn,
         model=model(),
         trainer=trainer(
-            num_nodes=num_nodes, num_gpus_per_node=num_gpus_per_node, callbacks=[run.Config(TimingCallback)]
+            num_nodes=num_nodes,
+            num_gpus_per_node=num_gpus_per_node,
+            callbacks=[run.Config(TimingCallback)],
         ),
-        data=run.Config(MockDataModule, seq_length=4096, global_batch_size=512, micro_batch_size=1),
-        log=default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
+        data=run.Config(
+            MockDataModule, seq_length=4096, global_batch_size=512, micro_batch_size=1
+        ),
+        log=default_log(
+            dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)
+        ),
         optim=distributed_fused_adam_with_cosine_annealing(max_lr=3e-4),
         resume=default_resume(),
     )
@@ -258,7 +264,7 @@ def finetune_recipe(
     name: str = "default",
     num_nodes: int = 8,
     num_gpus_per_node: int = 8,
-    peft_scheme: Optional[str] = 'lora',
+    peft_scheme: Optional[str] = "lora",
     packed_sequence: bool = False,
 ) -> run.Partial:
     """
@@ -294,17 +300,25 @@ def finetune_recipe(
         This recipe uses the SQuAD dataset for fine-tuning.
     """
     recipe = default_finetune_recipe(
-        model(), "mistralai/Mixtral-8x22B-v0.1", dir, name, num_nodes, num_gpus_per_node, packed_sequence
+        model(),
+        "mistralai/Mixtral-8x22B-v0.1",
+        dir,
+        name,
+        num_nodes,
+        num_gpus_per_node,
+        packed_sequence,
     )
     recipe.trainer.strategy.expert_model_parallel_size = 8
     recipe.trainer.strategy.tensor_model_parallel_size = 8
-    if peft_scheme is None or peft_scheme.lower() == 'none':
+    if peft_scheme is None or peft_scheme.lower() == "none":
         recipe.trainer.strategy.pipeline_model_parallel_size = 4
         recipe.trainer.strategy.virtual_pipeline_model_parallel_size = 14
         recipe.optim.config.lr = 5e-6
-    elif peft_scheme.lower() in ['lora', 'dora']:
+    elif peft_scheme.lower() in ["lora", "dora"]:
         recipe.peft = run.Config(
-            PEFT_STR2CLS[peft_scheme.lower()], target_modules=['linear_qkv', 'linear_proj'], dim=32
+            PEFT_STR2CLS[peft_scheme.lower()],
+            target_modules=["linear_qkv", "linear_proj"],
+            dim=32,
         )
         recipe.optim.config.lr = 1e-4
     else:

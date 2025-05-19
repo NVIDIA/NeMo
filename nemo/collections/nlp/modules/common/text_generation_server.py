@@ -34,8 +34,8 @@ lock = threading.Lock()
 
 API_ALLOWED_KEYS = set(
     [
-        'all_probs',
-        'sentences',
+        "all_probs",
+        "sentences",
         "task_ids",
         "tokens_to_generate",
         "temperature",
@@ -65,27 +65,29 @@ class MegatronGenerate(Resource):
 
     def convert_messages(self, input_list):
         output_dict = {
-            'system': '',
-            'conversations': [],
-            'mask': 'User',
-            'type': 'VALUE_TO_TEXT',
+            "system": "",
+            "conversations": [],
+            "mask": "User",
+            "type": "VALUE_TO_TEXT",
         }
 
         # Extract the system message
         for msg in input_list:
-            if msg['role'] == 'system':
-                output_dict['system'] = msg['content']
+            if msg["role"] == "system":
+                output_dict["system"] = msg["content"]
                 break  # Assuming only one system message
 
         # Build the conversations list
         for msg in input_list:
-            if msg['role'] != 'system':
+            if msg["role"] != "system":
                 conversation_entry = {
-                    'from': msg['role'].capitalize(),  # Capitalize 'user' and 'assistant'
-                    'value': msg['content'],
-                    'label': None,
+                    "from": msg[
+                        "role"
+                    ].capitalize(),  # Capitalize 'user' and 'assistant'
+                    "value": msg["content"],
+                    "label": None,
                 }
-                output_dict['conversations'].append(conversation_entry)
+                output_dict["conversations"].append(conversation_entry)
 
         return output_dict
 
@@ -95,7 +97,7 @@ class MegatronGenerate(Resource):
             MegatronGenerate.send_do_generate()  # Tell other ranks we're doing generate
             extra = {}
             if self.inference_strategy is not None:
-                extra['strategy'] = self.inference_strategy
+                extra["strategy"] = self.inference_strategy
 
             all_probs = False
             add_BOS = False
@@ -105,7 +107,7 @@ class MegatronGenerate(Resource):
             temperature = data.get("temperature", 0.0)
             logprobs = data.get("logprobs", False)
             greedy = temperature == 0.0
-            end_strings = ['<|endoftext|>'] + data.get("end_strings", [])
+            end_strings = ["<|endoftext|>"] + data.get("end_strings", [])
             prompt = data["prompt"]
             random_seed = data.get("seed", 1234)
 
@@ -130,9 +132,9 @@ class MegatronGenerate(Resource):
                 if isinstance(output[k], torch.Tensor):
                     output[k] = output[k].tolist()
 
-            output_sentence = output['sentences'][0][len(prompt) :]
-            tokens = output['tokens'][0]
-            logprobs = output['logprob'][0] if output['logprob'] is not None else None
+            output_sentence = output["sentences"][0][len(prompt) :]
+            tokens = output["tokens"][0]
+            logprobs = output["logprob"][0] if output["logprob"] is not None else None
             num_prompt_tokens = len(prompt.split())
             num_output_sentence = len(output_sentence.split())
 
@@ -160,37 +162,41 @@ class MegatronGenerate(Resource):
         )
 
     def chat_completion(self, data):
-        data['messages'] = data['messages'] + [
-            {'role': 'assistant', 'content': ''}
+        data["messages"] = data["messages"] + [
+            {"role": "assistant", "content": ""}
         ]  # adding trailing assistant message so that prompt ends with Assistant tag.
         special_tokens = self.model.cfg.data.chat_prompt_tokens
-        nemo_source = self.convert_messages(data['messages'])
-        header, conversation, data_type, mask_role = _get_header_conversation_type_mask_role(
-            nemo_source, special_tokens
+        nemo_source = self.convert_messages(data["messages"])
+        header, conversation, data_type, mask_role = (
+            _get_header_conversation_type_mask_role(nemo_source, special_tokens)
         )
-        len_strip = len(special_tokens['end_of_turn'] + special_tokens['turn_start'])
+        len_strip = len(special_tokens["end_of_turn"] + special_tokens["turn_start"])
         conversation = conversation[:-len_strip]
         # Return a response mimicking the OpenAI ChatCompletion API format
         with lock:  # Need to get lock to keep multiple threads from hitting code
             MegatronGenerate.send_do_generate()  # Tell other ranks we're doing generate
             extra = {}
             if self.inference_strategy is not None:
-                extra['strategy'] = self.inference_strategy
+                extra["strategy"] = self.inference_strategy
 
             all_probs = False
             add_BOS = False
             top_k = 0
-            greedy = data['temperature'] == 0.0
+            greedy = data["temperature"] == 0.0
             logprobs = data.get("logprobs", False)
-            end_strings = ['<|endoftext|>', special_tokens['turn_start'], special_tokens['label_start']]
+            end_strings = [
+                "<|endoftext|>",
+                special_tokens["turn_start"],
+                special_tokens["label_start"],
+            ]
             random_seed = None
 
             output = generate(
                 self.model,
                 [conversation],
-                data.get('max_tokens', 32),
+                data.get("max_tokens", 32),
                 all_probs=all_probs,
-                temperature=data.get('temperature', 1.0),
+                temperature=data.get("temperature", 1.0),
                 add_BOS=add_BOS,
                 top_k=top_k,
                 top_p=data.get("top_p", 0.95),
@@ -206,10 +212,12 @@ class MegatronGenerate(Resource):
                 if isinstance(output[k], torch.Tensor):
                     output[k] = output[k].tolist()
 
-        output_sentence = output['sentences'][0][len(conversation) :]
-        tokens = output['tokens'][0]
-        logprobs = output['logprob'][0] if output['logprob'] is not None else None
-        num_prompt_tokens = len(conversation.split())  # @adithyare only produces an approx. number of tokens
+        output_sentence = output["sentences"][0][len(conversation) :]
+        tokens = output["tokens"][0]
+        logprobs = output["logprob"][0] if output["logprob"] is not None else None
+        num_prompt_tokens = len(
+            conversation.split()
+        )  # @adithyare only produces an approx. number of tokens
         num_output_sentence = len(output_sentence.split())
 
         return jsonify(
@@ -270,7 +278,9 @@ class MegatronGenerate(Resource):
             if len(task_ids) != len(sentences[0]):
                 return "Each sentence must have a corresponding task id for p-tuned/prompt-tuned models"
 
-        tokens_to_generate = 64  # Choosing hopefully sane default.  Full sequence is slow
+        tokens_to_generate = (
+            64  # Choosing hopefully sane default.  Full sequence is slow
+        )
         if "tokens_to_generate" in request.get_json():
             tokens_to_generate = request.get_json()["tokens_to_generate"]
             if not isinstance(tokens_to_generate, int):
@@ -288,9 +298,13 @@ class MegatronGenerate(Resource):
         if "temperature" in request.get_json():
             temperature = request.get_json()["temperature"]
             if not (type(temperature) == int or type(temperature) == float):
-                return "temperature must be a positive number less than or equal to 100.0"
+                return (
+                    "temperature must be a positive number less than or equal to 100.0"
+                )
             if not (0.0 < temperature <= 100.0):
-                return "temperature must be a positive number less than or equal to 100.0"
+                return (
+                    "temperature must be a positive number less than or equal to 100.0"
+                )
 
         add_BOS = False
         if "add_BOS" in request.get_json():
@@ -323,14 +337,16 @@ class MegatronGenerate(Resource):
         repetition_penalty = 1.0
         if "repetition_penalty" in request.get_json():
             repetition_penalty = request.get_json()["repetition_penalty"]
-            if not (type(repetition_penalty) == int or type(repetition_penalty) == float):
+            if not (
+                type(repetition_penalty) == int or type(repetition_penalty) == float
+            ):
                 return "repetition_penalty must be a positive number no less than 1.0"
             if not (1.0 <= repetition_penalty):
                 return "repetition_penalty must be a positive number no less than 1.0"
 
-        end_strings = ['<|endoftext|>']
-        if 'end_strings' in request.get_json():
-            end_strings = request.get_json()['end_strings']
+        end_strings = ["<|endoftext|>"]
+        if "end_strings" in request.get_json():
+            end_strings = request.get_json()["end_strings"]
             if not isinstance(end_strings, list):
                 return "expect end_strings to be a list of strings"
             if not all([isinstance(s, str) for s in end_strings]):
@@ -370,12 +386,16 @@ class MegatronGenerate(Resource):
             MegatronGenerate.send_do_generate()  # Tell other ranks we're doing generate
             extra = {}
             if task_ids is not None:
-                extra['task_ids'] = task_ids
+                extra["task_ids"] = task_ids
             if self.inference_strategy is not None:
-                extra['strategy'] = self.inference_strategy
+                extra["strategy"] = self.inference_strategy
                 # RETRO specific arguments
                 if isinstance(
-                    self.inference_strategy, (RetroModelTextGenerationStrategy, RetroQAModelTextGenerationStrategy)
+                    self.inference_strategy,
+                    (
+                        RetroModelTextGenerationStrategy,
+                        RetroQAModelTextGenerationStrategy,
+                    ),
                 ):
                     if neighbors is not None:
                         self.inference_strategy.update_neighbors(neighbors)
@@ -401,38 +421,48 @@ class MegatronGenerate(Resource):
                 if isinstance(output[k], torch.Tensor):
                     output[k] = output[k].tolist()
         if not all_probs:
-            del output['full_logprob']
+            del output["full_logprob"]
 
         if self.inference_strategy is not None:
             if isinstance(
-                self.inference_strategy, (RetroModelTextGenerationStrategy, RetroQAModelTextGenerationStrategy)
+                self.inference_strategy,
+                (RetroModelTextGenerationStrategy, RetroQAModelTextGenerationStrategy),
             ):
                 retrieved_doc = self.inference_strategy.retrieved_text
-                output['retrieved'] = retrieved_doc
+                output["retrieved"] = retrieved_doc
         return jsonify(output)
 
 
 class MegatronServer(object):
     def __init__(self, model, inference_strategy=None):
-        self.app = Flask(__name__, static_url_path='')
+        self.app = Flask(__name__, static_url_path="")
         api = Api(self.app)
         api.add_resource(
             MegatronGenerate,
-            '/generate',
+            "/generate",
             endpoint="generate",
-            resource_class_kwargs={"model": model, "inference_strategy": inference_strategy},
+            resource_class_kwargs={
+                "model": model,
+                "inference_strategy": inference_strategy,
+            },
         )
         api.add_resource(
             MegatronGenerate,
-            '/v1/completions',
+            "/v1/completions",
             endpoint="oai_completions",
-            resource_class_kwargs={"model": model, "inference_strategy": inference_strategy},
+            resource_class_kwargs={
+                "model": model,
+                "inference_strategy": inference_strategy,
+            },
         )
         api.add_resource(
             MegatronGenerate,
-            '/v1/chat/completions',
+            "/v1/chat/completions",
             endpoint="oai_chat_completions",
-            resource_class_kwargs={"model": model, "inference_strategy": inference_strategy},
+            resource_class_kwargs={
+                "model": model,
+                "inference_strategy": inference_strategy,
+            },
         )
 
     def run(self, url, port=5000):

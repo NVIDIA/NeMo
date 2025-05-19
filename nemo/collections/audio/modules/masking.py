@@ -69,8 +69,8 @@ class MaskEstimatorRNN(NeuralModule):
         num_input_channels: Optional[int] = None,
         dropout: float = 0,
         bidirectional=True,
-        rnn_type: str = 'lstm',
-        mag_reduction: str = 'rms',
+        rnn_type: str = "lstm",
+        mag_reduction: str = "rms",
         use_ipd: bool = None,
     ):
         super().__init__()
@@ -85,10 +85,11 @@ class MaskEstimatorRNN(NeuralModule):
         )
 
         self.input_projection = torch.nn.Linear(
-            in_features=self.features.num_features * self.features.num_channels, out_features=num_features
+            in_features=self.features.num_features * self.features.num_channels,
+            out_features=num_features,
         )
 
-        if rnn_type == 'lstm':
+        if rnn_type == "lstm":
             self.rnn = torch.nn.LSTM(
                 input_size=num_features,
                 hidden_size=num_hidden_features,
@@ -97,7 +98,7 @@ class MaskEstimatorRNN(NeuralModule):
                 dropout=dropout,
                 bidirectional=bidirectional,
             )
-        elif rnn_type == 'gru':
+        elif rnn_type == "gru":
             self.rnn = torch.nn.GRU(
                 input_size=num_features,
                 hidden_size=num_hidden_features,
@@ -107,16 +108,20 @@ class MaskEstimatorRNN(NeuralModule):
                 bidirectional=bidirectional,
             )
         else:
-            raise ValueError(f'Unknown rnn_type: {rnn_type}')
+            raise ValueError(f"Unknown rnn_type: {rnn_type}")
 
         self.fc = torch.nn.Linear(
-            in_features=2 * num_features if bidirectional else num_features, out_features=num_features
+            in_features=2 * num_features if bidirectional else num_features,
+            out_features=num_features,
         )
         self.norm = torch.nn.LayerNorm(num_features)
 
         # Each output shares the RNN and has a separate projection
         self.output_projections = torch.nn.ModuleList(
-            [torch.nn.Linear(in_features=num_features, out_features=num_subbands) for _ in range(num_outputs)]
+            [
+                torch.nn.Linear(in_features=num_features, out_features=num_subbands)
+                for _ in range(num_outputs)
+            ]
         )
         self.output_nonlinearity = torch.nn.Sigmoid()
 
@@ -124,20 +129,22 @@ class MaskEstimatorRNN(NeuralModule):
     def input_types(self) -> Dict[str, NeuralType]:
         """Returns definitions of module output ports."""
         return {
-            "input": NeuralType(('B', 'C', 'D', 'T'), SpectrogramType()),
-            "input_length": NeuralType(('B',), LengthsType()),
+            "input": NeuralType(("B", "C", "D", "T"), SpectrogramType()),
+            "input_length": NeuralType(("B",), LengthsType()),
         }
 
     @property
     def output_types(self) -> Dict[str, NeuralType]:
         """Returns definitions of module output ports."""
         return {
-            "output": NeuralType(('B', 'C', 'D', 'T'), FloatType()),
-            "output_length": NeuralType(('B',), LengthsType()),
+            "output": NeuralType(("B", "C", "D", "T"), FloatType()),
+            "output_length": NeuralType(("B",), LengthsType()),
         }
 
     @typecheck()
-    def forward(self, input: torch.Tensor, input_length: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+    def forward(
+        self, input: torch.Tensor, input_length: torch.Tensor
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         """Estimate `num_outputs` masks from the input spectrogram.
 
         Args:
@@ -166,7 +173,9 @@ class MaskEstimatorRNN(NeuralModule):
         ).to(input.device)
         self.rnn.flatten_parameters()
         input_packed, _ = self.rnn(input_packed)
-        output, output_length = torch.nn.utils.rnn.pad_packed_sequence(input_packed, batch_first=True)
+        output, output_length = torch.nn.utils.rnn.pad_packed_sequence(
+            input_packed, batch_first=True
+        )
         output_length = output_length.to(input.device)
 
         # Layer normalization and skip connection
@@ -241,16 +250,16 @@ class MaskEstimatorFlexChannels(NeuralModule):
         num_subbands: int,
         num_blocks: int,
         channel_reduction_position: int = -1,  # if 0, apply before block 0, if -1 apply at the end
-        channel_reduction_type: str = 'attention',
-        channel_block_type: str = 'transform_attend_concatenate',
-        temporal_block_type: str = 'conformer_encoder',
+        channel_reduction_type: str = "attention",
+        channel_block_type: str = "transform_attend_concatenate",
+        temporal_block_type: str = "conformer_encoder",
         temporal_block_num_layers: int = 5,
         temporal_block_num_heads: int = 4,
         temporal_block_dimension: int = 128,
-        temporal_block_self_attention_model: str = 'rel_pos',
+        temporal_block_self_attention_model: str = "rel_pos",
         temporal_block_att_context_size: Optional[List[int]] = None,
         num_input_channels: Optional[int] = None,
-        mag_reduction: str = 'abs_mean',
+        mag_reduction: str = "abs_mean",
         mag_power: Optional[float] = None,
         use_ipd: bool = True,
         mag_normalization: Optional[str] = None,
@@ -268,7 +277,7 @@ class MaskEstimatorFlexChannels(NeuralModule):
             ipd_normalization=ipd_normalization,
         )
         self.num_blocks = num_blocks
-        logging.debug('Total number of blocks: %d', self.num_blocks)
+        logging.debug("Total number of blocks: %d", self.num_blocks)
 
         # Channel reduction
         if channel_reduction_position == -1:
@@ -277,48 +286,59 @@ class MaskEstimatorFlexChannels(NeuralModule):
 
         if channel_reduction_position > num_blocks:
             raise ValueError(
-                f'Channel reduction position {channel_reduction_position} exceeds the number of blocks {num_blocks}'
+                f"Channel reduction position {channel_reduction_position} exceeds the number of blocks {num_blocks}"
             )
         self.channel_reduction_position = channel_reduction_position
-        logging.debug('Channel reduction will be applied before block %d', self.channel_reduction_position)
+        logging.debug(
+            "Channel reduction will be applied before block %d",
+            self.channel_reduction_position,
+        )
 
         # Prepare processing blocks
         self.channel_blocks = torch.nn.ModuleList()
         self.temporal_blocks = torch.nn.ModuleList()
 
         for n in range(num_blocks):
-            logging.debug('Prepare block %d', n)
+            logging.debug("Prepare block %d", n)
 
             # Setup channel block
             if n < channel_reduction_position:
                 # Number of input features is either the number of input channels or the number of temporal block features
-                channel_in_features = self.features.num_features if n == 0 else temporal_block_dimension
+                channel_in_features = (
+                    self.features.num_features if n == 0 else temporal_block_dimension
+                )
                 logging.debug(
-                    'Setup channel block %s with %d input features and %d output features',
+                    "Setup channel block %s with %d input features and %d output features",
                     channel_block_type,
                     channel_in_features,
                     temporal_block_dimension,
                 )
 
                 # Instantiante the channel block
-                if channel_block_type == 'transform_average_concatenate':
+                if channel_block_type == "transform_average_concatenate":
                     channel_block = TransformAverageConcatenate(
-                        in_features=channel_in_features, out_features=temporal_block_dimension
+                        in_features=channel_in_features,
+                        out_features=temporal_block_dimension,
                     )
-                elif channel_block_type == 'transform_attend_concatenate':
+                elif channel_block_type == "transform_attend_concatenate":
                     channel_block = TransformAttendConcatenate(
-                        in_features=channel_in_features, out_features=temporal_block_dimension
+                        in_features=channel_in_features,
+                        out_features=temporal_block_dimension,
                     )
                 else:
-                    raise ValueError(f'Unknown channel layer type: {channel_block_type}')
+                    raise ValueError(
+                        f"Unknown channel layer type: {channel_block_type}"
+                    )
                 self.channel_blocks.append(channel_block)
 
             # Setup temporal block
             temporal_in_features = (
-                self.features.num_features if n == self.channel_reduction_position == 0 else temporal_block_dimension
+                self.features.num_features
+                if n == self.channel_reduction_position == 0
+                else temporal_block_dimension
             )
-            logging.debug('Setup temporal block %s', temporal_block_type)
-            if temporal_block_type == 'conformer_encoder':
+            logging.debug("Setup temporal block %s", temporal_block_type)
+            if temporal_block_type == "conformer_encoder":
                 temporal_block = ConformerEncoder(
                     feat_in=temporal_in_features,
                     n_layers=temporal_block_num_layers,
@@ -329,25 +349,31 @@ class MaskEstimatorFlexChannels(NeuralModule):
                     n_heads=temporal_block_num_heads,
                 )
             else:
-                raise ValueError(f'Unknown temporal block {temporal_block}.')
+                raise ValueError(f"Unknown temporal block {temporal_block}.")
 
             self.temporal_blocks.append(temporal_block)
 
-        logging.debug('Setup channel reduction %s', channel_reduction_type)
-        if channel_reduction_type == 'average':
+        logging.debug("Setup channel reduction %s", channel_reduction_type)
+        if channel_reduction_type == "average":
             # Mean across channel dimension
             self.channel_reduction = ChannelAveragePool()
-        elif channel_reduction_type == 'attention':
+        elif channel_reduction_type == "attention":
             # Number of input features is either the number of input channels or the number of temporal block features
             channel_reduction_in_features = (
-                self.features.num_features if self.channel_reduction_position == 0 else temporal_block_dimension
+                self.features.num_features
+                if self.channel_reduction_position == 0
+                else temporal_block_dimension
             )
             # Attention across channel dimension
-            self.channel_reduction = ChannelAttentionPool(in_features=channel_reduction_in_features)
+            self.channel_reduction = ChannelAttentionPool(
+                in_features=channel_reduction_in_features
+            )
         else:
-            raise ValueError(f'Unknown channel reduction type: {channel_reduction_type}')
+            raise ValueError(
+                f"Unknown channel reduction type: {channel_reduction_type}"
+            )
 
-        logging.debug('Setup %d output layers', num_outputs)
+        logging.debug("Setup %d output layers", num_outputs)
         self.output_layers = torch.nn.ModuleList(
             [
                 ConformerEncoder(
@@ -371,20 +397,22 @@ class MaskEstimatorFlexChannels(NeuralModule):
     def input_types(self) -> Dict[str, NeuralType]:
         """Returns definitions of module output ports."""
         return {
-            "input": NeuralType(('B', 'C', 'D', 'T'), SpectrogramType()),
-            "input_length": NeuralType(('B',), LengthsType()),
+            "input": NeuralType(("B", "C", "D", "T"), SpectrogramType()),
+            "input_length": NeuralType(("B",), LengthsType()),
         }
 
     @property
     def output_types(self) -> Dict[str, NeuralType]:
         """Returns definitions of module output ports."""
         return {
-            "output": NeuralType(('B', 'C', 'D', 'T'), FloatType()),
-            "output_length": NeuralType(('B',), LengthsType()),
+            "output": NeuralType(("B", "C", "D", "T"), FloatType()),
+            "output_length": NeuralType(("B",), LengthsType()),
         }
 
     @typecheck()
-    def forward(self, input: torch.Tensor, input_length: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+    def forward(
+        self, input: torch.Tensor, input_length: torch.Tensor
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         """Estimate `num_outputs` masks from the input spectrogram."""
         # get input features from a complex-valued spectrogram, (B, C, F, T)
         output, output_length = self.features(input=input, input_length=input_length)
@@ -413,7 +441,9 @@ class MaskEstimatorFlexChannels(NeuralModule):
             # apply temporal model on each channel independently
             with typecheck.disable_checks():
                 # output is AcousticEncodedRepresentation, conformer encoder requires SpectrogramType
-                output, output_length = self.temporal_blocks[n](audio_signal=output, length=output_length)
+                output, output_length = self.temporal_blocks[n](
+                    audio_signal=output, length=output_length
+                )
 
             # if channel reduction has not been applied yet, go back to multichannel layout
             if n < self.channel_reduction_position:
@@ -436,7 +466,9 @@ class MaskEstimatorFlexChannels(NeuralModule):
             # calculate mask
             with typecheck.disable_checks():
                 # output is AcousticEncodedRepresentation, conformer encoder requires SpectrogramType
-                mask, mask_length = output_layer(audio_signal=output, length=output_length)
+                mask, mask_length = output_layer(
+                    audio_signal=output, length=output_length
+                )
             mask = self.output_nonlinearity(mask)
             # append to all masks
             masks.append(mask)
@@ -468,30 +500,37 @@ class MaskEstimatorGSS(NeuralModule):
         [2] Boeddeker et al., Front-End Processing for the CHiME-5 Dinner Party Scenario, 2018
     """
 
-    def __init__(self, num_iterations: int = 3, eps: float = 1e-8, dtype: torch.dtype = torch.cdouble):
+    def __init__(
+        self,
+        num_iterations: int = 3,
+        eps: float = 1e-8,
+        dtype: torch.dtype = torch.cdouble,
+    ):
         super().__init__()
 
         if num_iterations <= 0:
-            raise ValueError(f'Number of iterations must be positive, got {num_iterations}')
+            raise ValueError(
+                f"Number of iterations must be positive, got {num_iterations}"
+            )
 
         # number of iterations for the EM algorithm
         self.num_iterations = num_iterations
 
         if eps <= 0:
-            raise ValueError(f'eps must be positive, got {eps}')
+            raise ValueError(f"eps must be positive, got {eps}")
 
         # small regularization constant
         self.eps = eps
 
         # internal calculations
         if dtype not in [torch.cfloat, torch.cdouble]:
-            raise ValueError(f'Unsupported dtype {dtype}, expecting cfloat or cdouble')
+            raise ValueError(f"Unsupported dtype {dtype}, expecting cfloat or cdouble")
         self.dtype = dtype
 
-        logging.debug('Initialized %s', self.__class__.__name__)
-        logging.debug('\tnum_iterations: %s', self.num_iterations)
-        logging.debug('\teps:            %g', self.eps)
-        logging.debug('\tdtype:          %s', self.dtype)
+        logging.debug("Initialized %s", self.__class__.__name__)
+        logging.debug("\tnum_iterations: %s", self.num_iterations)
+        logging.debug("\teps:            %g", self.eps)
+        logging.debug("\tdtype:          %s", self.dtype)
 
     def normalize(self, x: torch.Tensor, dim: int = 1) -> torch.Tensor:
         """Normalize input to have a unit L2-norm across `dim`.
@@ -510,15 +549,17 @@ class MaskEstimatorGSS(NeuralModule):
 
     @typecheck(
         input_types={
-            'alpha': NeuralType(('B', 'C', 'D')),
-            'activity': NeuralType(('B', 'C', 'T')),
-            'log_pdf': NeuralType(('B', 'C', 'D', 'T')),
+            "alpha": NeuralType(("B", "C", "D")),
+            "activity": NeuralType(("B", "C", "T")),
+            "log_pdf": NeuralType(("B", "C", "D", "T")),
         },
         output_types={
-            'gamma': NeuralType(('B', 'C', 'D', 'T')),
+            "gamma": NeuralType(("B", "C", "D", "T")),
         },
     )
-    def update_masks(self, alpha: torch.Tensor, activity: torch.Tensor, log_pdf: torch.Tensor) -> torch.Tensor:
+    def update_masks(
+        self, alpha: torch.Tensor, activity: torch.Tensor, log_pdf: torch.Tensor
+    ) -> torch.Tensor:
         """Update masks for the cACGMM.
 
         Args:
@@ -545,10 +586,10 @@ class MaskEstimatorGSS(NeuralModule):
 
     @typecheck(
         input_types={
-            'gamma': NeuralType(('B', 'C', 'D', 'T')),
+            "gamma": NeuralType(("B", "C", "D", "T")),
         },
         output_types={
-            'alpha': NeuralType(('B', 'C', 'D')),
+            "alpha": NeuralType(("B", "C", "D")),
         },
     )
     def update_weights(self, gamma: torch.Tensor) -> torch.Tensor:
@@ -566,13 +607,13 @@ class MaskEstimatorGSS(NeuralModule):
 
     @typecheck(
         input_types={
-            'z': NeuralType(('B', 'C', 'D', 'T')),
-            'gamma': NeuralType(('B', 'C', 'D', 'T')),
-            'zH_invBM_z': NeuralType(('B', 'C', 'D', 'T')),
+            "z": NeuralType(("B", "C", "D", "T")),
+            "gamma": NeuralType(("B", "C", "D", "T")),
+            "zH_invBM_z": NeuralType(("B", "C", "D", "T")),
         },
         output_types={
-            'log_pdf': NeuralType(('B', 'C', 'D', 'T')),
-            'zH_invBM_z': NeuralType(('B', 'C', 'D', 'T')),
+            "log_pdf": NeuralType(("B", "C", "D", "T")),
+            "zH_invBM_z": NeuralType(("B", "C", "D", "T")),
         },
     )
     def update_pdf(
@@ -595,7 +636,9 @@ class MaskEstimatorGSS(NeuralModule):
 
         # scale outer product and sum over time
         # shape (B, num_outputs, F, num_inputs, num_inputs)
-        BM = num_inputs * torch.einsum('bmft,bift,bjft->bmfij', scale.to(z.dtype), z, z.conj())
+        BM = num_inputs * torch.einsum(
+            "bmft,bift,bjft->bmfij", scale.to(z.dtype), z, z.conj()
+        )
 
         # normalize across time
         denom = torch.sum(gamma, dim=-1)
@@ -628,7 +671,9 @@ class MaskEstimatorGSS(NeuralModule):
         # zH_invBM_z = zH_invBM_z.abs() + self.eps # small regularization
 
         # calc sqrt(L) * Q^H * z
-        zH_invBM_z = torch.einsum('bmfj,bmfkj,bkft->bmftj', (1 / L.sqrt()).to(Q.dtype), Q.conj(), z)
+        zH_invBM_z = torch.einsum(
+            "bmfj,bmfkj,bkft->bmftj", (1 / L.sqrt()).to(Q.dtype), Q.conj(), z
+        )
         # calc squared norm
         zH_invBM_z = zH_invBM_z.abs().pow(2).sum(-1)
         # small regularization
@@ -643,15 +688,15 @@ class MaskEstimatorGSS(NeuralModule):
     def input_types(self) -> Dict[str, NeuralType]:
         """Returns definitions of module output ports."""
         return {
-            "input": NeuralType(('B', 'C', 'D', 'T'), SpectrogramType()),
-            "activity": NeuralType(('B', 'C', 'T')),
+            "input": NeuralType(("B", "C", "D", "T"), SpectrogramType()),
+            "activity": NeuralType(("B", "C", "T")),
         }
 
     @property
     def output_types(self) -> Dict[str, NeuralType]:
         """Returns definitions of module output ports."""
         return {
-            "gamma": NeuralType(('B', 'C', 'D', 'T')),
+            "gamma": NeuralType(("B", "C", "D", "T")),
         }
 
     @typecheck()
@@ -670,18 +715,22 @@ class MaskEstimatorGSS(NeuralModule):
         device = input.device.type
 
         if activity.size(0) != B:
-            raise ValueError(f'Batch dimension mismatch: activity {activity.shape} vs input {input.shape}')
+            raise ValueError(
+                f"Batch dimension mismatch: activity {activity.shape} vs input {input.shape}"
+            )
 
         if activity.size(-1) != T:
-            raise ValueError(f'Time dimension mismatch: activity {activity.shape} vs input {input.shape}')
+            raise ValueError(
+                f"Time dimension mismatch: activity {activity.shape} vs input {input.shape}"
+            )
 
         if num_outputs == 1:
-            raise ValueError(f'Expecting multiple outputs, got {num_outputs}')
+            raise ValueError(f"Expecting multiple outputs, got {num_outputs}")
 
         with torch.amp.autocast(device, enabled=False):
             input = input.to(dtype=self.dtype)
 
-            assert input.is_complex(), f'Expecting complex input, got {input.dtype}'
+            assert input.is_complex(), f"Expecting complex input, got {input.dtype}"
 
             # convert input to directional statistics by normalizing across channels
             z = self.normalize(input, dim=-3)
@@ -694,16 +743,22 @@ class MaskEstimatorGSS(NeuralModule):
             gamma = gamma.unsqueeze(2).expand(-1, -1, F, -1)
 
             # initialize the energy term
-            zH_invBM_z = torch.ones(B, num_outputs, F, T, dtype=input.dtype, device=input.device)
+            zH_invBM_z = torch.ones(
+                B, num_outputs, F, T, dtype=input.dtype, device=input.device
+            )
 
             # EM iterations
             for it in range(self.num_iterations):
                 alpha = self.update_weights(gamma=gamma)
-                log_pdf, zH_invBM_z = self.update_pdf(z=z, gamma=gamma, zH_invBM_z=zH_invBM_z)
-                gamma = self.update_masks(alpha=alpha, activity=activity, log_pdf=log_pdf)
+                log_pdf, zH_invBM_z = self.update_pdf(
+                    z=z, gamma=gamma, zH_invBM_z=zH_invBM_z
+                )
+                gamma = self.update_masks(
+                    alpha=alpha, activity=activity, log_pdf=log_pdf
+                )
 
         if torch.any(torch.isnan(gamma)):
-            raise RuntimeError(f'gamma contains NaNs: {gamma}')
+            raise RuntimeError(f"gamma contains NaNs: {gamma}")
 
         return gamma
 
@@ -718,33 +773,35 @@ class MaskReferenceChannel(NeuralModule):
         mask_max_db: Threshold mask to a maximal value before applying it, defaults to 0dB
     """
 
-    def __init__(self, ref_channel: int = 0, mask_min_db: float = -200, mask_max_db: float = 0):
+    def __init__(
+        self, ref_channel: int = 0, mask_min_db: float = -200, mask_max_db: float = 0
+    ):
         super().__init__()
         self.ref_channel = ref_channel
         # Mask thresholding
         self.mask_min = db2mag(mask_min_db)
         self.mask_max = db2mag(mask_max_db)
 
-        logging.debug('Initialized %s with', self.__class__.__name__)
-        logging.debug('\tref_channel: %d', self.ref_channel)
-        logging.debug('\tmask_min:    %f', self.mask_min)
-        logging.debug('\tmask_max:    %f', self.mask_max)
+        logging.debug("Initialized %s with", self.__class__.__name__)
+        logging.debug("\tref_channel: %d", self.ref_channel)
+        logging.debug("\tmask_min:    %f", self.mask_min)
+        logging.debug("\tmask_max:    %f", self.mask_max)
 
     @property
     def input_types(self) -> Dict[str, NeuralType]:
         """Returns definitions of module output ports."""
         return {
-            "input": NeuralType(('B', 'C', 'D', 'T'), SpectrogramType()),
-            "input_length": NeuralType(('B',), LengthsType()),
-            "mask": NeuralType(('B', 'C', 'D', 'T'), FloatType()),
+            "input": NeuralType(("B", "C", "D", "T"), SpectrogramType()),
+            "input_length": NeuralType(("B",), LengthsType()),
+            "mask": NeuralType(("B", "C", "D", "T"), FloatType()),
         }
 
     @property
     def output_types(self) -> Dict[str, NeuralType]:
         """Returns definitions of module output ports."""
         return {
-            "output": NeuralType(('B', 'C', 'D', 'T'), SpectrogramType()),
-            "output_length": NeuralType(('B',), LengthsType()),
+            "output": NeuralType(("B", "C", "D", "T"), SpectrogramType()),
+            "output_length": NeuralType(("B",), LengthsType()),
         }
 
     @typecheck()
@@ -795,9 +852,9 @@ class MaskBasedBeamformer(NeuralModule):
 
     def __init__(
         self,
-        filter_type: str = 'mvdr_souden',
+        filter_type: str = "mvdr_souden",
         filter_beta: float = 0.0,
-        filter_rank: str = 'one',
+        filter_rank: str = "one",
         filter_postfilter: Optional[str] = None,
         ref_channel: Optional[int] = 0,
         ref_hard: bool = True,
@@ -812,19 +869,19 @@ class MaskBasedBeamformer(NeuralModule):
         eps: float = 1e-8,
     ):
         super().__init__()
-        if filter_type not in ['pmwf', 'mvdr_souden']:
-            raise ValueError(f'Unknown filter type {filter_type}')
+        if filter_type not in ["pmwf", "mvdr_souden"]:
+            raise ValueError(f"Unknown filter type {filter_type}")
 
         self.filter_type = filter_type
-        if self.filter_type == 'mvdr_souden' and filter_beta != 0:
+        if self.filter_type == "mvdr_souden" and filter_beta != 0:
             logging.warning(
-                'Using filter type %s: beta will be automatically set to zero (current beta %f) and rank to one (current rank %s).',
+                "Using filter type %s: beta will be automatically set to zero (current beta %f) and rank to one (current rank %s).",
                 self.filter_type,
                 filter_beta,
                 filter_rank,
             )
             filter_beta = 0.0
-            filter_rank = 'one'
+            filter_rank = "one"
         # Prepare filter
         self.filter = ParametricMultichannelWienerFilter(
             beta=filter_beta,
@@ -841,41 +898,43 @@ class MaskBasedBeamformer(NeuralModule):
         # Mask thresholding
         if mask_min_db >= mask_max_db:
             raise ValueError(
-                f'Lower bound for the mask {mask_min_db}dB must be smaller than the upper bound {mask_max_db}dB'
+                f"Lower bound for the mask {mask_min_db}dB must be smaller than the upper bound {mask_max_db}dB"
             )
         self.mask_min = db2mag(mask_min_db)
         self.mask_max = db2mag(mask_max_db)
         # Postmask thresholding
         if postmask_min_db > postmask_max_db:
             raise ValueError(
-                f'Lower bound for the postmask {postmask_min_db}dB must be smaller or equal to the upper bound {postmask_max_db}dB'
+                f"Lower bound for the postmask {postmask_min_db}dB must be smaller or equal to the upper bound {postmask_max_db}dB"
             )
         self.postmask_min = db2mag(postmask_min_db)
         self.postmask_max = db2mag(postmask_max_db)
 
-        logging.debug('Initialized %s', self.__class__.__name__)
-        logging.debug('\tfilter_type:  %s', self.filter_type)
-        logging.debug('\tmask_min:     %e', self.mask_min)
-        logging.debug('\tmask_max:     %e', self.mask_max)
-        logging.debug('\tpostmask_min: %e', self.postmask_min)
-        logging.debug('\tpostmask_max: %e', self.postmask_max)
+        logging.debug("Initialized %s", self.__class__.__name__)
+        logging.debug("\tfilter_type:  %s", self.filter_type)
+        logging.debug("\tmask_min:     %e", self.mask_min)
+        logging.debug("\tmask_max:     %e", self.mask_max)
+        logging.debug("\tpostmask_min: %e", self.postmask_min)
+        logging.debug("\tpostmask_max: %e", self.postmask_max)
 
     @property
     def input_types(self) -> Dict[str, NeuralType]:
         """Returns definitions of module output ports."""
         return {
-            "input": NeuralType(('B', 'C', 'D', 'T'), SpectrogramType()),
-            "mask": NeuralType(('B', 'C', 'D', 'T'), FloatType()),
-            "mask_undesired": NeuralType(('B', 'C', 'D', 'T'), FloatType(), optional=True),
-            "input_length": NeuralType(('B',), LengthsType(), optional=True),
+            "input": NeuralType(("B", "C", "D", "T"), SpectrogramType()),
+            "mask": NeuralType(("B", "C", "D", "T"), FloatType()),
+            "mask_undesired": NeuralType(
+                ("B", "C", "D", "T"), FloatType(), optional=True
+            ),
+            "input_length": NeuralType(("B",), LengthsType(), optional=True),
         }
 
     @property
     def output_types(self) -> Dict[str, NeuralType]:
         """Returns definitions of module output ports."""
         return {
-            "output": NeuralType(('B', 'C', 'D', 'T'), SpectrogramType()),
-            "output_length": NeuralType(('B',), LengthsType(), optional=True),
+            "output": NeuralType(("B", "C", "D", "T"), SpectrogramType()),
+            "output_length": NeuralType(("B",), LengthsType(), optional=True),
         }
 
     @typecheck()
@@ -904,7 +963,10 @@ class MaskBasedBeamformer(NeuralModule):
         # Length mask
         if input_length is not None:
             length_mask: torch.Tensor = make_seq_mask_like(
-                lengths=input_length, like=mask[:, 0, ...], time_dim=-1, valid_ones=False
+                lengths=input_length,
+                like=mask[:, 0, ...],
+                time_dim=-1,
+                valid_ones=False,
             )
 
         # Use each mask to generate an output
@@ -935,7 +997,9 @@ class MaskBasedBeamformer(NeuralModule):
 
             # Optional: apply a postmask with min and max thresholds
             if self.postmask_min < self.postmask_max:
-                postmask_m = torch.clamp(mask[:, m, ...], min=self.postmask_min, max=self.postmask_max)
+                postmask_m = torch.clamp(
+                    mask[:, m, ...], min=self.postmask_min, max=self.postmask_max
+                )
                 output_m = output_m * postmask_m.unsqueeze(1)
 
             # Save the current output (B, M, F, T)
@@ -989,7 +1053,10 @@ class MaskBasedDereverbWPE(NeuralModule):
         super().__init__()
         # Filter setup
         self.filter = WPEFilter(
-            filter_length=filter_length, prediction_delay=prediction_delay, diag_reg=diag_reg, eps=eps
+            filter_length=filter_length,
+            prediction_delay=prediction_delay,
+            diag_reg=diag_reg,
+            eps=eps,
         )
         self.num_iterations = num_iterations
         # Mask thresholding
@@ -997,35 +1064,40 @@ class MaskBasedDereverbWPE(NeuralModule):
         self.mask_max = db2mag(mask_max_db)
         # Internal calculations
         if dtype not in [torch.cfloat, torch.cdouble]:
-            raise ValueError(f'Unsupported dtype {dtype}, expecting torch.cfloat or torch.cdouble')
+            raise ValueError(
+                f"Unsupported dtype {dtype}, expecting torch.cfloat or torch.cdouble"
+            )
         self.dtype = dtype
 
-        logging.debug('Initialized %s', self.__class__.__name__)
-        logging.debug('\tnum_iterations: %s', self.num_iterations)
-        logging.debug('\tmask_min:       %g', self.mask_min)
-        logging.debug('\tmask_max:       %g', self.mask_max)
-        logging.debug('\tdtype:          %s', self.dtype)
+        logging.debug("Initialized %s", self.__class__.__name__)
+        logging.debug("\tnum_iterations: %s", self.num_iterations)
+        logging.debug("\tmask_min:       %g", self.mask_min)
+        logging.debug("\tmask_max:       %g", self.mask_max)
+        logging.debug("\tdtype:          %s", self.dtype)
 
     @property
     def input_types(self) -> Dict[str, NeuralType]:
         """Returns definitions of module output ports."""
         return {
-            "input": NeuralType(('B', 'C', 'D', 'T'), SpectrogramType()),
-            "input_length": NeuralType(('B',), LengthsType(), optional=True),
-            "mask": NeuralType(('B', 'C', 'D', 'T'), FloatType(), optional=True),
+            "input": NeuralType(("B", "C", "D", "T"), SpectrogramType()),
+            "input_length": NeuralType(("B",), LengthsType(), optional=True),
+            "mask": NeuralType(("B", "C", "D", "T"), FloatType(), optional=True),
         }
 
     @property
     def output_types(self) -> Dict[str, NeuralType]:
         """Returns definitions of module output ports."""
         return {
-            "output": NeuralType(('B', 'C', 'D', 'T'), SpectrogramType()),
-            "output_length": NeuralType(('B',), LengthsType(), optional=True),
+            "output": NeuralType(("B", "C", "D", "T"), SpectrogramType()),
+            "output_length": NeuralType(("B",), LengthsType(), optional=True),
         }
 
     @typecheck()
     def forward(
-        self, input: torch.Tensor, input_length: Optional[torch.Tensor] = None, mask: Optional[torch.Tensor] = None
+        self,
+        input: torch.Tensor,
+        input_length: Optional[torch.Tensor] = None,
+        mask: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         """Given an input signal `input`, apply the WPE dereverberation algoritm.
 
@@ -1045,7 +1117,7 @@ class MaskBasedDereverbWPE(NeuralModule):
             output = input.to(dtype=self.dtype)
 
             if not output.is_complex():
-                raise RuntimeError(f'Expecting complex input, got {output.dtype}')
+                raise RuntimeError(f"Expecting complex input, got {output.dtype}")
 
             for i in range(self.num_iterations):
                 magnitude = torch.abs(output)
@@ -1057,6 +1129,8 @@ class MaskBasedDereverbWPE(NeuralModule):
                 # Calculate power
                 power = magnitude**2
                 # Apply filter
-                output, output_length = self.filter(input=output, input_length=input_length, power=power)
+                output, output_length = self.filter(
+                    input=output, input_length=input_length, power=power
+                )
 
         return output.to(io_dtype), output_length

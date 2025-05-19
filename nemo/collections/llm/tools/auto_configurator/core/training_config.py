@@ -78,7 +78,9 @@ def generate_grid_search_configs(
                         base_cfg.data.global_batch_size = params.gbs
                         att_heads = base_cfg.model.config.num_attention_heads
                         num_layers = base_cfg.model.config.num_layers
-                        model_parallelism = (tp * pp * cp * ep) if (cp and ep) else (tp * pp)
+                        model_parallelism = (
+                            (tp * pp * cp * ep) if (cp and ep) else (tp * pp)
+                        )
                         mod_gbs = params.gbs % (mbs * num_gpus / model_parallelism)
                         mod_att_heads = att_heads % tp
                         mod_layers = (multiplier * num_layers) % pp
@@ -89,8 +91,12 @@ def generate_grid_search_configs(
                             and mod_att_heads == 0
                             and mod_layers == 0
                             and (tp, pp, cp, ep) not in valid_tp_pp_list
-                            and (mod_cp // mod_ep == mod_cp or mod_ep // mod_cp == mod_ep)
-                            and params.min_model_parallel <= model_parallelism <= params.max_model_parallel
+                            and (
+                                mod_cp // mod_ep == mod_cp or mod_ep // mod_cp == mod_ep
+                            )
+                            and params.min_model_parallel
+                            <= model_parallelism
+                            <= params.max_model_parallel
                         ):
                             valid_tp_pp_list.append((tp, pp, cp, ep))
 
@@ -151,7 +157,9 @@ def generate_grid_search_configs(
                     config_name = new_cfg["name"]
                     configs[config_name] = new_cfg
 
-    print(f"\nAll candidate configurations created correctly. Total number of configs: {len(configs)}.\n")
+    print(
+        f"\nAll candidate configurations created correctly. Total number of configs: {len(configs)}.\n"
+    )
     return base_cfg, configs
 
 
@@ -180,7 +188,9 @@ def _set_activations_checkpoint_params(
     max_layers_per_pipe = num_layers
     interval_layers_per_pipe = act_multiple
     if model_name in GPT_BASED_MODELS and pp > 2:  # Interleaved pipeline scheduling.
-        virtual_pipelines = num_layers // pp  # TODO: verify that this is the best value.
+        virtual_pipelines = (
+            num_layers // pp
+        )  # TODO: verify that this is the best value.
         act_multiple = 1
         max_micro_b = pp * (virtual_pipelines - 1) + (pp - 1) * 2 + 1
         interval_micro_b = virtual_pipelines * 8
@@ -196,11 +206,15 @@ def _set_activations_checkpoint_params(
         if virtual_pipelines is None:
             act_ckpt_layers = range(0, multiplier * num_layers // pp + 1, act_multiple)
         else:
-            act_ckpt_layers = range(0, multiplier * num_layers // pp // virtual_pipelines + 1, act_multiple)
+            act_ckpt_layers = range(
+                0, multiplier * num_layers // pp // virtual_pipelines + 1, act_multiple
+            )
 
         if pp > 1 and model_name in GPT_BASED_MODELS:
             # Num micro batches with partial act ckpt
-            num_micro_batches_partial_act_ckpt = list(range(min_micro_b, max_micro_b + 1, interval_micro_b))
+            num_micro_batches_partial_act_ckpt = list(
+                range(min_micro_b, max_micro_b + 1, interval_micro_b)
+            )
             if num_micro_batches_partial_act_ckpt[0] == 0:
                 num_micro_batches_partial_act_ckpt[0] = 1
 
@@ -756,7 +770,9 @@ class BertGridSearch:
                 self.max_model_parallel = 256
                 self.gbs = 2048
             else:
-                raise ValueError("No BERT model larger than 250B parameters is supported.")
+                raise ValueError(
+                    "No BERT model larger than 250B parameters is supported."
+                )
         elif gpu_memory_gb == 40:
             if model_size_in_b <= 1.0:
                 self.tp = [1, 2, 4]
@@ -808,7 +824,9 @@ class BertGridSearch:
                 self.max_model_parallel = 512
                 self.gbs = 2048
             else:
-                raise ValueError("No BERT model larger than 250B parameters is supported.")
+                raise ValueError(
+                    "No BERT model larger than 250B parameters is supported."
+                )
 
 
 def _calculate_tp_pp_mbs_grid(
@@ -883,9 +901,13 @@ def _calculate_tp_pp_mbs_grid(
         params.mbs = mbs_sizes
     if (gbs_size is not None and gbs_size != "auto") or mode == "finetune":
         params.gbs = gbs_size
-    if (min_model_parallel_size is not None and min_model_parallel_size != "auto") or mode == "finetune":
+    if (
+        min_model_parallel_size is not None and min_model_parallel_size != "auto"
+    ) or mode == "finetune":
         params.min_model_parallel = min_model_parallel_size
-    if (max_model_parallel_size is not None and max_model_parallel_size != "auto") or mode == "finetune":
+    if (
+        max_model_parallel_size is not None and max_model_parallel_size != "auto"
+    ) or mode == "finetune":
         params.max_model_parallel = max_model_parallel_size
 
     return params

@@ -23,7 +23,7 @@ from nemo.collections.nlp.data.dialogue.input_example.input_example import \
     DialogueInputExample
 from nemo.utils.decorators import deprecated_warning
 
-__all__ = ['DialogueMSMarcoDataProcessor']
+__all__ = ["DialogueMSMarcoDataProcessor"]
 
 
 class DialogueMSMarcoDataProcessor(DialogueDataProcessor):
@@ -72,29 +72,35 @@ class DialogueMSMarcoDataProcessor(DialogueDataProcessor):
 
         dataset_split_print = {"train": "train", "dev": "train", "test": "dev"}
 
-        raw_examples = self.open_json("{}_v2.1.json".format(dataset_split_print[dataset_split]))
+        raw_examples = self.open_json(
+            "{}_v2.1.json".format(dataset_split_print[dataset_split])
+        )
 
-        n_samples = len(raw_examples['answers'])
+        n_samples = len(raw_examples["answers"])
 
-        idxs = DialogueDataProcessor.get_relevant_idxs(dataset_split, n_samples, self.cfg.dev_proportion)
+        idxs = DialogueDataProcessor.get_relevant_idxs(
+            dataset_split, n_samples, self.cfg.dev_proportion
+        )
 
         if self.cfg.debug_mode:
             idxs = idxs[:100]
 
         for i in idxs:
-            utterance = raw_examples['query'][str(i)]
+            utterance = raw_examples["query"][str(i)]
             # answer need not be extracted from passage
             # taking the first answer as the ground truth correct answer as only <1% has multiple answers
-            answer = raw_examples['answers'][str(i)]
+            answer = raw_examples["answers"][str(i)]
             answer = answer[0] if isinstance(answer, list) else answer
 
-            well_formed_answer = raw_examples['wellFormedAnswers'][str(i)]
+            well_formed_answer = raw_examples["wellFormedAnswers"][str(i)]
             well_formed_answer = (
-                well_formed_answer if isinstance(well_formed_answer, list) else literal_eval(well_formed_answer)
+                well_formed_answer
+                if isinstance(well_formed_answer, list)
+                else literal_eval(well_formed_answer)
             )
             well_formed_answer = well_formed_answer[0] if well_formed_answer else None
-            query_type = raw_examples['query_type'][str(i)]
-            candidate_passages = raw_examples['passages'][str(i)]
+            query_type = raw_examples["query_type"][str(i)]
+            candidate_passages = raw_examples["passages"][str(i)]
             passage = [
                 candidate_passage["passage_text"]
                 for candidate_passage in candidate_passages
@@ -102,7 +108,10 @@ class DialogueMSMarcoDataProcessor(DialogueDataProcessor):
             ]
             passage = passage[0] if passage else None
 
-            possible_passages = [candidate_passage["passage_text"] for candidate_passage in candidate_passages]
+            possible_passages = [
+                candidate_passage["passage_text"]
+                for candidate_passage in candidate_passages
+            ]
 
             input_example = {
                 "utterance": utterance,
@@ -114,7 +123,7 @@ class DialogueMSMarcoDataProcessor(DialogueDataProcessor):
                     "passage": passage,
                 },
                 "possible_labels": {
-                    "service": "LOCATION,NUMERIC,PERSON,DESCRIPTION,ENTITY".split(','),
+                    "service": "LOCATION,NUMERIC,PERSON,DESCRIPTION,ENTITY".split(","),
                     "passage": possible_passages,
                 },
             }

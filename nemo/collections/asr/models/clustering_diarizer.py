@@ -42,7 +42,7 @@ from nemo.core.classes import Model
 from nemo.core.connectors.save_restore_connector import SaveRestoreConnector
 from nemo.utils import logging, model_utils
 
-__all__ = ['ClusteringDiarizer']
+__all__ = ["ClusteringDiarizer"]
 
 _MODEL_CONFIG_YAML = "model_config.yaml"
 _VAD_MODEL = "vad_model.nemo"
@@ -98,13 +98,17 @@ class ClusteringDiarizer(torch.nn.Module, Model, DiarizationMixin):
         Initialize VAD model with model name or path passed through config
         """
         model_path = self._cfg.diarizer.vad.model_path
-        if model_path.endswith('.nemo'):
-            self._vad_model = EncDecClassificationModel.restore_from(model_path, map_location=self._cfg.device)
+        if model_path.endswith(".nemo"):
+            self._vad_model = EncDecClassificationModel.restore_from(
+                model_path, map_location=self._cfg.device
+            )
             logging.info("VAD model loaded locally from {}".format(model_path))
         else:
             if model_path not in get_available_model_names(EncDecClassificationModel):
                 logging.warning(
-                    "requested {} model name not available in pretrained models, instead".format(model_path)
+                    "requested {} model name not available in pretrained models, instead".format(
+                        model_path
+                    )
                 )
                 model_path = "vad_telephony_marblenet"
             logging.info("Loading pretrained {} model from NGC".format(model_path))
@@ -121,23 +125,31 @@ class ClusteringDiarizer(torch.nn.Module, Model, DiarizationMixin):
         """
         if speaker_model is not None:
             if self._cfg.device is None and torch.cuda.is_available():
-                self._speaker_model = speaker_model.to(torch.device('cuda'))
+                self._speaker_model = speaker_model.to(torch.device("cuda"))
             else:
                 self._speaker_model = speaker_model
         else:
             model_path = self._cfg.diarizer.speaker_embeddings.model_path
-            if model_path is not None and model_path.endswith('.nemo'):
-                self._speaker_model = EncDecSpeakerLabelModel.restore_from(model_path, map_location=self._cfg.device)
-                logging.info("Speaker Model restored locally from {}".format(model_path))
-            elif model_path.endswith('.ckpt'):
+            if model_path is not None and model_path.endswith(".nemo"):
+                self._speaker_model = EncDecSpeakerLabelModel.restore_from(
+                    model_path, map_location=self._cfg.device
+                )
+                logging.info(
+                    "Speaker Model restored locally from {}".format(model_path)
+                )
+            elif model_path.endswith(".ckpt"):
                 self._speaker_model = EncDecSpeakerLabelModel.load_from_checkpoint(
                     model_path, map_location=self._cfg.device
                 )
-                logging.info("Speaker Model restored locally from {}".format(model_path))
+                logging.info(
+                    "Speaker Model restored locally from {}".format(model_path)
+                )
             else:
                 if model_path not in get_available_model_names(EncDecSpeakerLabelModel):
                     logging.warning(
-                        "requested {} model name not available in pretrained models, instead".format(model_path)
+                        "requested {} model name not available in pretrained models, instead".format(
+                            model_path
+                        )
                     )
                     model_path = "ecapa_tdnn"
                 logging.info("Loading pretrained {} model from NGC".format(model_path))
@@ -152,28 +164,28 @@ class ClusteringDiarizer(torch.nn.Module, Model, DiarizationMixin):
 
     def _setup_vad_test_data(self, manifest_vad_input):
         vad_dl_config = {
-            'manifest_filepath': manifest_vad_input,
-            'sample_rate': self._cfg.sample_rate,
-            'batch_size': self._cfg.get('batch_size'),
-            'vad_stream': True,
-            'labels': [
-                'infer',
+            "manifest_filepath": manifest_vad_input,
+            "sample_rate": self._cfg.sample_rate,
+            "batch_size": self._cfg.get("batch_size"),
+            "vad_stream": True,
+            "labels": [
+                "infer",
             ],
-            'window_length_in_sec': self._vad_window_length_in_sec,
-            'shift_length_in_sec': self._vad_shift_length_in_sec,
-            'trim_silence': False,
-            'num_workers': self._cfg.num_workers,
+            "window_length_in_sec": self._vad_window_length_in_sec,
+            "shift_length_in_sec": self._vad_shift_length_in_sec,
+            "trim_silence": False,
+            "num_workers": self._cfg.num_workers,
         }
         self._vad_model.setup_test_data(test_data_config=vad_dl_config)
 
     def _setup_spkr_test_data(self, manifest_file):
         spk_dl_config = {
-            'manifest_filepath': manifest_file,
-            'sample_rate': self._cfg.sample_rate,
-            'batch_size': self._cfg.get('batch_size'),
-            'trim_silence': False,
-            'labels': None,
-            'num_workers': self._cfg.num_workers,
+            "manifest_filepath": manifest_file,
+            "sample_rate": self._cfg.sample_rate,
+            "batch_size": self._cfg.get("batch_size"),
+            "trim_silence": False,
+            "labels": None,
+            "num_workers": self._cfg.num_workers,
         }
         self._speaker_model.setup_test_data(spk_dl_config)
 
@@ -197,34 +209,41 @@ class ClusteringDiarizer(torch.nn.Module, Model, DiarizationMixin):
         trunc_l = time_unit - trunc
         all_len = 0
         data = []
-        for line in open(manifest_file, 'r', encoding='utf-8'):
-            file = json.loads(line)['audio_filepath']
+        for line in open(manifest_file, "r", encoding="utf-8"):
+            file = json.loads(line)["audio_filepath"]
             data.append(get_uniqname_from_filepath(file))
 
         status = get_vad_stream_status(data)
         for i, test_batch in enumerate(
-            tqdm(self._vad_model.test_dataloader(), desc='vad', leave=True, disable=not self.verbose)
+            tqdm(
+                self._vad_model.test_dataloader(),
+                desc="vad",
+                leave=True,
+                disable=not self.verbose,
+            )
         ):
             test_batch = [x.to(self._vad_model.device) for x in test_batch]
             with torch.amp.autocast(self._vad_model.device.type):
-                log_probs = self._vad_model(input_signal=test_batch[0], input_signal_length=test_batch[1])
+                log_probs = self._vad_model(
+                    input_signal=test_batch[0], input_signal_length=test_batch[1]
+                )
                 probs = torch.softmax(log_probs, dim=-1)
                 pred = probs[:, 1]
-                if status[i] == 'start':
+                if status[i] == "start":
                     to_save = pred[:-trunc]
-                elif status[i] == 'next':
+                elif status[i] == "next":
                     to_save = pred[trunc:-trunc_l]
-                elif status[i] == 'end':
+                elif status[i] == "end":
                     to_save = pred[trunc_l:]
                 else:
                     to_save = pred
                 all_len += len(to_save)
                 outpath = os.path.join(self._vad_dir, data[i] + ".frame")
-                with open(outpath, "a", encoding='utf-8') as fout:
+                with open(outpath, "a", encoding="utf-8") as fout:
                     for f in range(len(to_save)):
-                        fout.write('{0:0.4f}\n'.format(to_save[f]))
+                        fout.write("{0:0.4f}\n".format(to_save[f]))
             del test_batch
-            if status[i] == 'end' or status[i] == 'single':
+            if status[i] == "end" or status[i] == "single":
                 all_len = 0
 
         if not self._vad_params.smoothing:
@@ -246,9 +265,15 @@ class ClusteringDiarizer(torch.nn.Module, Model, DiarizationMixin):
             self.vad_pred_dir = smoothing_pred_dir
             frame_length_in_sec = 0.01
 
-        logging.info("Converting frame level prediction to speech/no-speech segment in start and end times format.")
+        logging.info(
+            "Converting frame level prediction to speech/no-speech segment in start and end times format."
+        )
 
-        vad_params = self._vad_params if isinstance(self._vad_params, (DictConfig, dict)) else self._vad_params.dict()
+        vad_params = (
+            self._vad_params
+            if isinstance(self._vad_params, (DictConfig, dict))
+            else self._vad_params.dict()
+        )
         table_out_dir = generate_vad_segment_table(
             vad_pred_dir=self.vad_pred_dir,
             postprocessing_params=vad_params,
@@ -261,16 +286,22 @@ class ClusteringDiarizer(torch.nn.Module, Model, DiarizationMixin):
         for key in self.AUDIO_RTTM_MAP:
             if os.path.exists(os.path.join(table_out_dir, key + ".txt")):
                 AUDIO_VAD_RTTM_MAP[key] = deepcopy(self.AUDIO_RTTM_MAP[key])
-                AUDIO_VAD_RTTM_MAP[key]['rttm_filepath'] = os.path.join(table_out_dir, key + ".txt")
+                AUDIO_VAD_RTTM_MAP[key]["rttm_filepath"] = os.path.join(
+                    table_out_dir, key + ".txt"
+                )
             else:
-                logging.warning(f"no vad file found for {key} due to zero or negative duration")
+                logging.warning(
+                    f"no vad file found for {key} due to zero or negative duration"
+                )
 
         write_rttm2manifest(AUDIO_VAD_RTTM_MAP, self._vad_out_file)
         self._speaker_manifest_path = self._vad_out_file
 
-    def _run_segmentation(self, window: float, shift: float, scale_tag: str = ''):
+    def _run_segmentation(self, window: float, shift: float, scale_tag: str = ""):
 
-        self.subsegments_manifest_path = os.path.join(self._speaker_dir, f'subsegments{scale_tag}.json')
+        self.subsegments_manifest_path = os.path.join(
+            self._speaker_dir, f"subsegments{scale_tag}.json"
+        )
         logging.info(
             f"Subsegmentation for embedding extraction:{scale_tag.replace('_',' ')}, {self.subsegments_manifest_path}"
         )
@@ -294,13 +325,15 @@ class ClusteringDiarizer(torch.nn.Module, Model, DiarizationMixin):
 
             if self._auto_split:
                 logging.info("Split long audio file to avoid CUDA memory issue")
-                logging.debug("Try smaller split_duration if you still have CUDA memory issue")
+                logging.debug(
+                    "Try smaller split_duration if you still have CUDA memory issue"
+                )
                 config = {
-                    'input': manifest_vad_input,
-                    'window_length_in_sec': self._vad_window_length_in_sec,
-                    'split_duration': self._split_duration,
-                    'num_workers': self._cfg.num_workers,
-                    'out_dir': self._diarizer_params.out_dir,
+                    "input": manifest_vad_input,
+                    "window_length_in_sec": self._vad_window_length_in_sec,
+                    "split_duration": self._split_duration,
+                    "num_workers": self._cfg.num_workers,
+                    "out_dir": self._diarizer_params.out_dir,
                 }
                 manifest_vad_input = prepare_manifest(config)
             else:
@@ -312,15 +345,23 @@ class ClusteringDiarizer(torch.nn.Module, Model, DiarizationMixin):
             self._run_vad(manifest_vad_input)
 
         elif self._diarizer_params.vad.external_vad_manifest is not None:
-            self._speaker_manifest_path = self._diarizer_params.vad.external_vad_manifest
+            self._speaker_manifest_path = (
+                self._diarizer_params.vad.external_vad_manifest
+            )
         elif self._diarizer_params.oracle_vad:
-            self._speaker_manifest_path = os.path.join(self._speaker_dir, 'oracle_vad_manifest.json')
-            self._speaker_manifest_path = write_rttm2manifest(self.AUDIO_RTTM_MAP, self._speaker_manifest_path)
+            self._speaker_manifest_path = os.path.join(
+                self._speaker_dir, "oracle_vad_manifest.json"
+            )
+            self._speaker_manifest_path = write_rttm2manifest(
+                self.AUDIO_RTTM_MAP, self._speaker_manifest_path
+            )
         else:
             raise ValueError(
                 "Only one of diarizer.oracle_vad, vad.model_path or vad.external_vad_manifest must be passed from config"
             )
-        validate_vad_manifest(self.AUDIO_RTTM_MAP, vad_manifest=self._speaker_manifest_path)
+        validate_vad_manifest(
+            self.AUDIO_RTTM_MAP, vad_manifest=self._speaker_manifest_path
+        )
 
     def _extract_embeddings(self, manifest_file: str, scale_idx: int, num_scales: int):
         """
@@ -336,43 +377,47 @@ class ClusteringDiarizer(torch.nn.Module, Model, DiarizationMixin):
         all_embs = torch.empty([0])
         for test_batch in tqdm(
             self._speaker_model.test_dataloader(),
-            desc=f'[{scale_idx+1}/{num_scales}] extract embeddings',
+            desc=f"[{scale_idx+1}/{num_scales}] extract embeddings",
             leave=True,
             disable=not self.verbose,
         ):
             test_batch = [x.to(self._speaker_model.device) for x in test_batch]
             audio_signal, audio_signal_len, labels, slices = test_batch
             with torch.amp.autocast(self._speaker_model.device.type):
-                _, embs = self._speaker_model.forward(input_signal=audio_signal, input_signal_length=audio_signal_len)
+                _, embs = self._speaker_model.forward(
+                    input_signal=audio_signal, input_signal_length=audio_signal_len
+                )
                 emb_shape = embs.shape[-1]
                 embs = embs.view(-1, emb_shape)
                 all_embs = torch.cat((all_embs, embs.cpu().detach()), dim=0)
             del test_batch
 
-        with open(manifest_file, 'r', encoding='utf-8') as manifest:
+        with open(manifest_file, "r", encoding="utf-8") as manifest:
             for i, line in enumerate(manifest.readlines()):
                 line = line.strip()
                 dic = json.loads(line)
-                uniq_name = get_uniqname_from_filepath(dic['audio_filepath'])
+                uniq_name = get_uniqname_from_filepath(dic["audio_filepath"])
                 if uniq_name in self.embeddings:
-                    self.embeddings[uniq_name] = torch.cat((self.embeddings[uniq_name], all_embs[i].view(1, -1)))
+                    self.embeddings[uniq_name] = torch.cat(
+                        (self.embeddings[uniq_name], all_embs[i].view(1, -1))
+                    )
                 else:
                     self.embeddings[uniq_name] = all_embs[i].view(1, -1)
                 if uniq_name not in self.time_stamps:
                     self.time_stamps[uniq_name] = []
-                start = dic['offset']
-                end = start + dic['duration']
+                start = dic["offset"]
+                end = start + dic["duration"]
                 self.time_stamps[uniq_name].append([start, end])
 
         if self._speaker_params.save_embeddings:
-            embedding_dir = os.path.join(self._speaker_dir, 'embeddings')
+            embedding_dir = os.path.join(self._speaker_dir, "embeddings")
             if not os.path.exists(embedding_dir):
                 os.makedirs(embedding_dir, exist_ok=True)
 
             prefix = get_uniqname_from_filepath(manifest_file)
             name = os.path.join(embedding_dir, prefix)
-            self._embeddings_file = name + '_embeddings.pkl'
-            pkl.dump(self.embeddings, open(self._embeddings_file, 'wb'))
+            self._embeddings_file = name + "_embeddings.pkl"
+            pkl.dump(self.embeddings, open(self._embeddings_file, "wb"))
             logging.info("Saved embedding files to {}".format(embedding_dir))
 
     def diarize(self, paths2audio_files: List[str] = None, batch_size: int = 0):
@@ -385,7 +430,9 @@ class ClusteringDiarizer(torch.nn.Module, Model, DiarizationMixin):
 
         self._out_dir = self._diarizer_params.out_dir
 
-        self._speaker_dir = os.path.join(self._diarizer_params.out_dir, 'speaker_outputs')
+        self._speaker_dir = os.path.join(
+            self._diarizer_params.out_dir, "speaker_outputs"
+        )
 
         if os.path.exists(self._speaker_dir):
             logging.warning("Deleting previous clustering diarizer outputs.")
@@ -395,7 +442,7 @@ class ClusteringDiarizer(torch.nn.Module, Model, DiarizationMixin):
         if not os.path.exists(self._out_dir):
             os.mkdir(self._out_dir)
 
-        self._vad_dir = os.path.join(self._out_dir, 'vad_outputs')
+        self._vad_dir = os.path.join(self._out_dir, "vad_outputs")
         self._vad_out_file = os.path.join(self._vad_dir, "vad_out.json")
 
         if batch_size:
@@ -403,30 +450,41 @@ class ClusteringDiarizer(torch.nn.Module, Model, DiarizationMixin):
 
         if paths2audio_files:
             if type(paths2audio_files) is list:
-                self._diarizer_params.manifest_filepath = os.path.join(self._out_dir, 'paths2audio_filepath.json')
-                self.path2audio_files_to_manifest(paths2audio_files, self._diarizer_params.manifest_filepath)
+                self._diarizer_params.manifest_filepath = os.path.join(
+                    self._out_dir, "paths2audio_filepath.json"
+                )
+                self.path2audio_files_to_manifest(
+                    paths2audio_files, self._diarizer_params.manifest_filepath
+                )
             else:
-                raise ValueError("paths2audio_files must be of type list of paths to file containing audio file")
+                raise ValueError(
+                    "paths2audio_files must be of type list of paths to file containing audio file"
+                )
 
         self.AUDIO_RTTM_MAP = audio_rttm_map(self._diarizer_params.manifest_filepath)
 
-        out_rttm_dir = os.path.join(self._out_dir, 'pred_rttms')
+        out_rttm_dir = os.path.join(self._out_dir, "pred_rttms")
         os.makedirs(out_rttm_dir, exist_ok=True)
 
         # Speech Activity Detection
         self._perform_speech_activity_detection()
 
         # Segmentation
-        scales = self.multiscale_args_dict['scale_dict'].items()
+        scales = self.multiscale_args_dict["scale_dict"].items()
         for scale_idx, (window, shift) in scales:
 
             # Segmentation for the current scale (scale_idx)
-            self._run_segmentation(window, shift, scale_tag=f'_scale{scale_idx}')
+            self._run_segmentation(window, shift, scale_tag=f"_scale{scale_idx}")
 
             # Embedding Extraction for the current scale (scale_idx)
-            self._extract_embeddings(self.subsegments_manifest_path, scale_idx, len(scales))
+            self._extract_embeddings(
+                self.subsegments_manifest_path, scale_idx, len(scales)
+            )
 
-            self.multiscale_embeddings_and_timestamps[scale_idx] = [self.embeddings, self.time_stamps]
+            self.multiscale_embeddings_and_timestamps[scale_idx] = [
+                self.embeddings,
+                self.time_stamps,
+            ]
 
         embs_and_timestamps = get_embs_and_timestamps(
             self.multiscale_embeddings_and_timestamps, self.multiscale_args_dict
@@ -441,7 +499,11 @@ class ClusteringDiarizer(torch.nn.Module, Model, DiarizationMixin):
             device=self._speaker_model.device,
             verbose=self.verbose,
         )
-        logging.info("Outputs are saved in {} directory".format(os.path.abspath(self._diarizer_params.out_dir)))
+        logging.info(
+            "Outputs are saved in {} directory".format(
+                os.path.abspath(self._diarizer_params.out_dir)
+            )
+        )
 
         # Scoring
         return score_labels(
@@ -478,7 +540,9 @@ class ClusteringDiarizer(torch.nn.Module, Model, DiarizationMixin):
                 vad_model = os.path.join(tmpdir, _VAD_MODEL)
                 self._vad_model.save_to(vad_model)
             self._speaker_model.save_to(spkr_model)
-            SaveRestoreConnector._make_nemo_file_from_folder(filename=save_path, source_dir=tmpdir)
+            SaveRestoreConnector._make_nemo_file_from_folder(
+                filename=save_path, source_dir=tmpdir
+            )
 
     @classmethod
     def restore_from(
@@ -493,7 +557,9 @@ class ClusteringDiarizer(torch.nn.Module, Model, DiarizationMixin):
 
         with tempfile.TemporaryDirectory() as tmpdir:
             try:
-                SaveRestoreConnector._unpack_nemo_file(path2file=restore_path, out_folder=tmpdir)
+                SaveRestoreConnector._unpack_nemo_file(
+                    path2file=restore_path, out_folder=tmpdir
+                )
                 os.chdir(tmpdir)
                 if override_config_path is None:
                     config_yaml = os.path.join(tmpdir, _MODEL_CONFIG_YAML)
@@ -504,16 +570,20 @@ class ClusteringDiarizer(torch.nn.Module, Model, DiarizationMixin):
                     conf.diarizer.vad.model_path = os.path.join(tmpdir, _VAD_MODEL)
                 else:
                     logging.info(
-                        f'Model {cls.__name__} does not contain a VAD model. A VAD model or manifest file with'
-                        f'speech segments need for diarization with this model'
+                        f"Model {cls.__name__} does not contain a VAD model. A VAD model or manifest file with"
+                        f"speech segments need for diarization with this model"
                     )
 
-                conf.diarizer.speaker_embeddings.model_path = os.path.join(tmpdir, _SPEAKER_MODEL)
+                conf.diarizer.speaker_embeddings.model_path = os.path.join(
+                    tmpdir, _SPEAKER_MODEL
+                )
                 conf.restore_map_location = map_location
                 OmegaConf.set_struct(conf, True)
                 instance = cls(cfg=conf)
 
-                logging.info(f'Model {cls.__name__} was successfully restored from {restore_path}.')
+                logging.info(
+                    f"Model {cls.__name__} was successfully restored from {restore_path}."
+                )
             finally:
                 os.chdir(cwd)
 

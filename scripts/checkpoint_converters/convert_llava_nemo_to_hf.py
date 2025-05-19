@@ -100,8 +100,14 @@ def create_rename_keys(num_hidden_layers):
                 "multi_modal_projector.linear_2.bias",
                 "model.embedding.word_embeddings.adapter_layer.mm_projector_adapter.mm_projector.2.bias",
             ),
-            ("language_model.model.embed_tokens.weight", "model.embedding.word_embeddings.weight"),
-            ("language_model.model.norm.weight", "model.decoder.final_layernorm.weight"),
+            (
+                "language_model.model.embed_tokens.weight",
+                "model.embedding.word_embeddings.weight",
+            ),
+            (
+                "language_model.model.norm.weight",
+                "model.decoder.final_layernorm.weight",
+            ),
             ("language_model.lm_head.weight", "model.output_layer.weight"),
         ]
     )
@@ -156,7 +162,10 @@ def reverse_adjust_tensor_shapes(model, hf_model, nemo_state_dict):
     head_num = model_config["num_attention_heads"]
     hidden_size = model_config["hidden_size"]
     head_size = model_config["kv_channels"]
-    if "num_query_groups" in model_config and model_config["num_query_groups"] is not None:
+    if (
+        "num_query_groups" in model_config
+        and model_config["num_query_groups"] is not None
+    ):
         num_query_groups = model_config["num_query_groups"]
     else:
         num_query_groups = head_num
@@ -166,14 +175,18 @@ def reverse_adjust_tensor_shapes(model, hf_model, nemo_state_dict):
     vocab_size = hf_model.config.vocab_size
 
     for key_ in list(nemo_state_dict.keys()):
-        if 'word_embeddings.weight' in key_ or 'output_layer.weight' in key_:
+        if "word_embeddings.weight" in key_ or "output_layer.weight" in key_:
             # Reverse padding
             loaded_weight = model.state_dict()[key_]
             nemo_state_dict[key_] = loaded_weight[:vocab_size]
 
-        if 'mlp.linear_fc1.weight' in key_:
-            new_key_gate = key_.replace('mlp.linear_fc1.weight', 'mlp.linear_fc1_gate.weight')
-            new_key_proj = key_.replace('mlp.linear_fc1.weight', 'mlp.linear_fc1_proj.weight')
+        if "mlp.linear_fc1.weight" in key_:
+            new_key_gate = key_.replace(
+                "mlp.linear_fc1.weight", "mlp.linear_fc1_gate.weight"
+            )
+            new_key_proj = key_.replace(
+                "mlp.linear_fc1.weight", "mlp.linear_fc1_proj.weight"
+            )
 
             # Split concatenated gate and projection weights
             combined_weight = nemo_state_dict[key_]
@@ -182,21 +195,27 @@ def reverse_adjust_tensor_shapes(model, hf_model, nemo_state_dict):
             nemo_state_dict[new_key_proj] = proj_weight
             del nemo_state_dict[key_]
 
-        if 'self_attention.linear_qkv.weight' in key_:
+        if "self_attention.linear_qkv.weight" in key_:
             key_qkv = key_
-            key_q = key_qkv.replace('linear_qkv', 'linear_q')
-            key_k = key_qkv.replace('linear_qkv', 'linear_k')
-            key_v = key_qkv.replace('linear_qkv', 'linear_v')
+            key_q = key_qkv.replace("linear_qkv", "linear_q")
+            key_k = key_qkv.replace("linear_qkv", "linear_k")
+            key_v = key_qkv.replace("linear_qkv", "linear_v")
             qkv_weight = nemo_state_dict[key_qkv].reshape(-1, head_size, hidden_size)
-            q_weight = torch.empty((head_num, head_size, hidden_size), device=qkv_weight.device)
-            k_weight = torch.empty((num_query_groups, head_size, hidden_size), device=qkv_weight.device)
-            v_weight = torch.empty((num_query_groups, head_size, hidden_size), device=qkv_weight.device)
+            q_weight = torch.empty(
+                (head_num, head_size, hidden_size), device=qkv_weight.device
+            )
+            k_weight = torch.empty(
+                (num_query_groups, head_size, hidden_size), device=qkv_weight.device
+            )
+            v_weight = torch.empty(
+                (num_query_groups, head_size, hidden_size), device=qkv_weight.device
+            )
 
             qkv_index = 0
             for i in range(num_query_groups):
-                q_weight[i * heads_per_group : (i + 1) * heads_per_group, :, :] = qkv_weight[
-                    qkv_index : qkv_index + heads_per_group, :, :
-                ]
+                q_weight[i * heads_per_group : (i + 1) * heads_per_group, :, :] = (
+                    qkv_weight[qkv_index : qkv_index + heads_per_group, :, :]
+                )
                 qkv_index += heads_per_group
                 k_weight[i, :, :] = qkv_weight[qkv_index, :, :]
                 qkv_index += 1
@@ -204,8 +223,12 @@ def reverse_adjust_tensor_shapes(model, hf_model, nemo_state_dict):
                 qkv_index += 1
 
             nemo_state_dict[key_q] = q_weight.reshape(head_num * head_size, hidden_size)
-            nemo_state_dict[key_k] = k_weight.reshape(num_query_groups * head_size, hidden_size)
-            nemo_state_dict[key_v] = v_weight.reshape(num_query_groups * head_size, hidden_size)
+            nemo_state_dict[key_k] = k_weight.reshape(
+                num_query_groups * head_size, hidden_size
+            )
+            nemo_state_dict[key_v] = v_weight.reshape(
+                num_query_groups * head_size, hidden_size
+            )
 
             del nemo_state_dict[key_qkv]
 
@@ -215,13 +238,17 @@ def reverse_adjust_tensor_shapes(model, hf_model, nemo_state_dict):
 def adjust_nemo_config(model_config, ref_config):
     model_config.mm_cfg.mm_mlp_adapter_type = "mlp2x_gelu"
     if ref_config["vision_config"].image_size == 336:
-        model_config.mm_cfg.vision_encoder.from_pretrained = "openai/clip-vit-large-patch14-336"
+        model_config.mm_cfg.vision_encoder.from_pretrained = (
+            "openai/clip-vit-large-patch14-336"
+        )
         model_config.data.image_token_len = 576
     else:
-        model_config.mm_cfg.vision_encoder.from_pretrained = "openai/clip-vit-large-patch14"
+        model_config.mm_cfg.vision_encoder.from_pretrained = (
+            "openai/clip-vit-large-patch14"
+        )
         model_config.data.image_token_len = 256
 
-    ref_config = ref_config['text_config'].__dict__
+    ref_config = ref_config["text_config"].__dict__
     model_config["encoder_seq_length"] = ref_config["max_position_embeddings"]
     model_config["num_layers"] = ref_config["num_hidden_layers"]
     model_config["ffn_hidden_size"] = ref_config["intermediate_size"]
@@ -235,7 +262,9 @@ def adjust_nemo_config(model_config, ref_config):
     )
     if ref_config.get("rope_scaling") is not None:
         if ref_config["rope_scaling"]["type"] == "linear":
-            model_config["seq_len_interpolation_factor"] = ref_config["rope_scaling"]["factor"]
+            model_config["seq_len_interpolation_factor"] = ref_config["rope_scaling"][
+                "factor"
+            ]
         else:
             raise ValueError("Only linear rope scaling type is supported now")
     model_config["use_cpu_initialization"] = True
@@ -256,13 +285,15 @@ def get_args():
         "--hf_input_path",
         type=str,
         default=None,
-        help="A HF model path, " "e.g. a folder containing https://huggingface.co/meta-llama/Llama-2-7b-hf/tree/main",
+        help="A HF model path, "
+        "e.g. a folder containing https://huggingface.co/meta-llama/Llama-2-7b-hf/tree/main",
     )
     parser.add_argument(
         "--hf_output_path",
         type=str,
         default=None,
-        help="Output HF model path, " "with the same format as above but user's own weights",
+        help="Output HF model path, "
+        "with the same format as above but user's own weights",
     )
     parser.add_argument(
         "--cpu_only",
@@ -283,7 +314,10 @@ def convert(args):
     logging.info("HF Model loading done.")
 
     nemo_config = OmegaConf.load(
-        os.path.join(os.path.dirname(__file__), '../../examples/multimodal/multimodal_llm/neva/conf/llava_config.yaml')
+        os.path.join(
+            os.path.dirname(__file__),
+            "../../examples/multimodal/multimodal_llm/neva/conf/llava_config.yaml",
+        )
     )
     trainer = MegatronTrainerBuilder(nemo_config).create_trainer()
     model_config = MegatronNevaModel.restore_from(
@@ -292,8 +326,10 @@ def convert(args):
     model_config.tensor_model_parallel_size = 1
     model_config.pipeline_model_parallel_size = 1
     if args.cpu_only:
-        logging.info("******** Loading model on CPU. This will take a significant amount of time.")
-        map_location = torch.device('cpu')
+        logging.info(
+            "******** Loading model on CPU. This will take a significant amount of time."
+        )
+        map_location = torch.device("cpu")
         model_config.use_cpu_initialization = True
     else:
         map_location = None
@@ -309,55 +345,74 @@ def convert(args):
     rename_keys = create_rename_keys(model.cfg.num_layers)
     old_state_dict = model.state_dict()
     nemo_state_dict = reverse_adjust_tensor_shapes(model, hf_model, old_state_dict)
-    hf_state_dict = rename_model_keys(model_state_dict=nemo_state_dict, rename_keys=rename_keys)
+    hf_state_dict = rename_model_keys(
+        model_state_dict=nemo_state_dict, rename_keys=rename_keys
+    )
 
     hf_model.load_state_dict(hf_state_dict, strict=False)
 
-    logging.info(f'=' * 100)
+    logging.info(f"=" * 100)
     if not args.skip_verification:
         # Verifications
         input_texts = [
-            'query: how much protein should a female eat',
+            "query: how much protein should a female eat",
         ]
         logging.info(f"Running verifications {input_texts} ...")
 
         # Tokenize the input texts
         hf_tokenizer.pad_token = hf_tokenizer.eos_token
-        batch_dict = hf_tokenizer(input_texts, max_length=512, padding=True, truncation=True, return_tensors='pt')
+        batch_dict = hf_tokenizer(
+            input_texts,
+            max_length=512,
+            padding=True,
+            truncation=True,
+            return_tensors="pt",
+        )
         batch_dict_cuda = {k: v.cuda() for k, v in batch_dict.items()}
         hf_model = hf_model.cuda().eval()
         model = model.cuda().eval()
 
         hf_outputs = hf_model(**batch_dict_cuda, output_hidden_states=True)
-        ids = batch_dict_cuda['input_ids']
+        ids = batch_dict_cuda["input_ids"]
 
-        id_tensors = [torch.unsqueeze(torch.LongTensor(id_list), dim=0) for id_list in ids.cpu()]
+        id_tensors = [
+            torch.unsqueeze(torch.LongTensor(id_list), dim=0) for id_list in ids.cpu()
+        ]
 
         masks_and_position_ids = [
-            get_ltor_masks_and_position_ids(id_tensor, hf_tokenizer.eos_token, False, False, False)
+            get_ltor_masks_and_position_ids(
+                id_tensor, hf_tokenizer.eos_token, False, False, False
+            )
             for id_tensor in id_tensors
         ]
         for tokens, attn_mask_and_pos_ids in zip(id_tensors, masks_and_position_ids):
             attn_mask, _, pos_ids = attn_mask_and_pos_ids
 
             outputs = model(
-                tokens=tokens.cuda(), text_position_ids=pos_ids.cuda(), attention_mask=attn_mask.cuda(), labels=None
+                tokens=tokens.cuda(),
+                text_position_ids=pos_ids.cuda(),
+                attention_mask=attn_mask.cuda(),
+                labels=None,
             )
 
         hf_next_token = hf_outputs.logits[0, -1].argmax()
         next_token = outputs.squeeze()[-1].argmax()
 
-        logging.info(f"HF predicted next token is: '{hf_tokenizer._convert_id_to_token(int(hf_next_token))}'.")
-        logging.info(f"NeMo predicted next token is: '{hf_tokenizer._convert_id_to_token(int(next_token))}'.")
+        logging.info(
+            f"HF predicted next token is: '{hf_tokenizer._convert_id_to_token(int(hf_next_token))}'."
+        )
+        logging.info(
+            f"NeMo predicted next token is: '{hf_tokenizer._convert_id_to_token(int(next_token))}'."
+        )
         assert (
             hf_next_token == next_token
-        ), f'prediction mismatch: {hf_tokenizer.decode(hf_next_token)} != {hf_tokenizer.decode(next_token)}'
-        logging.info(f'=' * 100)
+        ), f"prediction mismatch: {hf_tokenizer.decode(hf_next_token)} != {hf_tokenizer.decode(next_token)}"
+        logging.info(f"=" * 100)
 
     hf_model.save_pretrained(args.hf_output_path)
     logging.info(f"Full HF model saved to {args.hf_output_path}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     args = get_args()
     convert(args)

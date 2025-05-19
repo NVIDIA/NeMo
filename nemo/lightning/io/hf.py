@@ -87,7 +87,12 @@ class HFCheckpointIO(CheckpointIO, IOMixin):
         self.model = model
 
     @override
-    def save_checkpoint(self, checkpoint: Dict[str, Any], path: _PATH, storage_options: Optional[Any] = None) -> None:
+    def save_checkpoint(
+        self,
+        checkpoint: Dict[str, Any],
+        path: _PATH,
+        storage_options: Optional[Any] = None,
+    ) -> None:
         """
         Save model/training states to a checkpoint file.
 
@@ -107,9 +112,9 @@ class HFCheckpointIO(CheckpointIO, IOMixin):
         assert is_rank_0(), "Expected to run only on rank=0"
         # Determine checkpoint directory & make dir
         checkpoint_dir = ckpt_to_weights_subdir(path, is_saving=True)
-        assert checkpoint_dir.parts[-1] == WEIGHTS_PATH, "Expected {} to end with {}".format(
-            checkpoint_dir, WEIGHTS_PATH
-        )
+        assert (
+            checkpoint_dir.parts[-1] == WEIGHTS_PATH
+        ), "Expected {} to end with {}".format(checkpoint_dir, WEIGHTS_PATH)
         # remove the WEIGHTS_PATH suffix
         checkpoint_dir = checkpoint_dir.parent
         fs = get_filesystem(checkpoint_dir)
@@ -130,9 +135,11 @@ class HFCheckpointIO(CheckpointIO, IOMixin):
             # The `hf_adapter` directory contains the adapter's state dict, in HF format.
             adapter_path = checkpoint_dir / HF_ADAPTER_PATH
             adapter_path.mkdir(exist_ok=True)
-            self._save_adapter_weights_only(checkpoint.pop('state_dict'), adapter_path, storage_options)
-            torch.save(checkpoint, checkpoint_dir / 'trainer.pt')
-        elif callable(getattr(self.model, 'save_pretrained', None)):
+            self._save_adapter_weights_only(
+                checkpoint.pop("state_dict"), adapter_path, storage_options
+            )
+            torch.save(checkpoint, checkpoint_dir / "trainer.pt")
+        elif callable(getattr(self.model, "save_pretrained", None)):
             # In this case the output looks like the following:
             # default--reduced_train_loss=0.0112-epoch=2-step=3/
             # ├── hf_weights
@@ -147,14 +154,19 @@ class HFCheckpointIO(CheckpointIO, IOMixin):
             # The `trainer.pt` stores trainer's state (optimizer, dataloader, etc).
             hf_weights_path = checkpoint_dir / HF_WEIGHTS_PATH
             hf_weights_path.mkdir(parents=True, exist_ok=True)
-            self.model.save_pretrained(hf_weights_path, state_dict=checkpoint.pop('state_dict'))
-            torch.save(checkpoint, checkpoint_dir / 'trainer.pt')
+            self.model.save_pretrained(
+                hf_weights_path, state_dict=checkpoint.pop("state_dict")
+            )
+            torch.save(checkpoint, checkpoint_dir / "trainer.pt")
         else:
             super().save_checkpoint(checkpoint, path, storage_options)
             raise NotImplementedError("Checkpoint was saved at: " + str(path))
 
     def _save_adapter_weights_only(
-        self, state_dict: Dict[str, Any], path: Union[str, Path], storage_options: Optional[Any] = None
+        self,
+        state_dict: Dict[str, Any],
+        path: Union[str, Path],
+        storage_options: Optional[Any] = None,
     ) -> None:
         """
         Saves only the adapter weights in a safetensors format.
@@ -203,15 +215,21 @@ class HFCheckpointIO(CheckpointIO, IOMixin):
             raise FileNotFoundError("Checkpoint file not found: {}", path)
 
         if not fs.isdir(path):
-            raise ValueError("Checkpoints should be a directory. Found: {}".format(path))
+            raise ValueError(
+                "Checkpoints should be a directory. Found: {}".format(path)
+            )
 
         state_dict = {}
         adapter_file = Path(path) / "adapter_model.safetensors"
         if not adapter_file.exists():
-            raise FileNotFoundError("Adapter weights file not found: {}".format(adapter_file))
+            raise FileNotFoundError(
+                "Adapter weights file not found: {}".format(adapter_file)
+            )
         config_file = Path(path) / HF_ADAPTER_CONFIG_FILENAME
         if not config_file.exists():
-            raise FileNotFoundError("Adapter config file not found: {}".format(config_file))
+            raise FileNotFoundError(
+                "Adapter config file not found: {}".format(config_file)
+            )
 
         from safetensors import safe_open
 
@@ -222,7 +240,7 @@ class HFCheckpointIO(CheckpointIO, IOMixin):
         except OSError as e:
             raise OSError(f"Failed to load adapter weights: {e}")
 
-        return {'state_dict': state_dict}
+        return {"state_dict": state_dict}
 
     @override
     def load_checkpoint(
@@ -230,7 +248,7 @@ class HFCheckpointIO(CheckpointIO, IOMixin):
         path: _PATH,
         sharded_state_dict=None,
         map_location: Optional[Callable] = None,
-        strict: Optional['StrictHandling'] | bool = None,  # noqa: F821
+        strict: Optional["StrictHandling"] | bool = None,  # noqa: F821
     ) -> Dict[str, Any]:
         """Loads checkpoint using :func:`torch.load`, with additional handling for ``fsspec`` remote loading of files.
 
@@ -247,15 +265,21 @@ class HFCheckpointIO(CheckpointIO, IOMixin):
 
         """
         path = Path(path)
-        assert path.parts[-1] != HF_WEIGHTS_PATH, f"Expected {path} not to end with {HF_WEIGHTS_PATH}"
+        assert (
+            path.parts[-1] != HF_WEIGHTS_PATH
+        ), f"Expected {path} not to end with {HF_WEIGHTS_PATH}"
         trainer_state = {}
 
-        if not (path / 'trainer.pt').exists():
-            logging.info("Asked to restore from checkpoint without trainer state at {}".format(path))
+        if not (path / "trainer.pt").exists():
+            logging.info(
+                "Asked to restore from checkpoint without trainer state at {}".format(
+                    path
+                )
+            )
         else:
             trainer_state = torch.load(
-                path / 'trainer.pt',
-                map_location='cpu',
+                path / "trainer.pt",
+                map_location="cpu",
                 mmap=True,
                 weights_only=False,
             )
@@ -263,9 +287,11 @@ class HFCheckpointIO(CheckpointIO, IOMixin):
         if self.adapter_only:
             adapter_path = path / HF_ADAPTER_PATH
             trainer_state |= HFCheckpointIO._load_adapter_weights_only(adapter_path)
-        elif callable(getattr(self.model, 'load_pretrained', None)):
+        elif callable(getattr(self.model, "load_pretrained", None)):
             try:
-                trainer_state['state_dict'] = self.model.load_pretrained(path / HF_WEIGHTS_PATH)
+                trainer_state["state_dict"] = self.model.load_pretrained(
+                    path / HF_WEIGHTS_PATH
+                )
             except (EnvironmentError, HFValidationError):
                 raise EnvironmentError(
                     f"Failed to load weights from {path}. If this is a local checkpoint, please make sure the path exists and has the correct format. "

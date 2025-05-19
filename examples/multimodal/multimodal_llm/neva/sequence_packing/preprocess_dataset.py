@@ -68,7 +68,7 @@ from nemo.collections.nlp.modules.common.tokenizer_utils import \
     get_nmt_tokenizer
 from nemo.utils import logging
 
-PACKING_ALGOS = ['first_fit_decreasing', 'first_fit_shuffle', 'shuffle_and_pack']
+PACKING_ALGOS = ["first_fit_decreasing", "first_fit_shuffle", "shuffle_and_pack"]
 
 
 def first_fit(seq_lens, max_seq_length):
@@ -93,7 +93,7 @@ def first_fit(seq_lens, max_seq_length):
         for i, abin in enumerate(bins[:]):  # Iterate over a shallow copy of bins
             if sum(abin) + min_seq_len > max_seq_length:
                 completed_bins.append(abin)  # Add to completed bins
-                bins[i] = 'TO_REMOVE'  # Mark this bin for removal
+                bins[i] = "TO_REMOVE"  # Mark this bin for removal
                 continue
             if sum(abin) + s <= max_seq_length:  # Check if the bin can fit the sequence
                 bins[i].append(s)  # If so, add the sequence to this bin
@@ -104,7 +104,7 @@ def first_fit(seq_lens, max_seq_length):
             bins.append([s])  # Open a new bin for this sequence
 
         # Clean up bins marked 'TO_REMOVE'
-        bins = [bin for bin in bins if bin != 'TO_REMOVE']
+        bins = [bin for bin in bins if bin != "TO_REMOVE"]
 
     # Combine completed bins with any remaining active bins
     all_bins = completed_bins + bins
@@ -212,17 +212,29 @@ def get_args():
     parser.add_argument("--data_path", type=str)
     parser.add_argument("--image_folder", type=str)
     parser.add_argument("--tokenizer_path", type=str)
-    parser.add_argument('--output_dir', required=True, type=str)
+    parser.add_argument("--output_dir", required=True, type=str)
     parser.add_argument("--max_seq_length", default=4096, type=int)
-    parser.add_argument('--packing_algorithm', default='first_fit_shuffle', choices=PACKING_ALGOS, type=str)
-    parser.add_argument("--hf_vision_encoder", default='openai/clip-vit-large-patch14-336', type=str)
-    parser.add_argument("--conv_template", default='plain', type=str)
-    parser.add_argument("--image_aspect_ratio", default='square', type=str)
-    parser.add_argument('--seed', default=0, type=int, help="Seed for shuffling, used with first_fit_shuffle.")
+    parser.add_argument(
+        "--packing_algorithm",
+        default="first_fit_shuffle",
+        choices=PACKING_ALGOS,
+        type=str,
+    )
+    parser.add_argument(
+        "--hf_vision_encoder", default="openai/clip-vit-large-patch14-336", type=str
+    )
+    parser.add_argument("--conv_template", default="plain", type=str)
+    parser.add_argument("--image_aspect_ratio", default="square", type=str)
+    parser.add_argument(
+        "--seed",
+        default=0,
+        type=int,
+        help="Seed for shuffling, used with first_fit_shuffle.",
+    )
     parser.add_argument(
         "--hparams_file",
         type=str,
-        default=os.path.join(os.path.dirname(__file__), '../conf/llava_config.yaml'),
+        default=os.path.join(os.path.dirname(__file__), "../conf/llava_config.yaml"),
         required=False,
         help="Path to the hparams file.",
     )
@@ -249,7 +261,7 @@ def pack_sequence(args, seq_lens):
 
 
 def main():
-    torch.multiprocessing.set_sharing_strategy('file_system')
+    torch.multiprocessing.set_sharing_strategy("file_system")
 
     args = get_args()
     nemo_config = OmegaConf.load(args.hparams_file)
@@ -265,7 +277,9 @@ def main():
     )
     image_processor = create_image_processor(nemo_config.model.mm_cfg)
     train_ds = make_supervised_data_module(
-        tokenizer=tokenizer, image_processor=image_processor, model_cfg=nemo_config.model
+        tokenizer=tokenizer,
+        image_processor=image_processor,
+        model_cfg=nemo_config.model,
     )["train_dataset"]
     train_dl = DataLoader(train_ds, num_workers=32, collate_fn=None, shuffle=False)
     # Example shape: {'tokens': torch.Size([1, 344]), 'labels': torch.Size([1, 344]), 'image': torch.Size([1, 1, 3, 224, 224])}
@@ -280,17 +294,21 @@ def main():
     builders = {}
     for item_dict in tqdm(train_dl, desc="Building indexed datasets"):
         item_dict = {k: v[0] for k, v in item_dict.items()}
-        seq_len = len(item_dict['tokens'])
+        seq_len = len(item_dict["tokens"])
         if seq_len in builders:
             builder = builders[seq_len]
         else:
             builder_path = get_bin_path(f"{prefix_path}/seqlen_{seq_len}")
-            logging.info(f"Creating builder for sequence length {seq_len} at {builder_path}")
-            builder = IndexedDatasetBuilder(builder_path, dtype=np.float32, multimodal=True)
+            logging.info(
+                f"Creating builder for sequence length {seq_len} at {builder_path}"
+            )
+            builder = IndexedDatasetBuilder(
+                builder_path, dtype=np.float32, multimodal=True
+            )
             builders[seq_len] = builder
-        builder.add_item(item_dict['tokens'])
-        builder.add_item(item_dict['labels'])
-        builder.add_item(item_dict['image'], 1)
+        builder.add_item(item_dict["tokens"])
+        builder.add_item(item_dict["labels"])
+        builder.add_item(item_dict["image"], 1)
         builder.end_document()
         del item_dict
 
@@ -316,7 +334,9 @@ def main():
         dataset_path = f"{prefix_path}/seqlen_{seq_len}"
         dataset = IndexedDataset(dataset_path, multimodal=True)
         aggregated_seq_lens.extend([seq_len] * (len(dataset.document_indices) - 1))
-        doc_pop_order[seq_len] = list(np.random.permutation(len(dataset.document_indices) - 1))
+        doc_pop_order[seq_len] = list(
+            np.random.permutation(len(dataset.document_indices) - 1)
+        )
         indexed_datasets[seq_len] = dataset
 
     logging.info("Getting bins")
@@ -326,12 +346,16 @@ def main():
     num_bins = len(bins)
     avg_bins_len = sum([len(x) for x in bins]) / num_bins
     avg_bins_sum = sum([sum(x) for x in bins]) / num_bins
-    logging.info(f"Number of bins: {num_bins}, Average bin length: {avg_bins_len}, Average bin sum: {avg_bins_sum}")
+    logging.info(
+        f"Number of bins: {num_bins}, Average bin length: {avg_bins_len}, Average bin sum: {avg_bins_sum}"
+    )
 
     # Reading Sequence Lengths and Packing into New Files
     final_builder_path = get_bin_path(f"{prefix_path}")
     logging.info(f"Creating final builder at {final_builder_path}")
-    final_builder = IndexedDatasetBuilder(final_builder_path, dtype=np.float32, multimodal=True)
+    final_builder = IndexedDatasetBuilder(
+        final_builder_path, dtype=np.float32, multimodal=True
+    )
 
     for assignment in tqdm(bins, desc="Building final dataset"):
         packed_items = collections.defaultdict(list)
@@ -341,17 +365,29 @@ def main():
             doc_start = indexed_datasets[seq_len].document_indices[doc_index]
             doc_end = indexed_datasets[seq_len].document_indices[doc_index + 1]
             item_dict = {
-                "tokens": torch.tensor((indexed_datasets[seq_len][doc_start:doc_end][0])[0]),
-                "labels": torch.tensor((indexed_datasets[seq_len][doc_start:doc_end][0])[1]),
-                "image": torch.tensor((indexed_datasets[seq_len][doc_start:doc_end][0])[2]),
+                "tokens": torch.tensor(
+                    (indexed_datasets[seq_len][doc_start:doc_end][0])[0]
+                ),
+                "labels": torch.tensor(
+                    (indexed_datasets[seq_len][doc_start:doc_end][0])[1]
+                ),
+                "image": torch.tensor(
+                    (indexed_datasets[seq_len][doc_start:doc_end][0])[2]
+                ),
             }
             for key in ["tokens", "labels", "image"]:
                 packed_items[key].append(item_dict[key])
-            packed_items["seq_indices"].append(packed_items["seq_indices"][-1] + seq_len)
+            packed_items["seq_indices"].append(
+                packed_items["seq_indices"][-1] + seq_len
+            )
 
         for key in ["seq_indices", "tokens", "labels", "image"]:
             final_builder.add_item(
-                torch.tensor(packed_items[key]) if key == "seq_indices" else torch.cat(packed_items[key], dim=0),
+                (
+                    torch.tensor(packed_items[key])
+                    if key == "seq_indices"
+                    else torch.cat(packed_items[key], dim=0)
+                ),
                 1 if key == "image" else 0,
             )
         final_builder.end_document()
@@ -359,7 +395,9 @@ def main():
     idx_path = get_idx_path(f"{prefix_path}")
     logging.info(f"Finalizing final builder at {idx_path}")
     final_builder.finalize(idx_path)
-    logging.info(f"Number of bins: {num_bins}, Average bin length: {avg_bins_len}, Average bin sum: {avg_bins_sum}")
+    logging.info(
+        f"Number of bins: {num_bins}, Average bin length: {avg_bins_len}, Average bin sum: {avg_bins_sum}"
+    )
 
 
 if __name__ == "__main__":

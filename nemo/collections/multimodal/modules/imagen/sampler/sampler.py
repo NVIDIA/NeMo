@@ -29,27 +29,29 @@ def right_pad_dims_to(x, t):
     return t.view(*t.shape, *((1,) * padding_dims))
 
 
-def thresholding_x0(x0, method='dynamic', th=0.995):
+def thresholding_x0(x0, method="dynamic", th=0.995):
     if method is None:
         return x0
-    elif method == 'static':
+    elif method == "static":
         return x0.clamp(-1.0, 1.0)
-    elif method == 'dynamic':
+    elif method == "dynamic":
         # torch.quantile only suppoprt either float or double dtype
         # we need to manual cast it if running in FP16/AMP mode
         original_dtype = x0.dtype
         if original_dtype not in [torch.float, torch.double]:
             x0 = x0.float()
-        s = torch.quantile(rearrange(x0, 'b ... -> b (...)').abs(), th, dim=-1)  # From Figure A.10 (b)
+        s = torch.quantile(
+            rearrange(x0, "b ... -> b (...)").abs(), th, dim=-1
+        )  # From Figure A.10 (b)
         s.clamp_(min=1.0)
         s = right_pad_dims_to(x0, s)
         x0 = x0.clamp(-s, s) / s
         return x0.type(original_dtype)
     else:
-        raise RuntimeError(f'Thresholding method: {method} not supported.')
+        raise RuntimeError(f"Thresholding method: {method} not supported.")
 
 
-def thresholding_derivative(x, t, d, thresholding_method='dynamic'):
+def thresholding_derivative(x, t, d, thresholding_method="dynamic"):
     x0 = x - batch_mul(d, t)
     corrected_x0 = thresholding_x0(x0, thresholding_method)
     corrected_d = batch_div(x - corrected_x0, t)
@@ -69,37 +71,66 @@ class DDPMSampler(Sampler):
         super().__init__()
         self.unet_type = unet_type
         self.noise_scheduler = denoiser
-        self.pred_objective = 'noise'
+        self.pred_objective = "noise"
 
     def p_mean_variance(
-        self, unet, x, t, t_next, text_embeds, text_mask, x_low_res=None, cond_scale=1.0, thresholding_method='dynamic'
+        self,
+        unet,
+        x,
+        t,
+        t_next,
+        text_embeds,
+        text_mask,
+        x_low_res=None,
+        cond_scale=1.0,
+        thresholding_method="dynamic",
     ):
 
-        if self.unet_type == 'base':
+        if self.unet_type == "base":
             pred = unet.forward_with_cond_scale(
-                x=x, time=t, text_embed=text_embeds, text_mask=text_mask, cond_scale=cond_scale
+                x=x,
+                time=t,
+                text_embed=text_embeds,
+                text_mask=text_mask,
+                cond_scale=cond_scale,
             )
-        elif self.unet_type == 'sr':
+        elif self.unet_type == "sr":
             pred = unet.forward_with_cond_scale(
-                x=x, x_low_res=x_low_res, time=t, text_embed=text_embeds, text_mask=text_mask, cond_scale=cond_scale
+                x=x,
+                x_low_res=x_low_res,
+                time=t,
+                text_embed=text_embeds,
+                text_mask=text_mask,
+                cond_scale=cond_scale,
             )
 
-        if self.pred_objective == 'noise':
+        if self.pred_objective == "noise":
             x_start = self.noise_scheduler.predict_start_from_noise(x, t=t, noise=pred)
-        elif self.pred_objective == 'x_start':
+        elif self.pred_objective == "x_start":
             x_start = pred
-        elif self.pred_objective == 'v':
+        elif self.pred_objective == "v":
             x_start = self.noise_scheduler.predict_start_from_v(x, t=t, v=pred)
         else:
-            raise ValueError(f'unknown objective {self.pred_objective}')
+            raise ValueError(f"unknown objective {self.pred_objective}")
 
         x_start = thresholding_x0(x_start, method=thresholding_method)
-        mean_and_variance = self.noise_scheduler.q_posterior(x_start=x_start, x_t=x, t=t, t_next=t_next)
+        mean_and_variance = self.noise_scheduler.q_posterior(
+            x_start=x_start, x_t=x, t=t, t_next=t_next
+        )
         return mean_and_variance, x_start
 
     @torch.no_grad()
     def p_sample(
-        self, unet, x, t, t_next, text_embeds, text_mask, x_low_res=None, cond_scale=1.0, thresholding_method='dynamic'
+        self,
+        unet,
+        x,
+        t,
+        t_next,
+        text_embeds,
+        text_mask,
+        x_low_res=None,
+        cond_scale=1.0,
+        thresholding_method="dynamic",
     ):
         (model_mean, _, model_log_variance), x_start = self.p_mean_variance(
             unet=unet,
@@ -116,9 +147,13 @@ class DDPMSampler(Sampler):
         # no noise when t == 0
         b = x.shape[0]
         is_last_sampling_timestep = (
-            (t_next == 0) if isinstance(self.noise_scheduler, GaussianDiffusionContinuousTimes) else (t == 0)
+            (t_next == 0)
+            if isinstance(self.noise_scheduler, GaussianDiffusionContinuousTimes)
+            else (t == 0)
         )
-        nonzero_mask = (1 - is_last_sampling_timestep.type_as(x)).reshape(b, *((1,) * (len(x.shape) - 1)))
+        nonzero_mask = (1 - is_last_sampling_timestep.type_as(x)).reshape(
+            b, *((1,) * (len(x.shape) - 1))
+        )
         pred = model_mean + nonzero_mask * (0.5 * model_log_variance).exp() * noise
         return pred, x_start
 
@@ -131,7 +166,7 @@ class DDPMSampler(Sampler):
         x_low_res=None,
         cond_scale=1.0,
         sampling_steps=None,
-        thresholding_method='dynamic',
+        thresholding_method="dynamic",
     ):
         batch = noise_map.shape[0]
         device = noise_map.device
@@ -167,7 +202,7 @@ class EDMSampler(Sampler):
         rho=7,
         S_churn=0,
         S_min=0,
-        S_max=float('inf'),
+        S_max=float("inf"),
         S_noise=1,
     ):
         super().__init__()
@@ -190,24 +225,26 @@ class EDMSampler(Sampler):
         x_low_res=None,
         cond_scale=1.0,
         sampling_steps=None,
-        thresholding_method='dynamic',
+        thresholding_method="dynamic",
     ):
-        if self.unet_type == 'base':
+        if self.unet_type == "base":
             assert x_low_res is None
-        elif self.unet_type == 'sr':
+        elif self.unet_type == "sr":
             assert x_low_res is not None
-        low_res_cond = {'x_low_res': x_low_res} if x_low_res is not None else {}
-        thresholding_method = 'dynamic'
+        low_res_cond = {"x_low_res": x_low_res} if x_low_res is not None else {}
+        thresholding_method = "dynamic"
         sigma_min = self.sigma_min
         sigma_max = self.sigma_max
-        print(f'Sampling with sigma in [{sigma_min}, {sigma_max}], cfg={cond_scale}')
+        print(f"Sampling with sigma in [{sigma_min}, {sigma_max}], cfg={cond_scale}")
         # Time step discretization
         num_steps = sampling_steps if sampling_steps else self.num_steps
         step_indices = torch.arange(num_steps, device=noise_map.device)
         # Table 1: Sampling - Time steps
         t_steps = (
             sigma_max ** (1 / self.rho)
-            + step_indices / (num_steps - 1) * (sigma_min ** (1 / self.rho) - sigma_max ** (1 / self.rho))
+            + step_indices
+            / (num_steps - 1)
+            * (sigma_min ** (1 / self.rho) - sigma_max ** (1 / self.rho))
         ) ** self.rho
         t_steps = torch.cat([t_steps, torch.zeros_like(t_steps[:1])])  # t_N = 0
 
@@ -219,9 +256,15 @@ class EDMSampler(Sampler):
             x_cur = x_next
 
             # Increase noise temporarily.
-            gamma = min(self.S_churn / num_steps, np.sqrt(2) - 1) if self.S_min <= t_cur <= self.S_max else 0
+            gamma = (
+                min(self.S_churn / num_steps, np.sqrt(2) - 1)
+                if self.S_min <= t_cur <= self.S_max
+                else 0
+            )
             t_hat = (t_cur + gamma * t_cur).to(x_cur.device)
-            x_hat = x_cur + (t_hat ** 2 - t_cur ** 2).sqrt() * self.S_noise * torch.randn_like(x_cur)
+            x_hat = x_cur + (
+                t_hat**2 - t_cur**2
+            ).sqrt() * self.S_noise * torch.randn_like(x_cur)
 
             # Euler step.
             denoised = unet.forward_with_cond_scale(
@@ -233,7 +276,9 @@ class EDMSampler(Sampler):
                 **low_res_cond,
             )
             d_cur = (x_hat - denoised) / t_hat
-            d_cur = thresholding_derivative(x_hat, t_hat, d_cur, thresholding_method=thresholding_method)
+            d_cur = thresholding_derivative(
+                x_hat, t_hat, d_cur, thresholding_method=thresholding_method
+            )
             x_next = x_hat + (t_next - t_hat) * d_cur
 
             # Apply 2nd order correction.
@@ -247,6 +292,8 @@ class EDMSampler(Sampler):
                     **low_res_cond,
                 )
                 d_prime = (x_next - denoised) / t_next
-                d_prime = thresholding_derivative(x_next, t_next, d_prime, thresholding_method=thresholding_method)
+                d_prime = thresholding_derivative(
+                    x_next, t_next, d_prime, thresholding_method=thresholding_method
+                )
                 x_next = x_hat + (t_next - t_hat) * (0.5 * d_cur + 0.5 * d_prime)
         return x_next

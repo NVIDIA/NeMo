@@ -18,13 +18,13 @@ from nemo.collections.common.tokenizers.sentencepiece_tokenizer import \
     SentencePieceTokenizer
 
 MODEL_SPECIAL_TOKENS = {
-    'unk_token': '[UNK]',
-    'sep_token': '[SEP]',
-    'pad_token': '[PAD]',
-    'bos_token': '[CLS]',
-    'mask_token': '[MASK]',
-    'eos_token': '[SEP]',
-    'cls_token': '[CLS]',
+    "unk_token": "[UNK]",
+    "sep_token": "[SEP]",
+    "pad_token": "[PAD]",
+    "bos_token": "[CLS]",
+    "mask_token": "[MASK]",
+    "eos_token": "[SEP]",
+    "cls_token": "[CLS]",
 }
 
 
@@ -36,7 +36,9 @@ class TestSentencePieceTokenizerLegacy:
         tokenizer = SentencePieceTokenizer(test_data_dir + self.model_name, legacy=True)
         special_tokens = MODEL_SPECIAL_TOKENS
         tokenizer.add_special_tokens(special_tokens)
-        assert tokenizer.vocab_size == tokenizer.original_vocab_size + len(set(special_tokens.values()))
+        assert tokenizer.vocab_size == tokenizer.original_vocab_size + len(
+            set(special_tokens.values())
+        )
 
     @pytest.mark.unit
     def test_text_to_tokens(self, test_data_dir):
@@ -174,7 +176,20 @@ class TestSentencePieceTokenizer:
     def test_tokens_to_ids(self, test_data_dir):
         tokenizer = SentencePieceTokenizer(test_data_dir + self.model_name)
 
-        tokens = ["<cls>", "a", "b", "c", "<sep>", "e", "f", "<sep>", "g", "h", "i", "</s>"]
+        tokens = [
+            "<cls>",
+            "a",
+            "b",
+            "c",
+            "<sep>",
+            "e",
+            "f",
+            "<sep>",
+            "g",
+            "h",
+            "i",
+            "</s>",
+        ]
         ids = tokenizer.tokens_to_ids(tokens)
 
         assert len(ids) == len(tokens)
@@ -186,7 +201,20 @@ class TestSentencePieceTokenizer:
     def test_ids_to_tokens(self, test_data_dir):
         tokenizer = SentencePieceTokenizer(test_data_dir + self.model_name)
 
-        tokens = ["<cls>", "a", "b", "c", "<sep>", "e", "f", "<sep>", "g", "h", "i", "</s>"]
+        tokens = [
+            "<cls>",
+            "a",
+            "b",
+            "c",
+            "<sep>",
+            "e",
+            "f",
+            "<sep>",
+            "g",
+            "h",
+            "i",
+            "</s>",
+        ]
         ids = tokenizer.tokens_to_ids(tokens)
         result = tokenizer.ids_to_tokens(ids)
 

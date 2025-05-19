@@ -28,7 +28,7 @@ from nemo.collections.audio.metrics.squim import (SquimMOSMetric,
                                                   SquimObjectiveMetric)
 from nemo.utils import logging
 
-__all__ = ['AudioMetricWrapper']
+__all__ = ["AudioMetricWrapper"]
 
 __VERIFIED_METRICS__ = [
     PermutationInvariantTraining,
@@ -66,25 +66,35 @@ class AudioMetricWrapper(Metric):
     num_examples: torch.Tensor
 
     def __init__(
-        self, metric: Metric, channel: Optional[int] = None, metric_using_batch_averaging: Optional[bool] = None
+        self,
+        metric: Metric,
+        channel: Optional[int] = None,
+        metric_using_batch_averaging: Optional[bool] = None,
     ):
         super().__init__()
         if not isinstance(metric, Metric):
-            raise ValueError(f"Expected argument `metric` to be an instance of `torchmetrics.Metric` but got {metric}")
-
-        if not metric_using_batch_averaging and type(metric) not in __VERIFIED_METRICS__:
             raise ValueError(
-                f'Metric {metric} is not in verified metrics. {self.__class__.__name__} assumes reduction over batch is calculated using averaging. \n'
-                'This should not affect the final results, but values for a single batch obtained using `forward` may be inaccurate if using `input_length`. \n'
+                f"Expected argument `metric` to be an instance of `torchmetrics.Metric` but got {metric}"
+            )
+
+        if (
+            not metric_using_batch_averaging
+            and type(metric) not in __VERIFIED_METRICS__
+        ):
+            raise ValueError(
+                f"Metric {metric} is not in verified metrics. {self.__class__.__name__} assumes reduction over batch is calculated using averaging. \n"
+                "This should not affect the final results, but values for a single batch obtained using `forward` may be inaccurate if using `input_length`. \n"
                 'To suppress this message, please confirm the used metric is using batch averaging and set "metric_using_batch_averaging = True"'
             )
 
         self._metric = metric
         self._channel = channel
-        self.add_state('num_examples', default=torch.tensor(0), dist_reduce_fx='sum')
-        logging.debug('Setup metric %s, channel %s', metric, str(channel))
+        self.add_state("num_examples", default=torch.tensor(0), dist_reduce_fx="sum")
+        logging.debug("Setup metric %s, channel %s", metric, str(channel))
 
-    def _select_channel(self, preds: torch.Tensor, target: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+    def _select_channel(
+        self, preds: torch.Tensor, target: torch.Tensor
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         """Select a single channel from input signals.
 
         Args:
@@ -134,7 +144,12 @@ class AudioMetricWrapper(Metric):
         """
         return sum(batch_values) / len(batch_values)
 
-    def update(self, preds: torch.Tensor, target: torch.Tensor, input_length: Optional[torch.Tensor] = None) -> None:
+    def update(
+        self,
+        preds: torch.Tensor,
+        target: torch.Tensor,
+        input_length: Optional[torch.Tensor] = None,
+    ) -> None:
         """Update the underlying metric by taking into account channel selector and input length.
 
         Args:
@@ -149,7 +164,9 @@ class AudioMetricWrapper(Metric):
             self._metric.update(preds=preds, target=target)
         else:
             # Each example in this batch has a different length
-            for b_preds, b_target in self._trim_inputs(preds=preds, target=target, input_length=input_length):
+            for b_preds, b_target in self._trim_inputs(
+                preds=preds, target=target, input_length=input_length
+            ):
                 self._metric.update(preds=b_preds, target=b_target)
 
         self.num_examples += preds.size(0)
@@ -159,7 +176,10 @@ class AudioMetricWrapper(Metric):
         return self._metric.compute()
 
     def forward(
-        self, preds: torch.Tensor, target: torch.Tensor, input_length: Optional[torch.Tensor] = None
+        self,
+        preds: torch.Tensor,
+        target: torch.Tensor,
+        input_length: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         """Call underlying forward method to add the batch statistics to the accumulated metric state
         and return the result for the current batch.
@@ -180,7 +200,9 @@ class AudioMetricWrapper(Metric):
         else:
             # Each example in this batch has a different length
             batch_values = []
-            for b_preds, b_target in self._trim_inputs(preds=preds, target=target, input_length=input_length):
+            for b_preds, b_target in self._trim_inputs(
+                preds=preds, target=target, input_length=input_length
+            ):
                 batch_values.append(self._metric(preds=b_preds, target=b_target))
             # Average over the batch
             return self._batch_reduction(batch_values)

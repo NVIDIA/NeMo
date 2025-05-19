@@ -45,23 +45,33 @@ from nemo.utils.distributed import webdataset_split_by_workers
 
 NUMBER_RE = "(0|[1-9][0-9]*)"
 TAR_FRAGMENT_TMPL_IN_PROGRESS = "fragment{fragment_idx}.{file_idx}.tar"
-TAR_FRAGMENT_TMPL_FINISHED = "fragment{fragment_idx}.num_batches{num_batches}.{file_idx}.tar"
-TAR_FRAGMENT_TMPL_TO_REPACK = "fragment{fragment_idx}.num_batches{num_batches}.{file_idx}.tar.to_repack"
+TAR_FRAGMENT_TMPL_FINISHED = (
+    "fragment{fragment_idx}.num_batches{num_batches}.{file_idx}.tar"
+)
+TAR_FRAGMENT_TMPL_TO_REPACK = (
+    "fragment{fragment_idx}.num_batches{num_batches}.{file_idx}.tar.to_repack"
+)
 TAR_FRAGMENT_PATTERN_IN_PROGRESS = re.compile(f"fragment{NUMBER_RE}.{NUMBER_RE}.tar$")
-TAR_FRAGMENT_PATTERN_FINISHED = re.compile(f"fragment{NUMBER_RE}.num_batches{NUMBER_RE}.{NUMBER_RE}.tar$")
-TAR_FRAGMENT_PATTERN_TO_REPACK = re.compile(f"fragment{NUMBER_RE}.num_batches{NUMBER_RE}.{NUMBER_RE}.tar.to_repack$")
+TAR_FRAGMENT_PATTERN_FINISHED = re.compile(
+    f"fragment{NUMBER_RE}.num_batches{NUMBER_RE}.{NUMBER_RE}.tar$"
+)
+TAR_FRAGMENT_PATTERN_TO_REPACK = re.compile(
+    f"fragment{NUMBER_RE}.num_batches{NUMBER_RE}.{NUMBER_RE}.tar.to_repack$"
+)
 NOT_ALLOWED_CHARACTERS_IN_FILE_NAME = re.compile(f"[^a-zA-Z0-9_.-]")
 REPLACE_NOT_ALLOWED_CHARACTERS_IN_FILE_NAME = re.compile(f"-*[^a-zA-Z0-9_.-]+-*")
 
-DATASET_PARAMETERS_TMPL = "{prefix}.tokens{tokens_in_batch}.max_seq_length{max_seq_length}.{tokenizer}"
+DATASET_PARAMETERS_TMPL = (
+    "{prefix}.tokens{tokens_in_batch}.max_seq_length{max_seq_length}.{tokenizer}"
+)
 TAR_FINAL_TMPL = ".batches{num_batches}.{ctr}.tar"
 
-PROGRESS_REPORT_PERIOD = 10 ** 4
+PROGRESS_REPORT_PERIOD = 10**4
 
-METADATA_PUNCT_LABEL_VOCAB_KEY = 'punct_label_vocab_file'
-METADATA_CAPIT_LABEL_VOCAB_KEY = 'capit_label_vocab_file'
-DEFAULT_PUNCT_LABEL_VOCAB_FILE_NAME = 'punct_label_vocab.csv'
-DEFAULT_CAPIT_LABEL_VOCAB_FILE_NAME = 'capit_label_vocab.csv'
+METADATA_PUNCT_LABEL_VOCAB_KEY = "punct_label_vocab_file"
+METADATA_CAPIT_LABEL_VOCAB_KEY = "capit_label_vocab_file"
+DEFAULT_PUNCT_LABEL_VOCAB_FILE_NAME = "punct_label_vocab.csv"
+DEFAULT_CAPIT_LABEL_VOCAB_FILE_NAME = "capit_label_vocab.csv"
 
 
 def count_lines_and_get_fragment_starting_positions(
@@ -91,7 +101,10 @@ def count_lines_and_get_fragment_starting_positions(
 
 
 def get_fragment_start_bytes(
-    text_file: Path, labels_file: Path, lines_per_dataset_fragment: int, audio_file: Path = None
+    text_file: Path,
+    labels_file: Path,
+    lines_per_dataset_fragment: int,
+    audio_file: Path = None,
 ) -> Union[Tuple[Any, Any, Any, Any], Tuple[Any, Any, Any]]:
     """
     A function for calculating borders of dataset fragments. The function is used to split ``text_file`` and
@@ -114,7 +127,9 @@ def get_fragment_start_bytes(
     )
     if audio_file:
         result = Parallel(n_jobs=3)(
-            delayed(count_lines_and_get_fragment_starting_positions)(file_name, lines_per_dataset_fragment)
+            delayed(count_lines_and_get_fragment_starting_positions)(
+                file_name, lines_per_dataset_fragment
+            )
             for file_name in [text_file, labels_file, audio_file]
         )
         num_lines = result[0][0]
@@ -123,12 +138,20 @@ def get_fragment_start_bytes(
                 f"Text file {text_file} and label file {labels_file} contain different number of lines. Number of lines "
                 f"in text file: {result[0][0]}, number of lines in label file: {result[1][0]}."
             )
-        text_start_bytes, label_start_bytes, manifest_start_bytes = result[0][1], result[1][1], result[2][1]
-        assert len(text_start_bytes) == len(label_start_bytes) == len(manifest_start_bytes)
+        text_start_bytes, label_start_bytes, manifest_start_bytes = (
+            result[0][1],
+            result[1][1],
+            result[2][1],
+        )
+        assert (
+            len(text_start_bytes) == len(label_start_bytes) == len(manifest_start_bytes)
+        )
         return num_lines, text_start_bytes, label_start_bytes, manifest_start_bytes
     else:
         result = Parallel(n_jobs=2)(
-            delayed(count_lines_and_get_fragment_starting_positions)(file_name, lines_per_dataset_fragment)
+            delayed(count_lines_and_get_fragment_starting_positions)(
+                file_name, lines_per_dataset_fragment
+            )
             for file_name in [text_file, labels_file]
         )
         num_lines = result[0][0]
@@ -183,19 +206,29 @@ def process_fragment(
     tmp_labels: Optional[str] = None
     tmp_audio: Optional[str] = None
     try:
-        otfd, tmp_text = tempfile.mkstemp(suffix='.txt', prefix=f'text_{fragment_idx}_', dir=output_dir, text=True)
-        olfd, tmp_labels = tempfile.mkstemp(suffix='.txt', prefix=f'labels_{fragment_idx}_', dir=output_dir, text=True)
+        otfd, tmp_text = tempfile.mkstemp(
+            suffix=".txt", prefix=f"text_{fragment_idx}_", dir=output_dir, text=True
+        )
+        olfd, tmp_labels = tempfile.mkstemp(
+            suffix=".txt", prefix=f"labels_{fragment_idx}_", dir=output_dir, text=True
+        )
         if use_audio:
             oafd, tmp_audio = tempfile.mkstemp(
-                suffix='.txt', prefix=f'audio_{fragment_idx}_', dir=output_dir, text=True
+                suffix=".txt",
+                prefix=f"audio_{fragment_idx}_",
+                dir=output_dir,
+                text=True,
             )
-        with text_file.open() as tf, labels_file.open() as lf, os.fdopen(otfd, 'w') as otf, os.fdopen(
-            olfd, 'w'
-        ) as olf:  # handle audio manifest
+        with (
+            text_file.open() as tf,
+            labels_file.open() as lf,
+            os.fdopen(otfd, "w") as otf,
+            os.fdopen(olfd, "w") as olf,
+        ):  # handle audio manifest
             if use_audio:
                 mf = audio_file.open()
                 mf.seek(audio_file_start_pos)
-                oaf = os.fdopen(oafd, 'w')
+                oaf = os.fdopen(oafd, "w")
             tf.seek(text_start_pos)
             lf.seek(label_start_pos)
             for _ in range(lines_per_dataset_fragment):
@@ -240,20 +273,26 @@ def process_fragment(
             os.remove(tmp_audio)
     dataset.features_pkl.unlink()
     tar_ctr = 0
-    current_file_name = output_dir / TAR_FRAGMENT_TMPL_IN_PROGRESS.format(fragment_idx=fragment_idx, file_idx=tar_ctr)
+    current_file_name = output_dir / TAR_FRAGMENT_TMPL_IN_PROGRESS.format(
+        fragment_idx=fragment_idx, file_idx=tar_ctr
+    )
     current_num_batches = 0
     sink = wds.TarWriter(str(current_file_name))
     progress_made = 0
     for batch_i, batch in enumerate(dataset):
-        sink.write({"__key__": f"fragment-{fragment_idx}-batch-{batch_i}", "batch.pyd": batch})
+        sink.write(
+            {"__key__": f"fragment-{fragment_idx}-batch-{batch_i}", "batch.pyd": batch}
+        )
         current_num_batches += 1
-        progress_made += len(batch['input_ids'])
+        progress_made += len(batch["input_ids"])
         if current_num_batches % num_batches_per_tarfile == 0:
             sink.close()
             current_file_name.rename(
                 output_dir
                 / TAR_FRAGMENT_TMPL_FINISHED.format(
-                    fragment_idx=fragment_idx, num_batches=current_num_batches, file_idx=tar_ctr
+                    fragment_idx=fragment_idx,
+                    num_batches=current_num_batches,
+                    file_idx=tar_ctr,
                 )
             )
             writing_to_tar_progress_queue.put(progress_made)
@@ -274,15 +313,19 @@ def process_fragment(
     else:
         current_file_name.unlink()
     if fragment_idx == 0:
-        punct_label_ids_file, capit_label_ids_file = dataset.save_labels_and_get_file_paths(
-            DEFAULT_PUNCT_LABEL_VOCAB_FILE_NAME, DEFAULT_CAPIT_LABEL_VOCAB_FILE_NAME
+        punct_label_ids_file, capit_label_ids_file = (
+            dataset.save_labels_and_get_file_paths(
+                DEFAULT_PUNCT_LABEL_VOCAB_FILE_NAME, DEFAULT_CAPIT_LABEL_VOCAB_FILE_NAME
+            )
         )
         punct_label_ids_file.rename(output_dir / DEFAULT_PUNCT_LABEL_VOCAB_FILE_NAME)
         capit_label_ids_file.rename(output_dir / DEFAULT_CAPIT_LABEL_VOCAB_FILE_NAME)
         shutil.rmtree(punct_label_ids_file.parent)
 
 
-def remove_unexpected_files_and_dirs(output_dir: Path, output_file_tmpl: str, metadata_file_name: Path) -> None:
+def remove_unexpected_files_and_dirs(
+    output_dir: Path, output_file_tmpl: str, metadata_file_name: Path
+) -> None:
     """
     This function removes all files with names which may be used in the dataset creation.
 
@@ -294,7 +337,9 @@ def remove_unexpected_files_and_dirs(output_dir: Path, output_file_tmpl: str, me
     """
     if not output_dir.is_dir():
         return
-    tar_final_pattern = re.compile(output_file_tmpl.format(ctr=NUMBER_RE, num_batches=NUMBER_RE))
+    tar_final_pattern = re.compile(
+        output_file_tmpl.format(ctr=NUMBER_RE, num_batches=NUMBER_RE)
+    )
     unexpected_tar_files = [
         path
         for path in output_dir.iterdir()
@@ -321,20 +366,30 @@ def remove_unexpected_files_and_dirs(output_dir: Path, output_file_tmpl: str, me
         for fn in unexpected_tar_files:
             fn.unlink()
     if metadata_file_name.exists():
-        logging.warning(f"Found metadata file {metadata_file_name}. It is going to be removed.")
+        logging.warning(
+            f"Found metadata file {metadata_file_name}. It is going to be removed."
+        )
         metadata_file_name.unlink()
     punct_label_ids = output_dir / DEFAULT_PUNCT_LABEL_VOCAB_FILE_NAME
     capit_label_ids = output_dir / DEFAULT_CAPIT_LABEL_VOCAB_FILE_NAME
     if punct_label_ids.exists():
-        logging.warning(f"Found unexpected punctuation label file {punct_label_ids}. It is going to be removed.")
+        logging.warning(
+            f"Found unexpected punctuation label file {punct_label_ids}. It is going to be removed."
+        )
         punct_label_ids.unlink()
     if capit_label_ids.exists():
-        logging.warning(f"Found unexpected capitalization label file {capit_label_ids}. It is going to be removed.")
+        logging.warning(
+            f"Found unexpected capitalization label file {capit_label_ids}. It is going to be removed."
+        )
         capit_label_ids.unlink()
 
 
 def collect_unique_labels_from_fragment(
-    labels_file: Path, start_pos: int, lines_per_dataset_fragment: int, progress_queue: mp.Queue, fragment_idx: int
+    labels_file: Path,
+    start_pos: int,
+    lines_per_dataset_fragment: int,
+    progress_queue: mp.Queue,
+    fragment_idx: int,
 ) -> Tuple[Set[str], Set[str]]:
     """
     Returns a set of unique punctuation labels and a set of unique capitalization labels.
@@ -402,17 +457,25 @@ def create_label_dictionaries(
     with Progress(num_lines, "Creating label dictionary", "line") as progress_queues:
         result = Parallel(n_jobs=min(n_jobs, len(text_start_bytes)))(
             delayed(collect_unique_labels_from_fragment)(
-                labels_file, start_pos, lines_per_dataset_fragment, *progress_queues, fragment_idx
+                labels_file,
+                start_pos,
+                lines_per_dataset_fragment,
+                *progress_queues,
+                fragment_idx,
             )
             for fragment_idx, start_pos in enumerate(text_start_bytes)
         )
     unique_punct, unique_capit = zip(*result)
     unique_punct = set().union(*unique_punct)
     unique_capit = set().union(*unique_capit)
-    return create_label_ids(unique_punct, pad_label), create_label_ids(unique_capit, pad_label)
+    return create_label_ids(unique_punct, pad_label), create_label_ids(
+        unique_capit, pad_label
+    )
 
 
-def check_label_ids(pad_label: str, punct_label_ids: Dict[str, int], capit_label_ids: Dict[str, int]) -> None:
+def check_label_ids(
+    pad_label: str, punct_label_ids: Dict[str, int], capit_label_ids: Dict[str, int]
+) -> None:
     """
     A function for checking that pad label has zeroth id in ``punct_label_dis`` and ``capit_label_ids`` dictionaries.
     Args:
@@ -420,19 +483,28 @@ def check_label_ids(pad_label: str, punct_label_ids: Dict[str, int], capit_label
         punct_label_ids: a dictionary with punctuation label ids
         capit_label_ids: a dictionary with capitalization label ids
     """
-    msg = "Parameter `pad_label` has to have id 0 in dictionary `{param_name}` whereas it has id {id_}." + (
-        '' if len(pad_label) > 10 else f" pad_label='{pad_label}'"
+    msg = (
+        "Parameter `pad_label` has to have id 0 in dictionary `{param_name}` whereas it has id {id_}."
+        + ("" if len(pad_label) > 10 else f" pad_label='{pad_label}'")
     )
     if punct_label_ids is not None:
         if punct_label_ids[pad_label] != 0:
-            raise ValueError(msg.format(param_name='punct_label_ids', id_=punct_label_ids[pad_label]))
+            raise ValueError(
+                msg.format(param_name="punct_label_ids", id_=punct_label_ids[pad_label])
+            )
     if capit_label_ids is not None:
         if capit_label_ids[pad_label] != 0:
-            raise ValueError(msg.format(param_name='capit_label_ids', id_=capit_label_ids[pad_label]))
+            raise ValueError(
+                msg.format(param_name="capit_label_ids", id_=capit_label_ids[pad_label])
+            )
 
 
-def process_error(msg: str, error_class_or_function: Union[Type[Exception], Callable[[str], Any]]) -> None:
-    if inspect.isclass(error_class_or_function) and issubclass(error_class_or_function, Exception):
+def process_error(
+    msg: str, error_class_or_function: Union[Type[Exception], Callable[[str], Any]]
+) -> None:
+    if inspect.isclass(error_class_or_function) and issubclass(
+        error_class_or_function, Exception
+    ):
         raise error_class_or_function(msg)
     if callable(error_class_or_function):
         error_class_or_function(msg)
@@ -472,7 +544,9 @@ def check_labels_for_being_unique_before_building_label_ids(
                 process_error(msg, error_class_or_function)
 
 
-def build_label_ids_from_list_of_labels(pad_label: str, other_labels: List[str]) -> Dict[str, int]:
+def build_label_ids_from_list_of_labels(
+    pad_label: str, other_labels: List[str]
+) -> Dict[str, int]:
     """
     Builds label ids dictionary from pad label and list of other labels. Used for parsing command line arguments.
     Args:
@@ -483,7 +557,7 @@ def build_label_ids_from_list_of_labels(pad_label: str, other_labels: List[str])
         a dictionary with label ids
     """
     check_labels_for_being_unique_before_building_label_ids(
-        pad_label, other_labels, 'pad_label', 'other_labels', ValueError
+        pad_label, other_labels, "pad_label", "other_labels", ValueError
     )
     ids = {pad_label: 0}
     for lbl in other_labels:
@@ -535,9 +609,13 @@ def get_label_dictionaries(
         capit_label_ids: a dictionary with capitalization label ids
     """
     if punct_label_ids is not None and punct_label_vocab_file is not None:
-        raise ValueError("You can provide at most one of parameters `punct_label_ids` and `punct_label_vocab_file`.")
+        raise ValueError(
+            "You can provide at most one of parameters `punct_label_ids` and `punct_label_vocab_file`."
+        )
     if capit_label_ids is not None and capit_label_vocab_file is not None:
-        raise ValueError("You can provide at most one of parameters `capit_label_ids` and `capit_label_vocab_file`.")
+        raise ValueError(
+            "You can provide at most one of parameters `capit_label_ids` and `capit_label_vocab_file`."
+        )
     if punct_label_ids is None and punct_label_vocab_file is not None:
         punct_label_ids = load_label_ids(punct_label_vocab_file)
     if capit_label_ids is None and capit_label_vocab_file is not None:
@@ -545,7 +623,12 @@ def get_label_dictionaries(
     check_label_ids(pad_label, punct_label_ids, capit_label_ids)
     if punct_label_ids is None or capit_label_ids is None:
         _punct_label_ids, _capit_label_ids = create_label_dictionaries(
-            labels_file, start_bytes, num_lines, lines_per_dataset_fragment, pad_label, n_jobs
+            labels_file,
+            start_bytes,
+            num_lines,
+            lines_per_dataset_fragment,
+            pad_label,
+            n_jobs,
         )
         if punct_label_ids is None:
             punct_label_ids = _punct_label_ids
@@ -567,7 +650,9 @@ def decode_pyd(key: str, value: bytes) -> Any:
     return pickle.loads(value)
 
 
-def repack_tar_files_with_not_enough_batches(output_dir: Path, num_batches_per_tarfile: int) -> None:
+def repack_tar_files_with_not_enough_batches(
+    output_dir: Path, num_batches_per_tarfile: int
+) -> None:
     f"""
     It is possible that number of batches in a fragment is not evenly divisible by ``num_batches_per_tarfile``.
     In such a case excess batches are put in a tar file which matches a pattern
@@ -587,7 +672,9 @@ def repack_tar_files_with_not_enough_batches(output_dir: Path, num_batches_per_t
         for path in output_dir.iterdir()
         if TAR_FRAGMENT_PATTERN_TO_REPACK.match(path.name) is not None
     ]
-    files_to_repack_with_matches = sorted(files_to_repack_with_matches, key=lambda x: int(x[1].group(3)))
+    files_to_repack_with_matches = sorted(
+        files_to_repack_with_matches, key=lambda x: int(x[1].group(3))
+    )
     logging.info(f"Found {len(files_to_repack_with_matches)} files for repacking.")
     files_to_repack_with_matches = deque(files_to_repack_with_matches)
     total_batches_in_repacked_files = 0
@@ -603,20 +690,25 @@ def repack_tar_files_with_not_enough_batches(output_dir: Path, num_batches_per_t
             # `new_file`.
             append_file, match = files_to_repack_with_matches.popleft()
             new_file = append_file.parent / TAR_FRAGMENT_TMPL_FINISHED.format(
-                fragment_idx=match.group(1), num_batches=num_batches_per_tarfile, file_idx=match.group(3)
+                fragment_idx=match.group(1),
+                num_batches=num_batches_per_tarfile,
+                file_idx=match.group(3),
             )
             new_file_sink = wds.TarWriter(str(new_file))
             append_ds_to_rewrite = wds.DataPipeline(
                 wds.SimpleShardList(urls=[str(append_file)]),
                 wds.tarfile_to_samples(),
-                wds.decode(wds.handle_extension('.pyd', decode_pyd)),
-                wds.to_tuple('__key__', 'batch.pyd'),
+                wds.decode(wds.handle_extension(".pyd", decode_pyd)),
+                wds.to_tuple("__key__", "batch.pyd"),
             )
             for key, batch in iter(append_ds_to_rewrite):
                 new_file_sink.write({"__key__": key, "batch.pyd": batch})
                 new_file_num_batches += 1
                 total_batches_in_repacked_files += 1
-            assert total_batches_in_repacked_files < initial_number_of_files_to_repack * num_batches_per_tarfile
+            assert (
+                total_batches_in_repacked_files
+                < initial_number_of_files_to_repack * num_batches_per_tarfile
+            )
             assert new_file_num_batches == int(match.group(2)), (
                 f"Number of batches {new_file_num_batches} in {append_file} is different from number of batches "
                 f"{match.group(2)} in repacked tar file with name {append_file}."
@@ -627,8 +719,8 @@ def repack_tar_files_with_not_enough_batches(output_dir: Path, num_batches_per_t
             pop_file_ds = wds.DataPipeline(
                 wds.SimpleShardList([str(pop_file)]),
                 wds.tarfile_to_samples(),
-                wds.decode(wds.handle_extension('.pyd', decode_pyd)),
-                wds.to_tuple('__key__', 'batch.pyd'),
+                wds.decode(wds.handle_extension(".pyd", decode_pyd)),
+                wds.to_tuple("__key__", "batch.pyd"),
             )
             pop_file_ds = iter(pop_file_ds)
         if pop_file_ds is not None and new_file_sink is not None:
@@ -641,7 +733,10 @@ def repack_tar_files_with_not_enough_batches(output_dir: Path, num_batches_per_t
                     break
                 new_file_sink.write({"__key__": key, "batch.pyd": batch})
                 total_batches_in_repacked_files += 1
-                assert total_batches_in_repacked_files < initial_number_of_files_to_repack * num_batches_per_tarfile
+                assert (
+                    total_batches_in_repacked_files
+                    < initial_number_of_files_to_repack * num_batches_per_tarfile
+                )
                 new_file_num_batches += 1
             if new_file_num_batches >= num_batches_per_tarfile:
                 assert new_file_num_batches == num_batches_per_tarfile
@@ -654,11 +749,16 @@ def repack_tar_files_with_not_enough_batches(output_dir: Path, num_batches_per_t
         logging.info(f"Discarded {new_file_num_batches} batches.")
     if pop_file_ds is not None:
         pop_file.unlink()
-    logging.info(f"Repacked {total_batches_in_repacked_files} batches from short tar files")
+    logging.info(
+        f"Repacked {total_batches_in_repacked_files} batches from short tar files"
+    )
 
 
 def create_metadata_file(
-    output_dir: Path, output_file_tmpl: str, metadata_file_name: Path, num_batches_per_tarfile: int
+    output_dir: Path,
+    output_file_tmpl: str,
+    metadata_file_name: Path,
+    num_batches_per_tarfile: int,
 ) -> None:
     """
     Rename tar files according to template ``output_file_tmpl`` and save metadata file.
@@ -670,24 +770,36 @@ def create_metadata_file(
             have correct number of batches
     """
     metadata = {"num_batches": 0, "tar_files": []}
-    for i, fn in enumerate([fn for fn in output_dir.iterdir() if TAR_FRAGMENT_PATTERN_FINISHED.match(fn.name)]):
+    for i, fn in enumerate(
+        [
+            fn
+            for fn in output_dir.iterdir()
+            if TAR_FRAGMENT_PATTERN_FINISHED.match(fn.name)
+        ]
+    ):
         nb = int(TAR_FRAGMENT_PATTERN_FINISHED.match(fn.name).group(2))
         assert nb == num_batches_per_tarfile
         new_name = output_dir / output_file_tmpl.format(ctr=i, num_batches=nb)
         fn.rename(new_name)
-        metadata['tar_files'].append(new_name.name)
+        metadata["tar_files"].append(new_name.name)
         metadata["num_batches"] += nb
     metadata[METADATA_PUNCT_LABEL_VOCAB_KEY] = DEFAULT_PUNCT_LABEL_VOCAB_FILE_NAME
     metadata[METADATA_CAPIT_LABEL_VOCAB_KEY] = DEFAULT_CAPIT_LABEL_VOCAB_FILE_NAME
-    logging.info(f"{metadata['num_batches']} batches are in tarred dataset with metadata file {metadata_file_name}")
-    with metadata_file_name.open('w') as f:
+    logging.info(
+        f"{metadata['num_batches']} batches are in tarred dataset with metadata file {metadata_file_name}"
+    )
+    with metadata_file_name.open("w") as f:
         json.dump(metadata, f, indent=2)
 
 
 def check_tar_file_prefix(
-    tar_file_prefix: str, error_class_or_function: Union[Type[Exception], Callable[[str], Any]], var_name: str
+    tar_file_prefix: str,
+    error_class_or_function: Union[Type[Exception], Callable[[str], Any]],
+    var_name: str,
 ) -> None:
-    not_allowed_characters_in_prefix = NOT_ALLOWED_CHARACTERS_IN_FILE_NAME.findall(tar_file_prefix)
+    not_allowed_characters_in_prefix = NOT_ALLOWED_CHARACTERS_IN_FILE_NAME.findall(
+        tar_file_prefix
+    )
     if not_allowed_characters_in_prefix:
         not_allowed_characters_in_prefix = set(not_allowed_characters_in_prefix)
         msg = (
@@ -712,12 +824,12 @@ def create_tarred_dataset(
     merges_file: Optional[Union[os.PathLike, str]] = None,
     special_tokens: Optional[Dict[str, str]] = None,
     use_fast_tokenizer: Optional[bool] = False,
-    pad_label: str = 'O',
+    pad_label: str = "O",
     punct_label_ids: Optional[Dict[str, int]] = None,
     capit_label_ids: Optional[Dict[str, int]] = None,
     punct_label_vocab_file: Optional[Union[os.PathLike, str]] = None,
     capit_label_vocab_file: Optional[Union[os.PathLike, str]] = None,
-    tar_file_prefix: Optional[str] = 'punctuation_capitalization',
+    tar_file_prefix: Optional[str] = "punctuation_capitalization",
     n_jobs: Optional[int] = None,
     audio_file: Optional[Path] = None,
     use_audio: Optional[bool] = False,
@@ -808,24 +920,29 @@ def create_tarred_dataset(
         use_audio (:obj:`bool`, `optional`, defaults to :obj:`False`): If set to ``True`` dataset becomes lexical and audio rather than only lexical.
         sample_rate (:obj:`int`, `optional`, defaults to :obj:`16000`) Targeted sample rate of audios If ``use_audio`` set to ``True``.
     """
-    check_tar_file_prefix(tar_file_prefix, ValueError, 'tar_file_prefix')
+    check_tar_file_prefix(tar_file_prefix, ValueError, "tar_file_prefix")
     if n_jobs is None:
         n_jobs = mp.cpu_count()
-    text_file, labels_file = Path(text_file).expanduser(), Path(labels_file).expanduser()
+    text_file, labels_file = (
+        Path(text_file).expanduser(),
+        Path(labels_file).expanduser(),
+    )
     output_dir = Path(output_dir).expanduser()
     ds_params_str = DATASET_PARAMETERS_TMPL.format(
         prefix=tar_file_prefix,
         tokens_in_batch=tokens_in_batch,
         max_seq_length=max_seq_length,
-        tokenizer=REPLACE_NOT_ALLOWED_CHARACTERS_IN_FILE_NAME.sub('-', tokenizer_name),
+        tokenizer=REPLACE_NOT_ALLOWED_CHARACTERS_IN_FILE_NAME.sub("-", tokenizer_name),
     )
     output_file_tmpl = ds_params_str + TAR_FINAL_TMPL
-    metadata_file_name = output_dir / ('metadata.' + ds_params_str + '.json')
+    metadata_file_name = output_dir / ("metadata." + ds_params_str + ".json")
     remove_unexpected_files_and_dirs(output_dir, output_file_tmpl, metadata_file_name)
     audio_start_bytes = None
     if use_audio:
-        num_lines, text_start_bytes, label_start_bytes, audio_start_bytes = get_fragment_start_bytes(
-            text_file, labels_file, lines_per_dataset_fragment, audio_file
+        num_lines, text_start_bytes, label_start_bytes, audio_start_bytes = (
+            get_fragment_start_bytes(
+                text_file, labels_file, lines_per_dataset_fragment, audio_file
+            )
         )
     else:
         num_lines, text_start_bytes, label_start_bytes = get_fragment_start_bytes(
@@ -834,7 +951,9 @@ def create_tarred_dataset(
     if text_start_bytes:
         output_dir.mkdir(parents=True, exist_ok=True)
     else:
-        raise ValueError(f"Both {labels_file} and {text_file} are empty. Tarred dataset cannot be created.")
+        raise ValueError(
+            f"Both {labels_file} and {text_file} are empty. Tarred dataset cannot be created."
+        )
     punct_label_ids, capit_label_ids = get_label_dictionaries(
         labels_file,
         label_start_bytes,
@@ -849,7 +968,9 @@ def create_tarred_dataset(
     )
 
     with Progress(
-        num_lines, ["Tokenization", "Batch mark up", "Batch building", "Writing tarred dataset"], "query"
+        num_lines,
+        ["Tokenization", "Batch mark up", "Batch building", "Writing tarred dataset"],
+        "query",
     ) as progress_queues:
         Parallel(n_jobs=min(n_jobs, len(text_start_bytes)))(
             delayed(process_fragment)(
@@ -878,16 +999,26 @@ def create_tarred_dataset(
                 audio_file_start_pos,
                 use_audio,
             )
-            for fragment_idx, (text_start_pos, label_start_pos, audio_file_start_pos) in enumerate(
+            for fragment_idx, (
+                text_start_pos,
+                label_start_pos,
+                audio_file_start_pos,
+            ) in enumerate(
                 zip(
                     text_start_bytes,
                     label_start_bytes,
-                    audio_start_bytes if use_audio else [None for _ in range(len(text_start_bytes))],
+                    (
+                        audio_start_bytes
+                        if use_audio
+                        else [None for _ in range(len(text_start_bytes))]
+                    ),
                 )
             )
         )
     repack_tar_files_with_not_enough_batches(output_dir, num_batches_per_tarfile)
-    create_metadata_file(output_dir, output_file_tmpl, metadata_file_name, num_batches_per_tarfile)
+    create_metadata_file(
+        output_dir, output_file_tmpl, metadata_file_name, num_batches_per_tarfile
+    )
 
 
 class BertPunctuationCapitalizationTarredDataset(IterableDataset):
@@ -955,27 +1086,27 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        """Returns definitions of module output ports. """
+        """Returns definitions of module output ports."""
         if self.use_audio:
             return {
-                'input_ids': NeuralType(('B', 'T'), ChannelType()),
-                'segment_ids': NeuralType(('B', 'T'), ChannelType()),
-                'input_mask': NeuralType(('B', 'T'), MaskType()),
-                'subtokens_mask': NeuralType(('B', 'T'), MaskType()),
-                'loss_mask': NeuralType(('B', 'T'), MaskType()),
-                'punct_labels': NeuralType(('B', 'T'), LabelsType()),
-                'capit_labels': NeuralType(('B', 'T'), LabelsType()),
-                'features': NeuralType(('B', 'T'), AudioSignal()),
-                'features_length': NeuralType(('B', 'T'), LengthsType()),
+                "input_ids": NeuralType(("B", "T"), ChannelType()),
+                "segment_ids": NeuralType(("B", "T"), ChannelType()),
+                "input_mask": NeuralType(("B", "T"), MaskType()),
+                "subtokens_mask": NeuralType(("B", "T"), MaskType()),
+                "loss_mask": NeuralType(("B", "T"), MaskType()),
+                "punct_labels": NeuralType(("B", "T"), LabelsType()),
+                "capit_labels": NeuralType(("B", "T"), LabelsType()),
+                "features": NeuralType(("B", "T"), AudioSignal()),
+                "features_length": NeuralType(("B", "T"), LengthsType()),
             }
         return {
-            'input_ids': NeuralType(('B', 'T'), ChannelType()),
-            'segment_ids': NeuralType(('B', 'T'), ChannelType()),
-            'input_mask': NeuralType(('B', 'T'), MaskType()),
-            'subtokens_mask': NeuralType(('B', 'T'), MaskType()),
-            'loss_mask': NeuralType(('B', 'T'), MaskType()),
-            'punct_labels': NeuralType(('B', 'T'), LabelsType()),
-            'capit_labels': NeuralType(('B', 'T'), LabelsType()),
+            "input_ids": NeuralType(("B", "T"), ChannelType()),
+            "segment_ids": NeuralType(("B", "T"), ChannelType()),
+            "input_mask": NeuralType(("B", "T"), MaskType()),
+            "subtokens_mask": NeuralType(("B", "T"), MaskType()),
+            "loss_mask": NeuralType(("B", "T"), MaskType()),
+            "punct_labels": NeuralType(("B", "T"), LabelsType()),
+            "capit_labels": NeuralType(("B", "T"), LabelsType()),
         }
 
     def __init__(
@@ -994,7 +1125,7 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
     ) -> None:
         super().__init__()
 
-        valid_shard_strategies = ['scatter', 'replicate']
+        valid_shard_strategies = ["scatter", "replicate"]
         if shard_strategy not in valid_shard_strategies:
             raise ValueError(
                 f"Invalid shard strategy of type {type(shard_strategy)} "
@@ -1005,29 +1136,40 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
         self.tokenizer = tokenizer
         self.metadata_file = Path(metadata_file).expanduser()
         if label_info_save_dir is None:
-            self.for_nemo_ckpt = self.metadata_file.parent / LABEL_ID_DIR_FOR_NEMO_CHECKPOINT
+            self.for_nemo_ckpt = (
+                self.metadata_file.parent / LABEL_ID_DIR_FOR_NEMO_CHECKPOINT
+            )
         else:
-            self.for_nemo_ckpt = Path(label_info_save_dir).expanduser() / LABEL_ID_DIR_FOR_NEMO_CHECKPOINT
+            self.for_nemo_ckpt = (
+                Path(label_info_save_dir).expanduser()
+                / LABEL_ID_DIR_FOR_NEMO_CHECKPOINT
+            )
         with open(self.metadata_file) as f:
             self.metadata = json.load(f)
         self.ignore_extra_tokens = ignore_extra_tokens
         self.ignore_start_end = ignore_start_end
         self.tar_files = []
-        for file_path in self.metadata['tar_files']:
+        for file_path in self.metadata["tar_files"]:
             file_path = Path(file_path).expanduser()
             if file_path.is_absolute():
                 self.tar_files.append(str(file_path))
             else:
                 self.tar_files.append(str(self.metadata_file.parent / file_path))
-        self.punct_label_vocab_file = self.metadata_file.parent / self.metadata[METADATA_PUNCT_LABEL_VOCAB_KEY]
-        self.capit_label_vocab_file = self.metadata_file.parent / self.metadata[METADATA_CAPIT_LABEL_VOCAB_KEY]
+        self.punct_label_vocab_file = (
+            self.metadata_file.parent / self.metadata[METADATA_PUNCT_LABEL_VOCAB_KEY]
+        )
+        self.capit_label_vocab_file = (
+            self.metadata_file.parent / self.metadata[METADATA_CAPIT_LABEL_VOCAB_KEY]
+        )
         self.punct_label_ids = load_label_ids(self.punct_label_vocab_file)
         self.capit_label_ids = load_label_ids(self.capit_label_vocab_file)
         self.pad_label = pad_label
         self._check_pad_label()
 
-        if shard_strategy == 'scatter':
-            logging.info("Tarred dataset shards will be scattered evenly across all nodes.")
+        if shard_strategy == "scatter":
+            logging.info(
+                "Tarred dataset shards will be scattered evenly across all nodes."
+            )
             if len(self.tar_files) % world_size != 0:
                 logging.warning(
                     f"Number of shards in tarred dataset ({len(self.tar_files)}) is not divisible "
@@ -1037,26 +1179,33 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
             begin_idx = (len(self.tar_files) // world_size) * global_rank
             end_idx = begin_idx + (len(self.tar_files) // world_size)
             logging.info(
-                "Partitioning tarred dataset: process (%d) taking shards [%d, %d)", global_rank, begin_idx, end_idx
+                "Partitioning tarred dataset: process (%d) taking shards [%d, %d)",
+                global_rank,
+                begin_idx,
+                end_idx,
             )
-            batches_per_tar = self.metadata['num_batches'] // len(self.tar_files)
+            batches_per_tar = self.metadata["num_batches"] // len(self.tar_files)
             self.tar_files = self.tar_files[begin_idx:end_idx]
             self.length = batches_per_tar * len(self.tar_files) * world_size
 
-        elif shard_strategy == 'replicate':
-            logging.info("All tarred dataset shards will be replicated across all nodes.")
-            self.length = self.metadata['num_batches']
+        elif shard_strategy == "replicate":
+            logging.info(
+                "All tarred dataset shards will be replicated across all nodes."
+            )
+            self.length = self.metadata["num_batches"]
 
         else:
-            raise ValueError(f"Invalid shard strategy! Allowed values are: {valid_shard_strategies}")
+            raise ValueError(
+                f"Invalid shard strategy! Allowed values are: {valid_shard_strategies}"
+            )
 
         self._dataset = wds.DataPipeline(
             wds.SimpleShardList(self.tar_files),
             webdataset_split_by_workers,
             wds.tarfile_to_samples(),
-            wds.decode(wds.handle_extension('.pyd', decode_pyd)),
+            wds.decode(wds.handle_extension(".pyd", decode_pyd)),
             wds.shuffle(shuffle_n),
-            wds.to_tuple('__key__', 'batch.pyd'),
+            wds.to_tuple("__key__", "batch.pyd"),
             wds.map(self._build_sample),
         )
 
@@ -1068,8 +1217,16 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
         ``self.punct_label_ids`` and ``self.capit_label_ids`` loaded from tarred dataset.
         """
         for label_ids, labels_file, task in [
-            (self.punct_label_ids, self.metadata[METADATA_PUNCT_LABEL_VOCAB_KEY], "punctuation"),
-            (self.capit_label_ids, self.metadata[METADATA_CAPIT_LABEL_VOCAB_KEY], "capitalization"),
+            (
+                self.punct_label_ids,
+                self.metadata[METADATA_PUNCT_LABEL_VOCAB_KEY],
+                "punctuation",
+            ),
+            (
+                self.capit_label_ids,
+                self.metadata[METADATA_CAPIT_LABEL_VOCAB_KEY],
+                "capitalization",
+            ),
         ]:
             if label_ids[self.pad_label] != 0:
                 raise ValueError(
@@ -1104,15 +1261,15 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
             common_dataset_parameters_config: a config item ``model.common_dataset_parameters``. See more in
                 of :ref:`common dataset parameters config<common-dataset-parameters-config-label>`.
         """
-        tarred_dataset_label_desc_tmpl = (
-            f'{{label_type}} labels loaded from tarred dataset with metadata file {self.metadata_file}'
-        )
+        tarred_dataset_label_desc_tmpl = f"{{label_type}} labels loaded from tarred dataset with metadata file {self.metadata_file}"
         if punct_label_ids is not None:
             if punct_label_ids != self.punct_label_ids:
                 raise_not_equal_labels_error(
                     first_labels=self.punct_label_ids,
                     second_labels=punct_label_ids,
-                    first_labels_desc=tarred_dataset_label_desc_tmpl.format(label_type='Punctuation'),
+                    first_labels_desc=tarred_dataset_label_desc_tmpl.format(
+                        label_type="Punctuation"
+                    ),
                     second_labels_desc="Punctuation labels stored in an attribute "
                     "`PunctuationCapitalizationModel.punct_label_ids`",
                 )
@@ -1121,7 +1278,9 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
                 raise_not_equal_labels_error(
                     first_labels=self.capit_label_ids,
                     second_labels=capit_label_ids,
-                    first_labels_desc=tarred_dataset_label_desc_tmpl.format(label_type='Capitalization'),
+                    first_labels_desc=tarred_dataset_label_desc_tmpl.format(
+                        label_type="Capitalization"
+                    ),
                     second_labels_desc="Capitalization labels stored in an attribute"
                     "`PunctuationCapitalizationModel.capit_label_ids`",
                 )
@@ -1131,9 +1290,11 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
                 raise_not_equal_labels_error(
                     first_labels=self.punct_label_ids,
                     second_labels=cfg_punct_label_ids,
-                    first_labels_desc=tarred_dataset_label_desc_tmpl.format(label_type='Punctuation'),
-                    second_labels_desc='Punctuation labels stored a config field '
-                    '`model.common_dataset_parameters.punct_label_ids`',
+                    first_labels_desc=tarred_dataset_label_desc_tmpl.format(
+                        label_type="Punctuation"
+                    ),
+                    second_labels_desc="Punctuation labels stored a config field "
+                    "`model.common_dataset_parameters.punct_label_ids`",
                 )
         if common_dataset_parameters_config.capit_label_ids is not None:
             cfg_capit_label_ids = dict(common_dataset_parameters_config.capit_label_ids)
@@ -1141,21 +1302,27 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
                 raise_not_equal_labels_error(
                     first_labels=self.capit_label_ids,
                     second_labels=cfg_capit_label_ids,
-                    first_labels_desc=tarred_dataset_label_desc_tmpl.format(label_type='Capitalization'),
-                    second_labels_desc='Capitalization labels stored a config field '
-                    '`model.common_dataset_parameters.capit_label_ids`',
+                    first_labels_desc=tarred_dataset_label_desc_tmpl.format(
+                        label_type="Capitalization"
+                    ),
+                    second_labels_desc="Capitalization labels stored a config field "
+                    "`model.common_dataset_parameters.capit_label_ids`",
                 )
         if common_dataset_parameters_config.label_vocab_dir is not None:
-            label_vocab_dir = Path(common_dataset_parameters_config.label_vocab_dir).expanduser()
+            label_vocab_dir = Path(
+                common_dataset_parameters_config.label_vocab_dir
+            ).expanduser()
             punct_label_vocab_file = label_vocab_dir / class_labels.punct_labels_file
             file_punct_vocab = load_label_ids(punct_label_vocab_file)
             if file_punct_vocab != self.punct_label_ids:
                 raise_not_equal_labels_error(
                     first_labels=self.punct_label_ids,
                     second_labels=file_punct_vocab,
-                    first_labels_desc=tarred_dataset_label_desc_tmpl.format(label_type='Punctuation'),
-                    second_labels_desc=f'labels stored in file {punct_label_vocab_file} passed in '
-                    f'`model.common_dataset_parameters.punct_label_vocab_file`',
+                    first_labels_desc=tarred_dataset_label_desc_tmpl.format(
+                        label_type="Punctuation"
+                    ),
+                    second_labels_desc=f"labels stored in file {punct_label_vocab_file} passed in "
+                    f"`model.common_dataset_parameters.punct_label_vocab_file`",
                 )
             capit_label_vocab_file = label_vocab_dir / class_labels.capit_labels_file
             file_capit_vocab = load_label_ids(capit_label_vocab_file)
@@ -1163,9 +1330,11 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
                 raise_not_equal_labels_error(
                     first_labels=self.capit_label_ids,
                     second_labels=file_capit_vocab,
-                    first_labels_desc=tarred_dataset_label_desc_tmpl.format(label_type='Capitalization'),
-                    second_labels_desc=f'labels stored in file {capit_label_vocab_file} passed in '
-                    f'`model.common_dataset_parameters.capit_label_vocab_file`',
+                    first_labels_desc=tarred_dataset_label_desc_tmpl.format(
+                        label_type="Capitalization"
+                    ),
+                    second_labels_desc=f"labels stored in file {capit_label_vocab_file} passed in "
+                    f"`model.common_dataset_parameters.capit_label_vocab_file`",
                 )
 
     def save_labels_and_get_file_paths(
@@ -1197,7 +1366,9 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
         shutil.copy(str(self.capit_label_vocab_file), str(capit_label_ids_file))
         return punct_label_ids_file, capit_label_ids_file
 
-    def _build_sample(self, batch: Tuple[str, Dict[str, np.ndarray]]) -> Dict[str, np.ndarray]:
+    def _build_sample(
+        self, batch: Tuple[str, Dict[str, np.ndarray]]
+    ) -> Dict[str, np.ndarray]:
         """
         Takes batch loaded from tarred dataset and transforms it for passing to the model. Adds ``'segment_ids'``,
         ``'input_mask'``, ``'loss_mask'`` items to the batch.
@@ -1218,18 +1389,20 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
               - ``'loss_mask'``: a boolean numpy array of shape ``[Batch, Time]``.
         """
         _, batch = batch
-        batch_segment_ids, batch_input_mask, batch_loss_mask = create_masks_and_segment_ids(
-            batch['input_ids'],
-            batch['subtokens_mask'],
-            self.tokenizer.pad_id,
-            self.tokenizer.cls_id,
-            self.tokenizer.sep_id,
-            self.ignore_start_end,
-            self.ignore_extra_tokens,
+        batch_segment_ids, batch_input_mask, batch_loss_mask = (
+            create_masks_and_segment_ids(
+                batch["input_ids"],
+                batch["subtokens_mask"],
+                self.tokenizer.pad_id,
+                self.tokenizer.cls_id,
+                self.tokenizer.sep_id,
+                self.ignore_start_end,
+                self.ignore_extra_tokens,
+            )
         )
-        batch['segment_ids'] = batch_segment_ids
-        batch['input_mask'] = batch_input_mask
-        batch['loss_mask'] = batch_loss_mask
+        batch["segment_ids"] = batch_segment_ids
+        batch["input_mask"] = batch_input_mask
+        batch["loss_mask"] = batch_loss_mask
         return batch
 
     def __iter__(self) -> Iterator[Dict[str, np.ndarray]]:
@@ -1256,7 +1429,9 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
     def __len__(self) -> int:
         return self.length
 
-    def collate_fn(self, batches: List[Dict[str, np.ndarray]]) -> Dict[str, torch.Tensor]:
+    def collate_fn(
+        self, batches: List[Dict[str, np.ndarray]]
+    ) -> Dict[str, torch.Tensor]:
         """
         Return zeroth batch of ``batches`` list passed for collating and casts ``'segment_ids'``, ``'punct_labels'``,
         ``'capit_labels'`` to types supported by
@@ -1282,9 +1457,9 @@ class BertPunctuationCapitalizationTarredDataset(IterableDataset):
               - ``'loss_mask'`` (:obj:`torch.Tensor`): :obj:`torch.bool` tensor.
         """
         batch = {k: torch.as_tensor(v) for k, v in batches[0].items()}
-        batch['segment_ids'] = batch['segment_ids'].int()
-        batch['punct_labels'] = batch['punct_labels'].long()
-        batch['capit_labels'] = batch['capit_labels'].long()
+        batch["segment_ids"] = batch["segment_ids"].int()
+        batch["punct_labels"] = batch["punct_labels"].long()
+        batch["capit_labels"] = batch["capit_labels"].long()
         if self.use_audio:
-            batch['features'] = batch['features'].to(torch.float32)
+            batch["features"] = batch["features"].to(torch.float32)
         return batch

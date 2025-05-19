@@ -66,14 +66,24 @@ def circle_poses(
     )  # [B, 3]
 
     # Compute camera look-at matrix
-    forward_vector, up_vector, right_vector = compute_look_at_vectors(centers=centers, device=device)
+    forward_vector, up_vector, right_vector = compute_look_at_vectors(
+        centers=centers, device=device
+    )
 
     # Construct the 4x4 pose matrices
     poses = construct_poses(
-        centers=centers, right_vector=right_vector, up_vector=up_vector, forward_vector=forward_vector, device=device
+        centers=centers,
+        right_vector=right_vector,
+        up_vector=up_vector,
+        forward_vector=forward_vector,
+        device=device,
     )
 
-    dirs = get_view_direction(theta, phi, angle_overhead, angle_front) if return_dirs else None
+    dirs = (
+        get_view_direction(theta, phi, angle_overhead, angle_front)
+        if return_dirs
+        else None
+    )
 
     return poses, dirs
 
@@ -97,7 +107,7 @@ class CirclePosesDataset(Dataset):
         angle_front: float = 60.0,
         near: float = 0.01,
         far: float = 1000.0,
-        device: torch.device = 'cpu',
+        device: torch.device = "cpu",
     ) -> None:
         """
         Initializes a new CirclePosesDataset instance.
@@ -137,7 +147,11 @@ class CirclePosesDataset(Dataset):
 
         # TODO(ahmadki): make camera type a parameter
         self.camera = PinholeCamera(
-            width=self.width, height=self.height, near=self.near, far=self.far, device=self.device
+            width=self.width,
+            height=self.height,
+            near=self.near,
+            far=self.far,
+            device=self.device,
         )
 
     def __len__(self) -> int:
@@ -177,15 +191,23 @@ class CirclePosesDataset(Dataset):
         )
 
         # Compute camera intrinsics
-        intrinsics = self.camera.compute_intrinsics(fovx=self.default_fovx, fovy=self.default_fovy)
+        intrinsics = self.camera.compute_intrinsics(
+            fovx=self.default_fovx, fovy=self.default_fovy
+        )
 
         # Compute projection matrix
-        projection = self.camera.compute_projection_matrix(focal_x=intrinsics[0], focal_y=intrinsics[1])
+        projection = self.camera.compute_projection_matrix(
+            focal_x=intrinsics[0], focal_y=intrinsics[1]
+        )
         mvp = projection @ torch.inverse(poses)  # [1, 4, 4]
 
         # Sample rays
         rays_o, rays_d = get_rays(
-            poses=poses, intrinsics=intrinsics, height=self.height, width=self.width, device=poses.device
+            poses=poses,
+            intrinsics=intrinsics,
+            height=self.height,
+            width=self.width,
+            device=poses.device,
         )
 
         # Compute azimuth delta
@@ -193,13 +215,13 @@ class CirclePosesDataset(Dataset):
         delta_azimuth[delta_azimuth > 180] -= 360  # range in [-180, 180]
 
         data = {
-            'height': self.height,
-            'width': self.width,
-            'rays_o': rays_o,
-            'rays_d': rays_d,
-            'dir': dirs,
-            'mvp': mvp,
-            'azimuth': delta_azimuth,
+            "height": self.height,
+            "width": self.width,
+            "rays_o": rays_o,
+            "rays_d": rays_d,
+            "dir": dirs,
+            "mvp": mvp,
+            "azimuth": delta_azimuth,
         }
 
         return data
@@ -214,11 +236,11 @@ class CirclePosesDataset(Dataset):
             dict: Collated data.
         """
         return {
-            'height': self.height,
-            'width': self.width,
-            'rays_o': torch.cat([item['rays_o'] for item in batch], dim=0),
-            'rays_d': torch.cat([item['rays_d'] for item in batch], dim=0),
-            'mvp': torch.cat([item['mvp'] for item in batch], dim=0),
-            'dir': torch.cat([item['dir'] for item in batch], dim=0),
-            'azimuth': torch.cat([item['azimuth'] for item in batch], dim=0),
+            "height": self.height,
+            "width": self.width,
+            "rays_o": torch.cat([item["rays_o"] for item in batch], dim=0),
+            "rays_d": torch.cat([item["rays_d"] for item in batch], dim=0),
+            "mvp": torch.cat([item["mvp"] for item in batch], dim=0),
+            "dir": torch.cat([item["dir"] for item in batch], dim=0),
+            "azimuth": torch.cat([item["azimuth"] for item in batch], dim=0),
         }

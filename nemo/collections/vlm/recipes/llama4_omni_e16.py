@@ -219,8 +219,15 @@ def pretrain_recipe(
             num_gpus_per_node=num_gpus_per_node,
             callbacks=[run.Config(TimingCallback)],
         ),
-        data=run.Config(Llama4MockDataModule, seq_length=8192, global_batch_size=512, micro_batch_size=1),
-        log=default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
+        data=run.Config(
+            Llama4MockDataModule,
+            seq_length=8192,
+            global_batch_size=512,
+            micro_batch_size=1,
+        ),
+        log=default_log(
+            dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)
+        ),
         optim=distributed_fused_adam_with_cosine_annealing(max_lr=3e-4),
         resume=default_resume(),
     )
@@ -282,7 +289,7 @@ def finetune_recipe(
     name: str = "default",
     num_nodes: int = 32,
     num_gpus_per_node: int = 8,
-    peft_scheme: Optional[str] = 'none',
+    peft_scheme: Optional[str] = "none",
 ) -> run.Partial:
     """
     Create a fine-tuning recipe for Llava1.5 7B model.
@@ -360,19 +367,26 @@ def finetune_recipe(
             seq_length=8192,
             global_batch_size=128,
             micro_batch_size=1,
-            tokenizer=run.Config(AutoTokenizer, pretrained_model_name='meta-llama/Llama-4-Scout-17B-16E-Instruct'),
+            tokenizer=run.Config(
+                AutoTokenizer,
+                pretrained_model_name="meta-llama/Llama-4-Scout-17B-16E-Instruct",
+            ),
             image_processor=None,
             num_workers=4,
         ),
-        log=llm.default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
-        optim=distributed_fused_adam_with_cosine_annealing(max_lr=2.0e-05, min_lr=2.0e-07, warmup_steps=150),
+        log=llm.default_log(
+            dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)
+        ),
+        optim=distributed_fused_adam_with_cosine_annealing(
+            max_lr=2.0e-05, min_lr=2.0e-07, warmup_steps=150
+        ),
         resume=nemo_resume("meta-llama/Llama-4-Scout-17B-16E-Instruct"),
     )
 
-    if peft_scheme is None or peft_scheme.lower() == 'none':
+    if peft_scheme is None or peft_scheme.lower() == "none":
         recipe.trainer.strategy.tensor_model_parallel_size = 2
         recipe.optim.config.lr = 2e-05
-    elif peft_scheme.lower() == 'lora':
+    elif peft_scheme.lower() == "lora":
         recipe.peft = run.Config(
             vlm.LoRA,
             freeze_vision_model=False,

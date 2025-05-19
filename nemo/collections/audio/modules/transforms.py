@@ -37,34 +37,42 @@ class AudioToSpectrogram(NeuralModule):
         scale: Positive scaling of the spectrogram.
     """
 
-    def __init__(self, fft_length: int, hop_length: int, magnitude_power: float = 1.0, scale: float = 1.0):
+    def __init__(
+        self,
+        fft_length: int,
+        hop_length: int,
+        magnitude_power: float = 1.0,
+        scale: float = 1.0,
+    ):
         super().__init__()
 
         # For now, assume FFT length is divisible by two
         if fft_length % 2 != 0:
-            raise ValueError(f'fft_length = {fft_length} must be divisible by 2')
+            raise ValueError(f"fft_length = {fft_length} must be divisible by 2")
 
         self.fft_length = fft_length
         self.hop_length = hop_length
-        self.pad_mode = 'constant'
+        self.pad_mode = "constant"
         window = torch.hann_window(self.win_length)
-        self.register_buffer('window', window)
+        self.register_buffer("window", window)
 
         self.num_subbands = fft_length // 2 + 1
 
         if magnitude_power <= 0:
-            raise ValueError(f'Magnitude power needs to be positive: current value {magnitude_power}')
+            raise ValueError(
+                f"Magnitude power needs to be positive: current value {magnitude_power}"
+            )
         self.magnitude_power = magnitude_power
 
         if scale <= 0:
-            raise ValueError(f'Scale needs to be positive: current value {scale}')
+            raise ValueError(f"Scale needs to be positive: current value {scale}")
         self.scale = scale
 
-        logging.debug('Initialized %s with:', self.__class__.__name__)
-        logging.debug('\tfft_length:      %s', fft_length)
-        logging.debug('\thop_length:      %s', hop_length)
-        logging.debug('\tmagnitude_power: %s', magnitude_power)
-        logging.debug('\tscale:           %s', scale)
+        logging.debug("Initialized %s with:", self.__class__.__name__)
+        logging.debug("\tfft_length:      %s", fft_length)
+        logging.debug("\thop_length:      %s", hop_length)
+        logging.debug("\tmagnitude_power: %s", magnitude_power)
+        logging.debug("\tscale:           %s", scale)
 
     @property
     def win_length(self) -> int:
@@ -81,7 +89,7 @@ class AudioToSpectrogram(NeuralModule):
         """
         # pack batch
         B, C, T = x.size()
-        x = rearrange(x, 'B C T -> (B C) T')
+        x = rearrange(x, "B C T -> (B C) T")
 
         x_spec = torch.stft(
             input=x,
@@ -97,7 +105,7 @@ class AudioToSpectrogram(NeuralModule):
         )
 
         # unpack batch
-        x_spec = rearrange(x_spec, '(B C) F N -> B C F N', B=B, C=C)
+        x_spec = rearrange(x_spec, "(B C) F N -> B C F N", B=B, C=C)
 
         return x_spec
 
@@ -105,16 +113,16 @@ class AudioToSpectrogram(NeuralModule):
     def input_types(self) -> Dict[str, NeuralType]:
         """Returns definitions of module output ports."""
         return {
-            "input": NeuralType(('B', 'C', 'T'), AudioSignal()),
-            "input_length": NeuralType(('B',), LengthsType(), optional=True),
+            "input": NeuralType(("B", "C", "T"), AudioSignal()),
+            "input_length": NeuralType(("B",), LengthsType(), optional=True),
         }
 
     @property
     def output_types(self) -> Dict[str, NeuralType]:
         """Returns definitions of module output ports."""
         return {
-            "output": NeuralType(('B', 'C', 'D', 'T'), SpectrogramType()),
-            "output_length": NeuralType(('B',), LengthsType()),
+            "output": NeuralType(("B", "C", "D", "T"), SpectrogramType()),
+            "output_length": NeuralType(("B",), LengthsType()),
         }
 
     @typecheck()
@@ -141,7 +149,9 @@ class AudioToSpectrogram(NeuralModule):
 
             if self.magnitude_power != 1:
                 # apply power on the magnitude
-                output = torch.pow(output.abs(), self.magnitude_power) * torch.exp(1j * output.angle())
+                output = torch.pow(output.abs(), self.magnitude_power) * torch.exp(
+                    1j * output.angle()
+                )
 
             if self.scale != 1:
                 # apply scaling of the coefficients
@@ -171,7 +181,9 @@ class AudioToSpectrogram(NeuralModule):
             Number of valid frames, shape (B,)
         """
         # centered STFT results in (T // hop_length + 1) frames for T samples (cf. torch.stft)
-        output_length = input_length.div(self.hop_length, rounding_mode='floor').add(1).long()
+        output_length = (
+            input_length.div(self.hop_length, rounding_mode="floor").add(1).long()
+        )
         return output_length
 
 
@@ -186,33 +198,41 @@ class SpectrogramToAudio(NeuralModule):
         scale: Spectrogram will be scaled with 1/scale before the inverse transform.
     """
 
-    def __init__(self, fft_length: int, hop_length: int, magnitude_power: float = 1.0, scale: float = 1.0):
+    def __init__(
+        self,
+        fft_length: int,
+        hop_length: int,
+        magnitude_power: float = 1.0,
+        scale: float = 1.0,
+    ):
         super().__init__()
 
         # For now, assume FFT length is divisible by two
         if fft_length % 2 != 0:
-            raise ValueError(f'fft_length = {fft_length} must be divisible by 2')
+            raise ValueError(f"fft_length = {fft_length} must be divisible by 2")
 
         self.fft_length = fft_length
         self.hop_length = hop_length
         window = torch.hann_window(self.win_length)
-        self.register_buffer('window', window)
+        self.register_buffer("window", window)
 
         self.num_subbands = fft_length // 2 + 1
 
         if magnitude_power <= 0:
-            raise ValueError(f'Magnitude power needs to be positive: current value {magnitude_power}')
+            raise ValueError(
+                f"Magnitude power needs to be positive: current value {magnitude_power}"
+            )
         self.magnitude_power = magnitude_power
 
         if scale <= 0:
-            raise ValueError(f'Scale needs to be positive: current value {scale}')
+            raise ValueError(f"Scale needs to be positive: current value {scale}")
         self.scale = scale
 
-        logging.debug('Initialized %s with:', self.__class__.__name__)
-        logging.debug('\tfft_length:      %s', fft_length)
-        logging.debug('\thop_length:      %s', hop_length)
-        logging.debug('\tmagnitude_power: %s', magnitude_power)
-        logging.debug('\tscale:           %s', scale)
+        logging.debug("Initialized %s with:", self.__class__.__name__)
+        logging.debug("\tfft_length:      %s", fft_length)
+        logging.debug("\thop_length:      %s", hop_length)
+        logging.debug("\tmagnitude_power: %s", magnitude_power)
+        logging.debug("\tscale:           %s", scale)
 
     @property
     def win_length(self) -> int:
@@ -229,7 +249,7 @@ class SpectrogramToAudio(NeuralModule):
         """
         # pack batch
         B, C, F, N = x_spec.size()
-        x_spec = rearrange(x_spec, 'B C F N -> (B C) F N')
+        x_spec = rearrange(x_spec, "B C F N -> (B C) F N")
 
         x = torch.istft(
             input=x_spec,
@@ -245,7 +265,7 @@ class SpectrogramToAudio(NeuralModule):
         )
 
         # unpack batch
-        x = rearrange(x, '(B C) T -> B C T', B=B, C=C)
+        x = rearrange(x, "(B C) T -> B C T", B=B, C=C)
 
         return x
 
@@ -253,20 +273,22 @@ class SpectrogramToAudio(NeuralModule):
     def input_types(self) -> Dict[str, NeuralType]:
         """Returns definitions of module output ports."""
         return {
-            "input": NeuralType(('B', 'C', 'D', 'T'), SpectrogramType()),
-            "input_length": NeuralType(('B',), LengthsType(), optional=True),
+            "input": NeuralType(("B", "C", "D", "T"), SpectrogramType()),
+            "input_length": NeuralType(("B",), LengthsType(), optional=True),
         }
 
     @property
     def output_types(self) -> Dict[str, NeuralType]:
         """Returns definitions of module output ports."""
         return {
-            "output": NeuralType(('B', 'C', 'T'), AudioSignal()),
-            "output_length": NeuralType(('B',), LengthsType()),
+            "output": NeuralType(("B", "C", "T"), AudioSignal()),
+            "output_length": NeuralType(("B",), LengthsType()),
         }
 
     @typecheck()
-    def forward(self, input: torch.Tensor, input_length: Optional[torch.Tensor] = None) -> torch.Tensor:
+    def forward(
+        self, input: torch.Tensor, input_length: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
         """Convert input complex-valued spectrogram to a time-domain
         signal. Multi-channel IO is supported.
 
@@ -279,7 +301,9 @@ class SpectrogramToAudio(NeuralModule):
             and output length with shape (B,).
         """
         B, F, N = input.size(0), input.size(-2), input.size(-1)
-        assert F == self.num_subbands, f'Number of subbands F={F} not matching self.num_subbands={self.num_subbands}'
+        assert (
+            F == self.num_subbands
+        ), f"Number of subbands F={F} not matching self.num_subbands={self.num_subbands}"
         input = input.view(B, -1, F, N)
 
         if not input.is_complex():
@@ -295,7 +319,9 @@ class SpectrogramToAudio(NeuralModule):
 
             if self.magnitude_power != 1:
                 # apply 1/power on the magnitude
-                output = torch.pow(output.abs(), 1 / self.magnitude_power) * torch.exp(1j * output.angle())
+                output = torch.pow(output.abs(), 1 / self.magnitude_power) * torch.exp(
+                    1j * output.angle()
+                )
             output = self.istft(output)
 
         if input_length is not None:

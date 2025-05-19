@@ -49,14 +49,18 @@ class T5NMTPromptFormatter(PromptFormatter):
         },
     }
 
-    def encode_turn(self, prompt_template: str, expected_slots: dict, slot_values: dict) -> list[int]:
+    def encode_turn(
+        self, prompt_template: str, expected_slots: dict, slot_values: dict
+    ) -> list[int]:
         # Automatically adds "<" and ">" to target lang token for T5 NMT.
         # Based on: https://github.com/NVIDIA/NeMo/blob/ad5ef750e351edbb5eeb7eb6df2d0c804819600f/nemo/collections/nlp/models/machine_translation/mt_enc_dec_model.py#L307
         if (val := slot_values.get("target_lang")) is not None:
             if not val.startswith("<") or not val.endswith(">"):
                 slot_values["target_lang"] = f"<{val}>"
         return super().encode_turn(
-            prompt_template=prompt_template, expected_slots=expected_slots, slot_values=slot_values
+            prompt_template=prompt_template,
+            expected_slots=expected_slots,
+            slot_values=slot_values,
         )
 
 
@@ -95,13 +99,18 @@ def t5nmt(cut: Cut, prompt: T5NMTPromptFormatter) -> dict[str, torch.Tensor]:
 
 
 @registered_prompt_format_fn(SourceTargetTextExample, T5NMTPromptFormatter)
-def t5nmt_src_tgt_text_example(example: SourceTargetTextExample, prompt: T5NMTPromptFormatter):
+def t5nmt_src_tgt_text_example(
+    example: SourceTargetTextExample, prompt: T5NMTPromptFormatter
+):
     ctx = f"<{example.target.language}>"
     if example.has_custom("extra_prompt"):
         ctx = f"{ctx} {example.extra_prompt}"
     return prompt.encode_dialog(
         [
-            {"role": "user", "slots": {"message": example.source.text, "target_lang": ctx}},
+            {
+                "role": "user",
+                "slots": {"message": example.source.text, "target_lang": ctx},
+            },
             {"role": prompt.OUTPUT_ROLE, "slots": {"message": example.target.text}},
         ]
     )

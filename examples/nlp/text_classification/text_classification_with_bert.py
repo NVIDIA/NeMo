@@ -108,11 +108,11 @@ from nemo.utils.exp_manager import exp_manager
 
 @hydra_runner(config_path="conf", config_name="text_classification_config")
 def main(cfg: DictConfig) -> None:
-    logging.info(f'\nConfig Params:\n{OmegaConf.to_yaml(cfg)}')
+    logging.info(f"\nConfig Params:\n{OmegaConf.to_yaml(cfg)}")
     try:
         strategy = NLPDDPStrategy(find_unused_parameters=True)
     except (ImportError, ModuleNotFoundError):
-        strategy = 'auto'
+        strategy = "auto"
 
     trainer = pl.Trainer(strategy=strategy, **cfg.trainer)
     exp_manager(trainer, cfg.get("exp_manager", None))
@@ -121,40 +121,56 @@ def main(cfg: DictConfig) -> None:
         raise ValueError("'train_ds.file_path' need to be set for the training!")
 
     model = TextClassificationModel(cfg.model, trainer=trainer)
-    logging.info("===========================================================================================")
-    logging.info('Starting training...')
+    logging.info(
+        "==========================================================================================="
+    )
+    logging.info("Starting training...")
     trainer.fit(model)
-    logging.info('Training finished!')
-    logging.info("===========================================================================================")
+    logging.info("Training finished!")
+    logging.info(
+        "==========================================================================================="
+    )
 
     if cfg.model.nemo_path:
         # '.nemo' file contains the last checkpoint and the params to initialize the model
         model.save_to(cfg.model.nemo_path)
-        logging.info(f'Model is saved into `.nemo` file: {cfg.model.nemo_path}')
+        logging.info(f"Model is saved into `.nemo` file: {cfg.model.nemo_path}")
 
     # We evaluate the trained model on the test set if test_ds is set in the config file
     if cfg.model.test_ds.file_path:
-        logging.info("===========================================================================================")
+        logging.info(
+            "==========================================================================================="
+        )
         logging.info("Starting the testing of the trained model on test set...")
         trainer.test(model=model, ckpt_path=None, verbose=False)
         logging.info("Testing finished!")
-        logging.info("===========================================================================================")
+        logging.info(
+            "==========================================================================================="
+        )
 
     # perform inference on a list of queries.
     if "infer_samples" in cfg.model and cfg.model.infer_samples:
-        logging.info("===========================================================================================")
+        logging.info(
+            "==========================================================================================="
+        )
         logging.info("Starting the inference on some sample queries...")
 
         # max_seq_length=512 is the maximum length BERT supports.
-        results = model.classifytext(queries=cfg.model.infer_samples, batch_size=16, max_seq_length=512)
-        logging.info('The prediction results of some sample queries with the trained model:')
+        results = model.classifytext(
+            queries=cfg.model.infer_samples, batch_size=16, max_seq_length=512
+        )
+        logging.info(
+            "The prediction results of some sample queries with the trained model:"
+        )
         for query, result in zip(cfg.model.infer_samples, results):
-            logging.info(f'Query : {query}')
-            logging.info(f'Predicted label: {result}')
+            logging.info(f"Query : {query}")
+            logging.info(f"Predicted label: {result}")
 
         logging.info("Inference finished!")
-        logging.info("===========================================================================================")
+        logging.info(
+            "==========================================================================================="
+        )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

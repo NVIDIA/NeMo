@@ -190,7 +190,9 @@ def pretrain_recipe(
             callbacks=[run.Config(TimingCallback)],
         ),
         data=flux_mock_datamodule(),
-        log=default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
+        log=default_log(
+            dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)
+        ),
         optim=run.Config(
             nl.MegatronOptimizerModule,
             config=run.Config(

@@ -42,7 +42,9 @@ def get_args():
     """
     Parse the command line arguments.
     """
-    parser = ArgumentParser(description="""Run generation on a few sample prompts given the checkpoint path.""")
+    parser = ArgumentParser(
+        description="""Run generation on a few sample prompts given the checkpoint path."""
+    )
     parser.add_argument(
         "--prompts",
         type=str,
@@ -160,7 +162,9 @@ if __name__ == "__main__":
     args = get_args()
 
     if args.fp8:
-        assert len(args.prompts) % 8 == 0, "Batch size should be divisible by 8 for FP8 inference"
+        assert (
+            len(args.prompts) % 8 == 0
+        ), "Batch size should be divisible by 8 for FP8 inference"
 
     strategy = nl.MegatronStrategy(
         tensor_model_parallel_size=args.tp,

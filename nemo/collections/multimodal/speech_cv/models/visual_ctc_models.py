@@ -41,10 +41,12 @@ from nemo.core.neural_types import (LabelsType, LengthsType, LogprobsType,
                                     NeuralType, VideoSignal)
 from nemo.utils import logging
 
-__all__ = ['VisualEncDecCTCModel']
+__all__ = ["VisualEncDecCTCModel"]
 
 
-class VisualEncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMixin):
+class VisualEncDecCTCModel(
+    ASRModel, ExportableEncDecModel, ASRModuleMixin, InterCTCMixin
+):
     """Base class for encoder decoder CTC-based models."""
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
@@ -59,26 +61,35 @@ class VisualEncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, Inte
         super().__init__(cfg=cfg, trainer=trainer)
 
         # Preprocessor, video transforms
-        self.video_preprocessor = VisualEncDecCTCModel.from_config_dict(self._cfg.video_preprocessor)
+        self.video_preprocessor = VisualEncDecCTCModel.from_config_dict(
+            self._cfg.video_preprocessor
+        )
 
         # Augmentation, video augmentations
-        self.video_augmentation = VisualEncDecCTCModel.from_config_dict(self._cfg.video_augment)
+        self.video_augmentation = VisualEncDecCTCModel.from_config_dict(
+            self._cfg.video_augment
+        )
 
         # Front-end Network, learned module that transform videos to temporal sequence
-        self.video_front_end = VisualEncDecCTCModel.from_config_dict(self._cfg.video_front_end)
+        self.video_front_end = VisualEncDecCTCModel.from_config_dict(
+            self._cfg.video_front_end
+        )
 
         # Encoder Network
         self.encoder = VisualEncDecCTCModel.from_config_dict(self._cfg.encoder)
 
         with open_dict(self._cfg):
             if "feat_in" not in self._cfg.decoder or (
-                not self._cfg.decoder.feat_in and hasattr(self.encoder, '_feat_out')
+                not self._cfg.decoder.feat_in and hasattr(self.encoder, "_feat_out")
             ):
                 self._cfg.decoder.feat_in = self.encoder._feat_out
             if "feat_in" not in self._cfg.decoder or not self._cfg.decoder.feat_in:
                 raise ValueError("param feat_in of the decoder's config is not set!")
 
-            if self.cfg.decoder.num_classes < 1 and self.cfg.decoder.vocabulary is not None:
+            if (
+                self.cfg.decoder.num_classes < 1
+                and self.cfg.decoder.vocabulary is not None
+            ):
                 logging.info(
                     "\nReplacing placeholder number of classes ({}) with actual number of classes - {}".format(
                         self.cfg.decoder.num_classes, len(self.cfg.decoder.vocabulary)
@@ -97,7 +108,7 @@ class VisualEncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, Inte
         )
 
         # Setup decoding objects
-        decoding_cfg = self.cfg.get('decoding', None)
+        decoding_cfg = self.cfg.get("decoding", None)
 
         # In case decoding config not found, use default config
         if decoding_cfg is None:
@@ -106,12 +117,14 @@ class VisualEncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, Inte
                 self.cfg.decoding = decoding_cfg
 
         # Decoding
-        self.decoding = CTCDecoding(self.cfg.decoding, vocabulary=self.decoder.vocabulary)
+        self.decoding = CTCDecoding(
+            self.cfg.decoding, vocabulary=self.decoder.vocabulary
+        )
 
         # Setup metric with decoding strategy
         self.wer = WER(
             decoding=self.decoding,
-            use_cer=self._cfg.get('use_cer', False),
+            use_cer=self._cfg.get("use_cer", False),
             dist_sync_on_step=True,
             log_prediction=self._cfg.get("log_prediction", False),
         )
@@ -120,7 +133,7 @@ class VisualEncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, Inte
         self.setup_optimization_flags()
 
         # setting up interCTC loss (from InterCTCMixin)
-        self.setup_interctc(decoder_name='decoder', loss_name='loss', wer_name='_wer')
+        self.setup_interctc(decoder_name="decoder", loss_name="loss", wer_name="_wer")
 
         # Adapter modules setup (from ASRAdapterModelMixin)
         self.setup_adapters()
@@ -185,26 +198,33 @@ class VisualEncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, Inte
             logging.set_verbosity(logging.WARNING)
             # Work in tmp directory - will store manifest file there
             with tempfile.TemporaryDirectory() as tmpdir:
-                with open(os.path.join(tmpdir, 'manifest.json'), 'w', encoding='utf-8') as fp:
+                with open(
+                    os.path.join(tmpdir, "manifest.json"), "w", encoding="utf-8"
+                ) as fp:
                     for video_file in paths2video_files:
-                        entry = {'video_filepath': video_file, 'duration': 100000, 'text': ''}
-                        fp.write(json.dumps(entry) + '\n')
+                        entry = {
+                            "video_filepath": video_file,
+                            "duration": 100000,
+                            "text": "",
+                        }
+                        fp.write(json.dumps(entry) + "\n")
 
                 config = {
-                    'paths2video_files': paths2video_files,
-                    'batch_size': batch_size,
-                    'temp_dir': tmpdir,
-                    'num_workers': num_workers,
-                    'channel_selector': channel_selector,
+                    "paths2video_files": paths2video_files,
+                    "batch_size": batch_size,
+                    "temp_dir": tmpdir,
+                    "num_workers": num_workers,
+                    "channel_selector": channel_selector,
                 }
 
                 if augmentor:
-                    config['augmentor'] = augmentor
+                    config["augmentor"] = augmentor
 
                 temporary_datalayer = self._setup_transcribe_dataloader(config)
                 for test_batch in tqdm(temporary_datalayer, desc="Transcribing"):
                     logits, logits_len, greedy_predictions = self.forward(
-                        input_signal=test_batch[0].to(device), input_signal_length=test_batch[1].to(device)
+                        input_signal=test_batch[0].to(device),
+                        input_signal_length=test_batch[1].to(device),
                     )
                     if logprobs:
                         # dump log probs per file
@@ -212,18 +232,24 @@ class VisualEncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, Inte
                             lg = logits[idx][: logits_len[idx]]
                             hypotheses.append(lg.cpu().numpy())
                     else:
-                        current_hypotheses = self.decoding.ctc_decoder_predictions_tensor(
-                            logits,
-                            decoder_lengths=logits_len,
-                            return_hypotheses=return_hypotheses,
+                        current_hypotheses = (
+                            self.decoding.ctc_decoder_predictions_tensor(
+                                logits,
+                                decoder_lengths=logits_len,
+                                return_hypotheses=return_hypotheses,
+                            )
                         )
 
                         if return_hypotheses:
                             # dump log probs per file
                             for idx in range(logits.shape[0]):
-                                current_hypotheses[idx].y_sequence = logits[idx][: logits_len[idx]]
+                                current_hypotheses[idx].y_sequence = logits[idx][
+                                    : logits_len[idx]
+                                ]
                                 if current_hypotheses[idx].alignments is None:
-                                    current_hypotheses[idx].alignments = current_hypotheses[idx].y_sequence
+                                    current_hypotheses[idx].alignments = (
+                                        current_hypotheses[idx].y_sequence
+                                    )
 
                         hypotheses += current_hypotheses
 
@@ -241,7 +267,9 @@ class VisualEncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, Inte
 
         return hypotheses
 
-    def change_vocabulary(self, new_vocabulary: List[str], decoding_cfg: Optional[DictConfig] = None):
+    def change_vocabulary(
+        self, new_vocabulary: List[str], decoding_cfg: Optional[DictConfig] = None
+    ):
         """
         Changes vocabulary used during CTC decoding process. Use this method when 
         fine-tuning on from pre-trained model.
@@ -262,14 +290,18 @@ class VisualEncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, Inte
 
         """
         if self.decoder.vocabulary == new_vocabulary:
-            logging.warning(f"Old {self.decoder.vocabulary} and new {new_vocabulary} match. Not changing anything.")
+            logging.warning(
+                f"Old {self.decoder.vocabulary} and new {new_vocabulary} match. Not changing anything."
+            )
         else:
             if new_vocabulary is None or len(new_vocabulary) == 0:
-                raise ValueError(f'New vocabulary must be non-empty list of chars. But I got: {new_vocabulary}')
+                raise ValueError(
+                    f"New vocabulary must be non-empty list of chars. But I got: {new_vocabulary}"
+                )
             decoder_config = self.decoder.to_config_dict()
             new_decoder_config = copy.deepcopy(decoder_config)
-            new_decoder_config['vocabulary'] = new_vocabulary
-            new_decoder_config['num_classes'] = len(new_vocabulary)
+            new_decoder_config["vocabulary"] = new_vocabulary
+            new_decoder_config["num_classes"] = len(new_vocabulary)
 
             del self.decoder
             self.decoder = VisualEncDecCTCModel.from_config_dict(new_decoder_config)
@@ -289,11 +321,13 @@ class VisualEncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, Inte
             decoding_cls = OmegaConf.create(OmegaConf.to_container(decoding_cls))
             decoding_cfg = OmegaConf.merge(decoding_cls, decoding_cfg)
 
-            self.decoding = CTCDecoding(decoding_cfg=decoding_cfg, vocabulary=self.decoder.vocabulary)
+            self.decoding = CTCDecoding(
+                decoding_cfg=decoding_cfg, vocabulary=self.decoder.vocabulary
+            )
 
             self.wer = WER(
                 decoding=self.decoding,
-                use_cer=self._cfg.get('use_cer', False),
+                use_cer=self._cfg.get("use_cer", False),
                 dist_sync_on_step=True,
                 log_prediction=self._cfg.get("log_prediction", False),
             )
@@ -305,13 +339,15 @@ class VisualEncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, Inte
             with open_dict(self.cfg.decoding):
                 self.cfg.decoding = decoding_cfg
 
-            ds_keys = ['train_ds', 'validation_ds', 'test_ds']
+            ds_keys = ["train_ds", "validation_ds", "test_ds"]
             for key in ds_keys:
                 if key in self.cfg:
                     with open_dict(self.cfg[key]):
-                        self.cfg[key]['labels'] = OmegaConf.create(new_vocabulary)
+                        self.cfg[key]["labels"] = OmegaConf.create(new_vocabulary)
 
-            logging.info(f"Changed decoder to output to {self.decoder.vocabulary} vocabulary.")
+            logging.info(
+                f"Changed decoder to output to {self.decoder.vocabulary} vocabulary."
+            )
 
     def change_decoding_strategy(self, decoding_cfg: DictConfig):
         """
@@ -323,7 +359,9 @@ class VisualEncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, Inte
         """
         if decoding_cfg is None:
             # Assume same decoding config as before
-            logging.info("No `decoding_cfg` passed when changing decoding strategy, using internal config")
+            logging.info(
+                "No `decoding_cfg` passed when changing decoding strategy, using internal config"
+            )
             decoding_cfg = self.cfg.decoding
 
         # Assert the decoding config with all hyper parameters
@@ -331,7 +369,9 @@ class VisualEncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, Inte
         decoding_cls = OmegaConf.create(OmegaConf.to_container(decoding_cls))
         decoding_cfg = OmegaConf.merge(decoding_cls, decoding_cfg)
 
-        self.decoding = CTCDecoding(decoding_cfg=decoding_cfg, vocabulary=self.decoder.vocabulary)
+        self.decoding = CTCDecoding(
+            decoding_cfg=decoding_cfg, vocabulary=self.decoder.vocabulary
+        )
 
         self.wer = WER(
             decoding=self.decoding,
@@ -344,12 +384,18 @@ class VisualEncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, Inte
         with open_dict(self.cfg.decoding):
             self.cfg.decoding = decoding_cfg
 
-        logging.info(f"Changed decoding strategy to \n{OmegaConf.to_yaml(self.cfg.decoding)}")
+        logging.info(
+            f"Changed decoding strategy to \n{OmegaConf.to_yaml(self.cfg.decoding)}"
+        )
 
     def _setup_dataloader_from_config(self, config: Optional[Dict]):
         # Automatically inject args from model config to dataloader config
-        audio_to_text_dataset.inject_dataloader_value_from_model_config(self.cfg, config, key='sample_rate')
-        audio_to_text_dataset.inject_dataloader_value_from_model_config(self.cfg, config, key='labels')
+        audio_to_text_dataset.inject_dataloader_value_from_model_config(
+            self.cfg, config, key="sample_rate"
+        )
+        audio_to_text_dataset.inject_dataloader_value_from_model_config(
+            self.cfg, config, key="labels"
+        )
         dataset = video_to_text_dataset.get_video_to_text_char_dataset_from_config(
             config=config,
             local_rank=self.local_rank,
@@ -361,23 +407,23 @@ class VisualEncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, Inte
         if dataset is None:
             return None
 
-        shuffle = config['shuffle']
-        if config.get('is_tarred', False):
+        shuffle = config["shuffle"]
+        if config.get("is_tarred", False):
             shuffle = False
 
-        if hasattr(dataset, 'collate_fn'):
+        if hasattr(dataset, "collate_fn"):
             collate_fn = dataset.collate_fn
         else:
             collate_fn = dataset.datasets[0].collate_fn
 
         return torch.utils.data.DataLoader(
             dataset=dataset,
-            batch_size=config['batch_size'],
+            batch_size=config["batch_size"],
             collate_fn=collate_fn,
-            drop_last=config.get('drop_last', False),
+            drop_last=config.get("drop_last", False),
             shuffle=shuffle,
-            num_workers=config.get('num_workers', 0),
-            pin_memory=config.get('pin_memory', False),
+            num_workers=config.get("num_workers", 0),
+            pin_memory=config.get("pin_memory", False),
         )
 
     def setup_training_data(self, train_data_config: Optional[Union[DictConfig, Dict]]):
@@ -393,25 +439,30 @@ class VisualEncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, Inte
             -   :class:`~nemo.collections.asr.data.video_to_text.VideoToBPEDataset`
             -   :class:`~nemo.collections.asr.data.video_to_text.TarredVideoToBPEDataset`
         """
-        if 'shuffle' not in train_data_config:
-            train_data_config['shuffle'] = True
+        if "shuffle" not in train_data_config:
+            train_data_config["shuffle"] = True
 
         # preserve config
-        self._update_dataset_config(dataset_name='train', config=train_data_config)
+        self._update_dataset_config(dataset_name="train", config=train_data_config)
 
         self._train_dl = self._setup_dataloader_from_config(config=train_data_config)
 
         # Need to set this because if using an IterableDataset, the length of the dataloader is the total number
         # of samples rather than the number of batches, and this messes up the tqdm progress bar.
         # So we set the number of steps manually (to the correct number) to fix this.
-        if 'is_tarred' in train_data_config and train_data_config['is_tarred']:
+        if "is_tarred" in train_data_config and train_data_config["is_tarred"]:
             # We also need to check if limit_train_batches is already set.
             # If it's an int, we assume that the user has set it to something sane, i.e. <= # training batches,
             # and don't change it. Otherwise, adjust batches accordingly if it's a float (including 1.0).
-            if self._trainer is not None and isinstance(self._trainer.limit_train_batches, float):
+            if self._trainer is not None and isinstance(
+                self._trainer.limit_train_batches, float
+            ):
                 self._trainer.limit_train_batches = int(
                     self._trainer.limit_train_batches
-                    * ceil((len(self._train_dl.dataset) / self.world_size) / train_data_config['batch_size'])
+                    * ceil(
+                        (len(self._train_dl.dataset) / self.world_size)
+                        / train_data_config["batch_size"]
+                    )
                 )
             elif self._trainer is None:
                 logging.warning(
@@ -432,11 +483,11 @@ class VisualEncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, Inte
             -   :class:`~nemo.collections.asr.data.video_to_text.VideoToBPEDataset`
             -   :class:`~nemo.collections.asr.data.video_to_text.TarredVideoToBPEDataset`
         """
-        if 'shuffle' not in val_data_config:
-            val_data_config['shuffle'] = False
+        if "shuffle" not in val_data_config:
+            val_data_config["shuffle"] = False
 
         # preserve config
-        self._update_dataset_config(dataset_name='validation', config=val_data_config)
+        self._update_dataset_config(dataset_name="validation", config=val_data_config)
 
         self._validation_dl = self._setup_dataloader_from_config(config=val_data_config)
 
@@ -453,28 +504,32 @@ class VisualEncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, Inte
             -   :class:`~nemo.collections.asr.data.video_to_text.VideoToBPEDataset`
             -   :class:`~nemo.collections.asr.data.video_to_text.TarredVideoToBPEDataset`
         """
-        if 'shuffle' not in test_data_config:
-            test_data_config['shuffle'] = False
+        if "shuffle" not in test_data_config:
+            test_data_config["shuffle"] = False
 
         # preserve config
-        self._update_dataset_config(dataset_name='test', config=test_data_config)
+        self._update_dataset_config(dataset_name="test", config=test_data_config)
 
         self._test_dl = self._setup_dataloader_from_config(config=test_data_config)
 
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
         return {
-            "input_video_signal": NeuralType(('B', 'C', 'T', 'H', 'W'), VideoSignal(), optional=True),
-            "input_video_signal_length": NeuralType(tuple('B'), LengthsType(), optional=True),
-            "sample_id": NeuralType(tuple('B'), LengthsType(), optional=True),
+            "input_video_signal": NeuralType(
+                ("B", "C", "T", "H", "W"), VideoSignal(), optional=True
+            ),
+            "input_video_signal_length": NeuralType(
+                tuple("B"), LengthsType(), optional=True
+            ),
+            "sample_id": NeuralType(tuple("B"), LengthsType(), optional=True),
         }
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         return {
-            "outputs": NeuralType(('B', 'T', 'D'), LogprobsType()),
-            "encoded_lengths": NeuralType(tuple('B'), LengthsType()),
-            "greedy_predictions": NeuralType(('B', 'T'), LabelsType()),
+            "outputs": NeuralType(("B", "T", "D"), LogprobsType()),
+            "encoded_lengths": NeuralType(tuple("B"), LengthsType()),
+            "greedy_predictions": NeuralType(("B", "T"), LabelsType()),
         }
 
     @typecheck()
@@ -511,7 +566,9 @@ class VisualEncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, Inte
         )
 
         # Back-end Networks
-        encoded, encoded_len = self.encoder(audio_signal=processed_video_signal, length=processed_video_signal_length)
+        encoded, encoded_len = self.encoder(
+            audio_signal=processed_video_signal, length=processed_video_signal_length
+        )
 
         log_probs = self.decoder(encoder_output=encoded)
         greedy_predictions = log_probs.argmax(dim=-1, keepdim=False)
@@ -536,20 +593,26 @@ class VisualEncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, Inte
             input_video_signal=video_signal, input_video_signal_length=video_signal_len
         )
 
-        if hasattr(self, '_trainer') and self._trainer is not None:
+        if hasattr(self, "_trainer") and self._trainer is not None:
             log_every_n_steps = self._trainer.log_every_n_steps
         else:
             log_every_n_steps = 1
 
         loss_value = self.loss(
-            log_probs=log_probs, targets=transcript, input_lengths=encoded_len, target_lengths=transcript_len
+            log_probs=log_probs,
+            targets=transcript,
+            input_lengths=encoded_len,
+            target_lengths=transcript_len,
         )
 
         # Add auxiliary losses, if registered
         loss_value = self.add_auxiliary_losses(loss_value)
         # only computing WER when requested in the logs (same as done for final-layer WER below)
         loss_value, tensorboard_logs = self.add_interctc_losses(
-            loss_value, transcript, transcript_len, compute_wer=((batch_nb + 1) % log_every_n_steps == 0)
+            loss_value,
+            transcript,
+            transcript_len,
+            compute_wer=((batch_nb + 1) % log_every_n_steps == 0),
         )
 
         # Reset access registry
@@ -558,9 +621,11 @@ class VisualEncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, Inte
 
         tensorboard_logs.update(
             {
-                'train_loss': loss_value,
-                'learning_rate': self._optimizer.param_groups[0]['lr'],
-                'global_step': torch.tensor(self.trainer.global_step, dtype=torch.float32),
+                "train_loss": loss_value,
+                "learning_rate": self._optimizer.param_groups[0]["lr"],
+                "global_step": torch.tensor(
+                    self.trainer.global_step, dtype=torch.float32
+                ),
             }
         )
 
@@ -573,9 +638,9 @@ class VisualEncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, Inte
             )
             wer, _, _ = self.wer.compute()
             self.wer.reset()
-            tensorboard_logs.update({'training_batch_wer': wer})
+            tensorboard_logs.update({"training_batch_wer": wer})
 
-        return {'loss': loss_value, 'log': tensorboard_logs}
+        return {"loss": loss_value, "log": tensorboard_logs}
 
     def predict_step(self, batch, batch_idx, dataloader_idx=0):
         video_signal, video_signal_len, transcript, transcript_len, sample_id = batch
@@ -602,7 +667,10 @@ class VisualEncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, Inte
         )
 
         loss_value = self.loss(
-            log_probs=log_probs, targets=transcript, input_lengths=encoded_len, target_lengths=transcript_len
+            log_probs=log_probs,
+            targets=transcript,
+            input_lengths=encoded_len,
+            target_lengths=transcript_len,
         )
         loss_value, metrics = self.add_interctc_losses(
             loss_value,
@@ -614,13 +682,25 @@ class VisualEncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, Inte
         )
 
         self.wer.update(
-            predictions=log_probs, targets=transcript, target_lengths=transcript_len, predictions_lengths=encoded_len
+            predictions=log_probs,
+            targets=transcript,
+            target_lengths=transcript_len,
+            predictions_lengths=encoded_len,
         )
         wer, wer_num, wer_denom = self.wer.compute()
         self.wer.reset()
-        metrics.update({'val_loss': loss_value, 'val_wer_num': wer_num, 'val_wer_denom': wer_denom, 'val_wer': wer})
+        metrics.update(
+            {
+                "val_loss": loss_value,
+                "val_wer_num": wer_num,
+                "val_wer_denom": wer_denom,
+                "val_wer": wer,
+            }
+        )
 
-        self.log('global_step', torch.tensor(self.trainer.global_step, dtype=torch.float32))
+        self.log(
+            "global_step", torch.tensor(self.trainer.global_step, dtype=torch.float32)
+        )
 
         # Reset access registry
         if AccessMixin.is_access_enabled(getattr(self, "model_guid", None)):
@@ -640,8 +720,13 @@ class VisualEncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, Inte
 
     def test_step(self, batch, batch_idx, dataloader_idx=0):
         logs = self.validation_step(batch, batch_idx, dataloader_idx=dataloader_idx)
-        test_logs = {name.replace("val_", "test_"): value for name, value in logs.items()}
-        if type(self.trainer.test_dataloaders) == list and len(self.trainer.test_dataloaders) > 1:
+        test_logs = {
+            name.replace("val_", "test_"): value for name, value in logs.items()
+        }
+        if (
+            type(self.trainer.test_dataloaders) == list
+            and len(self.trainer.test_dataloaders) > 1
+        ):
             self.test_step_outputs[dataloader_idx].append(test_logs)
         else:
             self.test_step_outputs.append(test_logs)
@@ -651,7 +736,9 @@ class VisualEncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, Inte
         if self._test_dl is not None:
             return self._test_dl
 
-    def _setup_transcribe_dataloader(self, config: Dict) -> 'torch.utils.data.DataLoader':
+    def _setup_transcribe_dataloader(
+        self, config: Dict
+    ) -> "torch.utils.data.DataLoader":
         """
         Setup function for a temporary data loader which wraps the provided video file.
 
@@ -669,27 +756,31 @@ class VisualEncDecCTCModel(ASRModel, ExportableEncDecModel, ASRModuleMixin, Inte
         Returns:
             A pytorch DataLoader for the given video file(s).
         """
-        if 'manifest_filepath' in config:
-            manifest_filepath = config['manifest_filepath']
-            batch_size = config['batch_size']
+        if "manifest_filepath" in config:
+            manifest_filepath = config["manifest_filepath"]
+            batch_size = config["batch_size"]
         else:
-            manifest_filepath = os.path.join(config['temp_dir'], 'manifest.json')
-            batch_size = min(config['batch_size'], len(config['paths2video_files']))
+            manifest_filepath = os.path.join(config["temp_dir"], "manifest.json")
+            batch_size = min(config["batch_size"], len(config["paths2video_files"]))
 
         dl_config = {
-            'manifest_filepath': manifest_filepath,
-            'labels': self.decoder.vocabulary,
-            'batch_size': batch_size,
-            'trim_silence': False,
-            'shuffle': False,
-            'num_workers': config.get('num_workers', min(batch_size, os.cpu_count() - 1)),
-            'pin_memory': True,
-            'channel_selector': config.get('channel_selector', None),
+            "manifest_filepath": manifest_filepath,
+            "labels": self.decoder.vocabulary,
+            "batch_size": batch_size,
+            "trim_silence": False,
+            "shuffle": False,
+            "num_workers": config.get(
+                "num_workers", min(batch_size, os.cpu_count() - 1)
+            ),
+            "pin_memory": True,
+            "channel_selector": config.get("channel_selector", None),
         }
         if config.get("augmentor"):
-            dl_config['augmentor'] = config.get("augmentor")
+            dl_config["augmentor"] = config.get("augmentor")
 
-        temporary_datalayer = self._setup_dataloader_from_config(config=DictConfig(dl_config))
+        temporary_datalayer = self._setup_dataloader_from_config(
+            config=DictConfig(dl_config)
+        )
         return temporary_datalayer
 
     @classmethod

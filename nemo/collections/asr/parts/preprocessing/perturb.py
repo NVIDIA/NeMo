@@ -85,7 +85,9 @@ def read_one_audiosegment(manifest, target_sr, tarred_audio=False, audio_dataset
         offset = 0 if audio_record.offset is None else audio_record.offset
         duration = 0 if audio_record.duration is None else audio_record.duration
 
-    return AudioSegment.from_file(audio_file, target_sr=target_sr, offset=offset, duration=duration)
+    return AudioSegment.from_file(
+        audio_file, target_sr=target_sr, offset=offset, duration=duration
+    )
 
 
 class Perturbation(object):
@@ -127,21 +129,33 @@ class SpeedPerturbation(Perturbation):
         rng: Random seed. Default is None
     """
 
-    def __init__(self, sr, resample_type, min_speed_rate=0.9, max_speed_rate=1.1, num_rates=5, rng=None):
+    def __init__(
+        self,
+        sr,
+        resample_type,
+        min_speed_rate=0.9,
+        max_speed_rate=1.1,
+        num_rates=5,
+        rng=None,
+    ):
 
         min_rate = min(min_speed_rate, max_speed_rate)
         if min_rate < 0.0:
             raise ValueError("Minimum sampling rate modifier must be > 0.")
 
-        if resample_type not in ('kaiser_best', 'kaiser_fast', 'fft', 'scipy'):
-            raise ValueError("Supported `resample_type` values are ('kaiser_best', 'kaiser_fast', 'fft', 'scipy')")
+        if resample_type not in ("kaiser_best", "kaiser_fast", "fft", "scipy"):
+            raise ValueError(
+                "Supported `resample_type` values are ('kaiser_best', 'kaiser_fast', 'fft', 'scipy')"
+            )
 
         self._sr = sr
         self._min_rate = min_speed_rate
         self._max_rate = max_speed_rate
         self._num_rates = num_rates
         if num_rates > 0:
-            self._rates = np.linspace(self._min_rate, self._max_rate, self._num_rates, endpoint=True)
+            self._rates = np.linspace(
+                self._min_rate, self._max_rate, self._num_rates, endpoint=True
+            )
         self._res_type = resample_type
         random.seed(rng) if rng else None
 
@@ -162,10 +176,15 @@ class SpeedPerturbation(Perturbation):
         new_sr = int(self._sr * speed_rate)
         try:
             data._samples = librosa.core.resample(
-                data._samples, orig_sr=self._sr, target_sr=new_sr, res_type=self._res_type
+                data._samples,
+                orig_sr=self._sr,
+                target_sr=new_sr,
+                res_type=self._res_type,
             )
         except Exception as e:
-            logging.warning(f"Failed to resample audio from {self._sr} to {new_sr}. Skipping augmentation. Error: {e}")
+            logging.warning(
+                f"Failed to resample audio from {self._sr} to {new_sr}. Skipping augmentation. Error: {e}"
+            )
             return
 
 
@@ -203,7 +222,9 @@ class TimeStretchPerturbation(Perturbation):
         rng: Random seed. Default is None
     """
 
-    def __init__(self, min_speed_rate=0.9, max_speed_rate=1.1, num_rates=5, n_fft=512, rng=None):
+    def __init__(
+        self, min_speed_rate=0.9, max_speed_rate=1.1, num_rates=5, n_fft=512, rng=None
+    ):
 
         min_rate = min(min_speed_rate, max_speed_rate)
         if min_rate < 0.0:
@@ -213,7 +234,9 @@ class TimeStretchPerturbation(Perturbation):
         self._max_rate = max_speed_rate
         self._num_rates = num_rates
         if num_rates > 0:
-            self._rates = np.linspace(self._min_rate, self._max_rate, self._num_rates, endpoint=True)
+            self._rates = np.linspace(
+                self._min_rate, self._max_rate, self._num_rates, endpoint=True
+            )
         random.seed(rng) if rng else None
 
         # Pre-compute constants
@@ -221,7 +244,9 @@ class TimeStretchPerturbation(Perturbation):
         self._hop_length = int(n_fft // 2)
 
         # Pre-allocate buffers
-        self._phi_advance_fast = np.linspace(0, np.pi * self._hop_length, self._hop_length + 1)
+        self._phi_advance_fast = np.linspace(
+            0, np.pi * self._hop_length, self._hop_length + 1
+        )
         self._scale_buffer_fast = np.empty(self._hop_length + 1, dtype=np.float32)
 
         self._phi_advance_slow = np.linspace(0, np.pi * self._n_fft, self._n_fft + 1)
@@ -262,7 +287,9 @@ class TimeStretchPerturbation(Perturbation):
 
         # Stretch by phase vocoding
         if HAVE_NUMBA:
-            stft_stretch = numba_utils.phase_vocoder(stft, speed_rate, phi_advance, scale_buffer)
+            stft_stretch = numba_utils.phase_vocoder(
+                stft, speed_rate, phi_advance, scale_buffer
+            )
 
         else:
             stft_stretch = librosa.core.phase_vocoder(stft, speed_rate, hop_length)
@@ -272,7 +299,10 @@ class TimeStretchPerturbation(Perturbation):
 
         # Invert the STFT
         y_stretch = librosa.core.istft(
-            stft_stretch, dtype=data._samples.dtype, hop_length=hop_length, length=len_stretch
+            stft_stretch,
+            dtype=data._samples.dtype,
+            hop_length=hop_length,
+            length=len_stretch,
         )
 
         data._samples = y_stretch
@@ -309,8 +339,12 @@ class SilencePerturbation(Perturbation):
         self._value = value
 
     def perturb(self, data):
-        start_silence_len = random.uniform(self._min_start_silence_secs, self._max_start_silence_secs)
-        end_silence_len = random.uniform(self._min_end_silence_secs, self._max_end_silence_secs)
+        start_silence_len = random.uniform(
+            self._min_start_silence_secs, self._max_start_silence_secs
+        )
+        end_silence_len = random.uniform(
+            self._min_end_silence_secs, self._max_end_silence_secs
+        )
         start = np.full((int(start_silence_len * data.sample_rate),), self._value)
         end = np.full((int(end_silence_len * data.sample_rate),), self._value)
 
@@ -359,7 +393,9 @@ class ImpulsePerturbation(Perturbation):
         shift_impulse=False,
         rng=None,
     ):
-        self._manifest = collections.ASRAudioText(manifest_path, parser=parsers.make_parser([]), index_by_file_id=True)
+        self._manifest = collections.ASRAudioText(
+            manifest_path, parser=parsers.make_parser([]), index_by_file_id=True
+        )
         self._audiodataset = None
         self._tarred_audio = False
         self._normalize_impulse = normalize_impulse
@@ -368,7 +404,9 @@ class ImpulsePerturbation(Perturbation):
 
         if audio_tar_filepaths:
             self._tarred_audio = True
-            self._audiodataset = AugmentationDataset(manifest_path, audio_tar_filepaths, shuffle_n)
+            self._audiodataset = AugmentationDataset(
+                manifest_path, audio_tar_filepaths, shuffle_n
+            )
             self._data_iterator = iter(self._audiodataset)
 
         self._rng = rng
@@ -475,7 +513,9 @@ class NoisePerturbation(Perturbation):
         shuffle_n=100,
         orig_sr=16000,
     ):
-        self._manifest = collections.ASRAudioText(manifest_path, parser=parsers.make_parser([]), index_by_file_id=True)
+        self._manifest = collections.ASRAudioText(
+            manifest_path, parser=parsers.make_parser([]), index_by_file_id=True
+        )
         self._audiodataset = None
         self._tarred_audio = False
         self._orig_sr = orig_sr
@@ -483,7 +523,9 @@ class NoisePerturbation(Perturbation):
 
         if audio_tar_filepaths:
             self._tarred_audio = True
-            self._audiodataset = AugmentationDataset(manifest_path, audio_tar_filepaths, shuffle_n)
+            self._audiodataset = AugmentationDataset(
+                manifest_path, audio_tar_filepaths, shuffle_n
+            )
             self._data_iterator = iter(self._audiodataset)
 
         random.seed(rng) if rng else None
@@ -499,7 +541,10 @@ class NoisePerturbation(Perturbation):
 
     def get_one_noise_sample(self, target_sr):
         return read_one_audiosegment(
-            self._manifest, target_sr, tarred_audio=self._tarred_audio, audio_dataset=self._data_iterator
+            self._manifest,
+            target_sr,
+            tarred_audio=self._tarred_audio,
+            audio_dataset=self._data_iterator,
         )
 
     def perturb(self, data, ref_mic=0):
@@ -553,7 +598,9 @@ class NoisePerturbation(Perturbation):
             noise_rms = noise.rms_db
 
         if data.is_empty() and noise.is_empty():
-            logging.warning("Both data and noise segments are empty. Skipping perturbation.")
+            logging.warning(
+                "Both data and noise segments are empty. Skipping perturbation."
+            )
             return
 
         if data.num_channels > 1:
@@ -571,13 +618,19 @@ class NoisePerturbation(Perturbation):
         noise.gain_db(noise_gain_db)
 
         if noise._samples.shape[0] < data._samples.shape[0]:
-            noise_idx = random.randint(0, data._samples.shape[0] - noise._samples.shape[0])
-            data._samples[noise_idx : noise_idx + noise._samples.shape[0]] += noise._samples
+            noise_idx = random.randint(
+                0, data._samples.shape[0] - noise._samples.shape[0]
+            )
+            data._samples[
+                noise_idx : noise_idx + noise._samples.shape[0]
+            ] += noise._samples
 
         else:
             data._samples += noise._samples
 
-    def perturb_with_foreground_noise(self, data, noise, data_rms=None, max_noise_dur=2, max_additions=1, ref_mic=0):
+    def perturb_with_foreground_noise(
+        self, data, noise, data_rms=None, max_noise_dur=2, max_additions=1, ref_mic=0
+    ):
         """
         Args:
             data (AudioSegment): audio data
@@ -613,7 +666,9 @@ class NoisePerturbation(Perturbation):
             noise_dur = random.uniform(0.0, max_noise_dur)
             start_time = random.uniform(0.0, noise.duration)
             start_sample = int(round(start_time * noise.sample_rate))
-            end_sample = int(round(min(noise.duration, (start_time + noise_dur)) * noise.sample_rate))
+            end_sample = int(
+                round(min(noise.duration, (start_time + noise_dur)) * noise.sample_rate)
+            )
             noise_samples = np.copy(noise._samples[start_sample:end_sample])
             # adjust gain for snr purposes and superimpose
             noise_samples *= 10.0 ** (noise_gain_db / 20.0)
@@ -621,8 +676,12 @@ class NoisePerturbation(Perturbation):
             if noise_samples.shape[0] > data._samples.shape[0]:
                 noise_samples = noise_samples[0 : data._samples.shape[0]]
 
-            noise_idx = random.randint(0, data._samples.shape[0] - noise_samples.shape[0])
-            data._samples[noise_idx : noise_idx + noise_samples.shape[0]] += noise_samples
+            noise_idx = random.randint(
+                0, data._samples.shape[0] - noise_samples.shape[0]
+            )
+            data._samples[
+                noise_idx : noise_idx + noise_samples.shape[0]
+            ] += noise_samples
 
 
 class NoisePerturbationWithNormalization(Perturbation):
@@ -657,14 +716,16 @@ class NoisePerturbationWithNormalization(Perturbation):
         orig_sr=16000,
         global_rank=0,
         world_size=1,
-        shard_strategy='replicate',
+        shard_strategy="replicate",
         epsilon=0.01,
     ):
         # import here to avoid circular import error
         from nemo.collections.asr.data.audio_to_text import \
             RandomizedChainDataset
 
-        self._manifest = collections.ASRAudioText(manifest_path, parser=parsers.make_parser([]), index_by_file_id=True)
+        self._manifest = collections.ASRAudioText(
+            manifest_path, parser=parsers.make_parser([]), index_by_file_id=True
+        )
         self._audiodataset = None
         self._tarred_audio = False
         self._orig_sr = orig_sr
@@ -680,7 +741,9 @@ class NoisePerturbationWithNormalization(Perturbation):
             if isinstance(audio_tar_filepaths, str):
                 audio_tar_filepaths = [audio_tar_filepaths]
             datasets = []
-            for tarred_audio_filepath, manifest_filepath in zip(audio_tar_filepaths, manifest_path):
+            for tarred_audio_filepath, manifest_filepath in zip(
+                audio_tar_filepaths, manifest_path
+            ):
                 dataset = AugmentationDataset(
                     manifest_filepath,
                     tarred_audio_filepath,
@@ -691,7 +754,8 @@ class NoisePerturbationWithNormalization(Perturbation):
                 )
                 datasets.append(dataset)
             self._audiodataset = RandomizedChainDataset(
-                datasets, rnd_seed=(rng if rng else random.randint(0, 30000)) + global_rank
+                datasets,
+                rnd_seed=(rng if rng else random.randint(0, 30000)) + global_rank,
             )
             if len(self._audiodataset) == 0:
                 raise RuntimeError(
@@ -702,7 +766,11 @@ class NoisePerturbationWithNormalization(Perturbation):
         self._min_snr_db = min_snr_db
         self._max_snr_db = max_snr_db
         self._norm_to_db = norm_to_db
-        self._snr_samples = snr_samples if isinstance(snr_samples, list) and len(snr_samples) > 0 else None
+        self._snr_samples = (
+            snr_samples
+            if isinstance(snr_samples, list) and len(snr_samples) > 0
+            else None
+        )
         self._epsilon = epsilon
 
     @property
@@ -728,7 +796,9 @@ class NoisePerturbationWithNormalization(Perturbation):
             offset = 0 if audio_record.offset is None else audio_record.offset
             duration = 0 if audio_record.duration is None else audio_record.duration
 
-        return AudioSegment.from_file(audio_file, target_sr=target_sr, offset=offset, duration=duration)
+        return AudioSegment.from_file(
+            audio_file, target_sr=target_sr, offset=offset, duration=duration
+        )
 
     def perturb(self, data, ref_mic=0):
         """
@@ -744,7 +814,9 @@ class NoisePerturbationWithNormalization(Perturbation):
         while noise.duration < 1:
             noise = self.read_one_audiosegment(data.sample_rate)
 
-        self.perturb_with_input_noise(data, noise, ref_mic=ref_mic, norm_to_db=self._norm_to_db)
+        self.perturb_with_input_noise(
+            data, noise, ref_mic=ref_mic, norm_to_db=self._norm_to_db
+        )
 
     def snr_mixer(self, clean, noise, snr, norm_to_db=-25.0):
         """
@@ -798,7 +870,9 @@ class NoisePerturbationWithNormalization(Perturbation):
 
         return noise
 
-    def perturb_with_input_noise(self, data, noise, data_rms=None, ref_mic=0, norm_to_db=-25.0):
+    def perturb_with_input_noise(
+        self, data, noise, data_rms=None, ref_mic=0, norm_to_db=-25.0
+    ):
         """
         Args:
             data (AudioSegment): audio data
@@ -823,7 +897,11 @@ class NoisePerturbationWithNormalization(Perturbation):
         else:
             snr_db = random.uniform(self._min_snr_db, self._max_snr_db)
         if data_rms is None:
-            data_rms = data.rms_db[ref_mic] if isinstance(data.rms_db, (list, np.ndarray)) else data.rms_db
+            data_rms = (
+                data.rms_db[ref_mic]
+                if isinstance(data.rms_db, (list, np.ndarray))
+                else data.rms_db
+            )
 
         if norm_to_db is None:
             norm_to_db = data_rms
@@ -835,10 +913,14 @@ class NoisePerturbationWithNormalization(Perturbation):
             return
 
         if len(noise_norm) < len(data_norm):
-            noise_norm = self.concatenate_noise_sample(data_norm, noise_norm, data.sample_rate)
+            noise_norm = self.concatenate_noise_sample(
+                data_norm, noise_norm, data.sample_rate
+            )
         noise_norm = noise_norm[0 : len(data_norm)]
 
-        _, _, noisy_snr = self.snr_mixer(clean=data_norm, noise=noise_norm, snr=snr_db, norm_to_db=norm_to_db)
+        _, _, noisy_snr = self.snr_mixer(
+            clean=data_norm, noise=noise_norm, snr=snr_db, norm_to_db=norm_to_db
+        )
 
         data._samples = noisy_snr
 
@@ -859,8 +941,12 @@ class WhiteNoisePerturbation(Perturbation):
         np.random.seed(rng) if rng else None
 
     def perturb(self, data):
-        noise_level_db = np.random.randint(self.min_level, self.max_level, dtype='int32')
-        noise_signal = np.random.randn(data._samples.shape[0]) * (10.0 ** (noise_level_db / 20.0))
+        noise_level_db = np.random.randint(
+            self.min_level, self.max_level, dtype="int32"
+        )
+        noise_signal = np.random.randn(data._samples.shape[0]) * (
+            10.0 ** (noise_level_db / 20.0)
+        )
         data._samples += noise_signal
 
 
@@ -973,7 +1059,10 @@ class RirAndNoisePerturbation(Perturbation):
 
         data_rms = data.rms_db
 
-        if self._fg_noise_perturbers is not None and random.uniform(0.0, 1.0) < self._noise_prob:
+        if (
+            self._fg_noise_perturbers is not None
+            and random.uniform(0.0, 1.0) < self._noise_prob
+        ):
             orig_sr = data.orig_sr
             if orig_sr not in self._fg_noise_perturbers:
                 orig_sr = max(self._fg_noise_perturbers.keys())
@@ -982,10 +1071,17 @@ class RirAndNoisePerturbation(Perturbation):
             if self._apply_noise_rir:
                 self._rir_perturber.perturb(noise)
             fg_perturber.perturb_with_foreground_noise(
-                data, noise, data_rms=data_rms, max_noise_dur=self._max_duration, max_additions=self._max_additions
+                data,
+                noise,
+                data_rms=data_rms,
+                max_noise_dur=self._max_duration,
+                max_additions=self._max_additions,
             )
 
-        if self._bg_noise_perturbers is not None and random.uniform(0.0, 1.0) < self._bg_noise_prob:
+        if (
+            self._bg_noise_perturbers is not None
+            and random.uniform(0.0, 1.0) < self._bg_noise_prob
+        ):
             orig_sr = data.orig_sr
             if orig_sr not in self._bg_noise_perturbers:
                 orig_sr = max(self._bg_noise_perturbers.keys())
@@ -1074,7 +1170,13 @@ class RandomSegmentPerturbation(Perturbation):
     """
 
     def __init__(
-        self, duration_sec=32.0, pad_to_duration=False, rng=None, min_rms_db=None, max_trials=10, verbose=False
+        self,
+        duration_sec=32.0,
+        pad_to_duration=False,
+        rng=None,
+        min_rms_db=None,
+        max_trials=10,
+        verbose=False,
     ):
         if duration_sec <= 0:
             raise ValueError("duration_sec should be > 0")
@@ -1101,16 +1203,26 @@ class RandomSegmentPerturbation(Perturbation):
         new_data = copy.deepcopy(data)
         new_data.subsegment(start_time=start_time, end_time=end_time)
         if self._min_rms_db is not None:
-            rms_db = new_data.rms_db if new_data.num_channels == 1 else min(new_data.rms_db)
+            rms_db = (
+                new_data.rms_db if new_data.num_channels == 1 else min(new_data.rms_db)
+            )
             trial = 0
             while rms_db < self._min_rms_db and trial < self._max_trials:
                 start_time = random.uniform(0.0, data.duration - self._duration_sec)
                 end_time = start_time + self._duration_sec
                 new_data = copy.deepcopy(data)
                 new_data.subsegment(start_time=start_time, end_time=end_time)
-                rms_db = new_data.rms_db if new_data.num_channels == 1 else min(new_data.rms_db)
+                rms_db = (
+                    new_data.rms_db
+                    if new_data.num_channels == 1
+                    else min(new_data.rms_db)
+                )
                 trial += 1
-            if self._verbose and trial == self._max_trials and rms_db < self._min_rms_db:
+            if (
+                self._verbose
+                and trial == self._max_trials
+                and rms_db < self._min_rms_db
+            ):
                 logging.warning(
                     f"Could not find a segment with RMS db > {self._min_rms_db} after {self._max_trials} trials."
                 )
@@ -1136,7 +1248,8 @@ perturbation_types = {
 def register_perturbation(name: str, perturbation: Perturbation):
     if name in perturbation_types.keys():
         raise KeyError(
-            f"Perturbation with the name {name} exists. " f"Type of perturbation : {perturbation_types[name]}."
+            f"Perturbation with the name {name} exists. "
+            f"Type of perturbation : {perturbation_types[name]}."
         )
 
     perturbation_types[name] = perturbation
@@ -1163,15 +1276,17 @@ class AudioAugmentor(object):
     def from_config(cls, config):
         ptbs = []
         for p in config:
-            if p['aug_type'] not in perturbation_types:
-                logging.warning("%s perturbation not known. Skipping.", p['aug_type'])
+            if p["aug_type"] not in perturbation_types:
+                logging.warning("%s perturbation not known. Skipping.", p["aug_type"])
                 continue
-            perturbation = perturbation_types[p['aug_type']]
-            ptbs.append((p['prob'], perturbation(**p['cfg'])))
+            perturbation = perturbation_types[p["aug_type"]]
+            ptbs.append((p["prob"], perturbation(**p["cfg"])))
         return cls(perturbations=ptbs)
 
 
-def process_augmentations(augmenter, global_rank=0, world_size=1) -> Optional[AudioAugmentor]:
+def process_augmentations(
+    augmenter, global_rank=0, world_size=1
+) -> Optional[AudioAugmentor]:
     """Process list of online data augmentations.
     Accepts either an AudioAugmentor object with pre-defined augmentations,
     or a dictionary that points to augmentations that have been defined.
@@ -1261,7 +1376,9 @@ def process_augmentations(augmenter, global_rank=0, world_size=1) -> Optional[Au
     if HAVE_OMEGACONG_WEBDATASET:
         augmenter_types = {dict, DictConfig}
     if not type(augmenter) in augmenter_types:
-        raise ValueError("Cannot parse augmenter. Must be a dict or an AudioAugmentor object ")
+        raise ValueError(
+            "Cannot parse augmenter. Must be a dict or an AudioAugmentor object "
+        )
 
     if HAVE_OMEGACONG_WEBDATASET and isinstance(augmenter, DictConfig):
         augmenter = OmegaConf.to_container(augmenter, resolve=True)
@@ -1270,7 +1387,7 @@ def process_augmentations(augmenter, global_rank=0, world_size=1) -> Optional[Au
 
     augmentations = []
     for augment_name, augment_kwargs in augmenter.items():
-        prob = augment_kwargs.get('prob', None)
+        prob = augment_kwargs.get("prob", None)
 
         if prob is None:
             raise KeyError(
@@ -1279,21 +1396,23 @@ def process_augmentations(augmenter, global_rank=0, world_size=1) -> Optional[Au
             )
 
         else:
-            _ = augment_kwargs.pop('prob')
+            _ = augment_kwargs.pop("prob")
 
             if prob < 0.0 or prob > 1.0:
                 raise ValueError("`prob` must be a float value between 0 and 1.")
 
             try:
                 augmentation_class = perturbation_types[augment_name]
-                if 'global_rank' in inspect.signature(augmentation_class).parameters:
-                    augment_kwargs['global_rank'] = global_rank
-                if 'world_size' in inspect.signature(augmentation_class).parameters:
-                    augment_kwargs['world_size'] = world_size
+                if "global_rank" in inspect.signature(augmentation_class).parameters:
+                    augment_kwargs["global_rank"] = global_rank
+                if "world_size" in inspect.signature(augmentation_class).parameters:
+                    augment_kwargs["world_size"] = world_size
                 augmentation = augmentation_class(**augment_kwargs)
                 augmentations.append([prob, augmentation])
             except KeyError:
-                raise KeyError(f"Invalid perturbation name. Allowed values : {perturbation_types.keys()}")
+                raise KeyError(
+                    f"Invalid perturbation name. Allowed values : {perturbation_types.keys()}"
+                )
 
     augmenter = AudioAugmentor(perturbations=augmentations)
     return augmenter
@@ -1330,10 +1449,15 @@ class AugmentationDataset(IterableDataset):
         from nemo.collections.asr.data.audio_to_text import \
             expand_sharded_filepaths
 
-        self._manifest = collections.ASRAudioText(manifest_path, parser=parsers.make_parser([]), index_by_file_id=True)
+        self._manifest = collections.ASRAudioText(
+            manifest_path, parser=parsers.make_parser([]), index_by_file_id=True
+        )
 
         tar_filepaths = expand_sharded_filepaths(
-            tar_filepaths, shard_strategy=shard_strategy, world_size=world_size, global_rank=rank
+            tar_filepaths,
+            shard_strategy=shard_strategy,
+            world_size=world_size,
+            global_rank=rank,
         )
 
         if not HAVE_OMEGACONG_WEBDATASET:
@@ -1342,8 +1466,8 @@ class AugmentationDataset(IterableDataset):
             wds.SimpleShardList(urls=tar_filepaths),
             wds.shuffle(shuffle_n),
             wds.tarfile_to_samples(),
-            wds.rename(audio='wav;ogg;flac', key='__key__'),
-            wds.to_tuple('audio', 'key'),
+            wds.rename(audio="wav;ogg;flac", key="__key__"),
+            wds.to_tuple("audio", "key"),
             self._loop_offsets,
         )
 

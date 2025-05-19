@@ -174,17 +174,35 @@ def create_rename_keys(num_hidden_layers):
         [
             ("logit_scale", "model.logit_scale"),
             ("logit_bias", "model.logit_bias"),
-            ("vision_model.embeddings.patch_embedding.weight", "model.vision_encoder.conv1.weight"),
-            ("vision_model.embeddings.patch_embedding.bias", "model.vision_encoder.conv1.bias"),
-            ("vision_model.embeddings.position_embedding.weight", "model.vision_encoder.position_embeddings.weight"),
-            ("vision_model.post_layernorm.weight", "model.vision_encoder.final_layernorm.weight"),
-            ("vision_model.post_layernorm.bias", "model.vision_encoder.final_layernorm.bias"),
+            (
+                "vision_model.embeddings.patch_embedding.weight",
+                "model.vision_encoder.conv1.weight",
+            ),
+            (
+                "vision_model.embeddings.patch_embedding.bias",
+                "model.vision_encoder.conv1.bias",
+            ),
+            (
+                "vision_model.embeddings.position_embedding.weight",
+                "model.vision_encoder.position_embeddings.weight",
+            ),
+            (
+                "vision_model.post_layernorm.weight",
+                "model.vision_encoder.final_layernorm.weight",
+            ),
+            (
+                "vision_model.post_layernorm.bias",
+                "model.vision_encoder.final_layernorm.bias",
+            ),
             ("vision_model.head.probe", "model.vision_encoder.head.probe"),
             (
                 "vision_model.head.attention.in_proj_weight",
                 "model.vision_encoder.head.cross_attention.linear_qkv.weight",
             ),
-            ("vision_model.head.attention.in_proj_bias", "model.vision_encoder.head.cross_attention.linear_qkv.bias"),
+            (
+                "vision_model.head.attention.in_proj_bias",
+                "model.vision_encoder.head.cross_attention.linear_qkv.bias",
+            ),
             (
                 "vision_model.head.attention.out_proj.weight",
                 "model.vision_encoder.head.cross_attention.linear_proj.weight",
@@ -193,19 +211,46 @@ def create_rename_keys(num_hidden_layers):
                 "vision_model.head.attention.out_proj.bias",
                 "model.vision_encoder.head.cross_attention.linear_proj.bias",
             ),
-            ("vision_model.head.layernorm.weight", "model.vision_encoder.head.mlp.linear_fc1.layer_norm_weight"),
-            ("vision_model.head.layernorm.bias", "model.vision_encoder.head.mlp.linear_fc1.layer_norm_bias"),
-            ("vision_model.head.mlp.fc1.weight", "model.vision_encoder.head.mlp.linear_fc1.weight"),
-            ("vision_model.head.mlp.fc1.bias", "model.vision_encoder.head.mlp.linear_fc1.bias"),
-            ("vision_model.head.mlp.fc2.weight", "model.vision_encoder.head.mlp.linear_fc2.weight"),
-            ("vision_model.head.mlp.fc2.bias", "model.vision_encoder.head.mlp.linear_fc2.bias"),
-            ("text_model.embeddings.token_embedding.weight", "model.text_encoder.embedding.word_embeddings.weight"),
+            (
+                "vision_model.head.layernorm.weight",
+                "model.vision_encoder.head.mlp.linear_fc1.layer_norm_weight",
+            ),
+            (
+                "vision_model.head.layernorm.bias",
+                "model.vision_encoder.head.mlp.linear_fc1.layer_norm_bias",
+            ),
+            (
+                "vision_model.head.mlp.fc1.weight",
+                "model.vision_encoder.head.mlp.linear_fc1.weight",
+            ),
+            (
+                "vision_model.head.mlp.fc1.bias",
+                "model.vision_encoder.head.mlp.linear_fc1.bias",
+            ),
+            (
+                "vision_model.head.mlp.fc2.weight",
+                "model.vision_encoder.head.mlp.linear_fc2.weight",
+            ),
+            (
+                "vision_model.head.mlp.fc2.bias",
+                "model.vision_encoder.head.mlp.linear_fc2.bias",
+            ),
+            (
+                "text_model.embeddings.token_embedding.weight",
+                "model.text_encoder.embedding.word_embeddings.weight",
+            ),
             (
                 "text_model.embeddings.position_embedding.weight",
                 "model.text_encoder.embedding.position_embeddings.weight",
             ),
-            ("text_model.final_layer_norm.weight", "model.text_encoder.final_layernorm.weight"),
-            ("text_model.final_layer_norm.bias", "model.text_encoder.final_layernorm.bias"),
+            (
+                "text_model.final_layer_norm.weight",
+                "model.text_encoder.final_layernorm.weight",
+            ),
+            (
+                "text_model.final_layer_norm.bias",
+                "model.text_encoder.final_layernorm.bias",
+            ),
             ("text_model.head.weight", "model.text_encoder.head.weight"),
             ("text_model.head.bias", "model.text_encoder.head.bias"),
         ]
@@ -271,9 +316,9 @@ def adjust_tensor_shapes(model, nemo_state_dict):
         if "bias" in key_:
             hidden_size = 1
 
-        if 'head.cross_attention.linear_qkv.' in key_:
-            key_q = key_.replace('linear_qkv', 'linear_q')
-            key_kv = key_.replace('linear_qkv', 'linear_kv')
+        if "head.cross_attention.linear_qkv." in key_:
+            key_q = key_.replace("linear_qkv", "linear_q")
+            key_kv = key_.replace("linear_qkv", "linear_kv")
             q_weight, k_weight, v_weight = nemo_state_dict[key_].chunk(3)
             k_weight = k_weight.reshape(num_query_groups, head_size, hidden_size)
             v_weight = v_weight.reshape(num_query_groups, head_size, hidden_size)
@@ -281,32 +326,47 @@ def adjust_tensor_shapes(model, nemo_state_dict):
             for i in range(num_query_groups):
                 kv_weight = torch.cat((kv_weight, k_weight[i : i + 1, :, :]))
                 kv_weight = torch.cat((kv_weight, v_weight[i : i + 1, :, :]))
-            kv_weight = kv_weight.reshape([head_size * 2 * num_query_groups, hidden_size])
+            kv_weight = kv_weight.reshape(
+                [head_size * 2 * num_query_groups, hidden_size]
+            )
             if "bias" in key_:
                 kv_weight = kv_weight.squeeze(-1)
             nemo_state_dict[key_q] = q_weight
             nemo_state_dict[key_kv] = kv_weight
             del nemo_state_dict[key_]
 
-        if 'self_attention.linear_q.' in key_:
+        if "self_attention.linear_q." in key_:
             key_q = key_
-            key_k = key_.replace('linear_q', 'linear_k')
-            key_v = key_.replace('linear_q', 'linear_v')
-            key_qkv = key_.replace('linear_q', 'linear_qkv')
+            key_k = key_.replace("linear_q", "linear_k")
+            key_v = key_.replace("linear_q", "linear_v")
+            key_qkv = key_.replace("linear_q", "linear_qkv")
 
             # [(head_num + 2 * num_query_groups) * head_size, hidden_size]
             # -> [head_num, head_size, hidden_size], 2 * [num_query_groups, head_size, hidden_size]
-            q_weight, k_weight, v_weight = nemo_state_dict[key_q], nemo_state_dict[key_k], nemo_state_dict[key_v]
+            q_weight, k_weight, v_weight = (
+                nemo_state_dict[key_q],
+                nemo_state_dict[key_k],
+                nemo_state_dict[key_v],
+            )
             q_weight = q_weight.reshape(head_num, head_size, hidden_size)
             k_weight = k_weight.reshape(num_query_groups, head_size, hidden_size)
             v_weight = v_weight.reshape(num_query_groups, head_size, hidden_size)
 
-            qkv_weight = torch.empty((0, head_size, hidden_size), device=q_weight.device)
+            qkv_weight = torch.empty(
+                (0, head_size, hidden_size), device=q_weight.device
+            )
             for i in range(num_query_groups):
-                qkv_weight = torch.cat((qkv_weight, q_weight[i * heads_per_group : (i + 1) * heads_per_group, :, :]))
+                qkv_weight = torch.cat(
+                    (
+                        qkv_weight,
+                        q_weight[i * heads_per_group : (i + 1) * heads_per_group, :, :],
+                    )
+                )
                 qkv_weight = torch.cat((qkv_weight, k_weight[i : i + 1, :, :]))
                 qkv_weight = torch.cat((qkv_weight, v_weight[i : i + 1, :, :]))
-            qkv_weight = qkv_weight.reshape([head_size * (head_num + 2 * num_query_groups), hidden_size])
+            qkv_weight = qkv_weight.reshape(
+                [head_size * (head_num + 2 * num_query_groups), hidden_size]
+            )
             if "bias" in key_:
                 qkv_weight = qkv_weight.squeeze(-1)
             nemo_state_dict[key_qkv] = qkv_weight
@@ -336,14 +396,20 @@ def get_args():
         type=str,
         default=os.path.join(
             os.path.dirname(__file__),
-            '../../examples/multimodal/vision_language_foundation/clip/conf/megatron_siglip_so400m_14_384.yaml',
+            "../../examples/multimodal/vision_language_foundation/clip/conf/megatron_siglip_so400m_14_384.yaml",
         ),
         required=False,
         help="Path config for restoring. It's created during training and may need to be modified during restore if restore environment is different than training. Ex: /raid/nemo_experiments/megatron_gpt/hparams.yaml",
     )
-    parser.add_argument("--output_path", type=str, default=None, help="Path to output .nemo file.")
     parser.add_argument(
-        "--precision", type=str, default="bf16", choices=["bf16", "32"], help="Precision for checkpoint weight saved"
+        "--output_path", type=str, default=None, help="Path to output .nemo file."
+    )
+    parser.add_argument(
+        "--precision",
+        type=str,
+        default="bf16",
+        choices=["bf16", "32"],
+        help="Precision for checkpoint weight saved",
     )
 
     args = parser.parse_args()
@@ -365,12 +431,14 @@ def convert(args):
     assert nemo_config.model.text.num_layers == nemo_config.model.vision.num_layers
     rename_keys = create_rename_keys(nemo_config.model.text.num_layers)
     old_state_dict = hf_model.state_dict()
-    new_state_dict = rename_model_keys(model_state_dict=old_state_dict, rename_keys=rename_keys)
+    new_state_dict = rename_model_keys(
+        model_state_dict=old_state_dict, rename_keys=rename_keys
+    )
 
     nemo_state_dict = adjust_tensor_shapes(model, new_state_dict)
     model.load_state_dict(nemo_state_dict, strict=False)
 
-    logging.info(f'=' * 100)
+    logging.info(f"=" * 100)
     # Verifications
     import requests
     from PIL import Image
@@ -379,7 +447,9 @@ def convert(args):
     image = Image.open(requests.get(url, stream=True).raw)
 
     texts = ["a photo of 2 cats", "a photo of 2 dogs"]
-    inputs = hf_processor(text=texts, images=image, padding="max_length", return_tensors="pt")
+    inputs = hf_processor(
+        text=texts, images=image, padding="max_length", return_tensors="pt"
+    )
 
     tokens = inputs["input_ids"].cuda()
     text_model = model.model.text_encoder.cuda()
@@ -387,7 +457,7 @@ def convert(args):
     text_model_output = text_model(tokens)
     hf_text_model_output = hf_text_model(tokens).pooler_output
     assert torch.allclose(text_model_output, hf_text_model_output, atol=0.01)
-    logging.info(f'! Text model results matched.')
+    logging.info(f"! Text model results matched.")
 
     pixels = inputs["pixel_values"].cuda()
     vision_model = model.model.vision_encoder.cuda()
@@ -395,16 +465,16 @@ def convert(args):
     vision_model_output = vision_model(pixels)
     hf_vision_model_output = hf_vision_model(pixels).pooler_output
     assert torch.allclose(vision_model_output, hf_vision_model_output, atol=0.01)
-    logging.info(f'! Vision model results matched.')
+    logging.info(f"! Vision model results matched.")
 
-    logging.info(f'=' * 100)
+    logging.info(f"=" * 100)
 
     dtype = torch_dtype_from_precision(args.precision)
     model = model.to(dtype=dtype)
     model.save_to(args.output_path)
-    logging.info(f'NeMo model saved to: {args.output_path}')
+    logging.info(f"NeMo model saved to: {args.output_path}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     args = get_args()
     convert(args)

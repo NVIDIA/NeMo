@@ -46,10 +46,14 @@ def read_cutset_from_config(config: Union[DictConfig, dict]) -> Tuple[CutSet, bo
         cuts, is_tarred = read_dataset_config(config)
     else:
         # Now, we'll figure out if we should read Lhotse manifest or NeMo manifest.
-        use_nemo_manifest = all(config.get(opt) is None for opt in ("cuts_path", "shar_path"))
+        use_nemo_manifest = all(
+            config.get(opt) is None for opt in ("cuts_path", "shar_path")
+        )
         if use_nemo_manifest:
             if config.get("manifest_filepath") is None:
-                raise IncompleteConfigError("You must specify either: manifest_filepath, cuts_path, or shar_path")
+                raise IncompleteConfigError(
+                    "You must specify either: manifest_filepath, cuts_path, or shar_path"
+                )
             cuts, is_tarred = read_nemo_manifest(config)
         else:
             cuts, is_tarred = read_lhotse_manifest(config)
@@ -188,7 +192,9 @@ def read_dataset_config(config) -> tuple[CutSet, bool]:
         "force_finite": config.get("force_finite", False),
         "max_open_streams": config.get("max_open_streams", None),
         "token_equivalent_duration": config.get("token_equivalent_duration", None),
-        "skip_missing_manifest_entries": config.get("skip_missing_manifest_entries", False),
+        "skip_missing_manifest_entries": config.get(
+            "skip_missing_manifest_entries", False
+        ),
         "force_map_dataset": config.get("force_map_dataset", False),
         "force_iterable_dataset": config.get("force_iterable_dataset", False),
     }
@@ -196,13 +202,17 @@ def read_dataset_config(config) -> tuple[CutSet, bool]:
     if isinstance(input_cfg, (str, Path)):
         # Resolve /path/to/input_cfg.yaml into config contents if needed.
         input_cfg = OmegaConf.load(input_cfg)
-    cuts, is_tarred = parse_and_combine_datasets(input_cfg, propagate_attrs=propagate_attrs)
+    cuts, is_tarred = parse_and_combine_datasets(
+        input_cfg, propagate_attrs=propagate_attrs
+    )
     return cuts, is_tarred
 
 
 def parse_group(grp_cfg: DictConfig, propagate_attrs: dict) -> [CutSet, bool]:
     """Parse a group configuration, potentially combining multiple datasets."""
-    assert grp_cfg.type in get_known_config_data_types(), f"Unknown item type in dataset config list: {grp_cfg.type=}"
+    assert (
+        grp_cfg.type in get_known_config_data_types()
+    ), f"Unknown item type in dataset config list: {grp_cfg.type=}"
 
     # Note: Text data types will return is_tarred=True.
     #       We choose to treat text as-if it was tarred, which tends to be more
@@ -330,7 +340,10 @@ def parse_and_combine_datasets(
 
     all_same_tarred_status = all(t == tarred_status[0] for t in tarred_status)
     if not all_same_tarred_status:
-        if propagate_attrs["force_map_dataset"] or propagate_attrs["force_iterable_dataset"]:
+        if (
+            propagate_attrs["force_map_dataset"]
+            or propagate_attrs["force_iterable_dataset"]
+        ):
             logging.warning(
                 f"Not all datasets in the group have the same tarred status, using provided force_map_dataset "
                 f"({propagate_attrs['force_map_dataset']}) and force_iterable_dataset "
@@ -352,7 +365,8 @@ def parse_and_combine_datasets(
             weights=weights if weights else None,
             max_open_streams=propagate_attrs["max_open_streams"],
             seed=propagate_attrs["shard_seed"],
-            force_finite=propagate_attrs["force_finite"] or propagate_attrs["metadata_only"],
+            force_finite=propagate_attrs["force_finite"]
+            or propagate_attrs["metadata_only"],
         )
     else:
         (cuts,) = cuts
@@ -382,11 +396,17 @@ def read_lhotse_manifest(config) -> tuple[CutSet, bool]:
         metadata_only = config.get("metadata_only", False)
         force_finite = config.get("force_finite", False)
         if config.get("cuts_path") is not None:
-            warnings.warn("Note: lhotse.cuts_path will be ignored because lhotse.shar_path was provided.")
+            warnings.warn(
+                "Note: lhotse.cuts_path will be ignored because lhotse.shar_path was provided."
+            )
         if isinstance(config.shar_path, (str, Path)):
-            logging.info(f"Initializing Lhotse Shar CutSet (tarred) from a single data source: '{config.shar_path}'")
+            logging.info(
+                f"Initializing Lhotse Shar CutSet (tarred) from a single data source: '{config.shar_path}'"
+            )
             cuts = CutSet.from_shar(
-                **_resolve_shar_inputs(config.shar_path, metadata_only), shuffle_shards=True, seed=shard_seed
+                **_resolve_shar_inputs(config.shar_path, metadata_only),
+                shuffle_shards=True,
+                seed=shard_seed,
             )
             if not metadata_only and not force_finite:
                 cuts = cuts.repeat()
@@ -403,11 +423,17 @@ def read_lhotse_manifest(config) -> tuple[CutSet, bool]:
                 if isinstance(item, (str, Path)):
                     path = item
                     cs = CutSet.from_shar(
-                        **_resolve_shar_inputs(path, metadata_only), shuffle_shards=True, seed=shard_seed
+                        **_resolve_shar_inputs(path, metadata_only),
+                        shuffle_shards=True,
+                        seed=shard_seed,
                     )
                     weight = len(cs)
                 else:
-                    assert isinstance(item, Sequence) and len(item) == 2 and isinstance(item[1], (int, float)), (
+                    assert (
+                        isinstance(item, Sequence)
+                        and len(item) == 2
+                        and isinstance(item[1], (int, float))
+                    ), (
                         "Supported inputs types for config.shar_path are: "
                         "str | list[str] | list[tuple[str, number]] "
                         "where str is a path and number is a mixing weight (it may exceed 1.0). "
@@ -415,7 +441,9 @@ def read_lhotse_manifest(config) -> tuple[CutSet, bool]:
                     )
                     path, weight = item
                     cs = CutSet.from_shar(
-                        **_resolve_shar_inputs(path, metadata_only), shuffle_shards=True, seed=shard_seed
+                        **_resolve_shar_inputs(path, metadata_only),
+                        shuffle_shards=True,
+                        seed=shard_seed,
                     )
                 logging.info(f"- {path=} {weight=}")
                 cutsets.append(cs)
@@ -429,7 +457,9 @@ def read_lhotse_manifest(config) -> tuple[CutSet, bool]:
                 force_finite=force_finite,
             )
         elif isinstance(config.shar_path, Mapping):
-            fields = {k: expand_sharded_filepaths(v) for k, v in config.shar_path.items()}
+            fields = {
+                k: expand_sharded_filepaths(v) for k, v in config.shar_path.items()
+            }
             assert "cuts" in config.shar_path.keys(), (
                 f"Invalid value for key 'shar_path': a dict was provided, but didn't specify key 'cuts' pointing "
                 f"to the manifests. We got the following: {config.shar_path=}"
@@ -448,7 +478,9 @@ def read_lhotse_manifest(config) -> tuple[CutSet, bool]:
     else:
         # Regular Lhotse manifest points to individual audio files (like native NeMo manifest).
         path = config.cuts_path
-        cuts = CutSet.from_file(path).map(partial(resolve_relative_paths, manifest_path=path))
+        cuts = CutSet.from_file(path).map(
+            partial(resolve_relative_paths, manifest_path=path)
+        )
     return cuts, is_tarred
 
 
@@ -472,7 +504,9 @@ def resolve_relative_paths(cut: Cut, manifest_path: str) -> Cut:
     def resolve_recording(value):
         for audio_source in value.sources:
             if audio_source.type == "file":
-                audio_source.source = get_full_path(audio_source.source, manifest_file=manifest_path)
+                audio_source.source = get_full_path(
+                    audio_source.source, manifest_file=manifest_path
+                )
 
     def resolve_array(value):
         if isinstance(value, TemporalArray):
@@ -480,7 +514,10 @@ def resolve_relative_paths(cut: Cut, manifest_path: str) -> Cut:
         else:
             if value.storage_type in ("numpy_files", "lilcom_files"):
                 abspath = Path(
-                    get_full_path(str(Path(value.storage_path) / value.storage_key), manifest_file=manifest_path)
+                    get_full_path(
+                        str(Path(value.storage_path) / value.storage_key),
+                        manifest_file=manifest_path,
+                    )
                 )
                 value.storage_path = str(abspath.parent)
                 value.storage_key = str(abspath.name)
@@ -491,7 +528,9 @@ def resolve_relative_paths(cut: Cut, manifest_path: str) -> Cut:
                 "lilcom_hdf5",
                 "numpy_hdf5",
             ):
-                value.storage_path = get_full_path(value.storage_path, manifest_file=manifest_path)
+                value.storage_path = get_full_path(
+                    value.storage_path, manifest_file=manifest_path
+                )
             # ignore others i.e. url, in-memory data, etc.
 
     if cut.has_recording:
@@ -538,14 +577,20 @@ def read_nemo_manifest(config) -> tuple[CutSet, bool]:
                 LazyNeMoTarredIterator(
                     config.manifest_filepath,
                     tar_paths=config.tarred_audio_filepaths,
-                    skip_missing_manifest_entries=config.get("skip_missing_manifest_entries", False),
+                    skip_missing_manifest_entries=config.get(
+                        "skip_missing_manifest_entries", False
+                    ),
                     **common_kwargs,
                 )
             )
             if not force_finite:
                 cuts = cuts.repeat()
         else:
-            cuts = CutSet(LazyNeMoIterator(config.manifest_filepath, **notar_kwargs, **common_kwargs))
+            cuts = CutSet(
+                LazyNeMoIterator(
+                    config.manifest_filepath, **notar_kwargs, **common_kwargs
+                )
+            )
     else:
         # Format option 1:
         #   Assume it's [[path1], [path2], ...] (same for tarred_audio_filepaths).
@@ -582,11 +627,15 @@ def read_nemo_manifest(config) -> tuple[CutSet, bool]:
                 nemo_iter = LazyNeMoTarredIterator(
                     manifest_path=manifest_path,
                     tar_paths=tar_path,
-                    skip_missing_manifest_entries=config.get("skip_missing_manifest_entries", False),
+                    skip_missing_manifest_entries=config.get(
+                        "skip_missing_manifest_entries", False
+                    ),
                     **common_kwargs,
                 )
             else:
-                nemo_iter = LazyNeMoIterator(manifest_path, **notar_kwargs, **common_kwargs)
+                nemo_iter = LazyNeMoIterator(
+                    manifest_path, **notar_kwargs, **common_kwargs
+                )
             # Then, determine the weight or use one provided
             if isinstance(manifest_info, str) or len(manifest_info) == 1:
                 weight = len(nemo_iter)
@@ -637,8 +686,12 @@ def mux(
     it will select a more appropriate multiplexing strategy.
     """
     if max_open_streams is not None:
-        assert not force_finite, "max_open_streams and metadata_only/force_finite options are not compatible"
-        cuts = CutSet.infinite_mux(*cutsets, weights=weights, seed=seed, max_open_streams=max_open_streams)
+        assert (
+            not force_finite
+        ), "max_open_streams and metadata_only/force_finite options are not compatible"
+        cuts = CutSet.infinite_mux(
+            *cutsets, weights=weights, seed=seed, max_open_streams=max_open_streams
+        )
     else:
         if not force_finite:
             cutsets = [cs.repeat() for cs in cutsets]
@@ -666,7 +719,9 @@ def guess_parse_cutset(inp: Union[str, dict, omegaconf.DictConfig]) -> CutSet:
 
     if isinstance(inp, (dict, omegaconf.DictConfig)):
         try:
-            config = make_structured_with_schema_warnings(OmegaConf.from_dotlist([f"{k}={v}" for k, v in inp.items()]))
+            config = make_structured_with_schema_warnings(
+                OmegaConf.from_dotlist([f"{k}={v}" for k, v in inp.items()])
+            )
             cuts, _ = read_cutset_from_config(config)
             return cuts
         except Exception as e:
@@ -676,14 +731,22 @@ def guess_parse_cutset(inp: Union[str, dict, omegaconf.DictConfig]) -> CutSet:
     elif isinstance(inp, str):
         if inp.endswith(".yaml"):
             # Path to YAML file with the input configuration
-            config = make_structured_with_schema_warnings(OmegaConf.from_dotlist([f"input_cfg={inp}"]))
+            config = make_structured_with_schema_warnings(
+                OmegaConf.from_dotlist([f"input_cfg={inp}"])
+            )
         elif inp.endswith(".jsonl") or inp.endswith(".jsonl.gz"):
             # Path to a Lhotse non-tarred manifest
-            config = make_structured_with_schema_warnings(OmegaConf.from_dotlist([f"cuts_path={inp}"]))
+            config = make_structured_with_schema_warnings(
+                OmegaConf.from_dotlist([f"cuts_path={inp}"])
+            )
         else:
             # Assume anything else is a NeMo non-tarred manifest
-            config = make_structured_with_schema_warnings(OmegaConf.from_dotlist([f"manifest_filepath={inp}"]))
+            config = make_structured_with_schema_warnings(
+                OmegaConf.from_dotlist([f"manifest_filepath={inp}"])
+            )
         cuts, _ = read_cutset_from_config(config)
         return cuts
     else:
-        raise RuntimeError(f'Unsupported input type: {type(inp)} (expected a dict or a string)')
+        raise RuntimeError(
+            f"Unsupported input type: {type(inp)} (expected a dict or a string)"
+        )

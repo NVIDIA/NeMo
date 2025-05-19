@@ -39,7 +39,12 @@ class FaissRetrievalResource(Resource):
     """
 
     def __init__(
-        self, index, tokenizer, ds, query_bert_ip, query_bert_port,
+        self,
+        index,
+        tokenizer,
+        ds,
+        query_bert_ip,
+        query_bert_port,
     ):
         # server
         self.index = index
@@ -49,12 +54,14 @@ class FaissRetrievalResource(Resource):
         self.query_bert_port = query_bert_port
         self.chunk_size = ds.chunk_size
         pad_id = self.tokenizer.pad_id
-        self.no_retrieval = np.ones((1, 1, 2 * self.chunk_size), dtype=ds._index.dtype) * pad_id
+        self.no_retrieval = (
+            np.ones((1, 1, 2 * self.chunk_size), dtype=ds._index.dtype) * pad_id
+        )
 
     def put(self):
         data = request.get_json()
-        sentences = data['sentences']
-        num_neighbors = data['neighbors']
+        sentences = data["sentences"]
+        num_neighbors = data["neighbors"]
         with lock:  # Need to get lock to keep multiple threads from hitting code
             neighbors = self.get_knn(sentences, num_neighbors)
         return jsonify(neighbors.tolist())
@@ -111,14 +118,14 @@ class RetrievalServer(object):
         query_bert_ip: str,
         query_bert_port: int = None,
     ):
-        self.app = Flask(__name__, static_url_path='')
+        self.app = Flask(__name__, static_url_path="")
         # server
         has_gpu = torch.cuda.is_available() and hasattr(faiss, "index_gpu_to_cpu")
 
         if faiss_devices is None or not torch.cuda.is_available():
             device_list = None
         else:
-            device_list = ['cuda:' + str(device) for device in faiss_devices.split(',')]
+            device_list = ["cuda:" + str(device) for device in faiss_devices.split(",")]
 
         self.index = faiss.read_index(faiss_index)
         if has_gpu and device_list is not None:
@@ -127,18 +134,28 @@ class RetrievalServer(object):
             co.useFloat16 = True
             co.usePrecomputed = False
             co.shard = True
-            self.index = faiss.index_cpu_to_all_gpus(self.index, co, ngpu=len(device_list))
+            self.index = faiss.index_cpu_to_all_gpus(
+                self.index, co, ngpu=len(device_list)
+            )
             end = time.time()
-            logging.info(f'convert Faiss db to GPU takes {end - beg} s')
+            logging.info(f"convert Faiss db to GPU takes {end - beg} s")
         self.index.nprobe = nprobe
         self.tokenizer = tokenizer
         self.ds = MMapRetrievalIndexedDataset(retrieval_index)
         api = Api(self.app)
         api.add_resource(
             FaissRetrievalResource,
-            '/knn',
-            resource_class_args=[self.index, self.tokenizer, self.ds, query_bert_ip, query_bert_port],
+            "/knn",
+            resource_class_args=[
+                self.index,
+                self.tokenizer,
+                self.ds,
+                query_bert_ip,
+                query_bert_port,
+            ],
         )
 
     def run(self, url, port=None):
-        threading.Thread(target=lambda: self.app.run(host=url, threaded=True, port=port)).start()
+        threading.Thread(
+            target=lambda: self.app.run(host=url, threaded=True, port=port)
+        ).start()

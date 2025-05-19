@@ -49,7 +49,7 @@ class CLIPViTL_14_224_Config(CLIPViTConfig):
     bias_activation_fusion: bool = False
     bias_dropout_fusion: bool = True
     attention_softmax_in_fp32: bool = False
-    normalization: str = 'LayerNorm'
+    normalization: str = "LayerNorm"
     apply_rope_fusion: bool = False
     masked_softmax_fusion: bool = True
     persist_layer_norm: bool = True
@@ -78,7 +78,7 @@ class CLIPViTB_32_224_Config(CLIPViTConfig):
     bias_activation_fusion: bool = False
     bias_dropout_fusion: bool = True
     attention_softmax_in_fp32: bool = False
-    normalization: str = 'LayerNorm'
+    normalization: str = "LayerNorm"
     apply_rope_fusion: bool = False
     masked_softmax_fusion: bool = True
     persist_layer_norm: bool = True
@@ -141,16 +141,24 @@ class CLIPTextModelL_14_224_Config(CLIPTextModelConfig):
 class CLIPConfigL14(CLIPConfig):
     """Main Clip config for Large model"""
 
-    text_transformer_config: CLIPTextModelConfig = field(default_factory=lambda: CLIPTextModelL_14_224_Config())
-    vision_transformer_config: CLIPViTConfig = field(default_factory=lambda: CLIPViTL_14_224_Config())
+    text_transformer_config: CLIPTextModelConfig = field(
+        default_factory=lambda: CLIPTextModelL_14_224_Config()
+    )
+    vision_transformer_config: CLIPViTConfig = field(
+        default_factory=lambda: CLIPViTL_14_224_Config()
+    )
 
 
 @dataclass
 class CLIPConfigB32(CLIPConfig):
     """Main Clip config for Base model"""
 
-    text_transformer_config: CLIPTextModelConfig = field(default_factory=lambda: CLIPTextModelB_32_224_Config())
-    vision_transformer_config: CLIPViTConfig = field(default_factory=lambda: CLIPViTB_32_224_Config())
+    text_transformer_config: CLIPTextModelConfig = field(
+        default_factory=lambda: CLIPTextModelB_32_224_Config()
+    )
+    vision_transformer_config: CLIPViTConfig = field(
+        default_factory=lambda: CLIPViTB_32_224_Config()
+    )
 
 
 @io.model_importer(CLIPModel, "hf")
@@ -190,8 +198,8 @@ class HFClipImporter(io.ModelConnector["CLIPModel", CLIPModel]):
         # pylint: disable=C0116, line-too-long
         # Start with the heads
         mapping = {
-            'text_projection.weight': "text_model.head.weight",
-            'visual_projection.weight': 'vision_model.head.weight',
+            "text_projection.weight": "text_model.head.weight",
+            "visual_projection.weight": "vision_model.head.weight",
         }
 
         mapping.update(
@@ -274,7 +282,9 @@ class HFClipImporter(io.ModelConnector["CLIPModel", CLIPModel]):
             init_method_std=text_conifg.initializer_range,
             layernorm_epsilon=text_conifg.layer_norm_eps,
             gated_linear_unit=False,
-            make_vocab_size_divisible_by=make_vocab_size_divisible_by(text_conifg.vocab_size),
+            make_vocab_size_divisible_by=make_vocab_size_divisible_by(
+                text_conifg.vocab_size
+            ),
             share_embeddings_and_output_weights=False,
             attention_dropout=text_conifg.attention_dropout,
             hidden_dropout=text_conifg.dropout,
@@ -307,13 +317,16 @@ class HFClipImporter(io.ModelConnector["CLIPModel", CLIPModel]):
         )
 
         output = CLIPConfig(
-            text_transformer_config=language_transformer_config, vision_transformer_config=vision_transformer_config
+            text_transformer_config=language_transformer_config,
+            vision_transformer_config=vision_transformer_config,
         )
 
         return output
 
 
-def import_qkv(q, k, v, head_num, num_query_groups, heads_per_group, hidden_size, head_size):
+def import_qkv(
+    q, k, v, head_num, num_query_groups, heads_per_group, hidden_size, head_size
+):
     # pylint: disable=C0116
     old_tensor_shape = q.size()
     new_q_tensor_shape = (head_num, head_size) + old_tensor_shape[1:]
@@ -330,11 +343,15 @@ def import_qkv(q, k, v, head_num, num_query_groups, heads_per_group, hidden_size
         qkv_weights_l.append(v[i : i + 1, :, :])
     qkv_weights = torch.cat(qkv_weights_l)
     assert qkv_weights.ndim == 3, qkv_weights.shape
-    assert qkv_weights.shape[0] == (heads_per_group + 2) * num_query_groups, qkv_weights.shape
+    assert (
+        qkv_weights.shape[0] == (heads_per_group + 2) * num_query_groups
+    ), qkv_weights.shape
     assert qkv_weights.shape[1] == head_size, qkv_weights.shape
     assert qkv_weights.shape[2] == old_tensor_shape[1], qkv_weights.shape
 
-    qkv_weights = qkv_weights.reshape([head_size * (head_num + 2 * num_query_groups), hidden_size])
+    qkv_weights = qkv_weights.reshape(
+        [head_size * (head_num + 2 * num_query_groups), hidden_size]
+    )
 
     return qkv_weights
 
@@ -356,7 +373,8 @@ def _import_vision_qkv(ctx: io.TransformCTX, q, k, v):
         v,
         head_num=megatron_config.num_attention_heads,
         num_query_groups=megatron_config.num_query_groups,
-        heads_per_group=megatron_config.num_attention_heads // megatron_config.num_query_groups,
+        heads_per_group=megatron_config.num_attention_heads
+        // megatron_config.num_query_groups,
         hidden_size=megatron_config.hidden_size,
         head_size=megatron_config.kv_channels,
     )
@@ -379,7 +397,8 @@ def _import_vision_qkv_bias(ctx: io.TransformCTX, q_bias, k_bias, v_bias):
         v_bias.unsqueeze(-1),
         head_num=megatron_config.num_attention_heads,
         num_query_groups=megatron_config.num_query_groups,
-        heads_per_group=megatron_config.num_attention_heads // megatron_config.num_query_groups,
+        heads_per_group=megatron_config.num_attention_heads
+        // megatron_config.num_query_groups,
         hidden_size=1,
         head_size=megatron_config.kv_channels,
     ).squeeze(-1)
@@ -402,7 +421,8 @@ def _import_language_qkv_bias(ctx: io.TransformCTX, q_bias, k_bias, v_bias):
         v_bias.unsqueeze(-1),
         head_num=megatron_config.num_attention_heads,
         num_query_groups=megatron_config.num_query_groups,
-        heads_per_group=megatron_config.num_attention_heads // megatron_config.num_query_groups,
+        heads_per_group=megatron_config.num_attention_heads
+        // megatron_config.num_query_groups,
         hidden_size=1,
         head_size=megatron_config.kv_channels,
     ).squeeze(-1)
@@ -426,7 +446,8 @@ def _import_language_qkv(ctx: io.TransformCTX, q, k, v):
         v,
         head_num=megatron_config.num_attention_heads,
         num_query_groups=megatron_config.num_query_groups,
-        heads_per_group=megatron_config.num_attention_heads // megatron_config.num_query_groups,
+        heads_per_group=megatron_config.num_attention_heads
+        // megatron_config.num_query_groups,
         hidden_size=megatron_config.hidden_size,
         head_size=megatron_config.kv_channels,
     )

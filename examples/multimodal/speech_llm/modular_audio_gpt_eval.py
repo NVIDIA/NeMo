@@ -98,16 +98,20 @@ def main(cfg) -> None:
             map_location="cpu",
         )
         model = ModularAudioGPTModel.load_adapters_for_inference(cfg, model_cfg, model)
-        model = ModularAudioGPTModel.load_audio_encoder_for_inference(cfg, model_cfg, model)
+        model = ModularAudioGPTModel.load_audio_encoder_for_inference(
+            cfg, model_cfg, model
+        )
 
     model.freeze()
     if cfg.get("save_as_nemo", None):
-        model.setup("predict")  # need to call setup() to load adapters and prepare for saving
+        model.setup(
+            "predict"
+        )  # need to call setup() to load adapters and prepare for saving
         model.save_to(cfg.save_as_nemo)
         logging.info(f"Model saved to {Path(cfg.save_as_nemo).absolute()}, exiting...")
         exit(0)
 
-    if not cfg.model.get('use_flash_attention', False):
+    if not cfg.model.get("use_flash_attention", False):
         cfg.inference.compute_attention_mask = True
     config = OmegaConf.to_container(cfg.inference, resolve=True)
     model.set_inference_config(config)

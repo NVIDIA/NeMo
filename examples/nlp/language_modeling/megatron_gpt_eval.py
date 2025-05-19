@@ -180,7 +180,7 @@ def load_model_from_config(trainer, cfg):
         if (
             cfg.tensor_model_parallel_size < 0
             or cfg.pipeline_model_parallel_size < 0
-            or cfg.get('pipeline_model_parallel_split_rank', -1) < 0
+            or cfg.get("pipeline_model_parallel_split_rank", -1) < 0
         ):
             save_restore_connector = NLPSaveRestoreConnector()
             if os.path.isdir(cfg.gpt_model_file):
@@ -193,23 +193,29 @@ def load_model_from_config(trainer, cfg):
             )
 
             # with dist checkpointing we don't need to set this
-            if not model_config.get('mcore_gpt', False):
+            if not model_config.get("mcore_gpt", False):
                 with open_dict(cfg):
-                    cfg.tensor_model_parallel_size = model_config.get('tensor_model_parallel_size', 1)
-                    cfg.pipeline_model_parallel_size = model_config.get('pipeline_model_parallel_size', 1)
-                    cfg.pipeline_model_parallel_split_rank = model_config.get('pipeline_model_parallel_split_rank', 0)
+                    cfg.tensor_model_parallel_size = model_config.get(
+                        "tensor_model_parallel_size", 1
+                    )
+                    cfg.pipeline_model_parallel_size = model_config.get(
+                        "pipeline_model_parallel_size", 1
+                    )
+                    cfg.pipeline_model_parallel_split_rank = model_config.get(
+                        "pipeline_model_parallel_split_rank", 0
+                    )
 
-            if model_config.get('context_parallel_size', 1) > 1:
+            if model_config.get("context_parallel_size", 1) > 1:
                 logging.warning(
-                    f'Model config has context_parallel_size={model_config.context_parallel_size}. CP will be disabled for '
-                    f'inference. Considering using tensor parallelism or pipeline parallelism for fitting the model.'
+                    f"Model config has context_parallel_size={model_config.context_parallel_size}. CP will be disabled for "
+                    f"inference. Considering using tensor parallelism or pipeline parallelism for fitting the model."
                 )
 
     assert (
         cfg.trainer.devices * cfg.trainer.num_nodes
         == cfg.tensor_model_parallel_size
         * cfg.pipeline_model_parallel_size
-        * max(1, cfg.get('expert_model_parallel_size', 1))
+        * max(1, cfg.get("expert_model_parallel_size", 1))
     ), (
         f"devices({cfg.trainer.devices}) * num_nodes({cfg.trainer.num_nodes}) should equal to "
         f"tensor_model_parallel_size({cfg.tensor_model_parallel_size}) * "
@@ -234,42 +240,58 @@ def load_model_from_config(trainer, cfg):
             pretrained_cfg.activations_checkpoint_granularity = None
             pretrained_cfg.activations_checkpoint_method = None
             pretrained_cfg.precision = trainer.precision
-            pretrained_cfg["use_flash_attention"] = cfg.inference.get("use_flash_attention", False)
+            pretrained_cfg["use_flash_attention"] = cfg.inference.get(
+                "use_flash_attention", False
+            )
             pretrained_cfg["apply_rope_fusion"] = False
-            if pretrained_cfg.get('mcore_gpt', False):
+            if pretrained_cfg.get("mcore_gpt", False):
                 # with dist checkpointing we can use the model parallel config specified by the user
-                pretrained_cfg.tensor_model_parallel_size = cfg.tensor_model_parallel_size
-                pretrained_cfg.pipeline_model_parallel_size = cfg.pipeline_model_parallel_size
-                pretrained_cfg.context_parallel_size = 1  # context parallel is disable for inference
-                pretrained_cfg.expert_model_parallel_size = cfg.get('expert_model_parallel_size', 1)
+                pretrained_cfg.tensor_model_parallel_size = (
+                    cfg.tensor_model_parallel_size
+                )
+                pretrained_cfg.pipeline_model_parallel_size = (
+                    cfg.pipeline_model_parallel_size
+                )
+                pretrained_cfg.context_parallel_size = (
+                    1  # context parallel is disable for inference
+                )
+                pretrained_cfg.expert_model_parallel_size = cfg.get(
+                    "expert_model_parallel_size", 1
+                )
                 pretrained_cfg.micro_batch_size = 1
             if trainer.precision == "16":
                 pretrained_cfg.megatron_amp_O2 = False
-            elif trainer.precision in ['bf16', 'bf16-mixed'] and cfg.get('megatron_amp_O2', False):
+            elif trainer.precision in ["bf16", "bf16-mixed"] and cfg.get(
+                "megatron_amp_O2", False
+            ):
                 pretrained_cfg.megatron_amp_O2 = True
         model = MegatronGPTModel.restore_from(
             restore_path=cfg.gpt_model_file,
             trainer=trainer,
             override_config_path=pretrained_cfg,
             save_restore_connector=save_restore_connector,
-            map_location=f'cuda:{trainer.local_rank}',  # map_location is needed for converted models
+            map_location=f"cuda:{trainer.local_rank}",  # map_location is needed for converted models
         )
     elif cfg.checkpoint_dir:
         app_state = AppState()
         if (
             cfg.tensor_model_parallel_size > 1
             or cfg.pipeline_model_parallel_size > 1
-            or cfg.get('expert_model_parallel_size', 1) > 1
+            or cfg.get("expert_model_parallel_size", 1) > 1
         ):
             app_state.model_parallel_size = (
                 cfg.tensor_model_parallel_size
                 * cfg.pipeline_model_parallel_size
-                * cfg.get('expert_model_parallel_size', 1)
+                * cfg.get("expert_model_parallel_size", 1)
             )
             app_state.tensor_model_parallel_size = cfg.tensor_model_parallel_size
             app_state.pipeline_model_parallel_size = cfg.pipeline_model_parallel_size
-            app_state.context_parallel_size = 1  # context parallel is disable for inference
-            app_state.expert_model_parallel_size = cfg.get('expert_model_parallel_size', 1)
+            app_state.context_parallel_size = (
+                1  # context parallel is disable for inference
+            )
+            app_state.expert_model_parallel_size = cfg.get(
+                "expert_model_parallel_size", 1
+            )
             (
                 app_state.tensor_model_parallel_rank,
                 app_state.pipeline_model_parallel_rank,
@@ -284,14 +306,18 @@ def load_model_from_config(trainer, cfg):
                 tensor_model_parallel_size_=cfg.tensor_model_parallel_size,
                 pipeline_model_parallel_size_=cfg.pipeline_model_parallel_size,
                 pipeline_model_parallel_split_rank_=cfg.pipeline_model_parallel_split_rank,
-                expert_model_parallel_size_=cfg.get('expert_model_parallel_size', 1),
+                expert_model_parallel_size_=cfg.get("expert_model_parallel_size", 1),
             )
         checkpoint_path = os.path.join(cfg.checkpoint_dir, cfg.checkpoint_name)
         # checkpoint_path is a dir in case of distributed checkpointing
         if not os.path.isdir(checkpoint_path):
             # legacy checkpoint needs model parallel rank injection
-            checkpoint_path = inject_model_parallel_rank(os.path.join(cfg.checkpoint_dir, cfg.checkpoint_name))
-        model = MegatronGPTModel.load_from_checkpoint(checkpoint_path, hparams_file=cfg.hparams_file, trainer=trainer)
+            checkpoint_path = inject_model_parallel_rank(
+                os.path.join(cfg.checkpoint_dir, cfg.checkpoint_name)
+            )
+        model = MegatronGPTModel.load_from_checkpoint(
+            checkpoint_path, hparams_file=cfg.hparams_file, trainer=trainer
+        )
     else:
         raise ValueError("need at least a nemo file or checkpoint dir")
     return model
@@ -299,10 +325,10 @@ def load_model_from_config(trainer, cfg):
 
 def load_prompts(cfg):
     prompts = []
-    if (cfg_prompts := getattr(cfg, 'prompts', None)) is not None:
+    if (cfg_prompts := getattr(cfg, "prompts", None)) is not None:
         prompts = OmegaConf.to_container(cfg_prompts)
-    if (prompts_jsonl := getattr(cfg, 'prompts_jsonl', None)) is not None:
-        with open(prompts_jsonl, 'rt') as fp:
+    if (prompts_jsonl := getattr(cfg, "prompts_jsonl", None)) is not None:
+        with open(prompts_jsonl, "rt") as fp:
             try:
                 prompts += list(map(json.loads, map(str.rstrip, fp)))
             except:
@@ -327,9 +353,11 @@ def round_to_mult(n, mult=8):
 def main(cfg) -> None:
 
     callbacks = []
-    logging.warning("This file will be depreacted soon. Use the megatron_gpt_mcore_batch_eval.py file instead.")
+    logging.warning(
+        "This file will be depreacted soon. Use the megatron_gpt_mcore_batch_eval.py file instead."
+    )
     # enable_progress_bar is True by default. If cfg.trainer.enable_progress_bar=False, CustomProgressBar is not appended to callbacks
-    if 'enable_progress_bar' not in cfg.trainer or cfg.trainer.enable_progress_bar:
+    if "enable_progress_bar" not in cfg.trainer or cfg.trainer.enable_progress_bar:
         callbacks.append(CustomProgressBar())
     # trainer required for restoring model parallel models
     trainer = Trainer(
@@ -371,10 +399,12 @@ def main(cfg) -> None:
         padded_len = round_to_mult(len(prompts), 8)
         nb_paddings = padded_len - len(prompts)
         if nb_paddings > 0:
-            nb_paddings += [''] * nb_paddings
+            nb_paddings += [""] * nb_paddings
 
     # First method of running text generation, call model.generate method
-    response = model.generate(inputs=prompts, length_params=length_params, sampling_params=sampling_params)
+    response = model.generate(
+        inputs=prompts, length_params=length_params, sampling_params=sampling_params
+    )
 
     if fp8_enabled:
         response = remove_padded_prompts(response, nb_paddings)
@@ -408,9 +438,9 @@ def main(cfg) -> None:
             if cfg.web_server:
                 if cfg.chat:
                     defaults = {
-                        'user': cfg.chatbot_config.user,
-                        'assistant': cfg.chatbot_config.assistant,
-                        'system': cfg.chatbot_config.system,
+                        "user": cfg.chatbot_config.user,
+                        "assistant": cfg.chatbot_config.assistant,
+                        "system": cfg.chatbot_config.system,
                     }
                     web_ui = partial(
                         get_chatbot_demo,
@@ -424,7 +454,14 @@ def main(cfg) -> None:
                 thread = threading.Thread(
                     target=web_ui,
                     daemon=True,
-                    args=(cfg.share, cfg.username, cfg.password, cfg.port, cfg.web_port, loop),
+                    args=(
+                        cfg.share,
+                        cfg.username,
+                        cfg.password,
+                        cfg.port,
+                        cfg.web_port,
+                        loop,
+                    ),
                 )
                 thread.start()
             server = MegatronServer(model.cuda())
@@ -437,5 +474,5 @@ def main(cfg) -> None:
                 generate(model.cuda())
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()  # noqa pylint: disable=no-value-for-parameter

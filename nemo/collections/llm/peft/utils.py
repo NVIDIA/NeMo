@@ -49,7 +49,9 @@ TERowParallelLinear, HAVE_TE_ROW_LINEAR = safe_import_from(
 TERowParallelGroupedLinear, HAVE_TE_ROW_GRP_LINEAR = safe_import_from(
     "megatron.core.extensions.transformer_engine", "TERowParallelGroupedLinear"
 )
-TELinear, HAVE_TE_LINEAR = safe_import_from("megatron.core.extensions.transformer_engine", "TELinear")
+TELinear, HAVE_TE_LINEAR = safe_import_from(
+    "megatron.core.extensions.transformer_engine", "TELinear"
+)
 HAVE_TE = all(
     (
         HAVE_TE_COL_LINEAR,
@@ -61,9 +63,15 @@ HAVE_TE = all(
     )
 )
 
-MixedFusedLayerNorm, HAVE_APEX = safe_import_from("apex.normalization.fused_layer_norm", "MixedFusedLayerNorm")
+MixedFusedLayerNorm, HAVE_APEX = safe_import_from(
+    "apex.normalization.fused_layer_norm", "MixedFusedLayerNorm"
+)
 
-TECL = (TEColumnParallelLinear, TELayerNormColumnParallelLinear, TEColumnParallelGroupedLinear)
+TECL = (
+    TEColumnParallelLinear,
+    TELayerNormColumnParallelLinear,
+    TEColumnParallelGroupedLinear,
+)
 TERL = (TERowParallelLinear, TERowParallelGroupedLinear)
 
 
@@ -73,7 +81,9 @@ def get_adapter_attributes_from_linear(m: nn.Module):
     """
     disable_sequence_parallel_comm = not m.config.sequence_parallel
 
-    if HAVE_TE and any(isinstance(m, te_column_parallel) for te_column_parallel in TECL):
+    if HAVE_TE and any(
+        isinstance(m, te_column_parallel) for te_column_parallel in TECL
+    ):
         input_is_parallel = False
         # m.in_features and m.out_features are divided by tp_size already,
         # but in_features and out_features passed to ParallelLinearAdapter are not.
@@ -130,7 +140,7 @@ def is_expert_linear(fqn):
     Return whether the current base module is an expert linear module.
     See ParallelLinearAdapter.is_expert for usage details.
     """
-    return re.match(r'.*mlp\..*experts.*\.linear_fc[1-2]$', fqn) is not None
+    return re.match(r".*mlp\..*experts.*\.linear_fc[1-2]$", fqn) is not None
 
 
 def wildcard_match(pattern, key):
@@ -249,14 +259,14 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
         out_features: int,
         dim: int,
         base_linear_name: str,
-        activation: str = 'swish',
-        column_init_method: str = 'xavier',
-        row_init_method: str = 'zero',
+        activation: str = "swish",
+        column_init_method: str = "xavier",
+        row_init_method: str = "zero",
         input_is_parallel: bool = False,
         dropout: float = 0.0,
         model_parallel_config: Optional[ModelParallelConfig] = None,
         alpha: float | None = None,
-        dropout_position: str = 'post',
+        dropout_position: str = "post",
         a2a_experimental: bool = False,
         is_expert: bool = False,
         disable_sequence_parallel_comm: bool = True,
@@ -277,7 +287,9 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
         if model_parallel_config is None:
             model_parallel_config = ModelParallelConfig()
         _sequence_parallel = model_parallel_config.sequence_parallel
-        model_parallel_config.sequence_parallel = False  # SP is irrelevant for the lora linear layer
+        model_parallel_config.sequence_parallel = (
+            False  # SP is irrelevant for the lora linear layer
+        )
         self.config = model_parallel_config
 
         if input_is_parallel:
@@ -329,7 +341,9 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
             self.half()
 
         # Setup adapter strategy
-        self.setup_adapter_strategy(adapter_mixin_strategies.ReturnResultAdapterStrategy())
+        self.setup_adapter_strategy(
+            adapter_mixin_strategies.ReturnResultAdapterStrategy()
+        )
 
         # revert config change in case it is read elsewhere
         model_parallel_config.sequence_parallel = _sequence_parallel
@@ -338,29 +352,35 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
             self.disable_sequence_parallel_comm = True
 
     def _get_init_fn(self, init_method: str):
-        if init_method == 'xavier':
+        if init_method == "xavier":
             init_fn = nn.init.xavier_normal_
-        elif init_method == 'normal':
+        elif init_method == "normal":
             init_fn = init_method_normal(0.2)
-        elif init_method == 'kaiming':
+        elif init_method == "kaiming":
             init_fn = init_method_kaiming_uniform(math.sqrt(5))
         elif init_method == "zero":
             init_fn = init_method_const(0.0)
         else:
-            raise NotImplementedError("out_init_method should be zero, normal, kaiming or xavier")
+            raise NotImplementedError(
+                "out_init_method should be zero, normal, kaiming or xavier"
+            )
         return init_fn
 
     def forward(self, x):
         """ """
 
-        if self.dropout is not None and self.dropout_position == 'pre':
+        if self.dropout is not None and self.dropout_position == "pre":
             x = self.dropout(x)
 
         pad_len = 0
         if self.is_expert:
             x, pad_len = pad_seq_to_mult(x, self.config.tensor_model_parallel_size)
 
-        if not self.disable_sequence_parallel_comm and not self.input_is_parallel and not self.is_expert:
+        if (
+            not self.disable_sequence_parallel_comm
+            and not self.input_is_parallel
+            and not self.is_expert
+        ):
             # for attention_qkv and linear_fc1
             # layernorm before lora is impacted by sequence parallel,
             # hence seq dim need to be gathered right before lora linear layers
@@ -369,7 +389,9 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
 
         if self.config.cpu_offloading and self.config.cpu_offloading_activations:
             x.activation_offloading = True
-        x, _ = self.linear_in(x)  # (@adithyare) ColumnLinear returns output and bias, we are ignoring the bias term.
+        x, _ = self.linear_in(
+            x
+        )  # (@adithyare) ColumnLinear returns output and bias, we are ignoring the bias term.
 
         x = self.activation(x)
 
@@ -377,7 +399,11 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
             x.activation_offloading = True
         x, _ = self.linear_out(x)
 
-        if not self.disable_sequence_parallel_comm and self.input_is_parallel and not self.is_expert:
+        if (
+            not self.disable_sequence_parallel_comm
+            and self.input_is_parallel
+            and not self.is_expert
+        ):
             # for attention_dense and linear_fc2
             # layernorm after lora is impacted by sequence parallel,
             # hence seq dim need to be scattered right after lora linear layers
@@ -389,7 +415,7 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
                 x = scatter_to_sequence_parallel_region(x)
 
         # Add dropout if available
-        if self.dropout is not None and self.dropout_position == 'post':
+        if self.dropout is not None and self.dropout_position == "post":
             x = self.dropout(x)
 
         x = x * (self.alpha / self.dim)
@@ -401,19 +427,26 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
         return x
 
     def sharded_state_dict(
-        self, prefix: str = '', sharded_offsets: tuple = (), metadata: Optional[dict] = None
+        self,
+        prefix: str = "",
+        sharded_offsets: tuple = (),
+        metadata: Optional[dict] = None,
     ) -> ShardedStateDict:
         """
         Sharded state dict for LoRA adapter. Special treatment is given to the linear_fc1 adapter
         since TP is sharded separately for the two logical matrices (gate and up)
         """
         sharded_state_dict = {}
-        linear_in_sd = self.linear_in.sharded_state_dict(f"{prefix}linear_in.", sharded_offsets, metadata)
-        linear_out_sd = self.linear_out.sharded_state_dict(f"{prefix}linear_out.", sharded_offsets, metadata)
+        linear_in_sd = self.linear_in.sharded_state_dict(
+            f"{prefix}linear_in.", sharded_offsets, metadata
+        )
+        linear_out_sd = self.linear_out.sharded_state_dict(
+            f"{prefix}linear_out.", sharded_offsets, metadata
+        )
 
-        if 'linear_fc1' in self.base_linear_name:
+        if "linear_fc1" in self.base_linear_name:
             for k, v in linear_out_sd.items():
-                if k in (f'{prefix}linear_out.weight', f'{prefix}linear_out.bias'):
+                if k in (f"{prefix}linear_out.weight", f"{prefix}linear_out.bias"):
                     linear_out_sd[k] = apply_swiglu_sharded_factory(v, sharded_offsets)
 
         sharded_state_dict.update(linear_in_sd)

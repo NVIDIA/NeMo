@@ -64,7 +64,9 @@ class TransformerEncoderBlock(nn.Module, AttentionAdapterModuleMixin):
             hidden_size, num_attention_heads, attn_score_dropout, attn_layer_dropout
         )
         self.layer_norm_2 = nn.LayerNorm(hidden_size, eps=1e-5)
-        self.second_sub_layer = PositionWiseFF(hidden_size, inner_size, ffn_dropout, hidden_act)
+        self.second_sub_layer = PositionWiseFF(
+            hidden_size, inner_size, ffn_dropout, hidden_act
+        )
 
         # Information for the adapter module mixin
         self.self_attention_model = "transf_abs"
@@ -77,19 +79,21 @@ class TransformerEncoderBlock(nn.Module, AttentionAdapterModuleMixin):
         residual = encoder_query
         encoder_query = self.layer_norm_1(encoder_query)
         encoder_keys = self.layer_norm_1(encoder_keys)
-        self_attn_output = self.first_sub_layer(encoder_query, encoder_keys, encoder_keys, encoder_mask)
+        self_attn_output = self.first_sub_layer(
+            encoder_query, encoder_keys, encoder_keys, encoder_mask
+        )
         self_attn_output += residual
 
         if self.is_adapter_available():
             # Call the MHA adapters
             pack_input = {
-                'x': self_attn_output,
-                'loc': 'mha',
-                'att_mask': encoder_mask,
-                'pos_emb': None,
+                "x": self_attn_output,
+                "loc": "mha",
+                "att_mask": encoder_mask,
+                "pos_emb": None,
             }
             pack_input = self.forward_enabled_adapters(pack_input)
-            self_attn_output = pack_input['x']
+            self_attn_output = pack_input["x"]
 
         residual = self_attn_output
         self_attn_output = self.layer_norm_2(self_attn_output)
@@ -99,11 +103,11 @@ class TransformerEncoderBlock(nn.Module, AttentionAdapterModuleMixin):
         if self.is_adapter_available():
             # Call the Linear adapters
             pack_input = {
-                'x': output_states,
-                'loc': 'post',
+                "x": output_states,
+                "loc": "post",
             }
             pack_input = self.forward_enabled_adapters(pack_input)
-            output_states = pack_input['x']
+            output_states = pack_input["x"]
 
         return output_states
 
@@ -112,19 +116,21 @@ class TransformerEncoderBlock(nn.Module, AttentionAdapterModuleMixin):
         Post-LayerNorm block
         Order of operations: Self-Attn -> Residual -> LN -> Cross-Attn -> Residual -> LN -> FFN -> Residual -> LN
         """
-        self_attn_output = self.first_sub_layer(encoder_query, encoder_keys, encoder_keys, encoder_mask)
+        self_attn_output = self.first_sub_layer(
+            encoder_query, encoder_keys, encoder_keys, encoder_mask
+        )
         self_attn_output += encoder_query
 
         if self.is_adapter_available():
             # Call the MHA adapters
             pack_ip = {
-                'x': self_attn_output,
-                'loc': 'mha',
-                'att_mask': encoder_mask,
-                'pos_emb': None,
+                "x": self_attn_output,
+                "loc": "mha",
+                "att_mask": encoder_mask,
+                "pos_emb": None,
             }
             pack_ip = self.forward_enabled_adapters(pack_ip)
-            self_attn_output = pack_ip['x']
+            self_attn_output = pack_ip["x"]
 
         self_attn_output = self.layer_norm_1(self_attn_output)
 
@@ -134,11 +140,11 @@ class TransformerEncoderBlock(nn.Module, AttentionAdapterModuleMixin):
         if self.is_adapter_available():
             # Call the linear adapters
             pack_ip = {
-                'x': output_states,
-                'loc': 'post',
+                "x": output_states,
+                "loc": "post",
             }
             pack_ip = self.forward_enabled_adapters(pack_ip)
-            output_states = pack_ip['x']
+            output_states = pack_ip["x"]
 
         output_states = self.layer_norm_2(output_states)
 
@@ -208,7 +214,9 @@ class TransformerEncoder(nn.Module):
             memory_states = encoder_states
         return memory_states
 
-    def forward(self, encoder_states, encoder_mask, encoder_mems_list=None, return_mems=False):
+    def forward(
+        self, encoder_states, encoder_mask, encoder_mems_list=None, return_mems=False
+    ):
         """
         Args:
             encoder_states: output of the embedding_layer (B x L_enc x H)
@@ -227,12 +235,16 @@ class TransformerEncoder(nn.Module):
 
         for i, layer in enumerate(self.layers):
             encoder_states = layer(encoder_states, encoder_attn_mask, memory_states)
-            memory_states = self._get_memory_states(encoder_states, encoder_mems_list, i + 1)
+            memory_states = self._get_memory_states(
+                encoder_states, encoder_mems_list, i + 1
+            )
             cached_mems_list.append(memory_states)
 
         if self.final_layer_norm is not None:
             encoder_states = self.final_layer_norm(encoder_states)
-            memory_states = self._get_memory_states(encoder_states, encoder_mems_list, i + 1)
+            memory_states = self._get_memory_states(
+                encoder_states, encoder_mems_list, i + 1
+            )
             cached_mems_list.append(memory_states)
 
         if return_mems:
@@ -250,7 +262,12 @@ class TransformerEncoderAdapter(TransformerEncoder, adapter_mixins.AdapterModule
             transformer_layer.add_adapter(name, cfg)
 
     def is_adapter_available(self) -> bool:
-        return any([transformer_layer.is_adapter_available() for transformer_layer in self.layers])
+        return any(
+            [
+                transformer_layer.is_adapter_available()
+                for transformer_layer in self.layers
+            ]
+        )
 
     def set_enabled_adapters(self, name: Optional[str] = None, enabled: bool = True):
         for transformer_layer in self.layers:  # type: adapter_mixins.AdapterModuleMixin
@@ -265,7 +282,9 @@ class TransformerEncoderAdapter(TransformerEncoder, adapter_mixins.AdapterModule
         return names
 
     def _update_adapter_cfg_input_dim(self, cfg: DictConfig):
-        cfg = adapter_utils.update_adapter_cfg_input_dim(self, cfg, module_dim=self.d_model)
+        cfg = adapter_utils.update_adapter_cfg_input_dim(
+            self, cfg, module_dim=self.d_model
+        )
         return cfg
 
 
@@ -273,4 +292,6 @@ class TransformerEncoderAdapter(TransformerEncoder, adapter_mixins.AdapterModule
 Register any additional information
 """
 if adapter_mixins.get_registered_adapter(TransformerEncoder) is None:
-    adapter_mixins.register_adapter(base_class=TransformerEncoder, adapter_class=TransformerEncoderAdapter)
+    adapter_mixins.register_adapter(
+        base_class=TransformerEncoder, adapter_class=TransformerEncoderAdapter
+    )

@@ -22,14 +22,18 @@ from nemo.utils import logging
 
 class SpeechLMMegatronStrategy(MegatronStrategy):
 
-    def load_model_state_dict(self, checkpoint: Mapping[str, Any], strict: bool = True) -> None:
+    def load_model_state_dict(
+        self, checkpoint: Mapping[str, Any], strict: bool = True
+    ) -> None:
         """
         Overwrite the load_model_state_dict method to skip loading PTL checkpoint in first stage of PEFT.
         This is needed to avoid
         """
         cached_ckpt_load_strictness = self.ckpt_load_strictness
         if SPEECHLM_PEFT_RESUME in checkpoint:
-            logging.info("Resuming from PEFT jobs, skip PTL checkpoint loading in first stage.")
+            logging.info(
+                "Resuming from PEFT jobs, skip PTL checkpoint loading in first stage."
+            )
             strict = False
             self.ckpt_load_strictness = None
         super().load_model_state_dict(checkpoint, strict=strict)

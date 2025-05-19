@@ -81,7 +81,11 @@ def to_2tuple(x):
 
 
 def build_encoder_attention_mask(
-    x: torch.Tensor, ar_ids: torch.Tensor, ntok: int, num_chunks: int, supported_aspect_ratios: List[List[int]]
+    x: torch.Tensor,
+    ar_ids: torch.Tensor,
+    ntok: int,
+    num_chunks: int,
+    supported_aspect_ratios: List[List[int]],
 ):
     """
     Build attention masks for a vision encoder to handle padding and token alignment.
@@ -139,7 +143,9 @@ def get_image_transformer_layer_spec() -> ModuleSpec:
         ),
         mlp_bda=get_bias_dropout_add,
     )
-    return ModuleSpec(module=ImageTransformerLayer, submodules=image_transformer_submodules)
+    return ModuleSpec(
+        module=ImageTransformerLayer, submodules=image_transformer_submodules
+    )
 
 
 def forward_with_return_intermediate(
@@ -165,7 +171,9 @@ def forward_with_return_intermediate(
         # See set_input_tensor()
         hidden_states = self.input_tensor
 
-    hidden_states = make_viewless_tensor(inp=hidden_states, requires_grad=True, keep_graph=True)
+    hidden_states = make_viewless_tensor(
+        inp=hidden_states, requires_grad=True, keep_graph=True
+    )
 
     if self.config.sequence_parallel:
         rng_context = tensor_parallel.get_cuda_rng_tracker().fork()
@@ -189,16 +197,21 @@ def forward_with_return_intermediate(
         )
         fp8_group = None
         if parallel_state.model_parallel_is_initialized():
-            fp8_group = parallel_state.get_amax_reduction_group(with_context_parallel=True)
-        fp8_context = transformer_engine.pytorch.fp8_autocast(enabled=True, fp8_recipe=fp8_recipe, fp8_group=fp8_group)
+            fp8_group = parallel_state.get_amax_reduction_group(
+                with_context_parallel=True
+            )
+        fp8_context = transformer_engine.pytorch.fp8_autocast(
+            enabled=True, fp8_recipe=fp8_recipe, fp8_group=fp8_group
+        )
     else:
         fp8_context = nullcontext()
 
     with rng_context and fp8_context:
         # Forward pass.
-        if self.config.recompute_granularity == 'full' and self.training:
+        if self.config.recompute_granularity == "full" and self.training:
             assert return_intermediate is None, (
-                "Config `return_intermediate` cannot be used with " "`recompute_granularity='full'`. "
+                "Config `return_intermediate` cannot be used with "
+                "`recompute_granularity='full'`. "
             )
             hidden_states = self._checkpointed_forward(
                 hidden_states=hidden_states,
@@ -227,14 +240,20 @@ def forward_with_return_intermediate(
                         packed_seq_params=packed_seq_params,
                     )
                     # CUDA graph doesn't output context and is expected to be None
-                    assert (context is None) or (not self.config.enable_cuda_graph) or (not self.training)
+                    assert (
+                        (context is None)
+                        or (not self.config.enable_cuda_graph)
+                        or (not self.training)
+                    )
 
                 if (
                     torch.is_grad_enabled()
                     and self.config.cpu_offloading
                     and self.group_prefetch_offload_commit_async is not None
                 ):
-                    hidden_states = self.group_prefetch_offload_commit_async(hidden_states)
+                    hidden_states = self.group_prefetch_offload_commit_async(
+                        hidden_states
+                    )
 
         # Final layer norm.
         if self.final_layernorm is not None:
@@ -242,7 +261,9 @@ def forward_with_return_intermediate(
             # TENorm produces a "viewed" tensor. This will result in schedule.py's
             # deallocate_output_tensor() throwing an error, so a viewless tensor is
             # created to prevent this.
-            hidden_states = make_viewless_tensor(inp=hidden_states, requires_grad=True, keep_graph=True)
+            hidden_states = make_viewless_tensor(
+                inp=hidden_states, requires_grad=True, keep_graph=True
+            )
 
         if return_intermediate is not None:
             return hidden_states, torch.stack(intermediate_hidden_states, dim=-1)
@@ -291,7 +312,7 @@ class ColumnParallelConv2dPatch(MegatronModule):
             gather_output=False,
             skip_bias_add=False,
             is_expert=False,
-            tp_comm_buffer_name='conv1',
+            tp_comm_buffer_name="conv1",
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -322,12 +343,16 @@ class PrecomputedTilePositionEmbedding(torch.nn.Module):
         self.hidden_size = config.hidden_size
         self.max_aspect_ratio_id = config.max_aspect_ratio_id
 
-        self.embedding = nn.Embedding(self.max_aspect_ratio_id + 1, self.max_num_tiles * self.hidden_size)
+        self.embedding = nn.Embedding(
+            self.max_aspect_ratio_id + 1, self.max_num_tiles * self.hidden_size
+        )
         self.gated = gated
         if gated:
             self.gate = nn.Parameter(torch.zeros(1))
 
-    def forward(self, hidden_states: torch.Tensor, aspect_ratio_ids: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self, hidden_states: torch.Tensor, aspect_ratio_ids: torch.Tensor
+    ) -> torch.Tensor:
         """Forward."""
         embeddings = self.embedding(aspect_ratio_ids)
         embeddings = embeddings.reshape(-1, self.max_num_tiles, 1, self.hidden_size)
@@ -377,7 +402,7 @@ class SelfAttentionNoBias(SelfAttention):
             bias=False,
             skip_bias_add=False,
             is_expert=False,
-            tp_comm_buffer_name='qkv',
+            tp_comm_buffer_name="qkv",
         )
 
         self.linear_proj = build_module(
@@ -390,7 +415,7 @@ class SelfAttentionNoBias(SelfAttention):
             input_is_parallel=True,
             skip_bias_add=True,
             is_expert=False,
-            tp_comm_buffer_name='proj',
+            tp_comm_buffer_name="proj",
         )
 
 
@@ -422,7 +447,9 @@ class ImageTransformerLayer(TransformerLayer):
         )
         self.gated = self.config.gated
         if self.gated:
-            self.gate_attn = nn.Parameter(torch.zeros(1, dtype=self.config.params_dtype))
+            self.gate_attn = nn.Parameter(
+                torch.zeros(1, dtype=self.config.params_dtype)
+            )
             self.gate_ffn = nn.Parameter(torch.zeros(1, dtype=self.config.params_dtype))
 
     def forward(
@@ -460,13 +487,14 @@ class ImageTransformerLayer(TransformerLayer):
             attention_output_with_bias, tuple
         ), "`attention_output_with_bias` needs to be tuple for gating."
         attention_output_with_bias = tuple(
-            _gate_attn * output if output is not None else None for output in attention_output_with_bias
+            _gate_attn * output if output is not None else None
+            for output in attention_output_with_bias
         )
 
         with self.bias_dropout_add_exec_handler():
-            hidden_states = self.self_attn_bda(self.training, self.config.bias_dropout_fusion)(
-                attention_output_with_bias, residual, self.hidden_dropout
-            )
+            hidden_states = self.self_attn_bda(
+                self.training, self.config.bias_dropout_fusion
+            )(attention_output_with_bias, residual, self.hidden_dropout)
 
         # Residual connection.
         residual = hidden_states
@@ -478,17 +506,24 @@ class ImageTransformerLayer(TransformerLayer):
         mlp_output_with_bias = self.mlp(pre_mlp_layernorm_output)
 
         _gate_ffn = 1 if not self.gated else self.gate_ffn.tanh()
-        assert isinstance(mlp_output_with_bias, tuple), "`mlp_output_with_bias` needs to be tuple for gating."
+        assert isinstance(
+            mlp_output_with_bias, tuple
+        ), "`mlp_output_with_bias` needs to be tuple for gating."
         mlp_output_with_bias = tuple(
-            _gate_ffn * output if output is not None else None for output in mlp_output_with_bias
+            _gate_ffn * output if output is not None else None
+            for output in mlp_output_with_bias
         )
 
         with self.bias_dropout_add_exec_handler():
-            hidden_states = self.mlp_bda(self.training, self.config.bias_dropout_fusion)(
-                mlp_output_with_bias, residual, self.hidden_dropout
-            )
+            hidden_states = self.mlp_bda(
+                self.training, self.config.bias_dropout_fusion
+            )(mlp_output_with_bias, residual, self.hidden_dropout)
 
-        output = make_viewless_tensor(inp=hidden_states, requires_grad=hidden_states.requires_grad, keep_graph=True)
+        output = make_viewless_tensor(
+            inp=hidden_states,
+            requires_grad=hidden_states.requires_grad,
+            keep_graph=True,
+        )
 
         # CUDA graph requires returned values to be Tensors
         if self.config.external_cuda_graph and self.training:
@@ -512,7 +547,7 @@ class VisionEncoder(MegatronModule):
 
     def __init__(
         self,
-        config: 'CrossAttentionVisionConfig',
+        config: "CrossAttentionVisionConfig",
         image_size: int = 560,
         patch_size: int = 14,
         in_channels: int = 3,
@@ -544,7 +579,9 @@ class VisionEncoder(MegatronModule):
         )
         scale = width**-0.5
         self.class_embedding = nn.Parameter(scale * torch.randn(width))
-        self.positional_embedding = nn.Parameter(scale * torch.randn(self.grid_size[0] * self.grid_size[1] + 1, width))
+        self.positional_embedding = nn.Parameter(
+            scale * torch.randn(self.grid_size[0] * self.grid_size[1] + 1, width)
+        )
         self.ln_post = LayerNormImpl(config=config, hidden_size=width)
         self.ln_pre = LayerNormImpl(config=config, hidden_size=width)
         self.transformer = TransformerBlock(
@@ -554,7 +591,9 @@ class VisionEncoder(MegatronModule):
             pre_process=self.pre_process,
             post_process=self.post_process,
         )
-        self.transformer.forward = types.MethodType(forward_with_return_intermediate, self.transformer)
+        self.transformer.forward = types.MethodType(
+            forward_with_return_intermediate, self.transformer
+        )
         # pre and post tile position embedding
         global_config = copy.deepcopy(self.config)
         global_config.num_layers = self.config.num_global_layers
@@ -576,7 +615,8 @@ class VisionEncoder(MegatronModule):
             gated=True,
         )
         self.gated_tile_positional_embedding = nn.Embedding(
-            self.max_aspect_ratio_id + 1, self.max_num_tiles * (self.grid_size[0] * self.grid_size[1] + 1) * width
+            self.max_aspect_ratio_id + 1,
+            self.max_num_tiles * (self.grid_size[0] * self.grid_size[1] + 1) * width,
         )
         self.gated_positional_embedding_gate = nn.Parameter(torch.zeros(1))
 
@@ -584,10 +624,14 @@ class VisionEncoder(MegatronModule):
         """Apply regular position embedding and tile positonal embedding."""
         bsz, num_chunks, num_tokens, dim = x.shape
         x = x.view(bsz * num_chunks, num_tokens, dim)
-        x = x + self.positional_embedding * (1 - self.gated_positional_embedding_gate.tanh())
+        x = x + self.positional_embedding * (
+            1 - self.gated_positional_embedding_gate.tanh()
+        )
         x = x.view(bsz, num_chunks, num_tokens, dim)
         tile_position_embedding = self.gated_tile_positional_embedding(aspect_ratio_ids)
-        tile_position_embedding = tile_position_embedding.reshape(bsz, num_chunks, num_tokens, dim)
+        tile_position_embedding = tile_position_embedding.reshape(
+            bsz, num_chunks, num_tokens, dim
+        )
         x = x + self.gated_positional_embedding_gate.tanh() * tile_position_embedding
         return x
 
@@ -596,7 +640,9 @@ class VisionEncoder(MegatronModule):
         x = torch.cat(
             [
                 self.class_embedding.to(x.dtype)
-                + torch.zeros(x.shape[0], 1, x.shape[-1], dtype=x.dtype, device=x.device),
+                + torch.zeros(
+                    x.shape[0], 1, x.shape[-1], dtype=x.dtype, device=x.device
+                ),
                 x,
             ],
             dim=1,
@@ -637,13 +683,20 @@ class VisionEncoder(MegatronModule):
         # Compute the number of tokens to pad (to be consistent with HF)
         npad = (8 - (x.shape[-2] % 8)) % 8
         # Compute padding tuple for pad function
-        padding = (0, 0, 0, npad)  # (pad_left, pad_right, pad_left for dim -2, pad_right for dim -2)
+        padding = (
+            0,
+            0,
+            0,
+            npad,
+        )  # (pad_left, pad_right, pad_left for dim -2, pad_right for dim -2)
         # Pad the tensor
         x = F.pad(x, padding, mode="constant", value=0)
 
         x = x.view(bsz * num_concurrent_media, -1, dim)
 
-        attn_bias = build_encoder_attention_mask(x, ar_ids, ntok, num_chunks, self.config.supported_aspect_ratios)
+        attn_bias = build_encoder_attention_mask(
+            x, ar_ids, ntok, num_chunks, self.config.supported_aspect_ratios
+        )
         x = x.transpose(0, 1).contiguous()
         x, int_x = self.transformer(
             hidden_states=x,

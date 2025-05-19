@@ -41,8 +41,8 @@ class ElectronicNormalizer(Normalizer):
 
     def __init__(
         self,
-        input_case: str = 'cased',
-        lang: str = 'en',
+        input_case: str = "cased",
+        lang: str = "en",
         deterministic: bool = True,
         cache_dir: str = None,
         overwrite_cache: bool = False,
@@ -53,7 +53,10 @@ class ElectronicNormalizer(Normalizer):
         from nn_wfst.en.electronic.verbalize_final import VerbalizeFinalFst
 
         self.tagger = ClassifyFst(
-            input_case=input_case, deterministic=deterministic, cache_dir=cache_dir, overwrite_cache=overwrite_cache
+            input_case=input_case,
+            deterministic=deterministic,
+            cache_dir=cache_dir,
+            overwrite_cache=overwrite_cache,
         )
         self.verbalizer = VerbalizeFinalFst(deterministic=deterministic)
         self.post_processor = None

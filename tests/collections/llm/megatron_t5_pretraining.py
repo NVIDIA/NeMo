@@ -36,25 +36,41 @@ from tests.collections.llm.common import \
 
 
 def get_args():
-    parser = argparse.ArgumentParser(description='Train a small T5 model using NeMo 2.0')
-    parser.add_argument('--devices', type=int, help="Number of devices to use for training")
-    parser.add_argument('--max-steps', type=int, help="Number of steps to train for")
-    parser.add_argument('--experiment-dir', type=str, help="directory to write results and checkpoints to")
-    parser.add_argument('--experiment-name', type=str, help="name of experiment")
-    parser.add_argument('--wandb-project', type=str, default=None, help="wandb project name")
-    parser.add_argument('--data-path', type=str, help="Path to data file")
-    parser.add_argument('--vocab-path', type=str, default=None, help="Path to vocab file")
-    parser.add_argument('--index-mapping-dir', type=str, help="directory to write index mappings to")
+    parser = argparse.ArgumentParser(
+        description="Train a small T5 model using NeMo 2.0"
+    )
+    parser.add_argument(
+        "--devices", type=int, help="Number of devices to use for training"
+    )
+    parser.add_argument("--max-steps", type=int, help="Number of steps to train for")
+    parser.add_argument(
+        "--experiment-dir",
+        type=str,
+        help="directory to write results and checkpoints to",
+    )
+    parser.add_argument("--experiment-name", type=str, help="name of experiment")
+    parser.add_argument(
+        "--wandb-project", type=str, default=None, help="wandb project name"
+    )
+    parser.add_argument("--data-path", type=str, help="Path to data file")
+    parser.add_argument(
+        "--vocab-path", type=str, default=None, help="Path to vocab file"
+    )
+    parser.add_argument(
+        "--index-mapping-dir", type=str, help="directory to write index mappings to"
+    )
 
     return parser.parse_args()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
 
     args = get_args()
 
     special_tokens = {}
-    special_tokens['additional_special_tokens'] = [f'<extra_id_{i}>' for i in range(100)]
+    special_tokens["additional_special_tokens"] = [
+        f"<extra_id_{i}>" for i in range(100)
+    ]
     tokenizer = get_nmt_tokenizer(
         "megatron",
         "BertWordPieceCase",
@@ -112,7 +128,10 @@ if __name__ == '__main__':
         every_n_train_steps=5000,
         save_optim_on_train_end=True,
     )
-    callbacks = [checkpoint_callback, AssertOptimizerParamGroupsHaveAtLeastTwoWeightDecays()]
+    callbacks = [
+        checkpoint_callback,
+        AssertOptimizerParamGroupsHaveAtLeastTwoWeightDecays(),
+    ]
 
     resume = nl.AutoResume(
         resume_if_exists=True,
@@ -120,7 +139,7 @@ if __name__ == '__main__':
     )
 
     opt_config = OptimizerConfig(
-        optimizer='adam',
+        optimizer="adam",
         lr=0.0001,
         use_distributed_optimizer=False,
         bf16=True,

@@ -33,9 +33,9 @@ def main(cfg: DictConfig) -> None:
     pl.seed_everything(42)
     # PTL 2.0 has find_unused_parameters as False by default, so its required to set it to True
     # when there are unused parameters like here
-    if cfg.trainer.strategy == 'ddp':
+    if cfg.trainer.strategy == "ddp":
         cfg.trainer.strategy = "ddp_find_unused_parameters_true"
-    logging.info(f'Config: {OmegaConf.to_yaml(cfg)}')
+    logging.info(f"Config: {OmegaConf.to_yaml(cfg)}")
     trainer = pl.Trainer(**cfg.trainer)
     exp_dir = exp_manager(trainer, cfg.get("exp_manager", None))
 
@@ -49,19 +49,23 @@ def main(cfg: DictConfig) -> None:
     ):
         model_class = S2SQAModel
 
-    if cfg.pretrained_model or (cfg.model.nemo_path and os.path.exists(cfg.model.nemo_path)):
+    if cfg.pretrained_model or (
+        cfg.model.nemo_path and os.path.exists(cfg.model.nemo_path)
+    ):
         if cfg.pretrained_model:
-            logging.info(f'Loading pretrained model {cfg.pretrained_model}')
+            logging.info(f"Loading pretrained model {cfg.pretrained_model}")
             model = model_class.from_pretrained(cfg.pretrained_model)
         else:
-            logging.info(f'Restoring model from {cfg.model.nemo_path}')
+            logging.info(f"Restoring model from {cfg.model.nemo_path}")
             model = model_class.restore_from(cfg.model.nemo_path)
 
         if cfg.do_training:
             model.setup_training_data(train_data_config=cfg.model.train_ds)
-            model.setup_multiple_validation_data(val_data_config=cfg.model.validation_ds)
+            model.setup_multiple_validation_data(
+                val_data_config=cfg.model.validation_ds
+            )
     else:
-        logging.info(f'Config: {OmegaConf.to_yaml(cfg)}')
+        logging.info(f"Config: {OmegaConf.to_yaml(cfg)}")
         model = model_class(cfg.model, trainer=trainer)
 
     if cfg.do_training:
@@ -69,9 +73,13 @@ def main(cfg: DictConfig) -> None:
         if cfg.model.nemo_path:
             model.save_to(cfg.model.nemo_path)
 
-    if hasattr(cfg.model, 'test_ds') and cfg.model.test_ds.file is not None:
-        eval_device = [cfg.trainer.devices[0]] if isinstance(cfg.trainer.devices, list) else 1
-        trainer = pl.Trainer(devices=eval_device, accelerator=cfg.trainer.accelerator, precision=16)
+    if hasattr(cfg.model, "test_ds") and cfg.model.test_ds.file is not None:
+        eval_device = (
+            [cfg.trainer.devices[0]] if isinstance(cfg.trainer.devices, list) else 1
+        )
+        trainer = pl.Trainer(
+            devices=eval_device, accelerator=cfg.trainer.accelerator, precision=16
+        )
         model.setup_test_data(test_data_config=cfg.model.test_ds)
         trainer.test(model)
 
@@ -79,7 +87,9 @@ def main(cfg: DictConfig) -> None:
         output_nbest_file = None
         # specifiy .json file to dump predictions. e.g. os.path.join(exp_dir, "output_prediction_file.json")
         output_prediction_file = None
-        inference_samples = 5  # for test purposes. To use entire inference dataset set to -1
+        inference_samples = (
+            5  # for test purposes. To use entire inference dataset set to -1
+        )
         all_preds, all_nbest = model.inference(
             cfg.model.test_ds.file,
             output_prediction_file=output_prediction_file,

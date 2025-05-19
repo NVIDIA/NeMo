@@ -93,21 +93,23 @@ class TestStarcoder_15B:
 
         # Check PEFT configuration
         assert isinstance(recipe.peft, run.Config)
-        assert recipe.peft.__fn_or_cls__ == PEFT_STR2CLS['lora']
+        assert recipe.peft.__fn_or_cls__ == PEFT_STR2CLS["lora"]
         assert recipe.optim.config.lr == 1e-4
 
     def test_finetune_recipe_with_dora(self, recipe_module):
-        recipe = recipe_module.finetune_recipe(peft_scheme='dora')
+        recipe = recipe_module.finetune_recipe(peft_scheme="dora")
         assert isinstance(recipe.peft, run.Config)
-        assert recipe.peft.__fn_or_cls__ == PEFT_STR2CLS['dora']
+        assert recipe.peft.__fn_or_cls__ == PEFT_STR2CLS["dora"]
         assert recipe.optim.config.lr == 1e-4
 
     def test_finetune_recipe_without_peft(self, recipe_module):
         recipe = recipe_module.finetune_recipe(peft_scheme=None)
-        assert not hasattr(recipe, 'peft') or recipe.peft is None
+        assert not hasattr(recipe, "peft") or recipe.peft is None
         assert recipe.trainer.strategy.pipeline_model_parallel_size == 8
         assert recipe.optim.config.lr == 5e-6
 
     def test_finetune_recipe_with_invalid_peft(self, recipe_module):
-        with pytest.raises(ValueError, match="Unrecognized peft scheme: invalid_scheme"):
+        with pytest.raises(
+            ValueError, match="Unrecognized peft scheme: invalid_scheme"
+        ):
             recipe_module.finetune_recipe(peft_scheme="invalid_scheme")

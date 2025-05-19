@@ -68,14 +68,21 @@ except (ImportError, ModuleNotFoundError):
     HAVE_MEGATRON_CORE = False
 
 
-DSET_TYPE_BERT = 'standard_bert'
-DSET_TYPE_ICT = 'ict'
-DSET_TYPE_T5 = 't5'
-DSET_TYPE_T5_LM = 't5_prefix_lm'
-DSET_TYPE_BART = 'bart'
-DSET_TYPE_UL2 = 'ul2'
+DSET_TYPE_BERT = "standard_bert"
+DSET_TYPE_ICT = "ict"
+DSET_TYPE_T5 = "t5"
+DSET_TYPE_T5_LM = "t5_prefix_lm"
+DSET_TYPE_BART = "bart"
+DSET_TYPE_UL2 = "ul2"
 
-DSET_TYPES = [DSET_TYPE_BERT, DSET_TYPE_ICT, DSET_TYPE_T5, DSET_TYPE_T5_LM, DSET_TYPE_BART, DSET_TYPE_UL2]
+DSET_TYPES = [
+    DSET_TYPE_BERT,
+    DSET_TYPE_ICT,
+    DSET_TYPE_T5,
+    DSET_TYPE_T5_LM,
+    DSET_TYPE_BART,
+    DSET_TYPE_UL2,
+]
 
 
 def compile_helper():
@@ -83,7 +90,7 @@ def compile_helper():
     is invoked on a single process."""
 
     path = os.path.abspath(os.path.dirname(__file__))
-    ret = subprocess.run(['make', '-C', path])
+    ret = subprocess.run(["make", "-C", path])
     if ret.returncode != 0:
         logging.error("Making C++ dataset helpers module failed, exiting.")
         import sys
@@ -97,7 +104,7 @@ def get_a_and_b_segments(sample, np_rng):
     # Number of sentences in the sample.
     n_sentences = len(sample)
     # Make sure we always have two sentences.
-    assert n_sentences > 1, 'make sure each sample has at least two sentences.'
+    assert n_sentences > 1, "make sure each sample has at least two sentences."
 
     # First part:
     # `a_end` is how many sentences go into the `A`.
@@ -205,7 +212,9 @@ def create_masked_lm_predictions(
     """Creates the predictions for the masked LM objective.
     Note: Tokens here are vocab ids and not text tokens."""
     if not geometric_dist and mean_ngram_size is not None:
-        raise ValueError(f"Mean ngram size is only supported for geometric distribution.")
+        raise ValueError(
+            f"Mean ngram size is only supported for geometric distribution."
+        )
 
     cand_indexes = []
     # Note(mingdachen): We create a list for recording if the piece is
@@ -225,7 +234,11 @@ def create_masked_lm_predictions(
         # Note that Whole Word Masking does *not* change the training code
         # at all -- we still predict each WordPiece independently, softmaxed
         # over the entire vocabulary.
-        if whole_word_masking and len(cand_indexes) >= 1 and not is_start_piece(vocab_id_to_token_dict[token]):
+        if (
+            whole_word_masking
+            and len(cand_indexes) >= 1
+            and not is_start_piece(vocab_id_to_token_dict[token])
+        ):
             cand_indexes[-1].append(i)
         else:
             cand_indexes.append([i])
@@ -240,12 +253,14 @@ def create_masked_lm_predictions(
     if masked_lm_prob == 0:
         return (output_tokens, masked_lm_positions, masked_lm_labels, token_boundary)
 
-    num_to_predict = min(max_predictions_per_seq, max(1, int(round(len(tokens) * masked_lm_prob))))
+    num_to_predict = min(
+        max_predictions_per_seq, max(1, int(round(len(tokens) * masked_lm_prob)))
+    )
     if masking_style != "bert":
         num_to_predict = max(1, num_to_predict)
     if num_to_predict < 1:
         logging.warning(
-            F'Number of tokens is : {len(tokens)} and mask_probability is {masked_lm_prob}. None of the tokens will be masked'
+            f"Number of tokens is : {len(tokens)} and mask_probability is {masked_lm_prob}. None of the tokens will be masked"
         )
 
     ngrams = np.arange(1, max_ngram_size + 1, dtype=np.int64)
@@ -263,7 +278,11 @@ def create_masked_lm_predictions(
         for n in ngrams:
             # Skip this ngram if it contains the index of token that should not be masked.
             # TODO: (sandeepsub) Generalize this to be a list of tokens that cannot be masked.
-            if skip_mask_idx is not None and skip_mask_idx >= idx and skip_mask_idx <= idx + n:
+            if (
+                skip_mask_idx is not None
+                and skip_mask_idx >= idx
+                and skip_mask_idx <= idx + n
+            ):
                 continue
             ngram_index[n] = cand_indexes[idx : idx + n]
         ngram_indexes.append(ngram_index)
@@ -340,7 +359,9 @@ def create_masked_lm_predictions(
                         masked_token = tokens[index]
                     # 10% of the time, replace with random word
                     else:
-                        masked_token = vocab_id_list[np_rng.randint(0, len(vocab_id_list))]
+                        masked_token = vocab_id_list[
+                            np_rng.randint(0, len(vocab_id_list))
+                        ]
             elif masking_style == "t5":
                 masked_token = mask_id
             elif masking_style == "bart":
@@ -351,7 +372,11 @@ def create_masked_lm_predictions(
             output_tokens[index] = masked_token
             masked_lms.append(MaskedLmInstance(index=index, label=tokens[index]))
 
-        masked_spans.append(MaskedLmInstance(index=index_set, label=[tokens[index] for index in index_set]))
+        masked_spans.append(
+            MaskedLmInstance(
+                index=index_set, label=[tokens[index] for index in index_set]
+            )
+        )
 
     assert len(masked_lms) <= num_to_predict
     np_rng.shuffle(ngram_indexes)
@@ -359,7 +384,9 @@ def create_masked_lm_predictions(
     select_indexes = set()
     if permutation:
         if skip_masking_id is not None:
-            raise ValueError(f"permutation=True is not supported when skip_masking_id is not None.")
+            raise ValueError(
+                f"permutation=True is not supported when skip_masking_id is not None."
+            )
         for cand_index_set in ngram_indexes:
             if len(select_indexes) >= num_to_predict:
                 break
@@ -374,7 +401,8 @@ def create_masked_lm_predictions(
 
             n = np.random.choice(
                 ngrams[: len(cand_index_set)],
-                p=pvals[: len(cand_index_set)] / pvals[: len(cand_index_set)].sum(keepdims=True),
+                p=pvals[: len(cand_index_set)]
+                / pvals[: len(cand_index_set)].sum(keepdims=True),
             )
             index_set = sum(cand_index_set[n - 1], [])
             n -= 1
@@ -415,7 +443,13 @@ def create_masked_lm_predictions(
     for p in masked_lms:
         masked_lm_positions.append(p.index)
         masked_lm_labels.append(p.label)
-    return (output_tokens, masked_lm_positions, masked_lm_labels, token_boundary, masked_spans)
+    return (
+        output_tokens,
+        masked_lm_positions,
+        masked_lm_labels,
+        token_boundary,
+        masked_spans,
+    )
 
 
 def _truncate_to_nearest(cand_index_set, n):
@@ -447,13 +481,18 @@ def create_extreme_masked_lm_predictions(
     masked_lm_positions = []
     masked_lm_labels = []
 
-    num_to_predict = int(min(max_predictions_per_seq, max(1, int(round(len(tokens) * masked_lm_prob)))))
+    num_to_predict = int(
+        min(max_predictions_per_seq, max(1, int(round(len(tokens) * masked_lm_prob))))
+    )
     # If the number of tokens to predict is less than the min ngram size, clam it to max predictions.
     min_ngram_size = int(min(num_to_predict, min_ngram_size))
 
     ngrams = np.arange(min_ngram_size, max_ngram_size + 1, dtype=np.int64)
     if span_length_distribution == "uniform":
-        pvals = np.array([1.0 / (max_ngram_size - min_ngram_size + 1)] * (max_ngram_size - min_ngram_size + 1))
+        pvals = np.array(
+            [1.0 / (max_ngram_size - min_ngram_size + 1)]
+            * (max_ngram_size - min_ngram_size + 1)
+        )
 
     ngram_indexes = []
     if skip_masking_id is not None:
@@ -471,7 +510,11 @@ def create_extreme_masked_lm_predictions(
         for n in ngrams:
             # Skip this ngram if it contains the index of token that should not be masked.
             # TODO: (sandeepsub) Generalize this to be a list of tokens that cannot be masked.
-            if skip_mask_idx is not None and skip_mask_idx >= idx and skip_mask_idx <= idx + n:
+            if (
+                skip_mask_idx is not None
+                and skip_mask_idx >= idx
+                and skip_mask_idx <= idx + n
+            ):
                 continue
             ngram_index[n] = cand_indexes[idx : idx + n]
         ngram_indexes.append(ngram_index)
@@ -514,8 +557,18 @@ def create_extreme_masked_lm_predictions(
             n = int(np.clip(n, min_ngram_size, max_ngram_size))
         elif span_length_distribution == LengthDistribution.truncated_normal:
             # Sampling "n" from a truncated normal distribution.
-            mu = mean_ngram_size if mean_ngram_size is not None else (max_ngram_size - min_ngram_size) // 2
-            n = int(np.clip(np_rng.normal(loc=mu, scale=np.sqrt(mu)), min_ngram_size, max_ngram_size))
+            mu = (
+                mean_ngram_size
+                if mean_ngram_size is not None
+                else (max_ngram_size - min_ngram_size) // 2
+            )
+            n = int(
+                np.clip(
+                    np_rng.normal(loc=mu, scale=np.sqrt(mu)),
+                    min_ngram_size,
+                    max_ngram_size,
+                )
+            )
             if n not in cand_index_set:
                 n = _truncate_to_nearest(cand_index_set, n)
                 n = int(np.clip(n, min_ngram_size, max_ngram_size))
@@ -548,7 +601,11 @@ def create_extreme_masked_lm_predictions(
             output_tokens[index] = mask_id
             masked_lms.append(MaskedLmInstance(index=index, label=tokens[index]))
 
-        masked_spans.append(MaskedLmInstance(index=index_set, label=[tokens[index] for index in index_set]))
+        masked_spans.append(
+            MaskedLmInstance(
+                index=index_set, label=[tokens[index] for index in index_set]
+            )
+        )
 
     assert len(masked_lms) <= num_to_predict
     np_rng.shuffle(ngram_indexes)
@@ -563,7 +620,9 @@ def create_extreme_masked_lm_predictions(
     return (output_tokens, masked_lm_positions, masked_lm_labels, masked_spans)
 
 
-def pad_and_convert_to_numpy(tokens, tokentypes, masked_positions, masked_labels, pad_id, max_seq_length):
+def pad_and_convert_to_numpy(
+    tokens, tokentypes, masked_positions, masked_labels, pad_id, max_seq_length
+):
     """Pad sequences and convert them to numpy."""
 
     # Some checks.
@@ -605,7 +664,7 @@ def get_dataset(
     short_seq_prob,
     binary_head,
     max_seq_length_dec,
-    dataset_type='standard_bert',
+    dataset_type="standard_bert",
     tokenizer=None,
     max_ngram_size=3,
     mean_ngram_size=None,
@@ -635,7 +694,7 @@ def get_dataset(
 
     if dataset_type == DSET_TYPE_ICT:
         raise NotImplementedError("ICT dataset is not implemented yet.")
-        '''
+        """
         dataset = ICTDataset(
             block_dataset=indexed_dataset,
             title_dataset=title_dataset,
@@ -644,7 +703,7 @@ def get_dataset(
             binary_head=binary_head,
             **kwargs,
         )
-        '''
+        """
     elif dataset_type == DSET_TYPE_T5:
         assert tokenizer is not None, "Tokenizer is required for T5 dataset"
         logging.info("Instatiating T5 Dataset ...")
@@ -721,7 +780,9 @@ def get_dataset(
         extreme_ngram_span_length_distribution = cfg.data.get(
             "extreme_ngram_span_length_distribution", "truncated_normal"
         )
-        ngram_span_length_distribution = cfg.data.get("ngram_span_length_distribution", "geometric")
+        ngram_span_length_distribution = cfg.data.get(
+            "ngram_span_length_distribution", "geometric"
+        )
         if extreme_ngram_span_length_distribution == "truncated_normal":
             extreme_ngram_span_length_distribution = LengthDistribution.truncated_normal
         elif extreme_ngram_span_length_distribution == "uniform":
@@ -793,13 +854,18 @@ def build_dataset(
 ):
     def _build_dataset(current_data_prefix, current_num_samples):
         indexed_dataset = get_indexed_dataset_(
-            current_data_prefix, data_impl, skip_warmup, data_impl_kwargs=data_impl_kwargs
+            current_data_prefix,
+            data_impl,
+            skip_warmup,
+            data_impl_kwargs=data_impl_kwargs,
         )
         total_num_of_documents = indexed_dataset.sizes.shape[0]
         # Print stats about the splits.
-        logging.info(' > dataset split:')
-        logging.info('     Total {} documents is : {} '.format(name, total_num_of_documents))
-        if hasattr(indexed_dataset, 'get_doc_idx'):
+        logging.info(" > dataset split:")
+        logging.info(
+            "     Total {} documents is : {} ".format(name, total_num_of_documents)
+        )
+        if hasattr(indexed_dataset, "get_doc_idx"):
             doc_idx_ptr = indexed_dataset.get_doc_idx()
             indexed_dataset.set_doc_idx(doc_idx_ptr[0:total_num_of_documents])
 
@@ -837,7 +903,7 @@ def build_dataset(
         )
 
         # Set the original pointer so dataset remains the main dataset.
-        if hasattr(indexed_dataset, 'set_doc_idx'):
+        if hasattr(indexed_dataset, "set_doc_idx"):
             indexed_dataset.set_doc_idx(doc_idx_ptr)
         # Checks.
         assert indexed_dataset.doc_idx[0] == 0
@@ -871,7 +937,7 @@ def build_train_valid_test_datasets(
     skip_warmup,
     binary_head=False,
     max_seq_length_dec=None,
-    dataset_type='standard_bert',
+    dataset_type="standard_bert",
     tokenizer=None,
     max_ngram_size=3,
     mean_ngram_size=None,
@@ -900,10 +966,14 @@ def build_train_valid_test_datasets(
         )
 
     if data_impl in ["mock"]:
-        logging.info(f'Initializing mock dataset, type {dataset_type}, for train, validate, and test')
+        logging.info(
+            f"Initializing mock dataset, type {dataset_type}, for train, validate, and test"
+        )
         if len(data_prefix) != 0:
             # Files from this location will not be read; mock data will be generated instead.
-            logging.warning(f"Requested data_impl={data_impl}, so ignoring data_prefix setting: {data_prefix}")
+            logging.warning(
+                f"Requested data_impl={data_impl}, so ignoring data_prefix setting: {data_prefix}"
+            )
         if dataset_type == DSET_TYPE_T5:
             from nemo.collections.nlp.data.language_modeling.megatron.t5_dataset import \
                 MockT5Dataset
@@ -940,16 +1010,21 @@ def build_train_valid_test_datasets(
             )
             return train_ds, valid_ds, test_ds
         else:
-            raise NotImplementedError(f"Mock dataset is not implemented for requested type: {dataset_type}")
+            raise NotImplementedError(
+                f"Mock dataset is not implemented for requested type: {dataset_type}"
+            )
 
     if isinstance(data_prefix, DictConfig):
         assert (
-            data_prefix.get('train') is not None
-            and data_prefix.get('test') is not None
-            and data_prefix.get('validation') is not None
+            data_prefix.get("train") is not None
+            and data_prefix.get("test") is not None
+            and data_prefix.get("validation") is not None
         ), f"Data prefix dictionary should have train, test and validation keys.  data_prefix currently has only {data_prefix.keys()}"
         if cfg.data.splits_string is not None:
-            logging.warning(cfg.data.splits_string + " ignored since data prefix is of type dictionary.")
+            logging.warning(
+                cfg.data.splits_string
+                + " ignored since data prefix is of type dictionary."
+            )
         train_ds = build_dataset(
             cfg,
             trainer,
@@ -1061,7 +1136,9 @@ def build_train_valid_test_datasets(
             )
         # Blending dataset.
         # Parse the values.
-        output = get_datasets_weights_and_num_samples(data_prefix, train_valid_test_num_samples)
+        output = get_datasets_weights_and_num_samples(
+            data_prefix, train_valid_test_num_samples
+        )
         prefixes, weights, datasets_train_valid_test_num_samples = output
         train_n, valid_n, test_n = map(sum, zip(*datasets_train_valid_test_num_samples))
 
@@ -1131,7 +1208,7 @@ def _build_train_valid_test_datasets(
     skip_warmup,
     binary_head,
     max_seq_length_dec,
-    dataset_type='standard_bert',
+    dataset_type="standard_bert",
     tokenizer=None,
     max_ngram_size=3,
     mean_ngram_size=None,
@@ -1145,7 +1222,9 @@ def _build_train_valid_test_datasets(
 ):
 
     # Indexed dataset.
-    indexed_dataset = get_indexed_dataset_(data_prefix, data_impl, skip_warmup, data_impl_kwargs=data_impl_kwargs)
+    indexed_dataset = get_indexed_dataset_(
+        data_prefix, data_impl, skip_warmup, data_impl_kwargs=data_impl_kwargs
+    )
 
     # if dataset_type == DSET_TYPE_ICT:
     #     title_dataset = get_indexed_dataset_(args.titles_data_path, data_impl, skip_warmup)
@@ -1157,24 +1236,26 @@ def _build_train_valid_test_datasets(
     splits = get_train_valid_test_split_(splits_string, total_num_of_documents)
 
     # Print stats about the splits.
-    logging.info(' > dataset split:')
+    logging.info(" > dataset split:")
 
     def print_split_stats(name, index):
-        logging.info('    {}:'.format(name))
+        logging.info("    {}:".format(name))
         logging.info(
-            '     document indices in [{}, {}) total of {} '
-            'documents'.format(splits[index], splits[index + 1], splits[index + 1] - splits[index])
+            "     document indices in [{}, {}) total of {} "
+            "documents".format(
+                splits[index], splits[index + 1], splits[index + 1] - splits[index]
+            )
         )
         start_index = indexed_dataset.doc_idx[splits[index]]
         end_index = indexed_dataset.doc_idx[splits[index + 1]]
         logging.info(
-            '     sentence indices in [{}, {}) total of {} '
-            'sentences'.format(start_index, end_index, end_index - start_index)
+            "     sentence indices in [{}, {}) total of {} "
+            "sentences".format(start_index, end_index, end_index - start_index)
         )
 
-    print_split_stats('train', 0)
-    print_split_stats('validation', 1)
-    print_split_stats('test', 2)
+    print_split_stats("train", 0)
+    print_split_stats("validation", 1)
+    print_split_stats("test", 2)
 
     def build_dataset(index, name):
         # from nemo.collections.nlp.data.language_modeling.megatron.ict_dataset import ICTDataset
@@ -1192,14 +1273,14 @@ def _build_train_valid_test_datasets(
         dataset = None
         if splits[index + 1] > splits[index]:
             # Get the pointer to the original doc-idx so we can set it later.
-            if hasattr(indexed_dataset, 'get_doc_idx'):
+            if hasattr(indexed_dataset, "get_doc_idx"):
                 doc_idx_ptr = indexed_dataset.get_doc_idx()
             # Slice the doc-idx
             start_index = splits[index]
             # Add +1 so we can index into the dataset to get the upper bound.
             end_index = splits[index + 1] + 1
             # New doc_idx view.
-            if hasattr(indexed_dataset, 'set_doc_idx'):
+            if hasattr(indexed_dataset, "set_doc_idx"):
                 indexed_dataset.set_doc_idx(doc_idx_ptr[start_index:end_index])
             # Build the dataset accordingly.
             kwargs = dict(
@@ -1236,38 +1317,45 @@ def _build_train_valid_test_datasets(
             )
 
             # Set the original pointer so dataset remains the main dataset.
-            if hasattr(indexed_dataset, 'set_doc_idx'):
+            if hasattr(indexed_dataset, "set_doc_idx"):
                 indexed_dataset.set_doc_idx(doc_idx_ptr)
             # Checks.
-            if getattr(indexed_dataset, 'doc_idx', None) is not None:
+            if getattr(indexed_dataset, "doc_idx", None) is not None:
                 assert indexed_dataset.doc_idx[0] == 0
                 assert indexed_dataset.doc_idx.shape[0] == (total_num_of_documents + 1)
 
             return dataset
 
-    train_dataset = build_dataset(0, 'train')
-    valid_dataset = build_dataset(1, 'valid')
-    test_dataset = build_dataset(2, 'test')
+    train_dataset = build_dataset(0, "train")
+    valid_dataset = build_dataset(1, "valid")
+    test_dataset = build_dataset(2, "test")
 
     return (train_dataset, valid_dataset, test_dataset)
 
 
 def get_indexed_dataset_(data_prefix, data_impl, skip_warmup, data_impl_kwargs={}):
 
-    logging.info(' > building dataset index ...')
+    logging.info(" > building dataset index ...")
 
     start_time = time.time()
-    indexed_dataset = make_indexed_dataset(data_prefix, data_impl, skip_warmup, impl_kwargs=data_impl_kwargs)
-    if data_impl in ['text_mmap', 'csv_mmap']:
+    indexed_dataset = make_indexed_dataset(
+        data_prefix, data_impl, skip_warmup, impl_kwargs=data_impl_kwargs
+    )
+    if data_impl in ["text_mmap", "csv_mmap"]:
         # make csv/text memmap compatible with Megatron sampling
         make_indexed_dataset_compatibility(indexed_dataset)
 
     assert indexed_dataset.sizes.shape[0] == indexed_dataset.doc_idx[-1]
-    logging.info(' > finished creating indexed dataset in {:4f} ' 'seconds'.format(time.time() - start_time))
+    logging.info(
+        " > finished creating indexed dataset in {:4f} "
+        "seconds".format(time.time() - start_time)
+    )
 
-    logging.info(' > indexed dataset stats:')
-    logging.info('    number of documents: {}'.format(indexed_dataset.doc_idx.shape[0] - 1))
-    logging.info('    number of sentences: {}'.format(indexed_dataset.sizes.shape[0]))
+    logging.info(" > indexed dataset stats:")
+    logging.info(
+        "    number of documents: {}".format(indexed_dataset.doc_idx.shape[0] - 1)
+    )
+    logging.info("    number of sentences: {}".format(indexed_dataset.sizes.shape[0]))
 
     return indexed_dataset
 
@@ -1297,28 +1385,36 @@ def get_samples_mapping(
 
     # Filename of the index mapping
     if index_mapping_dir is not None:
-        indexmap_filename = os.path.join(index_mapping_dir, os.path.basename(data_prefix))
+        indexmap_filename = os.path.join(
+            index_mapping_dir, os.path.basename(data_prefix)
+        )
     else:
         indexmap_filename = data_prefix
-    indexmap_filename += '_{}_indexmap'.format(name)
+    indexmap_filename += "_{}_indexmap".format(name)
     if num_epochs != (np.iinfo(np.int32).max - 1):
-        indexmap_filename += '_{}ep'.format(num_epochs)
+        indexmap_filename += "_{}ep".format(num_epochs)
     if max_num_samples != (np.iinfo(np.int64).max - 1):
-        indexmap_filename += '_{}mns'.format(max_num_samples)
-    indexmap_filename += '_{}msl'.format(max_seq_length)
-    indexmap_filename += '_{:0.2f}ssp'.format(short_seq_prob)
-    indexmap_filename += '_{}s'.format(seed)
-    indexmap_filename += '.npy'
+        indexmap_filename += "_{}mns".format(max_num_samples)
+    indexmap_filename += "_{}msl".format(max_seq_length)
+    indexmap_filename += "_{:0.2f}ssp".format(short_seq_prob)
+    indexmap_filename += "_{}s".format(seed)
+    indexmap_filename += ".npy"
 
     # Build the indexed mapping if not exist and not provided externally.
-    if samples_mapping is None and torch.distributed.get_rank() == 0 and not os.path.isfile(indexmap_filename):
+    if (
+        samples_mapping is None
+        and torch.distributed.get_rank() == 0
+        and not os.path.isfile(indexmap_filename)
+    ):
         # Fake index mapping if missing
-        if (getattr(indexed_dataset, 'doc_idx', None) is None) and (getattr(indexed_dataset, 'sizes', None) is None):
+        if (getattr(indexed_dataset, "doc_idx", None) is None) and (
+            getattr(indexed_dataset, "sizes", None) is None
+        ):
             make_indexed_dataset_compatibility(indexed_dataset)
 
         print(
-            ' > WARNING: could not find index map file {}, building '
-            'the indices on rank 0 ...'.format(indexmap_filename)
+            " > WARNING: could not find index map file {}, building "
+            "the indices on rank 0 ...".format(indexmap_filename)
         )
 
         # Make sure the types match the helpers input types.
@@ -1328,7 +1424,7 @@ def get_samples_mapping(
         # Build samples mapping
         verbose = torch.distributed.get_rank() == 0
         start_time = time.time()
-        logging.info(' > building samples index mapping for {} ...'.format(name))
+        logging.info(" > building samples index mapping for {} ...".format(name))
         # First compile and then import.
         try:
             if is_global_rank_zero():
@@ -1337,7 +1433,7 @@ def get_samples_mapping(
                 helpers
         except ImportError:
             raise ImportError(
-                f'Could not compile megatron dataset C++ helper functions and therefore cannot import helpers python file.'
+                f"Could not compile megatron dataset C++ helper functions and therefore cannot import helpers python file."
             )
         samples_mapping = helpers.build_mapping(
             indexed_dataset.doc_idx,
@@ -1350,33 +1446,45 @@ def get_samples_mapping(
             verbose,
             2 if binary_head else 1,
         )
-        logging.info(' > done building samples index maping')
+        logging.info(" > done building samples index maping")
         np.save(indexmap_filename, samples_mapping, allow_pickle=True)
-        logging.info(' > saved the index mapping in {}'.format(indexmap_filename))
+        logging.info(" > saved the index mapping in {}".format(indexmap_filename))
         # Make sure all the ranks have built the mapping
         logging.info(
-            ' > elasped time to build and save samples mapping ' '(seconds): {:4f}'.format(time.time() - start_time)
+            " > elasped time to build and save samples mapping "
+            "(seconds): {:4f}".format(time.time() - start_time)
         )
 
     if sanity_check_dist_workers:
         torch.distributed.barrier()
         counts = torch.cuda.LongTensor([1])
-        torch.distributed.all_reduce(counts, group=parallel_state.get_data_parallel_group(with_context_parallel=True))
-        torch.distributed.all_reduce(counts, group=parallel_state.get_pipeline_model_parallel_group())
+        torch.distributed.all_reduce(
+            counts,
+            group=parallel_state.get_data_parallel_group(with_context_parallel=True),
+        )
+        torch.distributed.all_reduce(
+            counts, group=parallel_state.get_pipeline_model_parallel_group()
+        )
         assert counts[0].item() == (
             torch.distributed.get_world_size()
-            // torch.distributed.get_world_size(group=parallel_state.get_tensor_model_parallel_group())
+            // torch.distributed.get_world_size(
+                group=parallel_state.get_tensor_model_parallel_group()
+            )
         )
     # Load indexed dataset if not given externally.
     if samples_mapping is None:
-        logging.info(' > loading indexed mapping from {}'.format(indexmap_filename))
+        logging.info(" > loading indexed mapping from {}".format(indexmap_filename))
         start_time = time.time()
-        samples_mapping = np.load(indexmap_filename, allow_pickle=True, mmap_mode='r')
-        logging.info('    loaded indexed file in {:3.3f} seconds'.format(time.time() - start_time))
-        logging.info('    total number of samples: {}'.format(samples_mapping.shape[0]))
+        samples_mapping = np.load(indexmap_filename, allow_pickle=True, mmap_mode="r")
+        logging.info(
+            "    loaded indexed file in {:3.3f} seconds".format(
+                time.time() - start_time
+            )
+        )
+        logging.info("    total number of samples: {}".format(samples_mapping.shape[0]))
 
     # Deallocate temporary numpy arrays that were created for `get_samples_mapping()` when needed
-    if hasattr(indexed_dataset, 'doc_idx') and hasattr(indexed_dataset, 'sizes'):
+    if hasattr(indexed_dataset, "doc_idx") and hasattr(indexed_dataset, "sizes"):
         deallocate_indexed_dataset_memory(indexed_dataset)
 
     return samples_mapping

@@ -45,25 +45,29 @@ def test_euler_sampler_nfe(num_steps):
     counter_hook = ForwardCounterHook()
     estimator.register_forward_hook(counter_hook)
 
-    sampler = ConditionalFlowMatchingEulerSampler(estimator=estimator, num_steps=num_steps)
+    sampler = ConditionalFlowMatchingEulerSampler(
+        estimator=estimator, num_steps=num_steps
+    )
 
     b, c, d, l = 2, 3, 4, 5
     lengths = [5, 3]
     init_state = torch.randn(b, c, d, l)
     init_state_length = torch.LongTensor(lengths)
 
-    sampler.forward(state=init_state, estimator_condition=None, state_length=init_state_length)
+    sampler.forward(
+        state=init_state, estimator_condition=None, state_length=init_state_length
+    )
 
     assert counter_hook.counter == sampler.num_steps
 
 
-@pytest.mark.parametrize('time_min', TIMES_MIN)
-@pytest.mark.parametrize('time_max', TIMES_MAX)
+@pytest.mark.parametrize("time_min", TIMES_MIN)
+@pytest.mark.parametrize("time_max", TIMES_MAX)
 def test_time_generation_bounds_optimal_transport(time_min, time_max):
     """
     This test uses a flow with certain time_min and time_max parameters to generate timepoints and checks if timepoints belong in [time_min, time_max] interval.
     """
-    rng = torch.Generator(device='cpu')
+    rng = torch.Generator(device="cpu")
     rng.manual_seed(0)
 
     flow = OptimalTransportFlow(time_min=time_min, time_max=time_max)
@@ -73,14 +77,14 @@ def test_time_generation_bounds_optimal_transport(time_min, time_max):
     assert torch.all(time <= time_max).item()
 
 
-@pytest.mark.parametrize('time_min', TIMES_MIN)
-@pytest.mark.parametrize('time_max', TIMES_MAX)
+@pytest.mark.parametrize("time_min", TIMES_MIN)
+@pytest.mark.parametrize("time_max", TIMES_MAX)
 def test_time_generation_bounds_optimal_transport_negative_examples(time_min, time_max):
     """
     This test uses a flow with certain time_min and time_max parameters, widens them, generates timepoints and checks if timepoints belong in [time_min, time_max] interval.
     Since we widen the interval when initializing the flow, we expect that after taking enough samples some of them will be outside intended interval.
     """
-    rng = torch.Generator(device='cpu')
+    rng = torch.Generator(device="cpu")
     rng.manual_seed(0)
 
     flow = OptimalTransportFlow(time_min=time_min - 0.1, time_max=time_max + 0.1)

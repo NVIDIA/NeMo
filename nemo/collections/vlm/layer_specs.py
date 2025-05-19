@@ -45,7 +45,7 @@ except ImportError:
     from megatron.core.transformer.torch_layer_norm import \
         WrappedTorchLayerNorm
 
-    warnings.warn(f'Apex is not installed. Falling back to Torch LayerNorm')
+    warnings.warn(f"Apex is not installed. Falling back to Torch LayerNorm")
     LNImpl = WrappedTorchLayerNorm
 
 
@@ -127,5 +127,7 @@ def get_norm_mlp_module_spec_te() -> ModuleSpec:
     """Norm + MLP Submodule Spec"""
     return ModuleSpec(
         module=MLP,
-        submodules=MLPSubmodules(linear_fc1=TELayerNormColumnParallelLinear, linear_fc2=TERowParallelLinear),
+        submodules=MLPSubmodules(
+            linear_fc1=TELayerNormColumnParallelLinear, linear_fc2=TERowParallelLinear
+        ),
     )

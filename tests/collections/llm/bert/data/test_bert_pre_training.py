@@ -120,18 +120,22 @@ class TestBERTPreTrainingDataModule:
         basic_datamodule.init_global_step = 50
 
         # Mock update_num_microbatches function
-        mock_update = mocker.patch('megatron.core.num_microbatches_calculator.update_num_microbatches')
+        mock_update = mocker.patch(
+            "megatron.core.num_microbatches_calculator.update_num_microbatches"
+        )
 
         # Mock data_sampler methods
-        basic_datamodule.data_sampler.compute_consumed_samples = mocker.MagicMock(return_value=1000)
+        basic_datamodule.data_sampler.compute_consumed_samples = mocker.MagicMock(
+            return_value=1000
+        )
 
         # Test state_dict
         state = basic_datamodule.state_dict()
-        assert 'consumed_samples' in state
-        assert state['consumed_samples'] == 1000
+        assert "consumed_samples" in state
+        assert state["consumed_samples"] == 1000
 
         # Test load_state_dict
-        basic_datamodule.load_state_dict({'consumed_samples': 2000})
+        basic_datamodule.load_state_dict({"consumed_samples": 2000})
 
         # Verify data_sampler values were updated
         assert basic_datamodule.data_sampler.init_consumed_samples == 2000
@@ -162,15 +166,20 @@ class TestBERTPreTrainingDataModule:
         basic_datamodule._validation_ds = mock_val_ds
 
         # Mock get_num_microbatches to return a non-zero value
-        mocker.patch('megatron.core.num_microbatches_calculator.get_num_microbatches', return_value=2)
+        mocker.patch(
+            "megatron.core.num_microbatches_calculator.get_num_microbatches",
+            return_value=2,
+        )
 
         # Test reconfiguration
         basic_datamodule.reconfigure_limit_batches()
 
         # Verify the trainer's attributes were updated correctly
-        assert basic_datamodule.trainer.limit_train_batches == 200  # 100 * 2 (num_microbatches)
+        assert (
+            basic_datamodule.trainer.limit_train_batches == 200
+        )  # 100 * 2 (num_microbatches)
 
         # Test with float limit_val_batches that would result in less than 1 batch
         mock_trainer.limit_val_batches = 0.001  # Very small value
         with pytest.raises(MisconfigurationException):
-            basic_datamodule._reconfigure_limit_batches(0.001, mock_val_ds, 'val')
+            basic_datamodule._reconfigure_limit_batches(0.001, mock_val_ds, "val")

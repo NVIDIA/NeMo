@@ -82,7 +82,9 @@ class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
         attrs = ("input_ids", "context_ids", "answer_ids")
         pre_formatted = all(hasattr(c, a) for c in cuts for a in attrs)
         if pre_formatted:
-            prompts_with_answers, prompts, answers = zip(*((c.input_ids, c.context_ids, c.answer_ids) for c in cuts))
+            prompts_with_answers, prompts, answers = zip(
+                *((c.input_ids, c.context_ids, c.answer_ids) for c in cuts)
+            )
         else:
             formatted = [apply_prompt_format_fn(cut, self.prompt) for cut in cuts]
             prompts_with_answers = [ex["input_ids"] for ex in formatted]
@@ -90,7 +92,9 @@ class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
             answers = [ex["answer_ids"] for ex in formatted]
 
         transcript, transcript_lens = self._collate_tokens(answers)
-        prompts_with_answers, prompts_with_answers_lens = self._collate_tokens(prompts_with_answers)
+        prompts_with_answers, prompts_with_answers_lens = self._collate_tokens(
+            prompts_with_answers
+        )
         prompts, prompt_lens = self._collate_tokens(prompts)
 
         return PromptedAudioToTextMiniBatch(
@@ -105,7 +109,9 @@ class PromptedAudioToTextLhotseDataset(torch.utils.data.Dataset):
             cuts=_drop_in_memory_data(cuts),
         )
 
-    def _collate_tokens(self, tokens: list[Union[list[int], torch.Tensor]]) -> tuple[torch.Tensor, torch.Tensor]:
+    def _collate_tokens(
+        self, tokens: list[Union[list[int], torch.Tensor]]
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         tokens = [torch.as_tensor(t) for t in tokens]
         token_lens = torch.tensor([t.size(0) for t in tokens], dtype=torch.long)
         tokens = collate_vectors(tokens, padding_value=self.padding_value)

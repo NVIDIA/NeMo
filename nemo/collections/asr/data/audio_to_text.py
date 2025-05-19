@@ -46,13 +46,15 @@ from nemo.utils.distributed import webdataset_split_by_workers
 from nemo.utils.get_rank import is_global_rank_zero
 
 __all__ = [
-    'AudioToCharDataset',
-    'AudioToBPEDataset',
-    'TarredAudioToCharDataset',
-    'TarredAudioToBPEDataset',
+    "AudioToCharDataset",
+    "AudioToBPEDataset",
+    "TarredAudioToCharDataset",
+    "TarredAudioToBPEDataset",
 ]
 
-VALID_FILE_FORMATS = ';'.join(['wav', 'mp3', 'flac', 'opus'] + [fmt.lower() for fmt in valid_sf_formats.keys()])
+VALID_FILE_FORMATS = ";".join(
+    ["wav", "mp3", "flac", "opus"] + [fmt.lower() for fmt in valid_sf_formats.keys()]
+)
 
 
 def _speech_collate_fn(batch, pad_id):
@@ -173,7 +175,9 @@ class ASRManifestProcessor:
         sample = self.collection[manifest_idx]
         return self.process_text_by_sample(sample)
 
-    def process_text_by_sample(self, sample: collections.ASRAudioText.OUTPUT_TYPE) -> Tuple[List[int], int]:
+    def process_text_by_sample(
+        self, sample: collections.ASRAudioText.OUTPUT_TYPE
+    ) -> Tuple[List[int], int]:
         t, tl = sample.text_tokens, len(sample.text_tokens)
 
         if self.bos_id is not None:
@@ -186,38 +190,48 @@ class ASRManifestProcessor:
         return t, tl
 
 
-def expand_sharded_filepaths(sharded_filepaths, shard_strategy: str, world_size: int, global_rank: int):
-    valid_shard_strategies = ['scatter', 'replicate']
+def expand_sharded_filepaths(
+    sharded_filepaths, shard_strategy: str, world_size: int, global_rank: int
+):
+    valid_shard_strategies = ["scatter", "replicate"]
     if shard_strategy not in valid_shard_strategies:
         raise ValueError(f"`shard_strategy` must be one of {valid_shard_strategies}")
 
     if isinstance(sharded_filepaths, str):
         # Replace '(' and '[' with '{'
-        brace_keys_open = ['(', '[', '<', '_OP_']
+        brace_keys_open = ["(", "[", "<", "_OP_"]
         for bkey in brace_keys_open:
             if bkey in sharded_filepaths:
                 sharded_filepaths = sharded_filepaths.replace(bkey, "{")
 
         # Replace ')' and ']' with '}'
-        brace_keys_close = [')', ']', '>', '_CL_']
+        brace_keys_close = [")", "]", ">", "_CL_"]
         for bkey in brace_keys_close:
             if bkey in sharded_filepaths:
                 sharded_filepaths = sharded_filepaths.replace(bkey, "}")
 
     if isinstance(sharded_filepaths, str):
         # Brace expand, set escape=False for Windows compatibility
-        sharded_filepaths = list(braceexpand.braceexpand(sharded_filepaths, escape=False))
+        sharded_filepaths = list(
+            braceexpand.braceexpand(sharded_filepaths, escape=False)
+        )
 
     # Expand store paths into WebDataset URLs
     sharded_filepaths = [
-        datastore_path_to_webdataset_url(p) if is_datastore_path(p) and is_tarred_path(p) else p
+        (
+            datastore_path_to_webdataset_url(p)
+            if is_datastore_path(p) and is_tarred_path(p)
+            else p
+        )
         for p in sharded_filepaths
     ]
 
     # Check for distributed and partition shards accordingly
     if world_size > 1:
-        if shard_strategy == 'scatter':
-            logging.info("All tarred dataset shards will be scattered evenly across all nodes.")
+        if shard_strategy == "scatter":
+            logging.info(
+                "All tarred dataset shards will be scattered evenly across all nodes."
+            )
 
             if len(sharded_filepaths) % world_size != 0:
                 logging.warning(
@@ -229,13 +243,20 @@ def expand_sharded_filepaths(sharded_filepaths, shard_strategy: str, world_size:
             end_idx = begin_idx + len(sharded_filepaths) // world_size
             sharded_filepaths = sharded_filepaths[begin_idx:end_idx]
             logging.info(
-                "Partitioning tarred dataset: process (%d) taking shards [%d, %d)", global_rank, begin_idx, end_idx
+                "Partitioning tarred dataset: process (%d) taking shards [%d, %d)",
+                global_rank,
+                begin_idx,
+                end_idx,
             )
 
-        elif shard_strategy == 'replicate':
-            logging.info("All tarred dataset shards will be replicated across all nodes.")
+        elif shard_strategy == "replicate":
+            logging.info(
+                "All tarred dataset shards will be replicated across all nodes."
+            )
         else:
-            raise ValueError(f"Invalid shard strategy ! Allowed values are : {valid_shard_strategies}")
+            raise ValueError(
+                f"Invalid shard strategy ! Allowed values are : {valid_shard_strategies}"
+            )
 
     return sharded_filepaths
 
@@ -258,7 +279,7 @@ def cache_datastore_manifests(
         max_num_workers: max number of workers to be used for download, used when setting num_workers automatically
     """
     if isinstance(manifest_filepaths, str):
-        manifest_filepaths = manifest_filepaths.split(',')
+        manifest_filepaths = manifest_filepaths.split(",")
 
     num_datastore_manifests = sum([is_datastore_path(f) for f in manifest_filepaths])
 
@@ -276,75 +297,93 @@ def cache_datastore_manifests(
                 # If manifest is on a data store, then cache it.
                 # Otherwise, nothing to do.
                 if is_datastore_path(manifest_file):
-                    logging.info('Cache manifest file: %s', manifest_file)
+                    logging.info("Cache manifest file: %s", manifest_file)
                     cached_manifest_file = DataStoreObject(manifest_file).get()
-                    logging.info('Cached at: %s', str(cached_manifest_file))
+                    logging.info("Cached at: %s", str(cached_manifest_file))
 
                     if cache_audio:
                         # Each audio file from manifest will be cached.
-                        logging.info('Cache audio from manifest file: %s', manifest_file)
+                        logging.info(
+                            "Cache audio from manifest file: %s", manifest_file
+                        )
                         # Assumes that manifest is using relative paths
                         manifest_dir = os.path.dirname(manifest_file)
                         # Prepare all store objects
                         audio_objects = []
-                        with open(cached_manifest_file, 'r') as f:
+                        with open(cached_manifest_file, "r") as f:
                             for line in f:
                                 item = json.loads(line)
-                                store_path = os.path.join(manifest_dir, item['audio_filepath'])
-                                audio_objects.append(DataStoreObject(store_path=store_path))
+                                store_path = os.path.join(
+                                    manifest_dir, item["audio_filepath"]
+                                )
+                                audio_objects.append(
+                                    DataStoreObject(store_path=store_path)
+                                )
 
                         if num_workers is not None and num_workers > 1:
-                            logging.debug('Using multiprocessing with num_workers: %d.', num_workers)
+                            logging.debug(
+                                "Using multiprocessing with num_workers: %d.",
+                                num_workers,
+                            )
                             with multiprocessing.Pool(processes=num_workers) as p:
                                 result = list(
-                                    tqdm(p.imap(datastore_object_get, audio_objects), total=len(audio_objects))
+                                    tqdm(
+                                        p.imap(datastore_object_get, audio_objects),
+                                        total=len(audio_objects),
+                                    )
                                 )
                         else:
-                            logging.debug('Using a single process.')
+                            logging.debug("Using a single process.")
                             result = []
                             for audio_object in tqdm(audio_objects):
                                 result.append(audio_object.get() is not None)
 
                         if not all(result):
-                            raise RuntimeError('Some files not downloaded successfully')
-                        logging.info('Caching complete')
+                            raise RuntimeError("Some files not downloaded successfully")
+                        logging.info("Caching complete")
 
                 else:
                     # Nothing to do here
-                    logging.debug('Manifest is not on a data store: %s', manifest_file)
+                    logging.debug("Manifest is not on a data store: %s", manifest_file)
 
         if torch.distributed.is_available() and torch.distributed.is_initialized():
-            logging.debug('Distributed environment is available and initialized.')
+            logging.debug("Distributed environment is available and initialized.")
 
             # Handle distributed environment
             if shared_cache is None:
                 shared_cache = is_datastore_cache_shared()
 
             if shared_cache:
-                logging.debug('Cache is shared among nodes, cache data on global rank zero.')
+                logging.debug(
+                    "Cache is shared among nodes, cache data on global rank zero."
+                )
                 is_rank_zero = is_global_rank_zero()
             else:
-                logging.debug('Cache is not shared among nodes, cache data on local rank zero.')
+                logging.debug(
+                    "Cache is not shared among nodes, cache data on local rank zero."
+                )
                 local_rank = int(os.environ.get("LOCAL_RANK", 0))
                 is_rank_zero = local_rank == 0
 
             if is_rank_zero:
-                logging.info('Cache data from %s rank 0', 'global' if shared_cache else 'local')
+                logging.info(
+                    "Cache data from %s rank 0", "global" if shared_cache else "local"
+                )
                 cache_data(
                     manifest_filepaths=manifest_filepaths,
                     cache_audio=cache_audio,
                     num_workers=num_workers,
                     max_num_workers=max_num_workers,
                 )
-            logging.debug('Reached barrier')
+            logging.debug("Reached barrier")
             torch.distributed.barrier()
 
         elif is_global_rank_zero():
             # Handle non-distributed environment, e.g., if running on a single GPU
             logging.warning(
-                'Torch distributed is not initialized and caching may be prone to data race conditions. '
-                'Now caching data from global rank 0. If there are other ranks and they pass this '
-                'before rank 0, errors might result.'
+                "Torch distributed is not initialized and caching may be prone to data race conditions. "
+                "Now caching data from global rank 0. If there are other ranks and they pass this "
+                "before rank 0, errors might result."
             )
             cache_data(
                 manifest_filepaths=manifest_filepaths,
@@ -354,9 +393,9 @@ def cache_datastore_manifests(
             )
         else:
             raise RuntimeError(
-                'Torch distributed is not initialized and caching on nodes other than global rank zero is disabled '
-                'to avoid race condition between different ranks. To ensure distributed environment is '
-                'initialized, please update data config to use `defer_setup = True`.'
+                "Torch distributed is not initialized and caching on nodes other than global rank zero is disabled "
+                "to avoid race condition between different ranks. To ensure distributed environment is "
+                "initialized, please update data config to use `defer_setup = True`."
             )
 
 
@@ -381,13 +420,15 @@ def shard_manifests_if_needed(
 ):
     if shard_manifests:
         if not torch.distributed.is_available():
-            logging.warning("Not running in torch.distributed mode. Manifest sharding not available")
+            logging.warning(
+                "Not running in torch.distributed mode. Manifest sharding not available"
+            )
             return manifest_filepaths
 
         if not torch.distributed.is_initialized():
             logging.warning(
-                'Manifest sharding was requested but torch.distributed is not initialized '
-                'Did you intend to set the defer_setup flag?'
+                "Manifest sharding was requested but torch.distributed is not initialized "
+                "Did you intend to set the defer_setup flag?"
             )
             return manifest_filepaths
 
@@ -432,11 +473,11 @@ class _AudioTextDataset(Dataset):
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         """Returns definitions of module output ports."""
         return {
-            'audio_signal': NeuralType(('B', 'T'), AudioSignal()),
-            'a_sig_length': NeuralType(tuple('B'), LengthsType()),
-            'transcripts': NeuralType(('B', 'T'), LabelsType()),
-            'transcript_length': NeuralType(tuple('B'), LengthsType()),
-            'sample_id': NeuralType(tuple('B'), LengthsType(), optional=True),
+            "audio_signal": NeuralType(("B", "T"), AudioSignal()),
+            "a_sig_length": NeuralType(tuple("B"), LengthsType()),
+            "transcripts": NeuralType(("B", "T"), LabelsType()),
+            "transcript_length": NeuralType(tuple("B"), LengthsType()),
+            "sample_id": NeuralType(tuple("B"), LengthsType(), optional=True),
         }
 
     def __init__(
@@ -445,7 +486,7 @@ class _AudioTextDataset(Dataset):
         parser: Union[str, Callable],
         sample_rate: int,
         int_values: bool = False,
-        augmentor: 'nemo.collections.asr.parts.perturb.AudioAugmentor' = None,
+        augmentor: "nemo.collections.asr.parts.perturb.AudioAugmentor" = None,
         max_duration: Optional[int] = None,
         min_duration: Optional[int] = None,
         max_utts: int = 0,
@@ -461,7 +502,9 @@ class _AudioTextDataset(Dataset):
             manifest_filepath = manifest_filepath.split(",")
 
         # If necessary, cache manifests and audio from object store
-        cache_datastore_manifests(manifest_filepaths=manifest_filepath, cache_audio=True)
+        cache_datastore_manifests(
+            manifest_filepaths=manifest_filepath, cache_audio=True
+        )
 
         self.manifest_processor = ASRManifestProcessor(
             manifest_filepath=manifest_filepath,
@@ -474,7 +517,9 @@ class _AudioTextDataset(Dataset):
             pad_id=pad_id,
             manifest_parse_func=manifest_parse_func,
         )
-        self.featurizer = WaveformFeaturizer(sample_rate=sample_rate, int_values=int_values, augmentor=augmentor)
+        self.featurizer = WaveformFeaturizer(
+            sample_rate=sample_rate, int_values=int_values, augmentor=augmentor
+        )
         self.trim = trim
         self.return_sample_id = return_sample_id
         self.channel_selector = channel_selector
@@ -559,11 +604,11 @@ class AudioToCharDataset(_AudioTextDataset):
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         """Returns definitions of module output ports."""
         return {
-            'audio_signal': NeuralType(('B', 'T'), AudioSignal()),
-            'a_sig_length': NeuralType(tuple('B'), LengthsType()),
-            'transcripts': NeuralType(('B', 'T'), LabelsType()),
-            'transcript_length': NeuralType(tuple('B'), LengthsType()),
-            'sample_id': NeuralType(tuple('B'), LengthsType(), optional=True),
+            "audio_signal": NeuralType(("B", "T"), AudioSignal()),
+            "a_sig_length": NeuralType(tuple("B"), LengthsType()),
+            "transcripts": NeuralType(("B", "T"), LabelsType()),
+            "transcript_length": NeuralType(tuple("B"), LengthsType()),
+            "sample_id": NeuralType(tuple("B"), LengthsType(), optional=True),
         }
 
     def __init__(
@@ -572,7 +617,7 @@ class AudioToCharDataset(_AudioTextDataset):
         labels: Union[str, List[str]],
         sample_rate: int,
         int_values: bool = False,
-        augmentor: 'nemo.collections.asr.parts.perturb.AudioAugmentor' = None,
+        augmentor: "nemo.collections.asr.parts.perturb.AudioAugmentor" = None,
         max_duration: Optional[float] = None,
         min_duration: Optional[float] = None,
         max_utts: int = 0,
@@ -583,7 +628,7 @@ class AudioToCharDataset(_AudioTextDataset):
         bos_id: Optional[int] = None,
         eos_id: Optional[int] = None,
         pad_id: int = 0,
-        parser: Union[str, Callable] = 'en',
+        parser: Union[str, Callable] = "en",
         return_sample_id: bool = False,
         channel_selector: Optional[ChannelSelectorType] = None,
         manifest_parse_func: Optional[Callable] = None,
@@ -591,7 +636,11 @@ class AudioToCharDataset(_AudioTextDataset):
         self.labels = labels
 
         parser = parsers.make_parser(
-            labels=labels, name=parser, unk_id=unk_index, blank_id=blank_index, do_normalize=normalize
+            labels=labels,
+            name=parser,
+            unk_id=unk_index,
+            blank_id=blank_index,
+            do_normalize=normalize,
         )
 
         super().__init__(
@@ -655,20 +704,20 @@ class AudioToBPEDataset(_AudioTextDataset):
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         """Returns definitions of module output ports."""
         return {
-            'audio_signal': NeuralType(('B', 'T'), AudioSignal()),
-            'a_sig_length': NeuralType(tuple('B'), LengthsType()),
-            'transcripts': NeuralType(('B', 'T'), LabelsType()),
-            'transcript_length': NeuralType(tuple('B'), LengthsType()),
-            'sample_id': NeuralType(tuple('B'), LengthsType(), optional=True),
+            "audio_signal": NeuralType(("B", "T"), AudioSignal()),
+            "a_sig_length": NeuralType(tuple("B"), LengthsType()),
+            "transcripts": NeuralType(("B", "T"), LabelsType()),
+            "transcript_length": NeuralType(tuple("B"), LengthsType()),
+            "sample_id": NeuralType(tuple("B"), LengthsType(), optional=True),
         }
 
     def __init__(
         self,
         manifest_filepath: str,
-        tokenizer: 'nemo.collections.common.tokenizers.TokenizerSpec',
+        tokenizer: "nemo.collections.common.tokenizers.TokenizerSpec",
         sample_rate: int,
         int_values: bool = False,
-        augmentor: 'nemo.collections.asr.parts.perturb.AudioAugmentor' = None,
+        augmentor: "nemo.collections.asr.parts.perturb.AudioAugmentor" = None,
         max_duration: Optional[int] = None,
         min_duration: Optional[int] = None,
         max_utts: int = 0,
@@ -678,12 +727,20 @@ class AudioToBPEDataset(_AudioTextDataset):
         channel_selector: Optional[ChannelSelectorType] = None,
         manifest_parse_func: Optional[Callable] = None,
     ):
-        if use_start_end_token and hasattr(tokenizer, "bos_id") and tokenizer.bos_id > 0:
+        if (
+            use_start_end_token
+            and hasattr(tokenizer, "bos_id")
+            and tokenizer.bos_id > 0
+        ):
             bos_id = tokenizer.bos_id
         else:
             bos_id = None
 
-        if use_start_end_token and hasattr(tokenizer, "eos_id") and tokenizer.eos_id > 0:
+        if (
+            use_start_end_token
+            and hasattr(tokenizer, "eos_id")
+            and tokenizer.eos_id > 0
+        ):
             eos_id = tokenizer.eos_id
         else:
             eos_id = None
@@ -695,7 +752,9 @@ class AudioToBPEDataset(_AudioTextDataset):
 
         class TokenizerWrapper:
             def __init__(self, tokenizer):
-                if isinstance(tokenizer, tokenizers.aggregate_tokenizer.AggregateTokenizer):
+                if isinstance(
+                    tokenizer, tokenizers.aggregate_tokenizer.AggregateTokenizer
+                ):
                     self.is_aggregate = True
                 else:
                     self.is_aggregate = False
@@ -705,7 +764,7 @@ class AudioToBPEDataset(_AudioTextDataset):
                 if isinstance(args[0], List) and self.is_aggregate:
                     t = []
                     for span in args[0]:
-                        t.extend(self._tokenizer.text_to_ids(span['str'], span['lang']))
+                        t.extend(self._tokenizer.text_to_ids(span["str"], span["lang"]))
                     return t
 
                 t = self._tokenizer.text_to_ids(*args)
@@ -731,7 +790,7 @@ class AudioToBPEDataset(_AudioTextDataset):
 
 
 @deprecated(
-    explanation='Webdataset support will be removed in v2.1.0 versions, please use LhotseSpeechToTextBpeDataset class instead'
+    explanation="Webdataset support will be removed in v2.1.0 versions, please use LhotseSpeechToTextBpeDataset class instead"
 )
 class _TarredAudioToTextDataset(IterableDataset):
     """
@@ -833,7 +892,7 @@ class _TarredAudioToTextDataset(IterableDataset):
         parser: Callable,
         sample_rate: int,
         int_values: bool = False,
-        augmentor: Optional['nemo.collections.asr.parts.perturb.AudioAugmentor'] = None,
+        augmentor: Optional["nemo.collections.asr.parts.perturb.AudioAugmentor"] = None,
         shuffle_n: int = 0,
         min_duration: Optional[float] = None,
         max_duration: Optional[float] = None,
@@ -877,7 +936,9 @@ class _TarredAudioToTextDataset(IterableDataset):
 
         self.len = self._compute_len()
 
-        self.featurizer = WaveformFeaturizer(sample_rate=sample_rate, int_values=int_values, augmentor=augmentor)
+        self.featurizer = WaveformFeaturizer(
+            sample_rate=sample_rate, int_values=int_values, augmentor=augmentor
+        )
         self.trim = trim
         self.eos_id = eos_id
         self.bos_id = bos_id
@@ -897,8 +958,8 @@ class _TarredAudioToTextDataset(IterableDataset):
             webdataset_split_by_workers,
             wds.shuffle(shuffle_n),
             wds.tarfile_to_samples(),
-            wds.rename(audio=VALID_FILE_FORMATS, key='__key__'),
-            wds.to_tuple('audio', 'key'),
+            wds.rename(audio=VALID_FILE_FORMATS, key="__key__"),
+            wds.to_tuple("audio", "key"),
             self._filter,
             self._loop_offsets,
             wds.map(self._build_sample),
@@ -1014,11 +1075,17 @@ class _TarredAudioToTextDataset(IterableDataset):
         return self._dataset.__iter__()
 
     def _compute_len(self):
-        if self.shard_manifests and torch.distributed.is_available() and torch.distributed.is_initialized():
-            my_len = torch.tensor(len(self.manifest_processor.collection), dtype=torch.int32).cuda()
+        if (
+            self.shard_manifests
+            and torch.distributed.is_available()
+            and torch.distributed.is_initialized()
+        ):
+            my_len = torch.tensor(
+                len(self.manifest_processor.collection), dtype=torch.int32
+            ).cuda()
             torch.distributed.all_reduce(my_len)
             my_len = my_len.int()
-            logging.info(f'Sharded manifests: Total length: {my_len}')
+            logging.info(f"Sharded manifests: Total length: {my_len}")
         else:
             my_len = len(self.manifest_processor.collection)
 
@@ -1126,7 +1193,7 @@ class TarredAudioToCharDataset(_TarredAudioToTextDataset):
         labels: List[str],
         sample_rate: int,
         int_values: bool = False,
-        augmentor: Optional['nemo.collections.asr.parts.perturb.AudioAugmentor'] = None,
+        augmentor: Optional["nemo.collections.asr.parts.perturb.AudioAugmentor"] = None,
         shuffle_n: int = 0,
         min_duration: Optional[float] = None,
         max_duration: Optional[float] = None,
@@ -1136,7 +1203,7 @@ class TarredAudioToCharDataset(_TarredAudioToTextDataset):
         trim: bool = False,
         bos_id: Optional[int] = None,
         eos_id: Optional[int] = None,
-        parser: Optional[str] = 'en',
+        parser: Optional[str] = "en",
         pad_id: int = 0,
         shard_strategy: str = "scatter",
         shard_manifests: bool = False,
@@ -1148,7 +1215,11 @@ class TarredAudioToCharDataset(_TarredAudioToTextDataset):
         self.labels = labels
 
         parser = parsers.make_parser(
-            labels=labels, name=parser, unk_id=unk_index, blank_id=blank_index, do_normalize=normalize
+            labels=labels,
+            name=parser,
+            unk_id=unk_index,
+            blank_id=blank_index,
+            do_normalize=normalize,
         )
 
         super().__init__(
@@ -1259,10 +1330,10 @@ class TarredAudioToBPEDataset(_TarredAudioToTextDataset):
         self,
         audio_tar_filepaths: Union[str, List[str]],
         manifest_filepath: str,
-        tokenizer: 'nemo.collections.common.tokenizers.TokenizerSpec',
+        tokenizer: "nemo.collections.common.tokenizers.TokenizerSpec",
         sample_rate: int,
         int_values: bool = False,
-        augmentor: Optional['nemo.collections.asr.parts.perturb.AudioAugmentor'] = None,
+        augmentor: Optional["nemo.collections.asr.parts.perturb.AudioAugmentor"] = None,
         shuffle_n: int = 0,
         min_duration: Optional[float] = None,
         max_duration: Optional[float] = None,
@@ -1275,12 +1346,20 @@ class TarredAudioToBPEDataset(_TarredAudioToTextDataset):
         return_sample_id: bool = False,
         manifest_parse_func: Optional[Callable] = None,
     ):
-        if use_start_end_token and hasattr(tokenizer, "bos_id") and tokenizer.bos_id > 0:
+        if (
+            use_start_end_token
+            and hasattr(tokenizer, "bos_id")
+            and tokenizer.bos_id > 0
+        ):
             bos_id = tokenizer.bos_id
         else:
             bos_id = None
 
-        if use_start_end_token and hasattr(tokenizer, "eos_id") and tokenizer.eos_id > 0:
+        if (
+            use_start_end_token
+            and hasattr(tokenizer, "eos_id")
+            and tokenizer.eos_id > 0
+        ):
             eos_id = tokenizer.eos_id
         else:
             eos_id = None
@@ -1292,7 +1371,9 @@ class TarredAudioToBPEDataset(_TarredAudioToTextDataset):
 
         class TokenizerWrapper:
             def __init__(self, tokenizer):
-                if isinstance(tokenizer, tokenizers.aggregate_tokenizer.AggregateTokenizer):
+                if isinstance(
+                    tokenizer, tokenizers.aggregate_tokenizer.AggregateTokenizer
+                ):
                     self.is_aggregate = True
                 else:
                     self.is_aggregate = False
@@ -1302,7 +1383,7 @@ class TarredAudioToBPEDataset(_TarredAudioToTextDataset):
                 if isinstance(args[0], List) and self.is_aggregate:
                     t = []
                     for span in args[0]:
-                        t.extend(self._tokenizer.text_to_ids(span['str'], span['lang']))
+                        t.extend(self._tokenizer.text_to_ids(span["str"], span["lang"]))
                     return t
 
                 t = self._tokenizer.text_to_ids(*args)
@@ -1353,11 +1434,14 @@ class BucketingDataset(IterableDataset):
 
     def __iter__(self):
         return BucketingIterator(
-            wrapped_ds=self.wrapped_dataset._dataset, bucketing_batch_size=self.bucketing_batch_size
+            wrapped_ds=self.wrapped_dataset._dataset,
+            bucketing_batch_size=self.bucketing_batch_size,
         ).__iter__()
 
     def __len__(self):
-        return int(math.ceil(len(self.wrapped_dataset) / float(self.bucketing_batch_size)))
+        return int(
+            math.ceil(len(self.wrapped_dataset) / float(self.bucketing_batch_size))
+        )
 
 
 class BucketingIterator:
@@ -1392,7 +1476,9 @@ class RandomizedChainDataset(ChainDataset):
         shuffled_order = self.rnd_gen.permutation(len(self.datasets))
         for dataset_idx in shuffled_order:
             d = self.datasets[dataset_idx]
-            assert isinstance(d, IterableDataset), "ChainDataset only supports IterableDataset"
+            assert isinstance(
+                d, IterableDataset
+            ), "ChainDataset only supports IterableDataset"
             for idx, x in enumerate(d):
                 yield x
                 # in case d is an infinite dataset, we want to break the loop

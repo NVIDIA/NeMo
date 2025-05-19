@@ -36,7 +36,12 @@ def check_support_condition_types(condition_types):
 
 
 def masked_instance_norm(
-    input: Tensor, mask: Tensor, weight: Tensor, bias: Tensor, momentum: float, eps: float = 1e-5,
+    input: Tensor,
+    mask: Tensor,
+    weight: Tensor,
+    bias: Tensor,
+    momentum: float,
+    eps: float = 1e-5,
 ) -> Tensor:
     r"""Applies Masked Instance Normalization for each channel in each data sample in a batch.
 
@@ -45,7 +50,9 @@ def masked_instance_norm(
     lengths = mask.sum((-1,))
     mean = (input * mask).sum((-1,)) / lengths  # (N, C)
     var = (((input - mean[(..., None)]) * mask) ** 2).sum((-1,)) / lengths  # (N, C)
-    out = (input - mean[(..., None)]) / torch.sqrt(var[(..., None)] + eps)  # (N, C, ...)
+    out = (input - mean[(..., None)]) / torch.sqrt(
+        var[(..., None)] + eps
+    )  # (N, C, ...)
     out = out * weight[None, :][(..., None)] + bias[None, :][(..., None)]
 
     return out
@@ -71,31 +78,44 @@ class MaskedInstanceNorm1d(torch.nn.InstanceNorm1d):
         affine: bool = False,
         track_running_stats: bool = False,
     ) -> None:
-        super(MaskedInstanceNorm1d, self).__init__(num_features, eps, momentum, affine, track_running_stats)
+        super(MaskedInstanceNorm1d, self).__init__(
+            num_features, eps, momentum, affine, track_running_stats
+        )
 
     def forward(self, input: Tensor, mask: Tensor) -> Tensor:
-        return masked_instance_norm(input, mask, self.weight, self.bias, self.momentum, self.eps,)
+        return masked_instance_norm(
+            input,
+            mask,
+            self.weight,
+            self.bias,
+            self.momentum,
+            self.eps,
+        )
 
 
 class PartialConv1d(torch.nn.Conv1d):
     """
     Zero padding creates a unique identifier for where the edge of the data is, such that the model can almost always identify
-    exactly where it is relative to either edge given a sufficient receptive field. Partial padding goes to some lengths to remove 
+    exactly where it is relative to either edge given a sufficient receptive field. Partial padding goes to some lengths to remove
     this affect.
     """
 
-    __constants__ = ['slide_winsize']
+    __constants__ = ["slide_winsize"]
     slide_winsize: float
 
     def __init__(self, *args, **kwargs):
         super(PartialConv1d, self).__init__(*args, **kwargs)
         weight_maskUpdater = torch.ones(1, 1, self.kernel_size[0])
         self.register_buffer("weight_maskUpdater", weight_maskUpdater, persistent=False)
-        self.slide_winsize = self.weight_maskUpdater.shape[1] * self.weight_maskUpdater.shape[2]
+        self.slide_winsize = (
+            self.weight_maskUpdater.shape[1] * self.weight_maskUpdater.shape[2]
+        )
 
     def forward(self, input, mask_in):
         if mask_in is None:
-            mask = torch.ones(1, 1, input.shape[2], dtype=input.dtype, device=input.device)
+            mask = torch.ones(
+                1, 1, input.shape[2], dtype=input.dtype, device=input.device
+            )
         else:
             mask = mask_in
             input = torch.mul(input, mask)
@@ -109,7 +129,9 @@ class PartialConv1d(torch.nn.Conv1d):
                 dilation=self.dilation,
                 groups=1,
             )
-            update_mask_filled = torch.masked_fill(update_mask, update_mask == 0, self.slide_winsize)
+            update_mask_filled = torch.masked_fill(
+                update_mask, update_mask == 0, self.slide_winsize
+            )
             mask_ratio = self.slide_winsize / update_mask_filled
             update_mask = torch.clamp(update_mask, 0, 1)
             mask_ratio = torch.mul(mask_ratio, update_mask)
@@ -127,18 +149,20 @@ class PartialConv1d(torch.nn.Conv1d):
 
 
 class LinearNorm(torch.nn.Module):
-    def __init__(self, in_dim, out_dim, bias=True, w_init_gain='linear'):
+    def __init__(self, in_dim, out_dim, bias=True, w_init_gain="linear"):
         super().__init__()
         self.linear_layer = torch.nn.Linear(in_dim, out_dim, bias=bias)
 
-        torch.nn.init.xavier_uniform_(self.linear_layer.weight, gain=torch.nn.init.calculate_gain(w_init_gain))
+        torch.nn.init.xavier_uniform_(
+            self.linear_layer.weight, gain=torch.nn.init.calculate_gain(w_init_gain)
+        )
 
     def forward(self, x):
         return self.linear_layer(x)
 
 
 class ConvNorm(torch.nn.Module, adapter_mixins.AdapterModuleMixin):
-    __constants__ = ['use_partial_padding']
+    __constants__ = ["use_partial_padding"]
     use_partial_padding: bool
 
     def __init__(
@@ -150,7 +174,7 @@ class ConvNorm(torch.nn.Module, adapter_mixins.AdapterModuleMixin):
         padding=None,
         dilation=1,
         bias=True,
-        w_init_gain='linear',
+        w_init_gain="linear",
         use_partial_padding=False,
         use_weight_norm=False,
         norm_fn=None,
@@ -172,7 +196,9 @@ class ConvNorm(torch.nn.Module, adapter_mixins.AdapterModuleMixin):
             dilation=dilation,
             bias=bias,
         )
-        torch.nn.init.xavier_uniform_(self.conv.weight, gain=torch.nn.init.calculate_gain(w_init_gain))
+        torch.nn.init.xavier_uniform_(
+            self.conv.weight, gain=torch.nn.init.calculate_gain(w_init_gain)
+        )
         if use_weight_norm:
             self.conv = torch.nn.utils.weight_norm(self.conv)
         if norm_fn is not None:
@@ -211,7 +237,9 @@ class LocationLayer(torch.nn.Module):
             stride=1,
             dilation=1,
         )
-        self.location_dense = LinearNorm(attention_n_filters, attention_dim, bias=False, w_init_gain='tanh')
+        self.location_dense = LinearNorm(
+            attention_n_filters, attention_dim, bias=False, w_init_gain="tanh"
+        )
 
     def forward(self, attention_weights_cat):
         processed_attention = self.location_conv(attention_weights_cat)
@@ -230,11 +258,17 @@ class Attention(torch.nn.Module):
         attention_location_kernel_size,
     ):
         super().__init__()
-        self.query_layer = LinearNorm(attention_rnn_dim, attention_dim, bias=False, w_init_gain='tanh')
-        self.memory_layer = LinearNorm(embedding_dim, attention_dim, bias=False, w_init_gain='tanh')
+        self.query_layer = LinearNorm(
+            attention_rnn_dim, attention_dim, bias=False, w_init_gain="tanh"
+        )
+        self.memory_layer = LinearNorm(
+            embedding_dim, attention_dim, bias=False, w_init_gain="tanh"
+        )
         self.v = LinearNorm(attention_dim, 1, bias=False)
         self.location_layer = LocationLayer(
-            attention_location_n_filters, attention_location_kernel_size, attention_dim,
+            attention_location_n_filters,
+            attention_location_kernel_size,
+            attention_dim,
         )
         self.score_mask_value = -float("inf")
 
@@ -252,13 +286,20 @@ class Attention(torch.nn.Module):
 
         processed_query = self.query_layer(query.unsqueeze(1))
         processed_attention_weights = self.location_layer(attention_weights_cat)
-        energies = self.v(torch.tanh(processed_query + processed_attention_weights + processed_memory))
+        energies = self.v(
+            torch.tanh(processed_query + processed_attention_weights + processed_memory)
+        )
 
         energies = energies.squeeze(-1)
         return energies
 
     def forward(
-        self, attention_hidden_state, memory, processed_memory, attention_weights_cat, mask,
+        self,
+        attention_hidden_state,
+        memory,
+        processed_memory,
+        attention_weights_cat,
+        mask,
     ):
         """
         PARAMS
@@ -269,7 +310,9 @@ class Attention(torch.nn.Module):
         attention_weights_cat: previous and cummulative attention weights
         mask: binary mask for padded data
         """
-        alignment = self.get_alignment_energies(attention_hidden_state, processed_memory, attention_weights_cat)
+        alignment = self.get_alignment_energies(
+            attention_hidden_state, processed_memory, attention_weights_cat
+        )
 
         if mask is not None:
             alignment.data.masked_fill_(mask, self.score_mask_value)
@@ -287,7 +330,10 @@ class Prenet(torch.nn.Module):
         in_sizes = [in_dim] + sizes[:-1]
         self.p_dropout = p_dropout
         self.layers = torch.nn.ModuleList(
-            [LinearNorm(in_size, out_size, bias=False) for (in_size, out_size) in zip(in_sizes, sizes)]
+            [
+                LinearNorm(in_size, out_size, bias=False)
+                for (in_size, out_size) in zip(in_sizes, sizes)
+            ]
         )
 
     def forward(self, x, inference=False):
@@ -295,7 +341,11 @@ class Prenet(torch.nn.Module):
             for linear in self.layers:
                 x = F.relu(linear(x))
                 x0 = x[0].unsqueeze(0)
-                mask = torch.autograd.Variable(torch.bernoulli(x0.data.new(x0.data.size()).fill_(1 - self.p_dropout)))
+                mask = torch.autograd.Variable(
+                    torch.bernoulli(
+                        x0.data.new(x0.data.size()).fill_(1 - self.p_dropout)
+                    )
+                )
                 mask = mask.expand(x.size(0), x.size(1))
                 x = x * mask * 1 / (1 - self.p_dropout)
         else:
@@ -321,7 +371,9 @@ class Invertible1x1Conv(torch.nn.Module):
 
     def __init__(self, c):
         super().__init__()
-        self.conv = torch.nn.Conv1d(c, c, kernel_size=1, stride=1, padding=0, bias=False)
+        self.conv = torch.nn.Conv1d(
+            c, c, kernel_size=1, stride=1, padding=0, bias=False
+        )
 
         # Sample a random orthonormal matrix to initialize weights
         W = torch.linalg.qr(torch.FloatTensor(c, c).normal_())[0]
@@ -340,12 +392,19 @@ class Invertible1x1Conv(torch.nn.Module):
                 # compatibility with weights from existing checkpoints.
                 # Should be moved to init() with next incompatible change.
                 self.inv_conv = torch.nn.Conv1d(
-                    self.conv.in_channels, self.conv.out_channels, kernel_size=1, stride=1, padding=0, bias=False
+                    self.conv.in_channels,
+                    self.conv.out_channels,
+                    kernel_size=1,
+                    stride=1,
+                    padding=0,
+                    bias=False,
                 )
                 W_inverse = self.conv.weight.squeeze().data.float().inverse()
                 W_inverse = Variable(W_inverse[..., None])
                 self.inv_conv.weight.data = W_inverse
-                self.inv_conv.to(device=self.conv.weight.device, dtype=self.conv.weight.dtype)
+                self.inv_conv.to(
+                    device=self.conv.weight.device, dtype=self.conv.weight.dtype
+                )
             return self.inv_conv(z)
         else:
             # Forward computation
@@ -367,7 +426,9 @@ class WaveNet(torch.nn.Module):
     also no dilation size reset.  The dilation only doubles on each layer
     """
 
-    def __init__(self, n_in_channels, n_mel_channels, n_layers, n_channels, kernel_size):
+    def __init__(
+        self, n_in_channels, n_mel_channels, n_layers, n_channels, kernel_size
+    ):
         super().__init__()
         assert kernel_size % 2 == 1
         assert n_channels % 2 == 0
@@ -377,7 +438,7 @@ class WaveNet(torch.nn.Module):
         self.res_skip_layers = torch.nn.ModuleList()
 
         start = torch.nn.Conv1d(n_in_channels, n_channels, 1)
-        start = torch.nn.utils.weight_norm(start, name='weight')
+        start = torch.nn.utils.weight_norm(start, name="weight")
         self.start = start
 
         # Initializing last layer to 0 makes the affine coupling layers
@@ -388,13 +449,19 @@ class WaveNet(torch.nn.Module):
         self.end = end
 
         cond_layer = torch.nn.Conv1d(n_mel_channels, 2 * n_channels * n_layers, 1)
-        self.cond_layer = torch.nn.utils.weight_norm(cond_layer, name='weight')
+        self.cond_layer = torch.nn.utils.weight_norm(cond_layer, name="weight")
 
         for i in range(n_layers):
-            dilation = 2 ** i
+            dilation = 2**i
             padding = int((kernel_size * dilation - dilation) / 2)
-            in_layer = torch.nn.Conv1d(n_channels, 2 * n_channels, kernel_size, dilation=dilation, padding=padding,)
-            in_layer = torch.nn.utils.weight_norm(in_layer, name='weight')
+            in_layer = torch.nn.Conv1d(
+                n_channels,
+                2 * n_channels,
+                kernel_size,
+                dilation=dilation,
+                padding=padding,
+            )
+            in_layer = torch.nn.utils.weight_norm(in_layer, name="weight")
             self.in_layers.append(in_layer)
 
             # last one is not necessary
@@ -403,7 +470,7 @@ class WaveNet(torch.nn.Module):
             else:
                 res_skip_channels = n_channels
             res_skip_layer = torch.nn.Conv1d(n_channels, res_skip_channels, 1)
-            res_skip_layer = torch.nn.utils.weight_norm(res_skip_layer, name='weight')
+            res_skip_layer = torch.nn.utils.weight_norm(res_skip_layer, name="weight")
             self.res_skip_layers.append(res_skip_layer)
 
     def forward(self, forward_input: Tuple[torch.Tensor, torch.Tensor]):
@@ -480,7 +547,9 @@ class ConditionalInput(torch.nn.Module):
         check_support_condition_types(condition_types)
         super().__init__()
         self.support_types = ["add", "concat"]
-        self.condition_types = [tp for tp in condition_types if tp in self.support_types]
+        self.condition_types = [
+            tp for tp in condition_types if tp in self.support_types
+        ]
         self.hidden_dim = hidden_dim
         self.condition_dim = condition_dim
 
@@ -536,14 +605,14 @@ class StyleAttention(NeuralModule):
     @property
     def input_types(self):
         return {
-            "inputs": NeuralType(('B', 'D'), EncodedRepresentation()),
-            "token_id": NeuralType(('B'), Index(), optional=True),
+            "inputs": NeuralType(("B", "D"), EncodedRepresentation()),
+            "token_id": NeuralType(("B"), Index(), optional=True),
         }
 
     @property
     def output_types(self):
         return {
-            "style_emb": NeuralType(('B', 'D'), EncodedRepresentation()),
+            "style_emb": NeuralType(("B", "D"), EncodedRepresentation()),
         }
 
     def forward(self, inputs):
@@ -557,10 +626,24 @@ class StyleAttention(NeuralModule):
 
 
 class Conv2DReLUNorm(torch.nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size=3, stride=2, padding=1, bias=True, dropout=0.0):
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        kernel_size=3,
+        stride=2,
+        padding=1,
+        bias=True,
+        dropout=0.0,
+    ):
         super(Conv2DReLUNorm, self).__init__()
         self.conv = torch.nn.Conv2d(
-            in_channels, out_channels, kernel_size=kernel_size, stride=stride, padding=padding, bias=bias
+            in_channels,
+            out_channels,
+            kernel_size=kernel_size,
+            stride=stride,
+            padding=padding,
+            bias=bias,
         )
         self.norm = torch.nn.LayerNorm(out_channels)
         self.dropout = torch.nn.Dropout(dropout)
@@ -584,7 +667,17 @@ class ReferenceEncoder(NeuralModule):
     Encode mel-spectrograms to an utterance level feature
     """
 
-    def __init__(self, n_mels, cnn_filters, dropout, gru_hidden, kernel_size, stride, padding, bias):
+    def __init__(
+        self,
+        n_mels,
+        cnn_filters,
+        dropout,
+        gru_hidden,
+        kernel_size,
+        stride,
+        padding,
+        bias,
+    ):
         super(ReferenceEncoder, self).__init__()
         self.filter_size = [1] + list(cnn_filters)
         self.layers = torch.nn.ModuleList(
@@ -601,22 +694,26 @@ class ReferenceEncoder(NeuralModule):
                 for i in range(len(cnn_filters))
             ]
         )
-        post_conv_height = self.calculate_post_conv_lengths(n_mels, n_convs=len(cnn_filters))
+        post_conv_height = self.calculate_post_conv_lengths(
+            n_mels, n_convs=len(cnn_filters)
+        )
         self.gru = torch.nn.GRU(
-            input_size=cnn_filters[-1] * post_conv_height, hidden_size=gru_hidden, batch_first=True,
+            input_size=cnn_filters[-1] * post_conv_height,
+            hidden_size=gru_hidden,
+            batch_first=True,
         )
 
     @property
     def input_types(self):
         return {
-            "inputs": NeuralType(('B', 'D', 'T_spec'), MelSpectrogramType()),
-            "inputs_lengths": NeuralType(('B'), LengthsType()),
+            "inputs": NeuralType(("B", "D", "T_spec"), MelSpectrogramType()),
+            "inputs_lengths": NeuralType(("B"), LengthsType()),
         }
 
     @property
     def output_types(self):
         return {
-            "out": NeuralType(('B', 'D'), EncodedRepresentation()),
+            "out": NeuralType(("B", "D"), EncodedRepresentation()),
         }
 
     def forward(self, inputs, inputs_lengths):
@@ -634,7 +731,9 @@ class ReferenceEncoder(NeuralModule):
         x = x.contiguous().view(x.shape[0], x.shape[1], -1)
 
         self.gru.flatten_parameters()
-        packed_x = pack_padded_sequence(x, x_lens.cpu(), batch_first=True, enforce_sorted=False)
+        packed_x = pack_padded_sequence(
+            x, x_lens.cpu(), batch_first=True, enforce_sorted=False
+        )
         packed_x, _ = self.gru(packed_x)
         x, x_lens = pad_packed_sequence(packed_x, batch_first=True)
         x = x[torch.arange(len(x_lens)), (x_lens - 1), :]
@@ -663,25 +762,31 @@ class GlobalStyleToken(NeuralModule):
     """
 
     def __init__(
-        self, reference_encoder, gst_size=128, n_style_token=10, n_style_attn_head=4,
+        self,
+        reference_encoder,
+        gst_size=128,
+        n_style_token=10,
+        n_style_attn_head=4,
     ):
         super(GlobalStyleToken, self).__init__()
         self.reference_encoder = reference_encoder
         self.style_attention = StyleAttention(
-            gst_size=gst_size, n_style_token=n_style_token, n_style_attn_head=n_style_attn_head
+            gst_size=gst_size,
+            n_style_token=n_style_token,
+            n_style_attn_head=n_style_attn_head,
         )
 
     @property
     def input_types(self):
         return {
-            "inp": NeuralType(('B', 'D', 'T_spec'), MelSpectrogramType()),
-            "inp_lengths": NeuralType(('B'), LengthsType()),
+            "inp": NeuralType(("B", "D", "T_spec"), MelSpectrogramType()),
+            "inp_lengths": NeuralType(("B"), LengthsType()),
         }
 
     @property
     def output_types(self):
         return {
-            "gst": NeuralType(('B', 'D'), EncodedRepresentation()),
+            "gst": NeuralType(("B", "D"), EncodedRepresentation()),
         }
 
     def forward(self, inp, inp_lengths):
@@ -705,11 +810,13 @@ class SpeakerLookupTable(torch.nn.Module):
 
 class SpeakerEncoder(NeuralModule):
     """
-    class SpeakerEncoder represents speakers representation. 
+    class SpeakerEncoder represents speakers representation.
     This module can combine GST (global style token) based speaker embeddings and lookup table speaker embeddings.
     """
 
-    def __init__(self, lookup_module=None, gst_module=None, precomputed_embedding_dim=None):
+    def __init__(
+        self, lookup_module=None, gst_module=None, precomputed_embedding_dim=None
+    ):
         """
         lookup_module: Torch module to get lookup based speaker embedding
         gst_module: Neural module to get GST based speaker embedding
@@ -724,7 +831,9 @@ class SpeakerEncoder(NeuralModule):
         self.gst_module = gst_module
 
         if precomputed_embedding_dim is not None:
-            self.precomputed_emb = torch.nn.Parameter(torch.empty(precomputed_embedding_dim))
+            self.precomputed_emb = torch.nn.Parameter(
+                torch.empty(precomputed_embedding_dim)
+            )
         else:
             self.precomputed_emb = None
 
@@ -732,21 +841,29 @@ class SpeakerEncoder(NeuralModule):
     def input_types(self):
         return {
             "batch_size": NeuralType(optional=True),
-            "speaker": NeuralType(('B'), Index(), optional=True),
-            "reference_spec": NeuralType(('B', 'D', 'T_spec'), MelSpectrogramType(), optional=True),
-            "reference_spec_lens": NeuralType(('B'), LengthsType(), optional=True),
+            "speaker": NeuralType(("B"), Index(), optional=True),
+            "reference_spec": NeuralType(
+                ("B", "D", "T_spec"), MelSpectrogramType(), optional=True
+            ),
+            "reference_spec_lens": NeuralType(("B"), LengthsType(), optional=True),
         }
 
     @property
     def output_types(self):
         return {
-            "embs": NeuralType(('B', 'D'), EncodedRepresentation()),
+            "embs": NeuralType(("B", "D"), EncodedRepresentation()),
         }
 
     def overwrite_precomputed_emb(self, emb):
         self.precomputed_emb = torch.nn.Parameter(emb)
 
-    def forward(self, batch_size=None, speaker=None, reference_spec=None, reference_spec_lens=None):
+    def forward(
+        self,
+        batch_size=None,
+        speaker=None,
+        reference_spec=None,
+        reference_spec_lens=None,
+    ):
         embs = None
 
         # Get Precomputed speaker embedding
@@ -763,6 +880,8 @@ class SpeakerEncoder(NeuralModule):
                 out = self.gst_module(reference_spec, reference_spec_lens)
                 embs = out if embs is None else embs + out
             else:
-                logging.warning("You may add `gst_module` in speaker_encoder to use reference_audio.")
+                logging.warning(
+                    "You may add `gst_module` in speaker_encoder to use reference_audio."
+                )
 
         return embs

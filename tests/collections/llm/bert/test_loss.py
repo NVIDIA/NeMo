@@ -28,14 +28,21 @@ def mock_average_losses(losses):
 @pytest.fixture(autouse=True)
 def mock_distributed(mocker):
     # Mock parallel state functions
-    mocker.patch('megatron.core.parallel_state.get_context_parallel_world_size', return_value=1)
-    mocker.patch('megatron.core.parallel_state.get_data_parallel_world_size', return_value=1)
-    mocker.patch('megatron.core.parallel_state.get_data_parallel_rank', return_value=0)
-    mocker.patch('megatron.core.parallel_state.get_data_parallel_group', return_value=None)
+    mocker.patch(
+        "megatron.core.parallel_state.get_context_parallel_world_size", return_value=1
+    )
+    mocker.patch(
+        "megatron.core.parallel_state.get_data_parallel_world_size", return_value=1
+    )
+    mocker.patch("megatron.core.parallel_state.get_data_parallel_rank", return_value=0)
+    mocker.patch(
+        "megatron.core.parallel_state.get_data_parallel_group", return_value=None
+    )
 
     # Mock the average_losses function
     mocker.patch(
-        'nemo.collections.llm.bert.loss.average_losses_across_data_parallel_group', side_effect=mock_average_losses
+        "nemo.collections.llm.bert.loss.average_losses_across_data_parallel_group",
+        side_effect=mock_average_losses,
     )
 
 
@@ -50,10 +57,10 @@ def test_hard_negative_ranking_loss():
     loss, stats = loss_fn.forward(batch=batch, forward_out=forward_out)
     assert isinstance(loss, torch.Tensor)
     assert loss.dim() == 0
-    assert 'avg' in stats
+    assert "avg" in stats
 
     # Test that averaging works as expected
-    assert torch.allclose(stats['avg'], loss.detach())
+    assert torch.allclose(stats["avg"], loss.detach())
 
 
 def test_average_losses_mock():
@@ -67,7 +74,9 @@ def test_average_losses_mock():
 
 
 def test_bert_in_batch_negatives_loss():
-    loss_fn = BERTInBatchExclusiveHardNegativesRankingLoss(num_hard_negatives=1, global_in_batch_negatives=False)
+    loss_fn = BERTInBatchExclusiveHardNegativesRankingLoss(
+        num_hard_negatives=1, global_in_batch_negatives=False
+    )
     batch_size = 4
     embed_dim = 128
 
@@ -77,19 +86,23 @@ def test_bert_in_batch_negatives_loss():
     loss, stats = loss_fn.forward(batch=batch, forward_out=forward_out)
     assert isinstance(loss, torch.Tensor)
     assert loss.dim() == 0
-    assert 'avg' in stats
+    assert "avg" in stats
 
     # Test that averaging works as expected
-    assert torch.allclose(stats['avg'], loss.detach())
+    assert torch.allclose(stats["avg"], loss.detach())
 
 
 def test_bert_loss_with_sop():
     """Test BERTLossReduction with SOP loss enabled (lines 32-38)"""
-    loss_fn = BERTLossReduction(validation_step=False, val_drop_last=True, add_sop_loss=True)
+    loss_fn = BERTLossReduction(
+        validation_step=False, val_drop_last=True, add_sop_loss=True
+    )
     assert loss_fn.validation_step == False
     assert loss_fn.val_drop_last == True
     assert loss_fn.add_sop_loss == True
-    assert not hasattr(loss_fn, 'mlm')  # Should not create mlm when add_sop_loss is True
+    assert not hasattr(
+        loss_fn, "mlm"
+    )  # Should not create mlm when add_sop_loss is True
 
 
 def test_bert_loss_forward_with_sop(mocker):
@@ -97,20 +110,30 @@ def test_bert_loss_forward_with_sop(mocker):
     loss_fn = BERTLossReduction(add_sop_loss=True)
 
     # Create test inputs
-    batch = {'loss_mask': torch.ones(2, 4), 'is_random': torch.tensor([0, 1])}
+    batch = {"loss_mask": torch.ones(2, 4), "is_random": torch.tensor([0, 1])}
 
-    forward_out = {'lm_loss': torch.randn(2, 4), 'loss_mask': torch.ones(2, 4), 'binary_logits': torch.randn(2, 2)}
+    forward_out = {
+        "lm_loss": torch.randn(2, 4),
+        "loss_mask": torch.ones(2, 4),
+        "binary_logits": torch.randn(2, 2),
+    }
 
     # Test with CP size = 1
-    mocker.patch('megatron.core.parallel_state.get_context_parallel_world_size', return_value=1)
+    mocker.patch(
+        "megatron.core.parallel_state.get_context_parallel_world_size", return_value=1
+    )
     loss, stats = loss_fn.forward(batch=batch, forward_out=forward_out)
     assert isinstance(loss, torch.Tensor)
     assert isinstance(stats, dict)
-    assert 'avg' in stats
+    assert "avg" in stats
 
     # Test with CP size > 1
-    mocker.patch('megatron.core.parallel_state.get_context_parallel_world_size', return_value=2)
-    with pytest.raises(NotImplementedError, match='CP is not supported for SOP loss yet'):
+    mocker.patch(
+        "megatron.core.parallel_state.get_context_parallel_world_size", return_value=2
+    )
+    with pytest.raises(
+        NotImplementedError, match="CP is not supported for SOP loss yet"
+    ):
         loss_fn.forward(batch=batch, forward_out=forward_out)
 
 
@@ -123,7 +146,7 @@ def test_bert_in_batch_negatives_init():
         scale=30.0,
         label_smoothing=0.1,
         global_in_batch_negatives=True,
-        backprop_type='global',
+        backprop_type="global",
     )
 
     assert loss_fn.validation_step == True
@@ -131,7 +154,7 @@ def test_bert_in_batch_negatives_init():
     assert loss_fn.num_hard_negatives == 2
     assert loss_fn.scale == 30.0
     assert loss_fn.global_in_batch_negatives == True
-    assert loss_fn.backprop_type == 'global'
+    assert loss_fn.backprop_type == "global"
 
 
 def test_bert_in_batch_forward_validation():
@@ -148,7 +171,7 @@ def test_bert_in_batch_forward_validation():
     loss, stats = loss_fn.forward(batch=batch, forward_out=forward_out)
     assert isinstance(loss, torch.Tensor)
     assert isinstance(stats, dict)
-    assert 'avg' in stats
+    assert "avg" in stats
 
 
 @pytest.mark.parametrize(

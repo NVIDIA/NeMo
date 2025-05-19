@@ -21,17 +21,17 @@ from nemo.collections.nlp.data.data_utils.data_preprocessing import \
 from nemo.utils import logging
 
 __all__ = [
-    'ColaProcessor',
-    'MnliProcessor',
-    'MnliMismatchedProcessor',
-    'MrpcProcessor',
-    'Sst2Processor',
-    'StsbProcessor',
-    'QqpProcessor',
-    'QnliProcessor',
-    'RteProcessor',
-    'WnliProcessor',
-    'XNLIProcessor',
+    "ColaProcessor",
+    "MnliProcessor",
+    "MnliMismatchedProcessor",
+    "MrpcProcessor",
+    "Sst2Processor",
+    "StsbProcessor",
+    "QqpProcessor",
+    "QnliProcessor",
+    "RteProcessor",
+    "WnliProcessor",
+    "XNLIProcessor",
 ]
 
 
@@ -41,11 +41,15 @@ class MrpcProcessor(DataProcessor):
     def get_train_examples(self, data_dir):
         """See base class."""
         logging.info(f'LOOKING AT {os.path.join(data_dir, "train.tsv")}')
-        return self._create_examples(self._read_tsv(os.path.join(data_dir, "train.tsv")), "train")
+        return self._create_examples(
+            self._read_tsv(os.path.join(data_dir, "train.tsv")), "train"
+        )
 
     def get_dev_examples(self, data_dir):
         """See base class."""
-        return self._create_examples(self._read_tsv(os.path.join(data_dir, "dev.tsv")), "dev")
+        return self._create_examples(
+            self._read_tsv(os.path.join(data_dir, "dev.tsv")), "dev"
+        )
 
     def get_examples(self, file_path):
         return self._create_examples(self._read_tsv(file_path), "example")
@@ -57,14 +61,16 @@ class MrpcProcessor(DataProcessor):
     def _create_examples(self, lines, set_type):
         """Creates examples for the training and dev sets."""
         examples = []
-        for (i, line) in enumerate(lines):
+        for i, line in enumerate(lines):
             if i == 0:
                 continue
             guid = "%s-%s" % (set_type, i)
             text_a = line[3]
             text_b = line[4]
             label = line[0]
-            examples.append(InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))
+            examples.append(
+                InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label)
+            )
         return examples
 
     def get_t5_prompted_query(self, text_a, text_b):
@@ -79,11 +85,15 @@ class MnliProcessor(DataProcessor):
 
     def get_train_examples(self, data_dir):
         """See base class."""
-        return self._create_examples(self._read_tsv(os.path.join(data_dir, "train.tsv")), "train")
+        return self._create_examples(
+            self._read_tsv(os.path.join(data_dir, "train.tsv")), "train"
+        )
 
     def get_dev_examples(self, data_dir):
         """See base class."""
-        return self._create_examples(self._read_tsv(os.path.join(data_dir, "dev_matched.tsv")), "dev_matched")
+        return self._create_examples(
+            self._read_tsv(os.path.join(data_dir, "dev_matched.tsv")), "dev_matched"
+        )
 
     def get_examples(self, file_path):
         return self._create_examples(self._read_tsv(file_path), "example")
@@ -95,14 +105,16 @@ class MnliProcessor(DataProcessor):
     def _create_examples(self, lines, set_type):
         """Creates examples for the training and dev sets."""
         examples = []
-        for (i, line) in enumerate(lines):
+        for i, line in enumerate(lines):
             if i == 0:
                 continue
             guid = "%s-%s" % (set_type, line[0])
             text_a = line[8]
             text_b = line[9]
             label = line[-1]
-            examples.append(InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))
+            examples.append(
+                InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label)
+            )
         return examples
 
     def get_t5_prompted_query(self, text_a, text_b):
@@ -125,14 +137,16 @@ class XNLIProcessor(DataProcessor):
     def _create_examples(self, lines, set_type):
         """Creates examples for the training and dev sets."""
         examples = []
-        for (i, line) in enumerate(lines):
+        for i, line in enumerate(lines):
             if i == 0:
                 continue
             guid = "%s-%s" % (set_type, line[0])
             text_a = line[6]
             text_b = line[7]
             label = line[1]
-            examples.append(InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))
+            examples.append(
+                InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label)
+            )
         return examples
 
     def get_t5_prompted_query(self, text_a, text_b):
@@ -147,7 +161,9 @@ class MnliMismatchedProcessor(MnliProcessor):
 
     def get_dev_examples(self, data_dir):
         """See base class."""
-        return self._create_examples(self._read_tsv(os.path.join(data_dir, "dev_mismatched.tsv")), "dev_matched")
+        return self._create_examples(
+            self._read_tsv(os.path.join(data_dir, "dev_mismatched.tsv")), "dev_matched"
+        )
 
     def get_examples(self, file_path):
         return self._create_examples(self._read_tsv(file_path), "example")
@@ -158,11 +174,15 @@ class ColaProcessor(DataProcessor):
 
     def get_train_examples(self, data_dir):
         """See base class."""
-        return self._create_examples(self._read_tsv(os.path.join(data_dir, "train.tsv")), "train")
+        return self._create_examples(
+            self._read_tsv(os.path.join(data_dir, "train.tsv")), "train"
+        )
 
     def get_dev_examples(self, data_dir):
         """See base class."""
-        return self._create_examples(self._read_tsv(os.path.join(data_dir, "dev.tsv")), "dev")
+        return self._create_examples(
+            self._read_tsv(os.path.join(data_dir, "dev.tsv")), "dev"
+        )
 
     def get_examples(self, file_path):
         return self._create_examples(self._read_tsv(file_path), "example")
@@ -174,11 +194,13 @@ class ColaProcessor(DataProcessor):
     def _create_examples(self, lines, set_type):
         """Creates examples for the training and dev sets."""
         examples = []
-        for (i, line) in enumerate(lines):
+        for i, line in enumerate(lines):
             guid = "%s-%s" % (set_type, i)
             text_a = line[3]
             label = line[1]
-            examples.append(InputExample(guid=guid, text_a=text_a, text_b=None, label=label))
+            examples.append(
+                InputExample(guid=guid, text_a=text_a, text_b=None, label=label)
+            )
         return examples
 
     def get_t5_prompted_query(self, text_a, text_b):
@@ -194,11 +216,15 @@ class Sst2Processor(DataProcessor):
 
     def get_train_examples(self, data_dir):
         """See base class."""
-        return self._create_examples(self._read_tsv(os.path.join(data_dir, "train.tsv")), "train")
+        return self._create_examples(
+            self._read_tsv(os.path.join(data_dir, "train.tsv")), "train"
+        )
 
     def get_dev_examples(self, data_dir):
         """See base class."""
-        return self._create_examples(self._read_tsv(os.path.join(data_dir, "dev.tsv")), "dev")
+        return self._create_examples(
+            self._read_tsv(os.path.join(data_dir, "dev.tsv")), "dev"
+        )
 
     def get_examples(self, file_path):
         return self._create_examples(self._read_tsv(file_path), "example")
@@ -210,13 +236,15 @@ class Sst2Processor(DataProcessor):
     def _create_examples(self, lines, set_type):
         """Creates examples for the training and dev sets."""
         examples = []
-        for (i, line) in enumerate(lines):
+        for i, line in enumerate(lines):
             if i == 0:
                 continue
             guid = "%s-%s" % (set_type, i)
             text_a = line[0]
             label = line[1]
-            examples.append(InputExample(guid=guid, text_a=text_a, text_b=None, label=label))
+            examples.append(
+                InputExample(guid=guid, text_a=text_a, text_b=None, label=label)
+            )
         return examples
 
     def get_t5_prompted_query(self, text_a, text_b):
@@ -232,11 +260,15 @@ class StsbProcessor(DataProcessor):
 
     def get_train_examples(self, data_dir):
         """See base class."""
-        return self._create_examples(self._read_tsv(os.path.join(data_dir, "train.tsv")), "train")
+        return self._create_examples(
+            self._read_tsv(os.path.join(data_dir, "train.tsv")), "train"
+        )
 
     def get_dev_examples(self, data_dir):
         """See base class."""
-        return self._create_examples(self._read_tsv(os.path.join(data_dir, "dev.tsv")), "dev")
+        return self._create_examples(
+            self._read_tsv(os.path.join(data_dir, "dev.tsv")), "dev"
+        )
 
     def get_examples(self, file_path):
         return self._create_examples(self._read_tsv(file_path), "example")
@@ -248,21 +280,23 @@ class StsbProcessor(DataProcessor):
     def _create_examples(self, lines, set_type):
         """Creates examples for the training and dev sets."""
         examples = []
-        for (i, line) in enumerate(lines):
+        for i, line in enumerate(lines):
             if i == 0:
                 continue
             guid = "%s-%s" % (set_type, line[0])
             text_a = line[7]
             text_b = line[8]
             label = line[-1]
-            examples.append(InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))
+            examples.append(
+                InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label)
+            )
         return examples
 
     def get_t5_prompted_query(self, text_a, text_b):
         return f"stsb sentence1: {text_a} sentence2: {text_b}"
 
     def label2string(self, label):
-        return '%.1f' % float(label)
+        return "%.1f" % float(label)
 
 
 class QqpProcessor(DataProcessor):
@@ -270,11 +304,15 @@ class QqpProcessor(DataProcessor):
 
     def get_train_examples(self, data_dir):
         """See base class."""
-        return self._create_examples(self._read_tsv(os.path.join(data_dir, "train.tsv")), "train")
+        return self._create_examples(
+            self._read_tsv(os.path.join(data_dir, "train.tsv")), "train"
+        )
 
     def get_dev_examples(self, data_dir):
         """See base class."""
-        return self._create_examples(self._read_tsv(os.path.join(data_dir, "dev.tsv")), "dev")
+        return self._create_examples(
+            self._read_tsv(os.path.join(data_dir, "dev.tsv")), "dev"
+        )
 
     def get_examples(self, file_path):
         return self._create_examples(self._read_tsv(file_path), "example")
@@ -286,7 +324,7 @@ class QqpProcessor(DataProcessor):
     def _create_examples(self, lines, set_type):
         """Creates examples for the training and dev sets."""
         examples = []
-        for (i, line) in enumerate(lines):
+        for i, line in enumerate(lines):
             if i == 0:
                 continue
             guid = "%s-%s" % (set_type, line[0])
@@ -296,7 +334,9 @@ class QqpProcessor(DataProcessor):
                 label = line[5]
             except IndexError:
                 continue
-            examples.append(InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))
+            examples.append(
+                InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label)
+            )
         return examples
 
     def get_t5_prompted_query(self, text_a, text_b):
@@ -311,11 +351,15 @@ class QnliProcessor(DataProcessor):
 
     def get_train_examples(self, data_dir):
         """See base class."""
-        return self._create_examples(self._read_tsv(os.path.join(data_dir, "train.tsv")), "train")
+        return self._create_examples(
+            self._read_tsv(os.path.join(data_dir, "train.tsv")), "train"
+        )
 
     def get_dev_examples(self, data_dir):
         """See base class."""
-        return self._create_examples(self._read_tsv(os.path.join(data_dir, "dev.tsv")), "dev")
+        return self._create_examples(
+            self._read_tsv(os.path.join(data_dir, "dev.tsv")), "dev"
+        )
 
     def get_examples(self, file_path):
         return self._create_examples(self._read_tsv(file_path), "example")
@@ -327,14 +371,16 @@ class QnliProcessor(DataProcessor):
     def _create_examples(self, lines, set_type):
         """Creates examples for the training and dev sets."""
         examples = []
-        for (i, line) in enumerate(lines):
+        for i, line in enumerate(lines):
             if i == 0:
                 continue
             guid = "%s-%s" % (set_type, line[0])
             text_a = line[1]
             text_b = line[2]
             label = line[-1]
-            examples.append(InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))
+            examples.append(
+                InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label)
+            )
         return examples
 
     def get_t5_prompted_query(self, text_a, text_b):
@@ -349,11 +395,15 @@ class RteProcessor(DataProcessor):
 
     def get_train_examples(self, data_dir):
         """See base class."""
-        return self._create_examples(self._read_tsv(os.path.join(data_dir, "train.tsv")), "train")
+        return self._create_examples(
+            self._read_tsv(os.path.join(data_dir, "train.tsv")), "train"
+        )
 
     def get_dev_examples(self, data_dir):
         """See base class."""
-        return self._create_examples(self._read_tsv(os.path.join(data_dir, "dev.tsv")), "dev")
+        return self._create_examples(
+            self._read_tsv(os.path.join(data_dir, "dev.tsv")), "dev"
+        )
 
     def get_examples(self, file_path):
         return self._create_examples(self._read_tsv(file_path), "example")
@@ -365,14 +415,16 @@ class RteProcessor(DataProcessor):
     def _create_examples(self, lines, set_type):
         """Creates examples for the training and dev sets."""
         examples = []
-        for (i, line) in enumerate(lines):
+        for i, line in enumerate(lines):
             if i == 0:
                 continue
             guid = "%s-%s" % (set_type, line[0])
             text_a = line[1]
             text_b = line[2]
             label = line[-1]
-            examples.append(InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))
+            examples.append(
+                InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label)
+            )
         return examples
 
     def get_t5_prompted_query(self, text_a, text_b):
@@ -387,11 +439,15 @@ class WnliProcessor(DataProcessor):
 
     def get_train_examples(self, data_dir):
         """See base class."""
-        return self._create_examples(self._read_tsv(os.path.join(data_dir, "train.tsv")), "train")
+        return self._create_examples(
+            self._read_tsv(os.path.join(data_dir, "train.tsv")), "train"
+        )
 
     def get_dev_examples(self, data_dir):
         """See base class."""
-        return self._create_examples(self._read_tsv(os.path.join(data_dir, "dev.tsv")), "dev")
+        return self._create_examples(
+            self._read_tsv(os.path.join(data_dir, "dev.tsv")), "dev"
+        )
 
     def get_examples(self, file_path):
         return self._create_examples(self._read_tsv(file_path), "example")
@@ -403,21 +459,27 @@ class WnliProcessor(DataProcessor):
     def _create_examples(self, lines, set_type):
         """Creates examples for the training and dev sets."""
         examples = []
-        for (i, line) in enumerate(lines):
+        for i, line in enumerate(lines):
             if i == 0:
                 continue
             guid = "%s-%s" % (set_type, line[0])
             text_a = line[1]
             text_b = line[2]
             label = line[-1]
-            examples.append(InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label))
+            examples.append(
+                InputExample(guid=guid, text_a=text_a, text_b=text_b, label=label)
+            )
         return examples
 
     def get_t5_prompted_query(self, text_a, text_b):
-        raise NotImplementedError("NeMo-Megatron T5 does not support WNLI at the moment.")
+        raise NotImplementedError(
+            "NeMo-Megatron T5 does not support WNLI at the moment."
+        )
 
     def label2string(self, label):
-        raise NotImplementedError("NeMo-Megatron T5 does not support WNLI at the moment.")
+        raise NotImplementedError(
+            "NeMo-Megatron T5 does not support WNLI at the moment."
+        )
 
 
 class InputExample(object):
@@ -441,6 +503,4 @@ class InputExample(object):
         self.label = label
 
     def __repr__(self):
-        return (
-            f"InputExample(guid='{self.guid}', text_a='{self.text_a}', text_b='{self.text_b}', label='{self.label}')"
-        )
+        return f"InputExample(guid='{self.guid}', text_a='{self.text_a}', text_b='{self.text_b}', label='{self.label}')"

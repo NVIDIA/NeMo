@@ -33,15 +33,22 @@ class Code(object):
         """
         raise NotImplementedError()
 
-    def __init__(self, col_name: str, code_len: int, start_id: int, fillall: bool = True, hasnan: bool = True):
+    def __init__(
+        self,
+        col_name: str,
+        code_len: int,
+        start_id: int,
+        fillall: bool = True,
+        hasnan: bool = True,
+    ):
         """
         @params:
             col_name: name of the column
             code_len: number of tokens used to code the column.
-            start_id: offset for token_id. 
+            start_id: offset for token_id.
             fillall: if True, reserve space for digit number even the digit number is
             not present in the data_series. Otherwise, only reserve space for the numbers
-            in the data_series. 
+            in the data_series.
             hasnan: if True, reserve space for nan
         """
         self.name = col_name
@@ -68,7 +75,13 @@ class Code(object):
 
 class IntCode(Code):
     def __init__(
-        self, col_name: str, code_len: int, start_id: int, fillall: bool = True, base: int = 100, hasnan: bool = True
+        self,
+        col_name: str,
+        code_len: int,
+        start_id: int,
+        fillall: bool = True,
+        base: int = 100,
+        hasnan: bool = True,
     ):
         super().__init__(col_name, code_len, start_id, fillall, hasnan)
         self.base = base
@@ -82,7 +95,7 @@ class IntCode(Code):
         for i in range(self.code_len):
             id_to_item = digits_id_to_item[i]
             item_to_id = digits_item_to_id[i]
-            v = (significant_val // self.base ** i) % self.base
+            v = (significant_val // self.base**i) % self.base
             if self.fillall:
                 uniq_items = range(0, self.base)
             else:
@@ -94,7 +107,7 @@ class IntCode(Code):
                 self.end_id += 1
         self.digits_id_to_item = digits_id_to_item
         self.digits_item_to_id = digits_item_to_id
-        self.NA_token = 'nan'
+        self.NA_token = "nan"
         if self.hasnan:
             self.end_id += 1  # add the N/A token
             codes = []
@@ -127,7 +140,9 @@ class IntCode(Code):
             ids = self.digits_id_to_item[i].keys()
             if c == 0:
                 if self.hasnan:
-                    outputs.append((min(ids), max(ids) + 2))  # the first token contains the N/A
+                    outputs.append(
+                        (min(ids), max(ids) + 2)
+                    )  # the first token contains the N/A
                 else:
                     outputs.append((min(ids), max(ids) + 1))  # non N/A
             else:
@@ -139,14 +154,16 @@ class IntCode(Code):
         if self.hasnan and item == self.NA_token:
             return self.NA_token_id
         elif not self.hasnan and item == self.NA_token:
-            raise ValueError(f"colum {self.name} cannot handle nan, please set hasnan=True")
+            raise ValueError(
+                f"colum {self.name} cannot handle nan, please set hasnan=True"
+            )
         val = float(item)
         val_int = self.convert_to_int(val)
         digits = []
         for i in range(self.code_len):
-            digit = (val_int // self.base ** i) % self.base
+            digit = (val_int // self.base**i) % self.base
             digits.append(str(digit))
-        if (val_int // self.base ** self.code_len) != 0:
+        if (val_int // self.base**self.code_len) != 0:
             raise ValueError("not right length")
         codes = []
         for i in reversed(range(self.code_len)):
@@ -155,11 +172,13 @@ class IntCode(Code):
                 codes.append(self.digits_item_to_id[i][digit_str])
             else:
                 # find the nearest encode id
-                allowed_digits = np.array([int(d) for d in self.digits_item_to_id[i].keys()])
+                allowed_digits = np.array(
+                    [int(d) for d in self.digits_item_to_id[i].keys()]
+                )
                 near_id = np.argmin(np.abs(allowed_digits - int(digit_str)))
                 digit_str = str(allowed_digits[near_id])
                 codes.append(self.digits_item_to_id[i][digit_str])
-                logging.warning('out of domain num is encounterd, use nearest code')
+                logging.warning("out of domain num is encounterd, use nearest code")
         return codes
 
     def decode(self, ids: List[int]) -> str:
@@ -168,7 +187,7 @@ class IntCode(Code):
         v = 0
         for i in reversed(range(self.code_len)):
             digit = int(self.digits_id_to_item[i][ids[self.code_len - i - 1]])
-            v += digit * self.base ** i
+            v += digit * self.base**i
         v = self.reverse_convert_to_int(v)
         return str(v)
 
@@ -182,22 +201,26 @@ class FloatCode(IntCode):
         fillall: bool = True,
         base: int = 100,
         hasnan: bool = True,
-        transform: str = 'quantile',
+        transform: str = "quantile",
     ):
         super().__init__(col_name, code_len, start_id, fillall, base, hasnan)
-        if transform == 'yeo-johnson':
+        if transform == "yeo-johnson":
             self.scaler = PowerTransformer(standardize=True)
-        elif transform == 'quantile':
-            self.scaler = QuantileTransformer(output_distribution='uniform', n_quantiles=100)
-        elif transform == 'robust':
+        elif transform == "quantile":
+            self.scaler = QuantileTransformer(
+                output_distribution="uniform", n_quantiles=100
+            )
+        elif transform == "robust":
             self.scaler = RobustScaler()
         else:
-            raise ValueError('Supported data transformations are "yeo-johnson", "quantile", and "robust"')
+            raise ValueError(
+                'Supported data transformations are "yeo-johnson", "quantile", and "robust"'
+            )
 
     def convert_to_int(self, val: float) -> int:
         val = np.expand_dims(np.array(val), axis=0)
         values = self.scaler.transform(val[:, None])[:, 0] - self.mval
-        values = (values * self.base ** self.extra_digits).astype(int)
+        values = (values * self.base**self.extra_digits).astype(int)
         output = values[0]
         return output
 
@@ -211,11 +234,11 @@ class FloatCode(IntCode):
         if extra_digits < 0:
             raise ValueError("need large length to code the nummber")
         self.extra_digits = extra_digits
-        values = (values * self.base ** self.extra_digits).astype(int)
+        values = (values * self.base**self.extra_digits).astype(int)
         return values
 
     def reverse_convert_to_int(self, val: int) -> float:
-        val = val / self.base ** self.extra_digits
+        val = val / self.base**self.extra_digits
         val = np.expand_dims(np.array(val), axis=0)
         v = self.scaler.inverse_transform(val[:, None] + self.mval)[0, 0]
         return v
@@ -226,9 +249,9 @@ class FloatCode(IntCode):
         v = 0
         for i in reversed(range(self.code_len)):
             digit = int(self.digits_id_to_item[i][ids[self.code_len - i - 1]])
-            v += digit * self.base ** i
+            v += digit * self.base**i
         v = self.reverse_convert_to_int(v)
-        accuracy = max(int(abs(np.log10(0.1 / self.base ** self.extra_digits))), 1)
+        accuracy = max(int(abs(np.log10(0.1 / self.base**self.extra_digits))), 1)
         return f"{v:.{accuracy}f}"
 
 
@@ -294,12 +317,12 @@ class ColumnCodes(object):
         beg = 0
         cc = None
         for config in column_configs:
-            col_name = config['name']
-            coder = column_map[config['code_type']]
-            args = config.get('args', {})
+            col_name = config["name"]
+            coder = column_map[config["code_type"]]
+            args = config.get("args", {})
             start_id = beg if cc is None else cc.end_id
-            args['start_id'] = start_id
-            args['col_name'] = col_name
+            args["start_id"] = start_id
+            args["col_name"] = col_name
             cc = coder(**args)
             cc.compute_code(example_arrays[col_name])
             column_codes.register(col_name, cc)

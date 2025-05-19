@@ -24,7 +24,7 @@ from nemo.core.classes import typecheck
 from nemo.core.neural_types import (ChannelType, FloatType, LogitsType,
                                     LogprobsType, NeuralType)
 
-__all__ = ['BertPretrainingTokenClassifier', 'TokenClassifier']
+__all__ = ["BertPretrainingTokenClassifier", "TokenClassifier"]
 
 ACT2FN = {"gelu": nn.functional.gelu, "relu": nn.functional.relu}
 
@@ -32,7 +32,7 @@ ACT2FN = {"gelu": nn.functional.gelu, "relu": nn.functional.relu}
 @dataclass
 class TokenClassifierConfig:
     num_layers: int = 1
-    activation: str = 'relu'
+    activation: str = "relu"
     log_softmax: bool = True
     dropout: float = 0.0
     use_transformer_init: bool = True
@@ -46,7 +46,7 @@ class TokenClassifier(Classifier):
     @property
     def input_types(self) -> Dict[str, NeuralType]:
         return {
-            "hidden_states": NeuralType(('B', 'T', 'D'), ChannelType()),
+            "hidden_states": NeuralType(("B", "T", "D"), ChannelType()),
         }
 
     @property
@@ -55,16 +55,16 @@ class TokenClassifier(Classifier):
         Returns definitions of module output ports.
         """
         if not self.mlp.log_softmax:
-            return {"logits": NeuralType(('B', 'T', 'C'), LogitsType())}
+            return {"logits": NeuralType(("B", "T", "C"), LogitsType())}
         else:
-            return {"log_probs": NeuralType(('B', 'T', 'C'), LogprobsType())}
+            return {"log_probs": NeuralType(("B", "T", "C"), LogprobsType())}
 
     def __init__(
         self,
         hidden_size: int,
         num_classes: int,
         num_layers: int = 1,
-        activation: str = 'relu',
+        activation: str = "relu",
         log_softmax: bool = True,
         dropout: float = 0.0,
         use_transformer_init: bool = True,
@@ -83,7 +83,11 @@ class TokenClassifier(Classifier):
         """
         super().__init__(hidden_size=hidden_size, dropout=dropout)
         self.mlp = MultiLayerPerceptron(
-            hidden_size, num_classes, num_layers=num_layers, activation=activation, log_softmax=log_softmax
+            hidden_size,
+            num_classes,
+            num_layers=num_layers,
+            activation=activation,
+            log_softmax=log_softmax,
         )
         self.post_init(use_transformer_init=use_transformer_init)
 
@@ -120,7 +124,7 @@ class BertPretrainingTokenClassifier(Classifier):
     @property
     def input_types(self) -> Dict[str, NeuralType]:
         return {
-            "hidden_states": NeuralType(('B', 'T', 'D'), ChannelType()),
+            "hidden_states": NeuralType(("B", "T", "D"), ChannelType()),
         }
 
     @property
@@ -129,16 +133,16 @@ class BertPretrainingTokenClassifier(Classifier):
         Returns definitions of module output ports.
         """
         if not self.mlp.log_softmax:
-            return {"logits": NeuralType(('B', 'T', 'C'), LogitsType())}
+            return {"logits": NeuralType(("B", "T", "C"), LogitsType())}
         else:
-            return {"log_probs": NeuralType(('B', 'T', 'C'), LogprobsType())}
+            return {"log_probs": NeuralType(("B", "T", "C"), LogprobsType())}
 
     def __init__(
         self,
         hidden_size: int,
         num_classes: int,
         num_layers: int = 1,
-        activation: str = 'relu',
+        activation: str = "relu",
         log_softmax: bool = True,
         dropout: float = 0.0,
         use_transformer_init: bool = True,
@@ -163,7 +167,11 @@ class BertPretrainingTokenClassifier(Classifier):
         self.act = ACT2FN[activation]
         self.norm = nn.LayerNorm(hidden_size, eps=1e-12)
         self.mlp = MultiLayerPerceptron(
-            hidden_size, num_classes, num_layers=num_layers, activation=activation, log_softmax=log_softmax
+            hidden_size,
+            num_classes,
+            num_layers=num_layers,
+            activation=activation,
+            log_softmax=log_softmax,
         )
         self.post_init(use_transformer_init=use_transformer_init)
 

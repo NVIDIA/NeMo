@@ -44,7 +44,7 @@ except (ModuleNotFoundError, ImportError):
     ASR_AVAILABLE = False
 
 
-__all__ = ['CTCG2PModel']
+__all__ = ["CTCG2PModel"]
 
 
 @dataclass
@@ -67,7 +67,9 @@ class CTCG2PModel(G2PModel, ASRBPEMixin, Exportable):
 
         self.supported_modes = ["byt5", "conformer_bpe"]
         if self.mode not in self.supported_modes:
-            raise ValueError(f"{self.mode} is not supported, choose from {self.supported_modes}")
+            raise ValueError(
+                f"{self.mode} is not supported, choose from {self.supported_modes}"
+            )
 
         # Setup phoneme tokenizer
         self._setup_tokenizer(cfg.tokenizer)
@@ -93,7 +95,7 @@ class CTCG2PModel(G2PModel, ASRBPEMixin, Exportable):
         )
 
         # Setup decoding objects
-        decoding_cfg = self.cfg.get('decoding', None)
+        decoding_cfg = self.cfg.get("decoding", None)
 
         # In case decoding config not found, use default config
         if decoding_cfg is None:
@@ -121,14 +123,22 @@ class CTCG2PModel(G2PModel, ASRBPEMixin, Exportable):
 
         if self.mode == "byt5":
             # Load appropriate tokenizer from HuggingFace
-            grapheme_tokenizer = AutoTokenizer.from_pretrained(cfg.tokenizer_grapheme.pretrained)
-            self.max_source_len = cfg.get("max_source_len", grapheme_tokenizer.model_max_length)
-            self.max_target_len = cfg.get("max_target_len", grapheme_tokenizer.model_max_length)
+            grapheme_tokenizer = AutoTokenizer.from_pretrained(
+                cfg.tokenizer_grapheme.pretrained
+            )
+            self.max_source_len = cfg.get(
+                "max_source_len", grapheme_tokenizer.model_max_length
+            )
+            self.max_target_len = cfg.get(
+                "max_target_len", grapheme_tokenizer.model_max_length
+            )
 
             # TODO store byt5 vocab file
         elif self.mode == "conformer_bpe":
             grapheme_unk_token = (
-                cfg.tokenizer_grapheme.unk_token if cfg.tokenizer_grapheme.unk_token is not None else ""
+                cfg.tokenizer_grapheme.unk_token
+                if cfg.tokenizer_grapheme.unk_token is not None
+                else ""
             )
             chars = string.ascii_lowercase + grapheme_unk_token + " " + "'"
 
@@ -136,7 +146,11 @@ class CTCG2PModel(G2PModel, ASRBPEMixin, Exportable):
                 chars += string.ascii_uppercase
 
             if cfg.tokenizer_grapheme.add_punctuation:
-                punctuation_marks = string.punctuation.replace('"', "").replace("\\", "").replace("'", "")
+                punctuation_marks = (
+                    string.punctuation.replace('"', "")
+                    .replace("\\", "")
+                    .replace("'", "")
+                )
                 chars += punctuation_marks
 
             vocab_file = "/tmp/char_vocab.txt"
@@ -145,11 +159,15 @@ class CTCG2PModel(G2PModel, ASRBPEMixin, Exportable):
                 f.write('"\\""\n')  # add " to the vocab
 
             self.register_artifact("tokenizer_grapheme.vocab_file", vocab_file)
-            grapheme_tokenizer = instantiate(cfg.tokenizer_grapheme.dataset, vocab_file=vocab_file)
+            grapheme_tokenizer = instantiate(
+                cfg.tokenizer_grapheme.dataset, vocab_file=vocab_file
+            )
             self.max_source_len = cfg.get("max_source_len", 512)
             self.max_target_len = cfg.get("max_target_len", 512)
         else:
-            raise ValueError(f"{self.mode} is not supported. Choose from {self.supported_modes}")
+            raise ValueError(
+                f"{self.mode} is not supported. Choose from {self.supported_modes}"
+            )
         return grapheme_tokenizer
 
     def _setup_encoder(self):
@@ -158,29 +176,39 @@ class CTCG2PModel(G2PModel, ASRBPEMixin, Exportable):
             if self._cfg.encoder.dropout is not None:
                 config.dropout_rate = self._cfg.encoder.dropout
                 print(f"\nDROPOUT: {config.dropout_rate}")
-            self.encoder = AutoModel.from_pretrained(self._cfg.encoder.transformer, config=config).encoder
+            self.encoder = AutoModel.from_pretrained(
+                self._cfg.encoder.transformer, config=config
+            ).encoder
             # add encoder hidden dim size to the config
             if self.cfg.decoder.feat_in is None:
                 self._cfg.decoder.feat_in = self.encoder.config.d_model
         elif self.mode == "conformer_bpe":
             self.embedding = torch.nn.Embedding(
-                embedding_dim=self._cfg.embedding.d_model, num_embeddings=self.tokenizer.vocab_size, padding_idx=0
+                embedding_dim=self._cfg.embedding.d_model,
+                num_embeddings=self.tokenizer.vocab_size,
+                padding_idx=0,
             )
             self.encoder = EncDecCTCModel.from_config_dict(self._cfg.encoder)
             with open_dict(self._cfg):
                 if "feat_in" not in self._cfg.decoder or (
-                    not self._cfg.decoder.feat_in and hasattr(self.encoder, '_feat_out')
+                    not self._cfg.decoder.feat_in and hasattr(self.encoder, "_feat_out")
                 ):
                     self._cfg.decoder.feat_in = self.encoder._feat_out
                 if "feat_in" not in self._cfg.decoder or not self._cfg.decoder.feat_in:
-                    raise ValueError("param feat_in of the decoder's config is not set!")
+                    raise ValueError(
+                        "param feat_in of the decoder's config is not set!"
+                    )
         else:
-            raise ValueError(f"{self.mode} is not supported. Choose from {self.supported_modes}")
+            raise ValueError(
+                f"{self.mode} is not supported. Choose from {self.supported_modes}"
+            )
 
     # @typecheck()
     def forward(self, input_ids, attention_mask, input_len):
         if self.mode == "byt5":
-            encoded_input = self.encoder(input_ids=input_ids, attention_mask=attention_mask)[0]
+            encoded_input = self.encoder(
+                input_ids=input_ids, attention_mask=attention_mask
+            )[0]
             encoded_len = input_len
             # encoded_input = [B, seq_len, hid_dim]
             # swap seq_len and hid_dim dimensions to get [B, hid_dim, seq_len]
@@ -188,9 +216,13 @@ class CTCG2PModel(G2PModel, ASRBPEMixin, Exportable):
         elif self.mode == "conformer_bpe":
             input_embedding = self.embedding(input_ids)
             input_embedding = input_embedding.transpose(1, 2)
-            encoded_input, encoded_len = self.encoder(audio_signal=input_embedding, length=input_len)
+            encoded_input, encoded_len = self.encoder(
+                audio_signal=input_embedding, length=input_len
+            )
         else:
-            raise ValueError(f"{self.mode} is not supported. Choose from {self.supported_modes}")
+            raise ValueError(
+                f"{self.mode} is not supported. Choose from {self.supported_modes}"
+            )
 
         log_probs = self.decoder(encoder_output=encoded_input)
         greedy_predictions = log_probs.argmax(dim=-1, keepdim=False)
@@ -205,7 +237,10 @@ class CTCG2PModel(G2PModel, ASRBPEMixin, Exportable):
         )
 
         loss = self.loss(
-            log_probs=log_probs, targets=targets, input_lengths=encoded_len, target_lengths=target_lengths
+            log_probs=log_probs,
+            targets=targets,
+            input_lengths=encoded_len,
+            target_lengths=target_lengths,
         )
         self.log("train_loss", loss)
         return loss
@@ -221,17 +256,26 @@ class CTCG2PModel(G2PModel, ASRBPEMixin, Exportable):
             input_ids=input_ids, attention_mask=attention_mask, input_len=input_len
         )
         val_loss = self.loss(
-            log_probs=log_probs, targets=targets, input_lengths=encoded_len, target_lengths=target_lengths
+            log_probs=log_probs,
+            targets=targets,
+            input_lengths=encoded_len,
+            target_lengths=target_lengths,
         )
 
         self.wer.update(
-            predictions=log_probs, targets=targets, targets_lengths=target_lengths, predictions_lengths=encoded_len
+            predictions=log_probs,
+            targets=targets,
+            targets_lengths=target_lengths,
+            predictions_lengths=encoded_len,
         )
         wer, wer_num, wer_denom = self.wer.compute()
         self.wer.reset()
 
         self.per.update(
-            predictions=log_probs, targets=targets, targets_lengths=target_lengths, predictions_lengths=encoded_len
+            predictions=log_probs,
+            targets=targets,
+            targets_lengths=target_lengths,
+            predictions_lengths=encoded_len,
         )
         per, per_num, per_denom = self.per.compute()
         self.per.reset()
@@ -247,13 +291,19 @@ class CTCG2PModel(G2PModel, ASRBPEMixin, Exportable):
             f"{split}_per": per,
         }
 
-        if split == 'val':
-            if type(self.trainer.val_dataloaders) == list and len(self.trainer.val_dataloaders) > 1:
+        if split == "val":
+            if (
+                type(self.trainer.val_dataloaders) == list
+                and len(self.trainer.val_dataloaders) > 1
+            ):
                 self.validation_step_outputs[dataloader_idx].append(loss)
             else:
                 self.validation_step_outputs.append(loss)
-        elif split == 'test':
-            if type(self.trainer.test_dataloaders) == list and len(self.trainer.test_dataloaders) > 1:
+        elif split == "test":
+            if (
+                type(self.trainer.test_dataloaders) == list
+                and len(self.trainer.test_dataloaders) > 1
+            ):
                 self.test_step_outputs[dataloader_idx].append(loss)
             else:
                 self.test_step_outputs.append(loss)
@@ -300,7 +350,7 @@ class CTCG2PModel(G2PModel, ASRBPEMixin, Exportable):
     def multi_test_epoch_end(self, outputs, dataloader_idx=0):
         self.multi_validation_epoch_end(outputs, dataloader_idx, split="test")
 
-    def _setup_infer_dataloader(self, cfg: DictConfig) -> 'torch.utils.data.DataLoader':
+    def _setup_infer_dataloader(self, cfg: DictConfig) -> "torch.utils.data.DataLoader":
         """
         Setup function for a infer data loader.
         Returns:
@@ -343,7 +393,7 @@ class CTCG2PModel(G2PModel, ASRBPEMixin, Exportable):
         all_preds = []
         mode = self.training
         try:
-            device = 'cuda' if torch.cuda.is_available() else 'cpu'
+            device = "cuda" if torch.cuda.is_available() else "cpu"
             # Switch model to evaluation mode
             self.eval()
             self.to(device)
@@ -354,7 +404,11 @@ class CTCG2PModel(G2PModel, ASRBPEMixin, Exportable):
                 input_ids, attention_mask, input_len = batch
                 log_probs, greedy_predictions, encoded_len = self.forward(
                     input_ids=input_ids.to(device),
-                    attention_mask=attention_mask if attention_mask is None else attention_mask.to(device),
+                    attention_mask=(
+                        attention_mask
+                        if attention_mask is None
+                        else attention_mask.to(device)
+                    ),
                     input_len=input_len.to(device),
                 )
 
@@ -375,7 +429,9 @@ class CTCG2PModel(G2PModel, ASRBPEMixin, Exportable):
 
     # ===== Dataset Setup Functions ===== #
     def _setup_dataloader_from_config(self, cfg: DictConfig, name: str):
-        if "dataloader_params" not in cfg or not isinstance(cfg.dataloader_params, DictConfig):
+        if "dataloader_params" not in cfg or not isinstance(
+            cfg.dataloader_params, DictConfig
+        ):
             raise ValueError(f"No dataloader_params for {name}")
 
         if not os.path.exists(cfg.manifest_filepath):
@@ -394,7 +450,9 @@ class CTCG2PModel(G2PModel, ASRBPEMixin, Exportable):
             with_labels=True,
         )
 
-        return torch.utils.data.DataLoader(dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params)
+        return torch.utils.data.DataLoader(
+            dataset, collate_fn=dataset.collate_fn, **cfg.dataloader_params
+        )
 
     def setup_training_data(self, cfg: DictConfig):
         if not cfg or cfg.manifest_filepath is None:
@@ -405,13 +463,17 @@ class CTCG2PModel(G2PModel, ASRBPEMixin, Exportable):
             return
         self._train_dl = self._setup_dataloader_from_config(cfg, name="train")
 
-    def setup_multiple_validation_data(self, val_data_config: Union[DictConfig, Dict] = None):
+    def setup_multiple_validation_data(
+        self, val_data_config: Union[DictConfig, Dict] = None
+    ):
         if not val_data_config or val_data_config.manifest_filepath is None:
             self._validation_dl = None
             return
         super().setup_multiple_validation_data(val_data_config)
 
-    def setup_multiple_test_data(self, test_data_config: Union[DictConfig, Dict] = None):
+    def setup_multiple_test_data(
+        self, test_data_config: Union[DictConfig, Dict] = None
+    ):
         if not test_data_config or test_data_config.manifest_filepath is None:
             self._test_dl = None
             return
@@ -437,7 +499,7 @@ class CTCG2PModel(G2PModel, ASRBPEMixin, Exportable):
 
     # ===== List Available Models - N/A =====$
     @classmethod
-    def list_available_models(cls) -> 'List[PretrainedModelInfo]':
+    def list_available_models(cls) -> "List[PretrainedModelInfo]":
         return []
 
     @property
@@ -462,13 +524,13 @@ class CTCG2PModel(G2PModel, ASRBPEMixin, Exportable):
 
         # Define input_types and output_types as required by export()
         self._input_types = {
-            "input_ids": NeuralType(('B', 'T'), TokenIndex()),
-            "input_len": NeuralType(tuple('B'), LengthsType()),
+            "input_ids": NeuralType(("B", "T"), TokenIndex()),
+            "input_len": NeuralType(tuple("B"), LengthsType()),
         }
         self._output_types = {
             # "preds_str": NeuralType(('B', 'T'), LabelsType()),
-            "log_probs": NeuralType(('B', 'T'), LossType()),
-            "encoded_len": NeuralType(('B', 'T'), LengthsType()),
+            "log_probs": NeuralType(("B", "T"), LossType()),
+            "encoded_len": NeuralType(("B", "T"), LengthsType()),
         }
 
     def _export_teardown(self):
@@ -493,14 +555,22 @@ class CTCG2PModel(G2PModel, ASRBPEMixin, Exportable):
         input_ids = [self.tokenizer_grapheme.text_to_ids(sentence)]
         input_len = [len(entry) for entry in input_ids]
         max_len = max(input_len)
-        input_ids = [entry + [0] * (max_len - entry_len) for entry, entry_len in zip(input_ids, input_len)]
-        inputs = (torch.tensor(input_ids).to(self.device), torch.tensor(input_len).to(self.device))
+        input_ids = [
+            entry + [0] * (max_len - entry_len)
+            for entry, entry_len in zip(input_ids, input_len)
+        ]
+        inputs = (
+            torch.tensor(input_ids).to(self.device),
+            torch.tensor(input_len).to(self.device),
+        )
         return inputs
 
     def forward_for_export(self, input_ids, input_len):
         input_embedding = self.embedding(input_ids)
         input_embedding = input_embedding.transpose(1, 2)
-        encoded_input, encoded_len = self.encoder(audio_signal=input_embedding, length=input_len)
+        encoded_input, encoded_len = self.encoder(
+            audio_signal=input_embedding, length=input_len
+        )
 
         log_probs = self.decoder(encoder_output=encoded_input)
         return (log_probs, encoded_len)

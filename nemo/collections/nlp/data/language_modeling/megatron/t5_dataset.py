@@ -76,12 +76,14 @@ class T5Dataset(Dataset):
         self.indexed_dataset = indexed_dataset
 
         # save index mappings to a configurable dir
-        self.index_mapping_dir = cfg.data.get('index_mapping_dir', None)
+        self.index_mapping_dir = cfg.data.get("index_mapping_dir", None)
 
         # create index_mapping_dir on rank 0
         if torch.distributed.is_available() and torch.distributed.is_initialized():
             if torch.distributed.get_rank() == 0:
-                if self.index_mapping_dir is not None and not os.path.isdir(self.index_mapping_dir):
+                if self.index_mapping_dir is not None and not os.path.isdir(
+                    self.index_mapping_dir
+                ):
                     os.makedirs(self.index_mapping_dir)
             torch.distributed.barrier()
 
@@ -108,7 +110,8 @@ class T5Dataset(Dataset):
                 data_prefix=data_prefix,
                 num_epochs=num_epochs,
                 max_num_samples=max_num_samples,
-                max_seq_length=self.max_seq_length - self.MAX_SEQ_LENGTH_DELTA,  # account for added tokens
+                max_seq_length=self.max_seq_length
+                - self.MAX_SEQ_LENGTH_DELTA,  # account for added tokens
                 short_seq_prob=self.short_seq_prob,
                 seed=self.seed,
                 name=self.name,
@@ -117,7 +120,9 @@ class T5Dataset(Dataset):
             )
 
         self.tokenizer = tokenizer
-        self.tokenizer_type = T5Dataset._determine_tokenizer_type(tokenizer, whole_word_masking=whole_word_masking)
+        self.tokenizer_type = T5Dataset._determine_tokenizer_type(
+            tokenizer, whole_word_masking=whole_word_masking
+        )
         self.cls_id = tokenizer.cls_id
         self.sep_id = tokenizer.sep_id
         self.mask_id = tokenizer.mask_id
@@ -126,7 +131,9 @@ class T5Dataset(Dataset):
         self.eos_id = tokenizer.eos_id
 
         self.vocab_id_list = self.tokenizer.vocab
-        self.vocab_id_to_token_dict = {idx: token for idx, token in enumerate(self.vocab_id_list)}
+        self.vocab_id_to_token_dict = {
+            idx: token for idx, token in enumerate(self.vocab_id_list)
+        }
 
         self._build()
 
@@ -160,16 +167,24 @@ class T5Dataset(Dataset):
             # If we are within the same document, just extract the chunk.
             if doc_index_f == doc_index_l:
                 sample = self.indexed_dataset.get(
-                    self.doc_idx[doc_index_f], offset=offset_f, length=offset_l - offset_f + 1
+                    self.doc_idx[doc_index_f],
+                    offset=offset_f,
+                    length=offset_l - offset_f + 1,
                 )
             else:
                 # Otherwise, get the rest of the initial document.
-                sample_list = [self.indexed_dataset.get(self.doc_idx[doc_index_f], offset=offset_f)]
+                sample_list = [
+                    self.indexed_dataset.get(self.doc_idx[doc_index_f], offset=offset_f)
+                ]
                 # Loop over all in between documents and add the entire document.
                 for i in range(doc_index_f + 1, doc_index_l):
                     sample_list.append(self.indexed_dataset.get(self.doc_idx[i]))
                 # And finally add the relevant portion of last document.
-                sample_list.append(self.indexed_dataset.get(self.doc_idx[doc_index_l], length=offset_l + 1))
+                sample_list.append(
+                    self.indexed_dataset.get(
+                        self.doc_idx[doc_index_l], length=offset_l + 1
+                    )
+                )
                 sample = np.concatenate(sample_list)
                 sample.astype(np.int64)
             seq_length = len(sample)
@@ -210,12 +225,14 @@ class T5Dataset(Dataset):
 
     @classmethod
     def _determine_tokenizer_type(cls, tokenizer, whole_word_masking=False):
-        tokenizer_type = 'wordpiece'  # TODO: better checks for tokenizer types. How do we do this for HF tokenizers that are not BERT?
+        tokenizer_type = "wordpiece"  # TODO: better checks for tokenizer types. How do we do this for HF tokenizers that are not BERT?
 
         if isinstance(tokenizer, SentencePieceTokenizer):
             if not tokenizer.legacy:
-                raise ValueError("Sentencepiece Tokenizer must have legacy = False to add special tokens.")
-            tokenizer_type = 'sentencepiece'
+                raise ValueError(
+                    "Sentencepiece Tokenizer must have legacy = False to add special tokens."
+                )
+            tokenizer_type = "sentencepiece"
             if whole_word_masking:
                 raise ValueError(
                     "Whole word masking is not supported with sentencepiece tokenizers and only with wordpiece tokenizers. Please set it to False."
@@ -318,26 +335,28 @@ class T5Dataset(Dataset):
             (output_tokens, masked_positions, masked_labels, _, masked_spans) = lm_pred
 
         # Padding.
-        tokens_enc, tokens_dec_in, labels, enc_mask, dec_mask, loss_mask = T5Dataset.pad_and_convert_to_numpy(
-            output_tokens=output_tokens,
-            masked_positions=masked_positions,
-            masked_labels=masked_labels,
-            masked_spans=masked_spans,
-            sentinel_tokens=sentinel_tokens,
-            bos_id=bos_id,
-            eos_id=eos_id,
-            pad_id=pad_id,
-            max_seq_length=max_seq_length,
-            max_seq_length_dec=max_seq_length_dec,
+        tokens_enc, tokens_dec_in, labels, enc_mask, dec_mask, loss_mask = (
+            T5Dataset.pad_and_convert_to_numpy(
+                output_tokens=output_tokens,
+                masked_positions=masked_positions,
+                masked_labels=masked_labels,
+                masked_spans=masked_spans,
+                sentinel_tokens=sentinel_tokens,
+                bos_id=bos_id,
+                eos_id=eos_id,
+                pad_id=pad_id,
+                max_seq_length=max_seq_length,
+                max_seq_length_dec=max_seq_length_dec,
+            )
         )
 
         train_sample = {
-            'text_enc': tokens_enc,
-            'text_dec': tokens_dec_in,
-            'labels': labels,
-            'loss_mask': loss_mask,
-            'enc_mask': enc_mask,
-            'dec_mask': dec_mask,
+            "text_enc": tokens_enc,
+            "text_dec": tokens_dec_in,
+            "labels": labels,
+            "loss_mask": loss_mask,
+            "enc_mask": enc_mask,
+            "dec_mask": dec_mask,
         }
         return train_sample
 
@@ -401,7 +420,11 @@ class T5Dataset(Dataset):
         # Decoder-side padding mask.
         num_tokens_dec = len(t5_decoder_in)
         padding_length_dec = max_seq_length_dec - num_tokens_dec
-        assert padding_length_dec >= 0, (padding_length_dec, max_seq_length_dec, num_tokens_dec)
+        assert padding_length_dec >= 0, (
+            padding_length_dec,
+            max_seq_length_dec,
+            num_tokens_dec,
+        )
         filler_dec = [pad_id] * padding_length_dec
         tokens_dec_in = np.array(t5_decoder_in + filler_dec, dtype=np.int64)
 
@@ -422,7 +445,14 @@ class T5Dataset(Dataset):
 
 class MockT5Dataset(Dataset):
     def __init__(
-        self, cfg, tokenizer, name, num_samples, max_seq_length, max_seq_length_dec, seed,
+        self,
+        cfg,
+        tokenizer,
+        name,
+        num_samples,
+        max_seq_length,
+        max_seq_length_dec,
+        seed,
     ):
         super().__init__()
         self.name = name
@@ -437,25 +467,33 @@ class MockT5Dataset(Dataset):
 
     def _get_sample(self, idx):
         np_gen = np.random.default_rng(seed=(self.seed + idx))
-        sample = np_gen.integers(self.vocab_size, size=[self.max_seq_length], dtype=np.int64)
+        sample = np_gen.integers(
+            self.vocab_size, size=[self.max_seq_length], dtype=np.int64
+        )
         return [sample], self.max_seq_length
 
     def __getitem__(self, idx):
         # Generate output values randomly with the expected size and datatype
         np_gen = np.random.default_rng(seed=(self.seed + idx))
-        tokens_enc = np_gen.integers(self.vocab_size, size=[self.max_seq_length], dtype=np.int64)
-        tokens_dec_in = np_gen.integers(self.vocab_size, size=[self.max_seq_length_dec], dtype=np.int64)
-        labels = np_gen.integers(self.vocab_size, size=[self.max_seq_length_dec], dtype=np.int64)
+        tokens_enc = np_gen.integers(
+            self.vocab_size, size=[self.max_seq_length], dtype=np.int64
+        )
+        tokens_dec_in = np_gen.integers(
+            self.vocab_size, size=[self.max_seq_length_dec], dtype=np.int64
+        )
+        labels = np_gen.integers(
+            self.vocab_size, size=[self.max_seq_length_dec], dtype=np.int64
+        )
         enc_mask = np.ones(shape=[self.max_seq_length], dtype=np.int64)
         dec_mask = np.ones(shape=[self.max_seq_length_dec], dtype=np.int64)
         loss_mask = np.ones(shape=[self.max_seq_length_dec], dtype=np.int64)
 
         training_sample = {
-            'text_enc': tokens_enc,
-            'text_dec': tokens_dec_in,
-            'labels': labels,
-            'loss_mask': loss_mask,
-            'enc_mask': enc_mask,
-            'dec_mask': dec_mask,
+            "text_enc": tokens_enc,
+            "text_dec": tokens_dec_in,
+            "labels": labels,
+            "loss_mask": loss_mask,
+            "enc_mask": enc_mask,
+            "dec_mask": dec_mask,
         }
         return training_sample

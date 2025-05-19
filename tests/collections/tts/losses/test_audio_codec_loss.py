@@ -23,31 +23,39 @@ from nemo.collections.tts.losses.audio_codec_loss import (MaskedMAELoss,
 
 
 class TestAudioCodecLoss:
-    @pytest.mark.run_only_on('CPU')
+    @pytest.mark.run_only_on("CPU")
     @pytest.mark.unit
     def test_masked_loss_l1(self):
         loss_fn = MaskedMAELoss()
-        target = torch.tensor([[[1.0], [2.0], [0.0]], [[3.0], [0.0], [0.0]]]).transpose(1, 2)
-        predicted = torch.tensor([[[0.5], [1.0], [0.0]], [[4.5], [0.0], [0.0]]]).transpose(1, 2)
+        target = torch.tensor([[[1.0], [2.0], [0.0]], [[3.0], [0.0], [0.0]]]).transpose(
+            1, 2
+        )
+        predicted = torch.tensor(
+            [[[0.5], [1.0], [0.0]], [[4.5], [0.0], [0.0]]]
+        ).transpose(1, 2)
         target_len = torch.tensor([2, 1])
 
         loss = loss_fn(predicted=predicted, target=target, target_len=target_len)
 
         assert loss == 1.125
 
-    @pytest.mark.run_only_on('CPU')
+    @pytest.mark.run_only_on("CPU")
     @pytest.mark.unit
     def test_masked_loss_l2(self):
         loss_fn = MaskedMSELoss()
-        target = torch.tensor([[[1.0], [2.0], [4.0]], [[3.0], [0.0], [0.0]]]).transpose(1, 2)
-        predicted = torch.tensor([[[0.5], [1.0], [4.0]], [[4.5], [0.0], [0.0]]]).transpose(1, 2)
+        target = torch.tensor([[[1.0], [2.0], [4.0]], [[3.0], [0.0], [0.0]]]).transpose(
+            1, 2
+        )
+        predicted = torch.tensor(
+            [[[0.5], [1.0], [4.0]], [[4.5], [0.0], [0.0]]]
+        ).transpose(1, 2)
         target_len = torch.tensor([3, 1])
 
         loss = loss_fn(predicted=predicted, target=target, target_len=target_len)
 
         assert loss == (4 / 3)
 
-    @pytest.mark.run_only_on('CPU')
+    @pytest.mark.run_only_on("CPU")
     @pytest.mark.unit
     def test_si_sdr_loss(self):
         loss_fn = SISDRLoss()
@@ -65,7 +73,7 @@ class TestAudioCodecLoss:
 
         torch.testing.assert_close(actual=si_sdr, expected=torch_si_sdr)
 
-    @pytest.mark.run_only_on('CPU')
+    @pytest.mark.run_only_on("CPU")
     @pytest.mark.unit
     def test_si_sdr_loss_batch(self):
         loss_fn = SISDRLoss()
@@ -83,7 +91,9 @@ class TestAudioCodecLoss:
 
         torch_si_sdr = 0.0
         for i in range(batch_size):
-            torch_si_sdr += si_sdr_fn(preds=predicted[i, : target_len[i]], target=target[i, : target_len[i]])
+            torch_si_sdr += si_sdr_fn(
+                preds=predicted[i, : target_len[i]], target=target[i, : target_len[i]]
+            )
         torch_si_sdr /= batch_size
 
         loss = loss_fn(audio_real=target, audio_gen=predicted, audio_len=target_len)

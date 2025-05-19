@@ -63,7 +63,7 @@ def bf16_with_fp8_mixed() -> run.Config[MegatronMixedPrecision]:
         run.Config[MegatronMixedPrecision]: Configuration for BF16 with FP8 mixed precision training
     """
     cfg = bf16_mixed()
-    cfg.fp8 = 'hybrid'
+    cfg.fp8 = "hybrid"
     cfg.fp8_recipe = "delayed"
     cfg.fp8_margin = 0
     cfg.fp8_amax_history_len = 1024
@@ -81,7 +81,7 @@ def fp16_with_fp8_mixed() -> run.Config[MegatronMixedPrecision]:
         run.Config[MegatronMixedPrecision]: Configuration for FP16 with FP8 mixed precision training
     """
     cfg = fp16_mixed()
-    cfg.fp8 = 'hybrid'
+    cfg.fp8 = "hybrid"
     cfg.fp8_recipe = "delayed"
     cfg.fp8_margin = 0
     cfg.fp8_amax_history_len = 1024
@@ -97,7 +97,7 @@ def bf16_with_mxfp8_mixed() -> run.Config[MegatronMixedPrecision]:
         run.Config[MegatronMixedPrecision]: Configuration for BF16 with MXFP8 mixed precision training
     """
     cfg = bf16_mixed()
-    cfg.fp8 = 'hybrid'
+    cfg.fp8 = "hybrid"
     cfg.fp8_recipe = "mxfp8"
     cfg.fp8_param_gather = False
     return cfg
@@ -110,7 +110,7 @@ def fp16_with_mxfp8_mixed() -> run.Config[MegatronMixedPrecision]:
         run.Config[MegatronMixedPrecision]: Configuration for FP16 with MXFP8 mixed precision training
     """
     cfg = fp16_mixed()
-    cfg.fp8 = 'hybrid'
+    cfg.fp8 = "hybrid"
     cfg.fp8_recipe = "mxfp8"
     cfg.fp8_param_gather = False
     return cfg
@@ -128,7 +128,7 @@ def bf16_with_fp8_current_scaling_mixed() -> run.Config[MegatronMixedPrecision]:
         precision training
     """
     cfg = bf16_mixed()
-    cfg.fp8 = 'hybrid'
+    cfg.fp8 = "hybrid"
     cfg.fp8_recipe = "tensorwise"
     cfg.first_last_layers_bf16 = True
     cfg.num_layers_at_start_in_bf16 = 1
@@ -137,7 +137,9 @@ def bf16_with_fp8_current_scaling_mixed() -> run.Config[MegatronMixedPrecision]:
     return cfg
 
 
-def nemotron_h_bf16_with_fp8_current_scaling_mixed() -> run.Config[MegatronMixedPrecision]:
+def nemotron_h_bf16_with_fp8_current_scaling_mixed() -> (
+    run.Config[MegatronMixedPrecision]
+):
     """Create a MegatronMixedPrecision plugin configuration for mixed precision training using BF16 with FP8
     per-tensor current scaling.
 
@@ -149,7 +151,7 @@ def nemotron_h_bf16_with_fp8_current_scaling_mixed() -> run.Config[MegatronMixed
         precision training
     """
     cfg = bf16_mixed()
-    cfg.fp8 = 'hybrid'
+    cfg.fp8 = "hybrid"
     cfg.fp8_recipe = "tensorwise"
     cfg.first_last_layers_bf16 = True
     cfg.num_layers_at_start_in_bf16 = 2
@@ -170,7 +172,7 @@ def fp16_with_fp8_current_scaling_mixed() -> run.Config[MegatronMixedPrecision]:
         precision training
     """
     cfg = fp16_mixed()
-    cfg.fp8 = 'hybrid'
+    cfg.fp8 = "hybrid"
     cfg.fp8_recipe = "tensorwise"
     cfg.first_last_layers_bf16 = True
     cfg.num_layers_at_start_in_bf16 = 1
@@ -188,7 +190,7 @@ def bf16_with_fp8_subchannel_scaling_mixed() -> run.Config[MegatronMixedPrecisio
         run.Config[MegatronMixedPrecision]: Configuration for BF16 with FP8 subchannel scaling mixed precision training
     """
     cfg = bf16_mixed()
-    cfg.fp8 = 'hybrid'
+    cfg.fp8 = "hybrid"
     cfg.fp8_recipe = "blockwise"
     cfg.fp8_param_gather = False
     return cfg
@@ -203,7 +205,7 @@ def fp16_with_fp8_subchannel_scaling_mixed() -> run.Config[MegatronMixedPrecisio
         run.Config[MegatronMixedPrecision]: Configuration for FP16 with FP8 subchannel scaling mixed precision training
     """
     cfg = fp16_mixed()
-    cfg.fp8 = 'hybrid'
+    cfg.fp8 = "hybrid"
     cfg.fp8_recipe = "blockwise"
     cfg.fp8_param_gather = False
     return cfg

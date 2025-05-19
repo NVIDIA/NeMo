@@ -82,7 +82,9 @@ class BertExample(object):
             and input_len == len(tag_labels)
             and input_len == len(semiotic_labels)
         ):
-            raise ValueError('All feature lists should have the same length ({})'.format(input_len))
+            raise ValueError(
+                "All feature lists should have the same length ({})".format(input_len)
+            )
 
         self.features = OrderedDict(
             [
@@ -99,7 +101,9 @@ class BertExample(object):
         self.editing_task = task
         self._default_label = default_label
 
-    def pad_to_max_length(self, max_seq_length: int, max_semiotic_length: int, pad_token_id: int) -> None:
+    def pad_to_max_length(
+        self, max_seq_length: int, max_semiotic_length: int, pad_token_id: int
+    ) -> None:
         """Pad the feature vectors so that they all have max_seq_length.
 
         Args:
@@ -108,9 +112,10 @@ class BertExample(object):
             pad_token_id: input_ids feature is padded with this ID, other features
                 with ID 0.
         """
-        pad_len = max_seq_length - len(self.features['input_ids'])
+        pad_len = max_seq_length - len(self.features["input_ids"])
         self.features["semiotic_spans"].extend(
-            [(-1, -1, -1)] * (max_semiotic_length - len(self.features["semiotic_spans"]))
+            [(-1, -1, -1)]
+            * (max_semiotic_length - len(self.features["semiotic_spans"]))
         )
         for key in self.features:
             if key == "semiotic_spans":
@@ -119,7 +124,9 @@ class BertExample(object):
             self.features[key].extend([pad_id] * pad_len)
             if len(self.features[key]) != max_seq_length:
                 raise ValueError(
-                    "{} has length {} (should be {}).".format(key, len(self.features[key]), max_seq_length)
+                    "{} has length {} (should be {}).".format(
+                        key, len(self.features[key]), max_seq_length
+                    )
                 )
 
     def get_token_labels(self, features_key: str) -> List[int]:
@@ -128,7 +135,10 @@ class BertExample(object):
         for idx in self._token_start_indices:
             # For unmasked and untruncated tokens, use the label in the features, and
             # for the truncated tokens, use the default label.
-            if idx < len(self.features[features_key]) and self.features["labels_mask"][idx]:
+            if (
+                idx < len(self.features[features_key])
+                and self.features["labels_mask"][idx]
+            ):
                 labels.append(self.features[features_key][idx])
             else:
                 labels.append(self._default_label)
@@ -162,7 +172,11 @@ class BertExampleBuilder(object):
         self._keep_tag_id = self._label_map["KEEP"]
 
     def build_bert_example(
-        self, source: str, target: Optional[str] = None, semiotic_info: Optional[str] = None, infer: bool = False
+        self,
+        source: str,
+        target: Optional[str] = None,
+        semiotic_info: Optional[str] = None,
+        infer: bool = False,
     ) -> Optional[BertExample]:
         """Constructs a BERT Example.
 
@@ -184,7 +198,9 @@ class BertExampleBuilder(object):
             # If target is not provided, we set all target labels to KEEP.
             tags = [Tag("KEEP") for _ in task.source_tokens]
         source_tags = [self._label_map[str(tag)] for tag in tags]
-        tokens, tag_labels, token_start_indices = self._split_to_wordpieces(task.source_tokens, source_tags)
+        tokens, tag_labels, token_start_indices = self._split_to_wordpieces(
+            task.source_tokens, source_tags
+        )
 
         tokens = self._truncate_list(tokens)
         tag_labels = self._truncate_list(tag_labels)
@@ -196,7 +212,9 @@ class BertExampleBuilder(object):
         if "PLAIN" not in self._semiotic_classes:
             raise KeyError("PLAIN should be in self._semiotic_classes")
         plain_cid = self._semiotic_classes["PLAIN"]
-        semiotic_labels = [plain_cid] * len(tag_labels)  # we use the same mask for semiotic labels as for tag labels
+        semiotic_labels = [plain_cid] * len(
+            tag_labels
+        )  # we use the same mask for semiotic labels as for tag labels
 
         input_ids = self._tokenizer.convert_tokens_to_ids(input_tokens)
         input_mask = [1] * len(input_ids)
@@ -220,7 +238,10 @@ class BertExampleBuilder(object):
                 end = int(end)
                 if start >= len(token_start_indices):
                     raise IndexError(
-                        "start=" + str(start) + " is outside len(token_start_indices)=" + str(len(token_start_indices))
+                        "start="
+                        + str(start)
+                        + " is outside len(token_start_indices)="
+                        + str(len(token_start_indices))
                     )
                 while previous_end < start:
                     subtoken_start = token_start_indices[previous_end]
@@ -232,11 +253,19 @@ class BertExampleBuilder(object):
                     semiotic_spans.append((plain_cid, subtoken_start, subtoken_end))
                     previous_end += 1
                 subtoken_start = token_start_indices[start]
-                subtoken_end = token_start_indices[end] if end < len(token_start_indices) else len(input_ids) - 1
-                if subtoken_end >= self._max_seq_length:  # possible if input_ids gets truncated to the max_seq_length
+                subtoken_end = (
+                    token_start_indices[end]
+                    if end < len(token_start_indices)
+                    else len(input_ids) - 1
+                )
+                if (
+                    subtoken_end >= self._max_seq_length
+                ):  # possible if input_ids gets truncated to the max_seq_length
                     break
                 semiotic_spans.append((cid, subtoken_start, subtoken_end))
-                semiotic_labels[subtoken_start:subtoken_end] = [cid] * (subtoken_end - subtoken_start)
+                semiotic_labels[subtoken_start:subtoken_end] = [cid] * (
+                    subtoken_end - subtoken_start
+                )
                 previous_end = end
             while previous_end < len(token_start_indices):
                 subtoken_start = token_start_indices[previous_end]
@@ -247,7 +276,10 @@ class BertExampleBuilder(object):
                 )
                 semiotic_spans.append((plain_cid, subtoken_start, subtoken_end))
                 previous_end += 1
-        if len(input_ids) > self._max_seq_length or len(semiotic_spans) > self._max_semiotic_length:
+        if (
+            len(input_ids) > self._max_seq_length
+            or len(semiotic_spans) > self._max_semiotic_length
+        ):
             return None
         example = BertExample(
             input_ids=input_ids,
@@ -261,10 +293,14 @@ class BertExampleBuilder(object):
             task=task,
             default_label=self._keep_tag_id,
         )
-        example.pad_to_max_length(self._max_seq_length, self._max_semiotic_length, self._pad_id)
+        example.pad_to_max_length(
+            self._max_seq_length, self._max_semiotic_length, self._pad_id
+        )
         return example
 
-    def _split_to_wordpieces(self, tokens: List[str], labels: List[int]) -> Tuple[List[str], List[int], List[int]]:
+    def _split_to_wordpieces(
+        self, tokens: List[str], labels: List[int]
+    ) -> Tuple[List[str], List[int], List[int]]:
         """Splits tokens (and the labels accordingly) to WordPieces.
 
         Args:
@@ -287,7 +323,9 @@ class BertExampleBuilder(object):
             bert_labels.extend([labels[i]] * len(pieces))
         return bert_tokens, bert_labels, token_start_indices
 
-    def _truncate_list(self, x: Union[List[str], List[int]]) -> Union[List[str], List[int]]:
+    def _truncate_list(
+        self, x: Union[List[str], List[int]]
+    ) -> Union[List[str], List[int]]:
         """Returns truncated version of x according to the self._max_seq_length."""
         # Save two slots for the first [CLS] token and the last [SEP] token.
         return x[: self._max_seq_length - 2]
@@ -312,7 +350,9 @@ class BertExampleBuilder(object):
         """
         target_tokens = target.split(" ")
         if len(target_tokens) != len(task.source_tokens):
-            raise ValueError("Length mismatch: " + str(task.source_tokens) + "\n" + target)
+            raise ValueError(
+                "Length mismatch: " + str(task.source_tokens) + "\n" + target
+            )
         tags = []
         for t in target_tokens:
             if t == "<SELF>":
@@ -325,8 +365,8 @@ class BertExampleBuilder(object):
 
 
 def read_input_file(
-    example_builder: 'BertExampleBuilder', input_filename: str, infer: bool = False
-) -> List['BertExample']:
+    example_builder: "BertExampleBuilder", input_filename: str, infer: bool = False
+) -> List["BertExample"]:
     """Reads in Tab Separated Value file and converts to training/inference-ready examples.
 
     Args:
@@ -341,10 +381,14 @@ def read_input_file(
     if not path.exists(input_filename):
         raise ValueError("Cannot find file: " + input_filename)
     examples = []
-    for i, (source, target, semiotic_info) in enumerate(yield_sources_and_targets(input_filename)):
+    for i, (source, target, semiotic_info) in enumerate(
+        yield_sources_and_targets(input_filename)
+    ):
         if len(examples) % 1000 == 0:
             logging.info("{} examples processed.".format(len(examples)))
-        example = example_builder.build_bert_example(source, target, semiotic_info, infer)
+        example = example_builder.build_bert_example(
+            source, target, semiotic_info, infer
+        )
         if example is None:
             continue
         examples.append(example)

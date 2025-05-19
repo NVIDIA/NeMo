@@ -55,12 +55,14 @@ class BertDataset(torch.utils.data.Dataset):
         self.indexed_dataset = indexed_dataset
 
         # save index mappings to a configurable dir
-        self.index_mapping_dir = cfg.data.get('index_mapping_dir', None)
+        self.index_mapping_dir = cfg.data.get("index_mapping_dir", None)
 
         # create index_mapping_dir on rank 0
         if torch.distributed.is_available() and torch.distributed.is_initialized():
             if torch.distributed.get_rank() == 0:
-                if self.index_mapping_dir is not None and not os.path.isdir(self.index_mapping_dir):
+                if self.index_mapping_dir is not None and not os.path.isdir(
+                    self.index_mapping_dir
+                ):
                     os.makedirs(self.index_mapping_dir)
             torch.distributed.barrier()
 
@@ -95,7 +97,7 @@ class BertDataset(torch.utils.data.Dataset):
         # Note that this rng state should be numpy and not python since
         # python randint is inclusive whereas the numpy one is exclusive.
         # We % 2**32 since numpy requres the seed to be between 0 and 2**32 - 1
-        np_rng = np.random.RandomState(seed=((self.seed + idx) % 2 ** 32))
+        np_rng = np.random.RandomState(seed=((self.seed + idx) % 2**32))
         return build_training_sample(
             sample,
             seq_length,
@@ -165,10 +167,14 @@ def build_training_sample(
 
     # Truncate to `target_sequence_length`.
     max_num_tokens = target_seq_length
-    truncated = truncate_segments(tokens_a, tokens_b, len(tokens_a), len(tokens_b), max_num_tokens, np_rng)
+    truncated = truncate_segments(
+        tokens_a, tokens_b, len(tokens_a), len(tokens_b), max_num_tokens, np_rng
+    )
 
     # Build tokens and toketypes.
-    tokens, tokentypes = create_tokens_and_tokentypes(tokens_a, tokens_b, cls_id, sep_id)
+    tokens, tokentypes = create_tokens_and_tokentypes(
+        tokens_a, tokens_b, cls_id, sep_id
+    )
 
     # Masking.
     max_predictions_per_seq = masked_lm_prob * max_num_tokens
@@ -187,23 +193,27 @@ def build_training_sample(
     )
 
     # Padding.
-    tokens_np, tokentypes_np, labels_np, padding_mask_np, loss_mask_np = pad_and_convert_to_numpy(
-        tokens, tokentypes, masked_positions, masked_labels, pad_id, max_seq_length
+    tokens_np, tokentypes_np, labels_np, padding_mask_np, loss_mask_np = (
+        pad_and_convert_to_numpy(
+            tokens, tokentypes, masked_positions, masked_labels, pad_id, max_seq_length
+        )
     )
 
     train_sample = {
-        'text': tokens_np,
-        'types': tokentypes_np,
-        'labels': labels_np,
-        'is_random': int(is_next_random),
-        'loss_mask': loss_mask_np,
-        'padding_mask': padding_mask_np,
-        'truncated': int(truncated),
+        "text": tokens_np,
+        "types": tokentypes_np,
+        "labels": labels_np,
+        "is_random": int(is_next_random),
+        "loss_mask": loss_mask_np,
+        "padding_mask": padding_mask_np,
+        "truncated": int(truncated),
     }
     return train_sample
 
 
-def pad_and_convert_to_numpy(tokens, tokentypes, masked_positions, masked_labels, pad_id, max_seq_length):
+def pad_and_convert_to_numpy(
+    tokens, tokentypes, masked_positions, masked_labels, pad_id, max_seq_length
+):
     """Pad sequences and convert them to numpy."""
 
     # Some checks.

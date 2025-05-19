@@ -201,9 +201,9 @@ class _MockT2IDataset(Dataset):
         image_H,
         image_W,
         length=100000,
-        image_key='images',
-        txt_key='txt',
-        hint_key='hint',
+        image_key="images",
+        txt_key="txt",
+        hint_key="hint",
         image_precached=False,
         text_precached=False,
         prompt_seq_len=256,
@@ -222,7 +222,11 @@ class _MockT2IDataset(Dataset):
         self.image_precached = image_precached
         self.text_precached = text_precached
         if self.image_precached:
-            self.latent_shape = (vae_channels, int(image_H // vae_scale_factor), int(image_W // vae_scale_factor))
+            self.latent_shape = (
+                vae_channels,
+                int(image_H // vae_scale_factor),
+                int(image_W // vae_scale_factor),
+            )
         if self.text_precached:
             self.prompt_embeds_shape = (prompt_seq_len, context_dim)
             self.pooped_prompt_embeds_shape = (pooled_prompt_dim,)
@@ -253,16 +257,16 @@ class _MockT2IDataset(Dataset):
         """
         item = {}
         if self.image_precached:
-            item['latents'] = torch.randn(self.latent_shape)
-            item['control_latents'] = torch.randn(self.latent_shape)
+            item["latents"] = torch.randn(self.latent_shape)
+            item["control_latents"] = torch.randn(self.latent_shape)
         else:
             item[self.image_key] = torch.randn(3, self.H, self.W)
             item[self.hint_key] = torch.randn(3, self.H, self.W)
 
         if self.text_precached:
-            item['prompt_embeds'] = torch.randn(self.prompt_embeds_shape)
-            item['pooled_prompt_embeds'] = torch.randn(self.pooped_prompt_embeds_shape)
-            item['text_ids'] = torch.randn(self.text_ids_shape)
+            item["prompt_embeds"] = torch.randn(self.prompt_embeds_shape)
+            item["pooled_prompt_embeds"] = torch.randn(self.pooped_prompt_embeds_shape)
+            item["text_ids"] = torch.randn(self.text_ids_shape)
         else:
             item[self.txt_key] = "This is a sample caption input"
 

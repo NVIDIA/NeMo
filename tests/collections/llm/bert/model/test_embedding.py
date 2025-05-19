@@ -117,10 +117,17 @@ def test_bert_embedding_data_step():
             tensor.cuda = MagicMock(side_effect=mock_cuda)
 
     # Mock pipeline first stage check
-    with patch('megatron.core.parallel_state.is_pipeline_first_stage', return_value=True):
+    with patch(
+        "megatron.core.parallel_state.is_pipeline_first_stage", return_value=True
+    ):
         # Mock context parallel rank function to return the same batch
-        with patch('megatron.core.utils.get_batch_on_this_cp_rank', side_effect=lambda x: x):
-            with patch('megatron.core.parallel_state.get_context_parallel_world_size', return_value=1):
+        with patch(
+            "megatron.core.utils.get_batch_on_this_cp_rank", side_effect=lambda x: x
+        ):
+            with patch(
+                "megatron.core.parallel_state.get_context_parallel_world_size",
+                return_value=1,
+            ):
                 result = bert_embedding_data_step(mock_iterator)
 
     # Verify the output contains the expected keys
@@ -160,13 +167,22 @@ def test_bert_embedding_data_step_tuple_input():
             tensor.cuda = MagicMock(side_effect=mock_cuda)
 
     # Mock pipeline first stage check
-    with patch('megatron.core.parallel_state.is_pipeline_first_stage', return_value=True):
-        with patch('megatron.core.utils.get_batch_on_this_cp_rank', side_effect=lambda x: x):
-            with patch('megatron.core.parallel_state.get_context_parallel_world_size', return_value=1):
+    with patch(
+        "megatron.core.parallel_state.is_pipeline_first_stage", return_value=True
+    ):
+        with patch(
+            "megatron.core.utils.get_batch_on_this_cp_rank", side_effect=lambda x: x
+        ):
+            with patch(
+                "megatron.core.parallel_state.get_context_parallel_world_size",
+                return_value=1,
+            ):
                 result = bert_embedding_data_step(mock_iterator)
     # Verify the output structure
     assert isinstance(result, dict)
-    assert all(key in result for key in ["input_ids", "attention_mask", "token_type_ids"])
+    assert all(
+        key in result for key in ["input_ids", "attention_mask", "token_type_ids"]
+    )
 
 
 from unittest.mock import MagicMock

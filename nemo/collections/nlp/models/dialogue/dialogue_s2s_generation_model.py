@@ -44,12 +44,14 @@ try:
         reconfigure_num_microbatches_calculator
 
 except (ImportError, ModuleNotFoundError):
-    logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
+    logging.warning(
+        "Megatron num_microbatches_calculator not found, using Apex version."
+    )
     from apex.transformer.pipeline_parallel.utils import \
         _reconfigure_microbatch_calculator as \
         reconfigure_num_microbatches_calculator
 
-__all__ = ['DialogueS2SGenerationModel']
+__all__ = ["DialogueS2SGenerationModel"]
 
 
 class DialogueS2SGenerationModel(NLPModel):
@@ -69,36 +71,46 @@ class DialogueS2SGenerationModel(NLPModel):
         elif self.cfg.library == "megatron":
             # supporting MegatronT5Model in precision = fp16
             t5_cfg = MegatronT5Model.restore_from(
-                restore_path=cfg.language_model.lm_checkpoint, trainer=trainer, return_config=True
+                restore_path=cfg.language_model.lm_checkpoint,
+                trainer=trainer,
+                return_config=True,
             )
             # Override the T5 configuration with the one from the config file.
             OmegaConf.set_struct(t5_cfg, True)
             with open_dict(t5_cfg):
                 t5_cfg.masked_softmax_fusion = False
                 t5_cfg.precision = 16
-                t5_cfg.encoder_arch = 'transformer'
-                t5_cfg.decoder_arch = 'transformer'
+                t5_cfg.encoder_arch = "transformer"
+                t5_cfg.decoder_arch = "transformer"
 
             language_model = MegatronT5Model.restore_from(
-                restore_path=cfg.language_model.lm_checkpoint, trainer=trainer, override_config_path=t5_cfg
+                restore_path=cfg.language_model.lm_checkpoint,
+                trainer=trainer,
+                override_config_path=t5_cfg,
             )
             self.tokenizer = language_model.tokenizer
 
         super().__init__(cfg=cfg, trainer=trainer, no_lm_init=True)
 
         if self.cfg.library == "huggingface":
-            self.language_model = AutoModelForSeq2SeqLM.from_pretrained(cfg.language_model.pretrained_model_name)
+            self.language_model = AutoModelForSeq2SeqLM.from_pretrained(
+                cfg.language_model.pretrained_model_name
+            )
             self.language_model.resize_token_embeddings(len(self.tokenizer.tokenizer))
             if self.cfg.language_model.lm_checkpoint:
-                self.language_model.load_state_dict(torch.load(self.cfg.language_model.lm_checkpoint))
+                self.language_model.load_state_dict(
+                    torch.load(self.cfg.language_model.lm_checkpoint)
+                )
         elif self.cfg.library == "megatron":
             self.language_model = language_model
 
     def training_step(self, batch, batch_idx):
         input_ids, attn_masks, labels = batch
         loss = self(input_ids, attn_masks, labels)
-        self.log("train_loss", loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
-        return {'loss': loss}
+        self.log(
+            "train_loss", loss, on_step=True, on_epoch=True, prog_bar=True, logger=True
+        )
+        return {"loss": loss}
 
     def validation_step(self, batch, batch_idx):
         loss = self.eval_step_helper(batch=batch)
@@ -106,14 +118,14 @@ class DialogueS2SGenerationModel(NLPModel):
         return loss
 
     def on_validation_epoch_end(self):
-        self.eval_epoch_end(self.validation_step_outputs, mode='val')
+        self.eval_epoch_end(self.validation_step_outputs, mode="val")
         self.validation_step_outputs.clear()  # free memory
 
     def on_test_epoch_end(self):
-        self.eval_epoch_end(self.test_step_outputs, mode='test')
+        self.eval_epoch_end(self.test_step_outputs, mode="test")
         self.test_step_outputs.clear()  # free memory
 
-    def eval_epoch_end(self, outputs, mode='val'):
+    def eval_epoch_end(self, outputs, mode="val"):
 
         generated_field = []
         ground_truth_field = []
@@ -128,7 +140,8 @@ class DialogueS2SGenerationModel(NLPModel):
 
         os.makedirs(self.cfg.dataset.dialogues_example_dir, exist_ok=True)
         filename = os.path.join(
-            self.cfg.dataset.dialogues_example_dir, f"{mode}_predictions_epoch{self.epoch_number}.jsonl"
+            self.cfg.dataset.dialogues_example_dir,
+            f"{mode}_predictions_epoch{self.epoch_number}.jsonl",
         )
 
         DialogueGenerationMetrics.save_predictions(
@@ -138,30 +151,37 @@ class DialogueS2SGenerationModel(NLPModel):
             inputs,
         )
 
-        label_acc = np.mean([int(generated_field[i] == ground_truth_field[i]) for i in range(len(generated_field))])
-        precision, recall, f1 = DialogueGenerationMetrics.get_f1(generated_field, ground_truth_field)
+        label_acc = np.mean(
+            [
+                int(generated_field[i] == ground_truth_field[i])
+                for i in range(len(generated_field))
+            ]
+        )
+        precision, recall, f1 = DialogueGenerationMetrics.get_f1(
+            generated_field, ground_truth_field
+        )
         bleu = DialogueGenerationMetrics.get_bleu(generated_field, ground_truth_field)
         avg_loss = np.mean(loss)
         ppl = np.exp(avg_loss)
 
-        self.log('{}_accuracy'.format(mode), label_acc * 100)
-        self.log('precision', precision)
-        self.log('recall', recall)
-        self.log('f1', f1)
-        self.log('bleu', bleu)
-        self.log('{}_loss'.format(mode), avg_loss)
-        self.log('{}_ppl'.format(mode), ppl)
+        self.log("{}_accuracy".format(mode), label_acc * 100)
+        self.log("precision", precision)
+        self.log("recall", recall)
+        self.log("f1", f1)
+        self.log("bleu", bleu)
+        self.log("{}_loss".format(mode), avg_loss)
+        self.log("{}_ppl".format(mode), ppl)
 
-        if mode == 'val':
+        if mode == "val":
             self.epoch_number += 1
             if self.cfg.save_model:
-                filename = '{}/val_loss-{}-epoch-{}-answer-extender.bin'.format(
+                filename = "{}/val_loss-{}-epoch-{}-answer-extender.bin".format(
                     self.cfg.dataset.dialogues_example_dir, avg_loss, self.epoch_number
                 )
                 torch.save(self.language_model.state_dict(), filename)
 
     def test_step(self, batch, batch_idx):
-        loss = self.eval_step_helper(batch=batch, mode='test')
+        loss = self.eval_step_helper(batch=batch, mode="test")
         self.test_step_outputs.append(loss)
         return loss
 
@@ -172,17 +192,27 @@ class DialogueS2SGenerationModel(NLPModel):
 
     def forward(self, input_ids, attention_masks, labels):
         if self.cfg.library == "huggingface":
-            output = self.language_model(input_ids=input_ids, attention_mask=attention_masks, labels=labels)
-            loss = output['loss']
+            output = self.language_model(
+                input_ids=input_ids, attention_mask=attention_masks, labels=labels
+            )
+            loss = output["loss"]
         elif self.cfg.library == "megatron":
 
             labels = torch.where(labels != -100, labels, torch.zeros_like(labels))
-            decoder_attn_masks = torch.where(labels > 0, torch.ones_like(labels), torch.zeros_like(labels))
+            decoder_attn_masks = torch.where(
+                labels > 0, torch.ones_like(labels), torch.zeros_like(labels)
+            )
 
             unmasked_unreduced_loss = self.language_model(
-                input_ids, labels[:, :-1], attention_masks, decoder_attn_masks[:, :-1], lm_labels=labels[:, 1:]
+                input_ids,
+                labels[:, :-1],
+                attention_masks,
+                decoder_attn_masks[:, :-1],
+                lm_labels=labels[:, 1:],
             )
-            loss = self.language_model.loss_func(decoder_attn_masks[:, 1:].contiguous(), unmasked_unreduced_loss)
+            loss = self.language_model.loss_func(
+                decoder_attn_masks[:, 1:].contiguous(), unmasked_unreduced_loss
+            )
         return loss
 
     def prepare_megatron_generation(self, labels, input_ids, template_length):
@@ -202,13 +232,21 @@ class DialogueS2SGenerationModel(NLPModel):
         # chunk tokens by same length
         pre_buckets, lens = [], list(set(lens.tolist()))
         for lenn in lens:
-            pre_buckets.append([(tokens, index) for index, tokens in enumerate(batch_tokens) if len(tokens) == lenn])
+            pre_buckets.append(
+                [
+                    (tokens, index)
+                    for index, tokens in enumerate(batch_tokens)
+                    if len(tokens) == lenn
+                ]
+            )
 
         buckets, positions, bucket_prompt_tags = [], [], []
 
         # get buckets and prompts initial positions
         for bucket in pre_buckets:
-            buckets.append(torch.tensor([item[0] for item in bucket]).to(device=labels.device))
+            buckets.append(
+                torch.tensor([item[0] for item in bucket]).to(device=labels.device)
+            )
             positions.append([item[1] for item in bucket])
 
             # bucket prompt tags identically to their corresponding examples
@@ -220,7 +258,9 @@ class DialogueS2SGenerationModel(NLPModel):
 
         # Flatten buckets and bucket_prompt_tags # temp fix for megatron complete issue. However, this is also slower than bucketized inference
         buckets = [item.unsqueeze(0) for sublist in buckets for item in sublist]
-        bucket_prompt_tags = [[item] for sublist in bucket_prompt_tags for item in sublist]
+        bucket_prompt_tags = [
+            [item] for sublist in bucket_prompt_tags for item in sublist
+        ]
 
         request = {"tokens": buckets, "prompt_tags": bucket_prompt_tags}
 
@@ -228,7 +268,9 @@ class DialogueS2SGenerationModel(NLPModel):
 
     def post_process_megatron_generation(self, outputs):
         text_outputs = [output[0] for output in outputs]
-        generated_tokens = self.tokenizer.tokenizer(text_outputs, padding=True, return_tensors="pt").data["input_ids"]
+        generated_tokens = self.tokenizer.tokenizer(
+            text_outputs, padding=True, return_tensors="pt"
+        ).data["input_ids"]
         return generated_tokens
 
     def generate_candidates(self, input_ids, attn_masks, labels):
@@ -243,7 +285,7 @@ class DialogueS2SGenerationModel(NLPModel):
             }
             generated_tokens = self.language_model.generate(**param_dict)
 
-        elif self.cfg.library == 'megatron':
+        elif self.cfg.library == "megatron":
             reconfigure_num_microbatches_calculator(
                 rank=0,  # This doesn't matter since it is only used for logging
                 rampup_batch_size=None,
@@ -251,7 +293,9 @@ class DialogueS2SGenerationModel(NLPModel):
                 micro_batch_size=1,  # Make sure that there is no "grad acc" while decoding.
                 data_parallel_size=1,  # We check above to make sure that dataparallel size is always 1 at inference.
             )
-            generated_tokens, _ = self.language_model.decode(input_ids, attn_masks, tokens_to_generate)
+            generated_tokens, _ = self.language_model.decode(
+                input_ids, attn_masks, tokens_to_generate
+            )
 
         generated_field = self.process_into_structured_fields(generated_tokens)
         ground_truth_field = self.process_into_structured_fields(labels)
@@ -266,28 +310,45 @@ class DialogueS2SGenerationModel(NLPModel):
             stop_point = full_seq_ids.size(1)
 
             for j in range(start_point, stop_point):
-                if full_seq_ids.data[i, j] in [self.tokenizer.tokenizer.pad_token_id, -100] and j != 0:
+                if (
+                    full_seq_ids.data[i, j]
+                    in [self.tokenizer.tokenizer.pad_token_id, -100]
+                    and j != 0
+                ):
                     stop_point = j
                     break
             token_ids = full_seq_ids[i, start_point:stop_point]
-            one_generated_field = self.tokenizer.tokenizer.decode(token_ids, skip_special_tokens=True).strip()
+            one_generated_field = self.tokenizer.tokenizer.decode(
+                token_ids, skip_special_tokens=True
+            ).strip()
             structured_field.append(one_generated_field)
         return structured_field
 
-    def eval_step_helper(self, batch, mode='val'):
+    def eval_step_helper(self, batch, mode="val"):
 
         input_ids, attn_masks, labels = batch
 
         loss = self(input_ids, attn_masks, labels)
-        self.log("{}_loss".format(mode), loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
+        self.log(
+            "{}_loss".format(mode),
+            loss,
+            on_step=True,
+            on_epoch=True,
+            prog_bar=True,
+            logger=True,
+        )
 
-        generated_field, ground_truth_field = self.generate_candidates(input_ids, attn_masks, labels)
+        generated_field, ground_truth_field = self.generate_candidates(
+            input_ids, attn_masks, labels
+        )
 
         return {
-            'loss': loss,
-            'input': self.tokenizer.tokenizer.batch_decode(input_ids, skip_special_tokens=True),
-            'generated_field': generated_field,
-            'ground_truth_field': ground_truth_field,
+            "loss": loss,
+            "input": self.tokenizer.tokenizer.batch_decode(
+                input_ids, skip_special_tokens=True
+            ),
+            "generated_field": generated_field,
+            "ground_truth_field": ground_truth_field,
         }
 
     def prepare_data(self):
@@ -299,7 +360,9 @@ class DialogueS2SGenerationModel(NLPModel):
 
         if self._cfg.dataset.task == "ms_marco":
             self.dialogues_processor = DialogueMSMarcoDataProcessor(
-                data_dir=self._cfg.dataset.data_dir, tokenizer=self.tokenizer, cfg=self._cfg.dataset
+                data_dir=self._cfg.dataset.data_dir,
+                tokenizer=self.tokenizer,
+                cfg=self._cfg.dataset,
             )
         elif self._cfg.dataset.task == "sgd_generation":
             self.dialogues_processor = DialogueSGDDataProcessor(
@@ -310,10 +373,14 @@ class DialogueS2SGenerationModel(NLPModel):
             )
         elif self._cfg.dataset.task == "mellon_qa":
             self.dialogues_processor = DialogueMellonQADataProcessor(
-                data_dir=self._cfg.dataset.data_dir, tokenizer=self.tokenizer, cfg=self._cfg.dataset
+                data_dir=self._cfg.dataset.data_dir,
+                tokenizer=self.tokenizer,
+                cfg=self._cfg.dataset,
             )
         else:
-            raise ValueError("Only ms_marco, sgd_generation and mellon_qa supported for Dialogue GPT Generation Model")
+            raise ValueError(
+                "Only ms_marco, sgd_generation and mellon_qa supported for Dialogue GPT Generation Model"
+            )
 
         self.data_prepared = True
 
@@ -329,26 +396,36 @@ class DialogueS2SGenerationModel(NLPModel):
             raise ValueError(f"{data_dir} is not found")
         self._cfg.dataset.data_dir = data_dir
         self._cfg.dataset.dialogues_example_dir = dialogues_example_dir
-        logging.info(f'Setting model.dataset.data_dir to {data_dir}.')
-        logging.info(f'Setting model.dataset.dialogues_example_dir to {dialogues_example_dir}.')
+        logging.info(f"Setting model.dataset.data_dir to {data_dir}.")
+        logging.info(
+            f"Setting model.dataset.dialogues_example_dir to {dialogues_example_dir}."
+        )
 
     def setup_training_data(self, train_data_config: Optional[DictConfig] = None):
         self.prepare_data()
-        self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config, split=train_data_config.ds_item)
+        self._train_dl = self._setup_dataloader_from_config(
+            cfg=train_data_config, split=train_data_config.ds_item
+        )
 
-    def setup_multiple_validation_data(self, val_data_config: Optional[DictConfig] = None):
+    def setup_multiple_validation_data(
+        self, val_data_config: Optional[DictConfig] = None
+    ):
         return self.setup_validation_data(val_data_config)
 
     def setup_validation_data(self, val_data_config: Optional[DictConfig] = None):
         self.prepare_data()
-        self._validation_dl = self._setup_dataloader_from_config(cfg=val_data_config, split=val_data_config.ds_item)
+        self._validation_dl = self._setup_dataloader_from_config(
+            cfg=val_data_config, split=val_data_config.ds_item
+        )
 
     def setup_multiple_test_data(self, test_data_config: Union[DictConfig, Dict]):
         self.setup_test_data(test_data_config)
 
     def setup_test_data(self, test_data_config: Optional[DictConfig] = None):
         self.prepare_data()
-        self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config, split=test_data_config.ds_item)
+        self._test_dl = self._setup_dataloader_from_config(
+            cfg=test_data_config, split=test_data_config.ds_item
+        )
 
     def _setup_dataloader_from_config(self, cfg: DictConfig, split: str) -> DataLoader:
         dataset_cfg = self._cfg.dataset

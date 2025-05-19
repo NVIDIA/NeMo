@@ -78,7 +78,9 @@ class DropPath(MegatronModule):
         # work with diff dim tensors, not just 2D ConvNets
         # hidden_state: [s, b, h]
         shape = (1,) + (hidden_state.shape[1],) + (1,) * (hidden_state.ndim - 2)
-        random_tensor = keep_prob + torch.rand(shape, dtype=hidden_state.dtype, device=hidden_state.device)
+        random_tensor = keep_prob + torch.rand(
+            shape, dtype=hidden_state.dtype, device=hidden_state.device
+        )
         random_tensor.floor_()  # binarize
         output = hidden_state.div(keep_prob) * random_tensor
         return output
@@ -128,13 +130,13 @@ class ParallelVisionTransformerLayer_(ParallelTransformerLayer_):
         ffn_dropout=0.0,
         drop_path_rate=0.0,
         layerscale=False,
-        activation='gelu',
+        activation="gelu",
         megatron_legacy=False,
         bias=True,
         chunk_size=64,
-        normalization='layernorm',
-        transformer_block_type='pre_ln',
-        position_embedding_type='learned_absolute',
+        normalization="layernorm",
+        transformer_block_type="pre_ln",
+        position_embedding_type="learned_absolute",
         multi_query_attention=False,
         headscale=False,
         activations_checkpoint_granularity=None,
@@ -192,7 +194,7 @@ class ParallelVisionTransformerLayer_(ParallelTransformerLayer_):
 
             residual = hidden_states
             # Layer norm at the beginning of the transformer layer.
-            if self.transformer_block_type in ['pre_ln', 'normformer']:
+            if self.transformer_block_type in ["pre_ln", "normformer"]:
                 hidden_states = self.input_layernorm(hidden_states)
 
             attention_output, attention_bias = self.self_attention(
@@ -211,10 +213,12 @@ class ParallelVisionTransformerLayer_(ParallelTransformerLayer_):
                 attention_output, presents = attention_output
 
             # If normformer, apply norm on the output of the self attention.
-            if self.transformer_block_type == 'normformer':
+            if self.transformer_block_type == "normformer":
                 # Normformer normalization
                 attention_output = (
-                    attention_output + attention_bias if attention_bias is not None else attention_output
+                    attention_output + attention_bias
+                    if attention_bias is not None
+                    else attention_output
                 )
                 attention_output = self.post_attention_normformer_norm(attention_output)
                 attention_bias = None
@@ -233,7 +237,8 @@ class ParallelVisionTransformerLayer_(ParallelTransformerLayer_):
 
             if self.drop_path is None and not self.layerscale:
                 bias_dropout_add_func = self._get_bias_droput_add_func(
-                    transformer_block_type=self.transformer_block_type, position_after='attention'
+                    transformer_block_type=self.transformer_block_type,
+                    position_after="attention",
                 )
                 if attention_bias is not None:
                     attention_bias = attention_bias.expand_as(residual)
@@ -242,9 +247,13 @@ class ParallelVisionTransformerLayer_(ParallelTransformerLayer_):
                     attention_output, attention_bias, residual, self.hidden_dropout
                 )
             else:
-                assert self.transformer_block_type != 'normformer', "Normfomer doesn't support drop_path"
+                assert (
+                    self.transformer_block_type != "normformer"
+                ), "Normfomer doesn't support drop_path"
                 out = torch.nn.functional.dropout(
-                    attention_output + attention_bias, p=self.hidden_dropout, training=self.training
+                    attention_output + attention_bias,
+                    p=self.hidden_dropout,
+                    training=self.training,
                 )
                 if self.drop_path is not None:
                     out = self.drop_path(out)
@@ -253,10 +262,10 @@ class ParallelVisionTransformerLayer_(ParallelTransformerLayer_):
                 layernorm_input = residual + out
 
             # Post-LN normalization after residual
-            if self.transformer_block_type == 'post_ln':
+            if self.transformer_block_type == "post_ln":
                 normalization_output = self.input_layernorm(layernorm_input)
                 layernorm_input = normalization_output
-            elif self.transformer_block_type in ['pre_ln', 'normformer']:
+            elif self.transformer_block_type in ["pre_ln", "normformer"]:
                 # Layer norm post the self attention.
                 normalization_output = self.post_attention_layernorm(layernorm_input)
         else:
@@ -295,25 +304,32 @@ class ParallelVisionTransformerLayer_(ParallelTransformerLayer_):
                 )
 
             # If normformer, apply norm on the output of the self attention.
-            if self.transformer_block_type == 'normformer':
+            if self.transformer_block_type == "normformer":
                 # Normformer normalization
                 attention_output = (
-                    attention_output + attention_bias if attention_bias is not None else attention_output
+                    attention_output + attention_bias
+                    if attention_bias is not None
+                    else attention_output
                 )
-                attention_output = self.post_inter_attention_normformer_norm(attention_output)
+                attention_output = self.post_inter_attention_normformer_norm(
+                    attention_output
+                )
                 attention_bias = None
 
             residual = layernorm_input
 
             bias_dropout_add_func = self._get_bias_droput_add_func(
-                transformer_block_type=self.transformer_block_type, position_after='attention'
+                transformer_block_type=self.transformer_block_type,
+                position_after="attention",
             )
 
-            layernorm_input = bias_dropout_add_func(attention_output, attention_bias, residual, self.hidden_dropout)
+            layernorm_input = bias_dropout_add_func(
+                attention_output, attention_bias, residual, self.hidden_dropout
+            )
             # print(f"Layer: {self.layer_number} Cross-Attention checksum {layernorm_input.sum()}")
             normalization_output = self.post_inter_attention_layernorm(layernorm_input)
             # Post-LN normalization after residual
-            if self.transformer_block_type == 'post_ln':
+            if self.transformer_block_type == "post_ln":
                 layernorm_input = normalization_output
         # MLP.
         mlp_output, mlp_bias = self.mlp(normalization_output)
@@ -321,19 +337,25 @@ class ParallelVisionTransformerLayer_(ParallelTransformerLayer_):
             # TODO: (@adithyre) was able to move adapter_2 back to the end of the transformer after ptl 1.7 update.
             adapter_2 = self.get_adapter_module(AdapterName.POST_ATTN_ADAPTER)
             if adapter_2:
-                mlp_output = adapter_2(mlp_output) + mlp_output  # simple adapter call with residual connection
+                mlp_output = (
+                    adapter_2(mlp_output) + mlp_output
+                )  # simple adapter call with residual connection
 
         residual = layernorm_input
 
         if self.drop_path is None and not self.layerscale:
             bias_dropout_add_func = self._get_bias_droput_add_func(
-                transformer_block_type=self.transformer_block_type, position_after='mlp'
+                transformer_block_type=self.transformer_block_type, position_after="mlp"
             )
 
-            output = bias_dropout_add_func(mlp_output, mlp_bias, residual, self.hidden_dropout)
+            output = bias_dropout_add_func(
+                mlp_output, mlp_bias, residual, self.hidden_dropout
+            )
 
         else:
-            out = torch.nn.functional.dropout(mlp_output + mlp_bias, p=self.hidden_dropout, training=self.training)
+            out = torch.nn.functional.dropout(
+                mlp_output + mlp_bias, p=self.hidden_dropout, training=self.training
+            )
             if self.drop_path is not None:
                 out = self.drop_path(out)
             if self.layerscale:
@@ -341,7 +363,7 @@ class ParallelVisionTransformerLayer_(ParallelTransformerLayer_):
             output = residual + out
         # print(f"Layer: {self.layer_number} MLP + Dropout + Residual checksum {output.sum()}")
 
-        if self.transformer_block_type == 'post_ln':
+        if self.transformer_block_type == "post_ln":
             output = self.post_attention_layernorm(output)
 
         if get_key_value:
@@ -353,12 +375,12 @@ class ParallelVisionTransformerLayer_(ParallelTransformerLayer_):
 class ParallelVisionTransformerLayer(ParallelVisionTransformerLayer_):
     def __init__(self, **kwargs):
         super(ParallelVisionTransformerLayer, self).__init__(**kwargs)
-        precision = kwargs['precision']
-        if precision in ['bf16', 'bf16-mixed']:
+        precision = kwargs["precision"]
+        if precision in ["bf16", "bf16-mixed"]:
             self.dtype = torch.bfloat16
-        elif precision in [16, '16', '16-mixed']:
+        elif precision in [16, "16", "16-mixed"]:
             self.dtype = torch.float16
-        elif precision in [32, '32', '32-true']:
+        elif precision in [32, "32", "32-true"]:
             self.dtype = torch.float32
         else:
             raise ValueError(f"Cannot recognize precision {precision}")
@@ -423,14 +445,14 @@ class ParallelVisionTransformer(ParallelTransformer):
         persist_layer_norm=False,
         openai_gelu=False,
         onnx_safe=False,
-        activation='gelu',
+        activation="gelu",
         model_type=ModelType.encoder_or_decoder,
         megatron_legacy=False,
         bias=True,
         chunk_size=64,
-        normalization='layernorm',
-        transformer_block_type='pre_ln',
-        position_embedding_type='learned_absolute',
+        normalization="layernorm",
+        transformer_block_type="pre_ln",
+        position_embedding_type="learned_absolute",
         headscale=False,
         layer_number_offset=0,  # this is use only for attention norm_factor scaling
         activations_checkpoint_granularity=None,
@@ -442,7 +464,7 @@ class ParallelVisionTransformer(ParallelTransformer):
         fp8_margin=0,
         fp8_interval=1,
         fp8_amax_history_len=1,
-        fp8_amax_compute_algo='most_recent',
+        fp8_amax_compute_algo="most_recent",
         reduce_amax=True,
         use_emha=False,
         ub_tp_comm_overlap=False,
@@ -465,7 +487,10 @@ class ParallelVisionTransformer(ParallelTransformer):
         self.drop_path_rates = [
             rate.item()
             for rate in torch.linspace(
-                0, self.drop_path_rate, self.num_layers * parallel_state.get_pipeline_model_parallel_world_size()
+                0,
+                self.drop_path_rate,
+                self.num_layers
+                * parallel_state.get_pipeline_model_parallel_world_size(),
             )
         ]
 
@@ -518,16 +543,26 @@ class ParallelVisionTransformer(ParallelTransformer):
             )
 
         if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
-            assert num_layers % parallel_state.get_virtual_pipeline_model_parallel_world_size() == 0, (
-                'num_layers_per_stage must be divisible by ' 'virtual_pipeline_model_parallel_size'
+            assert (
+                num_layers
+                % parallel_state.get_virtual_pipeline_model_parallel_world_size()
+                == 0
+            ), (
+                "num_layers_per_stage must be divisible by "
+                "virtual_pipeline_model_parallel_size"
             )
 
             # self.model_type != ModelType.encoder_and_decoder
-            assert self.model_type.value != 2, f'virtual pipeline parallel currently only supported for GPT'
+            assert (
+                self.model_type.value != 2
+            ), f"virtual pipeline parallel currently only supported for GPT"
 
             # Number of layers in each model chunk is the number of layers in the stage,
             # divided by the number of model chunks in a stage.
-            self.num_layers = self.num_layers // parallel_state.get_virtual_pipeline_model_parallel_world_size()
+            self.num_layers = (
+                self.num_layers
+                // parallel_state.get_virtual_pipeline_model_parallel_world_size()
+            )
             # With 8 layers, 2 stages, and 4 model chunks, we want an assignment of
             # layers to stages like (each list is a model chunk):
             # Stage 0: [0]  [2]  [4]  [6]
@@ -537,7 +572,8 @@ class ParallelVisionTransformer(ParallelTransformer):
             # Stage 0: [0, 1]  [4, 5]
             # Stage 1: [2, 3]  [6, 7]
             offset = parallel_state.get_virtual_pipeline_model_parallel_rank() * (
-                num_layers // parallel_state.get_virtual_pipeline_model_parallel_world_size()
+                num_layers
+                // parallel_state.get_virtual_pipeline_model_parallel_world_size()
             ) + (parallel_state.get_pipeline_model_parallel_rank() * self.num_layers)
         else:
             # Each stage gets a contiguous set of layers.
@@ -549,9 +585,15 @@ class ParallelVisionTransformer(ParallelTransformer):
                 if layer_type == LayerType.encoder:
                     offset = pipeline_rank * self.num_layers
                 else:
-                    num_ranks_in_enc = parallel_state.get_pipeline_model_parallel_split_rank()
+                    num_ranks_in_enc = (
+                        parallel_state.get_pipeline_model_parallel_split_rank()
+                    )
                     offset = (pipeline_rank - num_ranks_in_enc) * self.num_layers
             else:
-                offset = parallel_state.get_pipeline_model_parallel_rank() * self.num_layers
+                offset = (
+                    parallel_state.get_pipeline_model_parallel_rank() * self.num_layers
+                )
 
-        self.layers = torch.nn.ModuleList([build_layer(i + 1 + offset) for i in range(self.num_layers)])
+        self.layers = torch.nn.ModuleList(
+            [build_layer(i + 1 + offset) for i in range(self.num_layers)]
+        )

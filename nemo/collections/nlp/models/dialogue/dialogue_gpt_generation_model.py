@@ -41,7 +41,7 @@ from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
 from nemo.utils.decorators import deprecated_warning
 
-__all__ = ['DialogueGPTGenerationModel']
+__all__ = ["DialogueGPTGenerationModel"]
 
 NUM_TASKS = 1  # focussing on intent currently 6  # number of multi-head tasks
 
@@ -65,10 +65,14 @@ class DialogueGPTGenerationModel(NLPModel):
         super().__init__(cfg=cfg, trainer=trainer, no_lm_init=True)
 
         if self.cfg.library == "huggingface":
-            self.language_model = AutoModelWithLMHead.from_pretrained(cfg.language_model.pretrained_model_name)
+            self.language_model = AutoModelWithLMHead.from_pretrained(
+                cfg.language_model.pretrained_model_name
+            )
             self.language_model.resize_token_embeddings(len(self.tokenizer.tokenizer))
             if self.cfg.language_model.lm_checkpoint:
-                self.language_model.load_state_dict(torch.load(self.cfg.language_model.lm_checkpoint))
+                self.language_model.load_state_dict(
+                    torch.load(self.cfg.language_model.lm_checkpoint)
+                )
         elif self.cfg.library == "megatron":
             if self.prompt_learning:
                 # removing tokenizer cfg as this triggers tokenizer construction which is not helpful here as we have a separate tokenizer
@@ -76,14 +80,18 @@ class DialogueGPTGenerationModel(NLPModel):
                 del new_cfg.tokenizer
                 self.language_model = MegatronGPTPromptLearningModel(new_cfg, trainer)
             else:
-                self.language_model = MegatronGPTModel.restore_from(cfg.language_model.lm_checkpoint, trainer=trainer)
+                self.language_model = MegatronGPTModel.restore_from(
+                    cfg.language_model.lm_checkpoint, trainer=trainer
+                )
 
     def training_step(self, batch, batch_idx):
         input_ids, attn_masks, labels, _, _ = batch
 
         loss = self(input_ids, attn_masks, labels, inference=False)
-        self.log("train_loss", loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
-        return {'loss': loss}
+        self.log(
+            "train_loss", loss, on_step=True, on_epoch=True, prog_bar=True, logger=True
+        )
+        return {"loss": loss}
 
     def validation_step(self, batch, batch_idx):
         loss = self.eval_step_helper(batch=batch)
@@ -91,14 +99,14 @@ class DialogueGPTGenerationModel(NLPModel):
         return loss
 
     def on_validation_epoch_end(self):
-        self.eval_epoch_end(self.validation_step_outputs, mode='val')
+        self.eval_epoch_end(self.validation_step_outputs, mode="val")
         self.validation_step_outputs.clear()  # free memory
 
     def on_test_epoch_end(self):
-        self.eval_epoch_end(self.test_step_outputs, mode='test')
+        self.eval_epoch_end(self.test_step_outputs, mode="test")
         self.test_step_outputs.clear()  # free memory
 
-    def eval_epoch_end(self, outputs, mode='val'):
+    def eval_epoch_end(self, outputs, mode="val"):
 
         generated_field = []
         ground_truth_field = []
@@ -113,7 +121,8 @@ class DialogueGPTGenerationModel(NLPModel):
 
         os.makedirs(self.cfg.dataset.dialogues_example_dir, exist_ok=True)
         filename = os.path.join(
-            self.cfg.dataset.dialogues_example_dir, f"{mode}_predictions_epoch{self.epoch_number}.jsonl"
+            self.cfg.dataset.dialogues_example_dir,
+            f"{mode}_predictions_epoch{self.epoch_number}.jsonl",
         )
 
         DialogueGenerationMetrics.save_predictions(
@@ -123,30 +132,37 @@ class DialogueGPTGenerationModel(NLPModel):
             inputs,
         )
 
-        label_acc = np.mean([int(generated_field[i] == ground_truth_field[i]) for i in range(len(generated_field))])
-        precision, recall, f1 = DialogueGenerationMetrics.get_f1(generated_field, ground_truth_field)
+        label_acc = np.mean(
+            [
+                int(generated_field[i] == ground_truth_field[i])
+                for i in range(len(generated_field))
+            ]
+        )
+        precision, recall, f1 = DialogueGenerationMetrics.get_f1(
+            generated_field, ground_truth_field
+        )
         bleu = DialogueGenerationMetrics.get_bleu(generated_field, ground_truth_field)
         avg_loss = np.mean(loss)
         ppl = np.exp(avg_loss)
 
-        self.log('{}_accuracy'.format(mode), label_acc * 100)
-        self.log('precision', precision)
-        self.log('recall', recall)
-        self.log('f1', f1)
-        self.log('bleu', bleu)
-        self.log('{}_loss'.format(mode), avg_loss)
-        self.log('{}_ppl'.format(mode), ppl)
+        self.log("{}_accuracy".format(mode), label_acc * 100)
+        self.log("precision", precision)
+        self.log("recall", recall)
+        self.log("f1", f1)
+        self.log("bleu", bleu)
+        self.log("{}_loss".format(mode), avg_loss)
+        self.log("{}_ppl".format(mode), ppl)
 
-        if mode == 'val':
+        if mode == "val":
             self.epoch_number += 1
             if self.cfg.save_model:
-                filename = '{}/val_loss-{}-epoch-{}-answer-extender.bin'.format(
+                filename = "{}/val_loss-{}-epoch-{}-answer-extender.bin".format(
                     self.cfg.dataset.dialogues_example_dir, avg_loss, self.epoch_number
                 )
                 torch.save(self.language_model.state_dict(), filename)
 
     def test_step(self, batch, batch_idx):
-        loss = self.eval_step_helper(batch=batch, mode='test')
+        loss = self.eval_step_helper(batch=batch, mode="test")
         self.test_step_outputs.append(loss)
         return loss
 
@@ -158,12 +174,16 @@ class DialogueGPTGenerationModel(NLPModel):
     def forward(self, input_ids, attention_mask, labels, inference=True):
 
         if self.cfg.library == "huggingface":
-            output = self.language_model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
-            loss = output['loss']
+            output = self.language_model(
+                input_ids=input_ids, attention_mask=attention_mask, labels=labels
+            )
+            loss = output["loss"]
 
         elif self.cfg.library == "megatron":
             num_prompt_tokens = (
-                len(self.language_model.pseudo_token_ids) if hasattr(self.language_model, 'pseudo_token_ids') else 0
+                len(self.language_model.pseudo_token_ids)
+                if hasattr(self.language_model, "pseudo_token_ids")
+                else 0
             )
 
             position_ids = torch.arange(
@@ -175,9 +195,14 @@ class DialogueGPTGenerationModel(NLPModel):
 
             position_ids = position_ids.unsqueeze(0).repeat(input_ids.size(0), 1)
 
-            prompt_ids = torch.tensor([0] * input_ids.size(0)) if self.prompt_learning else None
+            prompt_ids = (
+                torch.tensor([0] * input_ids.size(0)) if self.prompt_learning else None
+            )
 
-            attn_mask_add_on = torch.ones((attention_mask.size(0), num_prompt_tokens), device=attention_mask.device)
+            attn_mask_add_on = torch.ones(
+                (attention_mask.size(0), num_prompt_tokens),
+                device=attention_mask.device,
+            )
             full_attention_mask = torch.cat([attn_mask_add_on, attention_mask], axis=-1)
             full_attention_mask_expand = torch.tril(
                 full_attention_mask.unsqueeze(2).tile(full_attention_mask.size(1))
@@ -193,16 +218,24 @@ class DialogueGPTGenerationModel(NLPModel):
 
             if self.prompt_learning:
                 prompt_token_labels.data = torch.LongTensor(
-                    np.tile(np.array(self.language_model.pseudo_token_ids), (input_ids.size(0), 1))
+                    np.tile(
+                        np.array(self.language_model.pseudo_token_ids),
+                        (input_ids.size(0), 1),
+                    )
                 )
 
             prompt_token_labels = prompt_token_labels.to(input_ids.device)
 
-            input_ids_new = torch.cat([torch.zeros_like(prompt_token_labels), input_ids], axis=1)
-            make_up_last_column_input_ids = (
-                torch.ones_like(input_ids_new[:, -1:]) * self.tokenizer.tokenizer.pad_token_id
+            input_ids_new = torch.cat(
+                [torch.zeros_like(prompt_token_labels), input_ids], axis=1
             )
-            left_shifted_input_ids = torch.cat([input_ids_new[:, 1:], make_up_last_column_input_ids], axis=-1)
+            make_up_last_column_input_ids = (
+                torch.ones_like(input_ids_new[:, -1:])
+                * self.tokenizer.tokenizer.pad_token_id
+            )
+            left_shifted_input_ids = torch.cat(
+                [input_ids_new[:, 1:], make_up_last_column_input_ids], axis=-1
+            )
             if self.prompt_learning:
                 unmasked_unreduced_loss = self.language_model(
                     input_ids_new,
@@ -221,7 +254,9 @@ class DialogueGPTGenerationModel(NLPModel):
                 unmasked_unreduced_loss = unmasked_unreduced_loss[0]
 
             labels = torch.cat([prompt_token_labels, labels], axis=1)
-            make_up_last_column_labels = torch.ones_like(labels[:, -1:]) * self.tokenizer.tokenizer.pad_token_id
+            make_up_last_column_labels = (
+                torch.ones_like(labels[:, -1:]) * self.tokenizer.tokenizer.pad_token_id
+            )
             new_labels = torch.cat([labels[:, 1:], make_up_last_column_labels], axis=-1)
             filler = torch.zeros_like(new_labels)
             labels_mask_0 = torch.where(new_labels != -100, new_labels, filler)
@@ -246,7 +281,9 @@ class DialogueGPTGenerationModel(NLPModel):
         # adapted from MegatronGPTModel._bucketize_gpt_inference
         """
         batch_size = labels.size(0)
-        prompt_tags = [self.prompt_tags[0]] * batch_size if self.prompt_learning else None
+        prompt_tags = (
+            [self.prompt_tags[0]] * batch_size if self.prompt_learning else None
+        )
         batch_tokens = input_ids.tolist()
 
         # unpad tokens
@@ -258,13 +295,21 @@ class DialogueGPTGenerationModel(NLPModel):
         # chunk tokens by same length
         pre_buckets, lens = [], list(set(lens.tolist()))
         for lenn in lens:
-            pre_buckets.append([(tokens, index) for index, tokens in enumerate(batch_tokens) if len(tokens) == lenn])
+            pre_buckets.append(
+                [
+                    (tokens, index)
+                    for index, tokens in enumerate(batch_tokens)
+                    if len(tokens) == lenn
+                ]
+            )
 
         buckets, positions, bucket_prompt_tags = [], [], []
 
         # get buckets and prompts initial positions
         for bucket in pre_buckets:
-            buckets.append(torch.tensor([item[0] for item in bucket]).to(device=labels.device))
+            buckets.append(
+                torch.tensor([item[0] for item in bucket]).to(device=labels.device)
+            )
             positions.append([item[1] for item in bucket])
 
             # bucket prompt tags identically to their corresponding examples
@@ -276,7 +321,9 @@ class DialogueGPTGenerationModel(NLPModel):
 
         # Flatten buckets and bucket_prompt_tags # temp fix for megatron complete issue. However, this is also slower than bucketized inference
         buckets = [item.unsqueeze(0) for sublist in buckets for item in sublist]
-        bucket_prompt_tags = [[item] for sublist in bucket_prompt_tags for item in sublist]
+        bucket_prompt_tags = [
+            [item] for sublist in bucket_prompt_tags for item in sublist
+        ]
 
         request = {"tokens": buckets, "prompt_tags": bucket_prompt_tags}
 
@@ -284,7 +331,9 @@ class DialogueGPTGenerationModel(NLPModel):
 
     def post_process_megatron_generation(self, outputs):
         text_outputs = [output[0] for output in outputs]
-        generated_tokens = self.tokenizer.tokenizer(text_outputs, padding=True, return_tensors="pt").data["input_ids"]
+        generated_tokens = self.tokenizer.tokenizer(
+            text_outputs, padding=True, return_tensors="pt"
+        ).data["input_ids"]
         return generated_tokens
 
     def generate_candidates(self, labels, template_length, input_ids, attn_masks):
@@ -305,7 +354,11 @@ class DialogueGPTGenerationModel(NLPModel):
             # pad each generated to ensure they are of same length in dim 1, therefore stack-able
             generated_tokens = [
                 torch.cat(
-                    [i, torch.ones((1, max_length - i.size(1))).to(i.device) * self.tokenizer.tokenizer.pad_token_id],
+                    [
+                        i,
+                        torch.ones((1, max_length - i.size(1))).to(i.device)
+                        * self.tokenizer.tokenizer.pad_token_id,
+                    ],
                     axis=-1,
                 )
                 for i in generated_tokens
@@ -313,13 +366,21 @@ class DialogueGPTGenerationModel(NLPModel):
             generated_tokens = torch.cat(generated_tokens, axis=0)
 
         elif self.cfg.library == "megatron":
-            positions, request = self.prepare_megatron_generation(labels, input_ids, template_length)
-            outputs = self.language_model.complete(request, positions, tokens_to_generate)
+            positions, request = self.prepare_megatron_generation(
+                labels, input_ids, template_length
+            )
+            outputs = self.language_model.complete(
+                request, positions, tokens_to_generate
+            )
             generated_tokens = self.post_process_megatron_generation(outputs)
 
-        generated_field = self.process_into_structured_fields(generated_tokens, template_length=template_length)
+        generated_field = self.process_into_structured_fields(
+            generated_tokens, template_length=template_length
+        )
 
-        ground_truth_field = self.process_into_structured_fields(labels, template_length=template_length)
+        ground_truth_field = self.process_into_structured_fields(
+            labels, template_length=template_length
+        )
 
         return generated_field, ground_truth_field
 
@@ -334,25 +395,38 @@ class DialogueGPTGenerationModel(NLPModel):
                 if full_seq_ids.data[i, j] == self.tokenizer.tokenizer.pad_token_id:
                     stop_point = j
                     break
-            one_generated_field = self.tokenizer.tokenizer.decode(full_seq_ids[i, start_point:stop_point]).strip()
+            one_generated_field = self.tokenizer.tokenizer.decode(
+                full_seq_ids[i, start_point:stop_point]
+            ).strip()
             structured_field.append(one_generated_field)
         return structured_field
 
-    def eval_step_helper(self, batch, mode='val'):
+    def eval_step_helper(self, batch, mode="val"):
 
         input_ids, attn_masks, labels, template_length, utterance_length = batch
 
         loss = self(input_ids, attn_masks, labels)
-        self.log("{}_loss".format(mode), loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
+        self.log(
+            "{}_loss".format(mode),
+            loss,
+            on_step=True,
+            on_epoch=True,
+            prog_bar=True,
+            logger=True,
+        )
 
         # autoregressively generate candidates (possibly with constraint)
-        generated_field, ground_truth_field = self.generate_candidates(labels, template_length, input_ids, attn_masks)
+        generated_field, ground_truth_field = self.generate_candidates(
+            labels, template_length, input_ids, attn_masks
+        )
 
         return {
-            'loss': loss,
-            'input': self.tokenizer.tokenizer.batch_decode(input_ids, skip_special_tokens=True),
-            'generated_field': generated_field,
-            'ground_truth_field': ground_truth_field,
+            "loss": loss,
+            "input": self.tokenizer.tokenizer.batch_decode(
+                input_ids, skip_special_tokens=True
+            ),
+            "generated_field": generated_field,
+            "ground_truth_field": ground_truth_field,
         }
 
     def prepare_data(self):
@@ -364,14 +438,20 @@ class DialogueGPTGenerationModel(NLPModel):
 
         if self._cfg.dataset.task == "ms_marco":
             self.dialogues_processor = DialogueMSMarcoDataProcessor(
-                data_dir=self._cfg.dataset.data_dir, tokenizer=self.tokenizer, cfg=self._cfg.dataset
+                data_dir=self._cfg.dataset.data_dir,
+                tokenizer=self.tokenizer,
+                cfg=self._cfg.dataset,
             )
         elif self._cfg.dataset.task == "mellon_qa":
             self.dialogues_processor = DialogueMellonQADataProcessor(
-                data_dir=self._cfg.dataset.data_dir, tokenizer=self.tokenizer, cfg=self._cfg.dataset
+                data_dir=self._cfg.dataset.data_dir,
+                tokenizer=self.tokenizer,
+                cfg=self._cfg.dataset,
             )
         else:
-            raise ValueError("Only ms_marco and mellon_qa supported for Dialogue GPT Generation Model")
+            raise ValueError(
+                "Only ms_marco and mellon_qa supported for Dialogue GPT Generation Model"
+            )
 
         self.data_prepared = True
 
@@ -387,26 +467,36 @@ class DialogueGPTGenerationModel(NLPModel):
             raise ValueError(f"{data_dir} is not found")
         self._cfg.dataset.data_dir = data_dir
         self._cfg.dataset.dialogues_example_dir = dialogues_example_dir
-        logging.info(f'Setting model.dataset.data_dir to {data_dir}.')
-        logging.info(f'Setting model.dataset.dialogues_example_dir to {dialogues_example_dir}.')
+        logging.info(f"Setting model.dataset.data_dir to {data_dir}.")
+        logging.info(
+            f"Setting model.dataset.dialogues_example_dir to {dialogues_example_dir}."
+        )
 
     def setup_training_data(self, train_data_config: Optional[DictConfig] = None):
         self.prepare_data()
-        self._train_dl = self._setup_dataloader_from_config(cfg=train_data_config, split=train_data_config.ds_item)
+        self._train_dl = self._setup_dataloader_from_config(
+            cfg=train_data_config, split=train_data_config.ds_item
+        )
 
-    def setup_multiple_validation_data(self, val_data_config: Optional[DictConfig] = None):
+    def setup_multiple_validation_data(
+        self, val_data_config: Optional[DictConfig] = None
+    ):
         return self.setup_validation_data(val_data_config)
 
     def setup_validation_data(self, val_data_config: Optional[DictConfig] = None):
         self.prepare_data()
-        self._validation_dl = self._setup_dataloader_from_config(cfg=val_data_config, split=val_data_config.ds_item)
+        self._validation_dl = self._setup_dataloader_from_config(
+            cfg=val_data_config, split=val_data_config.ds_item
+        )
 
     def setup_multiple_test_data(self, test_data_config: Union[DictConfig, Dict]):
         self.setup_test_data(test_data_config)
 
     def setup_test_data(self, test_data_config: Optional[DictConfig] = None):
         self.prepare_data()
-        self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config, split=test_data_config.ds_item)
+        self._test_dl = self._setup_dataloader_from_config(
+            cfg=test_data_config, split=test_data_config.ds_item
+        )
 
     def _setup_dataloader_from_config(self, cfg: DictConfig, split: str) -> DataLoader:
         dataset_cfg = self._cfg.dataset

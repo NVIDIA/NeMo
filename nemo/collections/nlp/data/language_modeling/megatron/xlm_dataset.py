@@ -60,7 +60,9 @@ class CrossLingualBERTDataset(BinarizedMemmapSequenceToSequenceDataset):
         # Vocab stuff.
         self.vocab = src_tokenizer.vocab
         self.vocab_id_list = list(range(self.src_tokenizer.original_vocab_size))
-        self.vocab_id_to_token_dict = {idx: token for idx, token in enumerate(self.vocab)}
+        self.vocab_id_to_token_dict = {
+            idx: token for idx, token in enumerate(self.vocab)
+        }
         self.cls_id = src_tokenizer.cls_id
         self.sep_id = src_tokenizer.sep_id
         self.mask_id = src_tokenizer.mask_id
@@ -75,10 +77,12 @@ class CrossLingualBERTDataset(BinarizedMemmapSequenceToSequenceDataset):
         if len(src) > self.max_src_seq_length:
             src = src[: self.max_src_seq_length]
 
-        if len(tgt) > self.max_tgt_seq_length - 1:  # -1 here to account for the <sep> token that gets added.
+        if (
+            len(tgt) > self.max_tgt_seq_length - 1
+        ):  # -1 here to account for the <sep> token that gets added.
             tgt = tgt[: self.max_tgt_seq_length]
 
-        np_rng = np.random.RandomState(seed=((self.seed + idx) % 2 ** 32))
+        np_rng = np.random.RandomState(seed=((self.seed + idx) % 2**32))
         # Potentially swap src, tgt with a 50% chance to avoid learning associations based on position in the sequence.
         swap_src_tgt = np_rng.randint(0, 2)
         if swap_src_tgt == 0:
@@ -108,7 +112,9 @@ class CrossLingualBERTDataset(BinarizedMemmapSequenceToSequenceDataset):
         return batch
 
 
-class CrossLingualMakedSequenceToSequenceDataset(BinarizedMemmapSequenceToSequenceDataset):
+class CrossLingualMakedSequenceToSequenceDataset(
+    BinarizedMemmapSequenceToSequenceDataset
+):
     def __init__(
         self,
         src_dataset_prefix: str,
@@ -155,13 +161,17 @@ class CrossLingualMakedSequenceToSequenceDataset(BinarizedMemmapSequenceToSequen
         self.extreme_max_ngram_size = extreme_max_ngram_size
         self.extreme_mean_ngram_size = extreme_mean_ngram_size
         self.extreme_min_ngram_size = extreme_min_ngram_size
-        self.extreme_ngram_span_length_distribution = extreme_ngram_span_length_distribution
+        self.extreme_ngram_span_length_distribution = (
+            extreme_ngram_span_length_distribution
+        )
         self.masking_type = masking_type
 
         assert src_tokenizer == tgt_tokenizer
         # Vocab stuff.
         self.vocab_id_list = src_tokenizer.vocab
-        self.vocab_id_to_token_dict = {idx: token for idx, token in enumerate(self.vocab_id_list)}
+        self.vocab_id_to_token_dict = {
+            idx: token for idx, token in enumerate(self.vocab_id_list)
+        }
         self.cls_id = src_tokenizer.cls_id
         self.sep_id = src_tokenizer.sep_id
         self.mask_id = src_tokenizer.mask_id
@@ -171,7 +181,9 @@ class CrossLingualMakedSequenceToSequenceDataset(BinarizedMemmapSequenceToSequen
         self.max_seq_length = max_src_seq_length + max_tgt_seq_length
         self.masked_lm_prob = masked_lm_prob
 
-        self.tokenizer_type = T5Dataset._determine_tokenizer_type(src_tokenizer, whole_word_masking=False)
+        self.tokenizer_type = T5Dataset._determine_tokenizer_type(
+            src_tokenizer, whole_word_masking=False
+        )
         self._build()
 
     def _build(self):
@@ -186,7 +198,9 @@ class CrossLingualMakedSequenceToSequenceDataset(BinarizedMemmapSequenceToSequen
         if len(src) > self.max_src_seq_length:
             src = src[: self.max_src_seq_length]
 
-        if len(tgt) > self.max_tgt_seq_length - 1:  # -1 here to account for the <sep> token that gets added.
+        if (
+            len(tgt) > self.max_tgt_seq_length - 1
+        ):  # -1 here to account for the <sep> token that gets added.
             tgt = tgt[: self.max_tgt_seq_length]
 
         np_rng = np.random.RandomState(seed=(self.seed + idx))
@@ -227,7 +241,9 @@ class CrossLingualMakedSequenceToSequenceDataset(BinarizedMemmapSequenceToSequen
         return batch
 
 
-class BinarizedMemmapCrossLingualMLMAndTranslationDataset(BinarizedMemmapSequenceToSequenceDataset):
+class BinarizedMemmapCrossLingualMLMAndTranslationDataset(
+    BinarizedMemmapSequenceToSequenceDataset
+):
     def __init__(
         self,
         src_dataset_prefix: str,
@@ -254,7 +270,12 @@ class BinarizedMemmapCrossLingualMLMAndTranslationDataset(BinarizedMemmapSequenc
         geometric_dist: bool = True,
         permutation: bool = False,
         favor_long_ngrams: bool = False,
-        sampling_ratios: Dict[str, float] = {"x-masking": 0.25, "r-masking": 0.25, "s-masking": 0.25, "nmt": 0.25},
+        sampling_ratios: Dict[str, float] = {
+            "x-masking": 0.25,
+            "r-masking": 0.25,
+            "s-masking": 0.25,
+            "nmt": 0.25,
+        },
         sentinel_tokens: List[int] = None,
     ):
         super().__init__(
@@ -282,7 +303,9 @@ class BinarizedMemmapCrossLingualMLMAndTranslationDataset(BinarizedMemmapSequenc
         self.extreme_max_ngram_size = extreme_max_ngram_size
         self.extreme_mean_ngram_size = extreme_mean_ngram_size
         self.extreme_min_ngram_size = extreme_min_ngram_size
-        self.extreme_ngram_span_length_distribution = extreme_ngram_span_length_distribution
+        self.extreme_ngram_span_length_distribution = (
+            extreme_ngram_span_length_distribution
+        )
         self.prefix_lm_pivot_mean = prefix_lm_pivot_mean
         self.sampling_ratios = sampling_ratios
         self.src_language = src_language
@@ -290,7 +313,9 @@ class BinarizedMemmapCrossLingualMLMAndTranslationDataset(BinarizedMemmapSequenc
 
         # Vocab stuff.
         self.vocab_id_list = src_tokenizer.vocab
-        self.vocab_id_to_token_dict = {idx: token for idx, token in enumerate(self.vocab_id_list)}
+        self.vocab_id_to_token_dict = {
+            idx: token for idx, token in enumerate(self.vocab_id_list)
+        }
         self.cls_id = src_tokenizer.cls_id
         self.sep_id = src_tokenizer.sep_id
         self.mask_id = src_tokenizer.mask_id
@@ -301,7 +326,9 @@ class BinarizedMemmapCrossLingualMLMAndTranslationDataset(BinarizedMemmapSequenc
         self.masked_lm_prob = masked_lm_prob
         self.sentinel_tokens = sentinel_tokens
 
-        self.tokenizer_type = T5Dataset._determine_tokenizer_type(src_tokenizer, whole_word_masking=False)
+        self.tokenizer_type = T5Dataset._determine_tokenizer_type(
+            src_tokenizer, whole_word_masking=False
+        )
         self._build()
 
     def _build(self):
@@ -347,7 +374,9 @@ class BinarizedMemmapCrossLingualMLMAndTranslationDataset(BinarizedMemmapSequenc
         tokenizer_type: str = "wordpiece",
     ):
         # Determine which task to perform - NMT/T5/UL2 based on sampling ratios.
-        task = np_rng.choice(list(sampling_ratios.keys()), p=list(sampling_ratios.values()))
+        task = np_rng.choice(
+            list(sampling_ratios.keys()), p=list(sampling_ratios.values())
+        )
 
         # Potentially swap src, tgt with a 50% chance to avoid learning associations based on position in the sequence.
         swap_src_tgt = np_rng.randint(0, 2)
@@ -356,7 +385,9 @@ class BinarizedMemmapCrossLingualMLMAndTranslationDataset(BinarizedMemmapSequenc
             src = src[:max_src_seq_length]
 
         # Tasks that are not NMT have a <sep> token so we need to account for this in the length, hence we truncate tgt to max_tgt_seq_length - 1.
-        max_tgt_seq_length = max_tgt_seq_length - 1 if task != "nmt" else max_tgt_seq_length
+        max_tgt_seq_length = (
+            max_tgt_seq_length - 1 if task != "nmt" else max_tgt_seq_length
+        )
         if len(tgt) > max_tgt_seq_length:
             tgt = tgt[:max_tgt_seq_length]
 
@@ -370,8 +401,10 @@ class BinarizedMemmapCrossLingualMLMAndTranslationDataset(BinarizedMemmapSequenc
 
             text_dec = np.concatenate([[tgt_tokenizer.bos_id], tgt])
             labels = np.concatenate([tgt, [tgt_tokenizer.eos_id]])
-            nmt_sample = {'text_enc': src, 'text_dec': text_dec, 'labels': labels}
-            return UL2Dataset._prepend_mask_type_token(src_tokenizer, nmt_sample, prepend_id)
+            nmt_sample = {"text_enc": src, "text_dec": text_dec, "labels": labels}
+            return UL2Dataset._prepend_mask_type_token(
+                src_tokenizer, nmt_sample, prepend_id
+            )
 
         if swap_src_tgt == 0:
             sample = [np.concatenate((src, [sep_id], tgt))]
@@ -470,7 +503,9 @@ class BinarizedMemmapCrossLingualMLMAndTranslationDataset(BinarizedMemmapSequenc
     # NOTE: We want the parent's collate_fn to be used here since NMT examples are not padded even though the other task are.
 
 
-class TextMemmapCrossLingualMLMAndTranslationDataset(TextMemmapSequenceToSequenceDataset):
+class TextMemmapCrossLingualMLMAndTranslationDataset(
+    TextMemmapSequenceToSequenceDataset
+):
     def __init__(
         self,
         src_file_name: str,
@@ -497,7 +532,12 @@ class TextMemmapCrossLingualMLMAndTranslationDataset(TextMemmapSequenceToSequenc
         geometric_dist: bool = True,
         permutation: bool = False,
         favor_long_ngrams: bool = False,
-        sampling_ratios: Dict[str, float] = {"x-masking": 0.25, "r-masking": 0.25, "s-masking": 0.25, "nmt": 0.25},
+        sampling_ratios: Dict[str, float] = {
+            "x-masking": 0.25,
+            "r-masking": 0.25,
+            "s-masking": 0.25,
+            "nmt": 0.25,
+        },
         sentinel_tokens: List[int] = None,
     ):
         super().__init__(
@@ -525,7 +565,9 @@ class TextMemmapCrossLingualMLMAndTranslationDataset(TextMemmapSequenceToSequenc
         self.extreme_max_ngram_size = extreme_max_ngram_size
         self.extreme_mean_ngram_size = extreme_mean_ngram_size
         self.extreme_min_ngram_size = extreme_min_ngram_size
-        self.extreme_ngram_span_length_distribution = extreme_ngram_span_length_distribution
+        self.extreme_ngram_span_length_distribution = (
+            extreme_ngram_span_length_distribution
+        )
         self.prefix_lm_pivot_mean = prefix_lm_pivot_mean
         self.sampling_ratios = sampling_ratios
         self.src_language = src_language
@@ -533,7 +575,9 @@ class TextMemmapCrossLingualMLMAndTranslationDataset(TextMemmapSequenceToSequenc
 
         # Vocab stuff.
         self.vocab_id_list = src_tokenizer.vocab
-        self.vocab_id_to_token_dict = {idx: token for idx, token in enumerate(self.vocab_id_list)}
+        self.vocab_id_to_token_dict = {
+            idx: token for idx, token in enumerate(self.vocab_id_list)
+        }
         self.cls_id = src_tokenizer.cls_id
         self.sep_id = src_tokenizer.sep_id
         self.mask_id = src_tokenizer.mask_id
@@ -544,7 +588,9 @@ class TextMemmapCrossLingualMLMAndTranslationDataset(TextMemmapSequenceToSequenc
         self.masked_lm_prob = masked_lm_prob
         self.sentinel_tokens = sentinel_tokens
 
-        self.tokenizer_type = T5Dataset._determine_tokenizer_type(src_tokenizer, whole_word_masking=False)
+        self.tokenizer_type = T5Dataset._determine_tokenizer_type(
+            src_tokenizer, whole_word_masking=False
+        )
         self._build()
 
     def _build(self):

@@ -23,7 +23,7 @@ from nemo.collections.nlp.data.dialogue.input_example.input_example import \
     DialogueInputExample
 from nemo.utils.decorators import deprecated_warning
 
-__all__ = ['DialogueDesignDataProcessor']
+__all__ = ["DialogueDesignDataProcessor"]
 
 
 class DialogueDesignDataProcessor(DialogueDataProcessor):
@@ -51,7 +51,7 @@ class DialogueDesignDataProcessor(DialogueDataProcessor):
         filename = os.path.join(self.data_dir, filename)
         with open(filename, "r", encoding="UTF-8") as f:
             df = pd.read_csv(filename)
-        return df.to_dict(orient='index')
+        return df.to_dict(orient="index")
 
     def get_dialog_examples(self, dataset_split: str):
         """
@@ -64,38 +64,62 @@ class DialogueDesignDataProcessor(DialogueDataProcessor):
 
         examples = []
 
-        raw_examples = self.open_csv('mellon_design_OV.csv')
+        raw_examples = self.open_csv("mellon_design_OV.csv")
         # remove disabled examples
-        raw_examples = [raw_examples[i] for i in range(len(raw_examples)) if raw_examples[i]['disabled'] != 'yes']
+        raw_examples = [
+            raw_examples[i]
+            for i in range(len(raw_examples))
+            if raw_examples[i]["disabled"] != "yes"
+        ]
 
         n_samples = len(raw_examples)
 
-        idxs = DialogueDataProcessor.get_relevant_idxs(dataset_split, n_samples, self.cfg.dev_proportion)
+        idxs = DialogueDataProcessor.get_relevant_idxs(
+            dataset_split, n_samples, self.cfg.dev_proportion
+        )
 
-        all_intents = sorted(list(set(raw_examples[i]['intent labels'] for i in range(len(raw_examples)))))
-        all_services = sorted(list(set(raw_examples[i]['domain'] for i in range(len(raw_examples)))))
+        all_intents = sorted(
+            list(
+                set(raw_examples[i]["intent labels"] for i in range(len(raw_examples)))
+            )
+        )
+        all_services = sorted(
+            list(set(raw_examples[i]["domain"] for i in range(len(raw_examples))))
+        )
         for i in idxs:
             raw_example = raw_examples[i]
-            utterances = [raw_example['example_{}'.format(i)] for i in range(1, 4)]
-            service = raw_example['domain']
-            intent = raw_example['intent']
-            intent_description = raw_example['intent labels']
-            system_utterance = raw_example['response']
+            utterances = [raw_example["example_{}".format(i)] for i in range(1, 4)]
+            service = raw_example["domain"]
+            intent = raw_example["intent"]
+            intent_description = raw_example["intent labels"]
+            system_utterance = raw_example["response"]
 
-            slot_names = [raw_example['slot{}'.format(i)] for i in range(1, 3)]
+            slot_names = [raw_example["slot{}".format(i)] for i in range(1, 3)]
             # these are possible slot values not ground truth slot values
-            slot_values = [raw_example['slot{}_values'.format(i)] for i in range(1, 3)]
-            slot_questions = [raw_example['slot{}_values'.format(i)] for i in range(1, 3)]
+            slot_values = [raw_example["slot{}_values".format(i)] for i in range(1, 3)]
+            slot_questions = [
+                raw_example["slot{}_values".format(i)] for i in range(1, 3)
+            ]
 
             for j in range(1, 3):
-                value = raw_example['slot{}'.format(j)]
+                value = raw_example["slot{}".format(j)]
                 if isinstance(value, str):
-                    system_utterance = system_utterance.replace('slot{}'.format(j), value)
+                    system_utterance = system_utterance.replace(
+                        "slot{}".format(j), value
+                    )
 
-            valid_slots_ids = [i for i, slot in enumerate(slot_names) if isinstance(slot, str)]
+            valid_slots_ids = [
+                i for i, slot in enumerate(slot_names) if isinstance(slot, str)
+            ]
             slot_names = [slot_names[i] for i in valid_slots_ids]
-            slot_values = [slot_values[i] if isinstance(slot_values[i], str) else '' for i in valid_slots_ids]
-            slot_questions = [slot_questions[i] if isinstance(slot_questions[i], str) else '' for i in valid_slots_ids]
+            slot_values = [
+                slot_values[i] if isinstance(slot_values[i], str) else ""
+                for i in valid_slots_ids
+            ]
+            slot_questions = [
+                slot_questions[i] if isinstance(slot_questions[i], str) else ""
+                for i in valid_slots_ids
+            ]
 
             for utterance in utterances:
                 if not isinstance(utterance, str):
@@ -107,18 +131,22 @@ class DialogueDesignDataProcessor(DialogueDataProcessor):
                         "service": service,
                         "intent": intent_description,
                         "slots": {
-                            slot: '' for slot in slot_names
+                            slot: "" for slot in slot_names
                         },  # dataset does not contain ground truth slot values
                     },
                     "possible_labels": {
-                        'intent': all_intents,
+                        "intent": all_intents,
                         "service": all_services,
-                        "slots": {slot: slot_values[i] for i, slot in enumerate(slot_names)},
+                        "slots": {
+                            slot: slot_values[i] for i, slot in enumerate(slot_names)
+                        },
                     },
                     "description": {
                         "service": service,
                         "intent": intent_description,
-                        "slots": {slot: slot_questions[i] for i, slot in enumerate(slot_names)},
+                        "slots": {
+                            slot: slot_questions[i] for i, slot in enumerate(slot_names)
+                        },
                     },
                 }
 

@@ -42,7 +42,11 @@ def test_set_model_parallel_attributes() -> None:
     class DummyModel:
         def __init__(self):
             self.config = TransformerConfig(
-                hidden_size=128, num_attention_heads=2, num_layers=2, num_moe_experts=2, add_bias_linear=False
+                hidden_size=128,
+                num_attention_heads=2,
+                num_layers=2,
+                num_moe_experts=2,
+                add_bias_linear=False,
             )
 
         def configure_model(self):
@@ -114,14 +118,16 @@ def test_init_parallel_ranks() -> None:
     for k, v in expected_app_state.items():
         assert hasattr(app_state, k), f"Expected to find {k} in AppState"
         app_attr = getattr(app_state, k)
-        assert app_attr == v, f"{k} in AppState is incorrect, Expected: {v} Actual: {app_attr}"
+        assert (
+            app_attr == v
+        ), f"{k} in AppState is incorrect, Expected: {v} Actual: {app_attr}"
 
     destroy_model_parallel()
     destroy_num_microbatches_calculator()
 
 
-@patch('torch.distributed.is_initialized', return_value=True)
-@patch('megatron.core.parallel_state')
+@patch("torch.distributed.is_initialized", return_value=True)
+@patch("megatron.core.parallel_state")
 def test_init_model_parallel(mock_mpu, *args):
     from nemo.utils import AppState
 
@@ -160,8 +166,8 @@ def test_init_model_parallel(mock_mpu, *args):
     )
 
 
-@patch('torch.distributed.is_initialized', return_value=True)
-@patch('megatron.core.parallel_state')
+@patch("torch.distributed.is_initialized", return_value=True)
+@patch("megatron.core.parallel_state")
 def test_init_model_parallel_with_tp_pp_dp(mock_mpu, *args):
     from nemo.utils import AppState
 

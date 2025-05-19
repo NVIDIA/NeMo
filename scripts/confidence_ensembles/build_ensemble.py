@@ -170,7 +170,12 @@ class TuneConfidenceConfig:
                 * len(self.aggregation)
                 * ((len(self.confidence_type) - 1) * len(self.alpha) + 1)
             )
-        return len(self.exclude_blank) * len(self.aggregation) * len(self.confidence_type) * len(self.alpha)
+        return (
+            len(self.exclude_blank)
+            * len(self.aggregation)
+            * len(self.confidence_type)
+            * len(self.alpha)
+        )
 
 
 @dataclass
@@ -231,7 +236,9 @@ class BuildEnsembleConfig:
     # used to specify what to tune over. By default runs tuning over some
     # reasonalbe grid, so that it does not take forever.
     # Can be changed as needed
-    tune_confidence_config: TuneConfidenceConfig = field(default_factory=lambda: TuneConfidenceConfig())
+    tune_confidence_config: TuneConfidenceConfig = field(
+        default_factory=lambda: TuneConfidenceConfig()
+    )
 
     # very fast to tune and can be important in case of imbalanced datasets
     # will automatically set to False if dev data is not available
@@ -254,8 +261,12 @@ class BuildEnsembleConfig:
             num_dev_data += ensemble_cfg.dev_manifest is not None
         if num_dev_data == 0:
             if self.tune_confidence:
-                raise ValueError("tune_confidence is set to True, but no dev data is provided")
-            LOG.info("Setting tune_logistic_regression = False since no dev data is provided")
+                raise ValueError(
+                    "tune_confidence is set to True, but no dev data is provided"
+                )
+            LOG.info(
+                "Setting tune_logistic_regression = False since no dev data is provided"
+            )
             self.tune_logistic_regression = False
             return
 
@@ -265,7 +276,9 @@ class BuildEnsembleConfig:
             )
 
 
-def calculate_score(features: np.ndarray, labels: np.ndarray, pipe: Pipeline) -> Tuple[float, np.ndarray]:
+def calculate_score(
+    features: np.ndarray, labels: np.ndarray, pipe: Pipeline
+) -> Tuple[float, np.ndarray]:
     """Score is always calculated as mean of the per-class scores.
 
     This is done to account for possible class imbalances.
@@ -338,12 +351,23 @@ def train_model_selection(
         # default parameters: C=10000.0 disables regularization
         best_pipe = make_pipeline(
             StandardScaler(),
-            LogisticRegression(multi_class="multinomial", C=10000.0, max_iter=1000, class_weight="balanced"),
+            LogisticRegression(
+                multi_class="multinomial",
+                C=10000.0,
+                max_iter=1000,
+                class_weight="balanced",
+            ),
         )
         max_score = -1
     else:
         C_pms = np.append(
-            np.exp(np.linspace(np.log(tune_lr_cfg.C_min), np.log(tune_lr_cfg.C_max), tune_lr_cfg.C_num_points)),
+            np.exp(
+                np.linspace(
+                    np.log(tune_lr_cfg.C_min),
+                    np.log(tune_lr_cfg.C_max),
+                    tune_lr_cfg.C_num_points,
+                )
+            ),
             10000.0,
         )
         max_score = 0
@@ -354,7 +378,10 @@ def train_model_selection(
                     pipe = make_pipeline(
                         StandardScaler(),
                         LogisticRegression(
-                            multi_class=multi_class, C=C, max_iter=tune_lr_cfg.max_iter, class_weight=class_weight
+                            multi_class=multi_class,
+                            C=C,
+                            max_iter=tune_lr_cfg.max_iter,
+                            class_weight=class_weight,
                         ),
                     )
                     pipe.fit(training_features, training_labels)
@@ -365,7 +392,9 @@ def train_model_selection(
 
     best_pipe.fit(training_features, training_labels)
     if verbose:
-        accuracy, confusion = calculate_score(training_features, training_labels, best_pipe)
+        accuracy, confusion = calculate_score(
+            training_features, training_labels, best_pipe
+        )
         LOG.info("Training fit accuracy: %.4f", accuracy * 100.0)
         LOG.info("Training confusion matrix:\n%s", str(confusion))
     if dev_features is not None and verbose:
@@ -431,12 +460,26 @@ def compute_all_confidences(
             for conf_type in tune_confidence_cfg.confidence_type:
                 conf_func = get_confidence_measure_bank()[conf_type]
                 if conf_type == "max_prob":  # skipping alpha in this case
-                    conf_value = aggr_func(conf_func(filtered_logprobs, v=vocab_size, t=1.0)).cpu().item()
-                    conf_values[ConfidenceSpec(exclude_blank, aggregation, conf_type, 1.0)] = conf_value
+                    conf_value = (
+                        aggr_func(conf_func(filtered_logprobs, v=vocab_size, t=1.0))
+                        .cpu()
+                        .item()
+                    )
+                    conf_values[
+                        ConfidenceSpec(exclude_blank, aggregation, conf_type, 1.0)
+                    ] = conf_value
                 else:
                     for alpha in tune_confidence_cfg.alpha:
-                        conf_value = aggr_func(conf_func(filtered_logprobs, v=vocab_size, t=alpha)).cpu().item()
-                        conf_values[ConfidenceSpec(exclude_blank, aggregation, conf_type, alpha)] = conf_value
+                        conf_value = (
+                            aggr_func(
+                                conf_func(filtered_logprobs, v=vocab_size, t=alpha)
+                            )
+                            .cpu()
+                            .item()
+                        )
+                        conf_values[
+                            ConfidenceSpec(exclude_blank, aggregation, conf_type, alpha)
+                        ] = conf_value
 
     return conf_values
 
@@ -479,7 +522,10 @@ def find_best_confidence(
     max_score = 0
     best_pipe = None
     best_conf_spec = None
-    LOG.info("Evaluation all confidences. Total grid size: %d", len(train_confidences[0][0].keys()))
+    LOG.info(
+        "Evaluation all confidences. Total grid size: %d",
+        len(train_confidences[0][0].keys()),
+    )
     for conf_spec in tqdm(train_confidences[0][0].keys()):
         cur_train_confidences = []
         for model_confs in train_confidences:
@@ -508,7 +554,11 @@ def find_best_confidence(
             max_score = score
             best_pipe = pipe
             best_conf_spec = conf_spec
-            LOG.info("Found better parameters: %s. New score: %.4f", str(conf_spec), max_score)
+            LOG.info(
+                "Found better parameters: %s. New score: %.4f",
+                str(conf_spec),
+                max_score,
+            )
 
     return best_conf_spec.to_confidence_config(), best_pipe
 
@@ -516,9 +566,9 @@ def find_best_confidence(
 @hydra_runner(config_name="BuildEnsembleConfig", schema=BuildEnsembleConfig)
 def main(cfg: BuildEnsembleConfig):
     # silencing all messages from nemo/ptl to avoid dumping tons of configs to the stdout
-    logging.getLogger('lightning.pytorch').setLevel(logging.CRITICAL)
-    logging.getLogger('nemo_logger').setLevel(logging.CRITICAL)
-    LOG.info(f'Build ensemble config:\n{OmegaConf.to_yaml(cfg)}')
+    logging.getLogger("lightning.pytorch").setLevel(logging.CRITICAL)
+    logging.getLogger("nemo_logger").setLevel(logging.CRITICAL)
+    LOG.info(f"Build ensemble config:\n{OmegaConf.to_yaml(cfg)}")
 
     # to ensure post init is called
     cfg = BuildEnsembleConfig(**cfg)
@@ -560,7 +610,9 @@ def main(cfg: BuildEnsembleConfig):
         for data_idx, data_cfg in enumerate(cfg.ensemble):
             if model_idx == 0:  # generating subsampled manifests only one time
                 subsampled_manifests.append(
-                    subsample_manifest(data_cfg.training_manifest, data_cfg.max_training_samples)
+                    subsample_manifest(
+                        data_cfg.training_manifest, data_cfg.max_training_samples
+                    )
                 )
             subsampled_manifest = subsampled_manifests[data_idx]
 
@@ -574,17 +626,25 @@ def main(cfg: BuildEnsembleConfig):
             # training
             with tempfile.NamedTemporaryFile() as output_file:
                 cfg.transcription.output_filename = output_file.name
-                LOG.info("Transcribing training dataset %d with model %d", data_idx, model_idx)
+                LOG.info(
+                    "Transcribing training dataset %d with model %d",
+                    data_idx,
+                    model_idx,
+                )
                 transcriptions = transcribe_speech.main(deepcopy(cfg.transcription))
                 LOG.info("Generating confidence scores")
                 # TODO: parallelize this loop?
                 for transcription in tqdm(transcriptions):
                     if cfg.tune_confidence:
                         train_model_confidences.append(
-                            compute_all_confidences(transcription, cfg.tune_confidence_config)
+                            compute_all_confidences(
+                                transcription, cfg.tune_confidence_config
+                            )
                         )
                     else:
-                        train_model_confidences.append(compute_confidence(transcription, cfg.confidence))
+                        train_model_confidences.append(
+                            compute_confidence(transcription, cfg.confidence)
+                        )
                     if model_idx == 0:  # labels are the same for all models
                         train_labels.append(data_idx)
 
@@ -593,16 +653,22 @@ def main(cfg: BuildEnsembleConfig):
                 cfg.transcription.dataset_manifest = data_cfg.dev_manifest
                 with tempfile.NamedTemporaryFile() as output_file:
                     cfg.transcription.output_filename = output_file.name
-                    LOG.info("Transcribing dev dataset %d with model %d", data_idx, model_idx)
+                    LOG.info(
+                        "Transcribing dev dataset %d with model %d", data_idx, model_idx
+                    )
                     transcriptions = transcribe_speech.main(deepcopy(cfg.transcription))
                     LOG.info("Generating confidence scores")
                     for transcription in tqdm(transcriptions):
                         if cfg.tune_confidence:
                             dev_model_confidences.append(
-                                compute_all_confidences(transcription, cfg.tune_confidence_config)
+                                compute_all_confidences(
+                                    transcription, cfg.tune_confidence_config
+                                )
                             )
                         else:
-                            dev_model_confidences.append(compute_confidence(transcription, cfg.confidence))
+                            dev_model_confidences.append(
+                                compute_confidence(transcription, cfg.confidence)
+                            )
                         if model_idx == 0:  # labels are the same for all models
                             dev_labels.append(data_idx)
 
@@ -641,17 +707,17 @@ def main(cfg: BuildEnsembleConfig):
         )
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        model_selection_block_path = os.path.join(tmpdir, 'model_selection_block.pkl')
+        model_selection_block_path = os.path.join(tmpdir, "model_selection_block.pkl")
         joblib.dump(model_selection_block, model_selection_block_path)
 
         # creating ensemble checkpoint
         ensemble_model = ConfidenceEnsembleModel(
             cfg=DictConfig(
                 {
-                    'model_selection_block': model_selection_block_path,
-                    'confidence': best_confidence,
-                    'temperature': cfg.temperature,
-                    'load_models': [model_cfg.model for model_cfg in cfg.ensemble],
+                    "model_selection_block": model_selection_block_path,
+                    "confidence": best_confidence,
+                    "temperature": cfg.temperature,
+                    "load_models": [model_cfg.model for model_cfg in cfg.ensemble],
                 }
             ),
             trainer=None,
@@ -659,5 +725,5 @@ def main(cfg: BuildEnsembleConfig):
         ensemble_model.save_to(cfg.output_path)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

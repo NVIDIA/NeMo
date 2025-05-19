@@ -68,7 +68,8 @@ def post_language_model_processing(
     if forward_method_parallel_output is not None:
         parallel_output = forward_method_parallel_output
     async_tensor_model_parallel_allreduce = (
-        parallel_state.get_tensor_model_parallel_world_size() > 1 and not sequence_parallel
+        parallel_state.get_tensor_model_parallel_world_size() > 1
+        and not sequence_parallel
     )
     output = parallel_lm_logits(
         lm_output,
@@ -134,19 +135,19 @@ class GPTModel(MegatronModule):
         activations_checkpoint_method=None,
         activations_checkpoint_num_layers=1,
         activations_checkpoint_layers_per_pipeline=None,
-        normalization='layernorm',
+        normalization="layernorm",
         layernorm_epsilon=1e-5,
         bias=True,
         bias_activation_fusion=True,
         bias_dropout_add_fusion=True,
         masked_softmax_fusion=True,
-        activation='gelu',
+        activation="gelu",
         headscale=False,
-        transformer_block_type='pre_ln',
+        transformer_block_type="pre_ln",
         normalize_attention_scores=True,
-        position_embedding_type='learned_absolute',
+        position_embedding_type="learned_absolute",
         rotary_percentage=1.0,
-        attention_type='multihead',
+        attention_type="multihead",
         share_embeddings_and_output_weights=True,
         persist_layer_norm=False,
         openai_gelu=False,
@@ -159,7 +160,7 @@ class GPTModel(MegatronModule):
         fp8_margin=0,
         fp8_interval=1,
         fp8_amax_history_len=1024,
-        fp8_amax_compute_algo='max',
+        fp8_amax_compute_algo="max",
         reduce_amax=True,
         use_emha=False,
         ub_tp_comm_overlap=False,
@@ -170,7 +171,9 @@ class GPTModel(MegatronModule):
         # deprecation warning
         deprecated_warning("GPTModel", "McoreGPTModel")
 
-        super(GPTModel, self).__init__(config=config, share_token_embeddings=share_embeddings_and_output_weights)
+        super(GPTModel, self).__init__(
+            config=config, share_token_embeddings=share_embeddings_and_output_weights
+        )
 
         self.parallel_output = parallel_output
         self.pre_process = pre_process
@@ -182,7 +185,7 @@ class GPTModel(MegatronModule):
         if kv_channels is None:
             assert (
                 hidden_size % num_attention_heads == 0
-            ), 'hidden_size must be divisible by num_attention_heads if kv_channels is None'
+            ), "hidden_size must be divisible by num_attention_heads if kv_channels is None"
             kv_channels = hidden_size // num_attention_heads
 
         scaled_init_method = (
@@ -331,16 +334,20 @@ class GPTModel(MegatronModule):
         else:
             return lm_output
 
-    def state_dict_for_save_checkpoint(self, destination=None, prefix='', keep_vars=False):
+    def state_dict_for_save_checkpoint(
+        self, destination=None, prefix="", keep_vars=False
+    ):
 
         state_dict_ = {}
-        state_dict_[self._language_model_key] = self.language_model.state_dict_for_save_checkpoint(
-            destination, prefix, keep_vars
+        state_dict_[self._language_model_key] = (
+            self.language_model.state_dict_for_save_checkpoint(
+                destination, prefix, keep_vars
+            )
         )
         # Save word_embeddings.
         if self.post_process and not self.pre_process:
-            state_dict_[self._word_embeddings_for_head_key] = self.word_embeddings.state_dict(
-                destination, prefix, keep_vars
+            state_dict_[self._word_embeddings_for_head_key] = (
+                self.word_embeddings.state_dict(destination, prefix, keep_vars)
             )
         return state_dict_
 
@@ -349,7 +356,9 @@ class GPTModel(MegatronModule):
 
         # Load word_embeddings.
         if self.post_process and not self.pre_process:
-            self.word_embeddings.load_state_dict(state_dict[self._word_embeddings_for_head_key], strict=strict)
+            self.word_embeddings.load_state_dict(
+                state_dict[self._word_embeddings_for_head_key], strict=strict
+            )
         if self._language_model_key in state_dict:
             state_dict = state_dict[self._language_model_key]
         self.language_model.load_state_dict(state_dict, strict=strict)

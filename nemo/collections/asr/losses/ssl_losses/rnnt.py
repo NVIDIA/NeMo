@@ -23,14 +23,13 @@ __all__ = ["RNNTLossForSSL"]
 class RNNTLossForSSL(Loss):
     @property
     def input_types(self):
-        """Input types definitions for Contrastive.
-        """
+        """Input types definitions for Contrastive."""
         return {
             "spec_masks": NeuralType(("B", "D", "T"), SpectrogramType()),
-            "decoder_outputs": NeuralType(('B', 'T', 'T', 'D'), LogprobsType()),
-            "targets": NeuralType(('B', 'T'), LabelsType()),
-            "decoder_lengths": NeuralType(tuple('B'), LengthsType(), optional=True),
-            "target_lengths": NeuralType(tuple('B'), LengthsType(), optional=True),
+            "decoder_outputs": NeuralType(("B", "T", "T", "D"), LogprobsType()),
+            "targets": NeuralType(("B", "T"), LabelsType()),
+            "decoder_lengths": NeuralType(tuple("B"), LengthsType(), optional=True),
+            "target_lengths": NeuralType(tuple("B"), LengthsType(), optional=True),
         }
 
     @property
@@ -50,10 +49,20 @@ class RNNTLossForSSL(Loss):
         self.loss = RNNTLoss(num_classes=num_classes)
 
     @typecheck()
-    def forward(self, spec_masks, decoder_outputs, targets, decoder_lengths=None, target_lengths=None):
+    def forward(
+        self,
+        spec_masks,
+        decoder_outputs,
+        targets,
+        decoder_lengths=None,
+        target_lengths=None,
+    ):
 
         loss = self.loss(
-            log_probs=decoder_outputs, targets=targets, input_lengths=decoder_lengths, target_lengths=target_lengths
+            log_probs=decoder_outputs,
+            targets=targets,
+            input_lengths=decoder_lengths,
+            target_lengths=target_lengths,
         )
 
         return loss

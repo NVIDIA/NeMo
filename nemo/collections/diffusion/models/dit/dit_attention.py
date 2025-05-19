@@ -79,7 +79,7 @@ class JointSelfAttention(Attention):
             bias=self.config.add_bias_linear or self.config.add_qkv_bias,
             skip_bias_add=False,
             is_expert=False,
-            tp_comm_buffer_name='qkv',
+            tp_comm_buffer_name="qkv",
         )
 
         if submodules.added_linear_qkv is not None:
@@ -93,7 +93,7 @@ class JointSelfAttention(Attention):
                 bias=self.config.add_qkv_bias,
                 skip_bias_add=False,
                 is_expert=False,
-                tp_comm_buffer_name='qkv',
+                tp_comm_buffer_name="qkv",
             )
 
         if not context_pre_only:
@@ -107,7 +107,7 @@ class JointSelfAttention(Attention):
                 input_is_parallel=True,
                 skip_bias_add=True,
                 is_expert=False,
-                tp_comm_buffer_name='proj',
+                tp_comm_buffer_name="proj",
             )
 
         if submodules.q_layernorm is not None:
@@ -155,7 +155,11 @@ class JointSelfAttention(Attention):
         new_tensor_shape = mixed_qkv.size()[:-1] + (
             self.num_query_groups_per_partition,
             (
-                (self.num_attention_heads_per_partition // self.num_query_groups_per_partition + 2)
+                (
+                    self.num_attention_heads_per_partition
+                    // self.num_query_groups_per_partition
+                    + 2
+                )
                 * self.hidden_size_per_attention_head
             ),
         )
@@ -189,7 +193,9 @@ class JointSelfAttention(Attention):
             )
 
         # [sq, b, ng, np/ng * hn] -> [sq, b, np, hn]
-        query = query.reshape(query.size(0), query.size(1), -1, self.hidden_size_per_attention_head)
+        query = query.reshape(
+            query.size(0), query.size(1), -1, self.hidden_size_per_attention_head
+        )
         return query, key, value
 
     def get_query_key_value_tensors(self, hidden_states, key_value_states=None):
@@ -212,7 +218,9 @@ class JointSelfAttention(Attention):
 
         return query, key, value
 
-    def get_added_query_key_value_tensors(self, added_hidden_states, key_value_states=None):
+    def get_added_query_key_value_tensors(
+        self, added_hidden_states, key_value_states=None
+    ):
         """
         Derives `query`, `key` and `value` tensors from `hidden_states`.
         """
@@ -253,7 +261,9 @@ class JointSelfAttention(Attention):
         # self or cross attn.
 
         query, key, value = self.get_query_key_value_tensors(hidden_states)
-        added_query, added_key, added_value = self.get_added_query_key_value_tensors(additional_hidden_states)
+        added_query, added_key, added_value = self.get_added_query_key_value_tensors(
+            additional_hidden_states
+        )
 
         query = torch.cat([added_query, query], dim=0)
         key = torch.cat([added_key, key], dim=0)
@@ -262,8 +272,10 @@ class JointSelfAttention(Attention):
         # ===================================================
         # Adjust key, value, and rotary_pos_emb for inference
         # ===================================================
-        query, key, value, rotary_pos_emb, attn_mask_type, *_ = self._adjust_key_value_for_inference(
-            inference_params, query, key, value, rotary_pos_emb
+        query, key, value, rotary_pos_emb, attn_mask_type, *_ = (
+            self._adjust_key_value_for_inference(
+                inference_params, query, key, value, rotary_pos_emb
+            )
         )
 
         if packed_seq_params is not None:
@@ -332,7 +344,9 @@ class JointSelfAttention(Attention):
         # =================
         # Output. [sq, b, h]
         # =================
-        encoder_attention_output = core_attn_out[: additional_hidden_states.shape[0], :, :]
+        encoder_attention_output = core_attn_out[
+            : additional_hidden_states.shape[0], :, :
+        ]
         attention_output = core_attn_out[additional_hidden_states.shape[0] :, :, :]
 
         output, bias = self.linear_proj(attention_output)
@@ -380,7 +394,7 @@ class FluxSingleAttention(SelfAttention):
             input_is_parallel=True,
             skip_bias_add=True,
             is_expert=False,
-            tp_comm_buffer_name='proj',
+            tp_comm_buffer_name="proj",
         )
 
     def forward(
@@ -404,13 +418,17 @@ class FluxSingleAttention(SelfAttention):
         # =====================
         # Get the query, key and value tensors based on the type of attention -
         # self or cross attn.
-        query, key, value = self.get_query_key_value_tensors(hidden_states, key_value_states)
+        query, key, value = self.get_query_key_value_tensors(
+            hidden_states, key_value_states
+        )
 
         # ===================================================
         # Adjust key, value, and rotary_pos_emb for inference
         # ===================================================
-        query, key, value, rotary_pos_emb, attn_mask_type, *_ = self._adjust_key_value_for_inference(
-            inference_params, query, key, value, rotary_pos_emb
+        query, key, value, rotary_pos_emb, attn_mask_type, *_ = (
+            self._adjust_key_value_for_inference(
+                inference_params, query, key, value, rotary_pos_emb
+            )
         )
 
         if packed_seq_params is not None:

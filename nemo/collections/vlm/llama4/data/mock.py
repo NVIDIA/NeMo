@@ -109,8 +109,12 @@ class MockDataModule(pl.LightningDataModule):
             from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import \
                 AutoTokenizer
 
-            processor = AutoProcessor.from_pretrained("meta-llama/Llama-4-Scout-17B-16E-Instruct")
-            self.tokenizer = tokenizer or AutoTokenizer("meta-llama/Llama-4-Scout-17B-16E-Instruct")
+            processor = AutoProcessor.from_pretrained(
+                "meta-llama/Llama-4-Scout-17B-16E-Instruct"
+            )
+            self.tokenizer = tokenizer or AutoTokenizer(
+                "meta-llama/Llama-4-Scout-17B-16E-Instruct"
+            )
             self.image_processor = image_processor or processor.image_processor
         self.data_sampler = MegatronDataSampler(
             seq_len=self.seq_length,
@@ -165,19 +169,19 @@ class MockDataModule(pl.LightningDataModule):
     def train_dataloader(self) -> TRAIN_DATALOADERS:
         """Returns the DataLoader for the training set."""
         if not hasattr(self, "_train_ds"):
-            self.setup('fit')  # Ensure dataset is created
+            self.setup("fit")  # Ensure dataset is created
         return self._create_dataloader(self._train_ds)
 
     def val_dataloader(self) -> EVAL_DATALOADERS:
         """Returns the DataLoader for the validation set."""
         if not hasattr(self, "_validation_ds"):
-            self.setup('validate')  # Ensure dataset is created
+            self.setup("validate")  # Ensure dataset is created
         return self._create_dataloader(self._validation_ds)
 
     def test_dataloader(self) -> EVAL_DATALOADERS:
         """Returns the DataLoader for the test set."""
         if not hasattr(self, "_test_ds"):
-            self.setup('test')  # Ensure dataset is created
+            self.setup("test")  # Ensure dataset is created
         return self._create_dataloader(self._test_ds)
 
     def _create_dataloader(self, dataset: Dataset, **kwargs) -> DataLoader:
@@ -275,7 +279,10 @@ class MockLlama4Dataset(Dataset):
         self.num_tiles_per_image = num_tiles_per_image
         self.pixel_shuffle_ratio = pixel_shuffle_ratio
         self._img_seq_len = int(
-            num_image_embeddings_per_tile * num_tiles_per_image * pixel_shuffle_ratio * pixel_shuffle_ratio
+            num_image_embeddings_per_tile
+            * num_tiles_per_image
+            * pixel_shuffle_ratio
+            * pixel_shuffle_ratio
         )
 
         self.loss_mask = torch.ones(self.seq_length, dtype=torch.float)
@@ -328,7 +335,9 @@ class MockLlama4Dataset(Dataset):
         )
         # Insert placeholder token ID where image embeddings would go
         # Assuming a fixed placeholder ID 200092 for <|patch|>
-        tokens[2 : 2 + self._img_seq_len] = 200092  # <|patch|> token index TODO: Use actual token ID if available
+        tokens[2 : 2 + self._img_seq_len] = (
+            200092  # <|patch|> token index TODO: Use actual token ID if available
+        )
         labels = tokens.clone()
         images = torch.from_numpy(
             np_gen.random(
@@ -347,7 +356,9 @@ class MockLlama4Dataset(Dataset):
             "position_ids": self.position_ids,
         }
 
-    def _collate_fn(self, batch: List[Dict[str, torch.Tensor]]) -> Dict[str, Optional[torch.Tensor]]:
+    def _collate_fn(
+        self, batch: List[Dict[str, torch.Tensor]]
+    ) -> Dict[str, Optional[torch.Tensor]]:
         """Collates a batch of samples from the dataset.
 
         Uses the default PyTorch collate function and then performs specific adjustments:
@@ -369,7 +380,9 @@ class MockLlama4Dataset(Dataset):
         # Mock dataset doesn't typically need a specific attention mask
         collated_batch["attention_mask"] = None
         # Reshape media: [B, num_tiles, C, H, W] -> [B * num_tiles, C, H, W]
-        collated_batch["media"] = collated_batch["media"].reshape(-1, *collated_batch["media"].shape[2:])
+        collated_batch["media"] = collated_batch["media"].reshape(
+            -1, *collated_batch["media"].shape[2:]
+        )
         if self.packed_sequence:
             from megatron.core.packed_seq_params import PackedSeqParams
 
@@ -377,12 +390,20 @@ class MockLlama4Dataset(Dataset):
             batch_size = tokens.shape[0]
             valid_seqlen = self.seq_length
             cu_seqlens = torch.arange(
-                0, (batch_size + 1) * (valid_seqlen), step=(valid_seqlen), dtype=torch.int32, device=tokens.device
+                0,
+                (batch_size + 1) * (valid_seqlen),
+                step=(valid_seqlen),
+                dtype=torch.int32,
+                device=tokens.device,
             )
             cu_seqlens_padded = torch.arange(
-                0, (batch_size + 1) * (valid_seqlen), step=(valid_seqlen), dtype=torch.int32, device=tokens.device
+                0,
+                (batch_size + 1) * (valid_seqlen),
+                step=(valid_seqlen),
+                dtype=torch.int32,
+                device=tokens.device,
             )
-            qkv_format = 'thd'
+            qkv_format = "thd"
             packed_seq_params = PackedSeqParams(
                 cu_seqlens_q=cu_seqlens,
                 cu_seqlens_kv=cu_seqlens,

@@ -34,13 +34,16 @@ from nemo.utils.get_rank import is_global_rank_zero
 def accuracy(output, target, topk=(1,)):
     pred = output.topk(max(topk), 1, True, True)[1].t()
     correct = pred.eq(target.view(1, -1).expand_as(pred))
-    return [float(correct[:k].reshape(-1).float().sum(0, keepdim=True).cpu().numpy()) for k in topk]
+    return [
+        float(correct[:k].reshape(-1).float().sum(0, keepdim=True).cpu().numpy())
+        for k in topk
+    ]
 
 
 @hydra_runner(config_path="conf", config_name="megatron_clip_imagenet_zeroshot")
 def main(cfg) -> None:
     logging.info("\n\n************** Experiment configuration ***********")
-    logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
+    logging.info(f"\n{OmegaConf.to_yaml(cfg)}")
 
     # These configs are required to be off during inference.
     def model_cfg_modifier(model_cfg):
@@ -54,7 +57,9 @@ def main(cfg) -> None:
         model_cfg.activations_checkpoint_method = None
 
     trainer, model = setup_trainer_and_model_for_inference(
-        model_provider=MegatronCLIPModel, cfg=cfg, model_cfg_modifier=model_cfg_modifier,
+        model_provider=MegatronCLIPModel,
+        cfg=cfg,
+        model_cfg_modifier=model_cfg_modifier,
     )
 
     if model.cfg.get("megatron_amp_O2", False):
@@ -71,8 +76,12 @@ def main(cfg) -> None:
         cfg.model["text"] = model.cfg.text
 
     imagenet_val = build_imagenet_validation_dataloader(cfg.model, model.tokenizer)
-    with torch.no_grad(), torch.cuda.amp.autocast(
-        enabled=autocast_dtype in (torch.half, torch.bfloat16), dtype=autocast_dtype,
+    with (
+        torch.no_grad(),
+        torch.cuda.amp.autocast(
+            enabled=autocast_dtype in (torch.half, torch.bfloat16),
+            dtype=autocast_dtype,
+        ),
     ):
         # build imagenet classification classifier
         classifier = []
@@ -85,7 +94,9 @@ def main(cfg) -> None:
         classifier = torch.stack(classifier, dim=1)
 
         top1, top5, n = 0.0, 0.0, 0.0
-        for images, target in tqdm(imagenet_val["images"], desc="Imagenet Zero-shot Evaluation", leave=False):
+        for images, target in tqdm(
+            imagenet_val["images"], desc="Imagenet Zero-shot Evaluation", leave=False
+        ):
             if images is None or target is None:
                 continue
 
@@ -102,7 +113,7 @@ def main(cfg) -> None:
             top5 += acc5
             n += images.size(0)
 
-        logging.info('Finished zero-shot imagenet.')
+        logging.info("Finished zero-shot imagenet.")
         top1 = top1 / n
         top5 = top5 / n
 
@@ -111,8 +122,10 @@ def main(cfg) -> None:
     imagenet_metric = average_losses_across_data_parallel_group(imagenet_metric)
 
     if is_global_rank_zero:
-        logging.info(f"Zero-shot CLIP accuracy Top-1: {imagenet_metric[0]:.4f}; Top-5: {imagenet_metric[1]:.4f}")
+        logging.info(
+            f"Zero-shot CLIP accuracy Top-1: {imagenet_metric[0]:.4f}; Top-5: {imagenet_metric[1]:.4f}"
+        )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

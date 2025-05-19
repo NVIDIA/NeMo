@@ -25,12 +25,14 @@ from torch import nn
 DEFAULT_NEMO_CACHE_HOME = Path.home() / ".cache" / "nemo"
 NEMO_CACHE_HOME = Path(os.getenv("NEMO_HOME", DEFAULT_NEMO_CACHE_HOME))
 DEFAULT_NEMO_DATASETS_CACHE = NEMO_CACHE_HOME / "datasets"
-NEMO_DATASETS_CACHE = Path(os.getenv("NEMO_DATASETS_CACHE", DEFAULT_NEMO_DATASETS_CACHE))
+NEMO_DATASETS_CACHE = Path(
+    os.getenv("NEMO_DATASETS_CACHE", DEFAULT_NEMO_DATASETS_CACHE)
+)
 DEFAULT_NEMO_MODELS_CACHE = NEMO_CACHE_HOME / "models"
 NEMO_MODELS_CACHE = Path(os.getenv("NEMO_MODELS_CACHE", DEFAULT_NEMO_MODELS_CACHE))
 
-if os.getenv('TOKENIZERS_PARALLELISM') is None:
-    os.putenv('TOKENIZERS_PARALLELISM', 'True')
+if os.getenv("TOKENIZERS_PARALLELISM") is None:
+    os.putenv("TOKENIZERS_PARALLELISM", "True")
 
 
 def get_vocab_size(
@@ -45,7 +47,8 @@ def get_vocab_size(
     multiple = make_vocab_size_divisible_by * config.tensor_model_parallel_size
     after = ((after + multiple - 1) // multiple) * multiple
     logging.info(
-        f"Padded vocab_size: {after}, original vocab_size: {vocab_size}, dummy tokens:" f" {after - vocab_size}."
+        f"Padded vocab_size: {after}, original vocab_size: {vocab_size}, dummy tokens:"
+        f" {after - vocab_size}."
     )
 
     return after

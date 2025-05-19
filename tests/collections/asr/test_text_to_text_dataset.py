@@ -91,14 +91,23 @@ def textonly_unnormalized_manifest_path(tmp_path_factory):
 
 @pytest.fixture(scope="module")
 def tts_normalizer():
-    normalizer = Normalizer(lang="en", input_case="cased", overwrite_cache=True, cache_dir=None,)
+    normalizer = Normalizer(
+        lang="en",
+        input_case="cased",
+        overwrite_cache=True,
+        cache_dir=None,
+    )
     return normalizer
 
 
 @pytest.fixture(scope="module")
 def asr_tokenizer(test_data_dir):
-    tokenizer_path = os.path.join(test_data_dir, "asr", "tokenizers", "an4_wpe_128", 'vocab.txt')
-    tokenizer = tokenizers.AutoTokenizer(pretrained_model_name='bert-base-cased', vocab_file=tokenizer_path)
+    tokenizer_path = os.path.join(
+        test_data_dir, "asr", "tokenizers", "an4_wpe_128", "vocab.txt"
+    )
+    tokenizer = tokenizers.AutoTokenizer(
+        pretrained_model_name="bert-base-cased", vocab_file=tokenizer_path
+    )
     return tokenizer
 
 
@@ -107,13 +116,17 @@ def tts_tokenizer():
     @dataclass
     class G2PConfig:
         _target_: str = "nemo.collections.tts.g2p.models.en_us_arpabet.EnglishG2p"
-        phoneme_dict: str = str(BASE_DIR / "scripts/tts_dataset_files/cmudict-0.7b_nv22.10")
+        phoneme_dict: str = str(
+            BASE_DIR / "scripts/tts_dataset_files/cmudict-0.7b_nv22.10"
+        )
         heteronyms: str = str(BASE_DIR / "scripts/tts_dataset_files/heteronyms-052722")
         phoneme_probability: float = 0.5
 
     @dataclass
     class TextTokenizerCfg:
-        _target_: str = "nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers.EnglishPhonemesTokenizer"
+        _target_: str = (
+            "nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers.EnglishPhonemesTokenizer"
+        )
         punct: bool = True
         stresses: bool = True
         chars: bool = True
@@ -159,7 +172,12 @@ class TestTextToTextDataset:
 
     @pytest.mark.unit
     def test_text_to_text_dataset_unnormalized(
-        self, textonly_unnormalized_manifest_path, speakers_path, asr_tokenizer, tts_tokenizer, tts_normalizer
+        self,
+        textonly_unnormalized_manifest_path,
+        speakers_path,
+        asr_tokenizer,
+        tts_tokenizer,
+        tts_normalizer,
     ):
         """
         Test TextToTextDataset with ASR and TTS tokenizers with non-normalized text

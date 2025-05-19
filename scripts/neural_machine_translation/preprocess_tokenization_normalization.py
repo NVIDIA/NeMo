@@ -32,7 +32,7 @@ logging.basicConfig(level=logging.INFO)
 
 def tokenize_normalize(file, wfile, processor):
     rptr = open(file)
-    wptr = open(wfile, 'w')
+    wptr = open(wfile, "w")
     logging.info(f"Processing {file}")
     for line in rptr:
         txt = line.strip()
@@ -47,12 +47,36 @@ def tokenize_normalize(file, wfile, processor):
 
 def main():
     parser = ArgumentParser()
-    parser.add_argument("--input-src", type=str, required=True, help="Path to input file in src language")
-    parser.add_argument("--input-tgt", type=str, required=True, help="Path to input file in tgt language")
-    parser.add_argument("--output-src", type=str, required=True, help="Path to write the src language output file")
-    parser.add_argument("--output-tgt", type=str, required=True, help="Path to write the tgt language output file")
-    parser.add_argument("--source-lang", type=str, required=True, help="Language for the source file")
-    parser.add_argument("--target-lang", type=str, required=True, help="Language for the target file")
+    parser.add_argument(
+        "--input-src",
+        type=str,
+        required=True,
+        help="Path to input file in src language",
+    )
+    parser.add_argument(
+        "--input-tgt",
+        type=str,
+        required=True,
+        help="Path to input file in tgt language",
+    )
+    parser.add_argument(
+        "--output-src",
+        type=str,
+        required=True,
+        help="Path to write the src language output file",
+    )
+    parser.add_argument(
+        "--output-tgt",
+        type=str,
+        required=True,
+        help="Path to write the tgt language output file",
+    )
+    parser.add_argument(
+        "--source-lang", type=str, required=True, help="Language for the source file"
+    )
+    parser.add_argument(
+        "--target-lang", type=str, required=True, help="Language for the target file"
+    )
 
     args = parser.parse_args()
 
@@ -63,5 +87,5 @@ def main():
     tokenize_normalize(args.input_tgt, args.output_tgt, tgt_processor)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

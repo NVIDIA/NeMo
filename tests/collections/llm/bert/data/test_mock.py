@@ -69,7 +69,15 @@ def test_mock_bert_dataset_item_shapes(mock_tokenizer):
     )
     sample = ds[0]
 
-    expected_keys = {"text", "types", "labels", "is_random", "padding_mask", "loss_mask", "truncated"}
+    expected_keys = {
+        "text",
+        "types",
+        "labels",
+        "is_random",
+        "padding_mask",
+        "loss_mask",
+        "truncated",
+    }
     assert set(sample.keys()) == expected_keys
 
     assert len(sample["text"]) == seq_length
@@ -87,7 +95,15 @@ def test_data_module_train_dataloader(mock_data_module):
     batch = next(iter(train_dl))
 
     assert isinstance(batch, dict)
-    expected_keys = {"text", "types", "labels", "is_random", "padding_mask", "loss_mask", "truncated"}
+    expected_keys = {
+        "text",
+        "types",
+        "labels",
+        "is_random",
+        "padding_mask",
+        "loss_mask",
+        "truncated",
+    }
     assert set(batch.keys()) == expected_keys
 
     # Check shapes (assuming batch_size=1 after DataLoader collation)

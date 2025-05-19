@@ -26,7 +26,7 @@ from nemo.core.classes.module import NeuralModule
 from nemo.core.neural_types import (AcousticEncodedRepresentation, LengthsType,
                                     NeuralType)
 
-__all__ = ['PoolingMLPConnectors']
+__all__ = ["PoolingMLPConnectors"]
 
 
 class ConcatPooling(nn.Module):
@@ -43,7 +43,9 @@ class ConcatPooling(nn.Module):
         batch_size, seq_len, input_dim = x.shape
         if seq_len % self.pooling_factor != 0:
             x = x[:, : -(seq_len % self.pooling_factor), :]
-        x = x.reshape(batch_size, seq_len // self.pooling_factor, input_dim * self.pooling_factor)
+        x = x.reshape(
+            batch_size, seq_len // self.pooling_factor, input_dim * self.pooling_factor
+        )
         return x
 
 
@@ -88,24 +90,30 @@ class PoolingMLPConnectors(NeuralModule, Exportable, AccessMixin):
 
         if pooling == "cat":
             self.preprocess = nn.Sequential(
-                ConcatPooling(pooling_factor), nn.Linear(input_dim * pooling_factor, self.hidden_dim)
+                ConcatPooling(pooling_factor),
+                nn.Linear(input_dim * pooling_factor, self.hidden_dim),
             )
         else:
             self.preprocess = nn.Sequential(
-                nn.AvgPool1d(pooling_factor, stride=pooling_factor), nn.Linear(input_dim, self.hidden_dim)
+                nn.AvgPool1d(pooling_factor, stride=pooling_factor),
+                nn.Linear(input_dim, self.hidden_dim),
             )
 
         if num_layers == 1:
             self.mlp = nn.Identity()
         else:
-            self.mlp = MLP(self.hidden_dim, output_dim, num_layers, activation, log_softmax=False)
+            self.mlp = MLP(
+                self.hidden_dim, output_dim, num_layers, activation, log_softmax=False
+            )
 
     @property
     def input_types(self):
         """Returns definitions of module input ports."""
         return OrderedDict(
             {
-                "audio_signal": NeuralType(("B", "D", "T"), AcousticEncodedRepresentation()),
+                "audio_signal": NeuralType(
+                    ("B", "D", "T"), AcousticEncodedRepresentation()
+                ),
                 "length": NeuralType(tuple("B"), LengthsType()),
             }
         )
@@ -132,7 +140,7 @@ class PoolingMLPConnectors(NeuralModule, Exportable, AccessMixin):
         """
         outputs = self.preprocess(audio_signal.transpose(1, 2))
         outputs = self.mlp(outputs)
-        outputs_len = torch.div(length, self.pooling_factor, rounding_mode='floor')
+        outputs_len = torch.div(length, self.pooling_factor, rounding_mode="floor")
         return outputs.transpose(1, 2), outputs_len
 
 

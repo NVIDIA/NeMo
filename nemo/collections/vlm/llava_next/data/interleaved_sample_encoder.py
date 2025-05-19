@@ -30,7 +30,12 @@ from nemo.utils import logging
 class LlavaNextSimilarityInterleavedSampleEncoder(SimilarityInterleavedEncoder):
     """LlavaNextSimilarityInterleavedSampleEncoder"""
 
-    def __init__(self, tokenizer, image_processor, multimodal_sample_config=MultiModalSampleConfig()):
+    def __init__(
+        self,
+        tokenizer,
+        image_processor,
+        multimodal_sample_config=MultiModalSampleConfig(),
+    ):
         """
         Initialize the LlavaNextSimilarityInterleavedSampleEncoder, inherited from SimilarityInterleavedEncoder for
         multimodal samples
@@ -46,16 +51,25 @@ class LlavaNextSimilarityInterleavedSampleEncoder(SimilarityInterleavedEncoder):
         self.hf_llava_next_config = HFLlavaNextConfig()
 
     def process_image(self, image: torch.Tensor) -> torch.Tensor:
-        image = self.image_processor.preprocess(image, return_tensors='pt', do_rescale=False)['pixel_values'][0]
+        image = self.image_processor.preprocess(
+            image, return_tensors="pt", do_rescale=False
+        )["pixel_values"][0]
         assert isinstance(image, torch.Tensor)
         return image
 
-    def encode(self, input_sample: SimilarityInterleavedSample, output_sample: LlavaNextTextSample):
+    def encode(
+        self,
+        input_sample: SimilarityInterleavedSample,
+        output_sample: LlavaNextTextSample,
+    ):
         images = input_sample.images
         texts = input_sample.texts
         matched_text_indices = input_sample.matched_text_indices
         # Sort images according to matched_text_indices
-        sorted_images_orig = [img for _, img in sorted(zip(matched_text_indices, images), key=lambda x: x[0])]
+        sorted_images_orig = [
+            img
+            for _, img in sorted(zip(matched_text_indices, images), key=lambda x: x[0])
+        ]
         sorted_images = [self.process_image(chunk) for chunk in sorted_images_orig]
         # sorted_indices = sorted(matched_text_indices)
         # Group images based on indices
@@ -76,7 +90,9 @@ class LlavaNextSimilarityInterleavedSampleEncoder(SimilarityInterleavedEncoder):
             # If images should be placed before the text
             if not self.image_following_text and text_idx in grouped_indices:
                 for _ in range(grouped_indices[text_idx]):
-                    _, orig_height, orig_width = sorted_images_orig[sorted_images_orig_i].shape
+                    _, orig_height, orig_width = sorted_images_orig[
+                        sorted_images_orig_i
+                    ].shape
                     num_image_tokens = get_number_of_features(
                         orig_height,
                         orig_width,
@@ -85,7 +101,9 @@ class LlavaNextSimilarityInterleavedSampleEncoder(SimilarityInterleavedEncoder):
                         self.hf_llava_next_config.image_grid_pinpoints,
                         self.hf_llava_next_config.vision_config.patch_size,
                     )
-                    interleaved_list.extend([self.image_token.token_id] * num_image_tokens)
+                    interleaved_list.extend(
+                        [self.image_token.token_id] * num_image_tokens
+                    )
                     sorted_images_orig_i += 1
 
             # Add the text
@@ -94,7 +112,9 @@ class LlavaNextSimilarityInterleavedSampleEncoder(SimilarityInterleavedEncoder):
             # If images should be placed after the text
             if self.image_following_text and text_idx in grouped_indices:
                 for _ in range(grouped_indices[text_idx]):
-                    _, orig_height, orig_width = sorted_images_orig[sorted_images_orig_i].shape
+                    _, orig_height, orig_width = sorted_images_orig[
+                        sorted_images_orig_i
+                    ].shape
                     num_image_tokens = get_number_of_features(
                         orig_height,
                         orig_width,
@@ -103,7 +123,9 @@ class LlavaNextSimilarityInterleavedSampleEncoder(SimilarityInterleavedEncoder):
                         self.hf_llava_next_config.image_grid_pinpoints,
                         self.hf_llava_next_config.vision_config.patch_size,
                     )
-                    interleaved_list.extend([self.image_token.token_id] * num_image_tokens)
+                    interleaved_list.extend(
+                        [self.image_token.token_id] * num_image_tokens
+                    )
                     sorted_images_orig_i += 1
 
         # if last index is image token,pad with ignore placeholder
@@ -113,7 +135,11 @@ class LlavaNextSimilarityInterleavedSampleEncoder(SimilarityInterleavedEncoder):
         # Merge consecutve text entries with a space between them
         final_sequence = []
         for item in interleaved_list:
-            if final_sequence and isinstance(final_sequence[-1], str) and isinstance(item, str):
+            if (
+                final_sequence
+                and isinstance(final_sequence[-1], str)
+                and isinstance(item, str)
+            ):
                 final_sequence[-1] += " " + item
             else:
                 final_sequence.append(item)
@@ -122,7 +148,9 @@ class LlavaNextSimilarityInterleavedSampleEncoder(SimilarityInterleavedEncoder):
             if chunk in [self.ignore_place_holder, self.image_token.token_id]:
                 tokenized_chunks.append(chunk)
             else:
-                tokenized_chunks.extend(self.tokenizer(chunk, add_special_tokens=False).input_ids)
+                tokenized_chunks.extend(
+                    self.tokenizer(chunk, add_special_tokens=False).input_ids
+                )
         tokens = torch.tensor(tokenized_chunks, dtype=torch.long)
         logging.debug(
             f"Multimodal dataloader encode similarity interleaved sample tokenized chunks {tokenized_chunks}"
@@ -186,7 +214,9 @@ def image_size_to_num_patches(image_size, grid_pinpoints, patch_size: int):
     # ! VERY IMPORTANT if image_size is tensor, must convert to into tuple, otherwise it will cause wrong calculate
     if not isinstance(image_size, (list, tuple)):
         if not isinstance(image_size, (torch.Tensor, np.ndarray)):
-            raise TypeError(f"image_size invalid type {type(image_size)} with value {image_size}")
+            raise TypeError(
+                f"image_size invalid type {type(image_size)} with value {image_size}"
+            )
         image_size = image_size.tolist()
 
     best_resolution = select_best_resolution(image_size, grid_pinpoints)
@@ -221,12 +251,17 @@ def select_best_resolution(original_size: tuple, possible_resolutions: list) -> 
 
     for height, width in possible_resolutions:
         scale = min(width / original_width, height / original_height)
-        downscaled_width, downscaled_height = int(original_width * scale), int(original_height * scale)
-        effective_resolution = min(downscaled_width * downscaled_height, original_width * original_height)
+        downscaled_width, downscaled_height = int(original_width * scale), int(
+            original_height * scale
+        )
+        effective_resolution = min(
+            downscaled_width * downscaled_height, original_width * original_height
+        )
         wasted_resolution = (width * height) - effective_resolution
 
         if effective_resolution > max_effective_resolution or (
-            effective_resolution == max_effective_resolution and wasted_resolution < min_wasted_resolution
+            effective_resolution == max_effective_resolution
+            and wasted_resolution < min_wasted_resolution
         ):
             max_effective_resolution = effective_resolution
             min_wasted_resolution = wasted_resolution

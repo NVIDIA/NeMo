@@ -23,7 +23,9 @@ from nemo.lightning.io.artifact.base import Artifact
 
 
 class PathArtifact(Artifact[Path]):
-    def dump(self, instance, value: Path, absolute_dir: Path, relative_dir: Path) -> Path:
+    def dump(
+        self, instance, value: Path, absolute_dir: Path, relative_dir: Path
+    ) -> Path:
         new_value = copy_file(value, absolute_dir, relative_dir)
         return new_value
 
@@ -49,7 +51,9 @@ def pathize(s):
     return s
 
 
-def copy_file(src: Union[Path, str], path: Union[Path, str], relative_dst: Union[Path, str]):
+def copy_file(
+    src: Union[Path, str], path: Union[Path, str], relative_dst: Union[Path, str]
+):
     relative_path = pathize(relative_dst) / pathize(src).name
     output = pathize(path) / relative_path
     if output.exists():

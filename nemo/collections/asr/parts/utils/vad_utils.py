@@ -57,7 +57,9 @@ class PostProcessingParams:
     to achieve the desired DER performance.
     """
 
-    onset: float = 0.5  # Onset threshold for detecting the beginning and end of a speech
+    onset: float = (
+        0.5  # Onset threshold for detecting the beginning and end of a speech
+    )
     offset: float = 0.5  # Offset threshold for detecting the end of a speech
     pad_onset: float = 0.0  # Adding durations before each speech segment
     pad_offset: float = 0.0  # Adding durations after each speech segment
@@ -65,7 +67,9 @@ class PostProcessingParams:
     min_duration_off: float = 0.0  # Threshold for small non-speech deletion
 
 
-def load_postprocessing_from_yaml(postprocessing_yaml: str = None) -> PostProcessingParams:
+def load_postprocessing_from_yaml(
+    postprocessing_yaml: str = None,
+) -> PostProcessingParams:
     """
     Load postprocessing parameters from a YAML file.
 
@@ -85,10 +89,12 @@ def load_postprocessing_from_yaml(postprocessing_yaml: str = None) -> PostProces
         )
     else:
         # Load postprocessing params from the provided YAML file
-        with open(postprocessing_yaml, 'r') as file:
-            yaml_params = yaml.safe_load(file)['parameters']
+        with open(postprocessing_yaml, "r") as file:
+            yaml_params = yaml.safe_load(file)["parameters"]
             # Update the postprocessing_params with the loaded values
-            logging.info(f"Postprocessing YAML file '{postprocessing_yaml}' has been loaded.")
+            logging.info(
+                f"Postprocessing YAML file '{postprocessing_yaml}' has been loaded."
+            )
             for key, value in yaml_params.items():
                 if hasattr(postprocessing_params, key):
                     setattr(postprocessing_params, key, value)
@@ -100,20 +106,27 @@ def prepare_manifest(config: dict) -> str:
     Perform VAD on long audio snippet might cause CUDA out of memory issue.
     Automatically split manifest entry by split_duration to avoid the potential memory issue.
     """
-    if 'prepared_manifest_vad_input' in config and config['prepared_manifest_vad_input']:
-        manifest_vad_input = config['prepared_manifest_vad_input']
+    if (
+        "prepared_manifest_vad_input" in config
+        and config["prepared_manifest_vad_input"]
+    ):
+        manifest_vad_input = config["prepared_manifest_vad_input"]
     else:
         default_path = "manifest_vad_input.json"
-        manifest_vad_input = os.path.join(config["out_dir"], default_path) if "out_dir" in config else default_path
+        manifest_vad_input = (
+            os.path.join(config["out_dir"], default_path)
+            if "out_dir" in config
+            else default_path
+        )
 
     # input_list is a list of variable ['audio_filepath': i, "offset": xxx, "duration": xxx])
-    if type(config['input']) == str:
+    if type(config["input"]) == str:
         input_list = []
-        with open(config['input'], 'r', encoding='utf-8') as manifest:
+        with open(config["input"], "r", encoding="utf-8") as manifest:
             for line in manifest.readlines():
                 input_list.append(json.loads(line.strip()))
-    elif type(config['input']) == list:
-        input_list = config['input']
+    elif type(config["input"]) == list:
+        input_list = config["input"]
     else:
         raise ValueError(
             "The input for manifest preparation would either be a string of the filepath to manifest "
@@ -121,38 +134,40 @@ def prepare_manifest(config: dict) -> str:
         )
 
     args_func = {
-        'label': 'infer',
-        'split_duration': config['split_duration'],
-        'window_length_in_sec': config['window_length_in_sec'],
-        'manifest_dir': Path(config['input']).parent if type(config['input']) == str else '',
+        "label": "infer",
+        "split_duration": config["split_duration"],
+        "window_length_in_sec": config["window_length_in_sec"],
+        "manifest_dir": (
+            Path(config["input"]).parent if type(config["input"]) == str else ""
+        ),
     }
 
-    if config.get('num_workers') is not None and config['num_workers'] > 1:
-        with multiprocessing.Pool(processes=config['num_workers']) as p:
+    if config.get("num_workers") is not None and config["num_workers"] > 1:
+        with multiprocessing.Pool(processes=config["num_workers"]) as p:
             inputs = zip(input_list, repeat(args_func))
             results = list(
                 tqdm(
                     p.imap(write_vad_infer_manifest_star, inputs),
                     total=len(input_list),
-                    desc='splitting manifest',
+                    desc="splitting manifest",
                     leave=True,
                 )
             )
     else:
         results = [
             write_vad_infer_manifest(input_el, args_func)
-            for input_el in tqdm(input_list, desc='splitting manifest', leave=True)
+            for input_el in tqdm(input_list, desc="splitting manifest", leave=True)
         ]
 
     if os.path.exists(manifest_vad_input):
         logging.info("The prepared manifest file exists. Overwriting!")
         os.remove(manifest_vad_input)
 
-    with open(manifest_vad_input, 'a', encoding='utf-8') as fout:
+    with open(manifest_vad_input, "a", encoding="utf-8") as fout:
         for res in results:
             for r in res:
                 json.dump(r, fout)
-                fout.write('\n')
+                fout.write("\n")
                 fout.flush()
     return manifest_vad_input
 
@@ -178,16 +193,16 @@ def write_vad_infer_manifest(file: dict, args_func: dict) -> list:
         res (list) : list of generated metadata line of json for file
     """
     res = []
-    label = args_func['label']
-    split_duration = args_func['split_duration']
-    window_length_in_sec = args_func['window_length_in_sec']
-    filepath = file['audio_filepath']
-    in_duration = file.get('duration', None)
-    in_offset = file.get('offset', 0)
+    label = args_func["label"]
+    split_duration = args_func["split_duration"]
+    window_length_in_sec = args_func["window_length_in_sec"]
+    filepath = file["audio_filepath"]
+    in_duration = file.get("duration", None)
+    in_offset = file.get("offset", 0)
 
     # if filepath is not found, try to find it in the dir of manifest
     if not Path(filepath).is_file():
-        new_filepath = Path(args_func['manifest_dir']) / filepath
+        new_filepath = Path(args_func["manifest_dir"]) / filepath
         if new_filepath.is_file():
             filepath = new_filepath.absolute().as_posix()
 
@@ -198,25 +213,25 @@ def write_vad_infer_manifest(file: dict, args_func: dict) -> list:
         left = duration
         current_offset = in_offset
 
-        status = 'single'
+        status = "single"
         while left > 0:
             if left <= split_duration:
-                if status == 'single':
+                if status == "single":
                     write_duration = left
                     current_offset = 0
                 else:
-                    status = 'end'
+                    status = "end"
                     write_duration = left + window_length_in_sec
                     current_offset -= window_length_in_sec
                 offset_inc = left
                 left = 0
             else:
-                if status == 'start' or status == 'next':
-                    status = 'next'
+                if status == "start" or status == "next":
+                    status = "next"
                 else:
-                    status = 'start'
+                    status = "start"
 
-                if status == 'start':
+                if status == "start":
                     write_duration = split_duration
                     offset_inc = split_duration
                 else:
@@ -227,11 +242,11 @@ def write_vad_infer_manifest(file: dict, args_func: dict) -> list:
                 left -= split_duration
 
             metadata = {
-                'audio_filepath': filepath,
-                'duration': write_duration,
-                'label': label,
-                'text': '_',
-                'offset': current_offset,
+                "audio_filepath": filepath,
+                "duration": write_duration,
+                "label": label,
+                "text": "_",
+                "offset": current_offset,
             }
             res.append(metadata)
 
@@ -239,7 +254,7 @@ def write_vad_infer_manifest(file: dict, args_func: dict) -> list:
 
     except Exception as e:
         err_file = "error.log"
-        with open(err_file, 'w', encoding='utf-8') as fout:
+        with open(err_file, "w", encoding="utf-8") as fout:
             fout.write(filepath + ":" + str(e))
     return res
 
@@ -254,23 +269,23 @@ def get_vad_stream_status(data: list) -> list:
         status (list): list of status of each snippet.
     """
     if len(data) == 1:
-        return ['single']
+        return ["single"]
 
     status = [None] * len(data)
     for i in range(len(data)):
         if i == 0:
-            status[i] = 'start' if data[i] == data[i + 1] else 'single'
+            status[i] = "start" if data[i] == data[i + 1] else "single"
         elif i == len(data) - 1:
-            status[i] = 'end' if data[i] == data[i - 1] else 'single'
+            status[i] = "end" if data[i] == data[i - 1] else "single"
         else:
             if data[i] != data[i - 1] and data[i] == data[i + 1]:
-                status[i] = 'start'
+                status[i] = "start"
             elif data[i] == data[i - 1] and data[i] == data[i + 1]:
-                status[i] = 'next'
+                status[i] = "next"
             elif data[i] == data[i - 1] and data[i] != data[i + 1]:
-                status[i] = 'end'
+                status[i] = "end"
             else:
-                status[i] = 'single'
+                status[i] = "single"
     return status
 
 
@@ -279,7 +294,7 @@ def load_tensor_from_file(filepath: str) -> Tuple[torch.Tensor, str]:
     Load torch.Tensor and the name from file
     """
     frame = []
-    with open(filepath, "r", encoding='utf-8') as f:
+    with open(filepath, "r", encoding="utf-8") as f:
         for line in f.readlines():
             frame.append(float(line))
 
@@ -318,7 +333,8 @@ def generate_overlap_vad_seq(
         overlap_out_dir = out_dir
     else:
         overlap_out_dir = os.path.join(
-            frame_pred_dir, "overlap_smoothing_output" + "_" + smoothing_method + "_" + str(overlap)
+            frame_pred_dir,
+            "overlap_smoothing_output" + "_" + smoothing_method + "_" + str(overlap),
         )
 
     if not os.path.exists(overlap_out_dir):
@@ -338,13 +354,15 @@ def generate_overlap_vad_seq(
                 tqdm(
                     p.imap(generate_overlap_vad_seq_per_file_star, inputs),
                     total=len(frame_filepathlist),
-                    desc='generating preds',
+                    desc="generating preds",
                     leave=True,
                 )
             )
 
     else:
-        for frame_filepath in tqdm(frame_filepathlist, desc='generating preds', leave=False):
+        for frame_filepath in tqdm(
+            frame_filepathlist, desc="generating preds", leave=False
+        ):
             generate_overlap_vad_seq_per_file(frame_filepath, per_args)
 
     return overlap_out_dir
@@ -368,13 +386,15 @@ def generate_overlap_vad_seq_per_tensor(
     """
     # This function will be refactor for vectorization but this is okay for now
 
-    overlap = per_args['overlap']
-    window_length_in_sec = per_args['window_length_in_sec']
-    shift_length_in_sec = per_args['shift_length_in_sec']
-    frame_len = per_args.get('frame_len', 0.01)
+    overlap = per_args["overlap"]
+    window_length_in_sec = per_args["window_length_in_sec"]
+    shift_length_in_sec = per_args["shift_length_in_sec"]
+    frame_len = per_args.get("frame_len", 0.01)
 
     shift = int(shift_length_in_sec / frame_len)  # number of units of shift
-    seg = int((window_length_in_sec / frame_len + 1))  # number of units of each window/segment
+    seg = int(
+        (window_length_in_sec / frame_len + 1)
+    )  # number of units of each window/segment
 
     jump_on_target = int(seg * (1 - overlap))  # jump on target generated sequence
     jump_on_frame = int(jump_on_target / shift)  # jump on input frame sequence
@@ -390,7 +410,7 @@ def generate_overlap_vad_seq_per_tensor(
 
     target_len = int(len(frame) * shift)
 
-    if smoothing_method == 'mean':
+    if smoothing_method == "mean":
         preds = torch.zeros(target_len)
         pred_count = torch.zeros(target_len)
 
@@ -406,7 +426,7 @@ def generate_overlap_vad_seq_per_tensor(
         last_non_zero_pred = preds[pred_count != 0][-1]
         preds[pred_count == 0] = last_non_zero_pred
 
-    elif smoothing_method == 'median':
+    elif smoothing_method == "median":
         preds = [torch.empty(0) for _ in range(target_len)]
         for i, og_pred in enumerate(frame):
             if i % jump_on_frame != 0:
@@ -434,8 +454,8 @@ def generate_overlap_vad_seq_per_file(frame_filepath: str, per_args: dict) -> st
     A wrapper for generate_overlap_vad_seq_per_tensor.
     """
 
-    out_dir = per_args['out_dir']
-    smoothing_method = per_args['smoothing_method']
+    out_dir = per_args["out_dir"]
+    smoothing_method = per_args["smoothing_method"]
     frame, name = load_tensor_from_file(frame_filepath)
 
     per_args_float: Dict[str, float] = {}
@@ -446,7 +466,7 @@ def generate_overlap_vad_seq_per_file(frame_filepath: str, per_args: dict) -> st
     preds = generate_overlap_vad_seq_per_tensor(frame, per_args_float, smoothing_method)
 
     overlap_filepath = os.path.join(out_dir, name + "." + smoothing_method)
-    with open(overlap_filepath, "w", encoding='utf-8') as f:
+    with open(overlap_filepath, "w", encoding="utf-8") as f:
         for pred in preds:
             f.write(f"{pred:.4f}\n")
 
@@ -469,9 +489,13 @@ def merge_overlap_segment(segments: torch.Tensor) -> torch.Tensor:
 
     segments = segments[segments[:, 0].sort()[1]]
     merge_boundary = segments[:-1, 1] >= segments[1:, 0]
-    head_padded = torch.nn.functional.pad(merge_boundary, [1, 0], mode='constant', value=0.0)
+    head_padded = torch.nn.functional.pad(
+        merge_boundary, [1, 0], mode="constant", value=0.0
+    )
     head = segments[~head_padded, 0]
-    tail_padded = torch.nn.functional.pad(merge_boundary, [0, 1], mode='constant', value=0.0)
+    tail_padded = torch.nn.functional.pad(
+        merge_boundary, [0, 1], mode="constant", value=0.0
+    )
     tail = segments[~tail_padded, 1]
     merged = torch.stack((head, tail), dim=1)
     return merged
@@ -541,12 +565,12 @@ def binarization(sequence: torch.Tensor, per_args: Dict[str, float]) -> torch.Te
         speech_segments(torch.Tensor): A tensor of speech segment in the form of:
                                       `torch.Tensor([[start1, end1], [start2, end2]])`.
     """
-    frame_length_in_sec = per_args.get('frame_length_in_sec', 0.01)
+    frame_length_in_sec = per_args.get("frame_length_in_sec", 0.01)
 
-    onset = per_args.get('onset', 0.5)
-    offset = per_args.get('offset', 0.5)
-    pad_onset = per_args.get('pad_onset', 0.0)
-    pad_offset = per_args.get('pad_offset', 0.0)
+    onset = per_args.get("onset", 0.5)
+    offset = per_args.get("offset", 0.5)
+    pad_onset = per_args.get("pad_onset", 0.0)
+    pad_offset = per_args.get("pad_offset", 0.0)
 
     speech = False
     start = 0.0
@@ -561,7 +585,10 @@ def binarization(sequence: torch.Tensor, per_args: Dict[str, float]) -> torch.Te
             if sequence[i] < offset:
                 if i * frame_length_in_sec + pad_offset > max(0, start - pad_onset):
                     new_seg = torch.tensor(
-                        [max(0, start - pad_onset), i * frame_length_in_sec + pad_offset]
+                        [
+                            max(0, start - pad_onset),
+                            i * frame_length_in_sec + pad_offset,
+                        ]
                     ).unsqueeze(0)
                     speech_segments = torch.cat((speech_segments, new_seg), 0)
 
@@ -577,7 +604,9 @@ def binarization(sequence: torch.Tensor, per_args: Dict[str, float]) -> torch.Te
 
     # if it's speech at the end, add final segment
     if speech:
-        new_seg = torch.tensor([max(0, start - pad_onset), i * frame_length_in_sec + pad_offset]).unsqueeze(0)
+        new_seg = torch.tensor(
+            [max(0, start - pad_onset), i * frame_length_in_sec + pad_offset]
+        ).unsqueeze(0)
         speech_segments = torch.cat((speech_segments, new_seg), 0)
 
     # Merge the overlapped speech segments due to padding
@@ -586,7 +615,9 @@ def binarization(sequence: torch.Tensor, per_args: Dict[str, float]) -> torch.Te
 
 
 @torch.jit.script
-def remove_segments(original_segments: torch.Tensor, to_be_removed_segments: torch.Tensor) -> torch.Tensor:
+def remove_segments(
+    original_segments: torch.Tensor, to_be_removed_segments: torch.Tensor
+) -> torch.Tensor:
     """
     Remove speech segments list in to_be_removed_segments from original_segments.
     (Example) Remove torch.Tensor([[start2, end2],[start4, end4]])
@@ -595,7 +626,9 @@ def remove_segments(original_segments: torch.Tensor, to_be_removed_segments: tor
               torch.Tensor([[start1, end1],[start3, end3]])
     """
     for y in to_be_removed_segments:
-        original_segments = original_segments[original_segments.eq(y).all(dim=1).logical_not()]
+        original_segments = original_segments[
+            original_segments.eq(y).all(dim=1).logical_not()
+        ]
     return original_segments
 
 
@@ -611,7 +644,9 @@ def get_gap_segments(segments: torch.Tensor) -> torch.Tensor:
 
 
 @torch.jit.script
-def filtering(speech_segments: torch.Tensor, per_args: Dict[str, float]) -> torch.Tensor:
+def filtering(
+    speech_segments: torch.Tensor, per_args: Dict[str, float]
+) -> torch.Tensor:
     """
     Filter out short non-speech and speech segments.
 
@@ -641,9 +676,9 @@ def filtering(speech_segments: torch.Tensor, per_args: Dict[str, float]) -> torc
     if speech_segments.shape == torch.Size([0]):
         return speech_segments
 
-    min_duration_on = per_args.get('min_duration_on', 0.0)
-    min_duration_off = per_args.get('min_duration_off', 0.0)
-    filter_speech_first = per_args.get('filter_speech_first', 1.0)
+    min_duration_on = per_args.get("min_duration_on", 0.0)
+    min_duration_off = per_args.get("min_duration_off", 0.0)
+    filter_speech_first = per_args.get("filter_speech_first", 1.0)
 
     if filter_speech_first == 1.0:
         # Filter out the shorter speech segments
@@ -655,7 +690,8 @@ def filtering(speech_segments: torch.Tensor, per_args: Dict[str, float]) -> torc
             non_speech_segments = get_gap_segments(speech_segments)
             # Find shorter non-speech segments
             short_non_speech_segments = remove_segments(
-                non_speech_segments, filter_short_segments(non_speech_segments, min_duration_off)
+                non_speech_segments,
+                filter_short_segments(non_speech_segments, min_duration_off),
             )
             # Return shorter non-speech segments to be as speech segments
             speech_segments = torch.cat((speech_segments, short_non_speech_segments), 0)
@@ -668,7 +704,8 @@ def filtering(speech_segments: torch.Tensor, per_args: Dict[str, float]) -> torc
             non_speech_segments = get_gap_segments(speech_segments)
             # Find shorter non-speech segments
             short_non_speech_segments = remove_segments(
-                non_speech_segments, filter_short_segments(non_speech_segments, min_duration_off)
+                non_speech_segments,
+                filter_short_segments(non_speech_segments, min_duration_off),
             )
 
             speech_segments = torch.cat((speech_segments, short_non_speech_segments), 0)
@@ -681,23 +718,28 @@ def filtering(speech_segments: torch.Tensor, per_args: Dict[str, float]) -> torc
     return speech_segments
 
 
-def prepare_gen_segment_table(sequence: torch.Tensor, per_args: dict) -> Tuple[str, dict]:
+def prepare_gen_segment_table(
+    sequence: torch.Tensor, per_args: dict
+) -> Tuple[str, dict]:
     """
     Preparing for generating segment table.
     """
-    out_dir = per_args.get('out_dir', None)
+    out_dir = per_args.get("out_dir", None)
 
     # calculate onset offset based on scale selection
-    per_args['onset'], per_args['offset'] = cal_vad_onset_offset(
-        per_args.get('scale', 'absolute'), per_args['onset'], per_args['offset'], sequence
+    per_args["onset"], per_args["offset"] = cal_vad_onset_offset(
+        per_args.get("scale", "absolute"),
+        per_args["onset"],
+        per_args["offset"],
+        sequence,
     )
 
     # cast 'filter_speech_first' for torch.jit.script
-    if 'filter_speech_first' in per_args:
-        if per_args['filter_speech_first']:
-            per_args['filter_speech_first'] = 1.0
+    if "filter_speech_first" in per_args:
+        if per_args["filter_speech_first"]:
+            per_args["filter_speech_first"] = 1.0
         else:
-            per_args['filter_speech_first'] = 0.0
+            per_args["filter_speech_first"] = 0.0
 
     per_args_float: Dict[str, float] = {}
     for i in per_args:
@@ -708,7 +750,9 @@ def prepare_gen_segment_table(sequence: torch.Tensor, per_args: dict) -> Tuple[s
 
 
 @torch.jit.script
-def generate_vad_segment_table_per_tensor(sequence: torch.Tensor, per_args: Dict[str, float]) -> torch.Tensor:
+def generate_vad_segment_table_per_tensor(
+    sequence: torch.Tensor, per_args: Dict[str, float]
+) -> torch.Tensor:
     """
     See description in generate_overlap_vad_seq.
     Use this for single instance pipeline.
@@ -742,16 +786,18 @@ def generate_vad_segment_table_per_file(pred_filepath: str, per_args: dict) -> s
     save_path = os.path.join(out_dir, save_name)
 
     if preds.shape[0] == 0:
-        with open(save_path, "w", encoding='utf-8') as fp:
+        with open(save_path, "w", encoding="utf-8") as fp:
             if per_args.get("use_rttm", False):
                 fp.write(f"SPEAKER <NA> 1 0 0 <NA> <NA> speech <NA> <NA>\n")
             else:
                 fp.write(f"0 0 speech\n")
     else:
-        with open(save_path, "w", encoding='utf-8') as fp:
+        with open(save_path, "w", encoding="utf-8") as fp:
             for i in preds:
                 if per_args.get("use_rttm", False):
-                    fp.write(f"SPEAKER {name} 1 {i[0]:.4f} {i[2]:.4f} <NA> <NA> speech <NA> <NA>\n")
+                    fp.write(
+                        f"SPEAKER {name} 1 {i[0]:.4f} {i[2]:.4f} <NA> <NA> speech <NA> <NA>\n"
+                    )
                 else:
                     fp.write(f"{i[0]:.4f} {i[2]:.4f} speech\n")
 
@@ -783,12 +829,18 @@ def generate_vad_segment_table(
     """
 
     suffixes = ("frame", "mean", "median")
-    vad_pred_filepath_list = [os.path.join(vad_pred_dir, x) for x in os.listdir(vad_pred_dir) if x.endswith(suffixes)]
+    vad_pred_filepath_list = [
+        os.path.join(vad_pred_dir, x)
+        for x in os.listdir(vad_pred_dir)
+        if x.endswith(suffixes)
+    ]
 
     if not out_dir:
         out_dir_name = "seg_output"
         for key in postprocessing_params:
-            out_dir_name = out_dir_name + "-" + str(key) + str(postprocessing_params[key])
+            out_dir_name = (
+                out_dir_name + "-" + str(key) + str(postprocessing_params[key])
+            )
 
         out_dir = os.path.join(vad_pred_dir, out_dir_name)
 
@@ -809,12 +861,14 @@ def generate_vad_segment_table(
                 tqdm(
                     p.imap(generate_vad_segment_table_per_file_star, inputs),
                     total=len(vad_pred_filepath_list),
-                    desc='creating speech segments',
+                    desc="creating speech segments",
                     leave=True,
                 )
             )
     else:
-        for vad_pred_filepath in tqdm(vad_pred_filepath_list, desc='creating speech segments', leave=True):
+        for vad_pred_filepath in tqdm(
+            vad_pred_filepath_list, desc="creating speech segments", leave=True
+        ):
             generate_vad_segment_table_per_file(vad_pred_filepath, per_args)
 
     return out_dir
@@ -847,12 +901,12 @@ def vad_construct_pyannote_object_per_file(
     # construct reference
     reference = Annotation()
     for index, row in label.iterrows():
-        reference[Segment(row['start'], row['start'] + row['dur'])] = row['speaker']
+        reference[Segment(row["start"], row["start"] + row["dur"])] = row["speaker"]
 
     # construct hypothsis
     hypothesis = Annotation()
     for index, row in pred.iterrows():
-        hypothesis[Segment(float(row[0]), float(row[0]) + float(row[1]))] = 'Speech'
+        hypothesis[Segment(float(row[0]), float(row[0]) + float(row[1]))] = "Speech"
     return reference, hypothesis
 
 
@@ -861,8 +915,8 @@ def get_parameter_grid(params: dict) -> list:
     Get the parameter grid given a dictionary of parameters.
     """
     has_filter_speech_first = False
-    if 'filter_speech_first' in params:
-        filter_speech_first = params['filter_speech_first']
+    if "filter_speech_first" in params:
+        filter_speech_first = params["filter_speech_first"]
         has_filter_speech_first = True
         params.pop("filter_speech_first")
 
@@ -870,7 +924,7 @@ def get_parameter_grid(params: dict) -> list:
 
     if has_filter_speech_first:
         for i in params_grid:
-            i['filter_speech_first'] = filter_speech_first
+            i["filter_speech_first"] = filter_speech_first
     return params_grid
 
 
@@ -906,7 +960,9 @@ def vad_tune_threshold_on_dev(
     except:
         raise ValueError("Please check if the parameters are valid")
 
-    paired_filenames, groundtruth_RTTM_dict, vad_pred_dict = pred_rttm_map(vad_pred, groundtruth_RTTM, vad_pred_method)
+    paired_filenames, groundtruth_RTTM_dict, vad_pred_dict = pred_rttm_map(
+        vad_pred, groundtruth_RTTM, vad_pred_method
+    )
     metric = detection.DetectionErrorRate()
     params_grid = get_parameter_grid(params)
 
@@ -918,7 +974,10 @@ def vad_tune_threshold_on_dev(
             # Generate speech segments by performing binarization on the VAD prediction according to param.
             # Filter speech segments according to param and write the result to rttm-like table.
             vad_table_dir = generate_vad_segment_table(
-                vad_pred, param, frame_length_in_sec=frame_length_in_sec, num_workers=num_workers
+                vad_pred,
+                param,
+                frame_length_in_sec=frame_length_in_sec,
+                num_workers=num_workers,
             )
             # add reference and hypothesis to metrics
             for filename in paired_filenames:
@@ -933,23 +992,25 @@ def vad_tune_threshold_on_dev(
             shutil.rmtree(vad_table_dir, ignore_errors=True)
 
             report = metric.report(display=False)
-            DetER = report.iloc[[-1]][('detection error rate', '%')].item()
-            FA = report.iloc[[-1]][('false alarm', '%')].item()
-            MISS = report.iloc[[-1]][('miss', '%')].item()
+            DetER = report.iloc[[-1]][("detection error rate", "%")].item()
+            FA = report.iloc[[-1]][("false alarm", "%")].item()
+            MISS = report.iloc[[-1]][("miss", "%")].item()
 
             assert (
-                focus_metric == "DetER" or focus_metric == "FA" or focus_metric == "MISS"
+                focus_metric == "DetER"
+                or focus_metric == "FA"
+                or focus_metric == "MISS"
             ), "Metric we care most should be only in 'DetER', 'FA' or 'MISS'!"
-            all_perf[str(param)] = {'DetER (%)': DetER, 'FA (%)': FA, 'MISS (%)': MISS}
+            all_perf[str(param)] = {"DetER (%)": DetER, "FA (%)": FA, "MISS (%)": MISS}
             logging.info(f"parameter {param}, {all_perf[str(param)] }")
 
-            score = all_perf[str(param)][focus_metric + ' (%)']
+            score = all_perf[str(param)][focus_metric + " (%)"]
 
             del report
             metric.reset()  # reset internal accumulator
 
             # save results for analysis
-            with open(result_file + ".txt", "a", encoding='utf-8') as fp:
+            with open(result_file + ".txt", "a", encoding="utf-8") as fp:
                 fp.write(f"{param}, {all_perf[str(param)] }\n")
 
             if score < min_score:
@@ -973,7 +1034,9 @@ def check_if_param_valid(params: dict) -> bool:
     for i in params:
         if i == "filter_speech_first":
             if not type(params["filter_speech_first"]) == bool:
-                raise ValueError("Invalid inputs! filter_speech_first should be either True or False!")
+                raise ValueError(
+                    "Invalid inputs! filter_speech_first should be either True or False!"
+                )
         elif i == "pad_onset":
             continue
         elif i == "pad_offset":
@@ -985,19 +1048,25 @@ def check_if_param_valid(params: dict) -> bool:
                         "Invalid inputs! All float parameters except pad_onset and pad_offset should be larger than 0!"
                     )
 
-    if not (all(i <= 1 for i in params['onset']) and all(i <= 1 for i in params['offset'])):
-        raise ValueError("Invalid inputs! The onset and offset thresholds should be in range [0, 1]!")
+    if not (
+        all(i <= 1 for i in params["onset"]) and all(i <= 1 for i in params["offset"])
+    ):
+        raise ValueError(
+            "Invalid inputs! The onset and offset thresholds should be in range [0, 1]!"
+        )
 
     return True
 
 
-def pred_rttm_map(vad_pred: str, groundtruth_RTTM: str, vad_pred_method: str = "frame") -> Tuple[set, dict, dict]:
+def pred_rttm_map(
+    vad_pred: str, groundtruth_RTTM: str, vad_pred_method: str = "frame"
+) -> Tuple[set, dict, dict]:
     """
     Find paired files in vad_pred and groundtruth_RTTM
     """
     groundtruth_RTTM_dict = {}
     if os.path.isfile(groundtruth_RTTM):
-        with open(groundtruth_RTTM, "r", encoding='utf-8') as fp:
+        with open(groundtruth_RTTM, "r", encoding="utf-8") as fp:
             groundtruth_RTTM_files = fp.read().splitlines()
     elif os.path.isdir(groundtruth_RTTM):
         groundtruth_RTTM_files = glob.glob(os.path.join(groundtruth_RTTM, "*.rttm"))
@@ -1011,7 +1080,7 @@ def pred_rttm_map(vad_pred: str, groundtruth_RTTM: str, vad_pred_method: str = "
 
     vad_pred_dict = {}
     if os.path.isfile(vad_pred):
-        with open(vad_pred, "r", encoding='utf-8') as fp:
+        with open(vad_pred, "r", encoding="utf-8") as fp:
             vad_pred_files = fp.read().splitlines()
     elif os.path.isdir(vad_pred):
         vad_pred_files = glob.glob(os.path.join(vad_pred, "*." + vad_pred_method))
@@ -1061,7 +1130,11 @@ def plot(
     plt.figure(figsize=[20, 2])
 
     audio, sample_rate = librosa.load(
-        path=path2audio_file, sr=sample_rate, mono=True, offset=offset, duration=duration
+        path=path2audio_file,
+        sr=sample_rate,
+        mono=True,
+        offset=offset,
+        duration=duration,
     )
     dur = librosa.get_duration(y=audio, sr=sample_rate)
 
@@ -1071,21 +1144,25 @@ def plot(
     frame_snippet = None
     if path2_vad_pred:
         frame, _ = load_tensor_from_file(path2_vad_pred)
-        frame_snippet = frame[int(offset / unit_frame_len) : int((offset + dur) / unit_frame_len)]
+        frame_snippet = frame[
+            int(offset / unit_frame_len) : int((offset + dur) / unit_frame_len)
+        ]
         len_pred = len(frame_snippet)
 
     ax1 = plt.subplot()
-    ax1.plot(np.arange(audio.size) / sample_rate, audio, 'gray')
+    ax1.plot(np.arange(audio.size) / sample_rate, audio, "gray")
     ax1.set_xlim([0, int(dur) + 1])
-    ax1.tick_params(axis='y', labelcolor='b')
-    ax1.set_ylabel('Signal')
+    ax1.tick_params(axis="y", labelcolor="b")
+    ax1.set_ylabel("Signal")
     ax1.set_ylim([-1, 1])
     ax2 = ax1.twinx()
 
     if threshold and per_args:
         raise ValueError("threshold and per_args cannot be used at same time!")
     if not threshold and not per_args:
-        raise ValueError("One and only one of threshold and per_args must have been used!")
+        raise ValueError(
+            "One and only one of threshold and per_args must have been used!"
+        )
 
     if threshold and frame_snippet is not None:
         pred_snippet = np.where(frame_snippet >= threshold, 1, 0)
@@ -1095,30 +1172,39 @@ def plot(
         )  # take whole frame here for calculating onset and offset
         speech_segments = generate_vad_segment_table_per_tensor(frame, per_args_float)
         pred = gen_pred_from_speech_segments(speech_segments, frame)
-        pred_snippet = pred[int(offset / unit_frame_len) : int((offset + dur) / unit_frame_len)]
+        pred_snippet = pred[
+            int(offset / unit_frame_len) : int((offset + dur) / unit_frame_len)
+        ]
     else:
         pred_snippet = None
 
-    if path2groundtruth_rttm and path2groundtruth_rttm.endswith('.rttm'):
+    if path2groundtruth_rttm and path2groundtruth_rttm.endswith(".rttm"):
         label = extract_labels(path2groundtruth_rttm, time)
     elif groundtruth_labels:
         label = [float(x) for x in groundtruth_labels]
         if label_repeat > 1:
             label = np.repeat(label, label_repeat)
-        label = label[int(offset / unit_frame_len) : int((offset + dur) / unit_frame_len)]
+        label = label[
+            int(offset / unit_frame_len) : int((offset + dur) / unit_frame_len)
+        ]
     else:
         label = None
 
     if label is not None:
-        ax2.plot(np.arange(len_pred) * unit_frame_len, label, 'r', label='label')
+        ax2.plot(np.arange(len_pred) * unit_frame_len, label, "r", label="label")
     if pred_snippet is not None:
-        ax2.plot(np.arange(len_pred) * unit_frame_len, pred_snippet, 'b', label='pred')
+        ax2.plot(np.arange(len_pred) * unit_frame_len, pred_snippet, "b", label="pred")
     if frame_snippet is not None:
-        ax2.plot(np.arange(len_pred) * unit_frame_len, frame_snippet, 'g--', label='speech prob')
+        ax2.plot(
+            np.arange(len_pred) * unit_frame_len,
+            frame_snippet,
+            "g--",
+            label="speech prob",
+        )
 
-    ax2.tick_params(axis='y', labelcolor='r')
-    ax2.legend(loc='lower right', shadow=True)
-    ax2.set_ylabel('Preds and Probas')
+    ax2.tick_params(axis="y", labelcolor="r")
+    ax2.legend(loc="lower right", shadow=True)
+    ax2.set_ylabel("Preds and Probas")
     ax2.set_ylim([-0.1, 1.1])
     ax2.set_xticks(np.arange(0, int(dur) + 1, xticks_step))
     return ipd.Audio(audio, rate=sample_rate)
@@ -1177,20 +1263,27 @@ def generate_vad_frame_pred(
     all_len = 0
 
     data = []
-    with open(manifest_vad_input, 'r', encoding='utf-8') as f:
+    with open(manifest_vad_input, "r", encoding="utf-8") as f:
         for line in f:
-            file = json.loads(line)['audio_filepath'].split("/")[-1]
+            file = json.loads(line)["audio_filepath"].split("/")[-1]
             data.append(file.split(".wav")[0])
     logging.info(f"Inference on {len(data)} audio files/json lines!")
 
     status = get_vad_stream_status(data)
-    for i, test_batch in enumerate(tqdm(vad_model.test_dataloader(), total=len(vad_model.test_dataloader()))):
+    for i, test_batch in enumerate(
+        tqdm(vad_model.test_dataloader(), total=len(vad_model.test_dataloader()))
+    ):
         test_batch = [x.to(vad_model.device) for x in test_batch]
         with torch.amp.autocast(vad_model.device.type):
             if use_feat:
-                log_probs = vad_model(processed_signal=test_batch[0], processed_signal_length=test_batch[1])
+                log_probs = vad_model(
+                    processed_signal=test_batch[0],
+                    processed_signal_length=test_batch[1],
+                )
             else:
-                log_probs = vad_model(input_signal=test_batch[0], input_signal_length=test_batch[1])
+                log_probs = vad_model(
+                    input_signal=test_batch[0], input_signal_length=test_batch[1]
+                )
             probs = torch.softmax(log_probs, dim=-1)
             if len(probs.shape) == 3 and probs.shape[0] == 1:
                 # squeeze the batch dimension, since batch size is 1 for frame-VAD
@@ -1199,11 +1292,11 @@ def generate_vad_frame_pred(
 
             if window_length_in_sec == 0:
                 to_save = pred
-            elif status[i] == 'start':
+            elif status[i] == "start":
                 to_save = pred[:-trunc]
-            elif status[i] == 'next':
+            elif status[i] == "next":
                 to_save = pred[trunc:-trunc_l]
-            elif status[i] == 'end':
+            elif status[i] == "end":
                 to_save = pred[trunc_l:]
             else:
                 to_save = pred
@@ -1211,12 +1304,12 @@ def generate_vad_frame_pred(
             to_save = to_save.cpu().tolist()
             all_len += len(to_save)
             outpath = os.path.join(out_dir, data[i] + ".frame")
-            with open(outpath, "a", encoding='utf-8') as fout:
+            with open(outpath, "a", encoding="utf-8") as fout:
                 for f in range(len(to_save)):
-                    fout.write('{0:0.4f}\n'.format(to_save[f]))
+                    fout.write("{0:0.4f}\n".format(to_save[f]))
 
         del test_batch
-        if status[i] == 'end' or status[i] == 'single':
+        if status[i] == "end" or status[i] == "single":
             logging.debug(f"Overall length of prediction of {data[i]} is {all_len}!")
             all_len = 0
     return out_dir
@@ -1226,11 +1319,13 @@ def init_vad_model(model_path: str):
     """
     Initiate VAD model with model path
     """
-    if model_path.endswith('.nemo'):
+    if model_path.endswith(".nemo"):
         logging.info(f"Using local VAD model from {model_path}")
         vad_model = EncDecClassificationModel.restore_from(restore_path=model_path)
-    elif model_path.endswith('.ckpt'):
-        vad_model = EncDecClassificationModel.load_from_checkpoint(checkpoint_path=model_path)
+    elif model_path.endswith(".ckpt"):
+        vad_model = EncDecClassificationModel.load_from_checkpoint(
+            checkpoint_path=model_path
+        )
     else:
         logging.info(f"Using NGC cloud VAD model {model_path}")
         vad_model = EncDecClassificationModel.from_pretrained(model_name=model_path)
@@ -1241,14 +1336,18 @@ def init_frame_vad_model(model_path: str):
     """
     Initiate VAD model with model path
     """
-    if model_path.endswith('.nemo'):
+    if model_path.endswith(".nemo"):
         logging.info(f"Using local VAD model from {model_path}")
         vad_model = EncDecFrameClassificationModel.restore_from(restore_path=model_path)
-    elif model_path.endswith('.ckpt'):
-        vad_model = EncDecFrameClassificationModel.load_from_checkpoint(checkpoint_path=model_path)
+    elif model_path.endswith(".ckpt"):
+        vad_model = EncDecFrameClassificationModel.load_from_checkpoint(
+            checkpoint_path=model_path
+        )
     else:
         logging.info(f"Using NGC cloud VAD model {model_path}")
-        vad_model = EncDecFrameClassificationModel.from_pretrained(model_name=model_path)
+        vad_model = EncDecFrameClassificationModel.from_pretrained(
+            model_name=model_path
+        )
     return vad_model
 
 
@@ -1264,38 +1363,48 @@ def stitch_segmented_asr_output(
         os.mkdir(speech_segments_tensor_dir)
 
     segmented_output = []
-    with open(segmented_output_manifest, 'r', encoding='utf-8') as f:
+    with open(segmented_output_manifest, "r", encoding="utf-8") as f:
         for line in f:
             file = json.loads(line)
             segmented_output.append(file)
 
-    with open(stitched_output_manifest, 'w', encoding='utf-8') as fout:
+    with open(stitched_output_manifest, "w", encoding="utf-8") as fout:
         speech_segments = torch.Tensor()
         all_pred_text = ""
         if len(segmented_output) > 1:
             for i in range(1, len(segmented_output)):
                 start, end = (
-                    segmented_output[i - 1]['offset'],
-                    segmented_output[i - 1]['offset'] + segmented_output[i - 1]['duration'],
+                    segmented_output[i - 1]["offset"],
+                    segmented_output[i - 1]["offset"]
+                    + segmented_output[i - 1]["duration"],
                 )
                 new_seg = torch.tensor([start, end]).unsqueeze(0)
                 speech_segments = torch.cat((speech_segments, new_seg), 0)
-                pred_text = segmented_output[i - 1]['pred_text']
+                pred_text = segmented_output[i - 1]["pred_text"]
                 all_pred_text += pred_text
-                name = segmented_output[i - 1]['audio_filepath'].split("/")[-1].rsplit(".", 1)[0]
+                name = (
+                    segmented_output[i - 1]["audio_filepath"]
+                    .split("/")[-1]
+                    .rsplit(".", 1)[0]
+                )
 
-                if segmented_output[i - 1]['audio_filepath'] != segmented_output[i]['audio_filepath']:
+                if (
+                    segmented_output[i - 1]["audio_filepath"]
+                    != segmented_output[i]["audio_filepath"]
+                ):
 
-                    speech_segments_tensor_path = os.path.join(speech_segments_tensor_dir, name + '.pt')
+                    speech_segments_tensor_path = os.path.join(
+                        speech_segments_tensor_dir, name + ".pt"
+                    )
                     torch.save(speech_segments, speech_segments_tensor_path)
                     meta = {
-                        'audio_filepath': segmented_output[i - 1]['audio_filepath'],
-                        'speech_segments_filepath': speech_segments_tensor_path,
-                        'pred_text': all_pred_text,
+                        "audio_filepath": segmented_output[i - 1]["audio_filepath"],
+                        "speech_segments_filepath": speech_segments_tensor_path,
+                        "pred_text": all_pred_text,
                     }
 
                     json.dump(meta, fout)
-                    fout.write('\n')
+                    fout.write("\n")
                     fout.flush()
                     speech_segments = torch.Tensor()
                     all_pred_text = ""
@@ -1304,22 +1413,27 @@ def stitch_segmented_asr_output(
         else:
             i = -1
 
-        start, end = segmented_output[i]['offset'], segmented_output[i]['offset'] + segmented_output[i]['duration']
+        start, end = (
+            segmented_output[i]["offset"],
+            segmented_output[i]["offset"] + segmented_output[i]["duration"],
+        )
         new_seg = torch.tensor([start, end]).unsqueeze(0)
         speech_segments = torch.cat((speech_segments, new_seg), 0)
-        pred_text = segmented_output[i]['pred_text']
+        pred_text = segmented_output[i]["pred_text"]
         all_pred_text += pred_text
-        name = segmented_output[i]['audio_filepath'].split("/")[-1].rsplit(".", 1)[0]
-        speech_segments_tensor_path = os.path.join(speech_segments_tensor_dir, name + '.pt')
+        name = segmented_output[i]["audio_filepath"].split("/")[-1].rsplit(".", 1)[0]
+        speech_segments_tensor_path = os.path.join(
+            speech_segments_tensor_dir, name + ".pt"
+        )
         torch.save(speech_segments, speech_segments_tensor_path)
 
         meta = {
-            'audio_filepath': segmented_output[i]['audio_filepath'],
-            'speech_segments_filepath': speech_segments_tensor_path,
-            'pred_text': all_pred_text,
+            "audio_filepath": segmented_output[i]["audio_filepath"],
+            "speech_segments_filepath": speech_segments_tensor_path,
+            "pred_text": all_pred_text,
         }
         json.dump(meta, fout)
-        fout.write('\n')
+        fout.write("\n")
         fout.flush()
 
         logging.info(
@@ -1330,36 +1444,40 @@ def stitch_segmented_asr_output(
 
 
 def construct_manifest_eval(
-    input_manifest: str, stitched_output_manifest: str, aligned_vad_asr_output_manifest: str = "vad_asr_out.json"
+    input_manifest: str,
+    stitched_output_manifest: str,
+    aligned_vad_asr_output_manifest: str = "vad_asr_out.json",
 ) -> str:
     """
     Generate aligned manifest for evaluation.
     Because some pure noise samples might not appear in stitched_output_manifest.
     """
     stitched_output = dict()
-    with open(stitched_output_manifest, 'r', encoding='utf-8') as f:
+    with open(stitched_output_manifest, "r", encoding="utf-8") as f:
         for line in f:
             file = json.loads(line)
             stitched_output[file["audio_filepath"]] = file
 
     out = []
-    with open(input_manifest, 'r', encoding='utf-8') as f:
+    with open(input_manifest, "r", encoding="utf-8") as f:
         for line in f:
             file = json.loads(line)
             sample = file["audio_filepath"]
             if sample in stitched_output:
                 file["pred_text"] = stitched_output[sample]["pred_text"]
-                file["speech_segments_filepath"] = stitched_output[sample]["speech_segments_filepath"]
+                file["speech_segments_filepath"] = stitched_output[sample][
+                    "speech_segments_filepath"
+                ]
             else:
                 file["pred_text"] = ""
                 file["speech_segments_filepath"] = ""
 
             out.append(file)
 
-    with open(aligned_vad_asr_output_manifest, 'w', encoding='utf-8') as fout:
+    with open(aligned_vad_asr_output_manifest, "w", encoding="utf-8") as fout:
         for i in out:
             json.dump(i, fout)
-            fout.write('\n')
+            fout.write("\n")
             fout.flush()
 
     return aligned_vad_asr_output_manifest
@@ -1374,12 +1492,12 @@ def load_rttm_file(filepath: str) -> pd.DataFrame:
     data = pd.read_csv(filepath, sep=r"\s+", delimiter=None, header=None)
     data = data.rename(columns={3: "start", 4: "dur", 7: "speaker"})
 
-    data['start'] = data['start'].astype(float)
-    data['dur'] = data['dur'].astype(float)
-    data['end'] = data['start'] + data['dur']
+    data["start"] = data["start"].astype(float)
+    data["dur"] = data["dur"].astype(float)
+    data["end"] = data["start"] + data["dur"]
 
-    data = data.sort_values(by=['start'])
-    data['segment'] = list(zip(data['start'], data['end']))
+    data = data.sort_values(by=["start"])
+    data["segment"] = list(zip(data["start"], data["end"]))
 
     return data
 
@@ -1407,13 +1525,15 @@ def load_speech_segments_from_rttm(rttm_file: str) -> List[List[float]]:
     load speech segments from rttm file, where each segment is represented
     as [start, end] interval
     """
-    speech_segments = list(load_rttm_file(rttm_file)['segment'])
+    speech_segments = list(load_rttm_file(rttm_file)["segment"])
     speech_segments = [list(x) for x in speech_segments]
     speech_segments = merge_intervals(speech_segments)
     return speech_segments
 
 
-def load_speech_overlap_segments_from_rttm(rttm_file: str) -> Tuple[List[List[float]], List[List[float]]]:
+def load_speech_overlap_segments_from_rttm(
+    rttm_file: str,
+) -> Tuple[List[List[float]], List[List[float]]]:
     """
     Load speech segments from RTTM file, merge and extract possible overlaps
 
@@ -1424,7 +1544,7 @@ def load_speech_overlap_segments_from_rttm(rttm_file: str) -> Tuple[List[List[fl
         merged (List[List[float]]): merged speech intervals without overlaps
         overlaps (List[List[float]]): intervals with overlap speech
     """
-    speech_segments = list(load_rttm_file(rttm_file)['segment'])
+    speech_segments = list(load_rttm_file(rttm_file)["segment"])
     speech_segments = [list(x) for x in speech_segments]
     speech_segments.sort(key=lambda x: x[0])  # sort by start time
     merged = []
@@ -1469,7 +1589,11 @@ def get_nonspeech_segments(
 
 
 def get_frame_labels(
-    segments: List[List[float]], frame_length: float, offset: float, duration: float, as_str: bool = True
+    segments: List[List[float]],
+    frame_length: float,
+    offset: float,
+    duration: float,
+    as_str: bool = True,
 ) -> str:
     """
     Generate frame-level binary labels for audio, '0' for non-speech and '1' for speech
@@ -1492,7 +1616,7 @@ def get_frame_labels(
         else:
             labels.append(0)
     if as_str:
-        return ' '.join([str(x) for x in labels])
+        return " ".join([str(x) for x in labels])
     return [float(x) for x in labels]
 
 
@@ -1510,7 +1634,9 @@ def plot_sample_from_rttm(
     """
     plt.figure(figsize=[20, 2])
 
-    audio, sample_rate = librosa.load(path=audio_file, sr=16000, mono=True, offset=offset, duration=max_duration)
+    audio, sample_rate = librosa.load(
+        path=audio_file, sr=16000, mono=True, offset=offset, duration=max_duration
+    )
     dur = librosa.get_duration(y=audio, sr=sample_rate)
 
     segments = load_speech_segments_from_rttm(rttm_file)
@@ -1520,17 +1646,17 @@ def plot_sample_from_rttm(
     length = len(labels)
     ax1 = plt.subplot()
     ax1.set_title(audio_file)
-    ax1.plot(np.arange(audio.size) / sample_rate, audio, 'gray')
+    ax1.plot(np.arange(audio.size) / sample_rate, audio, "gray")
     ax1.set_xlim([0, int(dur) + 1])
-    ax1.tick_params(axis='y', labelcolor='b')
-    ax1.set_ylabel('Signal')
+    ax1.tick_params(axis="y", labelcolor="b")
+    ax1.set_ylabel("Signal")
     ax1.set_ylim([-1, 1])
     ax2 = ax1.twinx()
 
-    ax2.plot(np.arange(length) * unit_frame_len, labels, 'r', label='label')
-    ax2.tick_params(axis='y', labelcolor='r')
-    ax2.legend(loc='lower right', shadow=True)
-    ax2.set_ylabel('Labels')
+    ax2.plot(np.arange(length) * unit_frame_len, labels, "r", label="label")
+    ax2.tick_params(axis="y", labelcolor="r")
+    ax2.legend(loc="lower right", shadow=True)
+    ax2.set_ylabel("Labels")
     ax2.set_ylim([-0.1, 1.1])
     if show:
         plt.show()
@@ -1602,7 +1728,9 @@ def align_labels_to_frames(probs, labels, threshold=0.2):
         return labels.long().tolist()
 
 
-def read_rttm_as_pyannote_object(rttm_file: str, speaker_override: Optional[str] = None) -> Annotation:
+def read_rttm_as_pyannote_object(
+    rttm_file: str, speaker_override: Optional[str] = None
+) -> Annotation:
     """
     Read rttm file and construct a Pyannote object.
     Args:
@@ -1616,13 +1744,19 @@ def read_rttm_as_pyannote_object(rttm_file: str, speaker_override: Optional[str]
     data = data.rename(columns={3: "start", 4: "dur", 7: "speaker"})
     for index, row in data.iterrows():
         if speaker_override is not None:
-            annotation[Segment(row['start'], row['start'] + row['dur'])] = speaker_override
+            annotation[Segment(row["start"], row["start"] + row["dur"])] = (
+                speaker_override
+            )
         else:
-            annotation[Segment(row['start'], row['start'] + row['dur'])] = row['speaker']
+            annotation[Segment(row["start"], row["start"] + row["dur"])] = row[
+                "speaker"
+            ]
     return annotation
 
 
-def convert_labels_to_speech_segments(labels: List[float], frame_length_in_sec: float = 0.01):
+def convert_labels_to_speech_segments(
+    labels: List[float], frame_length_in_sec: float = 0.01
+):
     """
     Convert a list of labels to a list of speech segments.
     Args:
@@ -1647,7 +1781,9 @@ def convert_labels_to_speech_segments(labels: List[float], frame_length_in_sec: 
 
 
 def frame_vad_construct_pyannote_object_per_file(
-    prediction: Union[str, List[float]], groundtruth: Union[str, List[float]], frame_length_in_sec: float = 0.01
+    prediction: Union[str, List[float]],
+    groundtruth: Union[str, List[float]],
+    frame_length_in_sec: float = 0.01,
 ) -> Tuple[Annotation, Annotation]:
     """
     Construct a Pyannote object for evaluation.
@@ -1661,28 +1797,32 @@ def frame_vad_construct_pyannote_object_per_file(
     """
 
     hypothesis = Annotation()
-    if isinstance(groundtruth, str) and prediction.endswith('.rttm'):
-        hypothesis = read_rttm_as_pyannote_object(prediction, speaker_override='speech')
-    elif isinstance(groundtruth, str) and prediction.endswith('.txt'):
+    if isinstance(groundtruth, str) and prediction.endswith(".rttm"):
+        hypothesis = read_rttm_as_pyannote_object(prediction, speaker_override="speech")
+    elif isinstance(groundtruth, str) and prediction.endswith(".txt"):
         pred = pd.read_csv(prediction, sep=" ", header=None)
         for index, row in pred.iterrows():
-            hypothesis[Segment(float(row[0]), float(row[0]) + float(row[1]))] = 'speech'
+            hypothesis[Segment(float(row[0]), float(row[0]) + float(row[1]))] = "speech"
     elif isinstance(groundtruth, list):
         segments = convert_labels_to_speech_segments(prediction, frame_length_in_sec)
         for segment in segments:
-            hypothesis[Segment(segment[0], segment[1])] = 'speech'
+            hypothesis[Segment(segment[0], segment[1])] = "speech"
     else:
-        raise ValueError('prediction must be a path to rttm file or a list of frame labels.')
+        raise ValueError(
+            "prediction must be a path to rttm file or a list of frame labels."
+        )
 
     reference = Annotation()
-    if isinstance(groundtruth, str) and groundtruth.endswith('.rttm'):
-        reference = read_rttm_as_pyannote_object(groundtruth, speaker_override='speech')
+    if isinstance(groundtruth, str) and groundtruth.endswith(".rttm"):
+        reference = read_rttm_as_pyannote_object(groundtruth, speaker_override="speech")
     elif isinstance(groundtruth, list):
         segments = convert_labels_to_speech_segments(groundtruth, frame_length_in_sec)
         for segment in segments:
-            reference[Segment(segment[0], segment[1])] = 'speech'
+            reference[Segment(segment[0], segment[1])] = "speech"
     else:
-        raise ValueError('groundtruth must be a path to rttm file or a list of frame labels.')
+        raise ValueError(
+            "groundtruth must be a path to rttm file or a list of frame labels."
+        )
     return reference, hypothesis
 
 
@@ -1701,15 +1841,19 @@ def frame_vad_infer_load_manifest(cfg: DictConfig):
     key_rttm_map = {}
     manifest_orig = []
     manifest_file = Path(cfg.input_manifest).absolute().as_posix()
-    with open(manifest_file, 'r') as fin:
+    with open(manifest_file, "r") as fin:
         for line in fin.readlines():
             entry = json.loads(line.strip())
-            audio_filepath = get_full_path(audio_file=entry['audio_filepath'], manifest_file=manifest_file)
-            entry['audio_filepath'] = str(audio_filepath)
+            audio_filepath = get_full_path(
+                audio_file=entry["audio_filepath"], manifest_file=manifest_file
+            )
+            entry["audio_filepath"] = str(audio_filepath)
             uniq_audio_name = Path(audio_filepath).stem
 
             if uniq_audio_name in unique_audio_names:
-                raise ValueError("Please make sure each line is with different audio_filepath! ")
+                raise ValueError(
+                    "Please make sure each line is with different audio_filepath! "
+                )
             else:
                 unique_audio_names.add(uniq_audio_name)
 
@@ -1720,26 +1864,38 @@ def frame_vad_infer_load_manifest(cfg: DictConfig):
                 rttm_key = "rttm_filepath" if "rttm_filepath" in entry else "rttm_file"
                 rttm_file = entry.get(rttm_key, None)
                 if rttm_file:
-                    rttm_file = get_full_path(audio_file=rttm_file, manifest_file=manifest_file)
+                    rttm_file = get_full_path(
+                        audio_file=rttm_file, manifest_file=manifest_file
+                    )
                     segments = load_speech_segments_from_rttm(rttm_file)
                     label_str = get_frame_labels(
                         segments=segments,
                         frame_length=cfg.vad.parameters.shift_length_in_sec,
-                        duration=entry['duration'],
-                        offset=entry['offset'],
+                        duration=entry["duration"],
+                        offset=entry["offset"],
                     )
                     key_rttm_map[uniq_audio_name] = entry[rttm_key]
-                    key_labels_map[uniq_audio_name] = [float(x) for x in label_str.split()]
+                    key_labels_map[uniq_audio_name] = [
+                        float(x) for x in label_str.split()
+                    ]
                 elif entry.get("label", None) is not None:
-                    key_labels_map[uniq_audio_name] = [float(x) for x in entry["label"].split()]
+                    key_labels_map[uniq_audio_name] = [
+                        float(x) for x in entry["label"].split()
+                    ]
                 else:
-                    raise ValueError("Must have either `label` or `rttm_filepath` in manifest when evaluate=True")
+                    raise ValueError(
+                        "Must have either `label` or `rttm_filepath` in manifest when evaluate=True"
+                    )
 
     return manifest_orig, key_labels_map, key_rttm_map
 
 
 def frame_vad_eval_detection_error(
-    pred_dir: str, key_labels_map: dict, key_rttm_map: dict, key_pred_rttm_map: dict, frame_length_in_sec: float
+    pred_dir: str,
+    key_labels_map: dict,
+    key_rttm_map: dict,
+    key_pred_rttm_map: dict,
+    frame_length_in_sec: float,
 ):
     """
     Perform evaluation on frame-VAD results
@@ -1758,7 +1914,9 @@ def frame_vad_eval_detection_error(
     metric = detection.DetectionErrorRate()
     key_probs_map = {}
     predictions_list = list(Path(pred_dir).glob("*.frame"))
-    for frame_pred in tqdm(predictions_list, desc="Evaluating VAD results", total=len(predictions_list)):
+    for frame_pred in tqdm(
+        predictions_list, desc="Evaluating VAD results", total=len(predictions_list)
+    ):
         pred_probs = []
         with frame_pred.open("r") as fin:
             for line in fin.readlines():
@@ -1768,7 +1926,9 @@ def frame_vad_eval_detection_error(
                 pred_probs.append(float(line))
         key = frame_pred.stem
         key_probs_map[key] = pred_probs
-        key_labels_map[key] = align_labels_to_frames(probs=pred_probs, labels=key_labels_map[key])
+        key_labels_map[key] = align_labels_to_frames(
+            probs=pred_probs, labels=key_labels_map[key]
+        )
         all_probs.extend(key_probs_map[key])
         all_labels.extend(key_labels_map[key])
 
@@ -1825,7 +1985,9 @@ def ts_vad_post_processing(
                         [587.3600, 591.0400],
                         [591.1200, 597.7600]])
     """
-    ts_vad_binary_frames = torch.repeat_interleave(ts_vad_binary_vec, unit_10ms_frame_count)
+    ts_vad_binary_frames = torch.repeat_interleave(
+        ts_vad_binary_vec, unit_10ms_frame_count
+    )
     if not bypass_postprocessing:
         speech_segments = binarization(ts_vad_binary_frames, cfg_vad_params)
         speech_segments = filtering(speech_segments, cfg_vad_params)
@@ -1877,9 +2039,11 @@ def predlist_to_timestamps(
     total_speaker_timestamps = []
     pp_message = "Binarization" if bypass_postprocessing else "Post-processing"
     for sample_idx, (uniq_id, audio_rttm_values) in tqdm(
-        enumerate(audio_rttm_map_dict.items()), total=len(audio_rttm_map_dict), desc=pp_message
+        enumerate(audio_rttm_map_dict.items()),
+        total=len(audio_rttm_map_dict),
+        desc=pp_message,
     ):
-        offset = audio_rttm_values['offset']
+        offset = audio_rttm_values["offset"]
         speaker_assign_mat = batch_preds_list[sample_idx].squeeze(dim=0)
         speaker_timestamps = [[] for _ in range(speaker_assign_mat.shape[-1])]
         for spk_id in range(speaker_assign_mat.shape[-1]):
@@ -1891,7 +2055,10 @@ def predlist_to_timestamps(
             )
             ts_mat = ts_mat + offset
             ts_seg_raw_list = ts_mat.tolist()
-            ts_seg_list = [[round(stt, precision), round(end, precision)] for (stt, end) in ts_seg_raw_list]
+            ts_seg_list = [
+                [round(stt, precision), round(end, precision)]
+                for (stt, end) in ts_seg_raw_list
+            ]
             speaker_timestamps[spk_id].extend(ts_seg_list)
         total_speaker_timestamps.append(speaker_timestamps)
     return total_speaker_timestamps

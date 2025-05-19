@@ -81,11 +81,19 @@ class TranscriptionConfig:
     dataset_manifest: Optional[str] = None  # Path to dataset's JSON manifest
 
     # General configs
-    output_filename: Optional[str] = None  # if None, output will be stored in the same directory as the input
+    output_filename: Optional[str] = (
+        None  # if None, output will be stored in the same directory as the input
+    )
     batch_size: int = 8  # number of chunks to process in parallel.
-    append_pred: bool = False  # Sets mode of work, if True it will add new field transcriptions.
-    pred_name_postfix: Optional[str] = None  # If you need to use another model name, rather than standard one.
-    random_seed: Optional[int] = None  # seed number going to be used in seed_everything()
+    append_pred: bool = (
+        False  # Sets mode of work, if True it will add new field transcriptions.
+    )
+    pred_name_postfix: Optional[str] = (
+        None  # If you need to use another model name, rather than standard one.
+    )
+    random_seed: Optional[int] = (
+        None  # seed number going to be used in seed_everything()
+    )
 
     # Set to True to output greedy timestamp information (only supported models)
     timestamps: bool = False
@@ -117,7 +125,9 @@ class TranscriptionConfig:
     # Config for word / character error rate calculation
     calculate_wer: bool = True
     clean_groundtruth_text: bool = False
-    langid: str = "en"  # specify this for convert_num_to_words step in groundtruth cleaning
+    langid: str = (
+        "en"  # specify this for convert_num_to_words step in groundtruth cleaning
+    )
     use_cer: bool = False
 
 
@@ -135,7 +145,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
         )
         cfg.chunk_len_in_secs = 10.0
 
-    logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
+    logging.info(f"Hydra config: {OmegaConf.to_yaml(cfg)}")
     torch.set_grad_enabled(False)
 
     cfg = OmegaConf.structured(cfg)
@@ -151,7 +161,11 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     filepaths = None
     manifest = cfg.dataset_manifest
     if cfg.audio_dir is not None:
-        filepaths = list(glob.glob(os.path.join(cfg.audio_dir, f"**/*.{cfg.audio_type}"), recursive=True))
+        filepaths = list(
+            glob.glob(
+                os.path.join(cfg.audio_dir, f"**/*.{cfg.audio_type}"), recursive=True
+            )
+        )
         manifest = None  # ignore dataset_manifest if audio_dir and dataset_manifest both presents
 
     # setup GPU
@@ -159,14 +173,16 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     if cfg.cuda is None:
         if torch.cuda.is_available():
             device = [0]  # use 0th CUDA device
-            accelerator = 'gpu'
+            accelerator = "gpu"
         else:
             device = 1
-            accelerator = 'cpu'
+            accelerator = "cpu"
     else:
         device = [cfg.cuda]
-        accelerator = 'gpu'
-    map_location = torch.device('cuda:{}'.format(device[0]) if accelerator == 'gpu' else 'cpu')
+        accelerator = "gpu"
+    map_location = torch.device(
+        "cuda:{}".format(device[0]) if accelerator == "gpu" else "cpu"
+    )
     logging.info(f"Inference will be done on device : {device}")
 
     asr_model, model_name = setup_model(cfg, map_location)
@@ -202,7 +218,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     asr_model.eval()
     asr_model = asr_model.to(asr_model.device)
 
-    feature_stride = model_cfg.preprocessor['window_stride']
+    feature_stride = model_cfg.preprocessor["window_stride"]
     model_stride_in_secs = feature_stride * cfg.model_stride
 
     frame_asr = FrameBatchMultiTaskAED(
@@ -227,7 +243,12 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
             )
 
     output_filename, pred_text_attr_name = write_transcription(
-        hyps, cfg, model_name, filepaths=filepaths, compute_langs=False, timestamps=cfg.timestamps
+        hyps,
+        cfg,
+        model_name,
+        filepaths=filepaths,
+        compute_langs=False,
+        timestamps=cfg.timestamps,
     )
     logging.info(f"Finished writing predictions to {output_filename}!")
 
@@ -241,11 +262,13 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
             output_filename=None,
         )
         if output_manifest_w_wer:
-            logging.info(f"Writing prediction and error rate of each sample to {output_manifest_w_wer}!")
+            logging.info(
+                f"Writing prediction and error rate of each sample to {output_manifest_w_wer}!"
+            )
             logging.info(f"{total_res}")
 
     return cfg
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()  # noqa pylint: disable=no-value-for-parameter

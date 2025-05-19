@@ -42,7 +42,7 @@ except ModuleNotFoundError:
 class AlignerModel(NeedsNormalizer, ModelPT):
     """Speech-to-text alignment model (https://arxiv.org/pdf/2108.10447.pdf) that is used to learn alignments between mel spectrogram and text."""
 
-    def __init__(self, cfg: DictConfig, trainer: 'Trainer' = None):
+    def __init__(self, cfg: DictConfig, trainer: "Trainer" = None):
         # Convert to Hydra 1.0 compatible DictConfig
         cfg = model_utils.convert_model_config_to_dict_config(cfg)
         cfg = model_utils.maybe_update_config_version(cfg)
@@ -81,8 +81,10 @@ class AlignerModel(NeedsNormalizer, ModelPT):
             # for backward compatibility
             if (
                 self._is_model_being_restored()
-                and (cfg.text_tokenizer.g2p.get('_target_', None) is not None)
-                and cfg.text_tokenizer.g2p["_target_"].startswith("nemo_text_processing.g2p")
+                and (cfg.text_tokenizer.g2p.get("_target_", None) is not None)
+                and cfg.text_tokenizer.g2p["_target_"].startswith(
+                    "nemo_text_processing.g2p"
+                )
             ):
                 cfg.text_tokenizer.g2p["_target_"] = g2p_backward_compatible_support(
                     cfg.text_tokenizer.g2p["_target_"]
@@ -92,17 +94,19 @@ class AlignerModel(NeedsNormalizer, ModelPT):
 
             if "phoneme_dict" in cfg.text_tokenizer.g2p:
                 g2p_kwargs["phoneme_dict"] = self.register_artifact(
-                    'text_tokenizer.g2p.phoneme_dict',
+                    "text_tokenizer.g2p.phoneme_dict",
                     cfg.text_tokenizer.g2p.phoneme_dict,
                 )
 
             if "heteronyms" in cfg.text_tokenizer.g2p:
                 g2p_kwargs["heteronyms"] = self.register_artifact(
-                    'text_tokenizer.g2p.heteronyms',
+                    "text_tokenizer.g2p.heteronyms",
                     cfg.text_tokenizer.g2p.heteronyms,
                 )
 
-            text_tokenizer_kwargs["g2p"] = instantiate(cfg.text_tokenizer.g2p, **g2p_kwargs)
+            text_tokenizer_kwargs["g2p"] = instantiate(
+                cfg.text_tokenizer.g2p, **g2p_kwargs
+            )
 
         self.tokenizer = instantiate(cfg.text_tokenizer, **text_tokenizer_kwargs)
 
@@ -120,7 +124,9 @@ class AlignerModel(NeedsNormalizer, ModelPT):
     def _metrics(self, attn_soft, attn_logprob, spec_len, text_len):
         loss, bin_loss, attn_hard = 0.0, None, None
 
-        forward_sum_loss = self.forward_sum_loss(attn_logprob=attn_logprob, in_lens=text_len, out_lens=spec_len)
+        forward_sum_loss = self.forward_sum_loss(
+            attn_logprob=attn_logprob, in_lens=text_len, out_lens=spec_len
+        )
         loss += forward_sum_loss
 
         if self.add_bin_loss:
@@ -131,7 +137,9 @@ class AlignerModel(NeedsNormalizer, ModelPT):
         return loss, forward_sum_loss, bin_loss, attn_hard
 
     def on_train_epoch_start(self):
-        bin_loss_start_epoch = np.ceil(self.bin_loss_start_ratio * self._trainer.max_epochs)
+        bin_loss_start_epoch = np.ceil(
+            self.bin_loss_start_ratio * self._trainer.max_epochs
+        )
 
         # Add bin loss when current_epoch >= bin_start_epoch
         if not self.add_bin_loss and self.current_epoch >= bin_loss_start_epoch:
@@ -139,31 +147,55 @@ class AlignerModel(NeedsNormalizer, ModelPT):
             self.add_bin_loss = True
 
         if self.add_bin_loss:
-            self.bin_loss_scale = min((self.current_epoch - bin_loss_start_epoch) / self.bin_loss_warmup_epochs, 1.0)
+            self.bin_loss_scale = min(
+                (self.current_epoch - bin_loss_start_epoch)
+                / self.bin_loss_warmup_epochs,
+                1.0,
+            )
 
     def training_step(self, batch, batch_idx):
         audio, audio_len, text, text_len, attn_prior = batch
         spec, spec_len = self.preprocessor(input_signal=audio, length=audio_len)
         attn_soft, attn_logprob = self(
-            spec=spec, spec_len=spec_len, text=text, text_len=text_len, attn_prior=attn_prior
+            spec=spec,
+            spec_len=spec_len,
+            text=text,
+            text_len=text_len,
+            attn_prior=attn_prior,
         )
 
-        loss, forward_sum_loss, bin_loss, _ = self._metrics(attn_soft, attn_logprob, spec_len, text_len)
+        loss, forward_sum_loss, bin_loss, _ = self._metrics(
+            attn_soft, attn_logprob, spec_len, text_len
+        )
 
         train_log = {
-            'train_forward_sum_loss': forward_sum_loss,
-            'train_bin_loss': torch.tensor(1.0).to(forward_sum_loss.device) if bin_loss is None else bin_loss,
+            "train_forward_sum_loss": forward_sum_loss,
+            "train_bin_loss": (
+                torch.tensor(1.0).to(forward_sum_loss.device)
+                if bin_loss is None
+                else bin_loss
+            ),
         }
-        return {'loss': loss, 'progress_bar': {k: v.detach() for k, v in train_log.items()}, 'log': train_log}
+        return {
+            "loss": loss,
+            "progress_bar": {k: v.detach() for k, v in train_log.items()},
+            "log": train_log,
+        }
 
     def validation_step(self, batch, batch_idx):
         audio, audio_len, text, text_len, attn_prior = batch
         spec, spec_len = self.preprocessor(input_signal=audio, length=audio_len)
         attn_soft, attn_logprob = self(
-            spec=spec, spec_len=spec_len, text=text, text_len=text_len, attn_prior=attn_prior
+            spec=spec,
+            spec_len=spec_len,
+            text=text,
+            text_len=text_len,
+            attn_prior=attn_prior,
         )
 
-        loss, forward_sum_loss, bin_loss, attn_hard = self._metrics(attn_soft, attn_logprob, spec_len, text_len)
+        loss, forward_sum_loss, bin_loss, attn_hard = self._metrics(
+            attn_soft, attn_logprob, spec_len, text_len
+        )
 
         # plot once per epoch
         if batch_idx == 0 and isinstance(self.logger, WandbLogger) and HAVE_WANDB:
@@ -175,7 +207,13 @@ class AlignerModel(NeedsNormalizer, ModelPT):
                 attn_matrices.append(
                     wandb.Image(
                         plot_alignment_to_numpy(
-                            np.fliplr(np.rot90(attn_soft[i, 0, : spec_len[i], : text_len[i]].data.cpu().numpy()))
+                            np.fliplr(
+                                np.rot90(
+                                    attn_soft[i, 0, : spec_len[i], : text_len[i]]
+                                    .data.cpu()
+                                    .numpy()
+                                )
+                            )
                         ),
                         caption=f"attn soft",
                     ),
@@ -184,7 +222,13 @@ class AlignerModel(NeedsNormalizer, ModelPT):
                 attn_matrices.append(
                     wandb.Image(
                         plot_alignment_to_numpy(
-                            np.fliplr(np.rot90(attn_hard[i, 0, : spec_len[i], : text_len[i]].data.cpu().numpy()))
+                            np.fliplr(
+                                np.rot90(
+                                    attn_hard[i, 0, : spec_len[i], : text_len[i]]
+                                    .data.cpu()
+                                    .numpy()
+                                )
+                            )
                         ),
                         caption=f"attn hard",
                     )
@@ -193,11 +237,17 @@ class AlignerModel(NeedsNormalizer, ModelPT):
             self.logger.experiment.log({"attn_matrices": attn_matrices})
 
         val_log = {
-            'val_loss': loss,
-            'val_forward_sum_loss': forward_sum_loss,
-            'val_bin_loss': torch.tensor(1.0).to(forward_sum_loss.device) if bin_loss is None else bin_loss,
+            "val_loss": loss,
+            "val_forward_sum_loss": forward_sum_loss,
+            "val_bin_loss": (
+                torch.tensor(1.0).to(forward_sum_loss.device)
+                if bin_loss is None
+                else bin_loss
+            ),
         }
-        self.log_dict(val_log, prog_bar=False, on_epoch=True, logger=True, sync_dist=True)
+        self.log_dict(
+            val_log, prog_bar=False, on_epoch=True, logger=True, sync_dist=True
+        )
 
     def _loader(self, cfg):
         try:

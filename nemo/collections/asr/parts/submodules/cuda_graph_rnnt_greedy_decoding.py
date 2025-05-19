@@ -77,7 +77,9 @@ class RNNTGreedyDecodeCudaGraph:
         if HAVE_CUDA_PYTHON:
             check_cuda_python_cuda_graphs_conditional_nodes_supported()
         else:
-            raise ValueError("Cannot instantiate RNNTGreedyDecodeCudaGraph without `pip install cuda-python`")
+            raise ValueError(
+                "Cannot instantiate RNNTGreedyDecodeCudaGraph without `pip install cuda-python`"
+            )
 
         assert max_symbols is not None
 
@@ -111,7 +113,9 @@ class RNNTGreedyDecodeCudaGraph:
 
         self.caller = caller
 
-    def _reinitialize(self, max_time, batch_size, encoder_output, encoder_output_length):
+    def _reinitialize(
+        self, max_time, batch_size, encoder_output, encoder_output_length
+    ):
         if self.first_call:
             # We need to call the original _greedy_decode_blank_as_pad
             # implementation at least once beforehand in order to make
@@ -128,12 +132,22 @@ class RNNTGreedyDecodeCudaGraph:
 
             self.device = encoder_output.device
 
-            self.symbols_added_t = torch.tensor(0, dtype=torch.int64, device=encoder_output.device)
-            self.max_symbols_t = torch.tensor(self.max_symbols, dtype=torch.int64, device=encoder_output.device)
-            self.not_all_blank_t = torch.tensor(True, dtype=torch.bool, device=encoder_output.device)
+            self.symbols_added_t = torch.tensor(
+                0, dtype=torch.int64, device=encoder_output.device
+            )
+            self.max_symbols_t = torch.tensor(
+                self.max_symbols, dtype=torch.int64, device=encoder_output.device
+            )
+            self.not_all_blank_t = torch.tensor(
+                True, dtype=torch.bool, device=encoder_output.device
+            )
 
-            self.time_idx_t = torch.tensor(0, dtype=torch.int64, device=encoder_output.device)
-            self.max_out_len_t = torch.tensor(0, dtype=torch.int64, device=encoder_output.device)
+            self.time_idx_t = torch.tensor(
+                0, dtype=torch.int64, device=encoder_output.device
+            )
+            self.max_out_len_t = torch.tensor(
+                0, dtype=torch.int64, device=encoder_output.device
+            )
 
             self.first_call = False
 
@@ -146,11 +160,17 @@ class RNNTGreedyDecodeCudaGraph:
             device=encoder_output.device,
         )
         self.encoder_output_length = torch.zeros(
-            (self.batch_size,), dtype=encoder_output_length.dtype, device=encoder_output_length.device
+            (self.batch_size,),
+            dtype=encoder_output_length.dtype,
+            device=encoder_output_length.device,
         )
 
-        self.zero_t = torch.tensor(0.0, dtype=encoder_output.dtype, device=encoder_output.device)
-        self.blank_index_t = torch.tensor(self.caller._blank_index, dtype=torch.long, device=encoder_output.device)
+        self.zero_t = torch.tensor(
+            0.0, dtype=encoder_output.dtype, device=encoder_output.device
+        )
+        self.blank_index_t = torch.tensor(
+            self.caller._blank_index, dtype=torch.long, device=encoder_output.device
+        )
 
         self.scores_cpu = torch.zeros(
             (self.batch_size, self.max_time, self.max_symbols),
@@ -159,7 +179,10 @@ class RNNTGreedyDecodeCudaGraph:
             pin_memory=True,
         )
         self.labels_cpu = torch.zeros(
-            (self.batch_size, self.max_time, self.max_symbols), dtype=torch.int64, device="cpu", pin_memory=True
+            (self.batch_size, self.max_time, self.max_symbols),
+            dtype=torch.int64,
+            device="cpu",
+            pin_memory=True,
         )
 
         self.graph = None
@@ -171,7 +194,9 @@ class RNNTGreedyDecodeCudaGraph:
         with (
             torch.cuda.stream(stream_for_graph),
             torch.inference_mode(),
-            torch.cuda.graph(self.graph, stream=stream_for_graph, capture_error_mode="thread_local"),
+            torch.cuda.graph(
+                self.graph, stream=stream_for_graph, capture_error_mode="thread_local"
+            ),
         ):
             # This is failing...
             self.f = torch.zeros(
@@ -181,12 +206,20 @@ class RNNTGreedyDecodeCudaGraph:
             )
             hidden = self.caller.decoder.initialize_state(self.f)
             self.last_label = torch.full(
-                [self.batch_size], fill_value=self.caller._SOS, dtype=torch.long, device=encoder_output.device
+                [self.batch_size],
+                fill_value=self.caller._SOS,
+                dtype=torch.long,
+                device=encoder_output.device,
             )
             self.blank_mask = torch.full(
-                [self.batch_size], fill_value=0, dtype=torch.bool, device=encoder_output.device
+                [self.batch_size],
+                fill_value=0,
+                dtype=torch.bool,
+                device=encoder_output.device,
             )
-            self.seq_idx_t = torch.zeros([1], dtype=torch.int64, device=encoder_output.device)
+            self.seq_idx_t = torch.zeros(
+                [1], dtype=torch.int64, device=encoder_output.device
+            )
 
             self.scores = torch.zeros(
                 (self.max_time * self.max_symbols, self.batch_size),
@@ -203,32 +236,57 @@ class RNNTGreedyDecodeCudaGraph:
             self.max_out_len_t = self.encoder_output_length.max()
 
             capture_status, _, graph, _, _ = cu_call(
-                cudart.cudaStreamGetCaptureInfo(torch.cuda.current_stream(device=self.device).cuda_stream)
+                cudart.cudaStreamGetCaptureInfo(
+                    torch.cuda.current_stream(device=self.device).cuda_stream
+                )
             )
-            assert capture_status == cudart.cudaStreamCaptureStatus.cudaStreamCaptureStatusActive
+            assert (
+                capture_status
+                == cudart.cudaStreamCaptureStatus.cudaStreamCaptureStatusActive
+            )
 
-            (for_loop_conditional_handle,) = cu_call(cudart.cudaGraphConditionalHandleCreate(graph, 0, 0))
+            (for_loop_conditional_handle,) = cu_call(
+                cudart.cudaGraphConditionalHandleCreate(graph, 0, 0)
+            )
             for_loop_kernel = create_outer_for_loop_kernel()
             time_idx_ptr = np.array([self.time_idx_t.data_ptr()], dtype=np.uint64)
             max_out_len_ptr = np.array([self.max_out_len_t.data_ptr()], dtype=np.uint64)
             for_loop_args = np.array(
-                [for_loop_conditional_handle.getPtr(), time_idx_ptr.ctypes.data, max_out_len_ptr.ctypes.data],
+                [
+                    for_loop_conditional_handle.getPtr(),
+                    time_idx_ptr.ctypes.data,
+                    max_out_len_ptr.ctypes.data,
+                ],
                 dtype=np.uint64,
             )
 
-            with with_conditional_node(for_loop_kernel, for_loop_args, for_loop_conditional_handle, self.device):
-                torch.index_select(self.encoder_output, 1, self.time_idx_t.unsqueeze(0), out=self.f)
+            with with_conditional_node(
+                for_loop_kernel, for_loop_args, for_loop_conditional_handle, self.device
+            ):
+                torch.index_select(
+                    self.encoder_output, 1, self.time_idx_t.unsqueeze(0), out=self.f
+                )
 
                 self.not_all_blank_t.fill_(True)
                 self.symbols_added_t.fill_(0)
 
-                torch.ge(self.time_idx_t, self.encoder_output_length, out=self.blank_mask)
+                torch.ge(
+                    self.time_idx_t, self.encoder_output_length, out=self.blank_mask
+                )
 
                 while_loop_kernel = create_inner_while_loop_kernel()
-                (while_loop_conditional_handle,) = cu_call(cudart.cudaGraphConditionalHandleCreate(graph, 0, 0))
-                not_blank_ptr = np.array([self.not_all_blank_t.data_ptr()], dtype=np.uint64)
-                symbols_added_ptr = np.array([self.symbols_added_t.data_ptr()], dtype=np.uint64)
-                max_symbols_ptr = np.array([self.max_symbols_t.data_ptr()], dtype=np.uint64)
+                (while_loop_conditional_handle,) = cu_call(
+                    cudart.cudaGraphConditionalHandleCreate(graph, 0, 0)
+                )
+                not_blank_ptr = np.array(
+                    [self.not_all_blank_t.data_ptr()], dtype=np.uint64
+                )
+                symbols_added_ptr = np.array(
+                    [self.symbols_added_t.data_ptr()], dtype=np.uint64
+                )
+                max_symbols_ptr = np.array(
+                    [self.max_symbols_t.data_ptr()], dtype=np.uint64
+                )
                 while_loop_args = np.array(
                     [
                         while_loop_conditional_handle.getPtr(),
@@ -239,12 +297,17 @@ class RNNTGreedyDecodeCudaGraph:
                     dtype=np.uint64,
                 )
                 with with_conditional_node(
-                    while_loop_kernel, while_loop_args, while_loop_conditional_handle, self.device
+                    while_loop_kernel,
+                    while_loop_args,
+                    while_loop_conditional_handle,
+                    self.device,
                 ):
                     g, hidden_prime = self.caller._pred_step(
                         self.last_label.unsqueeze(1), hidden, batch_size=self.batch_size
                     )
-                    logp = self.caller._joint_step(self.f, g, log_normalize=None)[:, 0, 0, :]
+                    logp = self.caller._joint_step(self.f, g, log_normalize=None)[
+                        :, 0, 0, :
+                    ]
 
                     v, k = logp.max(1)
                     torch.where(self.blank_mask, self.zero_t, v, out=v)
@@ -262,7 +325,9 @@ class RNNTGreedyDecodeCudaGraph:
                     self.caller.decoder.batch_replace_states_mask(
                         src_states=hidden_prime, dst_states=hidden, mask=not_blank_mask
                     )
-                    torch.where(self.blank_mask, self.last_label, k, out=self.last_label)
+                    torch.where(
+                        self.blank_mask, self.last_label, k, out=self.last_label
+                    )
 
                     torch.any(not_blank_mask, 0, out=self.not_all_blank_t)
                     self.symbols_added_t += 1
@@ -272,11 +337,15 @@ class RNNTGreedyDecodeCudaGraph:
                 self.seq_idx_t += self.max_symbols_t - self.symbols_added_t
 
             self.scores_cpu.copy_(
-                self.scores.transpose(0, 1).contiguous().reshape((self.batch_size, self.max_time, self.max_symbols)),
+                self.scores.transpose(0, 1)
+                .contiguous()
+                .reshape((self.batch_size, self.max_time, self.max_symbols)),
                 non_blocking=True,
             )
             self.labels_cpu.copy_(
-                self.labels.transpose(0, 1).contiguous().reshape((self.batch_size, self.max_time, self.max_symbols)),
+                self.labels.transpose(0, 1)
+                .contiguous()
+                .reshape((self.batch_size, self.max_time, self.max_symbols)),
                 non_blocking=True,
             )
 
@@ -294,7 +363,10 @@ class RNNTGreedyDecodeCudaGraph:
             # If CUDA graphs are enabled and "frame-looping" algorithm is requested, current class
             # is not suitable to handle non-CUDA inputs; thus we are passing them to original caller
             return self.caller._greedy_decode_blank_as_pad_loop_frames(
-                x=x, out_len=out_len, device=device, partial_hypotheses=partial_hypotheses
+                x=x,
+                out_len=out_len,
+                device=device,
+                partial_hypotheses=partial_hypotheses,
             )
 
         if partial_hypotheses is not None:
@@ -324,7 +396,11 @@ class RNNTGreedyDecodeCudaGraph:
         if torch.is_autocast_enabled():
             x = x.to(torch.get_autocast_gpu_dtype())
 
-        if max_time > self.max_time or batch_size > self.batch_size or self.device != x.device:
+        if (
+            max_time > self.max_time
+            or batch_size > self.batch_size
+            or self.device != x.device
+        ):
             # In the first two cases, we need to recreate the cuda
             # graph to handle larger tensor sizes. In the third case,
             # we need to recreate the graph, as well as all tensors,
@@ -347,7 +423,8 @@ class RNNTGreedyDecodeCudaGraph:
 
         tokens_per_timestep = (self.labels_cpu != self.caller._blank_index).sum(axis=-1)
         timesteps_packed = torch.repeat_interleave(
-            torch.arange(self.max_time).repeat(self.batch_size), tokens_per_timestep.flatten()
+            torch.arange(self.max_time).repeat(self.batch_size),
+            tokens_per_timestep.flatten(),
         )
         timestep_segments = tokens_per_timestep.sum(axis=-1)
 
@@ -356,16 +433,23 @@ class RNNTGreedyDecodeCudaGraph:
         labels_packed = self.labels_cpu[valid_labels_mask]
 
         hypotheses = [
-            rnnt_utils.Hypothesis(score=0.0, y_sequence=[], timestamp=[], dec_state=None) for _ in range(batch_size)
+            rnnt_utils.Hypothesis(
+                score=0.0, y_sequence=[], timestamp=[], dec_state=None
+            )
+            for _ in range(batch_size)
         ]
 
         timestep_start = 0
         labels_start = 0
         for i in range(batch_size):
-            hypotheses[i].timestamp = timesteps_packed[timestep_start : timestep_start + timestep_segments[i]].tolist()
+            hypotheses[i].timestamp = timesteps_packed[
+                timestep_start : timestep_start + timestep_segments[i]
+            ].tolist()
             timestep_start += timestep_segments[i]
             hypotheses[i].score = float(total_scores[i])
-            hypotheses[i].y_sequence = labels_packed[labels_start : labels_start + labels_segments[i]].tolist()
+            hypotheses[i].y_sequence = labels_packed[
+                labels_start : labels_start + labels_segments[i]
+            ].tolist()
             labels_start += labels_segments[i]
 
         return hypotheses

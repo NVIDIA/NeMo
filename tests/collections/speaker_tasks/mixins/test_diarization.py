@@ -48,11 +48,27 @@ def audio_files(test_data_dir):
     """
     import soundfile as sf
 
-    audio_file1 = os.path.join(test_data_dir, "an4_speaker", "an4", "wav", "an4_clstk", "fash", "an251-fash-b.wav")
-    audio_file2 = os.path.join(test_data_dir, "an4_speaker", "an4", "wav", "an4_clstk", "ffmm", "cen1-ffmm-b.wav")
+    audio_file1 = os.path.join(
+        test_data_dir,
+        "an4_speaker",
+        "an4",
+        "wav",
+        "an4_clstk",
+        "fash",
+        "an251-fash-b.wav",
+    )
+    audio_file2 = os.path.join(
+        test_data_dir,
+        "an4_speaker",
+        "an4",
+        "wav",
+        "an4_clstk",
+        "ffmm",
+        "cen1-ffmm-b.wav",
+    )
 
-    audio1, _ = sf.read(audio_file1, dtype='float32')
-    audio2, _ = sf.read(audio_file2, dtype='float32')
+    audio1, _ = sf.read(audio_file1, dtype="float32")
+    audio2, _ = sf.read(audio_file2, dtype="float32")
 
     return audio1, audio2
 
@@ -62,20 +78,22 @@ class DiarizableDummy(DummyModel, SpkDiarizationMixin):
         super()._diarize_on_begin(audio, diarcfg)
         self.flag_begin = True
 
-    def _diarize_input_manifest_processing(self, audio_files: List[str], temp_dir: str, diarcfg: DiarizeConfig):
+    def _diarize_input_manifest_processing(
+        self, audio_files: List[str], temp_dir: str, diarcfg: DiarizeConfig
+    ):
         # Create a dummy manifest
-        manifest_path = os.path.join(temp_dir, 'dummy_manifest.json')
-        with open(manifest_path, 'w', encoding='utf-8') as fp:
+        manifest_path = os.path.join(temp_dir, "dummy_manifest.json")
+        with open(manifest_path, "w", encoding="utf-8") as fp:
             for audio_file in audio_files:
-                entry = {'audio_filepath': audio_file, 'duration': 100000, 'text': ''}
-                fp.write(json.dumps(entry) + '\n')
+                entry = {"audio_filepath": audio_file, "duration": 100000, "text": ""}
+                fp.write(json.dumps(entry) + "\n")
 
         ds_config = {
-            'paths2audio_files': audio_files,
-            'batch_size': diarcfg.batch_size,
-            'temp_dir': temp_dir,
-            'session_len_sec': diarcfg.session_len_sec,
-            'num_workers': diarcfg.num_workers,
+            "paths2audio_files": audio_files,
+            "batch_size": diarcfg.batch_size,
+            "temp_dir": temp_dir,
+            "session_len_sec": diarcfg.session_len_sec,
+            "num_workers": diarcfg.num_workers,
         }
         return ds_config
 
@@ -93,12 +111,12 @@ class DiarizableDummy(DummyModel, SpkDiarizationMixin):
             def __len__(self):
                 return len(self.audio_files)
 
-        dataset = DummyDataset(config['paths2audio_files'], config)
+        dataset = DummyDataset(config["paths2audio_files"], config)
 
         return DataLoader(
             dataset=dataset,
-            batch_size=config['batch_size'],
-            num_workers=config['num_workers'],
+            batch_size=config["batch_size"],
+            num_workers=config["num_workers"],
             pin_memory=False,
             drop_last=False,
         )
@@ -114,15 +132,15 @@ class DiarizableDummy(DummyModel, SpkDiarizationMixin):
         for output in outputs:
             result.append(float(output.item()))
 
-        if hasattr(diarcfg, 'output_type') and diarcfg.output_type == 'dict':
-            results = {'output': result}
+        if hasattr(diarcfg, "output_type") and diarcfg.output_type == "dict":
+            results = {"output": result}
             return results
 
-        if hasattr(diarcfg, 'output_type') and diarcfg.output_type == 'dict2':
-            results = [{'output': res} for res in result]
+        if hasattr(diarcfg, "output_type") and diarcfg.output_type == "dict2":
+            results = [{"output": res} for res in result]
             return results
 
-        if hasattr(diarcfg, 'output_type') and diarcfg.output_type == 'tuple':
+        if hasattr(diarcfg, "output_type") and diarcfg.output_type == "tuple":
             result = tuple(result)
             return result
 
@@ -160,7 +178,7 @@ class TestSpkDiarizationMixin:
     def test_constructor_non_instance(self):
         model = DummyModel()
         assert not isinstance(model, SpkDiarizationMixin)
-        assert not hasattr(model, 'diarize')
+        assert not hasattr(model, "diarize")
 
     @pytest.mark.unit
     def test_diarize(self, dummy_model):
@@ -168,7 +186,7 @@ class TestSpkDiarizationMixin:
         dummy_model.encoder.weight.data.fill_(1.0)
         dummy_model.encoder.bias.data.fill_(0.0)
 
-        audio = ['1.0', '2.0', '3.0']
+        audio = ["1.0", "2.0", "3.0"]
         outputs = dummy_model.diarize(audio, batch_size=1)
         assert len(outputs) == 3
         assert outputs[0] == 1.0
@@ -181,7 +199,7 @@ class TestSpkDiarizationMixin:
         dummy_model.encoder.weight.data.fill_(1.0)
         dummy_model.encoder.bias.data.fill_(0.0)
 
-        audio = ['1.0', '2.0', '3.0']
+        audio = ["1.0", "2.0", "3.0"]
 
         diarize_config = DiarizeConfig(batch_size=1)
         generator = dummy_model.diarize_generator(audio, override_config=diarize_config)
@@ -205,7 +223,7 @@ class TestSpkDiarizationMixin:
         dummy_model.encoder.weight.data.fill_(1.0)
         dummy_model.encoder.bias.data.fill_(0.0)
 
-        audio = ['1.0', '2.0', '3.0']
+        audio = ["1.0", "2.0", "3.0"]
 
         diarize_config = DiarizeConfig(batch_size=1)
         generator = dummy_model.diarize_generator(audio, override_config=diarize_config)
@@ -231,7 +249,7 @@ class TestSpkDiarizationMixin:
     def test_diarize_check_flags(self, dummy_model):
         dummy_model = dummy_model.eval()
 
-        audio = ['1.0', '2.0', '3.0']
+        audio = ["1.0", "2.0", "3.0"]
         dummy_model.diarize(audio, batch_size=1)
         assert dummy_model.flag_begin
 
@@ -241,12 +259,12 @@ class TestSpkDiarizationMixin:
         @dataclass
         class OverrideConfig:
             batch_size: int = 1
-            output_type: str = 'dict'
+            output_type: str = "dict"
 
         dummy_model = dummy_model.eval()
 
         audio = [1.0, 2.0, 3.0]
-        override_cfg = OverrideConfig(batch_size=1, output_type='dict')
+        override_cfg = OverrideConfig(batch_size=1, output_type="dict")
         with pytest.raises(ValueError):
             _ = dummy_model.diarize(audio, override_config=override_cfg)
 
@@ -254,15 +272,15 @@ class TestSpkDiarizationMixin:
     def test_transribe_override_config_correct(self, dummy_model):
         @dataclass
         class OverrideConfig(DiarizeConfig):
-            output_type: str = 'dict'
+            output_type: str = "dict"
             verbose: bool = False
 
         dummy_model = dummy_model.eval()
         dummy_model.encoder.weight.data.fill_(1.0)
         dummy_model.encoder.bias.data.fill_(0.0)
 
-        audio = ['1.0', '2.0', '3.0']
-        override_cfg = OverrideConfig(batch_size=1, output_type='list')
+        audio = ["1.0", "2.0", "3.0"]
+        override_cfg = OverrideConfig(batch_size=1, output_type="list")
         outputs = dummy_model.diarize(audio, override_config=override_cfg)
 
         assert isinstance(outputs, list)

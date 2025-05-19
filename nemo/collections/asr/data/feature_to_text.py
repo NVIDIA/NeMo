@@ -68,7 +68,9 @@ class ASRFeatureManifestProcessor:
         sample = self.collection[manifest_idx]
         return self.process_text_by_sample(sample)
 
-    def process_text_by_sample(self, sample: collections.ASRAudioText.OUTPUT_TYPE) -> Tuple[List[int], int]:
+    def process_text_by_sample(
+        self, sample: collections.ASRAudioText.OUTPUT_TYPE
+    ) -> Tuple[List[int], int]:
         t, tl = sample.text_tokens, len(sample.text_tokens)
 
         if self.bos_id is not None:
@@ -122,11 +124,11 @@ class _FeatureTextDataset(Dataset):
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         """Returns definitions of module output ports."""
         return {
-            'features': NeuralType(('B', 'D', 'T'), AcousticEncodedRepresentation()),
-            'feature_length': NeuralType(tuple('B'), LengthsType()),
-            'transcripts': NeuralType(('B', 'T'), LabelsType()),
-            'transcript_length': NeuralType(tuple('B'), LengthsType()),
-            'sample_id': NeuralType(tuple('B'), LengthsType(), optional=True),
+            "features": NeuralType(("B", "D", "T"), AcousticEncodedRepresentation()),
+            "feature_length": NeuralType(tuple("B"), LengthsType()),
+            "transcripts": NeuralType(("B", "T"), LabelsType()),
+            "transcript_length": NeuralType(tuple("B"), LengthsType()),
+            "sample_id": NeuralType(tuple("B"), LengthsType(), optional=True),
         }
 
     def __init__(
@@ -141,7 +143,7 @@ class _FeatureTextDataset(Dataset):
         feat_mask_val: Optional[float] = None,
         frame_unit_time_secs: float = 0.01,
         sample_rate: Optional[int] = 16000,
-        augmentor: 'nemo.collections.asr.parts.perturb.FeatureAugmentor' = None,
+        augmentor: "nemo.collections.asr.parts.perturb.FeatureAugmentor" = None,
         max_duration: Optional[int] = None,
         min_duration: Optional[int] = None,
         max_utts: int = 0,
@@ -161,7 +163,9 @@ class _FeatureTextDataset(Dataset):
         self.use_rttm = use_rttm
         self.rttm_mode = rttm_mode
         if self.use_rttm and self.rttm_mode not in self.RTTM_MODES:
-            raise ValueError(f"`rttm_mode` must be one of {self.RTTM_MODES}, got `{rttm_mode}` instead")
+            raise ValueError(
+                f"`rttm_mode` must be one of {self.RTTM_MODES}, got `{rttm_mode}` instead"
+            )
 
         self.feat_min_len = feat_min_len
         if feat_mask_val is not None:
@@ -172,7 +176,9 @@ class _FeatureTextDataset(Dataset):
             self.feat_mask_val = self.ZERO_LEVEL_SPEC_DB_VAL
 
         if normalize is not None and normalize not in self.NORM_MODES:
-            raise ValueError(f"`normalize` must be one of {self.NORM_MODES}, got `{normalize}` instead")
+            raise ValueError(
+                f"`normalize` must be one of {self.NORM_MODES}, got `{normalize}` instead"
+            )
 
         self.frame_unit_time_secs = frame_unit_time_secs
 
@@ -210,18 +216,24 @@ class _FeatureTextDataset(Dataset):
         # Feature normalization
         if self.normalize is None:
             if self.use_rttm and sample.rttm_file:
-                f = self.process_features_with_rttm(f, offset, sample.rttm_file, self.feat_mask_val)
+                f = self.process_features_with_rttm(
+                    f, offset, sample.rttm_file, self.feat_mask_val
+                )
         elif self.normalize == "post_norm":
             # (Optional) Masking based on RTTM file
             if self.use_rttm and sample.rttm_file:
-                f = self.process_features_with_rttm(f, offset, sample.rttm_file, self.feat_mask_val)
+                f = self.process_features_with_rttm(
+                    f, offset, sample.rttm_file, self.feat_mask_val
+                )
 
             f = self.normalize_feature(f)
         else:  # pre-norm
             f = self.normalize_feature(f)
             # (Optional) Masking based on RTTM file
             if self.use_rttm and sample.rttm_file:
-                f = self.process_features_with_rttm(f, offset, sample.rttm_file, self.feat_mask_val)
+                f = self.process_features_with_rttm(
+                    f, offset, sample.rttm_file, self.feat_mask_val
+                )
 
         if self.return_sample_id:
             output = f, fl, torch.tensor(t).long(), torch.tensor(tl).long(), index
@@ -262,7 +274,9 @@ class _FeatureTextDataset(Dataset):
 
     def _collate_fn(self, batch):
         return _audio_feature_collate_fn(
-            batch, feat_pad_val=self.feat_mask_val, label_pad_id=self.manifest_processor.pad_id
+            batch,
+            feat_pad_val=self.feat_mask_val,
+            label_pad_id=self.manifest_processor.pad_id,
         )
 
     def normalize_feature(self, feat):
@@ -271,7 +285,9 @@ class _FeatureTextDataset(Dataset):
             feat: feature tensor of shape [M, T]
         """
         feat = feat.unsqueeze(0)  # add batch dim
-        feat, _, _ = normalize_batch(feat, torch.tensor([feat.size(-1)]), self.normalize_type)
+        feat, _, _ = normalize_batch(
+            feat, torch.tensor([feat.size(-1)]), self.normalize_type
+        )
         return feat.squeeze(0)  # delete batch dim
 
 
@@ -326,7 +342,7 @@ class FeatureToCharDataset(_FeatureTextDataset):
         feat_mask_val: Optional[float] = None,
         frame_unit_time_secs: float = 0.01,
         sample_rate: Optional[int] = 16000,
-        augmentor: 'nemo.collections.asr.parts.perturb.FeatureAugmentor' = None,
+        augmentor: "nemo.collections.asr.parts.perturb.FeatureAugmentor" = None,
         max_duration: Optional[int] = None,
         min_duration: Optional[int] = None,
         max_utts: int = 0,
@@ -336,14 +352,18 @@ class FeatureToCharDataset(_FeatureTextDataset):
         bos_id: Optional[int] = None,
         eos_id: Optional[int] = None,
         pad_id: int = 0,
-        parser: Union[str, Callable] = 'en',
+        parser: Union[str, Callable] = "en",
         return_sample_id: bool = False,
         channel_selector: Optional[ChannelSelectorType] = None,
     ):
         self.labels = labels
 
         parser = parsers.make_parser(
-            labels=labels, name=parser, unk_id=unk_index, blank_id=blank_index, do_normalize=normalize
+            labels=labels,
+            name=parser,
+            unk_id=unk_index,
+            blank_id=blank_index,
+            do_normalize=normalize,
         )
 
         super().__init__(
@@ -417,7 +437,7 @@ class FeatureToBPEDataset(_FeatureTextDataset):
     def __init__(
         self,
         manifest_filepath: str,
-        tokenizer: 'nemo.collections.common.tokenizers.TokenizerSpec',
+        tokenizer: "nemo.collections.common.tokenizers.TokenizerSpec",
         normalize: Optional[str] = "post_norm",
         normalize_type: Union[str, dict] = "per_feature",
         use_rttm: bool = False,
@@ -426,7 +446,7 @@ class FeatureToBPEDataset(_FeatureTextDataset):
         feat_mask_val: Optional[float] = None,
         frame_unit_time_secs: float = 0.01,
         sample_rate: Optional[int] = 16000,
-        augmentor: 'nemo.collections.asr.parts.perturb.FeatureAugmentor' = None,
+        augmentor: "nemo.collections.asr.parts.perturb.FeatureAugmentor" = None,
         max_duration: Optional[int] = None,
         min_duration: Optional[int] = None,
         max_utts: int = 0,
@@ -435,12 +455,20 @@ class FeatureToBPEDataset(_FeatureTextDataset):
         return_sample_id: bool = False,
         channel_selector: Optional[ChannelSelectorType] = None,
     ):
-        if use_start_end_token and hasattr(tokenizer, "bos_id") and tokenizer.bos_id > 0:
+        if (
+            use_start_end_token
+            and hasattr(tokenizer, "bos_id")
+            and tokenizer.bos_id > 0
+        ):
             bos_id = tokenizer.bos_id
         else:
             bos_id = None
 
-        if use_start_end_token and hasattr(tokenizer, "eos_id") and tokenizer.eos_id > 0:
+        if (
+            use_start_end_token
+            and hasattr(tokenizer, "eos_id")
+            and tokenizer.eos_id > 0
+        ):
             eos_id = tokenizer.eos_id
         else:
             eos_id = None
@@ -452,7 +480,9 @@ class FeatureToBPEDataset(_FeatureTextDataset):
 
         class TokenizerWrapper:
             def __init__(self, tokenizer):
-                if isinstance(tokenizer, tokenizers.aggregate_tokenizer.AggregateTokenizer):
+                if isinstance(
+                    tokenizer, tokenizers.aggregate_tokenizer.AggregateTokenizer
+                ):
                     self.is_aggregate = True
                 else:
                     self.is_aggregate = False
@@ -462,7 +492,7 @@ class FeatureToBPEDataset(_FeatureTextDataset):
                 if isinstance(args[0], List) and self.is_aggregate:
                     t = []
                     for span in args[0]:
-                        t.extend(self._tokenizer.text_to_ids(span['str'], span['lang']))
+                        t.extend(self._tokenizer.text_to_ids(span["str"], span["lang"]))
                     return t
 
                 t = self._tokenizer.text_to_ids(*args)

@@ -26,11 +26,17 @@ from nemo.collections.llm.inference.base import \
 def get_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument("--hf-path", type=str, default="models/llama_31_toy")
-    parser.add_argument('--collection', type=str, default='llm')
-    parser.add_argument("--model-type", type=str, help="Name of the model", default="LlamaModel")
-    parser.add_argument("--model-config", type=str, help="Model config", default="Llama31Config8B")
+    parser.add_argument("--collection", type=str, default="llm")
+    parser.add_argument(
+        "--model-type", type=str, help="Name of the model", default="LlamaModel"
+    )
+    parser.add_argument(
+        "--model-config", type=str, help="Model config", default="Llama31Config8B"
+    )
     parser.add_argument("--output-path", type=str, help="Output NeMo2 model")
-    parser.add_argument("--ignore-keys", nargs='+', type=str, default=[], help="Ignore keys")
+    parser.add_argument(
+        "--ignore-keys", nargs="+", type=str, default=[], help="Ignore keys"
+    )
     return parser
 
 
@@ -50,15 +56,15 @@ def count_parameters(model, ignore_keys=None):
     return total_params
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     args = get_parser().parse_args()
 
-    if args.collection == 'llm':
+    if args.collection == "llm":
         collection = llm
-    elif args.collection == 'vlm':
+    elif args.collection == "vlm":
         collection = vlm
     else:
-        raise ValueError(f'Unrecognized collection {args.collection}')
+        raise ValueError(f"Unrecognized collection {args.collection}")
     config = getattr(collection, args.model_config)()
     model = getattr(collection, args.model_type)(config=config)
     output_path = llm.import_ckpt(
@@ -81,7 +87,7 @@ if __name__ == '__main__':
     _setup_trainer_and_restore_model(path=path, trainer=trainer, model=model_nemo)
 
     # Load HF Stats
-    with open(f'{args.hf_path}/stats.json') as f:
+    with open(f"{args.hf_path}/stats.json") as f:
         hf_stats = json.load(f)
 
     table = PrettyTable(["HuggingFace Modules", "Parameters"])
@@ -90,9 +96,9 @@ if __name__ == '__main__':
     print(table)
 
     nemo_param_cnt = count_parameters(model_nemo, args.ignore_keys)
-    hf_param_cnt = hf_stats['total_params']
+    hf_param_cnt = hf_stats["total_params"]
 
     assert (
         hf_param_cnt == nemo_param_cnt
-    ), f'Total converted params count does not match: NeMo model has {nemo_param_cnt} and HF model has {hf_param_cnt}.'
-    print('HuggingFace -> NeMo conversion completed successfully.')
+    ), f"Total converted params count does not match: NeMo model has {nemo_param_cnt} and HF model has {hf_param_cnt}."
+    print("HuggingFace -> NeMo conversion completed successfully.")

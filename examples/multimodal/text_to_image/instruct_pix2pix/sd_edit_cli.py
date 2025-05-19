@@ -44,18 +44,36 @@ class CFGDenoiser(nn.Module):
         cfg_z = einops.repeat(z, "b ... -> (n b) ...", n=3)
         cfg_sigma = einops.repeat(sigma, "b ... -> (n b) ...", n=3)
         cfg_cond = {
-            "c_crossattn": [torch.cat([cond["c_crossattn"][0], uncond["c_crossattn"][0], uncond["c_crossattn"][0]])],
-            "c_concat": [torch.cat([cond["c_concat"][0], cond["c_concat"][0], uncond["c_concat"][0]])],
+            "c_crossattn": [
+                torch.cat(
+                    [
+                        cond["c_crossattn"][0],
+                        uncond["c_crossattn"][0],
+                        uncond["c_crossattn"][0],
+                    ]
+                )
+            ],
+            "c_concat": [
+                torch.cat(
+                    [cond["c_concat"][0], cond["c_concat"][0], uncond["c_concat"][0]]
+                )
+            ],
         }
-        out_cond, out_img_cond, out_uncond = self.inner_model(cfg_z, cfg_sigma, cond=cfg_cond).chunk(3)
-        out = out_uncond + text_cfg_scale * (out_cond - out_img_cond) + image_cfg_scale * (out_img_cond - out_uncond)
+        out_cond, out_img_cond, out_uncond = self.inner_model(
+            cfg_z, cfg_sigma, cond=cfg_cond
+        ).chunk(3)
+        out = (
+            out_uncond
+            + text_cfg_scale * (out_cond - out_img_cond)
+            + image_cfg_scale * (out_img_cond - out_uncond)
+        )
         return out
 
 
-@hydra_runner(config_path='conf', config_name='sd_edit')
+@hydra_runner(config_path="conf", config_name="sd_edit")
 def main(cfg):
     logging.info("\n\n************** Experiment configuration ***********")
-    logging.info(f'\n{OmegaConf.to_yaml(cfg)}')
+    logging.info(f"\n{OmegaConf.to_yaml(cfg)}")
 
     with open_dict(cfg):
         edit_cfg = cfg.pop("edit")
@@ -66,7 +84,9 @@ def main(cfg):
         model_cfg.inductor = False
 
     trainer, megatron_diffusion_model = setup_trainer_and_model_for_inference(
-        model_provider=MegatronLatentDiffusionEdit, cfg=cfg, model_cfg_modifier=model_cfg_modifier,
+        model_provider=MegatronLatentDiffusionEdit,
+        cfg=cfg,
+        model_cfg_modifier=model_cfg_modifier,
     )
 
     # inference use the latent diffusion part of megatron wrapper
@@ -82,38 +102,54 @@ def main(cfg):
     factor = math.ceil(min(width, height) * factor / 64) * 64 / min(width, height)
     width = int((width * factor) // 64) * 64
     height = int((height * factor) // 64) * 64
-    input_image = ImageOps.fit(input_image, (width, height), method=Image.Resampling.LANCZOS)
+    input_image = ImageOps.fit(
+        input_image, (width, height), method=Image.Resampling.LANCZOS
+    )
 
     if edit_cfg.prompt == "":
         input_image.save(edit_cfg.output)
         return
 
     # get autocast_dtype
-    if trainer.precision in ['bf16', 'bf16-mixed']:
+    if trainer.precision in ["bf16", "bf16-mixed"]:
         autocast_dtype = torch.bfloat16
-    elif trainer.precision in [32, '32', '32-true']:
+    elif trainer.precision in [32, "32", "32-true"]:
         autocast_dtype = torch.float
-    elif trainer.precision in [16, '16', '16-mixed']:
+    elif trainer.precision in [16, "16", "16-mixed"]:
         autocast_dtype = torch.half
     else:
         raise ValueError('precision must be in ["32-true", "16-mixed", "bf16-mixed"]')
 
     num_images_per_prompt = edit_cfg.num_images_per_prompt
-    with torch.no_grad(), torch.cuda.amp.autocast(
-        enabled=autocast_dtype in (torch.half, torch.bfloat16), dtype=autocast_dtype,
+    with (
+        torch.no_grad(),
+        torch.cuda.amp.autocast(
+            enabled=autocast_dtype in (torch.half, torch.bfloat16),
+            dtype=autocast_dtype,
+        ),
     ):
         cond = {}
         cond["c_crossattn"] = [
-            repeat(model.get_learned_conditioning([edit_cfg.prompt]), "1 ... -> n ...", n=num_images_per_prompt)
+            repeat(
+                model.get_learned_conditioning([edit_cfg.prompt]),
+                "1 ... -> n ...",
+                n=num_images_per_prompt,
+            )
         ]
         input_image = 2 * torch.tensor(np.array(input_image)).float() / 255 - 1
         input_image = rearrange(input_image, "h w c -> 1 c h w").cuda(non_blocking=True)
         cond["c_concat"] = [
-            repeat(model.encode_first_stage(input_image).mode(), "1 ... -> n ...", n=num_images_per_prompt)
+            repeat(
+                model.encode_first_stage(input_image).mode(),
+                "1 ... -> n ...",
+                n=num_images_per_prompt,
+            )
         ]
 
         uncond = {}
-        uncond["c_crossattn"] = [repeat(null_token, "1 ... -> n ...", n=num_images_per_prompt)]
+        uncond["c_crossattn"] = [
+            repeat(null_token, "1 ... -> n ...", n=num_images_per_prompt)
+        ]
         uncond["c_concat"] = [torch.zeros_like(cond["c_concat"][0])]
 
         sigmas = model_wrap.get_sigmas(edit_cfg.steps)
@@ -146,7 +182,7 @@ def main(cfg):
         row, column = edit_cfg.combine_images
         width, height = x.size(2), x.size(1)
         total_width, total_height = width * column, height * row
-        edited_image = Image.new('RGB', (total_width, total_height))
+        edited_image = Image.new("RGB", (total_width, total_height))
         x_offset = 0
         y_offset = 0
         for idx, image in enumerate(x):

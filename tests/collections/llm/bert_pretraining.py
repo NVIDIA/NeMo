@@ -26,19 +26,25 @@ from nemo.collections.nlp.modules.common.tokenizer_utils import \
 
 ## NOTE: This script is present for github-actions testing only.
 def get_args():
-    parser = argparse.ArgumentParser(description='Pretraining a small BERT model using NeMo 2.0')
-    parser.add_argument('--experiment_dir', type=str, help="directory to write results and checkpoints to")
-    parser.add_argument('--devices', type=int, default=1, help="number of devices")
-    parser.add_argument('--max_steps', type=int, default=3, help="number of devices")
-    parser.add_argument('--mbs', type=int, default=1, help="micro batch size")
-    parser.add_argument('--tp_size', type=int, default=1, help="tensor parallel size")
-    parser.add_argument('--pp_size', type=int, default=1, help="pipeline parallel size")
-    parser.add_argument('--type', type=str, default='huggingface')
+    parser = argparse.ArgumentParser(
+        description="Pretraining a small BERT model using NeMo 2.0"
+    )
+    parser.add_argument(
+        "--experiment_dir",
+        type=str,
+        help="directory to write results and checkpoints to",
+    )
+    parser.add_argument("--devices", type=int, default=1, help="number of devices")
+    parser.add_argument("--max_steps", type=int, default=3, help="number of devices")
+    parser.add_argument("--mbs", type=int, default=1, help="micro batch size")
+    parser.add_argument("--tp_size", type=int, default=1, help="tensor parallel size")
+    parser.add_argument("--pp_size", type=int, default=1, help="pipeline parallel size")
+    parser.add_argument("--type", type=str, default="huggingface")
 
     return parser.parse_args()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     args = get_args()
 
     strategy = nl.MegatronStrategy(
@@ -94,19 +100,21 @@ if __name__ == '__main__':
     )
 
     tokenizer = get_nmt_tokenizer("megatron", "BertWordPieceLowerCase")
-    if args.type == 'huggingface':
-        print('Init HuggingFace Bert Base Model')
+    if args.type == "huggingface":
+        print("Init HuggingFace Bert Base Model")
         model = llm.BertModel(llm.HuggingFaceBertBaseConfig(), tokenizer=tokenizer)
-    elif args.type == 'megatron':
-        print('Init Megatron Bert Base Model')
+    elif args.type == "megatron":
+        print("Init Megatron Bert Base Model")
         model = llm.BertModel(llm.MegatronBertBaseConfig(), tokenizer=tokenizer)
     else:
-        raise ValueError('Unknown type.')
+        raise ValueError("Unknown type.")
     resume = nl.AutoResume(
         resume_if_exists=True,
         resume_ignore_no_checkpoint=True,
     )
 
-    llm.pretrain(model=model, data=data, trainer=trainer, log=logger, optim=adam, resume=resume)
+    llm.pretrain(
+        model=model, data=data, trainer=trainer, log=logger, optim=adam, resume=resume
+    )
 
     print("Bert Pretraining Succeeded")

@@ -25,7 +25,7 @@ from nemo.core.neural_types import (ChannelType, LabelsType, MaskType,
                                     NeuralType)
 from nemo.utils import logging
 
-__all__ = ['IntentSlotClassificationDataset', 'IntentSlotInferenceDataset']
+__all__ = ["IntentSlotClassificationDataset", "IntentSlotInferenceDataset"]
 
 
 def get_features(
@@ -89,8 +89,12 @@ def get_features(
             all_slots.append(slots)
 
     max_seq_length_data = max(sent_lengths)
-    max_seq_length = min(max_seq_length, max_seq_length_data) if max_seq_length > 0 else max_seq_length_data
-    logging.info(f'Setting max length to: {max_seq_length}')
+    max_seq_length = (
+        min(max_seq_length, max_seq_length_data)
+        if max_seq_length > 0
+        else max_seq_length_data
+    )
+    logging.info(f"Setting max length to: {max_seq_length}")
     get_stats(sent_lengths)
     too_long_count = 0
 
@@ -98,7 +102,9 @@ def get_features(
         if len(subtokens) > max_seq_length:
             subtokens = [tokenizer.cls_token] + subtokens[-max_seq_length + 1 :]
             all_input_mask[i] = [1] + all_input_mask[i][-max_seq_length + 1 :]
-            all_loss_mask[i] = [1 - ignore_start_end] + all_loss_mask[i][-max_seq_length + 1 :]
+            all_loss_mask[i] = [1 - ignore_start_end] + all_loss_mask[i][
+                -max_seq_length + 1 :
+            ]
             all_subtokens_mask[i] = [0] + all_subtokens_mask[i][-max_seq_length + 1 :]
 
             if with_label:
@@ -119,7 +125,7 @@ def get_features(
 
         all_segment_ids.append([0] * max_seq_length)
 
-    logging.info(f'{too_long_count} are longer than {max_seq_length}')
+    logging.info(f"{too_long_count} are longer than {max_seq_length}")
 
     # May be useful for debugging
     logging.debug("*** Some Examples of Processed Data ***")
@@ -128,11 +134,20 @@ def get_features(
         logging.debug("subtokens: %s" % " ".join(list(map(str, all_subtokens[i]))))
         logging.debug("loss_mask: %s" % " ".join(list(map(str, all_loss_mask[i]))))
         logging.debug("input_mask: %s" % " ".join(list(map(str, all_input_mask[i]))))
-        logging.debug("subtokens_mask: %s" % " ".join(list(map(str, all_subtokens_mask[i]))))
+        logging.debug(
+            "subtokens_mask: %s" % " ".join(list(map(str, all_subtokens_mask[i])))
+        )
         if with_label:
             logging.debug("slots_label: %s" % " ".join(list(map(str, all_slots[i]))))
 
-    return (all_input_ids, all_segment_ids, all_input_mask, all_loss_mask, all_subtokens_mask, all_slots)
+    return (
+        all_input_ids,
+        all_segment_ids,
+        all_input_mask,
+        all_loss_mask,
+        all_subtokens_mask,
+        all_slots,
+    )
 
 
 class IntentSlotClassificationDataset(Dataset):
@@ -161,16 +176,15 @@ class IntentSlotClassificationDataset(Dataset):
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        """Returns definitions of module output ports.
-               """
+        """Returns definitions of module output ports."""
         return {
-            'input_ids': NeuralType(('B', 'T'), ChannelType()),
-            'segment_ids': NeuralType(('B', 'T'), ChannelType()),
-            'input_mask': NeuralType(('B', 'T'), MaskType()),
-            'loss_mask': NeuralType(('B', 'T'), MaskType()),
-            'subtokens_mask': NeuralType(('B', 'T'), MaskType()),
-            'intent_labels': NeuralType(('B'), LabelsType()),
-            'slot_labels': NeuralType(('B', 'T'), LabelsType()),
+            "input_ids": NeuralType(("B", "T"), ChannelType()),
+            "segment_ids": NeuralType(("B", "T"), ChannelType()),
+            "input_mask": NeuralType(("B", "T"), MaskType()),
+            "loss_mask": NeuralType(("B", "T"), MaskType()),
+            "subtokens_mask": NeuralType(("B", "T"), MaskType()),
+            "intent_labels": NeuralType(("B"), LabelsType()),
+            "slot_labels": NeuralType(("B", "T"), LabelsType()),
         }
 
     def __init__(
@@ -188,10 +202,10 @@ class IntentSlotClassificationDataset(Dataset):
         if num_samples == 0:
             raise ValueError("num_samples has to be positive", num_samples)
 
-        with open(slot_file, 'r') as f:
+        with open(slot_file, "r") as f:
             slot_lines = f.readlines()
 
-        with open(input_file, 'r') as f:
+        with open(input_file, "r") as f:
             input_lines = f.readlines()[1:]
 
         assert len(slot_lines) == len(input_lines)
@@ -206,7 +220,7 @@ class IntentSlotClassificationDataset(Dataset):
             raw_slots.append([int(slot) for slot in slot_line.strip().split()])
             parts = input_line.strip().split()
             raw_intents.append(int(parts[-1]))
-            query = ' '.join(parts[:-1])
+            query = " ".join(parts[:-1])
             if do_lower_case:
                 query = query.lower()
             queries.append(query)
@@ -262,14 +276,14 @@ class IntentSlotInferenceDataset(Dataset):
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         """
-            Returns definitions of module output ports.
+        Returns definitions of module output ports.
         """
         return {
-            'input_ids': NeuralType(('B', 'T'), ChannelType()),
-            'segment_ids': NeuralType(('B', 'T'), ChannelType()),
-            'input_mask': NeuralType(('B', 'T'), MaskType()),
-            'loss_mask': NeuralType(('B', 'T'), MaskType()),
-            'subtokens_mask': NeuralType(('B', 'T'), MaskType()),
+            "input_ids": NeuralType(("B", "T"), ChannelType()),
+            "segment_ids": NeuralType(("B", "T"), ChannelType()),
+            "input_mask": NeuralType(("B", "T"), MaskType()),
+            "loss_mask": NeuralType(("B", "T"), MaskType()),
+            "subtokens_mask": NeuralType(("B", "T"), MaskType()),
         }
 
     def __init__(self, queries, max_seq_length, tokenizer, do_lower_case):

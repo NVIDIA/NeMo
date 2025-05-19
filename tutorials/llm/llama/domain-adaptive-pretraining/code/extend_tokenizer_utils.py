@@ -95,15 +95,19 @@ def extend_tokenizer(vocab_size, split, model_type):
     newinit_flag = False
 
     tag = "code_gen"  # Tag to identify custom_tokenization per use case
-    data_root = "./general_data"  # path to general datasets collected from open-source domain
-    original_tokenizer_path = (
-        f"./models/tokenizer/{model_type}/original_tokenizer/tokenizer.model"  # path to original tokenizer
+    data_root = (
+        "./general_data"  # path to general datasets collected from open-source domain
     )
+    original_tokenizer_path = f"./models/tokenizer/{model_type}/original_tokenizer/tokenizer.model"  # path to original tokenizer
     domain_tok_vocab_path = f"./models/tokenizer/{model_type}/custom_tokenizer_init_{vocab_size}.json/vocab.json"  # path to domain specific vocab file (created previously)
 
     # New model file paths that will be created
-    new_vocab_path = f"./models/tokenizer/{model_type}/new_tokenizer/" + tag + "_vocab.json"
-    new_model_path = f"./models/tokenizer/{model_type}/new_tokenizer/tokenizer_" + tag + ".model"
+    new_vocab_path = (
+        f"./models/tokenizer/{model_type}/new_tokenizer/" + tag + "_vocab.json"
+    )
+    new_model_path = (
+        f"./models/tokenizer/{model_type}/new_tokenizer/tokenizer_" + tag + ".model"
+    )
     old_ebd_path = f"./models/weight/{model_type}/ori_{model_type}-hf_weight/"
     new_ebd_path = f"./models/weight/{model_type}/new_{model_type}-hf_weight/"
 
@@ -150,7 +154,7 @@ def extend_tokenizer_high_freq_tokens(
 
     """
     m = model.ModelProto()
-    m.ParseFromString(open(original_tokenizer_path, 'rb').read())
+    m.ParseFromString(open(original_tokenizer_path, "rb").read())
     ori_vocab_size = len(m.pieces)
 
     print("token_cnt with original tokenizer: ")
@@ -162,7 +166,9 @@ def extend_tokenizer_high_freq_tokens(
     add_dummy_cnt = (len(new_tokens) // 1024 + 1) * 1024 - len(new_tokens)
     total_add_cnt = add_normal_cnt + add_dummy_cnt
     new_vocab_size = total_add_cnt + ori_vocab_size
-    total_cnt = new_vocab_size + 768  ## consider 768 padding vocab in llama/mixtral tokenizer
+    total_cnt = (
+        new_vocab_size + 768
+    )  ## consider 768 padding vocab in llama/mixtral tokenizer
     print("original vocab_size: ", ori_vocab_size)
     print("added normal vocab: ", add_normal_cnt)
     print("added dummy vocab: ", add_dummy_cnt)
@@ -178,7 +184,9 @@ def extend_tokenizer_high_freq_tokens(
         new_sym.piece = sym
         new_sym.score = 0.0  # default score for USER_DEFINED
         new_sym.type = 4  # type value for USER_DEFINED
-        m.pieces.insert(N + i, new_sym)  # position after default control symbols ("<unk>", "<s>", "</s>")
+        m.pieces.insert(
+            N + i, new_sym
+        )  # position after default control symbols ("<unk>", "<s>", "</s>")
         record.append([sym, N + i])
 
     N = len(m.pieces)
@@ -187,13 +195,15 @@ def extend_tokenizer_high_freq_tokens(
         new_sym.piece = f"<extra_id_{i}>"
         new_sym.score = 0.0  # default score for USER_DEFINED
         new_sym.type = 4  # type value for USER_DEFINED
-        m.pieces.insert(N + i, new_sym)  # position after default control symbols ("<unk>", "<s>", "</s>")
+        m.pieces.insert(
+            N + i, new_sym
+        )  # position after default control symbols ("<unk>", "<s>", "</s>")
         record.append([new_sym.piece, N + i])
 
     with open(new_vocab_path, "w", encoding="utf8") as fp:
         json.dump(record, fp)
 
-    with open(new_model_path, 'wb') as f:
+    with open(new_model_path, "wb") as f:
         f.write(m.SerializeToString())
 
     print("token_cnt with customized tokenizer: ")
@@ -213,8 +223,8 @@ def extend_tokenizer_high_freq_tokens(
     output_layers = []
     for f in old_ebd_paths:
         temp = torch.load(f)
-        word_embeddings.append(temp['word_embeddings'])
-        output_layers.append(temp['output_layer'])
+        word_embeddings.append(temp["word_embeddings"])
+        output_layers.append(temp["output_layer"])
     word_embedding = torch.cat(word_embeddings, dim=1)
     output_layer = torch.cat(output_layers, dim=0)
     print("word_embedding shape: ", word_embedding.shape)
@@ -222,11 +232,16 @@ def extend_tokenizer_high_freq_tokens(
 
     N_ori_emb, N = word_embedding.shape
     add_weight = torch.zeros(total_add_cnt, N)
-    word_embedding = torch.cat((word_embedding[:ori_vocab_size], add_weight, word_embedding[ori_vocab_size:]), 0)
+    word_embedding = torch.cat(
+        (word_embedding[:ori_vocab_size], add_weight, word_embedding[ori_vocab_size:]),
+        0,
+    )
 
     _, M = output_layer.shape
     add_out = torch.zeros(total_add_cnt, M)
-    output_layer = torch.cat((output_layer[:ori_vocab_size], add_out, output_layer[ori_vocab_size:]), 0)
+    output_layer = torch.cat(
+        (output_layer[:ori_vocab_size], add_out, output_layer[ori_vocab_size:]), 0
+    )
 
     sp = spm.SentencePieceProcessor()
     sp.load(original_tokenizer_path)
@@ -252,8 +267,8 @@ def extend_tokenizer_high_freq_tokens(
         ed = (i + 1) * split_vocab_size
         save_name = prefix + f"{i}" + ".pt"
         temp = {}
-        temp['word_embeddings'] = word_embedding[:, start:end]  # split word_embedding
-        temp['output_layer'] = output_layer[st:ed, :]  # split output_layer
+        temp["word_embeddings"] = word_embedding[:, start:end]  # split word_embedding
+        temp["output_layer"] = output_layer[st:ed, :]  # split output_layer
         torch.save(temp, save_name)
 
     print("Completed saving new embeddings")

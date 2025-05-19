@@ -92,9 +92,15 @@ class Gemma2DotProductAttention(MegatronModule):
         # Per attention head and per partition values.
         world_size = parallel_state.get_tensor_model_parallel_world_size()
         self.hidden_size_per_partition = divide(projection_size, world_size)
-        self.hidden_size_per_attention_head = divide(projection_size, config.num_attention_heads)
-        self.num_attention_heads_per_partition = divide(self.config.num_attention_heads, world_size)
-        self.num_query_groups_per_partition = divide(self.config.num_query_groups, world_size)
+        self.hidden_size_per_attention_head = divide(
+            projection_size, config.num_attention_heads
+        )
+        self.num_attention_heads_per_partition = divide(
+            self.config.num_attention_heads, world_size
+        )
+        self.num_query_groups_per_partition = divide(
+            self.config.num_query_groups, world_size
+        )
 
         coeff = None
         self.norm_factor = math.sqrt(config.query_pre_attn_scalar)
@@ -117,7 +123,9 @@ class Gemma2DotProductAttention(MegatronModule):
         # different outputs on different number of parallel partitions but
         # on average it should not be partition dependent.
         self.attention_dropout = torch.nn.Dropout(
-            self.config.attention_dropout if attention_dropout is None else attention_dropout
+            self.config.attention_dropout
+            if attention_dropout is None
+            else attention_dropout
         )
 
     def forward(
@@ -135,7 +143,8 @@ class Gemma2DotProductAttention(MegatronModule):
         final_logit_softcapping.
         """
         assert packed_seq_params is None, (
-            "Packed sequence is not supported by DotProductAttention." "Please use TEDotProductAttention instead."
+            "Packed sequence is not supported by DotProductAttention."
+            "Please use TEDotProductAttention instead."
         )
 
         # ===================================
@@ -148,12 +157,20 @@ class Gemma2DotProductAttention(MegatronModule):
         # match the number of queries.
 
         # attn_mask_type is not used.
-        if self.num_attention_heads_per_partition // self.num_query_groups_per_partition > 1:
+        if (
+            self.num_attention_heads_per_partition
+            // self.num_query_groups_per_partition
+            > 1
+        ):
             key = key.repeat_interleave(
-                self.num_attention_heads_per_partition // self.num_query_groups_per_partition, dim=2
+                self.num_attention_heads_per_partition
+                // self.num_query_groups_per_partition,
+                dim=2,
             )
             value = value.repeat_interleave(
-                self.num_attention_heads_per_partition // self.num_query_groups_per_partition, dim=2
+                self.num_attention_heads_per_partition
+                // self.num_query_groups_per_partition,
+                dim=2,
             )
 
         # [b, np, sq, sk]
@@ -188,7 +205,9 @@ class Gemma2DotProductAttention(MegatronModule):
             alpha=(1.0 / self.norm_factor),
         )
         # Gemma 2 specific:
-        matmul_result = logit_softcapping(matmul_result, self.config.attn_logit_softcapping)
+        matmul_result = logit_softcapping(
+            matmul_result, self.config.attn_logit_softcapping
+        )
 
         # change view to [b, np, sq, sk]
         attention_scores = matmul_result.view(*output_size)
@@ -202,7 +221,9 @@ class Gemma2DotProductAttention(MegatronModule):
             attention_mask = get_swa(query.size(0), key.size(0), self.window_size)
 
         # attention scores and attention mask [b, np, sq, sk]
-        attention_probs: Tensor = self.scale_mask_softmax(attention_scores, attention_mask)
+        attention_probs: Tensor = self.scale_mask_softmax(
+            attention_scores, attention_mask
+        )
 
         # This is actually dropping out entire tokens to attend to, which might
         # seem a bit unusual, but is taken from the original Transformer paper.
@@ -232,7 +253,9 @@ class Gemma2DotProductAttention(MegatronModule):
         value = value.view(value.size(0), output_size[0] * output_size[1], -1)
 
         # change view [b * np, sq, sk]
-        attention_probs = attention_probs.view(output_size[0] * output_size[1], output_size[2], -1)
+        attention_probs = attention_probs.view(
+            output_size[0] * output_size[1], output_size[2], -1
+        )
 
         # matmul: [b * np, sq, hn]
         context = torch.bmm(attention_probs, value.transpose(0, 1))

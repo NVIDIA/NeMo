@@ -31,9 +31,11 @@ from nemo.lightning.pytorch.optim.megatron import \
     MegatronOptimizerModule as MegatronOptim
 from nemo.lightning.pytorch.optim.megatron import OptimizerConfig
 
-VOCAB_PATH = '/mnt/4tb/gpt_tokenizer/vocab.json'
-MERGES_PATH = '/mnt/4tb/gpt_tokenizer/merges.txt'
-DATA_PATH = '/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document'
+VOCAB_PATH = "/mnt/4tb/gpt_tokenizer/vocab.json"
+MERGES_PATH = "/mnt/4tb/gpt_tokenizer/merges.txt"
+DATA_PATH = (
+    "/home/TestData/nlp/megatron_t5/data/pile_val_small_bert_tokenizer_text_document"
+)
 
 
 def tokenizer(vocab_path, merges_path):
@@ -86,7 +88,7 @@ def main(args):
         max_position_embeddings=None,
         moe_aux_loss_coeff=0.0,
         moe_router_topk=1,
-        moe_token_dispatcher_type='allgather',
+        moe_token_dispatcher_type="allgather",
         normalization="LayerNorm",
         num_attention_heads=4,
         num_layers=2,
@@ -116,7 +118,7 @@ def main(args):
         global_batch_size=2,
         micro_batch_size=1,
         num_workers=1,
-        split='99,1,0',
+        split="99,1,0",
         tokenizer=tokenizer(args.vocab_path, args.merges_path),
     )
 
@@ -152,22 +154,39 @@ def main(args):
         data=data,
         trainer=trainer,
         log=nemo_logger,
-        tokenizer='data',
+        tokenizer="data",
         optim=opt,
     )
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description='Train a small Mixtral model using NeMo 2.0')
-    parser.add_argument('--devices', type=int, default=1, help="Number of devices to use for training")
-    parser.add_argument('--max-steps', type=int, default=10, help="Number of steps to train for")
-    parser.add_argument(
-        '--exp-dir', type=str, default='/tmp/exp_dir', help="directory to write results and checkpoints to"
+    parser = argparse.ArgumentParser(
+        description="Train a small Mixtral model using NeMo 2.0"
     )
-    parser.add_argument('--exp-name', type=str, default='mini_mixtral_test', help="name of experiment")
-    parser.add_argument('--data-path', type=str, default=DATA_PATH, help="Path to data file")
-    parser.add_argument('--vocab-path', type=str, default=VOCAB_PATH, help="Path to vocab file")
-    parser.add_argument('--merges-path', type=str, default=MERGES_PATH, help="Path to merges file")
+    parser.add_argument(
+        "--devices", type=int, default=1, help="Number of devices to use for training"
+    )
+    parser.add_argument(
+        "--max-steps", type=int, default=10, help="Number of steps to train for"
+    )
+    parser.add_argument(
+        "--exp-dir",
+        type=str,
+        default="/tmp/exp_dir",
+        help="directory to write results and checkpoints to",
+    )
+    parser.add_argument(
+        "--exp-name", type=str, default="mini_mixtral_test", help="name of experiment"
+    )
+    parser.add_argument(
+        "--data-path", type=str, default=DATA_PATH, help="Path to data file"
+    )
+    parser.add_argument(
+        "--vocab-path", type=str, default=VOCAB_PATH, help="Path to vocab file"
+    )
+    parser.add_argument(
+        "--merges-path", type=str, default=MERGES_PATH, help="Path to merges file"
+    )
 
     return parser.parse_args()
 

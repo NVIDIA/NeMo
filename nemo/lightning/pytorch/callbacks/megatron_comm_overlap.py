@@ -29,7 +29,9 @@ from nemo.utils import logging
 try:
     from megatron.core.num_microbatches_calculator import get_micro_batch_size
 except (ImportError, ModuleNotFoundError):
-    logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
+    logging.warning(
+        "Megatron num_microbatches_calculator not found, using Apex version."
+    )
     from apex.transformer.pipeline_parallel.utils import get_micro_batch_size
 
 try:
@@ -143,13 +145,19 @@ class MegatronCommOverlapCallback(Callback):
         # Check if TP overlap can be safely enabled
         if self.user_comm_overlap_cfg.tp_comm_overlap is True:
             if parallelism_cfg.tensor_model_parallel_size < 2:
-                logging.warning("Disabling tensor parallel communication overlap due to TP size < 2.")
+                logging.warning(
+                    "Disabling tensor parallel communication overlap due to TP size < 2."
+                )
                 self.user_comm_overlap_cfg.tp_comm_overlap = False
             elif not parallelism_cfg.sequence_parallel:
-                logging.warning("Disabling tensor parallel communication overlap due to sequence_parallel=False.")
+                logging.warning(
+                    "Disabling tensor parallel communication overlap due to sequence_parallel=False."
+                )
                 self.user_comm_overlap_cfg.tp_comm_overlap = False
             elif not HAVE_TE:
-                logging.warning("Disabling tensor parallel communication overlap due to TE not detected.")
+                logging.warning(
+                    "Disabling tensor parallel communication overlap due to TE not detected."
+                )
                 self.user_comm_overlap_cfg.tp_comm_overlap = False
 
         # PP overlap
@@ -167,7 +175,9 @@ class MegatronCommOverlapCallback(Callback):
         comm_overlap_cfg = self._override_user_cfgs(comm_overlap_cfg)
         return comm_overlap_cfg
 
-    def _get_optimizer_overlap_cfgs(self, parallelism_cfg: ParallelismConfig) -> _CommOverlapConfig:
+    def _get_optimizer_overlap_cfgs(
+        self, parallelism_cfg: ParallelismConfig
+    ) -> _CommOverlapConfig:
         from nemo.utils import AppState
 
         app_state = AppState()
@@ -230,13 +240,13 @@ class MegatronCommOverlapCallback(Callback):
                 so we use the max connections of 32 instead of the default
                 device connection of 8.
                 """
-                if not (os.environ.get('CUDA_DEVICE_MAX_CONNECTIONS', None) == "32"):
+                if not (os.environ.get("CUDA_DEVICE_MAX_CONNECTIONS", None) == "32"):
                     logging.warning(
                         f"Recommend using CUDA_DEVICE_MAX_CONNECTIONS=32 for best performance \
                         but get {os.environ.get('CUDA_DEVICE_MAX_CONNECTIONS', None)}"
                     )
             else:
-                if os.environ.get('CUDA_DEVICE_MAX_CONNECTIONS', None) == "1":
+                if os.environ.get("CUDA_DEVICE_MAX_CONNECTIONS", None) == "1":
                     logging.warning(
                         f"Recommend unsetting CUDA_DEVICE_MAX_CONNECTIONS for best performance \
                         but get {os.environ.get('CUDA_DEVICE_MAX_CONNECTIONS', None)}"
@@ -251,26 +261,34 @@ class MegatronCommOverlapCallback(Callback):
                 communication kernel will be pushed to the end of the GEMM
                 kernel so failing to overlap the kernels.
                 """
-                if not (os.environ.get('CUDA_DEVICE_MAX_CONNECTIONS', None) == "1"):
+                if not (os.environ.get("CUDA_DEVICE_MAX_CONNECTIONS", None) == "1"):
                     logging.warning(
                         f"Recommend using CUDA_DEVICE_MAX_CONNECTIONS=1 for best performance \
                         but get {os.environ.get('CUDA_DEVICE_MAX_CONNECTIONS', None)}"
                     )
 
-    def setup(self, trainer: pl.Trainer, pl_module: pl.LightningModule, stage: str) -> None:
+    def setup(
+        self, trainer: pl.Trainer, pl_module: pl.LightningModule, stage: str
+    ) -> None:
         """Apply configs set in comm_overlap_cfg on trainer config."""
-        assert isinstance(trainer.strategy, MegatronStrategy), "MegatronCommOverlapCallback requires MegatronStrategy"
+        assert isinstance(
+            trainer.strategy, MegatronStrategy
+        ), "MegatronCommOverlapCallback requires MegatronStrategy"
         parallelism_cfg = trainer.strategy.parallelism
 
-        if hasattr(trainer.model, "config") and isinstance(trainer.model.config, ModelParallelConfig):
+        if hasattr(trainer.model, "config") and isinstance(
+            trainer.model.config, ModelParallelConfig
+        ):
             comm_overlap_cfg = self._get_model_comm_overlap_cfgs(parallelism_cfg)
             self._apply_cfgs(comm_overlap_cfg, trainer.model.config)
-            if hasattr(trainer.model, '__io__'):
+            if hasattr(trainer.model, "__io__"):
                 self._apply_cfgs(comm_overlap_cfg, trainer.model.__io__.config)
 
             if trainer.model.config.tp_comm_overlap:
                 self.tp_comm_overlap_cfg = comm_overlap_cfg.tp_comm_overlap_cfg
-                self.tp_comm_bootstrap_backend = comm_overlap_cfg.tp_comm_bootstrap_backend
+                self.tp_comm_bootstrap_backend = (
+                    comm_overlap_cfg.tp_comm_bootstrap_backend
+                )
                 self.need_tp_overlap_ub_init = True
 
         # Data parallel overlap is only available with the Megatron DDP and Distributed optimizer
@@ -283,7 +301,7 @@ class MegatronCommOverlapCallback(Callback):
             comm_overlap_cfg = self._get_optimizer_overlap_cfgs(parallelism_cfg)
             self._apply_cfgs(comm_overlap_cfg, trainer.model.optim.config)
             self._apply_cfgs(comm_overlap_cfg, trainer.strategy.ddp_config)
-            if hasattr(trainer.model, '__io__'):
+            if hasattr(trainer.model, "__io__"):
                 self._apply_cfgs(comm_overlap_cfg, trainer.model.__io__.optim.config)
 
         # setup cuda device max connections
@@ -302,7 +320,9 @@ class MegatronCommOverlapCallback(Callback):
             self.tp_comm_overlap_cfg = asdict(self.tp_comm_overlap_cfg)
             # remove keys with None values from dictionary to match TE's expectations
             self.tp_comm_overlap_cfg = {
-                key: value for key, value in self.tp_comm_overlap_cfg.items() if value is not None
+                key: value
+                for key, value in self.tp_comm_overlap_cfg.items()
+                if value is not None
             }
 
         micro_batch_size = get_micro_batch_size()
@@ -311,7 +331,9 @@ class MegatronCommOverlapCallback(Callback):
         fp8 = model_parallel_cfg.fp8 is not None
 
         input_shape = [
-            sequence_length * micro_batch_size // parallel_state.get_context_parallel_world_size(),
+            sequence_length
+            * micro_batch_size
+            // parallel_state.get_context_parallel_world_size(),
             hidden_size,
         ]
 
@@ -324,7 +346,9 @@ class MegatronCommOverlapCallback(Callback):
                 bootstrap_backend=self.tp_comm_bootstrap_backend,
             )
         except Exception as error:
-            raise Exception(f"Tensor parallel overlap: userbuffer initialization failed with {error}")
+            raise Exception(
+                f"Tensor parallel overlap: userbuffer initialization failed with {error}"
+            )
 
         self.need_tp_overlap_ub_init = False
 
@@ -335,7 +359,9 @@ class MegatronCommOverlapCallback(Callback):
         if self.need_tp_overlap_ub_init:
             self._init_te_userbuffers(trainer.model.config)
 
-    def on_validation_start(self, trainer: pl.Trainer, pl_module: pl.LightningModule) -> None:
+    def on_validation_start(
+        self, trainer: pl.Trainer, pl_module: pl.LightningModule
+    ) -> None:
         """Actions before the validation stage starts."""
         if self.need_tp_overlap_ub_init:
             self._init_te_userbuffers(trainer.model.config)
@@ -345,7 +371,9 @@ class MegatronCommOverlapCallback(Callback):
         if self.need_tp_overlap_ub_init:
             self._init_te_userbuffers(trainer.model.config)
 
-    def on_predict_start(self, trainer: pl.Trainer, pl_module: pl.LightningModule) -> None:
+    def on_predict_start(
+        self, trainer: pl.Trainer, pl_module: pl.LightningModule
+    ) -> None:
         """Actions before the predict stage starts."""
         if self.need_tp_overlap_ub_init:
             self._init_te_userbuffers(trainer.model.config)

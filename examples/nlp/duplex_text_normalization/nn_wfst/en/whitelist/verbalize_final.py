@@ -39,7 +39,9 @@ class VerbalizeFinalFst(GraphFst):
     """
 
     def __init__(self, deterministic: bool = True):
-        super().__init__(name="verbalize_final", kind="verbalize", deterministic=deterministic)
+        super().__init__(
+            name="verbalize_final", kind="verbalize", deterministic=deterministic
+        )
         verbalize = VerbalizeFst(deterministic=deterministic).fst
         word = WordFst(deterministic=deterministic).fst
         types = verbalize | word
@@ -56,5 +58,10 @@ class VerbalizeFinalFst(GraphFst):
             )
         else:
             graph = delete_space + types + delete_space
-        graph = delete_space + pynini.closure(graph + delete_extra_space) + graph + delete_space
+        graph = (
+            delete_space
+            + pynini.closure(graph + delete_extra_space)
+            + graph
+            + delete_space
+        )
         self.fst = graph

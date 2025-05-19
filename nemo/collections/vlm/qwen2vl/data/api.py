@@ -21,12 +21,16 @@ from nemo.collections.vlm.qwen2vl.data.preloaded import \
 
 def mock() -> pl.LightningDataModule:
     """Mock Qwen2-VL Data Module"""
-    return Qwen2VLMockDataModule(seq_length=4096, global_batch_size=16, micro_batch_size=2)
+    return Qwen2VLMockDataModule(
+        seq_length=4096, global_batch_size=16, micro_batch_size=2
+    )
 
 
 def preloaded() -> pl.LightningDataModule:
     """Preloaded Qwen2-VL-like Data Module"""
-    return Qwen2VLPreloadedDataModule(seq_length=4096, global_batch_size=16, micro_batch_size=2)
+    return Qwen2VLPreloadedDataModule(
+        seq_length=4096, global_batch_size=16, micro_batch_size=2
+    )
 
 
 __all__ = ["mock", "preloaded"]

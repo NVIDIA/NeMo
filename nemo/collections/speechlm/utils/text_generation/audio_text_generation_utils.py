@@ -45,7 +45,9 @@ try:
         reconfigure_num_microbatches_calculator
 
 except (ImportError, ModuleNotFoundError):
-    logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
+    logging.warning(
+        "Megatron num_microbatches_calculator not found, using Apex version."
+    )
     from apex.transformer.pipeline_parallel.utils import \
         _reconfigure_microbatch_calculator as \
         reconfigure_num_microbatches_calculator
@@ -58,7 +60,7 @@ __all__ = [
 ]
 
 
-default_inference_config = {'tokens_to_generate': 64}
+default_inference_config = {"tokens_to_generate": 64}
 
 
 def clean_end_string(text: list[str], tokenizer, end_string: Optional[str] = None):
@@ -135,9 +137,12 @@ def send_generate_info(
 
     # send end strings
     string_tensor = torch.as_tensor(
-        np.frombuffer(pickle.dumps(end_strings), dtype=np.int8), device=torch.cuda.current_device()
+        np.frombuffer(pickle.dumps(end_strings), dtype=np.int8),
+        device=torch.cuda.current_device(),
     )
-    size = torch.as_tensor([string_tensor.size(0)], device=torch.cuda.current_device(), dtype=torch.int64)
+    size = torch.as_tensor(
+        [string_tensor.size(0)], device=torch.cuda.current_device(), dtype=torch.int64
+    )
     torch.distributed.broadcast(size, src, model_parallel_group)
     torch.distributed.broadcast(string_tensor, src, model_parallel_group)
 
@@ -146,9 +151,14 @@ def send_generate_info(
 
     if context_start_idx is not None:
         context_idx_tensor = torch.as_tensor(
-            np.frombuffer(pickle.dumps(context_start_idx), dtype=np.int8), device=torch.cuda.current_device()
+            np.frombuffer(pickle.dumps(context_start_idx), dtype=np.int8),
+            device=torch.cuda.current_device(),
         )
-        ctx_size = torch.as_tensor([context_idx_tensor.size(0)], device=torch.cuda.current_device(), dtype=torch.int64)
+        ctx_size = torch.as_tensor(
+            [context_idx_tensor.size(0)],
+            device=torch.cuda.current_device(),
+            dtype=torch.int64,
+        )
         torch.distributed.broadcast(ctx_size, src, model_parallel_group)
         torch.distributed.broadcast(context_idx_tensor, src, model_parallel_group)
 
@@ -159,14 +169,18 @@ def receive_generate_info(has_multi_audios=False):
     """
     model_parallel_group = parallel_state.get_model_parallel_group()
     src = text_generation_utils.get_model_parallel_src_rank()
-    input_info_tensor = torch.empty(12, dtype=torch.float32, device=torch.cuda.current_device())
+    input_info_tensor = torch.empty(
+        12, dtype=torch.float32, device=torch.cuda.current_device()
+    )
     torch.distributed.broadcast(input_info_tensor, src, model_parallel_group)
     batch_size = int(input_info_tensor[0].item())
     seq_len = int(input_info_tensor[1].item())
     audio_len = int(input_info_tensor[2].item())
     tokens_to_generate = int(input_info_tensor[3].item())
     all_probs = bool(input_info_tensor[4].item())
-    compute_logprob = bool(input_info_tensor[5].item())  # whether to compute log probabilities matrix
+    compute_logprob = bool(
+        input_info_tensor[5].item()
+    )  # whether to compute log probabilities matrix
     temperature = float(input_info_tensor[6].item())
     top_k = int(input_info_tensor[7].item())
     top_p = float(input_info_tensor[8].item())
@@ -174,14 +188,22 @@ def receive_generate_info(has_multi_audios=False):
     repetition_penalty = float(input_info_tensor[10].item())
     min_tokens_to_generate = int(input_info_tensor[11].item())
 
-    context_length_tensor = torch.empty(batch_size, dtype=torch.int64, device=torch.cuda.current_device())
-    context_tokens_tensor = torch.empty(batch_size, seq_len, dtype=torch.int64, device=torch.cuda.current_device())
+    context_length_tensor = torch.empty(
+        batch_size, dtype=torch.int64, device=torch.cuda.current_device()
+    )
+    context_tokens_tensor = torch.empty(
+        batch_size, seq_len, dtype=torch.int64, device=torch.cuda.current_device()
+    )
     # Send variables to all ranks
     torch.distributed.broadcast(context_length_tensor, src, model_parallel_group)
     torch.distributed.broadcast(context_tokens_tensor, src, model_parallel_group)
 
-    audio_signal = torch.empty(batch_size, audio_len, dtype=torch.float32, device=torch.cuda.current_device())
-    audio_signal_length = torch.empty(batch_size, dtype=torch.int64, device=torch.cuda.current_device())
+    audio_signal = torch.empty(
+        batch_size, audio_len, dtype=torch.float32, device=torch.cuda.current_device()
+    )
+    audio_signal_length = torch.empty(
+        batch_size, dtype=torch.int64, device=torch.cuda.current_device()
+    )
     # Send variables to all ranks
     torch.distributed.broadcast(audio_signal, src, model_parallel_group)
     torch.distributed.broadcast(audio_signal_length, src, model_parallel_group)
@@ -189,7 +211,9 @@ def receive_generate_info(has_multi_audios=False):
     array_size = torch.empty(1, dtype=torch.int64, device=torch.cuda.current_device())
     torch.distributed.broadcast(array_size, src, model_parallel_group)
 
-    string_tensor = torch.empty(array_size[0], dtype=torch.int8, device=torch.cuda.current_device())
+    string_tensor = torch.empty(
+        array_size[0], dtype=torch.int8, device=torch.cuda.current_device()
+    )
     torch.distributed.broadcast(string_tensor, src, model_parallel_group)
     bytes = string_tensor.cpu().numpy().tobytes()
     end_strings = pickle.loads(bytes)
@@ -197,12 +221,18 @@ def receive_generate_info(has_multi_audios=False):
     num_audios = None
     context_start_idx = None
     if has_multi_audios:
-        num_audios = torch.empty(batch_size, dtype=torch.int64, device=torch.cuda.current_device())
+        num_audios = torch.empty(
+            batch_size, dtype=torch.int64, device=torch.cuda.current_device()
+        )
         torch.distributed.broadcast(num_audios, src, model_parallel_group)
 
-        array_size = torch.empty(1, dtype=torch.int64, device=torch.cuda.current_device())
+        array_size = torch.empty(
+            1, dtype=torch.int64, device=torch.cuda.current_device()
+        )
         torch.distributed.broadcast(array_size, src, model_parallel_group)
-        context_idx_tensor = torch.empty(array_size[0], dtype=torch.int8, device=torch.cuda.current_device())
+        context_idx_tensor = torch.empty(
+            array_size[0], dtype=torch.int8, device=torch.cuda.current_device()
+        )
         torch.distributed.broadcast(context_idx_tensor, src, model_parallel_group)
         bytes = context_idx_tensor.cpu().numpy().tobytes()
         context_start_idx = pickle.loads(bytes)
@@ -277,7 +307,13 @@ def synced_generate(
             context_start_idx=context_start_idx,
         )
 
-    for tokens, lengths, output_logits, full_logits, audio_feat_lens in batch_token_iterator:
+    for (
+        tokens,
+        lengths,
+        output_logits,
+        full_logits,
+        audio_feat_lens,
+    ) in batch_token_iterator:
         context_length += 1
     context_length += audio_feat_lens.min().item()
     if parallel_state.is_pipeline_last_stage(ignore_virtual=True):
@@ -304,7 +340,10 @@ def synced_generate(
                 else:
                     dtype = torch.float32
                 output_logits = torch.empty(
-                    tokens.size(0), context_length - 1, dtype=dtype, device=torch.device("cuda")
+                    tokens.size(0),
+                    context_length - 1,
+                    dtype=dtype,
+                    device=torch.device("cuda"),
                 )
                 torch.distributed.broadcast(output_logits, src, group)
 
@@ -336,7 +375,7 @@ def generate(
     compute_attention_mask=True,
     compute_logprob=False,
     repetition_penalty=1.0,
-    end_strings=['<|endoftext|>'],
+    end_strings=["<|endoftext|>"],
     min_tokens_to_generate=0,
     **strategy_args,
 ) -> OutputType:
@@ -363,8 +402,8 @@ def generate(
             token_ids: List[Tensor], output sentence token ids
             offsets: List[List[int]]  # list of tokens start positions in text
     """
-    if strategy_args.get('strategy', None) is not None:
-        inference_strategy = strategy_args['strategy']
+    if strategy_args.get("strategy", None) is not None:
+        inference_strategy = strategy_args["strategy"]
     else:
         inference_strategy = model_inference_strategy_dispatcher(model)
     tokenizer = model.tokenizer
@@ -376,8 +415,15 @@ def generate(
     if isinstance(inputs, tuple) and len(inputs) == 2:  # only LLM
         context_tokens_tensor, context_length_tensor = inputs
     elif isinstance(inputs, tuple) and len(inputs) == 4:  # single audio in each sample
-        context_tokens_tensor, context_length_tensor, audio_signal, audio_signal_length = inputs
-    elif isinstance(inputs, tuple) and len(inputs) == 6:  # possible multi-audio in each sample
+        (
+            context_tokens_tensor,
+            context_length_tensor,
+            audio_signal,
+            audio_signal_length,
+        ) = inputs
+    elif (
+        isinstance(inputs, tuple) and len(inputs) == 6
+    ):  # possible multi-audio in each sample
         # has_multi_audios = True # commented out to make sure inference using TP > 1 works with lhotse dataloader
         (
             context_tokens_tensor,
@@ -473,19 +519,19 @@ def generate(
         context_start_idx=context_start_idx,
     )
     special_tokens = set()
-    if hasattr(tokenizer, 'pad_token') and tokenizer.pad_token is not None:
+    if hasattr(tokenizer, "pad_token") and tokenizer.pad_token is not None:
         special_tokens.add(tokenizer.pad_token)
-    if hasattr(tokenizer, 'eos_token') and tokenizer.eos_token is not None:
+    if hasattr(tokenizer, "eos_token") and tokenizer.eos_token is not None:
         special_tokens.add(tokenizer.eos_token)
-    if hasattr(tokenizer, 'bos_token') and tokenizer.bos_token is not None:
+    if hasattr(tokenizer, "bos_token") and tokenizer.bos_token is not None:
         special_tokens.add(tokenizer.bos_token)
-    if hasattr(tokenizer, 'cls_token') and tokenizer.cls_token is not None:
+    if hasattr(tokenizer, "cls_token") and tokenizer.cls_token is not None:
         special_tokens.add(tokenizer.cls_token)
-    if hasattr(tokenizer, 'unk_token') and tokenizer.unk_token is not None:
+    if hasattr(tokenizer, "unk_token") and tokenizer.unk_token is not None:
         special_tokens.add(tokenizer.unk_token)
-    if hasattr(tokenizer, 'sep_token') and tokenizer.sep_token is not None:
+    if hasattr(tokenizer, "sep_token") and tokenizer.sep_token is not None:
         special_tokens.add(tokenizer.sep_token)
-    if hasattr(tokenizer, 'mask_token') and tokenizer.mask_token is not None:
+    if hasattr(tokenizer, "mask_token") and tokenizer.mask_token is not None:
         special_tokens.add(tokenizer.mask_token)
     if output is not None:
         decode_tokens, output_logits, full_logits, audio_feat_lens = output
@@ -504,10 +550,10 @@ def generate(
                     word = tokenizer.ids_to_tokens(token)
                     if isinstance(word, Iterable):
                         word = word[0]
-                    if hasattr(tokenizer.tokenizer, 'byte_decoder'):
-                        word = bytearray([tokenizer.tokenizer.byte_decoder[c] for c in word]).decode(
-                            'utf-8', errors='replace'
-                        )
+                    if hasattr(tokenizer.tokenizer, "byte_decoder"):
+                        word = bytearray(
+                            [tokenizer.tokenizer.byte_decoder[c] for c in word]
+                        ).decode("utf-8", errors="replace")
                     words.append(word)
                 resp_sentences_seg.append(words)
             else:
@@ -527,13 +573,13 @@ def generate(
             all_offsets.append(offsets)
 
         output = {}
-        output['sentences'] = resp_sentences
-        output['tokens'] = resp_sentences_seg
-        output['logprob'] = output_logits
-        output['full_logprob'] = full_logits
-        output['token_ids'] = decode_tokens
-        output['offsets'] = all_offsets
-        output['audio_feat_lens'] = audio_feat_lens
+        output["sentences"] = resp_sentences
+        output["tokens"] = resp_sentences_seg
+        output["logprob"] = output_logits
+        output["full_logprob"] = full_logits
+        output["token_ids"] = decode_tokens
+        output["offsets"] = all_offsets
+        output["audio_feat_lens"] = audio_feat_lens
         output = inference_strategy.post_generation_process(output)
         return output
     return None
@@ -557,7 +603,7 @@ def sample_sequence_batch(
     compute_logprob=False,
     type_ids=None,
     temperature=None,
-    end_strings=['<|endoftext|>'],
+    end_strings=["<|endoftext|>"],
     extra={},
     num_audios: Optional[torch.Tensor] = None,
     context_start_idx: Optional[List[List[int]]] = None,
@@ -573,26 +619,28 @@ def sample_sequence_batch(
     )
     assert tokens_to_generate > 0, "tokens_to_generate should be > 0"
     assert (
-        model.cfg.get('sequence_parallel', False) == False
-    ), 'sequence_parallel should be False during inference. Disable it in the model config if restoring from nemo or in hparams.yaml if restoring from PTL checkpoint'
+        model.cfg.get("sequence_parallel", False) == False
+    ), "sequence_parallel should be False during inference. Disable it in the model config if restoring from nemo or in hparams.yaml if restoring from PTL checkpoint"
     assert (
-        model.cfg.get('activations_checkpoint_granularity', None) is None
-    ), 'activations_checkpoint_granularity should be None during inference. Disable it in the model config if restoring from nemo or in hparams.yaml if restoring from PTL checkpoint'
+        model.cfg.get("activations_checkpoint_granularity", None) is None
+    ), "activations_checkpoint_granularity should be None during inference. Disable it in the model config if restoring from nemo or in hparams.yaml if restoring from PTL checkpoint"
     assert (
-        model.cfg.get('activations_checkpoint_method', None) is None
-    ), 'activations_checkpoint_method should be None during inference. Disable it in the model config if restoring from nemo or in hparams.yaml if restoring from PTL checkpoint'
+        model.cfg.get("activations_checkpoint_method", None) is None
+    ), "activations_checkpoint_method should be None during inference. Disable it in the model config if restoring from nemo or in hparams.yaml if restoring from PTL checkpoint"
 
     tokenizer = model.tokenizer
     # initialize the batch
     with torch.no_grad():
-        context_tokens, input_embeddings, audio_feat_lens = inference_strategy.init_batch(
-            context_tokens,
-            context_lengths,
-            audio_signal,
-            audio_signal_length,
-            compute_attention_mask,
-            num_audios,
-            context_start_idx,
+        context_tokens, input_embeddings, audio_feat_lens = (
+            inference_strategy.init_batch(
+                context_tokens,
+                context_lengths,
+                audio_signal,
+                audio_signal_length,
+                compute_attention_mask,
+                num_audios,
+                context_start_idx,
+            )
         )
         audio_text_context_lengths = context_lengths + audio_feat_lens
         context_length = audio_text_context_lengths.min().item()
@@ -620,40 +668,53 @@ def sample_sequence_batch(
                 context_length,
                 compute_attention_mask,
             )
-            output = inference_strategy.forward_step(batch)  # logits output from the model
+            output = inference_strategy.forward_step(
+                batch
+            )  # logits output from the model
             if parallel_state.is_pipeline_last_stage(ignore_virtual=True):
                 if compute_logprob:
-                    output = tensor_parallel.gather_from_tensor_model_parallel_region(output)
+                    output = tensor_parallel.gather_from_tensor_model_parallel_region(
+                        output
+                    )
                     assert output is not None
                     logits = output[:, -1].view(batch_size, -1).contiguous()
 
                 else:
                     logits = output[:, -1].contiguous()
-                    logits = tensor_parallel.gather_from_tensor_model_parallel_region(logits)
+                    logits = tensor_parallel.gather_from_tensor_model_parallel_region(
+                        logits
+                    )
                     assert logits is not None
                     logits = logits.view(batch_size, -1)
 
                 # make sure it will generate at least min_length
-                min_length = extra.get('min_tokens_to_generate', 0)
+                min_length = extra.get("min_tokens_to_generate", 0)
                 if min_length > 0:
-                    within_min_length = (context_length - audio_text_context_lengths) < min_length
-                    logits[within_min_length, eod_id] = -float('Inf')
+                    within_min_length = (
+                        context_length - audio_text_context_lengths
+                    ) < min_length
+                    logits[within_min_length, eod_id] = -float("Inf")
                 # make sure it won't sample outside the vocab_size range
-                logits[:, tokenizer.vocab_size :] = -float('Inf')
+                logits[:, tokenizer.vocab_size :] = -float("Inf")
 
                 # started indicates whether the current token step passes the context_length, so we make sure not to overwrite the context tokens
                 started = audio_text_context_lengths <= context_length
-                if extra.get('greedy', False):
+                if extra.get("greedy", False):
                     prev = torch.argmax(logits, dim=-1).view(-1)
                 else:
                     logits = logits.float()
                     logits /= temperature
                     # handle repetition penality
                     logits = text_generation_utils.repetition_penalty(
-                        logits, extra.get('repetition_penalty', 1.2), all_generated_indices
+                        logits,
+                        extra.get("repetition_penalty", 1.2),
+                        all_generated_indices,
                     )
                     logits = text_generation_utils.top_k_logits(
-                        logits, top_k=extra.get('top_k', 0), top_p=extra.get('top_p', 0.9), started=started
+                        logits,
+                        top_k=extra.get("top_k", 0),
+                        top_p=extra.get("top_p", 0.9),
+                        started=started,
                     )
                     probs = F.softmax(logits, dim=-1)
                     # TODO(zhehuai)
@@ -689,7 +750,9 @@ def sample_sequence_batch(
 
                         # TODO(rprenger) we're copying output_logits every time.  Should pre-allocate
                         output_logits = torch.cat([output_logits, new_output_logits], 1)
-                        all_generated_indices = torch.cat([all_generated_indices, indices[:, :, 0]], 1)
+                        all_generated_indices = torch.cat(
+                            [all_generated_indices, indices[:, :, 0]], 1
+                        )
                         if all_probs:
                             full_logits = torch.cat([full_logits, output], 1)
 

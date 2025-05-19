@@ -55,28 +55,50 @@ class LoopLabelsState:
     batch_size: int  # (maximum) length of internal storage for batch dimension
     device: torch.device  # device to store preallocated tensors
 
-    encoder_output_projected: torch.Tensor  # projected output from the encoder for decoding algorithm
-    encoder_output_length: torch.Tensor  # length of the (projected) output from the encoder
+    encoder_output_projected: (
+        torch.Tensor
+    )  # projected output from the encoder for decoding algorithm
+    encoder_output_length: (
+        torch.Tensor
+    )  # length of the (projected) output from the encoder
 
     labels: torch.Tensor  # storage for current labels
     scores: torch.Tensor  # storage for current scores
 
-    batch_indices: torch.Tensor  # indices of elements in batch (constant, range [0, batch_size-1])
+    batch_indices: (
+        torch.Tensor
+    )  # indices of elements in batch (constant, range [0, batch_size-1])
 
     time_indices: torch.Tensor  # current time indices for each element in batch
-    safe_time_indices: torch.Tensor  # current time indices, but guaranteed to be < encoder_output_length
-    time_indices_current_labels: torch.Tensor  # time indices for found labels (corresponding to `labels` field)
-    last_timesteps: torch.Tensor  # indices of the last timesteps for each element (encoder_output_length - 1)
+    safe_time_indices: (
+        torch.Tensor
+    )  # current time indices, but guaranteed to be < encoder_output_length
+    time_indices_current_labels: (
+        torch.Tensor
+    )  # time indices for found labels (corresponding to `labels` field)
+    last_timesteps: (
+        torch.Tensor
+    )  # indices of the last timesteps for each element (encoder_output_length - 1)
 
-    active_mask: torch.Tensor  # mask for active hypotheses (the decoding is finished for the utterance if it is False)
-    advance_mask: torch.Tensor  # mask for "advancing" hypotheses (blank is found for the element on the current step)
+    active_mask: (
+        torch.Tensor
+    )  # mask for active hypotheses (the decoding is finished for the utterance if it is False)
+    advance_mask: (
+        torch.Tensor
+    )  # mask for "advancing" hypotheses (blank is found for the element on the current step)
     blank_mask: torch.Tensor  # if the element is blank
     # if the element was active on the previous step: to identify the end of decoding and store final hidden state
     active_mask_prev: torch.Tensor
-    became_inactive_mask: torch.Tensor  # mask for elements that became inactive (end of decoding)
+    became_inactive_mask: (
+        torch.Tensor
+    )  # mask for elements that became inactive (end of decoding)
 
-    active_mask_any: torch.Tensor  # 0-dim bool tensor, condition for outer loop ('any element is still active')
-    advance_mask_any: torch.Tensor  # 0-dim bool tensor, condition for inner loop ('should advance any index')
+    active_mask_any: (
+        torch.Tensor
+    )  # 0-dim bool tensor, condition for outer loop ('any element is still active')
+    advance_mask_any: (
+        torch.Tensor
+    )  # 0-dim bool tensor, condition for inner loop ('should advance any index')
 
     last_decoder_state: Any  # last state from the decoder, needed for the output
     decoder_state: Any  # current decoder state
@@ -124,20 +146,30 @@ class LoopLabelsState:
             dtype=float_dtype,
             device=self.device,
         )
-        self.encoder_output_length = torch.zeros((self.batch_size,), dtype=torch.long, device=self.device)
+        self.encoder_output_length = torch.zeros(
+            (self.batch_size,), dtype=torch.long, device=self.device
+        )
 
-        self.labels = torch.zeros([self.batch_size], dtype=torch.long, device=self.device)
-        self.scores = torch.zeros([self.batch_size], dtype=float_dtype, device=self.device)
+        self.labels = torch.zeros(
+            [self.batch_size], dtype=torch.long, device=self.device
+        )
+        self.scores = torch.zeros(
+            [self.batch_size], dtype=float_dtype, device=self.device
+        )
 
         # indices of elements in batch (constant)
-        self.batch_indices = torch.arange(self.batch_size, dtype=torch.long, device=self.device)
+        self.batch_indices = torch.arange(
+            self.batch_size, dtype=torch.long, device=self.device
+        )
 
         self.time_indices = torch.zeros_like(self.batch_indices)
         self.safe_time_indices = torch.zeros_like(self.batch_indices)
         self.time_indices_current_labels = torch.zeros_like(self.time_indices)
         self.last_timesteps = torch.zeros_like(self.time_indices)
 
-        self.active_mask = torch.zeros([self.batch_size], dtype=torch.bool, device=self.device)
+        self.active_mask = torch.zeros(
+            [self.batch_size], dtype=torch.bool, device=self.device
+        )
         self.advance_mask = torch.zeros_like(self.active_mask)
         self.blank_mask = torch.zeros_like(self.active_mask)
         self.active_mask_prev = torch.zeros_like(self.active_mask)
@@ -178,13 +210,19 @@ class LoopLabelsState:
 class SeparateGraphsLoopLabels:
     """Class to store Cuda graphs for decoding when separate graphs are used"""
 
-    before_outer_loop: torch.cuda.CUDAGraph = field(default_factory=torch.cuda.CUDAGraph)
-    before_inner_loop: torch.cuda.CUDAGraph = field(default_factory=torch.cuda.CUDAGraph)
+    before_outer_loop: torch.cuda.CUDAGraph = field(
+        default_factory=torch.cuda.CUDAGraph
+    )
+    before_inner_loop: torch.cuda.CUDAGraph = field(
+        default_factory=torch.cuda.CUDAGraph
+    )
     inner_loop_code: torch.cuda.CUDAGraph = field(default_factory=torch.cuda.CUDAGraph)
     after_inner_loop: torch.cuda.CUDAGraph = field(default_factory=torch.cuda.CUDAGraph)
 
 
-class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
+class GreedyBatchedRNNTLoopLabelsComputer(
+    WithOptionalCudaGraphs, ConfidenceMethodMixin
+):
     """
     Label Looping algorithm implementation: optimized batched greedy decoding. Callable.
     Iterates over labels, on each step finding the next non-blank label
@@ -198,8 +236,12 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
     CUDA_PROGRAM_NAME = b"while_loop_labels_conditional_rnnt.cu"
 
     class CudaGraphsMode(PrettyStrEnum):
-        FULL_GRAPH = "full_graph"  # Cuda graphs with conditional nodes, fastest implementation
-        NO_WHILE_LOOPS = "no_while_loops"  # Decoding with PyTorch while loops + partial Cuda graphs
+        FULL_GRAPH = (
+            "full_graph"  # Cuda graphs with conditional nodes, fastest implementation
+        )
+        NO_WHILE_LOOPS = (
+            "no_while_loops"  # Decoding with PyTorch while loops + partial Cuda graphs
+        )
         NO_GRAPHS = "no_graphs"  # decoding without graphs, stateful implementation, only for testing purposes
 
     separate_graphs: Optional[SeparateGraphsLoopLabels]
@@ -254,8 +296,13 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
         self.maybe_enable_cuda_graphs()
 
         if ngram_lm_model is not None:
-            assert self._blank_index == self.joint.num_classes_with_blank - self.joint.num_extra_outputs - 1
-            self.ngram_lm_batch = NGramGPULanguageModel.from_file(lm_path=ngram_lm_model, vocab_size=self._blank_index)
+            assert (
+                self._blank_index
+                == self.joint.num_classes_with_blank - self.joint.num_extra_outputs - 1
+            )
+            self.ngram_lm_batch = NGramGPULanguageModel.from_file(
+                lm_path=ngram_lm_model, vocab_size=self._blank_index
+            )
         else:
             self.ngram_lm_batch = None
         self.ngram_lm_alpha = ngram_lm_alpha
@@ -280,7 +327,9 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
             # cuda graphs are allowed
             # check basic requirements for cuda graphs
             if self.max_symbols is None:
-                logging.warning("Max symbols per step is None, which is not allowed with Cuda graphs. Setting to `10`")
+                logging.warning(
+                    "Max symbols per step is None, which is not allowed with Cuda graphs. Setting to `10`"
+                )
                 self.max_symbols = 10
             # basic requirements met, need to check while loops
             try:
@@ -324,7 +373,9 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
         batch_size, max_time, _unused = encoder_output.shape
         device = encoder_output.device
         if self.ngram_lm_batch is not None:
-            self.ngram_lm_batch.to(device)  # ngram_lm_batch is nn.Module, but self is not; need to move manually
+            self.ngram_lm_batch.to(
+                device
+            )  # ngram_lm_batch is nn.Module, but self is not; need to move manually
 
         # do not recalculate joint projection, project only once
         encoder_output_projected = self.joint.project_encoder(encoder_output)
@@ -334,7 +385,11 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
         # init empty batched hypotheses
         batched_hyps = rnnt_utils.BatchedHyps(
             batch_size=batch_size,
-            init_length=max_time * self.max_symbols if self.max_symbols is not None else max_time,
+            init_length=(
+                max_time * self.max_symbols
+                if self.max_symbols is not None
+                else max_time
+            ),
             device=device,
             float_dtype=float_dtype,
         )
@@ -346,7 +401,9 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
         alignments = rnnt_utils.BatchedAlignments(
             batch_size=batch_size,
             logits_dim=self.joint.num_classes_with_blank,
-            init_length=max_time * 2 if use_alignments else 1,  # blank for each timestep + text tokens
+            init_length=(
+                max_time * 2 if use_alignments else 1
+            ),  # blank for each timestep + text tokens
             device=device,
             float_dtype=float_dtype,
             store_alignments=self.preserve_alignments,
@@ -362,7 +419,9 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
 
         # time indices
         time_indices = torch.zeros_like(batch_indices)
-        safe_time_indices = torch.zeros_like(time_indices)  # time indices, guaranteed to be < out_len
+        safe_time_indices = torch.zeros_like(
+            time_indices
+        )  # time indices, guaranteed to be < out_len
         time_indices_current_labels = torch.zeros_like(time_indices)
         last_timesteps = encoder_output_length - 1
 
@@ -375,7 +434,9 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
         became_inactive_mask = torch.empty_like(active_mask)
 
         if self.ngram_lm_batch is not None:
-            batch_lm_states = self.ngram_lm_batch.get_init_states(batch_size=batch_size, bos=True)
+            batch_lm_states = self.ngram_lm_batch.get_init_states(
+                batch_size=batch_size, bos=True
+            )
 
         # loop while there are active utterances
         while active_mask.any():
@@ -384,13 +445,17 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
             decoder_output, state, *_ = self.decoder.predict(
                 labels.unsqueeze(1), state, add_sos=False, batch_size=batch_size
             )
-            decoder_output = self.joint.project_prednet(decoder_output)  # do not recalculate joint projection
+            decoder_output = self.joint.project_prednet(
+                decoder_output
+            )  # do not recalculate joint projection
 
             # stage 2: get joint output, iteratively seeking for non-blank labels
             # blank label in `labels` tensor means "end of hypothesis" (for this index)
             logits = (
                 self.joint.joint_after_projection(
-                    encoder_output_projected[batch_indices, safe_time_indices].unsqueeze(1),
+                    encoder_output_projected[
+                        batch_indices, safe_time_indices
+                    ].unsqueeze(1),
                     decoder_output,
                 )
                 .squeeze(1)
@@ -403,10 +468,16 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
                 )  # vocab_size_no_blank
                 lm_scores = lm_scores.to(dtype=float_dtype)
                 # combined scores with LM - without blank
-                scores_w_lm, labels_w_lm = (logits[:, :-1] + self.ngram_lm_alpha * lm_scores).max(dim=-1)
+                scores_w_lm, labels_w_lm = (
+                    logits[:, :-1] + self.ngram_lm_alpha * lm_scores
+                ).max(dim=-1)
                 # preserve "blank" / "non-blank" category
-                torch.where(labels == self._blank_index, labels, labels_w_lm, out=labels)
-                torch.where(labels == self._blank_index, scores, scores_w_lm, out=scores)
+                torch.where(
+                    labels == self._blank_index, labels, labels_w_lm, out=labels
+                )
+                torch.where(
+                    labels == self._blank_index, scores, scores_w_lm, out=scores
+                )
 
             # search for non-blank labels using joint, advancing time indices for blank labels
             # checking max_symbols is not needed, since we already forced advancing time indices for such cases
@@ -419,7 +490,9 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
                     logits=logits if self.preserve_alignments else None,
                     labels=labels if self.preserve_alignments else None,
                     confidence=(
-                        self._get_confidence_tensor(F.log_softmax(logits, dim=-1)).to(dtype=float_dtype)
+                        self._get_confidence_tensor(F.log_softmax(logits, dim=-1)).to(
+                            dtype=float_dtype
+                        )
                         if self.preserve_frame_confidence
                         else None
                     ),
@@ -436,10 +509,17 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
             while advance_mask.any():
                 # same as: time_indices_current_labels[advance_mask] = time_indices[advance_mask], but non-blocking
                 # store current time indices to use further for storing the results
-                torch.where(advance_mask, time_indices, time_indices_current_labels, out=time_indices_current_labels)
+                torch.where(
+                    advance_mask,
+                    time_indices,
+                    time_indices_current_labels,
+                    out=time_indices_current_labels,
+                )
                 logits = (
                     self.joint.joint_after_projection(
-                        encoder_output_projected[batch_indices, safe_time_indices].unsqueeze(1),
+                        encoder_output_projected[
+                            batch_indices, safe_time_indices
+                        ].unsqueeze(1),
                         decoder_output,
                     )
                     .squeeze(1)
@@ -450,9 +530,16 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
                 more_scores, more_labels = logits.max(dim=-1)
                 if self.ngram_lm_batch is not None:
                     # combined scores with LM - without blank
-                    more_scores_w_lm, more_labels_w_lm = (logits[:, :-1] + self.ngram_lm_alpha * lm_scores).max(dim=-1)
+                    more_scores_w_lm, more_labels_w_lm = (
+                        logits[:, :-1] + self.ngram_lm_alpha * lm_scores
+                    ).max(dim=-1)
                     # preserve "blank" / "non-blank" category
-                    torch.where(more_labels == self._blank_index, more_labels, more_labels_w_lm, out=more_labels)
+                    torch.where(
+                        more_labels == self._blank_index,
+                        more_labels,
+                        more_labels_w_lm,
+                        out=more_labels,
+                    )
                 # same as: labels[advance_mask] = more_labels[advance_mask], but non-blocking
                 torch.where(advance_mask, more_labels, labels, out=labels)
                 # same as: scores[advance_mask] = more_scores[advance_mask], but non-blocking
@@ -465,7 +552,9 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
                         logits=logits if self.preserve_alignments else None,
                         labels=more_labels if self.preserve_alignments else None,
                         confidence=(
-                            self._get_confidence_tensor(F.log_softmax(logits, dim=-1)).to(dtype=float_dtype)
+                            self._get_confidence_tensor(
+                                F.log_softmax(logits, dim=-1)
+                            ).to(dtype=float_dtype)
                             if self.preserve_frame_confidence
                             else None
                         ),
@@ -563,8 +652,12 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
             self._graph_reinitialize(encoder_output, encoder_output_length)
 
         # copy (projected) encoder output and lenghts
-        self.state.encoder_output_projected[:current_batch_size, :current_max_time, ...].copy_(encoder_output)
-        self.state.encoder_output_length[: encoder_output_length.shape[0]].copy_(encoder_output_length)
+        self.state.encoder_output_projected[
+            :current_batch_size, :current_max_time, ...
+        ].copy_(encoder_output)
+        self.state.encoder_output_length[: encoder_output_length.shape[0]].copy_(
+            encoder_output_length
+        )
         # set length to zero for elements outside the current batch
         self.state.encoder_output_length[current_batch_size:].fill_(0)
         if self.cuda_graphs_mode is self.CudaGraphsMode.FULL_GRAPH:
@@ -612,7 +705,9 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
          cudaGraphSetConditional(handle, *active_mask_any);
         }
         """
-        return run_nvrtc(kernel_string, b"outer_loop_labels_conditional", cls.CUDA_PROGRAM_NAME)
+        return run_nvrtc(
+            kernel_string, b"outer_loop_labels_conditional", cls.CUDA_PROGRAM_NAME
+        )
 
     @classmethod
     def _create_inner_while_loop_kernel(cls):
@@ -631,7 +726,9 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
          cudaGraphSetConditional(handle, *advance_mask_any);
         }
         """
-        return run_nvrtc(kernel_string, b"inner_find_non_blank_conditional", cls.CUDA_PROGRAM_NAME)
+        return run_nvrtc(
+            kernel_string, b"inner_find_non_blank_conditional", cls.CUDA_PROGRAM_NAME
+        )
 
     def _graph_reinitialize(
         self,
@@ -652,10 +749,17 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
             preserve_frame_confidence=self.preserve_frame_confidence,
         )
 
-        self.state.last_decoder_state = self.decoder.initialize_state(encoder_output_projected)
-        self.state.decoder_state = self.decoder.initialize_state(encoder_output_projected)
+        self.state.last_decoder_state = self.decoder.initialize_state(
+            encoder_output_projected
+        )
+        self.state.decoder_state = self.decoder.initialize_state(
+            encoder_output_projected
+        )
         decoder_output, *_ = self.decoder.predict(
-            self.state.labels.unsqueeze(1), self.state.decoder_state, add_sos=False, batch_size=self.state.batch_size
+            self.state.labels.unsqueeze(1),
+            self.state.decoder_state,
+            add_sos=False,
+            batch_size=self.state.batch_size,
         )
         # to avoid recalculation of joint projection, store decoder output in state
         self.state.decoder_output = self.joint.project_prednet(decoder_output)
@@ -664,14 +768,18 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
             device = encoder_output_projected.device
             float_dtype = encoder_output_projected.dtype
             vocab_size = self.ngram_lm_batch.vocab_size
-            self.ngram_lm_batch.to(device)  # ngram_lm_batch is nn.Module, but self is not; need to move manually
+            self.ngram_lm_batch.to(
+                device
+            )  # ngram_lm_batch is nn.Module, but self is not; need to move manually
             self.state.batch_lm_states = self.ngram_lm_batch.get_init_states(
                 batch_size=self.state.batch_size, bos=True
             )
             self.state.batch_lm_states_candidates = torch.zeros(
                 [batch_size, vocab_size], dtype=torch.long, device=device
             )
-            self.state.lm_scores = torch.zeros([batch_size, vocab_size], dtype=float_dtype, device=device)
+            self.state.lm_scores = torch.zeros(
+                [batch_size, vocab_size], dtype=float_dtype, device=device
+            )
 
         # warmup before graph compilation
         self._warmup_for_cuda_graphs()
@@ -716,7 +824,9 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
             torch.cuda.stream(stream_for_graph),
             torch.inference_mode(),
             torch.cuda.graph(
-                self.separate_graphs.before_outer_loop, stream=stream_for_graph, capture_error_mode="thread_local"
+                self.separate_graphs.before_outer_loop,
+                stream=stream_for_graph,
+                capture_error_mode="thread_local",
             ),
         ):
             self._before_outer_loop()
@@ -725,7 +835,9 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
             torch.cuda.stream(stream_for_graph),
             torch.inference_mode(),
             torch.cuda.graph(
-                self.separate_graphs.before_inner_loop, stream=stream_for_graph, capture_error_mode="thread_local"
+                self.separate_graphs.before_inner_loop,
+                stream=stream_for_graph,
+                capture_error_mode="thread_local",
             ),
         ):
             self._before_inner_loop_get_decoder_output()
@@ -735,7 +847,9 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
             torch.cuda.stream(stream_for_graph),
             torch.inference_mode(),
             torch.cuda.graph(
-                self.separate_graphs.inner_loop_code, stream=stream_for_graph, capture_error_mode="thread_local"
+                self.separate_graphs.inner_loop_code,
+                stream=stream_for_graph,
+                capture_error_mode="thread_local",
             ),
         ):
             self._inner_loop_code()
@@ -744,7 +858,9 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
             torch.cuda.stream(stream_for_graph),
             torch.inference_mode(),
             torch.cuda.graph(
-                self.separate_graphs.after_inner_loop, stream=stream_for_graph, capture_error_mode="thread_local"
+                self.separate_graphs.after_inner_loop,
+                stream=stream_for_graph,
+                capture_error_mode="thread_local",
             ),
         ):
             self._after_inner_loop()
@@ -758,35 +874,58 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
         with (
             torch.cuda.stream(stream_for_graph),
             torch.inference_mode(),
-            torch.cuda.graph(self.full_graph, stream=stream_for_graph, capture_error_mode="thread_local"),
+            torch.cuda.graph(
+                self.full_graph,
+                stream=stream_for_graph,
+                capture_error_mode="thread_local",
+            ),
         ):
             self._before_outer_loop()
 
             capture_status, _, graph, _, _ = cu_call(
-                cudart.cudaStreamGetCaptureInfo(torch.cuda.current_stream(device=self.state.device).cuda_stream)
+                cudart.cudaStreamGetCaptureInfo(
+                    torch.cuda.current_stream(device=self.state.device).cuda_stream
+                )
             )
-            assert capture_status == cudart.cudaStreamCaptureStatus.cudaStreamCaptureStatusActive
+            assert (
+                capture_status
+                == cudart.cudaStreamCaptureStatus.cudaStreamCaptureStatusActive
+            )
 
             # capture: while self.active_mask_any:
-            (outer_loop_conditional_handle,) = cu_call(cudart.cudaGraphConditionalHandleCreate(graph, 0, 0))
+            (outer_loop_conditional_handle,) = cu_call(
+                cudart.cudaGraphConditionalHandleCreate(graph, 0, 0)
+            )
             outer_loop_kernel = self._create_outer_while_loop_kernel()
-            active_mask_any_ptr = np.array([self.state.active_mask_any.data_ptr()], dtype=np.uint64)
+            active_mask_any_ptr = np.array(
+                [self.state.active_mask_any.data_ptr()], dtype=np.uint64
+            )
             outer_loop_args = np.array(
-                [outer_loop_conditional_handle.getPtr(), active_mask_any_ptr.ctypes.data],
+                [
+                    outer_loop_conditional_handle.getPtr(),
+                    active_mask_any_ptr.ctypes.data,
+                ],
                 dtype=np.uint64,
             )
 
             # loop while there are active utterances
             # while self.active_mask_any:
             with with_conditional_node(
-                outer_loop_kernel, outer_loop_args, outer_loop_conditional_handle, device=self.state.device
+                outer_loop_kernel,
+                outer_loop_args,
+                outer_loop_conditional_handle,
+                device=self.state.device,
             ):
                 self._before_inner_loop_get_decoder_output()
                 self._before_inner_loop_get_joint_output()
                 # capture: while self.advance_mask_any.item():
                 inner_while_loop_kernel = self._create_inner_while_loop_kernel()
-                (inner_loop_conditional_handle,) = cu_call(cudart.cudaGraphConditionalHandleCreate(graph, 0, 0))
-                advance_mask_any_ptr = np.array([self.state.advance_mask_any.data_ptr()], dtype=np.uint64)
+                (inner_loop_conditional_handle,) = cu_call(
+                    cudart.cudaGraphConditionalHandleCreate(graph, 0, 0)
+                )
+                advance_mask_any_ptr = np.array(
+                    [self.state.advance_mask_any.data_ptr()], dtype=np.uint64
+                )
                 inner_loop_args = np.array(
                     [
                         inner_loop_conditional_handle.getPtr(),
@@ -796,7 +935,10 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
                 )
                 # while self.advance_mask_any.item():
                 with with_conditional_node(
-                    inner_while_loop_kernel, inner_loop_args, inner_loop_conditional_handle, device=self.state.device
+                    inner_while_loop_kernel,
+                    inner_loop_args,
+                    inner_loop_conditional_handle,
+                    device=self.state.device,
                 ):
                     self._inner_loop_code()
                 self._after_inner_loop()
@@ -809,13 +951,17 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
 
         # initial state
         self.decoder.batch_replace_states_all(
-            src_states=self.decoder.initialize_state(self.state.encoder_output_projected),
+            src_states=self.decoder.initialize_state(
+                self.state.encoder_output_projected
+            ),
             dst_states=self.state.decoder_state,
         )
         # initial state - lm
         if self.ngram_lm_batch is not None:
             self.state.batch_lm_states.copy_(
-                self.ngram_lm_batch.get_init_states(batch_size=self.state.batch_size, bos=True)
+                self.ngram_lm_batch.get_init_states(
+                    batch_size=self.state.batch_size, bos=True
+                )
             )
 
         # last found labels - initially <SOS> (<blank>) symbol
@@ -824,7 +970,9 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
 
         # time indices
         self.state.time_indices.fill_(0)
-        self.state.safe_time_indices.fill_(0)  # safe time indices: guaranteed to be < encoder_output_length
+        self.state.safe_time_indices.fill_(
+            0
+        )  # safe time indices: guaranteed to be < encoder_output_length
         self.state.time_indices_current_labels.fill_(0)
         torch.sub(self.state.encoder_output_length, 1, out=self.state.last_timesteps)
 
@@ -840,10 +988,17 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
         """Get decoder output"""
         # stage 1: get decoder (prediction network) output
         decoder_output, new_state, *_ = self.decoder.predict(
-            self.state.labels.unsqueeze(1), self.state.decoder_state, add_sos=False, batch_size=self.state.batch_size
+            self.state.labels.unsqueeze(1),
+            self.state.decoder_state,
+            add_sos=False,
+            batch_size=self.state.batch_size,
         )
-        self.decoder.batch_replace_states_all(src_states=new_state, dst_states=self.state.decoder_state)
-        decoder_output_projected = self.joint.project_prednet(decoder_output)  # do not recalculate joint projection
+        self.decoder.batch_replace_states_all(
+            src_states=new_state, dst_states=self.state.decoder_state
+        )
+        decoder_output_projected = self.joint.project_prednet(
+            decoder_output
+        )  # do not recalculate joint projection
         self.state.decoder_output.copy_(decoder_output_projected)
 
         # get lm scores/states
@@ -861,9 +1016,9 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
         self.state.active_mask_prev.copy_(self.state.active_mask, non_blocking=True)
         logits = (
             self.joint.joint_after_projection(
-                self.state.encoder_output_projected[self.state.batch_indices, self.state.safe_time_indices].unsqueeze(
-                    1
-                ),
+                self.state.encoder_output_projected[
+                    self.state.batch_indices, self.state.safe_time_indices
+                ].unsqueeze(1),
                 self.state.decoder_output,
             )
             .squeeze(1)
@@ -873,16 +1028,30 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
         torch.max(logits, dim=-1, out=(self.state.scores, self.state.labels))
         if self.ngram_lm_batch is not None:
             # combined scores with LM - without blank
-            scores_w_lm, labels_w_lm = (logits[:, :-1] + self.ngram_lm_alpha * self.state.lm_scores).max(dim=-1)
+            scores_w_lm, labels_w_lm = (
+                logits[:, :-1] + self.ngram_lm_alpha * self.state.lm_scores
+            ).max(dim=-1)
             # preserve "blank" / "non-blank" category
-            torch.where(self.state.labels == self._blank_index, self.state.labels, labels_w_lm, out=self.state.labels)
-            torch.where(self.state.labels == self._blank_index, self.state.scores, scores_w_lm, out=self.state.scores)
+            torch.where(
+                self.state.labels == self._blank_index,
+                self.state.labels,
+                labels_w_lm,
+                out=self.state.labels,
+            )
+            torch.where(
+                self.state.labels == self._blank_index,
+                self.state.scores,
+                scores_w_lm,
+                out=self.state.scores,
+            )
 
         # search for non-blank labels using joint, advancing time indices for blank labels
         # checking max_symbols is not needed, since we already forced advancing time indices for such cases
         torch.eq(self.state.labels, self._blank_index, out=self.state.blank_mask)
         # blank_mask = self.labels == self._blank_index
-        self.state.time_indices_current_labels.copy_(self.state.time_indices, non_blocking=True)
+        self.state.time_indices_current_labels.copy_(
+            self.state.time_indices, non_blocking=True
+        )
         if self.state.alignments is not None:
             float_dtype = self.state.float_dtype
             self.state.alignments.add_results_masked_no_checks_(
@@ -891,7 +1060,9 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
                 logits=logits if self.preserve_alignments else None,
                 labels=self.state.labels if self.preserve_alignments else None,
                 confidence=(
-                    self._get_confidence_tensor(F.log_softmax(logits, dim=-1)).to(dtype=float_dtype)
+                    self._get_confidence_tensor(F.log_softmax(logits, dim=-1)).to(
+                        dtype=float_dtype
+                    )
                     if self.preserve_frame_confidence
                     else None
                 ),
@@ -900,9 +1071,19 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
         # advance_mask is a mask for current batch for searching non-blank labels;
         # each element is True if non-blank symbol is not yet found AND we can increase the time index
         self.state.time_indices.add_(self.state.blank_mask)
-        torch.minimum(self.state.time_indices, self.state.last_timesteps, out=self.state.safe_time_indices)
-        torch.less(self.state.time_indices, self.state.encoder_output_length, out=self.state.active_mask)
-        torch.logical_and(self.state.active_mask, self.state.blank_mask, out=self.state.advance_mask)
+        torch.minimum(
+            self.state.time_indices,
+            self.state.last_timesteps,
+            out=self.state.safe_time_indices,
+        )
+        torch.less(
+            self.state.time_indices,
+            self.state.encoder_output_length,
+            out=self.state.active_mask,
+        )
+        torch.logical_and(
+            self.state.active_mask, self.state.blank_mask, out=self.state.advance_mask
+        )
 
         # inner loop: find next non-blank labels (if exist)
         # same as: self.advance_mask_any = advance_mask.any()
@@ -920,9 +1101,9 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
         )
         logits = (
             self.joint.joint_after_projection(
-                self.state.encoder_output_projected[self.state.batch_indices, self.state.safe_time_indices].unsqueeze(
-                    1
-                ),
+                self.state.encoder_output_projected[
+                    self.state.batch_indices, self.state.safe_time_indices
+                ].unsqueeze(1),
                 self.state.decoder_output,
             )
             .squeeze(1)
@@ -933,16 +1114,36 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
         more_scores, more_labels = logits.max(-1)
         if self.ngram_lm_batch is not None:
             # combined scores with LM - without blank
-            more_scores_w_lm, more_labels_w_lm = (logits[:, :-1] + self.ngram_lm_alpha * self.state.lm_scores).max(
-                dim=-1
-            )
+            more_scores_w_lm, more_labels_w_lm = (
+                logits[:, :-1] + self.ngram_lm_alpha * self.state.lm_scores
+            ).max(dim=-1)
             # preserve "blank" / "non-blank" category
-            torch.where(more_labels == self._blank_index, more_labels, more_labels_w_lm, out=more_labels)
-            torch.where(more_labels == self._blank_index, more_scores, more_scores_w_lm, out=more_scores)
+            torch.where(
+                more_labels == self._blank_index,
+                more_labels,
+                more_labels_w_lm,
+                out=more_labels,
+            )
+            torch.where(
+                more_labels == self._blank_index,
+                more_scores,
+                more_scores_w_lm,
+                out=more_scores,
+            )
         # same as: labels[advance_mask] = more_labels[advance_mask], but non-blocking
-        torch.where(self.state.advance_mask, more_labels, self.state.labels, out=self.state.labels)
+        torch.where(
+            self.state.advance_mask,
+            more_labels,
+            self.state.labels,
+            out=self.state.labels,
+        )
         # same as: scores[advance_mask] = more_scores[advance_mask], but non-blocking
-        torch.where(self.state.advance_mask, more_scores, self.state.scores, out=self.state.scores)
+        torch.where(
+            self.state.advance_mask,
+            more_scores,
+            self.state.scores,
+            out=self.state.scores,
+        )
 
         if self.state.alignments is not None:
             float_dtype = self.state.float_dtype
@@ -952,7 +1153,9 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
                 logits=logits if self.preserve_alignments else None,
                 labels=more_labels if self.preserve_alignments else None,
                 confidence=(
-                    self._get_confidence_tensor(F.log_softmax(logits, dim=-1)).to(dtype=float_dtype)
+                    self._get_confidence_tensor(F.log_softmax(logits, dim=-1)).to(
+                        dtype=float_dtype
+                    )
                     if self.preserve_frame_confidence
                     else None
                 ),
@@ -963,9 +1166,19 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
         # self.time_indices += self.blank_mask
         self.state.time_indices.add_(self.state.blank_mask)
 
-        torch.minimum(self.state.time_indices, self.state.last_timesteps, out=self.state.safe_time_indices)
-        torch.less(self.state.time_indices, self.state.encoder_output_length, out=self.state.active_mask)
-        torch.logical_and(self.state.active_mask, self.state.blank_mask, out=self.state.advance_mask)
+        torch.minimum(
+            self.state.time_indices,
+            self.state.last_timesteps,
+            out=self.state.safe_time_indices,
+        )
+        torch.less(
+            self.state.time_indices,
+            self.state.encoder_output_length,
+            out=self.state.active_mask,
+        )
+        torch.logical_and(
+            self.state.active_mask, self.state.blank_mask, out=self.state.advance_mask
+        )
         torch.any(self.state.advance_mask, out=self.state.advance_mask_any)
 
     def _after_inner_loop(self):
@@ -973,7 +1186,11 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
         # stage 3: filter labels and state, store hypotheses
         # select states for hyps that became inactive (is it necessary?)
         # this seems to be redundant, but used in the `loop_frames` output
-        torch.ne(self.state.active_mask, self.state.active_mask_prev, out=self.state.became_inactive_mask)
+        torch.ne(
+            self.state.active_mask,
+            self.state.active_mask_prev,
+            out=self.state.became_inactive_mask,
+        )
         self.decoder.batch_replace_states_mask(
             src_states=self.state.decoder_state,
             dst_states=self.state.last_decoder_state,
@@ -1011,11 +1228,21 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
                 self.state.batched_hyps.last_timestamp == self.state.time_indices,
             ),
         )
-        self.state.time_indices.add_(force_blank_mask)  # emit blank => advance time indices
+        self.state.time_indices.add_(
+            force_blank_mask
+        )  # emit blank => advance time indices
         # update safe_time_indices, non-blocking
-        torch.minimum(self.state.time_indices, self.state.last_timesteps, out=self.state.safe_time_indices)
+        torch.minimum(
+            self.state.time_indices,
+            self.state.last_timesteps,
+            out=self.state.safe_time_indices,
+        )
         # same as: active_mask = time_indices < encoder_output_length
-        torch.less(self.state.time_indices, self.state.encoder_output_length, out=self.state.active_mask)
+        torch.less(
+            self.state.time_indices,
+            self.state.encoder_output_length,
+            out=self.state.active_mask,
+        )
         torch.any(self.state.active_mask, out=self.state.active_mask_any)
 
     def __call__(
@@ -1024,11 +1251,19 @@ class GreedyBatchedRNNTLoopLabelsComputer(WithOptionalCudaGraphs, ConfidenceMeth
         out_len: torch.Tensor,
     ) -> Tuple[rnnt_utils.BatchedHyps, Optional[rnnt_utils.BatchedAlignments], Any]:
         if self.cuda_graphs_mode is not None and x.device.type == "cuda":
-            is_ddp = torch.distributed.is_available() and torch.distributed.is_initialized()
+            is_ddp = (
+                torch.distributed.is_available() and torch.distributed.is_initialized()
+            )
             # disable CUDA graphs if DDP and Mixed Precision are used
-            ctx = torch.amp.autocast(device_type="cuda", enabled=False) if is_ddp else nullcontext()
+            ctx = (
+                torch.amp.autocast(device_type="cuda", enabled=False)
+                if is_ddp
+                else nullcontext()
+            )
             with ctx:
                 # TODO(vbataev): fix issue with DDP+mixed precision, remove this restriction
-                return self.loop_labels_cuda_graphs(encoder_output=x, encoder_output_length=out_len)
+                return self.loop_labels_cuda_graphs(
+                    encoder_output=x, encoder_output_length=out_len
+                )
 
         return self.loop_labels_torch(encoder_output=x, encoder_output_length=out_len)

@@ -162,7 +162,9 @@ def pretrain_recipe(
             global_batch_size=global_batch_size,
             micro_batch_size=micro_batch_size,
         ),
-        log=default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
+        log=default_log(
+            dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)
+        ),
         optim=distributed_fused_adam_with_cosine_annealing(
             precision=precision,
             warmup_steps=warmup_steps,

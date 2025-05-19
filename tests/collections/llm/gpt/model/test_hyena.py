@@ -81,23 +81,53 @@ def parse_args():
         help="Absolute path to the dataset directory. Defaults to using the absolute or relative paths (dataset_prefix) specified in the dataset config YAML.",
     )
 
-    parser.add_argument("--num-nodes", type=int, default=1, help="Number of nodes to use for training, defaults to 1.")
-    parser.add_argument("--devices", type=int, default=1, help="Number of devices to use for training, defaults to 1.")
-    parser.add_argument("--seq-length", type=int, default=8192, help="Training sequence length")
     parser.add_argument(
-        "--tensor-parallel-size", type=int, default=1, help="Order of tensor parallelism. Defaults to 1."
+        "--num-nodes",
+        type=int,
+        default=1,
+        help="Number of nodes to use for training, defaults to 1.",
     )
     parser.add_argument(
-        "--pipeline-model-parallel-size", type=int, default=1, help="Order of pipeline parallelism. Defaults to 1."
+        "--devices",
+        type=int,
+        default=1,
+        help="Number of devices to use for training, defaults to 1.",
     )
     parser.add_argument(
-        "--context-parallel-size", type=int, default=1, help="Order of context parallelism. Defaults to 1."
+        "--seq-length", type=int, default=8192, help="Training sequence length"
     )
-    parser.add_argument("--no-wandb", action="store_true", default=False, help="Disable Wandb logging")
-    parser.add_argument("--wandb-project", type=str, default="nemo_evo2", help="Wandb project name")
-    parser.add_argument("--wandb-run-id", type=str, default=None, help="Wandb run identifier")
     parser.add_argument(
-        "--wandb-group", type=str, default=None, help="A unique string shared by all runs in a given group"
+        "--tensor-parallel-size",
+        type=int,
+        default=1,
+        help="Order of tensor parallelism. Defaults to 1.",
+    )
+    parser.add_argument(
+        "--pipeline-model-parallel-size",
+        type=int,
+        default=1,
+        help="Order of pipeline parallelism. Defaults to 1.",
+    )
+    parser.add_argument(
+        "--context-parallel-size",
+        type=int,
+        default=1,
+        help="Order of context parallelism. Defaults to 1.",
+    )
+    parser.add_argument(
+        "--no-wandb", action="store_true", default=False, help="Disable Wandb logging"
+    )
+    parser.add_argument(
+        "--wandb-project", type=str, default="nemo_evo2", help="Wandb project name"
+    )
+    parser.add_argument(
+        "--wandb-run-id", type=str, default=None, help="Wandb run identifier"
+    )
+    parser.add_argument(
+        "--wandb-group",
+        type=str,
+        default=None,
+        help="A unique string shared by all runs in a given group",
     )
     parser.add_argument(
         "--wandb-job-type",
@@ -105,9 +135,18 @@ def parse_args():
         default=None,
         help="A unique string representing a type of run, which is useful when you're grouping runs together into larger experiments using group.",
     )
-    parser.add_argument("--sequence-parallel", action="store_true", help="Set to enable sequence parallelism.")
+    parser.add_argument(
+        "--sequence-parallel",
+        action="store_true",
+        help="Set to enable sequence parallelism.",
+    )
     parser.add_argument("--fp8", action="store_true", help="Set to enable FP8")
-    parser.add_argument("--micro-batch-size", type=int, default=1, help="Micro-batch size for data-parallel training.")
+    parser.add_argument(
+        "--micro-batch-size",
+        type=int,
+        default=1,
+        help="Micro-batch size for data-parallel training.",
+    )
     parser.add_argument(
         "--global-batch-size",
         type=int,
@@ -115,13 +154,25 @@ def parse_args():
         help="Global batch size for training. If set to None, infer it from the TP, CP, and PP parameters.",
     )
     parser.add_argument(
-        "--grad-acc-batches", type=int, default=1, help="Number of batches to accumulate gradients over."
+        "--grad-acc-batches",
+        type=int,
+        default=1,
+        help="Number of batches to accumulate gradients over.",
     )
-    parser.add_argument("--max-steps", type=int, help="Number of training optimizer update steps.")
     parser.add_argument(
-        "--val-check-interval", type=int, help="Number of steps between validation measurements and model checkpoints."
+        "--max-steps", type=int, help="Number of training optimizer update steps."
     )
-    parser.add_argument("--grad-reduce-in-fp32", action="store_true", default=False, help="Gradient reduce in FP32.")
+    parser.add_argument(
+        "--val-check-interval",
+        type=int,
+        help="Number of steps between validation measurements and model checkpoints.",
+    )
+    parser.add_argument(
+        "--grad-reduce-in-fp32",
+        action="store_true",
+        default=False,
+        help="Gradient reduce in FP32.",
+    )
     parser.add_argument(
         "--fp8-wgrad",
         action="store_true",
@@ -129,9 +180,14 @@ def parse_args():
         help="Faster option that is maybe less accurate (TBD) when using fp8.",
     )
     parser.add_argument(
-        "--no-aligned-megatron-ddp", action="store_true", default=False, help="Do not do aligned gradient updates etc."
+        "--no-aligned-megatron-ddp",
+        action="store_true",
+        default=False,
+        help="Do not do aligned gradient updates etc.",
     )
-    parser.add_argument("--use-megatron-comm-overlap-8k", action="store_true", default=False)
+    parser.add_argument(
+        "--use-megatron-comm-overlap-8k", action="store_true", default=False
+    )
     parser.add_argument(
         "--tp-comm-overlap-backend",
         type=str,
@@ -181,7 +237,9 @@ def parse_args():
         default=None,
         help="Directory to restore an initial checkpoint from. Use this for supervised fine-tuning.",
     )
-    parser.add_argument("--wd", type=float, default=0.01, help="Weight decay for optimizer.")
+    parser.add_argument(
+        "--wd", type=float, default=0.01, help="Weight decay for optimizer."
+    )
     parser.add_argument(
         "--restore-optimizer-from-ckpt",
         action="store_true",
@@ -193,8 +251,15 @@ def parse_args():
         default=False,
         help="Avaerage optimizer state in collective rather than dividing by dp size and summing.",
     )
-    parser.add_argument("--seed", type=int, default=1234, help="Set random seed for training.")
-    parser.add_argument("--workers", type=int, default=8, help="Number of workers to use for data loading.")
+    parser.add_argument(
+        "--seed", type=int, default=1234, help="Set random seed for training."
+    )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=8,
+        help="Number of workers to use for data loading.",
+    )
     parser.add_argument(
         "--gc-interval",
         type=int,
@@ -251,7 +316,9 @@ def parse_args():
         help="Override the hybrid override pattern in the config (specifies hyena layer ordering and type).",
     )
     parser.add_argument(
-        "--num-layers", type=int, help="If set, override the number of layers specified in the requested config."
+        "--num-layers",
+        type=int,
+        help="If set, override the number of layers specified in the requested config.",
     )
     parser.add_argument(
         "--tflops-callback",
@@ -266,8 +333,18 @@ def parse_args():
         help="Log training parameters shapes and dtypes for debugging.",
     )
     parser.add_argument("--lr", type=float, default=3e-4, help="Learning rate.")
-    parser.add_argument("--min-lr", type=float, default=3e-5, help="Min learning rate in cosine annealing.")
-    parser.add_argument("--warmup-steps", type=int, default=2500, help="Number of warmup steps in cosine annealing")
+    parser.add_argument(
+        "--min-lr",
+        type=float,
+        default=3e-5,
+        help="Min learning rate in cosine annealing.",
+    )
+    parser.add_argument(
+        "--warmup-steps",
+        type=int,
+        default=2500,
+        help="Number of warmup steps in cosine annealing",
+    )
     # NSYS profiling/tooling arguments
     parser.add_argument(
         "--nsys-profiling",
@@ -358,8 +435,12 @@ def parse_args():
         help="Dropout probability for the attention layers.",
     )
     recompute_group = parser.add_mutually_exclusive_group(required=False)
-    recompute_group.add_argument("--no-activation-checkpointing", action="store_true", default=False)
-    recompute_group.add_argument("--selective-activation-checkpointing", action="store_true", default=False)
+    recompute_group.add_argument(
+        "--no-activation-checkpointing", action="store_true", default=False
+    )
+    recompute_group.add_argument(
+        "--selective-activation-checkpointing", action="store_true", default=False
+    )
     return parser.parse_args()
 
 
@@ -385,8 +466,12 @@ def main():
             tokenizer=tokenizer,
         )
     else:
-        blended_dataset_config = parse_dataset_config(args.dataset_config, args.dataset_dir)
-        dataset_cls = Evo2DatasetPadEodLossMask if args.eod_pad_in_loss_mask else Evo2Dataset
+        blended_dataset_config = parse_dataset_config(
+            args.dataset_config, args.dataset_dir
+        )
+        dataset_cls = (
+            Evo2DatasetPadEodLossMask if args.eod_pad_in_loss_mask else Evo2Dataset
+        )
         # Instantiate pre-training module.
         data = PreTrainingDataModule(
             paths=blended_dataset_config,
@@ -465,7 +550,9 @@ def main():
     if args.enable_preemption:
         callbacks.append(nl_callbacks.PreemptionCallback())
     if args.debug_ddp_parity_freq > 0:
-        callbacks.append(nl_callbacks.DdpParityChecker(interval=args.debug_ddp_parity_freq))
+        callbacks.append(
+            nl_callbacks.DdpParityChecker(interval=args.debug_ddp_parity_freq)
+        )
     if args.log_parameters_and_shapes:
         callbacks.append(nl_callbacks.ParameterDebugger())
     if args.tflops_callback:
@@ -521,7 +608,10 @@ def main():
             nsys_end_step = args.nsys_end_step
         callbacks.append(
             nl_callbacks.NsysCallback(
-                start_step=args.nsys_start_step, end_step=nsys_end_step, ranks=args.nsys_ranks, gen_shape=True
+                start_step=args.nsys_start_step,
+                end_step=nsys_end_step,
+                ranks=args.nsys_ranks,
+                gen_shape=True,
             )
         )
 
@@ -654,7 +744,11 @@ def main():
         min_lr=args.min_lr,
     )
 
-    opt = MegatronOptimizerModule(opt_config, sched, no_weight_decay_cond=evo2_config.hyena_no_weight_decay_cond_fn)
+    opt = MegatronOptimizerModule(
+        opt_config,
+        sched,
+        no_weight_decay_cond=evo2_config.hyena_no_weight_decay_cond_fn,
+    )
     opt.connect(model)
 
     # Start training

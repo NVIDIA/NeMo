@@ -94,7 +94,12 @@ class ChatGLMModel(GPTModel):
         tokenizer: Optional["TokenizerSpec"] = None,
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
-        super().__init__(config or ChatGLMConfig(), optim=optim, tokenizer=tokenizer, model_transform=model_transform)
+        super().__init__(
+            config or ChatGLMConfig(),
+            optim=optim,
+            tokenizer=tokenizer,
+            model_transform=model_transform,
+        )
 
 
 @io.model_importer(ChatGLMModel, "hf")
@@ -128,7 +133,9 @@ class HFChatGLMImporter(io.ModelConnector["AutoModelForCausalLM", ChatGLMModel])
         """
         from transformers import AutoModelForCausalLM
 
-        source = AutoModelForCausalLM.from_pretrained(str(self), trust_remote_code=True, torch_dtype='auto')
+        source = AutoModelForCausalLM.from_pretrained(
+            str(self), trust_remote_code=True, torch_dtype="auto"
+        )
         target = self.init()
         trainer = self.nemo_setup(target)
         self.convert_state(source, target)
@@ -167,7 +174,12 @@ class HFChatGLMImporter(io.ModelConnector["AutoModelForCausalLM", ChatGLMModel])
             "transformer.output_layer.weight": "output_layer.weight",
         }
 
-        return io.apply_transforms(source, target, mapping=mapping, transforms=[_import_qkv_weight, _import_qkv_bias])
+        return io.apply_transforms(
+            source,
+            target,
+            mapping=mapping,
+            transforms=[_import_qkv_weight, _import_qkv_bias],
+        )
 
     @property
     def tokenizer(self) -> "AutoTokenizer":
@@ -180,7 +192,9 @@ class HFChatGLMImporter(io.ModelConnector["AutoModelForCausalLM", ChatGLMModel])
         from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import \
             AutoTokenizer
 
-        return AutoTokenizer(self.save_hf_tokenizer_assets(str(self)), trust_remote_code=True)
+        return AutoTokenizer(
+            self.save_hf_tokenizer_assets(str(self)), trust_remote_code=True
+        )
 
     @property
     def config(self) -> ChatGLMConfig:
@@ -243,7 +257,9 @@ class HFChatGLMExporter(io.ModelConnector[ChatGLMModel, "AutoModelForCausalLM"])
 
     def apply(self, output_path: Path, target_model_name=None) -> Path:
         source, _ = self.nemo_load(str(self))
-        target = self.init(torch_dtype_from_mcore_config(source.config), model_name=target_model_name)
+        target = self.init(
+            torch_dtype_from_mcore_config(source.config), model_name=target_model_name
+        )
         target = self.convert_state(source, target)
 
         target = target.cpu()
@@ -325,18 +341,29 @@ def _import_qkv_weight(ctx: io.TransformCTX, hf_qkv_weights):
     new_q_tensor_shape = (head_num, head_size, old_tensor_shape[1])
     new_kv_tensor_shape = (num_query_groups, head_size, old_tensor_shape[1])
     q, k, v = hf_qkv_weights.split(
-        [head_num * head_size, num_query_groups * head_size, num_query_groups * head_size], dim=0
+        [
+            head_num * head_size,
+            num_query_groups * head_size,
+            num_query_groups * head_size,
+        ],
+        dim=0,
     )
     q = q.view(*new_q_tensor_shape)
     k = k.view(*new_kv_tensor_shape)
     v = v.view(*new_kv_tensor_shape)
 
-    qkv_weights = torch.empty((0, head_size, old_tensor_shape[1])).type_as(hf_qkv_weights)
+    qkv_weights = torch.empty((0, head_size, old_tensor_shape[1])).type_as(
+        hf_qkv_weights
+    )
     for i in range(num_query_groups):
-        qkv_weights = torch.cat((qkv_weights, q[i * heads_per_group : (i + 1) * heads_per_group, :, :]))
+        qkv_weights = torch.cat(
+            (qkv_weights, q[i * heads_per_group : (i + 1) * heads_per_group, :, :])
+        )
         qkv_weights = torch.cat((qkv_weights, k[i : i + 1, :, :]))
         qkv_weights = torch.cat((qkv_weights, v[i : i + 1, :, :]))
-    qkv_weights = qkv_weights.reshape([head_size * (head_num + 2 * num_query_groups), hidden_size])
+    qkv_weights = qkv_weights.reshape(
+        [head_size * (head_num + 2 * num_query_groups), hidden_size]
+    )
 
     return qkv_weights
 
@@ -356,14 +383,21 @@ def _import_qkv_bias(ctx: io.TransformCTX, hf_qkv_bias):
     new_q_tensor_shape = (head_num, head_size)
     new_kv_tensor_shape = (num_query_groups, head_size)
     q, k, v = hf_qkv_bias.split(
-        [head_num * head_size, num_query_groups * head_size, num_query_groups * head_size], dim=0
+        [
+            head_num * head_size,
+            num_query_groups * head_size,
+            num_query_groups * head_size,
+        ],
+        dim=0,
     )
     q = q.view(*new_q_tensor_shape)
     k = k.view(*new_kv_tensor_shape)
     v = v.view(*new_kv_tensor_shape)
     qkv_bias = torch.empty((0, head_size)).type_as(hf_qkv_bias)
     for i in range(num_query_groups):
-        qkv_bias = torch.cat((qkv_bias, q[i * heads_per_group : (i + 1) * heads_per_group, :]))
+        qkv_bias = torch.cat(
+            (qkv_bias, q[i * heads_per_group : (i + 1) * heads_per_group, :])
+        )
         qkv_bias = torch.cat((qkv_bias, k[i : i + 1, :]))
         qkv_bias = torch.cat((qkv_bias, v[i : i + 1, :]))
     qkv_bias = qkv_bias.reshape(
@@ -392,7 +426,9 @@ def _export_qkv_weight(ctx: io.TransformCTX, qkv_weights):
 
     q_slice = torch.cat(
         [
-            torch.arange((heads_per_group + 2) * i, (heads_per_group + 2) * i + heads_per_group)
+            torch.arange(
+                (heads_per_group + 2) * i, (heads_per_group + 2) * i + heads_per_group
+            )
             for i in range(num_query_groups)
         ]
     )
@@ -422,7 +458,9 @@ def _export_qkv_bias(ctx: io.TransformCTX, qkv_bias):
 
     q_slice = torch.cat(
         [
-            torch.arange((heads_per_group + 2) * i, (heads_per_group + 2) * i + heads_per_group)
+            torch.arange(
+                (heads_per_group + 2) * i, (heads_per_group + 2) * i + heads_per_group
+            )
             for i in range(num_query_groups)
         ]
     )

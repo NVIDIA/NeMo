@@ -49,11 +49,11 @@ def mock_tokenizer():
 @pytest.fixture
 def special_tokens():
     return {
-        'turn_start': '<turn>',
-        'end_of_turn': '</s>',
-        'end_of_name': '</n>',
-        'system_turn_start': '<system>',
-        'label_start': '<label>',
+        "turn_start": "<turn>",
+        "end_of_turn": "</s>",
+        "end_of_name": "</n>",
+        "system_turn_start": "<system>",
+        "label_start": "<label>",
     }
 
 
@@ -161,7 +161,9 @@ def test_get_header_conversation_type_mask_role(special_tokens):
         "mask": "user",
     }
 
-    header, conversation, data_type, mask_role = _get_header_conversation_type_mask_role(source, special_tokens)
+    header, conversation, data_type, mask_role = (
+        _get_header_conversation_type_mask_role(source, special_tokens)
+    )
 
     assert isinstance(header, str)
     assert isinstance(conversation, str)
@@ -171,31 +173,44 @@ def test_get_header_conversation_type_mask_role(special_tokens):
 
 def test_add_speaker_and_signal(special_tokens):
     header = "System: "
-    source = [{"from": "user", "value": "Hello", "label": "positive"}, {"from": "assistant", "value": "Hi"}]
+    source = [
+        {"from": "user", "value": "Hello", "label": "positive"},
+        {"from": "assistant", "value": "Hi"},
+    ]
 
     result = _add_speaker_and_signal(
-        header=header, source=source, mask_role="user", gtype="TEXT_TO_VALUE", special_tokens=special_tokens
+        header=header,
+        source=source,
+        mask_role="user",
+        gtype="TEXT_TO_VALUE",
+        special_tokens=special_tokens,
     )
 
     assert isinstance(result, str)
-    assert special_tokens['turn_start'] in result
-    assert special_tokens['end_of_turn'] in result
+    assert special_tokens["turn_start"] in result
+    assert special_tokens["end_of_turn"] in result
 
 
 def test_response_value_formater(special_tokens):
     # Test with string label
-    result = _response_value_formater("test_label", special_tokens['label_start'], special_tokens['end_of_name'])
+    result = _response_value_formater(
+        "test_label", special_tokens["label_start"], special_tokens["end_of_name"]
+    )
     assert isinstance(result, str)
-    assert result.startswith(special_tokens['label_start'])
-    assert result.endswith(special_tokens['end_of_name'])
+    assert result.startswith(special_tokens["label_start"])
+    assert result.endswith(special_tokens["end_of_name"])
 
     # Test with None label
-    result = _response_value_formater(None, special_tokens['label_start'], special_tokens['end_of_name'])
-    assert result == ''
+    result = _response_value_formater(
+        None, special_tokens["label_start"], special_tokens["end_of_name"]
+    )
+    assert result == ""
 
     # Test with invalid label type
     with pytest.raises(ValueError):
-        _response_value_formater(123, special_tokens['label_start'], special_tokens['end_of_name'])
+        _response_value_formater(
+            123, special_tokens["label_start"], special_tokens["end_of_name"]
+        )
 
 
 def test_build_index_files(tmp_path):
@@ -220,13 +235,19 @@ def test_build_memmap_index_files(tmp_path):
         f.write("line1\nline2\n")
 
     result = _build_memmap_index_files(
-        newline_int=10, build_index_fn=build_index_from_memdata, fn=str(file_path), index_mapping_dir=str(tmp_path)
+        newline_int=10,
+        build_index_fn=build_index_from_memdata,
+        fn=str(file_path),
+        index_mapping_dir=str(tmp_path),
     )
 
     assert result == True
     # Test that calling again returns False (files exist)
     result = _build_memmap_index_files(
-        newline_int=10, build_index_fn=build_index_from_memdata, fn=str(file_path), index_mapping_dir=str(tmp_path)
+        newline_int=10,
+        build_index_fn=build_index_from_memdata,
+        fn=str(file_path),
+        index_mapping_dir=str(tmp_path),
     )
     assert result == False
 
@@ -239,9 +260,15 @@ def test_build_memmap_index_files(tmp_path):
         (100, 100, None, True),
     ],
 )
-def test_online_sample_mapping_variations(dataset_size, num_samples, block_size, shuffle):
+def test_online_sample_mapping_variations(
+    dataset_size, num_samples, block_size, shuffle
+):
     mapping = _OnlineSampleMapping(
-        dataset_size=dataset_size, num_samples=num_samples, block_size=block_size, shuffle=shuffle, seed=42
+        dataset_size=dataset_size,
+        num_samples=num_samples,
+        block_size=block_size,
+        shuffle=shuffle,
+        seed=42,
     )
 
     assert len(mapping) == num_samples
@@ -253,7 +280,9 @@ def test_online_sample_mapping_variations(dataset_size, num_samples, block_size,
 
 
 def test_online_sample_mapping_cache():
-    mapping = _OnlineSampleMapping(dataset_size=100, num_samples=50, block_size=10, cache_maxsize=2, shuffle=True)
+    mapping = _OnlineSampleMapping(
+        dataset_size=100, num_samples=50, block_size=10, cache_maxsize=2, shuffle=True
+    )
 
     # Test cache behavior
     block1 = mapping.get_sample_block(0)

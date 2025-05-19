@@ -37,7 +37,7 @@ def mock_tokenizer():
 
 @pytest.fixture
 def sample_data_file():
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.jsonl', delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False) as f:
         f.write('{"input": "Hello"}\n')
         f.write('{"input": "World"}\n')
     yield Path(f.name)
@@ -49,7 +49,10 @@ def test_tokenize_dataset(mock_tokenizer, sample_data_file):
     seed = 42
 
     result = tokenize_dataset(
-        path=sample_data_file, tokenizer=mock_tokenizer, max_seq_length=max_seq_length, seed=seed
+        path=sample_data_file,
+        tokenizer=mock_tokenizer,
+        max_seq_length=max_seq_length,
+        seed=seed,
     )
 
     assert isinstance(result, np.ndarray)
@@ -89,8 +92,8 @@ def test_packed_sequence_specs():
 
     # Test with valid packed data paths
     with (
-        tempfile.NamedTemporaryFile(suffix='.npy') as train_file,
-        tempfile.NamedTemporaryFile(suffix='.npy') as val_file,
+        tempfile.NamedTemporaryFile(suffix=".npy") as train_file,
+        tempfile.NamedTemporaryFile(suffix=".npy") as val_file,
     ):
         specs = PackedSequenceSpecs(
             packed_sequence_size=128,
@@ -111,6 +114,6 @@ def test_packed_sequence_specs_invalid_paths():
         PackedSequenceSpecs(packed_train_data_path="nonexistent.npy")
 
     # Test with wrong file extension
-    with tempfile.NamedTemporaryFile(suffix='.txt') as wrong_ext_file:
+    with tempfile.NamedTemporaryFile(suffix=".txt") as wrong_ext_file:
         with pytest.raises(AssertionError):
             PackedSequenceSpecs(packed_train_data_path=wrong_ext_file.name)

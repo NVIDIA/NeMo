@@ -29,7 +29,12 @@ try:
             cls,
             artifacts=[
                 FileArtifact(attr_name, required=False)
-                for attr_name in ['vocab_file', 'merges_file', 'tokenizer_file', 'name_or_path']
+                for attr_name in [
+                    "vocab_file",
+                    "merges_file",
+                    "tokenizer_file",
+                    "name_or_path",
+                ]
             ],
         )
 

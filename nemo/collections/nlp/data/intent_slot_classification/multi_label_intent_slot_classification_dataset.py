@@ -24,7 +24,7 @@ from nemo.collections.nlp.data.intent_slot_classification.intent_slot_classifica
 from nemo.core.neural_types import (ChannelType, LabelsType, MaskType,
                                     NeuralType)
 
-__all__ = ['MultiLabelIntentSlotClassificationDataset']
+__all__ = ["MultiLabelIntentSlotClassificationDataset"]
 
 
 class MultiLabelIntentSlotClassificationDataset(IntentSlotClassificationDataset):
@@ -51,16 +51,15 @@ class MultiLabelIntentSlotClassificationDataset(IntentSlotClassificationDataset)
 
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
-        """Returns definitions of module output ports.
-               """
+        """Returns definitions of module output ports."""
         return {
-            'input_ids': NeuralType(('B', 'T'), ChannelType()),
-            'segment_ids': NeuralType(('B', 'T'), ChannelType()),
-            'input_mask': NeuralType(('B', 'T'), MaskType()),
-            'loss_mask': NeuralType(('B', 'T'), MaskType()),
-            'subtokens_mask': NeuralType(('B', 'T'), MaskType()),
-            'intent_labels': [NeuralType(('B'), LabelsType())],
-            'slot_labels': NeuralType(('B', 'T'), LabelsType()),
+            "input_ids": NeuralType(("B", "T"), ChannelType()),
+            "segment_ids": NeuralType(("B", "T"), ChannelType()),
+            "input_mask": NeuralType(("B", "T"), MaskType()),
+            "loss_mask": NeuralType(("B", "T"), MaskType()),
+            "subtokens_mask": NeuralType(("B", "T"), MaskType()),
+            "intent_labels": [NeuralType(("B"), LabelsType())],
+            "slot_labels": NeuralType(("B", "T"), LabelsType()),
         }
 
     def __init__(
@@ -79,10 +78,10 @@ class MultiLabelIntentSlotClassificationDataset(IntentSlotClassificationDataset)
         if num_samples == 0:
             raise ValueError("num_samples has to be positive", num_samples)
 
-        with open(slot_file, 'r') as f:
+        with open(slot_file, "r") as f:
             slot_lines = f.readlines()
 
-        with open(input_file, 'r') as f:
+        with open(input_file, "r") as f:
             input_lines = f.readlines()[1:]
 
         assert len(slot_lines) == len(input_lines)
@@ -100,7 +99,7 @@ class MultiLabelIntentSlotClassificationDataset(IntentSlotClassificationDataset)
             parts = [1 if label in parts else 0 for label in range(num_intents)]
             raw_intents.append(tuple(parts))
             tokens = input_line.strip().split("\t")[0].split()
-            query = ' '.join(tokens)
+            query = " ".join(tokens)
             if do_lower_case:
                 query = query.lower()
             queries.append(query)

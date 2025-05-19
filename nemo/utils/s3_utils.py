@@ -40,7 +40,7 @@ except ImportError as e:
 MB = 1024**2
 GB = 1024**3
 
-SHARED_MEM_DIR = '/dev/shm'
+SHARED_MEM_DIR = "/dev/shm"
 DEFAULT_CHUNK_SIZE_MB = 64
 DEFAULT_MAX_READ_CONCURRENCY = 15
 DEFAULT_MAX_WRITE_CONCURRENCY = 10
@@ -51,11 +51,11 @@ class S3Utils:
     Utility class for interacting with S3. Handles downloading and uploading to S3, and parsing/formatting S3 urls.
     """
 
-    '''
+    """
     Avoid caching boto3 client or resource as a class variable as it gets executed once during class construction.
     When the security token expires, the client or resouece will be no longer valid.
     Create a new resource as needed. To avoid multithreading errors, use different session for each thread.
-    '''
+    """
 
     @staticmethod
     def s3_path_exists(s3_path: str, match_directory: bool = False) -> bool:
@@ -72,14 +72,16 @@ class S3Utils:
         s3_client = s3.meta.client
 
         try:
-            objs = s3_client.list_objects_v2(Bucket=bucket_name, MaxKeys=1, Prefix=prefix).get('Contents', [])
+            objs = s3_client.list_objects_v2(
+                Bucket=bucket_name, MaxKeys=1, Prefix=prefix
+            ).get("Contents", [])
         except s3_client.exceptions.NoSuchBucket:
             return False
 
-        if prefix == '':  # bucket only
+        if prefix == "":  # bucket only
             return True
 
-        return len(objs) > 0 and (match_directory or objs[0]['Key'].startswith(prefix))
+        return len(objs) > 0 and (match_directory or objs[0]["Key"].startswith(prefix))
 
     @staticmethod
     def remove_object(s3_path: str) -> None:
@@ -89,20 +91,24 @@ class S3Utils:
 
     @staticmethod
     def download_s3_file_to_stream(
-        s3_path: str, chunk_size_MB: int = DEFAULT_CHUNK_SIZE_MB, max_concurrency: int = DEFAULT_MAX_READ_CONCURRENCY
+        s3_path: str,
+        chunk_size_MB: int = DEFAULT_CHUNK_SIZE_MB,
+        max_concurrency: int = DEFAULT_MAX_READ_CONCURRENCY,
     ) -> BytesIO:
         bytes_buffer = BytesIO()
 
         s3_client = S3Utils._get_s3_resource(get_client=True)
         bucket, key = S3Utils.parse_s3_url(s3_path)
         chunk_size = chunk_size_MB * MB
-        config = TransferConfig(multipart_chunksize=chunk_size, max_concurrency=max_concurrency)
+        config = TransferConfig(
+            multipart_chunksize=chunk_size, max_concurrency=max_concurrency
+        )
 
         start_time = time.perf_counter()
         _download_fileobj_with_retry(s3_client, bucket, key, bytes_buffer, config)
         logging.info(
-            f'Time elapsed downloading {s3_path} to file stream with chunk_size={chunk_size_MB}MB '
-            f'and max_concurrency={max_concurrency}: {(time.perf_counter() - start_time):.2f} seconds'
+            f"Time elapsed downloading {s3_path} to file stream with chunk_size={chunk_size_MB}MB "
+            f"and max_concurrency={max_concurrency}: {(time.perf_counter() - start_time):.2f} seconds"
         )
 
         bytes_buffer.seek(0)
@@ -118,16 +124,18 @@ class S3Utils:
         s3_client = S3Utils._get_s3_resource(get_client=True)
         bucket, key = S3Utils.parse_s3_url(s3_path)
         chunk_size = chunk_size_MB * MB
-        config = TransferConfig(multipart_chunksize=chunk_size, max_concurrency=max_concurrency)
+        config = TransferConfig(
+            multipart_chunksize=chunk_size, max_concurrency=max_concurrency
+        )
 
         logging.info(
-            f'Downloading {s3_path} to {file_path} with chunk_size={chunk_size_MB}MB and max_threads={max_concurrency}'
+            f"Downloading {s3_path} to {file_path} with chunk_size={chunk_size_MB}MB and max_threads={max_concurrency}"
         )
         start_time = time.perf_counter()
         _download_file_with_retry(s3_client, bucket, key, file_path, config)
         logging.info(
-            f'Time elapsed downloading {s3_path} to {file_path} with chunk_size={chunk_size_MB}MB '
-            f'and max_concurrency={max_concurrency}: {(time.perf_counter() - start_time):.2f} seconds'
+            f"Time elapsed downloading {s3_path} to {file_path} with chunk_size={chunk_size_MB}MB "
+            f"and max_concurrency={max_concurrency}: {(time.perf_counter() - start_time):.2f} seconds"
         )
 
     @staticmethod
@@ -140,14 +148,16 @@ class S3Utils:
         s3_client = S3Utils._get_s3_resource(get_client=True)
         bucket, key = S3Utils.parse_s3_url(s3_path)
         chunk_size = chunk_size_MB * MB
-        config = TransferConfig(multipart_chunksize=chunk_size, max_concurrency=max_concurrency)
+        config = TransferConfig(
+            multipart_chunksize=chunk_size, max_concurrency=max_concurrency
+        )
         bytes_buffer.seek(0)
 
         start_time = time.perf_counter()
         _upload_fileobj_with_retry(s3_client, bytes_buffer, bucket, key, config)
         logging.info(
-            f'Time elapsed uploading bytes buffer to {s3_path} with chunk_size={chunk_size_MB}MB '
-            f'and max_concurrency={max_concurrency}: {(time.perf_counter() - start_time):.2f} seconds'
+            f"Time elapsed uploading bytes buffer to {s3_path} with chunk_size={chunk_size_MB}MB "
+            f"and max_concurrency={max_concurrency}: {(time.perf_counter() - start_time):.2f} seconds"
         )
 
     @staticmethod
@@ -166,7 +176,9 @@ class S3Utils:
 
         chunk_size = chunk_size_MB * MB
         config = TransferConfig(
-            multipart_threshold=chunk_size, multipart_chunksize=chunk_size, max_concurrency=max_concurrency
+            multipart_threshold=chunk_size,
+            multipart_chunksize=chunk_size,
+            max_concurrency=max_concurrency,
         )
 
         start_time = time.perf_counter()
@@ -174,8 +186,8 @@ class S3Utils:
         if remove_file and os.path.exists(file_path):
             os.remove(file_path)
         logging.info(
-            f'Time elapsed uploading file {file_path} of size {(total_size/GB):.1f}GB to {s3_path} with chunk_size={chunk_size_MB}MB '
-            f'and max_concurrency={max_concurrency}: {(time.perf_counter() - start_time):.2f} seconds'
+            f"Time elapsed uploading file {file_path} of size {(total_size/GB):.1f}GB to {s3_path} with chunk_size={chunk_size_MB}MB "
+            f"and max_concurrency={max_concurrency}: {(time.perf_counter() - start_time):.2f} seconds"
         )
 
     @staticmethod
@@ -199,7 +211,7 @@ class S3Utils:
         bucket = s3.Bucket(bucket_name)
         objects_list = _scan_objects_with_retry(s3_bucket=bucket, s3_prefix=prefix)
         logging.info(
-            f'Time elapsed reading all objects under path {base_path}: {(time.perf_counter() - start_time):.2f} seconds'
+            f"Time elapsed reading all objects under path {base_path}: {(time.perf_counter() - start_time):.2f} seconds"
         )
 
         if suffix:
@@ -221,13 +233,13 @@ class S3Utils:
         config = botocore.config.Config(max_pool_connections=30, **config)
 
         if profile is not None and creds is not None:
-            raise ValueError('Please provide profile or creds or neither, not both.')
+            raise ValueError("Please provide profile or creds or neither, not both.")
 
         if profile is not None:
-            s3 = boto3.Session(profile_name=profile).resource('s3', config=config)
+            s3 = boto3.Session(profile_name=profile).resource("s3", config=config)
         elif creds is not None:
             s3 = boto3.Session().resource(
-                's3',
+                "s3",
                 aws_access_key_id=creds["AccessKeyId"],
                 aws_secret_access_key=creds["SecretAccessKey"],
                 aws_session_token=creds["SessionToken"],
@@ -235,7 +247,9 @@ class S3Utils:
             )
         else:
             s3 = (
-                boto3.Session().resource('s3', config=config) if not session else session.resource('s3', config=config)
+                boto3.Session().resource("s3", config=config)
+                if not session
+                else session.resource("s3", config=config)
             )
 
         if get_client:
@@ -267,7 +281,7 @@ class S3Utils:
         s3://path/to/checkpoints/tp_rank_00_pp_rank_000/megatron_gpt--step=900-validation_loss=6.47-consumed_samples=35960.0-last.ckpt
         should return s3://path/to/checkpoints/tp_rank_00_pp_rank_000/megatron_gpt--step=900-
         """
-        match = re.search(r'(.*step=\d+-)', path)
+        match = re.search(r"(.*step=\d+-)", path)
 
         if match:
             return match.group(1)
@@ -290,7 +304,7 @@ def is_slow_down_error(exception):
     class_name = exception.__class__.__name__
     module_name = exception.__class__.__module__
     full_class_name = f"{module_name}.{class_name}"
-    logging.error(f'Caught exception of type {full_class_name}: {exception}')
+    logging.error(f"Caught exception of type {full_class_name}: {exception}")
 
     # 2023-12-07T05:59:25.913721576Z stdout F 2023-12-07 05:59:25,913 [ERROR] - s3_utils.py:354 - Caught exception:
     # AWS_ERROR_S3_INVALID_RESPONSE_STATUS: Invalid response status from request. Body from error request is: b'<?xml version="1.0" encoding="UTF-8"?>\n<Error><Code>RequestTimeout</Code><Message>Your socket connection to the server was not read from or written to within the timeout period. Idle connections will be closed.</Message><RequestId>XPHS9896G3RJE364</RequestId><HostId>ZAiF3HPpUD5IgSr/mfkP2QPs7ttuvY+uTRG9MET/jZZ45MJ6bVbnvSBQLggICvPCROPP/1k85p4=</HostId></Error>'
@@ -304,13 +318,13 @@ def is_slow_down_error(exception):
         return True
 
     if crt_available and isinstance(exception, awscrt.exceptions.AwsCrtError):
-        logging.error(f'Caught awscrt.exceptions.AwsCrtError: {exception.__repr__()}')
+        logging.error(f"Caught awscrt.exceptions.AwsCrtError: {exception.__repr__()}")
         return True
 
     if isinstance(exception, ClientError):
-        logging.error(f'Caught ClientError, response is: {exception.response}')
-        error_code = exception.response['Error']['Code'] if exception.response else None
-        return error_code in ['SlowDown', 'RequestTimeout', 'InternalError']
+        logging.error(f"Caught ClientError, response is: {exception.response}")
+        error_code = exception.response["Error"]["Code"] if exception.response else None
+        return error_code in ["SlowDown", "RequestTimeout", "InternalError"]
     logging.info("Non Retriable Error - Terminating the job")
     return False
 
@@ -322,7 +336,11 @@ def is_slow_down_error(exception):
     before_sleep=before_sleep_log(logging, logging.ERROR),
 )
 def _download_fileobj_with_retry(
-    s3_client, bucket: str, key: str, bytes_buffer: BytesIO, config: TransferConfig = None
+    s3_client,
+    bucket: str,
+    key: str,
+    bytes_buffer: BytesIO,
+    config: TransferConfig = None,
 ):
     s3_client.download_fileobj(bucket, key, bytes_buffer, Config=config)
 
@@ -333,7 +351,9 @@ def _download_fileobj_with_retry(
     retry=retry_if_exception(is_slow_down_error),
     before_sleep=before_sleep_log(logging, logging.ERROR),
 )
-def _download_file_with_retry(s3_client, bucket: str, key: str, file_path: str, config: TransferConfig = None):
+def _download_file_with_retry(
+    s3_client, bucket: str, key: str, file_path: str, config: TransferConfig = None
+):
     s3_client.download_file(bucket, key, file_path, Config=config)
 
 
@@ -343,7 +363,13 @@ def _download_file_with_retry(s3_client, bucket: str, key: str, file_path: str, 
     retry=retry_if_exception(is_slow_down_error),
     before_sleep=before_sleep_log(logging, logging.ERROR),
 )
-def _upload_fileobj_with_retry(s3_client, bytes_buffer: BytesIO, bucket: str, key: str, config: TransferConfig = None):
+def _upload_fileobj_with_retry(
+    s3_client,
+    bytes_buffer: BytesIO,
+    bucket: str,
+    key: str,
+    config: TransferConfig = None,
+):
     s3_client.upload_fileobj(bytes_buffer, bucket, key, Config=config)
 
 
@@ -353,5 +379,7 @@ def _upload_fileobj_with_retry(s3_client, bytes_buffer: BytesIO, bucket: str, ke
     retry=retry_if_exception(is_slow_down_error),
     before_sleep=before_sleep_log(logging, logging.ERROR),
 )
-def _upload_file_with_retry(s3_client, file_path: str, bucket: str, key: str, config: TransferConfig = None):
+def _upload_file_with_retry(
+    s3_client, file_path: str, bucket: str, key: str, config: TransferConfig = None
+):
     s3_client.upload_file(file_path, bucket, key, Config=config)

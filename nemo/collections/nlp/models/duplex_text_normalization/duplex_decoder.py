@@ -47,7 +47,7 @@ except (ImportError, ModuleNotFoundError):
     PYNINI_AVAILABLE = False
 
 
-__all__ = ['DuplexDecoderModel']
+__all__ = ["DuplexDecoderModel"]
 
 
 class DuplexDecoderModel(NLPModel):
@@ -58,10 +58,10 @@ class DuplexDecoderModel(NLPModel):
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
         return {
-            "input_ids": NeuralType(('B', 'T'), ChannelType()),
-            "decoder_input_ids": NeuralType(('B', 'T'), ChannelType()),
-            "attention_mask": NeuralType(('B', 'T'), MaskType(), optional=True),
-            "labels": NeuralType(('B', 'T'), LabelsType()),
+            "input_ids": NeuralType(("B", "T"), ChannelType()),
+            "decoder_input_ids": NeuralType(("B", "T"), ChannelType()),
+            "attention_mask": NeuralType(("B", "T"), MaskType(), optional=True),
+            "labels": NeuralType(("B", "T"), LabelsType()),
         }
 
     @property
@@ -79,18 +79,20 @@ class DuplexDecoderModel(NLPModel):
 
         super().__init__(cfg=cfg, trainer=trainer, no_lm_init=True)
         self.model = AutoModelForSeq2SeqLM.from_pretrained(cfg.transformer)
-        self.max_sequence_len = cfg.get('max_sequence_len', self.tokenizer.model_max_length)
-        self.mode = cfg.get('mode', 'joint')
+        self.max_sequence_len = cfg.get(
+            "max_sequence_len", self.tokenizer.model_max_length
+        )
+        self.mode = cfg.get("mode", "joint")
 
         self.transformer_name = cfg.transformer
 
         # Language
-        self.lang = cfg.get('lang', None)
+        self.lang = cfg.get("lang", None)
 
         # Covering Grammars
         self.cg_normalizer = None  # Default
         # We only support integrating with English TN covering grammars at the moment
-        self.use_cg = cfg.get('use_cg', False) and self.lang == constants.ENGLISH
+        self.use_cg = cfg.get("use_cg", False) and self.lang == constants.ENGLISH
         if self.use_cg:
             self.setup_cgs(cfg)
 
@@ -104,14 +106,16 @@ class DuplexDecoderModel(NLPModel):
         :param cfg: Configs of the decoder model.
         """
         self.use_cg = True
-        self.neural_confidence_threshold = cfg.get('neural_confidence_threshold', 0.99)
-        self.n_tagged = cfg.get('n_tagged', 1)
-        input_case = 'cased'  # input_case is cased by default
-        if hasattr(self.tokenizer, 'do_lower_case') and self.tokenizer.do_lower_case:
-            input_case = 'lower_cased'
+        self.neural_confidence_threshold = cfg.get("neural_confidence_threshold", 0.99)
+        self.n_tagged = cfg.get("n_tagged", 1)
+        input_case = "cased"  # input_case is cased by default
+        if hasattr(self.tokenizer, "do_lower_case") and self.tokenizer.do_lower_case:
+            input_case = "lower_cased"
 
         if PYNINI_AVAILABLE:
-            self.cg_normalizer = NormalizerWithAudio(input_case=input_case, lang=self.lang)
+            self.cg_normalizer = NormalizerWithAudio(
+                input_case=input_case, lang=self.lang
+            )
         else:
             self.cg_normalizer = None
             logging.warning(
@@ -121,7 +125,10 @@ class DuplexDecoderModel(NLPModel):
     @typecheck()
     def forward(self, input_ids, decoder_input_ids, attention_mask, labels):
         outputs = self.model(
-            input_ids=input_ids, decoder_input_ids=decoder_input_ids, attention_mask=attention_mask, labels=labels
+            input_ids=input_ids,
+            decoder_input_ids=decoder_input_ids,
+            attention_mask=attention_mask,
+            labels=labels,
         )
         return outputs.loss
 
@@ -133,21 +140,21 @@ class DuplexDecoderModel(NLPModel):
         """
         # tarred dataset contains batches, and the first dimension of size 1 added by the DataLoader
         # (batch_size is set to 1) is redundant
-        if batch['input_ids'].ndim == 3:
+        if batch["input_ids"].ndim == 3:
             batch = {k: v.squeeze(dim=0) for k, v in batch.items()}
 
         # Apply Transformer
         train_loss = self.forward(
-            input_ids=batch['input_ids'],
-            decoder_input_ids=batch['decoder_input_ids'],
-            attention_mask=batch['attention_mask'],
-            labels=batch['labels'],
+            input_ids=batch["input_ids"],
+            decoder_input_ids=batch["decoder_input_ids"],
+            attention_mask=batch["attention_mask"],
+            labels=batch["labels"],
         )
 
-        lr = self._optimizer.param_groups[0]['lr']
-        self.log('train_loss', train_loss)
-        self.log('lr', lr, prog_bar=True)
-        return {'loss': train_loss, 'lr': lr}
+        lr = self._optimizer.param_groups[0]["lr"]
+        self.log("train_loss", train_loss)
+        self.log("lr", lr, prog_bar=True)
+        return {"loss": train_loss, "lr": lr}
 
     # Validation and Testing
     def validation_step(self, batch, batch_idx, dataloader_idx=0, split="val"):
@@ -157,30 +164,37 @@ class DuplexDecoderModel(NLPModel):
         """
         # Apply Transformer
         val_loss = self.forward(
-            input_ids=batch['input_ids'],
-            decoder_input_ids=batch['decoder_input_ids'],
-            attention_mask=batch['attention_mask'],
-            labels=batch['labels'],
+            input_ids=batch["input_ids"],
+            decoder_input_ids=batch["decoder_input_ids"],
+            attention_mask=batch["attention_mask"],
+            labels=batch["labels"],
         )
 
         labels_str = self.tokenizer.batch_decode(
-            torch.ones_like(batch['labels']) * ((batch['labels'] == -100) * 100) + batch['labels'],
+            torch.ones_like(batch["labels"]) * ((batch["labels"] == -100) * 100)
+            + batch["labels"],
             skip_special_tokens=True,
         )
         generated_texts, _, _ = self._generate_predictions(
-            input_ids=batch['input_ids'], model_max_len=self.max_sequence_len
+            input_ids=batch["input_ids"], model_max_len=self.max_sequence_len
         )
         results = defaultdict(int)
-        for idx, class_id in enumerate(batch['semiotic_class_id']):
-            direction = constants.TASK_ID_TO_MODE[batch['direction'][idx][0].item()]
+        for idx, class_id in enumerate(batch["semiotic_class_id"]):
+            direction = constants.TASK_ID_TO_MODE[batch["direction"][idx][0].item()]
             class_name = self._val_id_to_class[dataloader_idx][class_id[0].item()]
 
             pred_result = TextNormalizationTestDataset.is_same(
-                generated_texts[idx], labels_str[idx], constants.DIRECTIONS_TO_MODE[direction]
+                generated_texts[idx],
+                labels_str[idx],
+                constants.DIRECTIONS_TO_MODE[direction],
             )
 
-            results[f"correct_{class_name}_{direction}"] += torch.tensor(pred_result, dtype=torch.int).to(self.device)
-            results[f"total_{class_name}_{direction}"] += torch.tensor(1).to(self.device)
+            results[f"correct_{class_name}_{direction}"] += torch.tensor(
+                pred_result, dtype=torch.int
+            ).to(self.device)
+            results[f"total_{class_name}_{direction}"] += torch.tensor(1).to(
+                self.device
+            )
 
         results[f"{split}_loss"] = val_loss
         return dict(results)
@@ -192,11 +206,15 @@ class DuplexDecoderModel(NLPModel):
         Args:
             outputs: list of individual outputs of each validation step.
         """
-        avg_loss = torch.stack([x[f'{split}_loss'] for x in outputs]).mean()
+        avg_loss = torch.stack([x[f"{split}_loss"] for x in outputs]).mean()
 
         # create a dictionary to store all the results
         results = {}
-        directions = [constants.TN_MODE, constants.ITN_MODE] if self.mode == constants.JOINT_MODE else [self.mode]
+        directions = (
+            [constants.TN_MODE, constants.ITN_MODE]
+            if self.mode == constants.JOINT_MODE
+            else [self.mode]
+        )
         for class_name in self._val_class_to_id[dataloader_idx]:
             for direction in directions:
                 results[f"correct_{class_name}_{direction}"] = 0
@@ -204,7 +222,11 @@ class DuplexDecoderModel(NLPModel):
 
         for key in results:
             count = [x[key] for x in outputs if key in x]
-            count = torch.stack(count).sum() if len(count) > 0 else torch.tensor(0).to(self.device)
+            count = (
+                torch.stack(count).sum()
+                if len(count) > 0
+                else torch.tensor(0).to(self.device)
+            )
             results[key] = count
 
         all_results = defaultdict(list)
@@ -233,7 +255,7 @@ class DuplexDecoderModel(NLPModel):
             accuracies = defaultdict(dict)
             for key, value in final_results.items():
                 if "total_" in key:
-                    _, class_name, mode = key.split('_')
+                    _, class_name, mode = key.split("_")
                     correct = final_results[f"correct_{class_name}_{mode}"]
                     if value == 0:
                         accuracies[mode][class_name] = (0, correct, value)
@@ -243,9 +265,11 @@ class DuplexDecoderModel(NLPModel):
 
             for mode, values in accuracies.items():
                 report = f"Accuracy {mode.upper()} task {val_name}:\n"
-                report += '\n'.join(
+                report += "\n".join(
                     [
-                        get_formatted_string((class_name, f'{v[0]}% ({v[1]}/{v[2]})'), str_max_len=24)
+                        get_formatted_string(
+                            (class_name, f"{v[0]}% ({v[1]}/{v[2]})"), str_max_len=24
+                        )
                         for class_name, v in values.items()
                     ]
                 )
@@ -256,20 +280,26 @@ class DuplexDecoderModel(NLPModel):
                     _, correct, total = class_values
                     all_correct += correct
                     all_total += total
-                all_acc = round((all_correct / all_total) * 100, 3) if all_total > 0 else 0
-                report += '\n' + get_formatted_string(
-                    ('AVG', f'{all_acc}% ({all_correct}/{all_total})'), str_max_len=24
+                all_acc = (
+                    round((all_correct / all_total) * 100, 3) if all_total > 0 else 0
+                )
+                report += "\n" + get_formatted_string(
+                    ("AVG", f"{all_acc}% ({all_correct}/{all_total})"), str_max_len=24
                 )
                 logging.info(report)
-                accuracies[mode]['AVG'] = [all_acc]
+                accuracies[mode]["AVG"] = [all_acc]
 
-        self.log(f'{split}_loss', avg_loss)
+        self.log(f"{split}_loss", avg_loss)
         if self.trainer.is_global_zero:
             for mode in accuracies:
                 for class_name, values in accuracies[mode].items():
-                    self.log(f'{val_name}_{mode.upper()}_acc_{class_name.upper()}', values[0], rank_zero_only=True)
+                    self.log(
+                        f"{val_name}_{mode.upper()}_acc_{class_name.upper()}",
+                        values[0],
+                        rank_zero_only=True,
+                    )
         return {
-            f'{split}_loss': avg_loss,
+            f"{split}_loss": avg_loss,
         }
 
     def test_step(self, batch, batch_idx, dataloader_idx: int = 0):
@@ -292,11 +322,16 @@ class DuplexDecoderModel(NLPModel):
         Generates predictions
         """
         outputs = self.model.generate(
-            input_ids, output_scores=True, return_dict_in_generate=True, max_length=model_max_len
+            input_ids,
+            output_scores=True,
+            return_dict_in_generate=True,
+            max_length=model_max_len,
         )
 
-        generated_ids, sequence_toks_scores = outputs['sequences'], outputs['scores']
-        generated_texts = self.tokenizer.batch_decode(generated_ids, skip_special_tokens=True)
+        generated_ids, sequence_toks_scores = outputs["sequences"], outputs["scores"]
+        generated_texts = self.tokenizer.batch_decode(
+            generated_ids, skip_special_tokens=True
+        )
 
         return generated_texts, generated_ids, sequence_toks_scores
 
@@ -343,7 +378,7 @@ class DuplexDecoderModel(NLPModel):
                 ctx_left = sent[max(0, cur_start - ctx_size) : cur_start]
                 ctx_right = sent[cur_end + 1 : cur_end + 1 + ctx_size]
                 span_words = sent[cur_start : cur_end + 1]
-                span_words_str = ' '.join(span_words)
+                span_words_str = " ".join(span_words)
                 input_centers.append(span_words_str)
                 input_dirs.append(inst_directions[ix])
                 # Build cur_inputs
@@ -352,16 +387,18 @@ class DuplexDecoderModel(NLPModel):
                 if inst_directions[ix] == constants.INST_FORWARD:
                     cur_inputs = [constants.TN_PREFIX]
                 cur_inputs += ctx_left
-                cur_inputs += [extra_id_0] + span_words_str.split(' ') + [extra_id_1]
+                cur_inputs += [extra_id_0] + span_words_str.split(" ") + [extra_id_1]
                 cur_inputs += ctx_right
-                all_inputs.append(' '.join(cur_inputs))
+                all_inputs.append(" ".join(cur_inputs))
 
         # Apply the decoding model
-        batch = tokenizer(all_inputs, padding=True, return_tensors='pt')
-        input_ids = batch['input_ids'].to(self.device)
+        batch = tokenizer(all_inputs, padding=True, return_tensors="pt")
+        input_ids = batch["input_ids"].to(self.device)
 
-        generated_texts, generated_ids, sequence_toks_scores = self._generate_predictions(
-            input_ids=input_ids, model_max_len=self.max_sequence_len
+        generated_texts, generated_ids, sequence_toks_scores = (
+            self._generate_predictions(
+                input_ids=input_ids, model_max_len=self.max_sequence_len
+            )
         )
 
         # Use covering grammars (if enabled)
@@ -384,10 +421,17 @@ class DuplexDecoderModel(NLPModel):
 
             # For TN cases where the neural model is not confident, use CGs
             neural_confidence_threshold = self.neural_confidence_threshold
-            for ix, (_dir, _input, _prob) in enumerate(zip(input_dirs, input_centers, sequence_probs)):
-                if _dir == constants.INST_FORWARD and _prob < neural_confidence_threshold:
+            for ix, (_dir, _input, _prob) in enumerate(
+                zip(input_dirs, input_centers, sequence_probs)
+            ):
+                if (
+                    _dir == constants.INST_FORWARD
+                    and _prob < neural_confidence_threshold
+                ):
                     try:
-                        cg_outputs = self.cg_normalizer.normalize(text=_input, verbose=False, n_tagged=self.n_tagged)
+                        cg_outputs = self.cg_normalizer.normalize(
+                            text=_input, verbose=False, n_tagged=self.n_tagged
+                        )
                         generated_texts[ix] = list(cg_outputs)[0]
                     except:  # if there is any exception, fall back to the input
                         generated_texts[ix] = _input
@@ -418,13 +462,19 @@ class DuplexDecoderModel(NLPModel):
         # Need to set this because if using an IterableDataset, the length of the dataloader is the total number
         # of samples rather than the number of batches, and this messes up the tqdm progress bar.
         # So we set the number of steps manually (to the correct number) to fix this.
-        if 'use_tarred_dataset' in train_data_config and train_data_config['use_tarred_dataset']:
+        if (
+            "use_tarred_dataset" in train_data_config
+            and train_data_config["use_tarred_dataset"]
+        ):
             # We also need to check if limit_train_batches is already set.
             # If it's an int, we assume that the user has set it to something sane, i.e. <= # training batches,
             # and don't change it. Otherwise, adjust batches accordingly if it's a float (including 1.0).
-            if self._trainer is not None and isinstance(self._trainer.limit_train_batches, float):
+            if self._trainer is not None and isinstance(
+                self._trainer.limit_train_batches, float
+            ):
                 self._trainer.limit_train_batches = int(
-                    self._trainer.limit_train_batches * ceil(len(self._train_dl.dataset) / self.world_size)
+                    self._trainer.limit_train_batches
+                    * ceil(len(self._train_dl.dataset) / self.world_size)
                 )
             elif self._trainer is None:
                 logging.warning(
@@ -439,20 +489,26 @@ class DuplexDecoderModel(NLPModel):
             )
             self.validation_dataset, self._validation_dl = None, None
             return
-        self.validation_dataset, self._validation_dl = self._setup_dataloader_from_config(
-            cfg=val_data_config, data_split="val"
+        self.validation_dataset, self._validation_dl = (
+            self._setup_dataloader_from_config(cfg=val_data_config, data_split="val")
         )
 
         # Need to set this because if using an IterableDataset, the length of the dataloader is the total number
         # of samples rather than the number of batches, and this messes up the tqdm progress bar.
         # So we set the number of steps manually (to the correct number) to fix this.
-        if 'use_tarred_dataset' in val_data_config and val_data_config['use_tarred_dataset']:
+        if (
+            "use_tarred_dataset" in val_data_config
+            and val_data_config["use_tarred_dataset"]
+        ):
             # We also need to check if limit_val_batches is already set.
             # If it's an int, we assume that the user has set it to something sane, i.e. <= # validation batches,
             # and don't change it. Otherwise, adjust batches accordingly if it's a float (including 1.0).
-            if self._trainer is not None and isinstance(self._trainer.limit_val_batches, float):
+            if self._trainer is not None and isinstance(
+                self._trainer.limit_val_batches, float
+            ):
                 self._trainer.limit_val_batches = int(
-                    self._trainer.limit_val_batches * ceil(len(self._validation_dl.dataset) / self.world_size)
+                    self._trainer.limit_val_batches
+                    * ceil(len(self._validation_dl.dataset) / self.world_size)
                 )
             elif self._trainer is None:
                 logging.warning(
@@ -460,12 +516,16 @@ class DuplexDecoderModel(NLPModel):
                     "validation batches will be used. Please set the trainer and rebuild the dataset."
                 )
 
-    def setup_multiple_validation_data(self, val_data_config: Union[DictConfig, Dict] = None):
+    def setup_multiple_validation_data(
+        self, val_data_config: Union[DictConfig, Dict] = None
+    ):
         if val_data_config is None:
             val_data_config = self._cfg.validation_ds
         return super().setup_multiple_validation_data(val_data_config)
 
-    def setup_multiple_test_data(self, test_data_config: Union[DictConfig, Dict] = None):
+    def setup_multiple_test_data(
+        self, test_data_config: Union[DictConfig, Dict] = None
+    ):
         if test_data_config is None:
             test_data_config = self._cfg.test_ds
         return super().setup_multiple_test_data(test_data_config)
@@ -477,7 +537,9 @@ class DuplexDecoderModel(NLPModel):
             )
             self.test_dataset, self._test_dl = None, None
             return
-        self.test_dataset, self._test_dl = self._setup_dataloader_from_config(cfg=test_data_config, data_split="test")
+        self.test_dataset, self._test_dl = self._setup_dataloader_from_config(
+            cfg=test_data_config, data_split="test"
+        )
 
     def _setup_dataloader_from_config(self, cfg: DictConfig, data_split: str):
         logging.info(f"Creating {data_split} dataset")
@@ -485,21 +547,27 @@ class DuplexDecoderModel(NLPModel):
         shuffle = cfg["shuffle"]
 
         if cfg.get("use_tarred_dataset", False):
-            logging.info('Tarred dataset')
+            logging.info("Tarred dataset")
             metadata_file = cfg["tar_metadata_file"]
             if metadata_file is None or not os.path.exists(metadata_file):
-                raise FileNotFoundError(f"Trying to use tarred dataset but could not find {metadata_file}.")
+                raise FileNotFoundError(
+                    f"Trying to use tarred dataset but could not find {metadata_file}."
+                )
 
             with open(metadata_file, "r") as f:
                 metadata = json.load(f)
                 num_batches = metadata["num_batches"]
-                tar_files = os.path.join(os.path.dirname(metadata_file), metadata["text_tar_filepaths"])
+                tar_files = os.path.join(
+                    os.path.dirname(metadata_file), metadata["text_tar_filepaths"]
+                )
             logging.info(f"Loading {tar_files}")
 
             dataset = TarredTextNormalizationDecoderDataset(
                 text_tar_filepaths=tar_files,
                 num_batches=num_batches,
-                shuffle_n=cfg.get("tar_shuffle_n", 4 * cfg['batch_size']) if shuffle else 0,
+                shuffle_n=(
+                    cfg.get("tar_shuffle_n", 4 * cfg["batch_size"]) if shuffle else 0
+                ),
                 shard_strategy=cfg.get("shard_strategy", "scatter"),
                 global_rank=self.global_rank,
                 world_size=self.world_size,
@@ -525,25 +593,32 @@ class DuplexDecoderModel(NLPModel):
                 mode=self.mode,
                 max_len=self.max_sequence_len,
                 decoder_data_augmentation=(
-                    cfg.get('decoder_data_augmentation', False) if data_split == "train" else False
+                    cfg.get("decoder_data_augmentation", False)
+                    if data_split == "train"
+                    else False
                 ),
                 lang=self.lang,
-                use_cache=cfg.get('use_cache', False),
-                max_insts=cfg.get('max_insts', -1),
+                use_cache=cfg.get("use_cache", False),
+                max_insts=cfg.get("max_insts", -1),
                 do_tokenize=True,
             )
 
             # create and save class names to class_ids mapping for validation
             # (each validation set might have different classes)
-            if data_split in ['val', 'test']:
+            if data_split in ["val", "test"]:
                 if not hasattr(self, "_val_class_to_id"):
                     self._val_class_to_id = []
                     self._val_id_to_class = []
                 self._val_class_to_id.append(dataset.label_ids_semiotic)
-                self._val_id_to_class.append({v: k for k, v in dataset.label_ids_semiotic.items()})
+                self._val_id_to_class.append(
+                    {v: k for k, v in dataset.label_ids_semiotic.items()}
+                )
 
             data_collator = DataCollatorForSeq2Seq(
-                self.tokenizer, model=self.model, label_pad_token_id=constants.LABEL_PAD_TOKEN_ID, padding=True
+                self.tokenizer,
+                model=self.model,
+                label_pad_token_id=constants.LABEL_PAD_TOKEN_ID,
+                padding=True,
             )
             dl = torch.utils.data.DataLoader(
                 dataset=dataset,

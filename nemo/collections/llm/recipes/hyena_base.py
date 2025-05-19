@@ -67,11 +67,13 @@ def tokenizer_recipe():
     """
     return run.Config(
         get_nmt_tokenizer,
-        library='byte-level',
+        library="byte-level",
     )
 
 
-def model_recipe(model_size: str, tp_comm_overlap: bool, seq_length: int) -> run.Config[pl.LightningModule]:
+def model_recipe(
+    model_size: str, tp_comm_overlap: bool, seq_length: int
+) -> run.Config[pl.LightningModule]:
     """
     Factory function to create a striped hyena model
 
@@ -86,21 +88,21 @@ def model_recipe(model_size: str, tp_comm_overlap: bool, seq_length: int) -> run
             >>> model_config = model()
             >>> print(model_config)
     """
-    if model_size == 'test':
+    if model_size == "test":
         cfg_cls = llm.HyenaTestConfig
-    elif model_size == '1b':
+    elif model_size == "1b":
         cfg_cls = llm.Hyena1bConfig
-    elif model_size == '7b':
+    elif model_size == "7b":
         cfg_cls = llm.Hyena7bConfig
-    elif model_size == 'nv-7b':
+    elif model_size == "nv-7b":
         cfg_cls = llm.HyenaNV7bConfig
-    elif model_size == '40b':
+    elif model_size == "40b":
         cfg_cls = llm.Hyena40bConfig
-    elif model_size == 'nv-40b':
+    elif model_size == "nv-40b":
         cfg_cls = llm.HyenaNV40bConfig
-    elif model_size == '7b_arc_longcontext':
+    elif model_size == "7b_arc_longcontext":
         cfg_cls = llm.Hyena7bARCLongContextConfig
-    elif model_size == '40b_arc_longcontext':
+    elif model_size == "40b_arc_longcontext":
         cfg_cls = llm.Hyena40bARCLongContextConfig
     else:
         raise NotImplementedError(f"Unsupported model size: {model_size}")
@@ -136,7 +138,7 @@ def trainer_recipe(
     align_param_gather: bool = True,
     no_aligned_megatron_ddp: bool = False,
     ckpt_async_save: bool = True,
-    save_ckpt_format: Literal['torch_dist', 'zarr'] = 'torch_dist',
+    save_ckpt_format: Literal["torch_dist", "zarr"] = "torch_dist",
 ) -> run.Config[nl.Trainer]:
     """
     Configure the NeMo Lightning Trainer for Striped Hyena model.
@@ -264,7 +266,7 @@ def pretrain_recipe_creater(
     context_parallel_size: int = 1,
     seq_length: int = 8192,
     seed: int = 1234,
-    model_size: str = '7b',
+    model_size: str = "7b",
     use_megatron_comm_overlap_llama3_8k: bool = False,
     workers: int = 10,
     val_check_interval: int = 100,
@@ -349,7 +351,9 @@ def pretrain_recipe_creater(
 
     """
     model_run_cfg = model_recipe(
-        model_size=model_size, seq_length=seq_length, tp_comm_overlap=use_megatron_comm_overlap_llama3_8k
+        model_size=model_size,
+        seq_length=seq_length,
+        tp_comm_overlap=use_megatron_comm_overlap_llama3_8k,
     )
     if not dataset_config:
         data_run_cfg = run.Config(
@@ -383,7 +387,9 @@ def pretrain_recipe_creater(
                 f"ALIGN{not no_aligned_megatron_ddp}"
                 f"-NODES{num_nodes}-FP8{fp8}"
             )
-        extra_loggers['wandb_logger'] = wandb_logger(project=wandb_project, name=wandb_name)
+        extra_loggers["wandb_logger"] = wandb_logger(
+            project=wandb_project, name=wandb_name
+        )
     if resume_path:
         restore_cfg = run.Config(
             nl.RestoreConfig,
@@ -479,7 +485,9 @@ def pretrain_recipe_creater(
             tensorboard_logger=tensorboard_logger(name=name),
             **extra_loggers,
         ),
-        optim=distributed_fused_adam_with_cosine_annealing(max_lr=3e-4, min_lr=3e-5, warmup_steps=2500),
+        optim=distributed_fused_adam_with_cosine_annealing(
+            max_lr=3e-4, min_lr=3e-5, warmup_steps=2500
+        ),
         resume=nemo_resume,
     )
 
@@ -504,7 +512,7 @@ def model(tp_comm_overlap: bool, seq_length: int) -> run.Config[pl.LightningModu
         run.Config[pl.LightningModule]: Configuration for a Hyena model.
 
     """
-    return model_recipe('test', tp_comm_overlap, seq_length)
+    return model_recipe("test", tp_comm_overlap, seq_length)
 
 
 @run.cli.factory(target=pretrain, name=NAME)

@@ -26,7 +26,7 @@ class DialogueMSMarcoInputExample(DialogueInputExample):
     Please instantiate using the base class 'DialogueInputExample'
 
     {
-        
+
         "utterance": <utterance>,
         "labels": {
             "service": <service>, # this is the domain

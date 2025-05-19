@@ -28,14 +28,16 @@ from nemo.collections.nlp.parts.peft_config import PEFT_CONFIG_MAP
 from nemo.core.config import hydra_runner
 
 
-@hydra_runner(config_path='conf', config_name='dreambooth_lora_infer')
+@hydra_runner(config_path="conf", config_name="dreambooth_lora_infer")
 def main(cfg):
     def model_cfg_modifier(model_cfg):
         model_cfg.precision = cfg.trainer.precision
         model_cfg.ckpt_path = None
         model_cfg.inductor = False
         if cfg.model.unet_config.from_pretrained:
-            model_cfg.unet_config.from_pretrained = cfg.model.unet_config.from_pretrained
+            model_cfg.unet_config.from_pretrained = (
+                cfg.model.unet_config.from_pretrained
+            )
 
     model_cfg = MegatronLatentDiffusion.restore_from(
         restore_path=cfg.model.peft.restore_from_path,

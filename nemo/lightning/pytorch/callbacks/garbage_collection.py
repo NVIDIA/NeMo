@@ -46,8 +46,12 @@ class GarbageCollectionCallback(pl.Callback):
             gc_interval (int, mandatory): Number of global train steps at which garbage collection is done.
             gc_interval_val (int, mandatory): Number of global validation steps at which garbage collection is done.
         """
-        assert gc_interval_train > 0, "gc_interval_train should be an integer value larger than 0."
-        assert gc_interval_val > 0, "gc_interval_val should be an integer value larger than 0."
+        assert (
+            gc_interval_train > 0
+        ), "gc_interval_train should be an integer value larger than 0."
+        assert (
+            gc_interval_val > 0
+        ), "gc_interval_val should be an integer value larger than 0."
 
         super().__init__()
         self.gc_interval_train = gc_interval_train
@@ -66,7 +70,9 @@ class GarbageCollectionCallback(pl.Callback):
         batch_idx: int,
     ) -> None:
         if trainer.global_step % self.gc_interval_train == 0:
-            logging.info(f"Running garbage collection at train global_step: {trainer.global_step}")
+            logging.info(
+                f"Running garbage collection at train global_step: {trainer.global_step}"
+            )
             gc.collect()
 
     def on_validation_batch_end(
@@ -79,5 +85,7 @@ class GarbageCollectionCallback(pl.Callback):
     ) -> None:
         self.validation_global_step += 1
         if self.validation_global_step % self.gc_interval_val == 0:
-            logging.info(f"Running garbage collection at validation step: {self.validation_global_step}")
+            logging.info(
+                f"Running garbage collection at validation step: {self.validation_global_step}"
+            )
             gc.collect()

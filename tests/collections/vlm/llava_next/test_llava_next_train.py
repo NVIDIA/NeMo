@@ -35,38 +35,61 @@ from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 
 def get_args():
     # pylint: disable=C0115,C0116
-    parser = argparse.ArgumentParser(description='Train a small Llava Next model using NeMo 2.0')
-    parser.add_argument('--devices', type=int, default=1, help="Number of devices to use for training")
-    parser.add_argument('--max-steps', type=int, default=5, help="Number of steps to train for")
-    parser.add_argument(
-        '--experiment-dir', type=str, default=None, help="directory to write results and checkpoints to"
+    parser = argparse.ArgumentParser(
+        description="Train a small Llava Next model using NeMo 2.0"
     )
     parser.add_argument(
-        '--data-type',
+        "--devices", type=int, default=1, help="Number of devices to use for training"
+    )
+    parser.add_argument(
+        "--max-steps", type=int, default=5, help="Number of steps to train for"
+    )
+    parser.add_argument(
+        "--experiment-dir",
         type=str,
-        choices=['mock', 'energon'],
-        default='mock',
+        default=None,
+        help="directory to write results and checkpoints to",
+    )
+    parser.add_argument(
+        "--data-type",
+        type=str,
+        choices=["mock", "energon"],
+        default="mock",
         help="Type of data to use for training: mock or energon",
     )
     parser.add_argument(
-        '--data-path',
+        "--data-path",
         type=str,
         default=None,
         help="Path to the WebDataset for Energon data (only needed if data-type is energon)",
     )
     parser.add_argument(
-        '--use-packed-sequence', action='store_true', help="Use packed sequence for more efficient training"
+        "--use-packed-sequence",
+        action="store_true",
+        help="Use packed sequence for more efficient training",
     )
-    parser.add_argument('--gbs', type=int, default=2, help="Global batch size")
-    parser.add_argument('--mbs', type=int, default=2, help="Micro batch size")
-    parser.add_argument('--tensor-model-parallel-size', type=int, default=1, help="Tensor model parallel size")
-    parser.add_argument('--pipeline-model-parallel-size', type=int, default=1, help="Pipeline model parallel size")
-    parser.add_argument('--context-parallel-size', type=int, default=1, help="Context parallel size")
+    parser.add_argument("--gbs", type=int, default=2, help="Global batch size")
+    parser.add_argument("--mbs", type=int, default=2, help="Micro batch size")
+    parser.add_argument(
+        "--tensor-model-parallel-size",
+        type=int,
+        default=1,
+        help="Tensor model parallel size",
+    )
+    parser.add_argument(
+        "--pipeline-model-parallel-size",
+        type=int,
+        default=1,
+        help="Pipeline model parallel size",
+    )
+    parser.add_argument(
+        "--context-parallel-size", type=int, default=1, help="Context parallel size"
+    )
 
     return parser.parse_args()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
 
     args = get_args()
 
@@ -79,7 +102,7 @@ if __name__ == '__main__':
     tokenizer = AutoTokenizer(model_id)
 
     # Setup data module based on type
-    if args.data_type == 'mock':
+    if args.data_type == "mock":
         # Use mock data for simple testing
         data = vlm.LlavaNextMockDataModule(
             seq_length=decoder_seq_length,
@@ -89,7 +112,7 @@ if __name__ == '__main__':
             micro_batch_size=mbs,
             num_workers=0,
         )
-    elif args.data_type == 'energon':
+    elif args.data_type == "energon":
         # Validate args
         if not args.data_path:
             raise ValueError("For Energon data type, you must specify --data-path")
@@ -106,7 +129,7 @@ if __name__ == '__main__':
             ignore_place_holder=-100,
         )
         # Setting system prompt to empty string
-        multimodal_sample_config.conversation_template_config.system = ''
+        multimodal_sample_config.conversation_template_config.system = ""
 
         # Setup task encoder
         task_encoder = LlavaNextTaskEncoder(
@@ -135,7 +158,9 @@ if __name__ == '__main__':
         raise ValueError(f"Unknown data type: {args.data_type}")
 
     # Transformer configurations
-    language_transformer_config = llm.Llama2Config7B(seq_length=decoder_seq_length, num_layers=2)
+    language_transformer_config = llm.Llama2Config7B(
+        seq_length=decoder_seq_length, num_layers=2
+    )
 
     vision_transformer_config = vlm.HFCLIPVisionConfig(
         pretrained_model_name_or_path="openai/clip-vit-large-patch14-336"
@@ -185,12 +210,12 @@ if __name__ == '__main__':
 
     loggers = []
     tensorboard_logger = TensorBoardLogger(
-        save_dir='dummy',  ## NOTE: this gets overwritten by default
+        save_dir="dummy",  ## NOTE: this gets overwritten by default
     )
     loggers.append(tensorboard_logger)
 
     opt_config = OptimizerConfig(
-        optimizer='adam',
+        optimizer="adam",
         lr=6e-4,
         min_lr=6e-5,
         use_distributed_optimizer=False,
@@ -225,6 +250,6 @@ if __name__ == '__main__':
         trainer=trainer,
         log=nemo_logger,
         resume=resume,
-        tokenizer='data',
+        tokenizer="data",
         optim=opt,
     )

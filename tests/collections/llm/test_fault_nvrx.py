@@ -44,28 +44,44 @@ class CrashCallback(Callback):
 
 def get_args():
     parser = argparse.ArgumentParser(prog="", description="")
-    parser.add_argument('--devices', type=int, required=True, help="Number of devices to use for training")
     parser.add_argument(
-        '--crash-step',
+        "--devices",
+        type=int,
+        required=True,
+        help="Number of devices to use for training",
+    )
+    parser.add_argument(
+        "--crash-step",
         type=int,
         help="Step when a crash should be simulated",
     )
     parser.add_argument(
-        '--check-report', type=bool, default=False, help="Check if StragglerDetection reports performance scores"
+        "--check-report",
+        type=bool,
+        default=False,
+        help="Check if StragglerDetection reports performance scores",
     )
     parser.add_argument(
-        '--experiment-dir', type=str, required=True, help="directory to write results and checkpoints to"
+        "--experiment-dir",
+        type=str,
+        required=True,
+        help="directory to write results and checkpoints to",
     )
     parser.add_argument(
-        '--data-path', type=str, default=None, help="Path to data file. If not specified, uses mock data."
+        "--data-path",
+        type=str,
+        default=None,
+        help="Path to data file. If not specified, uses mock data.",
     )
     parser.add_argument(
-        '--tokenizer-path',
+        "--tokenizer-path",
         type=str,
         default=None,
         help="Path to a sentencepiece tokenizer model file. If not specified, uses mock data.",
     )
-    parser.add_argument('--index-mapping-dir', type=str, help="directory to write index mappings to")
+    parser.add_argument(
+        "--index-mapping-dir", type=str, help="directory to write index mappings to"
+    )
 
     return parser.parse_args()
 
@@ -100,16 +116,22 @@ def main():
     pretrain_recipe.trainer.val_check_interval = 30
     pretrain_recipe.trainer.limit_val_batches = 2
 
-    executor: run.SlurmExecutor = run.LocalExecutor(ntasks_per_node=args.devices, launcher="ft")
+    executor: run.SlurmExecutor = run.LocalExecutor(
+        ntasks_per_node=args.devices, launcher="ft"
+    )
     # Add the fault tolerance plugin which enables restart after a crash
-    run_plugins: list[run.Plugin] = [FaultTolerancePlugin(num_in_job_restarts=1, num_job_retries_on_failure=0)]
+    run_plugins: list[run.Plugin] = [
+        FaultTolerancePlugin(num_in_job_restarts=1, num_job_retries_on_failure=0)
+    ]
     pretrain_recipe.trainer.callbacks = [
         run.Config(TimingCallback),
         straggler_det_callback(straggler_report_time_interval=0.5),
     ]
 
     if args.crash_step:
-        pretrain_recipe.trainer.callbacks.append(run.Config(CrashCallback, crash_step=args.crash_step))
+        pretrain_recipe.trainer.callbacks.append(
+            run.Config(CrashCallback, crash_step=args.crash_step)
+        )
 
     run.run(pretrain_recipe, plugins=run_plugins, executor=executor)
 
@@ -125,10 +147,12 @@ def main():
         assert "GPU individual performance" in log_content
         assert "Straggler report processing time" in log_content
     if args.crash_step:
-        assert f"Exception: Simulating a crash at step {args.crash_step}!" in log_content
+        assert (
+            f"Exception: Simulating a crash at step {args.crash_step}!" in log_content
+        )
         assert "Restored all states from the checkpoint" in log_content
         assert "`Trainer.fit` stopped: `max_steps=20` reached" in log_content
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

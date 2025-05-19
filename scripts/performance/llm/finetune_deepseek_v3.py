@@ -69,7 +69,9 @@ def override_recipe_configs(
     recipe = finetune_recipe(peft_scheme=finetuning_scheme, packed_sequence=False)
 
     # use mock data module for testing
-    recipe.data = run.Config(MockDataModule, seq_length=4096, global_batch_size=gbs, micro_batch_size=1)
+    recipe.data = run.Config(
+        MockDataModule, seq_length=4096, global_batch_size=gbs, micro_batch_size=1
+    )
     callbacks = []
     if UseTokenDrop:
         callbacks.append(run.Config(MegatronTokenDropCallback))
@@ -115,22 +117,29 @@ def override_recipe_configs(
         recipe.data.tokenizer = hf_tokenizer(HF_MODEL_URI)
     else:
         recipe.data.tokenizer = run.Config(
-            get_nmt_tokenizer, library="null", model_name="NullTokenizer", vocab_size=129280
+            get_nmt_tokenizer,
+            library="null",
+            model_name="NullTokenizer",
+            vocab_size=129280,
         )
     recipe.model.tokenizer = recipe.data.tokenizer
 
-    if recipe.data.__fn_or_cls__ == SquadDataModule and not isfile_train_pack_metadata(HF_MODEL_URI, recipe.data):
+    if recipe.data.__fn_or_cls__ == SquadDataModule and not isfile_train_pack_metadata(
+        HF_MODEL_URI, recipe.data
+    ):
         # flag is valid only for SquadDataModule
         recipe.data.force_redownload = True
 
     recipe.trainer.plugins.grad_reduce_in_fp32 = False
-    recipe.model.config.recompute_granularity = 'full'
-    recipe.model.config.recompute_method = 'uniform'
+    recipe.model.config.recompute_granularity = "full"
+    recipe.model.config.recompute_method = "uniform"
     recipe.model.config.recompute_num_layers = 1
     recipe.model.config.moe_permute_fusion = True
 
     recipe.trainer.strategy.account_for_loss_in_pipeline_split = True
-    recipe.trainer.strategy.account_for_embedding_in_pipeline_split = False  # embedding is not split
+    recipe.trainer.strategy.account_for_embedding_in_pipeline_split = (
+        False  # embedding is not split
+    )
     recipe.trainer.strategy.num_layers_in_first_pipeline_stage = None
     recipe.trainer.strategy.num_layers_in_last_pipeline_stage = None
     recipe.trainer.strategy.sequence_parallel = False
@@ -143,10 +152,30 @@ if __name__ == "__main__":
     args_sanity_check(args)
 
     kwargs = get_user_configs(args.gpu.lower(), args.finetuning, "deepseek", "v3", args)
-    num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, _, enable_cuda_graphs = kwargs[:10]
+    (
+        num_nodes,
+        mbs,
+        gbs,
+        tp_size,
+        pp_size,
+        cp_size,
+        vp_size,
+        ep_size,
+        _,
+        enable_cuda_graphs,
+    ) = kwargs[:10]
 
     recipe = override_recipe_configs(
-        args, num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, enable_cuda_graphs
+        args,
+        num_nodes,
+        mbs,
+        gbs,
+        tp_size,
+        pp_size,
+        cp_size,
+        vp_size,
+        ep_size,
+        enable_cuda_graphs,
     )
 
     exp_config = f"{num_nodes}nodes_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_{mbs}mbs_{gbs}gbs"
@@ -171,7 +200,7 @@ if __name__ == "__main__":
         PerfEnvPlugin(
             enable_vboost=True,
             nccl_pp_comm_chunksize=2097152 if pp_size > 1 else None,
-            gpu_sm100_or_newer=(args.gpu.lower() in ['b200', 'gb200']),
+            gpu_sm100_or_newer=(args.gpu.lower() in ["b200", "gb200"]),
         )
     ]
     if args.enable_nsys:
@@ -182,8 +211,14 @@ if __name__ == "__main__":
 
     with run.Experiment(exp_name) as exp:
         if not SKIP_IMPORT:
-            assert args.hf_token is not None, "HF token is required for importing checkpoint from HuggingFace"
-            exp.add(*import_ckpt_experiment(executor, model(), source=f"hf://{HF_MODEL_URI}"))
+            assert (
+                args.hf_token is not None
+            ), "HF token is required for importing checkpoint from HuggingFace"
+            exp.add(
+                *import_ckpt_experiment(
+                    executor, model(), source=f"hf://{HF_MODEL_URI}"
+                )
+            )
         exp.add(
             recipe,
             executor=executor,

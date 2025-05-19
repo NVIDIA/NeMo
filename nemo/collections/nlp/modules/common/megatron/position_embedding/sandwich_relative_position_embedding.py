@@ -18,7 +18,7 @@ from nemo.collections.nlp.modules.common.megatron.position_embedding.alibi_relat
     build_relative_position
 from nemo.utils.decorators import experimental
 
-__all__ = ['SandwichRelativePositionEmbedding']
+__all__ = ["SandwichRelativePositionEmbedding"]
 
 
 @experimental
@@ -29,7 +29,12 @@ class SandwichRelativePositionEmbedding(torch.nn.Module):
     """
 
     def __init__(
-        self, bidirectional, num_attention_heads, layer_type, hidden_size, max_seq_len=512,
+        self,
+        bidirectional,
+        num_attention_heads,
+        layer_type,
+        hidden_size,
+        max_seq_len=512,
     ):
         """
         Args:
@@ -60,15 +65,30 @@ class SandwichRelativePositionEmbedding(torch.nn.Module):
 
         inv_freq = 1.0 / (
             10000
-            ** (2 * torch.arange(1, self.hidden_size / 2 + 1, device=relative_position.device) / self.hidden_size)
+            ** (
+                2
+                * torch.arange(
+                    1, self.hidden_size / 2 + 1, device=relative_position.device
+                )
+                / self.hidden_size
+            )
         )
 
-        _bias = torch.sum((relative_position[:, :, None].repeat(1, 1, len(inv_freq)) * inv_freq).cos(), axis=2)
+        _bias = torch.sum(
+            (
+                relative_position[:, :, None].repeat(1, 1, len(inv_freq)) * inv_freq
+            ).cos(),
+            axis=2,
+        )
         bias = _bias.repeat(self.num_attention_heads, 1, 1)
 
-        _bias_scales = torch.arange(1, self.num_attention_heads + 1, 1, device=relative_position.device)
+        _bias_scales = torch.arange(
+            1, self.num_attention_heads + 1, 1, device=relative_position.device
+        )
         bias_scales = _bias_scales[:, None, None]
 
-        scaled_bias = (bias - self.hidden_size / 2) / (bias_scales * 8 / self.num_attention_heads).unsqueeze(0)
+        scaled_bias = (bias - self.hidden_size / 2) / (
+            bias_scales * 8 / self.num_attention_heads
+        ).unsqueeze(0)
 
         return scaled_bias

@@ -62,18 +62,22 @@ def dump_config(cfg: dict, logger: nl.NeMoLogger):
         f.write(OmegaConf.to_yaml(cfg))
 
 
-def build_components(cfg: DictConfig, tokenizer: Optional[AutoTokenizer] = None) -> PipelineComponents:
+def build_components(
+    cfg: DictConfig, tokenizer: Optional[AutoTokenizer] = None
+) -> PipelineComponents:
     typecheck.set_typecheck_enabled(enabled=False)  # disable typechecks from NeMo 1.x
     cfg = OmegaConf.to_container(cfg, resolve=True)
 
-    logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
+    logging.info(f"Hydra config: {OmegaConf.to_yaml(cfg)}")
 
     # 1. build the model
     if tokenizer is not None:
         logging.info(f"Using provided tokenizer: {tokenizer}")
-    elif 'pretrained_model' in cfg['model']['llm']:
-        logging.info(f"Using tokenizer from pretrained model: {cfg['model']['llm']['pretrained_model']}")
-        tokenizer = AutoTokenizer(cfg['model']['llm']['pretrained_model'])
+    elif "pretrained_model" in cfg["model"]["llm"]:
+        logging.info(
+            f"Using tokenizer from pretrained model: {cfg['model']['llm']['pretrained_model']}"
+        )
+        tokenizer = AutoTokenizer(cfg["model"]["llm"]["pretrained_model"])
     else:
         raise ValueError(
             "Tokenizer is not provided, please pass `tokenizer` to `speech_to_text_llm_train`",
@@ -81,17 +85,27 @@ def build_components(cfg: DictConfig, tokenizer: Optional[AutoTokenizer] = None)
         )
 
     model_config = SpeechToTextLLMConfig(
-        language_model_class=cfg['model']['llm']['_target_'],
-        language_model_config=Serialization.from_config_dict(cfg['model']['llm']['config']),
-        speech_model_config=ASRModuleConfig(**cfg['model']['speech_encoder']),
-        modality_adapter_config=ModalityAdapterConfig(**cfg['model']['modality_adapter']),
-        language_model_from_pretrained=cfg['model']['llm'].get('pretrained_model', None),
-        freeze_language_model=cfg['model']['freeze_language_model'],
-        freeze_speech_model=cfg['model']['freeze_speech_model'],
-        freeze_modality_adapter=cfg['model']['freeze_modality_adapter'],
-        data_config=cfg['data']['common'],
-        resume_speech_model_from_path=cfg['model'].get('resume_speech_model_from_path', None),
-        resume_modality_adapter_from_path=cfg['model'].get('resume_modality_adapter_from_path', None),
+        language_model_class=cfg["model"]["llm"]["_target_"],
+        language_model_config=Serialization.from_config_dict(
+            cfg["model"]["llm"]["config"]
+        ),
+        speech_model_config=ASRModuleConfig(**cfg["model"]["speech_encoder"]),
+        modality_adapter_config=ModalityAdapterConfig(
+            **cfg["model"]["modality_adapter"]
+        ),
+        language_model_from_pretrained=cfg["model"]["llm"].get(
+            "pretrained_model", None
+        ),
+        freeze_language_model=cfg["model"]["freeze_language_model"],
+        freeze_speech_model=cfg["model"]["freeze_speech_model"],
+        freeze_modality_adapter=cfg["model"]["freeze_modality_adapter"],
+        data_config=cfg["data"]["common"],
+        resume_speech_model_from_path=cfg["model"].get(
+            "resume_speech_model_from_path", None
+        ),
+        resume_modality_adapter_from_path=cfg["model"].get(
+            "resume_modality_adapter_from_path", None
+        ),
     )
 
     if model_config.language_model_from_pretrained:
@@ -100,42 +114,46 @@ def build_components(cfg: DictConfig, tokenizer: Optional[AutoTokenizer] = None)
     model = SpeechToTextLLM(config=model_config, tokenizer=tokenizer)
 
     # 2. build dataset
-    data = AudioToTextDataModule(cfg['data'], tokenizer=tokenizer)
+    data = AudioToTextDataModule(cfg["data"], tokenizer=tokenizer)
 
     # 3. setup the optimizer
-    optim = Serialization.from_config_dict(cfg['optim'])
+    optim = Serialization.from_config_dict(cfg["optim"])
 
     # 4. setup trainer
-    callbacks = get_object_list_from_config(cfg['callbacks'])
-    if cfg.get('max_time_per_run', None):
-        if cfg['strategy'].get('ckpt_async_save', True):
+    callbacks = get_object_list_from_config(cfg["callbacks"])
+    if cfg.get("max_time_per_run", None):
+        if cfg["strategy"].get("ckpt_async_save", True):
             raise ValueError(
                 f"`strategy.ckpt_async_save` must be `False` to save ckpt when `max_time_per_run` is set,",
                 f"got {cfg['strategy']['ckpt_async_save']}. `max_time_per_run` will not work in this case!",
             )
         else:
             # ckpt_async_save must be False to save ckpt when training is interrupted by max_time_per_run
-            logging.info(f"Setting max_time_per_run={cfg['max_time_per_run']} for the training job.")
-            callbacks.append(StatelessTimer(cfg['max_time_per_run']))
+            logging.info(
+                f"Setting max_time_per_run={cfg['max_time_per_run']} for the training job."
+            )
+            callbacks.append(StatelessTimer(cfg["max_time_per_run"]))
     else:
         callbacks.append(PreemptionCallback())
     callbacks.append(TimingCallback())
 
     trainer = nl.Trainer(
-        strategy=Serialization.from_config_dict(cfg['strategy']),
-        plugins=get_object_list_from_config(cfg['plugins']),
+        strategy=Serialization.from_config_dict(cfg["strategy"]),
+        plugins=get_object_list_from_config(cfg["plugins"]),
         callbacks=callbacks,
-        **cfg['trainer'],
+        **cfg["trainer"],
     )
 
     # 5. setup PEFT
     peft = None
-    if cfg['model'].get('peft', None):
-        peft = SpeechToTextLLMPEFT(peft=Serialization.from_config_dict(cfg['model']['peft']))
+    if cfg["model"].get("peft", None):
+        peft = SpeechToTextLLMPEFT(
+            peft=Serialization.from_config_dict(cfg["model"]["peft"])
+        )
 
     # 6. setup logger and auto-resume
-    resume = Serialization.from_config_dict(cfg['resume'])
-    logger = Serialization.from_config_dict(cfg['logger'])
+    resume = Serialization.from_config_dict(cfg["resume"])
+    logger = Serialization.from_config_dict(cfg["logger"])
 
     return PipelineComponents(
         model=model,
@@ -149,7 +167,9 @@ def build_components(cfg: DictConfig, tokenizer: Optional[AutoTokenizer] = None)
     )
 
 
-def speech_to_text_llm_train(cfg: DictConfig, tokenizer: Optional[AutoTokenizer] = None):
+def speech_to_text_llm_train(
+    cfg: DictConfig, tokenizer: Optional[AutoTokenizer] = None
+):
     """Train the model using provided config."""
 
     components = build_components(cfg, tokenizer)
@@ -170,7 +190,9 @@ def speech_to_text_llm_train(cfg: DictConfig, tokenizer: Optional[AutoTokenizer]
     return components.logger.log_dir
 
 
-def speech_to_text_llm_validate(cfg: DictConfig, tokenizer: Optional[AutoTokenizer] = None):
+def speech_to_text_llm_validate(
+    cfg: DictConfig, tokenizer: Optional[AutoTokenizer] = None
+):
     """
     Validate the model using provided config, groundtruth required.
 
@@ -197,7 +219,9 @@ def speech_to_text_llm_validate(cfg: DictConfig, tokenizer: Optional[AutoTokeniz
     return app_state.log_dir
 
 
-def speech_to_text_llm_generate(cfg: DictConfig, tokenizer: Optional[AutoTokenizer] = None):
+def speech_to_text_llm_generate(
+    cfg: DictConfig, tokenizer: Optional[AutoTokenizer] = None
+):
     """Running inference using provided config without groundtruth."""
     # TODO: implement this based on llm.generate()
     raise NotImplementedError("This function is not implemented yet.")

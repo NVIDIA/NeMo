@@ -96,7 +96,12 @@ class GradBucket(object):
             )
 
         self.numel = numel
-        self.data = torch.zeros(self.numel, dtype=torch.float, device=torch.cuda.current_device(), requires_grad=False)
+        self.data = torch.zeros(
+            self.numel,
+            dtype=torch.float,
+            device=torch.cuda.current_device(),
+            requires_grad=False,
+        )
 
         self._data_group = data_group
         self.chunk_size_mb = chunk_size_mb
@@ -109,7 +114,9 @@ class GradBucket(object):
                 self.num_chunks += 1
                 self.numel_per_chunk.append(self.numel % self.chunk_size_numel)
 
-            self.start_index_per_chunk = torch.cumsum(torch.tensor([0] + self.numel_per_chunk[:-1]), dim=0)
+            self.start_index_per_chunk = torch.cumsum(
+                torch.tensor([0] + self.numel_per_chunk[:-1]), dim=0
+            )
             self.current_chunk = 0
             self.computed_numel_per_chunk = [0] * self.num_chunks
 
@@ -126,7 +133,7 @@ class GradBucket(object):
         """Return a tensor with the input `shape` as a view into the
         1-D data starting at `start_index`."""
         end_index = start_index + shape.numel()
-        assert end_index <= self.numel, 'requested tensor is out of the buffer range.'
+        assert end_index <= self.numel, "requested tensor is out of the buffer range."
         buffer_tensor = self.data[start_index:end_index]
         buffer_tensor = buffer_tensor.view(shape)
 
@@ -141,7 +148,9 @@ class GradBucket(object):
                 chunk += 1
                 chunk_start_index = self.start_index_per_chunk[chunk]
                 chunk_end_index = chunk_start_index + self.numel_per_chunk[chunk]
-                grad_chunk_info[chunk] = min(chunk_end_index, end_index) - chunk_start_index
+                grad_chunk_info[chunk] = (
+                    min(chunk_end_index, end_index) - chunk_start_index
+                )
 
         return buffer_tensor, grad_chunk_info
 
@@ -150,9 +159,14 @@ class GradBucket(object):
             self.computed_numel_per_chunk[chunk] += grad_chunk_info[chunk]
 
     def get_allreduce_tensor(self):
-        if self.computed_numel_per_chunk[self.current_chunk] == self.numel_per_chunk[self.current_chunk]:
+        if (
+            self.computed_numel_per_chunk[self.current_chunk]
+            == self.numel_per_chunk[self.current_chunk]
+        ):
             chunk_start_index = self.start_index_per_chunk[self.current_chunk]
-            chunk_end_index = chunk_start_index + self.numel_per_chunk[self.current_chunk]
+            chunk_end_index = (
+                chunk_start_index + self.numel_per_chunk[self.current_chunk]
+            )
             allreduce_tensor = self.data[chunk_start_index:chunk_end_index]
 
             self.computed_numel_per_chunk[self.current_chunk] = 0
@@ -200,16 +214,19 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
             )
 
         self.optimizer = optimizer
-        assert self.optimizer, 'no optimizer is provided.'
+        assert self.optimizer, "no optimizer is provided."
         if contiguous_grad_bucket:
-            assert fp32_grad_accum, 'contiguous gradient buffer assumes using fp32 grad.'
+            assert (
+                fp32_grad_accum
+            ), "contiguous gradient buffer assumes using fp32 grad."
         if async_grad_allreduce:
             assert fp32_grad_accum, (
-                'async allreduce applies to master gradients only, '
-                'which is supposed to be accumulated after grad op.'
+                "async allreduce applies to master gradients only, "
+                "which is supposed to be accumulated after grad op."
             )
             assert contiguous_grad_bucket, (
-                'currently async_grad_allreduce is supported only ' 'with contiguous_grad_bucket.'
+                "currently async_grad_allreduce is supported only "
+                "with contiguous_grad_bucket."
             )
 
         self._fp32_grad_accum = fp32_grad_accum
@@ -218,7 +235,8 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
         # used with tensor parallel only (no pipeline parallelism)
         # be careful, weight update cannot start until all async grad AR works are done
         self._async_grad_allreduce = (
-            async_grad_allreduce and get_data_parallel_world_size(with_context_parallel=True) > 1
+            async_grad_allreduce
+            and get_data_parallel_world_size(with_context_parallel=True) > 1
         )
 
         if self._async_grad_allreduce:
@@ -244,7 +262,10 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
             num_elements = {}
             for i, param_group in enumerate(self.optimizer.param_groups):
                 num_elements[i] = sum(
-                    map(lambda x: x.data.nelement(), filter(lambda p: p.requires_grad, param_group['params']))
+                    map(
+                        lambda x: x.data.nelement(),
+                        filter(lambda p: p.requires_grad, param_group["params"]),
+                    )
                 )
 
                 # Allocate gradient memory buffers for each data type
@@ -252,7 +273,7 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
                     self._main_grad_buffers[i] = GradBucket(
                         num_elements[i],
                         self._grad_allreduce_chunk_size_mb,
-                        _get_grad_data_group(param_group.get('is_expert', False)),
+                        _get_grad_data_group(param_group.get("is_expert", False)),
                     )
 
         # Three groups of parameters:
@@ -270,12 +291,15 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
             fp32_params_this_group = []
             fp32_from_float16_params_this_group = []
             # For all the parameters in this group:
-            is_expert_group = param_group.get('is_expert', False)
-            for j, param in enumerate(param_group['params']):
+            is_expert_group = param_group.get("is_expert", False)
+            for j, param in enumerate(param_group["params"]):
                 main_param = None
                 if param.requires_grad:
                     # float16 params:
-                    if param.type() in ['torch.cuda.HalfTensor', 'torch.cuda.BFloat16Tensor']:
+                    if param.type() in [
+                        "torch.cuda.HalfTensor",
+                        "torch.cuda.BFloat16Tensor",
+                    ]:
                         float16_params_this_group.append(param)
 
                         # Allocate the main parameter
@@ -283,48 +307,56 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
 
                         # Copy tensor model parallel attributes.
                         copy_tensor_model_parallel_attributes(main_param, param)
-                        if hasattr(param, 'shared'):
+                        if hasattr(param, "shared"):
                             main_param.shared = param.shared
-                        if hasattr(param, 'allreduce'):
+                        if hasattr(param, "allreduce"):
                             main_param.allreduce = param.allreduce
 
                         # Assign the grad buffer offset to main parameters
                         if self._contiguous_grad_bucket:
                             num_elements[i] -= param.data.nelement()
-                            main_param.grad, grad_chunk_info = self._main_grad_buffers[i].get(
-                                param.data.shape, num_elements[i]
-                            )
+                            main_param.grad, grad_chunk_info = self._main_grad_buffers[
+                                i
+                            ].get(param.data.shape, num_elements[i])
                             # Add a pointer to main_grad in model param for first-last stage embedding param reduction
                             param.main_grad = main_param.grad
 
                         # Replace the optimizer params with the new fp32 copy.
-                        param_group['params'][j] = main_param
+                        param_group["params"][j] = main_param
                         fp32_from_float16_params_this_group.append(main_param)
                         # Reset existing state dict key to the new main param.
                         if param in self.optimizer.state:
-                            self.optimizer.state[main_param] = self.optimizer.state.pop(param)
+                            self.optimizer.state[main_param] = self.optimizer.state.pop(
+                                param
+                            )
                     # fp32 params.
-                    elif param.type() == 'torch.cuda.FloatTensor':
+                    elif param.type() == "torch.cuda.FloatTensor":
                         fp32_params_this_group.append(param)
-                        param_group['params'][j] = param
+                        param_group["params"][j] = param
 
                     else:
                         raise TypeError(
-                            'Wrapped parameters must be one of '
-                            'torch.cuda.FloatTensor,  '
-                            'torch.cuda.HalfTensor, or '
-                            'torch.cuda.BFloat16Tensor. '
-                            'Received {}'.format(param.type())
+                            "Wrapped parameters must be one of "
+                            "torch.cuda.FloatTensor,  "
+                            "torch.cuda.HalfTensor, or "
+                            "torch.cuda.BFloat16Tensor. "
+                            "Received {}".format(param.type())
                         )
 
                 # Add gradient accumulation hook for fp32 grad accumulation
-                if main_param is not None and self._fp32_grad_accum and param.requires_grad:
+                if (
+                    main_param is not None
+                    and self._fp32_grad_accum
+                    and param.requires_grad
+                ):
                     # Expand so we get access to grad_fn
                     param_tmp = param.expand_as(param)
                     # Get the gradient accumulator function.
                     grad_acc = param_tmp.grad_fn.next_functions[0][0]
                     grad_acc.register_hook(
-                        self._make_param_hook(param, main_param, i, grad_chunk_info, is_expert_group)
+                        self._make_param_hook(
+                            param, main_param, i, grad_chunk_info, is_expert_group
+                        )
                     )
                     self.grad_accs.append(grad_acc)
 
@@ -373,12 +405,21 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
                 if self._grad_allreduce_chunk_size_mb > 0:
                     self._main_grad_buffers[i].update_chunk_info(grad_chunk_info)
                     while True:
-                        allreduce_tensor = self._main_grad_buffers[i].get_allreduce_tensor()
+                        allreduce_tensor = self._main_grad_buffers[
+                            i
+                        ].get_allreduce_tensor()
                         if allreduce_tensor is None:
                             break
-                        allreduce_grads(self._grad_div_ar_fusion, allreduce_tensor, data_group, grad_mult)
+                        allreduce_grads(
+                            self._grad_div_ar_fusion,
+                            allreduce_tensor,
+                            data_group,
+                            grad_mult,
+                        )
                 else:
-                    allreduce_grads(self._grad_div_ar_fusion, main_param.grad, data_group, grad_mult)
+                    allreduce_grads(
+                        self._grad_div_ar_fusion, main_param.grad, data_group, grad_mult
+                    )
 
         return param_hook
 
@@ -401,7 +442,9 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
 
     def copy_model_grads_to_main_grads(self):
         # This only needs to be done for the float16 group.
-        for model_group, main_group in zip(self.float16_groups, self.fp32_from_float16_groups):
+        for model_group, main_group in zip(
+            self.float16_groups, self.fp32_from_float16_groups
+        ):
             for model_param, main_param in zip(model_group, main_group):
                 if model_param.grad is not None:
                     main_param.grad = model_param.grad.float()
@@ -415,7 +458,9 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
         model_data = []
         main_data = []
         half_dtype = None
-        for model_group, main_group in zip(self.float16_groups, self.fp32_from_float16_groups):
+        for model_group, main_group in zip(
+            self.float16_groups, self.fp32_from_float16_groups
+        ):
             for model_param, main_param in zip(model_group, main_group):
                 if half_dtype is None:
                     half_dtype = model_param.data.dtype
@@ -432,15 +477,23 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
 
     def _copy_main_params_to_model_params(self):
         # Only needed for the float16 params.
-        model_data, main_data, half_dtype = self._get_model_and_main_params_data_float16()
+        model_data, main_data, half_dtype = (
+            self._get_model_and_main_params_data_float16()
+        )
         self._set_overflow_buffer(half_dtype)
-        _multi_tensor_copy_this_to_that(this=main_data, that=model_data, overflow_buf=self._dummy_overflow_buf)
+        _multi_tensor_copy_this_to_that(
+            this=main_data, that=model_data, overflow_buf=self._dummy_overflow_buf
+        )
 
     def _copy_model_params_to_main_params(self):
         # Only needed for the float16 params.
-        model_data, main_data, half_dtype = self._get_model_and_main_params_data_float16()
+        model_data, main_data, half_dtype = (
+            self._get_model_and_main_params_data_float16()
+        )
         self._set_overflow_buffer(half_dtype)
-        _multi_tensor_copy_this_to_that(this=model_data, that=main_data, overflow_buf=self._dummy_overflow_buf)
+        _multi_tensor_copy_this_to_that(
+            this=model_data, that=main_data, overflow_buf=self._dummy_overflow_buf
+        )
 
     def reload_model_params(self):
         self._copy_model_params_to_main_params()
@@ -453,7 +506,7 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
         if self._async_grad_allreduce:
             torch.cuda.synchronize()
 
-        closure = kwargs.pop('closure', None)
+        closure = kwargs.pop("closure", None)
         # Allows applications to specify closure as None without erroring due to duplicate specification
         assert closure is None, f"closure should be None but was passed {closure}"
 
@@ -469,27 +522,31 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
 
     def state_dict(self):
         state_dict = {}
-        state_dict['optimizer'] = self.optimizer.state_dict()
-        state_dict['fp32_from_fp16_params'] = self.fp32_from_float16_groups
+        state_dict["optimizer"] = self.optimizer.state_dict()
+        state_dict["fp32_from_fp16_params"] = self.fp32_from_float16_groups
         return state_dict
 
     def load_state_dict(self, state_dict):
         # Optimizer.
-        optimizer_key = 'optimizer'
+        optimizer_key = "optimizer"
         if optimizer_key not in state_dict:
-            optimizer_key = 'optimizer_state_dict'
-            logging.info('***WARNING*** loading optimizer from ' 'an old checkpoint ...')
-        if 'state' not in state_dict[optimizer_key]:
-            state_dict[optimizer_key]['state'] = {}
+            optimizer_key = "optimizer_state_dict"
+            logging.info(
+                "***WARNING*** loading optimizer from " "an old checkpoint ..."
+            )
+        if "state" not in state_dict[optimizer_key]:
+            state_dict[optimizer_key]["state"] = {}
         self.optimizer.load_state_dict(state_dict[optimizer_key])
 
         # Copy data for the main params.
-        fp32_from_float16_params_key = 'fp32_from_fp16_params'
+        fp32_from_float16_params_key = "fp32_from_fp16_params"
         if fp32_from_float16_params_key not in state_dict:
-            fp32_from_float16_params_key = 'fp32_from_fp16'
+            fp32_from_float16_params_key = "fp32_from_fp16"
         if fp32_from_float16_params_key not in state_dict:
             state_dict[fp32_from_float16_params_key] = []
-        for current_group, saved_group in zip(self.fp32_from_float16_groups, state_dict[fp32_from_float16_params_key]):
+        for current_group, saved_group in zip(
+            self.fp32_from_float16_groups, state_dict[fp32_from_float16_params_key]
+        ):
             for current_param, saved_param in zip(current_group, saved_group):
                 current_param.data.copy_(saved_param.data)
 
@@ -519,15 +576,17 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
     def get_parameters_with_grad(self):
         params = []
         for param_group in self.optimizer.param_groups:
-            for param in param_group['params']:
-                if param.grad is not None:  # (@adithyare) added to enable pp>1 training for adapters
+            for param in param_group["params"]:
+                if (
+                    param.grad is not None
+                ):  # (@adithyare) added to enable pp>1 training for adapters
                     params.append(param)
         return params
 
     # Promote state so it can be retrieved or set via
     # "optimizer_instance.state"
     def _get_state(self):
-        if hasattr(self, 'optimizer'):
+        if hasattr(self, "optimizer"):
             return self.optimizer.state
         else:
             return []
@@ -541,7 +600,7 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
     # "optimizer_instance.param_groups"
     # (for example, to adjust the learning rate)
     def _get_param_groups(self):
-        if hasattr(self, 'optimizer'):
+        if hasattr(self, "optimizer"):
             return self.optimizer.param_groups
         else:
             return []
@@ -554,7 +613,7 @@ class MainParamsOptimizerWrapper(torch.optim.Optimizer):
     # Promote defaults so it can be retrieved or set via
     # "optimizer_instance.defaults
     def _get_defaults(self):
-        if hasattr(self, 'optimizer'):
+        if hasattr(self, "optimizer"):
             return self.optimizer.defaults
         else:
             return []

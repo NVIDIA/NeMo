@@ -70,7 +70,14 @@ class TestReplaceBNWithFusedBN:
                     ("bn2", nn.BatchNorm1d(11)),
                     (
                         "submodule1",
-                        nn.Sequential(OrderedDict([("linear3", nn.Linear(11, 12)), ("bn3", nn.BatchNorm1d(12))])),
+                        nn.Sequential(
+                            OrderedDict(
+                                [
+                                    ("linear3", nn.Linear(11, 12)),
+                                    ("bn3", nn.BatchNorm1d(12)),
+                                ]
+                            )
+                        ),
                     ),
                 ]
             )
@@ -92,7 +99,14 @@ class TestReplaceBNWithFusedBN:
                     ("bn2", nn.BatchNorm1d(11)),
                     (
                         "submodule1",
-                        nn.Sequential(OrderedDict([("linear3", nn.Linear(11, 12)), ("bn3", nn.BatchNorm1d(12))])),
+                        nn.Sequential(
+                            OrderedDict(
+                                [
+                                    ("linear3", nn.Linear(11, 12)),
+                                    ("bn3", nn.BatchNorm1d(12)),
+                                ]
+                            )
+                        ),
                     ),
                 ]
             )

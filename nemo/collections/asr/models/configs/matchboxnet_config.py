@@ -110,10 +110,14 @@ class MatchboxNetModelConfig(clf_cfg.EncDecClassificationConfig):
         )
     )
     validation_ds: clf_cfg.EncDecClassificationDatasetConfig = field(
-        default_factory=lambda: clf_cfg.EncDecClassificationDatasetConfig(manifest_filepath=None, shuffle=False)
+        default_factory=lambda: clf_cfg.EncDecClassificationDatasetConfig(
+            manifest_filepath=None, shuffle=False
+        )
     )
     test_ds: clf_cfg.EncDecClassificationDatasetConfig = field(
-        default_factory=lambda: clf_cfg.EncDecClassificationDatasetConfig(manifest_filepath=None, shuffle=False)
+        default_factory=lambda: clf_cfg.EncDecClassificationDatasetConfig(
+            manifest_filepath=None, shuffle=False
+        )
     )
 
     # Optimizer / Scheduler config
@@ -127,62 +131,89 @@ class MatchboxNetModelConfig(clf_cfg.EncDecClassificationConfig):
     )
     spec_augment: Optional[SpectrogramAugmentationConfig] = field(
         default_factory=lambda: SpectrogramAugmentationConfig(
-            freq_masks=2, time_masks=2, freq_width=15, time_width=25, rect_masks=5, rect_time=25, rect_freq=15
+            freq_masks=2,
+            time_masks=2,
+            freq_width=15,
+            time_width=25,
+            rect_masks=5,
+            rect_time=25,
+            rect_freq=15,
         )
     )
     crop_or_pad_augment: Optional[CropOrPadSpectrogramAugmentationConfig] = field(
         default_factory=lambda: CropOrPadSpectrogramAugmentationConfig(audio_length=128)
     )
 
-    encoder: ConvASREncoderConfig = field(default_factory=lambda: ConvASREncoderConfig(activation="relu"))
-    decoder: ConvASRDecoderClassificationConfig = field(default_factory=lambda: ConvASRDecoderClassificationConfig())
+    encoder: ConvASREncoderConfig = field(
+        default_factory=lambda: ConvASREncoderConfig(activation="relu")
+    )
+    decoder: ConvASRDecoderClassificationConfig = field(
+        default_factory=lambda: ConvASRDecoderClassificationConfig()
+    )
 
 
 @dataclass
 class MatchboxNetVADModelConfig(MatchboxNetModelConfig):
     timesteps: int = 64
-    labels: List[str] = field(default_factory=lambda: ['background', 'speech'])
+    labels: List[str] = field(default_factory=lambda: ["background", "speech"])
 
     crop_or_pad_augment: Optional[CropOrPadSpectrogramAugmentationConfig] = None
 
 
 class EncDecClassificationModelConfigBuilder(model_cfg.ModelConfigBuilder):
-    VALID_CONFIGS = ['matchboxnet_3x1x64', 'matchboxnet_3x1x64_vad']
+    VALID_CONFIGS = ["matchboxnet_3x1x64", "matchboxnet_3x1x64_vad"]
 
-    def __init__(self, name: str = 'matchboxnet_3x1x64', encoder_cfg_func: Optional[Callable[[], List[Any]]] = None):
+    def __init__(
+        self,
+        name: str = "matchboxnet_3x1x64",
+        encoder_cfg_func: Optional[Callable[[], List[Any]]] = None,
+    ):
         if name not in EncDecClassificationModelConfigBuilder.VALID_CONFIGS:
-            raise ValueError("`name` must be one of : \n" f"{EncDecClassificationModelConfigBuilder.VALID_CONFIGS}")
+            raise ValueError(
+                "`name` must be one of : \n"
+                f"{EncDecClassificationModelConfigBuilder.VALID_CONFIGS}"
+            )
 
         self.name = name
 
-        if 'matchboxnet_3x1x64_vad' in name:
+        if "matchboxnet_3x1x64_vad" in name:
             if encoder_cfg_func is None:
                 encoder_cfg_func = matchboxnet_3x1x64_vad
 
             model_cfg = MatchboxNetVADModelConfig(
                 repeat=1,
                 separable=True,
-                encoder=ConvASREncoderConfig(jasper=encoder_cfg_func(), activation="relu"),
+                encoder=ConvASREncoderConfig(
+                    jasper=encoder_cfg_func(), activation="relu"
+                ),
                 decoder=ConvASRDecoderClassificationConfig(),
             )
 
-        elif 'matchboxnet_3x1x64' in name:
+        elif "matchboxnet_3x1x64" in name:
             if encoder_cfg_func is None:
                 encoder_cfg_func = matchboxnet_3x1x64
 
             model_cfg = MatchboxNetModelConfig(
                 repeat=1,
                 separable=False,
-                spec_augment=SpectrogramAugmentationConfig(rect_masks=5, rect_freq=50, rect_time=120),
-                encoder=ConvASREncoderConfig(jasper=encoder_cfg_func(), activation="relu"),
+                spec_augment=SpectrogramAugmentationConfig(
+                    rect_masks=5, rect_freq=50, rect_time=120
+                ),
+                encoder=ConvASREncoderConfig(
+                    jasper=encoder_cfg_func(), activation="relu"
+                ),
                 decoder=ConvASRDecoderClassificationConfig(),
             )
 
         else:
-            raise ValueError(f"Invalid config name submitted to {self.__class__.__name__}")
+            raise ValueError(
+                f"Invalid config name submitted to {self.__class__.__name__}"
+            )
 
         super(EncDecClassificationModelConfigBuilder, self).__init__(model_cfg)
-        self.model_cfg: clf_cfg.EncDecClassificationConfig = model_cfg  # enable type hinting
+        self.model_cfg: clf_cfg.EncDecClassificationConfig = (
+            model_cfg  # enable type hinting
+        )
 
     def set_labels(self, labels: List[str]):
         self.model_cfg.labels = labels

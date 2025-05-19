@@ -31,32 +31,54 @@ NetworkEval = namedtuple("NetworkEval", ["reconstructions", "quant_loss", "quant
 
 
 class CausalDiscreteVideoTokenizer(nn.Module):
-    def __init__(self, z_channels: int, z_factor: int, embedding_dim: int, **kwargs) -> None:
+    def __init__(
+        self, z_channels: int, z_factor: int, embedding_dim: int, **kwargs
+    ) -> None:
         super().__init__()
         self.name = kwargs.get("name", "CausalDiscreteVideoTokenizer")
         self.embedding_dim = embedding_dim
 
         encoder_name = kwargs.get("encoder", Encoder3DType.BASE.name)
-        self.encoder = Encoder3DType[encoder_name].value(z_channels=z_factor * z_channels, **kwargs)
+        self.encoder = Encoder3DType[encoder_name].value(
+            z_channels=z_factor * z_channels, **kwargs
+        )
 
         decoder_name = kwargs.get("decoder", Decoder3DType.BASE.name)
-        self.decoder = Decoder3DType[decoder_name].value(z_channels=z_channels, **kwargs)
+        self.decoder = Decoder3DType[decoder_name].value(
+            z_channels=z_channels, **kwargs
+        )
 
-        self.quant_conv = CausalConv3d(z_factor * z_channels, embedding_dim, kernel_size=1, padding=0)
-        self.post_quant_conv = CausalConv3d(embedding_dim, z_channels, kernel_size=1, padding=0)
+        self.quant_conv = CausalConv3d(
+            z_factor * z_channels, embedding_dim, kernel_size=1, padding=0
+        )
+        self.post_quant_conv = CausalConv3d(
+            embedding_dim, z_channels, kernel_size=1, padding=0
+        )
 
         quantizer_name = kwargs.get("quantizer", DiscreteQuantizer.RESFSQ.name)
         if quantizer_name == DiscreteQuantizer.VQ.name:
-            assert "num_embeddings" in kwargs, f"`num_embeddings` must be provided for {quantizer_name}."
+            assert (
+                "num_embeddings" in kwargs
+            ), f"`num_embeddings` must be provided for {quantizer_name}."
             kwargs.update(dict(embedding_dim=embedding_dim))
         elif quantizer_name == DiscreteQuantizer.LFQ.name:
-            assert "codebook_size" in kwargs, f"`codebook_size` must be provided for {quantizer_name}."
-            assert "codebook_dim" in kwargs, f"`codebook_dim` must be provided for {quantizer_name}."
+            assert (
+                "codebook_size" in kwargs
+            ), f"`codebook_size` must be provided for {quantizer_name}."
+            assert (
+                "codebook_dim" in kwargs
+            ), f"`codebook_dim` must be provided for {quantizer_name}."
         elif quantizer_name == DiscreteQuantizer.FSQ.name:
-            assert "levels" in kwargs, f"`levels` must be provided for {quantizer_name}."
+            assert (
+                "levels" in kwargs
+            ), f"`levels` must be provided for {quantizer_name}."
         elif quantizer_name == DiscreteQuantizer.RESFSQ.name:
-            assert "levels" in kwargs, f"`levels` must be provided for {quantizer_name}."
-            assert "num_quantizers" in kwargs, f"`num_quantizers` must be provided for {quantizer_name}."
+            assert (
+                "levels" in kwargs
+            ), f"`levels` must be provided for {quantizer_name}."
+            assert (
+                "num_quantizers" in kwargs
+            ), f"`num_quantizers` must be provided for {quantizer_name}."
         self.quantizer = DiscreteQuantizer[quantizer_name].value(**kwargs)
 
     def to(self, *args, **kwargs):

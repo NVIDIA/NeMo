@@ -88,7 +88,7 @@ def register_hidden_loss(cls_name: str, class_path: str):
     """
     Register a hidden loss.
 
-    
+
     Args:
         cls_name: name of the class
         class_path: path to the class (e.g., "nemo.collections.nlp.modules.common.megatron.hiddens.megatron_hidden_transform.MegatronGaussianHiddenTransform")
@@ -102,7 +102,7 @@ def register_hidden_loss(cls_name: str, class_path: str):
 def register_hidden_transform(cls_name: str, class_path: str):
     """
     Register a hidden transform.
-    
+
     Args:
         cls_name: name of the class
         class_path: path to the class (e.g., "nemo.collections.nlp.modules.common.megatron.hiddens.megatron_hidden_transform.MegatronGaussianHiddenTransform")
@@ -139,11 +139,17 @@ def get_hiddens_module(cfg=None, model_parallel_cfg: ModelParallelConfig = None)
             if "name" not in cls_kwargs:
                 cls_kwargs["name"] = name
             if cls_name not in _TRANSFORM_CLASS_REGISTRY:
-                raise KeyError(f"Unknown hidden transform {cls_name}, available: {_TRANSFORM_CLASS_REGISTRY.keys()}")
+                raise KeyError(
+                    f"Unknown hidden transform {cls_name}, available: {_TRANSFORM_CLASS_REGISTRY.keys()}"
+                )
             try:
-                cur_transform = import_class_by_path(_TRANSFORM_CLASS_REGISTRY[cls_name])(**cls_kwargs)
+                cur_transform = import_class_by_path(
+                    _TRANSFORM_CLASS_REGISTRY[cls_name]
+                )(**cls_kwargs)
             except Exception as e:
-                logging.error(f"Failed to build hidden transform {name} with cfg={cur_cfg}")
+                logging.error(
+                    f"Failed to build hidden transform {name} with cfg={cur_cfg}"
+                )
                 raise e
 
             hidden_transforms.append(cur_transform)
@@ -166,9 +172,13 @@ def get_hiddens_module(cfg=None, model_parallel_cfg: ModelParallelConfig = None)
             if "name" not in cls_kwargs:
                 cls_kwargs["name"] = name
             if cls_name not in _LOSS_CLASS_REGISTRY:
-                raise KeyError(f"Unknown hidden loss {cls_name}, available: {_LOSS_CLASS_REGISTRY.keys()}")
+                raise KeyError(
+                    f"Unknown hidden loss {cls_name}, available: {_LOSS_CLASS_REGISTRY.keys()}"
+                )
             try:
-                cur_loss = import_class_by_path(_LOSS_CLASS_REGISTRY[cls_name])(**cls_kwargs)
+                cur_loss = import_class_by_path(_LOSS_CLASS_REGISTRY[cls_name])(
+                    **cls_kwargs
+                )
             except Exception as e:
                 logging.error(f"Failed to build hidden loss {name} with cfg={cur_cfg}")
                 raise e
@@ -206,12 +216,22 @@ class MegatronHiddensModule(torch.nn.Module):
         self.loss_prefix = loss_prefix
 
         # register all hidden / loss transforms as submodules to support learned parameters
-        if not all([isinstance(ht, MegatronBaseHiddenLoss) for ht in self.hidden_loss_transforms]):
+        if not all(
+            [
+                isinstance(ht, MegatronBaseHiddenLoss)
+                for ht in self.hidden_loss_transforms
+            ]
+        ):
             raise TypeError(
                 f"hidden_loss_transforms should be a list of MegatronBaseHiddenLoss, but got {hidden_loss_transforms}"
             )
         self.hidden_loss_transforms = torch.nn.ModuleList(self.hidden_loss_transforms)
-        if not all([isinstance(ht, MegatronBaseHiddenTransform) for ht in self.hidden_transforms]):
+        if not all(
+            [
+                isinstance(ht, MegatronBaseHiddenTransform)
+                for ht in self.hidden_transforms
+            ]
+        ):
             raise TypeError(
                 f"hidden_transforms should be a list of MegatronBaseHiddenTransform, but got {hidden_transforms}"
             )
@@ -232,7 +252,9 @@ class MegatronHiddensModule(torch.nn.Module):
             # collect all duplicate output names
             cur_hidden_outputs = set(ht.output_names)
             if not cur_hidden_outputs.isdisjoint(hidden_outputs):
-                duplicate_names[ht.name] = list(cur_hidden_outputs.intersection(hidden_outputs))
+                duplicate_names[ht.name] = list(
+                    cur_hidden_outputs.intersection(hidden_outputs)
+                )
 
             hidden_outputs.update(cur_hidden_outputs)
 
@@ -243,9 +265,13 @@ class MegatronHiddensModule(torch.nn.Module):
             )
 
         # validate that all loss transforms are supported by output of hidden transforms ("hiddens" is given by default)
-        loss_inputs = set(itertools.chain(*[lt.input_names for lt in self.hidden_loss_transforms]))
+        loss_inputs = set(
+            itertools.chain(*[lt.input_names for lt in self.hidden_loss_transforms])
+        )
         if not loss_inputs.issubset(hidden_outputs):
-            loss_inputs_dict = {lt.name: lt.input_names for lt in self.hidden_loss_transforms}
+            loss_inputs_dict = {
+                lt.name: lt.input_names for lt in self.hidden_loss_transforms
+            }
             raise ValueError(
                 f"Loss transforms inputs = {loss_inputs - hidden_outputs} are not supported by hidden transforms with hidden_outputs = {hidden_outputs}, expected inputs per loss = {loss_inputs_dict}"
             )
@@ -253,7 +279,9 @@ class MegatronHiddensModule(torch.nn.Module):
     @functools.cached_property
     def hidden_outputs(self):
         """Get the hidden outputs from all the hidden transforms"""
-        all_output_names = [ht.output_names for ht in self.hidden_transforms] + [["hiddens", "hiddens_mask"]]
+        all_output_names = [ht.output_names for ht in self.hidden_transforms] + [
+            ["hiddens", "hiddens_mask"]
+        ]
         output_names = set().union(*all_output_names)
 
         return list(output_names)
@@ -261,7 +289,9 @@ class MegatronHiddensModule(torch.nn.Module):
     @functools.cached_property
     def loss_inputs(self):
         """Get the loss inputs from all the loss transforms"""
-        loss_inputs = set().union(*[lt.input_names for lt in self.hidden_loss_transforms])
+        loss_inputs = set().union(
+            *[lt.input_names for lt in self.hidden_loss_transforms]
+        )
         return list(loss_inputs)
 
     def apply_hidden_transforms(self, inputs, batch_data=None):
@@ -270,9 +300,9 @@ class MegatronHiddensModule(torch.nn.Module):
         Args:
             inputs: a dictionary of inputs, with "hiddens" as the default key for hidden states
             batch_data: a dictionary of batch data (e.g. "input_features"), optional
-        
+
         Returns:
-            outputs: a dictionary of outputs, collecting 
+            outputs: a dictionary of outputs, collecting
         """
         outputs = inputs.copy()
         for hidden_transform in self.hidden_transforms:
@@ -290,9 +320,9 @@ class MegatronHiddensModule(torch.nn.Module):
         Args:
             outputs: a dictionary of outputs (after hidden transforms)
             batch_data: a dictionary of batch data (e.g. "target_ids"), optional
-        
+
         Returns:
-            loss_dict: a dictionary of all losses, 
+            loss_dict: a dictionary of all losses,
                 {
                     loss: joint loss (float),
                     <name>_*: loss values from loss transforms, could be loss, or loss elements
@@ -306,7 +336,9 @@ class MegatronHiddensModule(torch.nn.Module):
             cur_loss_dict.pop("weighted_loss")
             # add name to loss values
             if loss_transform.name:
-                cur_loss_dict = {f"{loss_transform.name}_{k}": v for k, v in cur_loss_dict.items()}
+                cur_loss_dict = {
+                    f"{loss_transform.name}_{k}": v for k, v in cur_loss_dict.items()
+                }
 
             # check if cur_loss keys are unique - we do not allow to override keys
             dup_keys = set(cur_loss_dict.keys()).intersection(set(loss_dict.keys()))
@@ -325,6 +357,8 @@ class MegatronHiddensModule(torch.nn.Module):
             loss_dict = {f"{self.loss_prefix}{k}": v for k, v in loss_dict.items()}
 
         # add tokens loss weight (to be used by caller, or be ignored)
-        loss_dict["tokens_loss_weight"] = torch.tensor(self.tokens_loss_weight).to(joint_loss)
+        loss_dict["tokens_loss_weight"] = torch.tensor(self.tokens_loss_weight).to(
+            joint_loss
+        )
 
         return loss_dict

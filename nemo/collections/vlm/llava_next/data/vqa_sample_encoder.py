@@ -26,7 +26,12 @@ from nemo.utils import logging
 class LlavaNextSampleEncoder(VQASampleEncoder):
     """LlavaNextSampleEncoder"""
 
-    def __init__(self, tokenizer, image_processor, multimodal_sample_config=MultiModalSampleConfig()):
+    def __init__(
+        self,
+        tokenizer,
+        image_processor,
+        multimodal_sample_config=MultiModalSampleConfig(),
+    ):
         """
         Initialize the LlavaNextSampleEncoder, inherited from VQASampleEncoder for multimodal samples
         focused on VQA-style data to support LLaVANeXT
@@ -55,7 +60,9 @@ class LlavaNextSampleEncoder(VQASampleEncoder):
         Returns:
         torch.Tensor: The processed image tensor.
         """
-        image_array = self.image_processor.preprocess(image, return_tensors='pt', do_rescale=False)['pixel_values'][0]
+        image_array = self.image_processor.preprocess(
+            image, return_tensors="pt", do_rescale=False
+        )["pixel_values"][0]
         return image_array
 
     def encode(self, input_sample: VQASample, output_sample: LlavaNextTextSample):
@@ -101,18 +108,27 @@ class LlavaNextSampleEncoder(VQASampleEncoder):
                     self.hf_config.image_grid_pinpoints,
                     self.hf_config.vision_config.patch_size,
                 )
-                sample = sample.replace(self.image_token.token_str, "<placeholder>" * num_image_tokens, 1)
+                sample = sample.replace(
+                    self.image_token.token_str, "<placeholder>" * num_image_tokens, 1
+                )
             prompt_strings.append(sample)
-        prompt_strings = [sample.replace("<placeholder>", self.image_token.token_str) for sample in prompt_strings]
+        prompt_strings = [
+            sample.replace("<placeholder>", self.image_token.token_str)
+            for sample in prompt_strings
+        ]
         conversation_prompt = prompt_strings[0]
 
-        logging.debug(f"[Energon] task encoder encode_sample conversation_prompt {conversation_prompt}")
+        logging.debug(
+            f"[Energon] task encoder encode_sample conversation_prompt {conversation_prompt}"
+        )
         # tokenize prompt
         tokens = self.tokenize(conversation_prompt)
         labels = self.compute_labels(tokens, input_sample)
         tokens = tokens[:-1].contiguous()
         labels = labels[1:].contiguous()
-        logging.debug(f"[Energon] task encoder encode_sample after tokenize prompt tokens {tokens}")
+        logging.debug(
+            f"[Energon] task encoder encode_sample after tokenize prompt tokens {tokens}"
+        )
         logging.debug(f"[Energon] task encoder encode_sample lables {labels}")
         loss_mask = self.compute_loss_mask(labels)
 

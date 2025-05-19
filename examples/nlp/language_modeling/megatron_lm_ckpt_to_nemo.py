@@ -63,7 +63,7 @@ from nemo.utils.model_utils import (inject_model_parallel_rank,
                                     uninject_model_parallel_rank)
 
 # this enums code is copied from Megatron_LM
-enum_code = '''
+enum_code = """
 import enum
 
 class ModelType(enum.Enum):
@@ -84,34 +84,40 @@ class AttnType(enum.Enum):
 class AttnMaskType(enum.Enum):
     padding = 1
     causal = 2
-'''
+"""
 
 
 def install_megatron_dependence():
     # this is a hack to install required modules for MegatronLM checkpoints
     # run the following so we don't have to install Megatron_LM code
-    megatron_name = 'megatron'
-    megatron_spec = importlib.util.spec_from_loader(megatron_name, loader=None, is_package=True)
+    megatron_name = "megatron"
+    megatron_spec = importlib.util.spec_from_loader(
+        megatron_name, loader=None, is_package=True
+    )
 
     megatron_module = importlib.util.module_from_spec(megatron_spec)
     sys.modules[megatron_name] = megatron_module
 
-    model_name = 'model'
-    model_spec = importlib.util.spec_from_loader(model_name, loader=None, is_package=True)
+    model_name = "model"
+    model_spec = importlib.util.spec_from_loader(
+        model_name, loader=None, is_package=True
+    )
 
     model_module = importlib.util.module_from_spec(model_spec)
 
-    megatron_module.__dict__['model'] = model_module
+    megatron_module.__dict__["model"] = model_module
 
-    sys.modules[megatron_name + '.' + model_name] = model_module
+    sys.modules[megatron_name + "." + model_name] = model_module
 
-    enums_name = 'enums'
-    enums_spec = importlib.util.spec_from_loader(enums_name, loader=None, is_package=True)
+    enums_name = "enums"
+    enums_spec = importlib.util.spec_from_loader(
+        enums_name, loader=None, is_package=True
+    )
     enums_module = importlib.util.module_from_spec(enums_spec)
 
-    model_module.__dict__['enums'] = enums_module
+    model_module.__dict__["enums"] = enums_module
 
-    sys.modules[megatron_name + '.' + model_name + '.' + enums_name] = enums_module
+    sys.modules[megatron_name + "." + model_name + "." + enums_name] = enums_module
 
     exec(enum_code, enums_module.__dict__)
 
@@ -128,7 +134,7 @@ def get_args():
     parser.add_argument(
         "--checkpoint_name",
         type=str,
-        default='model_optim_rng.pt',
+        default="model_optim_rng.pt",
         required=True,
         help="Name of checkpoint to be used. Ex: model_optim_rng.pt",
     )
@@ -140,21 +146,47 @@ def get_args():
         required=False,
         help="Path config for restoring. It's created during training and may need to be modified during restore if restore environment is different than training. Ex: /raid/nemo_experiments/megatron_gpt/hparams.yaml",
     )
-    parser.add_argument("--nemo_file_path", type=str, default=None, required=False, help="Path to output .nemo file.")
+    parser.add_argument(
+        "--nemo_file_path",
+        type=str,
+        default=None,
+        required=False,
+        help="Path to output .nemo file.",
+    )
 
     parser.add_argument(
-        "--output_ckpt_file_path", type=str, default=None, required=False, help="Path to output .ckpt file."
+        "--output_ckpt_file_path",
+        type=str,
+        default=None,
+        required=False,
+        help="Path to output .ckpt file.",
     )
 
     parser.add_argument("--gpus_per_node", type=int, required=False, default=1)
 
-    parser.add_argument("--tensor_model_parallel_size", type=int, required=True, default=None)
-    parser.add_argument("--pipeline_model_parallel_size", type=int, required=False, default=1)
+    parser.add_argument(
+        "--tensor_model_parallel_size", type=int, required=True, default=None
+    )
+    parser.add_argument(
+        "--pipeline_model_parallel_size", type=int, required=False, default=1
+    )
 
-    parser.add_argument("--local_rank", type=int, required=False, default=os.getenv('LOCAL_RANK', -1))
+    parser.add_argument(
+        "--local_rank", type=int, required=False, default=os.getenv("LOCAL_RANK", -1)
+    )
 
-    parser.add_argument("--model_type", type=str, required=True, default="gpt", choices=["gpt", "t5", "bert"])
-    parser.add_argument("--mcore_input", action='store_true', help="input model is trained with Megatron Core")
+    parser.add_argument(
+        "--model_type",
+        type=str,
+        required=True,
+        default="gpt",
+        choices=["gpt", "t5", "bert"],
+    )
+    parser.add_argument(
+        "--mcore_input",
+        action="store_true",
+        help="input model is trained with Megatron Core",
+    )
 
     args = parser.parse_args()
     return args
@@ -169,11 +201,13 @@ def parse_weights(
     mcore_translator: Optional[dict] = None,
 ):
     for key in weight_dict:
-        if key.endswith('_extra_state'):
-            if weight_dict[key].read() == b'':
+        if key.endswith("_extra_state"):
+            if weight_dict[key].read() == b"":
                 continue
             else:
-                raise RuntimeError("encountered _extra_state that is non empty. I don't know what to do!!")
+                raise RuntimeError(
+                    "encountered _extra_state that is non empty. I don't know what to do!!"
+                )
 
         new_key = key
         name_translate = translator
@@ -184,38 +218,56 @@ def parse_weights(
 
         if mcore_translator:
             # convert to mcore key names
-            mcore_key = mcore_translator.get(f'model{parent_key}.{new_key}', new_key)
+            mcore_key = mcore_translator.get(f"model{parent_key}.{new_key}", new_key)
             if mcore_key != new_key:
-                logging.info(f'successfully mapped model{parent_key}.{new_key} to {mcore_key}')
-            elif not (isinstance(weight_dict[key], OrderedDict) or isinstance(weight_dict[key], dict)):
-                logging.warning(f'cannot find nemo -> mcore mapping for: {new_key}')
+                logging.info(
+                    f"successfully mapped model{parent_key}.{new_key} to {mcore_key}"
+                )
+            elif not (
+                isinstance(weight_dict[key], OrderedDict)
+                or isinstance(weight_dict[key], dict)
+            ):
+                logging.warning(f"cannot find nemo -> mcore mapping for: {new_key}")
 
-        if isinstance(weight_dict[key], OrderedDict) or isinstance(weight_dict[key], dict):
-            parse_weights(weight_dict[key], parent_key + '.' + new_key, total, converted, translator, mcore_translator)
+        if isinstance(weight_dict[key], OrderedDict) or isinstance(
+            weight_dict[key], dict
+        ):
+            parse_weights(
+                weight_dict[key],
+                parent_key + "." + new_key,
+                total,
+                converted,
+                translator,
+                mcore_translator,
+            )
         else:
-            num_parameters = torch.prod(torch.tensor(weight_dict[key].cpu().size())).item()
+            num_parameters = torch.prod(
+                torch.tensor(weight_dict[key].cpu().size())
+            ).item()
             total[0] += num_parameters
-            final_key = mcore_key if mcore_translator else 'model' + parent_key + '.' + new_key
+            final_key = (
+                mcore_key if mcore_translator else "model" + parent_key + "." + new_key
+            )
             converted[final_key] = weight_dict[key]
 
 
 def add_optimizer_state(lm_checkpoint, new_checkpoint, megatron_amp_O2=True):
     # this method is to convert lm_checkpoint optimizer states for nemo checkpoint
-    OPTIMIZER_KEY = 'optimizer'
-    FP32_FP16_KEY = 'fp32_from_fp16_params'
-    NEW_OPTIMIZER_KEY = 'optimizer_states'
-    STEP_KEY = 'iteration'
-    NEW_STEP_KEY = 'global_step'
-    LR_SCHEDULER = 'lr_scheduler'
-    NEW_LR_SCHEDULER = 'lr_schedulers'
+    OPTIMIZER_KEY = "optimizer"
+    FP32_FP16_KEY = "fp32_from_fp16_params"
+    NEW_OPTIMIZER_KEY = "optimizer_states"
+    STEP_KEY = "iteration"
+    NEW_STEP_KEY = "global_step"
+    LR_SCHEDULER = "lr_scheduler"
+    NEW_LR_SCHEDULER = "lr_schedulers"
     if OPTIMIZER_KEY in lm_checkpoint and OPTIMIZER_KEY in lm_checkpoint[OPTIMIZER_KEY]:
         opt_state = lm_checkpoint[OPTIMIZER_KEY][OPTIMIZER_KEY]
         if megatron_amp_O2:
             opt_dict = dict()
             if LR_SCHEDULER in lm_checkpoint:
                 sched = lm_checkpoint[LR_SCHEDULER]
-                for param_group in opt_state['param_groups']:
-                    param_group['initial_lr'] = sched['max_lr']
+                for param_group in opt_state["param_groups"]:
+                    param_group["initial_lr"] = sched["max_lr"]
             if FP32_FP16_KEY in lm_checkpoint[OPTIMIZER_KEY]:
                 fp32_state = lm_checkpoint[OPTIMIZER_KEY][FP32_FP16_KEY]
                 opt_dict[FP32_FP16_KEY] = fp32_state
@@ -226,62 +278,78 @@ def add_optimizer_state(lm_checkpoint, new_checkpoint, megatron_amp_O2=True):
 
     if STEP_KEY in lm_checkpoint:
         new_checkpoint[NEW_STEP_KEY] = lm_checkpoint[STEP_KEY]
-        new_checkpoint['epoch'] = 1  # always one epoch
+        new_checkpoint["epoch"] = 1  # always one epoch
     if LR_SCHEDULER in lm_checkpoint:
-        gbs = lm_checkpoint['args'].global_batch_size
+        gbs = lm_checkpoint["args"].global_batch_size
         sched = lm_checkpoint[LR_SCHEDULER]
         content = OrderedDict()
-        content['max_steps'] = int(sched['decay_steps']) // gbs + sched['warmup_steps'] // gbs
-        content['warmup_steps'] = int(sched['warmup_steps']) // gbs
-        content['constant_steps'] = 0  # no such conf in lm checkpoint
-        content['decay_steps'] = int(sched['decay_steps']) // gbs
-        content['min_lr'] = sched['min_lr']
+        content["max_steps"] = (
+            int(sched["decay_steps"]) // gbs + sched["warmup_steps"] // gbs
+        )
+        content["warmup_steps"] = int(sched["warmup_steps"]) // gbs
+        content["constant_steps"] = 0  # no such conf in lm checkpoint
+        content["decay_steps"] = int(sched["decay_steps"]) // gbs
+        content["min_lr"] = sched["min_lr"]
         if OPTIMIZER_KEY in lm_checkpoint:
-            content['base_lrs'] = [
-                i['initial_lr'] for i in new_checkpoint['optimizer_states'][0]['optimizer']['param_groups']
+            content["base_lrs"] = [
+                i["initial_lr"]
+                for i in new_checkpoint["optimizer_states"][0]["optimizer"][
+                    "param_groups"
+                ]
             ]
-            content['last_epoch'] = int(sched['num_steps']) // gbs
-            content['_last_lr'] = [i['lr'] for i in new_checkpoint['optimizer_states'][0]['optimizer']['param_groups']]
+            content["last_epoch"] = int(sched["num_steps"]) // gbs
+            content["_last_lr"] = [
+                i["lr"]
+                for i in new_checkpoint["optimizer_states"][0]["optimizer"][
+                    "param_groups"
+                ]
+            ]
         else:
-            content['base_lrs'] = [sched['max_lr']]
-            content['last_epoch'] = int(sched['num_steps']) // gbs
-        content['_step_count'] = int(sched['num_steps']) // gbs
-        content['verbose'] = False
-        content['_get_lr_called_within_step'] = False
+            content["base_lrs"] = [sched["max_lr"]]
+            content["last_epoch"] = int(sched["num_steps"]) // gbs
+        content["_step_count"] = int(sched["num_steps"]) // gbs
+        content["verbose"] = False
+        content["_get_lr_called_within_step"] = False
         new_checkpoint[NEW_LR_SCHEDULER] = [content]
 
 
 def load_model(cls, checkpoint, strict, **kwargs):
     try:
-        if 'cfg' in kwargs:
+        if "cfg" in kwargs:
             model = ptl_load_state(cls, checkpoint, strict=strict, **kwargs)
         else:
             cfg = checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY].cfg
 
             model = cls(cfg=cfg, **kwargs)
             for name, module in model.named_parameters():
-                if name in checkpoint['state_dict']:
-                    module.data = checkpoint['state_dict'][name]
-                    checkpoint['state_dict'].pop(name)
+                if name in checkpoint["state_dict"]:
+                    module.data = checkpoint["state_dict"][name]
+                    checkpoint["state_dict"].pop(name)
                 else:
                     print(f"Unexpected key: {name} not in checkpoint but in model.")
 
             for name, buffer in model.named_buffers():
-                if name in checkpoint['state_dict']:
-                    buffer.data = checkpoint['state_dict'][name]
-                    checkpoint['state_dict'].pop(name)
+                if name in checkpoint["state_dict"]:
+                    buffer.data = checkpoint["state_dict"][name]
+                    checkpoint["state_dict"].pop(name)
 
-            if len(checkpoint['state_dict'].keys()) != 0:
+            if len(checkpoint["state_dict"].keys()) != 0:
                 raise RuntimeError(
                     f"Additional keys: {checkpoint['state_dict'].keys()} in checkpoint but not in model."
                 )
             # register the artifacts
             if cfg.tokenizer.model is not None:
-                model.register_artifact("tokenizer.tokenizer_model", cfg.tokenizer.model)
+                model.register_artifact(
+                    "tokenizer.tokenizer_model", cfg.tokenizer.model
+                )
             if cfg.tokenizer.vocab_file is not None:
-                model.register_artifact("tokenizer.vocab_file", cfg.tokenizer.vocab_file)
+                model.register_artifact(
+                    "tokenizer.vocab_file", cfg.tokenizer.vocab_file
+                )
             if cfg.tokenizer.merge_file is not None:
-                model.register_artifact("tokenizer.merge_file", cfg.tokenizer.merge_file)
+                model.register_artifact(
+                    "tokenizer.merge_file", cfg.tokenizer.merge_file
+                )
     finally:
         cls._set_model_restore_state(is_being_restored=False)
     return model
@@ -308,20 +376,22 @@ def load_from_checkpoint(
             if map_location is not None:
                 old_checkpoint = pl_load(checkpoint_path, map_location=map_location)
             else:
-                old_checkpoint = pl_load(checkpoint_path, map_location=lambda storage, loc: storage)
+                old_checkpoint = pl_load(
+                    checkpoint_path, map_location=lambda storage, loc: storage
+                )
 
         total_params = [0]
         checkpoint = OrderedDict()
-        checkpoint['state_dict'] = OrderedDict()
+        checkpoint["state_dict"] = OrderedDict()
         parse_weights(
-            old_checkpoint['model'],
+            old_checkpoint["model"],
             "",
             total_params,
-            checkpoint['state_dict'],
-            translator=kwargs['translator'],
-            mcore_translator=kwargs.get('mcore_translator', None),
+            checkpoint["state_dict"],
+            translator=kwargs["translator"],
+            mcore_translator=kwargs.get("mcore_translator", None),
         )
-        print('converted {:.2f}M parameters'.format(total_params[0] / 1e6))
+        print("converted {:.2f}M parameters".format(total_params[0] / 1e6))
 
         if hparams_file is not None:
             extension = hparams_file.split(".")[-1]
@@ -337,48 +407,53 @@ def load_from_checkpoint(
             # overwrite hparams by the given file
             checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY] = hparams
 
-        check_point_version = old_checkpoint.get('checkpoint_version', 0)
+        check_point_version = old_checkpoint.get("checkpoint_version", 0)
         if check_point_version < 3:
             # need to do the transpose of query_key_value variables
             if hparams_file is not None:
-                np = hparams['cfg']['num_attention_heads']
-            elif 'config' in old_checkpoint and 'num-attention-heads' in old_checkpoint['config']:
-                np = old_checkpoint['config']['num-attention-heads']
+                np = hparams["cfg"]["num_attention_heads"]
+            elif (
+                "config" in old_checkpoint
+                and "num-attention-heads" in old_checkpoint["config"]
+            ):
+                np = old_checkpoint["config"]["num-attention-heads"]
 
             else:
                 logging.warning("cannot determine the number attention heads")
-                raise ValueError('need to know number of attention heads')
+                raise ValueError("need to know number of attention heads")
 
             if check_point_version == 0:
                 # 3, np, hn -> np, 3, hn
-                for key in checkpoint['state_dict']:
-                    if key.find('query_key_value') >= 0:
-                        weight = checkpoint['state_dict'][key]
+                for key in checkpoint["state_dict"]:
+                    if key.find("query_key_value") >= 0:
+                        weight = checkpoint["state_dict"][key]
                         if len(weight.size()) == 2:
                             # weight
                             weight = weight.view(3, np, -1, weight.size()[-1])
                             weight = weight.transpose(0, 1).contiguous()
-                            checkpoint['state_dict'][key] = weight.view(-1, weight.size()[-1])
+                            checkpoint["state_dict"][key] = weight.view(
+                                -1, weight.size()[-1]
+                            )
                         else:
                             # biase
                             weight = weight.view(3, np, -1)
                             weight = weight.transpose(0, 1).contiguous()
-                            checkpoint['state_dict'][key] = weight.view(-1)
+                            checkpoint["state_dict"][key] = weight.view(-1)
             elif check_point_version == 1:
                 # np, hn, 3 -> np, 3, hn
-                for key in checkpoint['state_dict']:
-                    if key.find('query_key_value') >= 0:
-                        weight = checkpoint['state_dict'][key]
+                for key in checkpoint["state_dict"]:
+                    if key.find("query_key_value") >= 0:
+                        weight = checkpoint["state_dict"][key]
                         if len(weight.size()) == 2:
                             # weight
                             weight = weight.view(np, -1, 3, weight.size()[-1])
                             weight = weight.transpose(1, 2).contiguous()
-                            checkpoint['state_dict'][key] = weight
+                            checkpoint["state_dict"][key] = weight
                         else:
                             # biase
                             weight = weight.view(np, -1, 3)
                             weight = weight.transpose(1, 2).contiguous()
-                            checkpoint['state_dict'][key] = weight
+                            checkpoint["state_dict"][key] = weight
 
         # for past checkpoint need to add the new key
         if cls.CHECKPOINT_HYPER_PARAMS_KEY not in checkpoint:
@@ -386,16 +461,18 @@ def load_from_checkpoint(
         # override the hparams with values that were passed in
         # TODO: can we do this without overriding?
         config_kwargs = kwargs.copy()
-        if 'trainer' in config_kwargs:
-            config_kwargs.pop('trainer')
+        if "trainer" in config_kwargs:
+            config_kwargs.pop("trainer")
         checkpoint[cls.CHECKPOINT_HYPER_PARAMS_KEY].update(config_kwargs)
         add_optimizer_state(old_checkpoint, checkpoint)
         consumed = None
-        if 'args' in old_checkpoint and hasattr(old_checkpoint['args'], 'consumed_train_samples'):
-            consumed = getattr(old_checkpoint['args'], 'consumed_train_samples')
+        if "args" in old_checkpoint and hasattr(
+            old_checkpoint["args"], "consumed_train_samples"
+        ):
+            consumed = getattr(old_checkpoint["args"], "consumed_train_samples")
         steps = None
-        if 'iteration' in old_checkpoint:
-            steps = old_checkpoint['iteration']
+        if "iteration" in old_checkpoint:
+            steps = old_checkpoint["iteration"]
     finally:
         cls._set_model_restore_state(is_being_restored=False)
     logging.warning(f"the checkpoint version is {check_point_version}")
@@ -415,10 +492,13 @@ def megatron_lm_inject_model_parallel_rank(filepath):
         # filepath needs to be updated to include mp_rank
         dirname = os.path.dirname(filepath)
         basename = os.path.basename(filepath)
-        if app_state.pipeline_model_parallel_size is None or app_state.pipeline_model_parallel_size == 1:
-            filepath = f'{dirname}/mp_rank_{app_state.tensor_model_parallel_rank:02d}/{basename}'
+        if (
+            app_state.pipeline_model_parallel_size is None
+            or app_state.pipeline_model_parallel_size == 1
+        ):
+            filepath = f"{dirname}/mp_rank_{app_state.tensor_model_parallel_rank:02d}/{basename}"
         else:
-            filepath = f'{dirname}/mp_rank_{app_state.tensor_model_parallel_rank:02d}_{app_state.pipeline_model_parallel_rank:03d}/{basename}'
+            filepath = f"{dirname}/mp_rank_{app_state.tensor_model_parallel_rank:02d}_{app_state.pipeline_model_parallel_rank:03d}/{basename}"
         return filepath
     else:
         return filepath
@@ -448,22 +528,26 @@ def convert(local_rank, rank, world_size, args):
 
     # tensor_model_parallel_size = args.tensor_model_parallel_size
     num_nodes = world_size // args.gpus_per_node
-    assert world_size % args.gpus_per_node == 0, "world_size must be divisible by gpus_per_node"
+    assert (
+        world_size % args.gpus_per_node == 0
+    ), "world_size must be divisible by gpus_per_node"
 
-    trainer = Trainer(devices=args.gpus_per_node, accelerator='gpu', num_nodes=num_nodes)
+    trainer = Trainer(
+        devices=args.gpus_per_node, accelerator="gpu", num_nodes=num_nodes
+    )
     checkpoint_path = megatron_lm_inject_model_parallel_rank(
         os.path.join(args.checkpoint_folder, args.checkpoint_name)
     )
     logging.info(f"loading checkpoint {checkpoint_path}")
 
-    if args.model_type == 'gpt':
+    if args.model_type == "gpt":
         # this dictionary is used to rename the model parameters
         name_translate = {}
-        name_translate['transformer'] = 'encoder'
-        name_translate['.attention.'] = '.self_attention.'
+        name_translate["transformer"] = "encoder"
+        name_translate[".attention."] = ".self_attention."
         # nemo megatron doesn't have _for_head key
-        name_translate['word_embeddings_for_head'] = 'word_embeddings'
-        name_translate['_norm.'] = '_layernorm.'  # alternative layer norm key names
+        name_translate["word_embeddings_for_head"] = "word_embeddings"
+        name_translate["_norm."] = "_layernorm."  # alternative layer norm key names
 
         mcore_translate = None
         model_cfg = load_hparams_from_yaml(args.hparams_file).cfg
@@ -482,7 +566,7 @@ def convert(local_rank, rank, world_size, args):
             for k, v in build_key_mapping(model_cfg).items():
                 mcore_translate[v] = k
                 # take into account alternative layer norm key names
-                mcore_translate[v.replace('_layernorm.', '_norm.')] = k
+                mcore_translate[v.replace("_layernorm.", "_norm.")] = k
 
         checkpoint, consumed, steps, version = load_from_checkpoint(
             MegatronGPTModel,
@@ -493,13 +577,13 @@ def convert(local_rank, rank, world_size, args):
             strict=False,
             mcore_translator=mcore_translate,
         )
-    elif args.model_type == 'bert':
+    elif args.model_type == "bert":
         # this dictionary is used to rename the model parameters
         name_translate = {}
-        name_translate['transformer'] = 'encoder'
-        name_translate['.attention.'] = '.self_attention.'
+        name_translate["transformer"] = "encoder"
+        name_translate[".attention."] = ".self_attention."
         # nemo megatron doesn't have _for_head key
-        name_translate['word_embeddings_for_head'] = 'word_embeddings'
+        name_translate["word_embeddings_for_head"] = "word_embeddings"
         checkpoint, consumed, steps, version = load_from_checkpoint(
             MegatronBertModel,
             checkpoint_path,
@@ -518,23 +602,29 @@ def convert(local_rank, rank, world_size, args):
         filepath = args.output_ckpt_file_path
         base_dir = pathlib.Path(filepath).parent
         filename_str = pathlib.Path(filepath).name
-        suffix = '.ckpt'
+        suffix = ".ckpt"
         content = {}
         if consumed is not None:
-            content['consumed'] = consumed
+            content["consumed"] = consumed
         else:
-            content['consumed'] = 0
+            content["consumed"] = 0
         if steps is not None:
-            content['steps'] = steps
+            content["steps"] = steps
         else:
-            content['steps'] = 0
+            content["steps"] = 0
         filename = filename_str.format(**content) + suffix
-        checkpoint_path_output = inject_model_parallel_rank(os.path.join(base_dir, filename))
-        trainer.training_type_plugin.checkpoint_io.save_checkpoint(checkpoint, checkpoint_path_output)
-        logging.info(f'NeMo model checkpoint files saved to: {args.output_ckpt_file_path}')
+        checkpoint_path_output = inject_model_parallel_rank(
+            os.path.join(base_dir, filename)
+        )
+        trainer.training_type_plugin.checkpoint_io.save_checkpoint(
+            checkpoint, checkpoint_path_output
+        )
+        logging.info(
+            f"NeMo model checkpoint files saved to: {args.output_ckpt_file_path}"
+        )
 
     if args.nemo_file_path:
-        if args.model_type == 'gpt':
+        if args.model_type == "gpt":
             if mcore_output and not parallel_state.is_initialized():
                 parallel_state.initialize_model_parallel(
                     tensor_model_parallel_size=args.tensor_model_parallel_size,
@@ -542,9 +632,13 @@ def convert(local_rank, rank, world_size, args):
                     virtual_pipeline_model_parallel_size=None,
                     pipeline_model_parallel_split_rank=0,
                 )
-            model = load_model(MegatronGPTModel, checkpoint, strict=False, trainer=trainer)
-        elif args.model_type == 'bert':
-            model = load_model(MegatronBertModel, checkpoint, strict=False, trainer=trainer)
+            model = load_model(
+                MegatronGPTModel, checkpoint, strict=False, trainer=trainer
+            )
+        elif args.model_type == "bert":
+            model = load_model(
+                MegatronBertModel, checkpoint, strict=False, trainer=trainer
+            )
         else:
             raise NotImplemented("{} is not supported".format(args.model_type))
 
@@ -552,14 +646,16 @@ def convert(local_rank, rank, world_size, args):
         assert app_state.data_parallel_size == 1
         model._save_restore_connector = NLPSaveRestoreConnector()
         model.save_to(args.nemo_file_path)
-        logging.info(f'NeMo model saved to: {args.nemo_file_path}')
+        logging.info(f"NeMo model saved to: {args.nemo_file_path}")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     install_megatron_dependence()
     args = get_args()
     if args.local_rank == -1:
-        device = torch.device("cuda" if torch.cuda.is_available() and not args.no_cuda else "cpu")
+        device = torch.device(
+            "cuda" if torch.cuda.is_available() and not args.no_cuda else "cpu"
+        )
         rank = args.local_rank
         local_rank = rank
         world_size = 1

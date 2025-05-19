@@ -55,12 +55,12 @@ class NeMoTransformerConfig:
     ffn_dropout: float = 0.0
     attn_score_dropout: float = 0.0
     attn_layer_dropout: float = 0.0
-    hidden_act: str = 'relu'
+    hidden_act: str = "relu"
     pre_ln: bool = False
     pre_ln_final_layer_norm: bool = True
 
     # named model arguments
-    library: str = 'nemo'
+    library: str = "nemo"
     model_name: Optional[str] = None
     pretrained: bool = False
 
@@ -90,7 +90,7 @@ class TransformerEncoderNM(EncoderModule, Exportable):
         ffn_dropout: float = 0.0,
         attn_score_dropout: float = 0.0,
         attn_layer_dropout: float = 0.0,
-        hidden_act: str = 'relu',
+        hidden_act: str = "relu",
         mask_future: bool = False,
         pre_ln: bool = False,
         pre_ln_final_layer_norm: bool = True,
@@ -127,7 +127,9 @@ class TransformerEncoderNM(EncoderModule, Exportable):
     @typecheck()
     def forward(self, input_ids, encoder_mask):
         embeddings = self._embedding(input_ids=input_ids)
-        encoder_hidden_states = self._encoder(encoder_states=embeddings, encoder_mask=encoder_mask)
+        encoder_hidden_states = self._encoder(
+            encoder_states=embeddings, encoder_mask=encoder_mask
+        )
         return encoder_hidden_states
 
     @property
@@ -180,7 +182,7 @@ class TransformerDecoderNM(DecoderModule, Exportable):
         ffn_dropout: float = 0.0,
         attn_score_dropout: float = 0.0,
         attn_layer_dropout: float = 0.0,
-        hidden_act: str = 'relu',
+        hidden_act: str = "relu",
         pre_ln: bool = False,
         pre_ln_final_layer_norm: bool = True,
     ):
@@ -277,7 +279,15 @@ class TransformerDecoderNM(DecoderModule, Exportable):
         encoder_mask = torch.randint(low=0, high=1, size=sz, device=sample.device)
         mem_size = [max_batch, self.num_states, max_dim - 1, self._hidden_size]
         decoder_mems = torch.rand(mem_size, device=sample.device)
-        return tuple([input_ids, encoder_mask, self._embedding(input_ids), encoder_mask, decoder_mems])
+        return tuple(
+            [
+                input_ids,
+                encoder_mask,
+                self._embedding(input_ids),
+                encoder_mask,
+                decoder_mems,
+            ]
+        )
 
     def _prepare_for_export(self, **kwargs):
         self._decoder.diagonal = None
@@ -287,12 +297,16 @@ class TransformerDecoderNM(DecoderModule, Exportable):
     @property
     def output_types(self) -> Optional[Dict[str, NeuralType]]:
         if self.return_mems:
-            return {"last_hidden_states": NeuralType(('B', 'D', 'T', 'D'), ChannelType())}
+            return {
+                "last_hidden_states": NeuralType(("B", "D", "T", "D"), ChannelType())
+            }
         else:
-            return {"last_hidden_states": NeuralType(('B', 'T', 'D'), ChannelType())}
+            return {"last_hidden_states": NeuralType(("B", "T", "D"), ChannelType())}
 
 
-class TransformerDecoderNMAdapter(TransformerDecoderNM, adapter_mixins.AdapterModuleMixin):
+class TransformerDecoderNMAdapter(
+    TransformerDecoderNM, adapter_mixins.AdapterModuleMixin
+):
     DECODER_TYPE: type = TransformerDecoderAdapter
 
     # Higher level forwarding
@@ -301,20 +315,28 @@ class TransformerDecoderNMAdapter(TransformerDecoderNM, adapter_mixins.AdapterMo
         self._decoder.add_adapter(name, cfg)  # type: adapter_mixins.AdapterModuleMixin
 
     def is_adapter_available(self) -> bool:
-        return self._decoder.is_adapter_available()  # type: adapter_mixins.AdapterModuleMixin
+        return (
+            self._decoder.is_adapter_available()
+        )  # type: adapter_mixins.AdapterModuleMixin
 
     def set_enabled_adapters(self, name: Optional[str] = None, enabled: bool = True):
-        self._decoder.set_enabled_adapters(name=name, enabled=enabled)  # # type: adapter_mixins.AdapterModuleMixin
+        self._decoder.set_enabled_adapters(
+            name=name, enabled=enabled
+        )  # # type: adapter_mixins.AdapterModuleMixin
 
     def get_enabled_adapters(self) -> List[str]:
         names = set([])
-        names.update(self._decoder.get_enabled_adapters())  # type: adapter_mixins.AdapterModuleMixin
+        names.update(
+            self._decoder.get_enabled_adapters()
+        )  # type: adapter_mixins.AdapterModuleMixin
 
         names = sorted(list(names))
         return names
 
     def _update_adapter_cfg_input_dim(self, cfg: DictConfig):
-        cfg = adapter_utils.update_adapter_cfg_input_dim(self, cfg, module_dim=self._hidden_size)
+        cfg = adapter_utils.update_adapter_cfg_input_dim(
+            self, cfg, module_dim=self._hidden_size
+        )
         return cfg
 
 
@@ -322,4 +344,6 @@ class TransformerDecoderNMAdapter(TransformerDecoderNM, adapter_mixins.AdapterMo
 Register any additional information
 """
 if adapter_mixins.get_registered_adapter(TransformerDecoderNM) is None:
-    adapter_mixins.register_adapter(base_class=TransformerDecoderNM, adapter_class=TransformerDecoderNMAdapter)
+    adapter_mixins.register_adapter(
+        base_class=TransformerDecoderNM, adapter_class=TransformerDecoderNMAdapter
+    )

@@ -21,13 +21,13 @@ import pytest
 from nemo.collections import llm
 
 HF_PATH = "/home/TestData/nlp/megatron_llama/llama-ci-hf"
-OUTPUT_PATH = '/tmp/imported_nemo2'
+OUTPUT_PATH = "/tmp/imported_nemo2"
 
 dummy_module = MagicMock()
 dummy_module.torch_to_numpy = lambda torch_tensor: torch_tensor.detach().cpu().numpy()
 
 
-@pytest.mark.run_only_on('GPU')
+@pytest.mark.run_only_on("GPU")
 @pytest.mark.unit
 def test_model_loading() -> None:
     """
@@ -35,22 +35,22 @@ def test_model_loading() -> None:
     """
 
     model = llm.LlamaModel(config=llm.Llama2Config7B)
-    nemo_path = llm.import_ckpt(model, 'hf://' + HF_PATH, output_path=Path(OUTPUT_PATH))
+    nemo_path = llm.import_ckpt(model, "hf://" + HF_PATH, output_path=Path(OUTPUT_PATH))
 
     assert nemo_path.exists()
-    assert (nemo_path / 'weights').exists()
-    assert (nemo_path / 'context').exists()
+    assert (nemo_path / "weights").exists()
+    assert (nemo_path / "context").exists()
 
-    export_path = Path('/tmp/trtllm_exported_model')
+    export_path = Path("/tmp/trtllm_exported_model")
     export_path.mkdir(parents=True, exist_ok=True)
-    export_path_mcore = export_path / 'mcore_export'
-    export_path_local = export_path / 'local_export'
+    export_path_mcore = export_path / "mcore_export"
+    export_path_local = export_path / "local_export"
 
     with patch.dict(
-        'sys.modules',
+        "sys.modules",
         {
-            'tensorrt_llm': dummy_module,
-            'tensorrt_llm._utils': dummy_module,
+            "tensorrt_llm": dummy_module,
+            "tensorrt_llm._utils": dummy_module,
         },
     ):
         from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import \

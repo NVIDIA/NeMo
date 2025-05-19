@@ -41,7 +41,7 @@ from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
 from nemo.utils.decorators import deprecated_warning
 
-__all__ = ['DialogueZeroShotIntentModel']
+__all__ = ["DialogueZeroShotIntentModel"]
 
 
 class DialogueZeroShotIntentModel(TextClassificationModel):
@@ -54,36 +54,46 @@ class DialogueZeroShotIntentModel(TextClassificationModel):
         self.cfg = cfg
         super().__init__(cfg=cfg, trainer=trainer)
 
-        if self.cfg.library == 'megatron':
+        if self.cfg.library == "megatron":
             # zero shot intent classification loading
             # cannot directly load as .nemo uses the pre-refactor model
             # therefore transfer its attributes over
             if self.cfg.original_nemo_checkpoint is not None:
-                original_model = DialogueZeroShotIntentModel.restore_from(self.cfg.original_nemo_checkpoint)
+                original_model = DialogueZeroShotIntentModel.restore_from(
+                    self.cfg.original_nemo_checkpoint
+                )
                 self.classifier = original_model.classifier
                 self.bert_model = original_model.bert_model
                 self.loss = original_model.loss
                 self.classification_report = original_model.classification_report
         elif self.cfg.library == "huggingface":
-            self.nli_model = AutoModelForSequenceClassification.from_pretrained('facebook/bart-large-mnli')
+            self.nli_model = AutoModelForSequenceClassification.from_pretrained(
+                "facebook/bart-large-mnli"
+            )
             self.bert_model = self.nli_model.model
             self.classifier = self.nli_model.classification_head
-            original_model = DialogueZeroShotIntentModel.restore_from(self.cfg.original_nemo_checkpoint)
+            original_model = DialogueZeroShotIntentModel.restore_from(
+                self.cfg.original_nemo_checkpoint
+            )
             self.loss = original_model.loss
             self.classification_report = original_model.classification_report
-            self.tokenizer = AutoTokenizer.from_pretrained('facebook/bart-large-mnli')
+            self.tokenizer = AutoTokenizer.from_pretrained("facebook/bart-large-mnli")
             self.tokenizer.max_seq_length = self.cfg.dataset.max_seq_length
 
-    def _setup_dataloader_from_config(self, cfg: DictConfig, dataset_split) -> 'torch.utils.data.DataLoader':
+    def _setup_dataloader_from_config(
+        self, cfg: DictConfig, dataset_split
+    ) -> "torch.utils.data.DataLoader":
         if self._cfg.dataset.task == "zero_shot":
             self.data_processor = DialogueAssistantDataProcessor(
                 self.cfg.data_dir, self.tokenizer, cfg=self.cfg.dataset
             )
         elif self._cfg.dataset.task == "design":
             self.data_processor = DialogueDesignDataProcessor(
-                data_dir=self._cfg.dataset.data_dir, tokenizer=self.tokenizer, cfg=self._cfg.dataset
+                data_dir=self._cfg.dataset.data_dir,
+                tokenizer=self.tokenizer,
+                cfg=self._cfg.dataset,
             )
-        elif self._cfg.dataset.task == 'sgd':
+        elif self._cfg.dataset.task == "sgd":
             self.data_processor = DialogueSGDDataProcessor(
                 data_dir=self._cfg.dataset.data_dir,
                 dialogues_example_dir=self._cfg.dataset.dialogues_example_dir,
@@ -91,7 +101,9 @@ class DialogueZeroShotIntentModel(TextClassificationModel):
                 cfg=self._cfg.dataset,
             )
         else:
-            raise ValueError("Only zero_shot, design and sgd supported for Zero Shot Intent Model")
+            raise ValueError(
+                "Only zero_shot, design and sgd supported for Zero Shot Intent Model"
+            )
 
         dataset = DialogueZeroShotIntentDataset(
             dataset_split,
@@ -111,16 +123,18 @@ class DialogueZeroShotIntentModel(TextClassificationModel):
         )
 
     def forward(self, input_ids, attention_mask, token_type_ids):
-        if self.cfg.library == 'megatron':
+        if self.cfg.library == "megatron":
             hidden_states = self.bert_model(
-                input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask
+                input_ids=input_ids,
+                token_type_ids=token_type_ids,
+                attention_mask=attention_mask,
             )
             if isinstance(hidden_states, tuple):
                 hidden_states = hidden_states[0]
             logits = self.classifier(hidden_states=hidden_states)
-        elif self.cfg.library == 'huggingface':
+        elif self.cfg.library == "huggingface":
             output = self.nli_model(input_ids=input_ids, attention_mask=attention_mask)
-            logits = output['logits']
+            logits = output["logits"]
         return logits
 
     def setup_training_data(self, train_data_config: Optional[DictConfig]):
@@ -133,7 +147,7 @@ class DialogueZeroShotIntentModel(TextClassificationModel):
         self._train_dl = self._setup_dataloader_from_config(train_data_config, "train")
 
         # calculate the class weights to be used in the loss function
-        if self.cfg.dataset.class_balancing == 'weighted_loss':
+        if self.cfg.dataset.class_balancing == "weighted_loss":
             self.class_weights = calc_class_weights_from_dataloader(
                 self._train_dl, self.cfg.dataset.num_classes, self.cfg.dataset.data_dir
             )
@@ -167,7 +181,7 @@ class DialogueZeroShotIntentModel(TextClassificationModel):
         hypothesis_template=str,
         batch_size=1,
         max_seq_length: int = -1,
-    ) -> 'torch.utils.data.DataLoader':
+    ) -> "torch.utils.data.DataLoader":
         """
         Setup method for inference data loader. Here the premise-hypothesis pairs are made from queries and candidate labels.
 
@@ -199,13 +213,17 @@ class DialogueZeroShotIntentModel(TextClassificationModel):
             collate_fn=dataset.collate_fn,
         )
 
-    def validation_step(self, batch, batch_idx, split='val'):
+    def validation_step(self, batch, batch_idx, split="val"):
         """
         Lightning calls this inside the validation loop with the data from the validation dataloader
         passed in as `batch`.
         """
         input_ids, input_type_ids, input_mask, labels = batch
-        logits = self.forward(input_ids=input_ids, token_type_ids=input_type_ids, attention_mask=input_mask)
+        logits = self.forward(
+            input_ids=input_ids,
+            token_type_ids=input_type_ids,
+            attention_mask=input_mask,
+        )
 
         val_loss = self.loss(logits=logits, labels=labels)
 
@@ -214,13 +232,13 @@ class DialogueZeroShotIntentModel(TextClassificationModel):
         tp, fn, fp, _ = self.classification_report(preds, labels)
 
         loss = {
-            'val_loss': val_loss,
-            'tp': tp,
-            'fn': fn,
-            'fp': fp,
-            'logits': logits,
-            'input_ids': input_ids,
-            'labels': labels,
+            "val_loss": val_loss,
+            "tp": tp,
+            "fn": fn,
+            "fp": fp,
+            "logits": logits,
+            "input_ids": input_ids,
+            "labels": labels,
         }
         self.validation_step_outputs.append(loss)
         return loss
@@ -229,35 +247,53 @@ class DialogueZeroShotIntentModel(TextClassificationModel):
         """
         Get metrics based on the candidate label with the highest predicted likelihood and the ground truth label for intent
         """
-        output_logits = torch.cat([output['logits'] for output in self.validation_step_outputs], dim=0)
-        output_input_ids = torch.cat([output['input_ids'] for output in self.validation_step_outputs], dim=0)
-        output_labels = torch.cat([output['labels'] for output in self.validation_step_outputs], dim=0)
+        output_logits = torch.cat(
+            [output["logits"] for output in self.validation_step_outputs], dim=0
+        )
+        output_input_ids = torch.cat(
+            [output["input_ids"] for output in self.validation_step_outputs], dim=0
+        )
+        output_labels = torch.cat(
+            [output["labels"] for output in self.validation_step_outputs], dim=0
+        )
 
-        if self.cfg.library == 'huggingface':
+        if self.cfg.library == "huggingface":
             entail_logits = output_logits[..., 2]
-            decoded_input_ids = [self.tokenizer.decode(output_input_ids[i]) for i in range(len(output_input_ids))]
-            utterance_candidate_pairs = [i.split(self.tokenizer.sep_token) for i in decoded_input_ids]
+            decoded_input_ids = [
+                self.tokenizer.decode(output_input_ids[i])
+                for i in range(len(output_input_ids))
+            ]
+            utterance_candidate_pairs = [
+                i.split(self.tokenizer.sep_token) for i in decoded_input_ids
+            ]
             utterances = [
-                i[0].replace(self.tokenizer.bos_token, '').replace(self.tokenizer.eos_token, '')
+                i[0]
+                .replace(self.tokenizer.bos_token, "")
+                .replace(self.tokenizer.eos_token, "")
                 for i in utterance_candidate_pairs
             ]
 
-        elif self.cfg.library == 'megatron':
+        elif self.cfg.library == "megatron":
             entail_logits = output_logits[..., 1]
             decoded_input_ids = [
-                self.tokenizer.tokenizer.decode(output_input_ids[i]) for i in range(len(output_input_ids))
+                self.tokenizer.tokenizer.decode(output_input_ids[i])
+                for i in range(len(output_input_ids))
             ]
-            utterance_candidate_pairs = [i.split(self.tokenizer.tokenizer.sep_token) for i in decoded_input_ids]
+            utterance_candidate_pairs = [
+                i.split(self.tokenizer.tokenizer.sep_token) for i in decoded_input_ids
+            ]
             utterances = [
-                i[0].replace(self.tokenizer.tokenizer.bos_token, '').replace(self.tokenizer.tokenizer.eos_token, '')
+                i[0]
+                .replace(self.tokenizer.tokenizer.bos_token, "")
+                .replace(self.tokenizer.tokenizer.eos_token, "")
                 for i in utterance_candidate_pairs
             ]
 
         # account for uncased tokenization
         candidates = [
             i[1]
-            .replace(self.cfg.dataset.prompt_template.lower(), '')
-            .replace(self.cfg.dataset.prompt_template, '')
+            .replace(self.cfg.dataset.prompt_template.lower(), "")
+            .replace(self.cfg.dataset.prompt_template, "")
             .strip()
             for i in utterance_candidate_pairs
         ]
@@ -279,7 +315,9 @@ class DialogueZeroShotIntentModel(TextClassificationModel):
             utterances.append(utterance)
 
         os.makedirs(self.cfg.dataset.dialogues_example_dir, exist_ok=True)
-        filename = os.path.join(self.cfg.dataset.dialogues_example_dir, "test_predictions.jsonl")
+        filename = os.path.join(
+            self.cfg.dataset.dialogues_example_dir, "test_predictions.jsonl"
+        )
 
         DialogueGenerationMetrics.save_predictions(
             filename,
@@ -288,30 +326,47 @@ class DialogueZeroShotIntentModel(TextClassificationModel):
             utterances,
         )
 
-        label_to_ids = {label: idx for idx, label in enumerate(list(set(predicted_labels + ground_truth_labels)))}
+        label_to_ids = {
+            label: idx
+            for idx, label in enumerate(
+                list(set(predicted_labels + ground_truth_labels))
+            )
+        }
         self.classification_report = ClassificationReport(
-            num_classes=len(label_to_ids), mode='micro', label_ids=label_to_ids, dist_sync_on_step=True
+            num_classes=len(label_to_ids),
+            mode="micro",
+            label_ids=label_to_ids,
+            dist_sync_on_step=True,
         ).to(output_logits[0].device)
-        predicted_label_ids = torch.tensor([label_to_ids[label] for label in predicted_labels]).to(
-            output_logits[0].device
-        )
-        ground_truth_label_ids = torch.tensor([label_to_ids[label] for label in ground_truth_labels]).to(
-            output_logits[0].device
-        )
+        predicted_label_ids = torch.tensor(
+            [label_to_ids[label] for label in predicted_labels]
+        ).to(output_logits[0].device)
+        ground_truth_label_ids = torch.tensor(
+            [label_to_ids[label] for label in ground_truth_labels]
+        ).to(output_logits[0].device)
 
-        tp, fn, fp, _ = self.classification_report(predicted_label_ids, ground_truth_label_ids)
+        tp, fn, fp, _ = self.classification_report(
+            predicted_label_ids, ground_truth_label_ids
+        )
         precision, recall, f1, report = self.classification_report.compute()
-        label_acc = np.mean([int(predicted_labels[i] == ground_truth_labels[i]) for i in range(len(predicted_labels))])
+        label_acc = np.mean(
+            [
+                int(predicted_labels[i] == ground_truth_labels[i])
+                for i in range(len(predicted_labels))
+            ]
+        )
 
-        avg_loss = torch.stack([x[f'val_loss'] for x in self.validation_step_outputs]).mean()
+        avg_loss = torch.stack(
+            [x[f"val_loss"] for x in self.validation_step_outputs]
+        ).mean()
 
         logging.info(report)
 
-        self.log('unified_precision', precision)
-        self.log('unified_f1', f1)
-        self.log('unified_recall', recall)
-        self.log('unfied_accuracy', label_acc * 100)
-        self.log('val_loss', avg_loss, prog_bar=True)
+        self.log("unified_precision", precision)
+        self.log("unified_f1", f1)
+        self.log("unified_recall", recall)
+        self.log("unfied_accuracy", label_acc * 100)
+        self.log("val_loss", avg_loss, prog_bar=True)
 
         self.validation_step_outputs.clear()  # free memory
         self.classification_report.reset()
@@ -320,7 +375,7 @@ class DialogueZeroShotIntentModel(TextClassificationModel):
         self,
         queries: Union[str, List[str]],
         candidate_labels: Union[str, List[str]],
-        hypothesis_template='This example is {}.',
+        hypothesis_template="This example is {}.",
         batch_size=1,
         multi_label=True,
         entailment_idx=1,
@@ -370,14 +425,18 @@ class DialogueZeroShotIntentModel(TextClassificationModel):
             raise ValueError("No candidate labels were provided!")
 
         queries = [queries] if isinstance(queries, str) else queries
-        candidate_labels = [candidate_labels] if isinstance(candidate_labels, str) else candidate_labels
+        candidate_labels = (
+            [candidate_labels]
+            if isinstance(candidate_labels, str)
+            else candidate_labels
+        )
 
         if len(candidate_labels) == 1:
             multi_label = True
 
         mode = self.training
         try:
-            device = 'cuda' if torch.cuda.is_available() else 'cpu'
+            device = "cuda" if torch.cuda.is_available() else "cpu"
 
             # Switch model to evaluation mode
             self.eval()
@@ -408,11 +467,15 @@ class DialogueZeroShotIntentModel(TextClassificationModel):
             if not multi_label:
                 # softmax the "entailment" logits over all candidate labels
                 entail_logits = outputs[..., entailment_idx]
-                scores = np.exp(entail_logits) / np.exp(entail_logits).sum(-1, keepdims=True)
+                scores = np.exp(entail_logits) / np.exp(entail_logits).sum(
+                    -1, keepdims=True
+                )
             else:
                 # softmax over the entailment vs. contradiction dim for each label independently
                 entail_contr_logits = outputs[..., [contradiction_idx, entailment_idx]]
-                scores = np.exp(entail_contr_logits) / np.exp(entail_contr_logits).sum(-1, keepdims=True)
+                scores = np.exp(entail_contr_logits) / np.exp(entail_contr_logits).sum(
+                    -1, keepdims=True
+                )
                 scores = scores[..., 1]
 
             result = []

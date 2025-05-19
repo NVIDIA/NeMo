@@ -112,9 +112,15 @@ class ASSFileConfig:
     # when the ASS file is applied to a video
     resegment_text_to_fill_space: bool = False
     max_lines_per_segment: int = 2
-    text_already_spoken_rgb: List[int] = field(default_factory=lambda: [49, 46, 61])  # dark gray
-    text_being_spoken_rgb: List[int] = field(default_factory=lambda: [57, 171, 9])  # dark green
-    text_not_yet_spoken_rgb: List[int] = field(default_factory=lambda: [194, 193, 199])  # light gray
+    text_already_spoken_rgb: List[int] = field(
+        default_factory=lambda: [49, 46, 61]
+    )  # dark gray
+    text_being_spoken_rgb: List[int] = field(
+        default_factory=lambda: [57, 171, 9]
+    )  # dark green
+    text_not_yet_spoken_rgb: List[int] = field(
+        default_factory=lambda: [194, 193, 199]
+    )  # light gray
 
 
 @dataclass
@@ -152,7 +158,7 @@ class AlignmentConfig:
 @hydra_runner(config_name="AlignmentConfig", schema=AlignmentConfig)
 def main(cfg: AlignmentConfig):
 
-    logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
+    logging.info(f"Hydra config: {OmegaConf.to_yaml(cfg)}")
 
     if is_dataclass(cfg):
         cfg = OmegaConf.structured(cfg)
@@ -173,14 +179,21 @@ def main(cfg: AlignmentConfig):
     if cfg.batch_size < 1:
         raise ValueError("cfg.batch_size cannot be zero or a negative number")
 
-    if cfg.additional_segment_grouping_separator == "" or cfg.additional_segment_grouping_separator == " ":
-        raise ValueError("cfg.additional_grouping_separator cannot be empty string or space character")
+    if (
+        cfg.additional_segment_grouping_separator == ""
+        or cfg.additional_segment_grouping_separator == " "
+    ):
+        raise ValueError(
+            "cfg.additional_grouping_separator cannot be empty string or space character"
+        )
 
     if cfg.ctm_file_config.minimum_timestamp_duration < 0:
         raise ValueError("cfg.minimum_timestamp_duration cannot be a negative number")
 
     if cfg.ass_file_config.vertical_alignment not in ["top", "center", "bottom"]:
-        raise ValueError("cfg.ass_file_config.vertical_alignment must be one of 'top', 'center' or 'bottom'")
+        raise ValueError(
+            "cfg.ass_file_config.vertical_alignment must be one of 'top', 'center' or 'bottom'"
+        )
 
     for rgb_list in [
         cfg.ass_file_config.text_already_spoken_rgb,
@@ -221,18 +234,22 @@ def main(cfg: AlignmentConfig):
         transcribe_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     else:
         transcribe_device = torch.device(cfg.transcribe_device)
-    logging.info(f"Device to be used for transcription step (`transcribe_device`) is {transcribe_device}")
+    logging.info(
+        f"Device to be used for transcription step (`transcribe_device`) is {transcribe_device}"
+    )
 
     if cfg.viterbi_device is None:
         viterbi_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     else:
         viterbi_device = torch.device(cfg.viterbi_device)
-    logging.info(f"Device to be used for viterbi step (`viterbi_device`) is {viterbi_device}")
+    logging.info(
+        f"Device to be used for viterbi step (`viterbi_device`) is {viterbi_device}"
+    )
 
-    if transcribe_device.type == 'cuda' or viterbi_device.type == 'cuda':
+    if transcribe_device.type == "cuda" or viterbi_device.type == "cuda":
         logging.warning(
-            'One or both of transcribe_device and viterbi_device are GPUs. If you run into OOM errors '
-            'it may help to change both devices to be the CPU.'
+            "One or both of transcribe_device and viterbi_device are GPUs. If you run into OOM errors "
+            "it may help to change both devices to be the CPU."
         )
 
     # load model
@@ -246,9 +263,13 @@ def main(cfg: AlignmentConfig):
         logging.info(
             "Flag use_local_attention is set to True => will try to use local attention for model if it allows it"
         )
-        model.change_attention_model(self_attention_model="rel_pos_local_attn", att_context_size=[64, 64])
+        model.change_attention_model(
+            self_attention_model="rel_pos_local_attn", att_context_size=[64, 64]
+        )
 
-    if not (isinstance(model, EncDecCTCModel) or isinstance(model, EncDecHybridRNNTCTCModel)):
+    if not (
+        isinstance(model, EncDecCTCModel) or isinstance(model, EncDecHybridRNNTCTCModel)
+    ):
         raise NotImplementedError(
             f"Model is not an instance of NeMo EncDecCTCModel or ENCDecHybridRNNTCTCModel."
             " Currently only instances of these models are supported"
@@ -276,13 +297,17 @@ def main(cfg: AlignmentConfig):
         # Disable config overwriting
         OmegaConf.set_struct(model_cfg.preprocessor, True)
 
-        feature_stride = model_cfg.preprocessor['window_stride']
+        feature_stride = model_cfg.preprocessor["window_stride"]
         model_stride_in_secs = feature_stride * cfg.model_downsample_factor
         total_buffer = cfg.total_buffer_in_secs
         chunk_len = float(cfg.chunk_len_in_secs)
         tokens_per_chunk = math.ceil(chunk_len / model_stride_in_secs)
-        mid_delay = math.ceil((chunk_len + (total_buffer - chunk_len) / 2) / model_stride_in_secs)
-        logging.info(f"tokens_per_chunk is {tokens_per_chunk}, mid_delay is {mid_delay}")
+        mid_delay = math.ceil(
+            (chunk_len + (total_buffer - chunk_len) / 2) / model_stride_in_secs
+        )
+        logging.info(
+            f"tokens_per_chunk is {tokens_per_chunk}, mid_delay is {mid_delay}"
+        )
 
         model = FrameBatchASR(
             asr_model=model,
@@ -303,15 +328,26 @@ def main(cfg: AlignmentConfig):
 
     # init f_manifest_out
     os.makedirs(cfg.output_dir, exist_ok=True)
-    tgt_manifest_name = str(Path(cfg.manifest_filepath).stem) + "_with_output_file_paths.json"
+    tgt_manifest_name = (
+        str(Path(cfg.manifest_filepath).stem) + "_with_output_file_paths.json"
+    )
     tgt_manifest_filepath = str(Path(cfg.output_dir) / tgt_manifest_name)
-    f_manifest_out = open(tgt_manifest_filepath, 'w')
+    f_manifest_out = open(tgt_manifest_filepath, "w")
 
     # get alignment and save in CTM batch-by-batch
     for start, end in zip(starts, ends):
-        manifest_lines_batch = get_manifest_lines_batch(cfg.manifest_filepath, start, end)
+        manifest_lines_batch = get_manifest_lines_batch(
+            cfg.manifest_filepath, start, end
+        )
 
-        (log_probs_batch, y_batch, T_batch, U_batch, utt_obj_batch, output_timestep_duration,) = get_batch_variables(
+        (
+            log_probs_batch,
+            y_batch,
+            T_batch,
+            U_batch,
+            utt_obj_batch,
+            output_timestep_duration,
+        ) = get_batch_variables(
             manifest_lines_batch,
             model,
             cfg.additional_segment_grouping_separator,
@@ -323,20 +359,29 @@ def main(cfg: AlignmentConfig):
             buffered_chunk_params,
         )
 
-        alignments_batch = viterbi_decoding(log_probs_batch, y_batch, T_batch, U_batch, viterbi_device)
+        alignments_batch = viterbi_decoding(
+            log_probs_batch, y_batch, T_batch, U_batch, viterbi_device
+        )
 
         for utt_obj, alignment_utt in zip(utt_obj_batch, alignments_batch):
 
-            utt_obj = add_t_start_end_to_utt_obj(utt_obj, alignment_utt, output_timestep_duration)
+            utt_obj = add_t_start_end_to_utt_obj(
+                utt_obj, alignment_utt, output_timestep_duration
+            )
 
             if "ctm" in cfg.save_output_file_formats:
-                utt_obj = make_ctm_files(utt_obj, cfg.output_dir, cfg.ctm_file_config,)
+                utt_obj = make_ctm_files(
+                    utt_obj,
+                    cfg.output_dir,
+                    cfg.ctm_file_config,
+                )
 
             if "ass" in cfg.save_output_file_formats:
                 utt_obj = make_ass_files(utt_obj, cfg.output_dir, cfg.ass_file_config)
 
             write_manifest_out_line(
-                f_manifest_out, utt_obj,
+                f_manifest_out,
+                utt_obj,
             )
 
     f_manifest_out.close()

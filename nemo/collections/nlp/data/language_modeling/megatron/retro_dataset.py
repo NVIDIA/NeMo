@@ -61,12 +61,19 @@ except (ImportError, ModuleNotFoundError, Exception):
 
 
 class RETRODataset(Dataset):
-    def __init__(self, cfg, retro_config: RetroConfig, tokenizer, mcore_retro_dataset, number_samples_with_neighbors):
+    def __init__(
+        self,
+        cfg,
+        retro_config: RetroConfig,
+        tokenizer,
+        mcore_retro_dataset,
+        number_samples_with_neighbors,
+    ):
         super().__init__()
 
-        self.reset_position_ids = cfg.data.get('reset_position_ids', False)
-        self.reset_attention_mask = cfg.data.get('reset_attention_mask', False)
-        self.eod_mask_loss = cfg.data.get('eod_mask_loss', False)
+        self.reset_position_ids = cfg.data.get("reset_position_ids", False)
+        self.reset_attention_mask = cfg.data.get("reset_attention_mask", False)
+        self.eod_mask_loss = cfg.data.get("eod_mask_loss", False)
         self.eos_id = tokenizer.eos_id
         self.retro_config = retro_config
         self.mcore_retro_dataset = mcore_retro_dataset
@@ -91,41 +98,58 @@ class RETRODataset(Dataset):
         sample = self._get_text(idx)
 
         # Unpack
-        tokens_ = torch.from_numpy(sample['text'])
+        tokens_ = torch.from_numpy(sample["text"])
         tokens_ = tokens_.long()  # size should be [seq_length]
         labels = tokens_[1:].contiguous()
         tokens = tokens_[:-1].contiguous()
-        neighbor_tokens = torch.from_numpy(sample['neighbor_tokens'])
+        neighbor_tokens = torch.from_numpy(sample["neighbor_tokens"])
         neighbor_tokens = neighbor_tokens.long()  # size should be [l, k, r]
 
         # note: [l, k, r]  => [l*k, r]
         # note: 2x == neighbor, continuation
-        neighbor_tokens = neighbor_tokens.view(-1, self.retro_config.retro_retrieved_length).long()
+        neighbor_tokens = neighbor_tokens.view(
+            -1, self.retro_config.retro_retrieved_length
+        ).long()
 
         # Get the masks and postition ids for tokens and neighbor_tokens
         tokens = torch.unsqueeze(
             tokens, 0
         )  # get_ltor_masks_and_position_ids takes as input tokens arguments as a batch (2D tensor), so need to convert tokens from 1D to 2D
         attention_mask, loss_mask, position_ids = get_ltor_masks_and_position_ids(
-            tokens, self.eos_id, self.reset_position_ids, self.reset_attention_mask, self.eod_mask_loss
+            tokens,
+            self.eos_id,
+            self.reset_position_ids,
+            self.reset_attention_mask,
+            self.eod_mask_loss,
         )
-        tokens, attention_mask, loss_mask, position_ids = tokens[0], attention_mask[0], loss_mask[0], position_ids[0]
-        _, _, neighbor_position_ids = get_ltor_masks_and_position_ids(  # neighbor_tokens is already a 2D array
-            neighbor_tokens, self.eos_id, self.reset_position_ids, self.reset_attention_mask, self.eod_mask_loss
+        tokens, attention_mask, loss_mask, position_ids = (
+            tokens[0],
+            attention_mask[0],
+            loss_mask[0],
+            position_ids[0],
+        )
+        _, _, neighbor_position_ids = (
+            get_ltor_masks_and_position_ids(  # neighbor_tokens is already a 2D array
+                neighbor_tokens,
+                self.eos_id,
+                self.reset_position_ids,
+                self.reset_attention_mask,
+                self.eod_mask_loss,
+            )
         )
         neighbor_attention_mask = torch.zeros(
             [1, 1]
         )  # just a dummy values, since the batch neighbor_attention_mask will be set to None in megatron_retro_model.py following Lawrence's implementation
 
         return {
-            'tokens': tokens,
-            'labels': labels,
-            'loss_mask': loss_mask,
-            'attention_mask': attention_mask,
-            'position_ids': position_ids,
-            'context_input_ids': neighbor_tokens,
-            'context_attention_mask': neighbor_attention_mask,
-            'context_position_ids': neighbor_position_ids,
+            "tokens": tokens,
+            "labels": labels,
+            "loss_mask": loss_mask,
+            "attention_mask": attention_mask,
+            "position_ids": position_ids,
+            "context_input_ids": neighbor_tokens,
+            "context_attention_mask": neighbor_attention_mask,
+            "context_position_ids": neighbor_position_ids,
         }
 
 
@@ -193,7 +217,7 @@ def build_train_valid_test_datasets(
 
         return train_ds, valid_ds, test_ds
     else:
-        logging.warn('Megatron core is not installed. Returning None')
+        logging.warn("Megatron core is not installed. Returning None")
         return
 
 
@@ -207,7 +231,8 @@ def gpt_train_valid_test_datasets_provider(cfg, train_val_test_num_samples, toke
 
     def is_dataset_built_on_rank():
         return (
-            mpu.is_pipeline_first_stage(ignore_virtual=False) or mpu.is_pipeline_last_stage(ignore_virtual=False)
+            mpu.is_pipeline_first_stage(ignore_virtual=False)
+            or mpu.is_pipeline_last_stage(ignore_virtual=False)
         ) and mpu.get_tensor_model_parallel_rank() == 0
 
     data_config = MultiSplitGPTDatasetConfig(
@@ -218,16 +243,19 @@ def gpt_train_valid_test_datasets_provider(cfg, train_val_test_num_samples, toke
         split_preprocessing=cfg.data.retro_data.retro_split_preprocessing,
         path_to_cache=None,
         return_document_ids=False,
-        reset_position_ids=cfg.data.get('reset_position_ids', False),
-        reset_attention_mask=cfg.data.get('reset_attention_mask', False),
-        eod_mask_loss=cfg.data.get('eod_mask_loss', False),
+        reset_position_ids=cfg.data.get("reset_position_ids", False),
+        reset_attention_mask=cfg.data.get("reset_attention_mask", False),
+        eod_mask_loss=cfg.data.get("eod_mask_loss", False),
         tokenizer=tokenizer,
     )
 
     print("> building train, validation, and test datasets for GPT ...")
 
     train_ds, valid_ds, test_ds = BlendedMegatronDatasetBuilder(
-        MultiSplitGPTDataset, train_val_test_num_samples, is_dataset_built_on_rank, data_config
+        MultiSplitGPTDataset,
+        train_val_test_num_samples,
+        is_dataset_built_on_rank,
+        data_config,
     ).build()
 
     print("> finished creating GPT datasets ...")

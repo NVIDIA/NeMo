@@ -146,9 +146,11 @@ def get_tokenizer(args):
     )
     if args.need_pad_id:
         if not hasattr(tokenizer, "pad_id"):
-            tokenizer.add_special_tokens({'pad_token': '<pad>'})
-        elif hasattr(tokenizer, "pad_id") and (tokenizer.pad_id is None or tokenizer.pad_id < 0):
-            tokenizer.add_special_tokens({'pad_token': '<pad>'})
+            tokenizer.add_special_tokens({"pad_token": "<pad>"})
+        elif hasattr(tokenizer, "pad_id") and (
+            tokenizer.pad_id is None or tokenizer.pad_id < 0
+        ):
+            tokenizer.add_special_tokens({"pad_token": "<pad>"})
     return tokenizer
 
 
@@ -205,81 +207,146 @@ class Encoder(object):
                     doc_ids.append(sentence_ids)
             if len(doc_ids) > 0 and self.args.append_eod:
                 doc_ids[-1].append(Encoder.tokenizer.eos_id)
-            ids['text'] = doc_ids
+            ids["text"] = doc_ids
         return ids, len(json_line)
 
 
 def get_args():
     parser = argparse.ArgumentParser()
-    group = parser.add_argument_group(title='input data')
+    group = parser.add_argument_group(title="input data")
     group.add_argument(
-        '--input',
+        "--input",
         type=str,
         required=True,
-        help='Path to the input json or json.gz file. If preprocessing an entire folder, set the --preproc-folder flag and provide the path to the folder in this arg.',
+        help="Path to the input json or json.gz file. If preprocessing an entire folder, set the --preproc-folder flag and provide the path to the folder in this arg.",
     )
     group.add_argument(
-        '--json-keys', nargs='+', default=['text'], help='space separate listed of keys to extract from json'
+        "--json-keys",
+        nargs="+",
+        default=["text"],
+        help="space separate listed of keys to extract from json",
     )
-    group.add_argument('--split-sentences', action='store_true', help='Split documents into sentences.')
-    group.add_argument('--keep-newlines', action='store_true', help='Keep newlines between sentences when splitting.')
-    group.add_argument('--text_file', action='store_true', help='Use text file instead of json.')
-    group = parser.add_argument_group(title='tokenizer')
     group.add_argument(
-        '--tokenizer-library',
+        "--split-sentences", action="store_true", help="Split documents into sentences."
+    )
+    group.add_argument(
+        "--keep-newlines",
+        action="store_true",
+        help="Keep newlines between sentences when splitting.",
+    )
+    group.add_argument(
+        "--text_file", action="store_true", help="Use text file instead of json."
+    )
+    group = parser.add_argument_group(title="tokenizer")
+    group.add_argument(
+        "--tokenizer-library",
         type=str,
         required=True,
-        choices=['sentencepiece', 'megatron', 'huggingface', 'tabular'],
-        help='What tokenizer library to use.',
+        choices=["sentencepiece", "megatron", "huggingface", "tabular"],
+        help="What tokenizer library to use.",
     )
     group.add_argument(
-        '--tokenizer-type',
+        "--tokenizer-type",
         type=str,
         default=None,
-        help='What type of tokenizer to use.',
+        help="What type of tokenizer to use.",
     )
     group.add_argument(
-        '--tokenizer-model',
+        "--tokenizer-model",
         type=str,
         default=None,
-        help='Path to tokenizer model.',
+        help="Path to tokenizer model.",
     )
     group.add_argument(
-        '--use-fast',
-        action='store_true',
-        help='Use fast tokenizer.',
+        "--use-fast",
+        action="store_true",
+        help="Use fast tokenizer.",
     )
-    group.add_argument('--vocab-file', type=str, default=None, help='Path to the vocab file')
-    group.add_argument('--files-filter', type=str, default='**/*.json*', help='files filter str')
-    group.add_argument('--merge-file', type=str, default=None, help='Path to the BPE merge file (if necessary).')
-    group.add_argument('--delimiter', type=str, default=None, help='delimiter used for tabular tokenizer')
-    group.add_argument('--append-eod', action='store_true', help='Append an <eod> token to the end of a document.')
-    group.add_argument('--retrieval-db', action='store_true', help='Dataset used for retrieval.')
-    group.add_argument('--need-pad-id', action='store_true', help='Whether we need the pad id for the tokenizer')
-    group = parser.add_argument_group(title='output data')
-    group.add_argument('--output-prefix', type=str, required=True, help='Path to binary output file without suffix')
-    group.add_argument('--dataset-impl', type=str, default='mmap', choices=['lazy', 'cached', 'mmap', 'retmmap'])
+    group.add_argument(
+        "--vocab-file", type=str, default=None, help="Path to the vocab file"
+    )
+    group.add_argument(
+        "--files-filter", type=str, default="**/*.json*", help="files filter str"
+    )
+    group.add_argument(
+        "--merge-file",
+        type=str,
+        default=None,
+        help="Path to the BPE merge file (if necessary).",
+    )
+    group.add_argument(
+        "--delimiter",
+        type=str,
+        default=None,
+        help="delimiter used for tabular tokenizer",
+    )
+    group.add_argument(
+        "--append-eod",
+        action="store_true",
+        help="Append an <eod> token to the end of a document.",
+    )
+    group.add_argument(
+        "--retrieval-db", action="store_true", help="Dataset used for retrieval."
+    )
+    group.add_argument(
+        "--need-pad-id",
+        action="store_true",
+        help="Whether we need the pad id for the tokenizer",
+    )
+    group = parser.add_argument_group(title="output data")
+    group.add_argument(
+        "--output-prefix",
+        type=str,
+        required=True,
+        help="Path to binary output file without suffix",
+    )
+    group.add_argument(
+        "--dataset-impl",
+        type=str,
+        default="mmap",
+        choices=["lazy", "cached", "mmap", "retmmap"],
+    )
 
-    group = parser.add_argument_group(title='runtime')
-    group.add_argument('--workers', type=int, default=1, help='Number of worker processes to launch')
-    group.add_argument('--chunk_size', type=int, default=64, help='chunk size used for retrieval')
+    group = parser.add_argument_group(title="runtime")
     group.add_argument(
-        '--chunk_stride_size', type=int, default=64, help='the stride size for neighbor chunks used for retrieval'
+        "--workers", type=int, default=1, help="Number of worker processes to launch"
+    )
+    group.add_argument(
+        "--chunk_size", type=int, default=64, help="chunk size used for retrieval"
+    )
+    group.add_argument(
+        "--chunk_stride_size",
+        type=int,
+        default=64,
+        help="the stride size for neighbor chunks used for retrieval",
     )
 
-    group.add_argument('--log-interval', type=int, default=100, help='Interval between progress updates')
     group.add_argument(
-        '--preproc-folder',
-        action='store_true',
-        help='If set, will preprocess all .json or .jsonl or json.gz or .jsonl.gz files into a single .bin and .idx file. Folder path provided via the --input arg',
+        "--log-interval",
+        type=int,
+        default=100,
+        help="Interval between progress updates",
     )
-    group.add_argument('--apply-ftfy', action='store_true', help='If set, will apply ftfy to the input text')
+    group.add_argument(
+        "--preproc-folder",
+        action="store_true",
+        help="If set, will preprocess all .json or .jsonl or json.gz or .jsonl.gz files into a single .bin and .idx file. Folder path provided via the --input arg",
+    )
+    group.add_argument(
+        "--apply-ftfy",
+        action="store_true",
+        help="If set, will apply ftfy to the input text",
+    )
     args = parser.parse_args()
     args.keep_empty = False
 
-    if args.tokenizer_type is not None and args.tokenizer_type.lower().startswith('bert'):
+    if args.tokenizer_type is not None and args.tokenizer_type.lower().startswith(
+        "bert"
+    ):
         if not args.split_sentences:
-            print("Bert tokenizer detected, are you sure you don't want to split sentences?")
+            print(
+                "Bert tokenizer detected, are you sure you don't want to split sentences?"
+            )
 
     # some default/dummy values for the tokenizer
     args.rank = 0
@@ -295,20 +362,27 @@ def main():
     args = get_args()
     startup_start = time.time()
     if args.preproc_folder:
-        print('Searching folder for .json or .jsonl or json.gz or .jsonl.gz files...')
-        assert os.path.exists(args.input), f'Folder does not exist: {args.input}'
+        print("Searching folder for .json or .jsonl or json.gz or .jsonl.gz files...")
+        assert os.path.exists(args.input), f"Folder does not exist: {args.input}"
         json_files = (str(f) for f in pathlib.Path(args.input).glob(args.files_filter))
         json_files = [
             f
             for f in json_files
-            if f.endswith('.json') or f.endswith('.jsonl') or f.endswith('.json.gz') or f.endswith('.jsonl.gz')
+            if f.endswith(".json")
+            or f.endswith(".jsonl")
+            or f.endswith(".json.gz")
+            or f.endswith(".jsonl.gz")
         ]
         if len(json_files) == 0:
-            raise FileNotFoundError('No .json or .jsonl or json.gz or .jsonl.gz files found in folder.')
+            raise FileNotFoundError(
+                "No .json or .jsonl or json.gz or .jsonl.gz files found in folder."
+            )
         else:
-            print(f'Found {len(json_files)} .json or .jsonl or json.gz or .jsonl.gz files.')
+            print(
+                f"Found {len(json_files)} .json or .jsonl or json.gz or .jsonl.gz files."
+            )
     else:
-        assert os.path.exists(args.input), f'File does not exist: {args.input}'
+        assert os.path.exists(args.input), f"File does not exist: {args.input}"
         json_files = [args.input]
 
     if nltk_available and args.split_sentences:
@@ -316,7 +390,7 @@ def main():
 
     encoder = Encoder(args)
 
-    if args.dataset_impl == 'retmmap':
+    if args.dataset_impl == "retmmap":
         assert args.need_pad_id, "retmmap need --need_pad_id flag"
     tokenizer = get_tokenizer(args)
 
@@ -336,7 +410,11 @@ def main():
             output_bin_files[key],
             impl=args.dataset_impl,
             chunk_size=args.chunk_size,
-            pad_id=tokenizer.pad_id if getattr(tokenizer, "pad_id", None) is not None else 0,
+            pad_id=(
+                tokenizer.pad_id
+                if getattr(tokenizer, "pad_id", None) is not None
+                else 0
+            ),
             retrieval_db=args.retrieval_db,
             vocab_size=tokenizer.vocab_size,
             stride=args.chunk_stride_size,
@@ -350,11 +428,11 @@ def main():
     pool = multiprocessing.Pool(args.workers, initializer=encoder.initializer)
 
     for idx, json_file in enumerate(json_files):
-        print(f'Processing file {json_file} {idx + 1}/{len(json_files)}')
-        if json_file.endswith('.gz'):
-            fin = gzip.open(json_file, 'r')
+        print(f"Processing file {json_file} {idx + 1}/{len(json_files)}")
+        if json_file.endswith(".gz"):
+            fin = gzip.open(json_file, "r")
         else:
-            fin = open(json_file, 'r', encoding='utf-8')
+            fin = open(json_file, "r", encoding="utf-8")
 
         encoded_docs = pool.imap(encoder.encode, fin, 25)
 
@@ -370,11 +448,15 @@ def main():
                 current = time.time()
                 elapsed = current - proc_start
                 mbs = total_bytes_processed / elapsed / 1024 / 1024
-                print(f"Processed {i} documents", f"({i/elapsed} docs/s, {mbs} MB/s).", file=sys.stderr)
+                print(
+                    f"Processed {i} documents",
+                    f"({i/elapsed} docs/s, {mbs} MB/s).",
+                    file=sys.stderr,
+                )
 
     for key in args.json_keys:
         builders[key].finalize(output_idx_files[key])
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

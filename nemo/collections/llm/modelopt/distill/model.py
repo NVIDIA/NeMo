@@ -43,7 +43,9 @@ class _DistillationLossReduction(MaskedTokenLossReduction):
         self._distillation_loss_fn = distillation_loss_fn
         self._cp_size = parallel_state.get_context_parallel_world_size()
 
-    def forward(self, batch: Dict[str, Tensor], forward_out: Tensor) -> Tuple[Tensor, Dict[str, Tensor]]:
+    def forward(
+        self, batch: Dict[str, Tensor], forward_out: Tensor
+    ) -> Tuple[Tensor, Dict[str, Tensor]]:
         if isinstance(forward_out, tuple):
             # neva returns (logits, loss_mask)
             forward_out, batch["loss_mask"] = forward_out
@@ -71,13 +73,17 @@ class _DistillationLossReduction(MaskedTokenLossReduction):
 
         if self._cp_size > 1:
             loss = torch.cat([loss_sum.view(1), num_valid_tokens.view(1)])
-            torch.distributed.all_reduce(loss, group=parallel_state.get_context_parallel_group())
+            torch.distributed.all_reduce(
+                loss, group=parallel_state.get_context_parallel_group()
+            )
             loss = loss[0] / loss[1]  # sequence level nll
         else:
             loss = loss_sum / num_valid_tokens  # sequence level nll
 
         if tp_reduce is True:
-            torch.distributed.all_reduce(loss, group=parallel_state.get_tensor_model_parallel_group())
+            torch.distributed.all_reduce(
+                loss, group=parallel_state.get_tensor_model_parallel_group()
+            )
 
         return loss
 
@@ -120,10 +126,16 @@ class DistillationGPTModel(llm.GPTModel):
         self._teacher_ckpt_path = teacher_ckpt_path
         self._train_called = False
 
-        if not isinstance(config, llm.GPTConfig) or not isinstance(teacher_config, llm.GPTConfig):
-            raise ValueError("Student and Teacher must both be subclasses of `llm.GPTModel`")
+        if not isinstance(config, llm.GPTConfig) or not isinstance(
+            teacher_config, llm.GPTConfig
+        ):
+            raise ValueError(
+                "Student and Teacher must both be subclasses of `llm.GPTModel`"
+            )
         if self.config.virtual_pipeline_model_parallel_size is not None:
-            raise ValueError("ModelOpt Distillation incompatible with interleaved pipeline schedule.")
+            raise ValueError(
+                "ModelOpt Distillation incompatible with interleaved pipeline schedule."
+            )
 
     def configure_model(self):
         if hasattr(self, "module"):
@@ -155,7 +167,9 @@ class DistillationGPTModel(llm.GPTModel):
         distillation_model = mtd.convert(model, mode=[("kd_loss", kd_config)])
 
         # Additional MCore-specific tweaks needed.
-        adjust_distillation_model_for_mcore(distillation_model, model_cfg=self.config, distill_cfg=distill_cfg)
+        adjust_distillation_model_for_mcore(
+            distillation_model, model_cfg=self.config, distill_cfg=distill_cfg
+        )
 
         self.module = distillation_model
 

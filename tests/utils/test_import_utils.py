@@ -242,7 +242,7 @@ class TestSafeImportFrom:
     def test_fallback_module(self):
         """Test safe_import_from with a fallback module."""
         # First import fails, but fallback succeeds
-        with patch('importlib.import_module') as mock_import:
+        with patch("importlib.import_module") as mock_import:
             # Mock the first import to fail as AttributeError
             def side_effect(name):
                 if name == "primary_module":
@@ -256,14 +256,18 @@ class TestSafeImportFrom:
 
             mock_import.side_effect = side_effect
 
-            symbol, success = safe_import_from("primary_module", "symbol", fallback_module="fallback_module")
+            symbol, success = safe_import_from(
+                "primary_module", "symbol", fallback_module="fallback_module"
+            )
 
             assert success is True
             assert symbol == "fallback_symbol"
 
     def test_fallback_module_both_fail(self):
         """Test safe_import_from when both primary and fallback modules fail."""
-        symbol, success = safe_import_from("nonexistent_primary", "symbol", fallback_module="nonexistent_fallback")
+        symbol, success = safe_import_from(
+            "nonexistent_primary", "symbol", fallback_module="nonexistent_fallback"
+        )
 
         assert success is False
         assert is_unavailable(symbol)

@@ -109,7 +109,9 @@ class ContextGraphCTC:
                         self.num_nodes += 1
                         is_end = i == len(tokens) - 1
                         word = word_item[0] if is_end else None
-                        node = ContextState(index=self.num_nodes, is_end=is_end, word=word)
+                        node = ContextState(
+                            index=self.num_nodes, is_end=is_end, word=word
+                        )
                         node.next[token] = node
                         prev_node.next[token] = node
 
@@ -121,7 +123,9 @@ class ContextGraphCTC:
                             else:
                                 # create new blank node
                                 self.num_nodes += 1
-                                blank_node = ContextState(index=self.num_nodes, is_end=False)
+                                blank_node = ContextState(
+                                    index=self.num_nodes, is_end=False
+                                )
                                 blank_node.next[self.blank_token] = blank_node
                                 blank_node.next[token] = node
                                 prev_node.next[self.blank_token] = blank_node
@@ -129,7 +133,10 @@ class ContextGraphCTC:
                     # in case of two consecutive equal tokens
                     if token == prev_token:
                         # if token already in prev_node.next[balnk_token].next
-                        if self.blank_token in prev_node.next and token in prev_node.next[self.blank_token].next:
+                        if (
+                            self.blank_token in prev_node.next
+                            and token in prev_node.next[self.blank_token].next
+                        ):
                             prev_node = prev_node.next[self.blank_token].next[token]
                             prev_token = token
                             continue
@@ -137,7 +144,9 @@ class ContextGraphCTC:
                         self.num_nodes += 1
                         is_end = i == len(tokens) - 1
                         word = word_item[0] if is_end else None
-                        node = ContextState(index=self.num_nodes, is_end=is_end, word=word)
+                        node = ContextState(
+                            index=self.num_nodes, is_end=is_end, word=word
+                        )
                         # add blank
                         if self.blank_token in prev_node.next:
                             prev_node.next[self.blank_token].next[token] = node
@@ -145,7 +154,9 @@ class ContextGraphCTC:
                         else:
                             # create new blank node
                             self.num_nodes += 1
-                            blank_node = ContextState(index=self.num_nodes, is_end=False)
+                            blank_node = ContextState(
+                                index=self.num_nodes, is_end=False
+                            )
                             blank_node.next[self.blank_token] = blank_node
                             blank_node.next[token] = node
                             prev_node.next[self.blank_token] = blank_node
@@ -229,18 +240,38 @@ class ContextGraphCTC:
                     seen.add(node.index)
                 label = str(token) if symbol_table is None else symbol_table[token]
                 if node.index != current_node.index:
-                    output, input, arc = str(current_node.index), str(node.index), f"{label}"
+                    output, input, arc = (
+                        str(current_node.index),
+                        str(node.index),
+                        f"{label}",
+                    )
                     if (output, input, arc) not in printed_arcs:
                         if arc == self.blank_token:
-                            dot.edge(output, input, label=self.blank_token, color="blue", **default_edge_attr)
+                            dot.edge(
+                                output,
+                                input,
+                                label=self.blank_token,
+                                color="blue",
+                                **default_edge_attr,
+                            )
                         else:
                             dot.edge(output, input, label=arc)
                         queue.append(node)
                 else:
-                    output, input, arc = str(current_node.index), str(current_node.index), f"{label}"
+                    output, input, arc = (
+                        str(current_node.index),
+                        str(current_node.index),
+                        f"{label}",
+                    )
                     if (output, input, arc) not in printed_arcs:
                         if arc == self.blank_token:
-                            dot.edge(output, input, label=self.blank_token, color="blue", **default_edge_attr)
+                            dot.edge(
+                                output,
+                                input,
+                                label=self.blank_token,
+                                color="blue",
+                                **default_edge_attr,
+                            )
                         else:
                             dot.edge(output, input, label=arc, color="green")
                 printed_arcs.add((output, input, arc))
