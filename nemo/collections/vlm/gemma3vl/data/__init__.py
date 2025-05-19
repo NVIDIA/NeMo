@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2025, NVIDIA CORPORATION.
+# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,5 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-export HF_HOME=/home/TestData/HF_HOME
-coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo -m pytest tests/evaluation/eval_unittest.py -m "not pleasefixme"
+
+from nemo.collections.vlm.gemma3vl.data.mock import Gemma3VLMockDataModule
+
+__all__ = [
+    "Gemma3VLMockDataModule",
+]
