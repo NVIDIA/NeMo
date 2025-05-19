@@ -296,7 +296,10 @@ class Float16Module(MegatronModule):
         if getattr(self.module, 'pre_process', True):
             inputs = fp32_to_float16(inputs, self.float16_converter)
         outputs = self.module(*inputs, **kwargs)
-        if parallel_state.is_pipeline_last_stage(ignore_virtual=False) and self.training:
+        assert (
+            self.config.get("virtual_pipeline_model_parallel_size", None) is None
+        ), "Virtual pipeline model parallel size is no longer supported for nemo 1.0"
+        if parallel_state.is_pipeline_last_stage() and self.training:
             outputs = float16_to_fp32(outputs)
         return outputs
 

@@ -127,6 +127,10 @@ class DistillationMegatronGPTModel(MegatronGPTModel):
         if not self.mcore_gpt:
             raise AssertionError("ModelOpt Distillation only supports MCore model edition.")
 
+        assert (
+            self.cfg.get("virtual_pipeline_model_parallel_size", None) is None
+        ), "Virtual pipeline model parallel size is no longer supported for nemo 1.0"
+
         model = MCoreGPTModel(
             config=self.transformer_config,
             transformer_layer_spec=get_specs(
@@ -147,7 +151,7 @@ class DistillationMegatronGPTModel(MegatronGPTModel):
             rotary_base=self.cfg.get('rotary_base', 10000),
         )
         if self.cfg.get("apply_embedding_scaling", False) and parallel_state.is_pipeline_first_stage(
-            ignore_virtual=False
+            ignore_virtual=True
         ):
             extend_instance(model.embedding, EmbeddingScalingMixin)
 
@@ -182,9 +186,9 @@ class DistillationMegatronGPTModel(MegatronGPTModel):
                 required_keys.add('attention_mask')
                 if 'cu_seqlens' in batch:
                     required_keys.add('cu_seqlens')
-                if parallel_state.is_pipeline_first_stage(ignore_virtual=False):
+                if parallel_state.is_pipeline_first_stage():
                     required_keys.update(('tokens', 'position_ids'))
-                if parallel_state.is_pipeline_last_stage(ignore_virtual=False):
+                if parallel_state.is_pipeline_last_stage():
                     required_keys.update(('labels', 'loss_mask'))
             if self.get_attention_mask_from_fusion and 'attention_mask' in required_keys:
                 required_keys.remove('attention_mask')

@@ -189,7 +189,10 @@ def drop_layers(model, layers_to_drop: List[int]):
 
 
 def mcore_model_customize(cfg, model):
-    if cfg.get("apply_embedding_scaling", False) and parallel_state.is_pipeline_first_stage(ignore_virtual=False):
+    assert (
+        cfg.get("virtual_pipeline_model_parallel_size", None) is None
+    ), "Virtual pipeline model parallel size is no longer supported for nemo 1.0"
+    if cfg.get("apply_embedding_scaling", False) and parallel_state.is_pipeline_first_stage(ignore_virtual=True):
         extend_instance(model.embedding, EmbeddingScalingMixin)
     if cfg.get("scale_positional_embedding", False):
         model.rotary_pos_emb.inv_freq = apply_rope_scaling(
@@ -576,7 +579,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 rotary_base=self.cfg.get('rotary_base', 10000),
             )
             if self.cfg.get("apply_embedding_scaling", False) and parallel_state.is_pipeline_first_stage(
-                ignore_virtual=False
+                ignore_virtual=True
             ):
                 extend_instance(model.language_model.embedding, EmbeddingScalingMixin)
         return model
@@ -1129,6 +1132,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             or parallel_state.is_pipeline_last_stage(ignore_virtual=True)
         ):
             module_list = self.get_model_module_list()
+            assert (
+                self.cfg.get("virtual_pipeline_model_parallel_size", None) is None
+            ), "Virtual pipeline model parallel size is no longer supported for nemo 1.0"
             if parallel_state.is_pipeline_first_stage(ignore_virtual=True):
                 module = module_list[0]  # only the first virtual rank has the embeddings
             elif parallel_state.is_pipeline_last_stage(ignore_virtual=True):
@@ -1290,9 +1296,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     required_keys.add('cu_seqlens')
                 if 'cu_seqlens_unpadded' in batch:
                     required_keys.add('cu_seqlens_unpadded')
-                if parallel_state.is_pipeline_first_stage(ignore_virtual=False):
+                if parallel_state.is_pipeline_first_stage():
                     required_keys.update(('tokens', 'position_ids'))
-                if parallel_state.is_pipeline_last_stage(ignore_virtual=False):
+                if parallel_state.is_pipeline_last_stage():
                     required_keys.update(('labels', 'loss_mask'))
             if self.get_attention_mask_from_fusion and 'attention_mask' in required_keys:
                 required_keys.remove('attention_mask')
@@ -1583,7 +1589,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         return loss
 
     def on_validation_epoch_end(self):
-        if parallel_state.is_pipeline_last_stage(ignore_virtual=False):
+        assert (
+            self.cfg.get("virtual_pipeline_model_parallel_size", None) is None
+        ), "Virtual pipeline model parallel size is no longer supported for nemo 1.0"
+        if parallel_state.is_pipeline_last_stage(ignore_virtual=True):
             # only the last pipeline parallel stages return loss with their batch size
             if self.validation_drop_last:
                 averaged_loss = torch.stack(self.validation_step_outputs).mean()
@@ -1986,13 +1995,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         if self.mcore_gpt and not self.use_fsdp:
             checkpoint['sharded_state_dict'] = self.sharded_state_dict()
 
-        # legacy checkpointing for interleaved
         else:
             if isinstance(self.model, list):
                 for i in range(len(self.model)):
-                    parallel_state.set_virtual_pipeline_model_parallel_rank(i)
                     checkpoint[f'model{i}'] = self.model[i].module.state_dict_for_save_checkpoint()
-                parallel_state.set_virtual_pipeline_model_parallel_rank(0)
 
     def on_load_checkpoint(self, checkpoint) -> None:
         """LightningModule hook:
@@ -2029,13 +2035,10 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 # see NLPModel.on_load_checkpoint
                 checkpoint['state_dict'] = {}
 
-        # legacy checkpointing for interleaved
         else:
             if isinstance(self.model, list):
                 for i in range(len(self.model)):
-                    parallel_state.set_virtual_pipeline_model_parallel_rank(i)
                     self.model[i].module.load_state_dict(checkpoint[f'model{i}'], strict=True)
-                parallel_state.set_virtual_pipeline_model_parallel_rank(0)
 
     def on_validation_model_zero_grad(self) -> None:
         """
@@ -2058,17 +2061,11 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             sharded_state_dict = {}
             for index, module in enumerate(self.get_model_module_list()):
                 if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
-                    # virtual pipline rank must be set so that GPTModel returns the correct sharded state dict
-                    parallel_state.set_virtual_pipeline_model_parallel_rank(index)
                     module_sharded_state_dict = module.sharded_state_dict(prefix=module_prefix)
                     sharded_state_dict[f'model_{index}'] = module_sharded_state_dict
                 else:
                     module_sharded_state_dict = module.sharded_state_dict(prefix=module_prefix)
                     sharded_state_dict.update(module_sharded_state_dict)
-
-            # reset vp rank
-            if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
-                parallel_state.set_virtual_pipeline_model_parallel_rank(0)
 
             # WAR: This is a temporary fix to skip loading FP8 parameters for Dot Product Attention
             def skip_fp8_load(x):
@@ -2098,16 +2095,12 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         if parallel_state.get_pipeline_model_parallel_world_size() > 1:
             if self.cfg.get('share_embeddings_and_output_weights', True):
                 for index, module in enumerate(self.get_model_module_list()):
-                    if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
-                        parallel_state.set_virtual_pipeline_model_parallel_rank(index)
                     sync_embeddings = (
                         module.setup_embeddings_and_output_layer
                         if self.mcore_gpt
                         else module.sync_initial_word_embeddings
                     )
                     sync_embeddings()
-                if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
-                    parallel_state.set_virtual_pipeline_model_parallel_rank(0)
 
     def _reset_activation_checkpointing_args(self):
         """Disables activation checkpointing completely and saves the values so that

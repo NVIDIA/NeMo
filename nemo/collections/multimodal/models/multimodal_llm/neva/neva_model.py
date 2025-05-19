@@ -1017,7 +1017,10 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
                     else:
                         batch[k] = batch[k].cuda(non_blocking=True)
             else:
-                if parallel_state.is_pipeline_first_stage(ignore_virtual=False):
+                assert (
+                    self.cfg.get("virtual_pipeline_model_parallel_size", None) is None
+                ), "Virtual pipeline model parallel size is no longer supported for nemo 1.0"
+                if parallel_state.is_pipeline_first_stage(ignore_virtual=True):
                     # First pipeline stage needs tokens, position_ids, and attention_mask
                     for k in batch.keys():
                         if self.get_attention_mask_from_fusion:
@@ -1032,7 +1035,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
                                 if k in ['tokens', 'position_ids', 'attention_mask', 'media', 'cu_seqlens']
                                 else None
                             )
-                elif parallel_state.is_pipeline_last_stage(ignore_virtual=False):
+                elif parallel_state.is_pipeline_last_stage(ignore_virtual=True):
                     # Last pipeline stage needs the labels, loss_mask, and attention_mask
                     for k in batch.keys():
                         if self.get_attention_mask_from_fusion:
@@ -1159,7 +1162,10 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
         if not self.validation_step_outputs:
             return
 
-        if parallel_state.is_pipeline_last_stage(ignore_virtual=False):
+        assert (
+            self.cfg.get("virtual_pipeline_model_parallel_size", None) is None
+        ), "Virtual pipeline model parallel size is no longer supported for nemo 1.0"
+        if parallel_state.is_pipeline_last_stage(ignore_virtual=True):
             # only the last pipeline parallel stages return loss with their batch size
             if self.cfg.data.get('validation_drop_last', True):
                 averaged_loss = torch.stack(self.validation_step_outputs).mean()
@@ -1276,10 +1282,8 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
         if parallel_state.get_pipeline_model_parallel_world_size() > 1:
             if isinstance(self.model, list):
                 for i, module in enumerate(self.model):
-                    parallel_state.set_virtual_pipeline_model_parallel_rank(i)
                     if self.cfg.get('share_embeddings_and_output_weights', True):
                         module.sync_initial_word_embeddings()
-                parallel_state.set_virtual_pipeline_model_parallel_rank(0)
             else:
                 if self.cfg.get('share_embeddings_and_output_weights', True):
                     self.model.sync_initial_word_embeddings()
@@ -1668,7 +1672,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
         if self.mcore_gpt and not self.use_fsdp:
             if 'state_dict' in checkpoint and checkpoint['state_dict']:
                 for index, module in enumerate(self.get_model_module_list()):
-                    if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
+                    if self.cfg.get('virtual_pipeline_model_parallel_size', None) is not None:
                         checkpoint_state_dict = checkpoint['state_dict'][f'model_{index}']
                     else:
                         checkpoint_state_dict = checkpoint['state_dict']
@@ -1687,9 +1691,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
         else:
             if isinstance(self.model, list):
                 for i in range(len(self.model)):
-                    parallel_state.set_virtual_pipeline_model_parallel_rank(i)
                     self.model[i].module.load_state_dict(checkpoint[f'model{i}'], strict=True)
-                parallel_state.set_virtual_pipeline_model_parallel_rank(0)
 
     def on_save_checkpoint(self, checkpoint) -> None:
         """LightningModule hook:
@@ -1730,9 +1732,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
         else:
             if isinstance(self.model, list):
                 for i in range(len(self.model)):
-                    parallel_state.set_virtual_pipeline_model_parallel_rank(i)
                     checkpoint[f'model{i}'] = self.model[i].module.state_dict_for_save_checkpoint()
-                parallel_state.set_virtual_pipeline_model_parallel_rank(0)
 
     def sharded_state_dict(self, prefix: str = ''):
         if self.use_peft:
