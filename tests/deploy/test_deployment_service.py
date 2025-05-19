@@ -140,6 +140,7 @@ class TestLLMQueryFunctions:
                 compute_logprob=True,
                 max_length=100,
                 apply_chat_template=False,
+                echo=False,
             )
             assert result == {"test": "response"}
             mock_nq.query_llm.assert_called_once()
