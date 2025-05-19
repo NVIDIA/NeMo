@@ -668,7 +668,8 @@ class MCoreNevaModel(MCoreLLaVAModel):
             final_embedding[batch_indices, text_position_ids] = language_embeddings[batch_indices, non_image_indices]
 
             # Put image embeddings to image positions.
-            final_embedding[images_mask] = image_embeddings.permute(1, 0, 2).reshape(-1, embed_dim).contiguous()
+            if image_embeddings.size(0) > 0:
+                final_embedding[images_mask] = image_embeddings.permute(1, 0, 2).reshape(-1, embed_dim).contiguous()
 
         # Create the final labels and loss mask (if this is the last language model stage).
         final_labels, final_loss_mask = None, None

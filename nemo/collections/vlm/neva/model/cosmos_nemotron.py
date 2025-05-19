@@ -14,12 +14,14 @@
 # pylint: disable=line-too-long
 
 from dataclasses import dataclass, field
+from functools import cached_property
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated, Callable, Optional
 
 import torch
 from megatron.core.transformer.transformer_config import TransformerConfig
-from torch import nn
+from nemo.lightning.io.state import TransformFns
+from torch import nn, Tensor
 from transformers import AutoModel, AutoConfig
 from transformers.configuration_utils import PretrainedConfig
 from transformers.modeling_utils import PreTrainedModel
@@ -98,7 +100,7 @@ class CosmosNemotronModel(NevaModel):
 
     def __init__(
             self,
-            config: Annotated[Optional[LlavaConfig], Config[LlavaConfig]] = None,
+            config: Annotated[Optional[CosmosNemotronConfig], Config[CosmosNemotronConfig]] = None,
             optim: Optional[OptimizerModule] = None,
             tokenizer: Optional["TokenizerSpec"] = None,
             model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
@@ -120,16 +122,9 @@ class StateDictWrapper:
                 state_dict[key] = value.float()
         self._state_dict = state_dict
 
-    def state_dict(self):
-        """
-        Returns the wrapped state dictionary.
-        """
-        return self._state_dict
-
-
-@io.model_importer(CosmosNemotronModel, "pyt")
-class CosmosNemotronImporter(io.ModelConnector["CosmosNemotronModel", CosmosNemotronModel]):
-    """Cosmos Nemotron Importer"""
+@io.model_importer(CosmosNemotronModel, "hf")
+class HFCosmosNemotronImporter(io.ModelConnector["AutoModelForCausalLM", CosmosNemotronModel]):
+    """Cosmos Nemotron Model HF Importer"""
 
     def init(self) -> CosmosNemotronModel:
         # pylint: disable=C0115,C0116
@@ -137,25 +132,36 @@ class CosmosNemotronImporter(io.ModelConnector["CosmosNemotronModel", CosmosNemo
 
     def apply(self, output_path: Path) -> Path:
         # pylint: disable=C0115,C0116
-        source = torch.load(str(self), weights_only=False)
-        source = StateDictWrapper(source["model"])
+        from transformers import AutoModelForCausalLM
 
+        source = AutoModelForCausalLM.from_pretrained(str(self), trust_remote_code=True, torch_dtype=torch.bfloat16)
         target = self.init()
         trainer = self.nemo_setup(target)
         self.convert_state(source, target)
-        print(f"Converted Llava model to Nemo, saving to {output_path}")
+        print(f"Converted Cosmos Nemotron model to Nemo, saving to {output_path}")
 
         self.nemo_save(output_path, trainer)
 
-        print(f"Converted Llava model saved to {output_path}")
+        print(f"Converted Cosmos Nemotron model saved to {output_path}")
 
         teardown(trainer, target)
         del trainer, target
 
         return output_path
 
-    def convert_state(self, source, target, ):
-        # pylint: disable=C0115,C0116
+    def convert_state(self, source, target):
+        # pylint: disable=C0115,C0116,line-too-long
+        """
+        Maps and transforms the state dictionary from NeMo to HuggingFace format.
+
+        Args:
+            source: The source NeMo model.
+            target: The target HuggingFace model.
+
+        Returns:
+            The target HuggingFace model with the converted state.
+        """
+        # Define the state mapping from NeMo to HuggingFace
         mapping = {
             k: k
             for k in source.state_dict().keys()
@@ -167,35 +173,69 @@ class CosmosNemotronImporter(io.ModelConnector["CosmosNemotronModel", CosmosNemo
             source,
             target,
             mapping=mapping,
+            transforms=transforms,
         )
 
-    @property
+    @cached_property
     def tokenizer(self) -> "AutoTokenizer":
         # pylint: disable=C0115,C0116
         from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
-        tokenizer = AutoTokenizer("meta-llama/Llama-3.1-8B-Instruct")
-        new_special_tokens = {
-            "additional_special_tokens": [
-                "<image>", "<img>", "</img>",
-                "<quad>", "</quad>",
-                "<ref>", "</ref>",
-                "<box>", "</box>"
-            ]
-        }
-        tokenizer.tokenizer.add_special_tokens(new_special_tokens)
-        return tokenizer
 
-    @property
+        return AutoTokenizer(str(self), trust_remote_code=True)
+
+    @cached_property
     def config(self) -> CosmosNemotronConfig:
         # pylint: disable=C0115,C0116
-        if "llama_3p1_8b" in str(self):
-            output = CosmosNemotronRadioLlama8BConfig()
-        elif "llama_3p2_3b" in str(self):
-            output = CosmosNemotronRadioLlama2BConfig()
-        else:
-            raise ValueError(f"Cannot determine Cosmos Nemotron config based on '{str(self)}'.")
-        return output
+        from transformers import AutoConfig
 
+        source = AutoConfig.from_pretrained(str(self), trust_remote_code=True)
+        llm_config = source.llm_config
+        param_dtype = torch.bfloat16 # dtype_from_hf(source)
+        language_transformer_config = Llama31Config8B(
+            num_layers=llm_config.num_hidden_layers,
+            hidden_size=llm_config.hidden_size,
+            ffn_hidden_size=llm_config.intermediate_size,
+            num_attention_heads=llm_config.num_attention_heads,
+            init_method_std=llm_config.initializer_range,
+            layernorm_epsilon=llm_config.rms_norm_eps,
+            num_query_groups=llm_config.num_key_value_heads,
+            rotary_base=llm_config.rope_theta,
+            gated_linear_unit=True,
+            share_embeddings_and_output_weights=getattr(llm_config, "tie_word_embeddings", False),
+            make_vocab_size_divisible_by=512,
+            fp16=(param_dtype == torch.float16),
+            bf16=(param_dtype == torch.bfloat16),
+            params_dtype=param_dtype,
+        )
+        vision_transformer_config = RADIO_25_h_Config(
+            img_w=512,
+            img_h=512,
+            patch_dim=16,
+            fp16=(param_dtype == torch.float16),
+            bf16=(param_dtype == torch.bfloat16),
+            params_dtype=param_dtype,
+        )
+        vision_projection_config = MultimodalProjectorConfig(
+            input_size=5120,
+            hidden_size=4096,
+            ffn_hidden_size=4096,
+            normalization='LayerNorm',
+            projector_type="mcore_mlp",
+            fp16=(param_dtype == torch.float16),
+            bf16=(param_dtype == torch.bfloat16),
+            params_dtype=param_dtype,
+        )
+
+        output = CosmosNemotronConfig(
+            language_transformer_config=language_transformer_config,
+            vision_transformer_config=vision_transformer_config,
+            vision_projection_config=vision_projection_config,
+            fp16=(param_dtype == torch.float16),
+            bf16=(param_dtype == torch.bfloat16),
+            params_dtype=param_dtype,
+        )
+
+        return output
 
 @io.model_exporter(CosmosNemotronModel, "hf")
 class HFCosmosNemotronExporter(io.ModelConnector[CosmosNemotronModel, "PreTrainedModel"]):
@@ -225,7 +265,9 @@ class HFCosmosNemotronExporter(io.ModelConnector[CosmosNemotronModel, "PreTraine
         from transformers.modeling_utils import no_init_weights
 
         with no_init_weights(True):
-            return AutoModel.from_config(self.config, trust_remote_code=True)
+            hf_model = AutoModel.from_config(self.config, trust_remote_code=True)
+            type(hf_model).register_for_auto_class("AutoModelForCausalLM")
+            return hf_model
 
     def apply(self, output_path: Path) -> Path:
         """
@@ -310,8 +352,9 @@ class HFCosmosNemotronExporter(io.ModelConnector[CosmosNemotronModel, "PreTraine
             _export_vision_qkv_bias,
             _export_class_token,
             _export_embedding,
-            _export_language_head,
         ]
+        if not self.config.llm_config.tie_word_embeddings:
+            transforms.append(_export_language_head)
 
         return io.apply_transforms(
             source,
@@ -330,7 +373,7 @@ class HFCosmosNemotronExporter(io.ModelConnector[CosmosNemotronModel, "PreTraine
         """
         return io.load_context(str(self), subpath="model").tokenizer
 
-    @property
+    @cached_property
     def config(self) -> "PretrainedConfig":
         """
         Generates the configuration for the HuggingFace NVLM_D_Model model based on the NeMo model.
@@ -351,12 +394,69 @@ class HFCosmosNemotronExporter(io.ModelConnector[CosmosNemotronModel, "PreTraine
             num_key_value_heads=language_config.num_query_groups,
             rope_theta=language_config.rotary_base,
             tie_word_embeddings=language_config.share_embeddings_and_output_weights,
+            vocab_size=128512,
         )
 
         config = AutoConfig.from_pretrained("/opt/llama_3p1_8b_cradio_h_v2_hf", trust_remote_code=True)
         config.llm_config.update(text_config_dict)
         return config
 
+
+# Define transformation functions needed for the importer
+def _import_vision_qkv(ctx: io.TransformCTX, qkv):
+    vision_config = ctx.target.config.vision_transformer_config
+
+    head_num = vision_config.num_attention_heads
+    num_query_groups = vision_config.num_query_groups
+    head_size = vision_config.kv_channels
+    hidden_size = vision_config.hidden_size
+
+    order_inverse = torch.zeros(3 * hidden_size).long()
+    for j in range(num_query_groups):
+        for i in range(head_size):
+            order_inverse[i + head_size * 3 * j] = j * head_size + i
+            order_inverse[head_size + i + head_size * 3 * j] = j * head_size + i + num_query_groups * head_size
+            order_inverse[head_size * 2 + i + head_size * 3 * j] = j * head_size + i + num_query_groups * head_size * 2
+
+    return qkv[order_inverse]
+
+def _import_text_qkv(ctx: io.TransformCTX, q, k, v):
+    text_config = ctx.target.config.language_transformer_config
+
+    head_num = text_config.num_attention_heads
+    num_query_groups = text_config.num_query_groups
+    head_size = text_config.kv_channels
+    hidden_size = text_config.hidden_size
+    return _merge_qkv(q, k, v, head_num, num_query_groups, head_size, hidden_size)
+
+def _merge_qkv(
+    q: Tensor, k: Tensor, v: Tensor, head_num: int, num_query_groups: int, head_size: int, hidden_size: int
+):
+    heads_per_group = head_num // num_query_groups
+    old_tensor_shape = q.size()
+    new_q_tensor_shape = (head_num, head_size) + old_tensor_shape[1:]
+    new_kv_tensor_shape = (num_query_groups, head_size) + old_tensor_shape[1:]
+
+    q = q.view(*new_q_tensor_shape)
+    k = k.view(*new_kv_tensor_shape)
+    v = v.view(*new_kv_tensor_shape)
+
+    qkv_l = []
+    for i in range(num_query_groups):
+        qkv_l.append(q[i * heads_per_group : (i + 1) * heads_per_group])
+        qkv_l.append(k[i : i + 1])
+        qkv_l.append(v[i : i + 1])
+    qkv = torch.cat(qkv_l)
+    assert qkv.ndim == 3, qkv.shape
+    assert qkv.shape[0] == (heads_per_group + 2) * num_query_groups, qkv.shape
+    assert qkv.shape[1] == head_size, qkv.shape
+    assert qkv.shape[2] == old_tensor_shape[1], qkv.shape
+
+    if len(old_tensor_shape) > 1:  # is weight
+        qkv = qkv.reshape([head_size * (head_num + 2 * num_query_groups), hidden_size])
+    else:  # is bias
+        qkv = qkv.reshape([head_size * (head_num + 2 * num_query_groups)])
+    return qkv
 
 # Define transformation functions needed for the exporter
 @io.state_transform(

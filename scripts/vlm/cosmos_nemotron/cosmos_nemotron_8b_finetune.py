@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,6 +16,9 @@
 Mock Data Example:
   torchrun --nproc_per_node=8 scripts/vlm/cosmos_nemotron/cosmos_nemotron_8b_finetune.py \
   --devices=8 --tp=4 --data_type=mock
+
+  torchrun --nproc_per_node=8 scripts/vlm/cosmos_nemotron/cosmos_nemotron_8b_finetune.py \
+  --devices=8 --tp=4 --data_type=mock --peft lora
 
 Llava Data Example:
    torchrun --nproc_per_node=8 scripts/vlm/cosmos_nemotron/cosmos_nemotron_8b_finetune.py  \
@@ -328,7 +331,7 @@ if __name__ == "__main__":
     parser.add_argument("--devices", type=int, required=False, default=1)
     parser.add_argument("--num_nodes", type=int, required=False, default=1)
     parser.add_argument("--max_steps", type=int, required=False, default=5190)
-    parser.add_argument("--tp_size", type=int, required=False, default=2)
+    parser.add_argument("--tp_size", type=int, required=False, default=1)
     parser.add_argument("--pp_size", type=int, required=False, default=1)
     parser.add_argument("--cp_size", type=int, required=False, default=1)
     parser.add_argument("--encoder_pp_size", type=int, required=False, default=0)
