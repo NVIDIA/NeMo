@@ -119,8 +119,9 @@ data:
     # batch_size: null
     # use_bucketing: true
     # use_multimodal_sampling: true
-    # `batch_tokens`, `bucket_duration_bins`, and `max_tokens` all represent (numer of user audio frames + 
-    # number of agent text tokens). Number of user audio frames is calculated using `token_equivalent_duration`.
+    # Note: `batch_tokens`, `bucket_duration_bins`, and `max_tokens` all represent tokens as
+    #  the sum of input audio frames and output text tokens. Number of audio frames is
+    #  calculated using `token_equivalent_duration`.
     # batch_tokens: 4000
     # max_tokens: 2048
     # bucket_duration_bins: [64, 128, 256, 384, 512, 768, 1024, 1280, 1536, 2048]
