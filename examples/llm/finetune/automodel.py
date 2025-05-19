@@ -27,12 +27,13 @@ from nemo.lightning.pytorch.callbacks import JitConfig, JitTransform
 
 # Run this example with torchrun, for example:
 # torchrun --nproc-per-node=8 \
-#   examples/llm/peft/automodel.py \
+#   examples/llm/finetune/automodel.py \
 #   --strategy fsdp2 \
 #   --devices 8 \
 #   --model meta-llama/Llama-3.2-1B \
 #   --ckpt-folder "output"
 #
+# For PEFT please also pass --lora
 # Note: ensure that the --nproc-per-node and --devices values match.
 
 
