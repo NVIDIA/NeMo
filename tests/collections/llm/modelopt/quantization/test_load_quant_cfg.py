@@ -2,8 +2,9 @@ import json
 import tempfile
 
 import pytest
-from nemo.collections.llm.modelopt.quantization.utils import load_quant_cfg
+
 from nemo.collections.llm.modelopt.quantization.quant_cfg_choices import get_quant_cfg_choices
+from nemo.collections.llm.modelopt.quantization.utils import load_quant_cfg
 
 QUANT_CFG_CHOICES = get_quant_cfg_choices()
 
