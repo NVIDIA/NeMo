@@ -12,10 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import json
 import time
 from abc import ABC
 from typing import List, Optional
-import json
+
 import numpy as np
 
 from nemo.deploy.utils import str_list2numpy
@@ -84,7 +85,7 @@ class NemoQueryLLMPyTorch(NemoQueryLLMBase):
         min_length: Optional[int] = None,
         max_length: Optional[int] = None,
         apply_chat_template: bool = False,
-        n_top_logprobs: Optional[int] = None, 
+        n_top_logprobs: Optional[int] = None,
         init_timeout: float = 60.0,
         echo: Optional[bool] = None,
     ):
@@ -147,7 +148,7 @@ class NemoQueryLLMPyTorch(NemoQueryLLMBase):
             log_probs_output = None
             if "log_probs" in result_dict.keys():
                 log_probs_output = result_dict["log_probs"]
-            
+
             top_log_probs_output = None
             if "top_logprobs" in result_dict.keys():
                 top_log_probs_output = result_dict["top_logprobs"]
@@ -349,7 +350,6 @@ class NemoQueryLLM(NemoQueryLLMBase):
         openai_format_response: bool = False,
         output_context_logits: bool = False,
         output_generation_logits: bool = False,
-        
     ):
         """
         Query the Triton server synchronously and return a list of responses.
