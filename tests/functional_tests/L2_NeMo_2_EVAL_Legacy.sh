@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+export HF_DATASETS_OFFLINE=1
 export HF_HOME=/home/TestData/HF_HOME
 coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo tests/evaluation/test_evaluation_legacy.py \
     --nemo2_ckpt_path=/home/TestData/nemo2_ckpt/llama3-1b-lingua \
