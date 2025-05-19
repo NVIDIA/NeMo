@@ -30,6 +30,7 @@ from transformers import PreTrainedTokenizerBase
 from nemo.collections import llm
 from nemo.collections.llm.inference import MCoreTokenizerWrappper, generate
 from nemo.collections.llm.modelopt.quantization.quant_cfg_choices import get_quant_cfg_choices
+from nemo.collections.llm.modelopt.quantization.utils import load_quant_cfg
 from nemo.collections.llm.utils import barrier, torch_dtype_from_precision
 from nemo.lightning import io
 from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
@@ -122,11 +123,8 @@ class Quantizer:
 
         self.quantization_config = quantization_config
         self.export_config = export_config
-
-        algorithm = quantization_config.algorithm
         dtype = export_config.dtype
         # Export and Quantization config sanity checks
-        assert algorithm is None or algorithm in QUANT_CFG_CHOICES, f"Unsupported quantization algorithm: {algorithm}"
         if quantization_config.enable_kv_cache:
             assert (
                 quantization_config.kv_cache_qformat in KV_QUANT_CFG_CHOICES
@@ -236,12 +234,15 @@ class Quantizer:
 
     def _get_quant_cfg(self, model):
         decoder_type = self._get_decoder_type(model, optional=True)
-        assert (
-            self.quantization_config.algorithm in QUANT_CFG_CHOICES
-        ), f"Unsupported quantization format: {self.quantization_config.algorithm}"
+        algorithm = self.quantization_config.algorithm
 
-        quant_cfg = QUANT_CFG_CHOICES[self.quantization_config.algorithm]
-        if "awq" in self.quantization_config.algorithm:
+        if os.path.isfile(algorithm):
+            return load_quant_cfg(algorithm)
+
+        assert algorithm in QUANT_CFG_CHOICES, f"Unsupported quantization format: {algorithm}"
+
+        quant_cfg = QUANT_CFG_CHOICES[algorithm]
+        if "awq" in algorithm:
             quant_cfg = copy.deepcopy(getattr(mtq, QUANT_CFG_CHOICES[self.quantization_config.algorithm]))
             weight_quantizer = quant_cfg["quant_cfg"]["*weight_quantizer"]
             if isinstance(weight_quantizer, list):
@@ -251,11 +252,11 @@ class Quantizer:
                 weight_quantizer["block_sizes"][-1] = self.quantization_config.awq_block_size
 
             # Coarser optimal scale search seems to resolve the overflow in TRT-LLM for some models
-            if "w4a8_awq" == self.quantization_config.algorithm and decoder_type in ["gemma", "mpt"]:
+            if "w4a8_awq" == algorithm and decoder_type in ["gemma", "mpt"]:
                 quant_cfg["algorithm"] = {"method": "awq_lite", "alpha_step": 1}
 
         if self.quantization_config.enable_kv_cache is None:
-            enable_quant_kv_cache = "int8" not in self.quantization_config.algorithm and decoder_type != "gpt"
+            enable_quant_kv_cache = "int8" not in algorithm and decoder_type != "gpt"
         else:
             enable_quant_kv_cache = self.quantization_config.enable_kv_cache
         if self.quantization_config.enable_kv_cache is None and enable_quant_kv_cache:
@@ -277,10 +278,9 @@ class Quantizer:
                 quant_cfg["algorithm"] = "max"
 
         # Gemma 7B has accuracy regression using alpha 1. We set 0.5 instead.
-        if decoder_type == "gemma" and "int8_sq" in self.quantization_config.algorithm:
+        if decoder_type == "gemma" and "int8_sq" in algorithm:
             quant_cfg["algorithm"] = {"method": "smoothquant", "alpha": 0.5}
 
-        logging.info(f"Using quant_cfg:\n{pprint.pformat(quant_cfg)}")
         return quant_cfg
 
     def quantize(self, model: "MegatronParallel", forward_loop=None):
@@ -301,6 +301,7 @@ class Quantizer:
         self._setup(model)
         decoder_type = self._get_decoder_type(model, optional=True)
         quant_cfg = self._get_quant_cfg(model)
+        logging.info(f"Using quant_cfg:\n{pprint.pformat(quant_cfg)}")
         unwrapped_model = mtq.quantize(unwrap_for_modelopt_operations(model), quant_cfg, forward_loop)
         if decoder_type == "gpt":
             # We found squared_relu may have an under-calibration problem.
