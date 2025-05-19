@@ -397,8 +397,6 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
 
                 nlp = dict_to_str(r.generated_top_n_logprobs)
                 output_top_n_log_probs.append(nlp)
-
-        if top_logprobs is not None:
             output_infer["top_logprobs"] = cast_output(output_top_n_log_probs, np.bytes_)
 
         return output_infer
