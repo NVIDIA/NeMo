@@ -100,6 +100,8 @@ class BatchedBeamHyps:
             raise ValueError("Batch size must be greater than 0.")
         if init_length <= 0:
             raise ValueError("Initial hypothesis lengths must be greater than 0.")
+        if model_type not in ['rnnt', 'tdt', 'ctc']:
+            raise ValueError("Model type must be either 'rnnt', 'tdt' or 'ctc'.")
 
         self.device = device
         self.INACTIVE_SCORE_TENSOR = torch.tensor(INACTIVE_SCORE, device=device, dtype=float_dtype)
