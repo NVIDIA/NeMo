@@ -1080,7 +1080,7 @@ class TestConvertToHypotheses:
             next_labels=torch.tensor([[-1, 7, 8], [2, -1, 9]], device=device),
             next_hyps_prob=torch.tensor([[0.35, 0.4, 0.1], [0.4, 0.55, 0.6]], device=device),
         )
-        hyps.flatten_sort_()
+        hyps.flatten_sort_(score_norm=False)
 
         assert hyps.current_lengths_nb.tolist() == [[2, 1, 1], [1, 1, 3]]
         assert hyps.current_lengths_wb.tolist() == [[3, 3, 3], [3, 3, 3]]
@@ -1143,7 +1143,7 @@ class TestConvertToHypotheses:
             next_hyps_prob=torch.tensor([[0.35, 0.4, 0.1], [0.4, 0.55, 0.6]], device=device),
         )
 
-        hypotheses = hyps.to_hyps_list()
+        hypotheses = hyps.to_hyps_list(score_norm=False)
 
         assert type(hypotheses) == list
         assert type(hypotheses[0]) == Hypothesis
@@ -1185,7 +1185,7 @@ class TestConvertToHypotheses:
             next_hyps_prob=torch.tensor([[0.35, 0.4, 0.1], [0.4, 0.55, 0.6]], device=device),
         )
 
-        hypotheses = hyps.to_nbest_hyps_list()
+        hypotheses = hyps.to_nbest_hyps_list(score_norm=False)
 
         assert type(hypotheses) == list
         assert type(hypotheses[0]) == NBestHypotheses

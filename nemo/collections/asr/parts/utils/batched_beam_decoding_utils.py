@@ -250,7 +250,7 @@ class BatchedBeamHyps:
         """
         Updates batch of beam hypotheses with labels.
         Args:
-            hyps_indices (torch.Tensor): Indices of the hypotheses to be updated.
+            next_indices (torch.Tensor): Indices of the hypotheses to be updated.
             next_labels (torch.Tensor): Labels corresponding to the next step in the beam search.
             next_hyps_prob (torch.Tensor): Probabilities of the next hypotheses.
             next_label_durations (torch.Tensor, optional): Durations associated with the next labels. Required when `model_type='tdt'`.
