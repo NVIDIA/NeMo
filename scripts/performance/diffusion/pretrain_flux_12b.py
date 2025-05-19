@@ -20,13 +20,9 @@ from nemo.collections.diffusion.recipes.flux_12b import pretrain_recipe
 from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
 
 from ..argument_parser import parse_cli_args
-from ..utils import (
-    args_sanity_check,
-    get_user_configs,
-    set_exp_logging_configs,
-    set_primary_perf_configs,
-    slurm_executor,
-)
+from ..utils import (args_sanity_check, get_user_configs,
+                     set_exp_logging_configs, set_primary_perf_configs,
+                     slurm_executor)
 
 
 def override_recipe_configs(

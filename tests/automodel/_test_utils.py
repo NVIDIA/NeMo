@@ -14,7 +14,8 @@
 import pytest
 import torch
 
-from nemo.collections.llm.gpt.model.hf_auto_model_for_causal_lm import count_tail_padding
+from nemo.collections.llm.gpt.model.hf_auto_model_for_causal_lm import \
+    count_tail_padding
 
 
 @pytest.mark.parametrize(

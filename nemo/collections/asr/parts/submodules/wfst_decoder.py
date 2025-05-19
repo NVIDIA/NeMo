@@ -24,7 +24,8 @@ import torch
 from jiwer import wer as word_error_rate
 from omegaconf import DictConfig
 
-from nemo.collections.asr.parts.utils.wfst_utils import TW_BREAK, kaldifst_importer
+from nemo.collections.asr.parts.utils.wfst_utils import (TW_BREAK,
+                                                         kaldifst_importer)
 
 RIVA_DECODER_INSTALLATION_MESSAGE = (
     "riva decoder is not installed or is installed incorrectly.\n"
@@ -489,7 +490,8 @@ class RivaGpuWfstDecoder(AbstractWFSTDecoder):
         kaldifst = kaldifst_importer()
         riva_decoder = riva_decoder_importer()
 
-        from nemo.collections.asr.parts.utils.wfst_utils import load_word_lattice
+        from nemo.collections.asr.parts.utils.wfst_utils import \
+            load_word_lattice
 
         self._load_word_lattice = load_word_lattice
         # BatchedMappedDecoderCuda supports filepaths only

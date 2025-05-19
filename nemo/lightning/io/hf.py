@@ -26,7 +26,9 @@ from lightning.fabric.utilities.types import _PATH
 from torch import nn
 from typing_extensions import override
 
-from nemo.lightning.ckpt_utils import HF_ADAPTER_CONFIG_FILENAME, HF_ADAPTER_PATH, HF_WEIGHTS_PATH, WEIGHTS_PATH
+from nemo.lightning.ckpt_utils import (HF_ADAPTER_CONFIG_FILENAME,
+                                       HF_ADAPTER_PATH, HF_WEIGHTS_PATH,
+                                       WEIGHTS_PATH)
 from nemo.lightning.io.mixin import IOMixin
 from nemo.lightning.io.pl import ckpt_to_weights_subdir
 

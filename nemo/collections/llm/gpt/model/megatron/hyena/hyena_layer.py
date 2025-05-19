@@ -26,7 +26,8 @@ from megatron.core.transformer.spec_utils import ModuleSpec, build_module
 from megatron.core.transformer.transformer_config import TransformerConfig
 from torch import Tensor
 
-from nemo.collections.llm.gpt.model.megatron.hyena.hyena_config import HyenaConfig
+from nemo.collections.llm.gpt.model.megatron.hyena.hyena_config import \
+    HyenaConfig
 
 
 @dataclass

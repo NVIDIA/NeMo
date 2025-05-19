@@ -20,7 +20,8 @@ import torch
 @pytest.mark.run_only_on('GPU')
 def test_determine_quantization_settings():
     # Test with default NeMo config (no fp8)
-    from nemo.export.trt_llm.converter.model_converter import determine_quantization_settings
+    from nemo.export.trt_llm.converter.model_converter import \
+        determine_quantization_settings
 
     nemo_config = {'fp8': False}
     fp8_quant, fp8_kv = determine_quantization_settings(nemo_config)

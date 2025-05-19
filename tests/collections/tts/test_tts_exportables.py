@@ -18,7 +18,8 @@ import pytest
 import torch
 from omegaconf import OmegaConf
 
-from nemo.collections.tts.models import FastPitchModel, HifiGanModel, RadTTSModel
+from nemo.collections.tts.models import (FastPitchModel, HifiGanModel,
+                                         RadTTSModel)
 from nemo.utils.app_state import AppState
 
 

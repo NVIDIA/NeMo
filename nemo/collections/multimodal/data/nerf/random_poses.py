@@ -22,11 +22,7 @@ from torch.utils.data import IterableDataset
 
 from nemo.collections.multimodal.data.nerf.cameras import PinholeCamera
 from nemo.collections.multimodal.data.nerf.utils import (
-    compute_look_at_vectors,
-    construct_poses,
-    get_rays,
-    get_view_direction,
-)
+    compute_look_at_vectors, construct_poses, get_rays, get_view_direction)
 
 
 def linear_normalization(x: float, lower_bound: float, upper_bound: float) -> float:

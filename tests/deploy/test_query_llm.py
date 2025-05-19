@@ -17,7 +17,8 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
-from nemo.deploy.nlp.query_llm import NemoQueryLLM, NemoQueryLLMBase, NemoQueryLLMHF, NemoQueryLLMPyTorch
+from nemo.deploy.nlp.query_llm import (NemoQueryLLM, NemoQueryLLMBase,
+                                       NemoQueryLLMHF, NemoQueryLLMPyTorch)
 
 
 class TestNemoQueryLLMBase:

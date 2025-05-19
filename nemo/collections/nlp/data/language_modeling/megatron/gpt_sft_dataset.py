@@ -26,8 +26,10 @@ datasets.builder.has_sufficient_disk_space = lambda needed_bytes, directory='.':
 from datasets import load_dataset
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
-from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import get_samples_mapping
-from nemo.collections.nlp.data.language_modeling.text_memmap_dataset import JSONLMemMapDataset, OnlineSampleMapping
+from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import \
+    get_samples_mapping
+from nemo.collections.nlp.data.language_modeling.text_memmap_dataset import (
+    JSONLMemMapDataset, OnlineSampleMapping)
 from nemo.core.classes import Dataset
 from nemo.utils import logging
 

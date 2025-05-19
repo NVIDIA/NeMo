@@ -13,11 +13,9 @@
 # limitations under the License.
 
 import pytest
+
 from nemo.collections.common.tokenizers.text_to_speech.tokenizer_utils import (
-    any_locale_word_tokenize,
-    english_word_tokenize,
-    french_text_preprocessing,
-)
+    any_locale_word_tokenize, english_word_tokenize, french_text_preprocessing)
 
 
 class TestTokenizerUtils:

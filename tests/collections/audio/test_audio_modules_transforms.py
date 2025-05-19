@@ -19,7 +19,8 @@ import pytest
 import torch
 from einops import rearrange
 
-from nemo.collections.audio.modules.transforms import AudioToSpectrogram, SpectrogramToAudio
+from nemo.collections.audio.modules.transforms import (AudioToSpectrogram,
+                                                       SpectrogramToAudio)
 
 
 class TestAudioSpectrogram:

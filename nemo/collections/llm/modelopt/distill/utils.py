@@ -13,13 +13,16 @@
 # limitations under the License.
 
 from types import MethodType
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import (TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple,
+                    Union)
 
 import torch
 from megatron.core import parallel_state
-from megatron.core.dist_checkpointing.validation import StrictHandling, parse_strict_flag
+from megatron.core.dist_checkpointing.validation import (StrictHandling,
+                                                         parse_strict_flag)
 from megatron.core.pipeline_parallel.schedules import get_tensor_shapes
-from megatron.core.utils import get_model_config, get_model_type, get_model_xattn
+from megatron.core.utils import (get_model_config, get_model_type,
+                                 get_model_xattn)
 
 from nemo import lightning as nl
 from nemo.collections import llm

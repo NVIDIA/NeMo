@@ -23,13 +23,14 @@ from omegaconf import OmegaConf
 from polygraphy import cuda
 from transformers import CLIPTokenizer
 
-from nemo.collections.multimodal.models.text_to_image.stable_diffusion.ldm.ddpm import LatentDiffusion
-from nemo.collections.multimodal.modules.nerf.guidance.txt2img_guidance_base import Txt2ImgGuidanceBase
-from nemo.collections.multimodal.modules.nerf.utils.trt_engine import Engine, device_view
+from nemo.collections.multimodal.models.text_to_image.stable_diffusion.ldm.ddpm import \
+    LatentDiffusion
+from nemo.collections.multimodal.modules.nerf.guidance.txt2img_guidance_base import \
+    Txt2ImgGuidanceBase
+from nemo.collections.multimodal.modules.nerf.utils.trt_engine import (
+    Engine, device_view)
 from nemo.collections.multimodal.modules.stable_diffusion.diffusionmodules.util import (
-    extract_into_tensor,
-    make_beta_schedule,
-)
+    extract_into_tensor, make_beta_schedule)
 from nemo.collections.multimodal.parts.stable_diffusion.utils import default
 from nemo.collections.multimodal.parts.utils import randn_like
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector

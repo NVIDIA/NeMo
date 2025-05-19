@@ -17,11 +17,12 @@ from typing import List, Optional, Union
 import lightning.pytorch as pl
 import torch
 import torch.distributed
-from megatron.core.inference.common_inference_params import CommonInferenceParams
-from megatron.core.inference.model_inference_wrappers.abstract_model_inference_wrapper import (
-    AbstractModelInferenceWrapper,
-)
-from megatron.core.inference.model_inference_wrappers.inference_wrapper_config import InferenceWrapperConfig
+from megatron.core.inference.common_inference_params import \
+    CommonInferenceParams
+from megatron.core.inference.model_inference_wrappers.abstract_model_inference_wrapper import \
+    AbstractModelInferenceWrapper
+from megatron.core.inference.model_inference_wrappers.inference_wrapper_config import \
+    InferenceWrapperConfig
 from PIL.Image import Image
 from transformers import AutoProcessor
 

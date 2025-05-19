@@ -24,8 +24,10 @@ from lightning.pytorch import Callback
 from lightning.pytorch.loggers import WandbLogger
 from nemo_run.core.serialization.yaml import YamlSerializer
 
-from nemo.lightning.pytorch.callbacks import MemoryProfileCallback, NsysCallback, PreemptionCallback
-from nemo.lightning.pytorch.strategies.megatron_strategy import MegatronStrategy
+from nemo.lightning.pytorch.callbacks import (MemoryProfileCallback,
+                                              NsysCallback, PreemptionCallback)
+from nemo.lightning.pytorch.strategies.megatron_strategy import \
+    MegatronStrategy
 from nemo.utils import logging
 from nemo.utils.import_utils import safe_import
 
@@ -323,7 +325,8 @@ class ConfigValidationPlugin(run.Plugin):
                 assert any(map(lambda mount: Path(mount) in Path(task.log.log_dir).parents, mounts))
 
         if self.validate_serialization:
-            from nemo_run.core.serialization.zlib_json import ZlibJSONSerializer
+            from nemo_run.core.serialization.zlib_json import \
+                ZlibJSONSerializer
 
             logging.info("Validating serialization/de-serialization of task")
             serializer = ZlibJSONSerializer()

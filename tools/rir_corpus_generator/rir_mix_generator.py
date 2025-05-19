@@ -15,7 +15,6 @@
 from nemo.collections.audio.data.data_simulation import RIRMixGenerator
 from nemo.core.config import hydra_runner
 
-
 """
 This script creates a corpus of signals using RIRs, speech and noise.
 

@@ -24,7 +24,9 @@ from megatron.core.transformer.transformer_config import TransformerConfig
 from torch import nn
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
-from nemo.collections.vlm.neva.model.base import MODEL_CONFIG_ATTR, MCoreNevaModel, NevaConfig, NevaModel
+from nemo.collections.vlm.neva.model.base import (MODEL_CONFIG_ATTR,
+                                                  MCoreNevaModel, NevaConfig,
+                                                  NevaModel)
 from nemo.lightning.pytorch.optim import OptimizerModule
 
 

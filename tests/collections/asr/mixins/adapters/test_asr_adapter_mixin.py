@@ -18,15 +18,16 @@ import pytest
 import torch
 from omegaconf import DictConfig, ListConfig, OmegaConf
 
-from nemo.collections.asr.models import ASRModel, EncDecCTCModel, EncDecMultiTaskModel, EncDecRNNTModel
+from nemo.collections.asr.models import (ASRModel, EncDecCTCModel,
+                                         EncDecMultiTaskModel, EncDecRNNTModel)
 from nemo.collections.asr.parts.submodules.adapters import (
     multi_head_attention_adapter_module,
-    transformer_multi_head_attention_adapter_module,
-)
+    transformer_multi_head_attention_adapter_module)
 from nemo.collections.asr.parts.utils import adapter_utils
 from nemo.collections.common.parts import adapter_modules
 from nemo.core.classes.mixins.access_mixins import AccessMixin
-from nemo.core.classes.mixins.adapter_mixins import AdapterModuleMixin, get_registered_adapter
+from nemo.core.classes.mixins.adapter_mixins import (AdapterModuleMixin,
+                                                     get_registered_adapter)
 from nemo.core.utils import numba_utils
 from nemo.core.utils.numba_utils import __NUMBA_MINIMUM_VERSION__
 from nemo.utils import config_utils, model_utils

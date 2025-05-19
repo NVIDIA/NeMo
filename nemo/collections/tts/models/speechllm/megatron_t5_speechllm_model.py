@@ -34,29 +34,34 @@ from omegaconf.omegaconf import open_dict
 
 import nemo.collections.asr as nemo_asr
 from nemo.collections.asr.metrics.wer import word_error_rate
-from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceSpeechLLMTTSTokenizer
-from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
-from nemo.collections.nlp.models.language_modeling.megatron_t5_sft_model import MegatronT5SFTModel
-from nemo.collections.nlp.modules.common.megatron.token_level_encoder_decoder import (
-    MegatronTokenLevelEncoderDecoderSpeechLLMModule,
-)
+from nemo.collections.common.tokenizers.sentencepiece_tokenizer import \
+    SentencePieceSpeechLLMTTSTokenizer
+from nemo.collections.nlp.models.language_modeling.megatron_t5_model import \
+    MegatronT5Model
+from nemo.collections.nlp.models.language_modeling.megatron_t5_sft_model import \
+    MegatronT5SFTModel
+from nemo.collections.nlp.modules.common.megatron.token_level_encoder_decoder import \
+    MegatronTokenLevelEncoderDecoderSpeechLLMModule
 from nemo.collections.nlp.modules.common.megatron.utils import (
-    average_losses_across_data_parallel_group,
-    get_iterator_k_split,
-    init_method_normal,
-)
+    average_losses_across_data_parallel_group, get_iterator_k_split,
+    init_method_normal)
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
-from nemo.collections.tts.data.speechllm.t5_speechllm_dataset import Lang, T5SpeechLMDataset
-from nemo.collections.tts.data.speechllm.t5_speechllm_tarred_dataset import T5SpeechLMTarredDataset
+from nemo.collections.tts.data.speechllm.t5_speechllm_dataset import (
+    Lang, T5SpeechLMDataset)
+from nemo.collections.tts.data.speechllm.t5_speechllm_tarred_dataset import \
+    T5SpeechLMTarredDataset
 from nemo.collections.tts.losses.aligner_loss import ForwardSumLoss
 from nemo.collections.tts.models import AudioCodecModel
-from nemo.collections.tts.models.speechllm.megatron_base_speechllm_prompt_model import MegatronBaseSpeechLM
-from nemo.collections.tts.parts.utils.helpers import plot_alignment_to_numpy_for_speechllm, plot_codec_to_numpy
+from nemo.collections.tts.models.speechllm.megatron_base_speechllm_prompt_model import \
+    MegatronBaseSpeechLM
+from nemo.collections.tts.parts.utils.helpers import (
+    plot_alignment_to_numpy_for_speechllm, plot_codec_to_numpy)
 from nemo.utils import AppState, logging
 
 try:
-    from apex.transformer.pipeline_parallel.utils import get_micro_batch_size, get_num_microbatches
+    from apex.transformer.pipeline_parallel.utils import (get_micro_batch_size,
+                                                          get_num_microbatches)
 
     HAVE_APEX = True
 
@@ -67,7 +72,8 @@ except (ImportError, ModuleNotFoundError):
 try:
     from megatron.core import parallel_state, tensor_parallel
     from megatron.core.enums import ModelType
-    from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
+    from megatron.core.pipeline_parallel.schedules import \
+        get_forward_backward_func
 
     HAVE_MEGATRON_CORE = True
 

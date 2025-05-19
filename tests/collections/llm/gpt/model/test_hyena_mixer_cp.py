@@ -26,14 +26,18 @@ import torch
 import torch.distributed as dist
 from einops import rearrange
 from megatron.core import parallel_state
-from megatron.core.tensor_parallel.random import model_parallel_cuda_manual_seed
+from megatron.core.tensor_parallel.random import \
+    model_parallel_cuda_manual_seed
 from torch.distributed.nn.functional import all_gather as functional_all_gather
 from torch.nn.parallel import DistributedDataParallel as DDP
 
 from nemo.collections.llm.gpt.model.hyena import HyenaTestConfig
-from nemo.collections.llm.gpt.model.megatron.hyena.hyena_config import HyenaConfig
-from nemo.collections.llm.gpt.model.megatron.hyena.hyena_layer_specs import hyena_stack_spec_no_te
-from nemo.collections.llm.gpt.model.megatron.hyena.hyena_mixer import HyenaMixer
+from nemo.collections.llm.gpt.model.megatron.hyena.hyena_config import \
+    HyenaConfig
+from nemo.collections.llm.gpt.model.megatron.hyena.hyena_layer_specs import \
+    hyena_stack_spec_no_te
+from nemo.collections.llm.gpt.model.megatron.hyena.hyena_mixer import \
+    HyenaMixer
 from nemo.utils import logging
 
 

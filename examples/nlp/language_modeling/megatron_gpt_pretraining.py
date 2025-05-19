@@ -20,8 +20,10 @@ import torch._dynamo
 import torch.multiprocessing as mp
 from omegaconf.omegaconf import OmegaConf, open_dict
 
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import \
+    MegatronGPTModel
+from nemo.collections.nlp.parts.megatron_trainer_builder import \
+    MegatronTrainerBuilder
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
@@ -44,7 +46,8 @@ def main(cfg) -> None:
     if cfg.model.get("restore_from_path") is not None:
         # Option 1: Restore only the model weights from a .nemo file
         logging.info(f"Continual training: loading weights from {cfg.model.restore_from_path}")
-        from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTSFTModel
+        from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import \
+            MegatronGPTSFTModel
 
         model_cfg = MegatronGPTSFTModel.merge_cfg_with(cfg.model.restore_from_path, cfg)
         model = MegatronGPTModel.restore_from(

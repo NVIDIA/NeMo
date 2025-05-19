@@ -21,9 +21,7 @@ from torch import nn as nn
 
 from nemo.collections.asr.modules.transformer import transformer_modules
 from nemo.collections.asr.parts.submodules.adapters.multi_head_attention_adapter_module import (
-    MHAResidualAddAdapterStrategy,
-    MHAResidualAddAdapterStrategyConfig,
-)
+    MHAResidualAddAdapterStrategy, MHAResidualAddAdapterStrategyConfig)
 from nemo.collections.common.parts import adapter_modules
 from nemo.core.classes.mixins import adapter_mixin_strategies, adapter_mixins
 

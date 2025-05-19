@@ -69,11 +69,20 @@ def llava_next_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
 
     packed_seq_params = _batch.get("packed_seq_params", None)
     _batch = {
-        key: val.cuda(non_blocking=True) if key in required_keys and val is not None else None
+        key: (
+            val.cuda(non_blocking=True)
+            if key in required_keys and val is not None
+            else None
+        )
         for key, val in _batch.items()
     }
     if packed_seq_params is not None:
-        for attr in ["cu_seqlens_q", "cu_seqlens_kv", "cu_seqlens_q_padded", "cu_seqlens_kv_padded"]:
+        for attr in [
+            "cu_seqlens_q",
+            "cu_seqlens_kv",
+            "cu_seqlens_q_padded",
+            "cu_seqlens_kv_padded",
+        ]:
             value = getattr(packed_seq_params, attr, None)
             if value is not None:
                 setattr(packed_seq_params, attr, value.cuda(non_blocking=True))
@@ -144,33 +153,55 @@ class LlavaNextConfig(NevaConfig):
         """
 
         self.language_transformer_config.scatter_embedding_sequence_parallel = False
-        self.language_transformer_config.tensor_model_parallel_size = self.tensor_model_parallel_size
+        self.language_transformer_config.tensor_model_parallel_size = (
+            self.tensor_model_parallel_size
+        )
         self.language_transformer_config.sequence_parallel = self.sequence_parallel
-        self.vision_transformer_config.tensor_model_parallel_size = self.tensor_model_parallel_size
-        self.vision_projection_config.tensor_model_parallel_size = self.tensor_model_parallel_size
-        self.language_transformer_config.pipeline_model_parallel_size = self.pipeline_model_parallel_size
-        self.language_transformer_config.context_parallel_size = self.context_parallel_size
+        self.vision_transformer_config.tensor_model_parallel_size = (
+            self.tensor_model_parallel_size
+        )
+        self.vision_projection_config.tensor_model_parallel_size = (
+            self.tensor_model_parallel_size
+        )
+        self.language_transformer_config.pipeline_model_parallel_size = (
+            self.pipeline_model_parallel_size
+        )
+        self.language_transformer_config.context_parallel_size = (
+            self.context_parallel_size
+        )
 
         if self.encoder_pipeline_model_parallel_size > 0:
-            assert self.encoder_pipeline_model_parallel_size == 1, "ViT can only live on 1 pipeline stage."
-            self.vision_transformer_config.pipeline_model_parallel_size = self.encoder_pipeline_model_parallel_size
-            self.vision_projection_config.pipeline_model_parallel_size = self.encoder_pipeline_model_parallel_size
+            assert (
+                self.encoder_pipeline_model_parallel_size == 1
+            ), "ViT can only live on 1 pipeline stage."
+            self.vision_transformer_config.pipeline_model_parallel_size = (
+                self.encoder_pipeline_model_parallel_size
+            )
+            self.vision_projection_config.pipeline_model_parallel_size = (
+                self.encoder_pipeline_model_parallel_size
+            )
             self.language_transformer_config.encoder_pipeline_model_parallel_size = (
                 self.encoder_pipeline_model_parallel_size
             )
             if self.encoder_tensor_model_parallel_size > 0:
-                self.vision_transformer_config.tensor_model_parallel_size = self.encoder_tensor_model_parallel_size
-                self.vision_projection_config.tensor_model_parallel_size = self.encoder_tensor_model_parallel_size
+                self.vision_transformer_config.tensor_model_parallel_size = (
+                    self.encoder_tensor_model_parallel_size
+                )
+                self.vision_projection_config.tensor_model_parallel_size = (
+                    self.encoder_tensor_model_parallel_size
+                )
 
         model = MCoreLlavaNextModel(
             config=self,
             tokenizer=tokenizer,
             pre_process=ps.is_pipeline_first_stage(ignore_virtual=False)
-            or ps.get_pipeline_model_parallel_rank() == self.encoder_pipeline_model_parallel_size,
+            or ps.get_pipeline_model_parallel_rank()
+            == self.encoder_pipeline_model_parallel_size,
             post_process=ps.is_pipeline_last_stage(ignore_virtual=False),
             add_encoder=ps.is_pipeline_first_stage(ignore_virtual=False),
             add_decoder=ps.is_pipeline_last_stage(ignore_virtual=False)
-            or ps.get_pipeline_model_parallel_rank() >= self.encoder_pipeline_model_parallel_size,
+            or ps.get_pipeline_model_parallel_rank()
+            >= self.encoder_pipeline_model_parallel_size,
             drop_vision_class_token=self.drop_vision_class_token,
         )
 
@@ -219,7 +250,9 @@ class MCoreLlavaNextModel(MCoreNevaModel):
         )
         # extra image_newline learnable parameter for llava_next
         embed_std = 1 / math.sqrt(config.vision_projection_config.hidden_size)
-        self.image_newline = torch.nn.Parameter(torch.randn(config.vision_projection_config.hidden_size) * embed_std)
+        self.image_newline = torch.nn.Parameter(
+            torch.randn(config.vision_projection_config.hidden_size) * embed_std
+        )
 
     def forward(
         self,
@@ -257,7 +290,8 @@ class MCoreLlavaNextModel(MCoreNevaModel):
             loss_mask (torch.Tensor): Loss mask expanded to combined sequence length. Shape [b, s].
         """
         use_inference_kv_cache = (
-            inference_params is not None and "image_tokens_count" in inference_params.key_value_memory_dict
+            inference_params is not None
+            and "image_tokens_count" in inference_params.key_value_memory_dict
         )
         has_images = media.shape[0] > 0
 
@@ -267,7 +301,9 @@ class MCoreLlavaNextModel(MCoreNevaModel):
             media_embeddings = None
         elif self.add_encoder and not has_images:
             # If no images provided, use an empty image embeddings tensor.
-            media_embeddings = torch.tensor([], dtype=media.dtype, device=media.device).reshape(0, 0, 0)
+            media_embeddings = torch.tensor(
+                [], dtype=media.dtype, device=media.device
+            ).reshape(0, 0, 0)
         elif self.add_encoder and has_images:
             # media is in shape of (num_images_in_mbs, c, h, w)
             # note num_images_in_mbs is not mbs but total images in this mbs.
@@ -280,7 +316,9 @@ class MCoreLlavaNextModel(MCoreNevaModel):
             else:
                 # TODO(yuya): MCore Clip path not yet support taking a specific layer hidden states
                 media = media.to(next(self.vision_model.parameters()).dtype)
-                media_embeddings = self.vision_model(media, num_unused_layers=-self.config.vision_feature_layer - 1)
+                media_embeddings = self.vision_model(
+                    media, num_unused_layers=-self.config.vision_feature_layer - 1
+                )
             if self._drop_vision_class_token:
                 class_token_len = getattr(self.vision_model, "class_token_len", 1)
                 media_embeddings = media_embeddings[:, class_token_len:, :]
@@ -288,7 +326,9 @@ class MCoreLlavaNextModel(MCoreNevaModel):
             # contiguous() required as `permute` can sparsify the tensor and this breaks pipelining
             media_embeddings = media_embeddings.contiguous()
             # map vision model output size to language model input size.
-            media_embeddings = self.vision_projection(media_embeddings)  # [img_seq_len, num_tiles, h_language]
+            media_embeddings = self.vision_projection(
+                media_embeddings
+            )  # [img_seq_len, num_tiles, h_language]
             # TODO: Support batched inference.
             # In inference, the language model KV cache will be updated for image token positions.
             # Store the image tokens sequence length to be used as an offset to the KV cache later.
@@ -312,19 +352,27 @@ class MCoreLlavaNextModel(MCoreNevaModel):
             language_embeddings = self.language_model.embedding(
                 input_ids=input_ids_text, position_ids=position_ids
             )  # [text_seq_len, b, h_language]
-            language_embeddings = language_embeddings.transpose(1, 0).contiguous()  # [b, text_seq_len, h_language]
+            language_embeddings = language_embeddings.transpose(
+                1, 0
+            ).contiguous()  # [b, text_seq_len, h_language]
 
         # Assume 1 tile per image if the number of tiles is not provided.
         if num_media_tiles is None:
-            num_media_tiles = torch.ones(media.shape[0], dtype=torch.int, device=input_ids.device)
+            num_media_tiles = torch.ones(
+                media.shape[0], dtype=torch.int, device=input_ids.device
+            )
         elif isinstance(num_media_tiles, list):
-            num_media_tiles = torch.tensor(num_media_tiles, dtype=torch.int, device=input_ids.device)
+            num_media_tiles = torch.tensor(
+                num_media_tiles, dtype=torch.int, device=input_ids.device
+            )
 
-        media_embeddings = torch.split(media_embeddings, num_media_tiles.tolist(), dim=0)
+        media_embeddings = torch.split(
+            media_embeddings, num_media_tiles.tolist(), dim=0
+        )
         media_embeddings, feature_lens = pack_image_features(
             media_embeddings,
             image_sizes,
-            vision_feature_select_strategy='default',
+            vision_feature_select_strategy="default",
             image_newline=self.image_newline,
         )
 
@@ -335,9 +383,15 @@ class MCoreLlavaNextModel(MCoreNevaModel):
                 f"Image features and image tokens do not match: tokens: {n_image_tokens}, features {n_image_features}"
             )
         special_image_mask = (input_ids == media_token_index).unsqueeze(-1)
-        special_image_mask = special_image_mask.expand_as(language_embeddings).to(language_embeddings.device)
-        media_embeddings = media_embeddings.to(language_embeddings.device, language_embeddings.dtype)
-        combined_embeddings = language_embeddings.masked_scatter(special_image_mask, media_embeddings)
+        special_image_mask = special_image_mask.expand_as(language_embeddings).to(
+            language_embeddings.device
+        )
+        media_embeddings = media_embeddings.to(
+            language_embeddings.device, language_embeddings.dtype
+        )
+        combined_embeddings = language_embeddings.masked_scatter(
+            special_image_mask, media_embeddings
+        )
 
         final_labels = labels
         final_loss_mask = loss_mask
@@ -348,7 +402,10 @@ class MCoreLlavaNextModel(MCoreNevaModel):
         if self.context_parallel_lm > 1 or self.sequence_parallel_lm:
             combined_embeddings, final_labels, final_loss_mask, packed_seq_params = (
                 self._process_embedding_token_parallel(
-                    combined_embeddings, final_labels, final_loss_mask, packed_seq_params
+                    combined_embeddings,
+                    final_labels,
+                    final_loss_mask,
+                    packed_seq_params,
                 )
             )
 

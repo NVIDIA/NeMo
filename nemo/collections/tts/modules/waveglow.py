@@ -16,15 +16,13 @@ from typing import Tuple
 import torch
 
 from nemo.collections.tts.modules.submodules import Invertible1x1Conv, WaveNet
-from nemo.collections.tts.parts.utils.helpers import OperationMode, remove, split_view
+from nemo.collections.tts.parts.utils.helpers import (OperationMode, remove,
+                                                      split_view)
 from nemo.core.classes import Exportable, NeuralModule, typecheck
-from nemo.core.neural_types.elements import (
-    AudioSignal,
-    IntType,
-    MelSpectrogramType,
-    NormalDistributionSamplesType,
-    VoidType,
-)
+from nemo.core.neural_types.elements import (AudioSignal, IntType,
+                                             MelSpectrogramType,
+                                             NormalDistributionSamplesType,
+                                             VoidType)
 from nemo.core.neural_types.neural_type import NeuralType
 
 

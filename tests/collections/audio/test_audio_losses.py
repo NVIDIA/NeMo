@@ -18,17 +18,13 @@ import numpy as np
 import pytest
 import torch
 
-from nemo.collections.audio.losses.audio import (
-    MAELoss,
-    MSELoss,
-    SDRLoss,
-    calculate_mae_batch,
-    calculate_mean,
-    calculate_mse_batch,
-    calculate_sdr_batch,
-    convolution_invariant_target,
-    scale_invariant_target,
-)
+from nemo.collections.audio.losses.audio import (MAELoss, MSELoss, SDRLoss,
+                                                 calculate_mae_batch,
+                                                 calculate_mean,
+                                                 calculate_mse_batch,
+                                                 calculate_sdr_batch,
+                                                 convolution_invariant_target,
+                                                 scale_invariant_target)
 
 try:
     import importlib
@@ -41,10 +37,8 @@ except ModuleNotFoundError:
 
 from nemo.collections.audio.losses.maxine import CombinedLoss
 from nemo.collections.audio.parts.utils.audio import (
-    calculate_sdr_numpy,
-    convolution_invariant_target_numpy,
-    scale_invariant_target_numpy,
-)
+    calculate_sdr_numpy, convolution_invariant_target_numpy,
+    scale_invariant_target_numpy)
 
 
 class TestAudioLosses:

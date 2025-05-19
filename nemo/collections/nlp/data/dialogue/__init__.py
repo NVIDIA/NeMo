@@ -12,11 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.nlp.data.dialogue.data_processor.sgd_data_processor import DialogueSGDDataProcessor
+from nemo.collections.nlp.data.dialogue.data_processor.sgd_data_processor import \
+    DialogueSGDDataProcessor
 from nemo.collections.nlp.data.dialogue.dataset import (
-    DialogueBERTDataset,
-    DialogueGPTClassificationDataset,
-    DialogueSGDBERTDataset,
-    DialogueZeroShotIntentDataset,
-)
+    DialogueBERTDataset, DialogueGPTClassificationDataset,
+    DialogueSGDBERTDataset, DialogueZeroShotIntentDataset)
 from nemo.collections.nlp.data.dialogue.sgd.schema import Schema

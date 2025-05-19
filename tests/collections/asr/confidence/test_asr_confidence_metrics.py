@@ -20,18 +20,8 @@ import pytest
 from scipy.stats import uniform
 
 from nemo.collections.asr.parts.utils.confidence_metrics import (
-    auc_nt,
-    auc_pr,
-    auc_roc,
-    auc_yc,
-    ece,
-    nce,
-    save_confidence_hist,
-    save_custom_confidence_curve,
-    save_nt_curve,
-    save_pr_curve,
-    save_roc_curve,
-)
+    auc_nt, auc_pr, auc_roc, auc_yc, ece, nce, save_confidence_hist,
+    save_custom_confidence_curve, save_nt_curve, save_pr_curve, save_roc_curve)
 
 # set convenient name2metric mapping
 name2metric = {

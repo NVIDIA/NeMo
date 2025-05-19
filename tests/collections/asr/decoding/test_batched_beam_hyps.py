@@ -19,12 +19,9 @@ import pytest
 import torch
 
 from nemo.collections.asr.parts.utils.rnnt_batched_beam_utils import (
-    INIT_POINTER_VALUE,
-    NON_EXISTENT_LABEL_VALUE,
-    BatchedBeamHyps,
-)
-from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis, NBestHypotheses
-
+    INIT_POINTER_VALUE, NON_EXISTENT_LABEL_VALUE, BatchedBeamHyps)
+from nemo.collections.asr.parts.utils.rnnt_utils import (Hypothesis,
+                                                         NBestHypotheses)
 
 NestedFloatList = Union[float, List["NestedFloatList"]]  # recursive type alias
 

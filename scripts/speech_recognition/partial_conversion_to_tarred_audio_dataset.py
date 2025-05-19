@@ -18,7 +18,8 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 import hydra
-from convert_to_tarred_audio_dataset import ASRTarredDatasetBuilder, ASRTarredDatasetMetadata
+from convert_to_tarred_audio_dataset import (ASRTarredDatasetBuilder,
+                                             ASRTarredDatasetMetadata)
 from hydra.core.config_store import ConfigStore
 from joblib import Parallel, delayed
 from omegaconf import MISSING

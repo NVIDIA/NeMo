@@ -23,11 +23,10 @@ from torch.utils.data import DataLoader
 
 from nemo.collections.common.losses import AggregatorLoss, CrossEntropyLoss
 from nemo.collections.nlp.data.intent_slot_classification import (
-    IntentSlotClassificationDataset,
-    IntentSlotDataDesc,
-    IntentSlotInferenceDataset,
-)
-from nemo.collections.nlp.metrics.classification_report import ClassificationReport
+    IntentSlotClassificationDataset, IntentSlotDataDesc,
+    IntentSlotInferenceDataset)
+from nemo.collections.nlp.metrics.classification_report import \
+    ClassificationReport
 from nemo.collections.nlp.models.nlp_model import NLPModel
 from nemo.collections.nlp.modules.common import SequenceTokenClassifier
 from nemo.collections.nlp.parts.utils_funcs import tensor2list

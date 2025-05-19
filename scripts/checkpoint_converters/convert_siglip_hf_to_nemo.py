@@ -26,8 +26,10 @@ import torch
 from omegaconf import OmegaConf
 from transformers import AutoModel, AutoProcessor
 
-from nemo.collections.multimodal.models.vision_language_foundation.clip.megatron_clip_models import MegatronCLIPModel
-from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
+from nemo.collections.multimodal.models.vision_language_foundation.clip.megatron_clip_models import \
+    MegatronCLIPModel
+from nemo.collections.nlp.parts.megatron_trainer_builder import \
+    MegatronTrainerBuilder
 from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision
 from nemo.utils import logging
 

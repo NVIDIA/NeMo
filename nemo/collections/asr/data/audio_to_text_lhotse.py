@@ -18,9 +18,11 @@ import torch.utils.data
 from lhotse.dataset import AudioSamples
 from lhotse.dataset.collation import collate_vectors
 
-from nemo.collections.common.tokenizers.aggregate_tokenizer import TokenizerWrapper
+from nemo.collections.common.tokenizers.aggregate_tokenizer import \
+    TokenizerWrapper
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
-from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, NeuralType
+from nemo.core.neural_types import (AudioSignal, LabelsType, LengthsType,
+                                    NeuralType)
 
 
 class LhotseSpeechToTextBpeDataset(torch.utils.data.Dataset):

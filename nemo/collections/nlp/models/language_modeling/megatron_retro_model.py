@@ -32,39 +32,31 @@ from omegaconf import OmegaConf, open_dict
 from omegaconf.dictconfig import DictConfig
 
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
-    MegatronPretrainingRandomSampler,
-    MegatronPretrainingSampler,
-)
-
+    MegatronPretrainingRandomSampler, MegatronPretrainingSampler)
 # from nemo.collections.nlp.data.language_modeling.megatron.retro_dummy_dataset import build_train_valid_test_datasets as dummy_build_train_valid_test_datasets  # turn on when running with dummy data
-from nemo.collections.nlp.data.language_modeling.megatron.retro_dataset import build_train_valid_test_datasets
-from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-from nemo.collections.nlp.modules.common.megatron.build_model import build_model
+from nemo.collections.nlp.data.language_modeling.megatron.retro_dataset import \
+    build_train_valid_test_datasets
+from nemo.collections.nlp.models.language_modeling.megatron_base_model import \
+    MegatronBaseModel
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import \
+    MegatronGPTModel
+from nemo.collections.nlp.modules.common.megatron.build_model import \
+    build_model
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.modules.common.megatron.utils import (
-    ApexGuardDefaults,
-    average_losses_across_data_parallel_group,
+    ApexGuardDefaults, average_losses_across_data_parallel_group,
     get_all_params_for_weight_decay_optimization,
-    get_ltor_masks_and_position_ids,
-    get_params_for_weight_decay_optimization,
-)
-from nemo.collections.nlp.modules.common.text_generation_strategy import TextGenerationStrategy
+    get_ltor_masks_and_position_ids, get_params_for_weight_decay_optimization)
+from nemo.collections.nlp.modules.common.text_generation_strategy import \
+    TextGenerationStrategy
 from nemo.collections.nlp.modules.common.text_generation_utils import (
-    generate,
-    get_computeprob_response,
-    get_default_length_params,
-    get_default_sampling_params,
-    megatron_gpt_generate,
-)
+    generate, get_computeprob_response, get_default_length_params,
+    get_default_sampling_params, megatron_gpt_generate)
 from nemo.collections.nlp.modules.common.transformer.text_generation import (
-    LengthParam,
-    OutputType,
-    SamplingParam,
-    TextGeneration,
-)
+    LengthParam, OutputType, SamplingParam, TextGeneration)
 from nemo.collections.nlp.parts import utils_funcs
-from nemo.collections.nlp.parts.utils_funcs import activation_to_func, get_last_rank
+from nemo.collections.nlp.parts.utils_funcs import (activation_to_func,
+                                                    get_last_rank)
 from nemo.core.classes import Exportable
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.neural_types import ChannelType, NeuralType
@@ -75,14 +67,20 @@ try:
     from megatron.core import InferenceParams, parallel_state
     from megatron.core.models.retro import RetroModel as MCoreRetroModel
     from megatron.core.models.retro.config import RetroConfig
-    from megatron.core.models.retro.decoder_spec import get_retro_decoder_block_spec
-    from megatron.core.models.retro.utils import get_config_path as get_retro_config_path
-    from megatron.core.models.retro.utils import get_gpt_data_dir as get_retro_data_dir
-    from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
+    from megatron.core.models.retro.decoder_spec import \
+        get_retro_decoder_block_spec
+    from megatron.core.models.retro.utils import \
+        get_config_path as get_retro_config_path
+    from megatron.core.models.retro.utils import \
+        get_gpt_data_dir as get_retro_data_dir
+    from megatron.core.pipeline_parallel.schedules import \
+        get_forward_backward_func
     from megatron.core.transformer.enums import AttnBackend
-    from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
+    from megatron.core.transformer.module import \
+        Float16Module as MCoreFloat16Module
     from megatron.core.transformer.transformer_config import TransformerConfig
-    from megatron.core.utils import init_method_normal, scaled_init_method_normal
+    from megatron.core.utils import (init_method_normal,
+                                     scaled_init_method_normal)
 
     # TODO @tmoon: Use once available in Megatron-LM
     # from megatron.core.pipeline_parallel.schedules import DataIteratorList

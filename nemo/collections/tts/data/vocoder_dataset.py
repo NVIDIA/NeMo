@@ -24,16 +24,14 @@ import torch.utils.data
 import webdataset as wds
 
 from nemo.collections.asr.data.audio_to_text import expand_sharded_filepaths
-from nemo.collections.asr.parts.preprocessing.segment import available_formats as valid_sf_formats
+from nemo.collections.asr.parts.preprocessing.segment import \
+    available_formats as valid_sf_formats
 from nemo.collections.asr.parts.utils.manifest_utils import read_manifest
-from nemo.collections.tts.parts.preprocessing.feature_processors import FeatureProcessor
+from nemo.collections.tts.parts.preprocessing.feature_processors import \
+    FeatureProcessor
 from nemo.collections.tts.parts.utils.tts_dataset_utils import (
-    filter_dataset_by_duration,
-    get_weighted_sampler,
-    load_audio,
-    sample_audio,
-    stack_tensors,
-)
+    filter_dataset_by_duration, get_weighted_sampler, load_audio, sample_audio,
+    stack_tensors)
 from nemo.core.classes import Dataset, IterableDataset
 from nemo.utils import logging
 from nemo.utils.decorators import experimental

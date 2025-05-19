@@ -15,7 +15,8 @@
 import pytest
 from torch import nn
 
-from nemo.lightning.io.state import StateDictTransform, TransformCTX, state_transform
+from nemo.lightning.io.state import (StateDictTransform, TransformCTX,
+                                     state_transform)
 
 
 class TestStateDictTransform:

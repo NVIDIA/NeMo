@@ -15,29 +15,17 @@
 from typing import Dict, List, Union
 
 import torch
-from megatron.energon import (
-    CaptioningSample,
-    DefaultTaskEncoder,
-    InterleavedSample,
-    SimilarityInterleavedSample,
-    VQASample,
-    batch_list,
-    batch_pad_stack,
-)
+from megatron.energon import (CaptioningSample, DefaultTaskEncoder,
+                              InterleavedSample, SimilarityInterleavedSample,
+                              VQASample, batch_list, batch_pad_stack)
 from megatron.energon.task_encoder.base import stateless
 
 from nemo.collections.multimodal.data.energon.config import (
-    ImageTextRawBatch,
-    ImageTextSample,
-    PackedImageTextRawBatch,
-    PackedImageTextSample,
-)
+    ImageTextRawBatch, ImageTextSample, PackedImageTextRawBatch,
+    PackedImageTextSample)
 from nemo.collections.multimodal.data.energon.sample_encoder import (
-    InterleavedSampleEncoder,
-    SampleEncoder,
-    SimilarityInterleavedEncoder,
-    VQASampleEncoder,
-)
+    InterleavedSampleEncoder, SampleEncoder, SimilarityInterleavedEncoder,
+    VQASampleEncoder)
 from nemo.utils import logging
 
 
@@ -270,7 +258,8 @@ class MultiModalTaskEncoder(
         NOTE: Energon dataloader calls this method internally if packing is used.
         Please see https://nvidia.github.io/Megatron-Energon/packing.html
         """
-        from nemo.collections.vlm.neva.data.sequence_packing import greedy_knapsack, predict_seq_len
+        from nemo.collections.vlm.neva.data.sequence_packing import (
+            greedy_knapsack, predict_seq_len)
 
         media_token_id = self.sample_config.image_token.token_id
         lengths = [
@@ -304,7 +293,8 @@ class MultiModalTaskEncoder(
         Returns:
             ImageTaskSamplePacked instance.
         """
-        from nemo.collections.vlm.neva.data.sequence_packing import convert_to_packed
+        from nemo.collections.vlm.neva.data.sequence_packing import \
+            convert_to_packed
 
         packed_images = torch.cat([sample.images for sample in samples], dim=0)
         media_token_id = self.sample_config.image_token.token_id

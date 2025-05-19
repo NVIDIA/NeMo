@@ -30,7 +30,8 @@ if TYPE_CHECKING:
     from transformers import Starcoder2Config as HFStarcoder2Config
     from transformers import Starcoder2ForCausalLM
 
-    from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+    from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import \
+        AutoTokenizer
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
 
@@ -230,7 +231,8 @@ class HFStarcoder2Importer(io.ModelConnector["Starcoder2ForCausalLM", Starcoder2
         Returns:
             AutoTokenizer: Tokenizer instance initialized from the HF model's tokenizer
         """
-        from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+        from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import \
+            AutoTokenizer
 
         return AutoTokenizer(self.save_hf_tokenizer_assets(str(self)))
 

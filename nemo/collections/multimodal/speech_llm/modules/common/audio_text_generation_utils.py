@@ -19,16 +19,18 @@
 import pickle
 from collections.abc import Iterable
 from typing import List, Optional, Tuple, Union
+
 import numpy as np
 import torch
 import torch.nn.functional as F
 
 import nemo.collections.nlp.modules.common.text_generation_utils as text_generation_utils
-from nemo.collections.common.tokenizers.tabular_tokenizer import TabularTokenizer
-from nemo.collections.multimodal.speech_llm.modules.common.audio_text_generation_strategy import (
-    model_inference_strategy_dispatcher,
-)
-from nemo.collections.nlp.modules.common.transformer.text_generation import OutputType
+from nemo.collections.common.tokenizers.tabular_tokenizer import \
+    TabularTokenizer
+from nemo.collections.multimodal.speech_llm.modules.common.audio_text_generation_strategy import \
+    model_inference_strategy_dispatcher
+from nemo.collections.nlp.modules.common.transformer.text_generation import \
+    OutputType
 from nemo.utils import AppState, logging
 
 try:
@@ -41,13 +43,14 @@ except (ImportError, ModuleNotFoundError):
     HAVE_MEGATRON_CORE = False
 
 try:
-    from megatron.core.num_microbatches_calculator import reconfigure_num_microbatches_calculator
+    from megatron.core.num_microbatches_calculator import \
+        reconfigure_num_microbatches_calculator
 
 except (ImportError, ModuleNotFoundError):
     logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
-    from apex.transformer.pipeline_parallel.utils import (
-        _reconfigure_microbatch_calculator as reconfigure_num_microbatches_calculator,
-    )
+    from apex.transformer.pipeline_parallel.utils import \
+        _reconfigure_microbatch_calculator as \
+        reconfigure_num_microbatches_calculator
 
 __all__ = [
     "get_computeprob_response",

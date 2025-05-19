@@ -25,23 +25,19 @@ from omegaconf import OmegaConf, open_dict
 from omegaconf.dictconfig import DictConfig
 
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
-    MegatronPretrainingRandomSampler,
-    MegatronPretrainingSampler,
-)
-from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
-from nemo.collections.nlp.modules.common.megatron.build_model import build_model
+    MegatronPretrainingRandomSampler, MegatronPretrainingSampler)
+from nemo.collections.nlp.models.language_modeling.megatron_base_model import \
+    MegatronBaseModel
+from nemo.collections.nlp.modules.common.megatron.build_model import \
+    build_model
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
-from nemo.collections.nlp.modules.common.megatron.token_level_encoder_decoder import (
-    MegatronTokenLevelEncoderDecoderModule,
-)
+from nemo.collections.nlp.modules.common.megatron.token_level_encoder_decoder import \
+    MegatronTokenLevelEncoderDecoderModule
 from nemo.collections.nlp.modules.common.megatron.utils import (
     average_losses_across_data_parallel_group,
-    get_params_for_weight_decay_optimization,
-)
+    get_params_for_weight_decay_optimization)
 from nemo.collections.nlp.modules.common.text_generation_utils import (
-    compute_beam_search_len_penalty,
-    get_sampling_token_fn,
-)
+    compute_beam_search_len_penalty, get_sampling_token_fn)
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.utils import AppState, logging
 
@@ -55,10 +51,11 @@ try:
         get_t5_decoder_with_local_block_spec,
         get_t5_decoder_with_transformer_engine_block_spec,
         get_t5_encoder_with_local_block_spec,
-        get_t5_encoder_with_transformer_engine_block_spec,
-    )
-    from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
-    from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
+        get_t5_encoder_with_transformer_engine_block_spec)
+    from megatron.core.pipeline_parallel.schedules import \
+        get_forward_backward_func
+    from megatron.core.transformer.module import \
+        Float16Module as MCoreFloat16Module
     from megatron.core.transformer.transformer_config import TransformerConfig
     from megatron.core.utils import get_model_config
 
@@ -70,17 +67,16 @@ except (ImportError, ModuleNotFoundError):
 
 try:
     from megatron.core.num_microbatches_calculator import (
-        get_micro_batch_size,
-        get_num_microbatches,
-        reconfigure_num_microbatches_calculator,
-    )
+        get_micro_batch_size, get_num_microbatches,
+        reconfigure_num_microbatches_calculator)
 
 except (ImportError, ModuleNotFoundError):
     logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
-    from apex.transformer.pipeline_parallel.utils import (
-        _reconfigure_microbatch_calculator as reconfigure_num_microbatches_calculator,
-    )
-    from apex.transformer.pipeline_parallel.utils import get_micro_batch_size, get_num_microbatches
+    from apex.transformer.pipeline_parallel.utils import \
+        _reconfigure_microbatch_calculator as \
+        reconfigure_num_microbatches_calculator
+    from apex.transformer.pipeline_parallel.utils import (get_micro_batch_size,
+                                                          get_num_microbatches)
 
 __all__ = ["MegatronLMEncoderDecoderModel"]
 

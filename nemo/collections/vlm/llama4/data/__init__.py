@@ -12,7 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.vlm.llama4.data.mock import MockDataModule as Llama4MockDataModule
+from nemo.collections.vlm.llama4.data.mock import \
+    MockDataModule as Llama4MockDataModule
 
 __all__ = [
     "Llama4MockDataModule",

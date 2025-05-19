@@ -26,7 +26,8 @@ from lhotse.shar import JsonlShardWriter, TarWriter
 from omegaconf import OmegaConf
 
 from nemo.collections.common.data.lhotse import read_cutset_from_config
-from nemo.collections.common.data.lhotse.dataloader import LhotseDataLoadingConfig
+from nemo.collections.common.data.lhotse.dataloader import \
+    LhotseDataLoadingConfig
 
 
 @click.command()

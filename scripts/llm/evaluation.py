@@ -24,8 +24,9 @@ from typing import Optional
 import nemo_run as run
 
 from nemo.collections.llm import deploy, evaluate
-from nemo.collections.llm.evaluation.api import ApiEndpoint, ConfigParams, EvaluationConfig, EvaluationTarget
-
+from nemo.collections.llm.evaluation.api import (ApiEndpoint, ConfigParams,
+                                                 EvaluationConfig,
+                                                 EvaluationTarget)
 
 ENDPOINT_TYPES = {"chat": "chat/completions/", "completions": "completions/"}
 

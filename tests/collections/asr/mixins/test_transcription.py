@@ -24,8 +24,10 @@ from omegaconf import open_dict
 from torch.utils.data import DataLoader, Dataset
 
 from nemo.collections.asr.data.audio_to_text import _speech_collate_fn
-from nemo.collections.asr.parts.mixins import TranscribeConfig, TranscriptionMixin
-from nemo.collections.asr.parts.mixins.transcription import GenericTranscriptionType
+from nemo.collections.asr.parts.mixins import (TranscribeConfig,
+                                               TranscriptionMixin)
+from nemo.collections.asr.parts.mixins.transcription import \
+    GenericTranscriptionType
 from nemo.collections.asr.parts.utils import Hypothesis
 
 

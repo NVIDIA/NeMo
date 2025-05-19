@@ -54,14 +54,18 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import numpy as np
 import torch
-from megatron.core.datasets.indexed_dataset import IndexedDataset, IndexedDatasetBuilder, get_bin_path, get_idx_path
+from megatron.core.datasets.indexed_dataset import (IndexedDataset,
+                                                    IndexedDatasetBuilder,
+                                                    get_bin_path, get_idx_path)
 from omegaconf import OmegaConf
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from nemo.collections.multimodal.data.neva.neva_dataset import make_supervised_data_module
+from nemo.collections.multimodal.data.neva.neva_dataset import \
+    make_supervised_data_module
 from nemo.collections.multimodal.parts.utils import create_image_processor
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+from nemo.collections.nlp.modules.common.tokenizer_utils import \
+    get_nmt_tokenizer
 from nemo.utils import logging
 
 PACKING_ALGOS = ['first_fit_decreasing', 'first_fit_shuffle', 'shuffle_and_pack']

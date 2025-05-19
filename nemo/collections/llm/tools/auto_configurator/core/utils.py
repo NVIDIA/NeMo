@@ -14,7 +14,6 @@
 
 from dataclasses import dataclass
 
-
 GPT_BASED_MODELS = [
     "gpt3",
     "llama",
@@ -338,7 +337,8 @@ def generic_base_config(config) -> dict:
         AutoConfigurator: config object for the Auto Configurator tool.
     """
 
-    from nemo.collections.llm.tools.auto_configurator.core.base_config import calculate_model_size
+    from nemo.collections.llm.tools.auto_configurator.core.base_config import \
+        calculate_model_size
 
     model_size_in_b = calculate_model_size(
         config.gpu_count,

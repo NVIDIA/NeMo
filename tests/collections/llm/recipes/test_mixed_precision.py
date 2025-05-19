@@ -14,17 +14,10 @@
 import torch
 
 from nemo.collections.llm.recipes.precision.mixed_precision import (
-    bf16_mixed,
-    bf16_with_fp8_current_scaling_mixed,
-    bf16_with_fp8_mixed,
-    bf16_with_fp8_subchannel_scaling_mixed,
-    bf16_with_mxfp8_mixed,
-    fp16_mixed,
-    fp16_with_fp8_current_scaling_mixed,
-    fp16_with_fp8_mixed,
-    fp16_with_fp8_subchannel_scaling_mixed,
-    fp16_with_mxfp8_mixed,
-)
+    bf16_mixed, bf16_with_fp8_current_scaling_mixed, bf16_with_fp8_mixed,
+    bf16_with_fp8_subchannel_scaling_mixed, bf16_with_mxfp8_mixed, fp16_mixed,
+    fp16_with_fp8_current_scaling_mixed, fp16_with_fp8_mixed,
+    fp16_with_fp8_subchannel_scaling_mixed, fp16_with_mxfp8_mixed)
 
 
 def test_bf16_mixed_config():

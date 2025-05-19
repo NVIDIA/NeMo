@@ -25,25 +25,9 @@ import types
 from collections import defaultdict
 from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Callable,
-    Dict,
-    Generic,
-    Iterable,
-    Iterator,
-    List,
-    Mapping,
-    Optional,
-    Protocol,
-    Sequence,
-    Tuple,
-    TypeVar,
-    Union,
-    cast,
-    runtime_checkable,
-)
+from typing import (TYPE_CHECKING, Any, Callable, Dict, Generic, Iterable,
+                    Iterator, List, Mapping, Optional, Protocol, Sequence,
+                    Tuple, TypeVar, Union, cast, runtime_checkable)
 
 import torch
 import torch.distributed
@@ -536,7 +520,8 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
 
     def init_model_parallel(self):
         from megatron.core import parallel_state
-        from megatron.core.tensor_parallel.layers import set_defaults_if_not_set_tensor_model_parallel_attributes
+        from megatron.core.tensor_parallel.layers import \
+            set_defaults_if_not_set_tensor_model_parallel_attributes
 
         for model_module in self:
             if not self._cpu and (not HAVE_CUSTOM_FSDP or self.fsdp != "megatron"):
@@ -1376,7 +1361,8 @@ class MegatronStep(Generic[ModelT, DataT]):
         Returns:
             MegatronStepProtocol: The function to perform forward and backward passes.
         """
-        from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
+        from megatron.core.pipeline_parallel.schedules import \
+            get_forward_backward_func
 
         return get_forward_backward_func()
 
@@ -1391,7 +1377,8 @@ class MegatronStep(Generic[ModelT, DataT]):
             Union[Callable, None]: The function which takes in tensor shapes and returns updated shapes,
                                    or None if not applicable.
         """
-        from nemo.collections.llm.modelopt.distill.utils import get_tensor_shapes_adjust_fn_for_distillation
+        from nemo.collections.llm.modelopt.distill.utils import \
+            get_tensor_shapes_adjust_fn_for_distillation
 
         return get_tensor_shapes_adjust_fn_for_distillation(
             self.model,
@@ -1422,7 +1409,8 @@ class MegatronStep(Generic[ModelT, DataT]):
 
             # finetuning can have dynamic sequence lengths
             seq_length = batch['tokens'].size(1) if 'tokens' in batch else None
-            from nemo.collections.nlp.modules.common.megatron.utils import get_iterator_k_split
+            from nemo.collections.nlp.modules.common.megatron.utils import \
+                get_iterator_k_split
 
             data = get_iterator_k_split(batch, self.num_microbatches, True)
 
@@ -1445,9 +1433,8 @@ class MegatronStep(Generic[ModelT, DataT]):
         if getattr(self.trainer, "datamodule", None) is not None:
             use_global_batch_sampler = self.trainer.datamodule.data_sampler.dataloader_type == 'batch'
         elif getattr(self.trainer, "predict_dataloaders", None) is not None:
-            from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (  # noqa: I001
-                MegatronPretrainingBatchSampler,
-            )
+            from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import \
+                MegatronPretrainingBatchSampler  # noqa: I001
 
             # The batch_sampler gets injected into the dataloader by the data_sampler. When doing
             # predict without a datamodule we can look inside the dataloader's batch_sampler to see
@@ -1821,9 +1808,7 @@ def masked_token_loss(tensor: Tensor, mask: Tensor):
 @contextmanager
 def moe_loss_tracker_ctx():
     from megatron.core.transformer.moe.moe_utils import (
-        clear_aux_losses_tracker,
-        reduce_aux_losses_tracker_across_ranks,
-    )
+        clear_aux_losses_tracker, reduce_aux_losses_tracker_across_ranks)
 
     reduce_aux_losses_tracker_across_ranks()
     try:

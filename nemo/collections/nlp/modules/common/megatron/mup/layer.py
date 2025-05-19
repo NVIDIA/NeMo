@@ -40,7 +40,8 @@
 import torch
 
 from nemo.collections.nlp.modules.common.megatron.module import MegatronModule
-from nemo.collections.nlp.modules.common.megatron.utils import parallel_lm_logits
+from nemo.collections.nlp.modules.common.megatron.utils import \
+    parallel_lm_logits
 from nemo.utils import logging
 
 try:

@@ -17,7 +17,6 @@ from typing import List, Tuple
 
 from nemo.collections.llm.tools.auto_configurator.core import utils
 
-
 GPT_BASED_MODELS = [
     "gpt3",
     "bert",

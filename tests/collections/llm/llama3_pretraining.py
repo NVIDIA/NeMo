@@ -24,17 +24,12 @@ import torch
 
 from nemo.collections import llm
 from nemo.lightning.pytorch.callbacks.debugging import ParameterDebugger
-from nemo.lightning.pytorch.callbacks.pytorch_profiler import PytorchProfilerCallback
+from nemo.lightning.pytorch.callbacks.pytorch_profiler import \
+    PytorchProfilerCallback
 from tests.collections.llm.common import (
     AssertOptimizerParamGroupsHaveAtLeastTwoWeightDecays,
-    MCoreModelAttributeValidator,
-    MiscAttributeValidator,
-    StopBeforeEnd,
-    create_verify_precision,
-    small_llama_cfg,
-    train_data,
-    verify_ckpt_dir,
-)
+    MCoreModelAttributeValidator, MiscAttributeValidator, StopBeforeEnd,
+    create_verify_precision, small_llama_cfg, train_data, verify_ckpt_dir)
 
 
 def get_args():

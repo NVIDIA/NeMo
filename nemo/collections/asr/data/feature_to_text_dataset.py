@@ -14,7 +14,8 @@
 
 from typing import Optional
 
-from nemo.collections.asr.data.feature_to_text import FeatureToBPEDataset, FeatureToCharDataset
+from nemo.collections.asr.data.feature_to_text import (FeatureToBPEDataset,
+                                                       FeatureToCharDataset)
 from nemo.utils import logging
 
 

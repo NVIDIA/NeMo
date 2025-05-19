@@ -15,7 +15,8 @@
 import nemo_run as run
 import pytest
 
-from nemo.collections.llm import Llama33NemotronSuper49BConfig, LlamaNemotronModel
+from nemo.collections.llm import (Llama33NemotronSuper49BConfig,
+                                  LlamaNemotronModel)
 from nemo.collections.llm.api import finetune
 from nemo.collections.llm.peft import PEFT_STR2CLS
 from nemo.collections.llm.peft.lora import LoRA

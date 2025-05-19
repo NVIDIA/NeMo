@@ -21,7 +21,8 @@ from nemo.collections.llm.gpt.data.fine_tuning import FineTuningDataModule
 
 if TYPE_CHECKING:
     from nemo.collections.common.tokenizers import TokenizerSpec
-    from nemo.collections.llm.gpt.data.packed_sequence import PackedSequenceSpecs
+    from nemo.collections.llm.gpt.data.packed_sequence import \
+        PackedSequenceSpecs
 
 
 class ChatDataModule(FineTuningDataModule):

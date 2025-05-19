@@ -15,12 +15,10 @@
 import torch
 import torch.nn.functional as F
 
-from nemo.collections.llm.gpt.model.mixtral import (
-    MixtralConfig,
-    MixtralConfig8x3B,
-    MixtralConfig8x7B,
-    MixtralConfig8x22B,
-)
+from nemo.collections.llm.gpt.model.mixtral import (MixtralConfig,
+                                                    MixtralConfig8x3B,
+                                                    MixtralConfig8x7B,
+                                                    MixtralConfig8x22B)
 
 
 def test_mixtral_config():

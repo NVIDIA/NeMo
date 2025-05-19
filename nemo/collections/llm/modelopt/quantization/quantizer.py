@@ -22,13 +22,15 @@ from typing import TYPE_CHECKING, Optional, Union
 
 import torch
 from datasets import load_dataset
-from megatron.core.inference.common_inference_params import CommonInferenceParams
+from megatron.core.inference.common_inference_params import \
+    CommonInferenceParams
 from tqdm import tqdm
 from transformers import PreTrainedTokenizerBase
 
 from nemo.collections import llm
 from nemo.collections.llm.inference import MCoreTokenizerWrappper, generate
-from nemo.collections.llm.modelopt.quantization.quant_cfg_choices import get_quant_cfg_choices
+from nemo.collections.llm.modelopt.quantization.quant_cfg_choices import \
+    get_quant_cfg_choices
 from nemo.collections.llm.utils import barrier, torch_dtype_from_precision
 from nemo.lightning import io
 from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
@@ -328,7 +330,8 @@ class Quantizer:
         self, get_dataloader, num_batches, seq_length=None, micro_batch_size=None, decoder_seq_length=None
     ):
         """Create a forward loop for over a given data iterator."""
-        from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
+        from megatron.core.pipeline_parallel.schedules import \
+            get_forward_backward_func
 
         forward_backward_func = get_forward_backward_func()
 

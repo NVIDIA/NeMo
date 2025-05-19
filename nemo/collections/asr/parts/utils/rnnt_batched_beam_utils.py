@@ -15,7 +15,8 @@ from typing import Optional
 
 import torch
 
-from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis, NBestHypotheses
+from nemo.collections.asr.parts.utils.rnnt_utils import (Hypothesis,
+                                                         NBestHypotheses)
 from nemo.utils.enum import PrettyStrEnum
 
 # Constants used for hashing text sequences.

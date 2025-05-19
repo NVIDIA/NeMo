@@ -25,12 +25,14 @@ from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.collections.llm.api import pretrain
 from nemo.collections.llm.t5.data import MockDataModule, PreTrainingDataModule
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+from nemo.collections.nlp.modules.common.tokenizer_utils import \
+    get_nmt_tokenizer
 from nemo.lightning import NeMoLogger
 from nemo.lightning.pytorch.callbacks import ModelCheckpoint
 from nemo.lightning.pytorch.optim.lr_scheduler import WarmupAnnealingScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
-from tests.collections.llm.common import AssertOptimizerParamGroupsHaveAtLeastTwoWeightDecays
+from tests.collections.llm.common import \
+    AssertOptimizerParamGroupsHaveAtLeastTwoWeightDecays
 
 
 def get_args():

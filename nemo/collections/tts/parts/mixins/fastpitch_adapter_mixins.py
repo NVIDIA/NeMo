@@ -16,7 +16,8 @@ from typing import List, Optional
 
 from omegaconf import DictConfig, open_dict
 
-from nemo.core.classes.mixins.adapter_mixins import AdapterModelPTMixin, AdapterModuleMixin
+from nemo.core.classes.mixins.adapter_mixins import (AdapterModelPTMixin,
+                                                     AdapterModuleMixin)
 from nemo.utils import logging, logging_mode
 
 

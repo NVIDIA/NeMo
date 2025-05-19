@@ -20,8 +20,10 @@ from megatron.core import ModelParallelConfig
 from megatron.core.distributed import DistributedDataParallelConfig
 from megatron.core.optimizer import OptimizerConfig
 
-from nemo.collections.llm.recipes.tp_overlap_configs.userbuffers import TransformerLayerTPOverlapCfg
-from nemo.lightning.pytorch.strategies.megatron_strategy import MegatronStrategy, ParallelismConfig
+from nemo.collections.llm.recipes.tp_overlap_configs.userbuffers import \
+    TransformerLayerTPOverlapCfg
+from nemo.lightning.pytorch.strategies.megatron_strategy import (
+    MegatronStrategy, ParallelismConfig)
 from nemo.utils import logging
 
 try:

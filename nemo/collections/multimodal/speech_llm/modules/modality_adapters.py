@@ -17,12 +17,14 @@ from collections import OrderedDict
 import torch
 import torch.nn as nn
 
-from nemo.collections.common.parts.multi_layer_perceptron import MultiLayerPerceptron as MLP
+from nemo.collections.common.parts.multi_layer_perceptron import \
+    MultiLayerPerceptron as MLP
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.exportable import Exportable
 from nemo.core.classes.mixins import AccessMixin
 from nemo.core.classes.module import NeuralModule
-from nemo.core.neural_types import AcousticEncodedRepresentation, LengthsType, NeuralType
+from nemo.core.neural_types import (AcousticEncodedRepresentation, LengthsType,
+                                    NeuralType)
 
 __all__ = ['PoolingMLPConnectors']
 

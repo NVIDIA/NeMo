@@ -17,8 +17,8 @@ import json
 import re
 import string
 from collections import Counter
-from rouge_score import rouge_scorer
 
+from rouge_score import rouge_scorer
 
 """
 This script can be used to calculate exact match and F1 scores for many different tasks. 

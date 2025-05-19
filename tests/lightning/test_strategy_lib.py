@@ -60,7 +60,8 @@ def test_set_model_parallel_attributes() -> None:
 
 
 def test_init_parallel_ranks() -> None:
-    from megatron.core.num_microbatches_calculator import destroy_num_microbatches_calculator
+    from megatron.core.num_microbatches_calculator import \
+        destroy_num_microbatches_calculator
     from megatron.core.parallel_state import destroy_model_parallel
 
     from nemo.utils import AppState

@@ -21,12 +21,9 @@ from omegaconf import DictConfig, OmegaConf
 
 from nemo.collections.asr.parts.mixins import mixins
 from nemo.collections.asr.parts.submodules.ctc_decoding import (
-    CTCBPEDecoding,
-    CTCBPEDecodingConfig,
-    CTCDecoding,
-    CTCDecodingConfig,
-)
-from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceConfig
+    CTCBPEDecoding, CTCBPEDecodingConfig, CTCDecoding, CTCDecodingConfig)
+from nemo.collections.asr.parts.utils.asr_confidence_utils import \
+    ConfidenceConfig
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 
 

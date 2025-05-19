@@ -39,7 +39,8 @@ except ImportError:
         "`from megatron.core.extensions.transformer_engine import *`"
         "If using NeMo Run, this is expected. Otherwise, please verify the Transformer Engine installation."
     )
-from megatron.core.models.common.vision_module.vision_module import VisionModule
+from megatron.core.models.common.vision_module.vision_module import \
+    VisionModule
 from megatron.core.transformer.enums import ModelType
 from megatron.core.transformer.spec_utils import ModuleSpec, build_module
 from megatron.core.transformer.transformer_block import TransformerBlock

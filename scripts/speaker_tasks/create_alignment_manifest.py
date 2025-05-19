@@ -18,7 +18,10 @@ import shutil
 from pathlib import Path
 from typing import List
 
-from nemo.collections.asr.parts.utils.manifest_utils import get_ctm_line, read_manifest, write_ctm, write_manifest
+from nemo.collections.asr.parts.utils.manifest_utils import (get_ctm_line,
+                                                             read_manifest,
+                                                             write_ctm,
+                                                             write_manifest)
 from nemo.utils import logging
 
 

@@ -18,10 +18,12 @@ import torch
 from einops import rearrange
 from megatron.core import parallel_state
 from megatron.core.inference.contexts import BaseInferenceContext
-from megatron.core.models.common.embeddings.rope_utils import apply_rotary_pos_emb
+from megatron.core.models.common.embeddings.rope_utils import \
+    apply_rotary_pos_emb
 from megatron.core.models.gpt.gpt_layer_specs import get_gpt_decoder_block_spec
 from megatron.core.packed_seq_params import PackedSeqParams
-from megatron.core.transformer.attention import SelfAttention as MCoreSelfAttention
+from megatron.core.transformer.attention import \
+    SelfAttention as MCoreSelfAttention
 from megatron.core.transformer.spec_utils import ModuleSpec
 from megatron.core.transformer.torch_norm import L2Norm
 from megatron.core.utils import deprecate_inference_params, is_fa_min_version
@@ -125,7 +127,8 @@ def get_llama4_layer_spec(config) -> ModuleSpec:
     """Get llama4 layer spec"""
 
     from megatron.core.transformer.enums import AttnMaskType
-    from megatron.core.transformer.transformer_layer import get_transformer_layer_offset
+    from megatron.core.transformer.transformer_layer import \
+        get_transformer_layer_offset
 
     # Use decoder_block_spec: set layer_specs as a list of individual layer specs
     llama4_layer_spec = get_gpt_decoder_block_spec(config, use_transformer_engine=True)

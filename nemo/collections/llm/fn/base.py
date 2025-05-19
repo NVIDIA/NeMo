@@ -13,7 +13,8 @@
 # limitations under the License.
 
 import inspect
-from typing import Callable, Iterable, Protocol, TypeVar, Union, runtime_checkable
+from typing import (Callable, Iterable, Protocol, TypeVar, Union,
+                    runtime_checkable)
 
 from torch import nn
 

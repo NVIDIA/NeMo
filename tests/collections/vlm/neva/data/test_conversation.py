@@ -18,25 +18,21 @@ from unittest.mock import patch
 import pytest
 from PIL import Image
 
-from nemo.collections.vlm.neva.data.conversation import (
-    Conversation,
-    SeparatorStyle,
-    conv_chatml_direct,
-    conv_gemma_instruct,
-    conv_llama_2,
-    conv_llava_llama_3,
-    conv_llava_plain,
-    conv_llava_v0,
-    conv_llava_v1,
-    conv_mistral_direct,
-    conv_mistral_orca,
-    conv_mistral_vila,
-    conv_mistral_zephyr,
-    conv_mpt,
-    conv_nv_dpo,
-    conv_nvgpt,
-    conv_qwen,
-)
+from nemo.collections.vlm.neva.data.conversation import (Conversation,
+                                                         SeparatorStyle,
+                                                         conv_chatml_direct,
+                                                         conv_gemma_instruct,
+                                                         conv_llama_2,
+                                                         conv_llava_llama_3,
+                                                         conv_llava_plain,
+                                                         conv_llava_v0,
+                                                         conv_llava_v1,
+                                                         conv_mistral_direct,
+                                                         conv_mistral_orca,
+                                                         conv_mistral_vila,
+                                                         conv_mistral_zephyr,
+                                                         conv_mpt, conv_nv_dpo,
+                                                         conv_nvgpt, conv_qwen)
 
 
 @pytest.fixture

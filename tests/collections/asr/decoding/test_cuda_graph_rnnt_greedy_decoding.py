@@ -14,7 +14,6 @@
 import copy
 import glob
 
-
 import jiwer
 import lightning.pytorch as ptl
 import pytest
@@ -23,7 +22,8 @@ from omegaconf import DictConfig, open_dict
 
 from nemo.collections.asr.models import ASRModel
 from nemo.core.config.pytorch_lightning import TrainerConfig
-from nemo.core.utils.cuda_python_utils import skip_cuda_python_test_if_cuda_graphs_conditional_nodes_not_supported
+from nemo.core.utils.cuda_python_utils import \
+    skip_cuda_python_test_if_cuda_graphs_conditional_nodes_not_supported
 
 
 @pytest.fixture(scope="module")

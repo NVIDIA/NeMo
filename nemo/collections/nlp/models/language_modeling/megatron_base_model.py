@@ -24,24 +24,28 @@ import omegaconf
 import torch
 import torch.nn as nn
 from lightning.pytorch.plugins.precision import MixedPrecisionPlugin
-from lightning.pytorch.trainer.connectors.logger_connector.fx_validator import _FxValidator
+from lightning.pytorch.trainer.connectors.logger_connector.fx_validator import \
+    _FxValidator
 from lightning.pytorch.trainer.trainer import Trainer
 from lightning.pytorch.utilities.exceptions import MisconfigurationException
 from omegaconf import OmegaConf, open_dict
 from omegaconf.dictconfig import DictConfig
 
 from nemo.collections.nlp.models.nlp_model import NLPModel
-from nemo.collections.nlp.modules.common.megatron.attention import HAVE_FLASH_ATTENTION
+from nemo.collections.nlp.modules.common.megatron.attention import \
+    HAVE_FLASH_ATTENTION
 from nemo.collections.nlp.modules.common.megatron.clip_grads import (
-    clip_grad_norm_distributed_optimizer,
-    clip_grad_norm_fp32,
-)
-from nemo.collections.nlp.modules.common.megatron.megatron_init import initialize_model_parallel_for_nemo
+    clip_grad_norm_distributed_optimizer, clip_grad_norm_fp32)
+from nemo.collections.nlp.modules.common.megatron.megatron_init import \
+    initialize_model_parallel_for_nemo
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
-from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+from nemo.collections.nlp.modules.common.megatron.utils import \
+    ApexGuardDefaults
+from nemo.collections.nlp.modules.common.tokenizer_utils import \
+    get_nmt_tokenizer
 from nemo.collections.nlp.parts import utils_funcs
-from nemo.collections.nlp.parts.nlp_overrides import NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE, GradScaler
+from nemo.collections.nlp.parts.nlp_overrides import (
+    NEMO_MEGATRON_MODEL_PARALLEL_APPSTATE_OVERRIDE, GradScaler)
 from nemo.collections.nlp.parts.utils_funcs import activation_to_func
 from nemo.core.optim import MainParamsOptimizerWrapper, prepare_lr_scheduler
 from nemo.utils import AppState, logging, str_to_dtype
@@ -51,9 +55,12 @@ try:
     from megatron.core import ModelParallelConfig, parallel_state
     from megatron.core.distributed import DistributedDataParallel as McoreDDP
     from megatron.core.transformer.enums import AttnBackend
-    from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
-    from megatron.core.transformer.transformer_config import MLATransformerConfig, TransformerConfig
-    from megatron.core.utils import init_method_normal, scaled_init_method_normal
+    from megatron.core.transformer.module import \
+        Float16Module as MCoreFloat16Module
+    from megatron.core.transformer.transformer_config import (
+        MLATransformerConfig, TransformerConfig)
+    from megatron.core.utils import (init_method_normal,
+                                     scaled_init_method_normal)
 
     HAVE_MEGATRON_CORE = True
 
@@ -64,11 +71,13 @@ except (ImportError, ModuleNotFoundError):
     HAVE_MEGATRON_CORE = False
 
 try:
-    from megatron.core.num_microbatches_calculator import get_current_global_batch_size, get_num_microbatches
+    from megatron.core.num_microbatches_calculator import (
+        get_current_global_batch_size, get_num_microbatches)
 
 except (ImportError, ModuleNotFoundError):
     logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
-    from apex.transformer.pipeline_parallel.utils import get_current_global_batch_size, get_num_microbatches
+    from apex.transformer.pipeline_parallel.utils import (
+        get_current_global_batch_size, get_num_microbatches)
 
 try:
     from megatron.core import Timers

@@ -34,7 +34,8 @@ from megatron.training.checkpointing import load_checkpoint
 from megatron.training.initialize import initialize_megatron
 
 import nemo.lightning as nl
-from nemo.collections.llm.inference.base import _setup_trainer_and_restore_model
+from nemo.collections.llm.inference.base import \
+    _setup_trainer_and_restore_model
 from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
 from nemo.utils import logging
 

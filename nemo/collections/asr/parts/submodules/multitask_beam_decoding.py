@@ -20,13 +20,13 @@ from typing import List, Optional, Union
 import torch
 
 from nemo.collections.asr.modules.transformer import (
-    BeamSearchSequenceGenerator,
-    BeamSearchSequenceGeneratorWithNGramLM,
-)
-from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis, NBestHypotheses
+    BeamSearchSequenceGenerator, BeamSearchSequenceGeneratorWithNGramLM)
+from nemo.collections.asr.parts.utils.rnnt_utils import (Hypothesis,
+                                                         NBestHypotheses)
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.core import Typing, typecheck
-from nemo.core.neural_types import ChannelType, HypothesisType, LabelsType, MaskType, NeuralType
+from nemo.core.neural_types import (ChannelType, HypothesisType, LabelsType,
+                                    MaskType, NeuralType)
 from nemo.utils import logging
 
 

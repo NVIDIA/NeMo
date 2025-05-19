@@ -26,7 +26,8 @@ from torch import Tensor
 
 from nemo.collections.diffusion.sampler.batch_ops import batch_mul
 from nemo.collections.diffusion.sampler.context_parallel import cat_outputs_cp
-from nemo.collections.diffusion.sampler.edm.edm import EDMSDE, EDMSampler, EDMScaling
+from nemo.collections.diffusion.sampler.edm.edm import (EDMSDE, EDMSampler,
+                                                        EDMScaling)
 
 
 class EDMPipeline:

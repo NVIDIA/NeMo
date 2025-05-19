@@ -17,9 +17,11 @@ from typing import Any, Dict, Literal
 
 from lightning.pytorch.utilities.types import EVAL_DATALOADERS
 from megatron.core import parallel_state
-from megatron.energon import DefaultTaskEncoder, WorkerConfig, get_savable_loader, get_train_dataset
+from megatron.energon import (DefaultTaskEncoder, WorkerConfig,
+                              get_savable_loader, get_train_dataset)
 
-from nemo.collections.multimodal.data.energon.base import EnergonMultiModalDataModule
+from nemo.collections.multimodal.data.energon.base import \
+    EnergonMultiModalDataModule
 
 
 class DiffusionDataModule(EnergonMultiModalDataModule):

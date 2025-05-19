@@ -23,24 +23,19 @@ from omegaconf.dictconfig import DictConfig
 
 from nemo.collections.nlp.data.language_modeling.megatron import dataset_utils
 from nemo.collections.nlp.data.language_modeling.megatron.data_samplers import (
-    MegatronPretrainingRandomSampler,
-    MegatronPretrainingSampler,
-)
+    MegatronPretrainingRandomSampler, MegatronPretrainingSampler)
 from nemo.collections.nlp.models.language_modeling.megatron.bert.bert_model import (
-    MCoreBertModelWrapperWithPostLNSupport,
-    NeMoBertModel,
-)
-from nemo.collections.nlp.models.language_modeling.megatron.bert.bert_spec import (
-    get_bert_layer_with_transformer_engine_spec_postln,
-)
-from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
-from nemo.collections.nlp.modules.common.megatron.build_model import build_model
+    MCoreBertModelWrapperWithPostLNSupport, NeMoBertModel)
+from nemo.collections.nlp.models.language_modeling.megatron.bert.bert_spec import \
+    get_bert_layer_with_transformer_engine_spec_postln
+from nemo.collections.nlp.models.language_modeling.megatron_base_model import \
+    MegatronBaseModel
+from nemo.collections.nlp.modules.common.megatron.build_model import \
+    build_model
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.modules.common.megatron.utils import (
-    ApexGuardDefaults,
-    average_losses_across_data_parallel_group,
-    get_params_for_weight_decay_optimization,
-)
+    ApexGuardDefaults, average_losses_across_data_parallel_group,
+    get_params_for_weight_decay_optimization)
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.neural_types import ChannelType, MaskType, NeuralType
@@ -57,9 +52,12 @@ except (ImportError, ModuleNotFoundError):
 
 try:
     from megatron.core import parallel_state
-    from megatron.core.models.bert.bert_layer_specs import bert_layer_with_transformer_engine_spec
-    from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
-    from megatron.core.transformer.module import Float16Module as MCoreFloat16Module
+    from megatron.core.models.bert.bert_layer_specs import \
+        bert_layer_with_transformer_engine_spec
+    from megatron.core.pipeline_parallel.schedules import \
+        get_forward_backward_func
+    from megatron.core.transformer.module import \
+        Float16Module as MCoreFloat16Module
     from megatron.core.transformer.transformer_config import TransformerConfig
 
     HAVE_MEGATRON_CORE = True

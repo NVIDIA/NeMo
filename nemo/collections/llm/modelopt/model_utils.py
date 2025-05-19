@@ -22,7 +22,8 @@ from megatron.core.dist_checkpointing.validation import StrictHandling
 
 from nemo import lightning as nl
 from nemo.collections import llm
-from nemo.collections.llm.inference.base import _setup_trainer_and_restore_model
+from nemo.collections.llm.inference.base import \
+    _setup_trainer_and_restore_model
 from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
 from nemo.lightning.io.pl import ckpt_to_weights_subdir
 from nemo.utils import logging
@@ -31,13 +32,15 @@ from nemo.utils.import_utils import safe_import
 _, HAVE_TE = safe_import("transformer_engine")
 if HAVE_TE:
     # These custom modelopt specs are a mix of local MCORE and TE specs.
-    from megatron.core.post_training.modelopt.gpt.model_specs import get_gpt_modelopt_spec
+    from megatron.core.post_training.modelopt.gpt.model_specs import \
+        get_gpt_modelopt_spec
 
 _, HAVE_MAMBA_SSM = safe_import("mamba_ssm")
 _, HAVE_CAUSAL_CONV1D = safe_import("causal_conv1d")
 if HAVE_TE and HAVE_MAMBA_SSM and HAVE_CAUSAL_CONV1D:
     # Additionally, mamba-based models require both mamba_ssm and causal_conv1d.
-    from megatron.core.post_training.modelopt.mamba.model_specs import get_mamba_stack_modelopt_spec
+    from megatron.core.post_training.modelopt.mamba.model_specs import \
+        get_mamba_stack_modelopt_spec
 
 __all__ = ["set_modelopt_spec_if_exists_in_ckpt", "setup_trainer_and_restore_model_with_modelopt_spec"]
 
@@ -49,12 +52,14 @@ def _set_gpt_modelopt_spec(model_cfg: llm.GPTConfig) -> llm.GPTConfig:
     try:
         from functools import partial
 
-        from megatron.core.post_training.modelopt.gpt.model_specs import get_gpt_modelopt_spec
+        from megatron.core.post_training.modelopt.gpt.model_specs import \
+            get_gpt_modelopt_spec
 
         modelopt_spec = partial(get_gpt_modelopt_spec, remap_te_layernorm=True, qk_l2_norm=model_cfg.qk_l2_norm)
     except ImportError:
         # Older spec: Will be deprecated, doesnt support DeepSeek
-        from megatron.core.inference.modelopt_support.gpt.model_specs import get_gpt_layer_modelopt_spec
+        from megatron.core.inference.modelopt_support.gpt.model_specs import \
+            get_gpt_layer_modelopt_spec
 
         modelopt_spec = get_gpt_layer_modelopt_spec(
             num_experts=model_cfg.num_moe_experts, remap_te_layernorm=True, qk_l2_norm=model_cfg.qk_l2_norm
@@ -199,7 +204,8 @@ def setup_trainer_and_restore_model_with_modelopt_spec(
 
     tokenizer = None
     if tokenizer_path:
-        from nemo.collections.nlp.modules.common.tokenizer_utils import get_tokenizer
+        from nemo.collections.nlp.modules.common.tokenizer_utils import \
+            get_tokenizer
 
         tokenizer = get_tokenizer(tokenizer_path)
 

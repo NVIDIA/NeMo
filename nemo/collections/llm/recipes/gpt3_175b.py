@@ -25,14 +25,18 @@ from nemo import lightning as nl
 from nemo.collections.llm.api import pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.gpt.model import GPTConfig175B, GPTModel
-from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
-from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
+from nemo.collections.llm.recipes.log.default import (default_log,
+                                                      default_resume,
+                                                      tensorboard_logger)
+from nemo.collections.llm.recipes.optim.adam import \
+    distributed_fused_adam_with_cosine_annealing
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
-from nemo.collections.llm.recipes.tp_overlap_configs.userbuffers import (
-    userbuffers_bf16_h100_h12288_tp4_mbs1_seqlen2048,
-)
-from nemo.lightning.pytorch.callbacks.garbage_collection import GarbageCollectionCallback
-from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
+from nemo.collections.llm.recipes.tp_overlap_configs.userbuffers import \
+    userbuffers_bf16_h100_h12288_tp4_mbs1_seqlen2048
+from nemo.lightning.pytorch.callbacks.garbage_collection import \
+    GarbageCollectionCallback
+from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import \
+    MegatronCommOverlapCallback
 from nemo.utils.exp_manager import TimingCallback
 
 NAME = "gpt3_175b"

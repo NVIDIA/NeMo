@@ -20,18 +20,16 @@ from typing import TYPE_CHECKING, Annotated, Callable, Optional, Union
 import torch
 from torch import nn
 
-from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel, torch_dtype_from_mcore_config
-from nemo.collections.llm.gpt.model.llama import (
-    Llama31Config,
-    Llama31Config8B,
-    Llama31Config70B,
-    Llama31Config405B,
-    LlamaConfig,
-)
+from nemo.collections.llm.gpt.model.base import (GPTConfig, GPTModel,
+                                                 torch_dtype_from_mcore_config)
+from nemo.collections.llm.gpt.model.llama import (Llama31Config,
+                                                  Llama31Config8B,
+                                                  Llama31Config70B,
+                                                  Llama31Config405B,
+                                                  LlamaConfig)
 from nemo.collections.llm.gpt.model.llama_nemotron_config import (
     LLAMA_31_NEMOTRON_ULTRA_253B_HETEROGENEOUS_CONFIG,
-    LLAMA_33_NEMOTRON_SUPER_49B_HETEROGENEOUS_CONFIG,
-)
+    LLAMA_33_NEMOTRON_SUPER_49B_HETEROGENEOUS_CONFIG)
 from nemo.collections.llm.utils import Config
 from nemo.lightning import OptimizerModule, io, teardown
 from nemo.lightning.ckpt_utils import ADAPTER_META_FILENAME
@@ -42,8 +40,10 @@ from nemo.utils import logging
 from nemo.utils.import_utils import safe_import
 
 _, HAVE_TE = safe_import("transformer_engine")
-from megatron.core.models.gpt.heterogeneous.heterogeneous_layer_specs import get_gpt_heterogeneous_layer_spec
-from megatron.core.transformer.heterogeneous.heterogeneous_config import HeterogeneousTransformerConfig
+from megatron.core.models.gpt.heterogeneous.heterogeneous_layer_specs import \
+    get_gpt_heterogeneous_layer_spec
+from megatron.core.transformer.heterogeneous.heterogeneous_config import \
+    HeterogeneousTransformerConfig
 from megatron.core.transformer.spec_utils import ModuleSpec
 
 if TYPE_CHECKING:
@@ -51,7 +51,8 @@ if TYPE_CHECKING:
     from transformers import LlamaConfig as HFLlamaConfig
     from transformers import LlamaForCausalLM
 
-    from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+    from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import \
+        AutoTokenizer
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
 
@@ -222,7 +223,8 @@ class HFLlamaNemotronImporter(io.ModelConnector["LlamaForCausalLM", LlamaNemotro
         Returns:
             AutoTokenizer: Tokenizer instance initialized from the HF model's tokenizer
         """
-        from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+        from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import \
+            AutoTokenizer
 
         return AutoTokenizer(self.save_hf_tokenizer_assets(str(self)), trust_remote_code=True)
 

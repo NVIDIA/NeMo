@@ -23,13 +23,15 @@ import torch.distributed
 import wrapt
 from jinja2 import Template
 from megatron.core.dist_checkpointing.validation import StrictHandling
-from megatron.core.inference.common_inference_params import CommonInferenceParams
+from megatron.core.inference.common_inference_params import \
+    CommonInferenceParams
 from megatron.core.inference.inference_request import InferenceRequest
 
 import nemo.lightning as nl
 from nemo.collections.llm import inference
 from nemo.deploy import ITritonDeployable
-from nemo.deploy.utils import NEMO2, broadcast_list, cast_output, nemo_checkpoint_version, str_ndarray2list
+from nemo.deploy.utils import (NEMO2, broadcast_list, cast_output,
+                               nemo_checkpoint_version, str_ndarray2list)
 
 
 @wrapt.decorator

@@ -23,17 +23,10 @@ import torch
 from PIL import Image
 from pytriton.model_config import Tensor
 
-from nemo.deploy.utils import (
-    NEMO1,
-    NEMO2,
-    broadcast_list,
-    cast_output,
-    ndarray2img,
-    nemo_checkpoint_version,
-    str_list2numpy,
-    str_ndarray2list,
-    typedict2tensor,
-)
+from nemo.deploy.utils import (NEMO1, NEMO2, broadcast_list, cast_output,
+                               ndarray2img, nemo_checkpoint_version,
+                               str_list2numpy, str_ndarray2list,
+                               typedict2tensor)
 
 
 class TestTypedict2Tensor:

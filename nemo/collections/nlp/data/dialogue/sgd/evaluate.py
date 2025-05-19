@@ -27,22 +27,12 @@ import os
 import numpy as np
 
 from nemo.collections.nlp.metrics.sgd_metrics import (
-    ACTIVE_INTENT_ACCURACY,
-    JOINT_CAT_ACCURACY,
-    JOINT_GOAL_ACCURACY,
-    JOINT_NONCAT_ACCURACY,
-    NAN_VAL,
-    REQUESTED_SLOTS_F1,
-    REQUESTED_SLOTS_PRECISION,
-    REQUESTED_SLOTS_RECALL,
-    SLOT_TAGGING_F1,
-    SLOT_TAGGING_PRECISION,
-    SLOT_TAGGING_RECALL,
-    get_active_intent_accuracy,
-    get_average_and_joint_goal_accuracy,
-    get_requested_slots_f1,
-    get_slot_tagging_f1,
-)
+    ACTIVE_INTENT_ACCURACY, JOINT_CAT_ACCURACY, JOINT_GOAL_ACCURACY,
+    JOINT_NONCAT_ACCURACY, NAN_VAL, REQUESTED_SLOTS_F1,
+    REQUESTED_SLOTS_PRECISION, REQUESTED_SLOTS_RECALL, SLOT_TAGGING_F1,
+    SLOT_TAGGING_PRECISION, SLOT_TAGGING_RECALL, get_active_intent_accuracy,
+    get_average_and_joint_goal_accuracy, get_requested_slots_f1,
+    get_slot_tagging_f1)
 from nemo.utils import logging
 
 __all__ = ['get_in_domain_services']

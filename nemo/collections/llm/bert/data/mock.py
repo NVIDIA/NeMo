@@ -17,7 +17,8 @@ from typing import TYPE_CHECKING, Dict, List, Optional
 import lightning.pytorch as pl
 import numpy as np
 import torch
-from lightning.pytorch.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
+from lightning.pytorch.utilities.types import (EVAL_DATALOADERS,
+                                               TRAIN_DATALOADERS)
 from torch.utils import data
 from torch.utils.data import DataLoader, Dataset
 
@@ -69,7 +70,8 @@ class BERTMockDataModule(pl.LightningDataModule):
         self.global_batch_size = global_batch_size
         self.micro_batch_size = micro_batch_size
         if tokenizer is None:
-            from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+            from nemo.collections.nlp.modules.common.tokenizer_utils import \
+                get_nmt_tokenizer
 
             self.tokenizer = get_nmt_tokenizer("megatron", "BertWordPieceLowerCase")
         else:
@@ -135,7 +137,8 @@ class BERTMockDataModule(pl.LightningDataModule):
         """
         Reconfigure trainer.limit_train_batches and trainer.limit_val_batches in terms of num of microbatches.
         """
-        from nemo.collections.llm.gpt.data.utils import _reconfigure_limit_batches
+        from nemo.collections.llm.gpt.data.utils import \
+            _reconfigure_limit_batches
 
         # Override limit_train_batches in terms of num of microbatches
         self.trainer.limit_train_batches = _reconfigure_limit_batches(self.trainer.limit_train_batches, self._train_ds)
@@ -146,10 +149,12 @@ class BERTMockDataModule(pl.LightningDataModule):
         )
 
         try:
-            from megatron.core.num_microbatches_calculator import get_num_microbatches
+            from megatron.core.num_microbatches_calculator import \
+                get_num_microbatches
 
         except (ImportError, ModuleNotFoundError):
-            from apex.transformer.pipeline_parallel.utils import get_num_microbatches
+            from apex.transformer.pipeline_parallel.utils import \
+                get_num_microbatches
 
         # Override num sanity steps to be a multiple of num of microbatches
         self.trainer.num_sanity_val_steps *= get_num_microbatches()

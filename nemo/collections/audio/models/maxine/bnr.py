@@ -35,7 +35,8 @@ from lightning.pytorch import Trainer
 from omegaconf import DictConfig
 
 from nemo.collections.audio.models.audio_to_audio import AudioToAudioModel
-from nemo.collections.audio.parts.utils.maxine import apply_weight_norm_lstm, remove_weight_norm_lstm
+from nemo.collections.audio.parts.utils.maxine import (apply_weight_norm_lstm,
+                                                       remove_weight_norm_lstm)
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types import AudioSignal, NeuralType
 

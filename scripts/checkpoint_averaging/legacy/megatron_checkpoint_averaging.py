@@ -38,7 +38,8 @@ import torch
 from lightning.pytorch.trainer.trainer import Trainer
 from omegaconf.omegaconf import OmegaConf, open_dict
 
-from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
+from nemo.collections.nlp.parts.nlp_overrides import (NLPDDPStrategy,
+                                                      NLPSaveRestoreConnector)
 from nemo.core import ModelPT
 from nemo.utils import logging, model_utils
 

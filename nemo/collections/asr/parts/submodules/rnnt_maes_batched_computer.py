@@ -16,15 +16,13 @@ from typing import Optional
 
 import torch
 
-from nemo.collections.asr.parts.submodules.ngram_lm import NGramGPULanguageModel
-from nemo.collections.asr.parts.utils.asr_confidence_utils import ConfidenceMethodMixin
+from nemo.collections.asr.parts.submodules.ngram_lm import \
+    NGramGPULanguageModel
+from nemo.collections.asr.parts.utils.asr_confidence_utils import \
+    ConfidenceMethodMixin
 from nemo.collections.asr.parts.utils.rnnt_batched_beam_utils import (
-    INACTIVE_SCORE,
-    NON_EXISTENT_LABEL_VALUE,
-    BatchedBeamHyps,
-    BlankLMScoreMode,
-    PruningMode,
-)
+    INACTIVE_SCORE, NON_EXISTENT_LABEL_VALUE, BatchedBeamHyps,
+    BlankLMScoreMode, PruningMode)
 from nemo.utils import logging
 
 

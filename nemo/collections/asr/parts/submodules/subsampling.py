@@ -18,7 +18,8 @@ import torch
 import torch.nn as nn
 from torch.nn import LayerNorm
 
-from nemo.collections.asr.parts.submodules.causal_convs import CausalConv1D, CausalConv2D
+from nemo.collections.asr.parts.submodules.causal_convs import (CausalConv1D,
+                                                                CausalConv2D)
 from nemo.utils import logging
 
 

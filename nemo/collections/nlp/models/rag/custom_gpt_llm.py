@@ -16,11 +16,14 @@ from typing import Any
 
 from lightning.pytorch.trainer.trainer import Trainer
 from llama_index.core.bridge.pydantic import PrivateAttr
-from llama_index.core.llms import CompletionResponse, CompletionResponseGen, CustomLLM, LLMMetadata
+from llama_index.core.llms import (CompletionResponse, CompletionResponseGen,
+                                   CustomLLM, LLMMetadata)
 from llama_index.core.llms.callbacks import llm_completion_callback
 
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam, SamplingParam
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import \
+    MegatronGPTModel
+from nemo.collections.nlp.modules.common.transformer.text_generation import (
+    LengthParam, SamplingParam)
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 
 

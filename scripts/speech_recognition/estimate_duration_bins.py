@@ -21,7 +21,8 @@ from lhotse.dataset.sampling.dynamic_bucketing import estimate_duration_buckets
 from omegaconf import OmegaConf
 
 from nemo.collections.common.data.lhotse.cutset import read_cutset_from_config
-from nemo.collections.common.data.lhotse.dataloader import LhotseDataLoadingConfig
+from nemo.collections.common.data.lhotse.dataloader import \
+    LhotseDataLoadingConfig
 
 
 def parse_args():

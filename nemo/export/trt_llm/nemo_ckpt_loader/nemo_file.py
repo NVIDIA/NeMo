@@ -31,7 +31,8 @@ from transformers import AutoTokenizer, GPT2Tokenizer, PreTrainedTokenizer
 from nemo.export.sentencepiece_tokenizer import SentencePieceTokenizer
 from nemo.export.tarutils import TarPath
 from nemo.export.tiktoken_tokenizer import TiktokenTokenizer
-from nemo.export.utils import load_model_weights, nemo_to_path, torch_dtype_from_precision
+from nemo.export.utils import (load_model_weights, nemo_to_path,
+                               torch_dtype_from_precision)
 
 try:
     from nemo.lightning import io

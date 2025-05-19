@@ -18,14 +18,14 @@ from unittest.mock import patch
 import torch
 from transformers import AutoProcessor
 
-from nemo.collections.multimodal.data.energon.config import ImageToken, LLaVATemplateConfig, MultiModalSampleConfig
+from nemo.collections.multimodal.data.energon.config import (
+    ImageToken, LLaVATemplateConfig, MultiModalSampleConfig)
 from nemo.collections.vlm.llava_next.data.sample import (
-    LlavaNextTextRawBatch,
-    LlavaNextTextSample,
-    PackedLlavaNextTextSample,
-)
-from nemo.collections.vlm.llava_next.data.task_encoder import LlavaNextTaskEncoder
-from nemo.collections.vlm.llava_next.data.vqa_sample_encoder import LlavaNextSampleEncoder
+    LlavaNextTextRawBatch, LlavaNextTextSample, PackedLlavaNextTextSample)
+from nemo.collections.vlm.llava_next.data.task_encoder import \
+    LlavaNextTaskEncoder
+from nemo.collections.vlm.llava_next.data.vqa_sample_encoder import \
+    LlavaNextSampleEncoder
 
 
 class TestLlavaNextTaskEncoder(unittest.TestCase):

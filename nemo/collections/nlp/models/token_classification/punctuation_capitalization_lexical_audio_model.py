@@ -23,9 +23,8 @@ from torch.nn import Linear
 from tqdm import tqdm
 
 from nemo.collections.common.losses.cross_entropy import CrossEntropyLoss
-from nemo.collections.nlp.models.token_classification.punctuation_capitalization_model import (
-    PunctuationCapitalizationModel,
-)
+from nemo.collections.nlp.models.token_classification.punctuation_capitalization_model import \
+    PunctuationCapitalizationModel
 from nemo.collections.nlp.modules.common.transformer import TransformerDecoder
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.core.classes.mixins import adapter_mixins
@@ -33,7 +32,8 @@ from nemo.utils import logging
 
 try:
     import nemo.collections.asr as nemo_asr
-    from nemo.collections.asr.parts.submodules.conformer_modules import ConformerLayer
+    from nemo.collections.asr.parts.submodules.conformer_modules import \
+        ConformerLayer
 
     ASR_AVAILABLE = True
 except (ImportError, ModuleNotFoundError):

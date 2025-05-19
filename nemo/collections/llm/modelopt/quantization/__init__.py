@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .quantizer import ExportConfig, QuantizationConfig, Quantizer, create_data_iterator_getter, get_calib_data_iter
+from .quantizer import (ExportConfig, QuantizationConfig, Quantizer,
+                        create_data_iterator_getter, get_calib_data_iter)
 
 __all__ = ["ExportConfig", "QuantizationConfig", "Quantizer", "create_data_iterator_getter", "get_calib_data_iter"]

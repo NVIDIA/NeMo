@@ -61,8 +61,8 @@
 # -------------------------------------------------------------------------------
 
 import torch
-from nemo.utils.import_utils import safe_import_from
 
+from nemo.utils.import_utils import safe_import_from
 
 linear_cross_entropy, HAVE_LINEAR_LOSS_CE = safe_import_from(
     "cut_cross_entropy",

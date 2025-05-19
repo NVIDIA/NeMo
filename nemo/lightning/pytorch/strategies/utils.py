@@ -18,24 +18,33 @@ import signal
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Dict, Generator, Iterable, List, Optional, Set, Tuple, Union, cast
+from typing import (Any, Dict, Generator, Iterable, List, Optional, Set, Tuple,
+                    Union, cast)
 
 import lightning.pytorch as pl
 import torch
 from lightning.fabric.plugins import ClusterEnvironment
 from lightning.pytorch.callbacks import TQDMProgressBar
 from megatron.core import parallel_state
-from megatron.core.dist_checkpointing.mapping import ShardedBase, ShardedObject, ShardedTensor
-from megatron.core.dist_checkpointing.strategies.torch import sharded_tensor_to_torch_sharded_tensor
+from megatron.core.dist_checkpointing.mapping import (ShardedBase,
+                                                      ShardedObject,
+                                                      ShardedTensor)
+from megatron.core.dist_checkpointing.strategies.torch import \
+    sharded_tensor_to_torch_sharded_tensor
 from megatron.core.transformer.utils import _get_extra_state_offsets
 from torch import Tensor, nn
-from torch.distributed._sharded_tensor import ShardedTensor as TorchShardedTensor
+from torch.distributed._sharded_tensor import \
+    ShardedTensor as TorchShardedTensor
 from torch.distributed._tensor import DTensor, Replicate, Shard
 from torch.distributed.device_mesh import DeviceMesh, _mesh_resources
-from torch.distributed.tensor.parallel import ColwiseParallel, RowwiseParallel, SequenceParallel, parallelize_module
+from torch.distributed.tensor.parallel import (ColwiseParallel,
+                                               RowwiseParallel,
+                                               SequenceParallel,
+                                               parallelize_module)
 
 from nemo.lightning import _strategy_lib
-from nemo.lightning.pytorch.callbacks import MegatronProgressBar, ProgressPrinter
+from nemo.lightning.pytorch.callbacks import (MegatronProgressBar,
+                                              ProgressPrinter)
 from nemo.utils.callbacks.dist_ckpt_io import AsyncFinalizableCheckpointIO
 from nemo.utils.import_utils import safe_import_from
 

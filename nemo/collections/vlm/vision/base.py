@@ -20,16 +20,15 @@ from typing import Callable, Optional, Union
 
 import torch.distributed
 import torch.nn.functional as F
-from megatron.core.models.vision.clip_vit_model import CLIPViTModel as MCoreCLIPViTModel
-from megatron.core.models.vision.multimodal_projector import MultimodalProjector as MCoreMultimodalProjector
+from megatron.core.models.vision.clip_vit_model import \
+    CLIPViTModel as MCoreCLIPViTModel
+from megatron.core.models.vision.multimodal_projector import \
+    MultimodalProjector as MCoreMultimodalProjector
 from megatron.core.tensor_parallel.layers import ColumnParallelLinear
 
 try:
     from megatron.core.transformer.custom_layers.transformer_engine import (
-        TEColumnParallelLinear,
-        TENorm,
-        TERowParallelLinear,
-    )
+        TEColumnParallelLinear, TENorm, TERowParallelLinear)
 except ImportError:
     from nemo.utils import logging
 

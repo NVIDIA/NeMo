@@ -26,7 +26,8 @@ from omegaconf import DictConfig, OmegaConf, open_dict
 from nemo.utils.model_utils import inject_model_parallel_rank
 
 try:
-    from nemo.collections.nlp.modules.common.megatron.adapters.mcore_mixins import swap_mcore_mixin
+    from nemo.collections.nlp.modules.common.megatron.adapters.mcore_mixins import \
+        swap_mcore_mixin
 
     HAVE_MEGATRON_CORE = True
 except (ImportError, ModuleNotFoundError):
@@ -34,19 +35,11 @@ except (ImportError, ModuleNotFoundError):
 
 
 from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import (
-    MLPHeadAdapterConfig,
-    PromptEncoderAdapterConfig,
-)
-
+    MLPHeadAdapterConfig, PromptEncoderAdapterConfig)
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
-
 from nemo.collections.nlp.parts.peft_config import (
-    PEFT_CONFIG_MAP,
-    CanonicalAdaptersPEFTConfig,
-    LoraPEFTConfig,
-    PEFTConfig,
-    PtuningPEFTConfig,
-)
+    PEFT_CONFIG_MAP, CanonicalAdaptersPEFTConfig, LoraPEFTConfig, PEFTConfig,
+    PtuningPEFTConfig)
 from nemo.core.classes.mixins.adapter_mixins import AdapterModuleMixin
 from nemo.utils import logging, model_utils
 
@@ -526,7 +519,8 @@ class NLPAdapterModelMixin:
         else:
             cfg_peft = self.cfg.get('peft', None)
             if cfg_peft and cfg_peft['peft_scheme'] == 'qlora':
-                from nemo.collections.nlp.modules.common.megatron.adapters.qlora import qlora_load_model
+                from nemo.collections.nlp.modules.common.megatron.adapters.qlora import \
+                    qlora_load_model
 
                 qlora_load_model(
                     self.model.module if self.megatron_amp_O2 else self.model, self.cfg, checkpoint['state_dict']

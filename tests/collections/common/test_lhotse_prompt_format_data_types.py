@@ -18,12 +18,10 @@ from lhotse.cut import Cut
 from lhotse.testing.dummies import dummy_cut
 
 from nemo.collections.common.data.lhotse import (
-    NeMoSFTExample,
-    SourceTargetTextExample,
-    get_lhotse_dataloader_from_config,
-)
+    NeMoSFTExample, SourceTargetTextExample, get_lhotse_dataloader_from_config)
 from nemo.collections.common.tokenizers import SentencePieceTokenizer
-from nemo.collections.common.tokenizers.sentencepiece_tokenizer import create_spt_model
+from nemo.collections.common.tokenizers.sentencepiece_tokenizer import \
+    create_spt_model
 
 
 @pytest.fixture

@@ -23,30 +23,20 @@ from contextlib import ExitStack, contextmanager, nullcontext
 from dataclasses import dataclass
 from datetime import timedelta
 from pathlib import Path
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Callable,
-    ContextManager,
-    Dict,
-    List,
-    Literal,
-    Mapping,
-    Optional,
-    TypeVar,
-    Union,
-    cast,
-)
+from typing import (TYPE_CHECKING, Any, Callable, ContextManager, Dict, List,
+                    Literal, Mapping, Optional, TypeVar, Union, cast)
 
 import lightning.pytorch as pl
 import torch
 import torch.distributed
 from lightning.fabric.plugins import CheckpointIO, ClusterEnvironment
-from lightning.fabric.utilities.optimizer import _optimizer_to_device, _optimizers_to_device
+from lightning.fabric.utilities.optimizer import (_optimizer_to_device,
+                                                  _optimizers_to_device)
 from lightning.fabric.utilities.rank_zero import rank_zero_info
 from lightning.fabric.utilities.seed import reset_seed
 from lightning.pytorch.accelerators import CPUAccelerator
-from lightning.pytorch.loops import _AutomaticOptimization, evaluation_loop, fit_loop, prediction_loop
+from lightning.pytorch.loops import (_AutomaticOptimization, evaluation_loop,
+                                     fit_loop, prediction_loop)
 from lightning.pytorch.loops.fetchers import _DataLoaderIterDataFetcher
 from lightning.pytorch.plugins.io.wrapper import _WrappingCheckpointIO
 from lightning.pytorch.strategies.ddp import DDPStrategy
@@ -57,7 +47,8 @@ from megatron.core.dist_checkpointing.validation import StrictHandling
 from megatron.core.distributed import DistributedDataParallelConfig
 from megatron.core.optimizer import OptimizerConfig
 from torch import nn
-from torch.distributed.algorithms.ddp_comm_hooks.debugging_hooks import noop_hook
+from torch.distributed.algorithms.ddp_comm_hooks.debugging_hooks import \
+    noop_hook
 from torch.distributed.checkpoint.utils import CheckpointException
 from torch.nn.parallel import DistributedDataParallel
 from torch.utils.data import DataLoader
@@ -66,18 +57,17 @@ from typing_extensions import override
 from nemo.core.optim.mcore_optim import McoreDistributedOptimizer
 from nemo.lightning import _strategy_lib, io
 from nemo.lightning.io.pl import ckpt_to_weights_subdir
-from nemo.lightning.megatron_parallel import CallbackConnector, MegatronParallel
+from nemo.lightning.megatron_parallel import (CallbackConnector,
+                                              MegatronParallel)
 from nemo.lightning.pytorch.callbacks import ModelTransform
-from nemo.lightning.pytorch.strategies.utils import (
-    RestoreConfig,
-    _destroy_dist_connection,
-    ckpt_to_dir,
-    create_checkpoint_io,
-    fix_progress_bar,
-    init_model_parallel,
-    setup_data_sampler,
-    setup_parallel_ranks,
-)
+from nemo.lightning.pytorch.strategies.utils import (RestoreConfig,
+                                                     _destroy_dist_connection,
+                                                     ckpt_to_dir,
+                                                     create_checkpoint_io,
+                                                     fix_progress_bar,
+                                                     init_model_parallel,
+                                                     setup_data_sampler,
+                                                     setup_parallel_ranks)
 from nemo.utils import logging
 from nemo.utils.callbacks.dist_ckpt_io import AsyncFinalizerCallback
 from nemo.utils.import_utils import safe_import
@@ -417,7 +407,8 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             self._mcore_config = _maybe_mcore_config
 
         if dtype_config:
-            from nemo.lightning.pytorch.plugins.mixed_precision import update_config_with_dtype_overrides
+            from nemo.lightning.pytorch.plugins.mixed_precision import \
+                update_config_with_dtype_overrides
 
             model.config = update_config_with_dtype_overrides(dtype_config, model.config)
 

@@ -14,7 +14,8 @@
 
 try:
     from nemo_text_processing.text_normalization.normalize import Normalizer
-    from nemo_text_processing.text_normalization.token_parser import TokenParser
+    from nemo_text_processing.text_normalization.token_parser import \
+        TokenParser
 except (ImportError, ModuleNotFoundError):
     raise ModuleNotFoundError(
         "The package `nemo_text_processing` was not installed in this environment. Please refer to"

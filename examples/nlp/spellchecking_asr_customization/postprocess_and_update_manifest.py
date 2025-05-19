@@ -20,9 +20,8 @@ See "examples/nlp/spellchecking_asr_customization/run_infer.sh" for the whole in
 
 from argparse import ArgumentParser
 
-from nemo.collections.nlp.data.spellchecking_asr_customization.utils import (
-    update_manifest_with_spellmapper_corrections,
-)
+from nemo.collections.nlp.data.spellchecking_asr_customization.utils import \
+    update_manifest_with_spellmapper_corrections
 
 parser = ArgumentParser(description="Postprocess SpellMapper results and generate an updated nemo ASR manifest")
 

@@ -20,7 +20,8 @@ import torch
 from torch import nn
 
 from nemo.collections.llm.fn.activation import squared_relu
-from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel, torch_dtype_from_mcore_config
+from nemo.collections.llm.gpt.model.base import (GPTConfig, GPTModel,
+                                                 torch_dtype_from_mcore_config)
 from nemo.collections.llm.utils import Config
 from nemo.lightning import OptimizerModule, io, teardown
 from nemo.lightning.io.state import TransformFns
@@ -30,7 +31,8 @@ if TYPE_CHECKING:
     from transformers import NemotronConfig as HFNemotronConfig
     from transformers import NemotronForCausalLM
 
-    from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+    from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import \
+        AutoTokenizer
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
 
@@ -260,7 +262,8 @@ class HFNemotronImporter(io.ModelConnector["NemotronForCausalLM", NemotronModel]
         Returns:
             AutoTokenizer: Tokenizer instance initialized from the HF model's tokenizer
         """
-        from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+        from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import \
+            AutoTokenizer
 
         return AutoTokenizer(self.save_hf_tokenizer_assets(str(self)))
 

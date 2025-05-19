@@ -15,9 +15,11 @@ from typing import Dict
 
 import torch
 
-from nemo.collections.multimodal.modules.nerf.background.nerf_background_base import NeRFBackgroundBase
+from nemo.collections.multimodal.modules.nerf.background.nerf_background_base import \
+    NeRFBackgroundBase
 from nemo.collections.multimodal.modules.nerf.geometry.layers import MLP
-from nemo.collections.multimodal.modules.nerf.utils.torch_ngp.encoding import get_encoder
+from nemo.collections.multimodal.modules.nerf.utils.torch_ngp.encoding import \
+    get_encoder
 
 
 class TorchNGPBackground(NeRFBackgroundBase):

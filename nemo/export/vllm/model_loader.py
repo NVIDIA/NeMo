@@ -19,7 +19,8 @@ from typing import Any, Dict
 import safetensors.torch
 import torch
 from vllm.config import ModelConfig
-from vllm.model_executor.model_loader.loader import BaseModelLoader, _initialize_model
+from vllm.model_executor.model_loader.loader import (BaseModelLoader,
+                                                     _initialize_model)
 from vllm.model_executor.model_loader.utils import set_default_torch_dtype
 
 from nemo.export.utils import load_model_weights

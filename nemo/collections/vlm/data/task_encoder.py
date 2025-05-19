@@ -19,21 +19,17 @@ from typing import List, Optional, Union
 import torch
 import torch.nn.functional as F
 from megatron.core.packed_seq_params import PackedSeqParams
-from megatron.energon import (
-    Batch,
-    CaptioningSample,
-    DefaultTaskEncoder,
-    InterleavedSample,
-    Sample,
-    SimilarityInterleavedSample,
-    VQASample,
-    generic_batch,
-)
+from megatron.energon import (Batch, CaptioningSample, DefaultTaskEncoder,
+                              InterleavedSample, Sample,
+                              SimilarityInterleavedSample, VQASample,
+                              generic_batch)
 from megatron.energon.task_encoder.base import stateless
 from transformers import AutoImageProcessor, AutoProcessor
 
 from nemo.collections.common.tokenizers import AutoTokenizer
-from nemo.collections.vlm.data.utils import _find_pattern_indices, convert_to_packed, greedy_knapsack, predict_seq_len
+from nemo.collections.vlm.data.utils import (_find_pattern_indices,
+                                             convert_to_packed,
+                                             greedy_knapsack, predict_seq_len)
 from nemo.utils import logging
 
 

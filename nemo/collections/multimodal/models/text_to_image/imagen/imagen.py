@@ -20,13 +20,19 @@ import torch
 from lightning.pytorch import Trainer
 from omegaconf import DictConfig, open_dict
 
-from nemo.collections.multimodal.data.imagen.imagen_dataset import build_train_valid_datasets
-from nemo.collections.multimodal.models.text_to_image.imagen.precond import ContinousDDPMPrecond, EDMPrecond
-from nemo.collections.multimodal.modules.imagen.diffusionmodules.nets import EfficientUNetModel, UNetModel
-from nemo.collections.multimodal.modules.imagen.encoder.t5encoder import T5Encoder
-from nemo.collections.multimodal.modules.imagen.sampler.sampler import DDPMSampler, EDMSampler
+from nemo.collections.multimodal.data.imagen.imagen_dataset import \
+    build_train_valid_datasets
+from nemo.collections.multimodal.models.text_to_image.imagen.precond import (
+    ContinousDDPMPrecond, EDMPrecond)
+from nemo.collections.multimodal.modules.imagen.diffusionmodules.nets import (
+    EfficientUNetModel, UNetModel)
+from nemo.collections.multimodal.modules.imagen.encoder.t5encoder import \
+    T5Encoder
+from nemo.collections.multimodal.modules.imagen.sampler.sampler import (
+    DDPMSampler, EDMSampler)
 from nemo.collections.multimodal.parts.imagen.utils import random_dropout
-from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
+from nemo.collections.nlp.models.language_modeling.megatron_base_model import \
+    MegatronBaseModel
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.core.classes.common import Serialization
@@ -41,7 +47,8 @@ except (ImportError, ModuleNotFoundError):
 
 try:
     from megatron.core import parallel_state
-    from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
+    from megatron.core.pipeline_parallel.schedules import \
+        get_forward_backward_func
 
     HAVE_MEGATRON_CORE = True
 

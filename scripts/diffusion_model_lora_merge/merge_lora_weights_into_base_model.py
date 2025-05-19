@@ -18,9 +18,12 @@ from typing import Any, Dict
 import torch
 from lightning.pytorch import Trainer
 
-from nemo.collections.multimodal.models.text_to_image.stable_diffusion.ldm.ddpm import MegatronLatentDiffusion
-from nemo.collections.multimodal.parts.utils import setup_trainer_and_model_for_inference
-from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPSaveRestoreConnector
+from nemo.collections.multimodal.models.text_to_image.stable_diffusion.ldm.ddpm import \
+    MegatronLatentDiffusion
+from nemo.collections.multimodal.parts.utils import \
+    setup_trainer_and_model_for_inference
+from nemo.collections.nlp.parts.nlp_overrides import (NLPDDPStrategy,
+                                                      NLPSaveRestoreConnector)
 from nemo.core.config import hydra_runner
 
 

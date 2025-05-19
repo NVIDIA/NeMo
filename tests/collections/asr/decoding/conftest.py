@@ -16,7 +16,8 @@ from pathlib import Path
 
 import pytest
 
-from nemo.collections.asr.parts.utils.manifest_utils import read_manifest, write_manifest
+from nemo.collections.asr.parts.utils.manifest_utils import (read_manifest,
+                                                             write_manifest)
 
 
 @pytest.fixture(scope="session")

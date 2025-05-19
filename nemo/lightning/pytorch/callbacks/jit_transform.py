@@ -113,7 +113,8 @@ def compile_module(config, module):
     elif config.use_thunder:
         import thunder
         import thunder.dynamo
-        from thunder.dev_utils.nvtx_profile_transform import NvtxProfileTransform
+        from thunder.dev_utils.nvtx_profile_transform import \
+            NvtxProfileTransform
 
         # With this setting, Dynamo Graphs inline all the modules (so Dynamo FXGraph just
         # consists of `call_function` nodes only and no `call_module` node.

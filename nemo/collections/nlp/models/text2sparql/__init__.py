@@ -12,4 +12,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.nlp.models.text2sparql.text2sparql_model import Text2SparqlModel
+from nemo.collections.nlp.models.text2sparql.text2sparql_model import \
+    Text2SparqlModel

@@ -18,7 +18,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from nemo.utils.import_utils import UnavailableError, UnavailableMeta, is_unavailable, safe_import, safe_import_from
+from nemo.utils.import_utils import (UnavailableError, UnavailableMeta,
+                                     is_unavailable, safe_import,
+                                     safe_import_from)
 
 
 class TestUnavailableMeta:

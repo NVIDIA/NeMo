@@ -19,7 +19,8 @@ import numpy as np
 import torch
 from torch.utils.data.distributed import DistributedSampler
 
-from nemo.collections.asr.data.audio_to_text import AudioToBPEDataset, AudioToCharDataset
+from nemo.collections.asr.data.audio_to_text import (AudioToBPEDataset,
+                                                     AudioToCharDataset)
 from nemo.collections.asr.models.asr_model import ASRModel
 from nemo.utils import logging
 

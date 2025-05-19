@@ -24,11 +24,13 @@ from transformers import Qwen2VLImageProcessor
 
 from nemo import lightning as nl
 from nemo.collections import llm, vlm
-from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import \
+    AutoTokenizer
 from nemo.collections.llm.recipes.log.default import tensorboard_logger
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
 from nemo.collections.vlm.qwen2vl.data.mock import Qwen2VLMockDataModule
-from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
+from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import \
+    MegatronCommOverlapCallback
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 from nemo.utils.exp_manager import TimingCallback

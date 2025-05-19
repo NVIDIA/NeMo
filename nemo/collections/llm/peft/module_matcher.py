@@ -17,7 +17,8 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Set
 
 import torch.nn as nn
-from megatron.core.tensor_parallel import ColumnParallelLinear, RowParallelLinear
+from megatron.core.tensor_parallel import (ColumnParallelLinear,
+                                           RowParallelLinear)
 from torch import nn
 
 from nemo.collections.llm.peft.utils import wildcard_match

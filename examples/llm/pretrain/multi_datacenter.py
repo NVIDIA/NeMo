@@ -25,13 +25,16 @@ from nemo.collections import llm
 from nemo.collections.llm.api import pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.gpt.model.llama import Llama31Config70B, LlamaModel
-from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
-from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
+from nemo.collections.llm.recipes.log.default import (default_log,
+                                                      default_resume,
+                                                      tensorboard_logger)
+from nemo.collections.llm.recipes.optim.adam import \
+    distributed_fused_adam_with_cosine_annealing
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
-from nemo.collections.llm.recipes.tp_overlap_configs.userbuffers import (
-    userbuffers_bf16_h100_h16384_tp8_cp2_mbs1_seqlen8192,
-)
-from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
+from nemo.collections.llm.recipes.tp_overlap_configs.userbuffers import \
+    userbuffers_bf16_h100_h16384_tp8_cp2_mbs1_seqlen8192
+from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import \
+    MegatronCommOverlapCallback
 from nemo.utils.exp_manager import TimingCallback
 
 NAME = "llama31_70b_multi_dc"

@@ -16,8 +16,8 @@ import fiddle as fdl
 
 from nemo import lightning as nl
 from nemo.collections import llm
-from nemo.lightning.pytorch.accelerate.transformer_engine import is_te_accelerated
-
+from nemo.lightning.pytorch.accelerate.transformer_engine import \
+    is_te_accelerated
 
 DATA_PATH = '/home/TestData/lite/hf_cache/squad/'
 
@@ -91,11 +91,13 @@ if __name__ == '__main__':
 
     model_accelerator = None
     if args.model_accelerator == "te":
-        from nemo.lightning.pytorch.accelerate.transformer_engine import TEConfig
+        from nemo.lightning.pytorch.accelerate.transformer_engine import \
+            TEConfig
 
         model_accelerator = TEConfig(fp8_autocast=args.fp8_autocast)
 
-    from nemo.lightning.pytorch.accelerate.transformer_engine import te_accelerate
+    from nemo.lightning.pytorch.accelerate.transformer_engine import \
+        te_accelerate
 
     model = llm.HFAutoModelForCausalLM(
         model_name=args.model, model_accelerator=model_accelerator, load_pretrained_weights=False

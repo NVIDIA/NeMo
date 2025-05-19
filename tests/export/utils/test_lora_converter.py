@@ -81,7 +81,8 @@ def test_reformat_module_names_to_hf():
 
 @pytest.mark.run_only_on('GPU')
 def test_convert_lora_weights_to_canonical():
-    from nemo.export.utils.lora_converter import convert_lora_weights_to_canonical
+    from nemo.export.utils.lora_converter import \
+        convert_lora_weights_to_canonical
 
     # Create a sample config
     config = {

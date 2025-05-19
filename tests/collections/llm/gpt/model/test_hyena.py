@@ -30,19 +30,23 @@ from megatron.core.optimizer import OptimizerConfig
 from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.collections.llm.gpt.data import MockDataModule, PreTrainingDataModule
-from nemo.collections.llm.gpt.data.megatron.hyena.config import parse_dataset_config
-from nemo.collections.llm.gpt.data.megatron.hyena.evo2_dataset import Evo2Dataset, Evo2DatasetPadEodLossMask
+from nemo.collections.llm.gpt.data.megatron.hyena.config import \
+    parse_dataset_config
+from nemo.collections.llm.gpt.data.megatron.hyena.evo2_dataset import (
+    Evo2Dataset, Evo2DatasetPadEodLossMask)
 from nemo.collections.llm.gpt.model.hyena import HYENA_MODEL_OPTIONS
 from nemo.collections.llm.recipes.tp_overlap_configs.userbuffers import (
     userbuffers_bf16_h100_h8192_tp4_mbs1_seqlen8192,
-    userbuffers_fp8_h100_h8192_tp4_mbs1_seqlen8192,
-)
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+    userbuffers_fp8_h100_h8192_tp4_mbs1_seqlen8192)
+from nemo.collections.nlp.modules.common.tokenizer_utils import \
+    get_nmt_tokenizer
 from nemo.lightning import NeMoLogger
 from nemo.lightning.pytorch import callbacks as nl_callbacks
 from nemo.lightning.pytorch.callbacks import ModelCheckpoint
-from nemo.lightning.pytorch.callbacks.flops_callback import FLOPsMeasurementCallback
-from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
+from nemo.lightning.pytorch.callbacks.flops_callback import \
+    FLOPsMeasurementCallback
+from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import \
+    MegatronCommOverlapCallback
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 from nemo.lightning.pytorch.strategies.utils import RestoreConfig

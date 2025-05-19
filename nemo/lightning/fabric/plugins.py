@@ -25,11 +25,8 @@ from torch.optim import Optimizer
 
 from nemo.lightning.fabric.conversion import to_fabric
 from nemo.lightning.pytorch.plugins.mixed_precision import (
-    DtypeConfig,
-    MegatronMixedPrecision,
-    get_optim_config,
-    update_config_with_dtype_overrides,
-)
+    DtypeConfig, MegatronMixedPrecision, get_optim_config,
+    update_config_with_dtype_overrides)
 from nemo.utils import logging
 
 if TYPE_CHECKING:

@@ -24,11 +24,13 @@ from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.collections.llm.api import train
 from nemo.collections.llm.gpt.data import PreTrainingDataModule
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+from nemo.collections.nlp.modules.common.tokenizer_utils import \
+    get_nmt_tokenizer
 from nemo.lightning import AutoResume, NeMoLogger
 from nemo.lightning.pytorch.optim.lr_scheduler import CosineAnnealingScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
-from tests.lightning.mcore_microbatch_utils import reconfigure_num_microbatches_calculator_manager
+from tests.lightning.mcore_microbatch_utils import \
+    reconfigure_num_microbatches_calculator_manager
 
 VOCAB_PATH = "/home/TestData/nlp/megatron_gpt/data/gpt/vocab.json"
 MERGES_PATH = "/home/TestData/nlp/megatron_gpt/data/gpt/merges.txt"

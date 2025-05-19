@@ -15,11 +15,13 @@
 import _io
 import lightning.pytorch as pl
 import torch
-from transformers import AutoConfig, AutoModelForImageTextToText, AutoProcessor, BitsAndBytesConfig
+from transformers import (AutoConfig, AutoModelForImageTextToText,
+                          AutoProcessor, BitsAndBytesConfig)
 
 from nemo.automodel.dist_utils import FirstRankPerNode
 from nemo.collections.llm import fn
-from nemo.collections.llm.gpt.model.hf_auto_model_for_causal_lm import masked_cross_entropy
+from nemo.collections.llm.gpt.model.hf_auto_model_for_causal_lm import \
+    masked_cross_entropy
 from nemo.lightning import io
 from nemo.utils import logging
 

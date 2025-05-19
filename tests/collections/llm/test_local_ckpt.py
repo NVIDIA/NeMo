@@ -70,9 +70,11 @@ from nemo import lightning as nl
 from nemo.collections import llm
 from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.gpt.model.llama import Llama3Config, LlamaModel
-from nemo.collections.llm.recipes.log.default import get_global_step_from_global_checkpoint_path
+from nemo.collections.llm.recipes.log.default import \
+    get_global_step_from_global_checkpoint_path
 from nemo.lightning.pytorch.callbacks import ModelCheckpoint
-from nemo.lightning.pytorch.local_ckpt import update_trainer_local_checkpoint_io
+from nemo.lightning.pytorch.local_ckpt import \
+    update_trainer_local_checkpoint_io
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 from nemo.utils.import_utils import safe_import
 

@@ -19,7 +19,8 @@ from prettytable import PrettyTable
 
 import nemo.lightning as nl
 from nemo.collections import llm, vlm
-from nemo.collections.llm.inference.base import _setup_trainer_and_restore_model
+from nemo.collections.llm.inference.base import \
+    _setup_trainer_and_restore_model
 
 
 def get_parser():

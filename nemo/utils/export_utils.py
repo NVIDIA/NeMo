@@ -240,10 +240,13 @@ apex_available = True
 try:
     from apex.contrib.layer_norm.layer_norm import FastLayerNorm
     from apex.normalization import MixedFusedRMSNorm
-    from apex.normalization.fused_layer_norm import FusedLayerNorm, MixedFusedLayerNorm
-    from megatron.core.fusions.fused_layer_norm import FusedLayerNorm as MCoreFusedLayerNorm
+    from apex.normalization.fused_layer_norm import (FusedLayerNorm,
+                                                     MixedFusedLayerNorm)
+    from megatron.core.fusions.fused_layer_norm import \
+        FusedLayerNorm as MCoreFusedLayerNorm
     from megatron.core.fusions.fused_softmax import FusedScaleMaskSoftmax
-    from megatron.core.tensor_parallel.layers import ColumnParallelLinear, RowParallelLinear
+    from megatron.core.tensor_parallel.layers import (ColumnParallelLinear,
+                                                      RowParallelLinear)
 
     def replace_FusedLayerNorm(n: nn.Module) -> Optional[nn.LayerNorm]:
         """
@@ -372,7 +375,8 @@ def replace_MatchedScaleMaskSoftmax(n: nn.Module) -> Optional[nn.Linear]:
         exportable module
     """
     # including the import here to avoid circular imports
-    from nemo.collections.nlp.modules.common.megatron.fused_softmax import MatchedScaleMaskSoftmax
+    from nemo.collections.nlp.modules.common.megatron.fused_softmax import \
+        MatchedScaleMaskSoftmax
 
     # disabling fusion for the MatchedScaleMaskSoftmax
     mod = MatchedScaleMaskSoftmax(

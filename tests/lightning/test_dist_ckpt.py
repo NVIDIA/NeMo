@@ -28,7 +28,8 @@ import torch
 import nemo.lightning as nl
 from nemo.collections import llm
 from nemo.lightning.io.pl import MegatronCheckpointIO
-from nemo.utils.callbacks.dist_ckpt_io import AsyncFinalizableCheckpointIO, AsyncFinalizerCallback
+from nemo.utils.callbacks.dist_ckpt_io import (AsyncFinalizableCheckpointIO,
+                                               AsyncFinalizerCallback)
 
 
 def _get_strategy():
@@ -68,7 +69,8 @@ class TestDistCkptIO:
         gbs, mbs = 2, 2
         model, data = get_model_and_data(mbs, gbs)
 
-        from tests.lightning.mcore_microbatch_utils import reconfigure_num_microbatches_calculator_manager
+        from tests.lightning.mcore_microbatch_utils import \
+            reconfigure_num_microbatches_calculator_manager
 
         with reconfigure_num_microbatches_calculator_manager(0, None, gbs, mbs, data_parallel_size=1):
 
@@ -100,7 +102,8 @@ class TestDistCkptIO:
         assert os.environ['NVTE_APPLY_QK_LAYER_SCALING'] == '1'
         gbs, mbs = 2, 2
         model, data = get_model_and_data(mbs, gbs)
-        from tests.lightning.mcore_microbatch_utils import reconfigure_num_microbatches_calculator_manager
+        from tests.lightning.mcore_microbatch_utils import \
+            reconfigure_num_microbatches_calculator_manager
 
         with reconfigure_num_microbatches_calculator_manager(0, None, gbs, mbs, data_parallel_size=1):
 

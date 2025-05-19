@@ -19,7 +19,8 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 import lightning.pytorch as pl
 from lightning.pytorch.utilities.exceptions import MisconfigurationException
-from lightning.pytorch.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
+from lightning.pytorch.utilities.types import (EVAL_DATALOADERS,
+                                               TRAIN_DATALOADERS)
 from torch.utils import data
 
 from nemo.lightning.data import WrappedDataLoader
@@ -27,7 +28,8 @@ from nemo.lightning.io.mixin import IOMixin
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
 
 if TYPE_CHECKING:
-    from megatron.core.datasets.bert_dataset import BERTMaskedWordPieceDatasetConfig
+    from megatron.core.datasets.bert_dataset import \
+        BERTMaskedWordPieceDatasetConfig
 
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
@@ -129,7 +131,8 @@ class BERTPreTrainingDataModule(pl.LightningDataModule, IOMixin):
         self.index_mapping_dir = index_mapping_dir
         self.init_global_step = 0
 
-        from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+        from nemo.collections.nlp.modules.common.tokenizer_utils import \
+            get_nmt_tokenizer
 
         self.tokenizer = tokenizer or get_nmt_tokenizer("megatron", "BertWordPieceLowerCase")
 
@@ -142,8 +145,10 @@ class BERTPreTrainingDataModule(pl.LightningDataModule, IOMixin):
 
     def setup(self, stage: str = "") -> None:
         """Assign Train/Val/Test dataset"""
-        from megatron.core.datasets.bert_dataset import BERTMaskedWordPieceDataset
-        from megatron.core.datasets.blended_megatron_dataset_builder import BlendedMegatronDatasetBuilder
+        from megatron.core.datasets.bert_dataset import \
+            BERTMaskedWordPieceDataset
+        from megatron.core.datasets.blended_megatron_dataset_builder import \
+            BlendedMegatronDatasetBuilder
 
         assert (
             hasattr(self, "trainer") and self.trainer is not None
@@ -227,7 +232,8 @@ class BERTPreTrainingDataModule(pl.LightningDataModule, IOMixin):
     @property
     def bert_dataset_config(self) -> "BERTMaskedWordPieceDatasetConfig":
         """Create Bert Dataset Config using Mcore's BERT MaskedWordPieceDatasetConfig"""
-        from megatron.core.datasets.bert_dataset import BERTMaskedWordPieceDatasetConfig
+        from megatron.core.datasets.bert_dataset import \
+            BERTMaskedWordPieceDatasetConfig
 
         return BERTMaskedWordPieceDatasetConfig(
             random_seed=self.seed,
@@ -263,11 +269,13 @@ class BERTPreTrainingDataModule(pl.LightningDataModule, IOMixin):
 
         """
         try:
-            from megatron.core.num_microbatches_calculator import update_num_microbatches
+            from megatron.core.num_microbatches_calculator import \
+                update_num_microbatches
 
         except (ImportError, ModuleNotFoundError):
             logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
-            from apex.transformer.pipeline_parallel.utils import update_num_microbatches
+            from apex.transformer.pipeline_parallel.utils import \
+                update_num_microbatches
 
         consumed_samples = state_dict['consumed_samples']
         self.data_sampler.init_consumed_samples = consumed_samples
@@ -294,11 +302,13 @@ class BERTPreTrainingDataModule(pl.LightningDataModule, IOMixin):
         # Override limit_batches in terms of num microbatches
         # and so there are limit_batches//num_micro_batches num of global batches
         try:
-            from megatron.core.num_microbatches_calculator import get_num_microbatches
+            from megatron.core.num_microbatches_calculator import \
+                get_num_microbatches
 
         except (ImportError, ModuleNotFoundError):
             logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
-            from apex.transformer.pipeline_parallel.utils import get_num_microbatches
+            from apex.transformer.pipeline_parallel.utils import \
+                get_num_microbatches
 
         if isinstance(limit_batches, int):
             limit_batches *= get_num_microbatches()

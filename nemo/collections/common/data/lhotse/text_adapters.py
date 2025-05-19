@@ -29,10 +29,13 @@ from lhotse.serialization import load_jsonl
 from lhotse.shar import AudioTarWriter, JsonlShardWriter, TarIterator
 from lhotse.utils import Pathlike, is_valid_url
 
-from nemo.collections.common.data.lhotse.nemo_adapters import expand_sharded_filepaths
-from nemo.collections.common.data.prompt_fn import apply_prompt_format_fn, registered_prompt_format_fn
+from nemo.collections.common.data.lhotse.nemo_adapters import \
+    expand_sharded_filepaths
+from nemo.collections.common.data.prompt_fn import (
+    apply_prompt_format_fn, registered_prompt_format_fn)
 from nemo.collections.common.parts.preprocessing.manifest import get_full_path
-from nemo.collections.common.tokenizers.aggregate_tokenizer import TokenizerWrapper
+from nemo.collections.common.tokenizers.aggregate_tokenizer import \
+    TokenizerWrapper
 
 """
 Formattable: mixin class with data fields for prompt formatter outputs and method for 

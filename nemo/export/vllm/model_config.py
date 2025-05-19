@@ -21,7 +21,8 @@ import yaml
 from hydra.utils import instantiate
 from omegaconf import OmegaConf
 from transformers import AutoConfig
-from vllm.config import ModelConfig, ModelImpl, PoolerConfig, _get_and_verify_dtype, _get_and_verify_max_len
+from vllm.config import (ModelConfig, ModelImpl, PoolerConfig,
+                         _get_and_verify_dtype, _get_and_verify_max_len)
 from vllm.transformers_utils.config import get_hf_text_config
 
 from nemo.export.tarutils import TarPath
@@ -109,7 +110,8 @@ class NemoModelConfig(ModelConfig):
         self.pooler_config = self._init_pooler_config(override_pooler_config)
         self.enable_sleep_mode = enable_sleep_mode
 
-        from vllm.platforms import current_platform  # vLLM uses local import for current_platform
+        from vllm.platforms import \
+            current_platform  # vLLM uses local import for current_platform
 
         if self.enable_sleep_mode and not current_platform.is_cuda():
             raise ValueError("Sleep mode is only supported on CUDA devices.")

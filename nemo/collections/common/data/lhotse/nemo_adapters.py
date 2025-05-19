@@ -589,7 +589,8 @@ def validate_extra_fields(extra_fields):
 
 def expand_sharded_filepaths(paths: str | Path | list[str]) -> list[str]:
     # local import to avoid circular imports
-    from nemo.collections.asr.data.audio_to_text import expand_sharded_filepaths as _expand_sharded_filepaths
+    from nemo.collections.asr.data.audio_to_text import \
+        expand_sharded_filepaths as _expand_sharded_filepaths
 
     if isinstance(paths, Path):
         paths = str(paths)

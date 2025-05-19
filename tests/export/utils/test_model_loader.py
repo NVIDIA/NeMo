@@ -22,13 +22,11 @@ import numpy as np
 import pytest
 import torch
 
-from nemo.export.utils.model_loader import (
-    TarFileSystemReader,
-    load_model_weights,
-    load_sharded_metadata_zarr,
-    nemo_to_path,
-    nemo_weights_directory,
-)
+from nemo.export.utils.model_loader import (TarFileSystemReader,
+                                            load_model_weights,
+                                            load_sharded_metadata_zarr,
+                                            nemo_to_path,
+                                            nemo_weights_directory)
 
 
 @pytest.fixture

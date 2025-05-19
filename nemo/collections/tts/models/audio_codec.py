@@ -25,22 +25,22 @@ from lightning.pytorch import Trainer
 from omegaconf import DictConfig, OmegaConf, open_dict
 
 from nemo.collections.tts.losses.audio_codec_loss import (
-    FeatureMatchingLoss,
-    MultiResolutionMelLoss,
-    MultiResolutionSTFTLoss,
-    RelativeFeatureMatchingLoss,
-    SISDRLoss,
-    TimeDomainLoss,
-)
-from nemo.collections.tts.modules.audio_codec_modules import ResNetSpeakerEncoder
+    FeatureMatchingLoss, MultiResolutionMelLoss, MultiResolutionSTFTLoss,
+    RelativeFeatureMatchingLoss, SISDRLoss, TimeDomainLoss)
+from nemo.collections.tts.modules.audio_codec_modules import \
+    ResNetSpeakerEncoder
 from nemo.collections.tts.modules.common import GaussianDropout
 from nemo.collections.tts.parts.utils.callbacks import LoggingCallback
-from nemo.collections.tts.parts.utils.helpers import get_batch_size, get_num_workers
+from nemo.collections.tts.parts.utils.helpers import (get_batch_size,
+                                                      get_num_workers)
 from nemo.core import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
-from nemo.core.neural_types.elements import AudioSignal, EncodedRepresentation, LengthsType, TokenIndex
+from nemo.core.neural_types.elements import (AudioSignal,
+                                             EncodedRepresentation,
+                                             LengthsType, TokenIndex)
 from nemo.core.neural_types.neural_type import NeuralType
-from nemo.core.optim.lr_scheduler import compute_max_steps, prepare_lr_scheduler
+from nemo.core.optim.lr_scheduler import (compute_max_steps,
+                                          prepare_lr_scheduler)
 from nemo.utils import logging, model_utils
 from nemo.utils.decorators import experimental
 

@@ -20,15 +20,18 @@ import torch
 import torch.distributed
 from megatron.core import InferenceParams, parallel_state, tensor_parallel
 from megatron.core.fusions.fused_layer_norm import FusedLayerNorm
-from megatron.core.models.bert.bert_lm_head import BertLMHead as MCoreBertLMHead
+from megatron.core.models.bert.bert_lm_head import \
+    BertLMHead as MCoreBertLMHead
 from megatron.core.models.bert.pooler import Pooler
 from megatron.core.optimizer import OptimizerConfig
 from megatron.core.packed_seq_params import PackedSeqParams
 from megatron.core.transformer.spec_utils import ModuleSpec, build_module
 from megatron.core.transformer.transformer_block import TransformerBlock
 from megatron.core.transformer.transformer_config import TransformerConfig
-from megatron.core.transformer.transformer_layer import TransformerLayer, TransformerLayerSubmodules
-from megatron.core.transformer.utils import get_linear_layer as mcore_get_linear_layer
+from megatron.core.transformer.transformer_layer import (
+    TransformerLayer, TransformerLayerSubmodules)
+from megatron.core.transformer.utils import \
+    get_linear_layer as mcore_get_linear_layer
 from megatron.core.utils import get_batch_on_this_cp_rank, make_viewless_tensor
 from torch import Tensor, nn
 
@@ -36,10 +39,10 @@ from nemo.collections.llm import fn
 from nemo.collections.llm.bert.loss import BERTLossReduction
 from nemo.collections.llm.bert.model.bert_spec import (
     get_bert_layer_local_spec_postln,
-    get_bert_layer_with_transformer_engine_spec_postln,
-)
+    get_bert_layer_with_transformer_engine_spec_postln)
 from nemo.lightning import get_vocab_size, io
-from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
+from nemo.lightning.pytorch.optim import (MegatronOptimizerModule,
+                                          OptimizerModule)
 
 HAVE_TE = True
 try:

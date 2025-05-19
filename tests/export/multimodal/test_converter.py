@@ -16,7 +16,9 @@
 import pytest
 import torch
 
-from nemo.export.multimodal.converter import split_gate_weight, split_kv_weight, split_qkv_weight
+from nemo.export.multimodal.converter import (split_gate_weight,
+                                              split_kv_weight,
+                                              split_qkv_weight)
 
 
 class TestMultimodalConverter:

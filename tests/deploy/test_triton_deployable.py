@@ -15,6 +15,7 @@
 
 import numpy as np
 import pytest
+
 from nemo.deploy.triton_deployable import ITritonDeployable
 
 

@@ -19,21 +19,24 @@ from typing import TYPE_CHECKING, Any, Optional
 import lightning.pytorch as pl
 import torch.distributed
 from lightning.pytorch.trainer.states import TrainerFn
-from megatron.core.inference.common_inference_params import CommonInferenceParams
+from megatron.core.inference.common_inference_params import \
+    CommonInferenceParams
 from megatron.core.inference.engines.mcore_engine import MCoreEngine
-from megatron.core.inference.model_inference_wrappers.abstract_model_inference_wrapper import (
-    AbstractModelInferenceWrapper,
-)
-from megatron.core.inference.text_generation_controllers.text_generation_controller import TextGenerationController
+from megatron.core.inference.model_inference_wrappers.abstract_model_inference_wrapper import \
+    AbstractModelInferenceWrapper
+from megatron.core.inference.text_generation_controllers.text_generation_controller import \
+    TextGenerationController
 from megatron.core.transformer.enums import AttnBackend
 from megatron.core.transformer.module import MegatronModule
 
 import nemo.lightning as nl
 from nemo.lightning import io
-from nemo.lightning.ckpt_utils import ADAPTER_META_FILENAME, ckpt_to_context_subdir
+from nemo.lightning.ckpt_utils import (ADAPTER_META_FILENAME,
+                                       ckpt_to_context_subdir)
 from nemo.lightning.io.pl import ckpt_to_weights_subdir
 from nemo.lightning.pytorch.callbacks import PEFT
-from nemo.lightning.pytorch.strategies.megatron_strategy import MegatronStrategy
+from nemo.lightning.pytorch.strategies.megatron_strategy import \
+    MegatronStrategy
 from nemo.lightning.pytorch.strategies.utils import RestoreConfig
 from nemo.utils import logging
 
@@ -137,7 +140,8 @@ def _setup_trainer_and_restore_model(
     assert trainer.strategy.context_parallel_size <= 1, "Context parallelism is not supported for inference."
 
     # [ModelOpt]: If modelopt_state exists, overwrite transformer_layer_spec to modelopt spec
-    from nemo.collections.llm.modelopt import set_modelopt_spec_if_exists_in_ckpt
+    from nemo.collections.llm.modelopt import \
+        set_modelopt_spec_if_exists_in_ckpt
 
     set_modelopt_spec_if_exists_in_ckpt(model, path)
 
@@ -270,9 +274,8 @@ def generate(
     Returns:
         dict: A dictionary containing the generated results.
     """
-    from megatron.core.inference.text_generation_controllers.encoder_decoder_text_generation_controller import (
-        EncoderDecoderTextGenerationController,
-    )
+    from megatron.core.inference.text_generation_controllers.encoder_decoder_text_generation_controller import \
+        EncoderDecoderTextGenerationController
 
     if encoder_prompts is not None:
         text_generation_controller = EncoderDecoderTextGenerationController(

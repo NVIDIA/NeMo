@@ -24,7 +24,8 @@ from omegaconf import DictConfig, OmegaConf, open_dict
 
 from nemo.collections.llm import fn
 from nemo.lightning import io
-from nemo.lightning.megatron_parallel import MaskedTokenLossReductionWithLossMask
+from nemo.lightning.megatron_parallel import \
+    MaskedTokenLossReductionWithLossMask
 from nemo.utils import logging
 from nemo.utils.app_state import AppState
 

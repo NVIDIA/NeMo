@@ -26,11 +26,8 @@ from typing import List, Optional
 
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.core.utils.cuda_python_utils import (
-    check_cuda_python_cuda_graphs_conditional_nodes_supported,
-    cu_call,
-    run_nvrtc,
-    with_conditional_node,
-)
+    check_cuda_python_cuda_graphs_conditional_nodes_supported, cu_call,
+    run_nvrtc, with_conditional_node)
 
 _CUDA_PROGRAM_NAME = b"while_loop_conditional.cu"
 

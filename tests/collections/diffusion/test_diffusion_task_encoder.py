@@ -13,7 +13,9 @@
 # limitations under the License.
 
 import pytest
-from nemo.collections.diffusion.data.diffusion_taskencoder import cook_raw_images
+
+from nemo.collections.diffusion.data.diffusion_taskencoder import \
+    cook_raw_images
 
 
 class TestTaskEncoder:

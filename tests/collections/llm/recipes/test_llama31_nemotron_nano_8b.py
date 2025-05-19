@@ -15,7 +15,8 @@
 import nemo_run as run
 import pytest
 
-from nemo.collections.llm import Llama31NemotronNano8BConfig, LlamaNemotronModel
+from nemo.collections.llm import (Llama31NemotronNano8BConfig,
+                                  LlamaNemotronModel)
 from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.peft import PEFT_STR2CLS

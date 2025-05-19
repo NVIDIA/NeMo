@@ -15,7 +15,8 @@
 import pytest
 import torch
 
-from nemo.collections.audio.modules.projections import MixtureConsistencyProjection
+from nemo.collections.audio.modules.projections import \
+    MixtureConsistencyProjection
 
 
 class TestMixtureConsistencyProjection:

@@ -24,18 +24,8 @@ from omegaconf import open_dict
 
 from nemo.collections.asr.models import ASRModel, EncDecRNNTModel
 from nemo.collections.asr.parts.utils.confidence_metrics import (
-    auc_nt,
-    auc_pr,
-    auc_roc,
-    auc_yc,
-    ece,
-    nce,
-    save_confidence_hist,
-    save_custom_confidence_curve,
-    save_nt_curve,
-    save_pr_curve,
-    save_roc_curve,
-)
+    auc_nt, auc_pr, auc_roc, auc_yc, ece, nce, save_confidence_hist,
+    save_custom_confidence_curve, save_nt_curve, save_pr_curve, save_roc_curve)
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 
 

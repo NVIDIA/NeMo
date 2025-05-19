@@ -13,7 +13,8 @@
 # limitations under the License.
 
 from nemo.collections import llm, vlm
-from nemo.collections.vlm.llama4.model.llama4_omni import Llama4ScoutExperts16Config
+from nemo.collections.vlm.llama4.model.llama4_omni import \
+    Llama4ScoutExperts16Config
 
 if __name__ == '__main__':
     # Specify the Hugging Face model ID

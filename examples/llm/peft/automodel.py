@@ -20,7 +20,8 @@ import lightning.pytorch as pl
 from nemo import lightning as nl
 from nemo.automodel.dist_utils import FirstRankPerNode
 from nemo.collections import llm
-from nemo.collections.llm.recipes.optim.adam import pytorch_adam_with_cosine_annealing
+from nemo.collections.llm.recipes.optim.adam import \
+    pytorch_adam_with_cosine_annealing
 from nemo.lightning.pytorch.callbacks import JitConfig, JitTransform
 
 # Run this example with torchrun, for example:
@@ -134,7 +135,8 @@ def make_strategy(strategy, model, devices, num_nodes, adapter_only=False, enabl
     elif strategy == 'fsdp2':
         offload_policy = None
         if enable_cpu_offload:
-            from nemo.lightning.pytorch.strategies.fsdp2_strategy import HAS_CPU_OFFLOAD_POLICY, CPUOffloadPolicy
+            from nemo.lightning.pytorch.strategies.fsdp2_strategy import (
+                HAS_CPU_OFFLOAD_POLICY, CPUOffloadPolicy)
 
             assert HAS_CPU_OFFLOAD_POLICY, "Could not import offload policy"
             offload_policy = CPUOffloadPolicy()
@@ -259,7 +261,8 @@ def main():
         optimizer = fdl.build(pytorch_adam_with_cosine_annealing(max_lr=args.lr, warmup_steps=50))
 
     if args.fp8:
-        from nemo.lightning.pytorch.accelerate.transformer_engine import TEConfig
+        from nemo.lightning.pytorch.accelerate.transformer_engine import \
+            TEConfig
 
         model_accelerator = TEConfig(fp8_autocast=True)
     else:

@@ -17,7 +17,8 @@
 import nemo_run as run
 import pytest
 
-from nemo.collections.llm.recipes.hyena_1b import finetune_recipe, model, pretrain_recipe, tokenizer
+from nemo.collections.llm.recipes.hyena_1b import (finetune_recipe, model,
+                                                   pretrain_recipe, tokenizer)
 
 
 class TestHyena1B:

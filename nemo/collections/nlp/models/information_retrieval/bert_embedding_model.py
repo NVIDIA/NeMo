@@ -20,10 +20,9 @@ import torch.nn.functional as F
 from torch import Tensor, nn
 
 from nemo.collections.nlp.models.language_modeling.megatron.bert.bert_model import (
-    MCoreBertModelWrapperWithPostLNSupport,
-    NeMoBertModel,
-)
-from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
+    MCoreBertModelWrapperWithPostLNSupport, NeMoBertModel)
+from nemo.collections.nlp.modules.common.megatron.utils import \
+    ApexGuardDefaults
 
 try:
     HAVE_MEGATRON_CORE = True

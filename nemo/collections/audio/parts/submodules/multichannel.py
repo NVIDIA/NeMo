@@ -18,11 +18,14 @@ from typing import Callable, Dict, Optional, Tuple
 import numpy as np
 import torch
 
-from nemo.collections.asr.parts.preprocessing.features import make_seq_mask_like
-from nemo.collections.asr.parts.submodules.multi_head_attention import MultiHeadAttention
+from nemo.collections.asr.parts.preprocessing.features import \
+    make_seq_mask_like
+from nemo.collections.asr.parts.submodules.multi_head_attention import \
+    MultiHeadAttention
 from nemo.collections.audio.parts.utils.audio import covariance_matrix
 from nemo.core.classes import NeuralModule, typecheck
-from nemo.core.neural_types import AudioSignal, FloatType, LengthsType, NeuralType, SpectrogramType
+from nemo.core.neural_types import (AudioSignal, FloatType, LengthsType,
+                                    NeuralType, SpectrogramType)
 from nemo.utils import logging
 
 

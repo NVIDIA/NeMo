@@ -30,26 +30,26 @@ from sacrebleu import corpus_bleu
 
 from nemo.collections.nlp.data.common.sequence_to_sequence_dataset import (
     BinarizedMemmapSequenceToSequenceDataset,
-    TextMemmapSequenceToSequenceDataset,
-)
-from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils import (
-    get_datasets_weights_and_num_samples,
-)
-from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import BlendableDataset
-from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import (
-    MegatronPretrainingBatchSampler,
-)
+    TextMemmapSequenceToSequenceDataset)
+from nemo.collections.nlp.data.language_modeling.megatron.base_dataset_utils import \
+    get_datasets_weights_and_num_samples
+from nemo.collections.nlp.data.language_modeling.megatron.blendable_dataset import \
+    BlendableDataset
+from nemo.collections.nlp.data.language_modeling.megatron.megatron_batch_samplers import \
+    MegatronPretrainingBatchSampler
 from nemo.collections.nlp.data.language_modeling.megatron.xlm_dataset import (
     BinarizedMemmapCrossLingualMLMAndTranslationDataset,
-    TextMemmapCrossLingualMLMAndTranslationDataset,
-)
-from nemo.collections.nlp.models.language_modeling.megatron_lm_encoder_decoder_model import (
-    MegatronLMEncoderDecoderModel,
-)
-from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model
-from nemo.collections.nlp.models.machine_translation.mt_enc_dec_model import MTEncDecModel
-from nemo.collections.nlp.modules.common.megatron.megatron_export import DecEmb, EncEmb, TokensHeadEmb
-from nemo.collections.nlp.modules.common.megatron.utils import get_iterator_k_split
+    TextMemmapCrossLingualMLMAndTranslationDataset)
+from nemo.collections.nlp.models.language_modeling.megatron_lm_encoder_decoder_model import \
+    MegatronLMEncoderDecoderModel
+from nemo.collections.nlp.models.language_modeling.megatron_t5_model import \
+    MegatronT5Model
+from nemo.collections.nlp.models.machine_translation.mt_enc_dec_model import \
+    MTEncDecModel
+from nemo.collections.nlp.modules.common.megatron.megatron_export import (
+    DecEmb, EncEmb, TokensHeadEmb)
+from nemo.collections.nlp.modules.common.megatron.utils import \
+    get_iterator_k_split
 from nemo.collections.nlp.parts.nlp_overrides import GlobalBatchDataFetcher
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.core.classes import Exportable
@@ -66,17 +66,16 @@ except (ImportError, ModuleNotFoundError):
 
 try:
     from megatron.core.num_microbatches_calculator import (
-        get_micro_batch_size,
-        get_num_microbatches,
-        reconfigure_num_microbatches_calculator,
-    )
+        get_micro_batch_size, get_num_microbatches,
+        reconfigure_num_microbatches_calculator)
 
 except (ImportError, ModuleNotFoundError):
     logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
-    from apex.transformer.pipeline_parallel.utils import (
-        _reconfigure_microbatch_calculator as reconfigure_num_microbatches_calculator,
-    )
-    from apex.transformer.pipeline_parallel.utils import get_micro_batch_size, get_num_microbatches
+    from apex.transformer.pipeline_parallel.utils import \
+        _reconfigure_microbatch_calculator as \
+        reconfigure_num_microbatches_calculator
+    from apex.transformer.pipeline_parallel.utils import (get_micro_batch_size,
+                                                          get_num_microbatches)
 
 
 __all__ = ["MegatronNMTModel"]

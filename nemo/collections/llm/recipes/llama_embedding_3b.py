@@ -26,10 +26,13 @@ from nemo.collections import llm
 from nemo.collections.llm import Llama32EmbeddingConfig3B, LlamaEmbeddingModel
 from nemo.collections.llm.api import finetune
 from nemo.collections.llm.peft import PEFT_STR2CLS
-from nemo.collections.llm.recipes.finetune_default import default_finetune_recipe
+from nemo.collections.llm.recipes.finetune_default import \
+    default_finetune_recipe
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
-from nemo.lightning.pytorch.callbacks.garbage_collection import GarbageCollectionCallback
-from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
+from nemo.lightning.pytorch.callbacks.garbage_collection import \
+    GarbageCollectionCallback
+from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import \
+    MegatronCommOverlapCallback
 from nemo.utils.exp_manager import TimingCallback
 
 NAME = "nvembed_llama_3b"

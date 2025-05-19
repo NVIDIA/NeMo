@@ -13,28 +13,22 @@
 # limitations under the License.
 
 from megatron.core.extensions.transformer_engine import (
-    TEDotProductAttention,
-    TELayerNormColumnParallelLinear,
-    TERowParallelLinear,
-)
+    TEDotProductAttention, TELayerNormColumnParallelLinear,
+    TERowParallelLinear)
 from megatron.core.fusions.fused_bias_dropout import get_bias_dropout_add
-from megatron.core.transformer.attention import SelfAttention, SelfAttentionSubmodules
+from megatron.core.transformer.attention import (SelfAttention,
+                                                 SelfAttentionSubmodules)
 from megatron.core.transformer.enums import AttnMaskType
 from megatron.core.transformer.identity_op import IdentityOp
 from megatron.core.transformer.mlp import MLP, MLPSubmodules
 from megatron.core.transformer.spec_utils import ModuleSpec
-from megatron.core.transformer.transformer_layer import TransformerLayer, TransformerLayerSubmodules
+from megatron.core.transformer.transformer_layer import (
+    TransformerLayer, TransformerLayerSubmodules)
 
 from nemo.collections.nlp.models.language_modeling.megatron.griffin.recurrent_layer import (
-    RecurrentBlock,
-    RecurrentBlockSubmodules,
-)
+    RecurrentBlock, RecurrentBlockSubmodules)
 from nemo.collections.nlp.models.language_modeling.megatron.griffin.recurrent_module import (
-    RGLRU,
-    Conv1D,
-    RecurrentLayer,
-    RecurrentLayerSubmodules,
-)
+    RGLRU, Conv1D, RecurrentLayer, RecurrentLayerSubmodules)
 
 griffin_mqa_layer_with_transformer_engine_spec = ModuleSpec(
     module=TransformerLayer,

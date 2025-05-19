@@ -20,18 +20,12 @@ from unittest import mock
 
 import pytest
 
-from nemo.utils.env_var_parsing import (
-    CoercionError,
-    RequiredSettingMissingError,
-    get_envbool,
-    get_envdate,
-    get_envdatetime,
-    get_envdecimal,
-    get_envdict,
-    get_envfloat,
-    get_envint,
-    get_envlist,
-)
+from nemo.utils.env_var_parsing import (CoercionError,
+                                        RequiredSettingMissingError,
+                                        get_envbool, get_envdate,
+                                        get_envdatetime, get_envdecimal,
+                                        get_envdict, get_envfloat, get_envint,
+                                        get_envlist)
 
 
 class TestEnvironmentVariableParsing:

@@ -23,7 +23,8 @@ from torch import nn
 from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
-from nemo.collections.llm.gpt.model.base import GPTModel, gpt_data_step, torch_dtype_from_mcore_config
+from nemo.collections.llm.gpt.model.base import (GPTModel, gpt_data_step,
+                                                 torch_dtype_from_mcore_config)
 from nemo.collections.llm.utils import Config
 from nemo.lightning import OptimizerModule, get_vocab_size, io, teardown
 from nemo.lightning.io.state import _ModelState
@@ -31,11 +32,15 @@ from nemo.utils import logging
 
 try:
     from megatron.core import parallel_state
-    from megatron.core.dist_checkpointing.serialization import load_plain_tensors
-    from megatron.core.inference.model_inference_wrappers.gpt.gpt_inference_wrapper import GPTInferenceWrapper
-    from megatron.core.inference.model_inference_wrappers.inference_wrapper_config import InferenceWrapperConfig
+    from megatron.core.dist_checkpointing.serialization import \
+        load_plain_tensors
+    from megatron.core.inference.model_inference_wrappers.gpt.gpt_inference_wrapper import \
+        GPTInferenceWrapper
+    from megatron.core.inference.model_inference_wrappers.inference_wrapper_config import \
+        InferenceWrapperConfig
     from megatron.core.models.mamba import MambaModel as MCoreMambaModel
-    from megatron.core.models.mamba.mamba_layer_specs import mamba_stack_spec as default_mamba_stack_spec
+    from megatron.core.models.mamba.mamba_layer_specs import \
+        mamba_stack_spec as default_mamba_stack_spec
 
     HAVE_MEGATRON_CORE_OR_TE = True
 
@@ -432,7 +437,8 @@ class PyTorchSSMImporter(io.ModelConnector["MambaModel", MambaModel]):
         Returns:
             TokenizerSpec: The tokenizer object.
         """
-        from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
+        from nemo.collections.nlp.modules.common.tokenizer_utils import \
+            get_nmt_tokenizer
 
         tokenizer = get_nmt_tokenizer(
             library=self.model_config.tokenizer_library,
@@ -540,7 +546,8 @@ class HFNemotronHImporter(io.ModelConnector["AutoModelForCausalLM", MambaModel])
         Returns:
             AutoTokenizer: The tokenizer object.
         """
-        from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+        from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import \
+            AutoTokenizer
 
         return AutoTokenizer(self.save_hf_tokenizer_assets(str(self)), trust_remote_code=True)
 

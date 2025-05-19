@@ -31,13 +31,15 @@ from omegaconf.dictconfig import DictConfig
 from nemo.collections.multimodal.data.clip.clip_dataset import tokenize
 from nemo.collections.multimodal.data.nsfw.nsfw_dataset import build_dataset
 from nemo.collections.multimodal.models.vision_language_foundation.clip.megatron_clip_models import (
-    CLIPTextTransformer,
-    CLIPVisionTransformer,
-)
-from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
-from nemo.collections.nlp.modules.common.megatron.build_model import build_model
-from nemo.collections.nlp.modules.common.megatron.module import Float16Module, MegatronModule
-from nemo.collections.nlp.parts.utils_funcs import get_last_rank, torch_dtype_from_precision
+    CLIPTextTransformer, CLIPVisionTransformer)
+from nemo.collections.nlp.models.language_modeling.megatron_base_model import \
+    MegatronBaseModel
+from nemo.collections.nlp.modules.common.megatron.build_model import \
+    build_model
+from nemo.collections.nlp.modules.common.megatron.module import (
+    Float16Module, MegatronModule)
+from nemo.collections.nlp.parts.utils_funcs import (get_last_rank,
+                                                    torch_dtype_from_precision)
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
 

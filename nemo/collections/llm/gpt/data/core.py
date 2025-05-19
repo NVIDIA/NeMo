@@ -25,14 +25,12 @@ import torch
 from datasets import load_dataset
 
 from nemo.collections.common.tokenizers import TokenizerSpec
-from nemo.collections.llm.gpt.data.utils import (
-    _get_samples_mapping,
-    _JSONLMemMapDataset,
-    _OnlineSampleMapping,
-    _preprocess,
-    _preprocess_hf_chat_template,
-    _transform_to_chat_message,
-)
+from nemo.collections.llm.gpt.data.utils import (_get_samples_mapping,
+                                                 _JSONLMemMapDataset,
+                                                 _OnlineSampleMapping,
+                                                 _preprocess,
+                                                 _preprocess_hf_chat_template,
+                                                 _transform_to_chat_message)
 from nemo.core.classes import Dataset
 from nemo.lightning.base import NEMO_DATASETS_CACHE
 

@@ -27,35 +27,23 @@ import torch
 from einops import rearrange
 from tqdm import tqdm
 
-from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
+from nemo.collections.asr.parts.preprocessing.features import \
+    WaveformFeaturizer
 from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
 from nemo.collections.common.tokenizers.text_to_speech.tts_tokenizers import (
-    BaseTokenizer,
-    EnglishCharsTokenizer,
-    EnglishPhonemesTokenizer,
-)
+    BaseTokenizer, EnglishCharsTokenizer, EnglishPhonemesTokenizer)
 from nemo.collections.tts.parts.utils.tts_dataset_utils import (
-    BetaBinomialInterpolator,
-    beta_binomial_prior_distribution,
-    general_padding,
-    get_base_dir,
-)
-from nemo.collections.tts.torch.tts_data_types import (
-    DATA_STR2DATA_CLASS,
-    MAIN_DATA_TYPES,
-    AlignPriorMatrix,
-    Durations,
-    Energy,
-    LMTokens,
-    LogMel,
-    P_voiced,
-    Pitch,
-    ReferenceAudio,
-    SpeakerID,
-    TTSDataType,
-    Voiced_mask,
-    WithLens,
-)
+    BetaBinomialInterpolator, beta_binomial_prior_distribution,
+    general_padding, get_base_dir)
+from nemo.collections.tts.torch.tts_data_types import (DATA_STR2DATA_CLASS,
+                                                       MAIN_DATA_TYPES,
+                                                       AlignPriorMatrix,
+                                                       Durations, Energy,
+                                                       LMTokens, LogMel,
+                                                       P_voiced, Pitch,
+                                                       ReferenceAudio,
+                                                       SpeakerID, TTSDataType,
+                                                       Voiced_mask, WithLens)
 from nemo.core.classes import Dataset
 from nemo.utils import logging
 
@@ -920,7 +908,8 @@ class MixerTTSXDataset(TTSDataset):
         super().__init__(**kwargs)
 
     def _albert(self):
-        from transformers import AlbertTokenizer  # noqa pylint: disable=import-outside-toplevel
+        from transformers import \
+            AlbertTokenizer  # noqa pylint: disable=import-outside-toplevel
 
         self.lm_model_tokenizer = AlbertTokenizer.from_pretrained('albert-base-v2')
         self.lm_padding_value = self.lm_model_tokenizer._convert_token_to_id('<pad>')

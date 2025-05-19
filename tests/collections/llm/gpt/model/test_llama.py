@@ -14,23 +14,20 @@
 
 import torch.nn.functional as F
 
-from nemo.collections.llm.gpt.model.llama import (
-    CodeLlamaConfig7B,
-    CodeLlamaConfig13B,
-    CodeLlamaConfig34B,
-    CodeLlamaConfig70B,
-    Llama2Config7B,
-    Llama2Config13B,
-    Llama2Config70B,
-    Llama3Config,
-    Llama3Config8B,
-    Llama3Config70B,
-    Llama31Config,
-    Llama31Config8B,
-    Llama31Config70B,
-    Llama31Config405B,
-    LlamaConfig,
-)
+from nemo.collections.llm.gpt.model.llama import (CodeLlamaConfig7B,
+                                                  CodeLlamaConfig13B,
+                                                  CodeLlamaConfig34B,
+                                                  CodeLlamaConfig70B,
+                                                  Llama2Config7B,
+                                                  Llama2Config13B,
+                                                  Llama2Config70B,
+                                                  Llama3Config, Llama3Config8B,
+                                                  Llama3Config70B,
+                                                  Llama31Config,
+                                                  Llama31Config8B,
+                                                  Llama31Config70B,
+                                                  Llama31Config405B,
+                                                  LlamaConfig)
 
 
 def test_llama_config():

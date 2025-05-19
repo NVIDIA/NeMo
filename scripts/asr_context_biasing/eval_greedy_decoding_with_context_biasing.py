@@ -79,7 +79,8 @@ from sklearn.model_selection import ParameterGrid
 from tqdm.auto import tqdm
 
 import nemo.collections.asr as nemo_asr
-from nemo.collections.asr.models import EncDecCTCModelBPE, EncDecHybridRNNTCTCModel
+from nemo.collections.asr.models import (EncDecCTCModelBPE,
+                                         EncDecHybridRNNTCTCModel)
 from nemo.collections.asr.parts import context_biasing
 from nemo.core.config import hydra_runner
 from nemo.utils import logging

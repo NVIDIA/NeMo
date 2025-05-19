@@ -20,8 +20,10 @@ from pathlib import Path
 import librosa
 from tqdm import tqdm
 
-from nemo.collections.asr.parts.utils.manifest_utils import read_manifest, write_manifest
-from nemo.collections.asr.parts.utils.vad_utils import get_frame_labels, load_speech_segments_from_rttm
+from nemo.collections.asr.parts.utils.manifest_utils import (read_manifest,
+                                                             write_manifest)
+from nemo.collections.asr.parts.utils.vad_utils import (
+    get_frame_labels, load_speech_segments_from_rttm)
 
 """
 This script generates a manifest file for synthetic data generated using the NeMo multispeaker speech data simulator.

@@ -17,7 +17,8 @@ import unittest
 from datasets import Dataset
 
 from nemo.collections.llm.gpt.data import HFDatasetDataModulePacked
-from nemo.collections.llm.gpt.data.hf_dataset_packed_sequence import HFDatasetPackedSequenceHelper
+from nemo.collections.llm.gpt.data.hf_dataset_packed_sequence import \
+    HFDatasetPackedSequenceHelper
 
 
 class TestPacking(unittest.TestCase):

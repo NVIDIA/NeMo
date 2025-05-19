@@ -18,7 +18,8 @@ import random
 import torch
 
 from nemo.collections import llm, vlm
-from nemo.collections.llm.gpt.data.hf_dataset import has_dist_env_init_or_rank_env_var
+from nemo.collections.llm.gpt.data.hf_dataset import \
+    has_dist_env_init_or_rank_env_var
 
 
 def mk_hf_vlm_dataset_fineweb_edu(data_path, processor, mbs, gbs):

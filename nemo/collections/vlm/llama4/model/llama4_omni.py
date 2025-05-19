@@ -23,11 +23,14 @@ from torch import nn
 from nemo.collections.common.tokenizers import TokenizerSpec
 from nemo.collections.llm import Llama4Config as Llama4TextConfig
 from nemo.collections.llm import Llama4Experts16Config, Llama4Experts128Config
-from nemo.collections.vlm.llama4.model.base import Llama4OmniConfig, Llama4OmniModel
+from nemo.collections.vlm.llama4.model.base import (Llama4OmniConfig,
+                                                    Llama4OmniModel)
 from nemo.collections.vlm.llama4.model.vision import Llama4VisionConfig
-from nemo.collections.vlm.neva.model.llava import export_qkv, export_qkv_bias, import_qkv
+from nemo.collections.vlm.neva.model.llava import (export_qkv, export_qkv_bias,
+                                                   import_qkv)
 from nemo.collections.vlm.vision.base import MultimodalProjectorConfig
-from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import load_distributed_model_weights
+from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import \
+    load_distributed_model_weights
 from nemo.lightning import io, teardown
 from nemo.lightning.io.state import TransformFns, _ModelState
 from nemo.utils import logging
@@ -43,7 +46,8 @@ if TYPE_CHECKING:
     from transformers import Llama4Config as HFLlama4Config
     from transformers import Llama4ForConditionalGeneration
 
-    from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+    from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import \
+        AutoTokenizer
 
 
 @dataclass
@@ -243,7 +247,8 @@ class HFLlama4OmniImporter(io.ModelConnector["Llama4ForConditionalGeneration", L
         Returns:
             AutoTokenizer: Tokenizer instance initialized from the HF model's tokenizer
         """
-        from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+        from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import \
+            AutoTokenizer
 
         return AutoTokenizer(self.save_hf_tokenizer_assets(str(self)))
 

@@ -23,17 +23,18 @@ from megatron.core.transformer import TransformerConfig
 from torch import Tensor
 from transformers import MllamaConfig as HFMllamaConfig
 from transformers import MllamaForConditionalGeneration
-from transformers.models.mllama.configuration_mllama import MllamaTextConfig, MllamaVisionConfig
+from transformers.models.mllama.configuration_mllama import (
+    MllamaTextConfig, MllamaVisionConfig)
 
-from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import \
+    AutoTokenizer
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
-from nemo.collections.vlm.mllama.model.base import (
-    CrossAttentionTextConfig,
-    CrossAttentionVisionConfig,
-    MLlamaModel,
-    MLlamaModelConfig,
-)
-from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import load_distributed_model_weights
+from nemo.collections.vlm.mllama.model.base import (CrossAttentionTextConfig,
+                                                    CrossAttentionVisionConfig,
+                                                    MLlamaModel,
+                                                    MLlamaModelConfig)
+from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import \
+    load_distributed_model_weights
 from nemo.lightning import io, teardown
 from nemo.lightning.io.state import _ModelState
 from nemo.lightning.pytorch.utils import dtype_from_hf

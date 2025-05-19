@@ -26,18 +26,25 @@ from omegaconf import DictConfig, ListConfig
 
 from nemo.collections.common.data import ConcatMapDataset
 from nemo.collections.common.metrics import MetricStringToTorchMetric
-from nemo.collections.common.metrics.classification_accuracy import ExactStringPerCategoryMatchMetric
-from nemo.collections.nlp.data.common.sequence_to_sequence_dataset import SequenceToSequenceDataset
-from nemo.collections.nlp.data.language_modeling.megatron.t5_sft_dataset import T5SFTDataset
-from nemo.collections.nlp.models.language_modeling.megatron_t5_model import MegatronT5Model, T5Sentinel
-from nemo.collections.nlp.modules.common.megatron.utils import get_iterator_k_split
-from nemo.collections.nlp.parts.mixins.nlp_adapter_mixins import NLPAdapterModelMixin
+from nemo.collections.common.metrics.classification_accuracy import \
+    ExactStringPerCategoryMatchMetric
+from nemo.collections.nlp.data.common.sequence_to_sequence_dataset import \
+    SequenceToSequenceDataset
+from nemo.collections.nlp.data.language_modeling.megatron.t5_sft_dataset import \
+    T5SFTDataset
+from nemo.collections.nlp.models.language_modeling.megatron_t5_model import (
+    MegatronT5Model, T5Sentinel)
+from nemo.collections.nlp.modules.common.megatron.utils import \
+    get_iterator_k_split
+from nemo.collections.nlp.parts.mixins.nlp_adapter_mixins import \
+    NLPAdapterModelMixin
 from nemo.collections.nlp.parts.utils_funcs import get_last_rank
 from nemo.utils import AppState, logging
 
 try:
     from megatron.core import parallel_state
-    from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
+    from megatron.core.pipeline_parallel.schedules import \
+        get_forward_backward_func
 
     HAVE_MEGATRON_CORE = True
 
@@ -47,22 +54,17 @@ except (ImportError, ModuleNotFoundError):
 
 try:
     from megatron.core.num_microbatches_calculator import (
-        get_current_global_batch_size,
-        get_micro_batch_size,
-        get_num_microbatches,
-        reconfigure_num_microbatches_calculator,
-    )
+        get_current_global_batch_size, get_micro_batch_size,
+        get_num_microbatches, reconfigure_num_microbatches_calculator)
 
 except (ImportError, ModuleNotFoundError):
     logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
+    from apex.transformer.pipeline_parallel.utils import \
+        _reconfigure_microbatch_calculator as \
+        reconfigure_num_microbatches_calculator
     from apex.transformer.pipeline_parallel.utils import (
-        _reconfigure_microbatch_calculator as reconfigure_num_microbatches_calculator,
-    )
-    from apex.transformer.pipeline_parallel.utils import (
-        get_current_global_batch_size,
-        get_micro_batch_size,
-        get_num_microbatches,
-    )
+        get_current_global_batch_size, get_micro_batch_size,
+        get_num_microbatches)
 
 __all__ = ['MegatronT5SFTModel']
 

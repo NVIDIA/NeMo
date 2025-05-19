@@ -21,9 +21,12 @@ import torch.nn.functional as F
 from megatron.energon import VQASample, batch_list, batch_pad_stack
 from torch.nn.utils.rnn import pad_sequence
 
-from nemo.collections.multimodal.data.energon.sample_encoder import SampleEncoder
-from nemo.collections.multimodal.data.energon.task_encoder import MultiModalTaskEncoder
-from nemo.collections.vlm.mllama.data.sample_encoder import Llama3SampleEncoder, LlamaImageTextSample
+from nemo.collections.multimodal.data.energon.sample_encoder import \
+    SampleEncoder
+from nemo.collections.multimodal.data.energon.task_encoder import \
+    MultiModalTaskEncoder
+from nemo.collections.vlm.mllama.data.sample_encoder import (
+    Llama3SampleEncoder, LlamaImageTextSample)
 
 
 def pad_or_truncate(sequence_batch, seq_length: int, padding_value: int):

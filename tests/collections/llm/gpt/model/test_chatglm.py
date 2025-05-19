@@ -14,7 +14,9 @@
 
 import torch.nn.functional as F
 
-from nemo.collections.llm.gpt.model.chatglm import ChatGLM2Config6B, ChatGLM3Config6B, ChatGLMConfig
+from nemo.collections.llm.gpt.model.chatglm import (ChatGLM2Config6B,
+                                                    ChatGLM3Config6B,
+                                                    ChatGLMConfig)
 
 
 def test_chatglm_config():

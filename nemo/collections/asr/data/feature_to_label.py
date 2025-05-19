@@ -15,10 +15,12 @@ from typing import Dict, List, Optional
 
 import torch
 
-from nemo.collections.asr.parts.preprocessing.feature_loader import ExternalFeatureLoader
+from nemo.collections.asr.parts.preprocessing.feature_loader import \
+    ExternalFeatureLoader
 from nemo.collections.common.parts.preprocessing import collections
 from nemo.core.classes import Dataset
-from nemo.core.neural_types import AcousticEncodedRepresentation, LabelsType, LengthsType, NeuralType
+from nemo.core.neural_types import (AcousticEncodedRepresentation, LabelsType,
+                                    LengthsType, NeuralType)
 from nemo.utils import logging
 
 

@@ -15,7 +15,8 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
-from megatron.core.inference.common_inference_params import CommonInferenceParams
+from megatron.core.inference.common_inference_params import \
+    CommonInferenceParams
 
 from nemo.deploy.nlp.megatronllm_deployable import MegatronLLMDeployableNemo2
 

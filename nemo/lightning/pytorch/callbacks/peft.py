@@ -27,13 +27,16 @@ from lightning.pytorch.plugins.io.wrapper import _WrappingCheckpointIO
 from lightning.pytorch.trainer.states import TrainerFn
 from typing_extensions import override
 
-from nemo.lightning.ckpt_utils import ADAPTER_META_FILENAME, HF_ADAPTER_CONFIG_FILENAME, HF_ADAPTER_PATH
+from nemo.lightning.ckpt_utils import (ADAPTER_META_FILENAME,
+                                       HF_ADAPTER_CONFIG_FILENAME,
+                                       HF_ADAPTER_PATH)
 from nemo.lightning.io.mixin import IOMixin
 from nemo.lightning.io.pl import ckpt_to_dir, ckpt_to_weights_subdir
 from nemo.lightning.megatron_parallel import MegatronParallel
 from nemo.lightning.pytorch.callbacks.model_transform import ModelTransform
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
-from nemo.lightning.pytorch.utils import get_automodel_from_trainer, is_trainer_attached
+from nemo.lightning.pytorch.utils import (get_automodel_from_trainer,
+                                          is_trainer_attached)
 from nemo.utils import logging
 from nemo.utils.callbacks.dist_ckpt_io import AsyncCompatibleCheckpointIO
 
@@ -142,7 +145,8 @@ class PEFT(IOMixin, ABC, ModelTransform):
 
     def setup(self, trainer: pl.Trainer, pl_module: pl.LightningModule, stage: str) -> None:
         """PTL callback setup function."""
-        from nemo.lightning.pytorch.strategies.utils import create_checkpoint_io
+        from nemo.lightning.pytorch.strategies.utils import \
+            create_checkpoint_io
         from nemo.lightning.pytorch.utils import get_automodel_from_trainer
 
         super().setup(trainer, pl_module, stage=stage)

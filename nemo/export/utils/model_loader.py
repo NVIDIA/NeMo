@@ -20,12 +20,12 @@ from pathlib import Path
 from typing import Any, Dict, Union
 
 import numpy
-
 # tenosrstore is needed to register 'bfloat16' dtype with numpy for zarr compatibility
 import tensorstore  # noqa: F401 pylint: disable=unused-import
 import torch
 from torch.distributed.checkpoint import FileSystemReader, load
-from torch.distributed.checkpoint.metadata import BytesStorageMetadata, TensorStorageMetadata
+from torch.distributed.checkpoint.metadata import (BytesStorageMetadata,
+                                                   TensorStorageMetadata)
 
 from nemo.export.tarutils import TarPath, ZarrPathStore
 from nemo.export.utils._mock_import import _mock_import

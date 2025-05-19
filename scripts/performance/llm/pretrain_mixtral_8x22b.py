@@ -18,18 +18,15 @@ from typing import Optional
 import nemo_run as run
 
 from nemo.collections.llm.recipes.mixtral_8x22b_64k import pretrain_recipe
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
-from nemo.lightning.run.plugins import MemoryProfilePlugin, NsysPlugin, PerfEnvPlugin
+from nemo.collections.nlp.modules.common.tokenizer_utils import \
+    get_nmt_tokenizer
+from nemo.lightning.run.plugins import (MemoryProfilePlugin, NsysPlugin,
+                                        PerfEnvPlugin)
 
 from ..argument_parser import parse_cli_args
-from ..utils import (
-    args_sanity_check,
-    get_user_configs,
-    hf_tokenizer,
-    set_exp_logging_configs,
-    set_primary_perf_configs,
-    slurm_executor,
-)
+from ..utils import (args_sanity_check, get_user_configs, hf_tokenizer,
+                     set_exp_logging_configs, set_primary_perf_configs,
+                     slurm_executor)
 
 
 def override_recipe_configs(

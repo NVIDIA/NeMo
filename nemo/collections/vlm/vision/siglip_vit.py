@@ -16,11 +16,11 @@
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
+
 import lightning.pytorch as L
 import torch
 
 from nemo.collections.llm.fn.activation import openai_gelu
-
 from nemo.collections.vlm.vision.base import CLIPViTConfig
 from nemo.lightning import io, teardown
 

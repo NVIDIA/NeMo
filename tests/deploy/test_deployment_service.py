@@ -21,16 +21,12 @@ import pytest
 from fastapi.testclient import TestClient
 
 from nemo.deploy.service.fastapi_interface_to_pytriton import (
-    CompletionRequest,
-    TritonSettings,
-    _helper_fun,
-    app,
-    convert_numpy,
-    dict_to_str,
-    query_llm_async,
-)
-from nemo.deploy.service.rest_model_api import CompletionRequest as RestCompletionRequest
-from nemo.deploy.service.rest_model_api import TritonSettings as RestTritonSettings
+    CompletionRequest, TritonSettings, _helper_fun, app, convert_numpy,
+    dict_to_str, query_llm_async)
+from nemo.deploy.service.rest_model_api import \
+    CompletionRequest as RestCompletionRequest
+from nemo.deploy.service.rest_model_api import \
+    TritonSettings as RestTritonSettings
 from nemo.deploy.service.rest_model_api import app as rest_app
 
 

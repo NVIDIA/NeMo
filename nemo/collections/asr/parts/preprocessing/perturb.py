@@ -661,7 +661,8 @@ class NoisePerturbationWithNormalization(Perturbation):
         epsilon=0.01,
     ):
         # import here to avoid circular import error
-        from nemo.collections.asr.data.audio_to_text import RandomizedChainDataset
+        from nemo.collections.asr.data.audio_to_text import \
+            RandomizedChainDataset
 
         self._manifest = collections.ASRAudioText(manifest_path, parser=parsers.make_parser([]), index_by_file_id=True)
         self._audiodataset = None
@@ -1326,7 +1327,8 @@ class AugmentationDataset(IterableDataset):
         shard_strategy: str = "replicate",
     ):
         # import here to avoid circular import error
-        from nemo.collections.asr.data.audio_to_text import expand_sharded_filepaths
+        from nemo.collections.asr.data.audio_to_text import \
+            expand_sharded_filepaths
 
         self._manifest = collections.ASRAudioText(manifest_path, parser=parsers.make_parser([]), index_by_file_id=True)
 

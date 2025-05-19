@@ -19,9 +19,12 @@ import torch._dynamo.config as dynamo_config
 from lightning.pytorch import Trainer
 from omegaconf.omegaconf import OmegaConf
 
-from nemo.collections.multimodal.models.text_to_image.stable_diffusion.diffusion_engine import MegatronDiffusionEngine
-from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronTrainerBuilder
-from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy, NLPFSDPStrategy
+from nemo.collections.multimodal.models.text_to_image.stable_diffusion.diffusion_engine import \
+    MegatronDiffusionEngine
+from nemo.collections.nlp.parts.megatron_trainer_builder import \
+    MegatronTrainerBuilder
+from nemo.collections.nlp.parts.nlp_overrides import (NLPDDPStrategy,
+                                                      NLPFSDPStrategy)
 from nemo.collections.nlp.parts.peft_config import PEFT_CONFIG_MAP
 from nemo.core.config import hydra_runner
 from nemo.utils import logging

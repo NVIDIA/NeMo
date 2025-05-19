@@ -39,15 +39,18 @@ import torch.nn as nn
 from einops import rearrange
 
 try:
-    from megatron.core.extensions.transformer_engine import TELayerNormColumnParallelLinear, TERowParallelLinear
-    from megatron.core.transformer.identity_op import IdentityFuncOp, IdentityOp
+    from megatron.core.extensions.transformer_engine import (
+        TELayerNormColumnParallelLinear, TERowParallelLinear)
+    from megatron.core.transformer.identity_op import (IdentityFuncOp,
+                                                       IdentityOp)
     from megatron.core.transformer.spec_utils import ModuleSpec, build_module
     from megatron.core.transformer.transformer_config import TransformerConfig
 
     HAVE_MEGATRON_CORE = True
 
 except (ImportError, ModuleNotFoundError):
-    from nemo.collections.nlp.modules.common.megatron.utils import ApexGuardDefaults
+    from nemo.collections.nlp.modules.common.megatron.utils import \
+        ApexGuardDefaults
 
     ModuleSpec = ApexGuardDefaults
     IdentityFuncOp = ApexGuardDefaults
@@ -56,12 +59,14 @@ except (ImportError, ModuleNotFoundError):
     HAVE_MEGATRON_CORE = False
 
 from nemo.collections.common.parts.utils import activation_registry
-from nemo.collections.nlp.modules.common.hyena.hyena_filter import HyenaFilter, HyenaFilterSubmodules
+from nemo.collections.nlp.modules.common.hyena.hyena_filter import (
+    HyenaFilter, HyenaFilterSubmodules)
 from nemo.collections.nlp.parts.utils_funcs import torch_dtype_from_precision
 from nemo.utils.metaclasses import Singleton
 
 try:
-    from nemo.collections.nlp.modules.common.hyena.fftconv_wrapper import fftconv_func as safari_fftconv_fn
+    from nemo.collections.nlp.modules.common.hyena.fftconv_wrapper import \
+        fftconv_func as safari_fftconv_fn
 
     HAVE_SAFARI_FFTCONV = True
 except ImportError:

@@ -38,17 +38,10 @@ from nemo.collections.common.parts import rnn
 from nemo.core.classes import adapter_mixins, typecheck
 from nemo.core.classes.exportable import Exportable
 from nemo.core.classes.mixins import AdapterModuleMixin
-from nemo.core.neural_types import (
-    AcousticEncodedRepresentation,
-    ElementType,
-    EmbeddedTextType,
-    LabelsType,
-    LengthsType,
-    LogprobsType,
-    LossType,
-    NeuralType,
-    SpectrogramType,
-)
+from nemo.core.neural_types import (AcousticEncodedRepresentation, ElementType,
+                                    EmbeddedTextType, LabelsType, LengthsType,
+                                    LogprobsType, LossType, NeuralType,
+                                    SpectrogramType)
 from nemo.utils import logging
 
 

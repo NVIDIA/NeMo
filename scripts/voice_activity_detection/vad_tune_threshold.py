@@ -16,7 +16,8 @@ import argparse
 
 import numpy as np
 
-from nemo.collections.asr.parts.utils.vad_utils import vad_tune_threshold_on_dev
+from nemo.collections.asr.parts.utils.vad_utils import \
+    vad_tune_threshold_on_dev
 from nemo.utils import logging
 
 """

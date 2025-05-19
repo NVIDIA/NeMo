@@ -15,6 +15,7 @@
 
 import inspect
 from typing import Callable, Optional
+
 from lightning.pytorch.callbacks import LambdaCallback
 
 

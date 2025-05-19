@@ -26,34 +26,24 @@ from torch import nn
 from nemo.collections.asr.models.configs import CacheAwareStreamingConfig
 from nemo.collections.asr.parts.mixins.streaming import StreamingEncoder
 from nemo.collections.asr.parts.submodules.causal_convs import CausalConv1D
-from nemo.collections.asr.parts.submodules.conformer_modules import ConformerLayer
+from nemo.collections.asr.parts.submodules.conformer_modules import \
+    ConformerLayer
 from nemo.collections.asr.parts.submodules.multi_head_attention import (
-    LocalAttRelPositionalEncoding,
-    MultiHeadAttention,
-    PositionalEncoding,
-    RelPositionalEncoding,
-    RelPositionMultiHeadAttention,
-    RelPositionMultiHeadAttentionLongformer,
-)
+    LocalAttRelPositionalEncoding, MultiHeadAttention, PositionalEncoding,
+    RelPositionalEncoding, RelPositionMultiHeadAttention,
+    RelPositionMultiHeadAttentionLongformer)
 from nemo.collections.asr.parts.submodules.subsampling import (
-    ConvSubsampling,
-    StackingSubsampling,
-    SubsamplingReductionModule,
-)
+    ConvSubsampling, StackingSubsampling, SubsamplingReductionModule)
 from nemo.collections.asr.parts.utils import adapter_utils
-from nemo.collections.asr.parts.utils.regularization_utils import compute_stochastic_depth_drop_probs
+from nemo.collections.asr.parts.utils.regularization_utils import \
+    compute_stochastic_depth_drop_probs
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.exportable import Exportable
 from nemo.core.classes.mixins import AccessMixin, adapter_mixins
 from nemo.core.classes.module import NeuralModule
-from nemo.core.neural_types import (
-    AcousticEncodedRepresentation,
-    BoolType,
-    ChannelType,
-    LengthsType,
-    NeuralType,
-    SpectrogramType,
-)
+from nemo.core.neural_types import (AcousticEncodedRepresentation, BoolType,
+                                    ChannelType, LengthsType, NeuralType,
+                                    SpectrogramType)
 from nemo.utils import logging
 
 __all__ = ['ConformerEncoder']

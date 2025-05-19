@@ -24,7 +24,8 @@ import libcst as cst
 import torch
 import torch.nn as nn
 from fiddle._src import daglish_extensions
-from fiddle._src.codegen import import_manager, py_val_to_cst_converter, special_value_codegen
+from fiddle._src.codegen import (import_manager, py_val_to_cst_converter,
+                                 special_value_codegen)
 from fiddle._src.experimental import serialization
 
 from nemo.lightning.io.artifact import *  # noqa: F403

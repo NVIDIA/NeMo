@@ -23,7 +23,8 @@ import torch.distributed
 from einops import rearrange
 from megatron.core.enums import ModelType
 from megatron.core.inference_params import InferenceParams
-from megatron.core.models.vision.multimodal_projector import MultimodalProjector
+from megatron.core.models.vision.multimodal_projector import \
+    MultimodalProjector
 from megatron.core.optimizer import OptimizerConfig
 from megatron.core.tensor_parallel.layers import ColumnParallelLinear
 from megatron.core.transformer import MegatronModule
@@ -36,16 +37,20 @@ from torch import nn
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.llm import fn
-from nemo.collections.llm.gpt.model import local_layer_spec, transformer_engine_layer_spec
+from nemo.collections.llm.gpt.model import (local_layer_spec,
+                                            transformer_engine_layer_spec)
 from nemo.collections.llm.gpt.model.base import get_packed_seq_params
-from nemo.collections.llm.gpt.model.llama import Llama31Config, apply_rope_scaling
+from nemo.collections.llm.gpt.model.llama import (Llama31Config,
+                                                  apply_rope_scaling)
 from nemo.collections.vlm.mllama.model.language import CrossAttentionTextModel
-from nemo.collections.vlm.mllama.model.utils import _generate_cross_attention_mask, _pad_attention_masks
+from nemo.collections.vlm.mllama.model.utils import (
+    _generate_cross_attention_mask, _pad_attention_masks)
 from nemo.collections.vlm.mllama.model.vision import VisionEncoder
 from nemo.collections.vlm.neva.model.base import MODEL_CONFIG_ATTR
 from nemo.lightning import get_vocab_size, io
 from nemo.lightning.megatron_parallel import MaskedTokenLossReduction
-from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
+from nemo.lightning.pytorch.optim import (MegatronOptimizerModule,
+                                          OptimizerModule)
 from nemo.utils import logging
 
 

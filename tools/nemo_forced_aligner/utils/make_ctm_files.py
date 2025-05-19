@@ -17,6 +17,7 @@ import os
 import soundfile as sf
 from utils.constants import BLANK_TOKEN, SPACE_TOKEN
 from utils.data_prep import Segment, Word
+
 from nemo.collections.asr.parts.utils.manifest_utils import get_ctm_line
 
 

@@ -35,10 +35,12 @@ except Exception as e:
 
 in_framework_supported = True
 try:
-    from megatron.core.inference.common_inference_params import CommonInferenceParams
+    from megatron.core.inference.common_inference_params import \
+        CommonInferenceParams
 
     from nemo.deploy.nlp import NemoQueryLLMPyTorch
-    from nemo.deploy.nlp.megatronllm_deployable import MegatronLLMDeploy, MegatronLLMDeployableNemo2
+    from nemo.deploy.nlp.megatronllm_deployable import (
+        MegatronLLMDeploy, MegatronLLMDeployableNemo2)
 except Exception as e:
     LOGGER.warning(
         "Cannot import MegatronLLMDeploy* classes, or NemoQueryLLMPyTorch, or CommonInferenceParams, "

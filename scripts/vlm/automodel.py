@@ -29,10 +29,8 @@ from nemo import lightning as nl
 from nemo.automodel.dist_utils import FirstRankPerNode
 from nemo.collections import llm, vlm
 from nemo.collections.vlm.hf.data.automodel_datasets import (
-    mk_hf_vlm_dataset_cord_v2,
-    mk_hf_vlm_dataset_fineweb_edu,
-    mk_hf_vlm_dataset_rdr,
-)
+    mk_hf_vlm_dataset_cord_v2, mk_hf_vlm_dataset_fineweb_edu,
+    mk_hf_vlm_dataset_rdr)
 
 
 def make_strategy(strategy, model, devices, num_nodes, adapter_only=False):

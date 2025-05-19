@@ -28,7 +28,8 @@ import torch
 
 try:
     import multistorageclient
-    from multistorageclient.types import MSC_PROTOCOL as MULTISTORAGECLIENT_PROTOCOL
+    from multistorageclient.types import \
+        MSC_PROTOCOL as MULTISTORAGECLIENT_PROTOCOL
 
     MULTISTORAGECLIENT_AVAILABLE = True
 except (ImportError, ModuleNotFoundError):

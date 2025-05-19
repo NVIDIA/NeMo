@@ -15,14 +15,14 @@
 from lightning.pytorch import Trainer
 from omegaconf.omegaconf import OmegaConf
 
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-from nemo.collections.nlp.modules.common.megatron.megatron_utils import compute_model_parallel_rank
-from nemo.collections.nlp.parts.nlp_overrides import (
-    NLPDDPStrategy,
-    NLPMixedPrecisionPlugin,
-    NLPPrecisionPlugin,
-    NLPSaveRestoreConnector,
-)
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import \
+    MegatronGPTModel
+from nemo.collections.nlp.modules.common.megatron.megatron_utils import \
+    compute_model_parallel_rank
+from nemo.collections.nlp.parts.nlp_overrides import (NLPDDPStrategy,
+                                                      NLPMixedPrecisionPlugin,
+                                                      NLPPrecisionPlugin,
+                                                      NLPSaveRestoreConnector)
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.app_state import AppState

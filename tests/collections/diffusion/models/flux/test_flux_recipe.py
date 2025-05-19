@@ -15,7 +15,8 @@
 import pytest
 import torch
 
-from nemo.collections.diffusion.models.flux_controlnet.layers import ControlNetConditioningEmbedding
+from nemo.collections.diffusion.models.flux_controlnet.layers import \
+    ControlNetConditioningEmbedding
 from nemo.collections.diffusion.recipes import flux_12b, flux_535m
 from nemo.collections.llm.api import pretrain
 

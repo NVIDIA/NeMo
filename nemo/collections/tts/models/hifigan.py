@@ -21,16 +21,21 @@ from hydra.utils import instantiate
 from lightning.pytorch.loggers.wandb import WandbLogger
 from omegaconf import DictConfig, OmegaConf, open_dict
 
-from nemo.collections.tts.losses.hifigan_losses import DiscriminatorLoss, FeatureMatchingLoss, GeneratorLoss
+from nemo.collections.tts.losses.hifigan_losses import (DiscriminatorLoss,
+                                                        FeatureMatchingLoss,
+                                                        GeneratorLoss)
 from nemo.collections.tts.models.base import Vocoder
-from nemo.collections.tts.modules.hifigan_modules import MultiPeriodDiscriminator, MultiScaleDiscriminator
+from nemo.collections.tts.modules.hifigan_modules import (
+    MultiPeriodDiscriminator, MultiScaleDiscriminator)
 from nemo.collections.tts.parts.utils.callbacks import LoggingCallback
-from nemo.collections.tts.parts.utils.helpers import get_batch_size, get_num_workers, plot_spectrogram_to_numpy
+from nemo.collections.tts.parts.utils.helpers import (
+    get_batch_size, get_num_workers, plot_spectrogram_to_numpy)
 from nemo.core.classes import Exportable
 from nemo.core.classes.common import PretrainedModelInfo, typecheck
 from nemo.core.neural_types.elements import AudioSignal, MelSpectrogramType
 from nemo.core.neural_types.neural_type import NeuralType
-from nemo.core.optim.lr_scheduler import compute_max_steps, prepare_lr_scheduler
+from nemo.core.optim.lr_scheduler import (compute_max_steps,
+                                          prepare_lr_scheduler)
 from nemo.utils import logging, model_utils
 
 HAVE_WANDB = True

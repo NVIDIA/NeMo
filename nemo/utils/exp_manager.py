@@ -33,10 +33,12 @@ from hydra.utils import get_original_cwd
 from lightning.pytorch.callbacks import Callback, ModelCheckpoint
 from lightning.pytorch.callbacks.early_stopping import EarlyStopping
 from lightning.pytorch.callbacks.timer import Interval, Timer
-from lightning.pytorch.loggers import MLFlowLogger, NeptuneLogger, TensorBoardLogger, WandbLogger
+from lightning.pytorch.loggers import (MLFlowLogger, NeptuneLogger,
+                                       TensorBoardLogger, WandbLogger)
 from lightning.pytorch.loops import _TrainingEpochLoop
 from lightning.pytorch.strategies.ddp import DDPStrategy
-from lightning.pytorch.trainer.connectors.checkpoint_connector import _CheckpointConnector
+from lightning.pytorch.trainer.connectors.checkpoint_connector import \
+    _CheckpointConnector
 from omegaconf import DictConfig, OmegaConf, open_dict
 
 from nemo.collections.common.callbacks import EMA
@@ -49,7 +51,8 @@ from nemo.utils.exceptions import NeMoBaseException
 from nemo.utils.get_rank import is_global_rank_zero
 from nemo.utils.import_utils import safe_import_from
 from nemo.utils.lightning_logger_patch import add_filehandlers_to_pl_logger
-from nemo.utils.loggers import ClearMLLogger, ClearMLParams, DLLogger, DLLoggerParams, MLFlowParams
+from nemo.utils.loggers import (ClearMLLogger, ClearMLParams, DLLogger,
+                                DLLoggerParams, MLFlowParams)
 from nemo.utils.mcore_logger import add_handlers_to_mcore_logger
 from nemo.utils.model_utils import uninject_model_parallel_rank
 
@@ -75,7 +78,8 @@ except (ImportError, ModuleNotFoundError):
 
 try:
     import multistorageclient
-    from multistorageclient.types import MSC_PROTOCOL as MUTLISTORAGECLIENT_PROTOCOL
+    from multistorageclient.types import \
+        MSC_PROTOCOL as MUTLISTORAGECLIENT_PROTOCOL
 
     MUTLISTORAGECLIENT_AVAILABLE = True
 except (ImportError, ModuleNotFoundError):
@@ -1455,7 +1459,8 @@ class StatelessTimer(Timer):
                 monitor_candidates = checkpoint_callback._monitor_candidates(trainer)
                 checkpoint_callback._save_last_checkpoint(trainer, monitor_candidates)
             # Throw this exception to signal to Lightning to terminate gracefully.
-            from lightning.pytorch.utilities.exceptions import _TunerExitException
+            from lightning.pytorch.utilities.exceptions import \
+                _TunerExitException
 
             raise _TunerExitException()
 

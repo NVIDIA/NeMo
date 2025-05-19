@@ -23,15 +23,13 @@ from lightning.fabric.plugins import CheckpointIO
 from lightning.fabric.utilities.cloud_io import get_filesystem
 from lightning.fabric.utilities.types import _PATH
 from megatron.core.dist_checkpointing.serialization import (
-    get_default_load_sharded_strategy,
-    get_default_save_sharded_strategy,
-)
-from megatron.core.dist_checkpointing.strategies.base import SaveShardedStrategy
+    get_default_load_sharded_strategy, get_default_save_sharded_strategy)
+from megatron.core.dist_checkpointing.strategies.base import \
+    SaveShardedStrategy
 from megatron.core.dist_checkpointing.strategies.fully_parallel import (
-    FullyParallelLoadStrategyWrapper,
-    FullyParallelSaveStrategyWrapper,
-)
-from megatron.core.dist_checkpointing.strategies.torch import TorchDistSaveShardedStrategy
+    FullyParallelLoadStrategyWrapper, FullyParallelSaveStrategyWrapper)
+from megatron.core.dist_checkpointing.strategies.torch import \
+    TorchDistSaveShardedStrategy
 from megatron.core.parallel_state import get_data_parallel_group
 from torch import nn
 from typing_extensions import Self, override
@@ -266,7 +264,8 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
             path.base_model_path = path.base_model_path.parent
 
         if self.save_ckpt_format == 'zarr' and self.load_directly_on_device:
-            from megatron.core.dist_checkpointing.strategies.tensorstore import TensorStoreLoadShardedStrategy
+            from megatron.core.dist_checkpointing.strategies.tensorstore import \
+                TensorStoreLoadShardedStrategy
 
             sharded_strategy = TensorStoreLoadShardedStrategy(load_directly_on_device=True)
         else:
@@ -393,7 +392,8 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
                 and `loaded_keys`.
         """
         from megatron.core import dist_checkpointing
-        from megatron.core.dist_checkpointing.dict_utils import extract_matching_values
+        from megatron.core.dist_checkpointing.dict_utils import \
+            extract_matching_values
         from megatron.core.dist_checkpointing.mapping import ShardedBase
 
         ckpt_sharded_metadata = dist_checkpointing.load_tensors_metadata(path)
@@ -432,7 +432,8 @@ def _fix_tensors_device(ckpt: Dict) -> Dict:
     """Ensure checkpoint tensors are on the correct device."""
     assert torch.cuda.is_initialized(), (torch.cuda.is_available(), torch.cuda.is_initialized())
     cur_dev = torch.device("cuda", index=torch.cuda.current_device())
-    from megatron.core.dist_checkpointing.dict_utils import dict_list_map_outplace
+    from megatron.core.dist_checkpointing.dict_utils import \
+        dict_list_map_outplace
 
     def _fix_device(t):
         if isinstance(t, torch.Tensor) and t.is_cuda and t.device != cur_dev:

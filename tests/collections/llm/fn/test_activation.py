@@ -16,7 +16,8 @@ import numpy as np
 import pytest
 import torch
 
-from nemo.collections.llm.fn.activation import openai_gelu, quick_gelu, squared_relu
+from nemo.collections.llm.fn.activation import (openai_gelu, quick_gelu,
+                                                squared_relu)
 
 
 class TestActivationFunctions:

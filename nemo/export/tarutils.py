@@ -16,7 +16,6 @@ import fnmatch
 import logging
 import os
 import tarfile
-
 from typing import IO, Union
 
 LOGGER = logging.getLogger("NeMo")

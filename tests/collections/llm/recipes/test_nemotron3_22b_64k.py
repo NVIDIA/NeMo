@@ -17,7 +17,8 @@ import pytest
 
 from nemo.collections.llm.api import pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
-from nemo.collections.llm.gpt.model.nemotron import Nemotron3Config22B, NemotronModel
+from nemo.collections.llm.gpt.model.nemotron import (Nemotron3Config22B,
+                                                     NemotronModel)
 from nemo.collections.llm.recipes import nemotron3_22b_64k
 from nemo.lightning import Trainer
 

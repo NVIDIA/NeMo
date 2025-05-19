@@ -22,13 +22,8 @@ import nemo_run as run
 from typing_extensions import Annotated
 
 import nemo.lightning as nl
-from nemo.lightning import (
-    AutoResume,
-    NeMoLogger,
-    OptimizerModule,
-    Trainer,
-    configure_no_restart_validation_training_loop,
-)
+from nemo.lightning import (AutoResume, NeMoLogger, OptimizerModule, Trainer,
+                            configure_no_restart_validation_training_loop)
 from nemo.lightning.pytorch.callbacks import PEFT, ModelTransform
 from nemo.utils import logging
 
@@ -272,7 +267,8 @@ def _use_tokenizer(model: pl.LightningModule, data: pl.LightningDataModule, toke
         _set_with_io(data, "tokenizer", model.tokenizer)
     else:
         try:
-            from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
+            from nemo.collections.common.tokenizers.tokenizer_spec import \
+                TokenizerSpec
 
             if isinstance(tokenizer, TokenizerSpec):
                 _set_with_io(model, "tokenizer", tokenizer)

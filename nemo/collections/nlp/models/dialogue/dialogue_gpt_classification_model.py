@@ -26,22 +26,27 @@ from omegaconf import DictConfig
 from torch.utils.data import DataLoader
 from transformers import AutoModelWithLMHead
 
-from nemo.collections.nlp.data.dialogue import DialogueGPTClassificationDataset, DialogueSGDDataProcessor
-from nemo.collections.nlp.data.dialogue.data_processor.assistant_data_processor import DialogueAssistantDataProcessor
-from nemo.collections.nlp.data.dialogue.data_processor.design_data_processor import DialogueDesignDataProcessor
-from nemo.collections.nlp.metrics.classification_report import ClassificationReport
-from nemo.collections.nlp.metrics.dialogue_metrics import DialogueClassificationMetrics
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_model import (
-    MegatronGPTPromptLearningModel,
-)
+from nemo.collections.nlp.data.dialogue import (
+    DialogueGPTClassificationDataset, DialogueSGDDataProcessor)
+from nemo.collections.nlp.data.dialogue.data_processor.assistant_data_processor import \
+    DialogueAssistantDataProcessor
+from nemo.collections.nlp.data.dialogue.data_processor.design_data_processor import \
+    DialogueDesignDataProcessor
+from nemo.collections.nlp.metrics.classification_report import \
+    ClassificationReport
+from nemo.collections.nlp.metrics.dialogue_metrics import \
+    DialogueClassificationMetrics
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import \
+    MegatronGPTModel
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_prompt_learning_model import \
+    MegatronGPTPromptLearningModel
 from nemo.collections.nlp.models.nlp_model import NLPModel
-from nemo.collections.nlp.modules.common import VirtualPromptSource, VirtualPromptStyle
+from nemo.collections.nlp.modules.common import (VirtualPromptSource,
+                                                 VirtualPromptStyle)
 from nemo.collections.nlp.modules.common.text_generation_utils import (
-    get_default_sampling_params,
-    megatron_gpt_generate,
-)
-from nemo.collections.nlp.modules.common.transformer.text_generation import LengthParam
+    get_default_sampling_params, megatron_gpt_generate)
+from nemo.collections.nlp.modules.common.transformer.text_generation import \
+    LengthParam
 from nemo.collections.nlp.parts.nlp_overrides import NLPSaveRestoreConnector
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging

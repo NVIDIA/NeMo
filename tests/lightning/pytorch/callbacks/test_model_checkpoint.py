@@ -21,13 +21,15 @@ import lightning.pytorch as pl
 import megatron
 import pytest
 import torch
-from lightning.pytorch.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
+from lightning.pytorch.utilities.types import (EVAL_DATALOADERS,
+                                               TRAIN_DATALOADERS)
 from megatron.core import ModelParallelConfig, parallel_state
 from torch import Tensor
 
 import nemo.lightning as nl
 from nemo.lightning.io.mixin import IOMixin
-from nemo.lightning.megatron_parallel import DataT, MegatronLossReduction, ReductionT
+from nemo.lightning.megatron_parallel import (DataT, MegatronLossReduction,
+                                              ReductionT)
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
 
 

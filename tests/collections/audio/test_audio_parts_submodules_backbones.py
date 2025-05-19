@@ -16,12 +16,13 @@ import einops
 import pytest
 import torch
 
-from nemo.collections.audio.parts.submodules.conformer import SpectrogramConformer
+from nemo.collections.audio.parts.submodules.conformer import \
+    SpectrogramConformer
 from nemo.collections.audio.parts.submodules.ncsnpp import (
     NoiseConditionalScoreNetworkPlusPlus,
-    SpectrogramNoiseConditionalScoreNetworkPlusPlus,
-)
-from nemo.collections.audio.parts.submodules.transformerunet import SpectrogramTransformerUNet, TransformerUNet
+    SpectrogramNoiseConditionalScoreNetworkPlusPlus)
+from nemo.collections.audio.parts.submodules.transformerunet import (
+    SpectrogramTransformerUNet, TransformerUNet)
 
 
 @pytest.fixture(params=[True, False], ids=["conditioned_on_time", "not_conditioned_on_time"])

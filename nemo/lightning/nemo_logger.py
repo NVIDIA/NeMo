@@ -20,9 +20,11 @@ from typing import List, Optional, Union
 
 import lightning.fabric as fl
 import lightning.pytorch as pl
-from lightning.pytorch.callbacks.model_checkpoint import ModelCheckpoint as PTLModelCheckpoint
+from lightning.pytorch.callbacks.model_checkpoint import \
+    ModelCheckpoint as PTLModelCheckpoint
 from lightning.pytorch.loggers import Logger, TensorBoardLogger, WandbLogger
-from nvidia_resiliency_ext.ptl_resiliency.local_checkpoint_callback import LocalCheckpointCallback
+from nvidia_resiliency_ext.ptl_resiliency.local_checkpoint_callback import \
+    LocalCheckpointCallback
 
 from nemo.lightning.io.mixin import IOMixin
 from nemo.lightning.pytorch.callbacks import ModelCheckpoint

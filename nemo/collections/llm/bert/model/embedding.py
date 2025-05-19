@@ -23,7 +23,8 @@ from megatron.core.utils import get_batch_on_this_cp_rank
 from torch import Tensor, nn
 
 from nemo.collections.common.tokenizers import TokenizerSpec
-from nemo.collections.llm.bert.loss import BERTInBatchExclusiveHardNegativesRankingLoss
+from nemo.collections.llm.bert.loss import \
+    BERTInBatchExclusiveHardNegativesRankingLoss
 from nemo.collections.llm.bert.model import BertConfig, BertModel
 from nemo.collections.llm.bert.model.base import get_packed_seq_params
 from nemo.collections.llm.bert.model.bert import HuggingFaceBertImporter

@@ -16,10 +16,14 @@
 import numpy as np
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
-from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import create_extreme_masked_lm_predictions
-from nemo.collections.nlp.data.language_modeling.megatron.length_distribution_type import LengthDistribution
-from nemo.collections.nlp.data.language_modeling.megatron.lm_adapted_t5_dataset import T5LMAdaptedDataset
-from nemo.collections.nlp.data.language_modeling.megatron.t5_dataset import T5Dataset
+from nemo.collections.nlp.data.language_modeling.megatron.dataset_utils import \
+    create_extreme_masked_lm_predictions
+from nemo.collections.nlp.data.language_modeling.megatron.length_distribution_type import \
+    LengthDistribution
+from nemo.collections.nlp.data.language_modeling.megatron.lm_adapted_t5_dataset import \
+    T5LMAdaptedDataset
+from nemo.collections.nlp.data.language_modeling.megatron.t5_dataset import \
+    T5Dataset
 
 
 class UL2Dataset(T5Dataset):

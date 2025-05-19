@@ -24,11 +24,16 @@ from joblib import Parallel, delayed
 from lightning.pytorch import Trainer
 from omegaconf import ListConfig, OmegaConf
 
-from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer, create_spt_model
-from nemo.collections.nlp.data.language_modeling.sentence_dataset import SentenceDataset
-from nemo.collections.nlp.data.machine_translation.machine_translation_dataset import TranslationDataset
-from nemo.collections.nlp.models.machine_translation.mt_enc_dec_config import MTEncDecModelConfig
-from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer, get_tokenizer
+from nemo.collections.common.tokenizers.sentencepiece_tokenizer import (
+    SentencePieceTokenizer, create_spt_model)
+from nemo.collections.nlp.data.language_modeling.sentence_dataset import \
+    SentenceDataset
+from nemo.collections.nlp.data.machine_translation.machine_translation_dataset import \
+    TranslationDataset
+from nemo.collections.nlp.models.machine_translation.mt_enc_dec_config import \
+    MTEncDecModelConfig
+from nemo.collections.nlp.modules.common.tokenizer_utils import (
+    get_nmt_tokenizer, get_tokenizer)
 from nemo.utils import logging
 
 

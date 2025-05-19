@@ -22,12 +22,15 @@ import time
 import uuid
 from contextlib import contextmanager
 from typing import Callable, Generator, Optional, Set, Union
+
 import torch
 from lightning.pytorch.trainer.trainer import Trainer
 from omegaconf import DictConfig, OmegaConf
 from omegaconf.omegaconf import open_dict
 
-from nemo.core import classes as nemo_classes  # to avoid circular import do not import ModelPT directly
+from nemo.core import \
+    classes as \
+    nemo_classes  # to avoid circular import do not import ModelPT directly
 from nemo.utils import logging, model_utils
 from nemo.utils.app_state import AppState
 from nemo.utils.get_rank import is_global_rank_zero
@@ -35,7 +38,8 @@ from nemo.utils.model_utils import inject_model_parallel_rank
 
 try:
     import multistorageclient
-    from multistorageclient.types import MSC_PROTOCOL as MULTISTORAGECLIENT_PROTOCOL
+    from multistorageclient.types import \
+        MSC_PROTOCOL as MULTISTORAGECLIENT_PROTOCOL
 
     MULTISTORAGECLIENT_AVAILABLE = True
 except (ImportError, ModuleNotFoundError):

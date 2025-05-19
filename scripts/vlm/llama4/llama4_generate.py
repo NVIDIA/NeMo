@@ -27,7 +27,8 @@ from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
 
 import nemo.lightning as nl
 from nemo.collections.common.tokenizers import AutoTokenizer
-from nemo.collections.vlm.inference.base import _setup_trainer_and_restore_model
+from nemo.collections.vlm.inference.base import \
+    _setup_trainer_and_restore_model
 from nemo.lightning import io
 from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
 from nemo.utils.get_rank import get_last_rank

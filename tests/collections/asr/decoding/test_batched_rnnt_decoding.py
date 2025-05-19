@@ -24,12 +24,16 @@ from omegaconf import open_dict
 from tqdm import tqdm
 
 from nemo.collections.asr.models import ASRModel
-from nemo.collections.asr.parts.submodules.ngram_lm import NGramGPULanguageModel
-from nemo.collections.asr.parts.submodules.rnnt_beam_decoding import BeamBatchedRNNTInfer
-from nemo.collections.asr.parts.submodules.tdt_beam_decoding import BeamBatchedTDTInfer
+from nemo.collections.asr.parts.submodules.ngram_lm import \
+    NGramGPULanguageModel
+from nemo.collections.asr.parts.submodules.rnnt_beam_decoding import \
+    BeamBatchedRNNTInfer
+from nemo.collections.asr.parts.submodules.tdt_beam_decoding import \
+    BeamBatchedTDTInfer
 from nemo.collections.asr.parts.utils import rnnt_utils
 from nemo.core.utils import numba_utils
-from nemo.core.utils.cuda_python_utils import skip_cuda_python_test_if_cuda_graphs_conditional_nodes_not_supported
+from nemo.core.utils.cuda_python_utils import \
+    skip_cuda_python_test_if_cuda_graphs_conditional_nodes_not_supported
 from nemo.core.utils.numba_utils import __NUMBA_MINIMUM_VERSION__
 
 RNNT_MODEL = "stt_en_conformer_transducer_small"
