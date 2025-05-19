@@ -322,9 +322,10 @@ def main():
     with open_dict(decoding_cfg):
         decoding_cfg.strategy = args.strategy
         decoding_cfg.preserve_alignments = False
-        if hasattr(asr_model, 'joint') and args.strategy in {"greedy", "greedy_batch"}:  # if an RNNT model
-            decoding_cfg.greedy.max_symbols = 10
+        if hasattr(asr_model, 'joint'):  # if an RNNT model
             decoding_cfg.fused_batch_size = -1
+            if not (max_symbols := decoding_cfg.greedy.get("max_symbols")) or max_symbols <= 0:
+                decoding_cfg.greedy.max_symbols = 10
         asr_model.change_decoding_strategy(decoding_cfg)
 
     asr_model = asr_model.to(args.device)
