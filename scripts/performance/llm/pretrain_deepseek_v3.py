@@ -35,7 +35,7 @@ from ..utils import (
 )
 
 HF_MODEL_URI = "deepseek-ai/DeepSeek-V3-Base"
-USE_TOKEN_DROP = True  # Use token drop callback
+USE_TOKEN_DROP = True # Use token drop callback
 
 
 def override_recipe_configs(
@@ -58,8 +58,7 @@ def override_recipe_configs(
     """
     DeepSeek V3 pre-train recipe aimed at achieving best possible performance.
     """
-    recipe = pretrain_recipe(performance_mode=True)
-
+    recipe = pretrain_recipe(performance_mode = True)
     recipe.model.config.moe_permute_fusion = True
     recipe.model.config.recompute_granularity = "selective"
     recipe.model.config.recompute_num_layers = None
@@ -75,7 +74,6 @@ def override_recipe_configs(
 
     if not hasattr(recipe.trainer, "callbacks") or recipe.trainer.callbacks is None:
         recipe.trainer.callbacks = []
-
     if USE_TOKEN_DROP:
         recipe.trainer.callbacks.append(run.Config(MegatronTokenDropCallback))
 
