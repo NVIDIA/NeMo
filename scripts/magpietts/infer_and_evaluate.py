@@ -140,7 +140,7 @@ def run_inference(
     model.eval()
 
     checkpoint_name = checkpoint_file.split("/")[-1].split(".ckpt")[0]
-    checkpoint_name = "{}_Temp{}_Topk{}_Cfg_{}_{}_Prior_{}_{}_{}_start{}_Estlayers{}_PrLayers{}_LT_{}_MGsteps{}_sv_{}".format(
+    checkpoint_name = "{}_Temp{}_Topk{}_Cfg_{}_{}_Prior_{}_{}_{}_start{}_Estlayers{}_PrLayers{}_LT_{}_MGsteps_{}_MGnoise_{}_sv_{}".format(
         checkpoint_name,
         temperature,
         topk,
@@ -154,6 +154,7 @@ def run_inference(
         "".join([str(l) for l in apply_prior_to_layers]) if apply_prior_to_layers is not None else "None",
         use_local_transformer,
         maskgit_n_steps,
+        maskgit_noise_scale,
         sv_model
     )
     dataset_meta_info = evalset_config.dataset_meta_info
