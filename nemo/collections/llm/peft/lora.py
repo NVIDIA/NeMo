@@ -382,6 +382,7 @@ class LoRA(PEFT, ModuleMatcher):
         dropout_position (Literal['pre', 'post'], optional): Position for applying dropout.
             Can be 'pre' (before the low-rank projection) or 'post' (after). Defaults to 'pre'.
         a2a_experimental (bool): Enables the experimental All-to-All (A2A) communication strategy. Defaults to False.
+        dropout_recompute (bool): Enables dropout recompute. Defaults to False.
         lora_dtype (torch.dtype): Parameter data type for LoRA weights. Default None (will use model's dtype).
 
     Example:
@@ -412,6 +413,7 @@ class LoRA(PEFT, ModuleMatcher):
     lora_B_init_method: str = "zero"
     a2a_experimental: bool = False
     lora_dtype: torch.dtype = None
+    dropout_recompute: bool = False
 
     def transform(self, m: nn.Module, name=None, prefix=None):
         """
@@ -477,6 +479,7 @@ class LoRA(PEFT, ModuleMatcher):
                 is_expert=is_expert_linear(full_name),
                 a2a_experimental=self.a2a_experimental,
                 disable_sequence_parallel_comm=disable_sp_comm,
+                dropout_recompute=self.dropout_recompute,
             )
             return LoRALinear(m, adapter)
         return m
