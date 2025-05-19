@@ -62,6 +62,7 @@ ALLOWED_TARGET_PREFIXES = [
     "nemo.collections.",
     "nemo.core.",
     "nemo.utils.",
+    "tests.collections.",
     "torch.nn.",
     "torch.optim.",
     "torch.utils.data.",
