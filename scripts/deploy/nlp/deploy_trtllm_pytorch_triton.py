@@ -14,8 +14,6 @@
 
 import argparse
 import logging
-import sys
-import torch
 
 from nemo.deploy import DeployPyTriton
 from nemo.deploy.nlp.trtllm_pytorch_deployable import TensorRTLLMPyotrchDeployable
