@@ -109,18 +109,6 @@ class CosmosNemotronModel(NevaModel):
                          model_transform=model_transform)
 
 
-class StateDictWrapper:
-    def __init__(self, state_dict):
-        """
-        Wraps a dictionary in a PyTorch-compatible object.
-
-        Args:
-            state_dict (dict): Dictionary to wrap.
-        """
-        for key, value in state_dict.items():
-            if "_extra_state" not in key:
-                state_dict[key] = value.float()
-        self._state_dict = state_dict
 
 @io.model_importer(CosmosNemotronModel, "hf")
 class HFCosmosNemotronImporter(io.ModelConnector["AutoModelForCausalLM", CosmosNemotronModel]):
@@ -163,12 +151,74 @@ class HFCosmosNemotronImporter(io.ModelConnector["AutoModelForCausalLM", CosmosN
         """
         # Define the state mapping from NeMo to HuggingFace
         mapping = {
-            k: k
-            for k in source.state_dict().keys()
-            if "_extra_state" not in k
+            "language_model.model.embed_tokens.weight": "language_model.embedding.word_embeddings.weight",
+            "language_model.model.layers.*.self_attn.o_proj.weight": "language_model.decoder.layers.*.self_attention.linear_proj.weight",
+            "language_model.model.layers.*.mlp.down_proj.weight": "language_model.decoder.layers.*.mlp.linear_fc2.weight",
+            "language_model.model.layers.*.input_layernorm.weight": "language_model.decoder.layers.*.self_attention.linear_qkv.layer_norm_weight",
+            "language_model.model.layers.*.post_attention_layernorm.weight": "language_model.decoder.layers.*.mlp.linear_fc1.layer_norm_weight",
+            "language_model.model.norm.weight": "language_model.decoder.final_layernorm.weight",
         }
-        # ss = source
-        # breakpoint()
+
+        if not self.config.language_transformer_config.share_embeddings_and_output_weights:
+            mapping["language_model.lm_head.weight"] = "language_model.output_layer.weight"
+
+        # Map vision projection components
+        mapping.update({
+            "mlp1.1.weight": "vision_projection.encoder.linear_fc1.weight",
+            "mlp1.1.bias": "vision_projection.encoder.linear_fc1.bias",
+            "mlp1.3.weight": "vision_projection.encoder.linear_fc2.weight",
+            "mlp1.3.bias": "vision_projection.encoder.linear_fc2.bias",
+            "mlp1.0.weight": "vision_projection.encoder.linear_fc1.layer_norm_weight",
+            "mlp1.0.bias": "vision_projection.encoder.linear_fc1.layer_norm_bias",
+        })
+
+        # Map vision model components
+        mapping.update({
+            "vision_model.radio_model.model.patch_generator.cls_token.token": "vision_model.class_token",
+            "vision_model.radio_model.model.patch_generator.pos_embed": "vision_model.position_embeddings",
+            "vision_model.radio_model.model.patch_generator.embedder.weight": "vision_model.embedder.weight",
+            "vision_model.radio_model.model.blocks.*.norm1.weight": "vision_model.decoder.layers.*.self_attention.linear_qkv.layer_norm_weight",
+            "vision_model.radio_model.model.blocks.*.norm1.bias": "vision_model.decoder.layers.*.self_attention.linear_qkv.layer_norm_bias",
+            "vision_model.radio_model.model.blocks.*.norm2.weight": "vision_model.decoder.layers.*.mlp.linear_fc1.layer_norm_weight",
+            "vision_model.radio_model.model.blocks.*.norm2.bias": "vision_model.decoder.layers.*.mlp.linear_fc1.layer_norm_bias",
+            "vision_model.radio_model.model.blocks.*.attn.proj.weight": "vision_model.decoder.layers.*.self_attention.linear_proj.weight",
+            "vision_model.radio_model.model.blocks.*.attn.proj.bias": "vision_model.decoder.layers.*.self_attention.linear_proj.bias",
+            "vision_model.radio_model.model.blocks.*.mlp.fc1.weight": "vision_model.decoder.layers.*.mlp.linear_fc1.weight",
+            "vision_model.radio_model.model.blocks.*.mlp.fc1.bias": "vision_model.decoder.layers.*.mlp.linear_fc1.bias",
+            "vision_model.radio_model.model.blocks.*.mlp.fc2.weight": "vision_model.decoder.layers.*.mlp.linear_fc2.weight",
+            "vision_model.radio_model.model.blocks.*.mlp.fc2.bias": "vision_model.decoder.layers.*.mlp.linear_fc2.bias",
+        })
+
+        # Add transformations for specialized tensor manipulations
+        transforms = [
+            io.state_transform(
+                source_key=(
+                    "language_model.model.layers.*.self_attn.q_proj.weight",
+                    "language_model.model.layers.*.self_attn.k_proj.weight",
+                    "language_model.model.layers.*.self_attn.v_proj.weight",
+                ),
+                target_key="language_model.decoder.layers.*.self_attention.linear_qkv.weight",
+                fn=_import_text_qkv,
+            ),
+            io.state_transform(
+                source_key=(
+                    "language_model.model.layers.*.mlp.gate_proj.weight",
+                    "language_model.model.layers.*.mlp.up_proj.weight",
+                ),
+                target_key="language_model.decoder.layers.*.mlp.linear_fc1.weight",
+                fn=TransformFns.merge_fc1,
+            ),
+            io.state_transform(
+                source_key="vision_model.radio_model.model.blocks.*.attn.qkv.weight",
+                target_key="vision_model.decoder.layers.*.self_attention.linear_qkv.weight",
+                fn=_import_vision_qkv,
+            ),
+            io.state_transform(
+                source_key="vision_model.radio_model.model.blocks.*.attn.qkv.bias",
+                target_key="vision_model.decoder.layers.*.self_attention.linear_qkv.bias",
+                fn=_import_vision_qkv,
+            ),
+        ]
         return io.apply_transforms(
             source,
             target,
