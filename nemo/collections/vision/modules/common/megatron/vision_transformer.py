@@ -515,6 +515,9 @@ class ParallelVisionTransformer(ParallelTransformer):
                 use_flash_attention=use_flash_attention,
             )
 
+        assert (
+            config.get('virtual_pipeline_model_parallel_size', None) is None
+        ), "Virtual pipeline model parallel size is no longer supported for nemo 1.0"
         if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
             assert num_layers % parallel_state.get_virtual_pipeline_model_parallel_world_size() == 0, (
                 'num_layers_per_stage must be divisible by ' 'virtual_pipeline_model_parallel_size'

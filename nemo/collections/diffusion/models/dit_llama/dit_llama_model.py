@@ -38,6 +38,7 @@ class DiTLlamaModel(DiTCrossAttentionModel):
         patch_temporal: int = 1,
         in_channels: int = 16,
         out_channels: int = 16,
+        vp_stage: Optional[int] = None,
         **kwargs,
     ):
         super().__init__(
@@ -58,5 +59,6 @@ class DiTLlamaModel(DiTCrossAttentionModel):
                 get_dit_llama_spec, num_experts=config.num_moe_experts, attn_mask_type=config.attn_mask_type
             ),
             pos_embedder=dit_embeddings.FactorizedLearnable3DEmbedding,
+            vp_stage=vp_stage,
             **kwargs,
         )
