@@ -460,6 +460,8 @@ class MCoreNevaModel(MCoreLLaVAModel):
             )
         )
 
+        # We already scattered embedding above, no need to do it again in llm
+        self.language_model.scatter_embedding_sequence_parallel = True
         output = self.language_model(
             input_ids=None,
             position_ids=None,
