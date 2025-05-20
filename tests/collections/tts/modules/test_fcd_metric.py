@@ -20,7 +20,7 @@ class TestFrechetCodecDistance:
         return FrechetCodecDistance(codec=codec, feature_dim=codec_feature_dim).to(device)
 
     @pytest.mark.unit
-    def test_same_distribution_fcd(self, metric, device, codec):
+    def test_same_distribution(self, metric, device, codec):
         """Test that FCD is close to zero when comparing identical distributions."""
         B, C, T = 3, codec.num_codebooks, 20
         codes = torch.randint(low=0, high=codec.codebook_size, size=(B, C, T), device=device)
@@ -36,7 +36,7 @@ class TestFrechetCodecDistance:
         metric.reset()
 
     @pytest.mark.unit
-    def test_different_distribution_fcd(self, metric, device, codec):
+    def test_different_distribution(self, metric, device, codec):
         """Test that FCD is positive when comparing different distributions."""
         B, C, T = 3, codec.num_codebooks, 20
 

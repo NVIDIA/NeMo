@@ -137,8 +137,8 @@ class FrechetCodecDistance(Metric):
         self.add_state("real_cov_sum", default=torch.zeros((feature_dim, feature_dim)), dist_reduce_fx="sum")
         self.add_state("fake_sum", default=torch.zeros(feature_dim), dist_reduce_fx="sum")
         self.add_state("fake_cov_sum", default=torch.zeros((feature_dim, feature_dim)), dist_reduce_fx="sum")
-        self.add_state("num_real_frames", default=torch.tensor(0).int(), dist_reduce_fx="sum")
-        self.add_state("num_fake_frames", default=torch.tensor(0).int(), dist_reduce_fx="sum")
+        self.add_state("num_real_frames", default=torch.tensor(0, dtype=torch.int), dist_reduce_fx="sum")
+        self.add_state("num_fake_frames", default=torch.tensor(0, dtype=torch.int), dist_reduce_fx="sum")
 
     def update_from_audio_file(self, audio_path: str, is_real: bool) -> Tensor:
         """
