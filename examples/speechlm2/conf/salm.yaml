@@ -117,10 +117,15 @@ data:
     batch_size: 4
     # Optional bucketing:
     # batch_size: null
-    # batch_duration: 100
-    # bucket_duration_bins: [8.94766,10.1551,11.64118,19.30376,42.85]
     # use_bucketing: true
-    # num_buckets: 5
+    # use_multimodal_sampling: true
+    # Note: `batch_tokens`, `bucket_duration_bins`, and `max_tokens` all represent tokens as
+    #  the sum of input audio frames and output text tokens. Number of audio frames is
+    #  calculated using `token_equivalent_duration`.
+    # batch_tokens: 4000
+    # max_tokens: 2048
+    # bucket_duration_bins: [64, 128, 256, 384, 512, 768, 1024, 1280, 1536, 2048]
+    # num_buckets: 10
     # bucket_buffer_size: 5000
 
   validation_ds:
