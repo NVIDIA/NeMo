@@ -19,6 +19,7 @@ Example:
 """
 
 import argparse
+import os
 
 import requests
 import torch
@@ -33,6 +34,8 @@ from nemo.utils import logging
 
 def load_image(image_url: str) -> Image.Image:
     # pylint: disable=C0115,C0116
+    if os.path.exists(image_url):
+        return Image.open(image_url)
     try:
         response = requests.get(image_url, stream=True)
         response.raise_for_status()
@@ -99,7 +102,7 @@ def main(args) -> None:
         {"role": "system", "content": "Answer the questions."},
         {
             "role": "user",
-            "content": f"<img><image></img>\nProvide a one-sentence caption for provided image.",
+            "content": f"<img><image></img>\n{args.prompt}",
         },
     ]
 
@@ -177,8 +180,14 @@ if __name__ == "__main__":
     parser.add_argument(
         "--image_url",
         type=str,
-        default="http://images.cocodataset.org/val2017/000000039769.jpg",
+        default="https://www.nvidia.com/en-us/data-center/dgx-b200/_jcr_content/root/responsivegrid/nv_container/nv_container_copy/nv_container_1948045475/nv_image_copy.coreimg.svg/1742300502157/nvidia-dgx-b200-model-training-speed-up-chart.svg",
         help="URL of the image to use for inference.",
+    )
+    parser.add_argument(
+        "--prompt",
+        type=str,
+        default="Please convert B200 model training speed up chart to markdown format.",
+        help = "Custom prompt to use for inference.",
     )
     args = parser.parse_args()
 

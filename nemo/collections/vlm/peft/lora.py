@@ -14,6 +14,7 @@
 
 from dataclasses import dataclass
 
+from nemo.utils.model_utils import unwrap_model
 from torch import nn
 
 from nemo.collections.llm.peft.lora import LoRA as LLMLoRA
@@ -53,12 +54,13 @@ class LoRA(LLMLoRA):
 
     def freeze_model(self, model: nn.Module) -> None:
         modules = []
-        if self.freeze_language_model and model.module.module.language_model is not None:
-            modules.append(model.module.module.language_model)
-        if self.freeze_vision_model and model.module.module.vision_model is not None:
-            modules.append(model.module.module.vision_model)
-        if self.freeze_vision_projection and model.module.module.vision_projection is not None:
-            modules.append(model.module.module.vision_projection)
+        unwrapped_model = unwrap_model(model)
+        if self.freeze_language_model and unwrapped_model.language_model is not None:
+            modules.append(unwrapped_model.language_model)
+        if self.freeze_vision_model and unwrapped_model.vision_model is not None:
+            modules.append(unwrapped_model.vision_model)
+        if self.freeze_vision_projection and unwrapped_model.vision_projection is not None:
+            modules.append(unwrapped_model.vision_projection)
 
         for module in modules:
             for param in module.parameters():

@@ -13,5 +13,6 @@
 # limitations under the License.
 
 from nemo.collections.vlm.peft.lora import LoRA
+from nemo.collections.vlm.peft.api import merge_lora
 
-__all__ = ["LoRA"]
+__all__ = ["LoRA", "merge_lora"]

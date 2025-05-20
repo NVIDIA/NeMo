@@ -132,7 +132,7 @@ def _load_base_model_and_lora(lora_checkpoint_path: Path) -> Tuple[pl.LightningM
 
 
 def _setup_trainer_and_restore_model_and_adapter(
-    lora_checkpoint_path: Path, trainer: Trainer, model: pl.LightningModule, lora: LoRA
+    lora_checkpoint_path: Path, trainer: Trainer, model: pl.LightningModule, lora: LoRA, load_keys=(".adapter.",)
 ) -> None:
     if (
         adapter_meta_path := ckpt_to_weights_subdir(lora_checkpoint_path, is_saving=False) / ADAPTER_META_FILENAME
@@ -165,10 +165,13 @@ def _setup_trainer_and_restore_model_and_adapter(
 
     lora(model)
     adapter_sharded_state_dict = {
-        k: v for k, v in trainer.strategy.megatron_parallel.sharded_state_dict().items() if ".adapter." in k
+        k: v for k, v in trainer.strategy.megatron_parallel.sharded_state_dict().items()
+        if any(load_key in k for load_key in load_keys)
     }
     adapter_state = trainer.strategy.checkpoint_io.load_checkpoint(
-        ckpt_to_weights_subdir(lora_checkpoint_path, is_saving=False), sharded_state_dict=adapter_sharded_state_dict
+        ckpt_to_weights_subdir(lora_checkpoint_path, is_saving=False),
+        sharded_state_dict=adapter_sharded_state_dict,
+        strict="log_all",
     )
     trainer.strategy.load_model_state_dict(adapter_state, strict=False)
 
