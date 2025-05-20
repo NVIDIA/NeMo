@@ -172,6 +172,7 @@ def finetune_recipe(
             freeze_vision_projection=False,
             dim=32,
         )
+        recipe.optim.config.lr = 5e-5
     else:
         raise ValueError(f"Unrecognized peft scheme: {peft_scheme}")
 
