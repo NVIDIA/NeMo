@@ -72,7 +72,7 @@ def override_recipe_configs(
     )
 
     # data module configs
-    recipe.data.tokenizer = hf_tokenizer('meta-llama/Llama-4-Scout-17B-16E-Instruct')
+    recipe.data.tokenizer = hf_tokenizer('meta-llama/Llama-4-Maverick-17B-128E-Instruct')
 
     # compute dtype configs
     if args.compute_dtype.lower() == "fp8":
