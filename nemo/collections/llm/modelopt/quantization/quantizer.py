@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -126,9 +126,10 @@ class Quantizer:
         dtype = export_config.dtype
         # Export and Quantization config sanity checks
         assert algorithm is None or algorithm in QUANT_CFG_CHOICES, f"Unsupported quantization algorithm: {algorithm}"
-        assert (
-            quantization_config.kv_cache_qformat in KV_QUANT_CFG_CHOICES
-        ), f"Unsupported kv cache quantization format: {quantization_config.kv_cache_qformat}"
+        if quantization_config.enable_kv_cache:
+            assert (
+                quantization_config.kv_cache_qformat in KV_QUANT_CFG_CHOICES
+            ), f"Unsupported kv cache quantization format: {quantization_config.kv_cache_qformat}"
         if export_config is not None:
             assert dtype in SUPPORTED_DTYPE, f"Unsupported export dtype: {dtype}"
         self.torch_dtype = torch_dtype_from_precision(dtype)
@@ -519,6 +520,7 @@ huggingface_model_type_pattern_match = {
     "QWen": "qwen",
     "RecurrentGemma": "recurrentgemma",
     "Gemma2": "gemma2",
+    "Gemma3": "gemma3",
     "Gemma": "gemma",
     "phi3small": "phi3small",
     "phi3": "phi3",
@@ -543,6 +545,7 @@ gpt_model_type = [
     (llm.Baichuan2Model, "baichuan"),
     (llm.ChatGLMModel, "chatglm"),
     (llm.Gemma2Model, "gemma2"),
+    (llm.Gemma3Model, "gemma3"),
     (llm.GemmaModel, "gemma"),
     (llm.LlamaModel, "llama"),
     (llm.MistralModel, "llama"),

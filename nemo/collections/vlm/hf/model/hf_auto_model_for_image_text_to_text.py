@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@ import lightning.pytorch as pl
 import torch
 from transformers import AutoConfig, AutoModelForImageTextToText, AutoProcessor, BitsAndBytesConfig
 
+from nemo.automodel.dist_utils import FirstRankPerNode
 from nemo.collections.llm import fn
 from nemo.collections.llm.gpt.model.hf_auto_model_for_causal_lm import masked_cross_entropy
 from nemo.lightning import io
@@ -78,6 +79,7 @@ class HFAutoModelForImageTextToText(pl.LightningModule, io.IOMixin, fn.FNMixin):
         """Initializes an AutoProcessor and returns the instance"""
         return AutoProcessor.from_pretrained(model_name, trust_remote_code=trust_remote_code)
 
+    @FirstRankPerNode()
     def configure_model(self):
         """Instantiates the model"""
         # create all your layers here

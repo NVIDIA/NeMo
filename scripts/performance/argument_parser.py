@@ -96,6 +96,20 @@ def parse_cli_args():
         action="store_true",
     )
     parser.add_argument(
+        "-em",
+        "--enable_memory_profile",
+        help="Enable memory usage profiling. Diabled by default",
+        action="store_true",
+    )
+    parser.add_argument(
+        "-mp",
+        "--memory_profile_out_path",
+        type=str,
+        help="Path to the output file of memory profiling",
+        required=False,
+        default=None,
+    )
+    parser.add_argument(
         "-tb",
         "--tensorboard",
         help="Enable tensorboard logging. Disabled by default",
@@ -261,11 +275,20 @@ def parse_cli_args():
         required=False,
         default=100,
     )
+
+    def bool_arg(arg):
+        if arg.lower() in ['true', '1', 't', 'yes', 'y']:
+            return True
+        elif arg.lower() in ['false', '0', 'f', 'no', 'n']:
+            return False
+        else:
+            raise ValueError(f"Invalid value for boolean argument: {arg}")
+
     parser.add_argument(
         "-cg",
         "--cuda_graphs",
         help="Enable CUDA graphs. Disabled by default",
-        action="store_true",
+        type=bool_arg,
         required=False,
         default=None,  # NOTE: DO NOT SET DEFAULT TO FALSE, IT WILL BE OVERRIDDEN BY THE RECOMMENDED MODEL CONFIGS
     )
@@ -273,7 +296,7 @@ def parse_cli_args():
         "-fsdp",
         "--use_mcore_fsdp",
         help="Enable Megatron Core (Mcore) FSDP. Disabled by default",
-        action="store_true",
+        type=bool_arg,
         required=False,
         default=None,
     )
@@ -282,7 +305,7 @@ def parse_cli_args():
         "--recompute_layers",
         type=int,
         help="Number of Transformer layers to recompute, where all the intermediate "
-        "activations of a Transformer layer are computed. Defaults to 0",
+        "activations of a Transformer layer are computed. Defaults to None",
         required=False,
         default=None,
     )
@@ -290,7 +313,14 @@ def parse_cli_args():
         "-ol",
         "--activation_offload_layers",
         type=int,
-        help="Number of Transformer layers to offload to the CPU memory. Defaults to 0",
+        help="Number of Transformer layers to offload to the CPU memory. Defaults to None",
+        required=False,
+        default=None,
+    )
+    parser.add_argument(
+        "--nccl_communicator_config_path",
+        type=str,
+        help="Path to NCCL communicator config yaml file",
         required=False,
         default=None,
     )
@@ -301,12 +331,13 @@ def parse_cli_args():
     parser.add_argument(
         "-rm",
         "--recompute_modules",
-        type=list_of_strings,
-        help="Comma-separated string of modules to recompute. Defaults to None",
+        nargs="*",
+        const=None,
+        type=str,
+        help="List of modules to perform selective activation recompute. Users can provide 0 or any number of arguments. Defaults to None",
         required=False,
         default=None,
     )
-
     parser.add_argument(
         "-cm",
         "--custom_mounts",
@@ -314,6 +345,12 @@ def parse_cli_args():
         help="Comma separated string of mounts",
         required=False,
         default=[],
+    )
+    parser.add_argument(
+        "--use_hf_tokenizer",
+        help="Use HuggingFace tokenizer. Disabled by default. Null tokenizer will be used if not provided.",
+        action="store_true",
+        required=False,
     )
 
     return parser

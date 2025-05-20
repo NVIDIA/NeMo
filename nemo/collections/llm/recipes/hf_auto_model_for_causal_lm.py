@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -118,9 +118,8 @@ def trainer(
         accumulate_grad_batches=10,
         callbacks=callbacks,
         gradient_clip_val=gradient_clip_val,
-        use_distributed_sampler=False,
+        use_distributed_sampler=True,  # for PL compatibility
     )
-
     return trainer
 
 
