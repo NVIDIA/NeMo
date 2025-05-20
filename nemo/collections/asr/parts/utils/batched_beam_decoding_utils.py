@@ -102,7 +102,7 @@ class BatchedBeamHyps:
             raise ValueError("Initial hypothesis lengths must be greater than 0.")
 
         self.use_trie=False
-        self.use_hash=True
+        self.use_hash=False
             
         self.device = device
         self.INACTIVE_SCORE_TENSOR = torch.tensor(INACTIVE_SCORE, device=device, dtype=float_dtype)
@@ -135,7 +135,15 @@ class BatchedBeamHyps:
                 device=device,
                 dtype=torch.long,
             )  # links to prefices
-
+        else:
+            # Initializing tree structure for hypothesis storing
+            self.transcript_nb = torch.full(
+                (batch_size, self.beam_size, self._max_length),
+                fill_value=NON_EXISTENT_LABEL_VALUE,
+                device=device,
+                dtype=torch.long,
+            )  # current labels
+        
         # Initializing beam scores: Initially, only a single hypothesis is active within the beam.
         self.scores = torch.full(
             [batch_size, self.beam_size], device=device, dtype=float_dtype, fill_value=INACTIVE_SCORE
@@ -179,6 +187,8 @@ class BatchedBeamHyps:
         self.transcript_wb.fill_(NON_EXISTENT_LABEL_VALUE)
         if self.use_trie:
             self.transcript_wb_prev_ptr.fill_(INIT_POINTER_VALUE)
+        else:
+            self.transcript_nb.fill_(NON_EXISTENT_LABEL_VALUE)
 
         self.scores.fill_(INACTIVE_SCORE)
         self.scores[:, 0].fill_(0.0)
@@ -211,6 +221,11 @@ class BatchedBeamHyps:
                 (self.transcript_wb_prev_ptr, torch.full_like(self.transcript_wb_prev_ptr, fill_value=INIT_POINTER_VALUE)),
                 dim=-1,
             )
+        else:
+            self.transcript_nb = torch.cat(
+                (self.transcript_nb, torch.full_like(self.transcript_nb, fill_value=NON_EXISTENT_LABEL_VALUE)), dim=-1
+            )
+                    
         if self.model_type == 'ctc':
             self.timestamps = self._create_timestamps_tensor(2 * self._max_length)
         else:
@@ -267,6 +282,15 @@ class BatchedBeamHyps:
             raise ValueError("`next_label_durations` is required when model type is TDT.")
 
         last_labels = torch.gather(self.last_label, dim=-1, index=next_indices)
+        current_lengths_nb = torch.gather(self.current_lengths_nb, dim=-1, index=next_indices) 
+        
+        is_extended = next_labels >= 0
+        extended_with_blank = next_labels == self.blank_index
+        extended_with_label = (is_extended) & (~extended_with_blank)
+        if self.model_type == 'ctc':
+            # for CTC last non-blank and non-repeated label
+            extended_with_label = (extended_with_label) & (next_labels != last_labels)  # non-repeated non-blank label
+            
         if self.use_trie:
             self.transcript_wb.scatter_(dim=-1, index=self.current_lengths_wb.unsqueeze(-1), src=next_labels.unsqueeze(-1))
             self.transcript_wb_prev_ptr.scatter_(
@@ -276,14 +300,12 @@ class BatchedBeamHyps:
             self.transcript_wb.copy_(
                 torch.gather(self.transcript_wb, dim=1, index=next_indices.unsqueeze(-1).expand(self.transcript_wb.shape))
             )
-            self.transcript_wb.scatter_(dim=-1, index=self.current_lengths_wb.unsqueeze(-1), src=next_labels.unsqueeze(-1))
-
-        is_extended = next_labels >= 0
-        extended_with_blank = next_labels == self.blank_index
-        extended_with_label = (is_extended) & (~extended_with_blank)
-        if self.model_type == 'ctc':
-            # for CTC last non-blank and non-repeated label
-            extended_with_label = (extended_with_label) & (next_labels != last_labels)  # non-repeated non-blank label
+            self.transcript_wb.scatter_(dim=-1, index=self.current_lengths_wb.unsqueeze(-1), src=next_labels.unsqueeze(-1))   
+            last_nb_label=torch.where(extended_with_label, next_labels, NON_EXISTENT_LABEL_VALUE)
+            self.transcript_nb.copy_(
+                torch.gather(self.transcript_nb, dim=1, index=next_indices.unsqueeze(-1).expand(self.transcript_nb.shape))
+            )
+            self.transcript_nb.scatter_(dim=-1, index=current_lengths_nb.unsqueeze(-1), src=last_nb_label.unsqueeze(-1))
 
         if self.model_type == 'rnnt':
             timesteps = torch.gather(self.next_timestamp, dim=-1, index=next_indices)
@@ -323,9 +345,7 @@ class BatchedBeamHyps:
                 out=self.last_timestamp_lasts,
             )
 
-        self.current_lengths_nb.copy_(
-            torch.gather(self.current_lengths_nb, dim=-1, index=next_indices) + extended_with_label
-        )
+        self.current_lengths_nb.copy_(current_lengths_nb + extended_with_label)
         torch.add(self.current_lengths_wb, 1, out=self.current_lengths_wb)
         self.scores.copy_(next_hyps_prob)
 
@@ -373,9 +393,7 @@ class BatchedBeamHyps:
                 & (self.current_lengths_nb[:, :, None] == self.current_lengths_nb[:, None, :])
             )
         else:
-            mask=(self.transcript_wb != NON_EXISTENT_LABEL_VALUE) & (self.transcript_wb != self.blank_index)
-            hyps_equal=(self.transcript_wb[:, :, None, :] == self.transcript_wb[:, None, :, :])
-            hyps_equal
+            hyps_equal=(self.transcript_nb[:, :, None, :] == self.transcript_nb[:, None, :, :]).all(dim=-1)
 
         if self.model_type == 'tdt':
             hyps_equal &= self.next_timestamp[:, :, None] == self.next_timestamp[:, None, :]
