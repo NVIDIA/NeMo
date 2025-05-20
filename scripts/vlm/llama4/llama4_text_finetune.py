@@ -71,7 +71,7 @@ def main(args):
             micro_batch_size=mbs,
             tokenizer=llama_tokenizer,
             num_workers=num_workers,
-            attention_layout="thd",
+            attention_layout=args.mock_data_qkv_layout,
         )
     else:
         raise ValueError(f"Data type {args.data_type} not supported")
@@ -219,6 +219,14 @@ if __name__ == "__main__":
     parser.add_argument("--mbs", type=int, required=False, default=1, help="Micro batch size")
     parser.add_argument("--lr", type=float, required=False, default=2.0e-06, help="Learning rate")
     parser.add_argument("--decoder_seq_length", type=int, required=False, default=8192, help="decoder sequence length")
+    parser.add_argument(
+        "--mock_data_qkv_layout",
+        type=str,
+        required=False,
+        default="sbhd",
+        choices=["sbhd", "thd"],
+        help="QKV layout for mock data. Options: sbhd, thd. Default: sbhd.",
+    )
     parser.add_argument(
         "--use_packed_sequence",
         action="store_true",
