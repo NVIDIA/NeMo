@@ -423,7 +423,8 @@ cd /opt
 git clone https://github.com/NVIDIA/NeMo
 cd NeMo
 git checkout ${REF:-'main'}
-bash reinstall.sh --library all
+bash docker/common/install_dep.sh --library all
+pip install ".[all]"
 ```
 
 ## NGC NeMo container

@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -765,7 +765,7 @@ class HFLlamaImporter(io.ModelConnector["LlamaForCausalLM", LlamaModel]):
             params_dtype=dtype_from_hf(source),
             generation_config=generation_config,
             vocab_size=source.vocab_size,
-            kv_channels=getattr(source, "head_dim"),
+            kv_channels=getattr(source, "head_dim", None),
             **args,
         )
 
