@@ -87,14 +87,14 @@ def override_recipe_configs(
     # recipe.model.flux_params.flux_config.enable_cuda_graph = True
     # recipe.model.flux_params.flux_config.use_te_rng_tracker = True
     # recipe.model.flux_params.flux_config.cuda_graph_warmup_steps = 2
-    recipe.model.flux_params.flux_config.apply_rope_fusion = True
-    recipe.model.flux_params.flux_config.rotary_interleaved = False
+    recipe.model.flux_params.flux_config.apply_rope_fusion = False
+    recipe.model.flux_params.flux_config.rotary_interleaved = True
     recipe.trainer.strategy.use_te_rng_tracker = True
     from megatron.core.distributed import DistributedDataParallelConfig
 
     recipe.trainer.strategy.ddp = run.Config(
         DistributedDataParallelConfig,
-        use_custom_fsdp=False,
+        use_custom_fsdp=True,
         check_for_nan_in_grad=True,
         grad_reduce_in_fp32=True,
     )
