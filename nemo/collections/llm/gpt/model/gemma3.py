@@ -298,17 +298,11 @@ class Gemma3RotaryEmbedding(RotaryEmbedding):
 
     def __init__(
         self,
-        kv_channels: int,
-        rotary_percent: float = 1.0,
-        rotary_interleaved: bool = False,
-        seq_len_interpolation_factor: float = None,
         rope_scaling: bool = False,
-        use_cpu_initialization: bool = False,
-        cp_group: Optional[torch.distributed.ProcessGroup] = None,
-        *,
         rope_scaling_factor: float = 8.0,
         rotary_base: int = 1_000_000,
         rotary_base_local: int = 10_000,
+        **kwargs,
     ):
         # The rope scaling in RotaryEmbedding is not linear scaling,
         # so this flag must be off. Will calculate linear scaling below.
@@ -316,29 +310,17 @@ class Gemma3RotaryEmbedding(RotaryEmbedding):
 
         # Get inv_freq for global attention layers
         super().__init__(
-            kv_channels=kv_channels,
-            rotary_percent=rotary_percent,
-            rotary_interleaved=rotary_interleaved,
-            seq_len_interpolation_factor=seq_len_interpolation_factor,
-            rotary_base=rotary_base,
             rope_scaling=rope_scaling,
-            rope_scaling_factor=rope_scaling_factor,
-            use_cpu_initialization=use_cpu_initialization,
-            cp_group=cp_group,
+            rotary_base=rotary_base,
+            **kwargs,
         )
         self.inv_freq /= rope_scaling_factor
 
         # Setup Rotary Embedding for local attentions
         self.rope_local = RotaryEmbedding(
-            kv_channels=kv_channels,
-            rotary_percent=rotary_percent,
-            rotary_interleaved=rotary_interleaved,
-            seq_len_interpolation_factor=seq_len_interpolation_factor,
-            rotary_base=rotary_base_local,
             rope_scaling=rope_scaling,
-            rope_scaling_factor=rope_scaling_factor,
-            use_cpu_initialization=use_cpu_initialization,
-            cp_group=cp_group,
+            rotary_base=rotary_base_local,
+            **kwargs,
         )
 
     @lru_cache(maxsize=32)
@@ -416,11 +398,7 @@ class Gemma3TEDotProductAttention(TEDotProductAttention):
         attn_mask_type: AttnMaskType,
         attention_type: str,
         attention_dropout: Optional[float] = None,
-        softmax_scale: Optional[float] = None,
-        k_channels: Optional[int] = None,
-        v_channels: Optional[int] = None,
-        cp_comm_type: str = "p2p",
-        model_comm_pgs: ModelCommProcessGroups = None,
+        **kwargs,
     ):
         # Overwrite config.window_size based on layer_number
         config = copy.deepcopy(config)
@@ -441,11 +419,7 @@ class Gemma3TEDotProductAttention(TEDotProductAttention):
             attn_mask_type=attn_mask_type,
             attention_type=attention_type,
             attention_dropout=attention_dropout,
-            softmax_scale=softmax_scale,
-            k_channels=k_channels,
-            v_channels=v_channels,
-            cp_comm_type=cp_comm_type,
-            model_comm_pgs=model_comm_pgs,
+            **kwargs,
         )
 
 
@@ -541,7 +515,9 @@ class HFGemma3Importer(io.ModelConnector["Gemma3ForCausalLM", Gemma3Model]):
         elif source_text.num_hidden_layers == 62:
             output = Gemma3Config27B()
         else:
-            raise ValueError(f"Unrecognized import model: {name}")
+            output = Gemma3Config(
+
+            )
 
         output.params_dtype = dtype_from_hf(source)
         output.init_method_std = source.initializer_range
