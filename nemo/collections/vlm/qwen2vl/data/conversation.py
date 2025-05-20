@@ -132,6 +132,7 @@ class Conversation:
         # pylint: disable=C0115,C0116
         self.messages.append([role, message])
 
+
 conv_qwen2vl = Conversation(
     system="You are a helpful assistant.",
     roles=("user", "assistant"),

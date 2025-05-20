@@ -188,14 +188,16 @@ class HFQwen2VLImporter(io.ModelConnector["Qwen2VLForConditionalGeneration", Qwe
     def config(self) -> Qwen2VLConfig:
         # pylint: disable=C0115,C0116
         from packaging.version import Version
+
         if Version(transformers.__version__) > Version('4.51.3'):
             # Todo: need to fix with newest version of transformers
             raise ValueError(
-                             f"Current version of transformers is {transformers.__version__},"
-                             f"Please lower the version to be <= 4.51.3"
-                            )
+                f"Current version of transformers is {transformers.__version__},"
+                f"Please lower the version to be <= 4.51.3"
+            )
 
         from transformers import Qwen2VLConfig as HFQwen2VLConfig
+
         hf_config = HFQwen2VLConfig.from_pretrained(str(self))
 
         def make_vocab_size_divisible_by(vocab_size):
@@ -255,6 +257,7 @@ class HFQwen2VLImporter(io.ModelConnector["Qwen2VLForConditionalGeneration", Qwe
         )
 
         return output
+
 
 @io.model_exporter(Qwen2VLModel, "hf")
 class HFQwen2VLExporter(io.ModelConnector[Qwen2VLModel, "Qwen2VLForConditionalGeneration"]):
