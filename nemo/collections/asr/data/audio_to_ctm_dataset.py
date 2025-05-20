@@ -24,7 +24,8 @@ from nemo.utils import logging
 
 @dataclass
 class FrameCtmUnit:
-    """A container class for one CTM unit with start and length countable in frames."""
+    """A container class for one CTM unit with start and length countable in frames.
+    """
 
     label: str
     start_frame: int
@@ -33,9 +34,6 @@ class FrameCtmUnit:
 
     def __repr__(self) -> str:
         return f"{self.label}\t({self.probability:1.3f}): [{self.start_frame:6d}, {self.length:6d}]"
-
-    def hello_world(self):
-        print("Hello, world!")
 
     @property
     def end_frame(self):
