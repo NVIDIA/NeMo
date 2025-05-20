@@ -325,16 +325,7 @@ class SALM(LightningModule, HFHubMixin):
                 replacements=audio_embeds,
                 target_ids=None,
             )
-            fake_input_ids = torch.zeros(
-                (input_embeds.shape[0], input_embeds.shape[1]), dtype=torch.long, device=input_embeds.device
-            )
-            generation_inputs = self.llm.prepare_inputs_for_generation(
-                input_ids=fake_input_ids,
-                inputs_embeds=input_embeds,
-                attention_mask=attention_mask,
-                cache_position=[0] * input_embeds.shape[1],  # dummy value with a len expected by the HF util
-            )
-            del generation_inputs['position_ids']  # causes hallucination issues ... ?
+            generation_inputs = {"inputs_embeds": input_embeds, "attention_mask": attention_mask}
         else:
             # Text-only generation.
             attention_mask = tokens != self.text_pad_id
