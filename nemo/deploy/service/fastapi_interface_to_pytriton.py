@@ -57,31 +57,23 @@ app = FastAPI()
 triton_settings = TritonSettings()
 
 
-class CompletionRequest(BaseModel):
+class BaseRequest(BaseModel):
     """
-    Represents a request for text completion.
+    Common parameters for completions and chat requests for the server.
 
     Attributes:
         model (str): The name of the model to use for completion.
-        prompt (str): The input text to generate a response from.
-        messages (list[dict]): A list of message dictionaries for chat completion.
         max_tokens (int): The maximum number of tokens to generate in the response.
         temperature (float): Sampling temperature for randomness in generation.
         top_p (float): Cumulative probability for nucleus sampling.
         top_k (int): Number of highest-probability tokens to consider for sampling.
-        logprobs (int): Number of log probabilities to include in the response, if applicable.
     """
 
     model: str
-    prompt: str = 'hello'
-    messages: list[dict] = [{}]
     max_tokens: int = 512
     temperature: float = 1.0
     top_p: float = 0.0
     top_k: int = 0
-    logprobs: int = None
-    top_logprobs: int = None  # Added
-    echo: bool = None or False
 
     @model_validator(mode='after')
     def set_greedy_params(self):
@@ -89,6 +81,44 @@ class CompletionRequest(BaseModel):
         if self.temperature == 0 and self.top_p == 0:
             logging.warning("Both temperature and top_p are 0. Setting top_k to 1 to ensure greedy sampling.")
             self.top_k = 1
+        return self
+
+
+class CompletionRequest(BaseRequest):
+    """
+    Represents a request for text completion.
+
+    Attributes:
+        prompt (str): The input text to generate a response from.
+        logprobs (int): Number of log probabilities to include in the response, if applicable.
+        echo (bool): Whether to return the input text as part of the response.
+    """
+
+    prompt: str
+    logprobs: int = None
+    echo: bool = None or False
+
+
+class ChatCompletionRequest(BaseRequest):
+    """
+    Represents a request for chat completion.
+
+    Attributes:
+        messages (list[dict]): A list of message dictionaries for chat completion.
+        logprobs (bool): Whether to return log probabilities for output tokens.
+        top_logprobs (int): Number of log probabilities to include in the response, if applicable.
+            logprobs must be set to true if this parameter is used.
+    """
+
+    messages: list[dict]
+    logprobs: bool = False
+    top_logprobs: int = None
+
+    @model_validator(mode='after')
+    def validate_top_logprobs_requires_logprobs(self):
+        """Ensure that top_logprobs is only set if logprobs is True."""
+        if self.top_logprobs is not None and not self.logprobs:
+            raise ValueError("top_logprobs requires logprobs to be True.")
         return self
 
 
@@ -230,24 +260,26 @@ async def completions_v1(request: CompletionRequest):
         temperature=request.temperature,
         top_k=request.top_k,
         top_p=request.top_p,
-        compute_logprob=True if request.logprobs == 1 else False,
+        compute_logprob=(request.logprobs is not None and request.logprobs > 0),
         max_length=request.max_tokens,
         apply_chat_template=False,
-        n_top_logprobs=request.top_logprobs,
+        n_top_logprobs=request.logprobs,
         echo=request.echo,
     )
 
     output_serializable = convert_numpy(output)
     output_serializable["choices"][0]["text"] = output_serializable["choices"][0]["text"][0][0]
-    if request.logprobs == 1:
+    if request.logprobs is not None and request.logprobs > 0:
+        output_serializable["choices"][0]["logprobs"]["token_logprobs"] = output_serializable["choices"][0][
+            "logprobs"
+        ]["token_logprobs"][0]
+        output_serializable["choices"][0]["logprobs"]["top_logprobs"] = output_serializable["choices"][0]["logprobs"][
+            "top_logprobs"
+        ][0]
         if request.echo:
-            output_serializable["choices"][0]["logprobs"]["token_logprobs"] = [None] + output_serializable["choices"][
-                0
-            ]["logprobs"]["token_logprobs"][0]
-        else:
-            output_serializable["choices"][0]["logprobs"]["top_logprobs"] = output_serializable["choices"][0][
-                "logprobs"
-            ]["top_logprobs"][0]
+            output_serializable["choices"][0]["logprobs"]["token_logprobs"].insert(0, None)
+    else:
+        output_serializable["choices"][0]["logprobs"] = None
     logging.info(f"Output: {output_serializable}")
     return output_serializable
 
@@ -260,7 +292,7 @@ def dict_to_str(messages):
 
 
 @app.post("/v1/chat/completions/")
-async def chat_completions_v1(request: CompletionRequest):
+async def chat_completions_v1(request: ChatCompletionRequest):
     """
     Defines the chat completions endpoint and queries the model deployed on PyTriton server.
     """
@@ -280,11 +312,11 @@ async def chat_completions_v1(request: CompletionRequest):
         temperature=request.temperature,
         top_k=request.top_k,
         top_p=request.top_p,
-        compute_logprob=True if request.logprobs == 1 else False,
+        compute_logprob=request.logprobs,
         max_length=request.max_tokens,
         apply_chat_template=True,
         n_top_logprobs=request.top_logprobs,
-        echo=request.echo,
+        echo=False,  # chat request doesn't support echo
     )
     # Add 'role' as 'assistant' key to the output dict
     output["choices"][0]["message"] = {"role": "assistant", "content": output["choices"][0]["text"]}
@@ -296,5 +328,28 @@ async def chat_completions_v1(request: CompletionRequest):
     output_serializable["choices"][0]["message"]["content"] = output_serializable["choices"][0]["message"]["content"][
         0
     ][0]
+
+    if request.logprobs:
+        # TODO: this is not the correct format, should be:
+        # 'logprobs': {
+        # 'content': [
+        # {'token': 'Hello', 'logprob': -0.589, 'top_logprobs': [
+        #    {'token': 'Hello', 'logprob': -0.589},
+        #    {'token': 'I', 'logprob': -0.995},
+        #    ...
+        # ]}]}
+        output_serializable["choices"][0]["logprobs"]["token_logprobs"] = output_serializable["choices"][0][
+            "logprobs"
+        ]["token_logprobs"][0]
+
+        if request.top_logprobs is not None and request.top_logprobs > 0:
+            output_serializable["choices"][0]["logprobs"]["top_logprobs"] = output_serializable["choices"][0][
+                "logprobs"
+            ]["top_logprobs"][0]
+        else:
+            output_serializable["choices"][0]["logprobs"]["top_logprobs"] = []
+
+    else:
+        output_serializable["choices"][0]["logprobs"] = None
     logging.info(f"Output: {output_serializable}")
     return output_serializable
