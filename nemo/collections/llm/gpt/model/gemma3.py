@@ -515,9 +515,7 @@ class HFGemma3Importer(io.ModelConnector["Gemma3ForCausalLM", Gemma3Model]):
         elif source_text.num_hidden_layers == 62:
             output = Gemma3Config27B()
         else:
-            output = Gemma3Config(
-
-            )
+            raise ValueError(f"Unrecognized import model: {name}")
 
         output.params_dtype = dtype_from_hf(source)
         output.init_method_std = source.initializer_range
@@ -535,7 +533,7 @@ class HFGemma3Exporter(io.ModelConnector[Gemma3Model, "Gemma3ForCausalLM"]):
         from transformers.modeling_utils import no_init_weights
 
         with no_init_weights():
-            return Gemma3ForCausalLM.from_config(self.config)
+            return Gemma3ForCausalLM._from_config(self.config)
 
     def apply(self, output_path: Path) -> Path:
         # pylint: disable=C0115,C0116
