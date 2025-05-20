@@ -25,7 +25,7 @@ More Details in Blog: <a href=https://developer.nvidia.com/blog/run-hugging-face
 
 <details open>
   <summary><b>Training on Blackwell using Nemo</b></summary>
-      NeMo Framework has added Blackwell support, with <a href=https://docs.nvidia.com/nemo-framework/user-guide/latest/performance/performance_summary.html>performance benchmark on GB200 & B200<a>. More optimizations to come in the upcoming releases.(2025-05-19)
+      NeMo Framework has added Blackwell support, with <a href=https://docs.nvidia.com/nemo-framework/user-guide/latest/performance/performance_summary.html>performance benchmarks on GB200 & B200<a>. More optimizations to come in the upcoming releases.(2025-05-19)
 </details>
 
 <details open>
