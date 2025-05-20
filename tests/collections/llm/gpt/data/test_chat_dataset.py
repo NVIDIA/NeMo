@@ -93,7 +93,7 @@ LLAMA_31_CHAT_TEMPLATE_WITH_GENERATION_TAGS = """{{- bos_token }}
 @pytest.fixture
 def mock_tokenizer():
     tokenizer = AutoTokenizer(
-        pretrained_model_name="/home/TestData/nemo2_ckpt/meta-llama/Meta-Llama-3-8B",
+        pretrained_model_name="/home/TestData/nemo2_ckpt/Llama3Config8B",
         use_fast=True,
         chat_template=LLAMA_31_CHAT_TEMPLATE_WITH_GENERATION_TAGS,
     )
