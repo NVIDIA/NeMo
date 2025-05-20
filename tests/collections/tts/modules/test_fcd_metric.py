@@ -15,8 +15,8 @@ class TestFrechetCodecDistance:
         return AudioCodecModel.from_pretrained("nvidia/low-frame-rate-speech-codec-22khz").to(device)
 
     @pytest.fixture
-    def metric(self, codec, device):
-        codec_feature_dim = codec.num_codebooks * codec.vector_quantizer.codebook_dim_per_group
+    def metric(self, codec, device):        
+        codec_feature_dim = codec.vector_quantizer.codebook_dim
         return FrechetCodecDistance(codec=codec, feature_dim=codec_feature_dim).to(device)
 
     @pytest.mark.unit
