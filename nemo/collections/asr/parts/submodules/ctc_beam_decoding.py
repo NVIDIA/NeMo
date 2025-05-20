@@ -30,6 +30,7 @@ from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.core.classes import Typing, typecheck
 from nemo.core.neural_types import HypothesisType, LengthsType, LogprobsType, NeuralType
 from nemo.utils import logging
+from nemo.utils.timers import SimpleTimer
 
 
 def pack_hypotheses(
@@ -952,6 +953,8 @@ class BeamBatchedCTCInfer(AbstractBeamCTCInfer):
             ngram_lm_model=ngram_lm_model,
             allow_cuda_graphs=allow_cuda_graphs,
         )
+        
+        self.timer = SimpleTimer()
 
     @typecheck()
     def forward(
@@ -976,8 +979,9 @@ class BeamBatchedCTCInfer(AbstractBeamCTCInfer):
                     f"`decoder_output` must be a tensor of shape [B, T, V] (log probs, float). "
                     f"Provided shape = {decoder_output.shape}"
                 )
-
+            self.timer.start()
             batched_beam_hyps = self.search_algorithm(decoder_output, decoder_lengths)
+            self.timer.stop()
 
             batch_size = decoder_lengths.shape[0]
             if self.return_best_hypothesis:

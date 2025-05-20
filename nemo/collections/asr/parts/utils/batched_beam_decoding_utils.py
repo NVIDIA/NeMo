@@ -101,8 +101,8 @@ class BatchedBeamHyps:
         if init_length <= 0:
             raise ValueError("Initial hypothesis lengths must be greater than 0.")
 
-        self.use_trie=False
-        self.use_hash=False
+        self.use_trie=True
+        self.use_hash=True
             
         self.device = device
         self.INACTIVE_SCORE_TENSOR = torch.tensor(INACTIVE_SCORE, device=device, dtype=float_dtype)
@@ -135,15 +135,7 @@ class BatchedBeamHyps:
                 device=device,
                 dtype=torch.long,
             )  # links to prefices
-        else:
-            # Initializing tree structure for hypothesis storing
-            self.transcript_nb = torch.full(
-                (batch_size, self.beam_size, self._max_length),
-                fill_value=NON_EXISTENT_LABEL_VALUE,
-                device=device,
-                dtype=torch.long,
-            )  # current labels
-        
+            
         # Initializing beam scores: Initially, only a single hypothesis is active within the beam.
         self.scores = torch.full(
             [batch_size, self.beam_size], device=device, dtype=float_dtype, fill_value=INACTIVE_SCORE
@@ -162,6 +154,14 @@ class BatchedBeamHyps:
                 self.transcript_prefix_hash = torch.full(
                     [batch_size, self.beam_size], device=device, dtype=torch.long, fill_value=INIT_PREFIX_HASH_VALUE
                 )
+        else:
+            self.transcript_nb = torch.full(
+                (batch_size, self.beam_size, self._max_length),
+                fill_value=NON_EXISTENT_LABEL_VALUE,
+                device=device,
+                dtype=torch.long,
+            )
+        
 
         if model_type == 'ctc':
             # CTC frames and tokens are aligned, so we can precompute timestamps
@@ -187,8 +187,6 @@ class BatchedBeamHyps:
         self.transcript_wb.fill_(NON_EXISTENT_LABEL_VALUE)
         if self.use_trie:
             self.transcript_wb_prev_ptr.fill_(INIT_POINTER_VALUE)
-        else:
-            self.transcript_nb.fill_(NON_EXISTENT_LABEL_VALUE)
 
         self.scores.fill_(INACTIVE_SCORE)
         self.scores[:, 0].fill_(0.0)
@@ -199,6 +197,8 @@ class BatchedBeamHyps:
             self.transcript_hash.fill_(INIT_HASH_VALUE)
             if self.store_prefix_hashes:
                 self.transcript_prefix_hash.fill_(INIT_PREFIX_HASH_VALUE)
+        else:
+            self.transcript_nb.fill_(NON_EXISTENT_LABEL_VALUE)
 
         # model specific parameters
         if self.model_type == 'ctc':
@@ -221,7 +221,8 @@ class BatchedBeamHyps:
                 (self.transcript_wb_prev_ptr, torch.full_like(self.transcript_wb_prev_ptr, fill_value=INIT_POINTER_VALUE)),
                 dim=-1,
             )
-        else:
+        
+        if not self.use_hash:
             self.transcript_nb = torch.cat(
                 (self.transcript_nb, torch.full_like(self.transcript_nb, fill_value=NON_EXISTENT_LABEL_VALUE)), dim=-1
             )
@@ -301,6 +302,8 @@ class BatchedBeamHyps:
                 torch.gather(self.transcript_wb, dim=1, index=next_indices.unsqueeze(-1).expand(self.transcript_wb.shape))
             )
             self.transcript_wb.scatter_(dim=-1, index=self.current_lengths_wb.unsqueeze(-1), src=next_labels.unsqueeze(-1))   
+        
+        if not self.use_hash:
             last_nb_label=torch.where(extended_with_label, next_labels, NON_EXISTENT_LABEL_VALUE)
             self.transcript_nb.copy_(
                 torch.gather(self.transcript_nb, dim=1, index=next_indices.unsqueeze(-1).expand(self.transcript_nb.shape))
@@ -608,9 +611,10 @@ class BatchedBeamHyps:
             self.next_timestamp.copy_(torch.gather(self.next_timestamp, dim=-1, index=indices))
             self.last_timestamp_lasts.copy_(torch.gather(self.last_timestamp_lasts, dim=-1, index=indices))
 
-        self.transcript_hash.copy_(torch.gather(self.transcript_hash, dim=-1, index=indices))
-        if self.store_prefix_hashes:
-            self.transcript_prefix_hash.copy_(torch.gather(self.transcript_prefix_hash, dim=-1, index=indices))
+        if self.use_hash:
+            self.transcript_hash.copy_(torch.gather(self.transcript_hash, dim=-1, index=indices))
+            if self.store_prefix_hashes:
+                self.transcript_prefix_hash.copy_(torch.gather(self.transcript_prefix_hash, dim=-1, index=indices))
 
     def _create_fold_consecutive_mask(self, transcript):
         """
