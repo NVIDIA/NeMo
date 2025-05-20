@@ -297,7 +297,6 @@ def main():
     parser.add_argument('--num-nodes', type=int, default=1)
     parser.add_argument('--accelerator', type=str, default='gpu', choices=['gpu'])
     parser.add_argument('--grad-clip', type=float, default=1.0)
-    parser.add_argument('--model-accelerator', type=str, default=None, choices=['te'])
     parser.add_argument('--max-steps', type=int, default=100)
     parser.add_argument("--fp8-autocast", action='store_true')
     parser.add_argument('--wandb-project', type=str, default=None)
@@ -316,12 +315,6 @@ def main():
             name=f'{model}_dev{args.devices}_strat_{args.strategy}',
         )
 
-    model_accelerator = None
-    if args.model_accelerator == "te":
-        from nemo.lightning.pytorch.accelerate.transformer_engine import TEConfig
-
-        model_accelerator = TEConfig(fp8_autocast=args.fp8_autocast)
-
     callbacks = []
     if args.use_torch_jit:
         jit_config = JitConfig(use_torch=True, torch_kwargs={'dynamic': False}, use_thunder=False)
@@ -338,7 +331,7 @@ def main():
             return ans
 
     model_cls = ZeroInitHFAutoModelForCausalLM if args.auto_resume else llm.HFAutoModelForCausalLM
-    model = model_cls(model_name=args.model, model_accelerator=model_accelerator)
+    model = model_cls(model_name=args.model, fp8_autocast=args.fp8_autocast)
 
     strategy = make_strategy(args.strategy, model, args.devices, args.num_nodes, False)
 
@@ -381,7 +374,7 @@ def main():
     del trainer
 
     path = get_latest_checkpoint(args.ckpt_folder)
-    verify_sft_checkpoint_structure(path, model_accelerator is not None)
+    verify_sft_checkpoint_structure(path, args.fp8_autocast)
 
     ans = AutoModelForCausalLM.from_pretrained(path / "hf_weights", output_loading_info=True)
     assert len(ans[1]['missing_keys']) == 0, ("NOT LOADABLE #1", ans)

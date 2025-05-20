@@ -16,7 +16,7 @@ Inheritance
 
 Constructor
 -----------
-.. constructor:: HFAutoModelForCausalLM(*, model_name='gpt2', load_pretrained_weights=True, tokenizer=None, loss_fn=masked_cross_entropy, model_transform=None, model_accelerator=None, trust_remote_code=False, default_dtype=torch.bfloat16, load_in_4bit=False, attn_implementation="sdpa")
+.. constructor:: HFAutoModelForCausalLM(*, model_name='gpt2', load_pretrained_weights=True, tokenizer=None, loss_fn=masked_cross_entropy, model_transform=None, fp8_autocast=False, trust_remote_code=False, default_dtype=torch.bfloat16, load_in_4bit=False, attn_implementation="sdpa")
 
     Initializes the `HFAutoModelForCausalLM` module.
 
@@ -32,8 +32,8 @@ Constructor
         Loss function to use for training. Defaults to `masked_cross_entropy`.
     model_transform : callable, optional
         Optional transformation function to apply to the model after loading.
-    model_accelerator : callable, optional
-        Accelerator function to modify the model for specific hardware accelerators.
+    fp8_autocast : Optional[Bool]
+        Enables FP8 autocast
     trust_remote_code : bool, optional
         Whether to trust remote code when loading the model (default is `False`).
     default_dtype : torch.dtype, optional
@@ -59,8 +59,8 @@ is_hf_model : bool
     Indicates if the model is a Hugging Face model.
 model_transform : callable or `None`
     Optional transformation function applied to the model.
-model_accelerator : callable or `None`
-    Accelerator function applied to the model.
+fp8_autocast : Optional[Bool]
+    Enables FP8 autocast
 trust_remote_code : bool
     Flag to trust remote code when loading the model.
 default_dtype : torch.dtype

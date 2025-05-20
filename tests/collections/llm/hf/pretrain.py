@@ -67,7 +67,6 @@ if __name__ == '__main__':
     parser.add_argument('--strategy', type=str, default='auto', choices=['auto', 'ddp', 'fsdp'])
     parser.add_argument('--devices', default=1)
     parser.add_argument('--accelerator', default='gpu', choices=['gpu'])
-    parser.add_argument('--model-accelerator', default=None, choices=['te'])
     parser.add_argument('--max-steps', type=int, default=100)
     parser.add_argument("--fp8-autocast", default=False, action='store_true')
     parser.add_argument('--wandb-project', type=str, default=None)
@@ -89,16 +88,10 @@ if __name__ == '__main__':
         grad_clip = None
     use_dist_samp = False
 
-    model_accelerator = None
-    if args.model_accelerator == "te":
-        from nemo.lightning.pytorch.accelerate.transformer_engine import TEConfig
-
-        model_accelerator = TEConfig(fp8_autocast=args.fp8_autocast)
-
-    from nemo.lightning.pytorch.accelerate.transformer_engine import te_accelerate
-
     model = llm.HFAutoModelForCausalLM(
-        model_name=args.model, model_accelerator=model_accelerator, load_pretrained_weights=False
+        model_name=args.model,
+        fp8_autocast=args.fp8_autocast,
+        load_pretrained_weights=False,
     )
     tokenizer = model.tokenizer
 
@@ -123,11 +116,8 @@ if __name__ == '__main__':
         log=None,
     )
 
-    if args.model_accelerator:
-        if args.model_accelerator == "te":
-            te_acc = is_te_accelerated(model.model)
-            assert te_acc, "Transformer Engine acceleration was unsuccessful"
-            print("TE Accelerated: ", te_acc)
+    if args.fp8_autocast:
+        assert is_te_accelerated(model.model), "Transformer Engine acceleration was unsuccessful"
 
     if args.model_save_path is not None:
         model.save_pretrained(args.model_save_path)
