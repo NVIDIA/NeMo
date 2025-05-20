@@ -85,8 +85,8 @@ def override_recipe_configs(
     recipe.model.config.apply_rope_fusion = True
     recipe.model.config.moe_permute_fusion = True
     recipe.model.config.scatter_embedding_sequence_parallel = False
-    recipe.model.config.seq_length = 256*1024
-    recipe.data.seq_length = 256*1024
+    recipe.model.config.seq_length = 256 * 1024
+    recipe.data.seq_length = 256 * 1024
 
     return recipe
 

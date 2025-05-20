@@ -304,10 +304,8 @@ class Llama4OmniBaseModel(MCoreNevaModel):
             attention_mask,
         )
 
-        combined_embeddings, final_labels, final_loss_mask, packed_seq_params = (
-            self._process_embedding_token_parallel(
-                combined_embeddings, final_labels, final_loss_mask, packed_seq_params
-            )
+        combined_embeddings, final_labels, final_loss_mask, packed_seq_params = self._process_embedding_token_parallel(
+            combined_embeddings, final_labels, final_loss_mask, packed_seq_params
         )
 
         output = self.language_model(

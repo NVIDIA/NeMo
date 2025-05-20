@@ -110,7 +110,6 @@ class FLOPsMeasurementCallback(Callback):
         config_kwargs["no_rope_freq"] = getattr(self.model_cfg, "no_rope_freq", None)
         config_kwargs["attention_chunk_size"] = getattr(self.model_cfg, "attention_chunk_size", None)
 
-
         self.flops_config = flops_formulas.FLOPSConfig(**config_kwargs)
 
         self.model = self.model.lower() if self.model is not None else self.model

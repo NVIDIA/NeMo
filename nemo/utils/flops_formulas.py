@@ -55,6 +55,7 @@ class FLOPSConfig:
     attention_chunk_size: Optional[int] = None
     no_rope_freq: Optional[bool] = None
 
+
 def gpt3(config: FLOPSConfig):
     """Model FLOPs for GPT3 family"""
 
@@ -85,6 +86,7 @@ def llama2(config: FLOPSConfig):
         )
     )
 
+
 def llama4(config: FLOPSConfig):
     """Model FLOPs for llama4 family"""
     vocab_size = LLM_VOCAB_SIZE_MAP["llama4"]
@@ -94,38 +96,61 @@ def llama4(config: FLOPSConfig):
     # local and global attention - attention chunk size, rope interleaved
     # interleaved dense and MoE layers
     # Shared experts
-    causal_self_attn = True 
+    causal_self_attn = True
     seq_len = config.enc_seq_len
     hidden_size = config.hs
     ffn_hidden_size = config.ffn_hs
     gated_linear_multiplier = 2
 
     if isinstance(config.no_rope_freq, int):
-        global_attention_ratio = 1/config.no_rope_freq
+        global_attention_ratio = 1 / config.no_rope_freq
     elif isinstance(config.no_rope_freq, list):
         global_attention_ratio = sum(config.no_rope_freq) / len(config.no_rope_freq)
     local_attention_ratio = 1 - global_attention_ratio
 
     if isinstance(config.moe_layer_freq, int):
-        moe_layer_ratio = 1/config.moe_layer_freq
+        moe_layer_ratio = 1 / config.moe_layer_freq
     elif isinstance(config.moe_layer_freq, list):
         moe_layer_ratio = sum(config.moe_layer_freq) / len(config.moe_layer_freq)
     dense_layer_ratio = 1 - moe_layer_ratio
     local_attention_scale = config.attention_chunk_size / seq_len if seq_len > config.attention_chunk_size else 1
 
     # attention flops for GQA
-    attention_flops = 3* 2 * config.gbs * config.layers * seq_len * hidden_size * hidden_size * (
-        (config.query_groups / config.attention_heads * 2 +1) + # QKV gemm
-        (seq_len / hidden_size * 2 * ( 0.5 if causal_self_attn else 1) *
-        (local_attention_scale * local_attention_ratio + global_attention_ratio)) + # attention
-        1 # attention proj gemm
+    attention_flops = (
+        3
+        * 2
+        * config.gbs
+        * config.layers
+        * seq_len
+        * hidden_size
+        * hidden_size
+        * (
+            (config.query_groups / config.attention_heads * 2 + 1)  # QKV gemm
+            + (
+                seq_len
+                / hidden_size
+                * 2
+                * (0.5 if causal_self_attn else 1)
+                * (local_attention_scale * local_attention_ratio + global_attention_ratio)
+            )  # attention
+            + 1  # attention proj gemm
+        )
     )
 
     # mlp flops
-    mlp_flops = 3 * 2 * config.gbs * config.layers * seq_len * hidden_size * (1 + gated_linear_multiplier) * (
-        config.moe_ffn_hidden_size * moe_layer_ratio * config.moe_router_topk + # MoE layers
-        config.moe_shared_expert_intermediate_size * moe_layer_ratio  + # shared experts
-        ffn_hidden_size * dense_layer_ratio # dense layers
+    mlp_flops = (
+        3
+        * 2
+        * config.gbs
+        * config.layers
+        * seq_len
+        * hidden_size
+        * (1 + gated_linear_multiplier)
+        * (
+            config.moe_ffn_hidden_size * moe_layer_ratio * config.moe_router_topk  # MoE layers
+            + config.moe_shared_expert_intermediate_size * moe_layer_ratio  # shared experts
+            + ffn_hidden_size * dense_layer_ratio  # dense layers
+        )
     )
 
     # vocab flops

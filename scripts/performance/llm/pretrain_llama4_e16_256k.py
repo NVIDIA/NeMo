@@ -88,8 +88,8 @@ def override_recipe_configs(
 
     # recipe.model.config.num_layers = 4
     # recipe.model.config.num_moe_experts = 4
-    recipe.data.seq_length = 256*1024
-    recipe.model.config.seq_length = 256*1024
+    recipe.data.seq_length = 256 * 1024
+    recipe.model.config.seq_length = 256 * 1024
 
     return recipe
 
@@ -132,7 +132,6 @@ if __name__ == "__main__":
         nemo_home=args.nemo_home,
         wandb_key=args.wandb_key,
     )
-
 
     plugins = [
         PerfEnvPlugin(

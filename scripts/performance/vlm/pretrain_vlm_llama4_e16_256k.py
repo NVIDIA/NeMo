@@ -139,7 +139,7 @@ if __name__ == "__main__":
     #     nemo_home=args.nemo_home,
     #     wandb_key=args.wandb_key,
     # )
-    executor=run.LocalExecutor(ntasks_per_node=8, launcher="torchrun", env_vars={})
+    executor = run.LocalExecutor(ntasks_per_node=8, launcher="torchrun", env_vars={})
 
     plugins = [
         PerfEnvPlugin(
@@ -150,7 +150,7 @@ if __name__ == "__main__":
     ]
     if args.enable_nsys:
         plugins.append(NsysPlugin(start_step=5, end_step=6, gen_shape=True))
-    
+
     run.run(recipe, executor=executor, plugins=plugins)
     exit()
 
