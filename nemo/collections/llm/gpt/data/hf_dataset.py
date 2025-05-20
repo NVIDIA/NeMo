@@ -23,7 +23,7 @@ import torch
 import torch.distributed as dist
 from datasets import Dataset, DatasetDict, load_dataset
 from torch.utils.data import DataLoader
-from torch.utils.data.distributed import DistributedSampler
+
 from nemo.utils import logging
 
 
@@ -254,8 +254,6 @@ class HFDatasetDataModule(pl.LightningDataModule):
         test_aliases=["test", "testing"],
         val_aliases=["val", "validation", "valid", "eval"],
         pad_seq_len_divisible=None,
-        num_replicas=None,
-        rank=None,
         **kwargs,
     ) -> None:
         super().__init__()
@@ -300,10 +298,6 @@ class HFDatasetDataModule(pl.LightningDataModule):
         self.use_dist_sampler = use_dist_sampler
         self.pad_seq_len_divisible = pad_seq_len_divisible
 
-        # TODO: refractor this
-        self.num_replicas = num_replicas
-        self.rank = rank
-
     @staticmethod
     def from_dict(dataset_dict, split, **kwargs):
         """wraps Dataset's from_dict method"""
@@ -326,20 +320,6 @@ class HFDatasetDataModule(pl.LightningDataModule):
             for key in batch[0].keys()
         }
 
-    def setup(self, stage: str):
-        """setups sampler"""
-        # Turn-on dist-sampler if the user is running inside a dist-env.
-        if not self.use_dist_sampler and has_dist_env_init_or_rank_env_var():
-            self.use_dist_sampler = True
-            logging.info("Turning on distributed data sampler")
-
-    def get_data_sampler(self, dataset):
-        """returns the data sampler"""
-        if self.use_dist_sampler:
-            return DistributedSampler(dataset, num_replicas=self.num_replicas, rank=self.rank)
-        else:
-            return None
-
     def _make_dataloader(self, dataset, collate_fn=None):
         """Dataloader creator"""
         assert dataset is not None
@@ -356,7 +336,6 @@ class HFDatasetDataModule(pl.LightningDataModule):
             persistent_workers=self.persistent_workers,
             collate_fn=collate_fn,
             batch_size=self.micro_batch_size,
-            sampler=self.get_data_sampler(dataset),
         )
 
     @property
