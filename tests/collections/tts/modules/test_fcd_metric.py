@@ -1,47 +1,8 @@
 import pytest
 import torch
-from unittest.mock import MagicMock, patch
+
 from nemo.collections.tts.modules.fcd_metric import FrechetCodecDistance
 from nemo.collections.tts.models import AudioCodecModel
-from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
-import numpy as np
-import logging
-
-# class MockCodecModel:
-#     def __init__(self, num_codebooks=8, codebook_dim_per_group=4, codebook_size=2048, sample_rate=22050):
-#         # attach debugger if not attached
-#         # import debugpy
-#         # # only attach if not already attached
-#         # if not debugpy.is_client_connected():
-#         #     debugpy.listen(('0.0.0.0', 5678))  # You can change the port if needed
-#         #     print('Waiting for debugger to attach...')
-#         #     debugpy.wait_for_client()  # This will block execution until the debugger attaches
-#         #     print('Debugger is attached!')
-#         self.num_codebooks = num_codebooks
-#         self.codebook_size = codebook_size
-#         self.sample_rate = sample_rate
-#         self.vector_quantizer = MagicMock()
-#         self.vector_quantizer.codebook_dim_per_group = codebook_dim_per_group
-#         self.device = torch.device("cpu")
-
-#     def to(self, device):
-#         self.device = device
-#         return self
-
-#     def encode(self, audio, audio_len):
-#         # Mock encode to return random codes
-#         B = audio.shape[0]
-#         T = audio.shape[1] // 21.5  # Approximate number of frames
-#         C = self.num_codebooks
-#         codes = torch.randint(low=0, high=self.codebook_size, size=(B, C, T), device=self.device)
-#         codes_len = torch.randint(low=1, high=T, size=(B,), device=self.device)
-#         return codes, codes_len
-
-#     def dequantize(self, tokens, tokens_len):
-#         # Mock dequantize to return random embeddings
-#         B, C, T = tokens.shape
-#         E = self.num_codebooks * self.vector_quantizer.codebook_dim_per_group
-#         return torch.randn(B, E, T, device=self.device)
 
 
 class TestFrechetCodecDistance:

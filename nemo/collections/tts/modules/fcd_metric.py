@@ -52,7 +52,7 @@ class CodecEmbedder(nn.Module):
             audio_path, target_sr=self.codec.sample_rate, offset=0, duration=0, int_values=True
         )
         assert np.issubdtype(audio_segment.samples.dtype, np.floating)
-        samples = samples = torch.tensor(audio_segment.samples, device=self.codec.device).unsqueeze(0)
+        samples = torch.tensor(audio_segment.samples, device=self.codec.device).unsqueeze(0)
         audio_len = torch.tensor(samples.shape[1], device=self.codec.device).unsqueeze(0)
         codes, codes_len = self.codec.encode(audio=samples, audio_len=audio_len)
         return codes, codes_len
