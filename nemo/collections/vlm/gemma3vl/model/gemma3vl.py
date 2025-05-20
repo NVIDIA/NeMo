@@ -18,7 +18,13 @@ from typing import TYPE_CHECKING
 
 import torch
 
-from nemo.collections.llm.gpt.model.gemma3 import Gemma3Config, Gemma3Config1B, Gemma3Config4B, Gemma3Config12B, Gemma3Config27B
+from nemo.collections.llm.gpt.model.gemma3 import (
+    Gemma3Config,
+    Gemma3Config1B,
+    Gemma3Config4B,
+    Gemma3Config12B,
+    Gemma3Config27B,
+)
 from nemo.collections.vlm.gemma3vl.model.base import Gemma3VLConfig, Gemma3VLModel
 from nemo.collections.vlm.gemma3vl.model.vision import Gemma3VLMultimodalProjectorConfig, Gemma3VLVisionConfig
 from nemo.collections.vlm.neva.model.llava import export_qkv, export_qkv_bias, import_qkv
