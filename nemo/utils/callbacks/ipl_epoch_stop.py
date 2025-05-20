@@ -1,4 +1,3 @@
-
 # Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from lightning.pytorch import Trainer
 from lightning.pytorch.callbacks import Callback
 from lightning.pytorch.core import LightningModule
-from lightning.pytorch import Trainer
 
 
 class IPLEpochStopper(Callback):
@@ -28,13 +27,13 @@ class IPLEpochStopper(Callback):
     """
 
     def __init__(self, enable_stop: bool = False) -> None:
-      super().__init__()
-      self.enable_stop = bool(enable_stop)
+        super().__init__()
+        self.enable_stop = bool(enable_stop)
 
     def on_train_epoch_end(self, trainer: Trainer, pl_module: LightningModule) -> None:
-      """
-      Sets `should_stop` stop flag to terminate the training.
-      """
-      super().__init__()
-      if self.enable_stop:
-          trainer.should_stop = True
+        """
+        Sets `should_stop` stop flag to terminate the training.
+        """
+        super().__init__()
+        if self.enable_stop:
+            trainer.should_stop = True

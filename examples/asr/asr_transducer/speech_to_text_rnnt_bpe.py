@@ -65,9 +65,9 @@ from omegaconf import OmegaConf
 from nemo.collections.asr.models import EncDecRNNTBPEModel
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
+from nemo.utils.callbacks.ipl_epoch_stop import IPLEpochStopper
 from nemo.utils.exp_manager import exp_manager
 from nemo.utils.trainer_utils import resolve_trainer_cfg
-from nemo.utils.callbacks.ipl_epoch_stop import IPLEpochStopper
 
 
 @hydra_runner(config_path="experimental/contextnet_rnnt", config_name="config_rnnt_bpe")
@@ -75,10 +75,10 @@ def main(cfg):
     logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
 
     trainer = pl.Trainer(
-    callbacks=[IPLEpochStopper(enable_stop=True)],
-    **resolve_trainer_cfg(cfg.trainer),
+        callbacks=[IPLEpochStopper(enable_stop=True)],
+        **resolve_trainer_cfg(cfg.trainer),
     )
-    
+
     exp_manager(trainer, cfg.get("exp_manager", None))
     asr_model = EncDecRNNTBPEModel(cfg=cfg.model, trainer=trainer)
 
