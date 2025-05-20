@@ -54,7 +54,7 @@ def main(args):
     # switch to 128E with  vlm.Llama4MaverickExperts128Config()
     llama4_config = llm.Llama4Experts16Config(scatter_embedding_sequence_parallel=False)
     if args.use_toy_model:
-        decoder_seq_length = 4096
+        decoder_seq_length = 32768
         val_check_interval = 50
         llama4_config.num_layers = 2
         llama4_config.num_moe_experts = 2
@@ -71,6 +71,7 @@ def main(args):
             micro_batch_size=mbs,
             tokenizer=llama_tokenizer,
             num_workers=num_workers,
+            attention_layout="thd",
         )
     else:
         raise ValueError(f"Data type {args.data_type} not supported")

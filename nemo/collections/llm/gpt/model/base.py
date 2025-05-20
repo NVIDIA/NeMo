@@ -106,6 +106,13 @@ def gpt_data_step(dataloader_iter, use_mtp=False) -> dict[str, torch.Tensor]:
     # slice batch along sequence dimension for context parallelism
     output = get_batch_on_this_cp_rank(_batch_required_keys)
 
+    if "packed_seq_params" in _batch:
+        _batch["packed_seq_params"].cu_seqlens_q = _batch["packed_seq_params"].cu_seqlens_q.cuda(non_blocking=True)
+        _batch["packed_seq_params"].cu_seqlens_kv = _batch["packed_seq_params"].cu_seqlens_kv.cuda(non_blocking=True)
+        _batch["packed_seq_params"].cu_seqlens_q_padded = _batch["packed_seq_params"].cu_seqlens_q_padded.cuda(non_blocking=True)
+        _batch["packed_seq_params"].cu_seqlens_kv_padded = _batch["packed_seq_params"].cu_seqlens_kv_padded.cuda(non_blocking=True)
+        output["packed_seq_params"] = _batch["packed_seq_params"]
+
     return output
 
 
@@ -138,7 +145,8 @@ def gpt_forward_step(model, batch) -> torch.Tensor:
 
     if "cu_seqlens" in batch:
         forward_args["packed_seq_params"] = get_packed_seq_params(batch)
-
+    if "packed_seq_params" in batch:
+        forward_args["packed_seq_params"] = batch["packed_seq_params"]
     return model(**forward_args)
 
 
