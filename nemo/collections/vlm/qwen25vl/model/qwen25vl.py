@@ -92,10 +92,8 @@ class HFQwen25VLImporter(io.ModelConnector["Qwen2_5_VLForConditionalGeneration",
         trainer = self.nemo_setup(target)
         self.convert_state(source, target)
         print(f"Converted Qwen2VL model to Nemo, saving to {output_path}")
-        # for name, param in target.named_parameters():
-        #     print(name, param.shape)
-        self.nemo_save(output_path, trainer)
 
+        self.nemo_save(output_path, trainer)
         print(f"Converted Qwen2VL model saved to {output_path}")
 
         teardown(trainer, target)

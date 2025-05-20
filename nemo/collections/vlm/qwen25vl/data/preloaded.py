@@ -198,7 +198,6 @@ def extract_dialogue_pairs(tokens, decoded_tokens):
     user_start_idx = -1
     user_end_idx = -1
     assistant_start_idx = -1
-    assistant_end_idx = -1
 
     # Track the first user dialogue start position
     first_user_start = -1
@@ -579,26 +578,27 @@ class Qwen2VLDataset(PreloadedSupervisedDataset):
             logging.warning("Loading image inputs from Dataset...")
             if data_config.media_type == 'image':
                 image_folder = data_config.image_folder
-                for line in open(data_path, "r"):
-                    record = json.loads(line)
+                with open(data_path, "r") as input_file:
+                    for line in input_file:
+                        record = json.loads(line)
 
-                    # This currently supports only a single image
-                    # search for <img src="/absolute/path/to/image" in the conversation
-                    #   add it as record['image'], remove src tag from the <img> tag
+                        # This currently supports only a single image
+                        # search for <img src="/absolute/path/to/image" in the conversation
+                        #   add it as record['image'], remove src tag from the <img> tag
 
-                    record['image'] = []
-                    for turn in record['conversations']:
-                        matches = re.finditer('<img src="([^"]+)"', turn['value'])
-                        for match in matches:
-                            image_name = match.group(1).split("/")[-1]
-                            image_path = os.path.join(image_folder, image_name)
-                            if not os.path.isfile(image_path):
-                                logging.warning(f"Image not found: {image_path}")
-                                continue
-                            record['image'].append(image_name)  # url
-                        turn['value'] = re.sub('<img src="([^"]+)">', "<image>", turn['value'])
+                        record['image'] = []
+                        for turn in record['conversations']:
+                            matches = re.finditer('<img src="([^"]+)"', turn['value'])
+                            for match in matches:
+                                image_name = match.group(1).split("/")[-1]
+                                image_path = os.path.join(image_folder, image_name)
+                                if not os.path.isfile(image_path):
+                                    logging.warning(f"Image not found: {image_path}")
+                                    continue
+                                record['image'].append(image_name)  # url
+                            turn['value'] = re.sub('<img src="([^"]+)">', "<image>", turn['value'])
 
-                    self.list_data_dict.append(record)
+                        self.list_data_dict.append(record)
 
         else:
             raise ValueError(f"Formatting of {data_path} is not supported in Qwen2VL.")
@@ -667,17 +667,9 @@ class Qwen2VLDataset(PreloadedSupervisedDataset):
         if packed_sequence:
             # FIXME: packed_sequence is not supported yet.
             cu_seqlens = batch["cu_seqlens"]
-            position_ids = []
-            for cu_seqlen in cu_seqlens:
-                position_ids.append([])
-                for ind in range(0, len(cu_seqlen) - 1):
-                    seqlen = cu_seqlen[ind + 1] - cu_seqlen[ind]
-                    position_ids[-1].extend(list(range(seqlen)))
-            position_ids = torch.LongTensor(position_ids)
             loss_mask = torch.ones(tokens.size(), dtype=torch.float, device=tokens.device)
-            attention_mask = torch.ones(tokens.size(), dtype=torch.long, device=tokens.device)
         else:
-            attention_mask, loss_mask, position_ids = get_ltor_masks_and_position_ids(
+            _, loss_mask, _ = get_ltor_masks_and_position_ids(
                 data=tokens,
                 eod_token=tokenizer.eos_token_id,
                 eod_mask_loss=data_config.eod_mask_loss,

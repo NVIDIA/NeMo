@@ -408,7 +408,6 @@ class MCoreQwen25VLModel(MCoreLLaVAModel):
             attention_mask = attention_mask.to(total_input_ids.device)
             for i, input_ids_item in enumerate(total_input_ids):
                 _input_ids = input_ids_item[attention_mask[i] == 1]
-                image_nums, video_nums = 0, 0
                 vision_start_indices = torch.argwhere(_input_ids == vision_start_token_id).squeeze(1)
                 vision_tokens = _input_ids[vision_start_indices + 1]
                 image_nums = (vision_tokens == image_token_id).sum()
