@@ -121,19 +121,20 @@ def main(args) -> None:
         generated_ids_trimmed = [out_ids[len(in_ids) :] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)]
 
         generated_texts = processor.batch_decode(
-            generated_ids_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False,
+            generated_ids_trimmed,
+            skip_special_tokens=True,
+            clean_up_tokenization_spaces=False,
         )
 
         logging.info("======== GENERATED TEXT OUTPUT ========")
         logging.info(f"{args.image_url}, \t\t{generated_texts}")
         logging.info("=======================================")
 
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Qwen2.5VL Multimodal Inference")
     parser.add_argument(
-        "--load_from_hf",
-        action="store_true",
-        help="Flag to indicate whether to load the model from Hugging Face hub."
+        "--load_from_hf", action="store_true", help="Flag to indicate whether to load the model from Hugging Face hub."
     )
     parser.add_argument(
         "--local_model_path",

@@ -59,6 +59,7 @@ def test_qwen2_config_1p5b():
     assert config.num_query_groups == 2
     assert config.ffn_hidden_size == 8960
 
+
 def test_qwen25_config_3B():
     config = Qwen25Config3B()
     assert config.num_layers == 36
