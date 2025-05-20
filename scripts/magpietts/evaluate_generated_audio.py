@@ -145,7 +145,6 @@ def evaluate(manifest_path, audio_dir, generated_audio_dir, language="en", sv_mo
         try:
             if language == "en":
                 with torch.no_grad():
-                    # import ipdb; ipdb.set_trace()
                     pred_text = asr_model.transcribe([pred_audio_filepath])[0].text
                     pred_text = process_text(pred_text)
                     gt_audio_text = asr_model.transcribe([gt_audio_filepath])[0].text
@@ -200,8 +199,7 @@ def evaluate(manifest_path, audio_dir, generated_audio_dir, language="en", sv_mo
 
         # update FCD metric for all generated codes
         if fcd_metric is not None:
-            for i in range(predicted_codes.shape[0]):
-                fcd_metric.update_from_codes(predicted_codes[i:i+1], predicted_codes_lens[i:i+1], False)
+            fcd_metric.update(predicted_codes, predicted_codes_lens, False)
 
         filewise_metrics.append({
             'gt_text': gt_text,

@@ -18,9 +18,10 @@ import torch
 import torch.nn.functional as F
 from torch import nn, Tensor
 from torchmetrics import Metric
-
+import numpy as np
 from nemo.collections.tts.models import AudioCodecModel
-from nemo.collections.tts.parts.utils.tts_dataset_utils import _read_audio
+from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
+from nemo.utils import logging
 
 
 class CodecEmbedder(nn.Module):
@@ -32,11 +33,11 @@ class CodecEmbedder(nn.Module):
         super().__init__()
         self.codec = codec
 
-    def codes_to_emedding(self, x: Tensor, x_len: Tensor) -> Tensor:
+    def codes_to_embedding(self, x: Tensor, x_len: Tensor) -> Tensor:
         """
         Embeds a batch of audio codec codes into the codec's continuous embedding space.
         """
-        # x: (B, T, C)
+        # x: (B, C, T
         # x_len: (B,)
         return self.codec.dequantize(tokens=x, tokens_len=x_len)
 
@@ -44,10 +45,13 @@ class CodecEmbedder(nn.Module):
         """
         Encodes an audio file into audio codec codes.
         """
-        print(f"Encoding audio {audio_path}")
-        audio_segment = _read_audio(
-            audio_filepath=audio_path, sample_rate=self.codec.sample_rate, offset=0, duration=0
+        # AudioSegment will initially read the samples as integers to workaround a issue in `soundfile`
+        # (https://github.com/bastibe/python-soundfile/issues/274); but it then internally converts them to floats,
+        # as needed here.
+        audio_segment = AudioSegment.from_file(
+            audio_path, target_sr=self.codec.sample_rate, offset=0, duration=0, int_values=True
         )
+        assert np.issubdtype(audio_segment.samples.dtype, np.floating)
         samples = samples = torch.tensor(audio_segment.samples, device=self.codec.device).unsqueeze(0)
         audio_len = torch.tensor(samples.shape[1], device=self.codec.device).unsqueeze(0)
         codes, codes_len = self.codec.encode(audio=samples, audio_len=audio_len)
@@ -141,14 +145,9 @@ class FrechetCodecDistance(Metric):
         Takes a path to an audio file, embeds it, and updates the FCD metric.
         """
         codes, codes_len = self.model.encode_from_file(audio_path)
-        self.update_from_codes(codes, codes_len, is_real)
+        self.update(codes, codes_len, is_real)
 
     def update(self, codes: Tensor, codes_len: Tensor, is_real: bool):
-        # The torchmetrics.Metric interface requires an `update()` method which we override here.
-        # Alias for `update_from_codes()`
-        self.update_from_codes(codes, codes_len, is_real)
-
-    def update_from_codes(self, codes: Tensor, codes_len: Tensor, is_real: bool):
         """
         Update the states with a batch of real and fake codes.
         Takes pre-computed codec codes, embeds them, and updates the FCD metric.
@@ -158,10 +157,9 @@ class FrechetCodecDistance(Metric):
             is_real (Boolean): Denotes if images are real or not.
         """
         assert codes.ndim == 3
-        codes = codes.to(self.device)
 
         # Dequantize the codes to a continuous representation
-        embeddings = self.model.codes_to_emedding(
+        embeddings = self.model.codes_to_embedding(
             codes, codes_len
         )  # B, E, T where E is the codec's embedding dimension, usually 4*num_codebooks
 
@@ -195,14 +193,12 @@ class FrechetCodecDistance(Metric):
         # If the user has not already updated with at lease one
         # image from each distribution, then we raise an Error.
         if (self.num_real_frames == 0) or (self.num_fake_frames == 0):
-            warnings.warn(
-                "Computing FD requires at least 1 real image and 1 fake image,"
-                f"but currently running with {self.num_real_frames} real images and {self.num_fake_frames} fake images."
-                "Returning 0.0",
-                RuntimeWarning,
+            logging.warning(
+                "Computing FD requires at least 1 real frame and 1 fake frame,"
+                f"but currently running with {self.num_real_frames} real frames and {self.num_fake_frames} fake frames."
+                "Returning 0.0"
             )
-
-            return torch.tensor(0.0)
+            return torch.tensor(0.0, device=self.device)
 
         # Compute the mean activations for each distribution
         real_mean = (self.real_sum / self.num_real_frames).unsqueeze(0)
@@ -219,7 +215,7 @@ class FrechetCodecDistance(Metric):
         # FD should be non-negative but due to numerical errors, it can be slightly negative
         # Have seen -0.0011 in the past
         assert fd >= -0.005
-        return torch.max(torch.tensor(0.0), fd)
+        return torch.max(torch.tensor(0.0, device=self.device), fd)
 
     def calculate_frechet_distance(
         self,
@@ -260,4 +256,3 @@ class FrechetCodecDistance(Metric):
         fcd = mean_diff_squared + trace_sum - 2 * sqrt_eigenvals_sum
 
         return fcd
-
