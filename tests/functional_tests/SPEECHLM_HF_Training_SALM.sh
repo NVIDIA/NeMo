@@ -28,7 +28,7 @@ coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo \
   examples/speechlm2/to_hf.py \
   class_path=nemo.collections.speechlm2.models.SALM \
   ckpt_path=salm_results/checkpoints/step\\=10-last.ckpt \
-  ckpt_config=examples/speechlm2/conf/salm.yaml \
+  ckpt_config=salm_results/exp_config.yaml \
   output_dir=test_salm_hf_model
 
 # Run generation

@@ -1,7 +1,7 @@
 model:
   # Every name/path here starting with 'pretrained' is used to initialize the model weights.
   pretrained_llm: TinyLlama/TinyLlama_v1.1
-  pretrained_audio_codec: /home/pzelasko/exp/duplex_s2s/Low_Frame-rate_Speech_Codec++_bf16.nemo
+  pretrained_audio_codec: ???  # to be released
   pretrained_asr: stt_en_fastconformer_hybrid_large_streaming_80ms
   scoring_asr: stt_en_fastconformer_transducer_large  # used only in validation/evaluation
 

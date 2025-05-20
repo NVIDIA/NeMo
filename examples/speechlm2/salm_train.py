@@ -31,7 +31,8 @@ def train(cfg):
     torch.distributed.init_process_group(backend="nccl")
     torch.set_float32_matmul_precision("medium")
     trainer = Trainer(**resolve_trainer_cfg(cfg.trainer))
-    exp_manager(trainer, cfg.get("exp_manager", None))
+    log_dir = exp_manager(trainer, cfg.get("exp_manager", None))
+    OmegaConf.save(cfg, log_dir / "exp_config.yaml")
 
     with trainer.init_module():
         model = SALM(OmegaConf.to_container(cfg.model, resolve=True))

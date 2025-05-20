@@ -32,7 +32,8 @@ def train(cfg):
     torch.set_float32_matmul_precision("medium")
     torch.backends.cudnn.allow_tf32 = True
     trainer = Trainer(**resolve_trainer_cfg(cfg.trainer))
-    exp_manager(trainer, cfg.get("exp_manager", None))
+    log_dir = exp_manager(trainer, cfg.get("exp_manager", None))
+    OmegaConf.save(cfg, log_dir / "exp_config.yaml")
 
     with trainer.init_module():
         model = DuplexS2SSpeechDecoderModel(OmegaConf.to_container(cfg.model, resolve=True))

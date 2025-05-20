@@ -30,5 +30,5 @@ coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo \
   examples/speechlm2/to_hf.py \
     class_path=nemo.collections.speechlm2.models.DuplexS2SSpeechDecoderModel \
     ckpt_path=s2s_sdv2_results/checkpoints/step\\=10-last.ckpt \
-    ckpt_config=examples/speechlm2/conf/s2s_duplex_speech_decoder.yaml \
+    ckpt_config=s2s_sdv2_results/exp_config.yaml \
     output_dir=test_speechlm2_speech_decoder_hf_model
