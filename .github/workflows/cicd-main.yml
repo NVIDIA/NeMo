@@ -18,6 +18,7 @@ on:
       - main
       - r**
       - weekly-bump
+      - magpietts_2503
     types: [labeled]
   push:
     branches:
@@ -51,7 +52,7 @@ jobs:
       - name: Select tests to run
         id: test_to_run
         run: |
-          # For manual dispatch, we replace `all` with the actual job names          
+          # For manual dispatch, we replace `all` with the actual job names
           if [[ "$EVENT_NAME" == "workflow_dispatch" && "$TESTS_TO_RUN" == "all" ]]; then
             TESTS_TO_RUN=$(cat .github/workflows/cicd-main.yml | yq '.jobs | [to_entries[] | .key] | join(",")')
 
@@ -59,14 +60,14 @@ jobs:
           elif [[ "$EVENT_NAME" == "workflow_dispatch" && "$TESTS_TO_RUN" != "all" ]]; then
             TESTS_TO_RUN=$TESTS_TO_RUN
 
-          # For correctly labeled PR, we replace `all` with the actual job names          
+          # For correctly labeled PR, we replace `all` with the actual job names
           elif [[ "$EVENT_NAME" == "pull_request" && "$HAS_LABEL" == "true" ]]; then
             TESTS_TO_RUN=$(cat .github/workflows/cicd-main.yml | yq '.jobs | [to_entries[] | .key] | join(",")')
 
           # For incorrectly labeled PR, run no tests
           elif [[ "$EVENT_NAME" == "pull_request" && "$HAS_LABEL" != "true" ]]; then
             TESTS_TO_RUN=""
-            
+
           # For push events, run all tests. This is so that we can generate coverage
           # on branch `main`.
           elif [[ "$EVENT_NAME" == "push" ]]; then
@@ -363,7 +364,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |-
-        RUN_ID=${{ github.run_id }} 
+        RUN_ID=${{ github.run_id }}
         bash tests/functional_tests/L2_Community_vita_Checkpoints_tests_Llama3.sh
 
   # L2: ASR dev run
@@ -374,7 +375,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |-
-        RUN_ID=${{ github.run_id }} 
+        RUN_ID=${{ github.run_id }}
         bash tests/functional_tests/ASR_dev_run_Speech_to_Text.sh
 
   ASR_dev_run_Speech_to_Text_WPE_CitriNet:
@@ -384,7 +385,7 @@ jobs:
     with:
       RUNNER: self-hosted-azure-gpus-1
       SCRIPT: |-
-        RUN_ID=${{ github.run_id }} 
+        RUN_ID=${{ github.run_id }}
         bash tests/functional_tests/ASR_dev_run_Speech_to_Text_WPE_CitriNet.sh
 
   ASR_dev_run_Speech_Pre-training_-_CitriNet:
@@ -1813,137 +1814,137 @@ jobs:
       - L0_Unit_Tests_CPU_Lightning
       - L0_Unit_Tests_CPU_Others
 
-      - ASR_dev_run_Speech_to_Text
-      - ASR_dev_run_Speech_to_Text_WPE_CitriNet
-      - ASR_dev_run_Speech_Pre-training_-_CitriNet
-      - Optional_ASR_dev_run_Speech_To_Text_Finetuning
-      - Optional_ASR_dev_run_Speech_To_Text_HF_Finetuning
-      - ASR_dev_run_Speech_to_Text_WPE_-_Conformer
-      - ASR_dev_run-part_two_Speech_to_Text_WPE_-_Squeezeformer
-      - L2_Speech_to_Text_EMA
-      - L2_Speaker_dev_run_Speaker_Recognition
-      - L2_Speaker_dev_run_Speaker_Diarization
-      - L2_Speaker_dev_run_EndtoEnd_Speaker_Diarization_Sortformer
-      - L2_Speaker_dev_run_EndtoEnd_Diarizer_Inference
-      - L2_Speaker_dev_run_Speech_to_Label
-      - L2_Speaker_dev_run_Speaker_Diarization_with_ASR_Inference
-      - L2_Speaker_dev_run_Clustering_Diarizer_Inference
-      - L2_Speaker_dev_run_Neural_Diarizer_Inference
-      - L2_Speaker_dev_run_Multispeaker_ASR_Data_Simulation
-      - L2_ASR_Multi-dataloader_dev_run_Speech_to_Text_multi-dataloader
-      - L2_ASR_Multi-dataloader_dev_run_Speech_to_Label_multi-dataloader
-      - L2_ASR_Adapters_Linear_Adapters
-      - L2_ASR_Adapters_RelPos_MHA_Adapters
-      - L2_Speech_Transcription_Speech_to_Text_Transcribe
-      - L2_Segmentation_Tool_Parallel_ctc_segmentation_test_L2_Eng_CitriNet_with_wav
-      - L2_Segmentation_Tool_Parallel_ctc_segmentation_test_L2_Ru_QN_with_mp3
-      - L2_G2P_Models_G2P_Conformer_training_evaluation_and_inference
-      - L2_G2P_Models_HeteronymClassificationModel_training_evaluation_and_inference
-      - L2_NMT_Attention_is_All_You_Need_Training_NMT_Training_Post-LN
-      - L2_NMT_Attention_is_All_You_Need_Training_NMT_Training_Pre-LN
-      - L2_NMT_Attention_is_All_You_Need_Training_NMT_Multi-Validation
-      - L2_NMT_Attention_is_All_You_Need_Inference
-      - L2_NMT_Attention_is_All_You_Need_Finetuning
-      - L2_NMT_Tarred_Dataset_Creation_Auto_Tarred_Dataset_Creation
-      - L2_NMT_Tarred_Dataset_Creation_Script_Tarred_Dataset_Creation
-      - L2_Megatron_NMT_Training_TP2
-      - L2_TTS_Fast_dev_runs_1_Tacotron_2
-      - L2_TTS_Fast_dev_runs_1_WaveGlow
-      - L2_TTS_Fast_dev_runs_1_FastPitch
-        #- OPTIONAL_L2_TTS_Fast_dev_runs_1_RADTTS
-      - L2_TTS_Fast_dev_runs_1_Hifigan
-      - Speech_Checkpoints_tests
-      - L2_Stable_Diffusion_Training
-      - L2_NeMo_2_NEVA_MOCK_PRETRAIN_TP2
-      - L2_NeMo_2_NEVA_MOCK_PRETRAIN_PP2
-      - L2_NeMo_2_NEVA_MOCK_PRETRAIN_CP2
-      - L2_NeMo_2_NEVA_MOCK_FINETUNE_TP2
-      - L2_NeMo_2_NEVA_MOCK_FINETUNE_PP2
-      - L2_NeMo_2_NEVA_MOCK_FINETUNE_CP2
-      - L2_NeMo_2_NEVA_LOAD_GENERATE
-      - L2_NeMo_2_MLLAMA_MOCK_FINETUNE_TP2
-      - L2_NEMO_2_MLLAMA_Inference
-      - L2_NeMo_2_GPT_Pretraining_no_transformer_engine
-      - L2_NeMo_2_GPT_DDP_Param_Parity_check
-      - L2_NeMo_2_HF_MODEL_IMPORT
-      - L2_NeMo_2_llama3_pretraining_recipe
-      - L2_NeMo_2_llama3_fault_tolerance_plugin
-      - L2_NeMo_2_llama3_straggler_detection
-      - L2_HF_Transformer_PEFT_notebook
-      - L2_HF_Transformer_PEFT
-      - L2_HF_Transformer_PEFT_nemorun
-      - L2_HF_Transformer_PEFT_2gpu
-      - L2_HF_Transformer_PEFT_2gpu_FSDP2
-      - L2_HF_Transformer_PEFT_2gpu_FSDP2_liger
-      - L2_HF_Transformer_PEFT_2gpu_nemorun
-      - L2_HF_Transformer_SFT_notebook
-      - L2_HF_Transformer_SFT
-      - L2_HF_Transformer_SFT_nemorun
-      - L2_HF_Transformer_SFT_2gpu
-      - L2_HF_Transformer_SFT_2gpu_FSDP2
-      - L2_VLM_HF_Transformer_PEFT
-      - L2_VLM_HF_Transformer_PEFT_FSDP2
-      - L2_VLM_HF_Transformer_PEFT_4bit
-      - L2_VLM_HF_Transformer_SFT_FSDP2
-      - L2_HF_Transformer_SFT_2gpu_nemorun
-      - L2_HF_Transformer_SFT_TE_Acceleration
-      - L2_HF_Transformer_PT
-      - L2_HF_Transformer_PT_nemorun
-      - L2_HF_Transformer_PT_2gpu
-      - L2_HF_Transformer_PT_2gpu_nemorun
-      - L2_HF_Transformer_PT_TE_Acceleration
-      - L2_HF_Transformer_SpeechLM_SFT_2gpu
-      - L2_NeMo_2_SSM_Pretraining
-      - L2_NeMo_2_SSM_Finetuning
-      - L2_NeMo_2_Hyena_DDP_Pretraining_Test
-      - L2_NeMo_2_T5_Pretraining
-      - L2_NeMo_2_T5_Finetuning
-      - L2_NeMo_2_T5_LoRA
-      - L2_NeMo_2_GPT_SFT_TP1PP1_MBS1
-      - L2_NeMo_2_GPT_SFT_TP1PP1_MBS2
-      - L2_NeMo_2_GPT_SFT_TP1PP2_MBS2
-      - L2_NeMo_2_GPT_SFT_TP2PP1_MBS2
-      - L2_NeMo_2_GPT_SFT_TP1PP1_MBS1_PACKED
-      - L2_NeMo_2_GPT_LoRA_TP1PP1_MBS1
-      - L2_NeMo_2_GPT_LoRA_TP1PP1_MBS2
-      - L2_NeMo_2_GPT_LoRA_TP1PP2_MBS2
-      - L2_NeMo_2_GPT_LoRA_TP2PP1_MBS2
-      - L2_NeMo_2_GPT_LoRA_TP1PP1_MBS1_Chat
-      - L2_NeMo_2_GPT_LoRA_TP1PP1_MBS1_PACKED
-      - L2_NeMo_2_GPT_DoRA_TP1PP1_MBS1_PACKED
-      - L2_NeMo_2_GPT_CLoRA_TP1PP1_MBS1_PACKED
-      - L2_NeMo_2_Mixtral_LoRA_EP2PP1_MBS2
-      - L2_NeMo_2_Mixtral_LoRA_TP1PP1_MBS1
-      - L2_NeMo_2_Mixtral_LoRA_TP2PP1_MBS1
-      - L2_NeMo_2_Mistral_LoRA_TP1PP1_MBS1
-      - L2_NeMo_2_Mistral_LoRA_TP2PP1_MBS1
-      - L2_NeMo_2_Mistral_LoRA_TP1PP1_MBS1_exclude
-      - L2_NeMo_2_Mixtral_LoRA_EP2PP1_MBS2_exclude
-      - L2_NEMO_2_LoRA_MERGE
-      - L2_NEMO_2_LoRA_Export
-      - L2_NEMO_2_LoRA_Inference
-      - L2_NeMo_2_Mixtral_Pretraining
-      - L2_NeMo_2_Auto_Configurator_TP1_PP1_MBS124
-      - L2_Speech_to_Text_AED
-      - L2_Speech_Estimate_Duration_Bins
-      - L2_Speech_Batch_Size_OOMptimizer
-        # - Optional_L2_Speech_Batch_Size_OOMptimizer_Canary
-      - L2_Speech_Transcription_Canary_Transcribe_Full_Manifest
-      - L2_Speech_Transcription_Canary_Transcribe_With_Prompt
-      - L2_Speech_Transcription_Canary_Transcribe_Audio_Dir
-      - L2_NeMo_2_NeMo_Mcore_Mixtral_bitexact
-      - L2_NeMo_2_PTQ_Llama2_FP8_trtllm
-      - L2_NeMo_2_PTQ_Llama2_FP8_nemo
-      - L2_NeMo_2_Distill_Llama3_TP1PP2
-      - L2_NeMo_2_Prune_Llama_TP1PP2
-      - L2_NeMo_2_Export_In_Framework
-      - L2_NeMo_2_jit_callback
-      - L2_NeMo_2_LLAVA_NEXT_MOCK_TRAINING
-      - L2_HF_Transformer_SFT_FSDP2_2gpu
-      - L2_HF_Transformer_SFT_2gpu_nemorun_fsdp2
-      - L2_NeMo_2_VLLM_EXPORT
-      - L2_NeMo_2_EVAL
-      - L2_SpeechLM_LoRA_TP1PP1_MBS2
+      # - ASR_dev_run_Speech_to_Text
+      # - ASR_dev_run_Speech_to_Text_WPE_CitriNet
+      # - ASR_dev_run_Speech_Pre-training_-_CitriNet
+      # - Optional_ASR_dev_run_Speech_To_Text_Finetuning
+      # - Optional_ASR_dev_run_Speech_To_Text_HF_Finetuning
+      # - ASR_dev_run_Speech_to_Text_WPE_-_Conformer
+      # - ASR_dev_run-part_two_Speech_to_Text_WPE_-_Squeezeformer
+      # - L2_Speech_to_Text_EMA
+      # - L2_Speaker_dev_run_Speaker_Recognition
+      # - L2_Speaker_dev_run_Speaker_Diarization
+      # - L2_Speaker_dev_run_EndtoEnd_Speaker_Diarization_Sortformer
+      # - L2_Speaker_dev_run_EndtoEnd_Diarizer_Inference
+      # - L2_Speaker_dev_run_Speech_to_Label
+      # - L2_Speaker_dev_run_Speaker_Diarization_with_ASR_Inference
+      # - L2_Speaker_dev_run_Clustering_Diarizer_Inference
+      # - L2_Speaker_dev_run_Neural_Diarizer_Inference
+      # - L2_Speaker_dev_run_Multispeaker_ASR_Data_Simulation
+      # - L2_ASR_Multi-dataloader_dev_run_Speech_to_Text_multi-dataloader
+      # - L2_ASR_Multi-dataloader_dev_run_Speech_to_Label_multi-dataloader
+      # - L2_ASR_Adapters_Linear_Adapters
+      # - L2_ASR_Adapters_RelPos_MHA_Adapters
+      # - L2_Speech_Transcription_Speech_to_Text_Transcribe
+      # - L2_Segmentation_Tool_Parallel_ctc_segmentation_test_L2_Eng_CitriNet_with_wav
+      # - L2_Segmentation_Tool_Parallel_ctc_segmentation_test_L2_Ru_QN_with_mp3
+      # - L2_G2P_Models_G2P_Conformer_training_evaluation_and_inference
+      # - L2_G2P_Models_HeteronymClassificationModel_training_evaluation_and_inference
+      # - L2_NMT_Attention_is_All_You_Need_Training_NMT_Training_Post-LN
+      # - L2_NMT_Attention_is_All_You_Need_Training_NMT_Training_Pre-LN
+      # - L2_NMT_Attention_is_All_You_Need_Training_NMT_Multi-Validation
+      # - L2_NMT_Attention_is_All_You_Need_Inference
+      # - L2_NMT_Attention_is_All_You_Need_Finetuning
+      # - L2_NMT_Tarred_Dataset_Creation_Auto_Tarred_Dataset_Creation
+      # - L2_NMT_Tarred_Dataset_Creation_Script_Tarred_Dataset_Creation
+      # - L2_Megatron_NMT_Training_TP2
+      # - L2_TTS_Fast_dev_runs_1_Tacotron_2
+      # - L2_TTS_Fast_dev_runs_1_WaveGlow
+      # - L2_TTS_Fast_dev_runs_1_FastPitch
+      #   #- OPTIONAL_L2_TTS_Fast_dev_runs_1_RADTTS
+      # - L2_TTS_Fast_dev_runs_1_Hifigan
+      # - Speech_Checkpoints_tests
+      # - L2_Stable_Diffusion_Training
+      # - L2_NeMo_2_NEVA_MOCK_PRETRAIN_TP2
+      # - L2_NeMo_2_NEVA_MOCK_PRETRAIN_PP2
+      # - L2_NeMo_2_NEVA_MOCK_PRETRAIN_CP2
+      # - L2_NeMo_2_NEVA_MOCK_FINETUNE_TP2
+      # - L2_NeMo_2_NEVA_MOCK_FINETUNE_PP2
+      # - L2_NeMo_2_NEVA_MOCK_FINETUNE_CP2
+      # - L2_NeMo_2_NEVA_LOAD_GENERATE
+      # - L2_NeMo_2_MLLAMA_MOCK_FINETUNE_TP2
+      # - L2_NEMO_2_MLLAMA_Inference
+      # - L2_NeMo_2_GPT_Pretraining_no_transformer_engine
+      # - L2_NeMo_2_GPT_DDP_Param_Parity_check
+      # - L2_NeMo_2_HF_MODEL_IMPORT
+      # - L2_NeMo_2_llama3_pretraining_recipe
+      # - L2_NeMo_2_llama3_fault_tolerance_plugin
+      # - L2_NeMo_2_llama3_straggler_detection
+      # - L2_HF_Transformer_PEFT_notebook
+      # - L2_HF_Transformer_PEFT
+      # - L2_HF_Transformer_PEFT_nemorun
+      # - L2_HF_Transformer_PEFT_2gpu
+      # - L2_HF_Transformer_PEFT_2gpu_FSDP2
+      # - L2_HF_Transformer_PEFT_2gpu_FSDP2_liger
+      # - L2_HF_Transformer_PEFT_2gpu_nemorun
+      # - L2_HF_Transformer_SFT_notebook
+      # - L2_HF_Transformer_SFT
+      # - L2_HF_Transformer_SFT_nemorun
+      # - L2_HF_Transformer_SFT_2gpu
+      # - L2_HF_Transformer_SFT_2gpu_FSDP2
+      # - L2_VLM_HF_Transformer_PEFT
+      # - L2_VLM_HF_Transformer_PEFT_FSDP2
+      # - L2_VLM_HF_Transformer_PEFT_4bit
+      # - L2_VLM_HF_Transformer_SFT_FSDP2
+      # - L2_HF_Transformer_SFT_2gpu_nemorun
+      # - L2_HF_Transformer_SFT_TE_Acceleration
+      # - L2_HF_Transformer_PT
+      # - L2_HF_Transformer_PT_nemorun
+      # - L2_HF_Transformer_PT_2gpu
+      # - L2_HF_Transformer_PT_2gpu_nemorun
+      # - L2_HF_Transformer_PT_TE_Acceleration
+      # - L2_HF_Transformer_SpeechLM_SFT_2gpu
+      # - L2_NeMo_2_SSM_Pretraining
+      # - L2_NeMo_2_SSM_Finetuning
+      # - L2_NeMo_2_Hyena_DDP_Pretraining_Test
+      # - L2_NeMo_2_T5_Pretraining
+      # - L2_NeMo_2_T5_Finetuning
+      # - L2_NeMo_2_T5_LoRA
+      # - L2_NeMo_2_GPT_SFT_TP1PP1_MBS1
+      # - L2_NeMo_2_GPT_SFT_TP1PP1_MBS2
+      # - L2_NeMo_2_GPT_SFT_TP1PP2_MBS2
+      # - L2_NeMo_2_GPT_SFT_TP2PP1_MBS2
+      # - L2_NeMo_2_GPT_SFT_TP1PP1_MBS1_PACKED
+      # - L2_NeMo_2_GPT_LoRA_TP1PP1_MBS1
+      # - L2_NeMo_2_GPT_LoRA_TP1PP1_MBS2
+      # - L2_NeMo_2_GPT_LoRA_TP1PP2_MBS2
+      # - L2_NeMo_2_GPT_LoRA_TP2PP1_MBS2
+      # - L2_NeMo_2_GPT_LoRA_TP1PP1_MBS1_Chat
+      # - L2_NeMo_2_GPT_LoRA_TP1PP1_MBS1_PACKED
+      # - L2_NeMo_2_GPT_DoRA_TP1PP1_MBS1_PACKED
+      # - L2_NeMo_2_GPT_CLoRA_TP1PP1_MBS1_PACKED
+      # - L2_NeMo_2_Mixtral_LoRA_EP2PP1_MBS2
+      # - L2_NeMo_2_Mixtral_LoRA_TP1PP1_MBS1
+      # - L2_NeMo_2_Mixtral_LoRA_TP2PP1_MBS1
+      # - L2_NeMo_2_Mistral_LoRA_TP1PP1_MBS1
+      # - L2_NeMo_2_Mistral_LoRA_TP2PP1_MBS1
+      # - L2_NeMo_2_Mistral_LoRA_TP1PP1_MBS1_exclude
+      # - L2_NeMo_2_Mixtral_LoRA_EP2PP1_MBS2_exclude
+      # - L2_NEMO_2_LoRA_MERGE
+      # - L2_NEMO_2_LoRA_Export
+      # - L2_NEMO_2_LoRA_Inference
+      # - L2_NeMo_2_Mixtral_Pretraining
+      # - L2_NeMo_2_Auto_Configurator_TP1_PP1_MBS124
+      # - L2_Speech_to_Text_AED
+      # - L2_Speech_Estimate_Duration_Bins
+      # - L2_Speech_Batch_Size_OOMptimizer
+      #   # - Optional_L2_Speech_Batch_Size_OOMptimizer_Canary
+      # - L2_Speech_Transcription_Canary_Transcribe_Full_Manifest
+      # - L2_Speech_Transcription_Canary_Transcribe_With_Prompt
+      # - L2_Speech_Transcription_Canary_Transcribe_Audio_Dir
+      # - L2_NeMo_2_NeMo_Mcore_Mixtral_bitexact
+      # - L2_NeMo_2_PTQ_Llama2_FP8_trtllm
+      # - L2_NeMo_2_PTQ_Llama2_FP8_nemo
+      # - L2_NeMo_2_Distill_Llama3_TP1PP2
+      # - L2_NeMo_2_Prune_Llama_TP1PP2
+      # - L2_NeMo_2_Export_In_Framework
+      # - L2_NeMo_2_jit_callback
+      # - L2_NeMo_2_LLAVA_NEXT_MOCK_TRAINING
+      # - L2_HF_Transformer_SFT_FSDP2_2gpu
+      # - L2_HF_Transformer_SFT_2gpu_nemorun_fsdp2
+      # - L2_NeMo_2_VLLM_EXPORT
+      # - L2_NeMo_2_EVAL
+      # - L2_SpeechLM_LoRA_TP1PP1_MBS2
 
     if: always() && github.event != 'push'
     runs-on: ubuntu-latest
@@ -2039,7 +2040,7 @@ jobs:
           JOBS='[]'
           PAGE=1
           while : ; do
-            JOBS_URL="https://api.github.com/repos/$REPOSITORY/actions/runs/$RUN_ID/jobs?page=$PAGE&per_page=100"  
+            JOBS_URL="https://api.github.com/repos/$REPOSITORY/actions/runs/$RUN_ID/jobs?page=$PAGE&per_page=100"
             RESPONSE=$(curl -s -H "Authorization: token $GITHUB_TOKEN" $JOBS_URL | jq '.jobs')
             JOBS=$(echo -e "$JOBS\n$RESPONSE" | jq -cs 'add')
             if [[ $(echo $RESPONSE | jq 'length') -lt 100 ]]; then
@@ -2061,7 +2062,7 @@ jobs:
             LOGS=$(echo $JOB | yq '(.value.outputs.log | @base64d)' | tr -d '"')
             LOGS=$([[ $(echo $LOGS | wc -c) -gt 0 ]] && echo -E "\`\`\`\n$LOGS\n\`\`\`" || echo "")
             LOGS=$([[ $(echo $JOB | yq '.value.outputs.potential_infra_failure') == "true" ]] && echo -E "$LOGS\n\ncc: $SLACK_WEBHOOK_ADMIN" || echo -E "$LOGS")
-            
+
             SUMMARY=$(echo "$SUMMARY" | jq \
               --arg pr "<$PR_URL|$PR_TITLE>" \
               --arg job "<$JOB_URL|$JOB_NAME>" \
