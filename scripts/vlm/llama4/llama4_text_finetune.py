@@ -15,7 +15,8 @@
 """
 Mock Data Example:
   torchrun --nproc_per_node=4 scripts/vlm/llama4/llama4_text_finetune.py \
-  --devices=4 --cp=2 --tp=2 --data_type=mock --mbs=1 --gbs=4 --use_toy_model --max_steps=2
+  --devices=4 --cp=1 --tp=2 --data_type=mock --mbs=1 --gbs=4 --use_toy_model \
+  --mock_data_qkv_layout="thd"
 
 """
 
@@ -72,6 +73,7 @@ def main(args):
             tokenizer=llama_tokenizer,
             num_workers=num_workers,
             attention_layout=args.mock_data_qkv_layout,
+            possible_thd_lengths=list(range(8000, 20000)),
         )
     else:
         raise ValueError(f"Data type {args.data_type} not supported")
