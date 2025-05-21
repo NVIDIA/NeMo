@@ -41,7 +41,9 @@ class Qwen25VLConfig3B(Qwen25VLConfig):
         default_factory=lambda: Qwen25VLVisionConfig(num_layers=32, num_attention_heads=16)
     )
     vision_projection_config: TransformerConfig = field(
-        default_factory=lambda: MultimodalProjectorConfig(projector_type="mcore_mlp", input_size=5120, hidden_size=2048, ffn_hidden_size=5120)
+        default_factory=lambda: MultimodalProjectorConfig(
+            projector_type="mcore_mlp", input_size=5120, hidden_size=2048, ffn_hidden_size=5120
+        )
     )
 
 
@@ -56,7 +58,9 @@ class Qwen25VLConfig7B(Qwen25VLConfig):
         default_factory=lambda: Qwen25VLVisionConfig(num_layers=32, num_attention_heads=16)
     )
     vision_projection_config: TransformerConfig = field(
-        default_factory=lambda: MultimodalProjectorConfig(projector_type="mcore_mlp", input_size=5120, hidden_size=3584, ffn_hidden_size=5120)
+        default_factory=lambda: MultimodalProjectorConfig(
+            projector_type="mcore_mlp", input_size=5120, hidden_size=3584, ffn_hidden_size=5120
+        )
     )
 
 
@@ -71,7 +75,9 @@ class Qwen25VLConfig72B(Qwen25VLConfig):
         default_factory=lambda: Qwen25VLVisionConfig(num_layers=32, num_attention_heads=16)
     )
     vision_projection_config: TransformerConfig = field(
-        default_factory=lambda: MultimodalProjectorConfig(projector_type="mcore_mlp", input_size=5120, hidden_size=8192, ffn_hidden_size=5120)
+        default_factory=lambda: MultimodalProjectorConfig(
+            projector_type="mcore_mlp", input_size=5120, hidden_size=8192, ffn_hidden_size=5120
+        )
     )
 
 
