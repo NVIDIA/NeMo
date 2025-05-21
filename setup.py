@@ -71,14 +71,16 @@ extras_require = {
     'run': req_file("requirements_run.txt"),
     # Lightning Collections Packages
     'core': req_file(["requirements_lightning.txt", "requirements_automodel.txt"]),
-    'common': req_file('requirements_common.txt'),
+    'lightning': req_file(["requirements_lightning.txt"]),
+    'automodel': req_file(["requirements_automodel.txt"]),
+    'common-only': req_file('requirements_common.txt'),
     # domain packages
     'asr': req_file("requirements_asr.txt"),
     'ctc_segmentation': req_file("requirements.txt", folder="tools/ctc_segmentation"),
-    'nlp': req_file("requirements_nlp.txt"),
+    'nlp-only': req_file("requirements_nlp.txt"),
     'tts': req_file("requirements_tts.txt"),
     'slu': req_file("requirements_slu.txt"),
-    'multimodal': req_file("requirements_multimodal.txt"),
+    'multimodal-only': req_file("requirements_multimodal.txt"),
     'audio': req_file("requirements_audio.txt"),
     'deploy': req_file("requirements_deploy.txt"),
     'eval': req_file("requirements_eval.txt"),
@@ -88,6 +90,8 @@ extras_require = {
 extras_require['all'] = list(chain(val for key, val in extras_require.items() if key != 'deploy'))
 
 # Add lightning requirements as needed
+extras_require['common'] = extras_require['common-only']
+
 extras_require['common'] = list(
     chain(
         extras_require['common'],
@@ -96,6 +100,7 @@ extras_require['common'] = list(
 )
 extras_require['test'] = list(
     chain(
+        extras_require['test'],
         extras_require['tts'],
         extras_require['common'],
     )
@@ -107,6 +112,7 @@ extras_require['asr'] = list(
         extras_require['common'],
     )
 )
+extras_require['nlp'] = extras_require['nlp-only']
 extras_require['nlp'] = list(
     chain(
         extras_require['nlp'],
@@ -122,6 +128,7 @@ extras_require['tts'] = list(
         extras_require['common'],
     )
 )
+extras_require['multimodal'] = extras_require['multimodal-only']
 extras_require['multimodal'] = list(
     chain(
         extras_require['multimodal'],
