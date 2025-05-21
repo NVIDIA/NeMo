@@ -12,9 +12,6 @@ weighted_sampling_steps_per_epoch: null
 # https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/tts/data/vocoder_dataset.py#L39-L41
 test_ds_meta: ???
 
-# Modify these values based on your sample rate
-sample_rate: 22050
-
 phoneme_dict_path: "scripts/tts_dataset_files/ipa_cmudict-0.7b_nv23.01.txt"
 heteronyms_path: "scripts/tts_dataset_files/heteronyms-052722"
 model:
@@ -40,8 +37,6 @@ model:
   codecmodel_path: null
   max_epochs: ${max_epochs}
   steps_per_epoch: ${weighted_sampling_steps_per_epoch}
-
-  sample_rate: ${sample_rate}
 
   # Alignment encoder parameters, to binarize the prior
   # This is used for attention-constrained training and inference
@@ -86,10 +81,8 @@ model:
     dataset:
       _target_: nemo.collections.tts.data.text_to_speech_dataset.MagpieTTSDataset
       dataset_meta: ${test_ds_meta}
-      sample_rate: ${sample_rate}
       min_duration: 0.5
       max_duration: 20.0
-      # speaker_path: ${speaker_path}
 
     dataloader_params:
       batch_size: ${batch_size}
@@ -161,7 +154,6 @@ trainer:
   logger: false # Provided by exp_manager
   log_every_n_steps: 100
   val_check_interval: 500
-  # check_val_every_n_epoch: 10
   benchmark: false
   gradient_clip_val: 2.5
 

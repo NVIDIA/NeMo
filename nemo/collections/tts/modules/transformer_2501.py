@@ -142,6 +142,7 @@ class Attention(torch.nn.Module):
         d_model: int,
         p_dropout: float,
         is_causal: bool = True,
+        d_head: Optional[int] = None,
     ):
         """
         Base Attention parent class. Users should not be instantiating this class, but rather use SelfAttention or
@@ -157,7 +158,7 @@ class Attention(torch.nn.Module):
         """
         super().__init__()
         assert d_model % n_heads == 0, "d_model % n_head != 0"
-        self.d_head = d_model // n_heads
+        self.d_head = d_head if d_head is not None else d_model // n_heads
         self.n_heads = n_heads
         self.d_model = d_model
         self.scale = self.d_head**-0.5
@@ -450,7 +451,6 @@ class TransformerLayer(torch.nn.Module):
         )
 
         if self.has_xattn:
-            self.apply_norm_to_cond = apply_norm_to_cond
             self.norm_xattn_query = torch.nn.LayerNorm(d_model, bias=False)
             self.cross_attention = CrossAttention(
                 n_heads=xa_n_heads,
@@ -460,7 +460,8 @@ class TransformerLayer(torch.nn.Module):
                 make_prior_window_strict=make_prior_window_strict,
             )
 
-            if self.apply_norm_to_cond:
+            self.norm_xattn_memory = torch.nn.Identity()
+            if apply_norm_to_cond:
                 self.norm_xattn_memory = torch.nn.LayerNorm(xa_d_memory, bias=False)
 
         self.norm_pos_ff = torch.nn.LayerNorm(d_model, bias=False)
@@ -521,7 +522,7 @@ class TransformerLayer(torch.nn.Module):
             if self.use_cache and self.cache['memory'] is not None:
                 memory = self.cache['memory']
             else:
-                memory = self.norm_xattn_memory(cond) if self.apply_norm_to_cond else cond
+                memory = self.norm_xattn_memory(cond)
                 if self.use_cache:
                     self.cache['memory'] = memory
 
@@ -592,22 +593,20 @@ class Transformer(torch.nn.Module):
             raise ValueError("It requires that `xa_d_memory` and `xa_n_heads` are specified when `has_xattn` is True!")
 
         super().__init__()
+        self.n_layers = n_layers
         self.dropout = torch.nn.Dropout(p_dropout)
         self.p_dropout_out = p_dropout_out
 
+        self.dropout_out = torch.nn.Identity()
         if self.p_dropout_out > 0.0:
             self.dropout_out = torch.nn.Dropout(self.p_dropout_out)
-        else:
-            self.dropout_out = None
 
-        self.apply_norm_out = apply_norm_out
-        if self.apply_norm_out:
+        self.norm_out = torch.nn.Identity()
+        if apply_norm_out:
             self.norm_out = torch.nn.LayerNorm(d_model, bias=False)
-        else:
-            self.norm_out = None
 
         self.layers = torch.nn.ModuleList()
-        for _ in range(n_layers):
+        for _ in range(self.n_layers):
             self.layers.append(
                 TransformerLayer(
                     d_model=d_model,
@@ -636,7 +635,7 @@ class Transformer(torch.nn.Module):
         self.apply(self._init_weights_gpt2)
         for name, param in self.named_parameters():
             if 'o_net' in name and name.endswith('weight'):
-                torch.nn.init.normal_(param, mean=0.0, std=0.02 / math.sqrt(2 * n_layers))
+                torch.nn.init.normal_(param, mean=0.0, std=0.02 / math.sqrt(2 * self.n_layers))
 
     def reset_cache(self, use_cache=False):
         for layer in self.layers:
@@ -728,10 +727,6 @@ class Transformer(torch.nn.Module):
             if max_layer_idx is not None and idx == max_layer_idx:
                 break
 
-        if self.norm_out is not None:
-            x = self.norm_out(x)
-
-        if self.dropout_out is not None:
-            x = self.dropout_out(x)
-
+        x = self.norm_out(x)
+        x = self.dropout_out(x)
         return {'output': x, 'attn_probabilities': attn_probabilities}
