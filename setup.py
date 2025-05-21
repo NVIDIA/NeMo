@@ -75,7 +75,7 @@ extras_require = {
     'automodel': req_file(["requirements_automodel.txt"]),
     'common-only': req_file('requirements_common.txt'),
     # domain packages
-    'asr': req_file("requirements_asr.txt"),
+    'asr-only': req_file("requirements_asr.txt"),
     'ctc_segmentation': req_file("requirements.txt", folder="tools/ctc_segmentation"),
     'nlp-only': req_file("requirements_nlp.txt"),
     'tts': req_file("requirements_tts.txt"),
@@ -87,7 +87,7 @@ extras_require = {
 }
 
 
-extras_require['all'] = list(chain(val for key, val in extras_require.items() if key != 'deploy'))
+extras_require['all'] = list(chain(val for key, val in extras_require.items()))
 
 # Add lightning requirements as needed
 extras_require['common'] = extras_require['common-only']
@@ -105,6 +105,7 @@ extras_require['test'] = list(
         extras_require['common'],
     )
 )
+extras_require['asr'] = extras_require['asr-only']
 extras_require['asr'] = list(
     chain(
         extras_require['asr'],
@@ -116,7 +117,6 @@ extras_require['nlp'] = extras_require['nlp-only']
 extras_require['nlp'] = list(
     chain(
         extras_require['nlp'],
-        extras_require['eval'],
         extras_require['common'],
     )
 )
@@ -153,6 +153,14 @@ extras_require['deploy'] = list(
         extras_require['nlp'],
         extras_require['multimodal'],
         extras_require['tts'],
+        extras_require['deploy'],
+    )
+)
+extras_require['api'] = list(
+    chain(
+        extras_require['llm'],
+        extras_require['multimodal'],
+        extras_require['eval'],
         extras_require['deploy'],
     )
 )
