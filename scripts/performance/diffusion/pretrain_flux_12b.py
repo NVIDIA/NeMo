@@ -83,7 +83,10 @@ def override_recipe_configs(
     )
 
     from nemo.collections.diffusion.models.flux.model import FluxConfig
-    recipe.model.flux_params.flux_config = run.Config(FluxConfig, num_joint_layers=10, num_single_layers=30, gradient_accumulation_fusion=False)
+
+    recipe.model.flux_params.flux_config = run.Config(
+        FluxConfig, num_joint_layers=10, num_single_layers=30, gradient_accumulation_fusion=False
+    )
 
     recipe.trainer.strategy.fsdp = "megatron"
     recipe.trainer.strategy.ddp.use_custom_fsdp = True
