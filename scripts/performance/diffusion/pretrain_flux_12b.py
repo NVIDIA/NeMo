@@ -83,9 +83,9 @@ def override_recipe_configs(
     )
 
     from nemo.collections.diffusion.models.flux.model import FluxConfig
-
     recipe.model.flux_params.flux_config = run.Config(
-        FluxConfig, num_joint_layers=10, num_single_layers=30, gradient_accumulation_fusion=False
+        FluxConfig,
+        gradient_accumulation_fusion=False,
     )
 
     recipe.trainer.strategy.fsdp = "megatron"
@@ -94,10 +94,18 @@ def override_recipe_configs(
     recipe.trainer.strategy.ddp.overlap_grad_reduce = True
     recipe.trainer.strategy.ddp.overlap_param_gather = True
 
-    recipe.model.flux_params.device = 'cuda'
-    recipe.trainer.strategy.tensor_model_parallel_size = 1
-    recipe.trainer.devices = 8
     recipe.data.global_batch_size = 8
+
+    from nemo.lightning.pytorch.callbacks.flops_callback import MM_FLOPsMeasurementCallback
+    recipe.trainer.callbacks.append(
+        run.Config(
+            MM_FLOPsMeasurementCallback,
+            model_name_config_dict={'flux': recipe.model.flux_params.flux_config},
+            data_config=recipe.data,
+        )
+    )
+
+    recipe.trainer.plugins.grad_reduce_in_fp32 = False
 
     return recipe
 
