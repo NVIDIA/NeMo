@@ -105,7 +105,7 @@ extras_require['test'] = list(
         extras_require['common'],
     )
 )
-extras_require['asr-only'] = extras_require['asr']
+extras_require['asr'] = extras_require['asr-only']
 extras_require['asr'] = list(
     chain(
         extras_require['asr'],
