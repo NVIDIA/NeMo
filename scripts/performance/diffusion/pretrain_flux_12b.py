@@ -81,23 +81,20 @@ def override_recipe_configs(
     recipe.model.flux_params.vae_config = (
         None  # run.Config(AutoEncoderConfig, ckpt='/ckpts/ae.safetensors', ch_mult=[1,2,4,4], attn_resolutions=[])
     )
+
     from nemo.collections.diffusion.models.flux.model import FluxConfig
+    recipe.model.flux_params.flux_config = run.Config(FluxConfig, num_joint_layers=10, num_single_layers=30, gradient_accumulation_fusion=False)
 
-    recipe.model.flux_params.flux_config = run.Config(FluxConfig, num_joint_layers=11, num_single_layers=22)
-    # recipe.model.flux_params.flux_config.enable_cuda_graph = True
-    # recipe.model.flux_params.flux_config.use_te_rng_tracker = True
-    # recipe.model.flux_params.flux_config.cuda_graph_warmup_steps = 2
-    recipe.model.flux_params.flux_config.apply_rope_fusion = False
-    recipe.model.flux_params.flux_config.rotary_interleaved = True
-    recipe.trainer.strategy.use_te_rng_tracker = True
-    from megatron.core.distributed import DistributedDataParallelConfig
+    recipe.trainer.strategy.fsdp = "megatron"
+    recipe.trainer.strategy.ddp.use_custom_fsdp = True
+    recipe.trainer.strategy.ddp.data_parallel_sharding_strategy = "optim_grads_params"
+    recipe.trainer.strategy.ddp.overlap_grad_reduce = True
+    recipe.trainer.strategy.ddp.overlap_param_gather = True
 
-    recipe.trainer.strategy.ddp = run.Config(
-        DistributedDataParallelConfig,
-        use_custom_fsdp=True,
-        check_for_nan_in_grad=True,
-        grad_reduce_in_fp32=True,
-    )
+    recipe.model.flux_params.device = 'cuda'
+    recipe.trainer.strategy.tensor_model_parallel_size = 1
+    recipe.trainer.devices = 8
+    recipe.data.global_batch_size = 8
 
     return recipe
 
