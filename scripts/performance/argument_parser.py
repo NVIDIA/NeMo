@@ -403,8 +403,10 @@ def parse_cli_args():
     parser.add_argument(
         "-rm",
         "--recompute_modules",
-        type=list_of_strings,
-        help="Comma-separated string of modules to recompute. Defaults to None",
+        nargs="*",
+        const=None,
+        type=str,
+        help="List of modules to perform selective activation recompute. Users can provide 0 or any number of arguments. Defaults to None",
         required=False,
         default=None,
     )

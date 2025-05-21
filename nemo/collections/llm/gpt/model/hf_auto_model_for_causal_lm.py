@@ -19,8 +19,10 @@ import _io
 import lightning.pytorch as pl
 import torch
 import torch.distributed as dist
+from torch.distributed.device_mesh import _mesh_resources
 from transformers import AutoModelForCausalLM, BitsAndBytesConfig
 
+from nemo.automodel.dist_utils import FirstRankPerNode
 from nemo.automodel.loss import masked_cross_entropy
 from nemo.automodel.loss.linear_ce import HAVE_LINEAR_LOSS_CE, fused_linear_cross_entropy
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
@@ -195,6 +197,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
                 attn_implementation=attn_implementation,
             )
 
+    @FirstRankPerNode()
     def configure_model(self):
         """
         Configure and initialize the Hugging Face model.
@@ -220,12 +223,26 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         if self.use_liger_kernel:
             from liger_kernel.transformers import _apply_liger_kernel_to_instance
 
-            _apply_liger_kernel_to_instance(model=self.model)
+            try:
+                _apply_liger_kernel_to_instance(model=self.model)
+            except Exception as e:
+                logging.warning("Liger failed with: {}. Switching to non-liger path.".format(e))
+                self.use_liger_kernel = False
+                del self.model
+                return self.configure_model()
 
         if self.model_accelerator is not None:
             from nemo.lightning.pytorch.accelerate.transformer_engine import te_accelerate
 
             te_accelerate(self.model, self.model_accelerator.fp8_autocast)
+
+        if self.use_linear_ce_loss:
+            # scan the model for fp8 layers, if found disable lce
+            for module in self.model.modules():
+                if hasattr(module, 'fp8'):
+                    logging.warning("LCE does not support FP8, switching to regular CE.")
+                    self.use_linear_ce_loss = False
+                    break
 
         if self.enable_grad_ckpt:
             if getattr(self.model, 'supports_gradient_checkpointing', False):
@@ -326,9 +343,6 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
                 assert logits.shape[-2] == labels.shape[-1], "Expected logits & labels to have the same length"
                 loss = self.loss_fn(logits, labels, loss_mask)
 
-                self.loss_buffer.append(loss.item())
-                self.n_tok += labels.numel()
-
         else:
             batch["output_hidden_states"] = True if self.use_linear_ce_loss else False  # Enable hidden states output
 
@@ -360,6 +374,11 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
                     num_items_in_batch=num_items_in_batch,
                     logit_softcapping=logit_softcapping,
                 )
+
+        # In the case where all labels are masked, the loss should be 0.
+        if loss_mask is not None and loss_mask.bool().sum() == 0:
+            loss.detach().copy_(torch.zeros_like(loss))
+
         self.loss_buffer.append(loss.item())
         self.n_tok += labels.numel()
 
@@ -396,7 +415,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
                 group = device_mesh[
                     (
                         "dp_cp"
-                        if device_mesh.mesh_dim_names is not None and "dp_cp" in device_mesh.mesh_dim_names
+                        if "dp_cp" in _mesh_resources.root_to_flatten_mapping.get(device_mesh, {})
                         else "data_parallel"
                     )
                 ].get_group()
