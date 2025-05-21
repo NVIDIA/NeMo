@@ -93,11 +93,15 @@ labels = [
 
 @hydra_runner(config_path="conf/", config_name="data")
 def main(cfg):
-    logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
-
     # Seed everything for reproducibility
-    seed = cfg.data.get('seed', 42)
+    seed = cfg.data.get('seed', None)
+    if seed is None:
+        seed = np.random.randint(0, 2**32 - 1)
+        logging.info(f'No seed provided, using random seed: {seed}')
     logging.info(f'Setting random seed to {seed}')
+    with open_dict(cfg):
+        cfg.data.seed = seed
+    logging.info(f'Hydra config: {OmegaConf.to_yaml(cfg)}')
     pl.seed_everything(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed(seed)

@@ -30,6 +30,8 @@ from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, NeuralType
 from nemo.utils import logging
 
+NON_SPEECH_LABEL = 0
+SPEECH_LABEL = 1
 EOU_LABEL = 2
 EOB_LABEL = 3
 EOU_STRING = '<EOU>'
@@ -141,12 +143,14 @@ class LhotseSpeechToTextBpeEOUDataset(torch.utils.data.Dataset):
         self.tokenizer = TokenizerWrapper(tokenizer)
         self.load_audio = AudioSamples(fault_tolerant=True)
         self.sample_rate = self.cfg.get('sample_rate', 16000)
+        self.window_stride = self.cfg.get('window_stride', 0.01)
         self.num_sample_per_mel_frame = int(
-            self.cfg.get('window_stride', 0.01) * self.sample_rate
+            self.window_stride * self.sample_rate
         )  # 160 samples for every 1ms by default
         self.num_mel_frame_per_target_frame = int(self.cfg.get('subsampling_factor', 8))
         self.add_sep_before_eou = self.cfg.get('add_sep_before_eou', False)
         self.add_eou_to_text = self.cfg.get('add_eou_to_text', True)
+        self.pad_eou_label_secs = self.cfg.get('pad_eou_label_secs', 0.0)
         self.padding_cfg = self.cfg.get('random_padding', None)
         self.augmentor = None
         self.len_augmentor = None
@@ -257,6 +261,39 @@ class LhotseSpeechToTextBpeEOUDataset(torch.utils.data.Dataset):
         hidden_length = math.ceil(mel_frame_count / self.num_mel_frame_per_target_frame)
         return hidden_length
 
+    def _repeat_eou_labels(self, eou_targets: torch.Tensor) -> torch.Tensor:
+        """
+        Repeat EOU labels according to self.pad_eou_label_secs
+        Args:
+            eou_targets: torch.Tensor of EOU labels, shape [T]
+        Returns:
+            eou_targets: torch.Tensor of padded EOU labels, shape [T]
+        """
+        if not self.pad_eou_label_secs or self.pad_eou_label_secs <= 0:
+            return eou_targets
+
+        eou_len = self._audio_len_to_frame_len(int(self.pad_eou_label_secs * self.sample_rate))
+
+        i = 0
+        while i < eou_targets.size(0):
+            if eou_targets[i] == EOU_LABEL or eou_targets[i] == EOB_LABEL:
+                # repeat the label for the next eou_len samples
+                start = i
+                end = min(i + eou_len, eou_targets.size(0))
+                j = start + 1
+                while j < end:
+                    if eou_targets[j] != NON_SPEECH_LABEL:
+                        # do not overwrite the label if it's not non-speech
+                        break
+                    j += 1
+                end = min(j, end)
+                # fill the non-speech label with the current EOU/EOB label
+                eou_targets[start:end] = eou_targets[i]
+                i = end
+            else:
+                i += 1
+        return eou_targets
+
     def _get_frame_labels(self, cut: Cut, num_samples: int):
         hidden_length = self._audio_len_to_frame_len(num_samples)
         if not "sou_time" in cut.custom or not "eou_time" in cut.custom:
@@ -300,7 +337,7 @@ class LhotseSpeechToTextBpeEOUDataset(torch.utils.data.Dataset):
             sou_idx = self._audio_len_to_frame_len(int((sou_time[i] - cut.start) * self.sample_rate))
             seg_len_in_secs = eou_time[i] - sou_time[i]
             seg_len = self._audio_len_to_frame_len(int(seg_len_in_secs * self.sample_rate))
-            eou_targets[sou_idx : sou_idx + seg_len] = 1
+            eou_targets[sou_idx : sou_idx + seg_len] = SPEECH_LABEL
             last_idx = min(sou_idx + seg_len - 1, hidden_length - 1)
             if is_backchannel[i]:
                 eou_targets[last_idx] = EOB_LABEL  # end of backchannel
@@ -360,6 +397,7 @@ class LhotseSpeechToTextBpeEOUDataset(torch.utils.data.Dataset):
         p = np.random.rand()
         if self.padding_cfg is None or p > self.padding_cfg.prob:
             # don't apply padding
+            eou_targets = self._repeat_eou_labels(eou_targets)
             return audio, audio_len, eou_targets
 
         duration = audio_len.item() / self.cfg.sample_rate
@@ -413,6 +451,7 @@ class LhotseSpeechToTextBpeEOUDataset(torch.utils.data.Dataset):
         post_padding_eou = torch.zeros(post_padding_eou_len, dtype=eou_targets.dtype)
         padded_eou_targets = torch.cat((pre_padding_eou, eou_targets, post_padding_eou), dim=0)
 
+        padded_eou_targets = self._repeat_eou_labels(padded_eou_targets)
         return padded_audio, padded_audio_len, padded_eou_targets
 
     def _maybe_augment_audio(self, audio: torch.Tensor, audio_len: torch.Tensor):

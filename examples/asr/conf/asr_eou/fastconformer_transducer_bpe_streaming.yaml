@@ -165,7 +165,6 @@ model:
     att_context_style: chunked_limited # regular or chunked_limited
     att_context_probs: null
 
-
     xscaling: true # scales up the input embeddings by sqrt(d_model)
     pos_emb_max_len: 5000
 

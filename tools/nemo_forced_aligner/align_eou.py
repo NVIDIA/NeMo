@@ -147,7 +147,7 @@ class AlignmentConfig:
     batch_size: int = 1
     use_local_attention: bool = True
     additional_segment_grouping_separator: Optional[str] = None
-    audio_filepath_parts_in_utt_id: int = 1
+    audio_filepath_parts_in_utt_id: int = 4
 
     # Buffered chunked streaming configs
     use_buffered_chunked_streaming: bool = False
@@ -383,7 +383,7 @@ def main(cfg: AlignmentConfig):
         cfg.manifest_filepath = str(manifest_filepath)
 
         if origin_output_manifest_filepath is None:
-            manifest_stem = Path(manifest_filepath).stem.replace("-aligned", "")
+            manifest_stem = Path(manifest_filepath).stem
             cfg.output_manifest_filepath = str(Path(manifest_filepath).parent / f"{manifest_stem}-aligned.json")
         elif len(manifest_list) > 1 and origin_output_manifest_filepath is not None:
             raise ValueError(
