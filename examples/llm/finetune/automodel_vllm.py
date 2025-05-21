@@ -6,13 +6,11 @@ import argparse
 try:
     from nemo.export.vllm_hf_exporter import vLLMHFExporter
 except ImportError:
-    raise Exception(
-        "vLLM must be installed or activated in your environment:\n"
-        "  source /opt/venv/bin/activate"
-    )
+    raise Exception("vLLM must be installed or activated in your environment:\n" "  source /opt/venv/bin/activate")
 
 from nemo.deploy import DeployPyTriton
 from nemo.deploy.nlp import NemoQueryLLM
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -128,6 +126,7 @@ def main():
         print("Deployed Triton output:", resp)
     finally:
         server.stop()
+
 
 if __name__ == "__main__":
     main()
