@@ -116,7 +116,6 @@ extras_require['nlp'] = extras_require['nlp-only']
 extras_require['nlp'] = list(
     chain(
         extras_require['nlp'],
-        extras_require['eval'],
         extras_require['common'],
     )
 )
@@ -153,6 +152,12 @@ extras_require['deploy'] = list(
         extras_require['nlp'],
         extras_require['multimodal'],
         extras_require['tts'],
+        extras_require['deploy'],
+    )
+)
+extras_require['api'] = list(
+    chain(
+        extras_require['api'],
         extras_require['deploy'],
     )
 )

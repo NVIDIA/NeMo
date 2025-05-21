@@ -1,7 +1,1 @@
-accelerate
-fastapi
-nvidia-pytriton ; platform_system != 'Darwin'
-pydantic-settings
-tensorstore<0.1.72; platform_system != 'Darwin'
-uvicorn
-zarr>=2.18.2,<3.0.0
+https://github.com/NVIDIA/NeMo-Export-Deploy@main
