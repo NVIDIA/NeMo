@@ -14,21 +14,22 @@
 # limitations under the License.
 
 import os
-from typing import Dict, Any, Optional
-from omegaconf import OmegaConf
+from typing import Any, Dict, Optional
+
 import nemo_run.config as run
+from omegaconf import OmegaConf
 
 
 class MetaInfoManager:
     """Manager for abstracting metadata configuration across different systems.
-    
+
     This class provides a standardized way to generate metadata from NeMo configs
     for use with various logging systems, monitoring tools, and other services.
     """
 
     def __init__(self, cfg=None):
         """Initialize the MetaInfoManager.
-        
+
         Args:
             cfg: Configuration object (typically a NeMo hydra config)
         """
@@ -36,7 +37,7 @@ class MetaInfoManager:
 
     def _get_config_value(self, path: str, default: Any) -> Any:
         """Safely extract a value from the config using dot notation path.
-        
+
         Args:
             path: Dot-notation path to the config value (e.g., "model.batch_size")
             default: Default value if path doesn't exist
@@ -72,24 +73,19 @@ class MetaInfoManager:
 
     def _get_env(self, name: str, default: Any) -> Any:
         """Get environment variable with default value.
-        
+
         Args:
             name: Name of the environment variable
             default: Default value if environment variable is not set
-            
+
         Returns:
             Value of environment variable or default
         """
         return os.environ.get(name, default)
-            
-    def get_metadata(
-        self, 
-        run_type: str = "training", 
-        project_name: Optional[str] = None, 
-        **kwargs
-    ) -> Dict[str, Any]:
+
+    def get_metadata(self, run_type: str = "training", project_name: Optional[str] = None, **kwargs) -> Dict[str, Any]:
         """Generate standardized metadata for experiments based on config.
-        
+
         Args:
             run_type: Type of run (e.g., "training", "inference", "evaluation")
             project_name: Project name (overrides config value if provided)
@@ -113,17 +109,15 @@ class MetaInfoManager:
             "model_name": model_name,
             "perf_version_tag": self._get_env("PERF_VERSION_TAG", "0.0.0"),
             "workload_type": run_type,
-            
             # Project information
             "app_name": project_name or self._get_config_value("project_name", "default-project"),
-            
             # Environment information - check config first, then fallback to env vars
             "world_size": (
                 self._get_config_value(
                     "trainer.world_size",
-                    self._get_config_value("trainer.devices", -1) * 
-                    self._get_config_value("trainer.num_nodes", 1)
-                ) or self._get_env("WORLD_SIZE", -1)
+                    self._get_config_value("trainer.devices", -1) * self._get_config_value("trainer.num_nodes", 1),
+                )
+                or self._get_env("WORLD_SIZE", -1)
             ),
             "rank": self._get_config_value("trainer.global_rank", None) or self._get_env("RANK", "0"),
             "local_rank": self._get_config_value("trainer.local_rank", None) or self._get_env("LOCAL_RANK", "0"),
@@ -132,48 +126,50 @@ class MetaInfoManager:
 
         # Add run-type specific configuration
         if run_type == "training":
-            metadata.update({
-                # Batch size information
-                "enable_for_current_rank": (
-                    int(metadata.get('rank', 0)) == int(metadata.get('world_size', 1)) - 1
-                ),
-                "global_batch_size": self._get_config_value("model.global_batch_size", 1),
-                "micro_batch_size": self._get_config_value("model.micro_batch_size", 1),
-                "seq_length": self._get_config_value("model.seq_length", 1),
-                "train_iterations_target": self._get_config_value("trainer.max_steps", 1),
-                
-                # Training targets
-                "max_steps": self._get_config_value("trainer.max_steps", 1),
-                "max_epochs": self._get_config_value("trainer.max_epochs", None),
-                "train_samples_target": (
-                    self._get_config_value("trainer.max_steps", 1) *
-                    self._get_config_value("model.global_batch_size", 1)
-                ),
-                
-                # Logging frequency
-                "log_every_n_iterations": self._get_config_value("trainer.log_every_n_steps", 10),
-                "save_checkpoint_strategy": self._get_config_value("trainer.save_checkpoint_strategy", "async"),
-                
-                # Checkpoint settings
-                "save_checkpoint_enabled": True,
-                "save_checkpoint_strategy": "steps",
+            metadata.update(
+                {
+                    # Batch size information
+                    "enable_for_current_rank": (
+                        int(metadata.get('rank', 0)) == int(metadata.get('world_size', 1)) - 1
+                    ),
+                    "global_batch_size": self._get_config_value("model.global_batch_size", 1),
+                    "micro_batch_size": self._get_config_value("model.micro_batch_size", 1),
+                    "seq_length": self._get_config_value("model.seq_length", 1),
+                    "train_iterations_target": self._get_config_value("trainer.max_steps", 1),
+                    # Training targets
+                    "max_steps": self._get_config_value("trainer.max_steps", 1),
+                    "max_epochs": self._get_config_value("trainer.max_epochs", None),
+                    "train_samples_target": (
+                        self._get_config_value("trainer.max_steps", 1)
+                        * self._get_config_value("model.global_batch_size", 1)
+                    ),
+                    # Logging frequency
+                    "log_every_n_iterations": self._get_config_value("trainer.log_every_n_steps", 10),
+                    "save_checkpoint_strategy": self._get_config_value("trainer.save_checkpoint_strategy", "async"),
+                    # Checkpoint settings
+                    "save_checkpoint_enabled": True,
+                    "save_checkpoint_strategy": "steps",
+                    # Construct perf_tag as a string with safely accessed variables
+                    "perf_tag": (
+                        f"{exp_name}_{metadata.get('perf_version_tag', '0.0.0')}_"
+                        f"{metadata.get('global_batch_size', 1)}_{metadata.get('world_size', 1)}"
+                    ),
+                    # Feature flags - get from config when available
+                    "is_train_iterations_enabled": self._get_config_value("exp_manager.track_train_iterations", True),
+                    "is_test_iterations_enabled": self._get_config_value("exp_manager.track_test_iterations", True),
+                    "is_validation_iterations_enabled": self._get_config_value(
+                        "exp_manager.track_validation_iterations", True
+                    ),
+                    "is_save_checkpoint_enabled": self._get_config_value(
+                        "exp_manager.create_checkpoint_callback", True
+                    ),
+                    "is_log_throughput_enabled": self._get_config_value(
+                        "exp_manager.log_tflops_per_sec_per_gpu", True
+                    ),
+                }
+            )
 
-                # Construct perf_tag as a string with safely accessed variables
-                "perf_tag": (
-                    f"{exp_name}_{metadata.get('perf_version_tag', '0.0.0')}_"
-                    f"{metadata.get('global_batch_size', 1)}_{metadata.get('world_size', 1)}"
-                ),
-            
-                # Feature flags - get from config when available
-                "is_train_iterations_enabled": self._get_config_value("exp_manager.track_train_iterations", True),
-                "is_test_iterations_enabled": self._get_config_value("exp_manager.track_test_iterations", True),
-                "is_validation_iterations_enabled": self._get_config_value("exp_manager.track_validation_iterations", True),
-                "is_save_checkpoint_enabled": self._get_config_value("exp_manager.create_checkpoint_callback", True),
-                "is_log_throughput_enabled": self._get_config_value("exp_manager.log_tflops_per_sec_per_gpu", True)
-            })
-            
         # Override with any provided kwargs
         metadata.update(kwargs)
-        
-        return metadata
 
+        return metadata
