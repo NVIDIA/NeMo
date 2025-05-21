@@ -286,9 +286,19 @@ def main():
         help="Sets the att_context_size for the models which support multiple lookaheads",
     )
 
+    parser.add_argument(
+        "--matmul-precision",
+        type=str,
+        default="high",
+        choices=["highest", "high", "medium"],
+        help="Set torch matmul precision",
+    )
+
     parser.add_argument("--strategy", type=str, default="greedy_batch", help="decoding strategy to use")
 
     args = parser.parse_args()
+
+    torch.set_float32_matmul_precision(args.matmul_precision)
     if (args.audio_file is None and args.manifest_file is None) or (
         args.audio_file is not None and args.manifest_file is not None
     ):
