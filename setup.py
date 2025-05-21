@@ -158,7 +158,9 @@ extras_require['deploy'] = list(
 )
 extras_require['api'] = list(
     chain(
-        extras_require['api'],
+        extras_require['llm'],
+        extras_require['multimodal'],
+        extras_require['eval'],
         extras_require['deploy'],
     )
 )
