@@ -326,7 +326,11 @@ def main():
             decoding_cfg.fused_batch_size = -1
             if not (max_symbols := decoding_cfg.greedy.get("max_symbols")) or max_symbols <= 0:
                 decoding_cfg.greedy.max_symbols = 10
-        asr_model.change_decoding_strategy(decoding_cfg)
+        if hasattr(asr_model, "cur_decoder"):
+            # hybrid model, explicitly pass decoder type, otherwise it will be set to "rnnt"
+            asr_model.change_decoding_strategy(decoding_cfg, decoder_type=asr_model.cur_decoder)
+        else:
+            asr_model.change_decoding_strategy(decoding_cfg)
 
     asr_model = asr_model.to(args.device)
     asr_model.eval()
