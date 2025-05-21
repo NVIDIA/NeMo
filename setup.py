@@ -87,7 +87,7 @@ extras_require = {
 }
 
 
-extras_require['all'] = list(chain(val for key, val in extras_require.items() if key != 'deploy'))
+extras_require['all'] = list(chain(val for key, val in extras_require.items()))
 
 # Add lightning requirements as needed
 extras_require['common'] = extras_require['common-only']
