@@ -94,10 +94,14 @@ def override_recipe_configs(
     if args.cluster_type == "runai":
         recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_bootstrap_backend = "nccl"
     if gpu_type in ["b200", "gb200"]:
-        tp_comm_overlap_cfg = userbuffers_bf16_b200_h6144_tp2_mbs1_seqlen4096
-        # needed as tp_overlap_configs.userbuffers are dataclass objects which are unserializable
-        tp_comm_overlap_cfg = fdl.cast(run.Config, fdl_dc.convert_dataclasses_to_configs(tp_comm_overlap_cfg))
-        recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap_cfg = tp_comm_overlap_cfg
+        if args.fp8_recipe.lower() != "mxfp8":
+            tp_comm_overlap_cfg = userbuffers_bf16_b200_h6144_tp2_mbs1_seqlen4096
+            # needed as tp_overlap_configs.userbuffers are dataclass objects which are unserializable
+            tp_comm_overlap_cfg = fdl.cast(run.Config, fdl_dc.convert_dataclasses_to_configs(tp_comm_overlap_cfg))
+            recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap_cfg = tp_comm_overlap_cfg
+    if args.compute_dtype.lower() == "fp8" and args.fp8_recipe.lower() == "mxfp8":
+        recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap_cfg = None
+        recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap = False
 
     return recipe
 
