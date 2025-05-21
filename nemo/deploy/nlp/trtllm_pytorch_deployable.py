@@ -65,10 +65,7 @@ class TensorRTLLMPyotrchDeployable(ITritonDeployable):
         dtype: str = "auto",
         **kwargs,
     ):
-        config_args = {}
-        for k in list(kwargs.keys()):
-            if k in PyTorchConfig.__annotations__.keys():
-                config_args[k] = kwargs.pop(k)
+        config_args = {k: kwargs.pop(k) for k in PyTorchConfig.__annotations__.keys() & kwargs.keys()}
         pytorch_config = PyTorchConfig(**config_args)
 
         self.model = LLM(
@@ -176,10 +173,10 @@ class TensorRTLLMPyotrchDeployable(ITritonDeployable):
 
         try:
             prompts = str_ndarray2list(inputs.pop("prompts"))
-            temperature = inputs.pop("temperature") if "temperature" in inputs else None
+            temperature = inputs.pop("temperature", None)
             top_k = int(inputs.pop("top_k")) if "top_k" in inputs else None
-            top_p = inputs.pop("top_p") if "top_p" in inputs else None
-            max_length = inputs.pop("max_length") if "max_length" in inputs else 256
+            top_p = inputs.pop("top_p", None)
+            max_length = inputs.pop("max_length", 256)
 
             if torch.distributed.is_initialized():
                 if torch.distributed.get_world_size() > 1:
