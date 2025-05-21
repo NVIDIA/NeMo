@@ -20,6 +20,7 @@ import lightning.pytorch as pl
 import torch
 import torch.distributed as dist
 from torch.distributed.device_mesh import _mesh_resources
+from torch.nn.attention import SDPBackend, sdpa_kernel
 from transformers import AutoModelForCausalLM, BitsAndBytesConfig
 
 from nemo.automodel.dist_utils import FirstRankPerNode
@@ -298,15 +299,25 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         Returns:
             ModelOutput: The output of the underlying Hugging Face model.
         """
-        if num_logits_to_keep is None:
+        ctx_manager = sdpa_kernel(
+            [
+                SDPBackend.CUDNN_ATTENTION,
+                SDPBackend.FLASH_ATTENTION,
+                SDPBackend.EFFICIENT_ATTENTION,
+                SDPBackend.MATH,
+            ],
+        )
+
+        with ctx_manager:
+            if num_logits_to_keep is None:
+                return self.model(**batch)
+            # Check if num_logits_to_keep parameter exists in model's forward method
+            model_forward_params = inspect.signature(self.model.forward).parameters
+            if 'num_logits_to_keep' in model_forward_params:
+                return self.model(**batch, num_logits_to_keep=num_logits_to_keep)
+            if 'logits_to_keep' in model_forward_params:
+                return self.model(**batch, logits_to_keep=num_logits_to_keep)
             return self.model(**batch)
-        # Check if num_logits_to_keep parameter exists in model's forward method
-        model_forward_params = inspect.signature(self.model.forward).parameters
-        if 'num_logits_to_keep' in model_forward_params:
-            return self.model(**batch, num_logits_to_keep=num_logits_to_keep)
-        if 'logits_to_keep' in model_forward_params:
-            return self.model(**batch, logits_to_keep=num_logits_to_keep)
-        return self.model(**batch)
 
     def training_step(self, batch, batch_idx=None, context_parallel=False):
         """
