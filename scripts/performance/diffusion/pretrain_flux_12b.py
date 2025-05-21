@@ -83,6 +83,7 @@ def override_recipe_configs(
     )
 
     from nemo.collections.diffusion.models.flux.model import FluxConfig
+
     recipe.model.flux_params.flux_config = run.Config(
         FluxConfig,
         gradient_accumulation_fusion=False,
@@ -97,6 +98,7 @@ def override_recipe_configs(
     recipe.data.global_batch_size = 8
 
     from nemo.lightning.pytorch.callbacks.flops_callback import MM_FLOPsMeasurementCallback
+
     recipe.trainer.callbacks.append(
         run.Config(
             MM_FLOPsMeasurementCallback,
