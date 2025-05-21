@@ -25,7 +25,7 @@ class MetaInfoManager:
     This class provides a standardized way to generate metadata from NeMo configs
     for use with various logging systems, monitoring tools, and other services.
     """
-    
+
     def __init__(self, cfg=None):
         """Initialize the MetaInfoManager.
         
@@ -33,23 +33,23 @@ class MetaInfoManager:
             cfg: Configuration object (typically a NeMo hydra config)
         """
         self.cfg = cfg or OmegaConf.create({})
-        
+
     def _get_config_value(self, path: str, default: Any) -> Any:
         """Safely extract a value from the config using dot notation path.
         
         Args:
             path: Dot-notation path to the config value (e.g., "model.batch_size")
             default: Default value if path doesn't exist
-            
+
         Returns:
             The config value or default
         """
         if not self.cfg:
             return default
-            
+
         parts = path.split('.')
         current = self.cfg
-        
+
         try:
             for part in parts:
                 # Check if current is a run.Partial object
@@ -69,7 +69,7 @@ class MetaInfoManager:
             return current
         except (AttributeError, KeyError):
             return default
-            
+
     def _get_env(self, name: str, default: Any) -> Any:
         """Get environment variable with default value.
         
@@ -94,7 +94,7 @@ class MetaInfoManager:
             run_type: Type of run (e.g., "training", "inference", "evaluation")
             project_name: Project name (overrides config value if provided)
             **kwargs: Additional metadata to include or override defaults
-            
+
         Returns:
             Dictionary containing metadata
         """
@@ -105,7 +105,7 @@ class MetaInfoManager:
         except (AttributeError, IndexError):
             exp_name = "unnamed-experiment"
             model_name = "model"
-        
+
         # Basic metadata common to all run types
         metadata = {
             # Run identification
@@ -129,7 +129,7 @@ class MetaInfoManager:
             "local_rank": self._get_config_value("trainer.local_rank", None) or self._get_env("LOCAL_RANK", "0"),
             "node_rank": self._get_config_value("trainer.node_rank", None) or self._get_env("NODE_RANK", "0"),
         }
-        
+
         # Add run-type specific configuration
         if run_type == "training":
             metadata.update({
