@@ -37,7 +37,7 @@ class TestGemma3_1B:
         assert model_config.__fn_or_cls__ == Gemma3Model
         assert isinstance(model_config.config, run.Config)
         assert model_config.config.__fn_or_cls__ == Gemma3Config1B
-        
+
         # Test config parameters
         config = model_config.config
         assert config.num_layers == 26

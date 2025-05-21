@@ -12,12 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.llm.gpt.model.gemma3 import (
-    Gemma3Config1B,
-    Gemma3Config4B,
-    Gemma3Config12B,
-    Gemma3Config27B,
-)
+from nemo.collections.llm.gpt.model.gemma3 import Gemma3Config1B, Gemma3Config4B, Gemma3Config12B, Gemma3Config27B
 
 
 def test_gemma3_1b_config():
@@ -100,7 +95,7 @@ def test_gemma3_27b_config():
     assert config.num_attention_heads == 32
     assert config.num_query_groups == 16
     assert config.kv_channels == 128
-    assert config.softmax_scale == 1.0 / (168 ** 0.5)  # Special scaling for 27B model
+    assert config.softmax_scale == 1.0 / (168**0.5)  # Special scaling for 27B model
     assert config.ffn_hidden_size == 21504
     assert config.window_size == 1024
     assert config.rotary_base == (10_000, 1_000_000)
@@ -115,4 +110,4 @@ def test_gemma3_27b_config():
     assert config.hidden_dropout == 0.0
     assert config.attention_dropout == 0.0
     assert config.share_embeddings_and_output_weights is True
-    assert config.is_vision_language is True 
+    assert config.is_vision_language is True

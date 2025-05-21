@@ -136,11 +136,11 @@ class TestGemma3VL12B:
     def test_pretrain_performance_optimizations(self, recipe_module):
         # Test the performance optimizations for pre-training
         recipe = recipe_module.pretrain_recipe(performance_mode=True)
-        
+
         # Verify that performance-related callbacks are added
         callbacks = recipe.trainer.callbacks
         assert len(callbacks) > 1  # Should have at least TimingCallback plus performance callbacks
-        
+
         # Verify that grad_reduce_in_fp32 is set to False
         assert recipe.trainer.plugins.grad_reduce_in_fp32 is False
 
@@ -148,4 +148,4 @@ class TestGemma3VL12B:
         # Test different configurations for pre-training
         recipe = recipe_module.pretrain_recipe(num_nodes=2, num_gpus_per_node=4)
         assert recipe.trainer.num_nodes == 2
-        assert recipe.trainer.devices == 4 
+        assert recipe.trainer.devices == 4
