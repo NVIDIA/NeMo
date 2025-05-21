@@ -1,1 +1,1 @@
-https://github.com/NVIDIA/NeMo-Export-Deploy@main
+https://github.com/NVIDIA/NeMo-Export-Deploy@ko3n1g/refactor/module-split-2
