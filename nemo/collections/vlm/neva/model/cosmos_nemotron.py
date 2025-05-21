@@ -314,7 +314,7 @@ class HFCosmosNemotronExporter(io.ModelConnector[CosmosNemotronModel, "PreTraine
         """
         from transformers.modeling_utils import no_init_weights
 
-        with no_init_weights(True):
+        with no_init_weights():
             hf_model = AutoModel.from_config(self.config, trust_remote_code=True)
             type(hf_model).register_for_auto_class("AutoModelForCausalLM")
             return hf_model
