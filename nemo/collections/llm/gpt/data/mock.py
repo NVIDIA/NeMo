@@ -49,6 +49,7 @@ class MockDataModule(pl.LightningDataModule):
             validation steps times global batch size.
         num_test_samples (Optional[int]): The number of samples to use for testing, defaults to total
             test steps times global batch size.
+        possible_thd_lengths (Optional[List[int]]): Possible THD sequence lengths.
     """
 
     def __init__(
@@ -68,6 +69,7 @@ class MockDataModule(pl.LightningDataModule):
         vocab_file: Optional[str] = None,
         merges_file: Optional[str] = None,
         attention_layout: str = "sbhd",
+        possible_thd_lengths: Optional[List[int]] = None,
     ):
         super().__init__()
         self.seq_length = seq_length
@@ -81,6 +83,7 @@ class MockDataModule(pl.LightningDataModule):
         self.persistent_workers = persistent_workers
         self.create_attention_mask = create_attention_mask or not HAVE_TE
         self.attention_layout = attention_layout
+        self.possible_thd_lengths = possible_thd_lengths
 
         if attention_layout == "thd":
             assert self.micro_batch_size == 1, "Micro batch size must be 1 for THD attention layout"
@@ -106,13 +109,13 @@ class MockDataModule(pl.LightningDataModule):
         Setup the data module.
         """
         self._train_ds = _MockGPTDataset(
-            self.tokenizer, "train", self.num_train_samples, self.seq_length, self.create_attention_mask, attention_layout=self.attention_layout
+            self.tokenizer, "train", self.num_train_samples, self.seq_length, self.create_attention_mask, attention_layout=self.attention_layout, possible_thd_lengths=self.possible_thd_lengths
         )
         self._validation_ds = _MockGPTDataset(
-            self.tokenizer, "valid", self.num_val_samples, self.seq_length, self.create_attention_mask, attention_layout=self.attention_layout
+            self.tokenizer, "valid", self.num_val_samples, self.seq_length, self.create_attention_mask, attention_layout=self.attention_layout, possible_thd_lengths=self.possible_thd_lengths
         )
         self._test_ds = _MockGPTDataset(
-            self.tokenizer, "test", self.num_test_samples, self.seq_length, self.create_attention_mask, attention_layout=self.attention_layout
+            self.tokenizer, "test", self.num_test_samples, self.seq_length, self.create_attention_mask, attention_layout=self.attention_layout, possible_thd_lengths=self.possible_thd_lengths
         )
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
@@ -160,6 +163,7 @@ class _MockGPTDataset(Dataset):
         seed: int = 42,
         create_attention_mask: bool = False,
         attention_layout: str = "sbhd",
+        possible_thd_lengths: Optional[List[int]] = None,
     ) -> None:
         super().__init__()
         self.name = name
@@ -175,6 +179,9 @@ class _MockGPTDataset(Dataset):
 
         self.loss_mask = torch.ones(self.seq_length, dtype=torch.float)
         self.position_ids = torch.arange(self.seq_length, dtype=torch.int64)
+        self.possible_thd_lengths = possible_thd_lengths
+        if attention_layout == "thd":
+            assert possible_thd_lengths is not None
 
     def __len__(self) -> int:
         return self.length
@@ -200,31 +207,36 @@ class _MockGPTDataset(Dataset):
         elif self.attention_layout == "thd":
             from megatron.core.packed_seq_params import PackedSeqParams
             # Generate random sequence lengths that sum to seq_length
-            possible_lengths = [8192, 16384, 24576, 32768]
-            padded_seqlens = []
+            possible_lengths = self.possible_thd_lengths
+            pad_thd_length_to_multiple_of = 128
+            padded_lengths = []
+            chosen_lengths = []
             remaining_length = self.seq_length
             
             while remaining_length > 0:
                 # Filter possible lengths to only those that could fit
-                valid_lengths = [l for l in possible_lengths if l < remaining_length]
+                valid_lengths = [l for l in possible_lengths if l <= remaining_length]
                 if not valid_lengths:
                     # If no valid lengths remain, use the remaining length
-                    padded_seqlens.append(remaining_length)
+                    padded_lengths[-1] += remaining_length
                     break
                 # Randomly choose a valid length
                 chosen_length = np_gen.choice(valid_lengths)
-                padded_seqlens.append(chosen_length)
-                remaining_length -= chosen_length
+                chosen_lengths.append(chosen_length)
+                padded_length = ((chosen_length + pad_thd_length_to_multiple_of - 1) // pad_thd_length_to_multiple_of) * pad_thd_length_to_multiple_of
+                padded_lengths.append(padded_length)
+                remaining_length -= padded_length
 
             # Convert to cumulative sums for PackedSeqParams
-            cu_seqlens = torch.tensor([0] + np.cumsum(padded_seqlens).tolist(), dtype=torch.int32)
-            max_seqlen = max(padded_seqlens)
+            cu_seqlens = torch.tensor([0] + np.cumsum(chosen_lengths).tolist(), dtype=torch.int32)
+            cu_seqlens_padded = torch.tensor([0] + np.cumsum(padded_lengths).tolist(), dtype=torch.int32)
+            max_seqlen = max(padded_lengths)
 
             batch["packed_seq_params"] = PackedSeqParams(
                 cu_seqlens_q=cu_seqlens,
                 cu_seqlens_kv=cu_seqlens,
-                cu_seqlens_q_padded=cu_seqlens,
-                cu_seqlens_kv_padded=cu_seqlens,
+                cu_seqlens_q_padded=cu_seqlens_padded,
+                cu_seqlens_kv_padded=cu_seqlens_padded,
                 max_seqlen_q=max_seqlen,
                 max_seqlen_kv=max_seqlen,
                 qkv_format="thd",
