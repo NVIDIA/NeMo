@@ -13,7 +13,15 @@
 # limitations under the License.
 
 
-from nemo.collections.vlm.recipes import clip_b32, llava15_7b, llava15_13b, llava_next_7b, mllama_11b, mllama_90b, gemma3vl_4b
+from nemo.collections.vlm.recipes import (
+    clip_b32,
+    gemma3vl_4b,
+    llava15_7b,
+    llava15_13b,
+    llava_next_7b,
+    mllama_11b,
+    mllama_90b,
+)
 
 __all__ = [
     "llava15_7b",

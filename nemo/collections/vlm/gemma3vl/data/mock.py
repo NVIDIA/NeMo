@@ -63,10 +63,9 @@ class Gemma3VLMockDataModule(pl.LightningDataModule):
         self.persistent_workers = persistent_workers
 
         if tokenizer is None:
-            logging.warning(
-                "Tokenizer is not provided! Fall back to `'google/gemma-3-4b-it'`."
-            )
+            logging.warning("Tokenizer is not provided! Fall back to `'google/gemma-3-4b-it'`.")
             from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+
             self.tokenizer = tokenizer or AutoTokenizer("google/gemma-3-4b-it")
 
         self.image_processor = Gemma3ImageProcessor(
