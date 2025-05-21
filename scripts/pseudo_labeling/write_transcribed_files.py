@@ -17,7 +17,7 @@ import json
 import os
 from typing import List
 
-import torch.distributed as dist
+
 from filelock import FileLock
 
 from nemo.utils import logging
