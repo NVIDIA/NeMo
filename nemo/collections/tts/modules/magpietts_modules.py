@@ -56,37 +56,69 @@ def cosine_schedule(x: torch.Tensor):
     """
     return torch.cos(x * (torch.pi / 2))
 
-def build_vocabs(subword_vocab_items, special_vocab_items=None):
-    # tokenizer = AutoTokenizer.from_pretrained(pretrained_tokenizer_name)
-    # subword_vocab_items = tokenizer.vocab.items()
-    special_vocab_ids = set(special_token_id for _, special_token_id in special_vocab_items)
-    org_char_vocab = {subword: subword_id for subword, subword_id in subword_vocab_items if len(subword) == 1 and subword_id not in special_vocab_ids}
+def build_vocabs(subword_vocab: dict, subword_padding_idx: int, special_vocab: dict = None) -> tuple[dict, dict]:
+    """
+    Builds the character vocabulary and the mapping from subword ids to character ids.
+    Args:
+        subword_vocab (dict): A dictionary of subword vocab items. Eg.
+            tokenizer = AutoTokenizer.from_pretrained(pretrained_tokenizer_name)
+            subword_vocab = tokenizer.vocab
+        subword_padding_idx (int): The padding index for the subword vocabulary.
+        special_vocab (dict): items of special token dictionary (usually BOS, EOS)
+            eg. special_vocab = {'<BOS>': 0, '<EOS>': 1}
+    Returns:
+        subword_id_to_char_ids: A dictionary mapping subword ids to character ids.
+        char_vocab: A dictionary mapping character ids to their corresponding characters.
+    """
+    org_char_vocab = {subword: subword_id for subword, subword_id in subword_vocab.items() if len(subword) == 1}
     
     # Add special tokens directly to char vocab
-    if special_vocab_items is not None:
-        for special_token, special_token_id in special_vocab_items:
+    if special_vocab is not None:
+        for special_token, special_token_id in special_vocab.items():
+            if special_token in org_char_vocab:
+                raise ValueError(f"Special token {special_token} already exists in the character vocabulary.")
             org_char_vocab[special_token] = special_token_id
 
     sorted_char_vocab = dict(sorted(org_char_vocab.items(), key=lambda x: x[1]))
     char_vocab = {k: i for i, (k, _) in enumerate(sorted_char_vocab.items())}
     assert sorted(char_vocab.values()) == list(range(len(char_vocab)))
     subword_id_to_char_ids = {
-        subword_id: tuple(char_vocab[char] for char in subword) for subword, subword_id in subword_vocab_items
+        subword_id: tuple(char_vocab[char] for char in subword) for subword, subword_id in subword_vocab.items()
     }
     
     # Creating mapping from subword ids of special tokens to their char ids
-    if special_vocab_items is not None:
-        for special_token, special_token_id in special_vocab_items:
+    if special_vocab is not None:
+        for special_token, special_token_id in special_vocab.items():
+            if special_token in subword_id_to_char_ids:
+                raise ValueError(f"Special token {special_token} already exists in the subword id Vocabulary.")
             subword_id_to_char_ids[special_token_id] = (char_vocab[special_token],)
         
     assert max(subword_id_to_char_ids) == len(subword_id_to_char_ids) - 1
     
+    # Always add padding token to the end of the vocab (this is the convention used in the original code)
+    subword_id_to_char_ids[subword_padding_idx] = (len(char_vocab),)
+    
     return subword_id_to_char_ids, char_vocab
 
 class CharAwareSubwordEncoder(NeuralModule):
-    def __init__(self, d_embed: int, llm_tokenizer_vocab_items: dict = None, special_vocab_items: dict = None):
+    """
+    Char-aware subword encoder for the MagpieTTS model.
+    This module takes subword ids as input, maps them to character ids, and then applies a transformer encoder to the character embeddings.
+    The output is a tensor of shape (batch_size, max_subword_length, d_embed).
+    """
+    def __init__(self, d_embed: int, llm_tokenizer_vocab: dict, subword_padding_idx: int, special_vocab: dict = None):
+        """
+        Args:
+            d_embed (int): The dimension of the embedding.
+            llm_tokenizer_vocab (dict): A dictionary of subword vocab items. Eg.
+                tokenizer = AutoTokenizer.from_pretrained(pretrained_tokenizer_name)
+                llm_tokenizer_vocab = tokenizer.vocab
+            subword_padding_idx (int): The padding index for the subword vocabulary.
+            special_vocab (dict): items of special token dictionary (usually BOS, EOS)
+                eg. special_vocab = {'<BOS>': 30001, '<EOS>': 30002}
+        """
         super().__init__()
-        self.subword_id_to_char_ids, self.char_vocab = build_vocabs(llm_tokenizer_vocab_items, special_vocab_items)
+        self.subword_id_to_char_ids, self.char_vocab = build_vocabs(llm_tokenizer_vocab, subword_padding_idx, special_vocab)
         self.embed_tokens = torch.nn.Embedding(self.vocab_size+1, d_embed, padding_idx=self.vocab_size)
         self.encoder = transformer_2501.Transformer(
             n_layers=1,
@@ -117,6 +149,14 @@ class CharAwareSubwordEncoder(NeuralModule):
         return char_ids, char_lengths
 
     def forward(self, subword_ids: Tensor, subword_mask: Tensor | None = None) -> Tensor:
+        """
+        Args:
+            subword_ids (Tensor): A tensor of shape (batch_size, max_subword_length) containing the subword ids.
+            subword_mask (Tensor | None): A tensor of shape (batch_size, max_subword_length) containing the mask for the subword ids.
+                If None, a mask of ones will be used.
+        Returns:
+            Tensor: A tensor of shape (batch_size, max_subword_length, d_embed) containing the subword embeddings.
+        """
         device = subword_ids.device
         if subword_mask is None:
             subword_mask = torch.ones_like(subword_ids).bool()
@@ -139,5 +179,5 @@ class CharAwareSubwordEncoder(NeuralModule):
         mean_emb = ((x / char_mask.unsqueeze(-1).sum(1, keepdim=True)) * char_mask.unsqueeze(-1)).sum(1)
         subword_emb = torch.zeros((subword_mask.size(0), subword_mask.size(1), mean_emb.size(-1)), device=device)
         subword_emb[subword_mask.unsqueeze(-1).expand(-1, -1, mean_emb.size(-1))] = mean_emb.view(-1)
-
+        
         return subword_emb

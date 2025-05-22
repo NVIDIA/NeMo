@@ -155,12 +155,16 @@ class MagpieTTSModel(ModelPT):
                 subword_vocab = tokenizer.get_vocab()
                 # special tokens will be stored as it is in the char_vocab
                 # Each special token will only be mapped to one char id
-                special_tokens = {
+                special_vocab = {
                     '<BOS>': self.bos_id,
                     '<EOS>': self.eos_id,
-                    '<PAD>': self.tokenizer.pad,
                 }
-                self.cas_encoder = CharAwareSubwordEncoder(cfg.embedding_dim, subword_vocab.items(), special_tokens.items())
+                self.cas_encoder = CharAwareSubwordEncoder(
+                    d_embed=cfg.embedding_dim,
+                    llm_tokenizer_vocab=subword_vocab,
+                    subword_padding_idx=self.tokenizer.pad,
+                    special_vocab=special_vocab
+                )
             else:
                 # Regular text embedding
                 self.text_embedding = nn.Embedding(num_tokens, cfg.embedding_dim)
