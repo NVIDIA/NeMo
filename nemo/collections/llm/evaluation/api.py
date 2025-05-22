@@ -119,6 +119,52 @@ class EvaluationConfig(BaseModel):
     params: ConfigParams = Field(description="Parameters to be used for evaluation", default=ConfigParams())
 
 
+class AdapterConfig(BaseModel):
+    """Adapter is a mechanism for hooking into the chain of requests/responses btw benchmark and endpoint.
+
+    TODO(agronskiy): unify with the internal version.
+    """
+
+    @staticmethod
+    def get_validated_config(run_config: dict[str, Any]) -> "AdapterConfig | None":
+        """Factory. Shall return `None` if the adapter_config is not passed, or validate the schema.
+
+        Args:
+            run_config: is the main dict of a configuration run, see `api_dataclasses`.
+        """
+        # CAVEAT: adaptor will be bypassed alltogether in a rare case when streaming is requested.
+        if run_config.get("target", {}).get("api_endpoint", {}).get("stream", False):
+            return None
+
+        adapter_config = run_config.get("target", {}).get("api_endpoint", {}).get("adapter_config")
+        if not adapter_config:
+            return None
+
+        adapter_config["endpoint_type"] = run_config.get("target", {}).get("api_endpoint", {}).get("type", "")
+
+        return AdapterConfig.model_validate(adapter_config)
+
+    use_reasoning: bool = Field(
+        description="Whether to use the reasoning adapter",
+        default=False,
+    )
+
+    end_reasoning_token: str = Field(
+        description="Token that singifies the end of reasoning output",
+        default="</think>",
+    )
+
+    use_system_prompt: bool = Field(
+        description="Whether to use custom system prompt adapter",
+        default=False,
+    )
+
+    custom_system_prompt: str = Field(
+        description="A custom system prompt to replace original one",
+        default="",
+    )
+
+
 class MisconfigurationError(Exception):
     """
     Exception raised when evaluation is not correctly configured.
