@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,8 +21,10 @@ from transformers import AutoProcessor
 
 from nemo import lightning as nl
 from nemo.collections import llm, vlm
+from nemo.collections.multimodal.data.energon.conversation import MLlamaTemplateConfig
 from nemo.collections.vlm import ImageDataConfig
 from nemo.collections.vlm.mllama.data.preloaded import MLlamaPreloadedDataModule
+from nemo.collections.vlm.mllama.data.task_encoder import LlamaTaskEncoder
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 from nemo.utils.exp_manager import TimingCallback
@@ -49,6 +51,7 @@ def main(args):
     gbs = args.gbs
     mbs = args.mbs
     max_steps = args.max_steps
+    num_workers = args.num_workers
 
     # encoder (vision) seq length
     # ((img_res / patch_size) ** 2 + cls_token) * num_tiles, = ((560 / 14) ** 2 + 1) * 4 = 6404
@@ -60,9 +63,23 @@ def main(args):
     else:
         model_id = "meta-llama/Llama-3.2-11B-Vision-Instruct"
 
+    from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+
     processor = AutoProcessor.from_pretrained(model_id)
     image_processor = processor.image_processor
-    tokenizer = processor.tokenizer
+    tokenizer = AutoTokenizer(model_id)
+
+    model_configs = {
+        "meta-llama/Llama-3.2-11B-Vision": vlm.MLlamaConfig11B,
+        "meta-llama/Llama-3.2-11B-Vision-Instruct": vlm.MLlamaConfig11BInstruct,
+        "meta-llama/Llama-3.2-90B-Vision": vlm.MLlamaConfig90B,
+        "meta-llama/Llama-3.2-90B-Vision-Instruct": vlm.MLlamaConfig90BInstruct,
+    }
+    conf = model_configs[model_id]()
+    if args.use_toy_model:
+        conf.language_model_config.num_layers = 2
+        num_workers = 0
+
     if args.data_type == "llava":
         # Data configuration
         data_config = ImageDataConfig(
@@ -80,7 +97,38 @@ def main(args):
             micro_batch_size=mbs,
             tokenizer=tokenizer,
             image_processor=image_processor,
-            num_workers=16,
+            num_workers=num_workers,
+        )
+    elif args.data_type == "energon":
+        # Data configuration
+        from nemo.collections.multimodal.data.energon import (
+            EnergonMultiModalDataModule,
+            ImageToken,
+            MultiModalSampleConfig,
+        )
+
+        # Configure multimodal samples
+        config = MultiModalSampleConfig(
+            image_token=ImageToken(token_str="<image>", token_id=-200),
+            ignore_place_holder=-100,
+            conversation_template_config=MLlamaTemplateConfig(),
+        )
+
+        # Initialize the data module
+        data = EnergonMultiModalDataModule(
+            path=args.data_path,
+            tokenizer=tokenizer,
+            image_processor=image_processor,
+            seq_length=decoder_seq_length,
+            micro_batch_size=mbs,
+            global_batch_size=gbs,
+            num_workers=num_workers,
+            multimodal_sample_config=config,
+            task_encoder=LlamaTaskEncoder(
+                tokenizer=tokenizer,
+                image_processor=image_processor,
+                multimodal_sample_config=config,
+            ),
         )
     elif args.data_type == "mock":
         data = vlm.MLlamaMockDataModule(
@@ -90,20 +138,11 @@ def main(args):
             micro_batch_size=mbs,
             tokenizer=tokenizer,
             image_processor=image_processor,
-            num_workers=4,
+            num_workers=num_workers,
         )
     else:
         raise ValueError(f"Data type {args.data_type} not supported")
 
-    model_configs = {
-        "meta-llama/Llama-3.2-11B-Vision": vlm.MLlamaConfig11B,
-        "meta-llama/Llama-3.2-11B-Vision-Instruct": vlm.MLlamaConfig11BInstruct,
-        "meta-llama/Llama-3.2-90B-Vision": vlm.MLlamaConfig90B,
-        "meta-llama/Llama-3.2-90B-Vision-Instruct": vlm.MLlamaConfig90BInstruct,
-    }
-    conf = model_configs[model_id]()
-    if args.pp_size > 1:
-        conf.language_model_config.first_pipeline_num_layers = 0
     model = vlm.MLlamaModel(conf, tokenizer=tokenizer)
 
     # Training strategy setup
@@ -132,7 +171,7 @@ def main(args):
         strategy=strategy,
         plugins=nl.MegatronMixedPrecision(precision="bf16-mixed"),
         callbacks=[checkpoint_callback, TimingCallback()],
-        val_check_interval=500,
+        val_check_interval=min(500, max_steps),
         limit_val_batches=gbs,
         log_every_n_steps=1,
         num_sanity_val_steps=0,
@@ -204,7 +243,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--restore_path", type=str, required=False, default=None, help="Path to restore model from checkpoint"
     )
-    parser.add_argument("--data_type", type=str, required=False, default="mock", help="mock | llava")
+    parser.add_argument("--data_type", type=str, required=False, default="mock", help="mock | llava | energon")
     parser.add_argument("--data_path", type=str, required=False, help="Path to the dataset")
     parser.add_argument("--image_folder", type=str, required=False, help="Path to the image folder")
     parser.add_argument(
@@ -215,6 +254,7 @@ if __name__ == "__main__":
         help="Directory for logging and checkpoints",
     )
     parser.add_argument("--devices", type=int, required=False, default=1)
+    parser.add_argument("--num_workers", type=int, required=False, default=4)
     parser.add_argument("--num_nodes", type=int, required=False, default=1)
     parser.add_argument("--max_steps", type=int, required=False, default=5190)
     parser.add_argument("--tp_size", type=int, required=False, default=1)
@@ -226,6 +266,10 @@ if __name__ == "__main__":
     parser.add_argument("--gbs", type=int, required=False, default=64, help="Global batch size")
     parser.add_argument("--mbs", type=int, required=False, default=2, help="Micro batch size")
     parser.add_argument("--lr", type=float, required=False, default=2.0e-06, help="Learning rate")
-
+    parser.add_argument(
+        "--use_toy_model",
+        action="store_true",
+        help="Toy size model used for testing",
+    )
     args = parser.parse_args()
     main(args)

@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,10 +24,8 @@ DATA_PATH = '/home/TestData/lite/hf_cache/squad/'
 def local_executor_torchrun(nodes: int = 1, devices: int = 2) -> run.LocalExecutor:
     # Env vars for jobs are configured here
     env_vars = {
-        "TORCH_NCCL_AVOID_RECORD_STREAMS": "1",
-        "NCCL_NVLS_ENABLE": "0",
-        "NVTE_DP_AMAX_REDUCE_INTERVAL": "0",
-        "NVTE_ASYNC_AMAX_REDUCTION": "1",
+        "TORCH_NCCL_AVOID_RECORD_STREAMS": "1",  # Disable caching NCCL communication buffer memory
+        "NCCL_NVLS_ENABLE": "0",  # Disable NVLink SHARP to save memory
     }
 
     executor = run.LocalExecutor(ntasks_per_node=devices, launcher="torchrun", env_vars=env_vars)
@@ -55,7 +53,9 @@ if __name__ == '__main__':
         peft_scheme='lora',
         max_steps=args.max_steps,
     )
-    recipe.trainer.val_check_interval = 50
+    recipe.trainer.val_check_interval = 0.0
+    recipe.trainer.max_epochs = 1
+
     tokenizer = llm.HFAutoModelForCausalLM.configure_tokenizer(args.model)
     recipe.data = run.Config(
         SquadHFDataModule,
@@ -67,4 +67,4 @@ if __name__ == '__main__':
     recipe.log = None
     recipe.trainer.enable_checkpointing = args.disable_ckpt
     executor = local_executor_torchrun(nodes=recipe.trainer.num_nodes, devices=recipe.trainer.devices)
-    run.run(recipe, executor=executor)
+    run.run(recipe, executor=executor, direct=True)

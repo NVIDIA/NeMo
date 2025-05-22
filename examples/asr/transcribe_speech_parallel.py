@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -68,11 +68,10 @@ python transcribe_speech_parallel.py \
 
 """
 
-
 import itertools
 import json
 import os
-from dataclasses import dataclass, is_dataclass
+from dataclasses import dataclass, field, is_dataclass
 from typing import Optional
 
 import lightning.pytorch as ptl
@@ -83,7 +82,8 @@ from nemo.collections.asr.data.audio_to_text_dataset import ASRPredictionWriter
 from nemo.collections.asr.metrics.wer import word_error_rate
 from nemo.collections.asr.models import ASRModel, EncDecHybridRNNTCTCModel
 from nemo.collections.asr.models.aed_multitask_models import EncDecMultiTaskModel
-from nemo.collections.asr.models.configs.asr_models_config import ASRDatasetConfig
+from nemo.collections.asr.models.configs import ASRDatasetConfig
+from nemo.collections.asr.parts.submodules.ctc_decoding import CTCDecodingConfig
 from nemo.collections.asr.parts.submodules.rnnt_decoding import RNNTDecodingConfig
 from nemo.collections.asr.parts.submodules.rnnt_greedy_decoding import GreedyBatchedRNNTInferConfig
 from nemo.core.config import TrainerConfig, hydra_runner
@@ -94,8 +94,8 @@ from nemo.utils.get_rank import is_global_rank_zero
 @dataclass
 class ParallelTranscriptionConfig:
     model: Optional[str] = None  # name
-    predict_ds: ASRDatasetConfig = ASRDatasetConfig(
-        return_sample_id=True, num_workers=4, min_duration=0, max_duration=40
+    predict_ds: ASRDatasetConfig = field(
+        default_factory=lambda: ASRDatasetConfig(return_sample_id=True, num_workers=4, min_duration=0, max_duration=40)
     )
     output_path: str = MISSING
 
@@ -105,14 +105,19 @@ class ParallelTranscriptionConfig:
 
     # decoding strategy for RNNT models
     # Double check whether fused_batch_size=-1 is right
-    rnnt_decoding: RNNTDecodingConfig = RNNTDecodingConfig(fused_batch_size=-1)
+    rnnt_decoding: RNNTDecodingConfig = field(default_factory=lambda: RNNTDecodingConfig(fused_batch_size=-1))
+
+    # Decoding strategy for CTC models
+    ctc_decoding: CTCDecodingConfig = field(default_factory=CTCDecodingConfig)
 
     # decoder type: ctc or rnnt, can be used to switch between CTC and RNNT decoder for Hybrid RNNT/CTC models
     decoder_type: Optional[str] = None
     # att_context_size can be set for cache-aware streaming models with multiple look-aheads
     att_context_size: Optional[list] = None
 
-    trainer: TrainerConfig = TrainerConfig(devices=-1, accelerator="gpu", strategy="ddp")
+    trainer: TrainerConfig = field(
+        default_factory=lambda: TrainerConfig(devices=-1, accelerator="gpu", strategy="ddp")
+    )
 
 
 def match_train_config(predict_ds, train_ds):
@@ -157,8 +162,20 @@ def main(cfg: ParallelTranscriptionConfig):
         )
         model = ASRModel.from_pretrained(model_name=cfg.model, map_location="cpu")
 
-    if isinstance(model, EncDecHybridRNNTCTCModel) and cfg.decoder_type is not None:
-        model.change_decoding_strategy(decoder_type=cfg.decoder_type)
+    # Setup decoding strategy
+    if hasattr(model, 'change_decoding_strategy') and hasattr(model, 'decoding'):
+        if cfg.decoder_type is not None:
+            decoding_cfg = cfg.rnnt_decoding if cfg.decoder_type == 'rnnt' else cfg.ctc_decoding
+            if hasattr(model, 'cur_decoder'):
+                model.change_decoding_strategy(decoding_cfg, decoder_type=cfg.decoder_type)
+            else:
+                model.change_decoding_strategy(decoding_cfg)
+
+        # Check if ctc or rnnt model
+        elif hasattr(model, 'joint'):  # RNNT model
+            model.change_decoding_strategy(cfg.rnnt_decoding)
+        else:
+            model.change_decoding_strategy(cfg.ctc_decoding)
 
     cfg.predict_ds.return_sample_id = True
     cfg.predict_ds = match_train_config(predict_ds=cfg.predict_ds, train_ds=model.cfg.train_ds)

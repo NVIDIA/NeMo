@@ -14,7 +14,7 @@ After :ref:`installing NeMo<installation>`, you can transcribe an audio file as 
 
     import nemo.collections.asr as nemo_asr
     asr_model = nemo_asr.models.ASRModel.from_pretrained("stt_en_fastconformer_transducer_large")
-    transcript = asr_model.transcribe(["path/to/audio_file.wav"])
+    transcript = asr_model.transcribe(["path/to/audio_file.wav"])[0].text
 
 Obtain timestamps
 ^^^^^^^^^^^^^^^^^
@@ -39,9 +39,9 @@ With the `timestamps=True` flag, you can obtain timestamps for each character in
     hypotheses = asr_model.transcribe(["path/to/audio_file.wav"], timestamps=True)
 
     # by default, timestamps are enabled for char, word and segment level
-    word_timestamps = hypotheses[0][0].timestep['word'] # word level timestamps for first sample
-    segment_timestamps = hypotheses[0][0].timestep['segment'] # segment level timestamps
-    char_timestamps = hypotheses[0][0].timestep['char'] # char level timestamps
+    word_timestamps = hypotheses[0].timestamp['word'] # word level timestamps for first sample
+    segment_timestamps = hypotheses[0].timestamp['segment'] # segment level timestamps
+    char_timestamps = hypotheses[0].timestamp['char'] # char level timestamps
 
     for stamp in segment_timestamps:
         print(f"{stamp['start']}s - {stamp['end']}s : {stamp['segment']}")
@@ -70,15 +70,11 @@ For more control over the timestamps, you can update the decoding config to ment
     # specify flag `return_hypotheses=True``
     hypotheses = asr_model.transcribe(["path/to/audio_file.wav"], return_hypotheses=True)
 
-    # if hypotheses form a tuple (from RNNT), extract just "best" hypotheses
-    if type(hypotheses) == tuple and len(hypotheses) == 2:
-        hypotheses = hypotheses[0]
-
-    timestamp_dict = hypotheses[0].timestep # extract timesteps from hypothesis of first (and only) audio file
-    print("Hypothesis contains following timestep information :", list(timestamp_dict.keys()))
+    timestamp_dict = hypotheses[0].timestamp # extract timestamps from hypothesis of first (and only) audio file
+    print("Hypothesis contains following timestamp information :", list(timestamp_dict.keys()))
 
     # For a FastConformer model, you can display the word timestamps as follows:
-    # 80ms is duration of a timestep at output of the Conformer
+    # 80ms is duration of a timestamp at output of the Conformer
     time_stride = 8 * asr_model.cfg.preprocessor.window_stride
 
     word_timestamps = timestamp_dict['word']
@@ -190,18 +186,17 @@ Try out NeMo ASR transcription in your browser
 ----------------------------------------------
 You can try out transcription with a NeMo ASR model without leaving your browser, by using the HuggingFace Space embedded below.
 
-This HuggingFace Space uses `Canary-1B <https://huggingface.co/nvidia/canary-1b>`__, the latest ASR model from NVIDIA NeMo. It sits at the top of the `HuggingFace OpenASR Leaderboard <https://huggingface.co/spaces/hf-audio/open_asr_leaderboard>`__ at time of publishing.
-
-Canary-1B is a multi-lingual, multi-task model, supporting automatic speech-to-text recognition (ASR) in 4 languages (English, German, French, Spanish) as well as translation between English and the 3 other supported languages.
+This HuggingFace Space uses `Parakeet TDT 0.6B V2 <https://huggingface.co/spaces/nvidia/parakeet-tdt-0.6b-v2>`__, the latest ASR model from NVIDIA NeMo. It sits at the top of the `HuggingFace OpenASR Leaderboard <https://huggingface.co/spaces/hf-audio/open_asr_leaderboard>`__ at time of writing (May 2nd 2025).
 
 .. raw:: html
 
-    <iframe src="https://nvidia-canary-1b.hf.space"
-    width="100%" class="gradio-asr" allow="microphone *"></iframe>
+    <script
+        type="module"
+        src="https://gradio.s3-us-west-2.amazonaws.com/5.27.1/gradio.js"
+    ></script>
 
-    <script type="text/javascript" language="javascript">
-        $('.gradio-asr').css('height', $(window).height() * 0.8+'px');
-    </script>
+    <gradio-app src="https://nvidia-parakeet-tdt-0-6b-v2.hf.space"></gradio-app>
+
 
 
 ASR tutorial notebooks
@@ -233,4 +228,5 @@ For more information, see additional sections in the ASR docs on the left-hand-s
    scores
    configs
    api
+   all_chkpt
    examples/kinyarwanda_asr.rst

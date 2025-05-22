@@ -11,6 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
+# pylint: skip-file
 
 import itertools
 import os
@@ -42,6 +44,7 @@ from nemo.collections.nlp.models.language_modeling.megatron.gpt_full_te_layer_au
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_layer_modelopt_spec import get_gpt_layer_modelopt_spec
 from nemo.collections.nlp.models.language_modeling.megatron.gpt_model import GPTModel
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
+from nemo.collections.nlp.modules.common.hyena.hyena_spec import get_gpt_layer_with_te_and_hyena_spec
 from nemo.collections.nlp.modules.common.megatron.build_model import build_model
 from nemo.collections.nlp.modules.common.megatron.module import Float16Module
 from nemo.collections.nlp.modules.common.megatron.utils import (
@@ -88,6 +91,7 @@ try:
     # from megatron.core.inference.gpt.model_specs import get_gpt_layer_ammo_spec
     from megatron.core.models.gpt import GPTModel as MCoreGPTModel
     from megatron.core.models.gpt.gpt_layer_specs import (
+        get_gpt_decoder_block_spec,
         get_gpt_layer_local_spec,
         get_gpt_layer_with_transformer_engine_spec,
     )
@@ -121,10 +125,7 @@ except (ImportError, ModuleNotFoundError):
 
 transformer_engine, HAVE_TE = safe_import("transformer_engine")
 te_module, HAVE_TE_MODULE = safe_import_from("transformer_engine.pytorch", "module")
-get_gpt_layer_with_te_and_hyena_spec, HAVE_HYENA_SPEC = safe_import_from(
-    "nemo.collections.nlp.modules.common.hyena.hyena_spec", "get_gpt_layer_with_te_and_hyena_spec"
-)
-HAVE_TE = HAVE_TE and HAVE_TE_MODULE and HAVE_HYENA_SPEC
+HAVE_TE = HAVE_TE and HAVE_TE_MODULE
 
 
 @cache
@@ -161,6 +162,7 @@ def get_specs(spec_name, transformer_config=None, use_te=True, hyena_cfg: Dict =
         "megatron_gpt_full_te_layer_autocast": get_gpt_full_te_layer_autocast_spec(transformer_config),
         "modelopt": get_gpt_layer_modelopt_spec(num_experts),
         "te_gpt_hyena": get_gpt_layer_with_te_and_hyena_spec(hyena_cfg),
+        "decoder_block_gpt": get_gpt_decoder_block_spec(transformer_config, use_te),
     }
     if spec_name not in name_spec_dict:
         raise ValueError(f"Spec name '{spec_name}' is not recognized.")
@@ -187,7 +189,7 @@ def drop_layers(model, layers_to_drop: List[int]):
 
 
 def mcore_model_customize(cfg, model):
-    if cfg.get("apply_embedding_scaling", False) and parallel_state.is_pipeline_first_stage():
+    if cfg.get("apply_embedding_scaling", False) and parallel_state.is_pipeline_first_stage(ignore_virtual=False):
         extend_instance(model.embedding, EmbeddingScalingMixin)
     if cfg.get("scale_positional_embedding", False):
         model.rotary_pos_emb.inv_freq = apply_rope_scaling(
@@ -573,7 +575,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 seq_len_interpolation_factor=self.cfg.get('seq_len_interpolation_factor', None),
                 rotary_base=self.cfg.get('rotary_base', 10000),
             )
-            if self.cfg.get("apply_embedding_scaling", False) and parallel_state.is_pipeline_first_stage():
+            if self.cfg.get("apply_embedding_scaling", False) and parallel_state.is_pipeline_first_stage(
+                ignore_virtual=False
+            ):
                 extend_instance(model.language_model.embedding, EmbeddingScalingMixin)
         return model
 
@@ -1286,9 +1290,9 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     required_keys.add('cu_seqlens')
                 if 'cu_seqlens_unpadded' in batch:
                     required_keys.add('cu_seqlens_unpadded')
-                if parallel_state.is_pipeline_first_stage():
+                if parallel_state.is_pipeline_first_stage(ignore_virtual=False):
                     required_keys.update(('tokens', 'position_ids'))
-                if parallel_state.is_pipeline_last_stage():
+                if parallel_state.is_pipeline_last_stage(ignore_virtual=False):
                     required_keys.update(('labels', 'loss_mask'))
             if self.get_attention_mask_from_fusion and 'attention_mask' in required_keys:
                 required_keys.remove('attention_mask')
@@ -1519,7 +1523,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             # Advance inference sequence offset.
             if self.inference_params:
                 # if last stage, then (final) output is [b, s, h], otherwise it's [s, b, h]
-                if parallel_state.is_pipeline_last_stage():
+                if parallel_state.is_pipeline_last_stage(ignore_virtual=True):
                     self.inference_params.sequence_len_offset += output_tensor.size(1)
                 else:
                     self.inference_params.sequence_len_offset += output_tensor.size(0)
@@ -1579,7 +1583,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         return loss
 
     def on_validation_epoch_end(self):
-        if parallel_state.is_pipeline_last_stage():
+        if parallel_state.is_pipeline_last_stage(ignore_virtual=False):
             # only the last pipeline parallel stages return loss with their batch size
             if self.validation_drop_last:
                 averaged_loss = torch.stack(self.validation_step_outputs).mean()
@@ -2209,10 +2213,24 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self.cfg.get('account_for_embedding_in_pipeline_split', False)
             and self.cfg.get('account_for_loss_in_pipeline_split', False)
         ):
-            if self.cfg.num_layers % self.cfg.get('pipeline_model_parallel_size', 1) != 0:
+            # Check that number of layers is compatible with pipeline parallelism
+            num_layers_first = self.cfg.get('num_layers_in_first_pipeline_stage')
+            num_layers_last = self.cfg.get('num_layers_in_last_pipeline_stage')
+            remaining_layers = self.cfg.num_layers
+            pipeline_size = self.cfg.get('pipeline_model_parallel_size', 1)
+            if num_layers_first is not None:
+                remaining_layers -= num_layers_first
+                pipeline_size -= 1
+            if num_layers_last is not None:
+                remaining_layers -= num_layers_last
+                pipeline_size -= 1
+
+            if remaining_layers % pipeline_size != 0:
                 raise ValueError(
-                    f"num_layers ({self.cfg.num_layers}) should be divisible by "
-                    f"pipeline_model_parallel_size ({self.cfg.get('pipeline_model_parallel_size', 1)})"
+                    f"num_layers ({self.cfg.num_layers}) minus "
+                    f"num_layers_in_first_pipeline_stage ({num_layers_first}) "
+                    f"and num_layers_in_last_pipeline_stage ({num_layers_last}) should be divisible by "
+                    f"remaining pipeline stages ({pipeline_size})."
                 )
 
         normalization = self.cfg.get('normalization', 'layernorm').lower()

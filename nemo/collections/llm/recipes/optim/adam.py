@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -70,6 +70,7 @@ def pytorch_adam_with_cosine_annealing(
     max_lr: float = 1e-5,
     min_lr: Optional[float] = None,
     weight_decay: float = 0.01,
+    foreach: bool = False,
 ) -> run.Config[PytorchOptimizerModule]:
     """
     Creates a PyTorch Adam optimizer with a cosine annealing learning rate scheduler.
@@ -84,7 +85,7 @@ def pytorch_adam_with_cosine_annealing(
             weight_decay=weight_decay,
             betas=(0.9, 0.999),
             eps=1e-8,
-            foreach=True,
+            foreach=foreach,
         ),
         lr_scheduler=run.Config(
             CosineAnnealingScheduler,
@@ -99,6 +100,7 @@ def pytorch_adam_with_cosine_annealing(
 def pytorch_adam_with_flat_lr(
     lr: float = 1e-5,
     weight_decay: float = 0.01,
+    foreach: bool = True,
 ) -> run.Config[PytorchOptimizerModule]:
     """
     Creates a PyTorch Adam optimizer with a flat learning rate.
@@ -113,7 +115,7 @@ def pytorch_adam_with_flat_lr(
             weight_decay=weight_decay,
             betas=(0.9, 0.999),
             eps=1e-8,
-            foreach=True,
+            foreach=foreach,
         ),
     )
 
@@ -140,7 +142,6 @@ def te_adam_with_cosine_annealing(
             betas=(0.9, 0.999),
             eps=1e-8,
             master_weights=True,
-            foreach=True,
         ),
         lr_scheduler=run.Config(
             CosineAnnealingScheduler,

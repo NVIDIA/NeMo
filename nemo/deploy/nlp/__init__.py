@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,4 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.deploy.nlp.query_llm import NemoQueryLLM, NemoQueryLLMPyTorch
+
+from nemo.deploy.nlp.query_llm import NemoQueryLLM, NemoQueryLLMHF, NemoQueryLLMPyTorch
+
+__all__ = [
+    "NemoQueryLLM",
+    "NemoQueryLLMHF",
+    "NemoQueryLLMPyTorch",
+]

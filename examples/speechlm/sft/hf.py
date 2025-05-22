@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -95,7 +95,7 @@ if __name__ == '__main__':
 
     config = OmegaConf.create(
         {
-            "cuts_path": args.data_path,
+            "manifest_filepath": args.data_path,
             "sample_rate": 16000,
             "shuffle": True,
             "num_workers": 2,

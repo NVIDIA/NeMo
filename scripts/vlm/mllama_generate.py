@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
 
 """
 Example:
-  python scripts/vlm/neva_generate.py --load_from_hf
+  python scripts/vlm/mllama_generate.py --load_from_hf
 """
 
 import argparse
@@ -45,7 +45,7 @@ def load_image(image_url: str) -> Image.Image:
         return None
 
 
-def generate(model, processor, images, text):
+def generate(model, processor, images, text, params):
     # pylint: disable=C0115,C0116
     messages = [
         {
@@ -59,7 +59,6 @@ def generate(model, processor, images, text):
 
     prompts = [input_text]
     images = [images]
-    params = CommonInferenceParams(top_k=1, top_p=0, num_tokens_to_generate=50)
     result = vlm_generate(
         model,
         processor.tokenizer,
@@ -95,7 +94,7 @@ def main(args) -> None:
         limit_val_batches=50,
     )
 
-    processor = AutoProcessor.from_pretrained(model_id)
+    processor = AutoProcessor.from_pretrained(args.processor_name)
     tokenizer = processor.tokenizer
 
     fabric = trainer.to_fabric()
@@ -106,16 +105,18 @@ def main(args) -> None:
         model = vlm.MLlamaModel(vlm.MLlamaConfig11BInstruct(), tokenizer=tokenizer)
         model = fabric.load_model(args.local_model_path, model)
 
-    model = model.module.cuda()
-    model.eval()
-    model = model.to(torch.bfloat16)
-
     # Load the image
     raw_images = [load_image(url) for url in args.image_url]
     if not raw_images:
         return  # Exit if the image can't be loaded
 
-    generate(model, processor, images=raw_images, text=args.prompt)
+    params = CommonInferenceParams(
+        temperature=args.temperature,
+        top_p=args.top_p,
+        top_k=args.top_k,
+        num_tokens_to_generate=args.num_tokens_to_generate,
+    )
+    generate(model, processor, images=raw_images, text=args.prompt, params=params)
 
 
 if __name__ == "__main__":
@@ -132,6 +133,12 @@ if __name__ == "__main__":
         help="Local path to the model if not loading from Hugging Face.",
     )
     parser.add_argument(
+        "--processor_name",
+        type=str,
+        default="meta-llama/Llama-3.2-11B-Vision-Instruct",
+        help="Name or path of processor",
+    )
+    parser.add_argument(
         "--prompt",
         type=str,
         default="<|image|>\nDescribe the image.",
@@ -146,6 +153,30 @@ if __name__ == "__main__":
             "https://huggingface.co/datasets/huggingface/documentation-images/resolve/0052a70beed5bf71b92610a43a52df6d286cd5f3/diffusers/rabbit.jpg"
         ],
         help="List of the image urls to use for inference.",
+    )
+    parser.add_argument(
+        "--temperature",
+        type=float,
+        default=1.0,
+        help="""Temperature to be used in megatron.core.inference.common_inference_params.CommonInferenceParams""",
+    )
+    parser.add_argument(
+        "--top_p",
+        type=float,
+        default=0,
+        help="""top_p to be used in megatron.core.inference.common_inference_params.CommonInferenceParams""",
+    )
+    parser.add_argument(
+        "--top_k",
+        type=int,
+        default=1,
+        help="""top_k to be used in megatron.core.inference.common_inference_params.CommonInferenceParams""",
+    )
+    parser.add_argument(
+        "--num_tokens_to_generate",
+        type=int,
+        default=50,
+        help="""Number of tokens to generate per prompt""",
     )
     parser.add_argument("--devices", type=int, required=False, default=1)
     parser.add_argument("--tp_size", type=int, required=False, default=1)

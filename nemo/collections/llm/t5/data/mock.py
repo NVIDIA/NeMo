@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -31,6 +31,8 @@ if TYPE_CHECKING:
 
 
 class MockDataModule(pl.LightningDataModule):
+    """Mock data module for testing"""
+
     def __init__(
         self,
         seq_length: int = 512,
@@ -71,6 +73,7 @@ class MockDataModule(pl.LightningDataModule):
         )
 
     def setup(self, stage: str = "") -> None:
+        """Setup the datasets"""
         self._train_ds = _MockT5Dataset(
             self.tokenizer, "train", self.num_train_samples, self.seq_length, self.seq_length_dec
         )
@@ -82,16 +85,19 @@ class MockDataModule(pl.LightningDataModule):
         )
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
+        """Dataloader for training set"""
         if not hasattr(self, "_train_ds"):
             self.setup()
         return self._create_dataloader(self._train_ds)
 
     def val_dataloader(self) -> EVAL_DATALOADERS:
+        """Dataloader for validation set"""
         if not hasattr(self, "_validation_ds"):
             self.setup()
         return self._create_dataloader(self._validation_ds)
 
     def test_dataloader(self) -> EVAL_DATALOADERS:
+        """Dataloader for test set"""
         if not hasattr(self, "_test_ds"):
             self.setup()
         return self._create_dataloader(self._test_ds)
@@ -105,6 +111,29 @@ class MockDataModule(pl.LightningDataModule):
             collate_fn=dataset.collate_fn,
             **kwargs,
         )
+
+    def reconfigure_limit_batches(self):
+        """
+        Reconfigure trainer.limit_train_batches and trainer.limit_val_batches in terms of num of microbatches.
+        """
+        from nemo.collections.llm.gpt.data.utils import _reconfigure_limit_batches
+
+        # Override limit_train_batches in terms of num of microbatches
+        self.trainer.limit_train_batches = _reconfigure_limit_batches(self.trainer.limit_train_batches, self._train_ds)
+        # Override limit_val_batches to be a multiple of num microbatches to prevent val_step from exiting
+        #   in between a step
+        self.trainer.limit_val_batches = _reconfigure_limit_batches(
+            self.trainer.limit_val_batches, self._validation_ds
+        )
+
+        try:
+            from megatron.core.num_microbatches_calculator import get_num_microbatches
+
+        except (ImportError, ModuleNotFoundError):
+            from apex.transformer.pipeline_parallel.utils import get_num_microbatches
+
+        # Override num sanity steps to be a multiple of num of microbatches
+        self.trainer.num_sanity_val_steps *= get_num_microbatches()
 
 
 class _MockT5Dataset(Dataset):
@@ -130,8 +159,8 @@ class _MockT5Dataset(Dataset):
         # update for T5 now use FlashFused attention (b11s)
         self.mask_encoder = torch.ones(self.seq_length, device='cpu')
         self.mask_decoder = torch.ones(self.seq_length_dec, device='cpu')
-        self.mask_encoder = self.mask_encoder < 0.5
-        self.mask_decoder = self.mask_decoder < 0.5
+        self.mask_encoder = ~(self.mask_encoder < 0.5)
+        self.mask_decoder = ~(self.mask_decoder < 0.5)
         self.loss_mask = torch.ones(self.seq_length_dec, dtype=torch.float)
 
     def __len__(self) -> int:

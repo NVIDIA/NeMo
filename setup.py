@@ -55,11 +55,12 @@ with open("README.md", "r", encoding='utf-8') as fh:
 
 
 def req_file(filename, folder="requirements"):
-    with open(os.path.join(folder, filename), encoding='utf-8') as f:
-        content = f.readlines()
-    # you may also want to remove whitespace characters
-    # Example: `\n` at the end of each line
-    return [x.strip() for x in content]
+    files = [filename] if not isinstance(filename, list) else filename
+    ans = []
+    for file in files:
+        with open(os.path.join(folder, file), encoding='utf-8') as f:
+            ans.extend(list(map(str.strip, f.readlines())))
+    return ans
 
 
 install_requires = req_file("requirements.txt")
@@ -67,61 +68,94 @@ install_requires = req_file("requirements.txt")
 extras_require = {
     # User packages
     'test': req_file("requirements_test.txt"),
+    'run': req_file("requirements_run.txt"),
     # Lightning Collections Packages
-    'core': req_file("requirements_lightning.txt"),
-    'common': req_file('requirements_common.txt'),
+    'core': req_file(["requirements_lightning.txt", "requirements_automodel.txt"]),
+    'lightning': req_file(["requirements_lightning.txt"]),
+    'automodel': req_file(["requirements_automodel.txt"]),
+    'common-only': req_file('requirements_common.txt'),
     # domain packages
     'asr': req_file("requirements_asr.txt"),
-    'nlp': req_file("requirements_nlp.txt"),
+    'ctc_segmentation': req_file("requirements.txt", folder="tools/ctc_segmentation"),
+    'nlp-only': req_file("requirements_nlp.txt"),
     'tts': req_file("requirements_tts.txt"),
     'slu': req_file("requirements_slu.txt"),
-    'multimodal': req_file("requirements_multimodal.txt"),
+    'multimodal-only': req_file("requirements_multimodal.txt"),
     'audio': req_file("requirements_audio.txt"),
     'deploy': req_file("requirements_deploy.txt"),
     'eval': req_file("requirements_eval.txt"),
 }
 
 
-extras_require['all'] = list(chain(*extras_require.values()))
+extras_require['all'] = list(chain(val for key, val in extras_require.items() if key != 'deploy'))
 
 # Add lightning requirements as needed
-extras_require['common'] = list(chain(extras_require['common'], extras_require['core']))
+extras_require['common'] = extras_require['common-only']
+
+extras_require['common'] = list(
+    chain(
+        extras_require['common'],
+        extras_require['core'],
+    )
+)
 extras_require['test'] = list(
     chain(
+        extras_require['test'],
         extras_require['tts'],
-        extras_require['core'],
         extras_require['common'],
     )
 )
-extras_require['asr'] = list(chain(extras_require['asr'], extras_require['core'], extras_require['common']))
+extras_require['asr'] = list(
+    chain(
+        extras_require['asr'],
+        extras_require['ctc_segmentation'],
+        extras_require['common'],
+    )
+)
+extras_require['nlp'] = extras_require['nlp-only']
 extras_require['nlp'] = list(
     chain(
         extras_require['nlp'],
-        extras_require['core'],
+        extras_require['eval'],
         extras_require['common'],
     )
 )
+extras_require['llm'] = extras_require['nlp']
 extras_require['tts'] = list(
     chain(
         extras_require['tts'],
-        extras_require['core'],
+        extras_require['asr'],
         extras_require['common'],
     )
 )
+extras_require['multimodal'] = extras_require['multimodal-only']
 extras_require['multimodal'] = list(
     chain(
         extras_require['multimodal'],
         extras_require['nlp'],
-        extras_require['core'],
         extras_require['common'],
     )
 )
-extras_require['audio'] = list(chain(extras_require['audio'], extras_require['core'], extras_require['common']))
-
-# TTS has extra dependencies
-extras_require['tts'] = list(chain(extras_require['tts'], extras_require['asr']))
-
-extras_require['slu'] = list(chain(extras_require['slu'], extras_require['asr']))
+extras_require['audio'] = list(
+    chain(
+        extras_require['audio'],
+        extras_require['common'],
+    )
+)
+extras_require['slu'] = list(
+    chain(
+        extras_require['slu'],
+        extras_require['asr'],
+    )
+)
+extras_require['deploy'] = list(
+    chain(
+        extras_require['nlp'],
+        extras_require['multimodal'],
+        extras_require['tts'],
+        extras_require['deploy'],
+    )
+)
 
 
 ###############################################################################

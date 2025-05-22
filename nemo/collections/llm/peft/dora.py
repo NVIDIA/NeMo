@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,8 +22,7 @@ from megatron.core.utils import make_sharded_tensor_for_checkpoint, make_tp_shar
 from torch import nn
 
 from nemo.collections.llm.peft.module_matcher import ModuleMatcher
-from nemo.collections.llm.peft.utils import get_adapter_attributes_from_linear
-from nemo.collections.nlp.modules.common.megatron.adapters.parallel_adapters import ParallelLinearAdapter
+from nemo.collections.llm.peft.utils import ParallelLinearAdapter, get_adapter_attributes_from_linear
 from nemo.lightning.pytorch.callbacks.peft import PEFT, AdapterWrapper
 from nemo.utils import logging
 
@@ -187,8 +186,8 @@ class DoRA(PEFT, ModuleMatcher):
                 in_features,
                 out_features,
                 self.dim,
+                base_linear_name=full_name,
                 activation='identity',
-                norm_position=None,
                 norm_type=None,
                 column_init_method=self.lora_A_init_method,
                 row_init_method=self.lora_B_init_method,

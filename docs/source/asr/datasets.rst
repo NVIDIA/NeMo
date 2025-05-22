@@ -6,7 +6,7 @@ with those datasets by following the instructions to run those scripts in the se
 
 If the user has their own data and want to preprocess it to use with NeMo ASR models, refer to the `Preparing Custom ASR Data`_ section.
 
-If the user already has a dataset that you want to convert to a tarred format, refer to the `Tarred Datasets`_ section.
+If the user already has a dataset that you want to convert to a tarred format, refer to the :ref:`Tarred Datasets <Tarred_Datasets>` section.
 
 .. _LibriSpeech_dataset:
 
@@ -124,7 +124,7 @@ AN4 Dataset
 -----------
 
 This is a small dataset recorded and distributed by Carnegie Mellon University. It consists of recordings of people spelling out
-addresses, names, etc. Information about this dataset can be found on the `official CMU site <http://www.speech.cs.cmu.edu/databases/an4/>`_.
+addresses, names, etc.
 
 #. `Download and extract the dataset <https://dldata-public.s3.us-east-2.amazonaws.com/an4_sphere.tar.gz>`_ (which is labeled "NIST's Sphere audio (.sph) format (64M)".
 
@@ -197,6 +197,8 @@ in the same directory as the manifest, or even in any specific directory structu
 Once there is a manifest that describes each audio file in the dataset, use the dataset by passing
 in the manifest file path in the experiment config file, e.g. as ``training_ds.manifest_filepath=<path/to/manifest.json>``.
 
+.. _Tarred_Datasets:
+
 Tarred Datasets
 ---------------
 
@@ -230,7 +232,7 @@ As such, there is no assured guarantee that all samples in the dataset will be s
 for these reasons it is not advisable to use tarred datasets as validation and test datasets.
 
 For more information about the individual tarred datasets and the parameters available, including shuffling options,
-see the corresponding class APIs in the `Datasets <./api.html#Datasets>`__ section.
+see the corresponding class APIs in the :ref:`Datasets <asr-api-datasets>` section.
 
 .. warning::
   If using multiple workers, the number of shards should be divisible by the world size to ensure an even
@@ -280,6 +282,8 @@ Semi sorted batching is supported by the following models:
     nemo.collections.asr.models.EncDecHybridRNNTCTCBPEModel
 
 For more details about this algorithm, see the `paper <https://www.isca-archive.org/interspeech_2021/ge21_interspeech.pdf>`_ .
+
+.. _Bucketing_Datasets:
 
 Bucketing Datasets
 ---------------------
@@ -463,7 +467,7 @@ For tarred datasets, shards from the AIS cluster are used by piping ``ais get`` 
 Tarred Dataset from AIS
 ^^^^^^^^^^^^^^^^^^^^^^^
 
-A tarred dataset can be easily used as described in the :ref:`Tarred Datasets` section by providing paths to manifests on an AIS cluster.
+A tarred dataset can be easily used as described in the :ref:`Tarred Datasets <Tarred_Datasets>` section by providing paths to manifests on an AIS cluster.
 For example, a tarred dataset from an AIS cluster can be configured as
 
 .. code::
@@ -471,7 +475,7 @@ For example, a tarred dataset from an AIS cluster can be configured as
   manifest_filepath='ais://bucket/tarred_audio_manifest.json'
   tarred_audio_filepaths='ais://bucket/shard_{1..64}.tar'
 
-:ref:`Bucketing Datasets` are configured in a similar way by providing paths on an AIS cluster.
+:ref:`Bucketing Datasets <Bucketing_Datasets>` are configured in a similar way by providing paths on an AIS cluster.
 
 Non-tarred Dataset from AIS
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -567,6 +571,11 @@ Lhotse dataloading supports the following types of inputs:
 * NeMo tarred data
     Tarred NeMo JSON manifests + audio tar files; we also support combination of multiple NeMo
     tarred data sources (e.g., multiple buckets of NeMo data or multiple datasets) via dynamic multiplexing.
+
+    We support using a subset of Tarred NeMo JSON manifests along with audio tar files without disrupting the alignment between the tarred files and their corresponding manifests.
+    This feature is essential because large datasets often consist of numerous tar files and multiple versions of Tarred NeMo JSON manifest subsets, which may contain only a portion of the audio files due to filtering for various reasons.
+    To skip specific entries in the manifests without repeatedly copying and retarring audio files, the entries must include a ``_skipme`` key. This key should be set to ``True``, ``1``, or a reason for skipping (e.g., ``low character-rate``).
+
 * Lhotse CutSet manifests
     Regular Lhotse CutSet manifests (typically gzipped JSONL).
     See `Lhotse Cuts documentation`_ to learn more about Lhotse data formats.

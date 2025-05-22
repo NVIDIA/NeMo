@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -56,10 +56,9 @@ def main(args):
     gbs = args.gbs
     mbs = args.mbs
     max_steps = args.max_steps
+    num_workers = args.num_workers
 
-    decoder_seq_length = 4096
-    if args.use_packed_sequence:
-        decoder_seq_length = 8192
+    decoder_seq_length = args.decoder_seq_length
 
     # Submodules configurations
     language_transformer_config = llm.Llama2Config7B(
@@ -74,6 +73,9 @@ def main(args):
         hidden_size=language_transformer_config.hidden_size,
         ffn_hidden_size=language_transformer_config.hidden_size,
     )
+    if args.use_toy_model:
+        language_transformer_config.num_layers = 2
+        num_workers = 0
 
     # NEVA model configuration
     neva_config = vlm.NevaConfig(
@@ -103,13 +105,13 @@ def main(args):
             micro_batch_size=mbs,
             tokenizer=None,
             image_processor=None,
-            num_workers=4,
+            num_workers=num_workers,
             packed_sequence=args.use_packed_sequence,
             num_image_embeddings_per_tile=num_image_embeddings_per_tile,
         )
     elif args.data_type == "energon":
         from transformers import AutoProcessor
-
+        from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
         from nemo.collections.multimodal.data.energon import (
             EnergonMultiModalDataModule,
             ImageToken,
@@ -118,8 +120,8 @@ def main(args):
         )
 
         processor = AutoProcessor.from_pretrained("llava-hf/llava-1.5-7b-hf")
-        tokenizer = processor.tokenizer
         image_processor = processor.image_processor
+        tokenizer = AutoTokenizer("llava-hf/llava-1.5-7b-hf", use_fast=False)
 
         # Configure multimodal samples
         config = MultiModalSampleConfig(
@@ -136,14 +138,16 @@ def main(args):
             seq_length=decoder_seq_length,
             micro_batch_size=mbs,
             global_batch_size=gbs,
-            num_workers=0,
+            num_workers=num_workers,
             multimodal_sample_config=config,
             task_encoder=MultiModalTaskEncoder(
                 tokenizer=tokenizer,
                 image_processor=image_processor,
                 multimodal_sample_config=config,
                 packed_sequence=args.use_packed_sequence,
-                packed_sequence_size=decoder_seq_length,
+                # leave some space for perf padding, otherwise after packing and padding,
+                # it will go beyond max seq len, then it will need a truncation.
+                packed_sequence_size=int(decoder_seq_length * 0.9),
                 num_image_embeddings_per_tile=num_image_embeddings_per_tile,
             ),
             packing_buffer_size=200 if args.use_packed_sequence else None,
@@ -155,7 +159,7 @@ def main(args):
             micro_batch_size=mbs,
             tokenizer=None,
             image_processor=None,
-            num_workers=4,
+            num_workers=num_workers,
             packed_sequence=args.use_packed_sequence,
         )
     else:
@@ -174,8 +178,8 @@ def main(args):
         ddp=DistributedDataParallelConfig(
             check_for_nan_in_grad=True,
             grad_reduce_in_fp32=True,
-            overlap_grad_reduce=True,
-            overlap_param_gather=True,
+            overlap_grad_reduce=False,
+            overlap_param_gather=False,
             average_in_collective=True,
         ),
         ckpt_load_strictness="log_all",
@@ -205,7 +209,7 @@ def main(args):
             TimingCallback(),
             MegatronCommOverlapCallback(tp_comm_overlap=False),
         ],
-        val_check_interval=500,
+        val_check_interval=min(500, max_steps),
         limit_val_batches=gbs,
         log_every_n_steps=1,
         num_sanity_val_steps=0,
@@ -271,7 +275,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="NEVA Model Training Script")
 
     # Argument parsing
-    parser.add_argument("--data_type", type=str, required=False, default="mock", help="mock | llava")
+    parser.add_argument("--data_type", type=str, required=False, default="mock", help="mock | llava | energon")
     parser.add_argument("--data_path", type=str, required=False, default=None, help="Path to the dataset JSON file")
     parser.add_argument("--image_folder", type=str, required=False, default=None, help="Path to the image folder")
     parser.add_argument(
@@ -284,6 +288,7 @@ if __name__ == "__main__":
         "--restore_path", type=str, required=False, default=None, help="Path to restore model from checkpoint"
     )
     parser.add_argument("--devices", type=int, required=False, default=1)
+    parser.add_argument("--num_workers", type=int, required=False, default=4)
     parser.add_argument("--num_nodes", type=int, required=False, default=1)
     parser.add_argument("--max_steps", type=int, required=False, default=5190)
     parser.add_argument("--tp_size", type=int, required=False, default=1)
@@ -297,9 +302,15 @@ if __name__ == "__main__":
     parser.add_argument("--gbs", type=int, required=False, default=128, help="Global batch size")
     parser.add_argument("--mbs", type=int, required=False, default=2, help="Micro batch size")
     parser.add_argument("--lr", type=float, required=False, default=2.0e-06, help="Learning rate")
+    parser.add_argument("--decoder_seq_length", type=int, required=False, default=4096, help="decoder sequence length")
     parser.add_argument(
         "--use_packed_sequence",
         action="store_true",
+    )
+    parser.add_argument(
+        "--use_toy_model",
+        action="store_true",
+        help="Toy size model used for testing",
     )
     args = parser.parse_args()
     main(args)

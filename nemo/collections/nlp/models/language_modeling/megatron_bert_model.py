@@ -31,7 +31,7 @@ from nemo.collections.nlp.models.language_modeling.megatron.bert.bert_model impo
     NeMoBertModel,
 )
 from nemo.collections.nlp.models.language_modeling.megatron.bert.bert_spec import (
-    bert_layer_with_transformer_engine_spec_postln,
+    get_bert_layer_with_transformer_engine_spec_postln,
 )
 from nemo.collections.nlp.models.language_modeling.megatron_base_model import MegatronBaseModel
 from nemo.collections.nlp.modules.common.megatron.build_model import build_model
@@ -156,7 +156,7 @@ class MegatronBertModel(MegatronBaseModel):
             if transformer_block_type == 'pre_ln':
                 layer_spec = bert_layer_with_transformer_engine_spec
             else:
-                layer_spec = bert_layer_with_transformer_engine_spec_postln
+                layer_spec = get_bert_layer_with_transformer_engine_spec_postln()
 
             model = MCoreBertModelWrapperWithPostLNSupport(
                 config=self.transformer_config,
@@ -239,13 +239,13 @@ class MegatronBertModel(MegatronBaseModel):
                 )
             else:
                 batch, batch_idx, dataloader_idx = next(dataloader_iter)
-                if parallel_state.is_pipeline_first_stage():
+                if parallel_state.is_pipeline_first_stage(ignore_virtual=False):
                     tokens = batch['text'].cuda(non_blocking=True)
                     types = batch['types'].cuda(non_blocking=True)
                     sentence_order = batch['is_random'].cuda(non_blocking=True)
                     padding_mask = batch['padding_mask'].cuda(non_blocking=True)
                     loss_mask, lm_labels = None, None
-                elif parallel_state.is_pipeline_last_stage():
+                elif parallel_state.is_pipeline_last_stage(ignore_virtual=False):
                     loss_mask = batch['loss_mask'].cuda(non_blocking=True)
                     lm_labels = batch['labels'].cuda(non_blocking=True)
                     sentence_order = batch['is_random'].cuda(non_blocking=True)
@@ -325,7 +325,7 @@ class MegatronBertModel(MegatronBaseModel):
                 lm_labels=lm_labels,
                 checkpoint_activations_all_layers=checkpoint_activations_all_layers,
             )
-        if parallel_state.is_pipeline_last_stage():
+        if parallel_state.is_pipeline_last_stage(ignore_virtual=False):
             # Return the output tensor of encoder
             # and transpose from [seq_len, batch, hidden] to [batch, seq_len, hidden]
             if torch.is_tensor(output_tensor):
@@ -567,7 +567,7 @@ class MegatronBertModel(MegatronBaseModel):
 
     def on_validation_epoch_end(self):
         """Run validation epoch end aggregation."""
-        if parallel_state.is_pipeline_last_stage():
+        if parallel_state.is_pipeline_last_stage(ignore_virtual=False):
             averaged_loss = torch.stack(self.validation_step_outputs).mean()
         else:
             averaged_loss = torch.tensor(0.0, dtype=torch.float32).cuda()

@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,9 +12,34 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.export.utils.utils import is_nemo2_checkpoint, torch_dtype_from_precision
+from nemo.export.utils.lora_converter import convert_lora_nemo_to_canonical
+from nemo.export.utils.model_loader import (
+    load_model_weights,
+    load_sharded_metadata_torch_dist,
+    load_sharded_metadata_zarr,
+    nemo_to_path,
+)
+from nemo.export.utils.utils import (
+    get_example_inputs,
+    get_model_device_type,
+    is_nemo2_checkpoint,
+    is_nemo_tarfile,
+    prepare_directory_for_export,
+    torch_dtype_from_precision,
+    validate_fp8_network,
+)
 
 __all__ = [
+    "convert_lora_nemo_to_canonical",
+    "load_model_weights",
+    "load_sharded_metadata_torch_dist",
+    "load_sharded_metadata_zarr",
+    "nemo_to_path",
     "is_nemo2_checkpoint",
+    "is_nemo_tarfile",
+    "prepare_directory_for_export",
     "torch_dtype_from_precision",
+    "get_model_device_type",
+    "get_example_inputs",
+    "validate_fp8_network",
 ]

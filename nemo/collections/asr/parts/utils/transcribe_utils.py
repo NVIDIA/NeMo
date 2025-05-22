@@ -188,6 +188,7 @@ def get_buffered_pred_feat_multitaskAED(
     manifest: str = None,
     filepaths: List[list] = None,
     delay: float = 0.0,
+    timestamps: bool = False,
 ) -> List[rnnt_utils.Hypothesis]:
     # Create a preprocessor to convert audio samples into raw features,
     # Normalization will be done per buffer in frame_bufferer
@@ -217,6 +218,7 @@ def get_buffered_pred_feat_multitaskAED(
                 'target_lang': 'en',
                 'pnc': 'yes',
                 'answer': 'nothing',
+                'timestamp': 'yes' if timestamps else 'no',
             }
             asr.reset()
             asr.read_audio_file(audio_file, delay, model_stride_in_secs, meta_data=meta)
@@ -231,6 +233,10 @@ def get_buffered_pred_feat_multitaskAED(
                 if not line:
                     continue
                 sample = json.loads(line)
+                if (
+                    timestamps
+                ):  # user convenience so that they don't need to make another manifest with timestamp field or modify the existing one
+                    sample['timestamp'] = 'yes'
                 if 'text' in sample:
                     refs.append(sample['text'])
                 audio_file = get_full_path(audio_file=sample['audio_filepath'], manifest_file=manifest)
@@ -245,6 +251,9 @@ def get_buffered_pred_feat_multitaskAED(
 
 def wrap_transcription(hyps: List[str]) -> List[rnnt_utils.Hypothesis]:
     """Wrap transcription to the expected format in func write_transcription"""
+    if isinstance(hyps[0], rnnt_utils.Hypothesis):
+        return hyps
+
     wrapped_hyps = []
     for hyp in hyps:
         hypothesis = rnnt_utils.Hypothesis(score=0.0, y_sequence=[], text=hyp)
@@ -591,61 +600,6 @@ def compute_metrics_per_sample(
         logging.info(f'Output manifest saved: {output_manifest_path}')
 
     return samples_with_metrics
-
-
-def process_timestamp_outputs(outputs, subsampling_factor: int = 1, window_stride: float = 0.01):
-    """
-    Process the timestamps from list of hypothesis to user friendly format.
-    Converts the start and end duration from frames to seconds.
-    Args:
-        outputs: List of Hypothesis objects.
-        subsampling_factor: int, Subsampling factor used in the model.
-        window_stride: float, Window stride used in the model. (sometimes referred to as hop length/shift)
-    Returns:
-        List of Hypothesis objects with processed timestamps
-
-    """
-
-    if outputs is None:
-        return outputs
-
-    if isinstance(outputs, rnnt_utils.Hypothesis):
-        outputs = [outputs]
-
-    if not isinstance(outputs[0], rnnt_utils.Hypothesis):
-        raise ValueError(f"Expected Hypothesis object, got {type(outputs[0])}")
-
-    def process_timestamp(timestamp, subsampling_factor, window_stride):
-        """
-        Process the timestamp for a single hypothesis.
-        return the start and end duration in seconds.
-        """
-        for idx, val in enumerate(timestamp):
-            start_offset = val['start_offset']
-            end_offset = val['end_offset']
-            start = start_offset * window_stride * subsampling_factor
-            end = end_offset * window_stride * subsampling_factor
-            val['start'] = start
-            val['end'] = end
-
-        return timestamp
-
-    for idx, hyp in enumerate(outputs):
-        if not hasattr(hyp, 'timestamp'):
-            raise ValueError(
-                f"Expected Hypothesis object to have 'timestamp' attribute, when compute_timestamps is \
-                    enabled but got {hyp}"
-            )
-        timestamp = hyp.timestamp
-        if 'word' in timestamp:
-            outputs[idx].timestamp['word'] = process_timestamp(timestamp['word'], subsampling_factor, window_stride)
-        if 'char' in timestamp:
-            outputs[idx].timestamp['char'] = process_timestamp(timestamp['char'], subsampling_factor, window_stride)
-        if 'segment' in timestamp:
-            outputs[idx].timestamp['segment'] = process_timestamp(
-                timestamp['segment'], subsampling_factor, window_stride
-            )
-    return outputs
 
 
 class PunctuationCapitalization:

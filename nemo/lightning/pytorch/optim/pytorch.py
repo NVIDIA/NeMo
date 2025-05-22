@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -118,10 +118,14 @@ class PytorchOptimizerModule(OptimizerModule):
             raise ValueError("Model cannot be an instance of MegatronParallel")
 
         wd = self.optimizer_fn.keywords.get('weight_decay', 0)
-        ans = self.optimizer_fn(_extract_model_params_for_optim(model, wd, self.no_weight_decay_cond))
-        if not isinstance(ans, list):
-            ans = [ans]
-        return ans
+        optim = self.optimizer_fn(_extract_model_params_for_optim(model, wd, self.no_weight_decay_cond))
+        self._optimizers = optim
+        if not isinstance(optim, list):
+            optim = [optim]
+        if self.lr_scheduler is None:
+            return optim
+        else:
+            return [self.lr_scheduler.scheduler(model, opt) for opt in optim]
 
     def connect(self, model: L.LightningModule) -> None:
         """Connects the optimizer module to the model.
