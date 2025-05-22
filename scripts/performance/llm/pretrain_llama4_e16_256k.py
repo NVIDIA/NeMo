@@ -97,6 +97,10 @@ def override_recipe_configs(
         recipe.data.seq_length = 64 * 1024
         recipe.model.config.seq_length = 64 * 1024
 
+        recipe.model.config.recompute_granularity = "full"
+        recipe.model.config.recompute_num_layers = 48
+        recipe.model.config.recompute_method = 'uniform'
+
     return recipe
 
 
