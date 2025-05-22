@@ -1,15 +1,14 @@
 import json
+import logging
 import re
 from typing import final
-import logging
+
 import requests
 
 from .types import AdapterResponse, ResponseInterceptor
 
 
-def _clean_reasoning_tokens(
-    response: requests.Response, end_reasoning_token: str
-) -> requests.Response:
+def _clean_reasoning_tokens(response: requests.Response, end_reasoning_token: str) -> requests.Response:
     """
     Clean up reasoning tokens from the response.
 
