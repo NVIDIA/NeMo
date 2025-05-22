@@ -332,6 +332,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
         self.d_model = d_model
         self.n_layers = n_layers
         self._feat_in = feat_in
+        self.use_bias = use_bias
         self.att_context_style = att_context_style
         self.subsampling_factor = subsampling_factor
         self.subsampling_conv_chunking_factor = subsampling_conv_chunking_factor
@@ -1161,6 +1162,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
                         max_cache_len=att_context_size[0],
                         pos_bias_u=None,
                         pos_bias_v=None,
+                        use_bias=self.use_bias,
                         use_pytorch_sdpa=self.use_pytorch_sdpa,
                         use_pytorch_sdpa_backends=self.use_pytorch_sdpa_backends,
                     )
@@ -1173,6 +1175,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
                         att_context_size=att_context_size,
                         pos_bias_u=None,
                         pos_bias_v=None,
+                        use_bias=self.use_bias,
                         use_pytorch_sdpa=self.use_pytorch_sdpa,
                         use_pytorch_sdpa_backends=self.use_pytorch_sdpa_backends,
                     )
@@ -1182,6 +1185,7 @@ class ConformerEncoder(NeuralModule, StreamingEncoder, Exportable, AccessMixin):
                         n_feat=self._cfg.d_model,
                         dropout_rate=self._cfg.dropout_att,
                         max_cache_len=att_context_size[0],
+                        use_bias=self.use_bias,
                         use_pytorch_sdpa=self.use_pytorch_sdpa,
                         use_pytorch_sdpa_backends=self.use_pytorch_sdpa_backends,
                     )
