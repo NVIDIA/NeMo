@@ -121,7 +121,7 @@ class TestLlama4_E128:
             context_parallelism=4,
             sequence_parallelism=True,
             expert_tensor_parallelism=2,
-            expert_model_parallelism=64
+            expert_model_parallelism=64,
         )
         assert trainer_config.strategy.tensor_model_parallel_size == 2
         assert trainer_config.strategy.pipeline_model_parallel_size == 2
