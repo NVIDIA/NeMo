@@ -81,6 +81,8 @@ jobs:
             runner: self-hosted-azure
           - script: L2_NeMo_2_Export_In_Framework
             runner: self-hosted-azure
+          - script: L2_NeMo_2_Export_Qnemo_TRT_LLM
+            runner: self-hosted-azure
           - script: L2_NeMo_2_VLLM_VISION
             runner: self-hosted-azure
           - script: L2_NeMo_2_EVAL_Legacy
