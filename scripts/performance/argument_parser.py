@@ -327,4 +327,10 @@ def parse_cli_args():
         default=[],
     )
 
+    parser.add_argument(
+        "-thd",
+        "--use_thd_attention",
+        help="Use THD attention for llama4. Defaults to False",
+        action="store_true",
+    )
     return parser

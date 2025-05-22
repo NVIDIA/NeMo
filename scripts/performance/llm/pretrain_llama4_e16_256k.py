@@ -91,6 +91,12 @@ def override_recipe_configs(
     recipe.data.seq_length = 256 * 1024
     recipe.model.config.seq_length = 256 * 1024
 
+    if args.use_thd_attention:
+        recipe.data.attention_layout = "thd"
+        recipe.data.possible_thd_lengths = list(range(24*1024, 32*1024))
+        recipe.data.seq_length = 64 * 1024
+        recipe.model.config.seq_length = 64 * 1024
+
     return recipe
 
 
@@ -98,7 +104,11 @@ if __name__ == "__main__":
     args = parse_cli_args().parse_args()
     args_sanity_check(args)
 
-    kwargs = get_user_configs(args.gpu.lower(), "pre_train", "llama4", "e16_256k", args)
+    if not args.use_thd_attention:
+        kwargs = get_user_configs(args.gpu.lower(), "pre_train", "llama4", "e16_256k", args)
+    else:
+        kwargs = get_user_configs(args.gpu.lower(), "pre_train", "llama4", "e16_256k_thd", args)
+
     num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, etp_size, enable_cuda_graphs, _, _, _ = kwargs[
         0:13
     ]
@@ -110,6 +120,8 @@ if __name__ == "__main__":
     exp_config = (
         f"{num_nodes}nodes_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_ep{ep_size}_etp{etp_size}_{mbs}mbs_{gbs}gbs"
     )
+    if args.use_thd_attention:
+        exp_config += "_thd"
     exp_name = f"{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
 
     # Workaround for CUDA graph illegal memory access error
