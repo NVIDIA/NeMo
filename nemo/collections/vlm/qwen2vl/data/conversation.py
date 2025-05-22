@@ -12,14 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import base64
 import dataclasses
-import re
 from enum import Enum, auto
-from io import BytesIO
 from typing import Any, List, Optional, Union
 
-from PIL import Image
 from transformers import AutoTokenizer
 
 
