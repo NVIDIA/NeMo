@@ -26,6 +26,10 @@ Streaming inference will use small chunk sizes (0.1 to 0.25 seconds) + some addi
 Theoretical latency (latency without model inference time) is the sum of the chunk size and the right context.
 Keeping large left context (~10s) is not required, but can improve the quality of transcriptions.
 
+Recommended settings:
+- long file transcription: in most cases 10-10-5 (10s left, 10s chunk, 5s right) will give results similar to offline
+- streaming with 4s latency: 10-2-2 is usually similar or better than 10-0.16-3.84 and significantly faster
+
 Example usage:
 
 ```shell
@@ -293,7 +297,6 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
 
     asr_model.preprocessor.featurizer.dither = 0.0
     asr_model.preprocessor.featurizer.pad_to = 0
-    asr_model.preprocessor.featurizer.corrected_pad = True
     asr_model.eval()
 
     decoding_computer: GreedyBatchedLabelLoopingComputerBase = asr_model.decoding.decoding.decoding_computer
@@ -364,6 +367,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
                 is_last_chunk_batch = added_samples >= rest_audio_lengths
                 added_samples_batch = torch.where(is_last_chunk_batch, rest_audio_lengths, added_samples)
 
+                # consider first everything is moved to right/left context, then move to chunk
                 buffer_size.left += buffer_size.chunk
                 buffer_size_batch.left += buffer_size_batch.chunk
                 buffer_size.chunk = 0
@@ -372,6 +376,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
                 buffer_size_batch.right += added_samples_batch
 
                 if is_last_chunk:
+                    # move all samples to chunk, empty right part
                     buffer_size.chunk = buffer_size.right
                     buffer_size.right = 0
                 else:
@@ -400,22 +405,22 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
                         0,
                     )
 
-                # assert buffer_size_batch.total().max().item() == buffer_size.total() == buffer.shape[1]
-
+                # get encoder output using full buffer [left-chunk-right]
                 encoder_output, encoder_output_len = asr_model(
                     input_signal=buffer,
                     input_signal_length=buffer_size_batch.total(),
                 )
                 encoder_output = encoder_output.transpose(1, 2)  # [B, T, C]
-                # remove extra context from encoder_output
+                # remove extra context from encoder_output (leave only frames corresponding to the chunk)
                 encoder_context = buffer_size.subsample(factor=encoder_frame2audio_samples)
                 encoder_context_batch = buffer_size_batch.subsample(factor=encoder_frame2audio_samples)
                 # remove left context
                 encoder_output = encoder_output[:, encoder_context.left :]
 
+                # decode only chunk frames
                 batched_hyps, _, state = decoding_computer(
                     x=encoder_output,
-                    out_len=encoder_context_batch.chunk,  # decode only chunk
+                    out_len=encoder_context_batch.chunk,
                     prev_batched_state=state,
                 )
                 new_hyps = batched_hyps_to_hypotheses(batched_hyps, None, batch_size=encoder_output.shape[0])
@@ -433,6 +438,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
 
             all_hyps.extend(current_hyps)
 
+    # convert text
     for hyp in all_hyps:
         hyp.text = asr_model.tokenizer.ids_to_text(hyp.y_sequence.tolist())
 
