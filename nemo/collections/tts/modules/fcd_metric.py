@@ -12,6 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""
+This is an experimental metric. It measures the Frechet Distance between distributions of generated and real
+codec frames. The distance is measured in the embedding space of the codec. We get the embeddings
+by dequantizing codec frames.
+
+Like all FD metrics, the metric operates on a dataset level. A large number of real and generated frames are needed for the metric to be reliable -- on the order of tens of thousands.
+
+The frames are currently considered independently, i.e. temporal relationships between are not captured (though this might
+be useful to explore).
+"""
+
 import warnings
 
 import torch

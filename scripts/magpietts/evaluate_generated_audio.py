@@ -119,6 +119,9 @@ def evaluate(manifest_path, audio_dir, generated_audio_dir, language="en", sv_mo
         codec = AudioCodecModel.restore_from(codecmodel_path, strict=False)
         codec = codec.to(device)
         codec.eval()
+        # The FCD metric measures a distance between generated and real codec frames. The distance
+        # is measure in the codec's embedding space. `codec_feature_dim` is the size of the codec's embedding vector.
+        # For example, for a group-FSQ codec with 8 codebooks with 4 values in each codebook, the embedding dimension is 8 x 4 = 32.
         codec_feature_dim = codec.vector_quantizer.codebook_dim
         fcd_metric = FrechetCodecDistance(codec=codec, feature_dim=codec_feature_dim).to(device)
     else:
