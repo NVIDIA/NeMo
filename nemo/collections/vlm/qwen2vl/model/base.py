@@ -678,9 +678,6 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
 
 
         if self.context_parallel_lm > 1 or self.sequence_parallel_lm:
-            if self.context_parallel_lm > 1:
-                # _process_embedding_token_parallel expects input in shape bshd for cp
-                combined_embeddings = combined_embeddings.transpose(1, 0).contiguous()
 
             combined_embeddings, final_labels, final_loss_mask, packed_seq_params = (
                 self._process_embedding_token_parallel(
@@ -935,14 +932,12 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
                         "new_loss_mask": new_loss_mask,
                     }
                 )
-            # Distribute sequence across CP ranks
-            if packed_seq_params is None or packed_seq_params.qkv_format == 'sbhd':
-                from megatron.core.utils import get_batch_on_this_cp_rank
 
-                if self.pre_process:
-                    batch["combined_embeddings"] = batch["combined_embeddings"].transpose(0, 1)
-                batch = get_batch_on_this_cp_rank(batch)
-            else:
+            if self.pre_process:
+                batch["combined_embeddings"] = batch["combined_embeddings"].transpose(0, 1)
+
+            # Distribute sequence across CP ranks
+            if packed_seq_params is not None and packed_seq_params.qkv_format == 'thd':
                 try:
                     import transformer_engine_torch as tex
                 except ModuleNotFoundError as e:
@@ -958,6 +953,10 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
                         packed_seq_params.cu_seqlens_q_padded, data.size(1), cp_size, cp_rank
                     )
                     batch[key] = data.index_select(1, index)
+            else:
+                from megatron.core.utils import get_batch_on_this_cp_rank
+
+                batch = get_batch_on_this_cp_rank(batch)
 
             if self.pre_process:
                 combined_embeddings = batch["combined_embeddings"]  # [B, S/CP, H]
