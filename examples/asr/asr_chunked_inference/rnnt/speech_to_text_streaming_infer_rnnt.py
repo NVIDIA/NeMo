@@ -292,8 +292,11 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
     feature_stride_sec = model_cfg.preprocessor['window_stride']
     features_per_sec = 1.0 / feature_stride_sec
     model_stride = cfg.model_stride
-    assert manifest is not None
-    records = read_manifest(manifest)
+    if manifest is not None:
+        records = read_manifest(manifest)
+    else:
+        assert filepaths is not None
+        records = [{"audio_filepath": audio_file} for audio_file in filepaths]
 
     asr_model.preprocessor.featurizer.dither = 0.0
     asr_model.preprocessor.featurizer.pad_to = 0
