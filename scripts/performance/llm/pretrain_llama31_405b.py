@@ -117,7 +117,7 @@ def override_recipe_configs(
     # needed as tp_overlap_configs.userbuffers are dataclass objects which are unserializable
     tp_comm_overlap_cfg = fdl.cast(run.Config, fdl_dc.convert_dataclasses_to_configs(tp_comm_overlap_cfg))
     recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap_cfg = tp_comm_overlap_cfg
-    #recipe.trainer.strategy.use_tp_pp_dp_mapping=True
+    # recipe.trainer.strategy.use_tp_pp_dp_mapping=True
     return recipe
 
 
@@ -167,11 +167,11 @@ if __name__ == "__main__":
     exp_name = f"{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
 
     env_vars = {
-            "NVTE_NORM_FWD_USE_CUDNN": "1",
-            "NVTE_NORM_BWD_USE_CUDNN": "1",
-            "TRANSFORMERS_OFFLINE": "0",
-            }
-    
+        "NVTE_NORM_FWD_USE_CUDNN": "1",
+        "NVTE_NORM_BWD_USE_CUDNN": "1",
+        "TRANSFORMERS_OFFLINE": "0",
+    }
+
     plugins = [
         PerfEnvPlugin(
             enable_vboost=True,
@@ -180,8 +180,13 @@ if __name__ == "__main__":
         )
     ]
     if args.enable_nsys:
-        plugins.append(NsysPlugin(start_step=args.profiling_start_step, 
-                                  end_step=args.profiling_stop_step, ranks=list(range(num_nodes * args.gpus_per_node))))
+        plugins.append(
+            NsysPlugin(
+                start_step=args.profiling_start_step,
+                end_step=args.profiling_stop_step,
+                ranks=list(range(num_nodes * args.gpus_per_node)),
+            )
+        )
         # nsys takes precedent over ncclttrace
     elif args.enable_nccltrace:
         exp_name = exp_name + "_nccltrace"
@@ -189,7 +194,6 @@ if __name__ == "__main__":
             "NCCL_DEBUG_SUBSYS": "COLL,P2P,NET",
             "NCCL_DEBUG": "INFO",
         }
-
 
     executor = slurm_executor(
         args.account,
@@ -200,12 +204,11 @@ if __name__ == "__main__":
         args.time_limit,
         args.container_image,
         custom_mounts=args.custom_mounts,
-        custom_env_vars=env_vars, 
+        custom_env_vars=env_vars,
         hf_token=args.hf_token,
         nemo_home=args.nemo_home,
         wandb_key=args.wandb_key,
     )
-
 
     with run.Experiment(exp_name) as exp:
         exp.add(
