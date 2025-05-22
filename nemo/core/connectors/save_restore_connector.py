@@ -35,7 +35,7 @@ from nemo.utils.get_rank import is_global_rank_zero
 from nemo.utils.model_utils import inject_model_parallel_rank
 
 try:
-    import multistorageclient
+    import multistorageclient as msc
     from multistorageclient.types import MSC_PROTOCOL as MULTISTORAGECLIENT_PROTOCOL
 
     MULTISTORAGECLIENT_AVAILABLE = True
@@ -612,9 +612,9 @@ class SaveRestoreConnector:
             with tarfile.open(tar_file, "w:") as tar:
                 tar.add(source_dir, arcname=".")
                 start_time = time.time()
-                multistorageclient.upload_file(filename, tar_file)
+                msc.upload_file(filename, tar_file)
                 logging.debug(
-                    f"time spent for multistorageclient.upload from {tar_file} to {filename}: {time.time() - start_time:.4f}"
+                    f"time spent for msc.upload from {tar_file} to {filename}: {time.time() - start_time:.4f}"
                 )
 
     @staticmethod
@@ -676,9 +676,21 @@ class SaveRestoreConnector:
     @staticmethod
     @contextmanager
     def _tar_open(path2file: str) -> Generator[tarfile.TarFile, None, None]:
-        if not os.path.exists(path2file):
-            raise FileNotFoundError(f"{path2file} does not exist")
+        # Handle multi-storage client URLs by downloading to a temporary directory
+        if MULTISTORAGECLIENT_AVAILABLE and path2file.startswith(MULTISTORAGECLIENT_PROTOCOL):
+            with tempfile.TemporaryDirectory() as tmpdir:
+                downloaded_file_path = os.path.join(tmpdir, path2file)
+                msc.download_file(path2file, downloaded_file_path)
+                # out_folder = os.path.join(tmpdir, os.path.basename(path2file))
+                # path2file = SaveRestoreConnector._unpack_nemo_file_with_multistorageclient(path2file, out_folder, None)
+                yield from SaveRestoreConnector._open_tar_file(downloaded_file_path)
+        else:
+            if not os.path.exists(path2file):
+                raise FileNotFoundError(f"{path2file} does not exist")
+            yield from SaveRestoreConnector._open_tar_file(path2file)
 
+    @staticmethod
+    def _open_tar_file(path2file: str) -> Generator[tarfile.TarFile, None, None]:
         # we start with an assumption of uncompressed tar,
         # which should be true for versions 1.7.0 and above
         tar_header = "r:"
@@ -694,6 +706,29 @@ class SaveRestoreConnector:
             yield tar
         finally:
             tar.close()
+            
+    # @staticmethod
+    # @contextmanager
+    # def _tar_open(path2file: str) -> Generator[tarfile.TarFile, None, None]:
+   
+    #     if not os.path.exists(path2file):
+    #        raise FileNotFoundError(f"{path2file} does not exist")
+
+    #     # we start with an assumption of uncompressed tar,
+    #     # which should be true for versions 1.7.0 and above
+    #     tar_header = "r:"
+    #     try:
+    #         tar_test = tarfile.open(path2file, tar_header)
+    #         tar_test.close()
+    #     except tarfile.ReadError:
+    #         # can be older checkpoint => try compressed tar
+    #         tar_header = "r:gz"
+
+    #     tar = tarfile.open(path2file, tar_header)
+    #     try:
+    #         yield tar
+    #     finally:
+    #         tar.close()
 
     @staticmethod
     def _unpack_nemo_file(path2file: str, out_folder: str, members: Optional[list[str]] = None) -> str:
@@ -712,16 +747,16 @@ class SaveRestoreConnector:
     def _unpack_nemo_file_with_multistorageclient(
         path2file: str, out_folder: str, members: Optional[list[str]] = None
     ) -> str:
-        if not multistorageclient.os.path.exists(path2file):
+        if not msc.os.path.exists(path2file):
             raise FileNotFoundError(f"{path2file} does not exist")
 
         with tempfile.TemporaryDirectory() as tmpdir:
             filename_with_extension = path2file.split("/")[-1]  # get the filename with extension
             downloaded_file_path = os.path.join(tmpdir, filename_with_extension)
             start_time = time.time()
-            multistorageclient.download_file(path2file, downloaded_file_path)
+            msc.download_file(path2file, downloaded_file_path)
             logging.info(
-                f"time spent for multistorageclient.download_file from {downloaded_file_path}: {time.time() - start_time:.4f}"
+                f"time spent for msc.download_file from {downloaded_file_path}: {time.time() - start_time:.4f}"
             )
 
             # we start with an assumption of uncompressed tar,
@@ -743,11 +778,11 @@ class SaveRestoreConnector:
 
     @staticmethod
     def _save_state_dict_to_disk(state_dict, filepath):
-        multistorageclient.torch.save(state_dict, filepath)
+        msc.torch.save(state_dict, filepath)
 
     @staticmethod
     def _load_state_dict_from_disk(model_weights, map_location=None):
-        return multistorageclient.torch.load(model_weights, map_location='cpu', weights_only=False)
+        return msc.torch.load(model_weights, map_location='cpu', weights_only=False)
 
     @property
     def model_config_yaml(self) -> str:
