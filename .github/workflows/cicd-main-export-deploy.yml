@@ -77,6 +77,8 @@ jobs:
             runner: self-hosted-azure
           - script: L2_NeMo_2_vLLM_Export_Llama
             runner: self-hosted-azure
+          - script: L2_NeMo_2_vLLM_Export_Mixtral
+            runner: self-hosted-azure
           - script: L2_NeMo_2_Export_In_Framework
             runner: self-hosted-azure
           - script: L2_NeMo_2_VLLM_VISION
