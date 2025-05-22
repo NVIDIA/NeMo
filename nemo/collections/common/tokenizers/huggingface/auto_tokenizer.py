@@ -47,6 +47,7 @@ class AutoTokenizer(TokenizerSpec):
         use_fast: Optional[bool] = True,
         trust_remote_code: Optional[bool] = False,
         include_special_tokens: bool = False,
+        chat_template: Optional[str] = None,
     ):
         """
         Args:
@@ -68,14 +69,18 @@ class AutoTokenizer(TokenizerSpec):
             use_fast: whether to use fast HuggingFace tokenizer
             include_special_tokens: when True, converting text to ids will include special tokens / prompt tokens (if
                 any), yielding self.tokenizer(text).input_ids
+            chat_template: The chat template string to format "messages" with against the underlying HF tokneizer with
+                apply_chat_template function
         """
         try:
-            self._initialize_tokenizer(pretrained_model_name, vocab_file, merges_file, use_fast, trust_remote_code)
+            self._initialize_tokenizer(
+                pretrained_model_name, vocab_file, merges_file, use_fast, trust_remote_code, chat_template
+            )
             assert self.tokenizer, "tokenizer not initialized"
         except Exception:
             try:
                 self._initialize_tokenizer(
-                    pretrained_model_name, vocab_file, merges_file, not use_fast, trust_remote_code
+                    pretrained_model_name, vocab_file, merges_file, not use_fast, trust_remote_code, chat_template
                 )
                 assert self.tokenizer, "tokenizer not initialized"
             except Exception as e:
@@ -168,6 +173,7 @@ class AutoTokenizer(TokenizerSpec):
         merges_file: Optional[str] = None,
         use_fast: Optional[bool] = False,
         trust_remote_code: Optional[bool] = False,
+        chat_template: Optional[str] = None,
     ):
         # this logic deals with different huggingface tokenizers having different positional args
         if vocab_file is None:
@@ -191,6 +197,12 @@ class AutoTokenizer(TokenizerSpec):
                 use_fast=use_fast,
                 trust_remote_code=trust_remote_code,
             )
+
+        if chat_template is not None:
+            if getattr(self.tokenizer, 'chat_template', None) is not None:
+                logging.info("You are overwriting tokenizer's chat template, confirm this is intended.")
+            self.tokenizer.chat_template = chat_template
+            self.tokenizer.chat_template_format = "jinja"
 
     @property
     def vocab_size(self):

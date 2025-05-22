@@ -13,14 +13,14 @@
 # limitations under the License.
 
 import collections
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 import numpy as np
 from tqdm import tqdm
 
 from nemo.utils import logging
 
-PACKING_ALGOS = ['first_fit_decreasing', 'first_fit_shuffle']
+PACKING_ALGOS = ["first_fit_decreasing", "first_fit_shuffle"]
 
 
 def find_first_bin_that_fits(bins: List[List[int]], s: int, bin_size: int) -> int:
@@ -125,7 +125,7 @@ def create_hist(dataset: np.array, truncate_seq_len: int):
         # Input is missing the last token and label is missing the first token
         # (this way the tokens are aligned for next token prediction).
         # We want pack size to be the length of the actual input and label, hence minus 1.
-        seq_len = len(item_dict['input_ids']) - 1
+        seq_len = len(item_dict["input_ids"]) - 1
         sequences[seq_len].append(item_dict)
         counts[seq_len] += 1
 
@@ -140,8 +140,8 @@ def create_hist(dataset: np.array, truncate_seq_len: int):
 
 
 def create_packing_strategy(
-    histogram: List[int], pack_size: int, packing_algorithm: str = 'first_fit'
-) -> List[List[int]]:
+    histogram: List[int], pack_size: int, packing_algorithm: str = "first_fit"
+) -> Tuple[List[List[int]], dict]:
     """
     Packs sequences into bins using the specified packing algorithm.
 
@@ -167,17 +167,22 @@ def create_packing_strategy(
         all_seq_lens.extend([i] * count)
 
     packing_fn = globals()[packing_algorithm]
-    assignments = packing_fn(all_seq_lens, pack_size)
+    assignments: List[List[int]] = packing_fn(all_seq_lens, pack_size)
     packed_seq_lens = [sum(x) for x in assignments]
     packing_factor = len(all_seq_lens) / len(packed_seq_lens)
 
     max_seqlen = max(all_seq_lens)
     max_samples_per_bin = max([len(b) for b in assignments])
-    packing_metadata = {'dataset_max_seqlen': max_seqlen, 'max_samples_per_bin': max_samples_per_bin}
-
+    packing_metadata = {
+        "dataset_max_seqlen": max_seqlen,
+        "max_samples_per_bin": max_samples_per_bin,
+        "packing_factor": round(packing_factor, 2),
+        "packing_efficiency": round(sum(packed_seq_lens) / len(packed_seq_lens) / pack_size * 100, 2),
+        "pack_size": pack_size,
+    }
     logging.debug("Packed sequence lengths:")
     logging.debug(packed_seq_lens)
-    logging.info(f"Packing is {sum(packed_seq_lens)/len(packed_seq_lens)/pack_size*100:.2f}% efficient")
+    logging.info(f"Packing is {sum(packed_seq_lens) / len(packed_seq_lens) / pack_size * 100:.2f}% efficient")
     logging.info(
         f">>>>> For pack size {pack_size}, average number of sequences per pack is n = {packing_factor:.3f} <<<<<"
     )
@@ -185,7 +190,10 @@ def create_packing_strategy(
 
 
 def fill_packing_strategy(
-    assignments: List[List[int]], sequences: Dict[int, List[Dict]], pack_size: int, pad_id: int
+    assignments: List[List[int]],
+    sequences: Dict[int, List[Dict]],
+    pack_size: int,
+    pad_id: int,
 ) -> List[Dict]:
     """
     Fills the packing strategy with actual sequence data based on assignments and sequence information.
@@ -212,21 +220,28 @@ def fill_packing_strategy(
         per_seq_data = sequences[seq_len]
         if len(per_seq_data) > 0:
             perm = np.random.permutation(len(per_seq_data))
-            input_ids = np.array([x['input_ids'] for x in per_seq_data])[perm].tolist()
+            input_ids = np.array([x["input_ids"] for x in per_seq_data])[perm].tolist()
             try:
-                loss_mask = np.array(
-                    [
-                        [
-                            # (x['answer_start_idx'] - 1) because we want to train on the output
-                            # after the last context token
-                            idx >= (x['answer_start_idx'] - 1) and x['input_ids'][idx] != pad_id
-                            for idx in range(len(x['input_ids']))
-                        ]
-                        for x in per_seq_data
-                    ]
-                )[perm].tolist()
+                loss_mask = np.array([x["loss_mask"] for x in per_seq_data])[perm].tolist()
             except KeyError:
-                loss_mask = None
+                try:
+                    loss_mask = np.array(
+                        [
+                            [
+                                # (x['answer_start_idx'] - 1) because we want to train on the output
+                                # after the last context token
+                                idx >= (x["answer_start_idx"] - 1) and x["input_ids"][idx] != pad_id
+                                for idx in range(len(x["input_ids"]))
+                            ]
+                            for x in per_seq_data
+                        ]
+                    )[perm].tolist()
+                except KeyError as err:
+                    err_msg = "Key errors loss_mask and answer_start_idx missing in example - "
+                    err_msg += f"{err} {per_seq_data[0]}"
+                    logging.error(err_msg)
+                    raise ValueError(err_msg)
+
             ifile_handles[seq_len] = (input_ids, loss_mask)
 
     input_ids, loss_mask, seq_start_id = {}, {}, {}
@@ -245,7 +260,11 @@ def fill_packing_strategy(
 
     output_data = []
     for i in range(len(input_ids)):
-        item_dict = {'input_ids': input_ids[i], 'loss_mask': loss_mask[i], 'seq_start_id': seq_start_id[i]}
+        item_dict = {
+            "input_ids": input_ids[i],
+            "loss_mask": loss_mask[i],
+            "seq_start_id": seq_start_id[i],
+        }
         output_data.append(item_dict)
 
     assert all(not seq[0] for seq in ifile_handles.values()), "Error: There are items left over from the assignment"
