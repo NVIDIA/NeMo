@@ -41,6 +41,8 @@ def override_recipe_configs(
     cp_size: int,
     vp_size: int,
     ep_size: int,
+    num_layers: int,
+    hidden_size: int,
     etp_size: int,
     enable_cuda_graphs: bool,
 ):
@@ -64,6 +66,8 @@ def override_recipe_configs(
         cp_size,
         vp_size,
         ep_size,
+        num_layers,
+        hidden_size,
         etp_size,
         enable_cuda_graphs=enable_cuda_graphs,
     )
@@ -92,12 +96,38 @@ if __name__ == "__main__":
     args_sanity_check(args)
 
     kwargs = get_user_configs(args.gpu.lower(), "pre_train", "llama4", "e128", args)
-    num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, etp_size, enable_cuda_graphs, _, _, _ = kwargs[
-        0:13
-    ]
+    (
+        num_nodes,
+        mbs,
+        gbs,
+        tp_size,
+        pp_size,
+        cp_size,
+        vp_size,
+        ep_size,
+        num_layers,
+        hidden_size,
+        etp_size,
+        enable_cuda_graphs,
+        _,
+        _,
+        _,
+    ) = kwargs[0:15]
 
     recipe = override_recipe_configs(
-        args, num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, etp_size, enable_cuda_graphs
+        args,
+        num_nodes,
+        mbs,
+        gbs,
+        tp_size,
+        pp_size,
+        cp_size,
+        vp_size,
+        ep_size,
+        num_layers,
+        hidden_size,
+        etp_size,
+        enable_cuda_graphs,
     )
 
     exp_config = (
