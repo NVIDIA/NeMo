@@ -13,6 +13,7 @@
 # limitations under the License.
 import importlib
 import json
+import multiprocessing
 import warnings
 from copy import deepcopy
 from pathlib import Path
@@ -834,6 +835,17 @@ def evaluate(
         raise RuntimeError("Server not ready for evaluation")
 
     # NOTE(agronskiy): START of the adapter hook
+    if adapter_cfg:
+        from nemo.collections.llm.evaluation.adapters.server import AdapterServer
+
+        adapter = AdapterServer(
+            api_url=target_cfg.api_endpoint.url,
+            adapter_config=adapter_cfg,
+        )
+        p: multiprocessing.Process | None = multiprocessing.Process(target=adapter.run)
+        # This will be unhooked below
+        target_cfg.api_endpoint.url = f"http://{adapter.adapter_host}:{adapter.adapter_port}"
+        p.start()
 
     results = evaluate.evaluate_accuracy(
         target_cfg=target_cfg,
@@ -842,6 +854,8 @@ def evaluate(
     results_dict = results.model_dump()
 
     # NOTE(agronskiy): END of the adapter hook
+    # TODO(agronskiy): if the url is logged in results_dict, get it back to the adapter.api_url
+
     logging.info("========== RESULTS ==========")
     logging.info(yaml.dump(results_dict))
 
