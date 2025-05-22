@@ -439,6 +439,26 @@ class DeltaTimingCallback(Callback):
         self._on_batch_end("validation_step_timing in s", trainer, pl_module)
 
 
+def configure_onelogger(trainer: 'lightning.pytorch.Trainer', cfg: Union[DictConfig, Dict]) -> None:
+    """Configure OneLogger callback using MetaInfoManager.
+    
+    Args:
+        trainer: The lightning trainer
+        cfg: Configuration object containing metadata
+    """
+    try:
+        from nemo.utils.meta_info_manager import MetaInfoManager
+        from nemo.utils.callback_group import init_global_callback_group
+        from nemo.lightning import OneLoggerNeMoCallback
+
+        one_logger_cb = OneLoggerNeMoCallback(callback_config=MetaInfoManager(cfg).get_metadata())
+        init_global_callback_group(callbacks=[one_logger_cb])
+        trainer.callbacks.append(one_logger_cb)
+        logging.info("OneLogger callback has been set up")
+    except ImportError:
+        logging.warning("OneLogger dependencies not found. Skipping OneLogger setup.")
+
+
 def exp_manager(trainer: 'lightning.pytorch.Trainer', cfg: Optional[Union[DictConfig, Dict]] = None) -> Optional[Path]:
     """
     exp_manager is a helper function used to manage folders for experiments. It follows the pytorch
@@ -677,6 +697,9 @@ def exp_manager(trainer: 'lightning.pytorch.Trainer', cfg: Optional[Union[DictCo
             cfg.create_neptune_logger,
             cfg.neptune_logger_kwargs,
         )
+
+    # Configure OneLogger callback
+    configure_onelogger(trainer, cfg)
 
     # add loggers timing callbacks
     if cfg.log_delta_step_timing:
