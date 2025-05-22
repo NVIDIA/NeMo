@@ -90,7 +90,6 @@ class AdapterServer:
     def __init__(
         self,
         api_url: str,
-        output_dir: str,
         adapter_config: AdapterConfig,
     ):
         """
@@ -112,7 +111,6 @@ class AdapterServer:
 
         self.api_url = api_url
         self.adapter_config = adapter_config
-        self.output_dir = output_dir
 
         logging.info("Using the following adapter config: %s", adapter_config)
 
@@ -207,4 +205,3 @@ class AdapterServer:
             f"Error Details: {repr(error)}\n"
         )
         logging.error(error_message)
-
