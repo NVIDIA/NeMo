@@ -24,15 +24,17 @@ from megatron.core.packed_seq_params import PackedSeqParams
 from megatron.core.transformer.attention import SelfAttention as MCoreSelfAttention
 from megatron.core.transformer.spec_utils import ModuleSpec
 from megatron.core.transformer.torch_norm import L2Norm
-from megatron.core.utils import deprecate_inference_params
+from megatron.core.utils import deprecate_inference_params, is_fa_min_version
 from torch import Tensor
 
 try:
-    from nvidia_chunked_flash_attn.flash_attn_interface import (
-        flash_attn_varlen_func as flash_decode_and_prefill_kernel,
-    )
+    from flashattn_hopper.flash_attn_interface import _flash_attn_forward
+
+    HAVE_FA3 = True
 except ImportError:
-    flash_decode_and_prefill_kernel = None
+    _flash_attn_forward = None
+
+    HAVE_FA3 = False
 
 
 def get_llama4_layer_spec(config) -> ModuleSpec:

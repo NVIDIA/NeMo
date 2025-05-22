@@ -49,6 +49,7 @@ class MockDataModule(pl.LightningDataModule):
             validation steps times global batch size.
         num_test_samples (Optional[int]): The number of samples to use for testing, defaults to total
             test steps times global batch size.
+        possible_thd_lengths (Optional[List[int]]): Possible THD sequence lengths.
     """
 
     def __init__(
@@ -67,6 +68,8 @@ class MockDataModule(pl.LightningDataModule):
         create_attention_mask: bool = False,
         vocab_file: Optional[str] = None,
         merges_file: Optional[str] = None,
+        attention_layout: str = "sbhd",
+        possible_thd_lengths: Optional[List[int]] = None,
     ):
         super().__init__()
         self.seq_length = seq_length
@@ -79,6 +82,11 @@ class MockDataModule(pl.LightningDataModule):
         self.pin_memory = pin_memory
         self.persistent_workers = persistent_workers
         self.create_attention_mask = create_attention_mask or not HAVE_TE
+        self.attention_layout = attention_layout
+        self.possible_thd_lengths = possible_thd_lengths
+
+        if attention_layout == "thd":
+            assert self.micro_batch_size == 1, "Micro batch size must be 1 for THD attention layout"
 
         if tokenizer is None:
             from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
@@ -101,13 +109,13 @@ class MockDataModule(pl.LightningDataModule):
         Setup the data module.
         """
         self._train_ds = _MockGPTDataset(
-            self.tokenizer, "train", self.num_train_samples, self.seq_length, self.create_attention_mask
+            self.tokenizer, "train", self.num_train_samples, self.seq_length, self.create_attention_mask, attention_layout=self.attention_layout, possible_thd_lengths=self.possible_thd_lengths
         )
         self._validation_ds = _MockGPTDataset(
-            self.tokenizer, "valid", self.num_val_samples, self.seq_length, self.create_attention_mask
+            self.tokenizer, "valid", self.num_val_samples, self.seq_length, self.create_attention_mask, attention_layout=self.attention_layout, possible_thd_lengths=self.possible_thd_lengths
         )
         self._test_ds = _MockGPTDataset(
-            self.tokenizer, "test", self.num_test_samples, self.seq_length, self.create_attention_mask
+            self.tokenizer, "test", self.num_test_samples, self.seq_length, self.create_attention_mask, attention_layout=self.attention_layout, possible_thd_lengths=self.possible_thd_lengths
         )
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
@@ -154,6 +162,8 @@ class _MockGPTDataset(Dataset):
         seq_length: int,
         seed: int = 42,
         create_attention_mask: bool = False,
+        attention_layout: str = "sbhd",
+        possible_thd_lengths: Optional[List[int]] = None,
     ) -> None:
         super().__init__()
         self.name = name
@@ -162,13 +172,16 @@ class _MockGPTDataset(Dataset):
         self.length = num_samples
         self.seed = seed
         self.create_attention_mask = create_attention_mask
-
+        self.attention_layout = attention_layout
         if create_attention_mask:
             self.attention_mask = torch.tril(torch.ones((self.seq_length, self.seq_length), device='cpu')).unsqueeze(0)
             self.attention_mask = self.attention_mask < 0.5
 
         self.loss_mask = torch.ones(self.seq_length, dtype=torch.float)
         self.position_ids = torch.arange(self.seq_length, dtype=torch.int64)
+        self.possible_thd_lengths = possible_thd_lengths
+        if attention_layout == "thd":
+            assert possible_thd_lengths is not None
 
     def __len__(self) -> int:
         return self.length
@@ -181,7 +194,6 @@ class _MockGPTDataset(Dataset):
         # Generate data of the expected size and datatype (based on GPTDataset).
         np_gen = np.random.default_rng(seed=(self.seed + idx))
         tokens = torch.from_numpy(np_gen.integers(self.vocab_size, size=[self.seq_length + 1], dtype=np.int64))
-
         batch = {
             "tokens": tokens[:-1],
             "labels": tokens[1:],
@@ -189,9 +201,48 @@ class _MockGPTDataset(Dataset):
             "position_ids": self.position_ids,
         }
 
-        if self.create_attention_mask:
-            batch["attention_mask"] = self.attention_mask
+        if self.attention_layout == "sbhd":
+            if self.create_attention_mask:
+                batch["attention_mask"] = self.attention_mask
+        elif self.attention_layout == "thd":
+            from megatron.core.packed_seq_params import PackedSeqParams
+            # Generate random sequence lengths that sum to seq_length
+            possible_lengths = self.possible_thd_lengths
+            pad_thd_length_to_multiple_of = 128
+            padded_lengths = []
+            chosen_lengths = []
+            remaining_length = self.seq_length
+            
+            while remaining_length > 0:
+                # Filter possible lengths to only those that could fit
+                valid_lengths = [l for l in possible_lengths if l <= remaining_length]
+                if not valid_lengths:
+                    # If no valid lengths remain, use the remaining length
+                    padded_lengths[-1] += remaining_length
+                    break
+                # Randomly choose a valid length
+                chosen_length = np_gen.choice(valid_lengths)
+                chosen_lengths.append(chosen_length)
+                padded_length = ((chosen_length + pad_thd_length_to_multiple_of - 1) // pad_thd_length_to_multiple_of) * pad_thd_length_to_multiple_of
+                padded_lengths.append(padded_length)
+                remaining_length -= padded_length
 
+            # Convert to cumulative sums for PackedSeqParams
+            cu_seqlens = torch.tensor([0] + np.cumsum(chosen_lengths).tolist(), dtype=torch.int32)
+            cu_seqlens_padded = torch.tensor([0] + np.cumsum(padded_lengths).tolist(), dtype=torch.int32)
+            max_seqlen = max(padded_lengths)
+
+            batch["packed_seq_params"] = PackedSeqParams(
+                cu_seqlens_q=cu_seqlens,
+                cu_seqlens_kv=cu_seqlens,
+                cu_seqlens_q_padded=cu_seqlens_padded,
+                cu_seqlens_kv_padded=cu_seqlens_padded,
+                max_seqlen_q=max_seqlen,
+                max_seqlen_kv=max_seqlen,
+                qkv_format="thd",
+            )
+        else:
+            raise ValueError(f"Attention layout {self.attention_layout} not supported")
         return batch
 
     def _collate_fn(self, batch):
@@ -219,4 +270,10 @@ class _MockGPTDataset(Dataset):
         -------
             Collated batch, with or without types.
         """
+        if "packed_seq_params" in batch[0]:
+            new_batch = {}
+            new_batch["packed_seq_params"] = batch[0].pop("packed_seq_params")
+            new_batch.update(self._collate_fn(batch))
+            return new_batch
+
         return self._collate_fn(batch)
