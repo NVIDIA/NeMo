@@ -6,24 +6,34 @@ COPY . /workspace/NeMo
 
 RUN pip install retrying
 
+RUN pip install "boto3>=1.36"
+
 RUN pip install multi-storage-client
 #RUN pip install /workspace/NeMo/multi-storage-client/.
 
-RUN pip install pytorch_lightning==2.4.0
-RUN pip install lightning>=2.0.0
-RUN pip install apex
-RUN pip install --upgrade megatron-core[all]
+#RUN pip install "lightning>=2.0.0"
+# RUN pip install apex
 
-RUN pip install "boto3>=1.36"
-
-ENV CXXFLAGS="-std=c++17"
-
-# RUN pip install aistore
-
-#RUN pip install /workspace/nemo-with-storageclient/megatron-lm-msc/.
+RUN rm -rf /nemo-aligner \
+    && git clone https://github.com/NVIDIA/NeMo-Aligner.git /nemo-aligner \
+    && cd /nemo-aligner \
+    && git fetch origin pull/544/head:pr-544 \
+    && git checkout pr-544 \
+    && pip install .
 
 RUN pip install /workspace/NeMo/.
 
-ENV MSC_CONFIG /lustrefs/users/anmaster/avm_msc_config.json
+RUN pip install --no-deps --no-cache-dir "megatron-core>=0.11.0"
 
-ENV MSC_PROFILE_NAME curr
+RUN pip install "tiktoken>=0.7.0"
+
+RUN python -m pip install --upgrade pip && \
+    pip uninstall -y numpy && \
+    pip install --no-deps "numpy==1.24.3" && \
+    pip install --no-deps --no-cache-dir --disable-pip-version-check "lightning==2.4.0" && \
+    pip install --no-deps --no-cache-dir --disable-pip-version-check "pytorch-lightning==2.4.0"
+
+#ENV CXXFLAGS="-std=c++17"
+
+ENV MSC_CONFIG /lustrefs/users/anmaster/avm_msc_config.json
+#ENV MSC_PROFILE_NAME curr
