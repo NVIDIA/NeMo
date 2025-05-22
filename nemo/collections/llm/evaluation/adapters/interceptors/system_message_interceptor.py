@@ -17,19 +17,18 @@ class SystemMessageInterceptor(RequestInterceptor):
 
     @final
     def intercept_request(self, ar: AdapterRequest) -> AdapterRequest:
-        new_data=json.dumps({
-            "messages": [
-                {"role": "system", "content": self._new_system_message},
-                *json.loads(ar.r.get_data())["messages"]
-            ],
-            **{k:v for k,v in json.loads(ar.r.get_data()).items() if k != "messages"}
-        })
+        new_data = json.dumps(
+            {
+                "messages": [
+                    {"role": "system", "content": self._new_system_message},
+                    *json.loads(ar.r.get_data())["messages"],
+                ],
+                **{k: v for k, v in json.loads(ar.r.get_data()).items() if k != "messages"},
+            }
+        )
 
         new_request = Request.from_values(
-            path=ar.r.path,
-            headers=dict(ar.r.headers),
-            data=new_data,
-            method=ar.r.method
+            path=ar.r.path, headers=dict(ar.r.headers), data=new_data, method=ar.r.method
         )
         return AdapterRequest(
             r=new_request,
