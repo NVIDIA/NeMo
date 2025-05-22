@@ -55,11 +55,7 @@ def main(args):
     # switch to 128E with  vlm.Llama4MaverickExperts128Config()
     llama4_config = llm.Llama4Experts16Config(scatter_embedding_sequence_parallel=False)
     if args.use_toy_model:
-<<<<<<< HEAD
-        decoder_seq_length = 4096
-=======
         decoder_seq_length = 32768
->>>>>>> yuya/llama4_long_context2
         val_check_interval = 50
         llama4_config.num_layers = 2
         llama4_config.num_moe_experts = 2
@@ -76,11 +72,8 @@ def main(args):
             micro_batch_size=mbs,
             tokenizer=llama_tokenizer,
             num_workers=num_workers,
-<<<<<<< HEAD
-=======
             attention_layout=args.mock_data_qkv_layout,
             possible_thd_lengths=list(range(8000, 20000)),
->>>>>>> yuya/llama4_long_context2
         )
     else:
         raise ValueError(f"Data type {args.data_type} not supported")
@@ -229,8 +222,6 @@ if __name__ == "__main__":
     parser.add_argument("--lr", type=float, required=False, default=2.0e-06, help="Learning rate")
     parser.add_argument("--decoder_seq_length", type=int, required=False, default=8192, help="decoder sequence length")
     parser.add_argument(
-<<<<<<< HEAD
-=======
         "--mock_data_qkv_layout",
         type=str,
         required=False,
@@ -239,7 +230,6 @@ if __name__ == "__main__":
         help="QKV layout for mock data. Options: sbhd, thd. Default: sbhd.",
     )
     parser.add_argument(
->>>>>>> yuya/llama4_long_context2
         "--use_packed_sequence",
         action="store_true",
     )

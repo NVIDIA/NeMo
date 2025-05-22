@@ -446,14 +446,6 @@ class MCoreNevaModel(MCoreLLaVAModel):
             packed_seq_params,
         )  # [combined_seq_len, b, h_language], [b, combined_seq_len], [b, combined_seq_len]
 
-<<<<<<< HEAD
-        if self.context_parallel_lm > 1 and packed_seq_params is not None and packed_seq_params.qkv_format == "thd":
-            # _process_embedding_token_parallel expects input in shape bshd for cp + thd
-            combined_embeddings = combined_embeddings.transpose(1, 0).contiguous()
-
-        combined_embeddings, final_labels, final_loss_mask, packed_seq_params = self._process_embedding_token_parallel(
-            combined_embeddings, final_labels, final_loss_mask, packed_seq_params
-=======
         if (
             self.context_parallel_lm > 1
             and packed_seq_params is not None
@@ -466,7 +458,6 @@ class MCoreNevaModel(MCoreLLaVAModel):
             self._process_embedding_token_parallel(
                 combined_embeddings, final_labels, final_loss_mask, packed_seq_params
             )
->>>>>>> yuya/llama4_long_context2
         )
 
         # We already scattered embedding above, no need to do it again in llm
@@ -850,16 +841,8 @@ class MCoreNevaModel(MCoreLLaVAModel):
                 combined_embeddings, new_labels, new_loss_mask, packed_seq_params
             )
         if self.sequence_parallel_lm and self.pre_process:
-<<<<<<< HEAD
-            if (
-                packed_seq_params is not None
-                and packed_seq_params.qkv_format == "thd"
-                and self.context_parallel_lm == 1
-            ):  # not transposed during CP
-=======
             if (packed_seq_params is not None and packed_seq_params.qkv_format == "thd"
                     and self.context_parallel_lm == 1):  # not transposed during CP
->>>>>>> yuya/llama4_long_context2
                 combined_embeddings = combined_embeddings.transpose(1, 0).contiguous()  # [B,S,H] -> [S,B,H]
             combined_embeddings = tensor_parallel.scatter_to_sequence_parallel_region(
                 combined_embeddings
@@ -888,12 +871,8 @@ class MCoreNevaModel(MCoreLLaVAModel):
 
         if self.pre_process:
             if packed_seq_params is not None and packed_seq_params.qkv_format == 'thd':
-<<<<<<< HEAD
-                assert self.context_parallel_lm == 1, "Packed sequence + CP + Chunked Attention support is still WIP."
-=======
                 assert self.context_parallel_lm == 1, \
                     "Packed sequence + CP + Chunked Attention support is still WIP."
->>>>>>> yuya/llama4_long_context2
                 original_packed_seq_params = deepcopy(packed_seq_params)
                 setattr(packed_seq_params, "original_packed_seq_params", original_packed_seq_params)
                 packed_seq_params.max_seqlen_q = packed_seq_params.max_seqlen_kv = self.config.attention_chunk_size
@@ -902,23 +881,12 @@ class MCoreNevaModel(MCoreLLaVAModel):
                 # original cu_seqlens_q = [0, 15, 20, 45]
                 # new cu_seqlens_q = [0, 10, 15, 20, 30, 40, 45]
                 packed_seq_params.cu_seqlens_q, packed_seq_params.cu_seqlens_q_padded = chunkify_cu_seqlens(
-<<<<<<< HEAD
-                    packed_seq_params.cu_seqlens_q,
-                    packed_seq_params.cu_seqlens_q_padded,
-                    self.config.attention_chunk_size,
-                )
-                packed_seq_params.cu_seqlens_kv, packed_seq_params.cu_seqlens_kv_padded = chunkify_cu_seqlens(
-                    packed_seq_params.cu_seqlens_kv,
-                    packed_seq_params.cu_seqlens_kv_padded,
-                    self.config.attention_chunk_size,
-=======
                     packed_seq_params.cu_seqlens_q, packed_seq_params.cu_seqlens_q_padded,
                     self.config.attention_chunk_size
                 )
                 packed_seq_params.cu_seqlens_kv, packed_seq_params.cu_seqlens_kv_padded = chunkify_cu_seqlens(
                     packed_seq_params.cu_seqlens_kv, packed_seq_params.cu_seqlens_kv_padded,
                     self.config.attention_chunk_size
->>>>>>> yuya/llama4_long_context2
                 )
             else:
                 # [seq_len, batch_size, hidden_size]
@@ -929,26 +897,12 @@ class MCoreNevaModel(MCoreLLaVAModel):
             # chunkify requires SB* format
             if packed_seq_params is None:
                 if new_labels is not None:
-<<<<<<< HEAD
-                    new_labels = (
-                        chunkify(new_labels.transpose(0, 1).unsqueeze(-1), attention_chunk_size)
-                        .transpose(0, 1)
-                        .squeeze(-1)
-                    )
-                if new_loss_mask is not None:
-                    new_loss_mask = (
-                        chunkify(new_loss_mask.transpose(0, 1).unsqueeze(-1), attention_chunk_size)
-                        .transpose(0, 1)
-                        .squeeze(-1)
-                    )
-=======
                     new_labels = chunkify(new_labels.transpose(0, 1).unsqueeze(-1), attention_chunk_size).transpose(0,
                                                                                                                     1).squeeze(
                         -1)
                 if new_loss_mask is not None:
                     new_loss_mask = chunkify(new_loss_mask.transpose(0, 1).unsqueeze(-1),
                                              attention_chunk_size).transpose(0, 1).squeeze(-1)
->>>>>>> yuya/llama4_long_context2
 
         return combined_embeddings, new_labels, new_loss_mask, packed_seq_params
 
