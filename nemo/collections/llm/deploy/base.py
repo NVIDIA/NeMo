@@ -117,3 +117,49 @@ def get_trtllm_deployable(
             raise RuntimeError("An error has occurred during the model export. Error message: " + str(error))
 
     return trt_llm_exporter
+
+
+def get_vllm_deployable(
+    nemo_checkpoint,
+    model_dir,
+    model_type,
+    device,
+    tensor_parallel_size,
+    pipeline_parallel_size,
+    max_model_len,
+    lora_checkpoints,
+    dtype,
+    seed,
+    log_stats,
+    weight_storage,
+    gpu_memory_utilization,
+    quantization,
+    delete_existing_files,
+):
+
+    from nemo.export.vllm_exporter import vLLMExporter
+
+    vllm_exporter = vLLMExporter()
+
+    if nemo_checkpoint is not None:
+        try:
+            logging.info()
+            vllm_exporter.export(
+                nemo_checkpoint=nemo_checkpoint,
+                model_dir=model_dir,
+                model_type=model_type,
+                device=device,
+                tensor_parallel_size=tensor_parallel_size,
+                pipeline_parallel_size=pipeline_parallel_size,
+                max_model_len=max_model_len,
+                lora_checkpoints=lora_checkpoints,
+                dtype=dtype,
+                seed=seed,
+                log_stats=log_stats,
+                weight_storage=weight_storage,
+                gpu_memory_utilization=gpu_memory_utilization,
+                quantization=quantization,
+                delete_existing_files=delete_existing_files,
+            )
+        except Exception as error:
+            raise RuntimeError("An error has occurred during the model export. Error message: " + str(error))
