@@ -1,8 +1,8 @@
-import threading
-from typing import final, Optional
 import json
 import os
+import threading
 from datetime import datetime
+from typing import Optional, final
 
 import requests
 import structlog
@@ -26,11 +26,10 @@ class RequestLoggingInterceptor(RequestInterceptor):
     _logged_requests: int
     _lock: threading.Lock
 
-    def __init__(self, output_dir: str, max_requests: Optional[int] = None, 
-                 log_failed_requests: bool = False):
+    def __init__(self, output_dir: str, max_requests: Optional[int] = None, log_failed_requests: bool = False):
         """
         Initialize the request logging interceptor.
-        
+
         Args:
             output_dir: Directory to store logs in
             max_requests: Maximum number of requests to log. If None, all requests will be logged.
@@ -51,11 +50,11 @@ class RequestLoggingInterceptor(RequestInterceptor):
                     "method": ar.r.method,
                     "url": ar.r.url,
                     "headers": _get_safe_headers(ar.r.headers),
-                    "payload": payload
+                    "payload": payload,
                 }
             }
             self._logger.info("request_log", data=log_data)
-                
+
         except Exception as e:
             # If JSON parsing fails, log raw data
             log_data = {
@@ -63,7 +62,7 @@ class RequestLoggingInterceptor(RequestInterceptor):
                     "method": ar.r.method,
                     "url": ar.r.url,
                     "headers": _get_safe_headers(ar.r.headers),
-                    "raw_data": ar.r.get_data().decode('utf-8', errors='ignore')
+                    "raw_data": ar.r.get_data().decode('utf-8', errors='ignore'),
                 }
             }
             self._logger.info("request_log", data=log_data)
@@ -75,10 +74,10 @@ class RequestLoggingInterceptor(RequestInterceptor):
             return ar
 
         self._log_request(ar)
-        
+
         with self._lock:
             self._logged_requests += 1
-            
+
         return ar
 
 
@@ -89,7 +88,7 @@ class ResponseLoggingInterceptor(ResponseInterceptor):
     def __init__(self, use_response_logging: bool = True):
         """
         Initialize the response logging interceptor.
-        
+
         Args:
             use_response_logging: Whether to log full responses to the console
         """
@@ -100,18 +99,14 @@ class ResponseLoggingInterceptor(ResponseInterceptor):
     def intercept_response(self, ar: AdapterResponse) -> AdapterResponse:
         try:
             payload = ar.r.json()
-            
+
             # Log to structured logger only if response logging is enabled
             if self._use_response_logging:
                 log_data = {
-                    "response": {
-                        "status_code": ar.r.status_code,
-                        "payload": payload,
-                        "cache_hit": ar.meta.cache_hit
-                    }
+                    "response": {"status_code": ar.r.status_code, "payload": payload, "cache_hit": ar.meta.cache_hit}
                 }
                 self._logger.info("response_log", data=log_data)
-                    
+
         except requests.exceptions.JSONDecodeError as e:
             # For non-JSON responses, only log if response logging is enabled
             if self._use_response_logging:
@@ -119,9 +114,9 @@ class ResponseLoggingInterceptor(ResponseInterceptor):
                     "response": {
                         "status_code": ar.r.status_code,
                         "raw_content": ar.r.content.decode('utf-8', errors='ignore'),
-                        "cache_hit": ar.meta.cache_hit
+                        "cache_hit": ar.meta.cache_hit,
                     }
                 }
                 self._logger.info("response_log", data=log_data)
-                    
+
         return ar
