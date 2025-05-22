@@ -96,7 +96,7 @@ class CompletionRequest(BaseRequest):
 
     prompt: str
     logprobs: int = None
-    echo: bool = None or False
+    echo: bool = False
 
 
 class ChatCompletionRequest(BaseRequest):
