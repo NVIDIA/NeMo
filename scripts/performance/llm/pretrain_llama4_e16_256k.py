@@ -93,7 +93,7 @@ def override_recipe_configs(
 
     if args.use_thd_attention:
         recipe.data.attention_layout = "thd"
-        recipe.data.possible_thd_lengths = list(range(24*1024, 32*1024))
+        recipe.data.possible_thd_lengths = list(range(24 * 1024, 32 * 1024))
         recipe.data.seq_length = 64 * 1024
         recipe.model.config.seq_length = 64 * 1024
 

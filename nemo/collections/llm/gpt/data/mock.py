@@ -109,13 +109,31 @@ class MockDataModule(pl.LightningDataModule):
         Setup the data module.
         """
         self._train_ds = _MockGPTDataset(
-            self.tokenizer, "train", self.num_train_samples, self.seq_length, self.create_attention_mask, attention_layout=self.attention_layout, possible_thd_lengths=self.possible_thd_lengths
+            self.tokenizer,
+            "train",
+            self.num_train_samples,
+            self.seq_length,
+            self.create_attention_mask,
+            attention_layout=self.attention_layout,
+            possible_thd_lengths=self.possible_thd_lengths,
         )
         self._validation_ds = _MockGPTDataset(
-            self.tokenizer, "valid", self.num_val_samples, self.seq_length, self.create_attention_mask, attention_layout=self.attention_layout, possible_thd_lengths=self.possible_thd_lengths
+            self.tokenizer,
+            "valid",
+            self.num_val_samples,
+            self.seq_length,
+            self.create_attention_mask,
+            attention_layout=self.attention_layout,
+            possible_thd_lengths=self.possible_thd_lengths,
         )
         self._test_ds = _MockGPTDataset(
-            self.tokenizer, "test", self.num_test_samples, self.seq_length, self.create_attention_mask, attention_layout=self.attention_layout, possible_thd_lengths=self.possible_thd_lengths
+            self.tokenizer,
+            "test",
+            self.num_test_samples,
+            self.seq_length,
+            self.create_attention_mask,
+            attention_layout=self.attention_layout,
+            possible_thd_lengths=self.possible_thd_lengths,
         )
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
@@ -206,13 +224,14 @@ class _MockGPTDataset(Dataset):
                 batch["attention_mask"] = self.attention_mask
         elif self.attention_layout == "thd":
             from megatron.core.packed_seq_params import PackedSeqParams
+
             # Generate random sequence lengths that sum to seq_length
             possible_lengths = self.possible_thd_lengths
             pad_thd_length_to_multiple_of = 128
             padded_lengths = []
             chosen_lengths = []
             remaining_length = self.seq_length
-            
+
             while remaining_length > 0:
                 # Filter possible lengths to only those that could fit
                 valid_lengths = [l for l in possible_lengths if l <= remaining_length]
@@ -223,7 +242,9 @@ class _MockGPTDataset(Dataset):
                 # Randomly choose a valid length
                 chosen_length = np_gen.choice(valid_lengths)
                 chosen_lengths.append(chosen_length)
-                padded_length = ((chosen_length + pad_thd_length_to_multiple_of - 1) // pad_thd_length_to_multiple_of) * pad_thd_length_to_multiple_of
+                padded_length = (
+                    (chosen_length + pad_thd_length_to_multiple_of - 1) // pad_thd_length_to_multiple_of
+                ) * pad_thd_length_to_multiple_of
                 padded_lengths.append(padded_length)
                 remaining_length -= padded_length
 

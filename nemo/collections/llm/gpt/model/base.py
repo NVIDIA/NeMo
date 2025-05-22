@@ -108,8 +108,12 @@ def gpt_data_step(dataloader_iter, use_mtp=False) -> dict[str, torch.Tensor]:
     if "packed_seq_params" in _batch:
         _batch["packed_seq_params"].cu_seqlens_q = _batch["packed_seq_params"].cu_seqlens_q.cuda(non_blocking=True)
         _batch["packed_seq_params"].cu_seqlens_kv = _batch["packed_seq_params"].cu_seqlens_kv.cuda(non_blocking=True)
-        _batch["packed_seq_params"].cu_seqlens_q_padded = _batch["packed_seq_params"].cu_seqlens_q_padded.cuda(non_blocking=True)
-        _batch["packed_seq_params"].cu_seqlens_kv_padded = _batch["packed_seq_params"].cu_seqlens_kv_padded.cuda(non_blocking=True)
+        _batch["packed_seq_params"].cu_seqlens_q_padded = _batch["packed_seq_params"].cu_seqlens_q_padded.cuda(
+            non_blocking=True
+        )
+        _batch["packed_seq_params"].cu_seqlens_kv_padded = _batch["packed_seq_params"].cu_seqlens_kv_padded.cuda(
+            non_blocking=True
+        )
         output["packed_seq_params"] = _batch["packed_seq_params"]
 
     return output
