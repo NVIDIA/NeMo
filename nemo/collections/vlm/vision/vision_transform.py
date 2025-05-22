@@ -16,7 +16,7 @@
 import numpy as np
 import torch
 from PIL import Image
-from image_processing import ImageTransform
+from nemo.collections.vlm.utils import ImageTransform
 
 class VisualProcessor:
     def __init__(self,

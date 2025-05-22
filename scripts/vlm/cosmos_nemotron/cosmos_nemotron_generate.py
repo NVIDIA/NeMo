@@ -180,13 +180,13 @@ if __name__ == "__main__":
     parser.add_argument(
         "--image_url",
         type=str,
-        default="https://www.nvidia.com/en-us/data-center/dgx-b200/_jcr_content/root/responsivegrid/nv_container/nv_container_copy/nv_container_1948045475/nv_image_copy.coreimg.svg/1742300502157/nvidia-dgx-b200-model-training-speed-up-chart.svg",
+        default="https://github.com/NVIDIA/NeMo/releases/download/v2.3.0/example-image-for-vlm-generation-task.png",
         help="URL of the image to use for inference.",
     )
     parser.add_argument(
         "--prompt",
         type=str,
-        default="Please convert B200 model training speed up chart to markdown format.",
+        default="What MOE Switch XXL training what is speed of H100 over A100 and H100 with NV Link over A100?",
         help = "Custom prompt to use for inference.",
     )
     args = parser.parse_args()
