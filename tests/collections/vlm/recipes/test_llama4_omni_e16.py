@@ -14,7 +14,6 @@
 
 import nemo_run as run
 import pytest
-import torch
 
 from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.vlm import Llama4OmniModel, Llama4ScoutExperts16Config
