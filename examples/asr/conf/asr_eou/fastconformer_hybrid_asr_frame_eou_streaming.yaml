@@ -26,6 +26,7 @@ model:
   freeze_encoder: true
   freeze_ctc: true
   freeze_rnnt: true
+  pad_eou_label_secs: 0.0
 
   sample_rate: 16000
   compute_eval_loss: false # eval samples can be very long and exhaust memory. Disable computation of transducer loss during validation/testing with this flag.
@@ -57,12 +58,13 @@ model:
     shuffle_buffer_size: 10000
     check_tokenizer: false
     add_eou_to_text: false
+    pad_eou_label_secs: ${model.pad_eou_label_secs}
 
     random_padding:
-      prob: 0.9
-      min_pad_duration: 0.5  # minimum duration of pre/post padding in seconds
-      max_pad_duration: 5.0  # maximum duration of pre/post padding in seconds
-      max_total_duration: 30.0  # maximum total duration of the padded audio in seconds
+      prob: 0.99
+      min_pad_duration: 1.0  # minimum duration of pre/post padding in seconds
+      max_pad_duration: 10.0  # maximum duration of pre/post padding in seconds
+      max_total_duration: 40.0  # maximum total duration of the padded audio in seconds
       pad_distribution: 'uniform'  # distribution of padding duration, 'uniform' or 'normal'
       normal_mean: 0.5  # mean of normal distribution used when pad_distribution='normal'
       normal_std: 2.0  # standard deviation of normal distribution  used when pad_distribution='normal'
@@ -103,6 +105,7 @@ model:
     shuffle_buffer_size: 10000
     check_tokenizer: false
     add_eou_to_text: false
+    pad_eou_label_secs: ${model.pad_eou_label_secs}
 
   test_ds:
     manifest_filepath: null
@@ -124,6 +127,7 @@ model:
     shuffle_buffer_size: 10000
     check_tokenizer: false
     add_eou_to_text: false
+    pad_eou_label_secs: ${model.pad_eou_label_secs}
 
   # You may find more detail on how to train a tokenizer at: /scripts/tokenizers/process_asr_text_tokenizer.py
   # We recommend to use vocab size of 1024 with SPE Unigram for most languages
