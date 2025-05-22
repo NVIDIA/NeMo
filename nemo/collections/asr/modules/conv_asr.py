@@ -886,9 +886,9 @@ class SpeakerDecoder(NeuralModule, Exportable):
 
         pool = pool.squeeze(-1)
         if self.angular:
-            # Ensures feature vector and the weight matrix are normalised before the angular loss calculation
             W = F.normalize(self.final.weight, p=2, dim=1)
             pool = F.normalize(pool, p=2, dim=1)
+            # Ensures feature vector and the weight matrix are normalised before the angular loss calculation
             out = F.linear(pool, W)
         else:
             out = self.final(pool)
