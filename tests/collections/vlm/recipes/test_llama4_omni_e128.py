@@ -17,7 +17,7 @@ import pytest
 import torch
 
 from nemo.collections.llm.api import finetune, pretrain
-from nemo.collections.vlm import Llama4OmniModel, Llama4MaverickExperts128Config
+from nemo.collections.vlm import Llama4MaverickExperts128Config, Llama4OmniModel
 from nemo.collections.vlm.recipes import llama4_omni_e128
 from nemo.lightning import Trainer
 
@@ -79,12 +79,18 @@ class TestLlama4OmniE128:
     def test_pretrain_recipe_performance_mode(self, recipe_module):
         recipe = recipe_module.pretrain_recipe(performance_mode=True)
         # Check that performance optimizations are applied
-        assert any(isinstance(cb, run.Config) and cb.__fn_or_cls__.__name__ == "GarbageCollectionCallback" 
-                  for cb in recipe.trainer.callbacks)
-        assert any(isinstance(cb, run.Config) and cb.__fn_or_cls__.__name__ == "MegatronCommOverlapCallback" 
-                  for cb in recipe.trainer.callbacks)
-        assert any(isinstance(cb, run.Config) and cb.__fn_or_cls__.__name__ == "MegatronTokenDropCallback" 
-                  for cb in recipe.trainer.callbacks)
+        assert any(
+            isinstance(cb, run.Config) and cb.__fn_or_cls__.__name__ == "GarbageCollectionCallback"
+            for cb in recipe.trainer.callbacks
+        )
+        assert any(
+            isinstance(cb, run.Config) and cb.__fn_or_cls__.__name__ == "MegatronCommOverlapCallback"
+            for cb in recipe.trainer.callbacks
+        )
+        assert any(
+            isinstance(cb, run.Config) and cb.__fn_or_cls__.__name__ == "MegatronTokenDropCallback"
+            for cb in recipe.trainer.callbacks
+        )
         assert recipe.trainer.plugins.grad_reduce_in_fp32 is False
 
     def test_finetune_recipe_default(self, recipe_module):
@@ -162,4 +168,4 @@ class TestLlama4OmniE128:
     def test_finetune_recipe_invalid_peft(self, recipe_module):
         # Test that invalid PEFT scheme raises ValueError
         with pytest.raises(ValueError, match="Unrecognized peft scheme"):
-            recipe_module.finetune_recipe(peft_scheme="invalid_scheme") 
+            recipe_module.finetune_recipe(peft_scheme="invalid_scheme")

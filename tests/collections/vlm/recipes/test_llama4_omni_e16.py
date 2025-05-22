@@ -79,12 +79,18 @@ class TestLlama4OmniE16:
     def test_pretrain_recipe_performance_mode(self, recipe_module):
         recipe = recipe_module.pretrain_recipe(performance_mode=True)
         # Check that performance optimizations are applied
-        assert any(isinstance(cb, run.Config) and cb.__fn_or_cls__.__name__ == "GarbageCollectionCallback" 
-                  for cb in recipe.trainer.callbacks)
-        assert any(isinstance(cb, run.Config) and cb.__fn_or_cls__.__name__ == "MegatronCommOverlapCallback" 
-                  for cb in recipe.trainer.callbacks)
-        assert any(isinstance(cb, run.Config) and cb.__fn_or_cls__.__name__ == "MegatronTokenDropCallback" 
-                  for cb in recipe.trainer.callbacks)
+        assert any(
+            isinstance(cb, run.Config) and cb.__fn_or_cls__.__name__ == "GarbageCollectionCallback"
+            for cb in recipe.trainer.callbacks
+        )
+        assert any(
+            isinstance(cb, run.Config) and cb.__fn_or_cls__.__name__ == "MegatronCommOverlapCallback"
+            for cb in recipe.trainer.callbacks
+        )
+        assert any(
+            isinstance(cb, run.Config) and cb.__fn_or_cls__.__name__ == "MegatronTokenDropCallback"
+            for cb in recipe.trainer.callbacks
+        )
         assert recipe.trainer.plugins.grad_reduce_in_fp32 is False
 
     def test_finetune_recipe_default(self, recipe_module):
@@ -148,4 +154,4 @@ class TestLlama4OmniE16:
     def test_finetune_recipe_invalid_peft(self, recipe_module):
         # Test that invalid PEFT scheme raises ValueError
         with pytest.raises(ValueError, match="Unrecognized peft scheme"):
-            recipe_module.finetune_recipe(peft_scheme="invalid_scheme") 
+            recipe_module.finetune_recipe(peft_scheme="invalid_scheme")
