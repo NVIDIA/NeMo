@@ -11,15 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import json
 import os
 import random
-import string
 import time
 from typing import List
-
-import librosa
-import numpy as np
 import soundfile as sf
 import torch
 import wandb
@@ -31,24 +26,21 @@ from torch import nn
 from torch.utils.data import get_worker_info
 
 import nemo.collections.asr as nemo_asr
-from nemo.collections.asr.metrics.wer import word_error_rate
 from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
 from nemo.collections.tts.data.text_to_speech_dataset_lhotse import MagpieTTSLhotseDataset, setup_tokenizers
 from nemo.collections.tts.losses.aligner_loss import ForwardSumLoss
 from nemo.collections.tts.models import AudioCodecModel
 from nemo.collections.tts.modules import transformer_2501
 from nemo.collections.tts.modules.aligner import AlignmentEncoder
-from nemo.collections.tts.modules.magpietts_modules import SpecialAudioToken, LocalTransformerType, cosine_schedule
+from nemo.collections.tts.modules.magpietts_modules import CharAwareSubwordEncoder, SpecialAudioToken, LocalTransformerType, cosine_schedule
 from nemo.collections.tts.parts.utils.helpers import (
     binarize_attention_parallel,
     get_mask_from_lengths,
     plot_alignment_to_numpy,
 )
-from nemo.collections.tts.parts.utils.tts_dataset_utils import stack_tensors
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
-
 
 def worker_init_fn(worker_id):
     # For mp.set_start_method("spawn", force=True)
@@ -61,7 +53,7 @@ def worker_init_fn(worker_id):
     )
     dataset.text_tokenizer = tokenizer
     dataset.text_conditioning_tokenizer = text_conditioning_tokenizer
-
+    
 class MagpieTTSModel(ModelPT):
     """
     Magpie-TTS Model Base Class used for training a TTS model that can generate audio codes from transcript and a context
@@ -109,7 +101,8 @@ class MagpieTTSModel(ModelPT):
         self.context_audio_eos_id = cfg.get('forced_context_audio_eos_id', num_audio_tokens + SpecialAudioToken.AUDIO_CONTEXT_EOS.value)
         self.num_all_tokens_per_codebook = cfg.get('forced_num_all_tokens_per_codebook',num_audio_tokens + len(SpecialAudioToken))
         self.mask_token_id = cfg.get('forced_mask_token_id', num_audio_tokens + SpecialAudioToken.MASK_TOKEN.value)
-    
+        self.use_bpe_char_tokenizer = cfg.get('use_bpe_char_tokenizer', False)
+
         # Setup tokenizer
         if hasattr(cfg, 'text_tokenizer'):
             # For backward compatibility for English-only models
@@ -153,7 +146,29 @@ class MagpieTTSModel(ModelPT):
 
         if self.model_type != 'decoder_pretrain_synthesizer':
             # Decoder pretrain synthesizer doesn't have transcript encoder/text embeddings
-            self.text_embedding = nn.Embedding(num_tokens, cfg.embedding_dim)
+            
+            if self.use_bpe_char_tokenizer:
+                # BPE char tokenizer
+                assert len(self.tokenizer.tokenizers) == 1, "BPE char tokenizer should only be used with one tokenizer"
+                tokenizer_name = self.tokenizer.tokenizer_names[0]
+                tokenizer = self.tokenizer.tokenizers[tokenizer_name]
+                subword_vocab = tokenizer.get_vocab()
+                # special tokens will be stored as it is in the char_vocab
+                # Each special token will only be mapped to one char id
+                special_vocab = {
+                    '<BOS>': self.bos_id,
+                    '<EOS>': self.eos_id,
+                }
+                self.cas_encoder = CharAwareSubwordEncoder(
+                    d_embed=cfg.embedding_dim,
+                    llm_tokenizer_vocab=subword_vocab,
+                    subword_padding_idx=self.tokenizer.pad,
+                    special_vocab=special_vocab
+                )
+            else:
+                # Regular text embedding
+                self.text_embedding = nn.Embedding(num_tokens, cfg.embedding_dim)
+
             self.encoder = transformer_2501.Transformer(**dict(cfg.encoder))
 
         self.decoder = transformer_2501.Transformer(**dict(cfg.decoder))
@@ -796,6 +811,14 @@ class MagpieTTSModel(ModelPT):
                     / (prior_end_step - prior_scaledown_start_step)
                 )
                 return new_prior
+    
+    def embed_text(self, text, text_mask):
+        if self.use_bpe_char_tokenizer:
+            text_embedded = self.cas_encoder(text, subword_mask=text_mask)
+        else:
+            text_embedded = self.text_embedding(text)
+        
+        return text_embedded
 
     def compute_alignment_loss(self, attention_scores, text_lens, audio_lens, dec_context_size=0):
         # attention scores: List of (B, C, audio_timesteps, text_timesteps)
@@ -830,8 +853,8 @@ class MagpieTTSModel(ModelPT):
         if self.model_type != 'decoder_pretrain_synthesizer':
             text = batch['text']
             text_lens = batch['text_lens']
-            text_embedded = self.text_embedding(text)  # (B, T, E)
             text_mask = get_mask_from_lengths(text_lens)  # (B, T)
+            text_embedded = self.embed_text(text, text_mask)  # (B, T, E)
             text_encoder_out = self.encoder(text_embedded, text_mask, cond=None, cond_mask=None)['output']  # (B, T, E)
             _attn_prior = batch.get('align_prior_matrix', None)
             _attn_prior = self.scale_prior(_attn_prior, self.global_step)
