@@ -395,8 +395,8 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
                 # Convert to torch tensor and then move to cpu as generated_log_probs is a list and cant be moved
                 # to cpu otherwise
                 # TODO: if echo=True add top_logprobs for input tokens once supported
-                nlp = dict_to_str(r.generated_top_n_logprobs)
-                output_top_n_log_probs.append(nlp)
+                top_n_lp = dict_to_str(r.generated_top_n_logprobs)
+                output_top_n_log_probs.append(top_n_lp)
             output_infer["top_logprobs"] = cast_output(output_top_n_log_probs, np.bytes_)
 
         return output_infer
