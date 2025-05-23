@@ -88,7 +88,7 @@ def override_recipe_configs(
     )
     callbacks.extend([garbage_collection_callback, comm_overlap_callback])
     recipe.trainer.callbacks.extend(callbacks)
-
+    print(etp_size)
     recipe = set_primary_perf_configs(
         recipe,
         "pre_train",
@@ -102,6 +102,8 @@ def override_recipe_configs(
         cp_size,
         vp_size,
         ep_size,
+        None,
+        None,
         etp_size,
         enable_cuda_graphs=enable_cuda_graphs,
         use_mcore_fsdp=use_mcore_fsdp,
@@ -138,6 +140,7 @@ if __name__ == "__main__":
     args_sanity_check(args)
 
     kwargs = get_user_configs(args.gpu.lower(), "pre_train", "deepseek", "v3", args)
+    print(kwargs)
     (
         num_nodes,
         mbs,
@@ -147,6 +150,8 @@ if __name__ == "__main__":
         cp_size,
         vp_size,
         ep_size,
+        num_layers,
+        hidden_size,
         etp_size,
         enable_cuda_graphs,
         use_mcore_fsdp,
@@ -154,7 +159,7 @@ if __name__ == "__main__":
         activation_offload_layers,
         recompute_modules,
     ) = kwargs
-
+    print(etp_size)
     recipe = override_recipe_configs(
         args,
         num_nodes,
