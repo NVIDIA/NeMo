@@ -18,30 +18,38 @@ from typing import Optional, List, Union, Dict, TypedDict, NotRequired, Literal,
 import torch
 
 from megatron.energon import Sample
+from megatron.core.packed_seq_params import PackedSeqParams
 
 from nemo.collections.multimodal.data.energon.config import AudioToken, VideoToken, MultiModalSampleConfig
-from nemo.collections.asr.parts.preprocessing.perturb import perturbation_types as audio_perturbation_types
-
 
 @dataclass
 class AudioSize:
+    """Audio size class for audio sample config"""
+
     length: int
     channel: int
 
 
 @dataclass
 class VideoSize:
+    """Video size class for video sample config"""
+
     frames: int
     height: int
     width: int
 
+
 @dataclass
 class ImageSize:
+    """Image size class for image sample config"""
+
     height: int
     width: int
 
 
 class MediaDict(TypedDict):
+    """Media dictionary class for media sample config"""
+
     media_type: Literal["audio", "video", "image"]
     media_value: bytes
     offset: NotRequired[float]
@@ -50,12 +58,15 @@ class MediaDict(TypedDict):
 
 @dataclass
 class AVLMEnergonInterleavedSample(Sample):
-    # sequence of interleaved media, (either str for text, MediaDict for an audio, a video or an image)
+    """Sequence of interleaved media, (either str for text, MediaDict for an audio, a video or an image)"""
+
     sequence: List[Union[bytes, str, MediaDict]]
 
 
 @dataclass
 class AVLMEnergonQASample(Sample):
+    """Sample class for question answering sample"""
+
     context: List[str]
     answers: Optional[List[str]] = None
     answer_weights: Optional[torch.Tensor] = None
@@ -67,14 +78,14 @@ class AVLMEnergonQASample(Sample):
 
 @dataclass
 class AVLMSample:
-    '''
+    """
     Sample type for media to text task, extending LlavaNextTextSample to support audio and video data.
 
     This class adds additional attributes for handling the audio and video raw bytes,
     along with metadata about the tiled images.
 
     Attributes:
-    '''
+    """
 
     __key__: str = ''
     tokens: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.long))
@@ -92,6 +103,15 @@ class AVLMSample:
 
 
 @dataclass
+class PackedAVLMSample(AVLMSample):
+    """Sample type for packed image audio text sample"""
+
+    __restore_key__: tuple[Union[str, int, tuple], ...] = ()
+    position_ids: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.float))
+    packed_seq_params: PackedSeqParams = field(default_factory=lambda: PackedSeqParams())
+
+
+@dataclass
 class AVLMRawBatch:
     """
     Batch type for raw media to text samples, supporting audio, image(s).
@@ -101,6 +121,7 @@ class AVLMRawBatch:
 
     Attributes:
     """
+
     __keys__: List[str] = field(default_factory=list)
     tokens: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.long))
     labels: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.long))
@@ -117,17 +138,29 @@ class AVLMRawBatch:
 
 
 @dataclass
+class PackedAVLMRawBatch(AVLMRawBatch):
+    """Sample type for image text raw batch"""
+
+    position_ids: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.float))
+    packed_seq_params: PackedSeqParams = field(default_factory=lambda: PackedSeqParams())
+
+
+@dataclass
 class AVLMSampleConfig(MultiModalSampleConfig):
+    """
+    Sample config for AVLM model
+    """
+
     model_id: str = field(default="llava-hf/llava-v1.6-vicuna-7b-hf")
 
     # audio related sample config
+    audio_encoder_config: Optional[dict] = None
     audio_token: AudioToken = field(default_factory=AudioToken)
     audio_sample_rate: int = field(default=16000)
     audio_channel_selector: Optional[Union[int, Iterable[int], Literal["average"]]] = "average"
     audio_waveform_featurizer_int_values: bool = field(default=False)
-    # the detailed structure of audio_augmentor can be found at: 
-    audio_augmentor: Optional[
-        Dict[Literal[*list(audio_perturbation_types.keys())], Dict[str, Any]]] = None
+    # the detailed structure of audio_augmentor can be found at:
+    audio_augmentor: Optional[Dict[str, Dict[str, Any]]] = None
 
     # video related sample config
     video_token: VideoToken = field(default_factory=VideoToken)
@@ -140,7 +173,10 @@ class AVLMSampleConfig(MultiModalSampleConfig):
     """
     audio_video_tokens_concatenate_pattern: Literal[
         "sequential",
-        "audio_video", 
-        "video_audio",     
-        "interleaved_optimal",] = field(default="sequential")
-    
+        "audio_video",
+        "video_audio",
+        "interleaved_optimal",
+    ] = field(default="sequential")
+
+    # image related sample config
+    image_encoder_config: Optional[dict] = None
