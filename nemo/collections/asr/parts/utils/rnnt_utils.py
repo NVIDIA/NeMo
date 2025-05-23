@@ -94,6 +94,7 @@ class Hypothesis:
     text: Optional[str] = None
     dec_out: Optional[List[torch.Tensor]] = None
     dec_state: Optional[Union[List[List[torch.Tensor]], List[torch.Tensor]]] = None
+    time_jump: Optional[torch.Tensor | int] = None
     timestamp: Union[List[int], torch.Tensor] = field(default_factory=list)
     alignments: Optional[Union[List[int], List[List[int]]]] = None
     frame_confidence: Optional[Union[List[float], List[List[float]]]] = None
@@ -142,6 +143,31 @@ class Hypothesis:
             List with words (str).
         """
         return [] if self.text is None else self.text.split()
+
+    def merge(self, other: "Hypothesis"):
+        self.score += other.score
+        if isinstance(self.y_sequence, torch.Tensor):
+            self.y_sequence = torch.cat((self.y_sequence, other.y_sequence), dim=0)
+        else:
+            self.y_sequence.extend(other.y_sequence)
+        self.dec_state = other.dec_state
+        self.dec_out = other.dec_out
+        self.time_jump = other.time_jump
+        if self.timestamp is not None:
+            if isinstance(self.timestamp, torch.Tensor):
+                self.timestamp = torch.cat((self.timestamp, other.timestamp), dim=0)
+            else:
+                self.timestamp.extend(other.timestamp)
+        self.length += other.length
+        self.last_token = other.last_token
+        # TODO: Concatenate for alignments and frame_confidence.
+        if self.alignments is not None:
+            self.alignments[0] = torch.cat(self.alignments[0], other.alignments[0])
+            self.alignments[1] = torch.cat(self.alignments[1], other.alignments[1])
+        if self.frame_confidence is not None:
+            self.frame_confidence.extend(other.frame_confidence)
+        # Invalidated. Need to rerun decode_hypothesis here.
+        self.text = None
 
 
 @dataclass
@@ -383,6 +409,7 @@ class BatchedHyps:
             labels: non-blank labels to add
             time_indices: tensor of time index for each label
             scores: label scores
+            token_durations: token durations for TDT
         """
         if (self.current_lengths + active_mask).max() >= self._max_length:
             self._allocate_more()
@@ -412,6 +439,7 @@ class BatchedHyps:
             labels: non-blank labels to add
             time_indices: tensor of time index for each label
             scores: label scores
+            token_durations: token durations for TDT
         """
         # accumulate scores
         # same as self.scores[active_mask] += scores[active_mask], but non-blocking
@@ -440,6 +468,12 @@ class BatchedHyps:
         torch.where(active_mask, time_indices, self.last_timestamp, out=self.last_timestamp)
         # increase lengths
         self.current_lengths += active_mask
+
+    def get_last_labels(self, pad_id: int = -1):
+        """Get last labels. For elements without labels use pad_id"""
+        return torch.where(
+            self.current_lengths > 0, self.transcript[self._batch_indices, self.current_lengths - 1], pad_id
+        )
 
 
 class BatchedAlignments:
@@ -641,15 +675,16 @@ def batched_hyps_to_hypotheses(
     """
     assert batch_size is None or batch_size <= batched_hyps.scores.shape[0]
     num_hyps = batched_hyps.scores.shape[0] if batch_size is None else batch_size
-    # We clone `timestamps` and `y_sequence` to avoid keeping references
-    # to the tensors that can be allocated by CUDA graphs. If we don't do this,
-    # subsequent batches might reuse and overwrite the same memory,
-    # leading to unexpected results due to shared references.
+    # NB: clone is necessary for online decoding to avoid reusing the same container
+    scores = batched_hyps.scores.clone().cpu()
+    current_lengths = batched_hyps.current_lengths.clone().cpu()
+    transcript = batched_hyps.transcript.clone().cpu()
+    timestamps = batched_hyps.timestamps.clone().cpu()
     hypotheses = [
         Hypothesis(
-            score=batched_hyps.scores[i].item(),
-            y_sequence=batched_hyps.transcript[i, : batched_hyps.current_lengths[i]].clone(),
-            timestamp=batched_hyps.timestamps[i, : batched_hyps.current_lengths[i]].clone(),
+            score=scores[i].item(),
+            y_sequence=transcript[i, : current_lengths[i]],
+            timestamp=timestamps[i, : batched_hyps.current_lengths[i]],
             token_duration=(
                 durations
                 if not torch.all(
@@ -666,10 +701,10 @@ def batched_hyps_to_hypotheses(
         # move all data to cpu to avoid overhead with moving data by chunks
         alignment_lengths = alignments.current_lengths.cpu().tolist()
         if alignments.with_alignments:
-            alignment_logits = alignments.logits.cpu()
-            alignment_labels = alignments.labels.cpu()
+            alignment_logits = alignments.logits.clone().cpu()
+            alignment_labels = alignments.labels.clone().cpu()
         if alignments.with_frame_confidence:
-            frame_confidence = alignments.frame_confidence.cpu()
+            frame_confidence = alignments.frame_confidence.clone().cpu()
 
         # for each hypothesis - aggregate alignment using unique_consecutive for time indices (~itertools.groupby)
         for i in range(len(hypotheses)):
