@@ -1,11 +1,9 @@
-import json
-import os
 import threading
-from datetime import datetime
 from typing import Optional, final
 
 import requests
-import structlog
+
+from nemo.utils import logging
 
 from .types import AdapterRequest, AdapterResponse, RequestInterceptor, ResponseInterceptor
 
@@ -21,12 +19,12 @@ def _get_safe_headers(headers: dict[str, str]) -> dict[str, str]:
 
 @final
 class RequestLoggingInterceptor(RequestInterceptor):
-    _logger: structlog.BoundLogger
     _max_requests: Optional[int]
     _logged_requests: int
+    # Interceptors might executed concurrenlty.
     _lock: threading.Lock
 
-    def __init__(self, output_dir: str, max_requests: Optional[int] = None, log_failed_requests: bool = False):
+    def __init__(self, max_requests: Optional[int] = 5):
         """
         Initialize the request logging interceptor.
 
@@ -35,10 +33,13 @@ class RequestLoggingInterceptor(RequestInterceptor):
             max_requests: Maximum number of requests to log. If None, all requests will be logged.
             log_failed_requests: Whether to log failed request-response pairs (status code >= 400)
         """
-        self._logger = structlog.get_logger(__name__)
         self._max_requests = max_requests
         self._logged_requests = 0
         self._lock = threading.Lock()
+        logging.info(
+            "Evaluation logging adapter will log "
+            f"{self._max_requests if self._max_requests is not None else 'all'} requests"
+        )
 
     def _log_request(self, ar: AdapterRequest) -> None:
         """Helper method to log request details"""
@@ -53,7 +54,7 @@ class RequestLoggingInterceptor(RequestInterceptor):
                     "payload": payload,
                 }
             }
-            self._logger.info("request_log", data=log_data)
+            logging.info(f"Request with data: {log_data}")
 
         except Exception as e:
             # If JSON parsing fails, log raw data
@@ -65,7 +66,8 @@ class RequestLoggingInterceptor(RequestInterceptor):
                     "raw_data": ar.r.get_data().decode('utf-8', errors='ignore'),
                 }
             }
-            self._logger.info("request_log", data=log_data)
+            logging.warning(f"Invalid request JSON, logging a request raw data")
+            logging.info(f"Request with raw data: {log_data}")
 
     @final
     def intercept_request(self, ar: AdapterRequest) -> AdapterRequest:
@@ -83,40 +85,53 @@ class RequestLoggingInterceptor(RequestInterceptor):
 
 @final
 class ResponseLoggingInterceptor(ResponseInterceptor):
-    _logger: structlog.BoundLogger
+    _max_responses: Optional[int]
+    _logged_responses: int
+    # Interceptors might executed concurrenlty.
+    _lock: threading.Lock
 
-    def __init__(self, use_response_logging: bool = True):
+    def __init__(self, max_responses: Optional[int] = 5):
         """
         Initialize the response logging interceptor.
 
         Args:
             use_response_logging: Whether to log full responses to the console
+            max_responses: max responses to log, if `None` all of them are logged
         """
-        self._logger = structlog.get_logger(__name__)
-        self._use_response_logging = use_response_logging
+        self._max_responses = max_responses
+        self._logged_responses = 0
+        self._lock = threading.Lock()
+        logging.info(
+            "Evaluation logging adapter will log "
+            f"{self._max_responses if self._max_responses is not None else 'all'} responses"
+        )
 
     @final
     def intercept_response(self, ar: AdapterResponse) -> AdapterResponse:
+        # Check if we should log this
+        if self._max_responses is not None and self._logged_responses >= self._max_responses:
+            return ar
+
         try:
             payload = ar.r.json()
 
-            # Log to structured logger only if response logging is enabled
-            if self._use_response_logging:
-                log_data = {
-                    "response": {"status_code": ar.r.status_code, "payload": payload, "cache_hit": ar.meta.cache_hit}
-                }
-                self._logger.info("response_log", data=log_data)
+            log_data = {
+                "response": {"status_code": ar.r.status_code, "payload": payload, "cache_hit": ar.meta.cache_hit}
+            }
+            logging.info(f"Response with data: {log_data}")
 
         except requests.exceptions.JSONDecodeError as e:
             # For non-JSON responses, only log if response logging is enabled
-            if self._use_response_logging:
-                log_data = {
-                    "response": {
-                        "status_code": ar.r.status_code,
-                        "raw_content": ar.r.content.decode('utf-8', errors='ignore'),
-                        "cache_hit": ar.meta.cache_hit,
-                    }
+            log_data = {
+                "response": {
+                    "status_code": ar.r.status_code,
+                    "raw_content": ar.r.content.decode('utf-8', errors='ignore'),
                 }
-                self._logger.info("response_log", data=log_data)
+            }
+            logging.warning(f"Invalid response JSON, logging response raw data")
+            logging.info(f"Response with raw data: {log_data}")
+
+        with self._lock:
+            self._logged_responses += 1
 
         return ar

@@ -1,7 +1,9 @@
 import json
-from typing import Optional, final
+from typing import final
 
 from flask import Request
+
+from nemo.utils import logging
 
 from .types import AdapterRequest, RequestInterceptor
 
@@ -12,8 +14,11 @@ class SystemMessageInterceptor(RequestInterceptor):
 
     _new_system_message: str
 
-    def __init__(self, new_system_message: Optional[str]):
+    def __init__(self, new_system_message: str):
         self._new_system_message = new_system_message
+        logging.info(
+            f"Evaluation adapter will inject system prompt with message:\n\"\"\"\n{self._new_system_message}\n\"\"\""
+        )
 
     @final
     def intercept_request(self, ar: AdapterRequest) -> AdapterRequest:
