@@ -56,13 +56,14 @@ class CodecEmbedder(nn.Module):
         """
         Encodes an audio file into audio codec codes.
         """
-        # AudioSegment will initially read the samples as integers to workaround a issue in `soundfile`
-        # (https://github.com/bastibe/python-soundfile/issues/274); but it then internally converts them to floats,
-        # as needed here.
         audio_segment = AudioSegment.from_file(
-            audio_path, target_sr=self.codec.sample_rate, offset=0, duration=0, int_values=True
+            audio_path, target_sr=self.codec.sample_rate, offset=0, duration=0
         )
         assert np.issubdtype(audio_segment.samples.dtype, np.floating)
+        audio_min = audio_segment.samples.min()
+        audio_max = audio_segment.samples.max()
+        if audio_min <= -1.0 or audio_max >= 1.0:
+            logging.warning(f"Audio samples are not normalized to [-1, 1]: min={audio_min}, max={audio_max}")
         samples = torch.tensor(audio_segment.samples, device=self.codec.device).unsqueeze(0)
         audio_len = torch.tensor(samples.shape[1], device=self.codec.device).unsqueeze(0)
         codes, codes_len = self.codec.encode(audio=samples, audio_len=audio_len)
@@ -165,7 +166,7 @@ class FrechetCodecDistance(Metric):
 
         Args:
             codes (Tensor): A batch of codec frames of shape (B, C, T).
-            is_real (Boolean): Denotes if images are real or not.
+            is_real (Boolean): Denotes if samples are real or not.
         """
         assert codes.ndim == 3
 
@@ -202,7 +203,7 @@ class FrechetCodecDistance(Metric):
         """
 
         # If the user has not already updated with at lease one
-        # image from each distribution, then we raise an Error.
+        # sample from each distribution, then we raise an Error.
         if (self.num_real_frames == 0) or (self.num_fake_frames == 0):
             logging.warning(
                 "Computing FD requires at least 1 real frame and 1 fake frame,"
@@ -226,7 +227,7 @@ class FrechetCodecDistance(Metric):
         # FD should be non-negative but due to numerical errors, it can be slightly negative
         # Have seen -0.0011 in the past
         assert fd >= -0.005
-        return torch.max(torch.tensor(0.0, device=self.device), fd)
+        return torch.clamp(fd, min=0.0)
 
     def calculate_frechet_distance(
         self,
@@ -239,15 +240,14 @@ class FrechetCodecDistance(Metric):
         Calculate the Frechet Distance between two multivariate Gaussian distributions.
 
         Args:
-            mu1 (Tensor): The mean of the first distribution.
-            sigma1 (Tensor): The covariance matrix of the first distribution.
-            mu2 (Tensor): The mean of the second distribution.
-            sigma2 (Tensor): The covariance matrix of the second distribution.
+            mu1 (Tensor): The mean of the first distribution. Shape: (feature_dim,)
+            sigma1 (Tensor): The covariance matrix of the first distribution. Shape: (feature_dim, feature_dim)
+            mu2 (Tensor): The mean of the second distribution. Shape: (feature_dim,)
+            sigma2 (Tensor): The covariance matrix of the second distribution. Shape: (feature_dim, feature_dim)
 
         Returns:
             tensor: The Frechet Distance between the two distributions.
         """
-
         # Compute the squared distance between the means
         mean_diff = mu1 - mu2
         mean_diff_squared = mean_diff.square().sum(dim=-1)
