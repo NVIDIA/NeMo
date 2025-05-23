@@ -77,9 +77,7 @@ def test_evaluation(httpserver: HTTPServer, task: str):
     )
     eval_config = EvaluationConfig(
         type=task,
-        params=ConfigParams(
-            extra={"tokenizer": "Qwen/Qwen2.5-0.5B", "num_fewshot": 13}, limit_samples=1, parallelism=1
-        ),
+        params=ConfigParams(limit_samples=1, parallelism=1),
     )
 
     results = evaluate(target_cfg=target_config, eval_cfg=eval_config)
