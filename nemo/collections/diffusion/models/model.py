@@ -171,9 +171,9 @@ class DiTConfig(TransformerConfig, io.IOMixin):
         else:
             model = DiTCrossAttentionModel
 
-        vp_stage = (
-            vp_stage or 0
-        )  # During fake initialization, pass 0 to bypass the assertion that vp_stage must be non-None when using virtual pipeline model parallelism
+        # During fake lightning initialization, pass 0 to bypass the assertion that vp_stage must be
+        # non-None when using virtual pipeline model parallelism
+        vp_stage = vp_stage or 0
         return model(
             self,
             fp16_lm_cross_entropy=self.fp16_lm_cross_entropy,
