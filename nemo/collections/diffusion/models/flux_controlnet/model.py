@@ -333,15 +333,15 @@ class FluxControlnetForwardWrapper(VisionModule):
             self.flux_controlnet.load_from_flux_transformer(self.flux)
 
     def forward(
-            self,
-            packed_noisy_model_input,
-            control_image,
-            prompt_embeds,
-            pooled_prompt_embeds,
-            timesteps,
-            latent_image_ids,
-            text_ids,
-            guidance_vec,
+        self,
+        packed_noisy_model_input,
+        control_image,
+        prompt_embeds,
+        pooled_prompt_embeds,
+        timesteps,
+        latent_image_ids,
+        text_ids,
+        guidance_vec,
     ):
         '''
         Forward pass for the FluxControlnetForwardWrapper model.
