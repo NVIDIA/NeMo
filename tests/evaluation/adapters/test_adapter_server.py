@@ -13,7 +13,6 @@
 # limitations under the License.
 
 
-import multiprocessing
 from typing import Any, Generator
 
 import pytest
