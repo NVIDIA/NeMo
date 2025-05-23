@@ -82,8 +82,9 @@ class TestTritonSettings:
 
 class TestCompletionRequest:
     def test_default_completions_values(self):
-        request = CompletionRequest(model="test_model")
+        request = CompletionRequest(model="test_model", prompt="test prompt")
         assert request.model == "test_model"
+        assert request.prompt == "test prompt"
         assert request.max_tokens == 512
         assert request.temperature == 1.0
         assert request.top_p == 0.0
@@ -92,8 +93,9 @@ class TestCompletionRequest:
         assert request.echo is False
 
     def test_default_chat_values(self):
-        request = ChatCompletionRequest(model="test_model")
+        request = ChatCompletionRequest(model="test_model", messages=[{"role": "user", "content": "test message"}])
         assert request.model == "test_model"
+        assert request.messages == [{"role": "user", "content": "test message"}]
         assert request.max_tokens == 512
         assert request.temperature == 1.0
         assert request.top_p == 0.0
@@ -102,7 +104,7 @@ class TestCompletionRequest:
         assert request.top_logprobs is None
 
     def test_greedy_params(self):
-        request = CompletionRequest(model="test_model", temperature=0.0, top_p=0.0)
+        request = CompletionRequest(model="test_model", prompt="test prompt", temperature=0.0, top_p=0.0)
         assert request.top_k == 1
 
 
