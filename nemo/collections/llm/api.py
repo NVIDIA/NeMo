@@ -838,6 +838,7 @@ def evaluate(
         raise RuntimeError("Server not ready for evaluation")
 
     # NOTE(agronskiy): START of the adapter hook
+    p: multiprocessing.Process | None = None
     if adapter_cfg:
         from nemo.collections.llm.evaluation.adapters.server import AdapterServer
 
@@ -845,16 +846,20 @@ def evaluate(
             api_url=target_cfg.api_endpoint.url,
             adapter_config=adapter_cfg,
         )
-        p: multiprocessing.Process | None = multiprocessing.Process(target=adapter.run)
+        p = multiprocessing.Process(target=adapter.run)
         # This will be unhooked below
         target_cfg.api_endpoint.url = f"http://{adapter.adapter_host}:{adapter.adapter_port}"
         p.start()
 
-    results = evaluate.evaluate_accuracy(
-        target_cfg=target_cfg,
-        eval_cfg=eval_cfg,
-    )
-    results_dict = results.model_dump()
+    try:
+        results = evaluate.evaluate_accuracy(
+            target_cfg=target_cfg,
+            eval_cfg=eval_cfg,
+        )
+        results_dict = results.model_dump()
+    finally:
+        if adapter_cfg and p is not None and p.is_alive():
+            p.terminate()
 
     # NOTE(agronskiy): END of the adapter hook
     # TODO(agronskiy): if the url is logged in results_dict, get it back to the adapter.api_url
