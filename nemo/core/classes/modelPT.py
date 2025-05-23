@@ -227,6 +227,9 @@ class ModelPT(LightningModule, Model):
         cls._save_restore_connector = SaveRestoreConnector()
 
     def on_fit_start(self) -> None:
+        """
+        Register debug hooks.
+        """
         if self.cfg.get("dump_debug_info", False):
             register_debug_hooks(self.model, self.trainer, self.log, self.cfg.get("dump_debug_info_to_file", False))
         return super().on_fit_start()
@@ -884,6 +887,9 @@ class ModelPT(LightningModule, Model):
         self._optimizer_param_groups = param_groups
 
     def configure_optimizers(self):
+        """
+        Configure the optimizer and scheduler.
+        """
         self.setup_optimization()
 
         if self._scheduler is None:
@@ -950,10 +956,16 @@ class ModelPT(LightningModule, Model):
                 self.setup_multiple_test_data(test_data_config=self._cfg.test_ds)
 
     def train_dataloader(self):
+        """
+        Get the training dataloader.
+        """
         if self._train_dl is not None:
             return self._train_dl
 
     def val_dataloader(self):
+        """
+        Get the validation dataloader.
+        """
         if self._validation_dl is None:
             # None dataloader no longer supported in PTL2.0
             self._validation_dl = []
@@ -961,6 +973,9 @@ class ModelPT(LightningModule, Model):
         return self._validation_dl
 
     def test_dataloader(self):
+        """
+        Get the test dataloader.
+        """
         if self._test_dl is None:
             # None dataloader no longer supported in PTL2.0
             self._test_dl = []
@@ -1229,7 +1244,9 @@ class ModelPT(LightningModule, Model):
         return self._test_names[dataloader_idx]
 
     def load_part_of_state_dict(self, state_dict, include, exclude, load_from_string=None):
-
+        """
+        Load a part of the state dict into the model.
+        """
         excluded_param_names = []
         # create dict
         dict_to_load = {}
@@ -1658,6 +1675,9 @@ class ModelPT(LightningModule, Model):
 
     @LightningModule.trainer.getter
     def trainer(self):
+        """
+        Get the trainer object.
+        """
         return self._trainer
 
     @cfg.setter
@@ -1777,6 +1797,9 @@ class ModelPT(LightningModule, Model):
 
     @classmethod
     def update_save_restore_connector(cls, save_restore_connector):
+        """
+        Update the save_restore_connector for the model.
+        """
         if hasattr(cls, '_save_restore_connector'):
             cls._save_restore_connector = save_restore_connector
         else:
