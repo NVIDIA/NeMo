@@ -47,7 +47,7 @@ def override_recipe_configs(
 
     NOTE: Use fp8 precision training with caution. It might not give desirable results.
     """
-    recipe = pretrain_recipe(performance_mode=True)
+    recipe = pretrain_recipe()
     recipe = set_primary_perf_configs(
         recipe,
         "pre_train",
@@ -75,6 +75,39 @@ def override_recipe_configs(
         args.wandb_prj_name,
         args.wandb_job_name,
     )
+
+    recipe.model.flux_params.t5_params = None  # run.Config(T5Config, version='/ckpts/text_encoder_2')
+    recipe.model.flux_params.clip_params = None  # run.Config(ClipConfig, version='/ckpts/text_encoder')
+    recipe.model.flux_params.vae_config = (
+        None  # run.Config(AutoEncoderConfig, ckpt='/ckpts/ae.safetensors', ch_mult=[1,2,4,4], attn_resolutions=[])
+    )
+
+    from nemo.collections.diffusion.models.flux.model import FluxConfig
+
+    recipe.model.flux_params.flux_config = run.Config(
+        FluxConfig,
+        gradient_accumulation_fusion=False,
+    )
+
+    recipe.trainer.strategy.fsdp = "megatron"
+    recipe.trainer.strategy.ddp.use_custom_fsdp = True
+    recipe.trainer.strategy.ddp.data_parallel_sharding_strategy = "optim_grads_params"
+    recipe.trainer.strategy.ddp.overlap_grad_reduce = True
+    recipe.trainer.strategy.ddp.overlap_param_gather = True
+
+    recipe.data.global_batch_size = 8
+
+    from nemo.lightning.pytorch.callbacks.flops_callback import MM_FLOPsMeasurementCallback
+
+    recipe.trainer.callbacks.append(
+        run.Config(
+            MM_FLOPsMeasurementCallback,
+            model_name_config_dict={'flux': recipe.model.flux_params.flux_config},
+            data_config=recipe.data,
+        )
+    )
+
+    recipe.trainer.plugins.grad_reduce_in_fp32 = False
 
     return recipe
 
