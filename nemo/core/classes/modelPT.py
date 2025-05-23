@@ -26,15 +26,8 @@ from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple, Union
 import hydra
 import torch
 
-try:
-    import multistorageclient
-    from multistorageclient.types import MSC_PROTOCOL as MULTISTORAGECLIENT_PROTOCOL
-
-    MULTISTORAGECLIENT_AVAILABLE = True
-except (ImportError, ModuleNotFoundError):
-    MULTISTORAGECLIENT_AVAILABLE = False
-
 from nemo.core.classes.module import NeuralModule
+from nemo.utils.msc_utils import import_msc, is_msc_url
 
 try:
     from megatron.core.optimizer import OptimizerConfig, get_megatron_optimizer
@@ -411,15 +404,11 @@ class ModelPT(LightningModule, Model):
         """
 
         def maybe_make_save_dir(path: Union[str, 'pathlib.Path']):
-            if MULTISTORAGECLIENT_AVAILABLE and str(path).startswith(MULTISTORAGECLIENT_PROTOCOL):
-                return
-            else:
+            if not is_msc_url(path):
                 if not path.parent.exists():
                     path.parent.mkdir(parents=True)
 
-        if MULTISTORAGECLIENT_AVAILABLE and str(save_path).startswith(MULTISTORAGECLIENT_PROTOCOL):
-            save_path = str(save_path)
-        else:
+        if not is_msc_url(save_path):
             save_path = Path(save_path).expanduser().resolve()
         app_state = AppState()
         if app_state.model_parallel_size is not None:
@@ -481,11 +470,10 @@ class ModelPT(LightningModule, Model):
         if save_restore_connector is None:
             save_restore_connector = SaveRestoreConnector()
 
-        is_multistorageclient_url = MULTISTORAGECLIENT_AVAILABLE and str(restore_path).startswith(
-            MULTISTORAGECLIENT_PROTOCOL
-        )
-        if is_multistorageclient_url:
-            restore_path = ModelPT.derive_restore_path_with_multistorageclient_url(str(restore_path))
+        if is_msc_url(restore_path):
+            msc = import_msc()
+            if not msc.os.path.exists(restore_path):
+                raise FileNotFoundError(f"Can't find {restore_path}")
         else:
             if save_restore_connector.model_extracted_dir is None:
                 restore_path = os.path.abspath(os.path.expanduser(restore_path))
@@ -512,13 +500,6 @@ class ModelPT(LightningModule, Model):
         if isinstance(instance, ModelPT):
             instance._save_restore_connector = save_restore_connector
         return instance
-
-    @staticmethod
-    def derive_restore_path_with_multistorageclient_url(multistorageclient_url: str) -> str:
-        file_exists = multistorageclient.os.path.exists(multistorageclient_url)
-        if not file_exists:
-            raise FileNotFoundError(f"Can't find {multistorageclient_url}")
-        return multistorageclient_url
 
     @classmethod
     def load_from_checkpoint(
