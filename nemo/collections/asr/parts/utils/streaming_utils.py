@@ -1506,7 +1506,7 @@ class CacheAwareStreamingAudioBuffer:
         else:
             self.sampling_frames = None
 
-        # import pdb; pdb.set_trace() 
+        # import pdb; pdb.set_trace()
 
     def __iter__(self):
         while True:
@@ -1710,8 +1710,6 @@ class CacheAwareStreamingAudioBuffer:
         return processed_signal, self.streams_length
 
 
-
-
 class ChunkedStreamingAudioBuffer(CacheAwareStreamingAudioBuffer):
     """
     A buffer to be used for standard offline models in chunked streaming mode. It can load a single or multiple audio
@@ -1738,7 +1736,6 @@ class ChunkedStreamingAudioBuffer(CacheAwareStreamingAudioBuffer):
         self.right_context = rigtht_context
         self.online_normalization = False
 
-
         self.input_features = model.encoder._feat_in
 
         self.preprocessor = self.extract_preprocessor()
@@ -1757,7 +1754,6 @@ class ChunkedStreamingAudioBuffer(CacheAwareStreamingAudioBuffer):
         self.streams_length_raw_audio = None
         self.step = 0
 
-    
     def __iter__(self):
         while True:
             if self.buffer_idx >= self.buffer.size(-1):
@@ -1772,7 +1768,6 @@ class ChunkedStreamingAudioBuffer(CacheAwareStreamingAudioBuffer):
             raw_audio_chunk_size = (self.window_size + self.right_context) * self.sampling_frames[-1] * 160
             raw_audio_shift_size = self.window_size * self.sampling_frames[-1] * 160
             raw_audio_chunk = self.buffer_raw_audio[:, : self.buffer_raw_audio_idx + raw_audio_chunk_size]
-
 
             # import pdb; pdb.set_trace()
 
@@ -1789,7 +1784,7 @@ class ChunkedStreamingAudioBuffer(CacheAwareStreamingAudioBuffer):
                     return
 
             # import pdb; pdb.set_trace()
-            
+
             chunk_lengths = torch.clamp(self.streams_length, min=0, max=audio_chunk.size(-1))
             raw_audio_chunk_lengths = torch.clamp(self.streams_length_raw_audio, min=0, max=raw_audio_chunk.size(-1))
 
@@ -1820,27 +1815,28 @@ class ChunkedStreamingAudioBuffer(CacheAwareStreamingAudioBuffer):
                 raise ValueError("stream_id can not be specified when there is no stream.")
             self.buffer = processed_signal
             self.streams_length = torch.tensor([processed_signal_length], device=processed_signal.device)
-            
+
             self.buffer_raw_audio = audio_signal
             self.streams_length_raw_audio = torch.tensor([audio_signal_length], device=audio_signal.device)
 
         else:
             if self.buffer.size(1) != processed_signal.size(1):
                 raise ValueError("Buffer and the processed signal have different dimensions!")
-            
+
             # import pdb; pdb.set_trace()
-            
+
             if stream_id < 0:
                 self.buffer = torch.nn.functional.pad(self.buffer, pad=(0, 0, 0, 0, 0, 1))
                 self.streams_length = torch.cat(
                     (self.streams_length, torch.tensor([0], device=self.streams_length.device)), dim=-1
                 )
-                
+
                 self.buffer_raw_audio = torch.nn.functional.pad(self.buffer_raw_audio, pad=(0, 0, 0, 1))
                 self.streams_length_raw_audio = torch.cat(
-                    (self.streams_length_raw_audio, torch.tensor([0], device=self.streams_length_raw_audio.device)), dim=-1
+                    (self.streams_length_raw_audio, torch.tensor([0], device=self.streams_length_raw_audio.device)),
+                    dim=-1,
                 )
-                
+
                 stream_id = len(self.streams_length) - 1
             needed_len = self.streams_length[stream_id] + processed_signal_length
             if needed_len > self.buffer.size(-1):
@@ -1853,13 +1849,16 @@ class ChunkedStreamingAudioBuffer(CacheAwareStreamingAudioBuffer):
 
             needed_len_raw_audio = self.streams_length_raw_audio[stream_id] + audio_signal_len
             if needed_len_raw_audio > self.buffer_raw_audio.size(-1):
-                self.buffer_raw_audio = torch.nn.functional.pad(self.buffer_raw_audio, pad=(0, needed_len_raw_audio - self.buffer_raw_audio.size(-1)))
+                self.buffer_raw_audio = torch.nn.functional.pad(
+                    self.buffer_raw_audio, pad=(0, needed_len_raw_audio - self.buffer_raw_audio.size(-1))
+                )
 
             self.buffer_raw_audio[
-                stream_id, self.streams_length_raw_audio[stream_id] : self.streams_length_raw_audio[stream_id] + audio_signal_length
+                stream_id,
+                self.streams_length_raw_audio[stream_id] : self.streams_length_raw_audio[stream_id]
+                + audio_signal_length,
             ] = audio_signal
             self.streams_length_raw_audio[stream_id] = self.streams_length_raw_audio[stream_id] + audio_signal.size(-1)
-
 
         return processed_signal, processed_signal_length, stream_id
 
@@ -1875,7 +1874,6 @@ class ChunkedStreamingAudioBuffer(CacheAwareStreamingAudioBuffer):
             input_signal=audio_signal, length=audio_signal_len
         )
         return audio_signal, audio_signal_len, processed_signal, processed_signal_length
-
 
 
 class FrameBatchMultiTaskAED(FrameBatchASR):

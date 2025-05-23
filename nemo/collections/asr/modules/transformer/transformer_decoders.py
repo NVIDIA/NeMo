@@ -63,7 +63,11 @@ class TransformerDecoderBlock(nn.Module, AttentionAdapterModuleMixin):
         )
         self.layer_norm_2 = nn.LayerNorm(hidden_size, eps=1e-5)
         self.second_sub_layer = MultiHeadAttention(
-            hidden_size, num_attention_heads, attn_score_dropout, attn_layer_dropout, return_xatt_scores=True,
+            hidden_size,
+            num_attention_heads,
+            attn_score_dropout,
+            attn_layer_dropout,
+            return_xatt_scores=True,
         )
         self.layer_norm_3 = nn.LayerNorm(hidden_size, eps=1e-5)
         self.third_sub_layer = PositionWiseFF(hidden_size, inner_size, ffn_dropout, hidden_act)
@@ -95,7 +99,9 @@ class TransformerDecoderBlock(nn.Module, AttentionAdapterModuleMixin):
 
         residual = self_attn_output
         self_attn_output = self.layer_norm_2(self_attn_output)
-        enc_dec_attn_output, extra_output = self.second_sub_layer(self_attn_output, encoder_states, encoder_states, encoder_mask)
+        enc_dec_attn_output, extra_output = self.second_sub_layer(
+            self_attn_output, encoder_states, encoder_states, encoder_mask
+        )
         enc_dec_attn_output += residual
 
         residual = enc_dec_attn_output
@@ -135,7 +141,9 @@ class TransformerDecoderBlock(nn.Module, AttentionAdapterModuleMixin):
 
         self_attn_output = self.layer_norm_1(self_attn_output)
 
-        enc_dec_attn_output, extra_output = self.second_sub_layer(self_attn_output, encoder_states, encoder_states, encoder_mask)
+        enc_dec_attn_output, extra_output = self.second_sub_layer(
+            self_attn_output, encoder_states, encoder_states, encoder_mask
+        )
         enc_dec_attn_output += self_attn_output
         enc_dec_attn_output = self.layer_norm_2(enc_dec_attn_output)
 
@@ -252,9 +260,11 @@ class TransformerDecoder(nn.Module):
                 cached_mems_list = memory_states.unsqueeze(0)
 
         xatt_scores_list = []
-        
+
         for i, layer in enumerate(self.layers):
-            decoder_states, extra_output = layer(decoder_states, decoder_attn_mask, memory_states, encoder_states, encoder_attn_mask)
+            decoder_states, extra_output = layer(
+                decoder_states, decoder_attn_mask, memory_states, encoder_states, encoder_attn_mask
+            )
             memory_states = self._get_memory_states(decoder_states, decoder_mems_list, i + 1)
             xatt_scores_list.append(extra_output['xatt_scores'])
             if return_mems:

@@ -233,11 +233,11 @@ class GreedySequenceGenerator(ConfidenceMethodMixin):
 
         decoder_mems_list = None
         for i in range(max_generation_length):
-            
+
             if i == 0:
                 input_ids = tgt
             else:
-                i += tgt_len-1
+                i += tgt_len - 1
                 input_ids = tgt[:, -1:]
 
             # logging.warning(f"Step {i}")
@@ -245,7 +245,7 @@ class GreedySequenceGenerator(ConfidenceMethodMixin):
             # logging.warning(f"input_ids: {input_ids}")
             # if i == 14:
             #     raise ValueError("Stop here")
-            
+
             logits, decoder_mems_list = self._one_step_forward(
                 input_ids,
                 encoder_hidden_states,
@@ -477,7 +477,7 @@ class BeamSearchSequenceGenerator(GreedySequenceGenerator):
             )
             scores_i, prefixes_i = torch.topk(log_probs[:, -1, :], self.beam_size, dim=-1)
 
-            # logging.warning(f"prefixes_i: {prefixes_i}")    
+            # logging.warning(f"prefixes_i: {prefixes_i}")
 
             # for all prefixes ending with <eos> or <pad> replace generated
             # continuations with <pad>

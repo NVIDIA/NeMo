@@ -200,7 +200,6 @@ def main(cfg: EvaluationConfig):
     cer = word_error_rate(hypotheses=predicted_text, references=ground_truth_text, use_cer=True)
     wer = word_error_rate(hypotheses=predicted_text, references=ground_truth_text, use_cer=False)
 
-
     if cfg.use_cer:
         metric_name = 'CER'
         metric_value = cer
