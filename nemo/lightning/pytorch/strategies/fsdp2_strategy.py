@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,7 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import atexit
+import logging as _logging
 import os
+import re
 import shutil
 from contextlib import contextmanager
 from pathlib import Path
@@ -20,29 +23,41 @@ from typing import Any, Dict, Literal, Optional, Union
 
 import lightning.pytorch as pl
 import torch
+import torch.distributed as dist
 from lightning.fabric.plugins import CheckpointIO
+from lightning.fabric.utilities.rank_zero import rank_zero_info
+from lightning.fabric.utilities.seed import reset_seed
 from lightning.pytorch.strategies.model_parallel import ModelParallelStrategy as PLModelParallelStrategy
 from lightning.pytorch.trainer.states import TrainerFn
 from lightning.pytorch.utilities.types import STEP_OUTPUT
-from torch.distributed._composable.fsdp import MixedPrecisionPolicy
-from torch.utils.data import DataLoader
+from torch.distributed.tensor.parallel import ColwiseParallel, RowwiseParallel, SequenceParallel
 from typing_extensions import override
 
 from nemo.lightning import io
 from nemo.lightning.pytorch.strategies.utils import (
+    _destroy_dist_connection,
     ckpt_to_dir,
     create_checkpoint_io,
     fsdp2_strategy_parallelize,
-    setup_data_sampler,
 )
 from nemo.utils import logging
+from nemo.utils.import_utils import safe_import_from
 
 try:
     from torch.distributed.tensor._api import distribute_tensor
-    from torch.distributed.tensor.placement_types import Shard
+    from torch.distributed.tensor.placement_types import Replicate, Shard
 except ImportError:
     from torch.distributed._tensor.api import distribute_tensor
-    from torch.distributed._tensor.placement_types import Shard
+    from torch.distributed._tensor.placement_types import Replicate, Shard
+
+MixedPrecisionPolicy, HAS_MIXED_PRECISION_POLICY = safe_import_from(
+    "torch.distributed.fsdp", "MixedPrecisionPolicy", fallback_module="torch.distributed._composable.fsdp"
+)
+CPUOffloadPolicy, HAS_CPU_OFFLOAD_POLICY = safe_import_from(
+    "torch.distributed.fsdp", "CPUOffloadPolicy", fallback_module="torch.distributed._composable.fsdp"
+)
+
+_logger = _logging.getLogger(__name__)
 
 
 class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
@@ -56,17 +71,25 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         self,
         data_parallel_size: Union[Literal["auto"], int] = "auto",
         tensor_parallel_size: Union[Literal["auto"], int] = "auto",
+        context_parallel_size: Optional[int] = 1,
+        sequence_parallel: bool = False,
+        offload_policy: 'CPUOffloadPolicy' = None,
         data_sampler=None,
         checkpoint_io=None,
         mp_policy=None,
-        parallelize_fn=None,
+        parallelize_fn=fsdp2_strategy_parallelize,
+        use_hf_tp_plan: bool = True,
+        custom_tp_plan: Optional[Dict[str, Union[RowwiseParallel, ColwiseParallel, SequenceParallel]]] = None,
         **kwargs,
     ):
         """Initializes the FSDP2Strategy with specified parallelization settings.
 
         Args:
-            data_parallel_size (Union[Literal["auto"], int]): Number of data-parallel replicas.
-            tensor_parallel_size (Union[Literal["auto"], int]): Number of tensor-parallel groups.
+            data_parallel_size (Union[Literal["auto"], int]): Size of data parallel. Defaults to "auto".
+            tensor_parallel_size (Union[Literal["auto"], int]): Size of tensor parallel. Defaults to "auto".
+            context_parallel_size (optional): Number of context-parallel groups. Defaults to 1.
+            sequence_parallel (bool): Whether to enable sequence parallelism when use_hf_tp_plan is False and
+                custom_tp_plan is not provided. Defaults to False. Only effective when tensor_parallel_size > 1.
             data_sampler (optional): Custom data sampler to process dataloaders.
             mp_policy (optional): Mixed precision policy for parameter and operation casting.
                 Defaults to:
@@ -79,21 +102,79 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
                 )
                 ```
             parallelize_fn (callable, optional): Function for parallelizing the model. Defaults to None.
+            use_hf_tp_plan (bool, optional): Whether to use the huggingface TP plan. This will be used if
+                custom_tp_plan is not provided. Also, sequence_parallel option will be ignored if use_hf_tp_plan
+                is set to True. Defaults to True.
+            custom_tp_plan (Optional[Dict[str, Any]], optional): Custom tensor parallel plan for the model.
+                tensor_parallel_size need to be > 1 to use this option. If provided, it overrides the
+                default tensor parallel plan. sequence_parallel option will be ignored if custom_tp_plan
+                is provided.
             **kwargs: Additional arguments for base class initialization.
         """
         super().__init__(data_parallel_size=data_parallel_size, tensor_parallel_size=tensor_parallel_size, **kwargs)
         self._checkpoint_io = checkpoint_io
+        self.context_parallel_size = context_parallel_size
         self.data_sampler = data_sampler
         self.checkpoint = None
         self.mp_policy = mp_policy
         if self.mp_policy is None:
+            assert HAS_MIXED_PRECISION_POLICY is not None, "Expected to have MixedPrecisionPolicy"
             self.mp_policy = MixedPrecisionPolicy(
                 param_dtype=torch.bfloat16,
-                reduce_dtype=torch.float32,
-                output_dtype=None,
+                reduce_dtype=torch.bfloat16,
+                output_dtype=torch.bfloat16,
                 cast_forward_inputs=True,
             )
-        self.parallelize_fn = parallelize_fn or fsdp2_strategy_parallelize
+        self.store: Optional[torch.distributed.Store] = None
+        self.parallelize_fn = parallelize_fn
+        self.offload_policy = offload_policy
+        self.sequence_parallel = sequence_parallel
+        self.use_hf_tp_plan = use_hf_tp_plan
+
+        self.tp_shard_plan = None
+        if custom_tp_plan is not None:
+            self.tp_shard_plan = custom_tp_plan
+            logging.info(
+                "You are using a custom TP plan. Make sure it is compatible with the model. Parallelization would ",
+                "not raise errors if the custom TP plan is not compatible. SP option will also be ignored.",
+            )
+        elif self.use_hf_tp_plan:
+            logging.info(
+                "You are using a huggingface TP plan. Make sure your model is a huggingface model. Certain ",
+                "parallelizations might not be supported. SP option will also be ignored.",
+            )
+        else:
+            # Parallelize the first embedding and the last linear out projection
+            base_model_tp_plan = {
+                "model.embed_tokens": RowwiseParallel(input_layouts=Replicate()),
+                "model.layers.*.self_attn.q_proj": ColwiseParallel(),
+                "model.layers.*.self_attn.k_proj": ColwiseParallel(),
+                "model.layers.*.self_attn.v_proj": ColwiseParallel(),
+                "model.layers.*.self_attn.o_proj": RowwiseParallel(),
+                "model.layers.*.mlp.up_proj": ColwiseParallel(),
+                "model.layers.*.mlp.gate_proj": ColwiseParallel(),
+                "model.layers.*.mlp.down_proj": RowwiseParallel(),
+                "lm_head": ColwiseParallel(output_layouts=Replicate()),
+            }
+
+            base_model_sp_plan = {
+                "model.embed_tokens": RowwiseParallel(input_layouts=Replicate(), output_layouts=Shard(1)),
+                "model.norm": SequenceParallel(),
+                "model.layers.*.input_layernorm": SequenceParallel(),
+                "model.layers.*.self_attn.o_proj": RowwiseParallel(output_layouts=Shard(1)),
+                "model.layers.*.post_attention_layernorm": SequenceParallel(),
+                "model.layers.*.mlp.down_proj": RowwiseParallel(output_layouts=Shard(1)),
+                "lm_head": ColwiseParallel(input_layouts=Shard(1), output_layouts=Replicate()),
+            }
+
+            if self.sequence_parallel:
+                # Enable sequence parallelism only if TP size > 1
+                base_model_tp_plan.update(base_model_sp_plan)
+
+            self.tp_shard_plan = base_model_tp_plan
+            logging.info(
+                "Using default TP plan for parallelization. It is compatible with huggingface llama3-style models."
+            )
 
     @property
     @override
@@ -146,17 +227,39 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         """setup distributed environment and device mesh"""
         from torch.distributed.device_mesh import init_device_mesh
 
+        self.accelerator.setup_device(self.root_device)
+
         self._setup_distributed()
         if self._data_parallel_size == "auto":
             self._data_parallel_size = self.num_nodes
+
         if self._tensor_parallel_size == "auto":
             self._tensor_parallel_size = self.num_processes
-        # No TP currently
+
+        mesh_shape = []
+        mesh_dim_names = []
+        # TP needs to be the last dimension as innermost dimension, DP-CP-TP
+        for dim, name in zip(
+            [self._data_parallel_size, self.context_parallel_size, self._tensor_parallel_size],
+            ["data_parallel", "context_parallel", "tensor_parallel"],
+        ):
+            mesh_shape.append(int(dim))
+            mesh_dim_names.append(name)
+
         self._device_mesh = init_device_mesh(
             device_type=self.root_device.type,
-            mesh_shape=(self._data_parallel_size,),
-            mesh_dim_names=("data_parallel",),
+            mesh_shape=tuple(mesh_shape),
+            mesh_dim_names=mesh_dim_names,
         )
+
+        # Construct sharding and reduction meshes for specific configurations.
+        # Replace existing mesh strategies if a custom mesh design is provided.
+        # WARNING: ADDING MESHES INCREASES MEMORY USAGE. Use device meshes for
+        # multiple dimensions of parallelism if possible.
+        if self._device_mesh["context_parallel"].size() > 1:
+            # Context parallelism loss reduction mesh. Remember to divide out CP size in tokens per second throughput.
+            self._device_mesh[("data_parallel", "context_parallel")]._flatten(mesh_dim_name="dp_cp")
+
         self.lightning_module._device_mesh = self._device_mesh
 
     @override
@@ -167,12 +270,14 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
             trainer (pl.Trainer): The PyTorch Lightning trainer instance.
         """
         self.trainer = trainer
-        setup_data_sampler(self.trainer)
         # connect trainer to accelerator.
         self.accelerator.setup(trainer)
         # Parallelize model
         if getattr(self, '_init_model_parallel', True):
             self.parallelize()
+        # Corner case, as FSDP2 expected to be used multi-device.
+        if self._data_parallel_size == 1:
+            self._lightning_module = self._lightning_module.to(self.root_device)
         # setup optim
         if getattr(self, '_setup_optimizers', True) and trainer.state.fn == TrainerFn.FITTING:
             super().setup_optimizers(trainer)
@@ -182,11 +287,57 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         if self.parallelize_fn is not None:
             # TODO(@akoumparouli): self.lightning_module is an nn.Module child, use it directly?
             # Apply FSDP2 and TP to the model
-            self.parallelize_fn(self.lightning_module.model, device_mesh=self._device_mesh, mp_policy=self.mp_policy)
+            self.parallelize_fn(
+                self.lightning_module.model,
+                device_mesh=self._device_mesh,
+                mp_policy=self.mp_policy,
+                use_hf_tp_plan=self.use_hf_tp_plan,
+                tp_shard_plan=self.tp_shard_plan,
+                offload_policy=self.offload_policy,
+            )
             # Apply this only once
             self.parallelize_fn = None
         else:
             logging.warning("Called parallelize more than once.")
+
+    @override
+    def _setup_distributed(self) -> None:
+        """Initializes process group for communications."""
+
+        # Implementation from superclass copied below in order to pass the store to the process group init
+        reset_seed()
+        self.set_world_ranks()
+        self._process_group_backend = self._get_process_group_backend()
+        # See https://github.com/pytorch/pytorch/issues/148532 for details.
+        if self.offload_policy is not None:
+            self._process_group_backend = "cuda:nccl,cpu:gloo"
+
+        assert self.cluster_environment is not None
+        if not torch.distributed.is_available():
+            raise RuntimeError("torch.distributed is not available. Cannot initialize distributed process group")
+        if torch.distributed.is_initialized():
+            _logger.debug("torch.distributed is already initialized. Exiting early")
+            return
+
+        global_rank = self.cluster_environment.global_rank()
+        world_size = self.cluster_environment.world_size()
+        os.environ["MASTER_ADDR"] = self.cluster_environment.main_address
+        os.environ["MASTER_PORT"] = str(self.cluster_environment.main_port)
+        _logger.info(f"Initializing distributed: GLOBAL_RANK: {global_rank}, MEMBER: {global_rank + 1}/{world_size}")
+        torch.distributed.init_process_group(
+            self._process_group_backend, rank=global_rank, world_size=world_size, store=self.store
+        )
+
+        if self._process_group_backend == "nccl":
+            atexit.register(_destroy_dist_connection)
+
+        # On rank=0 let everyone know training is starting
+        rank_zero_info(
+            f"{'-' * 100}\n"
+            f"distributed_backend={self._process_group_backend}\n"
+            f"All distributed processes registered. Starting with {world_size} processes\n"
+            f"{'-' * 100}\n"
+        )
 
     def _get_loss_reduction(self, step_type: str):
         """Retrieves the loss reduction method for a given step type.
@@ -248,7 +399,12 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         assert self.lightning_module is not None
         assert self.model is not None
 
-        loss = self.lightning_module.training_step(batch, batch_idx)
+        if self.context_parallel_size > 1:
+            # Only pass context_parallel=True if AutoModel supports and has non-trivial CP.
+            loss = self.lightning_module.training_step(batch, batch_idx, context_parallel=True)
+        else:
+            loss = self.lightning_module.training_step(batch, batch_idx)
+
         self.lightning_module.log(
             'global_step',
             self.trainer.global_step,
@@ -279,7 +435,8 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         assert self.model is not None
         with self.precision_plugin.val_step_context():
             loss, reduced = self._step_proxy("validation", batch, batch_idx)
-            self.lightning_module.log('val_loss', reduced['avg'], rank_zero_only=True, batch_size=1)
+            if reduced["avg"]:
+                self.lightning_module.log('val_loss', reduced['avg'], rank_zero_only=True, batch_size=1)
             return loss
 
     @override
@@ -317,14 +474,6 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         with self.precision_plugin.predict_step_context():
             loss, reduced = self._step_proxy("predict", batch, batch_idx)
             return reduced
-
-    @override
-    def process_dataloader(self, dataloader: DataLoader) -> DataLoader:
-        """Applies data-samples to dataloader"""
-        if self.data_sampler:
-            return self.data_sampler.transform_dataloader(dataloader)
-
-        return dataloader
 
     @contextmanager
     @override
@@ -385,20 +534,23 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
 
     @override
     def lightning_module_state_dict(self) -> Dict[str, Any]:
-        """Collects the state dict of the model.
-
-        Only returns a non-empty state dict on rank 0 if ``save_distributed_checkpoint=False``.
-
-        """
+        """Collects the state dict of the model."""
         from nemo.lightning.pytorch.strategies.utils import to_cpu
 
         assert self.lightning_module is not None
         state_dict = self.lightning_module.state_dict()
+        is_adapter_only = getattr(self._checkpoint_io, 'adapter_only', False)
+        name_has_lora = lambda x: 'lora' in x.lower()
 
         module_names = list(state_dict.keys())
         for name in module_names:
             param = state_dict.pop(name)
-            state_dict[name] = to_cpu(param)
+            # @akoumparouli: refactor this.
+            # if any key has "lora" in FQN, then it will only move lora keys to cpu, since only
+            # the adapter weights are saved.
+            if (is_adapter_only and name_has_lora(name)) or not is_adapter_only:
+                state_dict[name] = to_cpu(param)
+        dist.barrier()
         return state_dict
 
     @override
@@ -419,11 +571,48 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
 
     @override
     @torch.no_grad
-    def load_model_state_dict(self, ckpt, strict=False):
+    def load_model_state_dict(
+        self,
+        ckpt,
+        strict=False,
+    ):
         """Shards a full state dict"""
+        if self._tensor_parallel_size > 1 and self._device_mesh["context_parallel"].size() == 1:
+            # Gather TP/SP strategy keys
+            colwise_keys = [k for k in self.tp_shard_plan if isinstance(self.tp_shard_plan[k], ColwiseParallel)]
+            rowwise_keys = [k for k in self.tp_shard_plan if isinstance(self.tp_shard_plan[k], RowwiseParallel)]
+            seq_parallel_keys = [k for k in self.tp_shard_plan if isinstance(self.tp_shard_plan[k], SequenceParallel)]
+
+            sharded_state = {k: v for k, v in ckpt['state_dict'].items()}
+
+            # placement is (dp, tp)
+            for k, v in sharded_state.items():
+                if any(re.match(x, k) for x in seq_parallel_keys):
+                    sharded_state[k] = distribute_tensor(v, self.device_mesh, placements=(Shard(dim=0), Replicate()))
+                elif any(re.match(x, k) for x in colwise_keys):
+                    sharded_state[k] = distribute_tensor(v, self.device_mesh, placements=(Shard(dim=0), Shard(dim=0)))
+                elif any(re.match(x, k) for x in rowwise_keys):
+                    sharded_state[k] = distribute_tensor(v, self.device_mesh, placements=(Shard(dim=0), Shard(dim=1)))
+                else:
+                    # This is for layers not sharded by TP/SP
+                    sharded_state[k] = distribute_tensor(
+                        v, self.device_mesh["data_parallel"], placements=(Shard(dim=0),)
+                    )
         # TODO(@akoumparouli): update `placements` value once TP is enabled.
-        sharded_state = {
-            k: distribute_tensor(v, self.device_mesh, placements=(Shard(dim=0),))
-            for k, v in ckpt['state_dict'].items()
-        }
+        elif self._tensor_parallel_size == 1 and self._device_mesh["context_parallel"].size() > 1:
+            # Shard across the CP device mesh, associated with the fully_shard() call
+            # in utils.fsdp2_strategy_parallelize().
+            sharded_state = {
+                k: distribute_tensor(
+                    v, self._device_mesh[("data_parallel", "context_parallel")], placements=(Replicate(), Shard(dim=0))
+                )
+                for k, v in ckpt['state_dict'].items()
+            }
+        else:
+            # Default shard across DP for FSDP2.
+            sharded_state = {
+                k: distribute_tensor(v, self._device_mesh["data_parallel"], placements=(Shard(dim=0),))
+                for k, v in ckpt['state_dict'].items()
+            }
+
         self.lightning_module.load_state_dict(sharded_state, strict=strict)

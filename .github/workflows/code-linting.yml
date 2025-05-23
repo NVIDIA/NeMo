@@ -24,21 +24,25 @@ jobs:
         run: |
           if [[ "$DOMAIN" == "speech" ]]; then
             FILTER=$(jq -crn '[
+              "nemo/collections/common/data/lhotse/*.py",
               "nemo/collections/asr/**/*.py",
               "nemo/collections/tts/**/*.py",
               "nemo/collections/audio/**/*.py",
               "nemo/collections/multimodal/speech_llm/**/*.py",
-              "nemo/collections/speechlm/**/*.py"
+              "nemo/collections/speechlm/**/*.py",
+              "nemo/collections/speechlm2/**/*.py"
             ] | join(",")')
 
           else
             FILTER=$(jq -crn '[
               "nemo/**/*.py",
+              "!nemo/collections/common/data/lhotse/*.py",
               "!nemo/collections/asr/**/*.py",
               "!nemo/collections/tts/**/*.py",
               "!nemo/collections/audio/**/*.py",
               "!nemo/collections/multimodal/speech_llm/**/*.py",
-              "!nemo/collections/speechlm/**/*.py"
+              "!nemo/collections/speechlm/**/*.py",
+              "!nemo/collections/speechlm2/**/*.py"
             ] | join(",")')
           fi
 
@@ -46,7 +50,7 @@ jobs:
 
       - name: Get changed files
         id: changed-files
-        uses: tj-actions/changed-files@v44
+        uses: step-security/changed-files@v45.0.1
         with:
           files: ${{ steps.filter.outputs.main }}
           files_separator: ","
@@ -117,7 +121,7 @@ jobs:
             echo '```' | tee -a $GITHUB_STEP_SUMMARY
           fi
 
-          if [[ "$FLAKE8" != "true" ]]; then  
+          if [[ "$FLAKE8" != "true" ]]; then
             echo "Flake8 output:" | tee -a $GITHUB_STEP_SUMMARY
 
             echo '```' | tee -a $GITHUB_STEP_SUMMARY

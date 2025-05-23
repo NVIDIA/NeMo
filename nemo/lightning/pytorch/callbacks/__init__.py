@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ from nemo.lightning.pytorch.callbacks.peft import PEFT
 from nemo.lightning.pytorch.callbacks.preemption import PreemptionCallback
 from nemo.lightning.pytorch.callbacks.progress_bar import MegatronProgressBar
 from nemo.lightning.pytorch.callbacks.progress_printer import ProgressPrinter
+from nemo.lightning.pytorch.callbacks.pytorch_profiler import PytorchProfilerCallback
 
 __all__ = [
     "MemoryProfileCallback",
@@ -32,6 +33,7 @@ __all__ = [
     "ModelTransform",
     "PEFT",
     "NsysCallback",
+    "PytorchProfilerCallback",
     "MegatronProgressBar",
     "ProgressPrinter",
     "PreemptionCallback",

@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -103,6 +103,21 @@ def nemo_manifest_path(cutset_path: Path):
 
 
 @pytest.fixture(scope="session")
+def nemo_manifest_with_skipme_path(nemo_manifest_path: Path) -> Path:
+    """Create a nemo manifest with last 2 utterances out of 10 with `_skipme` key enabled"""
+    from lhotse.serialization import load_jsonl, save_to_jsonl
+
+    all_items = list(load_jsonl(nemo_manifest_path))
+
+    for item in all_items[-2:]:
+        item['_skipme'] = True
+
+    p = nemo_manifest_path.parent / "nemo_manifest_with_skipme.json"
+    save_to_jsonl(all_items, p)
+    return p
+
+
+@pytest.fixture(scope="session")
 def mc_cutset_path(tmp_path_factory) -> Path:
     """10 two-channel utterances of length 1s as a Lhotse CutSet."""
     from lhotse import CutSet, MultiCut
@@ -167,6 +182,24 @@ def nemo_tarred_manifest_path(nemo_manifest_path: Path) -> Tuple[str, str]:
                 tar_writer.write(name, BytesIO(f.read()))
             mft_writer.write({**d, "audio_filepath": name, "shard_id": int(idx > 4)})
     return mft_writer.path, f"{root}/audios__OP_0..1_CL_.tar"
+
+
+@pytest.fixture(scope="session")
+def nemo_tarred_manifest_with_skipme_path(nemo_tarred_manifest_path: Path) -> Tuple[str, str]:
+    """Create a nemo tarred manifest with last 2 utterances out of 10 with `_skipme` key enabled."""
+    from lhotse.serialization import load_jsonl, save_to_jsonl
+
+    json_p, tar_p = nemo_tarred_manifest_path
+
+    all_items = list(load_jsonl(json_p))
+
+    for item in all_items[-2:]:
+        item['_skipme'] = True
+
+    p = json_p.parent / "tarred_audio_filepaths_with_skipme.jsonl"
+    save_to_jsonl(all_items, p)
+
+    return p, tar_p
 
 
 @pytest.fixture(scope="session")
@@ -2469,3 +2502,93 @@ def test_dataloader_from_tarred_nemo_subset_manifest(nemo_tarred_manifest_subset
     seen_ids_set = set(seen_ids)
     assert len(seen_ids_set) == len(seen_ids), "Duplicate IDs found in the batch."
     assert seen_ids_set == expected_ids, "The set of IDs in the batches does not match the input JSON manifests."
+
+
+def test_dataloader_from_nemo_manifest_with_skipme(nemo_manifest_with_skipme_path: Path):
+    config = OmegaConf.create(
+        {
+            "manifest_filepath": nemo_manifest_with_skipme_path,
+            "sample_rate": 16000,
+            "shuffle": True,
+            "use_lhotse": True,
+            "num_workers": 0,
+            "batch_size": 1,
+            # lhotse specific
+            "use_bucketing": False,
+        }
+    )
+
+    dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=_Identity())
+    batches = [batch for batch in dl]
+    skipme_s = [cut.custom.get('_skipme', 0) for batch in batches for cut in batch]
+
+    assert len(batches) == 8
+    assert not any(skipme_s)
+
+
+def test_dataloader_from_tarred_nemo_manifest_with_skipme(nemo_tarred_manifest_with_skipme_path: tuple[Path, str]):
+    json_mft, tar_mft = nemo_tarred_manifest_with_skipme_path
+    config = OmegaConf.create(
+        {
+            "manifest_filepath": json_mft,
+            "tarred_audio_filepaths": tar_mft,
+            "sample_rate": 16000,
+            "shuffle": True,
+            "use_lhotse": True,
+            "num_workers": 0,
+            "batch_size": 1,
+            # lhotse specific
+            "use_bucketing": False,
+            "force_finite": True,
+        }
+    )
+
+    dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=_Identity())
+    batches = [batch for batch in dl]
+    skipme_s = [cut.custom.get('_skipme', 0) for batch in batches for cut in batch]
+
+    assert len(batches) == 8
+    assert not any(skipme_s)
+
+
+def test_dataloader_from_data_input_cfg_yaml_path_with_skipme(cutset_shar_path, nemo_tarred_manifest_with_skipme_path):
+    config = OmegaConf.create(
+        {
+            "input_cfg": [
+                {
+                    "type": "nemo_tarred",
+                    "manifest_filepath": nemo_tarred_manifest_with_skipme_path[0],
+                    "tarred_audio_filepaths": nemo_tarred_manifest_with_skipme_path[1],
+                    "weight": 0.5,
+                    "tags": {
+                        "language": "en",
+                        "modality": "audio",
+                        "dataset_name": "D1",
+                    },
+                },
+                {
+                    "type": "lhotse_shar",
+                    "shar_path": cutset_shar_path,
+                    "weight": 0.5,
+                    "tags": {
+                        "language": "en",
+                        "modality": "audio",
+                        "dataset_name": "D2",
+                    },
+                },
+            ],
+            "sample_rate": 16000,
+            "shuffle": True,
+            "num_workers": 0,
+            "batch_size": 4,
+            "seed": 0,
+            "shard_seed": 0,
+            "force_finite": True,
+        }
+    )
+
+    dl = get_lhotse_dataloader_from_config(config=config, global_rank=0, world_size=1, dataset=Identity())
+    batches = [batch for batch in dl]
+    skipme_s = [cut.custom.get('_skipme', 0) for batch in batches for cut in batch]
+
+    assert not any(skipme_s)

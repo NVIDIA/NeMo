@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,11 +24,11 @@ import numpy
 # tenosrstore is needed to register 'bfloat16' dtype with numpy for zarr compatibility
 import tensorstore  # noqa: F401 pylint: disable=unused-import
 import torch
-import zarr
 from torch.distributed.checkpoint import FileSystemReader, load
 from torch.distributed.checkpoint.metadata import BytesStorageMetadata, TensorStorageMetadata
 
 from nemo.export.tarutils import TarPath, ZarrPathStore
+from nemo.export.utils._mock_import import _mock_import
 
 LOGGER = logging.getLogger("NeMo")
 
@@ -151,6 +151,9 @@ def load_sharded_metadata_zarr(
         elif (subdir / '.zarray').exists():
             key = subdir.name
             zstore = ZarrPathStore(subdir)
+
+            import zarr
+
             arr = zarr.open(zstore, 'r')
 
             if arr.dtype.name == "bfloat16":
@@ -199,6 +202,8 @@ def load_model_weights(checkpoint_path: Union[str, Path], load_extra_states: boo
     if config_dict['sharded_backend'] == 'zarr':
         return load_sharded_metadata_zarr(nemo_weights, load_extra_states=load_extra_states)
     elif config_dict['sharded_backend'] == 'torch_dist':
-        return load_sharded_metadata_torch_dist(nemo_weights, load_extra_states=load_extra_states)
+        # TODO: Remove mocking imports once MCore is available in NIM containers
+        with _mock_import("megatron.core.dist_checkpointing.strategies.torch"):
+            return load_sharded_metadata_torch_dist(nemo_weights, load_extra_states=load_extra_states)
 
     raise NotImplementedError(f'Distributed checkpoint backend {config_dict["sharded_backend"]} not supported')

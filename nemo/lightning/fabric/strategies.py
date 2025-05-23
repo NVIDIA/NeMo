@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -65,16 +65,24 @@ DDPLiteral = Literal["megatron", "pytorch"]
 
 
 class FabricMegatronStrategy(DDPStrategy):
+    """
+    Fabric strategy for Megatron.
+    """
+
     def __init__(
         self,
         tensor_model_parallel_size: int = 1,
         pipeline_model_parallel_size: int = 1,
         virtual_pipeline_model_parallel_size: Optional[int] = None,
+        pipeline_model_parallel_comm_backend: str = None,
         microbatch_group_size_per_vp_stage: Optional[int] = None,
         context_parallel_size: int = 1,
         sequence_parallel: bool = False,
         expert_model_parallel_size: int = 1,
         moe_extended_tp: bool = False,
+        expert_tensor_parallel_size: int = None,
+        encoder_tensor_model_parallel_size: Optional[int] = 0,
+        encoder_pipeline_model_parallel_size: Optional[int] = 0,
         data_sampler: Optional["DataSampler"] = None,
         accelerator: Optional[Accelerator] = None,
         parallel_devices: Optional[List[torch.device]] = None,
@@ -91,6 +99,8 @@ class FabricMegatronStrategy(DDPStrategy):
         pipeline_dtype: Optional[torch.dtype] = None,
         init_model_parallel: bool = True,
         use_tp_pp_dp_mapping: bool = False,
+        num_distributed_optimizer_instances: int = 1,
+        nccl_communicator_config_path: Optional[str] = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(
@@ -108,6 +118,7 @@ class FabricMegatronStrategy(DDPStrategy):
         self.data_sampler: Optional['DataSampler'] = data_sampler
         self.tensor_model_parallel_size = tensor_model_parallel_size
         self.pipeline_model_parallel_size = pipeline_model_parallel_size
+        self.pipeline_model_parallel_comm_backend = pipeline_model_parallel_comm_backend
         self.microbatch_group_size_per_vp_stage = (
             microbatch_group_size_per_vp_stage
             if microbatch_group_size_per_vp_stage is not None
@@ -115,12 +126,17 @@ class FabricMegatronStrategy(DDPStrategy):
         )
         self.context_parallel_size = context_parallel_size
         self.expert_model_parallel_size = expert_model_parallel_size
+        self.expert_tensor_parallel_size = expert_tensor_parallel_size
         self.moe_extended_tp = moe_extended_tp
         self.virtual_pipeline_model_parallel_size = virtual_pipeline_model_parallel_size
         self.sequence_parallel = sequence_parallel
+        self.encoder_tensor_model_parallel_size = encoder_tensor_model_parallel_size
+        self.encoder_pipeline_model_parallel_size = encoder_pipeline_model_parallel_size
         self.pipeline_dtype = pipeline_dtype
         self._init_model_parallel = init_model_parallel
         self.use_tp_pp_dp_mapping = use_tp_pp_dp_mapping
+        self.num_distributed_optimizer_instances = num_distributed_optimizer_instances
+        self.nccl_communicator_config_path = nccl_communicator_config_path
         self.no_ddp_communication_hook = no_ddp_communication_hook
         self.megatron_callbacks = CallbackConnector()
         if megatron_callbacks:
@@ -163,6 +179,9 @@ class FabricMegatronStrategy(DDPStrategy):
         _strategy_lib.init_model_parallel()
 
     def process_datamodule(self, datamodule: LightningDataModule) -> LightningDataModule:
+        """
+        Process the datamodule.
+        """
         datamodule.setup()
 
         if not self.data_sampler and hasattr(datamodule, "data_sampler"):
@@ -175,6 +194,9 @@ class FabricMegatronStrategy(DDPStrategy):
 
     @override
     def process_dataloader(self, dataloader: DataLoader) -> Iterator:
+        """
+        Process the dataloader. Returns an iterator.
+        """
         if self.data_sampler:
             dataloader = self.data_sampler.transform_dataloader(dataloader)
 
@@ -196,6 +218,9 @@ class FabricMegatronStrategy(DDPStrategy):
         scale_lr_cond: Optional[Callable] = None,
         lr_mult: float = 1.0,
     ) -> Optimizer:
+        """
+        Setup the Megatron optimizer.
+        """
         if hasattr(self.precision, "convert_config"):
             optimizer_config = self.precision.convert_config(optimizer_config)
 
@@ -221,6 +246,9 @@ class FabricMegatronStrategy(DDPStrategy):
 
     @override
     def setup_module(self, module: Module) -> MegatronParallel:
+        """
+        Setup the torch module. Returns a MegatronParallel object.
+        """
         from megatron.core.utils import get_model_config
 
         _strategy_lib.set_model_parallel_attributes(module, self.parallelism)
@@ -277,6 +305,9 @@ class FabricMegatronStrategy(DDPStrategy):
         return megatron_parallel
 
     def module_init_context(self, empty_init: Optional[bool] = None) -> ContextManager:
+        """
+        Get the context manager used for initializing the module.
+        """
         precision_init_ctx = self.precision.module_init_context()
         module_sharded_ctx = self.megatron_context()
         stack = ExitStack()
@@ -291,6 +322,9 @@ class FabricMegatronStrategy(DDPStrategy):
         return stack
 
     def module_to_device(self, module: nn.Module) -> None:
+        """
+        Move the module to the device.
+        """
         pass
 
     @override
@@ -322,6 +356,9 @@ class FabricMegatronStrategy(DDPStrategy):
         state: Optional[Union[Module, Optimizer, Dict[str, Union[Module, Optimizer, Any]]]] = None,
         strict: bool = True,
     ) -> Dict[str, Any]:
+        """
+        Load the checkpoint.
+        """
         if isinstance(state, Optimizer):
             raise NotImplementedError("Optimizer loading is not supported, pass it as a dict including the model")
 
@@ -368,10 +405,16 @@ class FabricMegatronStrategy(DDPStrategy):
     def load_module_state_dict(
         self, module: Module, state_dict: Dict[str, Union[Any, Tensor]], strict: bool = True
     ) -> None:
+        """
+        Load the module state dict.
+        """
         _strategy_lib.load_model_state_dict(module, state_dict, strict=strict)
 
     @contextmanager
     def megatron_context(self) -> Generator[None, None, None]:
+        """
+        Context manager for Megatron.
+        """
         from megatron.core.extensions import transformer_engine as _te
 
         original = _te._get_extra_te_kwargs  # noqa: SLF001
@@ -399,6 +442,9 @@ class FabricMegatronStrategy(DDPStrategy):
     @property
     @override
     def checkpoint_io(self) -> CheckpointIO:
+        """
+        Get the checkpoint IO.
+        """
         if self._checkpoint_io is None:
             self._checkpoint_io = MegatronCheckpointIO()
         elif isinstance(self._checkpoint_io, _WrappingCheckpointIO):
@@ -408,19 +454,28 @@ class FabricMegatronStrategy(DDPStrategy):
 
     @property
     def parallelism(self):
+        """
+        Get the parallelism config.
+        """
         from nemo.lightning.pytorch.strategies.megatron_strategy import ParallelismConfig
 
         return ParallelismConfig(
             tensor_model_parallel_size=self.tensor_model_parallel_size,
             pipeline_model_parallel_size=self.pipeline_model_parallel_size,
+            pipeline_model_parallel_comm_backend=self.pipeline_model_parallel_comm_backend,
             virtual_pipeline_model_parallel_size=self.virtual_pipeline_model_parallel_size,
             microbatch_group_size_per_vp_stage=self.microbatch_group_size_per_vp_stage,
             context_parallel_size=self.context_parallel_size,
             sequence_parallel=self.sequence_parallel,
             expert_model_parallel_size=self.expert_model_parallel_size,
+            expert_tensor_parallel_size=self.expert_tensor_parallel_size,
             moe_extended_tp=self.moe_extended_tp,
+            encoder_tensor_model_parallel_size=self.encoder_tensor_model_parallel_size,
+            encoder_pipeline_model_parallel_size=self.encoder_pipeline_model_parallel_size,
             pipeline_dtype=self.pipeline_dtype,
             use_tp_pp_dp_mapping=self.use_tp_pp_dp_mapping,
+            num_distributed_optimizer_instances=self.num_distributed_optimizer_instances,
+            nccl_communicator_config_path=self.nccl_communicator_config_path,
         )
 
 
@@ -444,6 +499,9 @@ class _MegatronDataLoaderIterDataFetcher(_DataFetcher):
         return self.iterator_wrapper
 
     def reset(self) -> None:
+        """
+        Reset the data fetcher.
+        """
         super().reset()
         self._batch = None
         self._batch_idx = 0
@@ -461,18 +519,30 @@ class _DataFetcherWrapper(Iterator):
 
     @property
     def done(self) -> bool:
+        """
+        Check if the data fetcher is done.
+        """
         return self.data_fetcher.done
 
     @property
     def fetched(self) -> int:
+        """
+        Check if the data fetcher is fetched.
+        """
         return self.data_fetcher.fetched
 
     @property
     def length(self) -> Optional[int]:
+        """
+        Get the length of the data fetcher.
+        """
         return self.data_fetcher.length
 
     @property
     def data_config(self):
+        """
+        Get the data config.
+        """
         return self.data_fetcher.data_config
 
     def __next__(self):
@@ -493,14 +563,22 @@ class _DataFetcherWrapper(Iterator):
 
 @to_fabric.register(MegatronStrategy)
 def convert_megatron_strategy(strategy: MegatronStrategy) -> FabricMegatronStrategy:
+    """
+    Convert the Megatron strategy to the Fabric strategy.
+    """
     return FabricMegatronStrategy(
         tensor_model_parallel_size=strategy.tensor_model_parallel_size,
         pipeline_model_parallel_size=strategy.pipeline_model_parallel_size,
+        pipeline_model_parallel_comm_backend=strategy.pipeline_model_parallel_comm_backend,
         virtual_pipeline_model_parallel_size=strategy.virtual_pipeline_model_parallel_size,
+        microbatch_group_size_per_vp_stage=strategy.microbatch_group_size_per_vp_stage,
         context_parallel_size=strategy.context_parallel_size,
         sequence_parallel=strategy.sequence_parallel,
         expert_model_parallel_size=strategy.expert_model_parallel_size,
+        expert_tensor_parallel_size=strategy.expert_tensor_parallel_size,
         moe_extended_tp=strategy.moe_extended_tp,
+        encoder_tensor_model_parallel_size=strategy.encoder_tensor_model_parallel_size,
+        encoder_pipeline_model_parallel_size=strategy.encoder_pipeline_model_parallel_size,
         pipeline_dtype=strategy.pipeline_dtype,
         use_tp_pp_dp_mapping=strategy.use_tp_pp_dp_mapping,
         ddp=strategy._ddp,

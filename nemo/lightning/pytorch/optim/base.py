@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -164,8 +164,12 @@ class OptimizerModule(L.Callback, CallbackMethods, IOMixin, ABC):
         raise NotImplementedError("The optimizers method should be implemented by subclasses.")
 
     def on_train_batch_start(self, trainer, pl_module, batch, batch_idx) -> None:
+        # pylint: disable=C0116
         if self._optimizers is not None:
-            lr = self._optimizers[0].param_groups[0]['lr']
+            if len(self._optimizers[0].param_groups) > 0:
+                lr = self._optimizers[0].param_groups[0]['lr']
+            else:
+                lr = 0.0
             pl_module.log('lr', lr, batch_size=1, prog_bar=True)
 
     def __call__(self, model: L.LightningModule, megatron_parallel=None) -> OptimizerLRScheduler:

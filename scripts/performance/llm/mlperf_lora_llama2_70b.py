@@ -24,7 +24,7 @@ from nemo.collections.llm.gpt.data.packed_sequence import PackedSequenceSpecs
 from nemo.collections.llm.gpt.model.llama import *
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
-from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
+from nemo.lightning.run.plugins import MemoryProfilePlugin, NsysPlugin, PerfEnvPlugin
 
 from ..argument_parser import parse_cli_args
 from ..utils import args_sanity_check, import_ckpt_experiment, slurm_executor
@@ -104,7 +104,7 @@ def mlperf_lora_llama2_70b_recipe(
         lr_scheduler=scheduler,
     )
     peft = run.Config(
-        llm.peft.lora.LoRA,
+        llm.peft.LoRA,
         dim=16,
         alpha=32,
         dropout=0.1,
@@ -161,7 +161,7 @@ def mlperf_lora_llama2_70b_recipe(
         fp8="hybrid",
         fp8_amax_history_len=32,
         fp8_amax_compute_algo='max',
-        fp8_params=True,
+        fp8_param_gather=True,
         fp8_dot_product_attention=1,
     )
 
@@ -235,8 +235,6 @@ def mlperf_lora_llama2_70b_recipe(
         callbacks=[overlap_callback, gc_callback, timing_callback],
     )
 
-    from nemo.collections.llm.recipes.log.default import tensorboard_logger
-
     recipe = run.Partial(
         llm.finetune,
         model=model,
@@ -289,7 +287,9 @@ if __name__ == "__main__":
 
     env_vars = {
         # pylint: disable=C0301
-        "CUDA_DEVICE_MAX_CONNECTIONS": "1",  # Limit GPUs to one compute stream so that kernels will be executed in consistent order, for best performance with communication overlap configs
+        "CUDA_DEVICE_MAX_CONNECTIONS": (
+            "32" if args.gpu.lower() in ['b200', 'gb200'] else "1"
+        ),  # Limit GPUs to one compute stream so that kernels will be executed in consistent order, for best performance with communication overlap configs
         # pylint: disable=C0301
         "CUBLAS_FORCE_XMMA_KERNEL_INIT": "DEVICE",  # Use a device kernel instead of memset for matrix multiply initialization, which can help reduce CPU-side overhead
         "CUDNN_FRONTEND_ATTN_DP_WORKSPACE_LIMIT": "0",  # Reduce memory used by cuDNN attention
@@ -316,6 +316,7 @@ if __name__ == "__main__":
         hf_token=args.hf_token,
         nemo_home=args.nemo_home,
         wandb_key=args.wandb_key,
+        network='sharp' if args.use_sharp else None,
     )
 
     recipe = mlperf_lora_llama2_70b_recipe(
@@ -341,12 +342,22 @@ if __name__ == "__main__":
 
         recipe.log.wandb = wandb_logger(project=args.wandb_prj_name, name=args.wandb_job_name)
 
-    plugins = [PerfEnvPlugin(enable_vboost=True, nccl_pp_comm_chunksize=2097152 if PP_SIZE > 1 else None)]
+    plugins = [
+        PerfEnvPlugin(
+            enable_vboost=True,
+            nccl_pp_comm_chunksize=2097152 if PP_SIZE > 1 else None,
+            gpu_sm100_or_newer=(args.gpu.lower() in ['b200', 'gb200']),
+        )
+    ]
     if args.enable_nsys:
         plugins.append(NsysPlugin(start_step=5, end_step=6))
+    if args.enable_memory_profile:
+        assert args.memory_profile_out_path is not None
+        plugins.append(MemoryProfilePlugin(dir=args.memory_profile_out_path))
 
     with run.Experiment(exp_name) as exp:
         if not SKIP_IMPORT:
+            assert args.hf_token is not None, "HF token is required for importing checkpoint from HuggingFace"
             exp.add(
                 *import_ckpt_experiment(
                     executor, run.Config(LlamaModel, config=run.Config(Llama2Config70B)), source=f"hf://{HF_MODEL_URI}"

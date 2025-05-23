@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -110,6 +110,9 @@ class LazyNeMoIterator:
         # Propagate the random seed
         extra_fields = [ExtraField.from_dict({"seed": seed, **field_cfg}) for field_cfg in self.extra_fields or ()]
         for data in self.source:
+            # filter out entries with valid "_skipme" values.
+            if data.get("_skipme", False):
+                continue
             audio_path = get_full_path(str(data.pop("audio_filepath")), str(self.path), force_cache=False)
             duration = data.pop("duration")
             offset = data.pop("offset", None)
@@ -409,6 +412,9 @@ class LazyNeMoTarredIterator:
                     )
                     cuts_for_recording = []
                     for data in sorted(shard_manifest[tar_info.name], key=lambda d: d["audio_filepath"]):
+                        # filter out entries with valid "_skipme" values.
+                        if data.get("_skipme", False):
+                            continue
                         # Cut the recording into corresponding segment and discard audio data outside the segment.
                         cut = make_cut_with_subset_inmemory_recording(
                             recording, offset=data.get("offset", 0.0), duration=data.get("duration")

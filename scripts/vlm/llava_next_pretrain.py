@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,7 +18,12 @@ Example:
   --devices=8 --tp=4 --data_type=mock
   
   torchrun --nproc_per_node=8 scripts/vlm/llava_next_pretrain.py \
-  --devices=8 --tp=4 --data_type=energon --data_path='' \ 
+  --devices=8 --tp=4 --data_type=energon --data_path='' \
+  --language_model_path=/root/.cache/nemo/models/lmsys/vicuna-7b-v1.5
+  
+  torchrun --nproc_per_node=8 scripts/vlm/llava_next_pretrain.py \
+  --devices=8 --tp=4 --data_type=energon --data_path='' \
+  --num_workers=8 --max_samples_per_sequence=100 --shuffle_buffer_size=100 \
   --language_model_path=/root/.cache/nemo/models/lmsys/vicuna-7b-v1.5
 """
 
@@ -30,6 +35,7 @@ from megatron.core.optimizer import OptimizerConfig
 
 from nemo import lightning as nl
 from nemo.collections import llm, vlm
+from nemo.collections.multimodal.data.energon import ImageToken
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 from nemo.utils.exp_manager import TimingCallback
@@ -42,8 +48,11 @@ def main(args):
     gbs = args.gbs
     mbs = args.mbs
     max_steps = args.max_steps
+    num_workers = args.num_workers
 
+    # For Interleaved data, the decoder sequence length needs to be higher than VQA samples
     decoder_seq_length = 4096
+    # decoder_seq_length = 40960
 
     if args.data_type == "energon":
         from transformers import AutoProcessor
@@ -54,11 +63,17 @@ def main(args):
         from nemo.collections.vlm import LlavaNextTaskEncoder
 
         data_path = args.data_path
+        max_samples_per_sequence = args.max_samples_per_sequence
+        shuffle_buffer_size = args.shuffle_buffer_size
+
         model_id = "llava-hf/llava-v1.6-vicuna-7b-hf"
         processor = AutoProcessor.from_pretrained(model_id)
         tokenizer = AutoTokenizer(model_id)
 
-        multimodal_sample_config = MultiModalSampleConfig()
+        multimodal_sample_config = MultiModalSampleConfig(
+            image_token=ImageToken(token_str="<image>", token_id=-200),
+            ignore_place_holder=-100,
+        )
         # Setting system prompt to empty string
         multimodal_sample_config.conversation_template_config.system = ''
 
@@ -66,16 +81,23 @@ def main(args):
             tokenizer=tokenizer.tokenizer,
             image_processor=processor.image_processor,
             multimodal_sample_config=multimodal_sample_config,
+            packed_sequence=args.use_packed_sequence,
+            packed_sequence_size=decoder_seq_length,
         )
         data = EnergonMultiModalDataModule(
             path=data_path,
             tokenizer=tokenizer,
             image_processor=processor.image_processor,
-            num_workers=32,
+            num_workers=num_workers,
             micro_batch_size=mbs,
             global_batch_size=gbs,
+            max_samples_per_sequence=max_samples_per_sequence,
+            shuffle_buffer_size=shuffle_buffer_size,
+            seq_length=decoder_seq_length,
             multimodal_sample_config=multimodal_sample_config,
             task_encoder=task_encoder,
+            packing_buffer_size=200 if args.use_packed_sequence else None,
+            virtual_epoch_length=1000,
         )
 
     elif args.data_type == "mock":
@@ -85,18 +107,14 @@ def main(args):
             micro_batch_size=mbs,
             tokenizer=None,
             image_processor=None,
-            num_workers=4,
+            num_workers=num_workers,
         )
     else:
         raise ValueError(f"Data type {args.data_type} not supported")
 
     # Submodules configurations
-    language_transformer_config = llm.Llama2Config7B(
-        seq_length=decoder_seq_length,
-    )
-    vision_transformer_config = vlm.HFCLIPVisionConfig(
-        pretrained_model_name_or_path="openai/clip-vit-large-patch14-336"
-    )
+    language_transformer_config = llm.Llama2Config7B(seq_length=decoder_seq_length)
+    vision_transformer_config = vlm.HFCLIPVisionConfig(pretrained_model_name_or_path=args.vision_encoder_model_path)
     vision_projection_config = vlm.MultimodalProjectorConfig(
         projector_type=args.projector_type,
         input_size=vision_transformer_config.hidden_size,
@@ -110,6 +128,7 @@ def main(args):
         vision_transformer_config=vision_transformer_config,
         vision_projection_config=vision_projection_config,
         language_model_from_pretrained=args.language_model_path,
+        pipeline_dtype=torch.bfloat16,
         freeze_language_model=True,
         freeze_vision_model=True,
     )
@@ -120,9 +139,10 @@ def main(args):
     strategy = nl.MegatronStrategy(
         tensor_model_parallel_size=args.tp_size,
         pipeline_model_parallel_size=args.pp_size,
+        context_parallel_size=args.cp_size,
         encoder_pipeline_model_parallel_size=args.encoder_pp_size,
         pipeline_dtype=torch.bfloat16,
-        sequence_parallel=False,
+        sequence_parallel=True if args.tp_size > 1 else False,
     )
 
     # Checkpoint callback setup
@@ -142,8 +162,11 @@ def main(args):
         accelerator="gpu",
         strategy=strategy,
         plugins=nl.MegatronMixedPrecision(precision="bf16-mixed"),
-        callbacks=[checkpoint_callback, TimingCallback()],
-        val_check_interval=500,
+        callbacks=[
+            checkpoint_callback,
+            TimingCallback(),
+        ],
+        val_check_interval=1000,
         limit_val_batches=gbs,
         log_every_n_steps=1,
         num_sanity_val_steps=0,
@@ -204,6 +227,13 @@ if __name__ == "__main__":
         "--language_model_path", type=str, required=False, default=None, help="Path to the pretrained language model"
     )
     parser.add_argument(
+        "--vision_encoder_model_path",
+        type=str,
+        required=False,
+        default="openai/clip-vit-large-patch14-336",
+        help="Path to the pretrained vision encoder model",
+    )
+    parser.add_argument(
         "--restore_path", type=str, required=False, default=None, help="Path to restore model from checkpoint"
     )
     parser.add_argument("--devices", type=int, required=False, default=1)
@@ -211,6 +241,7 @@ if __name__ == "__main__":
     parser.add_argument("--max_steps", type=int, required=False, default=2100)
     parser.add_argument("--tp_size", type=int, required=False, default=2)
     parser.add_argument("--pp_size", type=int, required=False, default=1)
+    parser.add_argument("--cp_size", type=int, required=False, default=1)
     parser.add_argument("--encoder_pp_size", type=int, required=False, default=0)
     parser.add_argument("--projector_type", type=str, required=False, default="mlp2x_gelu")
     parser.add_argument("--name", type=str, required=False, default="llava_next_pretrain")
@@ -218,6 +249,28 @@ if __name__ == "__main__":
     parser.add_argument("--gbs", type=int, required=False, default=32, help="Global batch size")
     parser.add_argument("--mbs", type=int, required=False, default=4, help="Micro batch size")
     parser.add_argument("--lr", type=float, required=False, default=0.001, help="Learning rate")
+    parser.add_argument(
+        "--num_workers",
+        type=int,
+        required=False,
+        default=4,
+        help="The number of data loader workers per rank. May be 0 to disable worker processes",
+    )
+    parser.add_argument(
+        "--max_samples_per_sequence",
+        type=int,
+        required=False,
+        default=100,
+        help="If using Energon, the maximum number of samples per sequence to load from memory",
+    )
+    parser.add_argument(
+        "--shuffle_buffer_size",
+        type=int,
+        required=False,
+        default=100,
+        help="If using Energon, the size of the sample shuffle buffer (before task encoding)",
+    )
+    parser.add_argument("--use_packed_sequence", action="store_true")
 
     args = parser.parse_args()
     main(args)

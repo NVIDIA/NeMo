@@ -1,6 +1,695 @@
 # Changelog
 
 <!-- Next changelog -->
+## NVIDIA Neural Modules 2.3.0
+
+### Highlights
+
+- Export & Deploy
+  - NeMo 2.0 export path for NIM
+  - ONNX and TensorRT Export for NIM Embedding Container
+  - In-framework deployment for HF Models
+  - TRT-LLM deployment for HF Models in NeMo Framework
+- Evaluation
+  - Integrate nvidia-lm-eval to NeMo FW for evaluations with OpenAI API compatible in-framework deployment
+- AutoModel
+  - VLM AutoModelForImageForTextToText
+  - FP8 for AutoModel
+  - Support CP with FSDP2
+  - Support TP with FSDP2
+  - Performance Optimization
+    - add support for cut cross entropy & liger kernel
+    - Gradient Checkpointing
+- Fault Tolerance
+  - Integrate NVRx v0.3 Local checkpointing
+- Collections
+  - LLM
+    - Llama4
+    - Llama Nemotron Ultra
+    - Llama Nemotron Super
+    - Llama Nemotron Nano
+    - Nemotron-h/5
+    - DeepSeek V3 Pretraining
+    - Evo2
+    - Qwen 2.5
+    - LoRA for Qwen3-32B and Qwen3-30B-A3B
+  - MultiModal
+    - FLUX
+    - Gemma 3
+    - Qwen2-VL
+  - ASR
+    - NeMo Run support for ASR training
+    - N-Gram LM on GPU for AED
+    - N-Gram LM on GPU + Transducer greedy decoding (RNN-T, TDT)
+    - Timestamps support for AED timestamp supported models
+    - Migrate SpeechLM to NeMo 2.0
+    - Canary-1.1
+    - Replace ClassificationModels class with LabelModels
+- Performance
+  - Functional MXFP8 support for (G)B200
+  - Current scaling recipe with TP communication overlap and FP8 param gathers
+  - Custom FSDP support that fully utilizes GB200 NVL72
+
+### Detailed Changelogs:
+
+#### ASR
+
+<details><summary>Changelog</summary>
+
+- Added model config params for Canary-1B-Flash, Canary-180M-Flash models by @KunalDhawan :: PR: #12588
+- Canary tutorial by @ankitapasad :: PR: #12613
+- Canary tutorial fix timestamp by @ankitapasad :: PR: #12677
+- revert config by @nithinraok :: PR: #12689
+- canary longform inference script with timestamps option by @krishnacpuvvada :: PR: #12653
+- Fix default timestamps value for Hybrid ASR models by @artbataev :: PR: #12681
+- Fix k2 installation with PyTorch 2.6.0 by @artbataev :: PR: #12686
+- Improve time and RTFx report for ASR by @artbataev :: PR: #12680
+- Modify train args by @ankitapasad :: PR: #12700
+- Fix asr doc warnings by @nithinraok :: PR: #12720
+- Rename `FastNGramLM` -> `NGramGPULanguageModel` by @artbataev :: PR: #12755
+- transcribe fix for new hypotheses by @nune-tadevosyan :: PR: #12801
+- Fix timestamps when cuda graphs enabled by @monica-sekoyan :: PR: #12808
+- update streaming conformer by @stevehuang52 :: PR: #12846
+- AED Decoding with N-Gram LM by @artbataev :: PR: #12730
+- update notebook by @nithinraok :: PR: #13088
+- bugfix ASR_Context_Biasing.ipynb by @lilithgrigoryan :: PR: #13109
+- Change branch for installation from main to r2.3.0 by @ankitapasad :: PR: #13266
+
+</details>
+
+#### TTS
+
+<details><summary>Changelog</summary>
+
+- Add Magpie-TTS and Updates NeMo Audio Codecs by @blisc :: PR: #12606
+- fix bug from prior commit (#13264) by @blisc :: PR: #13328
+
+</details>
+
+#### NLP / NMT
+
+<details><summary>Changelog</summary>
+
+- Remove old peft docs by @cuichenx :: PR: #12675
+- Add code coverage for llm gpt models conversion tests by @suiyoubi :: PR: #12665
+- Make BERT TransformerBlockWithPostLNSupport accept more inputs from Mcore by @suiyoubi :: PR: #12685
+- remove gifs from documentation by @dimapihtar :: PR: #12732
+- Rename `FastNGramLM` -> `NGramGPULanguageModel` by @artbataev :: PR: #12755
+- fix NeMo documentation by @dimapihtar :: PR: #12754
+- GPT Model/Data/Recipe Unit Test by @suiyoubi :: PR: #12757
+- ci: Exclude nlp, mm, vision collections by @ko3n1g :: PR: #12816
+- Add vocab size as attr to GPT and T5 Configs, use file name based logger in llm.gpt.data by @hemildesai :: PR: #12862
+- Fix transformer layer api with megatron cbc89b3 by @yaoyu-33 :: PR: #12885
+
+</details>
+
+#### Text Normalization / Inverse Text Normalization
+
+<details><summary>Changelog</summary>
+
+- Rename `FastNGramLM` -> `NGramGPULanguageModel` by @artbataev :: PR: #12755
+
+</details>
+
+#### Export
+
+<details><summary>Changelog</summary>
+
+- GHA Conversion Test and Importer/Exporter Refactor by @suiyoubi :: PR: #12597
+- Fix Llama Embedding Model Exporting keys by @suiyoubi :: PR: #12691
+- build: Add trtllm by @ko3n1g :: PR: #12672
+- Fix trt-llm install by @chtruong814 :: PR: #12827
+- Update LLaVA's next HF exporter to load ViT checkpoint from YAML by @eagle705 :: PR: #12841
+- Support huggingface export to tensorrtllm by @pthombre :: PR: #12889
+- Adds a built stage for the trt-llm wheel to reduce the overall test image size by @chtruong814 :: PR: #12883
+
+</details>
+
+#### Uncategorized:
+
+<details><summary>Changelog</summary>
+
+- Update changelog-build.yml by @ko3n1g :: PR: #12584
+- Update changelog for `r2.2.0` by @github-actions[bot] :: PR: #12585
+- Add comments for requirements by @thomasdhc :: PR: #12603
+- [automodel] FSDP2Strategy: move to device if using a single-device by @akoumpa :: PR: #12593
+- build: Remove numba pin by @ko3n1g :: PR: #12604
+- docs: Update installation guides by @ko3n1g :: PR: #12596
+- Change Llama Scaling Factor type to Float by @suiyoubi :: PR: #12616
+- ci: Test multiple python versions by @ko3n1g :: PR: #12619
+- ci: Disable reformat by @ko3n1g :: PR: #12620
+- Updating ModelOpt to 0.25.0 by @janekl :: PR: #12633
+- [automodel] add additional hf_dataset tests by @akoumpa :: PR: #12646
+- [automodel] add jit_transform tests by @akoumpa :: PR: #12645
+- [automodel] init eos_token_id inside data module by @yuanzhedong :: PR: #12610
+- [automodel] grad ckpt by @akoumpa :: PR: #12644
+- bugfix(llm/LLaMa) - dropout_position can never be equal to extended string by @soluwalana :: PR: #12649
+- Fix inference pipeline quality issue by @Victor49152 :: PR: #12639
+- [automodel] switch to direct=True to propage return codes in nemorun by @akoumpa :: PR: #12651
+- add Auto Conf support for bert, t5, qwen, starcoder models by @dimapihtar :: PR: #12601
+- ci: Upload coverage by @ko3n1g :: PR: #12668
+- ci: Re-enable changed-files action by @ko3n1g :: PR: #12683
+- build: Pin sox by @ko3n1g :: PR: #12701
+- add neva quantization by @linnanwang :: PR: #12698
+- Clip coverage by @abhinavg4 :: PR: #12696
+- GHA CI test: Remove unnecessary directive by @pablo-garay :: PR: #12714
+- minor perf fixes by @malay-nagda :: PR: #12656
+- Add DeepSeek V2 Lite into llm __init__.py by @suiyoubi :: PR: #12664
+- Add Llama-Nemotron Nano and 70B models by @suiyoubi :: PR: #12712
+- Save batch norm running stats in PEFT checkpoints by @cuichenx :: PR: #12666
+- Fix document Readme under nemo to add more information by @yaoyu-33 :: PR: #12699
+- Fix ub_overlap_ag by @cuichenx :: PR: #12721
+- Toggle fast tokenizer if error occurs by @cuichenx :: PR: #12722
+- Update README.md for blackwell and AutoModel by @snowmanwwg :: PR: #12612
+- Raise error on import_ckpt with overwrite=False plus README for checkpoint_converters by @janekl :: PR: #12693
+- [automodel] fix validation_step by @soluwalana :: PR: #12659
+- [automodel] vlm tests by @akoumpa :: PR: #12716
+- Auto Configurator code coverage by @dimapihtar :: PR: #12694
+- [automodel] fix automodle benchmark script by @yuanzhedong :: PR: #12605
+- Remove unnecessary directives by @pablo-garay :: PR: #12743
+- Add recipe tests for coverage by @cuichenx :: PR: #12737
+- Add Qwen2.5 in NeMo2 by @suiyoubi :: PR: #12731
+- add fallback_module to safe_import_from by @akoumpa :: PR: #12726
+- Update quantization scripts & relax modelopt requirement specifier by @janekl :: PR: #12709
+- Import guard fasttext by @thomasdhc :: PR: #12758
+- [automodel] chunked cross entropy by @akoumpa :: PR: #12752
+- Add fsdp automodel test by @BoxiangW :: PR: #12718
+- [automodel] if peft move only adapters to cpu by @akoumpa :: PR: #12735
+- [automodel] update hf mockdataset by @akoumpa :: PR: #12643
+- [automodel] remove unused cell in multinode notebook by @yuanzhedong :: PR: #12624
+- Yash/llava next coverage by @yashaswikarnati :: PR: #12745
+- Tidy code: remove unneeded statements/lines by @pablo-garay :: PR: #12771
+- Pass tensor instead of raw number in _mock_loss_function in PTQ by @janekl :: PR: #12769
+- ci: Run on nightly schedule by @ko3n1g :: PR: #12775
+- Add logs for checkpoint saving start and finalization by @lepan-google :: PR: #12697
+- Alit/test coverage by @JRD971000 :: PR: #12762
+- Fix loss mask with packed sequence by @ashors1 :: PR: #12642
+- Add pruning recipe by @kevalmorabia97 :: PR: #12602
+- Update qwen2-v1 to use NeMo quick_gelu by @thomasdhc :: PR: #12787
+- [doc] Fixes for audio doc warnings by @anteju :: PR: #12736
+- ci: Measure multiprocessing by @ko3n1g :: PR: #12778
+- ci: Fix flaky LLM tests by @ko3n1g :: PR: #12807
+- Add BERT/Qwen2.5 Unit test and Refactor all GHA Conversion Tests by @suiyoubi :: PR: #12785
+- Fix TransformerBlock cuda_graphs compatibility with MCore by @buptzyb :: PR: #12779
+- ci: Remove `--branch` by @ko3n1g :: PR: #12809
+- ci: Move scripts fully down to files by @ko3n1g :: PR: #12802
+- add __init__.py to make this a package by @akoumpa :: PR: #12814
+- Update changelog for `r2.2.1` by @github-actions[bot] :: PR: #12818
+- add finetune support for Auto Configurator by @dimapihtar :: PR: #12770
+- [automodel] add cpu:gloo to backend by @akoumpa :: PR: #12832
+- add missing call to _apply_liger_kernel_to_instance by @akoumpa :: PR: #12806
+- Prune docker images in GHA older than 8hrs by @chtruong814 :: PR: #12838
+- [audio] Adding tests for predictive models by @anteju :: PR: #12823
+- Update resiliency example notebook readme and add links to the brev launchable by @ShriyaRishab :: PR: #12843
+- [automodel] qlora peft  by @yzhang123 :: PR: #12817
+- ci: Increase prune time by @ko3n1g :: PR: #12860
+- Update base container in `Dockerfile.speech` by @artbataev :: PR: #12859
+- Fix qwen2.5 1.5b configuration inheritance bug by @Aprilistic :: PR: #12852
+- Update modelopt upperbound to 0.27 by @thomasdhc :: PR: #12788
+- Non-blocking checkpoint cleanup failure by @jstjohn :: PR: #12804
+- Improve evo2 dataset test and testability by @jstjohn :: PR: #12857
+- Expand test converage neva / mllama by @yaoyu-33 :: PR: #12715
+- Weekly bump by @ko3n1g :: PR: #12891
+- ci: Optional_L2_NeMo_2_SSM_Finetuning by @ko3n1g :: PR: #12893
+- docs: Update guide to PEP508 by @ko3n1g :: PR: #12890
+- Replace lm-eval with nvidia-lm-eval by @chtruong814 :: PR: #12888
+- Handle CUDA_DEVICE_MAX_CONNECTIONS before job launch by @guyueh1 :: PR: #12833
+- add nemotron5 by @JRD971000 :: PR: #12660
+- Bump vllm 0.8.2 by @Laplasjan107 :: PR: #12753
+- DeepseekV3 SFT finetuning perf config  by @gdengk :: PR: #12829
+- add apply_chat_template method to TokenizerSpec + AutoTokenizer by @akoumpa :: PR: #12878
+- add accelerate to dependencies by @akoumpa :: PR: #12871
+- [automodel] Add FSDPv2-compatible context parallelism support. by @cspades :: PR: #12821
+- [fault tolerance] Add local checkpointing support by @ananthsub :: PR: #12839
+- ci: Bump release-freeze by @ko3n1g :: PR: #12914
+- ci: Use PAT for code-freeze by @ko3n1g :: PR: #12915
+- ci: Use correct environment by @ko3n1g :: PR: #12917
+- Freeze tags in in `r2.3.0` by @github-actions[bot] :: PR: #12919
+- chore: Bump version to 2.3.0.rc2 by @chtruong814 :: PR: #12920
+- Version bump to `2.3.0rc3.dev0` by @github-actions[bot] :: PR: #12921
+- Cherry pick `[automodel] Add linear ce loss support (12825)` into `r2.3.0` by @ko3n1g :: PR: #12922
+- Cherry pick `DeepSeek V3 Multi Token Prediction (12550)` into `r2.3.0` by @ko3n1g :: PR: #12928
+- Cherry pick `Set L2_NeMo_2_EVAL test to be optional (12949)` into `r2.3.0` by @ko3n1g :: PR: #12951
+- Cherry pick `GB200 LLM performance scripts tuning (12791)` into `r2.3.0` by @ko3n1g :: PR: #12923
+- Cherry pick `Allow configuration of PP communication backend to UCC in nemo2 (11755)` into `r2.3.0` by @ko3n1g :: PR: #12946
+- Cherry pick `guard bitsandbytes based on cuda availability (12937)` into `r2.3.0` by @ko3n1g :: PR: #12958
+- Cherry pick `Hugging Face model deployment support (12628)` into `r2.3.0` by @ko3n1g :: PR: #12962
+- Cherry pick `fix macro-acc for pair-audio eval (12908)` into `r2.3.0` by @ko3n1g :: PR: #12963
+- Cherry pick `Add energon dataset support for Qwen2VL (12831)` into `r2.3.0` by @ko3n1g :: PR: #12966
+- Cherry pick `Make TETransformerLayerAutocast Support Cuda Graph (12075)` into `r2.3.0` by @ko3n1g :: PR: #12967
+- Cherry pick `Use nvidia-lm-eval for evaluation (12902)` into `r2.3.0` by @ko3n1g :: PR: #12971
+- Cherry pick `[NeMo 2.0] Interface for using MXFP8 and FP8 current scaling recipes (12503)` into `r2.3.0` by @ko3n1g :: PR: #12974
+- Cherry pick `Fix trtllm and lightning conflict (12943)` into `r2.3.0` by @ko3n1g :: PR: #12981
+- Cherry pick `Update v3 finetuning recipe (12950)` and `Specify PP first/last in strategy (12992)` into `r2.3.0` by @ko3n1g :: PR: #12984
+- Cherry pick `Resolve an issue in custom megatron FSDP config setting (12948)` into `r2.3.0` by @ko3n1g :: PR: #12987
+- Cherry pick `Remove getattr_proxy to avoid problematic edge cases (12176)` into `r2.3.0` by @ko3n1g :: PR: #12990
+- Cherry pick `Enable async requests for in-fw deployment with OAI compatible server (12980)` into `r2.3.0` by @ko3n1g :: PR: #12994
+- Cherry pick `initialize model with metadata (12496)` into `r2.3.0` by @ko3n1g :: PR: #12997
+- Cherry pick `Bugfix for logits support for hf deployment (12965)` into `r2.3.0` by @ko3n1g :: PR: #13001
+- Cherry pick `Update nvidia-resiliency-ext to be >= 0.3.0 (12925)` into `r2.3.0` by @ko3n1g :: PR: #13000
+- Cherry-pick Fix params_dtype for distillation and GPT HF Exporter head_dim for pruning to r2.3.0 by @kevalmorabia97 :: PR: #13002
+- Install nvidia-pytriton on arm (#13011) by @thomasdhc :: PR: #13013
+- Version bump to `2.3.0rc4.dev0` by @github-actions[bot] :: PR: #13041
+- Cherry pick `Alit/nemotron h (12942)` into `r2.3.0` by @ko3n1g :: PR: #13007
+- Cherry pick `[Automodel] Add TP/SP support with default llama-like sharding plan (12796)` into `r2.3.0` by @ko3n1g :: PR: #13017
+- Cherry pick `Add initial docs broken link check (12977)` into `r2.3.0` by @ko3n1g :: PR: #13045
+- Cherry pick `Fix MoE Init to not use Bias in test_strategy_lib.py (13009)` into `r2.3.0` by @ko3n1g :: PR: #13014
+- Cherry pick `cleaner tflops log name (13005)` into `r2.3.0` by @ko3n1g :: PR: #13024
+- Cherry pick `Improve t5 test coverage (12803)` into `r2.3.0` by @ko3n1g :: PR: #13025
+- Cherry pick ` put the warning on the right place (12909)` into `r2.3.0` by @ko3n1g :: PR: #13035
+- Cherry pick `Temporary disable CUDA graphs in DDP mode for transducer decoding (12907)` into `r2.3.0` by @ko3n1g :: PR: #13036
+- Cherry pick `[automodel] peft fix vlm (13010)` into `r2.3.0` by @ko3n1g :: PR: #13037
+- Cherry pick `Only run the docs link check on the container (13068)` into `r2.3.0` by @ko3n1g :: PR: #13070
+- Cherry pick `Add fp8 recipe option to perf script (13032)` into `r2.3.0` by @ko3n1g :: PR: #13055
+- Cherry pick `Unified ptq export (12786)` into `r2.3.0` by @ko3n1g :: PR: #13062
+- Cherry pick `Fix VP list index out of range from Custom FSDP (13021)` into `r2.3.0` by @ko3n1g :: PR: #13077
+- Cherry pick `Add logging to cancel out PTL's warning about dataloader not being resumable (13072)` into `r2.3.0` by @ko3n1g :: PR: #13100
+- Cherry pick `Fix long sequence generation after new arg introduced in mcore engine (13049)` into `r2.3.0` by @ko3n1g :: PR: #13104
+- Cherry pick `Support Mamba models quantization (12631)` into `r2.3.0` by @ko3n1g :: PR: #13105
+- Cherry pick `Add track_io to user buffer configs (13071)` into `r2.3.0` by @ko3n1g :: PR: #13111
+- ci: Onboard 8-GPU runner (#13115) by @ko3n1g :: PR: #13121
+- Cherry pick `Add fine-tuning dataset function for FineWeb-Edu and update automodel… (13027)` into `r2.3.0` by @ko3n1g :: PR: #13118
+- Cherry pick `Re-add sox to asr requirements (13092)` into `r2.3.0` by @ko3n1g :: PR: #13120
+- Cherry pick `Update Mllama cross attn signature to match update MCore (13048)` into `r2.3.0` by @ko3n1g :: PR: #13122
+- Cherry pick `Fix Exporter for baichuan and chatglm (13095)` into `r2.3.0` by @ko3n1g :: PR: #13126
+- ci: Faster builds (#13142) by @ko3n1g :: PR: #13144
+- Version bump to `2.3.0rc5.dev0` by @github-actions[bot] :: PR: #13146
+- ci: Fix mcore install in test container (#13152) by @ko3n1g :: PR: #13159
+- ci: Fix race-condition of container setup (#13162) by @ko3n1g :: PR: #13163
+- Cherry pick `Guard decord and triton import (12861)` into `r2.3.0` by @ko3n1g :: PR: #13132
+- Cherry pick `Bump TE version and apply patch (13087)` into `r2.3.0` by @ko3n1g :: PR: #13139
+- Cherry pick `Update Llama-Minitron pruning-distillation notebooks from NeMo1 to NeMo2 + NeMoRun (12968)` into `r2.3.0` by @ko3n1g :: PR: #13141
+- Cherry pick `Export and Deploy Tests  (13076)` into `r2.3.0` by @ko3n1g :: PR: #13150
+- Cherry pick `ub fp8 h100 fixes (13131)` into `r2.3.0` by @ko3n1g :: PR: #13153
+- Cherry pick `Fix Transducer Decoding with CUDA Graphs in DDP with Mixed Precision (12938)` into `r2.3.0` by @ko3n1g :: PR: #13154
+- Cherry pick `build: Pin modelopt (13029)` into `r2.3.0` by @chtruong814 :: PR: #13170
+- Cherry pick `add fixes for nemotron-h` (13073) into `r2.3.0` by @JRD971000 :: PR: #13165
+- Add dsv3 pretrain script, support flops calculation (previous #12947) by @guyueh1 :: PR: #13186
+- ci: Allow running CI on weekly bump branch by @ko3n1g :: PR: #13233
+- Cherry pick `Add Llama Nemotron Super/Ultra models (13044)` into `r2.3.0` by @ko3n1g :: PR: #13212
+- Cherry pick `Add Blockwise FP8 to PTQ & EP to modelopt resume (12670)` into `r2.3.0` by @ko3n1g :: PR: #13239
+- Cherry pick `[OAI Serving] Validate greedy generation args (redo) (13216)` into `r2.3.0` by @ko3n1g :: PR: #13242
+- Cherry pick `drop sample_alpha in speechlm (13208)` into `r2.3.0` by @ko3n1g :: PR: #13246
+- Cherry pick `[Eval bugfix] Move global eval-related imports inside the evaluate function (13166)` into `r2.3.0` by @ko3n1g :: PR: #13249
+- Cherry pick `[Eval bugfix] Change default val of parallel_requests in eval script (13247)` into `r2.3.0` by @ko3n1g :: PR: #13253
+- Cherry pick `Add tutorial for evaluation with Evals Factory (13259)` into `r2.3.0` by @ko3n1g :: PR: #13271
+- Cherry pick `Fix default token durations (13168)` into `r2.3.0` by @ko3n1g :: PR: #13261
+- Cherry pick `[Evaluation] Add support for nvidia-lm-eval==25.04 (13230)` into `r2.3.0` by @ko3n1g :: PR: #13274
+- Cherry pick `[bug fix] set inference max seq len in inference context (13245)` into `r2.3.0` by @ko3n1g :: PR: #13276
+- Cherry pick `More export and deploy unit tests (13178)` into `r2.3.0` by @ko3n1g :: PR: #13283
+- Cherry pick `Reopen 13040 (13199)` into `r2.3.0` by @ko3n1g :: PR: #13303
+- Cherry pick `Fix nemo1's neva notebook (13218)` into `r2.3.0` by @ko3n1g :: PR: #13312
+- Cherry pick `build: various bumps (13285)` into `r2.3.0` by @ko3n1g :: PR: #13313
+- Cherry-pick `ci: Increase cache pool` into `r2.3.0` by @chtruong814 :: PR: #13317
+- Cherry pick `update num nodes in deepseek v3 finetune recipe (13314)` into `r2.3.0` by @ko3n1g :: PR: #13316
+- Cherry pick `Fix neva notebook (13334)` into `r2.3.0` by @ko3n1g :: PR: #13335
+- Cherry-pick `Add Llama4 Scout and Maverick Support (#12898)` by @ko3n1g :: PR: #13331
+- Cherry pick `Fix handling Llama Embedding dimensions param and prompt type in the ONNX export tutorial (13262)` into `r2.3.0` by @ko3n1g :: PR: #13326
+- Cherry-pick `Fix transformer offline for CI/CD llama4 tests` (#13339) to `r2.3.0` by @chtruong814 :: PR: #13340
+- Fix llama4 test names by @chtruong814 :: PR: #13358
+- Cherry pick `vLLM==0.8.5 update  (13350)` into `r2.3.0` by @ko3n1g :: PR: #13354
+- Cherry-pick a test and doc fix to r2.3.0 by @chtruong814 :: PR: #13338
+- Cherry pick `Add llama4 training recipe (12952)` into `r2.3.0` by @ko3n1g :: PR: #13386
+
+</details>
+
+## NVIDIA Neural Modules 2.2.1
+
+### Highlights
+
+- Training
+  - Fix MoE based models training instability.
+  - Fix bug in Llama exporter for Llama 3.2 1B and 3B.
+  - Fix bug in LoRA linear_fc1adapter when different TP is used during saving and loading the adapter checkpoint.
+
+### Detailed Changelogs:
+
+</details>
+
+#### Uncategorized:
+
+<details><summary>Changelog</summary>
+
+- Re-add reverted commits after 2.2.0 and set next version to be 2.2.1 by @chtruong814 :: PR: #12587
+- Cherry pick `Fix exporter for llama models with shared embed and output layers (12545)` into `r2.2.0` by @ko3n1g :: PR: #12608
+- Cherry pick `Fix TP for LoRA adapter on `linear_fc1` (12519)` into `r2.2.0` by @ko3n1g :: PR: #12607
+- Bump mcore to use 0.11.1 by @chtruong814 :: PR: #12634
+
+</details>
+
+## NVIDIA Neural Modules 2.2.0
+
+### Highlights
+
+- Training
+  - Blackwell and Grace Blackwell support
+  - Pipeline parallel support for distillation
+  - Improved NeMo Framework installation
+- Export & Deploy
+  - vLLM export for NeMo 2.0
+- Evaluations
+  - Integrate lm-eval-harness
+- Collections
+  - LLM
+    - DAPT Example and best practices in nemo 2.0
+    - [NeMo 2.0] Enable Tool Learning and add a tutorial
+    - Support GPT Embedding Model (Llama 3.2 1B/3B)
+    - Qwen2.5, Phi4 (via AutoModel)
+    - SFT for Llama 3.3 model (via AutoModel)
+    - Support BERT Embedding Model with NeMo 2.0
+    - DeepSeek SFT & PEFT Support
+  - MultiModal
+    - Clip
+    - SP for NeVA
+    - CP for NeVA
+    - Intern-VIT
+- Automodel
+  - Preview release.
+  - PEFT and SFT support for LLMs available via Hugging Face’s AutoModelForCausalLM.
+  - Support for Hugging Face-native checkpoints (full model and adapter only).
+  - Support for distributed training via DDP and FSDP2.
+- ASR/TTS
+  - Lhotse: TPS-free 2D bucket estimation and filtering
+  - Update model outputs to make all asr outputs to be in consistent format
+  - Sortformer Release Model
+
+### Detailed Changelogs:
+
+#### ASR
+
+<details><summary>Changelog</summary>
+
+- removed the line which caused a problem in nfa_tutorial by @Ssofja :: PR: #11710
+- TPS-free 2D bucket estimation and filtering by @pzelasko :: PR: #11738
+- Update transcribe_utils.py by @stevehuang52 :: PR: #11984
+- Sortformer Diarizer 4spk v1 model PR Part 4: Sortformer Documents and Notebook Tutorials by @tango4j :: PR: #11707
+- fix the issue during batched inference of Sortformer diarizer by @tango4j :: PR: #12047
+- changed asr models outputs to be consistent by @Ssofja :: PR: #11818
+- chore: Update notebooks by @ko3n1g :: PR: #12161
+- add ctc segmentation by @ko3n1g :: PR: #12312
+- clean up VAD tutorial by @stevehuang52 :: PR: #12410
+- copy from main by @nithinraok :: PR: #12423
+- ci: Disable ASR tests for now (#12443) by @ko3n1g :: PR: #12466
+- ASR_CTC_Language_Finetuning.ipynb bugfix by @lilithgrigoryan :: PR: #12538
+
+</details>
+
+#### TTS
+
+<details><summary>Changelog</summary>
+
+- Add New Transformer Backbone for TTS Models by @blisc :: PR: #11911
+- changed asr models outputs to be consistent by @Ssofja :: PR: #11818
+- chore: Update notebooks by @ko3n1g :: PR: #12161
+
+</details>
+
+#### NLP / NMT
+
+<details><summary>Changelog</summary>
+
+- Use explicit imports from megatronllm_deployable.py by @janekl :: PR: #11705
+- Bug fix minor bug in TRT-LLM deployment by @oyilmaz-nvidia :: PR: #11714
+- gpt moe perf scripts by @malay-nagda :: PR: #11760
+- Bump mcore by @ko3n1g :: PR: #11740
+- Enable packed seqs for validation by @jiemingz :: PR: #11748
+- Revert Mcore update since it caused regression by @pablo-garay :: PR: #11791
+- Fix Gemma2 Attention Init Args by @suiyoubi :: PR: #11792
+- Add null tokenizer by @erhoo82 :: PR: #11789
+- Fix DistCP inference issue by @suiyoubi :: PR: #11801
+- Add BERT Embedding Models E5 Recipe by @suiyoubi :: PR: #11787
+- Add rope scaling configs for NeMo 1 by @BoxiangW :: PR: #11807
+- Fix calculating num_available_samples by @huvunvidia :: PR: #11830
+- fix sentencepiece tokenizer special tokens by @akoumpa :: PR: #11811
+- add chat sft dataset to support agent tool calling by @chenrui17 :: PR: #11759
+- Revert "Revert Mcore update since it caused regression (#11791)" by @ko3n1g :: PR: #11799
+- fix checkpoint load issue by @dimapihtar :: PR: #11859
+- Fix nemo 1 packed sequence TE version error by @cuichenx :: PR: #11874
+- enable loading older TE checkpoints by @dimapihtar :: PR: #11930
+- ci: Use single runner machines for unit tests by @ko3n1g :: PR: #11937
+- llm performance scripts  by @malay-nagda :: PR: #11736
+- [MoE] add expert tensor parallelism support for NeMo2.0 MoE by @gdengk :: PR: #11880
+- add exception when loading ckpt saved by TE < 1.13 by @dimapihtar :: PR: #11988
+- remove renormalize_blend_weights flag by @dimapihtar :: PR: #11975
+- Llama3.2 1B Embedding Model Support by @suiyoubi :: PR: #11909
+- Weekly bump by @ko3n1g :: PR: #11896
+- Debug Apex distributed optimizer to handle Transformer Engine 2.0 by @timmoon10 :: PR: #12004
+- throw MegatronOptimizerModule warning only with mcore models by @akoumpa :: PR: #12085
+- fix nmt dataclass issue by @dimapihtar :: PR: #12081
+- Propogate dp last changes from mcore by @ryantwolf :: PR: #12012
+- Add error message when downloading failed. by @yuanzhedong :: PR: #12139
+- interface for asymmetric pipeline schedule by @erhoo82 :: PR: #12039
+- chore: Update notebooks by @ko3n1g :: PR: #12161
+- Cherrypick #12382, #12415 and #12424 by @cuichenx :: PR: #12425
+- ASR_CTC_Language_Finetuning.ipynb bugfix by @lilithgrigoryan :: PR: #12538
+
+</details>
+
+#### Text Normalization / Inverse Text Normalization
+
+<details><summary>Changelog</summary>
+
+- surface attn_implementation option by @akoumpa :: PR: #11873
+- attn_implementation eager fallback by @akoumpa :: PR: #12060
+
+</details>
+
+#### NeMo Tools
+
+<details><summary>Changelog</summary>
+
+- build: Add `sox` to SDE by @ko3n1g :: PR: #11882
+- add ctc segmentation by @ko3n1g :: PR: #12312
+
+</details>
+
+#### Export
+
+<details><summary>Changelog</summary>
+
+- Bug fix minor bug in TRT-LLM deployment by @oyilmaz-nvidia :: PR: #11714
+- In-framework deployment NeMo 2.0 nemo_export.py test by @janekl :: PR: #11749
+- Fix starcoder2 missing bias in nemo2 config for TRTLLM by @meatybobby :: PR: #11809
+- Autodetect dtype on exporting to TensorRT-LLM by @janekl :: PR: #11907
+- PTQ & TRT-LLM updates related to upcoming PyTorch 25.01 bump by @janekl :: PR: #11941
+- Run Flake8 for nemo.export module by @janekl :: PR: #11728
+- Skip initialization in hf export by @cuichenx :: PR: #12136
+- update export io call by @akoumpa :: PR: #12144
+- add default kwargs for trtllm model runner by @pablo-garay :: PR: #12248
+- cherry-pick: fix[export]: reshard model correctly handles extra_state when it's a tensor (#12132) by @terrykong :: PR: #12335
+
+</details>
+
+#### Bugfixes
+
+<details><summary>Changelog</summary>
+
+- added required instalation for sox to process mp3 file by @Ssofja :: PR: #11709
+- removed the line which caused a problem in nfa_tutorial by @Ssofja :: PR: #11710
+- Bug fix minor bug in TRT-LLM deployment by @oyilmaz-nvidia :: PR: #11714
+
+</details>
+
+#### Uncategorized:
+
+<details><summary>Changelog</summary>
+
+- Allow using vocab size from config by @shanmugamr1992 :: PR: #11718
+- Fix baseline recipes by @erhoo82 :: PR: #11725
+- Update changelog for `r2.1.0` by @github-actions[bot] :: PR: #11745
+- ci: Fix changelog generator by @ko3n1g :: PR: #11744
+- Fix 'http_port' parameter name in DeployPyTriton usages and update .qnemo compress=True path by @janekl :: PR: #11747
+- Conversion NeMo and HF checkpoint script for T5 by @huvunvidia :: PR: #11739
+- Add BERT Embedding Models by @suiyoubi :: PR: #11737
+- Add server ready check before starting evaluation by @athitten :: PR: #11731
+- only install bitsandbytes on x86 by @akoumpa :: PR: #11781
+- [Bugfix] Skip processing if extra_state loads as None by @janekl :: PR: #11778
+- chore(beep boop 🤖): Bump `MCORE_TAG=4dc8977...` (2025-01-07) by @ko3n1g :: PR: #11768
+- make progress printer compatible with PTL v2.5.0 by @ashors1 :: PR: #11779
+- Fix Mistral Conversion Issue by @suiyoubi :: PR: #11786
+- build: Fix build-arg by @ko3n1g :: PR: #11815
+- Lora ckpt in HF format for NeMo AutoModel by @oyilmaz-nvidia :: PR: #11712
+- 8x22b seq len by @malay-nagda :: PR: #11788
+- Bugfix for output_generation_logits in tensorrtllm by @athitten :: PR: #11820
+- handle mistralai/Mistral-7B-Instruct-v0.3 tokenizer correctly by @akoumpa :: PR: #11839
+- remove tensorstore pin in requirements*.txt by @pstjohn :: PR: #11777
+- Do not load context for model transform in llm inference by @hemildesai :: PR: #11751
+- update nemo2sftpeft tutorial container verison by @HuiyingLi :: PR: #11832
+- Latest News updated for Cosmos by @lbliii :: PR: #11806
+- Removes tensorstore 0.1.45 pin from requirements_deploy.txt by @pstjohn :: PR: #11858
+- ci: Prune dangling images by @ko3n1g :: PR: #11885
+- Disable tests that download datasets from web by @akoumpa :: PR: #11878
+- Add context_logits for eval accuracy calculation in case of multi token prediction tasks by @athitten :: PR: #11753
+- add dataset_root to SpecterDataModule by @suiyoubi :: PR: #11837
+- Support both Path and str for APIs by @maanug-nv :: PR: #11865
+- Run nsys callback on GBS not on MBS by @akoumpa :: PR: #11861
+- ci: Set bump-branch to weekly by @ko3n1g :: PR: #11889
+- chore: Update mcore-tag-bump-bot.yml by @ko3n1g :: PR: #11891
+- ci: Bump Mcore in weekly PR by @ko3n1g :: PR: #11897
+- check restore_config first by @akoumpa :: PR: #11890
+- LinearAdapter: propagate args to _init_adapter by @akoumpa :: PR: #11902
+- NeMo 2.0 fp8 conversion by @Laplasjan107 :: PR: #11845
+- nemo ux expert tensor parallel by @akoumpa :: PR: #11903
+- Add CP support to Neva in NeMo2 by @yaoyu-33 :: PR: #11850
+- build: Move dependencies by @ko3n1g :: PR: #11790
+- Add Flux and Flux Controlnet Support to Diffusion folder by @Victor49152 :: PR: #11794
+- ci: Adjust bump mcore workflow by @ko3n1g :: PR: #11918
+- ci: Small fix to bump workflow by @ko3n1g :: PR: #11919
+- Revert #11890 and add a test that would have caught the error by @cuichenx :: PR: #11914
+- ci: Adjust input argument by @ko3n1g :: PR: #11921
+- Create test_phi3.py by @mayani-nv :: PR: #11843
+- Enable NeMo importer and loading dist CKPT for training  by @Victor49152 :: PR: #11927
+- build: Pin `triton` by @ko3n1g :: PR: #11938
+- Add sharding for speechlm and vlm by @BoxiangW :: PR: #11876
+- Update torch load for load from disk by @thomasdhc :: PR: #11963
+- Add options to add mp_policy and parallel_fn for NeMo automodel fsdp2 by @BoxiangW :: PR: #11956
+- ci: Add coverage reports by @ko3n1g :: PR: #11912
+- Add batching support for evaluation by @athitten :: PR: #11934
+- add use_fast option by @akoumpa :: PR: #11976
+- improve error and debug messages in model connector by @cuichenx :: PR: #11979
+- [checkpoint][docs] Fix typos in dist checkpointing docs by @ananthsub :: PR: #11983
+- callbacks and bf16 grad by @malay-nagda :: PR: #11985
+- remove --disable-ckpt from tests by @akoumpa :: PR: #11996
+- nemo automodel sft squad data prep fix by @akoumpa :: PR: #11994
+- Introduce evaluation API by @Glorf :: PR: #11895
+- Remove deprecated tests/infer_data_path.py by @janekl :: PR: #11997
+- Checkpoint saving for automodels via ModelCheckpoint by @akoumpa :: PR: #11998
+- Mask vocab padding token ids from CE loss by @maanug-nv :: PR: #11999
+- Add the NeMo2 memory profiling plugin by @gdengk :: PR: #12009
+- chore(ci): Disable VMs cron job on forks by @mikemckiernan :: PR: #12020
+- Adding speechlm AutoModel test by @oyilmaz-nvidia :: PR: #11990
+- minor fix and simplify by @akoumpa :: PR: #12007
+- ci: Build wheel workflow by @ko3n1g :: PR: #12021
+- ci: Release workflow by @ko3n1g :: PR: #12022
+- Version bump to `2.2.0rc1` by @github-actions[bot] :: PR: #12023
+- ci: Run unit tests on main by @ko3n1g :: PR: #11986
+- [Audio] Fix extra step in Euler sampler for flow matching inference by @racoiaws :: PR: #11989
+- Set zarr range to >=2.18.2 and <3.0.0 by @chtruong814 :: PR: #12005
+- ci: Run linting per domain by @ko3n1g :: PR: #12027
+- Replace reference of requirements_infer.txt with requirements_deploy.txt by @chtruong814 :: PR: #12029
+- ci: Always run linting by @ko3n1g :: PR: #12035
+- ci: Retry on timeout by @ko3n1g :: PR: #11974
+- [MoE] fix run err in mixtral22B recipe and update its perf config by @gdengk :: PR: #12036
+- Version bump to `2.2.0rc2.dev0` by @github-actions[bot] :: PR: #12040
+- ci: Update weekly brain by @ko3n1g :: PR: #12043
+- ci: Update workflow by @ko3n1g :: PR: #12044
+- nemo-automodel: fsdp2 support for peft by @akoumpa :: PR: #12008
+- fix llama-3.1 hf model_id by @AtsunoriFujita :: PR: #11774
+- Clip Model in Nemo2 by @abhinavg4 :: PR: #11980
+- Adding TFLOPs callback for Multimodal models and NeVA calculator by @parthmannan :: PR: #11969
+- ci: Allow skipping docs by @ko3n1g :: PR: #12048
+- avoid missmatch error when loading older TE checkpoints by @dimapihtar :: PR: #12028
+- Add padding in mllama vision encoder to align with HF by @meatybobby :: PR: #11808
+- chore: Add warning for rebase by @ko3n1g :: PR: #12061
+- ci: Lint Python files only by @ko3n1g :: PR: #12064
+- Recipe changes for performance by @guyueh1 :: PR: #11763
+- Pipeline-parallel support for Knowledge Distillation (NeMo 2) by @AAnoosheh :: PR: #11766
+- add cp_comm_type param to Mistral config by @dimapihtar :: PR: #12049
+- Conformer-based spectrogram estimator by @anteju :: PR: #12002
+- Adding nemo CI by @abhinavg4 :: PR: #12052
+- Update optimization features readme from nemo1 to nemo2 by @yaoyu-33 :: PR: #12071
+- Add Llama Embedding Tutorial by @suiyoubi :: PR: #12042
+- Fix Linting by @suiyoubi :: PR: #12079
+- Fix hf_dataset bug by @BoxiangW :: PR: #12072
+- set TOKENIZERS_PARALLELISM=True by @akoumpa :: PR: #12083
+- minor fix in model's summary identation during logging by @akoumpa :: PR: #12084
+- Refactor VLM modules / Add InternVit submodule support by @yaoyu-33 :: PR: #11851
+- Fix SBERT with sequence_len_offset by @suiyoubi :: PR: #12057
+- ci: codecov by @ko3n1g :: PR: #12030
+- build: Improve installer by @ko3n1g :: PR: #12016
+- ci: Modular unit tests by @ko3n1g :: PR: #12104
+- ci: Update bump workflow by @ko3n1g :: PR: #12106
+- etp docs by @akoumpa :: PR: #12111
+- build: Better caching by @ko3n1g :: PR: #12109
+- ci: Fix flaky test by @ko3n1g :: PR: #12113
+- Ensure nemo.collections.vlm does not strictly require transformer engine by @chtruong814 :: PR: #12108
+- build: Optimize by @ko3n1g :: PR: #12112
+- refactor peft module matching; introduce exclude_modules by @akoumpa :: PR: #12066
+- Update mcore commit (02.06.25) by @pablo-garay :: PR: #12114
+- ci: Bump Mcore inplace by @ko3n1g :: PR: #12115
+- ci: Bump bot by @ko3n1g :: PR: #12117
+- Add neva pretrain script by @yaoyu-33 :: PR: #12033
+- DAPT playbooks - with NeMo 2.0  by @jvamaraju :: PR: #12067
+- Malay/bw scripts by @malay-nagda :: PR: #11961
+- [MoE] Add type annotation for mixtral configs by @gdengk :: PR: #12126
+- ci: Disable checks by @ko3n1g :: PR: #12129
+- Add performance-optimized example for llama2 70b LoRA by @vysarge :: PR: #12055
+- Add Automodel support for Deepseek v3 model by @BoxiangW :: PR: #12099
+- Bug fix with generation of expert_tensor_parallel_rank by @guyueh1 :: PR: #12125
+- Rename neva datamodule by @yaoyu-33 :: PR: #12121
+- Update vLLM to 0.7.2 by @Laplasjan107 :: PR: #12078
+- Prevent downloading dataset every time in ci test by @cuichenx :: PR: #12095
+- AudioToAudioModel: fix model->dataloader sample_rate parameter injection by @racoiaws :: PR: #12092
+- Minor Bug Fixes - LLaMa Embedding by @soluwalana :: PR: #12146
+- build: Force re-install VCS dependencies by @ko3n1g :: PR: #12155
+- Cherry pick `build: Force re-install VCS dependencies (12155)` into `r2.2.0` by @ko3n1g :: PR: #12191
+- Cherry pick `Add function calling SFT NeMo2.0 tutorial (11868)` into `r2.2.0` by @ko3n1g :: PR: #12180
+- Cherry pick `Update TTS code to remove calls to deprecated functions (12153)` into `r2.2.0` by @ko3n1g :: PR: #12201
+- Cherry pick `Fix multi-GPU in-framework deployment (12090)` into `r2.2.0` by @ko3n1g :: PR: #12172
+- Cherry pick `disable moe logging to avoid deepseek hang (12168)` into `r2.2.0` by @ko3n1g :: PR: #12192
+- Cherry pick `build: Pin down transformers (12229)` into `r2.2.0` by @ko3n1g :: PR: #12230
+- Cherry pick `Fix loading extra states from torch tensor (12185)` into `r2.2.0` by @ko3n1g :: PR: #12226
+- Cherry pick `nemo-automodel checkpoint-io refactor (12070)` into `r2.2.0` by @ko3n1g :: PR: #12234
+- ci: Flaky tests release by @ko3n1g :: PR: #12293
+- Cherry pick `Set L2_Speech_Batch_Size_OOMptimizer_Canary to be optional (12299)` into `r2.2.0` by @ko3n1g :: PR: #12300
+- build: Editable nemo install (#12304) by @ko3n1g :: PR: #12308
+- ci: Fix test workflow by @ko3n1g :: PR: #12311
+- Cherry pick `build: Exclude tensorstore 0.1.72 (12317)` into `r2.2.0` by @ko3n1g :: PR: #12318
+- Cherry pick `Fix the local path in Sortformer diarizer training tutorial (12135)` into `r2.2.0` by @ko3n1g :: PR: #12316
+- Cherry pick `Add eval requirement to setup.py (12152)` into `r2.2.0` by @ko3n1g :: PR: #12277
+- Cherry pick `Add modelopt to requirements_nlp.txt (12261)` into `r2.2.0` by @ko3n1g :: PR: #12278
+- cherry pick 12209 by @akoumpa :: PR: #12240
+- Cherry pick `Energon ckpt multimodal (12245)` into `r2.2.0` by @ko3n1g :: PR: #12307
+- Cherry pick `[nemo1] Fix Mamba/Bert loading from checkpoint after TE extra states were introduced (12275)` into `r2.2.0` by @ko3n1g :: PR: #12314
+- Cherry pick `fix masked loss calculation (12255)` into `r2.2.0` by @ko3n1g :: PR: #12286
+- chore: Cherry pick deepseek by @ko3n1g :: PR: #12324
+- build: Bump PyT to 25.01 (#11973) by @ko3n1g :: PR: #12323
+- Cherry pick `build: Bump mcore (12320)` into `r2.2.0` by @ko3n1g :: PR: #12328
+- Cherry pick `[automodel] re-enable FSDP2 tests (12325)` into `r2.2.0` by @ko3n1g :: PR: #12331
+- Cherry pick `[automodel] fix loss reporting (12303)` into `r2.2.0` by @ko3n1g :: PR: #12334
+- build: Bump Mcore by @ko3n1g :: PR: #12340
+- Cherry-pick Asr fixes 2.2 (#12227) by @ko3n1g :: PR: #12345
+- Cherry-pick Bug fixes (#12315) by @chtruong814 :: PR: #12346
+- Cherry pick `[automodel] remove fix_progress_bar from fsdp2 strategy (12339)` into `r2.2.0` by @ko3n1g :: PR: #12347
+- Cherry pick `Fix NeMo1 Bert Embedding Dataset args (12341)` into `r2.2.0` by @ko3n1g :: PR: #12349
+- Cherry pick `Fix NeMo1 sequence_len_offset in Bert fwd (12350)` into `r2.2.0` by @ko3n1g :: PR: #12359
+- Cherry pick `Add nemo-run recipe for evaluation (12301)` into `r2.2.0` by @ko3n1g :: PR: #12352
+- Cherry pick `Add DeepSeek-R1 Distillation NeMo 2.0 tutorial (12187)` into `r2.2.0` by @ko3n1g :: PR: #12355
+- chore: Update package_info.py by @ko3n1g :: PR: #12362
+- Version bump to `2.2.0rc4.dev0` by @github-actions[bot] :: PR: #12363
+- Bump mcore to latest commit on release branch by @chtruong814 :: PR: #12360
+- Cherry pick `[automodel] add lr scheduler (12351)` into `r2.2.0` by @ko3n1g :: PR: #12361
+- Cherry pick `[automodel] add distributed data sampler (12326)` into `r2.2.0` by @ko3n1g :: PR: #12373
+- Cherry pick `[NeVA] Fix for CP+THD (12366)` into `r2.2.0` by @ko3n1g :: PR: #12375
+- Cherry pick `Ignore attribute error when serializing mcore specs (12353)` into `r2.2.0` by @ko3n1g :: PR: #12383
+- Cherry pick `Avoid init_ddp for inference (12011)` into `r2.2.0` by @ko3n1g :: PR: #12385
+- Cherry pick `[docs] fix notebook render (12374)` into `r2.2.0` by @ko3n1g :: PR: #12394
+- Cherry pick `Neva finetune scripts and PP fix (12387)` into `r2.2.0` by @ko3n1g :: PR: #12397
+- Cherry pick `[automodel] update runner tags for notebooks (12428)` into `r2.2.0` by @ko3n1g :: PR: #12431
+- Cherry pick `[automodel] update examples (12411)` into `r2.2.0` by @ko3n1g :: PR: #12432
+- Cherry pick `Evaluation docs (12348)` into `r2.2.0` by @ko3n1g :: PR: #12460
+- Cherry pick `Update prompt format (12452)` into `r2.2.0` by @ko3n1g :: PR: #12455
+- Cherry pick `Fixing a wrong Sortformer Tutorial Notebook path. (12479)` into `r2.2.0` by @ko3n1g :: PR: #12480
+- Cherry pick `added a needed checks and changes for bugfix (12400)` into  `r2.2.0` by @Ssofja :: PR: #12447
+- Cherry pick `[automodel] fix loss/tps reporting across ranks (12389)` into `r2.2.0` by @ko3n1g :: PR: #12413
+- Cherry pick `enable fsdp flag for FSDP2Strategy (12392)` into `r2.2.0` by @ko3n1g :: PR: #12429
+- Cherry pick `Fix lita notebook issue (12474)` into `r2.2.0` by @ko3n1g :: PR: #12476
+- Cherrypick multinode tut changes by @BoxiangW :: PR: #12501
+- Cherry pick ` Changed the argument types passed to metrics calculation functions (12500)` into `r2.2.0` by @ko3n1g :: PR: #12502
+- Cherry pick `added needed fixes (12495)` into `r2.2.0` by @ko3n1g :: PR: #12509
+- Cherry pick `update transformers version requirements (12475)` into `r2.2.0` by @ko3n1g :: PR: #12507
+- Cherry pick `[checkpoint] Log timings for checkpoint IO save and load (11972)` into `r2.2.0` by @ko3n1g :: PR: #12520
+- Cherry pick `few checkings needed because of the change of asr models output (12499)` into `r2.2.0` by @ko3n1g :: PR: #12513
+- Oyilmaz nvidia/chore/cherry pick 12242 by @oyilmaz-nvidia :: PR: #12523
+- Cherry pick `Remove `_attn_implementation` in `LlamaBidirectionalModel` constructor (12364)` into `r2.2.0` by @ko3n1g :: PR: #12525
+- Cherry pick `Configure FSDP to keep module params (12074)` into `r2.2.0` by @ko3n1g :: PR: #12524
+- Cherry pick `[automodel] docs (11942)` into `r2.2.0` by @ko3n1g :: PR: #12530
+- Cherry pick `[automodel] update examples' comments (12518)` and `[automodel] Move PEFT to configure_model (#12491)` into `r2.2.0` by @ko3n1g :: PR: #12529
+- Cherry pick `update readme to include latest pytorch version (12539)` into `r2.2.0` by @ko3n1g :: PR: #12577
+- Publish r2.2.0 by @chtruong814 :: PR: #12583
+
+</details>
+
 ## NVIDIA Neural Modules 2.1.0
 
 ### Highlights
@@ -451,10 +1140,10 @@ Prerelease: NVIDIA Neural Modules 2.1.0rc0 (2024-12-12)
 
 <details><summary>Changelog</summary>
 
-- Support dataloader as input to `audio` for transcription by @titu1994 :: PR: #9201  
-- Clean up dev docs collection section by @yaoyu-33 :: PR: #9205  
-- Fix Online_Offline_Microphone_VAD_Demo.ipynb by @stevehuang52 :: PR: #9251  
-- Remove .nemo instead of renaming by @mikolajblaz :: PR: #9281  
+- Support dataloader as input to `audio` for transcription by @titu1994 :: PR: #9201
+- Clean up dev docs collection section by @yaoyu-33 :: PR: #9205
+- Fix Online_Offline_Microphone_VAD_Demo.ipynb by @stevehuang52 :: PR: #9251
+- Remove .nemo instead of renaming by @mikolajblaz :: PR: #9281
 - Fix GreedyBatchedCTCInfer regression from GreedyCTCInfer. by @galv :: PR: #9347
 - Revert "Fix GreedyBatchedCTCInfer regression from GreedyCTCInfer." by @titu1994 :: PR: #9351
 - Prompt formatter API and canary transcribe tensor input support by @pzelasko :: PR: #9206
@@ -493,7 +1182,7 @@ Prerelease: NVIDIA Neural Modules 2.1.0rc0 (2024-12-12)
 </details>
 
 #### LLM/Multimodal
-  
+
 <details><summary>Changelog</summary>
 
 - Update nemo.export module for quantized models by @janekl :: PR: #9218
@@ -627,7 +1316,7 @@ Prerelease: NVIDIA Neural Modules 2.1.0rc0 (2024-12-12)
 
 
 #### Bugfixes
-  
+
 <details><summary>Changelog</summary>
 
 - use get with fallback when reading checkpoint_callback_params by @akoumpa :: PR: #9223
@@ -887,7 +1576,7 @@ Prerelease: NVIDIA Neural Modules 2.1.0rc0 (2024-12-12)
 ### Detailed Changelogs
 
 #### ASR
-  
+
 <details><summary>Changelog</summary>
 
 - Enable using hybrid asr models in CTC Segmentation tool by @erastorgueva-nv :: PR: #8828
@@ -920,7 +1609,7 @@ Prerelease: NVIDIA Neural Modules 2.1.0rc0 (2024-12-12)
 - Force diarizer to use CUDA if cuda is available and if device=None. by @tango4j :: PR: #9380
 
 </details>
-  
+
 #### TTS
 
 <details><summary>Changelog</summary>
@@ -1131,7 +1820,7 @@ Previously, the RNNT metric was stateful while the CTC one was not ([r1.22.0](ht
 
 Therefore this calculation in the RNNT joint for fused operation worked properly. However with the unification of metrics in r1.23.0, a bug was introduced where only the last sub-batch of metrics calculates the scores and does not accumulate. This is patched via https://github.com/NVIDIA/NeMo/pull/8587 and will be fixed in the next release.
 
-**Workaround**: Explicitly disable fused batch size during inference using the following command 
+**Workaround**: Explicitly disable fused batch size during inference using the following command
 
 ```python
 from omegaconf import open_dict

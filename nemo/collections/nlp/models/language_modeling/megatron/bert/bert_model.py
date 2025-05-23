@@ -316,6 +316,7 @@ class TransformerBlockWithPostLNSupport(TransformerBlock):
         rotary_pos_emb: Tensor = None,
         inference_params: InferenceParams = None,
         packed_seq_params: PackedSeqParams = None,
+        **kwargs,
     ):
         # hidden_states (float): [s, b, h]
         # attention_mask (bool): [1, 1, s, s]
@@ -582,7 +583,7 @@ class NeMoBertModel(MegatronModule):
 
         extended_attention_mask = bert_extended_attention_mask(attention_mask)
 
-        if parallel_state.is_pipeline_first_stage():
+        if parallel_state.is_pipeline_first_stage(ignore_virtual=False):
             input_ids = bert_model_input
             position_ids = build_position_ids(input_ids)
         else:

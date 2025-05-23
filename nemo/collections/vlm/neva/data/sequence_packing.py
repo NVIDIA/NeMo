@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -91,6 +91,13 @@ def predict_seq_len(instance_tokens: torch.Tensor, num_image_embeddings_per_tile
     num_images = torch.sum(instance_tokens == media_token_index).item()
     seqlen = len(instance_tokens) + (num_image_embeddings_per_tile - 1) * num_images
     return seqlen
+
+
+def predict_seq_len_with_padding(instance_tokens: torch.Tensor, pad_to_multiple_of: int = 64) -> int:
+    """Get seqlen with padding"""
+    seqlen = len(instance_tokens)
+    seqlen_padded = (seqlen + pad_to_multiple_of - 1) // pad_to_multiple_of * pad_to_multiple_of
+    return seqlen_padded
 
 
 def convert_to_packed(

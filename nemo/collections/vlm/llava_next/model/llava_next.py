@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@ import torch
 import torch.distributed
 from megatron.core.inference_params import InferenceParams
 from megatron.core.optimizer import OptimizerConfig
+from megatron.core.packed_seq_params import PackedSeqParams
 from megatron.core.transformer.transformer_config import TransformerConfig
 from transformers import CLIPVisionConfig
 from transformers import LlavaConfig as HFLlavaConfig
@@ -131,6 +132,7 @@ class LlavaNextModel(NevaModel):
         labels: Optional[torch.Tensor] = None,
         inference_params: InferenceParams = None,
         num_media_tiles: Optional[List[int]] = None,
+        packed_seq_params: Optional[PackedSeqParams] = None,
     ) -> torch.Tensor:
         """
         Performs the forward pass of the LLaVA Next model.
@@ -161,6 +163,7 @@ class LlavaNextModel(NevaModel):
             labels=labels,
             inference_params=inference_params,
             num_media_tiles=num_media_tiles,
+            packed_seq_params=packed_seq_params,
         )
 
         return output_tensor
@@ -293,7 +296,7 @@ class HFLlavaNextExporter(io.ModelConnector[LlavaNextModel, "LlavaNextForConditi
         """
         from transformers.modeling_utils import no_init_weights
 
-        with no_init_weights(True):
+        with no_init_weights():
             return LlavaNextForConditionalGeneration(self.config)
 
     def apply(self, output_path: Path) -> Path:
@@ -433,7 +436,10 @@ class HFLlavaNextExporter(io.ModelConnector[LlavaNextModel, "LlavaNextForConditi
 
         source = io.load_context(str(self), subpath="model.config")
         language_config = source.language_transformer_config
-        vision_config = CLIPVisionConfig.from_pretrained("openai/clip-vit-large-patch14-336")
+        vit_path = getattr(
+            source.vision_transformer_config, "pretrained_model_name_or_path", "openai/clip-vit-large-patch14-336"
+        )
+        vision_config = CLIPVisionConfig.from_pretrained(vit_path)
 
         # Create text config for HuggingFace model
         text_config = HFLlamaConfig(

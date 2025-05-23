@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,12 +13,22 @@
 # limitations under the License.
 
 import fnmatch
+import logging
 import os
 import tarfile
 
 from typing import IO, Union
 
-import zarr.storage
+LOGGER = logging.getLogger("NeMo")
+
+try:
+    from zarr.storage import BaseStore
+
+    HAVE_ZARR = True
+except Exception as e:
+    LOGGER.warning(f"Cannot import zarr, support for zarr-based checkpoints is not available. {type(e).__name__}: {e}")
+    BaseStore = object
+    HAVE_ZARR = False
 
 
 class TarPath:
@@ -217,13 +227,14 @@ class TarPath:
         return self.glob('*')
 
 
-class ZarrPathStore(zarr.storage.BaseStore):
+class ZarrPathStore(BaseStore):
     """
     An implementation of read-only Store for zarr library
     that works with pathlib.Path or TarPath objects.
     """
 
     def __init__(self, tarpath: TarPath):
+        assert HAVE_ZARR, "Package zarr>=2.18.2,<3.0.0 is required to use ZarrPathStore"
         self._path = tarpath
         self._writable = False
         self._erasable = False

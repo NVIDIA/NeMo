@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,9 +13,9 @@
 # limitations under the License.
 
 # NOTE: This script is only an example of using NeMo with NeMo-Run's APIs and is subject to change without notice.
-# This script is used for evaluation on local and slurm executors.
-# It uses deploy method from nemo/llm/collections/api.py to deploy nemo2.0 ckpt on PyTriton server by converting to
-# trtllm, uses evaluate method from nemo/llm/collections/api.py to run evaluation on it and uses NeMo-Run
+# This script is used for evaluation on local and slurm executors using NeMo-Run.
+# It uses deploy method from nemo/llm/collections/api.py to deploy nemo2.0 ckpt on PyTriton server and uses evaluate
+# method from nemo/llm/collections/api.py to run evaluation on it.
 # (https://github.com/NVIDIA/NeMo-Run) to configure and execute the runs.
 
 import argparse
@@ -27,17 +27,49 @@ from nemo.collections.llm import deploy, evaluate
 from nemo.collections.llm.evaluation.api import ApiEndpoint, ConfigParams, EvaluationConfig, EvaluationTarget
 
 
+ENDPOINT_TYPES = {"chat": "chat/completions/", "completions": "completions/"}
+
+COMPLETIONS_TASKS = (
+    "gsm8k",
+    "mgsm",
+    "mmlu",
+    "mmlu_pro",
+    "mmlu_redux",
+)
+
+CHAT_TASKS = (
+    "gpqa_diamond_cot",
+    "gsm8k_cot_instruct",
+    "ifeval",
+    "mgsm_cot",
+    "mmlu_instruct",
+    "mmlu_pro_instruct",
+    "mmlu_redux_instruct",
+    "wikilingua",
+)
+
+EVAL_TASKS = COMPLETIONS_TASKS + CHAT_TASKS
+
+
 def get_parser():
-    parser = argparse.ArgumentParser(description="NeMo2.0 Pretraining")
+    parser = argparse.ArgumentParser(description="NeMo2.0 Evaluation")
     parser.add_argument(
         "--nemo_checkpoint",
         type=str,
+        required=True,
         help="NeMo 2.0 checkpoint to be evaluated",
     )
     parser.add_argument(
         "--triton_http_address", type=str, default="0.0.0.0", help="IP address at which PyTriton server is created"
     )
-    parser.add_argument("--triton_http_port", type=int, default=8000, help="Port at which PyTriton server is created")
+    parser.add_argument("--fastapi_port", type=int, default=8080, help="Port at which FastAPI server is created")
+    parser.add_argument(
+        "--endpoint_type",
+        type=str,
+        default="completions",
+        help="Whether to use completions or chat endpoint",
+        choices=list(ENDPOINT_TYPES),
+    )
     parser.add_argument(
         "--max_input_len",
         type=int,
@@ -65,15 +97,24 @@ def get_parser():
     parser.add_argument(
         "--eval_task",
         type=str,
-        default="arc_challenge",
+        default="mmlu",
         help="Evaluation benchmark to run.",
-        choices=["mmlu", "gsm8k", "lambada_openai", "winogrande", "arc_challenge", "arc_easy", "copa"],
+        choices=EVAL_TASKS,
     )
     parser.add_argument(
-        "--limit", type=int, default=None, help="Limit evaluation to `limit` samples. Default: use all samples."
+        "--limit", type=float, default=None, help="Limit evaluation to `limit` samples. Default: use all samples."
     )
     parser.add_argument(
-        "--num_fewshot", type=int, default=None, help="Number of examples in few-shot context. Default: None."
+        "--parallel_requests",
+        type=int,
+        default=1,
+        help="Number of parallel requests to send to server. Default: use default for the task.",
+    )
+    parser.add_argument(
+        "--request_timeout",
+        type=int,
+        default=1000,
+        help="Time in seconds for the eval client. Default: 1000s",
     )
     parser.add_argument(
         "--tag",
@@ -94,7 +135,7 @@ def get_parser():
         help="Run on slurm using run.SlurmExecutor",
         default=False,
     )
-    parser.add_argument('--nodes', type=int, default=2, help="Num nodes for the executor")
+    parser.add_argument('--nodes', type=int, default=1, help="Num nodes for the executor")
     parser.add_argument('--devices', type=int, default=8, help="Num devices per node for the executor")
     parser.add_argument(
         '--container_image',
@@ -132,7 +173,8 @@ def slurm_executor(
 
     env_vars = {
         # required for some eval benchmarks from lm-eval-harness
-        "HF_DATASETS_TRUST_REMOTE_CODE": "1"
+        "HF_DATASETS_TRUST_REMOTE_CODE": "1",
+        "HF_TOKEN": "xxxxxx",
     }
     if custom_env_vars:
         env_vars |= custom_env_vars
@@ -146,8 +188,9 @@ def slurm_executor(
             job_dir=remote_job_dir,
         ),
         nodes=nodes,
-        ntasks_per_node=1,
+        ntasks_per_node=devices,
         exclusive=True,
+        # archives and uses the local code. Use packager=run.Packager() to use the code code mounted on clusters
         packager=run.GitArchivePackager(),
     )
 
@@ -163,7 +206,8 @@ def slurm_executor(
 def local_executor_torchrun() -> run.LocalExecutor:
     env_vars = {
         # required for some eval benchmarks from lm-eval-harness
-        "HF_DATASETS_TRUST_REMOTE_CODE": "1"
+        "HF_DATASETS_TRUST_REMOTE_CODE": "1",
+        "HF_TOKEN": "xxxxxx",
     }
 
     executor = run.LocalExecutor(env_vars=env_vars)
@@ -180,22 +224,28 @@ def main():
     deploy_fn = run.Partial(
         deploy,
         nemo_checkpoint=args.nemo_checkpoint,
-        triton_http_port=args.triton_http_port,
+        fastapi_port=args.fastapi_port,
         triton_http_address=args.triton_http_address,
         max_input_len=args.max_input_len,
         tensor_parallelism_size=args.tensor_parallelism_size,
         pipeline_parallelism_size=args.pipeline_parallelism_size,
         max_batch_size=args.batch_size,
+        num_gpus=args.devices,
+        num_nodes=args.nodes,
     )
 
     api_endpoint = run.Config(
         ApiEndpoint,
-        url=f"http://{args.triton_http_address}:{args.triton_http_port}",
-        nemo_checkpoint_path=args.nemo_checkpoint,
-        nemo_triton_http_port=args.triton_http_port,
+        url=f"http://{args.triton_http_address}:{args.fastapi_port}/v1/{ENDPOINT_TYPES[args.endpoint_type]}",
+        type=args.endpoint_type,
     )
     eval_target = run.Config(EvaluationTarget, api_endpoint=api_endpoint)
-    eval_params = run.Config(ConfigParams, limit_samples=args.limit, num_fewshot=args.num_fewshot)
+    eval_params = run.Config(
+        ConfigParams,
+        limit_samples=args.limit,
+        parallelism=args.parallel_requests,
+        request_timeout=args.request_timeout,
+    )
     eval_config = run.Config(EvaluationConfig, type=args.eval_task, params=eval_params)
 
     eval_fn = run.Partial(evaluate, target_cfg=eval_target, eval_cfg=eval_config)
@@ -215,8 +265,10 @@ def main():
             container_image=args.container_image,
             custom_mounts=[],
         )
-        executor.srun_args = ["--mpi=pmix", "--overlap", "--ntasks-per-node=1"]
+        executor.srun_args = ["--mpi=pmix", "--overlap"]
         executor_eval = executor.clone()
+        executor_eval.srun_args = ["--ntasks-per-node=1", "--nodes=1"]  ## so that eval is laucnhed only on main node
+        # or node with index 0
     else:
         executor = local_executor_torchrun()
         executor_eval = None

@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -145,7 +145,11 @@ class McoreDistributedOptimizer(torch.optim.Optimizer):
         Returns:
             dict: The optimizer state dictionary.
         """
-        return self.mcore_optimizer.state if hasattr(self, 'mcore_optimizer') else []
+        return (
+            self.mcore_optimizer.state
+            if hasattr(self, 'mcore_optimizer') and hasattr(self.mcore_optimizer, 'state')
+            else {}
+        )
 
     def _set_state(self, value):
         """

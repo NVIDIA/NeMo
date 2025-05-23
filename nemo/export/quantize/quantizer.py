@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -40,6 +40,7 @@ try:
         "int4_awq": mtq.INT4_AWQ_CFG,
         "w4a8_awq": mtq.W4A8_AWQ_BETA_CFG,
         "int4": mtq.INT4_BLOCKWISE_WEIGHT_ONLY_CFG,
+        "nvfp4": mtq.NVFP4_DEFAULT_CFG,
     }
 
     HAVE_MODELOPT = True

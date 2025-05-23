@@ -23,7 +23,12 @@ except ImportError:
 
 @dataclass
 class JointSelfAttentionSubmodules:
+    """
+    Submodules for Joint Self-attention layer.
+    """
+
     # pylint: disable=C0115
+
     linear_qkv: Union[ModuleSpec, type] = None
     added_linear_qkv: Union[ModuleSpec, type] = None
     core_attention: Union[ModuleSpec, type] = None
@@ -48,13 +53,17 @@ class JointSelfAttention(Attention):
         layer_number: int,
         attn_mask_type=AttnMaskType.padding,
         context_pre_only: bool = False,
+        **kwargs,
     ):
+        # Use RMSnorm in for qk norm
+        config.normalization = "RMSNorm"
         super().__init__(
             config=config,
             submodules=submodules,
             layer_number=layer_number,
             attn_mask_type=attn_mask_type,
             attention_type="self",
+            **kwargs,
         )
 
         self.linear_qkv = build_module(
@@ -250,7 +259,7 @@ class JointSelfAttention(Attention):
         # ===================================================
         # Adjust key, value, and rotary_pos_emb for inference
         # ===================================================
-        query, key, value, rotary_pos_emb, attn_mask_type = self._adjust_key_value_for_inference(
+        query, key, value, rotary_pos_emb, attn_mask_type, *_ = self._adjust_key_value_for_inference(
             inference_params, query, key, value, rotary_pos_emb
         )
 
@@ -346,13 +355,17 @@ class FluxSingleAttention(SelfAttention):
         layer_number: int,
         attn_mask_type=AttnMaskType.padding,
         cp_comm_type: str = None,
+        **kwargs,
     ):
+        # Use RMSnorm in for qk norm
+        config.normalization = "RMSNorm"
         super().__init__(
             config=config,
             submodules=submodules,
             layer_number=layer_number,
             attn_mask_type=attn_mask_type,
             cp_comm_type=cp_comm_type,
+            **kwargs,
         )
         self.linear_proj = build_module(
             submodules.linear_proj,
@@ -376,6 +389,7 @@ class FluxSingleAttention(SelfAttention):
         rotary_pos_emb=None,
         packed_seq_params=None,
     ):
+        # pylint: disable=C0301
         # hidden_states: [sq, b, h]
 
         # For self attention we just duplicate the rotary_pos_emb if it isn't already
@@ -392,7 +406,7 @@ class FluxSingleAttention(SelfAttention):
         # ===================================================
         # Adjust key, value, and rotary_pos_emb for inference
         # ===================================================
-        query, key, value, rotary_pos_emb, attn_mask_type = self._adjust_key_value_for_inference(
+        query, key, value, rotary_pos_emb, attn_mask_type, *_ = self._adjust_key_value_for_inference(
             inference_params, query, key, value, rotary_pos_emb
         )
 

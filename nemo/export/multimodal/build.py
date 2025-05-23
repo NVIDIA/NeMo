@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -77,6 +77,7 @@ def build_trtllm_engine(
         use_lora_plugin=use_lora_plugin,
         lora_target_modules=lora_target_modules,
         max_lora_rank=max_lora_rank,
+        use_mcore_path=False,
     )
 
 

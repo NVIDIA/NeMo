@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ import os.path
 from typing import Iterable, List, Optional, Union
 
 import numpy
+import vllm.envs as envs
 import wrapt
 from vllm import RequestOutput, SamplingParams
 from vllm.config import (
@@ -26,17 +27,19 @@ from vllm.config import (
     LoadConfig,
     LoadFormat,
     LoRAConfig,
+    ObservabilityConfig,
     ParallelConfig,
     SchedulerConfig,
     VllmConfig,
 )
 from vllm.executor.ray_utils import initialize_ray_cluster
 from vllm.lora.request import LoRARequest
+from vllm.v1.core.sched.scheduler import Scheduler as V1Scheduler
+from vllm.v1.engine.llm_engine import LLMEngine
 
 from nemo.deploy import ITritonDeployable
 from nemo.deploy.utils import cast_output
 from nemo.export.utils import convert_lora_nemo_to_canonical, prepare_directory_for_export
-from nemo.export.vllm.engine import NemoLLMEngine
 from nemo.export.vllm.model_config import NemoModelConfig
 from nemo.export.vllm.model_loader import NemoModelLoader
 
@@ -90,6 +93,7 @@ class vLLMExporter(ITritonDeployable):
 
     def __init__(self):
         self.request_id = 0
+        assert envs.VLLM_USE_V1, "Only vLLM V1 is supported"
 
     def export(
         self,
@@ -164,7 +168,6 @@ class vLLMExporter(ITritonDeployable):
             quantization=quantization,
             quantization_param_path=None,
             enforce_eager=False,
-            max_seq_len_to_capture=None,
         )
 
         if model_config.nemo_model_config.get("fp8", False):
@@ -240,6 +243,7 @@ class vLLMExporter(ITritonDeployable):
             num_lookahead_slots=0,
             delay_factor=0.0,
             enable_chunked_prefill=False,
+            scheduler_cls=V1Scheduler,
         )
 
         load_config = LoadConfig(
@@ -256,24 +260,24 @@ class vLLMExporter(ITritonDeployable):
         # Initialize the cluster and specify the executor class.
         if parallel_config.distributed_executor_backend == "ray":
             initialize_ray_cluster(parallel_config)
-            from vllm.executor.ray_distributed_executor import RayDistributedExecutor
+            from vllm.v1.executor.ray_distributed_executor import RayDistributedExecutor
 
             executor_class = RayDistributedExecutor
 
         elif parallel_config.distributed_executor_backend == "mp":
-            from vllm.executor.mp_distributed_executor import MultiprocessingDistributedExecutor
+            from vllm.v1.executor.multiproc_executor import MultiprocExecutor
 
-            executor_class = MultiprocessingDistributedExecutor
+            executor_class = MultiprocExecutor
 
         else:
             assert parallel_config.distributed_executor_backend == "uni" or parallel_config.world_size == 1
 
-            from vllm.executor.uniproc_executor import UniProcExecutor
+            from vllm.v1.executor.abstract import UniProcExecutor
 
             executor_class = UniProcExecutor
 
         # Initialize the engine
-        self.engine = NemoLLMEngine(
+        self.engine = LLMEngine(
             vllm_config=VllmConfig(
                 model_config=model_config,
                 cache_config=cache_config,
@@ -282,10 +286,7 @@ class vLLMExporter(ITritonDeployable):
                 device_config=device_config,
                 load_config=load_config,
                 lora_config=lora_config,
-                speculative_config=None,
-                decoding_config=None,
-                observability_config=None,
-                prompt_adapter_config=None,
+                observability_config=ObservabilityConfig(),
             ),
             executor_class=executor_class,
             log_stats=log_stats,

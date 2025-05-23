@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,7 +21,6 @@ from pathlib import Path
 import fiddle as fdl
 import lightning.pytorch as pl
 import torch
-from lightning.pytorch.loggers import WandbLogger
 from transformers import AutoModelForCausalLM
 
 from nemo import lightning as nl
@@ -272,6 +271,8 @@ def main():
 
     wandb = None
     if args.wandb_project is not None:
+        from lightning.pytorch.loggers import WandbLogger
+
         model = '_'.join(args.model.split('/')[-2:])
         wandb = WandbLogger(
             project=args.wandb_project,
