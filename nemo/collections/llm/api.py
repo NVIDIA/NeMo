@@ -948,13 +948,13 @@ def export_ckpt(
     CLI Usage:
     ```bash
     # Export model to HuggingFace format (saves to {checkpoint_path}/hf/)
-    nemo llm export /path/to/model.nemo target="hf"
+    nemo llm export path=/path/to/model.nemo target="hf"
 
     # Export with custom output path
-    nemo llm export /path/to/model.nemo target="hf" output_path="/path/to/save"
+    nemo llm export path=/path/to/model.nemo target="hf" output_path="/path/to/save"
 
     # Force overwrite existing export
-    nemo llm export /path/to/model.nemo target="hf" overwrite=true
+    nemo llm export path=/path/to/model.nemo target="hf" overwrite=true
     ```
 
     Python Usage:
