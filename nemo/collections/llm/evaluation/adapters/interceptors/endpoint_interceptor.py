@@ -1,6 +1,5 @@
 from typing import final
 
-import flask
 import requests
 
 from .types import AdapterRequest, AdapterResponse, RequestInterceptor
