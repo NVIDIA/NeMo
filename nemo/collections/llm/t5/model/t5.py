@@ -185,9 +185,7 @@ class T5Config(TransformerConfig, io.IOMixin):
     def configure_model(self, tokenizer, vp_stage: Optional[int] = None) -> "MCoreT5Model":
         """Setup the T5 Model based on config definition."""
 
-        assert (
-            self.virtual_pipeline_model_parallel_size is None and vp_stage is None
-        ), (
+        assert self.virtual_pipeline_model_parallel_size is None and vp_stage is None, (
             "Virtual pipeline model parallelism is temporarily unsupported in T5 "
             "due to upstream MCore T5Model API dependency"
         )

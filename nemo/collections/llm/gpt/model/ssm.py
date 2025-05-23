@@ -222,10 +222,7 @@ class SSMConfig(TransformerConfig, io.IOMixin):
         if not isinstance(mamba_stack_spec, ModuleSpec):
             mamba_stack_spec = mamba_stack_spec()
 
-        assert (
-            getattr(self, "virtual_pipeline_model_parallel_size", None) is None 
-            and vp_stage is None
-        ), (
+        assert getattr(self, "virtual_pipeline_model_parallel_size", None) is None and vp_stage is None, (
             "Virtual pipeline model parallelism is temporarily unsupported in SSM/Mamaba "
             "models due to upstream MCore MambaModel API dependency"
         )

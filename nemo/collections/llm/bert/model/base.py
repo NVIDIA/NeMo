@@ -363,7 +363,7 @@ class TransformerLayerSubmodulesWithPostLNSupport(TransformerLayerSubmodules):
 
 class TransformerLayerWithPostLNSupport(TransformerLayer):
     """
-    Adapted from mcore's TransformerLayer with additional post-attention LN and 
+    Adapted from mcore's TransformerLayer with additional post-attention LN and
     post MLP LN support.
     """
 
