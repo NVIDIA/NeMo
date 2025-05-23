@@ -132,7 +132,7 @@ if __name__ == "__main__":
     if not enable_cuda_graphs:
         custom_env_vars = {"PYTORCH_CUDA_ALLOC_CONF": "expandable_segments:True"}
     else:
-        custom_env_vars = {}
+        custom_env_vars = {"NVTE_BATCH_MHA_P2P_COMM": "1"}
 
     executor = slurm_executor(
         args.account,
