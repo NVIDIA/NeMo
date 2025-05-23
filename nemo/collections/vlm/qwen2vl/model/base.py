@@ -612,7 +612,8 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
             video_embeddings=video_embeddings,
             attention_mask=attention_mask,
         )  # [decoder_seq_len, b, h_language], [b, decoder_seq_len], [b, decoder_seq_len]
-
+        # We already scattered embedding above, no need to do it again in llm
+        self.language_model.scatter_embedding_sequence_parallel = True
         output = self.language_model(
             input_ids=None,
             position_ids=position_ids,
