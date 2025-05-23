@@ -5,6 +5,8 @@ from typing import final
 
 import requests
 
+from nemo.utils import logging
+
 from .types import AdapterResponse, ResponseInterceptor
 
 
@@ -79,6 +81,7 @@ class ResponseReasoningInterceptor(ResponseInterceptor):
 
     def __init__(self, end_reasoning_token: str):
         self._end_reasoning_token = end_reasoning_token
+        logging.info(f"Evaluation adapter will clean reasoning before `{self._end_reasoning_token}` token`")
 
     @final
     def intercept_response(self, ar: AdapterResponse) -> AdapterResponse:

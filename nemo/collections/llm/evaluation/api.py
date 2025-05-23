@@ -145,7 +145,7 @@ class AdapterConfig(BaseModel):
         return AdapterConfig.model_validate(adapter_config)
 
     use_reasoning: bool = Field(
-        description="Whether to use the reasoning adapter",
+        description="Whether to use the clean-reasoning-tokens adapter. See `end_reasoning_token`.",
         default=False,
     )
 
@@ -154,14 +154,19 @@ class AdapterConfig(BaseModel):
         default="</think>",
     )
 
-    use_system_prompt: bool = Field(
-        description="Whether to use custom system prompt adapter",
-        default=False,
+    custom_system_prompt: Optional[str] = Field(
+        description="A custom system prompt to replace original one (if not None).",
+        default=None,
     )
 
-    custom_system_prompt: str = Field(
-        description="A custom system prompt to replace original one",
-        default="",
+    max_logged_responses: int | None = Field(
+        description="Maximum number of responses to log. Set to 0 to disable. If None, all will be logged.",
+        default=5,
+    )
+
+    max_logged_requests: int | None = Field(
+        description="Maximum number of requests to log. Set to 0 to disable. If None, all will be logged.",
+        default=5,
     )
 
 

@@ -48,6 +48,7 @@ relatively easy to add separately.
 """
 
 import os
+from typing import Optional
 
 import flask
 import requests
@@ -85,7 +86,6 @@ class AdapterServer:
     app: flask.Flask
 
     api_url: str
-    output_dir: str
 
     def __init__(
         self,
@@ -96,7 +96,7 @@ class AdapterServer:
         Initializes the app, creates server and adds interceptors
 
         Args:
-            adapter_config: should be obtained from the main framework config, see `adapter_config.py`
+            adapter_config: should be obtained from the evaluation script, see `api.py`
         """
 
         self.request_interceptors = []
@@ -112,39 +112,46 @@ class AdapterServer:
         self.api_url = api_url
         self.adapter_config = adapter_config
 
-        logging.info("Using the following adapter config: %s", adapter_config)
+        logging.info(f"Using the following adapter config: {adapter_config}")
 
         self._build_interceptor_chains(
             use_reasoning=adapter_config.use_reasoning,
             end_reasoning_token=adapter_config.end_reasoning_token,
-            use_custom_system_prompt=adapter_config.use_system_prompt,
             custom_system_prompt=adapter_config.custom_system_prompt,
+            max_logged_requests=adapter_config.max_logged_requests,
+            max_logged_responses=adapter_config.max_logged_responses,
         )
 
     def _build_interceptor_chains(
         self,
         use_reasoning: bool,
         end_reasoning_token: str,
-        use_custom_system_prompt: bool,
-        custom_system_prompt: str,
+        custom_system_prompt: Optional[str],
+        max_logged_requests: Optional[int],
+        max_logged_responses: Optional[int],
     ):
 
-        if use_custom_system_prompt:
+        if custom_system_prompt:
             self.request_interceptors.append(SystemMessageInterceptor(new_system_message=custom_system_prompt))
 
+        self.request_interceptors.append(RequestLoggingInterceptor(max_requests=max_logged_requests))
         self.request_interceptors.append(EndpointInterceptor(api_url=self.api_url))
+
+        self.response_interceptors.append(ResponseLoggingInterceptor(max_responses=max_logged_responses))
 
         if use_reasoning:
             self.response_interceptors.append(ResponseReasoningInterceptor(end_reasoning_token=end_reasoning_token))
 
     def run(self) -> None:
         """Start the Flask server."""
+        logging.info(f"Starting the evaluation adapter server at {self.adapter_host}:{self.adapter_port}...")
         werkzeug.serving.run_simple(
             hostname=self.adapter_host,
             port=self.adapter_port,
             application=self.app,
             threaded=True,
         )
+        logging.info(f"Evaluation adapter server started")
 
     # The headers we don't want to let out
     _EXCLUDED_HEADERS = [
@@ -174,7 +181,6 @@ class AdapterServer:
             if isinstance(output, AdapterRequest):
                 adapter_request = output
 
-        # TODO(agronskiy): asserts in prod are bad, make this more elegant.
         assert adapter_response is not None, "There should be a response to process"
 
         for interceptor in self.response_interceptors:
