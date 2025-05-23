@@ -75,6 +75,11 @@ class BacthedBeamCTCState:
     batch_lm_states: Optional[torch.Tensor] = None  # LM states for hypotheses
     batch_lm_states_candidates: Optional[torch.Tensor] = None  # LM states for hypotheses candidates
 
+    # NGramGPULM-related fields
+    wb_batch: Optional[NGramGPULanguageModel] = None  # N-gram LM for hypotheses
+    batch_wb_states: Optional[torch.Tensor] = None  # LM states for hypotheses
+    batch_wb_states_candidates: Optional[torch.Tensor] = None  # LM states for hypotheses candidates
+
     def __init__(
         self,
         batch_size: int,
@@ -226,10 +231,6 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
 
         self.cuda_graphs_mode = None
         self.maybe_enable_cuda_graphs()
-        
-        print("wbwbwbwbwbwbwbwb")
-        print(btree_model)
-        print(btree_alpha)
 
         self.ngram_lm_batch = None
         self.wb_batch = None
@@ -536,6 +537,16 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
             )
             self.state.batch_lm_states = batch_lm_states.view(self.state.batch_size, self.beam_size)
 
+        if self.wb_batch is not None:
+            device = decoder_outputs.device
+
+            self.wb_batch.to(device)
+
+            batch_wb_states = self.wb_batch.get_init_states(
+                batch_size=self.state.batch_size * self.beam_size, bos=False
+            )
+            self.state.batch_wb_states = batch_wb_states.view(self.state.batch_size, self.beam_size)
+            
         if self.cuda_graphs_mode is self.CudaGraphsMode.FULL_GRAPH:
             self._full_graph_compile()
         elif self.cuda_graphs_mode is self.CudaGraphsMode.NO_WHILE_LOOPS:
@@ -643,6 +654,21 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
                 device=device,
                 dtype=torch.long,
             )
+            
+        # step 1.2: setup Boosting Tree
+        if self.wb_batch is not None:
+            device = self.state.device
+            self.wb_batch.to(device)
+
+            batch_wb_states = self.wb_batch.get_init_states(
+                batch_size=self.state.batch_size * self.beam_size, bos=True
+            )
+            self.state.batch_wb_states.copy_(batch_wb_states.view(self.state.batch_size, self.beam_size))
+            self.state.batch_wb_states_candidates = torch.empty(
+                (self.state.batch_size, self.state.beam_size, self.wb_batch.vocab_size),
+                device=device,
+                dtype=torch.long,
+            )
 
     def _process_batch(self):
         """
@@ -661,6 +687,18 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
                 batch_lm_states_candidates.view(self.state.batch_lm_states_candidates.shape)
             )
             log_probs[..., :-1] += self.ngram_lm_alpha * lm_scores.view(
+                self.state.batch_size, self.state.beam_size, -1
+            )
+            
+        if self.wb_batch is not None:
+            wb_scores, batch_wb_states_candidates = self.wb_batch.advance(
+                states=self.state.batch_wb_states.view(-1)
+            )
+
+            self.state.batch_wb_states_candidates.copy_(
+                batch_wb_states_candidates.view(self.state.batch_wb_states_candidates.shape)
+            )
+            log_probs[..., :-1] += self.btree_alpha * wb_scores.view(
                 self.state.batch_size, self.state.beam_size, -1
             )
 
@@ -683,7 +721,7 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
         next_scores.view(self.state.batch_size, self.beam_size, -1)
 
         # step 2.4: preserving updated lm states
-        if self.ngram_lm_batch is not None:
+        if self.ngram_lm_batch is not None or self.wb_batch is not None:
             last_labels = torch.gather(self.state.batched_hyps.last_label, dim=-1, index=next_indices)
             blank_mask = next_labels == self._blank_index
             repeating_mask = next_labels == last_labels
@@ -692,21 +730,37 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
             # step 2.4.1: masking blanks and inactive labels to pass to LM, as LM does not support blanks
             next_labels_masked = torch.where(blank_mask, 0, next_labels)
 
-            # step 2.4.2: gathering LM states of extended hypotheses
-            # batch_lm_states: [(BxBeam)]
-            # batch_lm_states_candidates: [(BxBeam) x V (without blank)]
             next_indices_extended = next_indices[:, :, None].expand(self.state.batch_lm_states_candidates.shape)
-            batch_lm_states_candidates = torch.gather(
-                self.state.batch_lm_states_candidates, dim=1, index=next_indices_extended
-            )
-            batch_lm_states_prev = torch.gather(self.state.batch_lm_states, dim=1, index=next_indices)
-            batch_lm_states = torch.gather(
-                batch_lm_states_candidates, dim=-1, index=next_labels_masked.unsqueeze(-1)
-            ).squeeze()
+            if self.ngram_lm_batch is not None:
+                # step 2.4.2: gathering LM states of extended hypotheses
+                # batch_lm_states: [(BxBeam)]
+                # batch_lm_states_candidates: [(BxBeam) x V (without blank)]
+                batch_lm_states_candidates = torch.gather(
+                    self.state.batch_lm_states_candidates, dim=1, index=next_indices_extended
+                )
+                batch_lm_states_prev = torch.gather(self.state.batch_lm_states, dim=1, index=next_indices)
+                batch_lm_states = torch.gather(
+                    batch_lm_states_candidates, dim=-1, index=next_labels_masked.unsqueeze(-1)
+                ).squeeze()
 
-            # step 2.4.3: update LM states in State
-            self.state.batch_lm_states_candidates.copy_(batch_lm_states_candidates)
-            torch.where(preserve_state_mask, batch_lm_states_prev, batch_lm_states, out=self.state.batch_lm_states)
+                # step 2.4.3: update LM states in State
+                self.state.batch_lm_states_candidates.copy_(batch_lm_states_candidates)
+                torch.where(preserve_state_mask, batch_lm_states_prev, batch_lm_states, out=self.state.batch_lm_states)
+            elif self.wb_batch is not None:
+                # step 2.4.2: gathering LM states of extended hypotheses
+                # batch_lm_states: [(BxBeam)]
+                # batch_lm_states_candidates: [(BxBeam) x V (without blank)]
+                batch_wb_states_candidates = torch.gather(
+                    self.state.batch_wb_states_candidates, dim=1, index=next_indices_extended
+                )
+                batch_wb_states_prev = torch.gather(self.state.batch_wb_states, dim=1, index=next_indices)
+                batch_wb_states = torch.gather(
+                    batch_wb_states_candidates, dim=-1, index=next_labels_masked.unsqueeze(-1)
+                ).squeeze()
+
+                # step 2.4.3: update LM states in State
+                self.state.batch_wb_states_candidates.copy_(batch_wb_states_candidates)
+                torch.where(preserve_state_mask, batch_wb_states_prev, batch_wb_states, out=self.state.batch_wb_states)
 
         # step 2.5: masking inactive hypotheses, updating + recombining batched beam hypoteses
         torch.where(self.state.active_mask, next_labels, self.state.MINUS_ONE_TENSOR, out=next_labels)
