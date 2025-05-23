@@ -802,6 +802,9 @@ def evaluate(
     eval_type_components = eval_cfg.type.split(".")
     if len(eval_type_components) == 2:
         framework_name, task_name = eval_type_components
+        # evaluation package expect framework name to be hyphenated
+        framework_name = framework_name.replace("_", "-")
+        eval_cfg.type = f"{framework_name}.{task_name}"
     elif len(eval_type_components) == 1:
         framework_name, task_name = None, eval_type_components[0]
     else:
