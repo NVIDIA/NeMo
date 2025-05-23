@@ -1,3 +1,3 @@
-nvidia-lm-eval
 flask~=3.0.2
+nvidia-lm-eval
 
