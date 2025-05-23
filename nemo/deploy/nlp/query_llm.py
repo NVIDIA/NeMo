@@ -173,8 +173,10 @@ class NemoQueryLLMPyTorch(NemoQueryLLMBase):
                     openai_response["choices"][0]["logprobs"] = {}
                     openai_response["choices"][0]["logprobs"]["token_logprobs"] = log_probs_output
                     # TODO athitten: get top_n_logprobs from mcore once available
-                    n_log_probs_output = [json.loads(top_log_prob[0]) for top_log_prob in top_log_probs_output]
-                    openai_response["choices"][0]["logprobs"]["top_logprobs"] = n_log_probs_output
+                    if top_log_probs_output is not None:
+                        # we take 1st element because cast_output adds an extra dimension
+                        n_log_probs_output = [json.loads(top_log_prob[0]) for top_log_prob in top_log_probs_output]
+                        openai_response["choices"][0]["logprobs"]["top_logprobs"] = n_log_probs_output
                 return openai_response
             else:
                 return result_dict["sentences"]
