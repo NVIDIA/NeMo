@@ -276,9 +276,9 @@ class MLlamaModelConfig(TransformerConfig, io.IOMixin):
             if self.encoder_tensor_model_parallel_size > 0:
                 self.vision_model_config.tensor_model_parallel_size = self.encoder_tensor_model_parallel_size
 
-        vp_stage = (
-            vp_stage or 0
-        )  # During fake initialization, pass 0 to bypass the assertion that vp_stage must be non-None when using virtual pipeline model parallelism
+        # During fake lightning initialization, pass 0 to bypass the assertion that vp_stage must be
+        # non-None when using virtual pipeline model parallelism
+        vp_stage = vp_stage or 0
         model = MLlamaBaseModel(
             config=self,
             tokenizer=tokenizer,

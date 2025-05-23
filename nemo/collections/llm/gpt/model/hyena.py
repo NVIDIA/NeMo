@@ -238,6 +238,7 @@ class HyenaConfig(TransformerConfig, io.IOMixin):
 
         Args:
             tokenizer: Tokenizer to use for the model
+            vp_stage: Virtual pipeline stage
 
         Returns:
             MCoreHyenaModel: Configured Hyena model instance
@@ -245,8 +246,8 @@ class HyenaConfig(TransformerConfig, io.IOMixin):
         self.bias_activation_fusion = False if self.remove_activation_post_first_layer else self.bias_activation_fusion
 
         assert (
-            getattr(self, "virtual_pipeline_model_parallel_size", None) is None
-        ), "Hyena does not support virtual pipeline model parallel size"
+            getattr(self, "virtual_pipeline_model_parallel_size", None) is None and vp_stage is None
+        ), "Virtual pipeline model parallelism is temporarily unsupported in Hyena."
 
         model = MCoreHyenaModel(
             self,

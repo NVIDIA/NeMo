@@ -223,8 +223,12 @@ class SSMConfig(TransformerConfig, io.IOMixin):
             mamba_stack_spec = mamba_stack_spec()
 
         assert (
-            getattr(self, "virtual_pipeline_model_parallel_size", None) is None and vp_stage is None
-        ), "Virtual pipeline model parallelism is temporarily unsupported in SSM/Mamaba models due to upstream MCore MambaModel API dependency"
+            getattr(self, "virtual_pipeline_model_parallel_size", None) is None 
+            and vp_stage is None
+        ), (
+            "Virtual pipeline model parallelism is temporarily unsupported in SSM/Mamaba "
+            "models due to upstream MCore MambaModel API dependency"
+        )
         return MCoreMambaModel(
             self,
             mamba_stack_spec=mamba_stack_spec,

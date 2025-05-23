@@ -314,6 +314,7 @@ class GPTConfig(TransformerConfig, io.IOMixin):
             tokenizer: Tokenizer used with the model
             pre_process: Whether to include pre-processing in the model, defaults to first pipeline stage
             post_process: Whether to include post-processing in the model, defaults to last pipeline stage
+            vp_stage: Virtual pipeline stage
 
         Returns:
             MCoreGPTModel: Configured Megatron Core GPT model instance
@@ -362,9 +363,9 @@ class GPTConfig(TransformerConfig, io.IOMixin):
         else:
             kwargs = {}
         with model_init_device_context():
-            vp_stage = (
-                vp_stage or 0
-            )  # During fake initialization, pass 0 to bypass the assertion that vp_stage must be non-None when using virtual pipeline model parallelism
+            # During fake lightning initialization, pass 0 to bypass the assertion that vp_stage must be
+            # non-None when using virtual pipeline model parallelism
+            vp_stage = vp_stage or 0
             model = MCoreGPTModel(
                 self,
                 transformer_layer_spec=transformer_layer_spec,

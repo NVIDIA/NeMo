@@ -187,7 +187,10 @@ class T5Config(TransformerConfig, io.IOMixin):
 
         assert (
             self.virtual_pipeline_model_parallel_size is None and vp_stage is None
-        ), "Virtual pipeline model parallelism is temporarily unsupported in T5 due to upstream MCore T5Model API dependency"
+        ), (
+            "Virtual pipeline model parallelism is temporarily unsupported in T5 "
+            "due to upstream MCore T5Model API dependency"
+        )
         vp_size = self.virtual_pipeline_model_parallel_size
         if vp_size:
             p_size = self.pipeline_model_parallel_size

@@ -170,9 +170,9 @@ class BertConfig(TransformerConfig, io.IOMixin):
         if self.num_tokentypes is None:
             self.num_tokentypes = 2 if self.bert_binary_head else 0
 
-        vp_stage = (
-            vp_stage or 0
-        )  # During fake initialization, pass 0 to bypass the assertion that vp_stage must be non-None when using virtual pipeline model parallelism
+        # During fake lightning initialization, pass 0 to bypass the assertion that vp_stage must be
+        # non-None when using virtual pipeline model parallelism
+        vp_stage = vp_stage or 0
         return MCoreBertModelWrapperWithPostLNSupport(
             bert_type=self.bert_type,
             add_pooler=self.add_pooler,
@@ -362,7 +362,10 @@ class TransformerLayerSubmodulesWithPostLNSupport(TransformerLayerSubmodules):
 
 
 class TransformerLayerWithPostLNSupport(TransformerLayer):
-    """Adapted from mcore's TransformerLayer with additional post-attention LN and post MLP LN support."""
+    """
+    Adapted from mcore's TransformerLayer with additional post-attention LN and 
+    post MLP LN support.
+    """
 
     def __init__(self, *args, **kwargs):
         super(TransformerLayerWithPostLNSupport, self).__init__(*args, **kwargs)

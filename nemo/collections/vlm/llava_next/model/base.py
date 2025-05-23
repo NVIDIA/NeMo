@@ -162,9 +162,9 @@ class LlavaNextConfig(NevaConfig):
                 self.vision_transformer_config.tensor_model_parallel_size = self.encoder_tensor_model_parallel_size
                 self.vision_projection_config.tensor_model_parallel_size = self.encoder_tensor_model_parallel_size
 
-        vp_stage = (
-            vp_stage or 0
-        )  # During fake initialization, pass 0 to bypass the assertion that vp_stage must be non-None when using virtual pipeline model parallelism
+        # During fake lightning initialization, pass 0 to bypass the assertion that vp_stage must be
+        # non-None when using virtual pipeline model parallelism
+        vp_stage = vp_stage or 0
         model = MCoreLlavaNextModel(
             config=self,
             tokenizer=tokenizer,

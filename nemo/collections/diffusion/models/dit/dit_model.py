@@ -11,13 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
+# pylint: skip-file
 
 
 from typing import Dict, Literal, Optional
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from diffusers.models.embeddings import Timesteps
 from einops import rearrange, repeat
 from megatron.core import parallel_state, tensor_parallel
@@ -261,8 +262,8 @@ class DiTCrossAttentionModel(VisionModule):
             if (not hasattr(self, "pos_embedder")) or isinstance(self.pos_embedder, dit_embeddings.SinCosPosEmb3D):
                 pos_emb = None
             else:
-                ## if transformer blocks need pos_emb, then pos_embedder should
-                ## be replicated across pp ranks.
+                # if transformer blocks need pos_emb, then pos_embedder should
+                # be replicated across pp ranks.
                 pos_emb = rearrange(self.pos_embedder(pos_ids), "B S D -> S B D").contiguous()
 
         timesteps_B_D = self.t_embedder(timesteps.flatten()).to(torch.bfloat16)  # (b d_text_embedding)

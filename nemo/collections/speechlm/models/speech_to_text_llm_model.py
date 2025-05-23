@@ -1051,7 +1051,6 @@ class SpeechToTextLLM(SpeechLanguageModel):
             # Expand on_validation_epoch_end from parent class MegatronGPTModel as on_validation_epoch_end doesnt take outputs arg
             loss_vals = [x['loss'].view(-1, 1) for x in output]  # each loss is [1, B]
 
-            # TODO: double check if vpp is needed
             assert (
                 self.config.get("virtual_pipeline_model_parallel_size", None) is None
             ), "vpp is not supported yet in SpeechToTextLLMModel"

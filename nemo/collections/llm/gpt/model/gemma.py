@@ -114,9 +114,9 @@ class GemmaModel(GPTModel):
         from nemo.collections.llm.gpt.model.gemma2 import EmbeddingScalingMixin
 
         super().configure_model(vp_stage=vp_stage)
-        vp_stage = (
-            vp_stage or 0
-        )  # During fake initialization, pass 0 to bypass the assertion that vp_stage must be non-None when using virtual pipeline model parallelism
+        # During fake lightning initialization, pass 0 to bypass the assertion that vp_stage must be
+        # non-None when using virtual pipeline model parallelism
+        vp_stage = vp_stage or 0
         if parallel_state.is_pipeline_first_stage(
             ignore_virtual=False,
             vp_stage=vp_stage,

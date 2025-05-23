@@ -702,8 +702,6 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         return output_tensor
 
     def sharded_state_dict(self, prefix: str = "") -> Dict[str, Any]:
-        from megatron.core import parallel_state
-
         """
         Creates the sharded state dict which is used by dist_checkpoint to save the sharded tensors to disk.
         When given the sharded_stated_dict, dist_checkpoint.load will load the tensors corresponding to

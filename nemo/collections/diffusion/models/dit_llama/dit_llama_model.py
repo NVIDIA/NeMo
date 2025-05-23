@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from functools import partial
-from typing import Literal
+from typing import Literal, Optional
 
 from megatron.core.transformer.transformer_config import TransformerConfig
 
@@ -23,6 +23,7 @@ from nemo.collections.diffusion.models.dit_llama.dit_llama_layer_spec import get
 
 
 class DiTLlamaModel(DiTCrossAttentionModel):
+    """DiT-LLaMA model."""
     def __init__(
         self,
         config: TransformerConfig,
