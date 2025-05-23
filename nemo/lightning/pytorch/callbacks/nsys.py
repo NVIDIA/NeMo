@@ -20,6 +20,7 @@ from lightning.pytorch.callbacks.callback import Callback
 from nemo.utils import logging
 from nemo.utils.app_state import AppState
 from nemo.utils.get_rank import get_rank
+from megatron.core.utils import configure_nvtx_profiling
 
 
 def get_current_epoch_step(trainer) -> int:
@@ -79,6 +80,8 @@ class NsysCallback(Callback):
 
         app_state = AppState()
         app_state._nvtx_ranges = nvtx_ranges
+        if (nvtx_ranges):
+            configure_nvtx_profiling(True) # Enable NVTX profiling in MCore
 
         logging.info(
             f'Nsys profiling setup with start_step: {self._nsys_profile_start_step},'
