@@ -2,9 +2,7 @@ import json
 
 from flask import Request
 
-from nemo.collections.llm.evaluation.adapters.interceptors.system_message_interceptor import (
-    SystemMessageInterceptor,
-)
+from nemo.collections.llm.evaluation.adapters.interceptors.system_message_interceptor import SystemMessageInterceptor
 from nemo.collections.llm.evaluation.adapters.interceptors.types import AdapterMetadata, AdapterRequest
 
 
