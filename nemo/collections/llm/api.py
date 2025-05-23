@@ -856,13 +856,13 @@ def import_ckpt(
     CLI Usage:
     ```bash
     # Import Llama 3 8B from HuggingFace (saves to $NEMO_MODELS_CACHE)
-    nemo llm import llama3_8b source="hf://meta-llama/Llama-3.1-8B"
+    nemo llm import model=llama3_8b source="hf://meta-llama/Llama-3.1-8B"
 
     # Import with custom output path
-    nemo llm import llama3_8b source="hf://meta-llama/Llama-3.1-8B" output_path="/path/to/save"
+    nemo llm import model=llama3_8b source="hf://meta-llama/Llama-3.1-8B" output_path="/path/to/save"
 
     # Force overwrite existing checkpoint
-    nemo llm import llama3_8b source="hf://meta-llama/Llama-3.1-8B" overwrite=true
+    nemo llm import model=llama3_8b source="hf://meta-llama/Llama-3.1-8B" overwrite=true
     ```
 
     Python Usage:
