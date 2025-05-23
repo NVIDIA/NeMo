@@ -91,6 +91,7 @@ def _clean_reasoning_tokens(response: requests.Response, end_reasoning_token: st
 
 @final
 class ResponseReasoningInterceptor(ResponseInterceptor):
+    """Intercepts responses to clean up reasoning tokens from the content."""
 
     _end_reasoning_token: str
 
