@@ -730,11 +730,11 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
             # step 2.4.1: masking blanks and inactive labels to pass to LM, as LM does not support blanks
             next_labels_masked = torch.where(blank_mask, 0, next_labels)
 
-            next_indices_extended = next_indices[:, :, None].expand(self.state.batch_lm_states_candidates.shape)
             if self.ngram_lm_batch is not None:
                 # step 2.4.2: gathering LM states of extended hypotheses
                 # batch_lm_states: [(BxBeam)]
                 # batch_lm_states_candidates: [(BxBeam) x V (without blank)]
+                next_indices_extended = next_indices[:, :, None].expand(self.state.batch_lm_states_candidates.shape)
                 batch_lm_states_candidates = torch.gather(
                     self.state.batch_lm_states_candidates, dim=1, index=next_indices_extended
                 )
@@ -750,6 +750,7 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
                 # step 2.4.2: gathering LM states of extended hypotheses
                 # batch_lm_states: [(BxBeam)]
                 # batch_lm_states_candidates: [(BxBeam) x V (without blank)]
+                next_indices_extended = next_indices[:, :, None].expand(self.state.batch_wb_states_candidates.shape)
                 batch_wb_states_candidates = torch.gather(
                     self.state.batch_wb_states_candidates, dim=1, index=next_indices_extended
                 )

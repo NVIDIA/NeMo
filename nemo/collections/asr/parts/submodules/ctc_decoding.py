@@ -292,6 +292,7 @@ class AbstractCTCDecoding(ConfidenceMixin):
                 ngram_lm_alpha=self.cfg.greedy.get("ngram_lm_alpha", 0.0),
                 btree_model=self.cfg.greedy.get("btree_model", None),
                 btree_alpha=self.cfg.greedy.get("btree_alpha", 0.0),
+                allow_cuda_graphs=self.cfg.greedy.get("allow_cuda_graphs", True),
             )
 
         elif self.cfg.strategy == 'beam':
