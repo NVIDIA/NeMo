@@ -165,7 +165,7 @@ class AdapterServer:
             application=self.app,
             threaded=True,
         )
-        logging.info(f"Evaluation adapter server started")
+        logging.info("Evaluation adapter server started")
 
     # The headers we don't want to let out
     _EXCLUDED_HEADERS = [
