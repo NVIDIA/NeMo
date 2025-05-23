@@ -33,12 +33,16 @@ class AdapterMetadata:
 
 @dataclass
 class AdapterRequest:
+    """Container for request data and metadata."""
+
     r: flask.Request
     meta: AdapterMetadata
 
 
 @dataclass
 class AdapterResponse:
+    """Container for response data and metadata."""
+
     r: requests.Response
     meta: AdapterMetadata
 
@@ -56,10 +60,6 @@ class RequestInterceptor(ABC):
         If the return type is `Request`, the chain will continue upstream.
         If the reruen type is `Response`, the `AdapterServer` will consider the
         chain finished and start the reverse chain of responses.
-
-        Ex.: the latter case is e.g. how caching interceptor works. For cache miss
-        it will continue the chain, passing request unchanged. For cache hit,
-        it will go for the response.
         """
         pass
 
@@ -69,4 +69,5 @@ class ResponseInterceptor(ABC):
 
     @abstractmethod
     def intercept_response(self, ar: AdapterResponse) -> AdapterResponse:
+        """Intercept response on its way back to upastream, process it and send further downstream."""
         pass

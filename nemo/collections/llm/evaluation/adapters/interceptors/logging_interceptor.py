@@ -34,6 +34,7 @@ def _get_safe_headers(headers: dict[str, str]) -> dict[str, str]:
 
 @final
 class RequestLoggingInterceptor(RequestInterceptor):
+    """Intercepts and logs incoming requests with configurable limits."""
     _max_requests: Optional[int]
     _logged_requests: int
     # Interceptors might executed concurrenlty.
@@ -71,7 +72,7 @@ class RequestLoggingInterceptor(RequestInterceptor):
             }
             logging.info(f"Request with data: {log_data}")
 
-        except Exception as e:
+        except Exception:
             # If JSON parsing fails, log raw data
             log_data = {
                 "request": {
@@ -81,7 +82,7 @@ class RequestLoggingInterceptor(RequestInterceptor):
                     "raw_data": ar.r.get_data().decode('utf-8', errors='ignore'),
                 }
             }
-            logging.warning(f"Invalid request JSON, logging a request raw data")
+            logging.warning("Invalid request JSON, logging a request raw data")
             logging.info(f"Request with raw data: {log_data}")
 
     @final
@@ -100,6 +101,7 @@ class RequestLoggingInterceptor(RequestInterceptor):
 
 @final
 class ResponseLoggingInterceptor(ResponseInterceptor):
+    """Intercepts and logs outgoing responses with configurable limits."""
     _max_responses: Optional[int]
     _logged_responses: int
     # Interceptors might executed concurrenlty.
@@ -135,7 +137,7 @@ class ResponseLoggingInterceptor(ResponseInterceptor):
             }
             logging.info(f"Response with data: {log_data}")
 
-        except requests.exceptions.JSONDecodeError as e:
+        except requests.exceptions.JSONDecodeError:
             # For non-JSON responses, only log if response logging is enabled
             log_data = {
                 "response": {
@@ -143,7 +145,7 @@ class ResponseLoggingInterceptor(ResponseInterceptor):
                     "raw_content": ar.r.content.decode('utf-8', errors='ignore'),
                 }
             }
-            logging.warning(f"Invalid response JSON, logging response raw data")
+            logging.warning("Invalid response JSON, logging response raw data")
             logging.info(f"Response with raw data: {log_data}")
 
         with self._lock:
