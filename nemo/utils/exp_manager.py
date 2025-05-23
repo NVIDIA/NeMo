@@ -441,15 +441,15 @@ class DeltaTimingCallback(Callback):
 
 def configure_onelogger(trainer: 'lightning.pytorch.Trainer', cfg: Union[DictConfig, Dict]) -> None:
     """Configure OneLogger callback using MetaInfoManager.
-    
+
     Args:
         trainer: The lightning trainer
         cfg: Configuration object containing metadata
     """
     try:
-        from nemo.utils.meta_info_manager import MetaInfoManager
-        from nemo.utils.callback_group import init_global_callback_group
         from nemo.lightning import OneLoggerNeMoCallback
+        from nemo.utils.callback_group import init_global_callback_group
+        from nemo.utils.meta_info_manager import MetaInfoManager
 
         one_logger_cb = OneLoggerNeMoCallback(callback_config=MetaInfoManager(cfg).get_metadata())
         init_global_callback_group(callbacks=[one_logger_cb])
