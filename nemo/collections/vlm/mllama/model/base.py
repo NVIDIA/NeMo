@@ -74,14 +74,14 @@ def mllama_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
             "num_chunks",
         )
     )
-    if parallel_state.is_pipeline_first_stage(ignore_virtual=False):
+    if parallel_state.is_pipeline_first_stage():
         required_keys.update(
             (
                 "batch_images",
                 "aspect_ratio_ids",
             )
         )
-    if parallel_state.is_pipeline_last_stage(ignore_virtual=False):
+    if parallel_state.is_pipeline_last_stage():
         required_keys.update(
             (
                 "labels",
@@ -261,7 +261,7 @@ class MLlamaModelConfig(TransformerConfig, io.IOMixin):
             for attr in MODEL_CONFIG_ATTR:
                 setattr(self, attr, getattr(self.language_model_config, attr))
 
-    def configure_model(self, tokenizer) -> "MLlamaBaseModel":
+    def configure_model(self, tokenizer, vp_stage=None) -> "MLlamaBaseModel":
         """Configure mllama model."""
         from megatron.core import parallel_state as ps
 
@@ -276,15 +276,19 @@ class MLlamaModelConfig(TransformerConfig, io.IOMixin):
             if self.encoder_tensor_model_parallel_size > 0:
                 self.vision_model_config.tensor_model_parallel_size = self.encoder_tensor_model_parallel_size
 
+        # During fake lightning initialization, pass 0 to bypass the assertion that vp_stage must be
+        # non-None when using virtual pipeline model parallelism
+        vp_stage = vp_stage or 0
         model = MLlamaBaseModel(
             config=self,
             tokenizer=tokenizer,
-            pre_process=ps.is_pipeline_first_stage(ignore_virtual=False)
+            pre_process=ps.is_pipeline_first_stage(ignore_virtual=False, vp_stage=vp_stage)
             or ps.get_pipeline_model_parallel_rank() == self.encoder_pipeline_model_parallel_size,
-            post_process=ps.is_pipeline_last_stage(ignore_virtual=False),
-            add_encoder=ps.is_pipeline_first_stage(ignore_virtual=False),
-            add_decoder=ps.is_pipeline_last_stage(ignore_virtual=False)
+            post_process=ps.is_pipeline_last_stage(ignore_virtual=False, vp_stage=vp_stage),
+            add_encoder=ps.is_pipeline_first_stage(ignore_virtual=False, vp_stage=vp_stage),
+            add_decoder=ps.is_pipeline_last_stage(ignore_virtual=False, vp_stage=vp_stage)
             or ps.get_pipeline_model_parallel_rank() >= self.encoder_pipeline_model_parallel_size,
+            vp_stage=vp_stage,
         )
 
         return model
@@ -348,6 +352,7 @@ class MLlamaBaseModel(MegatronModule):
         post_process: bool = True,
         add_encoder: bool = True,
         add_decoder: bool = True,
+        vp_stage: Optional[int] = None,
     ) -> None:
         super().__init__(config=config)
 
@@ -366,7 +371,7 @@ class MLlamaBaseModel(MegatronModule):
 
         if self.add_decoder:
             self.language_model = language_model_config.configure_model(
-                tokenizer=tokenizer, pre_process=pre_process, post_process=post_process
+                tokenizer=tokenizer, pre_process=pre_process, post_process=post_process, vp_stage=vp_stage
             )
             self.share_embeddings_and_output_weights = self.language_model.share_embeddings_and_output_weights
 
@@ -539,10 +544,10 @@ class MLlamaModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         self._training_loss_reduction = None
         self._validation_loss_reduction = None
 
-    def configure_model(self) -> None:
+    def configure_model(self, vp_stage: Optional[int] = None) -> None:
         """Configure mllama model"""
         if not hasattr(self, "module"):
-            self.module: MLlamaBaseModel = self.config.configure_model(self.tokenizer)
+            self.module: MLlamaBaseModel = self.config.configure_model(self.tokenizer, vp_stage=vp_stage)
 
     def forward(
         self,
