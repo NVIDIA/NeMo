@@ -378,6 +378,7 @@ class GPTConfig(TransformerConfig, io.IOMixin):
                 pre_process=pre_process or parallel_state.is_pipeline_first_stage(ignore_virtual=False),
                 post_process=post_process or parallel_state.is_pipeline_last_stage(ignore_virtual=False),
                 scatter_embedding_sequence_parallel=self.scatter_embedding_sequence_parallel,
+                vp_stage=parallel_state.get_virtual_pipeline_model_parallel_rank(),
                 **kwargs,
             )
 
