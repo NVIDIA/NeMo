@@ -35,6 +35,7 @@ def _get_safe_headers(headers: dict[str, str]) -> dict[str, str]:
 @final
 class RequestLoggingInterceptor(RequestInterceptor):
     """Intercepts and logs incoming requests with configurable limits."""
+
     _max_requests: Optional[int]
     _logged_requests: int
     # Interceptors might executed concurrenlty.
@@ -102,6 +103,7 @@ class RequestLoggingInterceptor(RequestInterceptor):
 @final
 class ResponseLoggingInterceptor(ResponseInterceptor):
     """Intercepts and logs outgoing responses with configurable limits."""
+
     _max_responses: Optional[int]
     _logged_responses: int
     # Interceptors might executed concurrenlty.

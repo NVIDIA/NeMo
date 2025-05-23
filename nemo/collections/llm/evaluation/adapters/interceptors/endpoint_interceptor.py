@@ -23,6 +23,7 @@ from .types import AdapterRequest, AdapterResponse, RequestInterceptor
 @final
 class EndpointInterceptor(RequestInterceptor):
     """Intercepts requests and forwards them to a specified API endpoint."""
+
     api_url: str
 
     def __init__(self, api_url: str):
