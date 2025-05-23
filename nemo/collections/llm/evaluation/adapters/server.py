@@ -147,12 +147,10 @@ class AdapterServer:
 
         if custom_system_prompt:
             self.request_interceptors.append(SystemMessageInterceptor(new_system_message=custom_system_prompt))
-
         self.request_interceptors.append(RequestLoggingInterceptor(max_requests=max_logged_requests))
         self.request_interceptors.append(EndpointInterceptor(api_url=self.api_url))
 
         self.response_interceptors.append(ResponseLoggingInterceptor(max_responses=max_logged_responses))
-
         if use_reasoning:
             self.response_interceptors.append(ResponseReasoningInterceptor(end_reasoning_token=end_reasoning_token))
 
