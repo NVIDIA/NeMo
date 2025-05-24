@@ -321,7 +321,7 @@ class MagpieTTSModel(ModelPT):
         for i in range(downsampling_factor):
             for c in range(C):
                 tokens = audio_tokens[:,c , i::self.downsampling_factor]
-                embedding = self.audio_embeddings[c*i](tokens)
+                embedding = self.audio_embeddings[c + i * C](tokens)
                 if audio_embedding is None:
                     audio_embedding = embedding
                 else:
@@ -476,7 +476,7 @@ class MagpieTTSModel(ModelPT):
         total_codebook_loss = None
         for ds_index in range(downsampling_factor):
             for codebook in range(audio_codes.size(1)):
-                si = codebook * ds_index * self.num_all_tokens_per_codebook
+                si = (codebook + self.num_audio_codebooks * ds_index) * self.num_all_tokens_per_codebook
                 ei = si + self.num_all_tokens_per_codebook
                 codebook_logits = logits[:, :, si:ei]  # (B, T', num_tokens_per_codebook)
                 codebook_targets = audio_codes[:, codebook, ds_index::downsampling_factor]  # (B, T')
@@ -512,7 +512,7 @@ class MagpieTTSModel(ModelPT):
         all_preds = [[] for _ in range(self.downsampling_factor)]
         for ds_index in range(self.downsampling_factor):
             for idx in range(self.num_audio_codebooks):
-                si = idx * ds_index * self.num_all_tokens_per_codebook
+                si = (idx + self.num_audio_codebooks * ds_index) * self.num_all_tokens_per_codebook
                 ei = si + self.num_all_tokens_per_codebook
                 codebook_logits = all_code_logits[:, :, si:ei]
                 codebook_probs = torch.softmax(codebook_logits, dim=-1)  # (B, T', num_tokens_per_codebook)
