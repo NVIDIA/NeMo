@@ -73,8 +73,6 @@ def slurm_executor(
         "TOKENIZERS_PARALLELISM": "False",  # Restrict warning message prints
         "NCCL_NVLS_ENABLE": "0",  # Disable NVLink SHARP to save memory
         "NVTE_FLASH_ATTN": "1",  # Enable Flash Attention, which is needed to enable cuDNN fused attention
-        "NVTE_FUSED_ATTN": "1",  # Enable cuDNN fused attention
-        "NEMO_LOG_MEMORY_USAGE": "1",  # Print memory allocation
         "NEMORUN_HOME": log_dir,
     }
     if wandb_key is not None:
