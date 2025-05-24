@@ -20,7 +20,6 @@ from typing import Dict, List, Optional
 import nemo_run as run
 import pandas as pd
 from lightning.pytorch.callbacks.callback import Callback
-from lightning.pytorch.callbacks.model_checkpoint import ModelCheckpoint
 from nemo_run.config import get_nemorun_home
 from numpy import nan
 
@@ -36,6 +35,7 @@ from nemo.collections.llm.recipes.precision.mixed_precision import (
 )
 from nemo.lightning.base import DEFAULT_NEMO_CACHE_HOME
 from nemo.lightning.pytorch.callbacks.flops_callback import FLOPsMeasurementCallback
+from nemo.lightning.pytorch.callbacks.model_checkpoint import ModelCheckpoint
 from nemo.utils import logging
 
 DEFAULT_NEMO_HOME = os.getenv('NEMO_HOME', DEFAULT_NEMO_CACHE_HOME)
