@@ -1,3 +1,17 @@
+# Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import argparse
 import json
 import os
@@ -15,11 +29,14 @@ import librosa
 import scripts.magpietts.evalset_config as evalset_config
 from transformers import Wav2Vec2FeatureExtractor, WavLMForXVector
 
-def find_sample_audios(audio_dir):
+def find_generated_files(audio_dir, file_type):
+    assert file_type in ["audio", "codes"], f"Invalid file type: {file_type}"
+    extension = ".wav" if file_type == "audio" else ".pt"
+    prefix = "predicted_audio" if file_type == "audio" else "predicted_codes"
     file_list = []
     for f in os.listdir(audio_dir):
-        if "predicted_audio" in f and f.endswith(".wav"):
-            audio_number = int(f.split("_")[-1].split(".wav")[0])
+        if prefix in f and f.endswith(extension):
+            audio_number = int(f.split("_")[-1].split(extension)[0])
             file_list.append((audio_number, os.path.join(audio_dir, f)))
     file_list.sort()
     file_list = [t[1] for t in file_list]
@@ -80,10 +97,13 @@ def extract_embedding(model, extractor, audio_path, device, sv_model_type):
     return embeddings.squeeze()
 
 def evaluate(manifest_path, audio_dir, generated_audio_dir, language="en", sv_model_type="titanet", asr_model_name="stt_en_conformer_transducer_large",
-             codecmodel_path=None, predicted_codes=None, predicted_codes_lens=None):
-    audio_file_lists = find_sample_audios(generated_audio_dir)
+             codecmodel_path=None):
+    audio_file_lists = find_generated_files(generated_audio_dir, "audio")
     records = read_manifest(manifest_path)
     assert len(audio_file_lists) == len(records)
+    if codecmodel_path is not None:
+        codes_file_lists = find_generated_files(generated_audio_dir, "codes")
+        assert len(codes_file_lists) == len(records)
 
     device = "cuda"
 
@@ -119,6 +139,9 @@ def evaluate(manifest_path, audio_dir, generated_audio_dir, language="en", sv_mo
         codec = AudioCodecModel.restore_from(codecmodel_path, strict=False)
         codec = codec.to(device)
         codec.eval()
+        # The FCD metric measures a distance between generated and real codec frames. The distance
+        # is measured in the codec's embedding space. `codec_feature_dim` is the size of the codec's embedding vector.
+        # For example, for a group-FSQ codec with 8 codebooks with 4 values in each codebook, the embedding dimension is 8 x 4 = 32.
         codec_feature_dim = codec.vector_quantizer.codebook_dim
         fcd_metric = FrechetCodecDistance(codec=codec, feature_dim=codec_feature_dim).to(device)
     else:
@@ -141,11 +164,12 @@ def evaluate(manifest_path, audio_dir, generated_audio_dir, language="en", sv_mo
                  fcd_metric.update_from_audio_file(gt_audio_filepath, True)
 
         pred_audio_filepath = audio_file_lists[ridx]
+        if fcd_metric is not None:
+            pred_codes_filepath = codes_file_lists[ridx]
 
         try:
             if language == "en":
                 with torch.no_grad():
-                    # import ipdb; ipdb.set_trace()
                     pred_text = asr_model.transcribe([pred_audio_filepath])[0].text
                     pred_text = process_text(pred_text)
                     gt_audio_text = asr_model.transcribe([gt_audio_filepath])[0].text
@@ -177,6 +201,12 @@ def evaluate(manifest_path, audio_dir, generated_audio_dir, language="en", sv_mo
         gt_texts.append(gt_text)
         gt_audio_texts.append(gt_audio_text)
 
+        # update FCD metric
+        if fcd_metric is not None:
+            predicted_codes = torch.load(pred_codes_filepath).unsqueeze(0)
+            predicted_codes_lens = torch.tensor([predicted_codes.size(1)], dtype=torch.int, device=device)
+            fcd_metric.update(predicted_codes, predicted_codes_lens, False)
+
         pred_context_ssim = 0.0
         gt_context_ssim = 0.0
         with torch.no_grad():
@@ -197,11 +227,6 @@ def evaluate(manifest_path, audio_dir, generated_audio_dir, language="en", sv_mo
 
                 pred_context_ssim_alternate = torch.nn.functional.cosine_similarity(pred_speaker_embedding_alternate, context_speaker_embedding_alternate, dim=0).item()
                 gt_context_ssim_alternate = torch.nn.functional.cosine_similarity(gt_speaker_embedding_alternate, context_speaker_embedding_alternate, dim=0).item()
-
-        # update FCD metric for all generated codes
-        if fcd_metric is not None:
-            for i in range(predicted_codes.shape[0]):
-                fcd_metric.update_from_codes(predicted_codes[i:i+1], predicted_codes_lens[i:i+1], False)
 
         filewise_metrics.append({
             'gt_text': gt_text,
