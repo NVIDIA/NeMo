@@ -50,7 +50,7 @@ def override_recipe_configs(
 
     NOTE: Use fp8 precision training with caution. It might not give desirable results.
     """
-    recipe = pretrain_recipe(performance_mode=True)
+    recipe = pretrain_recipe()
     recipe = set_primary_perf_configs(
         recipe,
         "pre_train",

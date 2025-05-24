@@ -20,6 +20,7 @@ from typing import Dict, List, Optional
 import nemo_run as run
 import pandas as pd
 from lightning.pytorch.callbacks.callback import Callback
+from lightning.pytorch.callbacks.model_checkpoint import ModelCheckpoint
 from nemo_run.config import get_nemorun_home
 from numpy import nan
 
@@ -424,7 +425,16 @@ def set_exp_logging_configs(
 
     # Misc. for overall faster experiment runtime
     recipe.log.ckpt = None
-    recipe.trainer.enable_checkpointing = False
+
+    # disable checkpointing if no ModelCheckpoint callback is found
+    callbacks = recipe.trainer.callbacks
+    checkpoint_callback_idx = None
+    if callbacks:  # default is None in lightning
+        for idx, callback in enumerate(callbacks):
+            if callback.__fn_or_cls__ == ModelCheckpoint:
+                checkpoint_callback_idx = idx
+                break
+    recipe.trainer.enable_checkpointing = (checkpoint_callback_idx is not None)
     recipe.trainer.log_every_n_steps = 1
 
     return recipe
