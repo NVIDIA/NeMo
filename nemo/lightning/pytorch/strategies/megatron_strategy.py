@@ -1065,7 +1065,11 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
         if not 'optimizer' in checkpoint:
             for opt in self.optimizers:
-                opt.reload_model_params()
+                if "state_dict" in checkpoint:
+                    checkpoint_state_dict = checkpoint["state_dict"]
+                else:
+                    checkpoint_state_dict = checkpoint
+                opt.reload_model_params(checkpoint_state_dict)
 
     @property
     @override
