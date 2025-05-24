@@ -32,8 +32,6 @@ from nemo.collections.tts.parts.utils.tts_dataset_utils import (
 )
 from nemo.utils import logging
 
-SUPPORTED_CODEC_MODEL_NAMES = ["21fpsCausalDecoder", "12fpsCausalDecoder"]
-
 
 def setup_tokenizers(all_tokenizers_config, use_text_conditioning_tokenizer, mode='train'):
     # Being used in both model and worker_init_fn, so it is defined here
@@ -97,10 +95,6 @@ class MagpieTTSLhotseDataset(torch.utils.data.Dataset):
         codec_model_samples_per_frame (int): The total downsampling factor of the
             audio codec model used to generate codes. Used for padding audio
             and calculating number of codec frames.
-        codec_model_name (str): Name identifier for the codec model, used to
-            determine the field name for loading cached codes (e.g., "codes_21fpsCausalDecoder").
-            Defaults to "21fpsCausalDecoder". Supported values defined in
-            `SUPPORTED_CODEC_MODEL_NAMES`.
         audio_bos_id (int): Token ID representing the beginning-of-sequence (BOS) for
             target audio codes.
         audio_eos_id (int): Token ID representing the end-of-sequence (EOS) for target
@@ -142,7 +136,6 @@ class MagpieTTSLhotseDataset(torch.utils.data.Dataset):
         sample_rate: int,
         volume_norm: bool = True,
         codec_model_samples_per_frame: int = None,
-        codec_model_name: str = "21fpsCausalDecoder",
         audio_bos_id: int = None,
         audio_eos_id: int = None,
         context_audio_bos_id: int = None,
@@ -166,9 +159,6 @@ class MagpieTTSLhotseDataset(torch.utils.data.Dataset):
         self.context_audio_bos_id = context_audio_bos_id
         self.context_audio_eos_id = context_audio_eos_id
 
-        if codec_model_name not in SUPPORTED_CODEC_MODEL_NAMES:
-            raise ValueError(f"Invalid `codec_model_name`: {codec_model_name}.")
-        self.codec_model_name = codec_model_name
         self.codec_model_samples_per_frame = codec_model_samples_per_frame
         self.num_audio_codebooks = num_audio_codebooks
 
@@ -230,9 +220,7 @@ class MagpieTTSLhotseDataset(torch.utils.data.Dataset):
         context_text_tokens_len_list = []
         context_has_text_context_list = []
         reward_list = []
-        raw_text_list = []
-        target_codes_field = f"codes_{self.codec_model_name}"
-        context_codes_field = f"context_codes_{self.codec_model_name}"
+        raw_text_list = []  # raw text here is the string of normalized text or text stored in the supervision segment. Used to distinguish from text tokens.
         for cut in cuts:
             speaker = cut.supervisions[0].speaker
             if not check_speaker_format(speaker):
@@ -241,16 +229,19 @@ class MagpieTTSLhotseDataset(torch.utils.data.Dataset):
             dataset_name_list.append(dataset_name)
 
             # target audio or target codes
-            if self.load_cached_codes_if_available and cut.has_custom(target_codes_field):
-                audio_codes = torch.from_numpy(cut.load_custom(target_codes_field)).long()  # (8, T)
+            if self.load_cached_codes_if_available and cut.has_custom("target_codes"):
+                # TODO @xueyang: applying Tensor.long(), i.e. torch.int64, is not necessary.
+
+                # Note that we have segmented the audio according to offset and duration so that the audio codes should
+                # not specify start and duration again when calling TemporalArray.load(start, duration). Ensure start
+                # and duration are None to the load function.
+                audio_codes = torch.from_numpy(cut.target_codes.load()).long()  # (C, T)
+                spec_len = audio_codes.shape[1] + 1  # +1 for EOS
                 audio_bos_tensor = torch.full((audio_codes.shape[0], 1), self.audio_bos_id, dtype=audio_codes.dtype)
                 audio_eos_tensor = torch.full((audio_codes.shape[0], 1), self.audio_eos_id, dtype=audio_codes.dtype)
                 audio_codes = torch.cat([audio_bos_tensor, audio_codes, audio_eos_tensor], dim=1)
                 audio_codes_len = audio_codes.shape[1]
-                spec_len = audio_codes.shape[1] + 1  # +1 for EOS
-                audio_codes_list.append(
-                    audio_codes.T
-                )  # transpose to (T, 8) in order to use collate_matrices to process batch.
+                audio_codes_list.append(audio_codes.T)  # transpose to (T, C) to use collate_matrices to process batch.
                 audio_codes_len_list.append(audio_codes_len)
             else:
                 # Only load audio if codes are not available
@@ -270,10 +261,13 @@ class MagpieTTSLhotseDataset(torch.utils.data.Dataset):
                 audio_len_list.append(audio_len)
 
             # context audio or context codes
-            if self.load_cached_codes_if_available and cut.has_custom(context_codes_field):
-                # TODO @xueyang: dev branch applied Tensor.long(), i.e. torch.int64 which is not necessary.
-                # load audios and text
-                context_audio_codes = torch.from_numpy(cut.load_custom(context_codes_field)).long()  # (8, T)
+            if self.load_cached_codes_if_available and cut.has_custom("context_codes"):
+                # TODO @xueyang: applying Tensor.long(), i.e. torch.int64, is not necessary.
+
+                # Note that we have segmented the audio according to offset and duration so that the audio codes should
+                # not specify start and duration again when calling TemporalArray.load(start, duration). Ensure start
+                # and duration are None to the load function.
+                context_audio_codes = torch.from_numpy(cut.context_codes.load()).long()  # (8, T)
                 # Sample random duration between self.context_duration_min and self.context_duration_max
                 _context_duration_to_slice = random.uniform(self.context_duration_min, self.context_duration_max)
                 _num_frames_to_slice = int(
@@ -323,8 +317,7 @@ class MagpieTTSLhotseDataset(torch.utils.data.Dataset):
                 context_audio_list.append(context_audio)
                 context_audio_len_list.append(context_audio_len)
             else:
-                # We always want to have context_audio_codes if available for multi-encoder model. These are ignored
-                # for singlencoder model.
+                # We always want to have context_audio_codes if available for multi-encoder model. These are ignored for singlencoder model.
                 # If context audio is not available, just use a dummy context_audio_codes
                 # (Will be used in text context scenario)
                 # TODO @xueyang: verified that this block should cover below 3 conditions which were handled well.
@@ -343,9 +336,7 @@ class MagpieTTSLhotseDataset(torch.utils.data.Dataset):
                     )
                     context_audio_codes = torch.cat([context_bos_tensor, context_eos_tensor], dim=1)
                     context_audio_codes_len = context_audio_codes.shape[1]
-                    context_audio_codes_list.append(
-                        context_audio_codes.T
-                    )  # transpose to (T, 8) in order to use collate_matrices to process batch.
+                    context_audio_codes_list.append(context_audio_codes.T)  # transpose to (T, C) to use collate_matrices to process batch.
                     context_audio_codes_len_list.append(context_audio_codes_len)
                 else:
                     # @shehzeenh: Added this condition so that a batch does not have a mix of context_audio and context_audio_codes
@@ -377,9 +368,7 @@ class MagpieTTSLhotseDataset(torch.utils.data.Dataset):
 
             if self.use_text_conditioning_tokenizer:
                 if cut.supervisions[0].has_custom("context_text"):
-                    context_text_tokens = self.text_conditioning_tokenizer(cut.supervisions[0].context_text)[
-                        'input_ids'
-                    ]
+                    context_text_tokens = self.text_conditioning_tokenizer(cut.supervisions[0].context_text)['input_ids']
                     has_text_context = True
                 else:
                     context_text_tokens = self.text_conditioning_tokenizer("[NO TEXT CONTEXT]")['input_ids']
@@ -394,7 +383,7 @@ class MagpieTTSLhotseDataset(torch.utils.data.Dataset):
                     else:
                         # TODO @xueyang: It seems counter intuition if trimming the text context tokens to the required
                         #  context length. For example, the context_tokens after trimming may correspond to the partial
-                        #  context_text like "Speaker and Emotion: | Language:en Dataset(trimmed :Riva Speaker:Rodney_DROP |)"
+                        #  context_text like "Speaker and Emotion: | Language:en Dataset" where the following string is trimmed: ":Riva Speaker:Rodney_DROP |".
                         context_text_tokens = context_text_tokens[:_required_len]
                 context_text_tokens = torch.tensor(context_text_tokens, dtype=torch.int32)
                 context_text_tokens_len = context_text_tokens.shape[0]
@@ -403,15 +392,18 @@ class MagpieTTSLhotseDataset(torch.utils.data.Dataset):
                 context_has_text_context_list.append(has_text_context)
 
             # tokenize transcript
-            # TODO @xueyang: temporally apply raw text. will check to change if normalized text is available.
-            raw_text = cut.supervisions[0].text
-            raw_text_list.append(raw_text)
+            # there may exist "normalized_text" in the suprvisionsegement. Prioritize it over "text" if available.
+            if cut.supervisions[0].has_custom("normalized_text"):
+                text_str = cut.supervisions[0].normalized_text
+            else:
+                text_str = cut.supervisions[0].text
+            raw_text_list.append(text_str)
             if cut.has_custom("tokenizer_names"):
                 # Pick a random tokenizer from the list of tokenizers
                 tokenizer_name = random.choice(cut.tokenizer_names)
             else:
                 tokenizer_name = "english_phoneme"  # Default to english phoneme tokenizer
-            tokens = self.text_tokenizer.encode(text=raw_text, tokenizer_name=tokenizer_name)
+            tokens = self.text_tokenizer.encode(text=text_str, tokenizer_name=tokenizer_name)
             tokens = tokens + [self.eos_id]  # Not adding BOS id
             tokens = torch.tensor(tokens, dtype=torch.int32)
             text_len = tokens.shape[0]
@@ -419,7 +411,6 @@ class MagpieTTSLhotseDataset(torch.utils.data.Dataset):
             token_len_list.append(text_len)
 
             if self.include_align_prior:
-                # align_prior = self.beta_binomial_interpolator(spec_len, text_len)
                 align_prior = beta_binomial_prior_distribution(
                     phoneme_count=text_len, mel_count=spec_len, scaling_factor=self.prior_scaling_factor
                 )
