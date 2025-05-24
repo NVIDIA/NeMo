@@ -357,6 +357,11 @@ class TranscriptionMixin(ABC):
                 else:
                     dataloader = audio
 
+                # logging.warning(f"transcribe_cfg._internal.primary_language: {transcribe_cfg._internal.primary_language}")
+                # logging.warning(f"audio: {audio}")
+                # logging.warning(f"dataloader iter: {dataloader.__iter__()}")
+                # raise KeyError
+
                 if hasattr(transcribe_cfg, 'verbose'):
                     verbose = transcribe_cfg.verbose
                 else:
@@ -366,6 +371,8 @@ class TranscriptionMixin(ABC):
                     # Move batch to device
                     test_batch = move_data_to_device(test_batch, transcribe_cfg._internal.device)
                     # Run forward pass
+                    # logging.warning(f"test_batch: {test_batch}")
+                    # raise NotImplementedError("This function is not implemented yet.")
                     model_outputs = self._transcribe_forward(test_batch, transcribe_cfg)
                     processed_outputs = self._transcribe_output_processing(model_outputs, transcribe_cfg)
 
