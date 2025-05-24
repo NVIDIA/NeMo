@@ -1,10 +1,20 @@
 # Changelog
 
-<!-- Next changelog -->
-## NVIDIA Neural Modules 2.3.0
+## NVIDIA Neural Modules 2.3.1
+
+### Highlights
+
+- Collections
+  - LLM
+    - Llama 4: Fixed an accuracy issue caused by MoE probability normalization. Improved pre-train and fine-tune performance.
+- Export & Deploy
+  - Updated vLLMExporter to use vLLM V1 to address a security vulnerability.
+- AutoModel
+  - Improved chat-template handling.
+- Fault Tolerance
+  - Local checkpointing: Fixed support for auto-inserted metric names for resuming from local checkpoints.
 
 ### Detailed Changelogs:
-
 
 </details>
 
@@ -42,6 +52,7 @@
 - build: Pin transformers (#13675) by @ko3n1g :: PR: #13692
 
 </details>
+
 ## NVIDIA Neural Modules 2.3.0
 
 ### Highlights
