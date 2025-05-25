@@ -219,7 +219,6 @@ class ExpManagerConfig:
     resume_from_checkpoint: Optional[str] = None
     # Logging parameters
     create_tensorboard_logger: Optional[bool] = True
-    tensorboard_resume: Optional[bool] = True
     summary_writer_kwargs: Optional[Dict[Any, Any]] = None
     create_wandb_logger: Optional[bool] = False
     wandb_logger_kwargs: Optional[Dict[Any, Any]] = None
@@ -662,7 +661,6 @@ def exp_manager(trainer: 'lightning.pytorch.Trainer', cfg: Optional[Union[DictCo
             cfg.version,
             cfg.checkpoint_callback_params,
             cfg.create_tensorboard_logger,
-            cfg.tensorboard_resume,
             cfg.summary_writer_kwargs,
             cfg.create_wandb_logger,
             cfg.wandb_logger_kwargs,
@@ -1182,7 +1180,6 @@ def configure_loggers(
     version: str,
     checkpoint_callback_params: dict,
     create_tensorboard_logger: bool,
-    tensorboard_resume: bool,
     summary_writer_kwargs: dict,
     create_wandb_logger: bool,
     wandb_kwargs: dict,
@@ -1211,17 +1208,6 @@ def configure_loggers(
                 "is handled by lightning's "
                 "TensorBoardLogger logger."
             )
-        if tensorboard_resume:
-            assert version is None, "version must be None when tensorboard_resume is True"
-            # force an arbitrary version to ensure all logs are written to the same directory.
-            version = 0
-
-            # alternatively, we could try to find the latest version in the tensorboard directory, e.g.:
-            if False:
-                # find the latest version in the tensorboard directory
-                tb_root_dir = os.path.join(exp_dir, name)
-                versions = [int(d.replace("version_", "")) for d in os.listdir(tb_root_dir) if d.startswith("version_")]
-                version = max(versions) if versions else 0                
         tensorboard_logger = TensorBoardLogger(save_dir=exp_dir, name=name, version=version, **summary_writer_kwargs)
         logger_list.append(tensorboard_logger)
         logging.info("TensorboardLogger has been set up")
