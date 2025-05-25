@@ -451,7 +451,7 @@ def set_exp_logging_configs(
             if callback.__fn_or_cls__ == ModelCheckpoint:
                 checkpoint_callback_idx = idx
                 break
-    recipe.trainer.enable_checkpointing = (checkpoint_callback_idx is not None)
+    recipe.trainer.enable_checkpointing = checkpoint_callback_idx is not None
     recipe.trainer.log_every_n_steps = 1
 
     return recipe

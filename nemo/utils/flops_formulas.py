@@ -395,18 +395,11 @@ def deepseekv3(config: FLOPSConfig):
 
     return (per_input_attention_flops + per_input_linear_flops + per_input_vocab_flops) * config.gbs
 
+
 def _mlp_layer_flops(config: FLOPSConfig):
     """Model FLOPs for MLP layer"""
-    return (
-        6 
-        * config.gbs 
-        * config.enc_seq_len 
-        * config.hs 
-        * config.ffn_hs 
-        * (
-            2 if config.gated_linear_unit else 1
-        )
-    )
+    return 6 * config.gbs * config.enc_seq_len * config.hs * config.ffn_hs * (2 if config.gated_linear_unit else 1)
+
 
 def _non_mla_attn_layer_flops(config: FLOPSConfig):
     """Model FLOPs for attention layer"""
@@ -416,12 +409,13 @@ def _non_mla_attn_layer_flops(config: FLOPSConfig):
         * config.enc_seq_len
         * config.hs
         * (
-            config.hs # Q
-            + config.query_groups / config.attention_heads * config.hs * 2 # KV
+            config.hs  # Q
+            + config.query_groups / config.attention_heads * config.hs * 2  # KV
             + config.enc_seq_len / 2 * 2
             + config.hs
         )
     )
+
 
 def _mamba_layer_flops(config: FLOPSConfig):
     """Model FLOPs for Mamba layer"""
@@ -435,7 +429,8 @@ def _mamba_layer_flops(config: FLOPSConfig):
         nheads = d_in // config.mamba_head_dim
     return (
         (
-            6 * config.gbs 
+            6
+            * config.gbs
             * config.enc_seq_len
             * config.hs
             * (2 * d_in + 2 * config.mamba_num_groups * config.mamba_state_dim + nheads)
@@ -443,6 +438,7 @@ def _mamba_layer_flops(config: FLOPSConfig):
         + (3 * 7 * config.gbs * config.enc_seq_len * d_in * config.mamba_state_dim)
         + (3 * 2 * config.gbs * config.enc_seq_len * d_in * config.hs)
     )
+
 
 def _hybrid_model_flops(config: FLOPSConfig):
     """Model FLOPs for hybrid model"""
@@ -463,6 +459,7 @@ def _hybrid_model_flops(config: FLOPSConfig):
         + num_mlp_layers * _mlp_layer_flops(config)
         + 6 * config.gbs * config.enc_seq_len * config.hs * config.vocab_size
     )
+
 
 def nemotronh(config: FLOPSConfig):
     """Model FLOPs for NemotronH"""

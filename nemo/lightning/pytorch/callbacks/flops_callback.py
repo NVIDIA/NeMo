@@ -117,7 +117,7 @@ class FLOPsMeasurementCallback(Callback):
             config_kwargs['mamba_head_dim'] = self.model_cfg.mamba_head_dim
             config_kwargs['mamba_num_groups'] = self.model_cfg.mamba_num_groups
             config_kwargs['mamba_num_heads'] = self.model_cfg.mamba_num_heads
-            
+
         self.flops_config = flops_formulas.FLOPSConfig(**config_kwargs)
 
         self.model = self.model.lower() if self.model is not None else self.model
