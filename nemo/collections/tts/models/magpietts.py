@@ -484,6 +484,7 @@ class MagpieTTSModel(ModelPT):
                     codebook_logits.permute(0, 2, 1), codebook_targets  # (B, num_tokens_per_codebook, T')
                 )  # (B, T')
                 codebook_loss = codebook_loss * loss_mask[:, codebook, :]
+                assert loss_mask[:, codebook, :].sum() >= 1, f"Loss mask for codebook {codebook} is all zeros, global_step: {self.global_step}"
                 codebook_loss = codebook_loss.sum() / loss_mask[:, codebook, :].sum()
                 if total_codebook_loss is None:
                     total_codebook_loss = codebook_loss
