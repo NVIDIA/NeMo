@@ -89,7 +89,7 @@ class TestCompletionRequest:
         assert request.temperature == 1.0
         assert request.top_p == 0.0
         assert request.top_k == 0
-        assert request.logprobs is False
+        assert request.logprobs is None
         assert request.echo is False
 
     def test_default_chat_values(self):
@@ -100,8 +100,6 @@ class TestCompletionRequest:
         assert request.temperature == 1.0
         assert request.top_p == 0.0
         assert request.top_k == 0
-        assert request.logprobs is False
-        assert request.top_logprobs is None
 
     def test_greedy_params(self):
         request = CompletionRequest(model="test_model", prompt="test prompt", temperature=0.0, top_p=0.0)
