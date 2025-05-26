@@ -14,7 +14,9 @@
 
 import re
 from typing import Any
+from functools import cached_property
 
+from nemo.collections.asr.models import ASRModel
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 
 
