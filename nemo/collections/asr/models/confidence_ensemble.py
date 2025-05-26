@@ -19,7 +19,6 @@ import warnings
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Union
 
-import joblib
 try:
     from joblib.numpy_pickle_utils import _read_fileobject as _validate_joblib_file
 except ImportError:
@@ -162,6 +161,7 @@ def compute_confidence(hypothesis: Hypothesis, confidence_cfg: ConfidenceConfig)
 
     return conf_value
 
+
 def safe_joblib_load(file_path: str) -> Pipeline:
     """
     Safely load a joblib file containing a scikit-learn pipeline.
@@ -214,10 +214,10 @@ def safe_joblib_load(file_path: str) -> Pipeline:
                             stream = stream[0]
 
                         if isinstance(stream, str):
-                            f = open(stream, "rb")
+                            with open(stream, "rb") as f:
+                                model = RestrictedUnpickler(f).load()
                         else:
-                            f = stream
-                    model = RestrictedUnpickler(f).load()
+                            model = RestrictedUnpickler(stream).load()
 
                 # Validate the loaded object is a sklearn Pipeline
                 if not isinstance(model, Pipeline):
@@ -235,7 +235,6 @@ def safe_joblib_load(file_path: str) -> Pipeline:
 
     except Exception as e:
         raise SecurityError(f"Failed to safely load model: {str(e)}")
-
 
 
 class SecurityError(Exception):
