@@ -13,8 +13,8 @@
 # limitations under the License.
 
 import re
-from typing import Any
 from functools import cached_property
+from typing import Any
 
 from nemo.collections.asr.models import ASRModel
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
