@@ -394,7 +394,9 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
                 # Find the maximum length
                 max_len = max(len(arr) for arr in output_log_probs)
                 # Pad each array to the maximum length. Pads 0.
-                padded = np.array([np.pad(arr, (0, max_len - len(arr)), constant_values=0) for arr in output_log_probs])
+                padded = np.array(
+                    [np.pad(arr, (0, max_len - len(arr)), constant_values=0) for arr in output_log_probs]
+                )
 
                 output_infer["log_probs"] = padded
             else:
