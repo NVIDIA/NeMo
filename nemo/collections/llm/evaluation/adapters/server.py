@@ -138,7 +138,7 @@ class AdapterServer:
     def _find_free_port(self) -> int:
         """Find a free port to use for the server."""
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.bind(('', 0))
+            s.bind(("127.0.0.1", 0))
             s.listen(1)
             port = s.getsockname()[1]
         return port
