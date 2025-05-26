@@ -19,6 +19,7 @@ import subprocess
 import sys
 import time
 import warnings
+import atexit
 from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import timedelta
@@ -41,6 +42,7 @@ from omegaconf import DictConfig, OmegaConf, open_dict
 
 from nemo.collections.common.callbacks import EMA
 from nemo.constants import NEMO_ENV_VARNAME_TESTING, NEMO_ENV_VARNAME_VERSION
+from nemo.lightning.pytorch.callbacks.callback_group import CallbackGroup
 from nemo.utils import logging, timers
 from nemo.utils.app_state import AppState
 from nemo.utils.callbacks import NeMoModelCheckpoint, PreemptionCallback
@@ -577,6 +579,12 @@ def exp_manager(trainer: 'lightning.pytorch.Trainer', cfg: Optional[Union[DictCo
     if trainer.fast_dev_run:
         logging.info("Trainer was called with fast_dev_run. exp_manager will return without any functionality.")
         return
+
+    # Call on_app_start at the beginning of exp_manager
+    CallbackGroup.get_instance().on_app_start()
+
+    # Register on_app_end with atexit
+    atexit.register(CallbackGroup.get_instance().on_app_end)
 
     # Ensure passed cfg is compliant with ExpManagerConfig
     schema = OmegaConf.structured(ExpManagerConfig)
