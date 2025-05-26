@@ -625,6 +625,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             # by calling model_module.broadcast_params() if the model is randomly initialized.
 
     def configure_optimizers(self):
+        
         if self.with_distributed_adam and not self.use_mcore_dist_optim:
 
             # Special handling for embedding grads
