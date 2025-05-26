@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import atexit
 import glob
 import os
 import signal
@@ -19,7 +20,6 @@ import subprocess
 import sys
 import time
 import warnings
-import atexit
 from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import timedelta
