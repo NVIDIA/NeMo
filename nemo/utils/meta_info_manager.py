@@ -85,9 +85,7 @@ class MetaInfoManager:
         """
         return os.environ.get(name, default)
 
-    def get_metadata(
-        self, run_type: str = "training", project_name: Optional[str] = None, **kwargs
-    ) -> Dict[str, Any]:
+    def get_metadata(self, run_type: str = "training", project_name: Optional[str] = None, **kwargs) -> Dict[str, Any]:
         """Generate standardized metadata for experiments based on config.
 
         Args:
@@ -119,8 +117,7 @@ class MetaInfoManager:
             "world_size": (
                 self._get_config_value(
                     "trainer.world_size",
-                    self._get_config_value("trainer.devices", -1)
-                    * self._get_config_value("trainer.num_nodes", 1),
+                    self._get_config_value("trainer.devices", -1) * self._get_config_value("trainer.num_nodes", 1),
                 )
                 or self._get_env("WORLD_SIZE", -1)
             ),
@@ -148,9 +145,7 @@ class MetaInfoManager:
                     ),
                     # Logging frequency
                     "log_every_n_iterations": self._get_config_value("trainer.log_every_n_steps", 10),
-                    "save_checkpoint_strategy": self._get_config_value(
-                        "trainer.save_checkpoint_strategy", "async"
-                    ),
+                    "save_checkpoint_strategy": self._get_config_value("trainer.save_checkpoint_strategy", "async"),
                     # Construct perf_tag as a string with safely accessed variables
                     "perf_tag": (
                         f"{exp_name}_{metadata.get('perf_version_tag', '0.0.0')}_"
@@ -158,12 +153,8 @@ class MetaInfoManager:
                         f"{metadata.get('world_size', 1)}"
                     ),
                     # Feature flags - get from config when available
-                    "is_train_iterations_enabled": self._get_config_value(
-                        "exp_manager.track_train_iterations", True
-                    ),
-                    "is_test_iterations_enabled": self._get_config_value(
-                        "exp_manager.track_test_iterations", True
-                    ),
+                    "is_train_iterations_enabled": self._get_config_value("exp_manager.track_train_iterations", True),
+                    "is_test_iterations_enabled": self._get_config_value("exp_manager.track_test_iterations", True),
                     "is_validation_iterations_enabled": self._get_config_value(
                         "exp_manager.track_validation_iterations", True
                     ),
