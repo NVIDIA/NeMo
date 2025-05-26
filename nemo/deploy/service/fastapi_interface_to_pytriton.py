@@ -268,6 +268,7 @@ async def completions_v1(request: CompletionRequest):
             "top_logprobs"
         ][0]
         if request.echo:
+            # output format requires empty logprobs for the 1st token
             output_serializable["choices"][0]["logprobs"]["token_logprobs"].insert(0, None)
     else:
         output_serializable["choices"][0]["logprobs"] = None
