@@ -41,6 +41,7 @@ if __name__ == '__main__':
             nemo_checkpoint=args.nemo2_ckpt_path,
             max_batch_size=args.max_batch_size,
             triton_model_repository=args.trtllm_dir,
+            backend="trtllm",
         )
     except Exception as e:
         logging.error(f"Deploy process encountered an error: {e}")
