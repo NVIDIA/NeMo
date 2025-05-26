@@ -111,15 +111,6 @@ class ChatCompletionRequest(BaseRequest):
     """
 
     messages: list[dict]
-    logprobs: bool = False
-    top_logprobs: int = None
-
-    @model_validator(mode='after')
-    def validate_top_logprobs_requires_logprobs(self):
-        """Ensure that top_logprobs is only set if logprobs is True."""
-        if self.top_logprobs is not None and not self.logprobs:
-            raise ValueError("top_logprobs requires logprobs to be True.")
-        return self
 
 
 @app.get("/v1/health")
@@ -312,15 +303,16 @@ async def chat_completions_v1(request: ChatCompletionRequest):
         temperature=request.temperature,
         top_k=request.top_k,
         top_p=request.top_p,
-        compute_logprob=request.logprobs,
+        compute_logprob=False,  # disable logprobs because we dont need them for any benchmark
         max_length=request.max_tokens,
         apply_chat_template=True,
-        n_top_logprobs=request.top_logprobs,
+        n_top_logprobs=None,
         echo=False,  # chat request doesn't support echo
     )
     # Add 'role' as 'assistant' key to the output dict
     output["choices"][0]["message"] = {"role": "assistant", "content": output["choices"][0]["text"]}
     output["object"] = "chat.completion"
+    output["choices"][0]["logprobs"] = None
 
     del output["choices"][0]["text"]
 
@@ -329,27 +321,5 @@ async def chat_completions_v1(request: ChatCompletionRequest):
         0
     ][0]
 
-    if request.logprobs:
-        # TODO: this is not the correct format, should be:
-        # 'logprobs': {
-        # 'content': [
-        # {'token': 'Hello', 'logprob': -0.589, 'top_logprobs': [
-        #    {'token': 'Hello', 'logprob': -0.589},
-        #    {'token': 'I', 'logprob': -0.995},
-        #    ...
-        # ]}]}
-        output_serializable["choices"][0]["logprobs"]["token_logprobs"] = output_serializable["choices"][0][
-            "logprobs"
-        ]["token_logprobs"][0]
-
-        if request.top_logprobs is not None and request.top_logprobs > 0:
-            output_serializable["choices"][0]["logprobs"]["top_logprobs"] = output_serializable["choices"][0][
-                "logprobs"
-            ]["top_logprobs"][0]
-        else:
-            output_serializable["choices"][0]["logprobs"]["top_logprobs"] = []
-
-    else:
-        output_serializable["choices"][0]["logprobs"] = None
     logging.info(f"Output: {output_serializable}")
     return output_serializable
