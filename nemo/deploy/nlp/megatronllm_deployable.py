@@ -388,7 +388,17 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
                     output_log_probs.append([0])
                 else:
                     output_log_probs.append(lp)
-            output_infer["log_probs"] = np.array(output_log_probs)
+            if echo:
+                # if echo, arrays in output_log_probs can have diff len due to diff num of prompt tokens. Pad the
+                # tokens in that case
+                # Find the maximum length
+                max_len = max(len(arr) for arr in output_log_probs)
+                # Pad each array to the maximum length. Pads 0.
+                padded = np.array([np.pad(arr, (0, max_len - len(arr)), constant_values=0) for arr in output_log_probs])
+
+                output_infer["log_probs"] = padded
+            else:
+                output_infer["log_probs"] = np.array(output_log_probs)
         if top_logprobs:
             output_top_n_log_probs = []
             for r in results:
