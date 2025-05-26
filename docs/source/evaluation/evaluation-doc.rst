@@ -26,7 +26,9 @@ Some of the benchmarks (e.g. GPQA) use a gated dataset. To use them, you must au
 `Hugging Face Hub <https://huggingface.co/docs/huggingface_hub/quick-start#authentication>`__
 before launching the evaluation.
 
-The NVIDIA Evals Factory provides the following predefined configurations for evaluating the completions endpoint:
+The NVIDIA Evals Factory provides several evaluation harnesses with different sets of evaluation benchmarks.
+`NeMo Framework container <https://catalog.ngc.nvidia.com/orgs/nvidia/containers/nemo>`__ comes with nvidia-lm-eval pre-installed
+and the following predefined configurations for evaluating the completions endpoint:
     * `gsm8k`
     * `mgsm`
     * `mmlu`
@@ -42,6 +44,29 @@ It also provides the following configurations for evaluating the chat endpoint:
     * `mmlu_pro_instruct`
     * `mmlu_redux_instruct`
     * `wikilingua`
+
+
+When specifying the task, you can either use the task name from the list above or prepend it with the harness name, for example:
+
+.. code-block:: python
+
+    task = "mmlu"
+    task = "lm-evaluation-harness.mmlu"
+    task = "lm_evaluation_harness.mmlu"
+
+In order to enable other evaluation harness, you need to install it, for example:
+
+.. code-block:: bash
+
+    pip install nvidia-simple-evals
+
+If more than one harness defines task with a given name, you must use the `<harness>.<task>` format to resolve ambiguities, for example:
+
+.. code-block:: python
+
+    task = "lm-evaluation-harness.mmlu"
+    task = "simple-evals.mmlu"
+
 
 Run Evaluations without NeMo-Run
 ---------------------------------
