@@ -26,6 +26,8 @@ from nemo.lightning.pytorch.callbacks.preemption import PreemptionCallback
 from nemo.lightning.pytorch.callbacks.progress_bar import MegatronProgressBar
 from nemo.lightning.pytorch.callbacks.progress_printer import ProgressPrinter
 from nemo.lightning.pytorch.callbacks.pytorch_profiler import PytorchProfilerCallback
+from nemo.lightning.pytorch.callbacks.memory_callback import MemoryMonitor
+from nemo.lightning.pytorch.callbacks.optimizer_monitor import OptimizerMonitor
 
 __all__ = [
     "MemoryProfileCallback",
@@ -43,4 +45,6 @@ __all__ = [
     "ModelCallback",
     "JitTransform",
     "JitConfig",
-]
+    "MemoryMonitor",
+    "OptimizerMonitor",
+] 
