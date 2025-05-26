@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""MetaInfoManager module for handling experiment metadata configuration."""
+
 import os
 from typing import Any, Dict, Optional
 
@@ -83,7 +85,9 @@ class MetaInfoManager:
         """
         return os.environ.get(name, default)
 
-    def get_metadata(self, run_type: str = "training", project_name: Optional[str] = None, **kwargs) -> Dict[str, Any]:
+    def get_metadata(
+        self, run_type: str = "training", project_name: Optional[str] = None, **kwargs
+    ) -> Dict[str, Any]:
         """Generate standardized metadata for experiments based on config.
 
         Args:
@@ -115,13 +119,12 @@ class MetaInfoManager:
             "world_size": (
                 self._get_config_value(
                     "trainer.world_size",
-                    self._get_config_value("trainer.devices", -1) * self._get_config_value("trainer.num_nodes", 1),
+                    self._get_config_value("trainer.devices", -1)
+                    * self._get_config_value("trainer.num_nodes", 1),
                 )
                 or self._get_env("WORLD_SIZE", -1)
             ),
             "rank": self._get_config_value("trainer.global_rank", None) or self._get_env("RANK", "0"),
-            "local_rank": self._get_config_value("trainer.local_rank", None) or self._get_env("LOCAL_RANK", "0"),
-            "node_rank": self._get_config_value("trainer.node_rank", None) or self._get_env("NODE_RANK", "0"),
         }
 
         # Add run-type specific configuration
@@ -145,18 +148,22 @@ class MetaInfoManager:
                     ),
                     # Logging frequency
                     "log_every_n_iterations": self._get_config_value("trainer.log_every_n_steps", 10),
-                    "save_checkpoint_strategy": self._get_config_value("trainer.save_checkpoint_strategy", "async"),
-                    # Checkpoint settings
-                    "save_checkpoint_enabled": True,
-                    "save_checkpoint_strategy": "steps",
+                    "save_checkpoint_strategy": self._get_config_value(
+                        "trainer.save_checkpoint_strategy", "async"
+                    ),
                     # Construct perf_tag as a string with safely accessed variables
                     "perf_tag": (
                         f"{exp_name}_{metadata.get('perf_version_tag', '0.0.0')}_"
-                        f"{metadata.get('global_batch_size', 1)}_{metadata.get('world_size', 1)}"
+                        f"{self._get_config_value('model.global_batch_size', 1)}_"
+                        f"{metadata.get('world_size', 1)}"
                     ),
                     # Feature flags - get from config when available
-                    "is_train_iterations_enabled": self._get_config_value("exp_manager.track_train_iterations", True),
-                    "is_test_iterations_enabled": self._get_config_value("exp_manager.track_test_iterations", True),
+                    "is_train_iterations_enabled": self._get_config_value(
+                        "exp_manager.track_train_iterations", True
+                    ),
+                    "is_test_iterations_enabled": self._get_config_value(
+                        "exp_manager.track_test_iterations", True
+                    ),
                     "is_validation_iterations_enabled": self._get_config_value(
                         "exp_manager.track_validation_iterations", True
                     ),
