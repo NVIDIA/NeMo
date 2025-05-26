@@ -29,7 +29,7 @@ The arch is as follows:
              │      │
          ┌───┼──────┼──────────────────────────────────────────────────┐
          │   │      ▼                                                  │
-         │ AdapterServer (@ localhost:3825)                            │
+         │ AdapterServer (@ localhost:<free port>)                     │
          │                                                             │
          │   ▲      │       chain of RequestInterceptors:              │
          │   │      │       flask.Request                              │
@@ -61,7 +61,7 @@ relatively easy to add separately.
 
 """
 
-import os
+import socket
 from typing import Optional
 
 import flask
@@ -87,9 +87,6 @@ from .interceptors import (
 
 class AdapterServer:
     """Main server which serves on a local port and holds chain of interceptors"""
-
-    DEFAULT_ADAPTER_HOST: str = "localhost"
-    DEFAULT_ADAPTER_PORT: int = 3825
 
     adapter_host: str
     adapter_port: int
@@ -120,8 +117,10 @@ class AdapterServer:
         self.app.route("/", defaults={"path": ""}, methods=["POST"])(self._handler)
         self.app.route("/<path:path>", methods=["POST"])(self._handler)
 
-        self.adapter_host: str = os.environ.get("ADAPTER_HOST", self.DEFAULT_ADAPTER_HOST)
-        self.adapter_port: int = int(os.environ.get("ADAPTER_PORT", self.DEFAULT_ADAPTER_PORT))
+        self.adapter_host: str = "localhost"
+        self.adapter_port: int = (
+            adapter_config.local_port if adapter_config.local_port is not None else self._find_free_port()
+        )
 
         self.api_url = api_url
         self.adapter_config = adapter_config
@@ -135,6 +134,14 @@ class AdapterServer:
             max_logged_requests=adapter_config.max_logged_requests,
             max_logged_responses=adapter_config.max_logged_responses,
         )
+
+    def _find_free_port(self) -> int:
+        """Find a free port to use for the server."""
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.bind(('', 0))
+            s.listen(1)
+            port = s.getsockname()[1]
+        return port
 
     def _build_interceptor_chains(
         self,

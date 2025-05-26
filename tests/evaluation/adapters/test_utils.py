@@ -56,10 +56,11 @@ def wait_for_server(host, port, max_wait=5, interval=0.2):
     return False
 
 
-def create_and_run_adapter_server(url, config):
+def create_and_run_adapter_server(url, config) -> AdapterServer:
     """Create and run an AdapterServer in a separate process."""
     adapter = AdapterServer(api_url=url, adapter_config=config)
     adapter.run()
+    return adapter
 
 
 def create_and_run_fake_endpoint():
@@ -107,12 +108,10 @@ def create_adapter_server_process(api_url, adapter_config):
         A tuple of (process, adapter_instance) where adapter_instance is a local
         instance with the same configuration.
     """
-    # Start the process with the factory function
-    p = multiprocessing.Process(target=create_and_run_adapter_server, args=(api_url, adapter_config))
-    p.start()
 
-    # Create a local instance just for configuration access, this is a bit of a hack
     adapter = AdapterServer(api_url=api_url, adapter_config=adapter_config)
+    p = multiprocessing.Process(target=adapter.run)
+    p.start()
 
     # Wait for the server to be ready
     if not wait_for_server("localhost", adapter.adapter_port):
