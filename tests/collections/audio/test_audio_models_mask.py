@@ -34,6 +34,7 @@ try:
 except ModuleNotFoundError:
     HAVE_TORCHAUDIO = False
 
+
 @pytest.fixture(params=["nemo_manifest", "lhotse_cuts"])
 def mock_dataset_config(tmp_path, request):
     num_files = 8
@@ -83,6 +84,7 @@ def mock_dataset_config(tmp_path, request):
         }
     else:
         raise NotImplementedError(f"Dataset type {request.param} not implemented")
+
 
 @pytest.fixture()
 def mask_model_rnn_params():
@@ -139,12 +141,14 @@ def mask_model_rnn_params():
 
     return model_config
 
+
 @pytest.fixture()
 def mask_model_rnn(mask_model_rnn_params):
     with torch.random.fork_rng():
         torch.random.manual_seed(0)
         model = EncMaskDecAudioToAudioModel(cfg=mask_model_rnn_params)
     return model
+
 
 @pytest.fixture()
 def mask_model_rnn_with_trainer_and_mock_dataset(mask_model_rnn_params, mock_dataset_config):
@@ -172,6 +176,7 @@ def mask_model_rnn_with_trainer_and_mock_dataset(mask_model_rnn_params, mock_dat
         model = EncMaskDecAudioToAudioModel(cfg=mask_model_rnn_params, trainer=trainer)
 
     return model, trainer
+
 
 @pytest.fixture()
 def mask_model_flexarray():

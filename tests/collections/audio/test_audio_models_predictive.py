@@ -366,7 +366,9 @@ def predictive_model_transformer_unet(predictive_model_transformer_unet_params):
 
 
 @pytest.fixture()
-def predictive_model_transformer_unet_with_trainer_and_mock_dataset(predictive_model_transformer_unet_params, mock_dataset_config):
+def predictive_model_transformer_unet_with_trainer_and_mock_dataset(
+    predictive_model_transformer_unet_params, mock_dataset_config
+):
     # Add train and validation dataset configs
     predictive_model_transformer_unet_params['train_ds'] = {**mock_dataset_config, 'shuffle': True}
     predictive_model_transformer_unet_params['validation_ds'] = {**mock_dataset_config, 'shuffle': False}
@@ -651,8 +653,7 @@ class TestPredictiveModelTransformerUNet:
             # fail because of adaptive RMS turned on for predictive model
             with torch.no_grad():
                 _, _ = model.forward(input_signal=input_signal, input_length=input_signal_length)
-                
-    
+
     def test_training_step(self, predictive_model_transformer_unet_with_trainer_and_mock_dataset):
         model, _ = predictive_model_transformer_unet_with_trainer_and_mock_dataset
         model = model.train()

@@ -176,7 +176,9 @@ def schroedinger_bridge_model_ncsn(schroedinger_bridge_model_ncsn_params):
 
 
 @pytest.fixture()
-def schroedinger_bridge_model_ncsn_with_trainer_and_mock_dataset(schroedinger_bridge_model_ncsn_params, mock_dataset_config):
+def schroedinger_bridge_model_ncsn_with_trainer_and_mock_dataset(
+    schroedinger_bridge_model_ncsn_params, mock_dataset_config
+):
     # Add train and validation dataset configs
     schroedinger_bridge_model_ncsn_params["train_ds"] = {**mock_dataset_config, "shuffle": True}
     schroedinger_bridge_model_ncsn_params["validation_ds"] = {**mock_dataset_config, "shuffle": False}
@@ -257,8 +259,7 @@ class TestSchroedingerBridgeModelNCSN:
         assert output_instance.shape == output_batch.shape
         assert output_length_instance.shape == output_length_batch.shape
 
-
-    def test_training_step(self,schroedinger_bridge_model_ncsn_with_trainer_and_mock_dataset):
+    def test_training_step(self, schroedinger_bridge_model_ncsn_with_trainer_and_mock_dataset):
         model, _ = schroedinger_bridge_model_ncsn_with_trainer_and_mock_dataset
         model = model.train()
 
@@ -279,7 +280,6 @@ class TestSchroedingerBridgeModelNCSN:
 
             loss, _, _ = model._step(target_signal=target_signal, input_signal=input_signal, input_length=input_length)
             loss.backward()
-
 
     def test_model_training(self, schroedinger_bridge_model_ncsn_with_trainer_and_mock_dataset):
         """
