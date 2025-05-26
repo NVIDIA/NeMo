@@ -25,6 +25,11 @@ class BaseTimestampsTest:
     test_ctc_decoding.py and test_rnnt_decoding.py.
     """
 
+    @cached_property
+    def bpe_tokenizer(self):
+        model = ASRModel.restore_from("/home/TestData/asr/stt_en_conformer_transducer_small.nemo", map_location="cpu")
+        return model.tokenizer
+
     @property
     def char_offsets_chars(self):
         char_offsets = [

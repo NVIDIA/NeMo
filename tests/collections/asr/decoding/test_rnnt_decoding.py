@@ -575,12 +575,11 @@ class TestRNNTTimestamps(BaseTimestampsTest):
 
     @cached_property
     def decoding_subword_bpe(self):
-        model = ASRModel.from_pretrained("stt_en_conformer_transducer_small", map_location="cpu")
-        vocab = model.tokenizer.vocab
+        vocab = self.bpe_tokenizer.vocab
         cfg = RNNTDecodingConfig()
         decoder = get_rnnt_decoder(vocab_size=len(vocab))
         joint = get_rnnt_joint(vocab_size=len(vocab))
-        decoding = RNNTBPEDecoding(decoding_cfg=cfg, decoder=decoder, joint=joint, tokenizer=model.tokenizer)
+        decoding = RNNTBPEDecoding(decoding_cfg=cfg, decoder=decoder, joint=joint, tokenizer=self.bpe_tokenizer)
         return decoding
 
     @pytest.mark.unit

@@ -340,9 +340,8 @@ class TestCTCTimestamps(BaseTimestampsTest):
 
     @cached_property
     def decoding_subword_bpe(self):
-        model = ASRModel.from_pretrained("stt_en_conformer_transducer_small", map_location="cpu")
         cfg = CTCBPEDecodingConfig(compute_timestamps=True)
-        decoding = CTCBPEDecoding(decoding_cfg=cfg, tokenizer=model.tokenizer)
+        decoding = CTCBPEDecoding(decoding_cfg=cfg, tokenizer=self.bpe_tokenizer)
         return decoding
 
     @pytest.mark.unit
