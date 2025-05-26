@@ -144,6 +144,11 @@ class AdapterConfig(BaseModel):
 
         return AdapterConfig.model_validate(adapter_config)
 
+    local_port: Optional[int] = Field(
+        description="Local port to use for the adapter server. If `None` (default) will choose any free port",
+        default=None,
+    )
+
     use_reasoning: bool = Field(
         description="Whether to use the clean-reasoning-tokens adapter. See `end_reasoning_token`.",
         default=False,
