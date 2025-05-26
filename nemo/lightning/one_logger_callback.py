@@ -18,9 +18,7 @@ class OneLoggerNeMoCallback(Callback):
     uses OneLogger's core functionality to track metrics.
     """
 
-    def __init__(
-        self, callback_config: Optional[Dict[str, Any]] = None, set_barrier: bool = False
-    ):
+    def __init__(self, callback_config: Optional[Dict[str, Any]] = None, set_barrier: bool = False):
         """Initialize the OneLogger NeMo callback.
 
         Args:
@@ -92,9 +90,7 @@ class OneLoggerNeMoCallback(Callback):
         max_steps = trainer.max_steps if hasattr(trainer, 'max_steps') else 0
 
         # Call OneLogger's on_train_start with the extracted information
-        self.one_logger.on_train_start(
-            train_iterations_start=current_step, train_iterations_target=max_steps
-        )
+        self.one_logger.on_train_start(train_iterations_start=current_step, train_iterations_target=max_steps)
 
     def on_train_end(self, trainer: pl.Trainer, pl_module: pl.LightningModule) -> None:
         """Called when training ends.
