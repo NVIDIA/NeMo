@@ -7,6 +7,7 @@ from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 
+
 @hydra_runner(config_path="conf", config_name="quick_start_config")
 def main(cfg) -> None:
     # Setup logging
@@ -45,7 +46,7 @@ def main(cfg) -> None:
     try:
         from nemo.lightning import OneLoggerNeMoCallback
         from nemo.utils.meta_info_manager import MetaInfoManager
-        
+
         one_logger_cb = OneLoggerNeMoCallback(
             callback_config=MetaInfoManager(cfg).get_metadata(),
             perf_tag="nemo_test",
@@ -60,5 +61,6 @@ def main(cfg) -> None:
     # Train
     trainer.fit(model)
 
+
 if __name__ == "__main__":
-    main() 
+    main()
