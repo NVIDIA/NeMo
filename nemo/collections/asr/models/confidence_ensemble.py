@@ -20,6 +20,10 @@ from dataclasses import dataclass
 from typing import Dict, List, Optional, Union
 
 import joblib
+try:
+    from joblib.numpy_pickle_utils import _read_fileobject as _validate_joblib_file
+except ImportError:
+    from joblib.numpy_pickle_utils import _validate_fileobject_and_memmap as _validate_joblib_file
 import numpy as np
 import torch
 from lightning.pytorch import Trainer
@@ -158,7 +162,6 @@ def compute_confidence(hypothesis: Hypothesis, confidence_cfg: ConfidenceConfig)
 
     return conf_value
 
-
 def safe_joblib_load(file_path: str) -> Pipeline:
     """
     Safely load a joblib file containing a scikit-learn pipeline.
@@ -205,13 +208,16 @@ def safe_joblib_load(file_path: str) -> Pipeline:
             warnings.simplefilter("ignore")
             # First try to load with our custom unpickler
             try:
-                with open(file_path, 'rb') as f:
-                    unpickler = RestrictedUnpickler(f)
-                    model = unpickler.load()
-            except (pickle.UnpicklingError, AttributeError):
-                # If that fails, try loading with joblib's default loader first
-                # then validate the loaded object
-                model = joblib.load(file_path)
+                with open(file_path, 'rb') as rawf:
+                    with _validate_joblib_file(rawf, file_path, mmap_mode=None) as stream:
+                        if isinstance(stream, tuple):
+                            stream = stream[0]
+
+                        if isinstance(stream, str):
+                            f = open(stream, "rb")
+                        else:
+                            f = stream
+                    model = RestrictedUnpickler(f).load()
 
                 # Validate the loaded object is a sklearn Pipeline
                 if not isinstance(model, Pipeline):
@@ -222,10 +228,14 @@ def safe_joblib_load(file_path: str) -> Pipeline:
                     if not (isinstance(step_obj, (StandardScaler, LogisticRegression))):
                         raise ValueError(f"Unauthorized pipeline step: {type(step_obj)}")
 
+            except (pickle.UnpicklingError, AttributeError) as e:
+                raise SecurityError(f"Failed to safely load model: {e}")
+
         return model
 
     except Exception as e:
         raise SecurityError(f"Failed to safely load model: {str(e)}")
+
 
 
 class SecurityError(Exception):
