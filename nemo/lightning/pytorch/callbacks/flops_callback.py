@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -31,6 +31,7 @@ _model_flops_map = {
     "gpt3": flops_formulas.gpt3,
     "llama2": flops_formulas.llama2,
     "llama3": flops_formulas.llama3,
+    "llama4": flops_formulas.llama3,  # TODO: add llama4 flops formulas
     "nemotron": flops_formulas.nemotron,
     "mixtral": flops_formulas.mixtral,
     "bert": flops_formulas.bert,

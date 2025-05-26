@@ -21,7 +21,7 @@ import os
 import pickle
 import time
 from functools import lru_cache, partial
-from typing import Any, Callable, List, Optional, Type
+from typing import Any, Callable, List, Optional, Type, Union
 
 import numpy as np
 import torch
@@ -756,7 +756,11 @@ def _preprocess(
 
     ids = []
     tokenized_lens = []
-    assert torch.equal(torch.tensor(target[:header_len]), torch.tensor(header_tokens))
+    if not torch.equal(torch.tensor(target[:header_len]), torch.tensor(header_tokens)):
+        logger.warning(
+            "First few tokens of the conversation are not the same as the header tokens. "
+            f"{target[:header_len]=}\n {header_tokens=}"
+        )
     for s in source['conversations']:
         # hack to remove the extra empty token in front
         id1 = tokenizer.text_to_ids(PREFIX_STR + s["value"])
@@ -796,6 +800,59 @@ def _preprocess(
     answer_ids = input_ids[last_ignore_index_pos:]
 
     return dict(input_ids=input_ids, mask=mask, context_ids=context_ids, answer_ids=answer_ids)
+
+
+def _transform_to_chat_message(source: dict[str, list]):
+    """
+    Convert ShareGPT conversation format to HuggingFace chat message format.
+
+    Input format:
+    {"conversations": [{"value": "...", "from": "User"}, {"value": "...", "from": "Assistant"}]}
+
+    Output format:
+    {
+      "messages": [{"role": "system", "content": "..."}, {"role": "user", "content": "..."},
+                   {"role": "assistant", "content": "..."}]
+    }
+    """
+    messages = []
+    for conv in source["conversations"]:
+        role = conv["from"].lower()  # Convert User/Assistant to user/assistant
+        message = {"role": role, "content": conv["value"]}
+        messages.append(message)
+    return {"messages": messages}
+
+
+def _preprocess_hf_chat_template(
+    hf_chat_dict: dict,
+    tokenizer: TokenizerSpec,
+):
+    """
+    Given a conversation list (source) this function applies the following transformations:
+    1. Convert JSONL conversation format to chat message format.
+    2. Tokenize the chat message by applying the chat template.
+    3. Calculate the mask for the assistant tokens.
+
+    Args:
+        hf_chat_dict: dict, the chat message dict from HuggingFace tokenizer.
+        tokenizer: TokenizerSpec, the tokenizer object.
+    """
+    # Use HuggingFace tokenizer to apply the chat template.
+    template_has_generation_kwd = (
+        '{% generation %}' in tokenizer.tokenizer.chat_template
+    )  # assistant mask only works if chat template has generation keyword
+    tokens = tokenizer.tokenizer.apply_chat_template(
+        hf_chat_dict['messages'],
+        return_dict=True,
+        return_assistant_tokens_mask=template_has_generation_kwd,
+        return_tensors='pt',
+    )
+    input_ids = tokens['input_ids'][0]
+    if template_has_generation_kwd:
+        mask = torch.tensor(tokens['assistant_masks']).to(bool)
+    else:
+        mask = torch.ones_like(input_ids)
+    return dict(input_ids=input_ids, mask=mask)
 
 
 def _mask_targets(
@@ -1074,3 +1131,47 @@ def _deallocate_indexed_dataset_memory(indexed_dataset):
     """Deallocate memory of an IndexedDataset."""
     indexed_dataset.sizes = None
     indexed_dataset.doc_idx = None
+
+
+def _reconfigure_limit_batches(limit_batches, dataloader) -> Union[int, float]:
+    """
+    Reconfigure trainer.limit_val_batches for pretraining
+    """
+    # Override limit_batches in terms of num microbatches and so there are limit_batches//num_micro_batches
+    #   num of global batches
+    try:
+        from megatron.core.num_microbatches_calculator import get_num_microbatches
+
+    except (ImportError, ModuleNotFoundError):
+        logging.warning("Megatron num_microbatches_calculator not found, using Apex version.")
+        from apex.transformer.pipeline_parallel.utils import get_num_microbatches
+
+    if isinstance(limit_batches, int):
+        limit_batches *= get_num_microbatches()
+    else:
+        assert isinstance(limit_batches, float)
+        # Don't reconfigure if limit_batches is 0.0 or if there's no dataloader
+        if limit_batches == 0.0 or dataloader is None:
+            return limit_batches
+        # len(dataloader) returns len as num of microbatches
+        dl_len_in_micro_batches = len(dataloader)
+        if len(dataloader) != float("inf"):
+            if limit_batches == 1.0:
+                limit_batches = dl_len_in_micro_batches
+            else:
+                limit_micro_batches = int(dl_len_in_micro_batches * limit_batches)
+                if limit_micro_batches == 0 and limit_batches > 0.0:
+                    min_percentage = 1.0 / len(dataloader)
+                    raise ValueError(
+                        f"You requested to check {limit_batches} of the val_dataloader but"
+                        f" {limit_batches} * {len(dataloader)} < 1. Please increase the"
+                        f" `limit_val_batches` argument. Try at least"
+                        f" `limit_val_batches={min_percentage}`"
+                    )
+                # Make sure trainer.limit_val_batches is a multiple of num of microbatches
+                if limit_micro_batches < get_num_microbatches():
+                    limit_batches = get_num_microbatches()
+                else:
+                    limit_batches = limit_batches - limit_batches % get_num_microbatches()
+
+    return limit_batches

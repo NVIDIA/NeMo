@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -152,7 +152,10 @@ def test_init_model_parallel(mock_mpu, *args):
         context_parallel_size=2,
         expert_model_parallel_size=2,
         expert_tensor_parallel_size=1,
+        use_sharp=False,
         order="tp-cp-ep-dp-pp",
+        num_distributed_optimizer_instances=1,
+        nccl_communicator_config_path=None,
     )
 
 
@@ -191,7 +194,10 @@ def test_init_model_parallel_with_tp_pp_dp(mock_mpu, *args):
         context_parallel_size=2,
         expert_model_parallel_size=2,
         expert_tensor_parallel_size=1,
+        use_sharp=False,
         order="tp-cp-ep-pp-dp",
+        num_distributed_optimizer_instances=1,
+        nccl_communicator_config_path=None,
     )
 
 

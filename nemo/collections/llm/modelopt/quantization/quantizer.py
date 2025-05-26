@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -126,9 +126,10 @@ class Quantizer:
         dtype = export_config.dtype
         # Export and Quantization config sanity checks
         assert algorithm is None or algorithm in QUANT_CFG_CHOICES, f"Unsupported quantization algorithm: {algorithm}"
-        assert (
-            quantization_config.kv_cache_qformat in KV_QUANT_CFG_CHOICES
-        ), f"Unsupported kv cache quantization format: {quantization_config.kv_cache_qformat}"
+        if quantization_config.enable_kv_cache:
+            assert (
+                quantization_config.kv_cache_qformat in KV_QUANT_CFG_CHOICES
+            ), f"Unsupported kv cache quantization format: {quantization_config.kv_cache_qformat}"
         if export_config is not None:
             assert dtype in SUPPORTED_DTYPE, f"Unsupported export dtype: {dtype}"
         self.torch_dtype = torch_dtype_from_precision(dtype)
@@ -240,7 +241,7 @@ class Quantizer:
 
         quant_cfg = QUANT_CFG_CHOICES[self.quantization_config.algorithm]
         if "awq" in self.quantization_config.algorithm:
-            quant_cfg = copy.deepcopy(getattr(mtq, QUANT_CFG_CHOICES[self.quantization_config.algorithm]))
+            quant_cfg = copy.deepcopy(quant_cfg)
             weight_quantizer = quant_cfg["quant_cfg"]["*weight_quantizer"]
             if isinstance(weight_quantizer, list):
                 weight_quantizer = weight_quantizer[0]
@@ -256,8 +257,11 @@ class Quantizer:
             enable_quant_kv_cache = "int8" not in self.quantization_config.algorithm and decoder_type != "gpt"
         else:
             enable_quant_kv_cache = self.quantization_config.enable_kv_cache
+        if self.quantization_config.enable_kv_cache is None and enable_quant_kv_cache:
+            logging.warning("Enabled KV cache quantization but enable_kv_cache is None in quantization_config")
+        else:
+            logging.info(f"{'Enabled' if enable_quant_kv_cache else 'Disabled'} KV cache quantization")
 
-        print(f"{'Enable' if enable_quant_kv_cache else 'Disable'} KV cache quantization")
         # Check if any bmm_quantizer is in the quant_cfg. If so, we need to enable the bmm_quantizer.
         if enable_quant_kv_cache:
             # Update KV cache related bmm quantizers
@@ -516,6 +520,7 @@ huggingface_model_type_pattern_match = {
     "QWen": "qwen",
     "RecurrentGemma": "recurrentgemma",
     "Gemma2": "gemma2",
+    "Gemma3": "gemma3",
     "Gemma": "gemma",
     "phi3small": "phi3small",
     "phi3": "phi3",
@@ -540,6 +545,7 @@ gpt_model_type = [
     (llm.Baichuan2Model, "baichuan"),
     (llm.ChatGLMModel, "chatglm"),
     (llm.Gemma2Model, "gemma2"),
+    (llm.Gemma3Model, "gemma3"),
     (llm.GemmaModel, "gemma"),
     (llm.LlamaModel, "llama"),
     (llm.MistralModel, "llama"),

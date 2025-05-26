@@ -11,13 +11,21 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo tests/collections/llm/test_hf_import.py --hf_model /home/TestData/nlp/megatron_llama/llama-ci-hf --output_path /tmp/nemo2_ckpt
 
-coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo scripts/llm/gpt_distillation.py \
+# Write a distillation yaml config to disk on the spot
+cat > /tmp/distill-config.yaml << 'EOF'
+intermediate_layer_pairs:
+  - ["decoder.final_layernorm", "decoder.final_layernorm"]
+logit_layers: ["output_layer", "output_layer"]
+skip_lm_loss: true
+kd_loss_scale: 1.0
+EOF
+
+coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo scripts/llm/gpt_train.py \
   --name nemo2_llama_distill \
-  --teacher_path /tmp/nemo2_ckpt \
-  --student_path /tmp/nemo2_ckpt \
-  --tokenizer gpt2 \
+  --teacher_path /home/TestData/nemo2_ckpt/llama_68M_v4 \
+  --model_path /home/TestData/nemo2_ckpt/llama_68M_v4 \
+  --kd_config /tmp/distill-config.yaml \
   --tp_size 1 \
   --cp_size 1 \
   --pp_size 2 \

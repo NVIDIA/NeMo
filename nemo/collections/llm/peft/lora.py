@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -47,9 +47,9 @@ class LoRALinear(AdapterWrapper):
     class to provide a specific implementation of the forward method.
     """
 
-    def forward(self, x):
+    def forward(self, x, *args, **kwargs):
         # pylint: disable=C0115,C0116
-        linear_output, bias, layernorm_output = self.base_linear_forward(x)
+        linear_output, bias, layernorm_output = self.base_linear_forward(x, *args, **kwargs)
         adapter_output = self.adapter(layernorm_output.contiguous())
         return linear_output + adapter_output, bias
 

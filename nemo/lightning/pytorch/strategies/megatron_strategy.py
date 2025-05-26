@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -132,6 +132,9 @@ class ParallelismConfig:
     use_te_rng_tracker: bool = False
     expert_tensor_parallel_size: int = None
     use_tp_pp_dp_mapping: bool = False
+    num_distributed_optimizer_instances: int = 1
+    nccl_communicator_config_path: str = None
+    use_sharp: bool = False
 
 
 class MegatronStrategy(DDPStrategy, io.IOMixin):
@@ -216,6 +219,11 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             Note that setting the level to 1 or 2 might cause increase in iteration time.
         use_tp_pp_dp_mapping (bool): Whether to use TP-PP-DP mapping instead of TP-DP-PP mapping.
             Defaults to False.
+        num_distributed_optimizer_instances (int): The number of distributed optimizer replicas across
+            the data-parallel domain.
+        nccl_communicator_config_path (Optional[str]): Path to the yaml file of NCCL communicator configurations.
+            `min_ctas`, `max_ctas`, and `cga_cluster_size` can be set for each communicator.
+        use_sharp (bool): Whether to use SHARP. Defaults to False.
         **kwargs: Additional keyword arguments.
 
     Note:
@@ -255,6 +263,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         lazy_init: bool = False,
         pipeline_dtype: Optional[torch.dtype] = None,
         use_te_rng_tracker: bool = False,
+        use_sharp: bool = False,
         save_ckpt_format: str = "torch_dist",
         ckpt_async_save: bool = True,
         ckpt_torch_dist_multiproc: int = None,  ## TODO(ashors): put elsewhere?
@@ -272,6 +281,8 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         restore_config: Optional[RestoreConfig] = None,
         megatron_log_level: int = 0,
         use_tp_pp_dp_mapping: bool = False,
+        num_distributed_optimizer_instances: int = 1,
+        nccl_communicator_config_path: Optional[str] = None,
         **kwargs,
     ) -> None:
         super().__init__(
@@ -309,6 +320,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self.ckpt_save_optimizer = ckpt_save_optimizer
         self.ckpt_load_strictness = ckpt_load_strictness
         self.use_te_rng_tracker = use_te_rng_tracker
+        self.use_sharp = use_sharp
         self._pipeline_dtype = pipeline_dtype
         self._setup_optimizers = setup_optimizers
         self._init_model_parallel = init_model_parallel
@@ -324,10 +336,10 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         self.parallel_load = ckpt_parallel_load
         self.parallel_save_optim = ckpt_parallel_save_optim
         self.load_directly_on_device = ckpt_load_directly_on_device
-
+        self.num_distributed_optimizer_instances = num_distributed_optimizer_instances
         self.replace_progress_bar = replace_progress_bar
         self.progress_interval = progress_interval
-
+        self.nccl_communicator_config_path = nccl_communicator_config_path
         self.restore_config = restore_config
         self.timers = Timers(megatron_log_level, "minmax")  ## could also set this for optimizer if we want
 
@@ -367,6 +379,9 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             self.no_ddp_communication_hook = False
         else:
             raise ValueError(f"Invalid DDP type: {ddp}")
+
+        if isinstance(self.ddp_config, DistributedDataParallelConfig):
+            self.ddp_config.num_distributed_optimizer_instances = self.num_distributed_optimizer_instances
 
         # used in NVIDIA NGC PyTorch containers
         _strategy_lib.enable_nvidia_optimizations()
@@ -941,14 +956,19 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             if mto.ModeloptStateManager.is_converted(core_model):
                 logging.info("Restored Model-Optimizer state from checkpoint.")
 
+        restore_optimizers = self.should_restore_optimizer_states(selective_restore=selective_restore)
+
         # After dist_checkpointing.load, sharded tensors will be replaced with tensors
         sharded_state_dict = {}
-        sharded_state_dict["state_dict"] = self.megatron_parallel.sharded_state_dict()
+        with ExitStack() as stack:
+            if HAVE_MODELOPT and hasattr(core_model, "hide_loss_modules"):
+                if not restore_optimizers and self.trainer.state.fn == TrainerFn.FITTING:
+                    # Assume no optimizer means it's first time loading checkpoint into ModelOpt distillation model.
+                    # We hide any extra parameters (i.e. hidden projection layers) the loss modules might have added.
+                    stack.enter_context(core_model.hide_loss_modules())
+            sharded_state_dict["state_dict"] = self.megatron_parallel.sharded_state_dict()
 
-        if (
-            self.should_restore_optimizer_states(selective_restore=selective_restore)
-            and self.trainer.state.fn == TrainerFn.FITTING
-        ):
+        if restore_optimizers and self.trainer.state.fn == TrainerFn.FITTING:
             if self.lightning_module.optimizers(use_pl_optimizer=False):
                 sharded_state_dict["optimizer"] = [self.optimizer_sharded_state_dict(is_loading=True)]
 
@@ -1129,6 +1149,9 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             pipeline_dtype=self.pipeline_dtype,
             use_te_rng_tracker=self.use_te_rng_tracker,
             use_tp_pp_dp_mapping=self.use_tp_pp_dp_mapping,
+            num_distributed_optimizer_instances=self.num_distributed_optimizer_instances,
+            nccl_communicator_config_path=self.nccl_communicator_config_path,
+            use_sharp=self.use_sharp,
         )
 
     @contextmanager

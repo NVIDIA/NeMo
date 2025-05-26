@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -680,7 +680,7 @@ class MLlamaCrossAttention(Attention):
         # ===================================================
         # Adjust key, value, and rotary_pos_emb for inference
         # ===================================================
-        query, key, value, rotary_pos_emb, attn_mask_type = self._adjust_key_value_for_inference(
+        query, key, value, rotary_pos_emb, attn_mask_type, *_ = self._adjust_key_value_for_inference(
             inference_params, query, key, value, rotary_pos_emb, rotary_pos_cos, rotary_pos_sin
         )
 

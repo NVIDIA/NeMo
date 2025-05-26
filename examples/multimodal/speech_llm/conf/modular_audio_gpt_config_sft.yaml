@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -216,7 +216,6 @@ model:
       # bucketing params
       bucketing_strategy: "fully_randomized"
       bucketing_batch_size: null
-      sample_alpha: null
       audio_locator: null
 
     validation_ds:

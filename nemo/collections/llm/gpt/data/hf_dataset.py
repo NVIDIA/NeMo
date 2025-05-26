@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -23,7 +23,6 @@ import torch
 import torch.distributed as dist
 from datasets import Dataset, DatasetDict, load_dataset
 from torch.utils.data import DataLoader
-from torch.utils.data.distributed import DistributedSampler
 
 from nemo.collections.llm.gpt.data.hf_dataset_packed_sequence import HFDatasetPackedSequenceHelper
 from nemo.utils import logging
@@ -205,7 +204,6 @@ class HFDatasetDataModule(pl.LightningDataModule):
         persistent_workers (bool, optional): Whether to keep worker threads alive between epochs. Defaults to True.
         seq_length (int, optional): Maximum sequence length for tokenized inputs. Defaults to 1024.
         micro_batch_size (int, optional): Batch size per device. Defaults to 2.
-        global_batch_size (int, optional): Total batch size across all devices. Defaults to 2.
         pad_token_id (int, optional): Token ID used for padding sequences. Defaults to 0.
         use_dist_sampler (bool, optional): Whether to enable distributed sampling. Defaults to False.
         train_aliases (list, optional): Alternative names for the training split. Defaults to ["train", "training"].
@@ -251,15 +249,12 @@ class HFDatasetDataModule(pl.LightningDataModule):
         persistent_workers=True,
         seq_length=1024,
         micro_batch_size=2,
-        global_batch_size=2,
         pad_token_id=0,
         use_dist_sampler=False,
         train_aliases=["train", "training"],
         test_aliases=["test", "testing"],
         val_aliases=["val", "validation", "valid", "eval"],
         pad_seq_len_divisible=None,
-        num_replicas=None,
-        rank=None,
         **kwargs,
     ) -> None:
         super().__init__()
@@ -299,14 +294,9 @@ class HFDatasetDataModule(pl.LightningDataModule):
         self.persistent_workers = persistent_workers
         self.seq_length = seq_length
         self.micro_batch_size = micro_batch_size
-        self.global_batch_size = global_batch_size
         self.pad_token_id = pad_token_id
         self.use_dist_sampler = use_dist_sampler
         self.pad_seq_len_divisible = pad_seq_len_divisible
-
-        # TODO: refractor this
-        self.num_replicas = num_replicas
-        self.rank = rank
 
     @staticmethod
     def from_dict(dataset_dict, split, **kwargs):
@@ -329,20 +319,6 @@ class HFDatasetDataModule(pl.LightningDataModule):
             for key in batch[0].keys()
         }
 
-    def setup(self, stage: str):
-        """setups sampler"""
-        # Turn-on dist-sampler if the user is running inside a dist-env.
-        if not self.use_dist_sampler and has_dist_env_init_or_rank_env_var():
-            self.use_dist_sampler = True
-            logging.info("Turning on distributed data sampler")
-
-    def get_data_sampler(self, dataset):
-        """returns the data sampler"""
-        if self.use_dist_sampler:
-            return DistributedSampler(dataset, num_replicas=self.num_replicas, rank=self.rank)
-        else:
-            return None
-
     def _make_dataloader(self, dataset, collate_fn=None):
         """Dataloader creator"""
         assert dataset is not None
@@ -358,7 +334,6 @@ class HFDatasetDataModule(pl.LightningDataModule):
             persistent_workers=self.persistent_workers,
             collate_fn=collate_fn,
             batch_size=self.micro_batch_size,
-            sampler=self.get_data_sampler(dataset),
         )
 
     @property
@@ -401,7 +376,7 @@ class HFDatasetDataModule(pl.LightningDataModule):
             raise ValueError("split_names must None/str/list")
 
         for split_name in split_names:
-            if not self.dataset_splits[split_name] is None:
+            if self.dataset_splits[split_name] is not None:
                 self.dataset_splits[split_name] = self.dataset_splits[split_name].map(function, **kwargs)
 
 
@@ -581,10 +556,12 @@ class SquadHFDataModule(HFDatasetDataModule):
             f" {example['answers']['text'][0].strip()}",
         ]
         context_ids, answer_ids = list(map(self.tokenizer.text_to_ids, formatted_text))
-        if len(context_ids) > 0 and context_ids[0] != self.tokenizer.bos_id:
-            context_ids.insert(0, self.tokenizer.bos_id)
-        if len(answer_ids) > 0 and answer_ids[-1] != self.tokenizer.eos_id:
-            answer_ids.append(self.tokenizer.eos_id)
+        bos_id = getattr(self.tokenizer, "bos_id", None)
+        eos_id = getattr(self.tokenizer, "eos_id", None)
+        if len(context_ids) > 0 and bos_id is not None and context_ids[0] != bos_id:
+            context_ids.insert(0, bos_id)
+        if len(answer_ids) > 0 and eos_id is not None and answer_ids[-1] != eos_id:
+            answer_ids.append(eos_id)
 
         return dict(
             labels=(context_ids + answer_ids)[1:],
@@ -617,7 +594,6 @@ class HFMockDataModule(pl.LightningDataModule):
         seq_length: int = 2048,
         vocab_size: int = 1024,
         micro_batch_size: int = 4,
-        global_batch_size: int = 8,
         rampup_batch_size=None,
         num_train_samples: int = 10_000,
         num_val_samples: int = 10_000,
@@ -633,7 +609,6 @@ class HFMockDataModule(pl.LightningDataModule):
         super().__init__()
         self.seq_length = seq_length
         self.micro_batch_size = micro_batch_size
-        self.global_batch_size = global_batch_size
         self.num_train_samples = num_train_samples
         self.num_val_samples = num_val_samples
         self.num_test_samples = num_test_samples
@@ -743,11 +718,11 @@ class _MockGPTDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, idx) -> Dict[str, list]:
         np_gen = np.random.default_rng(seed=(self.seed + idx))
-        tokens = np_gen.integers(self.vocab_size, size=[self.seq_length], dtype=np.int64).tolist()
+        input_ids = np_gen.integers(self.vocab_size, size=[self.seq_length], dtype=np.int64).tolist()
         labels = np_gen.integers(self.vocab_size, size=[self.seq_length], dtype=np.int64).tolist()
 
         batch = {
-            "tokens": tokens,
+            "input_ids": input_ids,
             "labels": labels,
             "loss_mask": self.loss_mask,
             "position_ids": self.position_ids,
