@@ -42,21 +42,8 @@ def main(cfg) -> None:
     if cfg.model.train_ds.use_cache:
         callbacks.append(nemo_nlp.callbacks.TokenClassificationDataCallback())
 
-    # Add OneLogger callback if available
-    try:
-        from nemo.lightning import OneLoggerNeMoCallback
-        from nemo.utils.meta_info_manager import MetaInfoManager
-
-        one_logger_cb = OneLoggerNeMoCallback(
-            callback_config=MetaInfoManager(cfg).get_metadata(),
-            perf_tag="nemo_test",
-            session_tag="quick_start",
-            log_every_n_iterations=10,
-        )
-        callbacks.append(one_logger_cb)
-        logging.info("Added OneLogger callback for telemetry")
-    except ImportError:
-        logging.warning("OneLogger dependencies not found. Skipping telemetry setup.")
+    # Setup exp_manager which will handle OneLogger setup
+    exp_manager(trainer, cfg)
 
     # Train
     trainer.fit(model)
