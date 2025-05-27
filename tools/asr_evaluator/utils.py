@@ -185,7 +185,7 @@ def run_chunked_inference(cfg: DictConfig) -> DictConfig:
     chunk_len_in_secs={cfg.inference.chunk_len_in_secs} \
     ++total_buffer_in_secs={cfg.inference.total_buffer_in_secs} \
     model_stride={cfg.inference.model_stride} \
-    timestamps={cfg.inference.timestamps}"
+    ++timestamps={cfg.inference.timestamps}" # some scripts doesn't support timestamps
 
     subprocess.run(
         base_cmd,
