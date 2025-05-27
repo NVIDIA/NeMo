@@ -391,7 +391,7 @@ def main():
     )
 
     # TP WA
-    if args.tp_size > 1:
+    if args.tp_size > 1 or args.cfsdp2:
         args.grad_clip = 0.0
 
     # Instantiate training dataset.
