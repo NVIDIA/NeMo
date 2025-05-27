@@ -293,7 +293,8 @@ class MagpieTTSModel(ModelPT):
         if strict == False:
             super().load_state_dict(state_dict, strict=False)
         for name, child in self.named_children():
-            if name in ['_speaker_verification_model', '_codec_model']:
+            if name in ['_speaker_verification_model', '_codec_model', '_reference_model', 
+                        'eval_asr_model', 'eval_speaker_verification_model', 'whisper_model']:
                 continue
             if any(param.numel() > 0 for param in child.parameters()):
                 # If the module has parameters, we want to change the default mapping so that the state_dict gets
