@@ -71,19 +71,92 @@ CUDA_VISIBLE_DEVICES=0 python $SCRIPT \
 
 """
 
-
+from dataclasses import is_dataclass
 from typing import Optional
 
 import lightning.pytorch as pl
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig, OmegaConf, open_dict
 
 from nemo.collections.asr.models import ASRModel, EncDecHybridRNNTCTCBPEModel, EncDecRNNTBPEModel
 from nemo.collections.asr.models.asr_eou_models import EncDecRNNTBPEEOUModel
 from nemo.collections.asr.modules.rnnt import RNNTDecoder, RNNTJoint
+from nemo.core import adapter_mixins
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 from nemo.utils.trainer_utils import resolve_trainer_cfg
+
+
+def add_global_adapter_cfg(model, global_adapter_cfg):
+    # Convert to DictConfig from dict or Dataclass
+    if is_dataclass(global_adapter_cfg):
+        global_adapter_cfg = OmegaConf.structured(global_adapter_cfg)
+
+    if not isinstance(global_adapter_cfg, DictConfig):
+        global_adapter_cfg = DictConfig(global_adapter_cfg)
+
+    # Update the model.cfg with information about the new adapter global cfg
+    with open_dict(global_adapter_cfg), open_dict(model.cfg):
+        if 'adapters' not in model.cfg:
+            model.cfg.adapters = OmegaConf.create({})
+
+        # Add the global config for adapters to the model's internal config
+        model.cfg.adapters[model.adapter_global_cfg_key] = global_adapter_cfg
+
+        # Update all adapter modules (that already exist) with this global adapter config
+        model.update_adapter_cfg(model.cfg.adapters)
+
+
+def update_model_config_to_support_adapter(model_cfg):
+    with open_dict(model_cfg):
+        # Update encoder adapter compatible config
+        adapter_metadata = adapter_mixins.get_registered_adapter(model_cfg.encoder._target_)
+        if adapter_metadata is not None:
+            model_cfg.encoder._target_ = adapter_metadata.adapter_class_path
+
+
+def setup_adapters(cfg: DictConfig, model: ASRModel):
+    # Setup adapters
+    with open_dict(cfg.model.adapter):
+        # Extract the name of the adapter (must be give for training)
+        adapter_name = cfg.model.adapter.pop("adapter_name")
+        adapter_type = cfg.model.adapter.pop("adapter_type")
+        adapter_module_name = cfg.model.adapter.pop("adapter_module_name", None)
+        adapter_state_dict_name = cfg.model.adapter.pop("adapter_state_dict_name", None)
+
+        # Resolve the config of the specified `adapter_type`
+        if adapter_type not in cfg.model.adapter.keys():
+            raise ValueError(
+                f"Adapter type ({adapter_type}) config could not be found. Adapter setup config - \n"
+                f"{OmegaConf.to_yaml(cfg.model.adapter)}"
+            )
+
+        adapter_type_cfg = cfg.model.adapter[adapter_type]
+        print(f"Found `{adapter_type}` config :\n" f"{OmegaConf.to_yaml(adapter_type_cfg)}")
+
+        # Augment adapter name with module name, if not provided by user
+        if adapter_module_name is not None and ':' not in adapter_name:
+            adapter_name = f'{adapter_module_name}:{adapter_name}'
+
+        # Extract the global adapter config, if provided
+        adapter_global_cfg = cfg.model.adapter.pop(model.adapter_global_cfg_key, None)
+        if adapter_global_cfg is not None:
+            add_global_adapter_cfg(model, adapter_global_cfg)
+
+    model.add_adapter(adapter_name, cfg=adapter_type_cfg)
+    assert model.is_adapter_available()
+
+    # Disable all other adapters, enable just the current adapter.
+    model.set_enabled_adapters(enabled=False)  # disable all adapters prior to training
+    model.set_enabled_adapters(adapter_name, enabled=True)  # enable just one adapter by name
+
+    # First, Freeze all the weights of the model (not just encoder, everything)
+    model.freeze()
+    # Activate dropout() and other modules that depend on train mode.
+    model = model.train()
+    # Then, Unfreeze just the adapter weights that were enabled above (no part of encoder/decoder/joint/etc)
+    model.unfreeze_enabled_adapters()
+    return model
 
 
 def get_pretrained_model_name(cfg: DictConfig) -> Optional[str]:
@@ -229,6 +302,9 @@ def main(cfg):
     trainer = pl.Trainer(**resolve_trainer_cfg(cfg.trainer))
     exp_manager(trainer, cfg.get("exp_manager", None))
 
+    if cfg.model.get("adapter", None) is not None:
+        update_model_config_to_support_adapter(cfg.model)
+
     asr_model = EncDecRNNTBPEEOUModel(cfg=cfg.model, trainer=trainer)
 
     init_from_model = get_pretrained_model_name(cfg)
@@ -239,6 +315,12 @@ def main(cfg):
         logging.info("Freezing encoder weights.")
         asr_model.encoder.freeze()
 
+    if cfg.model.get("adapter", None) is not None:
+        asr_model = setup_adapters(cfg, asr_model)
+
+    import pdb
+
+    pdb.set_trace()
     trainer.fit(asr_model)
 
     if hasattr(cfg.model, 'test_ds') and cfg.model.test_ds.manifest_filepath is not None:

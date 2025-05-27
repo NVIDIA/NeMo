@@ -67,7 +67,7 @@ def main(cfg):
     if hasattr(cfg.model, 'test_ds') and cfg.model.test_ds.manifest_filepath is not None:
         with open_dict(cfg.model.test_ds):
             cfg.model.test_ds.pad_eou_label_secs = asr_model.cfg.get('pad_eou_label_secs', 0.0)
-        asr_model.setup_test_data(test_data_config=cfg.model.test_ds)
+        asr_model.setup_multiple_test_data(test_data_config=cfg.model.test_ds)
         trainer.test(asr_model)
     else:
         raise ValueError(
