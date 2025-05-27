@@ -18,13 +18,13 @@ import os
 import sys
 from pathlib import Path
 
-from nemo.deploy import DeployPyTriton
+from nemo_deploy import DeployPyTriton
 
 LOGGER = logging.getLogger("NeMo")
 
 multimodal_supported = True
 try:
-    from nemo.export.tensorrt_mm_exporter import TensorRTMMExporter
+    from nemo_export.tensorrt_mm_exporter import TensorRTMMExporter
 except Exception as e:
     LOGGER.warning(f"Cannot import the TensorRTMMExporter exporter, it will not be available. {type(e).__name__}: {e}")
     multimodal_supported = False

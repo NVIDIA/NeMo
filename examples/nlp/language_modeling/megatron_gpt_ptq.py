@@ -16,13 +16,15 @@ import torch
 import torch.multiprocessing as mp
 from datasets import load_dataset
 from lightning.pytorch.trainer.trainer import Trainer
+from nemo_export.quantize import Quantizer
 from omegaconf import OmegaConf
 from tqdm import tqdm
 
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import (
+    MegatronGPTModel,
+)
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 from nemo.core.config import hydra_runner
-from nemo.export.quantize import Quantizer
 from nemo.utils.model_utils import load_config
 
 mp.set_start_method("spawn", force=True)
@@ -30,7 +32,7 @@ mp.set_start_method("spawn", force=True)
 """
 Nemo quantization example script.
 
-Please consult nemo.export.quantize.Quantizer class
+Please consult nemo_export.quantize.Quantizer class
 and examples/nlp/language_modeling/conf/megatron_gpt_ptq.yaml config on available quantization methods,
 models supported as well as how to set up data and inference for calibration (with defaults recommended).
 

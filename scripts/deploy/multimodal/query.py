@@ -15,7 +15,7 @@
 import argparse
 import sys
 
-from nemo.deploy.multimodal import NemoQueryMultimodal
+from nemo_deploy.multimodal import NemoQueryMultimodal
 
 
 def get_args(argv):

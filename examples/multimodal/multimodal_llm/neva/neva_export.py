@@ -12,8 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from nemo_export.tensorrt_mm_exporter import TensorRTMMExporter
+
 from nemo.core.config import hydra_runner
-from nemo.export.tensorrt_mm_exporter import TensorRTMMExporter
 
 
 @hydra_runner(config_path='conf', config_name='neva_export')

@@ -31,7 +31,7 @@ python scripts/checkpoint_converters/lora_converters/convert_nemo_to_canonical.p
 
 from argparse import ArgumentParser
 
-from nemo.export.utils.lora_converter import convert_lora_nemo_to_canonical
+from nemo_export.utils.lora_converter import convert_lora_nemo_to_canonical
 
 
 def get_args():

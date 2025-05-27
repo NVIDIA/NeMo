@@ -72,7 +72,7 @@ def get_trtllm_deployable(
     """
     Exports the nemo checkpoint to trtllm and returns trt_llm_exporter that is used to deploy on PyTriton.
     """
-    from nemo.export.tensorrt_llm import TensorRTLLM
+    from nemo_export.tensorrt_llm import TensorRTLLM
 
     if triton_model_repository is None:
         trt_llm_path = "/tmp/trt_llm_model_dir/"

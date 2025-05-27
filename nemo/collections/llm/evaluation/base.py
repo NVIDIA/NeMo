@@ -24,12 +24,14 @@ import torch
 import torch.nn.functional as F
 from lm_eval.api.instance import Instance
 from lm_eval.api.model import LM
+from nemo_deploy.nlp import NemoQueryLLM
 from tqdm import tqdm
 
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
-from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer
+from nemo.collections.common.tokenizers.sentencepiece_tokenizer import (
+    SentencePieceTokenizer,
+)
 from nemo.collections.llm.evaluation.api import EvaluationConfig, EvaluationTarget
-from nemo.deploy.nlp import NemoQueryLLM
 from nemo.utils import logging
 
 
@@ -268,6 +270,7 @@ def wait_for_fastapi_server(
     """
 
     import time
+
     import requests
 
     completions_url = f"{base_url}/v1/completions/"
@@ -328,7 +331,10 @@ def wait_for_server_ready(
 
     import requests
     from pytriton.client import ModelClient
-    from pytriton.client.exceptions import PyTritonClientModelUnavailableError, PyTritonClientTimeoutError
+    from pytriton.client.exceptions import (
+        PyTritonClientModelUnavailableError,
+        PyTritonClientTimeoutError,
+    )
 
     # If gRPC URL, extract HTTP URL from gRPC URL for health checks
     if url.startswith("grpc://"):

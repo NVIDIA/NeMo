@@ -17,17 +17,33 @@ import math
 from dataclasses import dataclass, field
 from functools import partial
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated, Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import (
+    TYPE_CHECKING,
+    Annotated,
+    Any,
+    Callable,
+    Dict,
+    List,
+    Optional,
+    Tuple,
+    Union,
+)
 
 import torch
 import torch.nn.functional as F
 import yaml
+from nemo_export.trt_llm.nemo_ckpt_loader.nemo_file import (
+    load_distributed_model_weights,
+)
 from torch import nn
 
-from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel, torch_dtype_from_mcore_config
+from nemo.collections.llm.gpt.model.base import (
+    GPTConfig,
+    GPTModel,
+    torch_dtype_from_mcore_config,
+)
 from nemo.collections.llm.gpt.model.llama4_utils import get_llama4_layer_spec
 from nemo.collections.llm.utils import Config
-from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import load_distributed_model_weights
 from nemo.lightning import OptimizerModule, io, teardown
 from nemo.lightning.ckpt_utils import ADAPTER_META_FILENAME
 from nemo.lightning.io.pl import ckpt_to_weights_subdir
@@ -48,7 +64,9 @@ if TYPE_CHECKING:
     from transformers import LlamaConfig as HFLlamaConfig
     from transformers import LlamaForCausalLM
 
-    from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+    from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import (
+        AutoTokenizer,
+    )
     from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
 
@@ -645,7 +663,9 @@ class HFLlamaImporter(io.ModelConnector["LlamaForCausalLM", LlamaModel]):
         Returns:
             AutoTokenizer: Tokenizer instance initialized from the HF model's tokenizer
         """
-        from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
+        from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import (
+            AutoTokenizer,
+        )
 
         return AutoTokenizer(self.save_hf_tokenizer_assets(str(self)))
 

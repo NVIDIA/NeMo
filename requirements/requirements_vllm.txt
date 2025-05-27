@@ -1,7 +1,7 @@
 # Minimal set of NeMo requirements to run vLLM export & deployment in /opt/venv in a NeMo container
 braceexpand
 # datasets and pandas import are triggered by hydra.utils.instantiate in nemo/export/vllm/model_config.py.
-# TODO: remove those dependencies by switching to local nemo.export tokenizers.
+# TODO: remove those dependencies by switching to local nemo_export tokenizers.
 datasets
 faiss-cpu
 fiddle

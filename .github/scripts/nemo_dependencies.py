@@ -304,10 +304,6 @@ def build_dependency_graph(nemo_root: str) -> Dict[str, List[str]]:
                 new_deps.append("speech")
                 new_deps.append("unit-tests")
 
-            if "nemo.export" in dep or "nemo.deploy" in dep or "tests.export" in dep or "tests.deploy" in dep:
-                new_deps.append("export-deploy")
-                new_deps.append("unit-tests")
-
             if (
                 "nemo.collections.llm" in dep
                 or "nemo.collections.vlm" in dep

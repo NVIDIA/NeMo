@@ -14,8 +14,9 @@
 
 import os
 
+from nemo_export.tensorrt_mm_exporter import TensorRTMMExporter
+
 from nemo.core.config import hydra_runner
-from nemo.export.tensorrt_mm_exporter import TensorRTMMExporter
 
 
 @hydra_runner(config_path='conf', config_name='neva_trt_infer')
