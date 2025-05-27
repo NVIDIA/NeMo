@@ -130,7 +130,7 @@ if __name__ == "__main__":
     args = parse_cli_args().parse_args()
     args_sanity_check(args)
 
-    kwargs = get_user_configs(args.gpu.lower(), "pre_train", "llama4", "e128", args)
+    kwargs = get_user_configs(args.gpu.lower(), "sft", "llama4", "e128", args)
     (
         num_nodes,
         mbs,
