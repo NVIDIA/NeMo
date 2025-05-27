@@ -21,9 +21,6 @@ on:
       - r**
       - weekly-bump*
     types: [labeled]
-  push:
-    branches:
-      - main
   workflow_dispatch:
     inputs:
       test_to_run:
@@ -34,7 +31,7 @@ on:
 
 concurrency:
   # group: ${{ github.workflow }}-${{ github.ref == 'refs/heads/main' && github.run_id || github.event.pull_request.number || github.ref }}-${{ github.event_name }}
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-${{ github.event_name }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}-${{ github.event.label.name || 'main' }}-${{ github.event_name }}
   cancel-in-progress: true
 
 jobs:
@@ -134,11 +131,12 @@ jobs:
     uses: ./.github/workflows/code-linting.yml
 
   cicd-wait-in-queue:
-    needs: [pre-flight]
+    needs: [pre-flight, code-linting]
     runs-on: ubuntu-latest
     environment: test
     if: |
       needs.pre-flight.outputs.test_to_run != '[]' 
+      && needs.pre-flight.outputs.components_to_run != '[]'
       && needs.pre-flight.outputs.is_ci_workload == 'false'
     steps:
       - name: Running CI tests
@@ -150,6 +148,7 @@ jobs:
     needs: [pre-flight, code-linting, cicd-wait-in-queue]
     if: |
       needs.pre-flight.outputs.test_to_run != '[]' 
+      && needs.pre-flight.outputs.components_to_run != '[]'
       && (
         success() 
         || (
@@ -160,11 +159,12 @@ jobs:
       && !cancelled()
     with:
       image-name: nemo_container
-      dockerfile: Dockerfile.ci
+      dockerfile: docker/Dockerfile.ci
 
   cicd-import-tests:
     if: |
       needs.pre-flight.outputs.test_to_run != '[]'
+      && needs.pre-flight.outputs.components_to_run != '[]'
       && (
         success()
         || (
@@ -214,6 +214,7 @@ jobs:
     runs-on: self-hosted-azure
     if: |
       needs.pre-flight.outputs.test_to_run != '[]'
+      && needs.pre-flight.outputs.components_to_run != '[]'
       && (
         success()
         || (
@@ -240,6 +241,7 @@ jobs:
     uses: ./.github/workflows/cicd-main-unit-tests.yml
     if: |
       needs.pre-flight.outputs.test_to_run != '[]'
+      && needs.pre-flight.outputs.components_to_run != '[]'
       && (
         success()
         || (
@@ -359,14 +361,18 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RUN_ID: ${{ github.run_id }}
-
+          HAS_LABEL: ${{ github.event.label.name == 'Run CICD' }}
+          IS_SCHEDULED: ${{ github.event_name == 'schedule' }}
         run: |
           # Get workflow run details and check job conclusions
+          LATEST_ATTEMPT=$(gh run view $RUN_ID --json jobs -q '[.jobs[] | select(.conclusion != null) | .conclusion] | last')
           NUM_FAILED=$(gh run view $RUN_ID --json jobs -q '[.jobs[] | select(.conclusion == "failure") | .name] | length')
           NUM_CANCELLED=$(gh run view $RUN_ID --json jobs -q '[.jobs[] | select(.conclusion == "cancelled") | .name] | length')
 
-          if [[ $NUM_FAILED -eq 0 && $NUM_CANCELLED -eq 0 ]]; then
+          if [[ $NUM_FAILED -eq 0 && $NUM_CANCELLED -eq 0 && ("$HAS_LABEL" == "true" || "$IS_SCHEDULED" == "true") ]]; then
             RESULT="success"
+          elif [[ $NUM_CANCELLED -gt 0 ]]; then
+            RESULT="cancelled"
           else
             RESULT="failure"
           fi
@@ -378,14 +384,20 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Remove label if not cancelled
-        if: ${{ steps.result.outputs.code != 'cancelled' && github.event.label.name == 'Run CICD' && github.event.pull_request.head.repo.full_name == github.repository }}
+        if: |
+          steps.result.outputs.code != 'cancelled' 
+          && github.event.label.name == 'Run CICD' 
+          && github.event.pull_request.head.repo.full_name == github.repository
         env:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.number }}
         run: gh pr edit "$PR_NUMBER" --remove-label "Run CICD"
 
       - name: Pipeline successful, add PR comment
-        if: ${{ always() && steps.result.outputs.code == 'success' && github.event_name == 'pull_request' && env.SLACK_WEBHOOK != '' }}
+        if: |
+          steps.result.outputs.code == 'success' 
+          && github.event_name == 'pull_request' 
+          && env.SLACK_WEBHOOK != ''
         uses: peter-evans/create-or-update-comment@v4
         env:
           SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
@@ -400,13 +412,13 @@ jobs:
 
             So it might be time to merge this PR or get some approvals.
 
-            Due to a major CI change, merges are currently handled by the automation team.  
-            We will reach out to you quickly to merge this PR, but you can always reach us with the following handles:
-
             //cc @chtruong814 @ko3n1g @pablo-garay @thomasdhc
 
       - name: "Pipeline not successful and not cancelled: Send Slack alert & create step summary"
-        if: ${{ always() && steps.result.outputs.code == 'failure' && env.SLACK_WEBHOOK != '' }}
+        if: |
+          steps.result.outputs.code == 'failure' 
+          && github.event.label.name == 'Run CICD' 
+          && env.SLACK_WEBHOOK != ''
         env:
           SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -434,9 +446,11 @@ jobs:
 
   Coverage:
     runs-on: ubuntu-latest
-    needs: [Nemo_CICD_Test]
+    needs: [pre-flight, Nemo_CICD_Test]
     if: |
-      (
+      needs.pre-flight.outputs.test_to_run != '[]'
+      && needs.pre-flight.outputs.components_to_run != '[]'
+      && (
         success() 
         || needs.Nemo_CICD_Test.result == 'success'
       )

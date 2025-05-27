@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -242,5 +242,9 @@ def pretrain_performance_optimizations(recipe: run.Partial) -> run.Partial:
     )
 
     recipe.trainer.plugins.grad_reduce_in_fp32 = False
+    recipe.optim.config.use_precision_aware_optimizer = False
+
+    # TODO: Remove after functional error with this enabled is fixed
+    recipe.model.config.use_transformer_engine_full_layer_spec = False
 
     return recipe

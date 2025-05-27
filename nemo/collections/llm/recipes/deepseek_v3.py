@@ -18,12 +18,15 @@ import nemo_run as run
 
 from nemo.collections.llm.api import finetune, pretrain
 from nemo.collections.llm.gpt.data.mock import MockDataModule
+from nemo.collections.llm.gpt.data.packed_sequence import PackedSequenceSpecs
 from nemo.collections.llm.gpt.model.deepseek import DeepSeekModel, DeepSeekV3Config
 from nemo.collections.llm.peft import PEFT_STR2CLS
 from nemo.collections.llm.recipes.deepseek import trainer
 from nemo.collections.llm.recipes.finetune_default import default_finetune_recipe
 from nemo.collections.llm.recipes.log.default import default_log, default_resume, tensorboard_logger
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
+from nemo.lightning.pytorch.callbacks.garbage_collection import GarbageCollectionCallback
+from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.utils.exp_manager import TimingCallback
 
 NAME = "deepseek_v3"
@@ -60,6 +63,7 @@ def pretrain_recipe(
     num_gpus_per_node: int = 8,
     fn: Callable = pretrain,
     use_mtp: bool = True,
+    performance_mode: bool = False,
 ) -> run.Partial:
     """
     Create a pre-training recipe for DeepSeek-V3 (671B) model.
@@ -107,10 +111,80 @@ def pretrain_recipe(
     recipe.trainer.strategy.num_layers_in_first_pipeline_stage = 3
     recipe.trainer.strategy.num_layers_in_last_pipeline_stage = 2
     recipe.trainer.strategy.virtual_pipeline_model_parallel_size = None
+    recipe.trainer.strategy.expert_tensor_parallel_size = 1
+    recipe.trainer.strategy.tensor_model_parallel_size = 2
+    recipe.trainer.strategy.ddp.grad_reduce_in_fp32 = False
 
-    recipe.model.config.recompute_granularity = "full"
-    recipe.model.config.recompute_method = "uniform"
-    recipe.model.config.recompute_num_layers = 1
+    recipe.log.ckpt.save_top_k = 2
+    from datetime import timedelta
+
+    recipe.log.ckpt.train_time_interval = run.Config(timedelta, minutes=60)
+
+    # recompute
+    recipe.model.config.recompute_granularity = "selective"
+    recipe.model.config.recompute_modules = ["mla_up_proj", "layernorm"]
+
+    # DeepEP
+    recipe.model.config.moe_token_dispatcher_type = "flex"
+    recipe.model.config.moe_enable_deepep = True
+    recipe.model.config.moe_shared_expert_overlap = False
+
+    garbage_collection_callback = run.Config(
+        GarbageCollectionCallback,
+        gc_interval_train=5,
+        gc_interval_val=5,
+    )
+    comm_overlap_callback = run.Config(
+        MegatronCommOverlapCallback,
+        tp_comm_overlap=False,
+    )
+
+    recipe.trainer.callbacks.append(garbage_collection_callback)
+    recipe.trainer.callbacks.append(comm_overlap_callback)
+
+    if performance_mode:
+        recipe = pretrain_performance_optimizations(recipe)
+
+    return recipe
+
+
+def pretrain_performance_optimizations(recipe: run.Partial) -> run.Partial:
+    """
+    Create a performance-optimized pre-training recipe for DeepSeek-V3 (671B) model.
+
+    This method enables performance optimizations that may not be suitable for all use cases.
+    It builds upon the standard pre-training recipe and adds additional performance enhancements.
+
+    Args:
+        recipe (run.Partial): Base pre-train recipe to which performance optimizations will be added
+
+    Returns:
+        run.Partial: Partial configuration for performance-optimized pre-training.
+
+    Note:
+        Use this method with caution and only when you need maximum performance.
+        It may not be suitable for all hardware configurations or use cases.
+    """
+    if not hasattr(recipe.trainer, "callbacks") or recipe.trainer.callbacks is None:
+        recipe.trainer.callbacks = []
+
+    garbage_collection_callback = run.Config(
+        GarbageCollectionCallback,
+        gc_interval_train=60,
+        gc_interval_val=60,
+    )
+    comm_overlap_callback = run.Config(
+        MegatronCommOverlapCallback,
+        tp_comm_overlap=False,
+    )
+    recipe.trainer.callbacks.extend(
+        [
+            garbage_collection_callback,
+            comm_overlap_callback,
+        ]
+    )
+
+    recipe.trainer.plugins.grad_reduce_in_fp32 = False
 
     return recipe
 
@@ -125,6 +199,7 @@ def finetune_recipe(
     peft_scheme: Optional[str] = 'lora',
     seq_length: Optional[int] = None,
     packed_sequence: Optional[bool] = None,
+    performance_mode: bool = False,
 ) -> run.Partial:
     """
     Create a fine-tuning recipe for DeepSeek-V3 (671B) model.
@@ -166,7 +241,7 @@ def finetune_recipe(
 
     if num_nodes is None:
         if peft_scheme is None or peft_scheme.lower() == 'none':
-            num_nodes = 56
+            num_nodes = 64
         elif peft_scheme.lower() in ['lora', 'dora']:
             num_nodes = 5
 
@@ -203,6 +278,52 @@ def finetune_recipe(
     recipe.model.config.seq_length = seq_length
     recipe.data.seq_length = seq_length
     if packed_sequence:
-        raise ValueError("Packed sequence for DeepSeek is not yet supported. Please set packed_sequence=False.")
+        recipe.data.dataset_kwargs = {'pad_to_max_length': True}
+        recipe.data.packed_sequence_specs = run.Config(PackedSequenceSpecs, packed_sequence_size=seq_length)
+
+    if performance_mode:
+        recipe = finetune_performance_optimizations(recipe)
+
+    return recipe
+
+
+def finetune_performance_optimizations(recipe: run.Partial) -> run.Partial:
+    """
+    Modify the given recipe to optimize settings for performance.
+
+    This method enables performance optimizations that may not be suitable for all use cases.
+    Intended to build upon the standard fine-tuning recipe.
+
+    Args:
+        recipe (run.Partial): Base fine-tuning recipe to which performance optimizations will be added
+
+    Returns:
+        run.Partial: Partial configuration for performance-optimized fine-tuning.
+
+    Note:
+        Use this method with caution and only when you need maximum performance.
+        It may not be suitable for all hardware configurations or use cases.
+    """
+
+    if not hasattr(recipe.trainer, "callbacks") or recipe.trainer.callbacks is None:
+        recipe.trainer.callbacks = []
+
+    garbage_collection_callback = run.Config(
+        GarbageCollectionCallback,
+        gc_interval_train=60,
+        gc_interval_val=60,
+    )
+    comm_overlap_callback = run.Config(
+        MegatronCommOverlapCallback,
+        tp_comm_overlap=False,
+    )
+    recipe.trainer.callbacks.extend(
+        [
+            garbage_collection_callback,
+            comm_overlap_callback,
+        ]
+    )
+
+    recipe.trainer.plugins.grad_reduce_in_fp32 = False
 
     return recipe
