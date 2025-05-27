@@ -51,7 +51,7 @@ def use_inference_server(cfg, model, trainer):
     trainer.test(model, dataloaders=None)
 
     if (
-        parallel_state.is_pipeline_first_stage(ignore_virtual=True)
+        parallel_state.is_pipeline_first_stage()
         and parallel_state.get_tensor_model_parallel_rank() == 0
     ):
         if cfg.web_server:

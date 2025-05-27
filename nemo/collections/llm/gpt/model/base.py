@@ -89,9 +89,9 @@ def gpt_data_step(dataloader_iter, use_mtp=False) -> dict[str, torch.Tensor]:
         required_host_keys.add("cu_seqlens_argmin")
         required_host_keys.add("max_seqlen")
 
-    if parallel_state.is_pipeline_first_stage(ignore_virtual=True) or use_mtp:
+    if parallel_state.is_pipeline_first_stage() or use_mtp:
         required_device_keys.update(("tokens", "position_ids"))
-    if parallel_state.is_pipeline_last_stage(ignore_virtual=True):
+    if parallel_state.is_pipeline_last_stage():
         required_device_keys.update(("labels", "loss_mask"))
 
     _batch_required_keys = {}

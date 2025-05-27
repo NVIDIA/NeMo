@@ -614,7 +614,7 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
             # Advance inference sequence offset.
             if self.inference_params:
                 # if last stage, then (final) output is [b, s, h], otherwise it's [s, b, h]
-                if parallel_state.is_pipeline_last_stage(ignore_virtual=True):
+                if parallel_state.is_pipeline_last_stage():
                     self.inference_params.sequence_len_offset += output_tensor.size(1)
                 else:
                     self.inference_params.sequence_len_offset += output_tensor.size(0)
@@ -1451,7 +1451,7 @@ class ModularAudioGPTModel(SpeechLLMAdapterMixin, MegatronGPTSFTModel):
             assert (
                 self.cfg.get("virtual_pipeline_model_parallel_size", None) is None
             ), "Virtual pipeline model parallel size is no longer supported for nemo 1.0"
-            if parallel_state.is_pipeline_last_stage(ignore_virtual=True):
+            if parallel_state.is_pipeline_last_stage():
                 # only the last pipeline parallel stages return loss with their batch size
                 if self.cfg.data.get('validation_drop_last', True):
                     loss = torch.stack(loss_vals).mean()

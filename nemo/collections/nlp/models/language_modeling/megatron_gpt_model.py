@@ -192,7 +192,7 @@ def mcore_model_customize(cfg, model):
     assert (
         cfg.get("virtual_pipeline_model_parallel_size", None) is None
     ), "Virtual pipeline model parallel size is no longer supported for nemo 1.0"
-    if cfg.get("apply_embedding_scaling", False) and parallel_state.is_pipeline_first_stage(ignore_virtual=True):
+    if cfg.get("apply_embedding_scaling", False) and parallel_state.is_pipeline_first_stage():
         extend_instance(model.embedding, EmbeddingScalingMixin)
     if cfg.get("scale_positional_embedding", False):
         model.rotary_pos_emb.inv_freq = apply_rope_scaling(
@@ -578,9 +578,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                 seq_len_interpolation_factor=self.cfg.get('seq_len_interpolation_factor', None),
                 rotary_base=self.cfg.get('rotary_base', 10000),
             )
-            if self.cfg.get("apply_embedding_scaling", False) and parallel_state.is_pipeline_first_stage(
-                ignore_virtual=True
-            ):
+            if cfg.get("apply_embedding_scaling", False) and parallel_state.is_pipeline_first_stage():
                 extend_instance(model.language_model.embedding, EmbeddingScalingMixin)
         return model
 
@@ -636,7 +634,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             # Special handling for embedding grads
             with_fp32_embedding_grads = self.cfg.get('with_fp32_embedding_grads', True)
             modules = self.get_model_module_list()
-            if parallel_state.is_pipeline_first_stage(ignore_virtual=True):
+            if parallel_state.is_pipeline_first_stage():
                 module = modules[0]  # first virtual rank has the embeddings
 
                 # Word embeddings: use FP32 grads and disable
@@ -662,7 +660,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     position_embeddings._with_fp32_optimizer = with_fp32_embedding_grads
 
             # Handle case where embeddings are used in output layer
-            if parallel_state.is_pipeline_last_stage(ignore_virtual=True) and self.cfg.get(
+            if parallel_state.is_pipeline_last_stage() and self.cfg.get(
                 'share_embeddings_and_output_weights', True
             ):
                 module = modules[-1]  # last virtual rank has the embeddings
@@ -892,9 +890,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     for param in module.embedding.parameters():
                         param.data_ptr()
 
-        if self.cfg.get('pipeline_model_parallel_size', 1) > 1 and parallel_state.is_pipeline_last_stage(
-            ignore_virtual=True
-        ):
+        if self.cfg.get('pipeline_model_parallel_size', 1) > 1 and parallel_state.is_pipeline_last_stage():
             if (
                 self.cfg.get('defer_embedding_wgrad_compute', False)
                 and self.mcore_gpt
@@ -917,9 +913,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             self.prev_step_training = self.training
 
         # Optimization: Defer the embedding GEMM Wgrads of the last PP stage to pipeline flush waiting time
-        if self.cfg.get('pipeline_model_parallel_size', 1) > 1 and parallel_state.is_pipeline_last_stage(
-            ignore_virtual=True
-        ):
+        if self.cfg.get('pipeline_model_parallel_size', 1) > 1 and parallel_state.is_pipeline_last_stage():
             if (
                 self.cfg.get('defer_embedding_wgrad_compute', False)
                 and self.mcore_gpt
@@ -1128,16 +1122,16 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         # This should only run for models that support pipelined model parallelism
         # (BERT and GPT-2).
         if parallel_state.get_pipeline_model_parallel_world_size() > 1 and (
-            parallel_state.is_pipeline_first_stage(ignore_virtual=True)
-            or parallel_state.is_pipeline_last_stage(ignore_virtual=True)
+            parallel_state.is_pipeline_first_stage()
+            or parallel_state.is_pipeline_last_stage()
         ):
             module_list = self.get_model_module_list()
             assert (
                 self.cfg.get("virtual_pipeline_model_parallel_size", None) is None
             ), "Virtual pipeline model parallel size is no longer supported for nemo 1.0"
-            if parallel_state.is_pipeline_first_stage(ignore_virtual=True):
+            if parallel_state.is_pipeline_first_stage():
                 module = module_list[0]  # only the first virtual rank has the embeddings
-            elif parallel_state.is_pipeline_last_stage(ignore_virtual=True):
+            elif parallel_state.is_pipeline_last_stage():
                 module = module_list[-1]  # only the last virtual rank has the embeddings
             share_embeddings = (
                 module.share_embeddings_and_output_weights if self.mcore_gpt else module.share_token_embeddings
@@ -1529,7 +1523,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
             # Advance inference sequence offset.
             if self.inference_params:
                 # if last stage, then (final) output is [b, s, h], otherwise it's [s, b, h]
-                if parallel_state.is_pipeline_last_stage(ignore_virtual=True):
+                if parallel_state.is_pipeline_last_stage():
                     self.inference_params.sequence_len_offset += output_tensor.size(1)
                 else:
                     self.inference_params.sequence_len_offset += output_tensor.size(0)
@@ -1592,7 +1586,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         assert (
             self.cfg.get("virtual_pipeline_model_parallel_size", None) is None
         ), "Virtual pipeline model parallel size is no longer supported for nemo 1.0"
-        if parallel_state.is_pipeline_last_stage(ignore_virtual=True):
+        if parallel_state.is_pipeline_last_stage():
             # only the last pipeline parallel stages return loss with their batch size
             if self.validation_drop_last:
                 averaged_loss = torch.stack(self.validation_step_outputs).mean()

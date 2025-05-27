@@ -1013,9 +1013,7 @@ class MegatronCLIPModel(MegatronBaseModel):
             self.prev_step_training = self.training
 
         # Optimization: Defer the embedding GEMM Wgrads of the last PP stage to pipeline flush waiting time
-        if self.cfg.get('pipeline_model_parallel_size', 1) > 1 and parallel_state.is_pipeline_last_stage(
-            ignore_virtual=True
-        ):
+        if self.cfg.get('pipeline_model_parallel_size', 1) > 1 and parallel_state.is_pipeline_last_stage():
             if (
                 self.cfg.get('defer_embedding_wgrad_compute', False) and self.mcore_gpt
             ):  # Silently ignore the optimization if MCORE is not used
@@ -1192,7 +1190,7 @@ class MegatronCLIPModel(MegatronBaseModel):
                     self.cfg.get("virtual_pipeline_model_parallel_size", None) is None
                 ), "Virtual pipeline model parallel size is no longer supported for nemo 1.0"
                 # GPT3 uses only causal mask, which doesn't need attention mask
-                if parallel_state.is_pipeline_first_stage(ignore_virtual=True):
+                if parallel_state.is_pipeline_first_stage():
                     # Fist pipeline stage needs only the tokens and position_ids
                     images = batch["images"].cuda(non_blocking=True)
                     captions = batch["captions"].cuda(non_blocking=True)
@@ -1309,7 +1307,7 @@ class MegatronCLIPModel(MegatronBaseModel):
         assert (
             self.cfg.get("virtual_pipeline_model_parallel_size", None) is None
         ), "Virtual pipeline model parallel size is no longer supported for nemo 1.0"
-        if parallel_state.is_pipeline_last_stage(ignore_virtual=True):
+        if parallel_state.is_pipeline_last_stage():
             averaged_metrics = torch.tensor(
                 [torch.stack(self.validation_step_outputs).mean()], dtype=torch.float32, device='cuda'
             )

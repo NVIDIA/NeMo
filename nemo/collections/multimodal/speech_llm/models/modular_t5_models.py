@@ -1060,7 +1060,7 @@ class ModularizedAudioT5Model(MegatronT5LoraModel):
             assert (
                 self.cfg.get("virtual_pipeline_model_parallel_size", None) is None
             ), "Virtual pipeline model parallel size is no longer supported for nemo 1.0"
-            if parallel_state.is_pipeline_last_stage(ignore_virtual=True):
+            if parallel_state.is_pipeline_last_stage():
                 # only the last pipeline parallel stages return loss with their batch size
                 if self.cfg.data.get('validation_drop_last', True):
                     loss = torch.stack(loss_vals).mean()

@@ -586,7 +586,7 @@ class NeMoBertModel(MegatronModule):
         assert (
             self.config.get("virtual_pipeline_model_parallel_size", None) is None
         ), "Virtual pipeline model parallel size is no longer supported for nemo 1.0"
-        if parallel_state.is_pipeline_first_stage(ignore_virtual=True):
+        if parallel_state.is_pipeline_first_stage():
             input_ids = bert_model_input
             position_ids = build_position_ids(input_ids)
         else:

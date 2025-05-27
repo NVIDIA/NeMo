@@ -655,11 +655,11 @@ class MCoreNevaModel(MCoreGPTModel, NevaBaseModel):
         NevaBaseModel.__init__(self, mm_cfg, media_start_id, media_end_id, mcore_gpt, **kwargs)
 
     def freeze_llm(self, mm_cfg):
-        if parallel_state.is_pipeline_first_stage(ignore_virtual=True):
+        if parallel_state.is_pipeline_first_stage():
             embedding_parameters = self.embedding.parameters()
         else:
             embedding_parameters = {}
-        if parallel_state.is_pipeline_last_stage(ignore_virtual=True):
+        if parallel_state.is_pipeline_last_stage():
             output_layer_parameters = self.output_layer.parameters()
         else:
             output_layer_parameters = {}
@@ -677,7 +677,7 @@ class MCoreNevaModel(MCoreGPTModel, NevaBaseModel):
         **kwargs,
     ):
         media = kwargs.pop('media', None)
-        if parallel_state.is_pipeline_first_stage(ignore_virtual=True):
+        if parallel_state.is_pipeline_first_stage():
             self.embedding.word_embeddings.set_media(media)
         return MCoreGPTModel.forward(self, *args, **kwargs)
 
@@ -711,7 +711,7 @@ class NevaModel(GPTModel, NevaBaseModel):
         **kwargs,
     ):
         media = kwargs.pop('media', None)
-        if parallel_state.is_pipeline_first_stage(ignore_virtual=True):
+        if parallel_state.is_pipeline_first_stage():
             self.embedding.word_embeddings.set_media(media)
         return GPTModel.forward(self, *args, **kwargs)
 
@@ -1020,7 +1020,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
                 assert (
                     self.cfg.get("virtual_pipeline_model_parallel_size", None) is None
                 ), "Virtual pipeline model parallel size is no longer supported for nemo 1.0"
-                if parallel_state.is_pipeline_first_stage(ignore_virtual=True):
+                if parallel_state.is_pipeline_first_stage():
                     # First pipeline stage needs tokens, position_ids, and attention_mask
                     for k in batch.keys():
                         if self.get_attention_mask_from_fusion:
@@ -1035,7 +1035,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
                                 if k in ['tokens', 'position_ids', 'attention_mask', 'media', 'cu_seqlens']
                                 else None
                             )
-                elif parallel_state.is_pipeline_last_stage(ignore_virtual=True):
+                elif parallel_state.is_pipeline_last_stage():
                     # Last pipeline stage needs the labels, loss_mask, and attention_mask
                     for k in batch.keys():
                         if self.get_attention_mask_from_fusion:
@@ -1143,7 +1143,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
             # Advance inference sequence offset.
             if self.inference_params:
                 # if last stage, then (final) output is [b, s, h], otherwise it's [s, b, h]
-                if parallel_state.is_pipeline_last_stage(ignore_virtual=True):
+                if parallel_state.is_pipeline_last_stage():
                     self.inference_params.sequence_len_offset += output_tensor.size(1)
                 else:
                     self.inference_params.sequence_len_offset += output_tensor.size(0)
@@ -1165,7 +1165,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
         assert (
             self.cfg.get("virtual_pipeline_model_parallel_size", None) is None
         ), "Virtual pipeline model parallel size is no longer supported for nemo 1.0"
-        if parallel_state.is_pipeline_last_stage(ignore_virtual=True):
+        if parallel_state.is_pipeline_last_stage():
             # only the last pipeline parallel stages return loss with their batch size
             if self.cfg.data.get('validation_drop_last', True):
                 averaged_loss = torch.stack(self.validation_step_outputs).mean()
@@ -1705,7 +1705,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
             if not hasattr(self._train_dl, "save_state"):
                 return False
             first_rank = (
-                parallel_state.is_pipeline_first_stage(ignore_virtual=True)
+                parallel_state.is_pipeline_first_stage()
                 and parallel_state.get_tensor_model_parallel_rank() == 0
             )
             return first_rank

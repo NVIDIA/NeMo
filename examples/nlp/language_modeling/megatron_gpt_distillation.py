@@ -150,9 +150,7 @@ class DistillationMegatronGPTModel(MegatronGPTModel):
             seq_len_interpolation_factor=self.cfg.get('seq_len_interpolation_factor', None),
             rotary_base=self.cfg.get('rotary_base', 10000),
         )
-        if self.cfg.get("apply_embedding_scaling", False) and parallel_state.is_pipeline_first_stage(
-            ignore_virtual=True
-        ):
+        if self.cfg.get("apply_embedding_scaling", False) and parallel_state.is_pipeline_first_stage():
             extend_instance(model.embedding, EmbeddingScalingMixin)
 
         # [ModelOpt] Distillation mode.

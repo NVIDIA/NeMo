@@ -393,7 +393,7 @@ class MegatronVitClassificationModel(MegatronBaseModel):
             assert (
                 self.cfg.get("virtual_pipeline_model_parallel_size", None) is None
             ), "vpp is not supported yet in MegatronVitClassificationModel"
-            if not parallel_state.is_pipeline_first_stage(ignore_virtual=True):
+            if not parallel_state.is_pipeline_first_stage():
                 self.reduce_overlap_gradients()
         elif self.megatron_amp_O2:
             # # when using pipeline parallelism grads must be all-reduced after the pipeline (not asynchronously)
@@ -493,11 +493,11 @@ class MegatronVitClassificationModel(MegatronBaseModel):
                 assert (
                     self.cfg.get("virtual_pipeline_model_parallel_size", None) is None
                 ), "vpp is not supported yet in MegatronVitClassificationModel"
-                if parallel_state.is_pipeline_first_stage(ignore_virtual=True):
+                if parallel_state.is_pipeline_first_stage():
                     # First pipeline stage needs only the tokens and position_ids
                     tokens = batch[0].cuda(non_blocking=True)
                     labels = None
-                elif parallel_state.is_pipeline_last_stage(ignore_virtual=True):
+                elif parallel_state.is_pipeline_last_stage():
                     # Last pipeline stage needs only the labels and loss_mask
                     labels = batch[1].cuda(non_blocking=True)
                     tokens = None
@@ -546,7 +546,7 @@ class MegatronVitClassificationModel(MegatronBaseModel):
         assert (
             self.cfg.get("virtual_pipeline_model_parallel_size", None) is None
         ), "vpp is not supported yet in MegatronVitClassificationModel"
-        if parallel_state.is_pipeline_last_stage(ignore_virtual=True):
+        if parallel_state.is_pipeline_last_stage():
             loss_outputs = [output[0] for output in self.validation_step_outputs]
             acc_outputs = [output[1] for output in self.validation_step_outputs]
 
