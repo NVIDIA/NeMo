@@ -15,16 +15,21 @@
 
 import lightning.pytorch as pl
 import torch
-from omegaconf import OmegaConf, open_dict
+
+torch.set_float32_matmul_precision("highest")
+from omegaconf import DictConfig, OmegaConf, open_dict
 
 from nemo.collections.asr.models import ASRModel
+from nemo.core.classes import typecheck
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
 from nemo.utils.trainer_utils import resolve_trainer_cfg
 
+typecheck.set_typecheck_enabled(False)
 
-def load_model(cfg, trainer):
+
+def load_model(cfg: DictConfig, trainer: pl.Trainer) -> ASRModel:
     if "init_from_nemo_model" in cfg:
         logging.info(f"Loading model from local file: {cfg.init_from_nemo_model}")
         model = ASRModel.restore_from(cfg.init_from_nemo_model, trainer=trainer)
@@ -35,7 +40,7 @@ def load_model(cfg, trainer):
         raise ValueError(
             "Please provide either 'init_from_nemo_model' or 'init_from_pretrained_model' in the config file."
         )
-    if "init_from_ptl_ckpt" in cfg:
+    if cfg.get("init_from_ptl_ckpt", None):
         logging.info(f"Loading weights from checkpoint: {cfg.init_from_ptl_ckpt}")
         state_dict = torch.load(cfg.init_from_ptl_ckpt, map_location='cpu', weights_only=False)['state_dict']
         model.load_state_dict(state_dict, strict=True)
@@ -50,12 +55,18 @@ def main(cfg):
     exp_manager(trainer, cfg.get("exp_manager", None))
 
     asr_model = load_model(cfg, trainer)
+    asr_model = asr_model.eval()  # Set the model to evaluation mode
+    if hasattr(asr_model, 'wer'):
+        asr_model.wer.log_prediction = False
 
-    if "save_pred_to_file" in cfg:
-        with open_dict(asr_model.cfg):
+    with open_dict(asr_model.cfg):
+        if "save_pred_to_file" in cfg:
             asr_model.cfg.save_pred_to_file = cfg.save_pred_to_file
-
+        if "calclate_eou_metrics" in cfg:
+            asr_model.cfg.calclate_eou_metrics = cfg.calclate_eou_metrics
     if hasattr(cfg.model, 'test_ds') and cfg.model.test_ds.manifest_filepath is not None:
+        with open_dict(cfg.model.test_ds):
+            cfg.model.test_ds.pad_eou_label_secs = asr_model.cfg.get('pad_eou_label_secs', 0.0)
         asr_model.setup_test_data(test_data_config=cfg.model.test_ds)
         trainer.test(asr_model)
     else:

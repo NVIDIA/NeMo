@@ -235,6 +235,10 @@ def main(cfg):
     if init_from_model:
         init_from_pretrained_nemo(asr_model, init_from_model, cfg)
 
+    if cfg.model.get("freeze_encoder", False):
+        logging.info("Freezing encoder weights.")
+        asr_model.encoder.freeze()
+
     trainer.fit(asr_model)
 
     if hasattr(cfg.model, 'test_ds') and cfg.model.test_ds.manifest_filepath is not None:

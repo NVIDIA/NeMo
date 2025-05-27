@@ -33,6 +33,7 @@ from nemo.collections.asr.data.audio_to_eou_label_lhotse import (
 from nemo.collections.asr.metrics.wer import WER
 from nemo.collections.asr.models import EncDecHybridRNNTCTCBPEModel, EncDecRNNTBPEModel
 from nemo.collections.asr.modules.conformer_encoder import ConformerMultiLayerFeatureExtractor
+from nemo.collections.asr.parts.mixins import TranscribeConfig
 from nemo.collections.asr.parts.utils.eou_utils import (
     EOUResult,
     cal_eou_metrics_from_frame_labels,
@@ -375,6 +376,11 @@ class EncDecRNNTBPEEOUModel(EncDecRNNTBPEModel, ASREOUModelMixin):
             tokenizer=self.tokenizer,
         )
 
+    def _transcribe_forward(self, batch: AudioToTextEOUBatch, trcfg: TranscribeConfig):
+        encoded, encoded_len = self.forward(input_signal=batch.audio_signal, input_signal_length=batch.audio_lengths)
+        output = dict(encoded=encoded, encoded_len=encoded_len)
+        return output
+
     def training_step(self, batch: AudioToTextEOUBatch, batch_nb):
         # Reset access registry
         if AccessMixin.is_access_enabled(self.model_guid):
@@ -567,9 +573,12 @@ class EncDecRNNTBPEEOUModel(EncDecRNNTBPEModel, ASREOUModelMixin):
                 text_pred = self._get_text_from_tokens([x.y_sequence for x in hypotheses])
                 tensorboard_logs['val_text_pred'] = text_pred
 
-            eou_predictions = self._get_eou_predictions_from_hypotheses(hypotheses, batch)
-
-            eou_metrics_list, eob_metrics_list = self._calculate_eou_metrics(eou_predictions, batch)
+            if self.cfg.get('calculate_eou_metrics', True):
+                eou_predictions = self._get_eou_predictions_from_hypotheses(hypotheses, batch)
+                eou_metrics_list, eob_metrics_list = self._calculate_eou_metrics(eou_predictions, batch)
+            else:
+                eou_metrics_list = []
+                eob_metrics_list = []
 
             if loss_value is not None:
                 tensorboard_logs['val_loss'] = loss_value
@@ -598,10 +607,40 @@ class EncDecRNNTBPEEOUModel(EncDecRNNTBPEModel, ASREOUModelMixin):
         wer_denom = torch.stack([x[f'{mode}_wer_denom'] for x in outputs]).sum()
         tensorboard_logs = {**loss_log, f'{mode}_wer': wer_num.float() / wer_denom}
 
-        eou_metrics = self._aggregate_eou_metrics(outputs, mode=mode)
+        if self.cfg.get('calculate_eou_metrics', True):
+            eou_metrics = self._aggregate_eou_metrics(outputs, mode=mode)
         tensorboard_logs.update(eou_metrics)
 
         return {**loss_log, 'log': tensorboard_logs}
+
+    # def test_step(self, batch: AudioToTextEOUBatch, batch_idx, dataloader_idx=0):
+    #     # logs = self.validation_pass(batch, batch_idx, dataloader_idx=dataloader_idx)
+    #     # test_logs = {name.replace("val_", "test_"): value for name, value in logs.items()}
+
+    #     signal = batch.audio_signal
+    #     signal_len = batch.audio_lengths
+    #     transcript = batch.text_tokens
+    #     transcript_len = batch.text_token_lengths
+
+    #     # forward() only performs encoder forward
+    #     encoded, encoded_len = self.forward(input_signal=signal, input_signal_length=signal_len)
+    #     del signal
+
+    #     tensorboard_logs = {}
+    #     hypotheses = self.decoding.rnnt_decoder_predictions_tensor(
+    #         encoder_output=encoded, encoded_lengths=encoded_len, return_hypotheses=True
+    #     )
+    #     eou_predictions = self._get_eou_predictions_from_hypotheses(hypotheses, batch)
+    #     eou_metrics_list, eob_metrics_list = self._calculate_eou_metrics(eou_predictions, batch)
+    #     tensorboard_logs['test_eou_metrics'] = eou_metrics_list
+    #     tensorboard_logs['test_eob_metrics'] = eob_metrics_list
+
+    #     test_logs = tensorboard_logs
+    #     if type(self.trainer.test_dataloaders) == list and len(self.trainer.test_dataloaders) > 1:
+    #         self.test_step_outputs[dataloader_idx].append(test_logs)
+    #     else:
+    #         self.test_step_outputs.append(test_logs)
+    #     return test_logs
 
     def multi_validation_epoch_end(self, outputs, dataloader_idx: int = 0):
         return self.multi_inference_epoch_end(outputs, dataloader_idx, mode='val')
@@ -878,7 +917,7 @@ class EncDecHybridASRFrameEOUModel(EncDecHybridRNNTCTCBPEModel, ASREOUModelMixin
         self.encoder = ConformerMultiLayerFeatureExtractor(self.encoder, self.layer_idx_list)
         self.aggregator = Serialization.from_config_dict(cfg.aggregator)
         self.eou_encoder = Serialization.from_config_dict(cfg.eou_encoder)
-        self.eou_classifier = Serialization.from_config_dict(cfg.eou_classifier)
+        self.eou_decoder = Serialization.from_config_dict(cfg.eou_decoder)
         self.num_eou_classes = cfg.num_eou_classes
         self.rnnt_loss_weight = cfg.rnnt_loss_weight
         self.ctc_loss_weight = cfg.ctc_loss_weight
@@ -964,7 +1003,7 @@ class EncDecHybridASRFrameEOUModel(EncDecHybridRNNTCTCBPEModel, ASREOUModelMixin
             encoded_all[-1] = ctc_pred
         eou_encoded, eou_encoded_len = self.aggregator(encoded_all, encoded_len_all)
         eou_encoded, eou_encoded_len = self.eou_encoder(eou_encoded, eou_encoded_len)
-        eou_pred = self.eou_classifier(eou_encoded)
+        eou_pred = self.eou_decoder(eou_encoded)
         return eou_pred, eou_encoded_len
 
     def trim_eou_preds_labels(
@@ -1298,8 +1337,8 @@ class EncDecHybridASRFrameEOUModel(EncDecHybridRNNTCTCBPEModel, ASREOUModelMixin
         for i in range(eou_pred.size(0)):
             self.macro_accuracy.update(preds=eou_pred[i][: eou_valid_len[i]], target=eou_labels[i][: eou_valid_len[i]])
         stats = self.macro_accuracy._final_state()
-        self.macro_accuracy.reset()
         tensorboard_logs['val_eou_acc_stats'] = stats
+        self.macro_accuracy.reset()
 
         eou_predictions = self._get_eou_predictions_from_frames(eou_pred, eou_valid_len)
         eou_metrics_list, eob_metrics_list = self._calculate_eou_metrics(eou_predictions, batch)
@@ -1340,6 +1379,10 @@ class EncDecHybridASRFrameEOUModel(EncDecHybridRNNTCTCBPEModel, ASREOUModelMixin
             loss_log = {f'{mode}_loss': loss_mean}
         else:
             loss_log = {}
+
+        eou_loss_mean = torch.stack([x[f'{mode}_eou_loss'] for x in outputs]).mean()
+        loss_log[f'{mode}_eou_loss'] = eou_loss_mean
+
         wer_num = torch.stack([x[f'{mode}_wer_num'] for x in outputs]).sum()
         wer_denom = torch.stack([x[f'{mode}_wer_denom'] for x in outputs]).sum()
         tensorboard_logs = {**loss_log, f'{mode}_wer': wer_num.float() / wer_denom}
@@ -1352,6 +1395,7 @@ class EncDecHybridASRFrameEOUModel(EncDecHybridRNNTCTCBPEModel, ASREOUModelMixin
         eou_metrics = self._aggregate_eou_metrics(outputs, mode)
         tensorboard_logs.update(eou_metrics)
 
+        self.macro_accuracy.reset()
         self.macro_accuracy.tp = torch.stack([x[f'{mode}_eou_acc_stats'][0] for x in outputs]).sum(axis=0)
         self.macro_accuracy.fp = torch.stack([x[f'{mode}_eou_acc_stats'][1] for x in outputs]).sum(axis=0)
         self.macro_accuracy.tn = torch.stack([x[f'{mode}_eou_acc_stats'][2] for x in outputs]).sum(axis=0)

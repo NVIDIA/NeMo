@@ -338,7 +338,7 @@ model:
     stochastic_depth_mode: linear  # linear or uniform
     stochastic_depth_start_layer: 1
 
-  eou_classifier:
+  eou_decoder:
     _target_: nemo.collections.asr.modules.ConvASRDecoder
     feat_in: ${model.eou_encoder.d_model}
     num_classes: ${model.num_eou_classes}
