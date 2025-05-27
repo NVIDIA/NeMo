@@ -28,6 +28,7 @@ from nemo.lightning.pytorch.strategies.utils import RestoreConfig
 from nemo.utils import logging
 from nemo.utils.app_state import AppState
 from nemo.utils.model_utils import uninject_model_parallel_rank
+from nemo.utils.msc_utils import import_multistorageclient, is_multistorageclient_url
 
 # Dynamically inherit from the correct Path subclass based on the operating system.
 if os.name == "nt":
@@ -94,7 +95,7 @@ class AutoResume:
 
     WEIGHTS_PATH = "weights"
 
-    def get_weights_path(self, path):
+    def get_weights_path(self, path: Union[Path, str]) -> Path:
         """Returns the path to the weights directory within the specified path.
 
         Args:
@@ -103,7 +104,10 @@ class AutoResume:
         Returns:
             Path: A Path object pointing to the weights directory
         """
-        return Path(path) / self.WEIGHTS_PATH
+        if isinstance(path, str):
+            return os.path.join(path, self.WEIGHTS_PATH)
+        
+        return path / self.WEIGHTS_PATH
 
     def setup(self, trainer: Union[pl.Trainer, fl.Fabric], model=None):
         """Sets up checkpoint restoration for the Pytorch Lightning trainer.
@@ -191,7 +195,11 @@ class AutoResume:
 
         # Use <log_dir>/checkpoints/ unless `dirpath` is set
         if self.resume_from_directory:
-            checkpoint_dir = Path(self.resume_from_directory)
+            if is_multistorageclient_url(self.resume_from_directory):
+                msc = import_multistorageclient()
+                checkpoint_dir = msc.Path(self.resume_from_directory)
+            else:
+                checkpoint_dir = Path(self.resume_from_directory)
         elif log_dir is not None:
             checkpoint_dir = Path(Path(log_dir) / "checkpoints")
         else:  # ie. if log_dir is None
@@ -290,7 +298,7 @@ class AutoResume:
             checkpoint = self._find_trainer_ckpt_path()
 
         if checkpoint:
-            maybe_context_path = Path(checkpoint) / "context"
+            maybe_context_path = checkpoint / "context"
             if maybe_context_path.is_dir():
                 checkpoint = maybe_context_path
         return checkpoint
@@ -342,7 +350,7 @@ class AutoResume:
                 base_model_path = self._get_base_model_path_for_adapter(adapter_meta_path, model)
                 return AdapterPath(checkpoint, base_model_path=base_model_path)
             else:
-                return Path(checkpoint)
+                return checkpoint
 
         return None
 

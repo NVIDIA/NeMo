@@ -64,10 +64,17 @@ def ckpt_to_dir(filepath: Union[str, Path]) -> Path:
     to be used as a directory for distributed checkpoints
     """
     from nemo.lightning.resume import AdapterPath
+    from nemo.utils.msc_utils import import_multistorageclient, is_multistorageclient_url
 
     if isinstance(filepath, AdapterPath):
         return filepath
-    filepath = Path(filepath)
+
+    if is_multistorageclient_url(filepath):
+        msc = import_multistorageclient()
+        filepath = msc.Path(filepath)
+    else:
+        filepath = Path(filepath)
+
     if not filepath.suffix == ".ckpt":
         filepath = filepath.with_suffix(filepath.suffix + ".ckpt")
 
