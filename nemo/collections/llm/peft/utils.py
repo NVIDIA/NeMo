@@ -322,6 +322,7 @@ class ParallelLinearAdapter(nn.Module, AdapterModuleUtil):
         if dropout > 0.0:
             if dropout_recompute:
                 import thunder
+
                 self.dropout = thunder.jit(nn.Dropout(dropout))
             else:
                 self.dropout = nn.Dropout(dropout)
