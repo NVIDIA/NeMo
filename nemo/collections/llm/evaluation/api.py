@@ -141,6 +141,10 @@ class AdapterConfig(BaseModel):
 
         return AdapterConfig.model_validate(adapter_config)
 
+    api_url: str = Field(
+        description="The URL where the model endpoint is served",
+    )
+
     local_port: Optional[int] = Field(
         description="Local port to use for the adapter server. If `None` (default) will choose any free port",
         default=None,

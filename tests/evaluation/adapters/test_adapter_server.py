@@ -18,17 +18,15 @@ from typing import Any, Generator
 import pytest
 import requests
 
-from nemo.collections.llm.evaluation.adapters.server import AdapterServer
+from nemo.collections.llm.evaluation.adapters.server import create_server_process
 from nemo.collections.llm.evaluation.api import AdapterConfig
-
-from .test_utils import create_adapter_server_process
 
 
 @pytest.fixture
-def adapter_server(fake_openai_endpoint) -> Generator[AdapterServer, Any, Any]:
+def adapter_server(fake_openai_endpoint) -> Generator[AdapterConfig, Any, Any]:
     # Create serializable configuration
-    api_url = "http://localhost:3300/v1/chat/completions"
     adapter_config = AdapterConfig(
+        api_url="http://localhost:3300/v1/chat/completions",
         use_reasoning=True,
         end_reasoning_token="</think>",
         max_logged_responses=1,
@@ -36,16 +34,16 @@ def adapter_server(fake_openai_endpoint) -> Generator[AdapterServer, Any, Any]:
     )
 
     # Create server process and get a reference instance for config
-    p, adapter = create_adapter_server_process(api_url, adapter_config)
+    p, adapter_config = create_server_process(adapter_config)
 
-    yield adapter
+    yield adapter_config
 
     p.terminate()
 
 
 def test_adapter_server_post_request(adapter_server, capfd):
 
-    url = f"http://{adapter_server.adapter_host}:{adapter_server.adapter_port}"
+    url = f"http://localhost:{adapter_server.local_port}"
     data = {
         "prompt": "This is a test prompt",
         "max_tokens": 100,

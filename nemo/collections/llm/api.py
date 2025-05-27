@@ -840,16 +840,11 @@ def evaluate(
     # NOTE(agronskiy): START of the adapter hook
     p: multiprocessing.Process | None = None
     if adapter_cfg:
-        from nemo.collections.llm.evaluation.adapters.server import AdapterServer
+        from nemo.collections.llm.evaluation.adapters.server import create_server_process
 
-        adapter = AdapterServer(
-            api_url=target_cfg.api_endpoint.url,
-            adapter_config=adapter_cfg,
-        )
-        p = multiprocessing.Process(target=adapter.run)
+        p, adapter_cfg = create_server_process(adapter_cfg)
         # This will be unhooked below
-        target_cfg.api_endpoint.url = f"http://{adapter.adapter_host}:{adapter.adapter_port}"
-        p.start()
+        target_cfg.api_endpoint.url = f"http://localhost:{adapter_cfg.local_port}"
 
     try:
         results = evaluate.evaluate_accuracy(
@@ -859,10 +854,10 @@ def evaluate(
         results_dict = results.model_dump()
     finally:
         if adapter_cfg and p is not None and p.is_alive():
+            # TODO(agronskiy): if the url is logged in results_dict, get it back to the adapter.api_url
+            target_cfg.api_endpoint.url = adapter_cfg.api_url
             p.terminate()
-
     # NOTE(agronskiy): END of the adapter hook
-    # TODO(agronskiy): if the url is logged in results_dict, get it back to the adapter.api_url
 
     logging.info("========== RESULTS ==========")
     logging.info(yaml.dump(results_dict))
