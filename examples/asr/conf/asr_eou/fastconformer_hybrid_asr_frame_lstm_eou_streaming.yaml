@@ -313,15 +313,14 @@ model:
 
   optim:
     name: adamw
-    lr: 5.0
+    lr: 0.0005
     # optimizer arguments
     betas: [0.9, 0.98]
     weight_decay: 1e-3
 
     # scheduler setup
     sched:
-      name: NoamAnnealing
-      d_model: ${model.encoder.d_model}
+      name: CosineAnnealing
       # scheduler config override
       warmup_steps: 10000
       warmup_ratio: null
