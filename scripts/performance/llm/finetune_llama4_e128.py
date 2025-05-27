@@ -16,11 +16,12 @@ from os.path import basename, splitext
 
 import fiddle as fdl
 import fiddle._src.experimental.dataclasses as fdl_dc
-import nemo_run as run
 import hf_xet
-from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed
+import nemo_run as run
+
 from nemo.collections.llm.gpt.data.squad import SquadDataModule
 from nemo.collections.llm.recipes.llama4_e128 import finetune_recipe, model
+from nemo.collections.llm.recipes.precision.mixed_precision import bf16_with_fp8_mixed
 from nemo.lightning.run.plugins import NsysPlugin, PerfEnvPlugin
 
 from ..argument_parser import parse_cli_args
@@ -43,6 +44,7 @@ HF_MODEL_URI = "meta-llama/Llama-4-Maverick-17B-128E-Instruct"
 # at 'NEMO_HOME', fine-tuning job will use this checkpoint, else, it will be
 # downloaded from HuggingFace
 SKIP_IMPORT = True
+
 
 def override_recipe_configs(
     args: str,
@@ -99,9 +101,15 @@ def override_recipe_configs(
     )
 
     recipe = set_exp_logging_configs(
-        recipe, finetuning_scheme, "llm", "llama4", args.tensorboard, args.wandb, args.wandb_prj_name, args.wandb_job_name
+        recipe,
+        finetuning_scheme,
+        "llm",
+        "llama4",
+        args.tensorboard,
+        args.wandb,
+        args.wandb_prj_name,
+        args.wandb_job_name,
     )
-
 
     # data module configs
     recipe.data.tokenizer = hf_tokenizer(HF_MODEL_URI)
@@ -110,7 +118,7 @@ def override_recipe_configs(
         recipe.data.force_redownload = True
 
     assert recipe.data.tokenizer is not None, "Tokenizer has not been set"
-    print("Tokenizer info:",recipe.data.tokenizer)
+    print("Tokenizer info:", recipe.data.tokenizer)
 
     # compute dtype configs
     if args.compute_dtype.lower() == "fp8":
@@ -121,7 +129,6 @@ def override_recipe_configs(
     recipe.model.config.cross_entropy_loss_fusion = True
     recipe.model.config.apply_rope_fusion = True
     recipe.model.config.moe_permute_fusion = True
-
 
     return recipe
 
@@ -149,7 +156,7 @@ if __name__ == "__main__":
         activation_offload_layers,
     ) = kwargs[0:15]
 
-    print("KWARGS:",kwargs)
+    print("KWARGS:", kwargs)
     recipe = override_recipe_configs(
         args,
         num_nodes,
@@ -173,17 +180,17 @@ if __name__ == "__main__":
     )
     exp_name = f"{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
 
-    #exp_config = f"{num_nodes}nodes_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_{mbs}mbs_{gbs}gbs"
-    #exp_name = f"{args.finetuning}_{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
-    segment_load=1
-    segment_finetune=16
+    # exp_config = f"{num_nodes}nodes_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_{mbs}mbs_{gbs}gbs"
+    # exp_name = f"{args.finetuning}_{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
+    segment_load = 1
+    segment_finetune = 16
     executor_load = slurm_executor(
         args.account,
         args.partition,
         args.log_dir,
         num_nodes,
         args.gpus_per_node,
-        #segment_load,
+        # segment_load,
         "01:30:00",
         args.container_image,
         custom_mounts=args.custom_mounts,
@@ -199,7 +206,7 @@ if __name__ == "__main__":
         args.log_dir,
         num_nodes,
         args.gpus_per_node,
-        #segment_finetune,
+        # segment_finetune,
         args.time_limit,
         args.container_image,
         custom_mounts=args.custom_mounts,
@@ -219,9 +226,9 @@ if __name__ == "__main__":
     if args.enable_nsys:
         plugins.append(NsysPlugin(start_step=45, end_step=50))
 
-    #assert self.tokenizer is not None, "Tokenizer has not been set"
+    # assert self.tokenizer is not None, "Tokenizer has not been set"
 
-    #with run.Experiment(exp_name) as exp:
+    # with run.Experiment(exp_name) as exp:
     #    exp.add(
     #        recipe,
     #        executor=executor,
@@ -234,7 +241,7 @@ if __name__ == "__main__":
     #    else:
     #        exp.dryrun()
 
-    #print("SLURM Executor inside the finetune file:",executor)
+    # print("SLURM Executor inside the finetune file:",executor)
     with run.Experiment(exp_name) as exp:
         if not SKIP_IMPORT:
             assert args.hf_token is not None, "HF token is required for importing checkpoint from HuggingFace"

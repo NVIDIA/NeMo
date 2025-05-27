@@ -125,7 +125,7 @@ def slurm_executor(
         mem="0",
         exclusive=True,
         packager=run.Packager(),
-        #segment=segment,
+        # segment=segment,
     )
 
     return executor
