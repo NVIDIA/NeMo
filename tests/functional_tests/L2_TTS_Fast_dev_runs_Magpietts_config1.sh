@@ -23,7 +23,7 @@ coverage run --branch -a --data-file=/workspace/.coverage --source=/workspace/ne
     +val_ds_meta.an4.feature_dir=null \
     max_epochs=1 \
     batch_size=4 \
-    model.codecmodel_path="/home/tts/21fps_causal_codecmodel.nemo" \
+    model.codecmodel_path="/home/TestData/tts/21fps_causal_codecmodel.nemo" \
     trainer.devices="[0]" \
     +trainer.limit_train_batches=1 \
     +trainer.limit_val_batches=1 \
