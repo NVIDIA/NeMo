@@ -128,7 +128,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         self.timestamp = None
         self.enable_grad_ckpt = enable_grad_ckpt
         self.use_linear_ce_loss = use_linear_ce_loss
-
+        self.non_zero_loss_rank = 0
         if self.use_linear_ce_loss and not HAVE_LINEAR_LOSS_CE:
             logging.warning(
                 "Dependency for linear CE loss is not available. \
@@ -407,6 +407,8 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         # In the case where all labels are masked, the loss should be 0.
         if loss_mask is not None and loss_mask.bool().sum() == 0:
             loss.detach().copy_(torch.zeros_like(loss))
+        else:
+            self.non_zero_loss_rank = 1
 
         self.loss_buffer.append(loss.item())
         self.n_tok += labels.numel() - count_tail_padding(labels.view_as(batch['input_ids']))
@@ -466,12 +468,13 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
 
             # Reduce loss across DP (or DP x CP) ranks.
             mean_loss = reduce_item(
-                mean_loss, op=dist.ReduceOp.AVG, device=self.device, group=group, dtype=torch.float32
+                mean_loss, op=dist.ReduceOp.SUM, device=self.device, group=group, dtype=torch.float32
             )
             tps = reduce_item(tps, op=dist.ReduceOp.SUM, device=self.device, group=group, dtype=torch.int64)
+            non_zero_loss_rank = reduce_item(self.non_zero_loss_rank, op=dist.ReduceOp.SUM, device=self.device, group=group, dtype=torch.int64)
 
         # Log the reduced loss.
-        self.log('reduced_train_loss', mean_loss, prog_bar=True, rank_zero_only=True, batch_size=1, sync_dist=False)
+        self.log('reduced_train_loss', mean_loss/non_zero_loss_rank, prog_bar=True, rank_zero_only=True, batch_size=1, sync_dist=False)
         self.log('tps', tps, prog_bar=True, rank_zero_only=True, batch_size=1, sync_dist=False)
 
         # log LR
