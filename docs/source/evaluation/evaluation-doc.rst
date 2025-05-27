@@ -51,10 +51,7 @@ facilitates easier debugging. However, for running evaluations on clusters, it i
 ease of use.
 
 The entry point for deployment is the ``deploy`` method defined in ``nemo/collections/llm/api.py``.
-Below is an example command for deployment. It uses a Hugging Face LLama3 8B checkpoint converted to NeMo 2.0. In order to evaluate
-a checkpoint saved from `pretraining <https://docs.nvidia.com/nemo-framework/user-guide/latest/nemo-2.0/quickstart.html#pretraining>`__
-in NeMo Framework or `fine-tuning <https://docs.nvidia.com/nemo-framework/user-guide/latest/nemo-2.0/quickstart.html#fine-tuning>`__
-in NeMo FW please provide the saved checkpoint's path in the nemo_checkpoint arg of the ``deploy`` command below.
+Below is an example command for deployment. It uses a Hugging Face LLaMA 3 8B checkpoint that has been converted to NeMo 2.0 format. To evaluate a checkpoint saved during `pretraining <https://docs.nvidia.com/nemo-framework/user-guide/latest/nemo-2.0/quickstart.html#pretraining>`__ or `fine-tuning <https://docs.nvidia.com/nemo-framework/user-guide/latest/nemo-2.0/quickstart.html#fine-tuning>`__ using the NeMo Framework, provide the path to the saved checkpoint using the ``nemo_checkpoint`` argument in the ``deploy`` command below.
 
 .. code-block:: python
 
