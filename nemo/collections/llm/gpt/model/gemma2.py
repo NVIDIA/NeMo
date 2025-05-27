@@ -357,7 +357,7 @@ class HFGemmaExporter(io.ModelConnector[Gemma2Model, "GemmaForCausalLM"]):
     def config(self) -> "Gemma2Config":
         """ """
 
-        source: Gemma2Config = io.load_context(str(self)).model.config
+        source: Gemma2Config = io.load_context(str(self), subpath="model.config")
 
         from transformers import Gemma2Config as HFGemmaConfig
 

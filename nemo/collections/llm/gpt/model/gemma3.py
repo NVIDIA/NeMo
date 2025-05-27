@@ -594,7 +594,7 @@ class HFGemma3Exporter(io.ModelConnector[Gemma3Model, "Gemma3ForCausalLM"]):
     @property
     def config(self):
         # pylint: disable=C0115,C0116
-        source: Gemma3Config = io.load_context(str(self)).model.config
+        source: Gemma3Config = io.load_context(str(self), subpath="model.config")
 
         from transformers import Gemma3TextConfig as HFGemma3TextConfig
 

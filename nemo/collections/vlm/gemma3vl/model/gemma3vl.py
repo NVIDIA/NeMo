@@ -277,7 +277,7 @@ class Gemma3VLExporter(io.ModelConnector[Gemma3VLModel, "Gemma3ForConditionalGen
     @property
     def config(self):
         # pylint: disable=C0115,C0116
-        source: Gemma3VLConfig = io.load_context(str(self)).model.config
+        source: Gemma3VLConfig = io.load_context(str(self), subpath="model.config")
         source_text: Gemma3Config = source.language_transformer_config
         source_vision: Gemma3VLVisionConfig = source.vision_transformer_config
 
