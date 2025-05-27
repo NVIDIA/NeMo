@@ -7,11 +7,11 @@ Evaluation adapters provide a flexible mechanism for intercepting and modifying 
 The adapter system uses a chain of interceptors that process requests and responses in sequence. Here's the high-level architecture:
 
 ```
-         ┌─────────────────────┐
-         │                     │
-         │  core-eval harness  │
-         │                     │
-         └───▲──────┬──────────┘
+         ┌───────────────────────┐
+         │                       │
+         │ NVIDIA Eval Factory   │
+         │                       │
+         └───▲──────┬────────────┘
              │      │
      returns │      │
              │      │ calls

@@ -17,11 +17,11 @@
 The arch is as follows:
 
 
-         ┌─────────────────────┐
-         │                     │
-         │  core-eval harness  │
-         │                     │
-         └───▲──────┬──────────┘
+         ┌───────────────────────┐
+         │                       │
+         │ NVIDIA Eval Factory   │
+         │                       │
+         └───▲──────┬────────────┘
              │      │
      returns │      │
              │      │ calls
