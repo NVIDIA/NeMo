@@ -280,69 +280,14 @@ model:
     weights: null
     layer_idx_list: ${model.layer_idx_list}
 
-  eou_encoder:
-    _target_: nemo.collections.asr.modules.ConformerEncoder
-    feat_in: ${model.encoder.d_model}
-    feat_out: -1 # you may set it if you need different output size other than the default d_model
-    n_layers: 2
-    d_model: 512
-    use_bias: True # whether to apply bias in the feedforward, MHA and convolution modules
-
-    # Sub-sampling parameters
-    subsampling: dw_striding # vggnet, striding, stacking or stacking_norm, dw_striding
-    subsampling_factor: 1 # NO subsampling
-    subsampling_conv_channels: 256 # set to -1 to make it equal to the d_model
-    causal_downsampling: true
-
-    # Feed forward module's params
-    ff_expansion_factor: 4
-
-    # Multi-headed Attention Module's params
-    self_attention_model: rel_pos # rel_pos or abs_pos
-    n_heads: 8 # may need to be lower for smaller d_models
-
-    # [left, right] specifies the number of steps to be seen from left and right of each step in self-attention
-    # for att_context_style=regular, the right context is recommended to be a small number around 0 to 3 as multiple-layers may increase the effective right context too large
-    # for att_context_style=chunked_limited, the left context need to be dividable by the right context plus one
-    # look-ahead(secs) = att_context_size[1]*subsampling_factor*window_stride, example: 13*8*0.01=1.04s
-
-    # For multi-lookahead models, you may specify a list of context sizes. During the training, different context sizes would be used randomly with the distribution specified by att_context_probs.
-    # The first item in the list would be the default during test/validation/inference.
-    # An example of settings for multi-lookahead:
-    #    att_context_size: [[70,13],[70,6],[70,1],[70,0]]
-    #    att_context_probs: [0.25, 0.25, 0.25, 0.25, 0.25]
-    att_context_size: ${model.encoder.att_context_size} # -1 means unlimited context
-    att_context_style: chunked_limited # regular or chunked_limited
-    att_context_probs: null
-
-    xscaling: true # scales up the input embeddings by sqrt(d_model)
-    pos_emb_max_len: ${model.encoder.pos_emb_max_len}
-
-    # Convolution module's params
-    conv_kernel_size: 9
-    conv_norm_type: 'layer_norm' # batch_norm or layer_norm or groupnormN (N specifies the number of groups)
-
-    # conv_context_size can be"causal" or a list of two integers while conv_context_size[0]+conv_context_size[1]+1==conv_kernel_size
-    # null means [(kernel_size-1)//2, (kernel_size-1)//2], and 'causal' means [(kernel_size-1), 0]
-    # Recommend to use causal convolutions as it would increase the effective right context and therefore the look-ahead significantly
-    conv_context_size: causal
-
-    ### regularization
-    dropout: 0.1 # The dropout used in most of the Conformer Modules
-    dropout_pre_encoder: 0.1 # The dropout used before the encoder
-    dropout_emb: 0.0 # The dropout used for embeddings
-    dropout_att: 0.1 # The dropout for multi-headed attention modules
-
-    # set to non-zero to enable stochastic depth
-    stochastic_depth_drop_prob: 0.0
-    stochastic_depth_mode: linear  # linear or uniform
-    stochastic_depth_start_layer: 1
+  eou_encoder: null
 
   eou_decoder:
     _target_: nemo.collections.asr.modules.LSTMDecoder
-    feat_in: ${model.eou_encoder.d_model}
+    feat_in: ${model.encoder.d_model}
     num_classes: ${model.num_eou_classes}
-    lstm_hidden_size: 128
+    lstm_hidden_size: 256
+    num_layers: 4
     add_blank: false
 
   eou_loss: 

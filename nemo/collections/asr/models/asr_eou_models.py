@@ -916,7 +916,7 @@ class EncDecHybridASRFrameEOUModel(EncDecHybridRNNTCTCBPEModel, ASREOUModelMixin
             self.layer_idx_list.append(num_encoder_layers - 1)
         self.encoder = ConformerMultiLayerFeatureExtractor(self.encoder, self.layer_idx_list)
         self.aggregator = Serialization.from_config_dict(cfg.aggregator)
-        self.eou_encoder = Serialization.from_config_dict(cfg.eou_encoder)
+        self.eou_encoder = Serialization.from_config_dict(cfg.eou_encoder) if cfg.eou_encoder is not None else None
         self.eou_decoder = Serialization.from_config_dict(cfg.eou_decoder)
         self.num_eou_classes = cfg.num_eou_classes
         self.rnnt_loss_weight = cfg.rnnt_loss_weight
@@ -1002,7 +1002,8 @@ class EncDecHybridASRFrameEOUModel(EncDecHybridRNNTCTCBPEModel, ASREOUModelMixin
         if ctc_pred is not None and self.use_ctc_pred:
             encoded_all[-1] = ctc_pred
         eou_encoded, eou_encoded_len = self.aggregator(encoded_all, encoded_len_all)
-        eou_encoded, eou_encoded_len = self.eou_encoder(eou_encoded, eou_encoded_len)
+        if self.eou_encoder is not None:
+            eou_encoded, eou_encoded_len = self.eou_encoder(eou_encoded, eou_encoded_len)
         eou_pred = self.eou_decoder(eou_encoded)
         return eou_pred, eou_encoded_len
 
