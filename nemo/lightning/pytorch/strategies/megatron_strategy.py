@@ -364,6 +364,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
                 "Setting FSDP option to megatron"
             )
             fsdp = 'megatron'
+
         if fsdp == "pytorch":
             raise NotImplementedError("PyTorch FSDP2 is not supported with MegatronParallel.")
         elif fsdp == "megatron":
