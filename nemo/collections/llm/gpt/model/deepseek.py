@@ -674,7 +674,7 @@ class HFDeepSeekExporter(io.ModelConnector[DeepSeekModel, "AutoModelForCausalLM"
 
         target_model_name = self._detect_hf_deepseek_version(asdict(source))
         if target_model_name != "deepseek-ai/DeepSeek-V3":
-            raise ValueError("Getting config for model other than {target_model_name} is not supported.")
+            raise ValueError(f"Getting config for model other than {target_model_name} is not supported.")
 
         # Figure out the number of zeros in the prefix of moe_layer_freq array
         # for the HF first_k_dense_replace parameter and validate the reminder:
