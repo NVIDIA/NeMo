@@ -61,8 +61,10 @@ relatively easy to add separately.
 
 """
 
+import multiprocessing
 import socket
-from typing import Optional
+import time
+from typing import Optional, Tuple
 
 import flask
 import requests
@@ -83,9 +85,52 @@ from .interceptors import (
     ResponseReasoningInterceptor,
     SystemMessageInterceptor,
 )
+from .utils import find_free_port, wait_for_server
 
 
-class AdapterServer:
+def create_server_process(
+    adapter_config: AdapterConfig,
+) -> Tuple[multiprocessing.Process, AdapterConfig]:
+    """Create and start a server process, returning the process and the config.
+
+    This makes sure that the factory function is not needing any complex serialization for
+    multiprocessing.
+
+    Args:
+        api_url: The API URL the adapter will call
+        adapter_config: Configuration for the adapter server
+
+    Returns:
+        Tuple of (process, adapter_config) where process is the running server process,
+        and adapter_config is the configuration with port filled in.
+    """
+
+    adapter_config.local_port = (
+        adapter_config.local_port if adapter_config.local_port is not None else find_free_port()
+    )
+
+    @staticmethod
+    def create_server_factory(
+        adapter_config: AdapterConfig,
+    ) -> None:
+        server = _AdapterServer(adapter_config=adapter_config)
+        server.run()
+
+    p = multiprocessing.Process(
+        target=create_server_factory,
+        args=(adapter_config,),
+        kwargs={},
+    )
+    p.start()
+
+    if not wait_for_server("localhost", adapter_config.local_port):
+        p.terminate()
+        raise ConnectionError(f"Could not wait till adapter server is up on localhost:{adapter_config.local_port}.")
+
+    return (p, adapter_config)
+
+
+class _AdapterServer:
     """Main server which serves on a local port and holds chain of interceptors"""
 
     adapter_host: str
@@ -100,7 +145,6 @@ class AdapterServer:
 
     def __init__(
         self,
-        api_url: str,
         adapter_config: AdapterConfig,
     ):
         """
@@ -118,11 +162,8 @@ class AdapterServer:
         self.app.route("/<path:path>", methods=["POST"])(self._handler)
 
         self.adapter_host: str = "localhost"
-        self.adapter_port: int = (
-            adapter_config.local_port if adapter_config.local_port is not None else self._find_free_port()
-        )
-
-        self.api_url = api_url
+        assert adapter_config.local_port is not None
+        self.adapter_port: int = adapter_config.local_port
         self.adapter_config = adapter_config
 
         logging.info(f"Using the following adapter config: {adapter_config}")
@@ -134,14 +175,6 @@ class AdapterServer:
             max_logged_requests=adapter_config.max_logged_requests,
             max_logged_responses=adapter_config.max_logged_responses,
         )
-
-    def _find_free_port(self) -> int:
-        """Find a free port to use for the server."""
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.bind(("127.0.0.1", 0))
-            s.listen(1)
-            port = s.getsockname()[1]
-        return port
 
     def _build_interceptor_chains(
         self,
@@ -155,7 +188,7 @@ class AdapterServer:
         if custom_system_prompt:
             self.request_interceptors.append(SystemMessageInterceptor(new_system_message=custom_system_prompt))
         self.request_interceptors.append(RequestLoggingInterceptor(max_requests=max_logged_requests))
-        self.request_interceptors.append(EndpointInterceptor(api_url=self.api_url))
+        self.request_interceptors.append(EndpointInterceptor(api_url=self.adapter_config.api_url))
 
         self.response_interceptors.append(ResponseLoggingInterceptor(max_responses=max_logged_responses))
         if use_reasoning:
