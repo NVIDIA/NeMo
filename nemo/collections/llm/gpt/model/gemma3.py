@@ -610,7 +610,7 @@ class HFGemma3Exporter(io.ModelConnector[Gemma3Model, "Gemma3ForCausalLM"]):
             initializer_range=source.init_method_std,
             rms_norm_eps=source.layernorm_epsilon,
             num_key_value_heads=source.num_query_groups,
-            vocab_size=self.tokenizer.vocab_size,
+            vocab_size=source.vocab_size,
             rope_theta=source.rotary_base[1],
             rope_local_base_freq=source.rotary_base[0],
         )
