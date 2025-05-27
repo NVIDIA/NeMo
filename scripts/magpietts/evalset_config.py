@@ -1,3 +1,16 @@
+# Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 dataset_meta_info = {
     'vctk': {
         'manifest_path' : '/home/pneekhara/2023/SimpleT5NeMo/manifests/smallvctk__phoneme__nemo_audio_21fps_8codebooks_2kcodes_v2bWithWavLM_simplet5_withcontextaudiopaths.json',
@@ -29,12 +42,12 @@ dataset_meta_info = {
         'manifest_path' : '/datap/misc/speechllm_codecdatasets/manifests/t5_exp/dev_clean_withContextAudioPaths_withTargetCodes_evalset_mid.json',
         'audio_dir' : '/datap/misc/Datasets/LibriTTS',
         'feature_dir' : '/datap/misc/Datasets/LibriTTS',
-    },    
+    },
     'libri_dev_clean_eval_tiny': {
         'manifest_path' : '/datap/misc/speechllm_codecdatasets/manifests/t5_exp/dev_clean_withContextAudioPaths_withTargetCodes_evalset_tiny.json',
         'audio_dir' : '/datap/misc/Datasets/LibriTTS',
         'feature_dir' : '/datap/misc/Datasets/LibriTTS',
-    },     
+    },
     'libri_val': {
         'manifest_path' : '/home/pneekhara/2023/SimpleT5NeMo/manifests/libri360_val.json',
         'audio_dir' : '/datap/misc/LibriTTSfromNemo/LibriTTS',
