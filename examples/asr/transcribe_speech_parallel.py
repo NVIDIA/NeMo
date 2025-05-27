@@ -215,7 +215,7 @@ def main(cfg: ParallelTranscriptionConfig):
         logging.info(f"Prediction files are being aggregated in {output_file}.")
         with open(output_file, 'w') as outf:
             for rank in range(trainer.world_size):
-                input_file = os.path.join(cfg.output_path, f"predictions_{rank}.json")
+                input_file = os.path.join(cfg.output_path, f"{cfg.predict_ds.prefix}_predictions_{rank}.json")
                 with open(input_file, 'r') as inpf:
                     lines = inpf.readlines()
                     for line in lines:
