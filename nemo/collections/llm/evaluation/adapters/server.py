@@ -61,9 +61,8 @@ relatively easy to add separately.
 
 """
 
+import logging as _original_logging
 import multiprocessing
-import socket
-import time
 from typing import Optional, Tuple
 
 import flask
@@ -197,6 +196,9 @@ class _AdapterServer:
     def run(self) -> None:
         """Start the Flask server."""
         logging.info(f"Starting the evaluation adapter server at {self.adapter_host}:{self.adapter_port}...")
+        # Below setting prevents from littering with
+        # messges like `<...> INFO 127.0.0.1 - - [27/May/2025 05:58:11] "POST / HTTP/1.1" 200 -`
+        _original_logging.getLogger('werkzeug').setLevel(logging.ERROR)
         werkzeug.serving.run_simple(
             hostname=self.adapter_host,
             port=self.adapter_port,
