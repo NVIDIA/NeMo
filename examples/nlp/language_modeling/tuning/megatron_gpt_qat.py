@@ -19,12 +19,8 @@ from nemo_export.quantize import Quantizer
 from omegaconf.omegaconf import OmegaConf
 from tqdm import tqdm
 
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import (
-    MegatronGPTSFTModel,
-)
-from nemo.collections.nlp.parts.megatron_trainer_builder import (
-    MegatronLMPPTrainerBuilder,
-)
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_sft_model import MegatronGPTSFTModel
+from nemo.collections.nlp.parts.megatron_trainer_builder import MegatronLMPPTrainerBuilder
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager

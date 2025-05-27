@@ -28,11 +28,7 @@ from typing_extensions import Annotated
 
 import nemo.lightning as nl
 from nemo.collections.llm import GPTModel, HFAutoModelForCausalLM
-from nemo.collections.llm.evaluation.api import (
-    EvaluationConfig,
-    EvaluationTarget,
-    MisconfigurationError,
-)
+from nemo.collections.llm.evaluation.api import EvaluationConfig, EvaluationTarget, MisconfigurationError
 from nemo.collections.llm.modelopt import (
     DistillationGPTModel,
     ExportConfig,
@@ -665,9 +661,7 @@ def deploy(
         os.environ["TRITON_PORT"] = str(triton_http_port)
 
         try:
-            from nemo_deploy.nlp.megatronllm_deployable import (
-                MegatronLLMDeployableNemo2,
-            )
+            from nemo_deploy.nlp.megatronllm_deployable import MegatronLLMDeployableNemo2
         except Exception as e:
             raise ValueError(
                 f"Unable to import MegatronLLMDeployable, due to: {type(e).__name__}: {e} cannot run "
@@ -735,10 +729,7 @@ def deploy(
                 triton_deployable.generate_other_ranks()
 
     elif backend == "trtllm":
-        from nemo.collections.llm.deploy.base import (
-            get_trtllm_deployable,
-            unset_environment_variables,
-        )
+        from nemo.collections.llm.deploy.base import get_trtllm_deployable, unset_environment_variables
 
         unset_environment_variables()  ## Required for export to trtllm on clusters.
         triton_deployable = get_trtllm_deployable(
@@ -799,11 +790,7 @@ def evaluate(
             url in EvaluationTarget.api_endpoint is required to run evaluations.
         eval_cfg (EvaluationConfig): configuration for evaluations. Default type (task): gsm8k.
     """
-    from nemo.collections.llm.evaluation.base import (
-        _legacy_evaluate,
-        find_framework,
-        wait_for_fastapi_server,
-    )
+    from nemo.collections.llm.evaluation.base import _legacy_evaluate, find_framework, wait_for_fastapi_server
 
     if target_cfg.api_endpoint.nemo_checkpoint_path is not None:
         _legacy_evaluate(target_cfg=target_cfg, eval_cfg=eval_cfg)

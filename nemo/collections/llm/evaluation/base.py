@@ -28,9 +28,7 @@ from nemo_deploy.nlp import NemoQueryLLM
 from tqdm import tqdm
 
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
-from nemo.collections.common.tokenizers.sentencepiece_tokenizer import (
-    SentencePieceTokenizer,
-)
+from nemo.collections.common.tokenizers.sentencepiece_tokenizer import SentencePieceTokenizer
 from nemo.collections.llm.evaluation.api import EvaluationConfig, EvaluationTarget
 from nemo.utils import logging
 
@@ -331,10 +329,7 @@ def wait_for_server_ready(
 
     import requests
     from pytriton.client import ModelClient
-    from pytriton.client.exceptions import (
-        PyTritonClientModelUnavailableError,
-        PyTritonClientTimeoutError,
-    )
+    from pytriton.client.exceptions import PyTritonClientModelUnavailableError, PyTritonClientTimeoutError
 
     # If gRPC URL, extract HTTP URL from gRPC URL for health checks
     if url.startswith("grpc://"):

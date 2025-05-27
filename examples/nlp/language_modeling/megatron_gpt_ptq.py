@@ -20,9 +20,7 @@ from nemo_export.quantize import Quantizer
 from omegaconf import OmegaConf
 from tqdm import tqdm
 
-from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import (
-    MegatronGPTModel,
-)
+from nemo.collections.nlp.models.language_modeling.megatron_gpt_model import MegatronGPTModel
 from nemo.collections.nlp.parts.nlp_overrides import NLPDDPStrategy
 from nemo.core.config import hydra_runner
 from nemo.utils.model_utils import load_config
