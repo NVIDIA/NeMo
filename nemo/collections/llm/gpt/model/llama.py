@@ -124,7 +124,6 @@ class Llama2Config70B(LlamaConfig):
     num_attention_heads: int = 64
     num_query_groups: int = 8
     ffn_hidden_size: int = 28672
-    make_vocab_size_divisible_by: int = 128
 
 
 @dataclass

@@ -14,7 +14,7 @@
 
 """
 Example:
-  python scripts/vlm/neva_generate.py --load_from_hf
+  python scripts/vlm/avlm_generate.py --load_from_hf
 """
 
 import argparse

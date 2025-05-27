@@ -82,43 +82,6 @@ class AVLMDataModule(EnergonMultiModalDataModule):
         )
         self.audio_processor = audio_processor
 
-    def datasets_provider(self, worker_config, split: Literal['train', 'val'] = 'val'):
-        """
-        Provide the dataset for training or validation.
-
-        This method retrieves the dataset for the specified split (either 'train' or 'val') and configures
-        it according to the worker configuration.
-
-        audio, video and image files wil be passed to the task encoder as raw bytes which will be processed in a
-        more fine-grained way.
-
-        Parameters:
-        worker_config: Configuration for the data loader workers.
-        split (Literal['train', 'val'], optional): The data split to retrieve ('train' or 'val'). Defaults to 'val'.
-
-        Returns:
-        Dataset: The dataset configured for the specified split.
-        """
-
-        if split not in {'train', 'val'}:
-            raise ValueError("Invalid value for split. Allowed values are 'train' or 'val'.")
-
-        if split == "train":
-            task_encoder = self.task_encoder
-        else:
-            task_encoder = self.validation_task_encoder
-
-        _dataset = get_train_dataset(
-            self.path,
-            batch_size=self.micro_batch_size,
-            task_encoder=task_encoder,
-            worker_config=worker_config,
-            packing_buffer_size=self.packing_buffer_size,
-            split_part=split,
-            shuffle_buffer_size=self.shuffle_buffer_size,
-            max_samples_per_sequence=self.max_samples_per_sequence,
-            auto_decode=False,
-            **self.kwargs,
-        )
-
-        return _dataset
+        # audio, video and image files wil be passed to the task encoder as raw 
+        # bytes which will be processed in a more fine-grained way.
+        self.kwargs["auto_decode"] = False

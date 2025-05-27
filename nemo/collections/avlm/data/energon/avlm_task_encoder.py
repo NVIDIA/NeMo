@@ -57,6 +57,7 @@ from nemo.collections.vlm.neva.data.sequence_packing import predict_seq_len_with
 from nemo.collections.asr.parts.preprocessing.segment import AudioSegment
 from nemo.collections.asr.parts.preprocessing.features import WaveformFeaturizer
 from nemo.collections.asr.parts.preprocessing.perturb import process_augmentations as audio_process_augmentations
+from transformers import LlavaNextImageProcessor
 
 from nemo.utils import logging
 
@@ -345,9 +346,18 @@ class AVLMSampleEncoder(BaseSampleEncoder):
                 image = torchvision.io.decode_image(
                     torch.tensor(np.frombuffer(image, dtype=np.uint8)), mode=torchvision.io.ImageReadMode.RGB
                 )
+                # Rescale image from [0,255] to [0,1] range if needed
+                if image.max() > 1:
+                    image = image / 255.0
+
+            # if image_processor is LlavaNextImageProcessor, the output of preprocess is a tensor of shape [1 - batch_size, 5 - patches, C, H, W], hence we only take the first element
+            if isinstance(self.image_processor, LlavaNextImageProcessor):
+                processed_image = self.image_processor.preprocess(image, return_tensors='pt', do_rescale=False)['pixel_values'][0]
+            else:
+                processed_image = self.image_processor.preprocess(image, return_tensors='pt', do_rescale=False)['pixel_values']
 
             return (
-                self.image_processor.preprocess(image, return_tensors='pt', do_rescale=False)['pixel_values'][0],
+                processed_image,
                 ImageSize(height=image.shape[1], width=image.shape[2]),
             )
         else:
@@ -486,6 +496,7 @@ class AVLMSampleEncoderInterleaved(AVLMSampleEncoder):
                         img_width=self.multimodal_sample_config.image_encoder_config['img_width'],
                         img_height=self.multimodal_sample_config.image_encoder_config['img_height'],
                         patch_size=self.multimodal_sample_config.image_encoder_config['patch_size'],
+                        projection_downsample_factor=self.multimodal_sample_config.image_encoder_config['projection_downsample_factor'],
                     )
                     tokenized_chunks.extend([self.image_token.token_id] * encoded_image_seq_length)
 
@@ -700,6 +711,7 @@ class AVLMSampleEncoderQA(AVLMSampleEncoder, VQASampleEncoder):
                     img_width=self.multimodal_sample_config.image_encoder_config['img_width'],
                     img_height=self.multimodal_sample_config.image_encoder_config['img_height'],
                     patch_size=self.multimodal_sample_config.image_encoder_config['patch_size'],
+                    projection_downsample_factor=self.multimodal_sample_config.image_encoder_config['projection_downsample_factor'],
                 )
                 tokenized_chunks.extend([self.image_token.token_id] * encoded_image_seq_length)
 

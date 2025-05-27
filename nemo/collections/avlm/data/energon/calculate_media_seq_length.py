@@ -130,6 +130,7 @@ def calculate_encoded_image_seq_length(
     img_width: int = None,
     img_height: int = None,
     patch_size: int = None,
+    projection_downsample_factor: int = None,
 ):
     """
     Calculate the sequence length of the encoded image based on:
@@ -142,5 +143,8 @@ def calculate_encoded_image_seq_length(
         encoder_seq_length = num_one_image_tiles * img_seq_length
     else:
         raise ValueError(f"Unsupported model type: {model_type}")
+
+    if projection_downsample_factor is not None:
+        encoder_seq_length = encoder_seq_length // (projection_downsample_factor ** 2)
 
     return encoder_seq_length

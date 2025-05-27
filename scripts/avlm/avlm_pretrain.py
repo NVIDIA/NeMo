@@ -99,6 +99,7 @@ def main(args):
                 "img_width": 336,
                 "img_height": 336,
                 "patch_size": 14,
+                "projection_downsample_factor": None,
             },
         )
         # Setting system prompt to empty string

@@ -69,20 +69,6 @@ MODEL_CONFIG_ATTR = [
     'seq_length',
 ]
 
-
-# import traceback
-# import warnings
-# import sys
-
-# def warn_with_traceback(message, category, filename, lineno, file=None, line=None):
-#     log = file if hasattr(file, 'write') else sys.stderr
-#     traceback.print_stack(file=log)
-#     log.write(warnings.formatwarning(message, category, filename, lineno, line))
-
-# warnings.showwarning = warn_with_traceback
-# warnings.simplefilter("always")  # Ensure all warnings are shown, not just the first occurrence
-
-
 def restore_model_weights(model, checkpoint_path, strict=False):
     """
     Restores model weights from a checkpoint.
@@ -243,25 +229,8 @@ class AVLMConfig(TransformerConfig, io.IOMixin):
         self.language_transformer_config.pipeline_model_parallel_size = self.pipeline_model_parallel_size
         self.language_transformer_config.context_parallel_size = self.context_parallel_size
 
-        assert "AVLM `encoder_pipeline_model_parallel_size` has bug for now. Fix will come soon."
-        if self.encoder_pipeline_model_parallel_size > 0:
-            assert self.encoder_pipeline_model_parallel_size == 1, "ViT can only live on 1 pipeline stage."
-            if self.vision_transformer_config is not None:
-                self.vision_transformer_config.pipeline_model_parallel_size = self.encoder_pipeline_model_parallel_size
-                self.vision_projection_config.pipeline_model_parallel_size = self.encoder_pipeline_model_parallel_size
-            if self.audio_transformer_config is not None:
-                self.audio_transformer_config.pipeline_model_parallel_size = self.encoder_pipeline_model_parallel_size
-                self.audio_projection_config.pipeline_model_parallel_size = self.encoder_pipeline_model_parallel_size
-            self.language_transformer_config.encoder_pipeline_model_parallel_size = (
-                self.encoder_pipeline_model_parallel_size
-            )
-            if self.encoder_tensor_model_parallel_size > 0:
-                if self.vision_transformer_config is not None:
-                    self.vision_transformer_config.tensor_model_parallel_size = self.encoder_tensor_model_parallel_size
-                    self.vision_projection_config.tensor_model_parallel_size = self.encoder_tensor_model_parallel_size
-                if self.audio_transformer_config is not None:
-                    self.audio_transformer_config.tensor_model_parallel_size = self.encoder_tensor_model_parallel_size
-                    self.audio_projection_config.tensor_model_parallel_size = self.encoder_tensor_model_parallel_size
+        assert self.encoder_pipeline_model_parallel_size == 0, \
+            "AVLM `encoder_pipeline_model_parallel_size` has bug for now. Fix will come soon."
 
         model = MCoreAVLMModel(
             config=self,
@@ -585,16 +554,13 @@ class MCoreAVLMModel(MCoreLLaVAModel):
                 if not has_images:
                     vision_param = next(self.vision_model.parameters())
                     # If no images provided, use an empty image embeddings tensor.
-                    image_embeddings = torch.tensor([], dtype=vision_param.dtype, device=vision_param.device).reshape(
-                        0, 0, 0
-                    )
+                    image_embeddings = None
                 else:
                     # images is in shape of (num_images_in_mbs, c, h, w)
                     # note num_images_in_mbs is not mbs but total images in this mbs.
                     images = images.to(next(self.vision_model.parameters()).dtype)
                     if self.vision_model_from_hf:
                         self.vision_model = self.vision_model.eval()
-
                         image_embeddings = self.vision_model(images, output_hidden_states=True)
                         image_embeddings = image_embeddings[-1][
                             self.config.vision_feature_layer
@@ -634,10 +600,7 @@ class MCoreAVLMModel(MCoreLLaVAModel):
                 has_audios = audios is not None and audios.shape[0] > 0
                 if not has_audios:
                     audio_param = next(self.audio_model.parameters())
-                    # If no audios provided, use an empty audio embeddings tensor.
-                    audio_embeddings = torch.tensor([], dtype=audio_param.dtype, device=audio_param.device).reshape(
-                        0, 0
-                    )
+                    audio_embeddings = None
                 else:
                     # We don't cast input to bfloat16 here, because processor prefer input audios data in float32.
                     # the output of preprocessing and encoding will be the dtype of encoder
