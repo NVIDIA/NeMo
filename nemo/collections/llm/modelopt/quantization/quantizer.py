@@ -241,7 +241,7 @@ class Quantizer:
 
         quant_cfg = QUANT_CFG_CHOICES[self.quantization_config.algorithm]
         if "awq" in self.quantization_config.algorithm:
-            quant_cfg = copy.deepcopy(getattr(mtq, QUANT_CFG_CHOICES[self.quantization_config.algorithm]))
+            quant_cfg = copy.deepcopy(quant_cfg)
             weight_quantizer = quant_cfg["quant_cfg"]["*weight_quantizer"]
             if isinstance(weight_quantizer, list):
                 weight_quantizer = weight_quantizer[0]
@@ -520,6 +520,7 @@ huggingface_model_type_pattern_match = {
     "QWen": "qwen",
     "RecurrentGemma": "recurrentgemma",
     "Gemma2": "gemma2",
+    "Gemma3": "gemma3",
     "Gemma": "gemma",
     "phi3small": "phi3small",
     "phi3": "phi3",
@@ -544,6 +545,7 @@ gpt_model_type = [
     (llm.Baichuan2Model, "baichuan"),
     (llm.ChatGLMModel, "chatglm"),
     (llm.Gemma2Model, "gemma2"),
+    (llm.Gemma3Model, "gemma3"),
     (llm.GemmaModel, "gemma"),
     (llm.LlamaModel, "llama"),
     (llm.MistralModel, "llama"),
