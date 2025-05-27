@@ -67,7 +67,7 @@ def get_image_sequence_length(img_h, img_w, patch_dim, add_class_token, class_to
 class DownSampleBlock(torch.nn.Module):
     """Downsample block following the ViLA-VLM paper."""
 
-    # pylint: disable=C0115,C0116
+    # pylint: disable=line-too-long
     # Implement from https://github.com/NVlabs/VILA/blob/3522eef015e48d73cf83fc2b949cd464dab1ba3c/llava/model/multimodal_projector/base_projector.py#L48
     # small adjusmtnet with x.transpose(0, 1)
 
