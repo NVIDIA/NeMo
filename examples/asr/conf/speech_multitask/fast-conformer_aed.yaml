@@ -42,6 +42,15 @@ model:
   prompt_format: ???   # Options supported: ["canary", "canary2"]
   prompt_defaults: null
 
+  # For AST metric evaluation, the following flags support BLEU evaluation.
+  # `bleu_tokenizer` selects the SacreBLEU tokenizer to use for BLEU evaluation.
+  # `multi_bleu_tokenizer` specifies whether to use unique SacreBLEU tokenizers per sample.
+  # This is useful in multilingual cases requiring unique tokenizers per language (e.g. Chinese+Korean).
+  # NOTE: requires a `bleu_tokenizer` property in either manifest entries or `input_cfg` tags. If not,
+  # defaults to `bleu_tokenizer`.
+  bleu_tokenizer: 13a  # (See https://lightning.ai/docs/torchmetrics/stable/text/sacre_bleu_score.html)
+  multi_bleu_tokenizer: false  
+
   model_defaults:
     asr_enc_hidden: 1024
     lm_enc_hidden: 512
