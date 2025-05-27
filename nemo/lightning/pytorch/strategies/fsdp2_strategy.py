@@ -157,7 +157,6 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
         else:
             # Parallelize the first embedding and the last linear out projection
             base_model_tp_plan = {
-                "model.embed_tokens": RowwiseParallel(input_layouts=Replicate()),
                 "model.layers.*.self_attn.q_proj": ColwiseParallel(),
                 "model.layers.*.self_attn.k_proj": ColwiseParallel(),
                 "model.layers.*.self_attn.v_proj": ColwiseParallel(),
@@ -165,6 +164,10 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
                 "model.layers.*.mlp.up_proj": ColwiseParallel(),
                 "model.layers.*.mlp.gate_proj": ColwiseParallel(),
                 "model.layers.*.mlp.down_proj": RowwiseParallel(),
+            }
+
+            fsdp2_model_tp_plan = {
+                "model.embed_tokens": RowwiseParallel(input_layouts=Replicate()),
                 "lm_head": ColwiseParallel(output_layouts=Replicate()),
             }
 
@@ -177,6 +180,9 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
                 "model.layers.*.mlp.down_proj": RowwiseParallel(output_layouts=Shard(1)),
                 "lm_head": ColwiseParallel(input_layouts=Shard(1), output_layouts=Replicate()),
             }
+
+            if not self.cfsdp2:
+                base_model_tp_plan.update(fsdp2_model_tp_plan)
 
             if self.sequence_parallel:
                 # Enable sequence parallelism only if TP size > 1
