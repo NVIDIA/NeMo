@@ -264,6 +264,7 @@ class MCoreNevaModel(MCoreLLaVAModel):
         self.post_process = post_process
         self.add_encoder = add_encoder
         self.add_decoder = add_decoder
+        self.vp_stage = vp_stage
 
         self.tokenizer = tokenizer
         self.encoder_hidden_state = None

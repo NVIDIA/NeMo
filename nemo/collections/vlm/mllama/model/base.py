@@ -368,6 +368,7 @@ class MLlamaBaseModel(MegatronModule):
         self.share_embeddings_and_output_weights = False
         self.add_decoder = (language_model_config is not None) and add_decoder
         self.add_encoder = (vision_model_config is not None) and add_encoder
+        self.vp_stage = vp_stage
 
         if self.add_decoder:
             self.language_model = language_model_config.configure_model(

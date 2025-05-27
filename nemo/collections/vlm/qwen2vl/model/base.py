@@ -268,6 +268,7 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
         self.post_process = post_process
         self.add_encoder = add_encoder
         self.add_decoder = add_decoder
+        self.vp_stage = vp_stage
 
         self.encoder_hidden_state = None
         self.vision_model = None
