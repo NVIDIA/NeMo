@@ -44,7 +44,7 @@ def create_transcribed_shard_manifests(prediction_filepaths: List[str], prefix) 
     for prediction_filepath in prediction_filepaths:
         max_shard_id = 0
         shard_data = {}
-        full_path = os.path.join(prediction_filepath, "predictions_all.json")
+        full_path = os.path.join(prediction_filepath, f"{prefix}_predictions_all.json")
         with open(full_path, 'r') as f:
             for line in f.readlines():
                 data_entry = json.loads(line)
@@ -90,7 +90,7 @@ def create_transcribed_manifests(prediction_filepaths: List[str], prefix) -> Lis
     """
     all_manifest_filepaths = []
     for prediction_filepath in prediction_filepaths:
-        prediction_name = os.path.join(prediction_filepath, "predictions_all.json")
+        prediction_name = os.path.join(prediction_filepath, f"{prefix}_predictions_all.json")
         transcripted_name = os.path.join(prediction_filepath, f"{prefix}_transcribed_manifest.json")
 
         # Open and read the original predictions_all.json file
@@ -129,7 +129,7 @@ def write_sampled_shard_transcriptions(manifest_filepaths: List[str], prefix) ->
     for prediction_filepath in manifest_filepaths:
         predicted_shard_data = {}
         # Collect entries from prediction files based on shard id
-        prediction_path = os.path.join(prediction_filepath, "predictions_all.json")
+        prediction_path = os.path.join(prediction_filepath, f"{prefix}_predictions_all.json")
         with open(prediction_path, 'r') as f:
             for line in f:
                 data_entry = json.loads(line)
@@ -190,7 +190,7 @@ def write_sampled_transcriptions(manifest_filepaths: List[str], prefix) -> List[
     all_manifest_filepaths = []
     for prediction_filepath in manifest_filepaths:
         predicted_data = {}
-        prediction_path = os.path.join(prediction_filepath, "predictions_all.json")
+        prediction_path = os.path.join(prediction_filepath, f"{prefix}_predictions_all.json")
         with open(prediction_path, 'r') as f:
             for line in f:
                 data_entry = json.loads(line)

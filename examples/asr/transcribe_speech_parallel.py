@@ -191,7 +191,7 @@ def main(cfg: ParallelTranscriptionConfig):
     os.makedirs(cfg.output_path, exist_ok=True)
     # trainer.global_rank is not valid before predict() is called. Need this hack to find the correct global_rank.
     global_rank = trainer.node_rank * trainer.num_devices + int(os.environ.get("LOCAL_RANK", 0))
-    output_file = os.path.join(cfg.output_path, f"predictions_{global_rank}.json")
+    output_file = os.path.join(cfg.output_path, f"{cfg.predict_ds.prefix}_predictions_{global_rank}.json")
     predictor_writer = ASRPredictionWriter(dataset=data_loader.dataset, output_file=output_file)
     trainer.callbacks.extend([predictor_writer])
 
@@ -211,7 +211,7 @@ def main(cfg: ParallelTranscriptionConfig):
     pred_text_list = []
     text_list = []
     if is_global_rank_zero():
-        output_file = os.path.join(cfg.output_path, f"predictions_all.json")
+        output_file = os.path.join(cfg.output_path, f"{cfg.predict_ds.prefix}_predictions_all.json")
         logging.info(f"Prediction files are being aggregated in {output_file}.")
         with open(output_file, 'w') as outf:
             for rank in range(trainer.world_size):
