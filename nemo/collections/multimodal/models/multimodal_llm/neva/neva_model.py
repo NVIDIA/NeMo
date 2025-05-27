@@ -1705,8 +1705,7 @@ class MegatronNevaModel(MultimodalAdapterModelMixin, MegatronGPTModel):
             if not hasattr(self._train_dl, "save_state"):
                 return False
             first_rank = (
-                parallel_state.is_pipeline_first_stage()
-                and parallel_state.get_tensor_model_parallel_rank() == 0
+                parallel_state.is_pipeline_first_stage() and parallel_state.get_tensor_model_parallel_rank() == 0
             )
             return first_rank
 

@@ -660,9 +660,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
                     position_embeddings._with_fp32_optimizer = with_fp32_embedding_grads
 
             # Handle case where embeddings are used in output layer
-            if parallel_state.is_pipeline_last_stage() and self.cfg.get(
-                'share_embeddings_and_output_weights', True
-            ):
+            if parallel_state.is_pipeline_last_stage() and self.cfg.get('share_embeddings_and_output_weights', True):
                 module = modules[-1]  # last virtual rank has the embeddings
                 word_embeddings = (
                     module.shared_embedding_or_output_weight() if self.mcore_gpt else module.word_embeddings_weight()
@@ -1122,8 +1120,7 @@ class MegatronGPTModel(MegatronBaseModel, TextGeneration):
         # This should only run for models that support pipelined model parallelism
         # (BERT and GPT-2).
         if parallel_state.get_pipeline_model_parallel_world_size() > 1 and (
-            parallel_state.is_pipeline_first_stage()
-            or parallel_state.is_pipeline_last_stage()
+            parallel_state.is_pipeline_first_stage() or parallel_state.is_pipeline_last_stage()
         ):
             module_list = self.get_model_module_list()
             assert (

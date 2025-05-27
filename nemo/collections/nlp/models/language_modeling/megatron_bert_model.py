@@ -513,8 +513,7 @@ class MegatronBertModel(MegatronBaseModel):
         # This should only run for models that support pipelined model parallelism
         # (BERT and GPT-2).
         if parallel_state.get_pipeline_model_parallel_world_size() > 1 and (
-            parallel_state.is_pipeline_first_stage()
-            or parallel_state.is_pipeline_last_stage()
+            parallel_state.is_pipeline_first_stage() or parallel_state.is_pipeline_last_stage()
         ):
             module_list = self.get_model_module_list()
             if parallel_state.is_pipeline_first_stage():
