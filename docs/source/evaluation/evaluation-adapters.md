@@ -63,7 +63,7 @@ The adapter system is configured using the `AdapterConfig` class with the follow
 
 ## Usage Example
 
-To enable the adapter server, pass `AdapterConfig` class to the `evaluate`  method of the `api`.
+To enable the adapter server, pass `AdapterConfig` class to the `evaluate`  method of the `nemo/collections/llm/api.py`.
 Taking an example from `tutorials/llm/evaluation/mmlu.ipynb`, we can modify it
 
 ```python
