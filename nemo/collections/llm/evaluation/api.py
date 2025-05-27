@@ -120,10 +120,7 @@ class EvaluationConfig(BaseModel):
 
 
 class AdapterConfig(BaseModel):
-    """Adapter is a mechanism for hooking into the chain of requests/responses btw benchmark and endpoint.
-
-    TODO(agronskiy): unify with the internal version.
-    """
+    """Adapter is a mechanism for hooking into the chain of requests/responses btw benchmark and endpoint."""
 
     @staticmethod
     def get_validated_config(run_config: dict[str, Any]) -> "AdapterConfig | None":
