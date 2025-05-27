@@ -295,7 +295,7 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
         start_time = time.time()
         checkpoint = dist_checkpointing.load(
             sharded_state_dict=sharded_state_dict,
-            checkpoint_dir=Path(path),
+            checkpoint_dir=str(path),
             sharded_strategy=sharded_strategy,
             strict=strict,
         )
