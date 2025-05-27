@@ -161,7 +161,9 @@ class Llama4OmniConfig(NevaConfig):
         self.language_transformer_config.moe_pad_expert_input_to_capacity = self.moe_pad_expert_input_to_capacity
         self.language_transformer_config.moe_expert_capacity_factor = self.moe_expert_capacity_factor
 
-        assert getattr(self, "virtual_pipeline_model_parallel_size", None) is None and vp_stage is None, "VP is not supported for Llama4OmniModel"
+        assert (
+            getattr(self, "virtual_pipeline_model_parallel_size", None) is None and vp_stage is None
+        ), "VP is not supported for Llama4OmniModel"
 
         model = Llama4OmniBaseModel(
             config=self,
