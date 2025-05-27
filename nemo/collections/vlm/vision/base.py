@@ -65,10 +65,14 @@ def get_image_sequence_length(img_h, img_w, patch_dim, add_class_token, class_to
 
 
 class DownSampleBlock(torch.nn.Module):
+    """Downsample block following the ViLA-VLM paper."""
+
+    # pylint: disable=C0115,C0116
     # Implement from https://github.com/NVlabs/VILA/blob/3522eef015e48d73cf83fc2b949cd464dab1ba3c/llava/model/multimodal_projector/base_projector.py#L48
     # small adjusmtnet with x.transpose(0, 1)
 
     def forward(self, x):
+        """Downsample the input tensor."""
         x = x.transpose(0, 1)
         vit_embeds = x
         h = w = int(vit_embeds.shape[1] ** 0.5)
@@ -78,6 +82,7 @@ class DownSampleBlock(torch.nn.Module):
         return vit_embeds
 
     def flat_square(self, x):
+        """Flatten the input tensor and make it square."""
         n, w, h, c = x.size()
         if w % 2 == 1:
             x = torch.concat([x, torch.zeros((n, 1, h, c), dtype=x.dtype).to(x.device)], dim=1).contiguous()

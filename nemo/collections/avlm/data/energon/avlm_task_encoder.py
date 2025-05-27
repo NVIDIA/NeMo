@@ -350,7 +350,8 @@ class AVLMSampleEncoder(BaseSampleEncoder):
                 if image.max() > 1:
                     image = image / 255.0
 
-            # if image_processor is LlavaNextImageProcessor, the output of preprocess is a tensor of shape [1 - batch_size, 5 - patches, C, H, W], hence we only take the first element
+            # if image_processor is LlavaNextImageProcessor, the output of preprocess is a tensor of shape 
+            # [1 - batch_size, 5 - patches, C, H, W], hence we only take the first element
             if isinstance(self.image_processor, LlavaNextImageProcessor):
                 processed_image = self.image_processor.preprocess(image, return_tensors='pt', do_rescale=False)['pixel_values'][0]
             else:

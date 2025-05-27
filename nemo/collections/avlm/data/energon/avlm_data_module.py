@@ -12,9 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional, Literal
-
-from megatron.energon import get_train_dataset
+from typing import Optional
 
 from nemo.collections.multimodal.data.energon import EnergonMultiModalDataModule
 from nemo.collections.avlm.data.energon.avlm_sample_config import AVLMSampleConfig

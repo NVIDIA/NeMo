@@ -552,8 +552,7 @@ class MCoreAVLMModel(MCoreLLaVAModel):
             if self.vision_model is not None:
                 has_images = images is not None and images.shape[0] > 0
                 if not has_images:
-                    vision_param = next(self.vision_model.parameters())
-                    # If no images provided, use an empty image embeddings tensor.
+                    # If no images provided, set image embeddings tensor to None.
                     image_embeddings = None
                 else:
                     # images is in shape of (num_images_in_mbs, c, h, w)
@@ -599,7 +598,7 @@ class MCoreAVLMModel(MCoreLLaVAModel):
             if self.audio_model is not None:
                 has_audios = audios is not None and audios.shape[0] > 0
                 if not has_audios:
-                    audio_param = next(self.audio_model.parameters())
+                    # If no audios provided, set audio embeddings tensor to None.
                     audio_embeddings = None
                 else:
                     # We don't cast input to bfloat16 here, because processor prefer input audios data in float32.
