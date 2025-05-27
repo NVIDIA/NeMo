@@ -129,6 +129,7 @@ class HFAutoModelForCausalLM(pl.LightningModule, io.IOMixin, fn.FNMixin):
         self.enable_grad_ckpt = enable_grad_ckpt
         self.use_linear_ce_loss = use_linear_ce_loss
         self.non_zero_loss_rank = 0
+
         if self.use_linear_ce_loss and not HAVE_LINEAR_LOSS_CE:
             logging.warning(
                 "Dependency for linear CE loss is not available. \
