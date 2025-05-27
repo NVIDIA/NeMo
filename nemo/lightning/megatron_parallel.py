@@ -505,7 +505,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
             )
 
             if self.precision_plugin and parallel_state.is_pipeline_first_stage(
-                ignore_virtual=False, vp_stage=model.vp_stage
+                ignore_virtual=False, vp_stage=model.module.vp_stage
             ):
                 batch = self.precision_plugin.convert_input(batch)
 
@@ -521,7 +521,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
             )
 
             if self.precision_plugin and parallel_state.is_pipeline_last_stage(
-                ignore_virtual=False, vp_stage=model.vp_stage
+                ignore_virtual=False, vp_stage=model.module.vp_stage
             ):
                 output_tensor = self.precision_plugin.convert_output(output_tensor)
 
@@ -711,7 +711,6 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         sharded_state_dict = {}
         for index, module in enumerate(self):
             if self.vp_size is not None:
-                # virtual pipline rank must be set so that GPTModel returns the correct sharded state dict
                 module_sharded_state_dict = self._module_sharded_state_dict(module)
                 sharded_state_dict[f"model_{index}"] = module_sharded_state_dict
             else:

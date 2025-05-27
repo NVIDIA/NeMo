@@ -189,7 +189,7 @@ class CrossAttentionTextConfig(Llama31Config):
         k = math.ceil(len(mllama_layers) / num_layers)
         return mllama_layers[::-1][::k][:num_layers][::-1]
 
-    def configure_model(self, tokenizer, pre_process=True, post_process=True):
+    def configure_model(self, tokenizer, pre_process=True, post_process=True, vp_stage: Optional[int] = None):
         """Configure mllama text model."""
         self.fusion_schedule = self._init_fusion_schedule(self.num_cross_attention_layers)
         vp_size = self.virtual_pipeline_model_parallel_size
@@ -212,6 +212,9 @@ class CrossAttentionTextConfig(Llama31Config):
         else:
             vocab_size = get_vocab_size(self, tokenizer.vocab_size, self.make_vocab_size_divisible_by)
 
+        # During fake lightning initialization, pass 0 to bypass the assertion that vp_stage must be
+        # non-None when using virtual pipeline model parallelism
+        vp_stage = vp_stage or 0
         model = CrossAttentionTextModel(
             self,
             transformer_layer_spec=transformer_layer_spec,
@@ -226,6 +229,7 @@ class CrossAttentionTextConfig(Llama31Config):
             seq_len_interpolation_factor=self.seq_len_interpolation_factor,
             pre_process=pre_process,
             post_process=post_process,
+            vp_stage=vp_stage,
         )
         model.rotary_pos_emb.inv_freq = apply_rope_scaling(
             model.rotary_pos_emb.inv_freq,

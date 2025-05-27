@@ -1052,7 +1052,7 @@ class SpeechToTextLLM(SpeechLanguageModel):
             loss_vals = [x['loss'].view(-1, 1) for x in output]  # each loss is [1, B]
 
             assert (
-                self.config.get("virtual_pipeline_model_parallel_size", None) is None
+                getattr(self.config, "virtual_pipeline_model_parallel_size", None) is None
             ), "vpp is not supported yet in SpeechToTextLLMModel"
             if parallel_state.is_pipeline_last_stage():
                 # only the last pipeline parallel stages return loss with their batch size
