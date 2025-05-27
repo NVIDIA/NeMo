@@ -225,6 +225,9 @@ class FrechetCodecDistance(Metric):
         # Compute the Frechet Distance between the distributions
         fd = self.calculate_frechet_distance(real_mean.squeeze(), real_cov, fake_mean.squeeze(), fake_cov)
         # FD should be non-negative but due to numerical errors, it can be slightly negative
+        # Have seen -0.0011 in the past
+        if fd < -0.005:
+            logging.warning(f"FCD is negative, which is unexpected: {fd}")
         return torch.clamp(fd, min=0.0)
 
     def calculate_frechet_distance(
