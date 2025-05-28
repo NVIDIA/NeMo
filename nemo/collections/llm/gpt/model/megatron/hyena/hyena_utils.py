@@ -1195,6 +1195,7 @@ class B2BCausalConv1dModule(nn.Module):
         # Extract weights at runtime to avoid parameter registration
         # and reshape them to the expected dimensions
         proj_weight = self._proj_conv_module.short_conv_weight
+        mixer_weight = None  # Initialize mixer_weight
 
         if self.operator_type == "hyena_short_conv":
             # For short conv, the mixer module is ParallelCausalDepthwiseConv1d
@@ -1207,6 +1208,8 @@ class B2BCausalConv1dModule(nn.Module):
             # The filter weights need to be in the shape [groups, 1, kernel_size]
             mixer_weight = mixer_weight.unsqueeze(1)  # Add channel dimension
             mixer_weight = mixer_weight.to(x.dtype)  # Convert to the same dtype as the input
+        else:
+            raise ValueError(f"Operator type {self.operator_type} not supported in B2BCausalConv1dModule")
 
         # Extract bias if needed
         if self._use_conv_bias:
