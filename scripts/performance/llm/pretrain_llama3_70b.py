@@ -126,6 +126,8 @@ def override_recipe_configs(
         recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap_cfg = None
         recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap = False
 
+    recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_backend = "cublasmp"
+
     return recipe
 
 
