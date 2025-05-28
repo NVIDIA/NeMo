@@ -534,8 +534,12 @@ class EncDecRNNTBPEEOUModel(EncDecRNNTBPEModel, ASREOUModelMixin):
                 text_pred = self._get_text_from_tokens([x.y_sequence for x in hypotheses])
                 tensorboard_logs['val_text_pred'] = text_pred
 
-            eou_predictions = self._get_eou_predictions_from_hypotheses(hypotheses, batch)
-            eou_metrics_list, eob_metrics_list = self._calculate_eou_metrics(eou_predictions, batch)
+            if self.cfg.get('calculate_eou_metrics', True):
+                eou_predictions = self._get_eou_predictions_from_hypotheses(hypotheses, batch)
+                eou_metrics_list, eob_metrics_list = self._calculate_eou_metrics(eou_predictions, batch)
+            else:
+                eou_metrics_list = []
+                eob_metrics_list = []
 
             wer, wer_num, wer_denom = self.wer.compute()
             self.wer.reset()

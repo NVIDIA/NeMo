@@ -32,7 +32,6 @@ model:
     batch_duration: null  # you may disable batch_duration by setting it to `null`
     batch_size: 16 
     shuffle: true
-    drop_last: true
     num_workers: 8
     pin_memory: true
     quadratic_duration: 30
@@ -78,7 +77,6 @@ model:
     shuffle: false
     num_workers: 8
     pin_memory: true
-    drop_last: true
     quadratic_duration: 30
     num_buckets: 30
     num_cuts_for_bins_estimate: 10000
@@ -95,7 +93,6 @@ model:
     batch_duration: null  # you may disable batch_duration by setting it to `null`
     batch_size: 16 
     shuffle: false
-    drop_last: false
     num_workers: 8
     pin_memory: true
     quadratic_duration: 30
