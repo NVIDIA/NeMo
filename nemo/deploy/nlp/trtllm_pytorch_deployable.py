@@ -128,27 +128,6 @@ class TensorRTLLMPyotrchDeployable(ITritonDeployable):
 
         return [output.outputs[0].text for output in outputs]
 
-    def generate_other_ranks(self):
-        """
-        Generate function for ranks other than the rank 0.
-        """
-        while True:
-            message = torch.empty(1, dtype=torch.long, device="cuda")
-            torch.distributed.broadcast(message, src=0)
-            if message == 0:
-                prompts = broadcast_list(data=[None], src=0)
-                temperature, top_k, top_p, max_length = broadcast_list(data=[None], src=0)
-
-                self.generate(
-                    prompts=prompts,
-                    temperature=temperature,
-                    top_k=top_k,
-                    top_p=top_p,
-                    max_length=max_length,
-                )
-            else:
-                return
-
     @property
     def get_triton_input(self):
         inputs = (
@@ -158,7 +137,6 @@ class TensorRTLLMPyotrchDeployable(ITritonDeployable):
             Tensor(name="top_k", shape=(-1,), dtype=np.int_, optional=True),
             Tensor(name="top_p", shape=(-1,), dtype=np.single, optional=True),
             Tensor(name="temperature", shape=(-1,), dtype=np.single, optional=True),
-            Tensor(name="random_seed", shape=(-1,), dtype=np.int_, optional=True),
         )
         return inputs
 
@@ -174,23 +152,9 @@ class TensorRTLLMPyotrchDeployable(ITritonDeployable):
         try:
             prompts = str_ndarray2list(inputs.pop("prompts"))
             temperature = inputs.pop("temperature", None)
-            top_k = int(inputs.pop("top_k")) if "top_k" in inputs else None
+            top_k = inputs.pop("top_k", None)
             top_p = inputs.pop("top_p", None)
             max_length = inputs.pop("max_length", 256)
-
-            if torch.distributed.is_initialized():
-                if torch.distributed.get_world_size() > 1:
-                    torch.distributed.broadcast(torch.tensor([0], dtype=torch.long, device="cuda"), src=0)
-                    broadcast_list(prompts, src=0)
-                    broadcast_list(
-                        data=[
-                            temperature,
-                            top_k,
-                            top_p,
-                            max_length,
-                        ],
-                        src=0,
-                    )
 
             output = self.generate(
                 prompts=prompts,
@@ -204,6 +168,6 @@ class TensorRTLLMPyotrchDeployable(ITritonDeployable):
 
         except Exception as error:
             err_msg = "An error occurred: {0}".format(str(error))
-            output_infer["sentences"] = cast_output([err_msg], np.bytes_)
+            output_infer["sentences"] = cast_output([err_msg] * len(prompts), np.bytes_)
 
         return output_infer
