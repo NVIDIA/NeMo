@@ -13,12 +13,12 @@
 # limitations under the License.
 
 import time
-import wandb
-
 from typing import Optional
-from nemo.utils import logging
 
 import lightning.pytorch as pl
+import wandb
+
+from nemo.utils import logging
 
 
 class RuntimeEstimator(pl.Callback):
@@ -177,7 +177,7 @@ class RuntimeEstimator(pl.Callback):
             time_metrics['time/remaining_estimate'] = remaining_time / self.divider
             time_metrics['time/remaining_estimate_unit'] = self.time_unit
             wandb.log(time_metrics)
-            #logger.log_metrics({'time/remaining_estimate': remaining_time / self.divider})
+            # logger.log_metrics({'time/remaining_estimate': remaining_time / self.divider})
 
     # def eval_end(self) -> None:
     #     # If eval is called before training starts, ignore it

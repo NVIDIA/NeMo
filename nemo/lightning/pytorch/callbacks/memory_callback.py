@@ -13,15 +13,13 @@
 # limitations under the License.
 
 import math
-import wandb
-import torch
-import torch.cuda
-
-from typing import Optional, Union
-from torch import distributed
-from typing import Any
+from typing import Any, Optional, Union
 
 import lightning.pytorch as pl
+import torch
+import torch.cuda
+import wandb
+from torch import distributed
 
 
 def reduce_value(
@@ -141,7 +139,7 @@ class MemoryMonitor(pl.Callback):
         memory_report = _get_memory_report(self.memory_keys)
         if self.dist_aggregate_batch_interval:
             dist_memory_report = {}
-            for (mem_stat, val) in memory_report.items():
+            for mem_stat, val in memory_report.items():
                 dist_memory_report[mem_stat + '_avg'] = reduce_value(val, 'avg')
                 dist_memory_report[mem_stat + '_min'] = reduce_value(val, 'min')
                 dist_memory_report[mem_stat + '_max'] = reduce_value(val, 'max')
@@ -179,7 +177,7 @@ def _get_memory_report(memory_keys: Optional[dict[str, str]] = None) -> dict[str
 
     # simplify and reformat the memory_stats
     memory_report = {}
-    for (torch_name, name) in memory_keys.items():
+    for torch_name, name in memory_keys.items():
         if torch_name in memory_stats:
             # Convert to gigabytes
             if 'bytes' in torch_name:

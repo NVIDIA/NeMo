@@ -13,17 +13,15 @@
 # limitations under the License.
 
 import time
-import wandb
-import torch
-
 from collections import deque
 from typing import Any, Optional, Union
 
 import lightning.pytorch as pl
+import torch
 import torch.distributed as dist
+import wandb
 
 from nemo.utils import logging
-
 
 GPU_AVAILABLE_FLOPS = {
     # source: https://resources.nvidia.com/en-us-tensor-core/nvidia-tensor-core-gpu-datasheet
@@ -146,10 +144,10 @@ def get_gpu_flops_available(trainer):
 
     if gpu_flops_available is None:
         logging.warning(
-            f'gpu_flop count not found for {device_name} with precision={trainer.precision} ' +\
-            f'so MFU cannot be calculated and reported. gpu_flops_available can be manually ' +\
-            f'overridden by setting gpu_flops_available in SpeedMonitor or {device_name} can ' +\
-            f'be added to GPU_AVAILABLE_FLOPS in composer/callbacks/speed_monitor.py',
+            f'gpu_flop count not found for {device_name} with precision={trainer.precision} '
+            + f'so MFU cannot be calculated and reported. gpu_flops_available can be manually '
+            + f'overridden by setting gpu_flops_available in SpeedMonitor or {device_name} can '
+            + f'be added to GPU_AVAILABLE_FLOPS in composer/callbacks/speed_monitor.py',
             stacklevel=2,
         )
         # Setting to 0 will disable MFU computation and prevent
@@ -304,19 +302,23 @@ class SpeedMonitor(pl.Callback):
             samples_per_sec = elapsed_samples / elapsed_wct
             dev_batches_per_sec = batches_per_sec / world_size
             dev_samples_per_sec = samples_per_sec / world_size
-            wandb.log({
-                'throughput/batches_per_sec': batches_per_sec,
-                'throughput/samples_per_sec': samples_per_sec,
-                'throughput/device/batches_per_sec': dev_batches_per_sec,
-                'throughput/device/samples_per_sec': dev_samples_per_sec,
-            })
+            wandb.log(
+                {
+                    'throughput/batches_per_sec': batches_per_sec,
+                    'throughput/samples_per_sec': samples_per_sec,
+                    'throughput/device/batches_per_sec': dev_batches_per_sec,
+                    'throughput/device/samples_per_sec': dev_samples_per_sec,
+                }
+            )
             if elapsed_tokens > 0:
                 tokens_per_sec = elapsed_tokens / elapsed_wct
                 dev_tokens_per_sec = tokens_per_sec / world_size
-                wandb.log({
-                    'throughput/tokens_per_sec': tokens_per_sec,
-                    'throughput/device/tokens_per_sec': dev_tokens_per_sec,
-                })
+                wandb.log(
+                    {
+                        'throughput/tokens_per_sec': tokens_per_sec,
+                        'throughput/device/tokens_per_sec': dev_tokens_per_sec,
+                    }
+                )
 
         # # Compute flops stats if model has flops_per_batch
         # composer_model = state.model

@@ -12,12 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import torch
-import wandb
-
 from typing import Any
 
 import lightning.pytorch as pl
+import torch
+import wandb
 
 
 class OptimizerMonitor(pl.Callback):
@@ -80,7 +79,7 @@ class OptimizerMonitor(pl.Callback):
 
         norm = 0.0
         optimizer_metrics = {}
-        
+
         for name, p in pl_module.named_parameters():
             if p.main_grad is not None and p.requires_grad:
 
@@ -91,13 +90,12 @@ class OptimizerMonitor(pl.Callback):
 
         for metric in optimizer_metrics:
             if metric.startswith('l2_norm/grad'):
-                norm += optimizer_metrics[metric]**2
+                norm += optimizer_metrics[metric] ** 2
 
         optimizer_metrics['l2_norm/grad/global'] = norm**0.5
 
         for metric in optimizer_metrics:
             if isinstance(optimizer_metrics[metric], torch.Tensor):
                 optimizer_metrics[metric] = optimizer_metrics[metric].item()
-        
+
         wandb.log(optimizer_metrics)
-        
