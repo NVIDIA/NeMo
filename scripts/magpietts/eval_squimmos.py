@@ -1,4 +1,16 @@
-from torchaudio.pipelines import SQUIM_OBJECTIVE, SQUIM_SUBJECTIVE
+# Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.from torchaudio.pipelines import SQUIM_OBJECTIVE, SQUIM_SUBJECTIVE
 import os
 import json
 import torch
@@ -22,7 +34,7 @@ def compute_mean_and_confidence_interval(measurements, confidence=0.95):
     std_err = stats.sem(measurements)
 
     confidence_interval = std_err * stats.t.ppf((1 + confidence) / 2, len(measurements) - 1)
-    
+
     return "{:.4f} +/- {:.4f}".format(mean, confidence_interval), mean, confidence_interval
 
 def main():
@@ -54,7 +66,7 @@ def main():
             with torch.no_grad():
                 squm_mos_score = squim_mos_model(pred_wav, gt_wav)
                 squim_score_list.append(squm_mos_score.item())
-        
+
         mean_with_ci, mean, confidence_interval = compute_mean_and_confidence_interval(squim_score_list)
         # Add to audio_dir,mean_with_ci to csv
         with open(out_file, "a") as f:
