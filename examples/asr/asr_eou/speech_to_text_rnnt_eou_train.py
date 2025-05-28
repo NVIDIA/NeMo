@@ -318,9 +318,6 @@ def main(cfg):
     if cfg.model.get("adapter", None) is not None:
         asr_model = setup_adapters(cfg, asr_model)
 
-    import pdb
-
-    pdb.set_trace()
     trainer.fit(asr_model)
 
     if hasattr(cfg.model, 'test_ds') and cfg.model.test_ds.manifest_filepath is not None:
