@@ -999,7 +999,7 @@ def export_ckpt(
             raise FileExistsError(f"Output path {output_path} exists. Use overwrite=True to force overwrite.")
 
     if target == "hf":
-        model = nl.io.load_context(path=ckpt_to_context_subdir(path), subpath="model")
+        model, _ = setup_trainer_and_restore_model_with_modelopt_spec(path)
         export_hf_checkpoint(model, path, output_path)
         output = output_path
     else:
