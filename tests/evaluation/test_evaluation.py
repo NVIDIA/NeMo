@@ -60,8 +60,11 @@ if __name__ == '__main__':
         logging.info("Starting evaluation...")
         api_endpoint = ApiEndpoint(url="http://0.0.0.0:8886/v1/completions/")
         eval_target = EvaluationTarget(api_endpoint=api_endpoint)
-        # Run eval with just 1 sample from gsm8k
-        eval_params = ConfigParams(limit_samples=args.limit)
+        # Run eval with just 1 sample from selected task
+        eval_params = ConfigParams(
+            limit_samples=args.limit,
+            extra={"tokenizer_backend": "huggingface", "tokenizer": f"{args.nemo2_ckpt_path}/context/nemo_tokenizer"},
+        )
         eval_config = EvaluationConfig(type=args.eval_type, params=eval_params)
         evaluate(target_cfg=eval_target, eval_cfg=eval_config)
         logging.info("Evaluation completed.")
