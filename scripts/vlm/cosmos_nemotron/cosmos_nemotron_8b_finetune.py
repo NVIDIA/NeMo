@@ -69,9 +69,6 @@ def main(args):
     language_transformer_config = llm.Llama31Config8B(
         make_vocab_size_divisible_by=512,
         seq_length=decoder_seq_length,
-        recompute_granularity="full",
-        recompute_method="block",
-        recompute_num_layers=recompute_num_layers,
     )
 
     vision_transformer_config = vlm.RADIO_25_h_Config(
@@ -263,7 +260,6 @@ def main(args):
     resume = nl.AutoResume(
         resume_if_exists=True,
         resume_ignore_no_checkpoint=True,
-        resume_from_directory=args.log_dir,
         restore_config=nl.RestoreConfig(path=args.restore_path) if args.restore_path is not None else None,
     )
 
