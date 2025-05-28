@@ -24,7 +24,6 @@ from megatron.core.enums import ModelType
 from megatron.core.inference_params import InferenceParams
 from megatron.core.models.multimodal.llava_model import LLaVAModel as MCoreLLaVAModel
 from megatron.core.optimizer import OptimizerConfig
-from megatron.core.tensor_parallel import scatter_to_sequence_parallel_region
 from megatron.core.transformer.spec_utils import ModuleSpec
 from megatron.core.transformer.transformer_config import TransformerConfig
 from megatron.core.utils import get_batch_on_this_cp_rank
@@ -35,7 +34,6 @@ from torch import nn
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.llm import fn
 from nemo.collections.llm.fn.activation import quick_gelu
-from nemo.collections.llm.gpt.model.base import get_packed_seq_params
 from nemo.collections.llm.gpt.model.qwen2 import Qwen2Config
 from nemo.collections.vlm.layer_specs import get_layer_spec_te
 from nemo.collections.vlm.neva.model.base import MODEL_CONFIG_ATTR, restore_model_weights
@@ -656,10 +654,12 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
 
                     if image_grid_thw is not None:                    
                         assert image_grid_thw.shape[0] == len(splitted_input_ids), \
-                                f"Got unexpected batch size value. {image_grid_thw.shape=}, {{input_ids.shape=}} {len(splitted_input_ids)}, "                                
+                                f"Got unexpected batch size value. {image_grid_thw.shape=}," \
+                                f"{{input_ids.shape=}} {len(splitted_input_ids)} "
                     if video_grid_thw is not None:                    
                         assert video_grid_thw.shape[0] == len(splitted_input_ids), \
-                            f"Got unexpected batch size value. {video_grid_thw.shape=}, {{input_ids.shape=}} {len(splitted_input_ids)}, "                                
+                            f"Got unexpected batch size value. {video_grid_thw.shape=}," \
+                            f" {{input_ids.shape=}} {len(splitted_input_ids)} "
 
                     for i in range(len(splitted_input_ids)):
                         _input_ids = splitted_input_ids[i]

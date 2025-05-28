@@ -826,7 +826,9 @@ def convert_to_packed(
 ):
     """
     Convert tokens, labels, and associated inputs into a packed version with padded sequence parameters.
-    This function is adatped from neva's convert_to_packed (https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/vlm/neva/data/sequence_packing.py#L103). 
+    This function is adatped from neva's convert_to_packed 
+    (https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/vlm/neva/data/sequence_packing.py#L103). 
+    
     Some adjustments include: 
         1) skip position ids generation
         2) calculate media/text seqlen directly as media tokens are 1:1 placeholders in the 'tokens' parameter.
