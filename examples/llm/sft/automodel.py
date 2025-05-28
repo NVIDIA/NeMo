@@ -300,18 +300,14 @@ def main():
     parser.add_argument(
         '--enable-nsys-profile', action='store_true', help='Enables nsys profiling for the training run.'
     )
-    parser.add_argument(
-        '--nsys-profile-start-step', type=int, default=10, help='Step to start nsys profiling from.'
-    )
+    parser.add_argument('--nsys-profile-start-step', type=int, default=10, help='Step to start nsys profiling from.')
     parser.add_argument(
         '--nsys-profile-end-step',
         type=int,
         default=20,
         help='Step to end nsys profiling at. Default is 100.',
     )
-    parser.add_argument(
-        '--nsys-profile-ranks', nargs='+', type=int, default=[0], help='Ranks to profile with nsys.'
-    )
+    parser.add_argument('--nsys-profile-ranks', nargs='+', type=int, default=[0], help='Ranks to profile with nsys.')
     args = parser.parse_args()
 
     # CPUOffload WA for known issue
