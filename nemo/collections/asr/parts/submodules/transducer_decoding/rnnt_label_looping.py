@@ -504,7 +504,7 @@ class GreedyBatchedRNNTLabelLoopingComputer(
                 else last_labels
             ),
             decoded_length=(
-                encoder_output_length
+                encoder_output_length.clone()
                 if prev_batched_state is None
                 else encoder_output_length + prev_batched_state.decoded_length
             ),
@@ -595,7 +595,7 @@ class GreedyBatchedRNNTLabelLoopingComputer(
                 else last_labels
             ),
             decoded_length=(
-                self.state.encoder_output_length
+                self.state.encoder_output_length.clone()
                 if prev_batched_state is None
                 else self.state.encoder_output_length
                 + F.pad(prev_batched_state.decoded_length, (0, pad_batch_size), value=0)
