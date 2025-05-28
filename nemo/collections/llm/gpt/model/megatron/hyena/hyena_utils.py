@@ -726,6 +726,7 @@ class ParallelHyenaOperator(nn.Module):
         self.operator_type = operator_type
         self.fp16 = transformer_config.fp16
         self.bf16 = transformer_config.bf16
+        self.use_conv_bias = True  # Always True. Added here for compatibility with B2BCausalConv1dModule.
 
         if self.operator_type == "hyena_medium_conv" and hyena_config.hyena_medium_filter_cls is not None:
             self.hyena_filter_cls = hyena_config.hyena_medium_filter_cls
@@ -1032,7 +1033,7 @@ class ParallelCausalDepthwiseConv1d(nn.Module):
         super().__init__()
         self.d_model = d_model
         self.kernel_size = kernel_size
-        self.use_bias = bias
+        self.use_conv_bias = bias
         self.use_fast_causal_conv = use_fast_causal_conv
         self.num_groups = num_groups
 
@@ -1147,22 +1148,37 @@ class B2BCausalConv1dModule(nn.Module):
     Combines the projection and mixer convolutions into a single optimized operation.
     """
 
-    def __init__(self, proj_conv_module, short_conv_module, b2b_causal_conv1d=b2b_causal_conv1d):
+    def __init__(self, proj_conv_module, mixer_module, operator_type="hyena_short_conv", b2b_causal_conv1d=b2b_causal_conv1d):
         """Initialize the B2BCausalConv1dModule.
 
         Args:
-            proj_conv_module: The projection convolution module
-            short_conv_module: The short convolution module
-            b2b_causal_conv1d: The CUDA kernel function for back-to-back causal convolution
+            proj_conv_module: The projection convolution module that performs the initial projection
+            mixer_module: The mixer module that performs the second convolution operation
+            operator_type: The type of hyena operator to use, either "hyena_short_conv" or "hyena_medium_conv"
+            b2b_causal_conv1d: The CUDA kernel function for optimized back-to-back causal convolution
         """
         super().__init__()
         self.b2b_causal_conv1d_fn = b2b_causal_conv1d
         # Store references to the modules, not their weights
         self._proj_conv_module = proj_conv_module
-        self._short_conv_module = short_conv_module
+        self._mixer_module = mixer_module
+        self._use_conv_bias = self._mixer_module.use_conv_bias
+        self.operator_type = operator_type
+
         # Combined padding from both convolutions - this is a key difference from the
         # sequential execution of two convs which applies padding separately
-        self.effective_pad_size = (self._short_conv_module.kernel_size - 1) + (self._proj_conv_module.kernel_size - 1)
+        self._proj_conv_kernel_size = self._proj_conv_module.kernel_size
+        if operator_type == "hyena_short_conv":
+            # For short conv, the mixer module is ParallelCausalDepthwiseConv1d
+            self._mixer_kernel_size = self._mixer_module.short_conv.kernel_size
+        elif operator_type == "hyena_medium_conv":
+            # For medium conv, we need to get the kernel size from the filter
+            self._mixer_kernel_size = self._mixer_module.kernel_size
+        else:
+            raise ValueError(f"Operator type {operator_type} not supported")
+
+        self.effective_pad_size = (self._mixer_kernel_size - 1) + (self._proj_conv_kernel_size - 1)
+
 
     def forward(self, x, _use_cp=True):
         """Forward pass for the B2BCausalConv1dModule.
@@ -1176,24 +1192,45 @@ class B2BCausalConv1dModule(nn.Module):
         # Extract weights at runtime to avoid parameter registration
         # and reshape them to the expected dimensions
         proj_weight = self._proj_conv_module.short_conv_weight
-        short_weight = self._short_conv_module.short_conv_weight
+
+        if self.operator_type == "hyena_short_conv":
+            # For short conv, the mixer module is ParallelCausalDepthwiseConv1d
+            mixer_weight = self._mixer_module.short_conv.short_conv_weight
+        elif self.operator_type == "hyena_medium_conv":
+            # For medium conv, we need to compute the filter weights first
+            mixer_weight = self._mixer_module.filter.filter(self._mixer_module.hyena_medium_conv_len)
+            if isinstance(mixer_weight, tuple):
+                mixer_weight = mixer_weight[0]
+            # The filter weights need to be in the shape [groups, 1, kernel_size]
+            mixer_weight = mixer_weight.unsqueeze(1)  # Add channel dimension
+            mixer_weight = mixer_weight.to(x.dtype)  # Convert to the same dtype as the input
+
+        # Extract bias if needed
+        if self._use_conv_bias:
+            bias = self._mixer_module.conv_bias
+            # The mixer bias should have shape [x.shape[1] // 3] for the CUDA kernel
+            if bias.shape[0] != x.shape[1] // 3:
+                # Expand the bias to match the input width
+                bias = bias.repeat_interleave(x.shape[1] // (3 * bias.shape[0]), dim=0)
+        else:
+            # Create a zero bias with the correct shape [x.shape[1] // 3]
+            bias = torch.zeros(x.shape[1] // 3, dtype=x.dtype, device=x.device)
 
         # Reshape proj_weight if needed (from [groups, channels, kernel_size] to [groups*channels, kernel_size])
         if proj_weight.dim() == 3:
             proj_weight = proj_weight.reshape(-1, proj_weight.size(-1))
-
-        # Reshape short_weight if needed (from [groups, channels, kernel_size] to [groups*channels, kernel_size])
-        if short_weight.dim() == 3:
+        # Reshape mixer_weight if needed (from [groups, channels, kernel_size] to [groups*channels, kernel_size])
+        if mixer_weight.dim() == 3:
             # If the middle dimension is 1, we can just squeeze it
-            if short_weight.size(1) == 1:
-                short_weight = short_weight.squeeze(1)
+            if mixer_weight.size(1) == 1:
+                mixer_weight = mixer_weight.squeeze(1)
             else:
                 # Otherwise reshape to flatten the first two dimensions
-                short_weight = short_weight.reshape(-1, short_weight.size(-1))
+                mixer_weight = mixer_weight.reshape(-1, mixer_weight.size(-1))
 
         # maybe handle num_groups
         proj_weight = proj_weight.repeat_interleave(self._proj_conv_module.group_dim, dim=0)
-        short_weight = short_weight.repeat_interleave(self._short_conv_module.group_dim, dim=0)
+        mixer_weight = mixer_weight.repeat_interleave(self._mixer_module.group_dim, dim=0)
 
         # Support context parallelism similar to how it's done in ParallelCausalDepthwiseConv1d
         if _use_cp and get_context_parallel_world_size() > 1:
@@ -1215,7 +1252,7 @@ class B2BCausalConv1dModule(nn.Module):
             padding = torch.concat([received_a, received_b], dim=0)
 
             x = torch.concat([padding, x], dim=-1)  # [ncB, D, L]
-            result = self.b2b_causal_conv1d_fn(x, proj_weight, short_weight)
+            result = self.b2b_causal_conv1d_fn(x, proj_weight, mixer_weight, bias)
             result = result[..., self.effective_pad_size :]  # Remove padding from output
             result = rearrange(result, "(nc b) h s -> b h (nc s)", nc=2)
         else:
@@ -1223,7 +1260,7 @@ class B2BCausalConv1dModule(nn.Module):
             x = torch.nn.functional.pad(x, (self.effective_pad_size, 0))
 
             # Call the CUDA kernel and remove the padding from result
-            result = self.b2b_causal_conv1d_fn(x, proj_weight, short_weight)
+            result = self.b2b_causal_conv1d_fn(x, proj_weight, mixer_weight, bias)
             result = result[..., self.effective_pad_size :]  # Remove padding from output
         return result
 
