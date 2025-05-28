@@ -16,7 +16,6 @@ import time
 from typing import Any, Optional
 
 import lightning.pytorch as pl
-import wandb
 
 from nemo.utils import logging
 

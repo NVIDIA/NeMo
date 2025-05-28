@@ -19,7 +19,6 @@ from typing import Any, Optional, Union
 import lightning.pytorch as pl
 import torch
 import torch.distributed as dist
-import wandb
 
 from nemo.utils import logging
 

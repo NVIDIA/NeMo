@@ -18,7 +18,6 @@ from typing import Any, Optional, Union
 import lightning.pytorch as pl
 import torch
 import torch.cuda
-import wandb
 from torch import distributed
 
 
