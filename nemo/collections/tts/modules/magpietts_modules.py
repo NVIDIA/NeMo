@@ -12,11 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from enum import Enum, StrEnum, verify, CONTINUOUS, UNIQUE
+from enum import Enum
+from nemo.utils.enum import PrettyStrEnum
 import torch
 
 
-class LocalTransformerType(StrEnum):
+class LocalTransformerType(PrettyStrEnum):
     """
     Enum for the type of local transformer to use in the MagpieTTS model.
     These strings are the values allowed in the YAML config file.
@@ -27,7 +28,6 @@ class LocalTransformerType(StrEnum):
     MASKGIT = "maskgit"
 
 
-@verify(CONTINUOUS, UNIQUE)
 class SpecialAudioToken(Enum):
     """
     Enum for the special tokens to use in the MagpieTTS model.
