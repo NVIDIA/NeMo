@@ -176,8 +176,9 @@ class RuntimeEstimator(pl.Callback):
                     remaining_time += eval_wct_avg * remaining_calls
 
                 time_metrics['time/remaining_estimate'] = remaining_time / self.divider
-                time_metrics['time/remaining_estimate_unit'] = self.time_unit
-                wandb.log(time_metrics)
+
+                for metric, value in time_metrics.items():
+                    self.log(metric, value)
                 # logger.log_metrics({'time/remaining_estimate': remaining_time / self.divider})
 
     # def eval_end(self) -> None:

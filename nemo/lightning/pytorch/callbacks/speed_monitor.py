@@ -303,23 +303,19 @@ class SpeedMonitor(pl.Callback):
                 samples_per_sec = elapsed_samples / elapsed_wct
                 dev_batches_per_sec = batches_per_sec / world_size
                 dev_samples_per_sec = samples_per_sec / world_size
-                wandb.log(
-                    {
+                metrics = {
                         'throughput/batches_per_sec': batches_per_sec,
                         'throughput/samples_per_sec': samples_per_sec,
                         'throughput/device/batches_per_sec': dev_batches_per_sec,
                         'throughput/device/samples_per_sec': dev_samples_per_sec,
                     }
-                )
+                for metric, value in metrics.items():
+                    self.log(metric, value)
                 if elapsed_tokens > 0:
                     tokens_per_sec = elapsed_tokens / elapsed_wct
                     dev_tokens_per_sec = tokens_per_sec / world_size
-                    wandb.log(
-                        {
-                            'throughput/tokens_per_sec': tokens_per_sec,
-                            'throughput/device/tokens_per_sec': dev_tokens_per_sec,
-                        }
-                    )
+                    self.log('throughput/tokens_per_sec', tokens_per_sec)
+                    self.log('throughput/device/tokens_per_sec', dev_tokens_per_sec)
 
         # # Compute flops stats if model has flops_per_batch
         # composer_model = state.model

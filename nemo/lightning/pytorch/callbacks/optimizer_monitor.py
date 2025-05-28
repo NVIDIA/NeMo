@@ -94,4 +94,5 @@ class OptimizerMonitor(pl.Callback):
                 if isinstance(optimizer_metrics[metric], torch.Tensor):
                     optimizer_metrics[metric] = optimizer_metrics[metric].item()
 
-            wandb.log(optimizer_metrics)
+            for metric, value in optimizer_metrics.items():
+                self.log(metric, value)

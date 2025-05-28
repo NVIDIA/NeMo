@@ -146,7 +146,9 @@ class MemoryMonitor(pl.Callback):
                     dist_memory_report[mem_stat + '_max'] = reduce_value(val, 'max')
                 memory_report.update(dist_memory_report)
 
-            wandb.log({f'memory/{mem_stat}': val for (mem_stat, val) in memory_report.items()})
+            memory_metrics = {f'memory/{mem_stat}': val for (mem_stat, val) in memory_report.items()}
+            for metric, value in memory_metrics.items():
+                self.log(metric, value)
 
 
 _MEMORY_KEYS = {
