@@ -50,6 +50,8 @@ def override_recipe_configs(
     cp_size: int,
     vp_size: int,
     ep_size: int,
+    num_layers: int,
+    hidden_size: int,
     etp_size: int,
     enable_cuda_graphs: bool,
     use_mcore_fsdp: bool,
@@ -102,8 +104,8 @@ def override_recipe_configs(
         cp_size,
         vp_size,
         ep_size,
-        None,
-        None,
+        num_layers,
+        hidden_size,
         etp_size,
         enable_cuda_graphs=enable_cuda_graphs,
         use_mcore_fsdp=use_mcore_fsdp,
@@ -159,7 +161,6 @@ if __name__ == "__main__":
         activation_offload_layers,
         recompute_modules,
     ) = kwargs
-    print(etp_size)
     recipe = override_recipe_configs(
         args,
         num_nodes,
@@ -170,6 +171,8 @@ if __name__ == "__main__":
         cp_size,
         vp_size,
         ep_size,
+        num_layers,
+        hidden_size,
         etp_size,
         enable_cuda_graphs,
         use_mcore_fsdp,
