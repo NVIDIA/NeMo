@@ -44,10 +44,13 @@ def override_recipe_configs(
     cp_size: int,
     vp_size: int,
     ep_size: int,
-    enable_cuda_graphs: bool,
-    use_mcore_fsdp: bool,
-    recompute_layers: int,
-    activation_offload_layers: int,
+    num_layers: int,
+    hidden_size: int,
+    etp_size: int = None,
+    enable_cuda_graphs: bool = False,
+    use_mcore_fsdp: bool = False,
+    recompute_layers: int = 0,
+    activation_offload_layers: int = 0,
 ):
     """
     llama3 405b pre-train recipe aimed at achieving best possible performance.
@@ -68,6 +71,9 @@ def override_recipe_configs(
         cp_size,
         vp_size,
         ep_size,
+        num_layers,
+        hidden_size,
+        etp_size,
         enable_cuda_graphs=enable_cuda_graphs,
         use_mcore_fsdp=use_mcore_fsdp,
         use_user_buffer_registration=args.use_user_buffer_registration,
@@ -135,7 +141,7 @@ def override_recipe_configs(
     # needed as tp_overlap_configs.userbuffers are dataclass objects which are unserializable
     tp_comm_overlap_cfg = fdl.cast(run.Config, fdl_dc.convert_dataclasses_to_configs(tp_comm_overlap_cfg))
     recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap_cfg = tp_comm_overlap_cfg
-
+    # recipe.trainer.strategy.use_tp_pp_dp_mapping=True
     return recipe
 
 
@@ -153,12 +159,14 @@ if __name__ == "__main__":
         cp_size,
         vp_size,
         ep_size,
-        _,
+        num_layers,
+        hidden_size,
+        etp_size,
         enable_cuda_graphs,
         use_mcore_fsdp,
         recompute_layers,
         activation_offload_layers,
-    ) = kwargs[:13]
+    ) = kwargs[:15]
 
     recipe = override_recipe_configs(
         args,
@@ -170,6 +178,9 @@ if __name__ == "__main__":
         cp_size,
         vp_size,
         ep_size,
+        num_layers,
+        hidden_size,
+        etp_size,
         enable_cuda_graphs,
         use_mcore_fsdp,
         recompute_layers,
@@ -178,6 +189,39 @@ if __name__ == "__main__":
 
     exp_config = f"{num_nodes}nodes_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_{mbs}mbs_{gbs}gbs"
     exp_name = f"{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
+
+    env_vars = {
+        "NVTE_NORM_FWD_USE_CUDNN": "1",
+        "NVTE_NORM_BWD_USE_CUDNN": "1",
+        "TRANSFORMERS_OFFLINE": "0",
+    }
+
+    plugins = [
+        PerfEnvPlugin(
+            enable_vboost=True,
+            nccl_pp_comm_chunksize=2097152 if pp_size > 1 else None,
+            gpu_sm100_or_newer=(args.gpu.lower() in ['b200', 'gb200']),
+        )
+    ]
+    if args.enable_memory_profile:
+        assert args.memory_profile_out_path is not None
+        plugins.append(MemoryProfilePlugin(dir=args.memory_profile_out_path))
+
+    if args.enable_nsys:
+        plugins.append(
+            NsysPlugin(
+                start_step=args.profiling_start_step,
+                end_step=args.profiling_stop_step,
+                ranks=list(range(num_nodes * args.gpus_per_node)),
+            )
+        )
+        # nsys takes precedent over ncclttrace
+    elif args.enable_nccltrace:
+        exp_name = exp_name + "_nccltrace"
+        env_vars |= {
+            "NCCL_DEBUG_SUBSYS": "COLL,P2P,NET",
+            "NCCL_DEBUG": "INFO",
+        }
 
     executor = slurm_executor(
         args.gpu.lower(),
@@ -189,25 +233,12 @@ if __name__ == "__main__":
         args.time_limit,
         args.container_image,
         custom_mounts=args.custom_mounts,
-        custom_env_vars={},
+        custom_env_vars=env_vars,
         hf_token=args.hf_token,
         nemo_home=args.nemo_home,
         wandb_key=args.wandb_key,
         network='sharp' if args.use_sharp else None,
     )
-
-    plugins = [
-        PerfEnvPlugin(
-            enable_vboost=True,
-            nccl_pp_comm_chunksize=2097152 if pp_size > 1 else None,
-            gpu_sm100_or_newer=(args.gpu.lower() in ['b200', 'gb200']),
-        )
-    ]
-    if args.enable_nsys:
-        plugins.append(NsysPlugin(start_step=45, end_step=50, ranks=list(range(num_nodes * args.gpus_per_node))))
-    if args.enable_memory_profile:
-        assert args.memory_profile_out_path is not None
-        plugins.append(MemoryProfilePlugin(dir=args.memory_profile_out_path))
 
     with run.Experiment(exp_name) as exp:
         exp.add(
