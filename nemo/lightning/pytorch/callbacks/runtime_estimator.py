@@ -140,44 +140,45 @@ class RuntimeEstimator(pl.Callback):
         batch: Any,
         batch_idx: int,
     ) -> None:
-        if not self._enabled:
-            return
-        if self.batches_left_to_skip > 0:
-            self.batches_left_to_skip -= 1
-            return
+        if trainer.global_step % trainer.log_every_n_steps == 0:
+            if not self._enabled:
+                return
+            if self.batches_left_to_skip > 0:
+                self.batches_left_to_skip -= 1
+                return
 
-        elapsed_dur = self._get_elapsed_duration(trainer)
-        assert elapsed_dur is not None, 'max_duration checked as non-None on batch_start if enabled'
+            elapsed_dur = self._get_elapsed_duration(trainer)
+            assert elapsed_dur is not None, 'max_duration checked as non-None on batch_start if enabled'
 
-        assert self.start_dur is not None
-        assert self.start_time is not None
+            assert self.start_dur is not None
+            assert self.start_time is not None
 
-        time_metrics = {}
-        if elapsed_dur > self.start_dur:
-            elapsed_time = time.time() - self.start_time
-            elapsed_time -= self.total_eval_wct  # Subtract time spent evaluating
-            rate = elapsed_time / (elapsed_dur - self.start_dur)
-            remaining_time = rate * (1 - elapsed_dur)
+            time_metrics = {}
+            if elapsed_dur > self.start_dur:
+                elapsed_time = time.time() - self.start_time
+                elapsed_time -= self.total_eval_wct  # Subtract time spent evaluating
+                rate = elapsed_time / (elapsed_dur - self.start_dur)
+                remaining_time = rate * (1 - elapsed_dur)
 
-            # Add remaining time from each evaluator using known frequencies. We explicitly compute
-            # frequency instead of using time interpolation to avoid saw tooth pattern in estimates
-            for dataloader_label, eval_wcts in self.eval_wct_per_label.items():
-                # Discard first eval_wct if possible as it is often slower due to dataset downloading
-                eval_wct_avg = None
-                num_evals_finished = len(eval_wcts)
-                if num_evals_finished > 1:
-                    eval_wct_avg = sum(eval_wcts[1:]) / (num_evals_finished - 1)
-                else:
-                    eval_wct_avg = sum(eval_wcts) / num_evals_finished
-                eval_rate = self.eval_frequency_per_label[dataloader_label]
-                num_total_evals = 1 / eval_rate * (1 - self.start_dur)
-                remaining_calls = num_total_evals - num_evals_finished
-                remaining_time += eval_wct_avg * remaining_calls
+                # Add remaining time from each evaluator using known frequencies. We explicitly compute
+                # frequency instead of using time interpolation to avoid saw tooth pattern in estimates
+                for dataloader_label, eval_wcts in self.eval_wct_per_label.items():
+                    # Discard first eval_wct if possible as it is often slower due to dataset downloading
+                    eval_wct_avg = None
+                    num_evals_finished = len(eval_wcts)
+                    if num_evals_finished > 1:
+                        eval_wct_avg = sum(eval_wcts[1:]) / (num_evals_finished - 1)
+                    else:
+                        eval_wct_avg = sum(eval_wcts) / num_evals_finished
+                    eval_rate = self.eval_frequency_per_label[dataloader_label]
+                    num_total_evals = 1 / eval_rate * (1 - self.start_dur)
+                    remaining_calls = num_total_evals - num_evals_finished
+                    remaining_time += eval_wct_avg * remaining_calls
 
-            time_metrics['time/remaining_estimate'] = remaining_time / self.divider
-            time_metrics['time/remaining_estimate_unit'] = self.time_unit
-            wandb.log(time_metrics)
-            # logger.log_metrics({'time/remaining_estimate': remaining_time / self.divider})
+                time_metrics['time/remaining_estimate'] = remaining_time / self.divider
+                time_metrics['time/remaining_estimate_unit'] = self.time_unit
+                wandb.log(time_metrics)
+                # logger.log_metrics({'time/remaining_estimate': remaining_time / self.divider})
 
     # def eval_end(self) -> None:
     #     # If eval is called before training starts, ignore it

@@ -238,7 +238,7 @@ class SpeedMonitor(pl.Callback):
 
     def __init__(
         self,
-        window_size: int = 10,
+        window_size: int = 100,
         gpu_flops_available: Optional[Union[float, int]] = None,
         time_unit: str = 'hours',
     ):
@@ -278,47 +278,48 @@ class SpeedMonitor(pl.Callback):
         batch: Any,
         batch_idx: int,
     ) -> None:
-        if self.gpu_flops_available is None:
-            self.gpu_flops_available = get_gpu_flops_available(trainer)
+        if trainer.global_step % trainer.log_every_n_steps == 0:
+            if self.gpu_flops_available is None:
+                self.gpu_flops_available = get_gpu_flops_available(trainer)
 
-        # Add the new element
-        batch_size = batch_idx + 1
-        self.history_samples.append(batch_size)
+            # Add the new element
+            batch_size = batch_idx + 1
+            self.history_samples.append(batch_size)
 
-        num_tokens = batch['tokens'].size()[1] * (batch_size)
-        self.history_tokens.append(num_tokens)
+            num_tokens = batch['tokens'].size()[1] * (batch_size)
+            self.history_tokens.append(num_tokens)
 
-        elapsed_time = time.time() - self.start_time
-        self.history_wct.append(elapsed_time)
+            elapsed_time = time.time() - self.start_time
+            self.history_wct.append(elapsed_time)
 
-        # Log the throughput
-        if len(self.history_wct) == self.history_wct.maxlen:
-            world_size = dist.get_world_size()
-            elapsed_batches = len(self.history_samples) - 1
-            elapsed_samples = int(self.history_samples[-1]) - int(self.history_samples[0])
-            elapsed_tokens = int(self.history_tokens[-1]) - int(self.history_tokens[0])
-            elapsed_wct = self.history_wct[-1] - self.history_wct[0]
-            batches_per_sec = elapsed_batches / elapsed_wct
-            samples_per_sec = elapsed_samples / elapsed_wct
-            dev_batches_per_sec = batches_per_sec / world_size
-            dev_samples_per_sec = samples_per_sec / world_size
-            wandb.log(
-                {
-                    'throughput/batches_per_sec': batches_per_sec,
-                    'throughput/samples_per_sec': samples_per_sec,
-                    'throughput/device/batches_per_sec': dev_batches_per_sec,
-                    'throughput/device/samples_per_sec': dev_samples_per_sec,
-                }
-            )
-            if elapsed_tokens > 0:
-                tokens_per_sec = elapsed_tokens / elapsed_wct
-                dev_tokens_per_sec = tokens_per_sec / world_size
+            # Log the throughput
+            if len(self.history_wct) == self.history_wct.maxlen:
+                world_size = dist.get_world_size()
+                elapsed_batches = len(self.history_samples) - 1
+                elapsed_samples = int(self.history_samples[-1]) - int(self.history_samples[0])
+                elapsed_tokens = int(self.history_tokens[-1]) - int(self.history_tokens[0])
+                elapsed_wct = self.history_wct[-1] - self.history_wct[0]
+                batches_per_sec = elapsed_batches / elapsed_wct
+                samples_per_sec = elapsed_samples / elapsed_wct
+                dev_batches_per_sec = batches_per_sec / world_size
+                dev_samples_per_sec = samples_per_sec / world_size
                 wandb.log(
                     {
-                        'throughput/tokens_per_sec': tokens_per_sec,
-                        'throughput/device/tokens_per_sec': dev_tokens_per_sec,
+                        'throughput/batches_per_sec': batches_per_sec,
+                        'throughput/samples_per_sec': samples_per_sec,
+                        'throughput/device/batches_per_sec': dev_batches_per_sec,
+                        'throughput/device/samples_per_sec': dev_samples_per_sec,
                     }
                 )
+                if elapsed_tokens > 0:
+                    tokens_per_sec = elapsed_tokens / elapsed_wct
+                    dev_tokens_per_sec = tokens_per_sec / world_size
+                    wandb.log(
+                        {
+                            'throughput/tokens_per_sec': tokens_per_sec,
+                            'throughput/device/tokens_per_sec': dev_tokens_per_sec,
+                        }
+                    )
 
         # # Compute flops stats if model has flops_per_batch
         # composer_model = state.model

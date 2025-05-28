@@ -135,17 +135,18 @@ class MemoryMonitor(pl.Callback):
         batch: Any,
         batch_idx: int,
     ) -> None:
-        memory_report = {}
-        memory_report = _get_memory_report(self.memory_keys)
-        if self.dist_aggregate_batch_interval:
-            dist_memory_report = {}
-            for mem_stat, val in memory_report.items():
-                dist_memory_report[mem_stat + '_avg'] = reduce_value(val, 'avg')
-                dist_memory_report[mem_stat + '_min'] = reduce_value(val, 'min')
-                dist_memory_report[mem_stat + '_max'] = reduce_value(val, 'max')
-            memory_report.update(dist_memory_report)
+        if trainer.global_step % trainer.log_every_n_steps == 0:
+            memory_report = {}
+            memory_report = _get_memory_report(self.memory_keys)
+            if self.dist_aggregate_batch_interval:
+                dist_memory_report = {}
+                for mem_stat, val in memory_report.items():
+                    dist_memory_report[mem_stat + '_avg'] = reduce_value(val, 'avg')
+                    dist_memory_report[mem_stat + '_min'] = reduce_value(val, 'min')
+                    dist_memory_report[mem_stat + '_max'] = reduce_value(val, 'max')
+                memory_report.update(dist_memory_report)
 
-        wandb.log({f'memory/{mem_stat}': val for (mem_stat, val) in memory_report.items()})
+            wandb.log({f'memory/{mem_stat}': val for (mem_stat, val) in memory_report.items()})
 
 
 _MEMORY_KEYS = {

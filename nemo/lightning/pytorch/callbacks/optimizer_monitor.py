@@ -64,10 +64,6 @@ class OptimizerMonitor(pl.Callback):
     +-----------------------------------------------+-----------------------------------------------------+
     """
 
-    def __init__(self, log_optimizer_metrics: bool = True, batch_log_interval: int = 10):
-        self.log_optimizer_metrics = log_optimizer_metrics
-        self.batch_log_interval = batch_log_interval
-
     def on_train_batch_end(
         self,
         trainer: pl.Trainer,
@@ -76,26 +72,26 @@ class OptimizerMonitor(pl.Callback):
         batch: Any,
         batch_idx: int,
     ) -> None:
+        if trainer.global_step % trainer.log_every_n_steps == 0:
+            norm = 0.0
+            optimizer_metrics = {}
 
-        norm = 0.0
-        optimizer_metrics = {}
+            for name, p in pl_module.named_parameters():
+                if p.main_grad is not None and p.requires_grad:
 
-        for name, p in pl_module.named_parameters():
-            if p.main_grad is not None and p.requires_grad:
+                    # Always log grad norm as a default metric if it's not specified
+                    if f'l2_norm/grad/{name}' not in optimizer_metrics:
+                        param_grad_norm = torch.linalg.vector_norm(p.main_grad)
+                        optimizer_metrics[f'l2_norm/grad/{name}'] = param_grad_norm
 
-                # Always log grad norm as a default metric if it's not specified
-                if f'l2_norm/grad/{name}' not in optimizer_metrics:
-                    param_grad_norm = torch.linalg.vector_norm(p.main_grad)
-                    optimizer_metrics[f'l2_norm/grad/{name}'] = param_grad_norm
+            for metric in optimizer_metrics:
+                if metric.startswith('l2_norm/grad'):
+                    norm += optimizer_metrics[metric] ** 2
 
-        for metric in optimizer_metrics:
-            if metric.startswith('l2_norm/grad'):
-                norm += optimizer_metrics[metric] ** 2
+            optimizer_metrics['l2_norm/grad/global'] = norm**0.5
 
-        optimizer_metrics['l2_norm/grad/global'] = norm**0.5
+            for metric in optimizer_metrics:
+                if isinstance(optimizer_metrics[metric], torch.Tensor):
+                    optimizer_metrics[metric] = optimizer_metrics[metric].item()
 
-        for metric in optimizer_metrics:
-            if isinstance(optimizer_metrics[metric], torch.Tensor):
-                optimizer_metrics[metric] = optimizer_metrics[metric].item()
-
-        wandb.log(optimizer_metrics)
+            wandb.log(optimizer_metrics)
