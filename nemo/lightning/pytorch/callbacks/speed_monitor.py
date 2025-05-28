@@ -305,11 +305,11 @@ class SpeedMonitor(pl.Callback):
                 dev_batches_per_sec = batches_per_sec / world_size
                 dev_samples_per_sec = samples_per_sec / world_size
                 metrics = {
-                        'throughput/batches_per_sec': batches_per_sec,
-                        'throughput/samples_per_sec': samples_per_sec,
-                        'throughput/device/batches_per_sec': dev_batches_per_sec,
-                        'throughput/device/samples_per_sec': dev_samples_per_sec,
-                    }
+                    'throughput/batches_per_sec': batches_per_sec,
+                    'throughput/samples_per_sec': samples_per_sec,
+                    'throughput/device/batches_per_sec': dev_batches_per_sec,
+                    'throughput/device/samples_per_sec': dev_samples_per_sec,
+                }
                 for metric, value in metrics.items():
                     self.log(metric, value)
                 if elapsed_tokens > 0:
