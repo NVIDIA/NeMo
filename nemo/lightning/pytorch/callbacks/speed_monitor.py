@@ -1,21 +1,29 @@
-# Copyright 2022 MosaicML Composer authors
-# SPDX-License-Identifier: Apache-2.0
-
-"""Monitor throughput during training."""
-from __future__ import annotations
-
-import warnings
-from collections import deque
-from typing import Any, Callable, Optional, Union
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 import time
 import wandb
 import torch
-import lightning.pytorch as pl
 
+from collections import deque
+from typing import Any, Optional, Union
+
+import lightning.pytorch as pl
 import torch.distributed as dist
 
-__all__ = ['SpeedMonitor']
+from nemo.utils import logging
+
 
 GPU_AVAILABLE_FLOPS = {
     # source: https://resources.nvidia.com/en-us-tensor-core/nvidia-tensor-core-gpu-datasheet
@@ -137,7 +145,7 @@ def get_gpu_flops_available(trainer):
         gpu_flops_available = None
 
     if gpu_flops_available is None:
-        warnings.warn(
+        logging.warning(
             f'gpu_flop count not found for {device_name} with precision={trainer.precision} ' +\
             f'so MFU cannot be calculated and reported. gpu_flops_available can be manually ' +\
             f'overridden by setting gpu_flops_available in SpeedMonitor or {device_name} can ' +\
@@ -152,7 +160,8 @@ def get_gpu_flops_available(trainer):
 
 
 class SpeedMonitor(pl.Callback):
-    """Logs the training throughput and utilization.
+    """
+    Logs the training throughput and utilization.
 
     The training throughput is logged on the :attr:`.Event.BATCH_END` event once we have reached
     the `window_size` threshold. If a model has `flops_per_batch` attribute, then flops per second
@@ -166,19 +175,12 @@ class SpeedMonitor(pl.Callback):
     The wall clock time is logged on every :attr:`.Event.BATCH_END` event.
 
     Example:
-        .. doctest::
+        import nemo_run as run
+        from nemo.lightning.pytorch.callbacks import SpeedMonitor
 
-            >>> from composer import Trainer
-            >>> from composer.callbacks import SpeedMonitor
-            >>> # constructing trainer object with this callback
-            >>> trainer = Trainer(
-            ...     model=model,
-            ...     train_dataloader=train_dataloader,
-            ...     eval_dataloader=eval_dataloader,
-            ...     optimizers=optimizer,
-            ...     max_duration='1ep',
-            ...     callbacks=[SpeedMonitor(window_size=100)],
-            ... )
+        recipe.trainer.callbacks.append(
+            run.Config(SpeedMonitor, window_size=100)
+        )
 
     The training throughput is logged by the :class:`.Logger` to the following keys as
     described below.
@@ -266,14 +268,6 @@ class SpeedMonitor(pl.Callback):
 
         # Keep track of time spent evaluating
         self.total_eval_wct = 0.0
-
-    def state_dict(self) -> dict[str, Any]:
-        return {
-            'total_eval_wct': self.total_eval_wct,
-        }
-
-    def load_state_dict(self, state: dict[str, Any]) -> None:
-        self.total_eval_wct = state['total_eval_wct']
 
     def on_train_start(self, trainer, pl_module):
         self.start_time = time.time()

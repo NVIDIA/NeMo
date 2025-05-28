@@ -1,3 +1,17 @@
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import torch
 import wandb
 
@@ -5,30 +19,22 @@ from typing import Any
 
 import lightning.pytorch as pl
 
-__all__ = ['OptimizerMonitor']
-
 
 class OptimizerMonitor(pl.Callback):
-    """Computes and logs the L2 norm of gradients as well as any optimizer-specific metrics implemented in the optimizer's `report_per_parameter_metrics` method.
+    """
+    Computes and logs the L2 norm of gradients as well as any optimizer-specific metrics implemented in the optimizer's `report_per_parameter_metrics` method.
 
     L2 norms are calculated after the reduction of gradients across GPUs. This function iterates over the parameters of
     the model and may cause a reduction in throughput while training large models. In order to ensure the
     correctness of the norm, this function should be called after gradient unscaling in cases where gradients are scaled.
 
     Example:
-        .. doctest::
+        import nemo_run as run
+        from nemo.lightning.pytorch.callbacks import OptimizerMonitor
 
-            >>> from composer import Trainer
-            >>> from composer.callbacks import OptimizerMonitor
-            >>> # constructing trainer object with this callback
-            >>> trainer = Trainer(
-            ...     model=model,
-            ...     train_dataloader=train_dataloader,
-            ...     eval_dataloader=eval_dataloader,
-            ...     optimizers=optimizer,
-            ...     max_duration="1ep",
-            ...     callbacks=[OptimizerMonitor()],
-            ... )
+        recipe.trainer.callbacks.append(
+            run.Config(OptimizerMonitor)
+        )
 
     The metrics are logged by the :class:`.Logger` to the following keys as described below. `grad_l2_norm` and `layer_grad_l2_norm` are
     logged in addition to metrics logged by the optimizer's `report_per_parameter_metrics` method. For convenience we have listed

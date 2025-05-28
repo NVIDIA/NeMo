@@ -1,18 +1,29 @@
-from __future__ import annotations
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
-import logging
 import time
-import warnings
 import wandb
+
 from typing import Optional
+from nemo.utils import logging
 
 import lightning.pytorch as pl
 
-__all__ = ['RuntimeEstimator']
-
 
 class RuntimeEstimator(pl.Callback):
-    """Estimates total training time.
+    """
+    Estimates total training time.
 
     The training time is computed by taking the time elapsed for the current duration and multiplying
     out to the full extended length of the training run.
@@ -21,19 +32,12 @@ class RuntimeEstimator(pl.Callback):
     changes through training or other significant changes are made to the model or dataloader.
 
     Example:
-        .. doctest::
+        import nemo_run as run
+        from nemo.lightning.pytorch.callbacks import MemoryMonitor
 
-            >>> from composer import Trainer
-            >>> from composer.callbacks import RuntimeEstimator
-            >>> # constructing trainer object with this callback
-            >>> trainer = Trainer(
-            ...     model=model,
-            ...     train_dataloader=train_dataloader,
-            ...     eval_dataloader=eval_dataloader,
-            ...     optimizers=optimizer,
-            ...     max_duration='1ep',
-            ...     callbacks=[RuntimeEstimator()],
-            ... )
+        recipe.trainer.callbacks.append(
+            run.Config(RuntimeEstimator)
+        )
 
     The runtime estimate is logged by the :class:`.Logger` to the following key as described below.
 
@@ -122,7 +126,7 @@ class RuntimeEstimator(pl.Callback):
             self.start_time = time.time()
             self.start_dur = self._get_elapsed_duration(trainer)
             if self.start_dur is None:
-                warnings.warn('`max_duration` is not set. Cannot estimate remaining time.')
+                logging.warning('`max_duration` is not set. Cannot estimate remaining time.')
                 self._enabled = False
             # Cache train dataloader len if specified for `_get_elapsed_duration`
             if len(trainer.train_dataloader) is not None:
