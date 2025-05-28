@@ -189,7 +189,7 @@ if __name__ == "__main__":
             gpu_sm100_or_newer=(args.gpu.lower() in ['b200', 'gb200']),
         )
     ]
-    custom_env_vars={}
+    custom_env_vars = {}
     if args.enable_nsys:
         plugins.append(
             NsysPlugin(
