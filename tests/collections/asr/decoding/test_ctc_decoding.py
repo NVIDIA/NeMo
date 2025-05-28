@@ -19,7 +19,7 @@ import pytest
 import torch
 from omegaconf import DictConfig, OmegaConf
 
-from nemo.collections.asr.models import ASRModel
+
 from nemo.collections.asr.parts.mixins import mixins
 from nemo.collections.asr.parts.submodules.ctc_decoding import (
     CTCBPEDecoding,
