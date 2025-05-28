@@ -42,7 +42,6 @@ python speech_to_text_streaming_infer_rnnt.py \
     right_context_secs=2.0 \
     chunk_secs=2 \
     left_context_secs=10.0 \
-    model_stride=8 \
     batch_size=32 \
     clean_groundtruth_text=True \
     langid='en'
@@ -167,10 +166,6 @@ class TranscriptionConfig:
     )
     right_context_secs: float = 2  # right context
 
-    model_stride: int = (
-        8  # Model downsampling factor, 8 for Citrinet and FastConformer models and 4 for Conformer models.
-    )
-
     # Set `cuda` to int to define CUDA device. If 'None', will look for CUDA
     # device anyway, and do inference on CPU only if CUDA device is not found.
     # If `cuda` is a negative number, inference will be on CPU only.
@@ -289,9 +284,6 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
             if hasattr(asr_model, 'cur_decoder'):
                 asr_model.change_decoding_strategy(cfg.decoding, decoder_type='rnnt')
 
-    feature_stride_sec = model_cfg.preprocessor['window_stride']
-    features_per_sec = 1.0 / feature_stride_sec
-    model_stride = cfg.model_stride
     if manifest is not None:
         records = read_manifest(manifest)
     else:
@@ -306,18 +298,24 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
 
     audio_sample_rate = model_cfg.preprocessor['sample_rate']
 
-    features_frame2audio_samples = make_divisible_by(int(audio_sample_rate * feature_stride_sec), factor=model_stride)
-    encoder_frame2audio_samples = features_frame2audio_samples * model_stride
+    feature_stride_sec = model_cfg.preprocessor['window_stride']
+    features_per_sec = 1.0 / feature_stride_sec
+    encoder_subsampling_factor = asr_model.encoder.subsampling_factor
+
+    features_frame2audio_samples = make_divisible_by(
+        int(audio_sample_rate * feature_stride_sec), factor=encoder_subsampling_factor
+    )
+    encoder_frame2audio_samples = features_frame2audio_samples * encoder_subsampling_factor
 
     context_encoder_frames = ContextSize(
-        left=int(cfg.left_context_secs * features_per_sec / model_stride),
-        chunk=int(cfg.chunk_secs * features_per_sec / model_stride),
-        right=int(cfg.right_context_secs * features_per_sec / model_stride),
+        left=int(cfg.left_context_secs * features_per_sec / encoder_subsampling_factor),
+        chunk=int(cfg.chunk_secs * features_per_sec / encoder_subsampling_factor),
+        right=int(cfg.right_context_secs * features_per_sec / encoder_subsampling_factor),
     )
     context_samples = ContextSize(
-        left=context_encoder_frames.left * model_stride * features_frame2audio_samples,
-        chunk=context_encoder_frames.chunk * model_stride * features_frame2audio_samples,
-        right=context_encoder_frames.right * model_stride * features_frame2audio_samples,
+        left=context_encoder_frames.left * encoder_subsampling_factor * features_frame2audio_samples,
+        chunk=context_encoder_frames.chunk * encoder_subsampling_factor * features_frame2audio_samples,
+        right=context_encoder_frames.right * encoder_subsampling_factor * features_frame2audio_samples,
     )
 
     full_ctx_audio_samples = context_samples.total()
