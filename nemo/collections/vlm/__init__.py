@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,6 +15,11 @@
 # CLIP
 from nemo.collections.vlm.clip.data import ClipMockDataModule
 from nemo.collections.vlm.clip.model import CLIPConfigB32, CLIPConfigL14, CLIPModel
+
+# Gemma3
+from nemo.collections.vlm.gemma3vl.model.base import Gemma3VLConfig, Gemma3VLModel
+from nemo.collections.vlm.gemma3vl.model.gemma3vl import Gemma3VLConfig4B, Gemma3VLConfig12B, Gemma3VLConfig27B
+from nemo.collections.vlm.gemma3vl.model.vision import Gemma3VLMultimodalProjectorConfig, Gemma3VLVisionConfig
 
 # HF
 from nemo.collections.vlm.hf.data.hf_dataset import HFDatasetDataModule
@@ -119,6 +124,13 @@ __all__ = [
     "Qwen2VLVisionConfig",
     "Qwen2VLModel",
     "Qwen2VLDataConfig",
+    "Gemma3VLConfig",
+    "Gemma3VLConfig4B",
+    "Gemma3VLConfig12B",
+    "Gemma3VLConfig27B",
+    "Gemma3VLVisionConfig",
+    "Gemma3VLMultimodalProjectorConfig",
+    "Gemma3VLModel",
     "LlavaNextTaskEncoder",
     "MLlamaModel",
     "MLlamaModelConfig",
