@@ -23,6 +23,8 @@ from nemo.collections.llm import Qwen2Config, Qwen2Config1P5B, Qwen2Config7B, Qw
 from nemo.collections.vlm.qwen2vl.model.base import Qwen2VLConfig, Qwen2VLModel, Qwen2VLVisionConfig
 from nemo.collections.vlm.vision import MultimodalProjectorConfig
 from nemo.lightning import io, teardown
+from transformers import Qwen2VLConfig as HFQwen2VLConfig
+from transformers import Qwen2VLForConditionalGeneration
 
 if TYPE_CHECKING:
     from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
@@ -81,21 +83,16 @@ class HFQwen2VLImporter(io.ModelConnector["Qwen2VLForConditionalGeneration", Qwe
 
     def init(self) -> Qwen2VLModel:
         # pylint: disable=C0115,C0116
-        return Qwen2VLModel(self.config, tokenizer=self.tokenizer)
+        return Qwen2VLModel(self.config, model_version="qwen2-vl", tokenizer=self.tokenizer)
 
     def apply(self, output_path: Path) -> Path:
         # pylint: disable=C0115,C0116
-        from transformers import Qwen2VLForConditionalGeneration
-
         source = Qwen2VLForConditionalGeneration.from_pretrained(str(self))
         target = self.init()
         trainer = self.nemo_setup(target)
         self.convert_state(source, target)
         print(f"Converted Qwen2VL model to Nemo, saving to {output_path}")
-        # for name, param in target.named_parameters():
-        #     print(name, param.shape)
         self.nemo_save(output_path, trainer)
-
         print(f"Converted Qwen2VL model saved to {output_path}")
 
         teardown(trainer, target)
@@ -172,7 +169,6 @@ class HFQwen2VLImporter(io.ModelConnector["Qwen2VLForConditionalGeneration", Qwe
     @property
     def config(self) -> Qwen2VLConfig:
         # pylint: disable=C0115,C0116
-        from transformers import Qwen2VLConfig as HFQwen2VLConfig
 
         hf_config = HFQwen2VLConfig.from_pretrained(str(self))
 

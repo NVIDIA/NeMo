@@ -23,7 +23,7 @@ def main():
         "--path",
         type=str,
         default="/root/.cache/nemo/models/Qwen/Qwen2.5-VL-3B-Instruct/",
-        help="Path to the NeMo checkpoint directory. (Default: /root/.cache/nemo/models/llava-hf/llava-v1.6-vicuna-7b-hf)",
+        help="Path to the NeMo checkpoint directory. (Default: /root/.cache/nemo/models/Qwen/Qwen2.5-VL-3B-Instruct/)",
     )
     parser.add_argument(
         "--output_path",

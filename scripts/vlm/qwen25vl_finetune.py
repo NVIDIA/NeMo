@@ -33,9 +33,9 @@ from transformers.models.qwen2_vl.image_processing_qwen2_vl import Qwen2VLImageP
 
 from nemo import lightning as nl
 from nemo.collections import llm, vlm
+from nemo.collections.vlm.qwen2vl.data import Qwen2VLMockDataModule
+from nemo.collections.vlm.qwen2vl.model import Qwen25VLVisionConfig
 from nemo.collections.vlm import Qwen2VLDataConfig
-from nemo.collections.vlm.qwen25vl.data import Qwen2VLMockDataModule
-from nemo.collections.vlm.qwen25vl.model import Qwen25VLVisionConfig
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 from nemo.utils.exp_manager import TimingCallback
@@ -75,6 +75,7 @@ def main(args):
         # Data module setup
         data = vlm.Qwen2VLPreloadedDataModule(
             paths=args.data_path,
+            model_version="qwen25-vl",
             data_config=data_config,
             seq_length=max_sequence_length,
             decoder_seq_length=None,
@@ -109,7 +110,7 @@ def main(args):
     )
 
     # Qwen25VL model configuration
-    qwen25vl_config = vlm.Qwen25VLConfig(
+    qwen25vl_config = vlm.Qwen2VLConfig(
         language_transformer_config=language_transformer_config,
         vision_transformer_config=vision_transformer_config,
         vision_projection_config=vision_projection_config,
@@ -118,7 +119,7 @@ def main(args):
         freeze_vision_model=True,
     )
 
-    model = vlm.Qwen25VLModel(qwen25vl_config, tokenizer=data.tokenizer)
+    model = vlm.Qwen2VLModel(qwen25vl_config, model_version="qwen25-vl", tokenizer=data.tokenizer)
 
     from megatron.core.distributed import DistributedDataParallelConfig
 

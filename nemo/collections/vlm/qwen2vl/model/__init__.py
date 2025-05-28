@@ -12,8 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.vlm.qwen2vl.model.base import Qwen2VLConfig, Qwen2VLModel, Qwen2VLVisionConfig
+from nemo.collections.vlm.qwen2vl.model.base import Qwen2VLConfig, Qwen2VLModel, Qwen2VLVisionConfig, Qwen25VLVisionConfig
 from nemo.collections.vlm.qwen2vl.model.qwen2vl import Qwen2VLConfig2B, Qwen2VLConfig7B
+from nemo.collections.vlm.qwen2vl.model.qwen25vl import Qwen25VLConfig3B, Qwen25VLConfig7B
 
 __all__ = [
     "Qwen2VLVisionConfig",
@@ -21,4 +22,7 @@ __all__ = [
     "Qwen2VLConfig2B",
     "Qwen2VLConfig7B",
     "Qwen2VLModel",
+    "Qwen25VLVisionConfig",
+    "Qwen25VLConfig3B",
+    "Qwen25VLConfig7B",
 ]

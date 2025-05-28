@@ -13,20 +13,21 @@
 # limitations under the License.
 
 from dataclasses import dataclass, field
+from packaging.version import Version
 from pathlib import Path
 from typing import TYPE_CHECKING, Union
 
 import torch
 import transformers
 from megatron.core.transformer.transformer_config import TransformerConfig
-from packaging.version import Version
+
+from nemo.collections.llm import Qwen2Config, Qwen25Config3B, Qwen25Config7B, Qwen25Config72B
+from nemo.collections.vlm.qwen2vl.model.base import Qwen2VLConfig, Qwen2VLModel, Qwen25VLVisionConfig
+from nemo.collections.vlm.vision import MultimodalProjectorConfig
+from nemo.lightning import io, teardown
 from transformers import Qwen2_5_VLConfig as HFQwen25VLConfig
 from transformers import Qwen2_5_VLForConditionalGeneration
 
-from nemo.collections.llm import Qwen2Config, Qwen25Config3B, Qwen25Config7B, Qwen25Config72B
-from nemo.collections.vlm.qwen25vl.model.base import Qwen25VLConfig, Qwen25VLModel, Qwen25VLVisionConfig
-from nemo.collections.vlm.vision import MultimodalProjectorConfig
-from nemo.lightning import io, teardown
 
 if TYPE_CHECKING:
     from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
@@ -35,7 +36,7 @@ if TYPE_CHECKING:
 # Note: these Qwen2VL configs are copied from the corresponding HF model. You may need to modify the parameter for
 # your own needs
 @dataclass
-class Qwen25VLConfig3B(Qwen25VLConfig):
+class Qwen25VLConfig3B(Qwen2VLConfig):
     """Qwen2.5VL Config 3B"""
 
     from transformers import PretrainedConfig
@@ -52,7 +53,7 @@ class Qwen25VLConfig3B(Qwen25VLConfig):
 
 
 @dataclass
-class Qwen25VLConfig7B(Qwen25VLConfig):
+class Qwen25VLConfig7B(Qwen2VLConfig):
     """Qwen2.5VL Config 7B"""
 
     from transformers import PretrainedConfig
@@ -69,7 +70,7 @@ class Qwen25VLConfig7B(Qwen25VLConfig):
 
 
 @dataclass
-class Qwen25VLConfig72B(Qwen25VLConfig):
+class Qwen25VLConfig72B(Qwen2VLConfig):
     """Qwen2.5VL Config 72B"""
 
     from transformers import PretrainedConfig
@@ -85,27 +86,21 @@ class Qwen25VLConfig72B(Qwen25VLConfig):
     )
 
 
-@io.model_importer(Qwen25VLModel, "hf")
-class HFQwen25VLImporter(io.ModelConnector["Qwen2_5_VLForConditionalGeneration", Qwen25VLModel]):
+@io.model_importer(Qwen2VLModel, "hf")
+class HFQwen25VLImporter(io.ModelConnector["Qwen2_5_VLForConditionalGeneration", Qwen2VLModel]):
     """Qwen2.5VL Model HF Importer"""
 
-    def init(self) -> Qwen25VLModel:
+    def init(self) -> Qwen2VLModel:
         # pylint: disable=C0115,C0116
-        return Qwen25VLModel(self.config, tokenizer=self.tokenizer)
+        return Qwen2VLModel(self.config, model_version="qwen25-vl", tokenizer=self.tokenizer)
 
     def apply(self, output_path: Path) -> Path:
         # pylint: disable=C0115,C0116
-        print(str(self))
         source = Qwen2_5_VLForConditionalGeneration.from_pretrained(str(self))
         target = self.init()
         trainer = self.nemo_setup(target)
-        for name, params in source.named_parameters():
-            print("hf: ", name, params.shape)
-        for name, params in target.named_parameters():
-            print("nemo: ", name, params.shape)
         self.convert_state(source, target)
         print(f"Converted Qwen2VL model to Nemo, saving to {output_path}")
-
         self.nemo_save(output_path, trainer)
         print(f"Converted Qwen2VL model saved to {output_path}")
 
@@ -180,11 +175,10 @@ class HFQwen25VLImporter(io.ModelConnector["Qwen2_5_VLForConditionalGeneration",
         return AutoTokenizer(str(self))
 
     @property
-    def config(self) -> Qwen25VLConfig:
+    def config(self) -> Qwen2VLConfig:
         # pylint: disable=C0115,C0116
 
         hf_config = HFQwen25VLConfig.from_pretrained(str(self))
-        print("hf_config", hf_config)
 
         def make_vocab_size_divisible_by(vocab_size):
             # pylint: disable=C0115,C0116
@@ -218,7 +212,7 @@ class HFQwen25VLImporter(io.ModelConnector["Qwen2_5_VLForConditionalGeneration",
             projector_type="mcore_mlp",
         )
 
-        output = Qwen25VLConfig(
+        output = Qwen2VLConfig(
             language_transformer_config=language_transformer_config,
             vision_transformer_config=vision_transformer_config,
             vision_projection_config=vision_projection_config,
@@ -228,8 +222,8 @@ class HFQwen25VLImporter(io.ModelConnector["Qwen2_5_VLForConditionalGeneration",
         return output
 
 
-@io.model_exporter(Qwen25VLModel, "hf")
-class HFQwen25VLExporter(io.ModelConnector[Qwen25VLModel, "Qwen2_5_VLForConditionalGeneration"]):
+@io.model_exporter(Qwen2VLModel, "hf")
+class HFQwen25VLExporter(io.ModelConnector[Qwen2VLModel, "Qwen2_5_VLForConditionalGeneration"]):
     """
     Exporter class for converting NeMo Qwen2.5-VL model to HuggingFace format.
 
@@ -242,9 +236,6 @@ class HFQwen25VLExporter(io.ModelConnector[Qwen25VLModel, "Qwen2_5_VLForConditio
         convert_state: Maps and transforms the state dictionary from NeMo to HuggingFace format.
         config: Generates and returns the HuggingFace LLaVA config for the model.
     """
-
-    print("HFQwen25VLExporter")
-
     def init(self) -> "Qwen2_5_VLForConditionalGeneration":
         """
         Initializes a HuggingFace Qwen2_5_VLForConditionalGeneration model.
@@ -375,18 +366,14 @@ class HFQwen25VLExporter(io.ModelConnector[Qwen25VLModel, "Qwen2_5_VLForConditio
         Returns:
             HFQwen25VLConfig: A configuration object for the HuggingFace Qwen2.5-VL model.
         """
-        from transformers.models.qwen2_5_vl.configuration_qwen2_5_vl import (
-            Qwen2_5_VLVisionConfig as HFQwen25VLVisionConfig,
-        )
+        from transformers.models.qwen2_5_vl.configuration_qwen2_5_vl import Qwen2_5_VLVisionConfig as HFQwen25VLVisionConfig
 
         source = io.load_context(str(self), subpath="model.config")
         source_language = source.language_transformer_config
         source_vision = source.vision_transformer_config
 
         if Version(transformers.__version__) > Version('4.51.3'):
-            from transformers.models.qwen2_5_vl.configuration_qwen2_5_vl import (
-                Qwen2_5_VLTextConfig as HFQwen25VLTextConfig,
-            )
+            from transformers.models.qwen2_5_vl.configuration_qwen2_5_vl import Qwen2_5_VLTextConfig as HFQwen25VLTextConfig
 
         vision_config = {
             "hidden_size": source_vision.hidden_size,
@@ -394,38 +381,11 @@ class HFQwen25VLExporter(io.ModelConnector[Qwen25VLModel, "Qwen2_5_VLForConditio
             "out_hidden_size": source_language.hidden_size,
             "num_heads": source_vision.num_attention_heads,
             "spatial_patch_size": source_vision.spatial_patch_size,
+            "fullatt_block_indexes": [7, 15, 23, 31],
             "in_chans": 3,
-            "tokens_per_second": 2,
+            "tokens_per_second": 2, 
         }
 
-        # Create text config for HuggingFace model
-        # text_config = HFQwen25VLTextConfig(
-        #     num_hidden_layers=language_config.num_layers,
-        #     hidden_size=language_config.hidden_size,
-        #     intermediate_size=language_config.ffn_hidden_size,
-        #     num_attention_heads=language_config.num_attention_heads,
-        #     max_position_embeddings=language_config.seq_length,
-        #     initializer_range=language_config.init_method_std,
-        #     rms_norm_eps=language_config.layernorm_epsilon,
-        #     num_key_value_heads=language_config.num_query_groups,
-        #     rope_theta=language_config.rotary_base,
-        #     vocab_size=self.tokenizer.vocab_size,
-        #     tie_word_embeddings=language_config.share_embeddings_and_output_weights,
-        # )
-        # # Create vision config for HuggingFace model
-        # vision_config = HFQwen25VLVisionConfig(
-        #     num_hidden_layers=language_config.num_layers,
-        #     hidden_size=language_config.hidden_size,
-        #     intermediate_size=language_config.ffn_hidden_size,
-        #     num_attention_heads=language_config.num_attention_heads,
-        #     max_position_embeddings=language_config.seq_length,
-        #     initializer_range=language_config.init_method_std,
-        #     rms_norm_eps=language_config.layernorm_epsilon,
-        #     num_key_value_heads=language_config.num_query_groups,
-        #     rope_theta=language_config.rotary_base,
-        #     vocab_size=self.tokenizer.vocab_size,
-        #     tie_word_embeddings=language_config.share_embeddings_and_output_weights,
-        # )
         # Create the LlavaConfig for HuggingFace
         hf_config = HFQwen25VLConfig(
             # text_config=text_config,
@@ -441,10 +401,10 @@ class HFQwen25VLExporter(io.ModelConnector[Qwen25VLModel, "Qwen2_5_VLForConditio
             num_key_value_heads=source_language.num_query_groups,
             rope_theta=source_language.rotary_base,
             vocab_size=source_language.vocab_size,
-            rope_scaling={"type": "mrope", "mrope_section": [16, 24, 24]},
+            rope_scaling={"type": "mrope","mrope_section": [16, 24, 24]},
             tie_word_embeddings=source_language.share_embeddings_and_output_weights,
             torch_dtype="bfloat16",
-            # vocab_size=self.tokenizer.vocab_size,
+            #vocab_size=self.tokenizer.vocab_size,
             bos_token_id=151643,
             eos_token_id=151645,
             vision_start_token_id=151652,
@@ -715,7 +675,6 @@ def _export_language_qkv_bias(ctx: io.TransformCTX, qkv_bias):
         heads_per_group=hf_config.num_attention_heads // hf_config.num_key_value_heads,
         head_size=hf_config.hidden_size // hf_config.num_attention_heads,
     )
-
 
 @io.state_transform(
     source_key="vision_model.decoder.layers.*.self_attention.linear_qkv.weight",

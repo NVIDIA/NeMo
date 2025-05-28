@@ -23,7 +23,7 @@ from qwen_vl_utils import process_vision_info
 from transformers import AutoProcessor
 
 import nemo.lightning as nl
-from nemo.collections.vlm import Qwen25VLConfig3B, Qwen25VLModel
+from nemo.collections.vlm import Qwen25VLConfig3B, Qwen2VLModel
 from nemo.utils import logging
 
 
@@ -57,9 +57,9 @@ def main(args) -> None:
     fabric = trainer.to_fabric()
     # Decide whether to import or load the model based on the input arguments
     if args.load_from_hf:
-        model = fabric.import_model("hf://Qwen/Qwen2.5-VL-3B-Instruct", Qwen25VLModel)
+        model = fabric.import_model("hf://Qwen/Qwen2.5-VL-3B-Instruct", Qwen2VLModel)
     else:
-        model = Qwen25VLModel(Qwen25VLConfig3B(), tokenizer=hf_tokenizer)
+        model = Qwen2VLModel(Qwen25VLConfig3B(), model_version="qwen25-vl", tokenizer=hf_tokenizer)
         model = fabric.load_model(args.local_model_path, model)
     model = model.module.cuda()
     model.eval()

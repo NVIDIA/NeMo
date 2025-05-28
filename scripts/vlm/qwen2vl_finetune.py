@@ -83,6 +83,7 @@ def main(args):
         # Data module setup
         data = vlm.Qwen2VLPreloadedDataModule(
             paths=args.data_path,
+            model_version="qwen2-vl",
             data_config=data_config,
             seq_length=max_sequence_length,
             decoder_seq_length=None,
@@ -148,7 +149,7 @@ def main(args):
         freeze_vision_model=True,
     )
 
-    model = vlm.Qwen2VLModel(qwen2vl_config, tokenizer=data.tokenizer)
+    model = vlm.Qwen2VLModel(qwen2vl_config, model_version="qwen2-vl", tokenizer=data.tokenizer)
 
     from megatron.core.distributed import DistributedDataParallelConfig
 
