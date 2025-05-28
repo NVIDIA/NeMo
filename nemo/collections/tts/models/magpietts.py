@@ -691,27 +691,30 @@ class MagpieTTSModel(ModelPT):
 
     def sample_codes_from_logits(self, all_code_logits_t, temperature=0.7, topk=80, unfinished_items={}, finished_items={}):
         # all_code_logits_t: (B, num_codebooks * num_tokens_per_codebook), logits at a given timestep
-        all_preds = []
-        for idx in range(self.num_audio_codebooks):
-            si = idx * self.num_all_tokens_per_codebook
-            ei = si + self.num_all_tokens_per_codebook
-            codebook_logits = all_code_logits_t[:, si:ei]  # (B, num_tokens_per_codebook)
-            for item_idx in unfinished_items:
-                codebook_logits[item_idx, self.audio_eos_id] = float('-inf')
-            for item_idx in finished_items:
-                codebook_logits[item_idx, :] = float('-inf')
-                codebook_logits[item_idx, self.audio_eos_id] = 0.0
-            codebook_logits_topk = torch.topk(codebook_logits, topk, dim=-1)[0]  # (B, topk)
-            indices_to_remove = codebook_logits < codebook_logits_topk[:, -1].unsqueeze(
-                -1
-            )  # (B, num_tokens_per_codebook)
-            codebook_logits_rescored = codebook_logits.clone()
-            codebook_logits_rescored[indices_to_remove] = float('-inf')
+        all_preds = [[] for _ in range(self.downsampling_factor)]
+        for ds_index in range(self.downsampling_factor):
+            for idx in range(self.num_audio_codebooks):
+                si = (idx + self.num_audio_codebooks * ds_index) * self.num_all_tokens_per_codebook
+                ei = si + self.num_all_tokens_per_codebook
+                codebook_logits = all_code_logits_t[:, si:ei]  # (B, num_tokens_per_codebook)
+                for item_idx in unfinished_items:
+                    codebook_logits[item_idx, self.audio_eos_id] = float('-inf')
+                for item_idx in finished_items:
+                    codebook_logits[item_idx, :] = float('-inf')
+                    codebook_logits[item_idx, self.audio_eos_id] = 0.0
+                codebook_logits_topk = torch.topk(codebook_logits, topk, dim=-1)[0]  # (B, topk)
+                indices_to_remove = codebook_logits < codebook_logits_topk[:, -1].unsqueeze(
+                    -1
+                )  # (B, num_tokens_per_codebook)
+                codebook_logits_rescored = codebook_logits.clone()
+                codebook_logits_rescored[indices_to_remove] = float('-inf')
 
-            codebook_probs = torch.softmax(codebook_logits_rescored / temperature, dim=-1)  # (B, num_tokens_per_codebook)
-            codebook_preds = torch.multinomial(codebook_probs, 1)  # (B, 1)
-            all_preds.append(codebook_preds)
-        all_preds = torch.cat(all_preds, dim=1).long()  # (B, num_codebooks)
+                codebook_probs = torch.softmax(codebook_logits_rescored / temperature, dim=-1)  # (B, num_tokens_per_codebook)
+                codebook_preds = torch.multinomial(codebook_probs, 1)  # (B, 1)
+                all_preds[ds_index].append(codebook_preds)
+                
+        all_preds = [torch.cat(ds_preds, dim=1).long() for ds_preds in all_preds]  # list of downsampling_factor of (B, num_codebooks)
+        all_preds = torch.stack(all_preds, dim=2)  # (B, num_codebooks, downsampling_factor)
         return all_preds
 
     def log_attention_probs(self, attention_prob_matrix, audio_codes_lens, text_lens, prefix="", dec_context_size=0):
@@ -1107,6 +1110,7 @@ class MagpieTTSModel(ModelPT):
         else:
             audio_codes = batch['audio_codes']
             audio_codes_lens = batch['audio_codes_lens']
+        # TODO: @rfejgin: repeat audio BOS token up to downsampling_factor so that at inference time we can start from a full chunk of BOS tokens
         audio_codes = self.pad_audio_codes(audio_codes, self.downsampling_factor, pad_token=0)
         audio_codes_input = audio_codes[:, :, :-self.downsampling_factor]  # B, C, T'
         audio_codes_target = audio_codes[:, :, self.downsampling_factor:]
@@ -1559,9 +1563,9 @@ class MagpieTTSModel(ModelPT):
             context_tensors = self.prepare_context_tensors(batch)
             text = context_tensors['text']
             audio_codes_bos = torch.full(
-                (text.size(0), self.num_audio_codebooks, 1), self.audio_bos_id, device=text.device
-            ).long()
-            audio_codes_lens = torch.full((text.size(0),), 1, device=text.device).long()
+                (text.size(0), self.num_audio_codebooks, self.downsampling_factor), self.audio_bos_id, device=text.device
+            ).long() # @rfejgin TODO: do this at training too
+            audio_codes_lens = torch.full((text.size(0),), 1, device=text.device).long() # intetionally 1 rather than self.downsampling_factor since this is in downsampled form
             audio_codes_input = audio_codes_bos
             audio_codes_mask = get_mask_from_lengths(audio_codes_lens)
 
@@ -1592,7 +1596,7 @@ class MagpieTTSModel(ModelPT):
                 if idx % 20 == 0:
                     print(f"Decoding timestep {idx}")
                 # @rfejgin TODO add support for downsampling factor (remember to pad)
-                audio_codes_embedded = self.embed_audio_tokens(audio_codes_input)
+                audio_codes_embedded = self.embed_audio_tokens_with_downsampling(audio_codes_input, downsampling_factor=self.downsampling_factor)
                 if context_tensors['additional_decoder_input'] is not None:
                     _audio_codes_embedded = torch.cat(
                         [context_tensors['additional_decoder_input'], audio_codes_embedded], dim=1
@@ -1731,28 +1735,30 @@ class MagpieTTSModel(ModelPT):
                     # all_codes_next_argmax = audio_codes_next
                 else:
                     # Parallel sampling from all codebooks
-                    audio_codes_next = self.sample_codes_from_logits(all_code_logits_t, temperature=temperature, topk=topk, unfinished_items=unifinished_items, finished_items=finished_items) # (B, num_codebooks)
-                all_codes_next_argmax = self.sample_codes_from_logits(all_code_logits_t, temperature=0.01, unfinished_items=unifinished_items, finished_items=finished_items) # (B, num_codebooks)
+                    audio_codes_next = self.sample_codes_from_logits(all_code_logits_t, temperature=temperature, topk=topk, unfinished_items=unifinished_items, finished_items=finished_items) # (B, num_codebooks, downsampling_factor)
+                all_codes_next_argmax = self.sample_codes_from_logits(all_code_logits_t, temperature=0.01, unfinished_items=unifinished_items, finished_items=finished_items) # (B, num_codebooks, downsampling_factor)
 
                 for item_idx in range(all_codes_next_argmax.size(0)):
-                    if item_idx not in end_indices:
-                        pred_token = all_codes_next_argmax[item_idx][0].item()
-                        pred_token_multinomial = audio_codes_next[item_idx][0].item()
-                        any_eos = (audio_codes_next[item_idx]==self.audio_eos_id).any().item() or (all_codes_next_argmax[item_idx]==self.audio_eos_id).any().item() 
-                        first_eos = (pred_token == self.audio_eos_id) or (pred_token_multinomial == self.audio_eos_id)
-                        if any_eos and not first_eos:
-                            print("\n**** Warning: EOS detected in vector but not at first position **** \n")
-                            print(audio_codes_next[item_idx])
-                            print(all_codes_next_argmax[item_idx])
-                        if first_eos:
-                            print("End detected for item {} at timestep {}".format(item_idx, idx))
-                            end_indices[item_idx] = idx
+                    for ds_index in range(self.downsampling_factor):
+                        if item_idx not in end_indices:
+                            pred_token = all_codes_next_argmax[item_idx][0, ds_index].item()
+                            pred_token_multinomial = audio_codes_next[item_idx][0, ds_index].item()
+                            any_eos = (audio_codes_next[item_idx]==self.audio_eos_id).any().item() or (all_codes_next_argmax[item_idx]==self.audio_eos_id).any().item() 
+                            first_eos = (pred_token == self.audio_eos_id) or (pred_token_multinomial == self.audio_eos_id)
+                            if any_eos and not first_eos:
+                                print("\n**** Warning: EOS detected in vector but not at first position **** \n")
+                                print(audio_codes_next[item_idx])
+                                print(all_codes_next_argmax[item_idx])
+                            if first_eos:
+                                print("End detected for item {} at timestep {}".format(item_idx, idx))
+                                end_indices[item_idx] = idx
+                            # TODO @rfejgin - track which downsampling index each item ended at
 
                 all_predictions.append(audio_codes_next)
                 audio_codes_input = torch.cat(
-                    [audio_codes_input, audio_codes_next.unsqueeze(-1)], dim=-1
+                    [audio_codes_input, audio_codes_next], dim=-1
                 )  # (B, C, T')
-                audio_codes_lens = audio_codes_lens + 1
+                audio_codes_lens = audio_codes_lens + 1 # already in downsampled form
                 audio_codes_mask = get_mask_from_lengths(audio_codes_lens)
                 if len(end_indices) == text.size(0) and len(all_predictions) >= 4:
                     # Codec must be of atleast 4 timesteps to be decoded properly
@@ -1760,9 +1766,9 @@ class MagpieTTSModel(ModelPT):
                     break
             tts_generation_time = time.time() - start_time
             tts_generation_time_per_frame = tts_generation_time / len(all_predictions)
-            predicted_codes = torch.stack(all_predictions, dim=-1)  # (B, num_codebooks, T')
+            predicted_codes = torch.cat(all_predictions, dim=-1)  # (B, num_codebooks, T')
 
-            predicted_lens = [end_indices.get(idx, max_decoder_steps) for idx in range(text.size(0))] #  Ensure that the codec is atleast of length 4
+            predicted_lens = [end_indices.get(idx, max_decoder_steps) * self.downsampling_factor for idx in range(text.size(0))] #  Ensure that the codec is atleast of length 4
             predicted_codes_lens = torch.tensor(predicted_lens, device=text.device).long()
 
             predicted_audio, predicted_audio_lens = self.codes_to_audio(predicted_codes, predicted_codes_lens)
