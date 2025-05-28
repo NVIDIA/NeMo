@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -281,7 +281,7 @@ class FluxControlNet(VisionModule):
 
         single_block_samples = ()
         for id_block, block in enumerate(self.single_blocks):
-            hidden_states = block(
+            hidden_states, _ = block(
                 hidden_states=hidden_states,
                 rotary_pos_emb=rotary_pos_emb,
                 emb=vec_emb,

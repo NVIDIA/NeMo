@@ -81,6 +81,14 @@ try:
 except (ImportError, ModuleNotFoundError):
     HAVE_FT = False
 
+try:
+    import multistorageclient
+    from multistorageclient.types import MSC_PROTOCOL as MUTLISTORAGECLIENT_PROTOCOL
+
+    MUTLISTORAGECLIENT_AVAILABLE = True
+except (ImportError, ModuleNotFoundError):
+    MUTLISTORAGECLIENT_AVAILABLE = False
+
 
 class NotFoundError(NeMoBaseException):
     """Raised when a file or folder is not found"""
@@ -1507,7 +1515,6 @@ def clean_exp_ckpt(exp_log_dir: Union[str, Path], remove_ckpt: bool = True, remo
         for filepath in nemo_files:
             os.remove(filepath)
             logging.info(f"Deleted file : {filepath}")
-
 
 
 def is_multistorageclient_url(dirpath):

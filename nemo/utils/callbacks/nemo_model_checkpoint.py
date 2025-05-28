@@ -26,7 +26,7 @@ from lightning.fabric.utilities.cloud_io import get_filesystem
 from lightning.pytorch.callbacks.model_checkpoint import ModelCheckpoint, _is_local_file_protocol
 from lightning.pytorch.trainer import call
 from lightning.pytorch.utilities import rank_zero_info
-from torch import Tensor 
+from torch import Tensor
 
 from nemo.collections.common.callbacks import EMA
 from nemo.utils import logging
@@ -540,7 +540,7 @@ class NeMoModelCheckpoint(ModelCheckpoint):
     ) -> bool:
         """Checks if a file or a file without a suffix (distributed checkpoint) exists."""
         if self.multistorageclient_enabled:
-            exists = self._fs.exists(filepath) # todo(avm): unsure if we need this check 
+            exists = self._fs.exists(filepath)
         else:
             exists = self._fs.exists(filepath) or (check_dist_ckpt and self._fs.exists(ckpt_to_dir(filepath)))
 
@@ -667,7 +667,6 @@ class NeMoModelCheckpoint(ModelCheckpoint):
             return NeMoModelCheckpoint._derive_saved_checkpoint_paths_with_multistorageclient(self.dirpath)
         else:
             dist_checkpoints = [d for d in Path(self.dirpath).glob("*") if d.is_dir()]
-        
         if dist_checkpoints:
             return filter(lambda p: not self.is_checkpoint_unfinished(p), dist_checkpoints)
         else:
@@ -677,7 +676,6 @@ class NeMoModelCheckpoint(ModelCheckpoint):
     @staticmethod
     def _derive_saved_checkpoint_paths_with_multistorageclient(dirpath: str) -> Iterable[Path]:
         return multistorageclient.glob(f"{dirpath}/*.ckpt")
-    
 
     @staticmethod
     def _remove_unfinished_checkpoints(checkpoint_dir: Union[Path, str]) -> None:
@@ -692,7 +690,6 @@ class NeMoModelCheckpoint(ModelCheckpoint):
             MULTISTORAGECLIENT_PROTOCOL
         )
 
-        # TODO: add multistorageclient support for distributed checkpointing
         if multistorageclient_enabled:
             existing_marker_filepaths = multistorageclient.glob(
                 f"{checkpoint_dir}*{NeMoModelCheckpoint.UNFINISHED_CHECKPOINT_SUFFIX}"
