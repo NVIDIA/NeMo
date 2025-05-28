@@ -222,7 +222,7 @@ def main(args):
         save_last=True,
         monitor="reduced_train_loss",
         save_top_k=2,
-        every_n_train_steps=1000,
+        every_n_train_steps=100,
         dirpath=args.log_dir,
     )
 
