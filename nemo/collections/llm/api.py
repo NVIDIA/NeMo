@@ -981,7 +981,7 @@ def export_ckpt(
             This is useful for model updates where retaining old checkpoint files is not required.
         load_connector (Callable[[Path, str], ModelConnector]): A function to load the appropriate
             exporter based on the model and target format. Defaults to `load_connector_from_trainer_ckpt`.
-        modelopt_export_kwargs (Dict[str, Any]): Additional keyword arguments to trigger a ModelOpt export.
+        modelopt_export_kwargs (Dict[str, Any]): Additional keyword arguments for ModelOpt export to HuggingFace.
 
     Returns:
         Path: The path where the checkpoint has been saved after export.
