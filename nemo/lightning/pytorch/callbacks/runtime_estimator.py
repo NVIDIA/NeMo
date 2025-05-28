@@ -3,9 +3,10 @@ from __future__ import annotations
 import logging
 import time
 import warnings
+import wandb
 from typing import Optional
 
-from composer.core import Callback, State, TimeUnit
+import lightning.pytorch as pl
 
 __all__ = ['RuntimeEstimator']
 
@@ -81,50 +82,73 @@ class RuntimeEstimator(pl.Callback):
         self.eval_frequency_per_label: dict[str, float] = {}
         self.last_elapsed_fraction: float = 0.0
 
-    def _get_elapsed_duration(self) -> Optional[float]:
+    def _get_elapsed_duration(self, trainer) -> Optional[float]:
         """Get the elapsed duration.
 
         Unlike `state.get_elapsed_duration`, this method computes fractional progress in an epoch
         provided at least 1 epoch has passed by recording how many batches were in each epoch.
         """
-        if state.max_duration is None:
+        # Use max_steps if defined
+        if trainer.max_steps and trainer.max_steps != -1:
+            if trainer.global_step is not None:
+                return trainer.global_step / trainer.max_steps
             return None
-        if state.max_duration.unit == TimeUnit('ep'):
-            if state.timestamp.epoch.value >= 1:
-                batches_per_epoch = (
-                    state.timestamp.batch - state.timestamp.batch_in_epoch
-                ).value / state.timestamp.epoch.value
-                return state.timestamp.get('ba').value / (state.max_duration.value * batches_per_epoch)
-            elif self.train_dataloader_len is not None:
-                return state.timestamp.get('ba').value / (state.max_duration.value * self.train_dataloader_len)
-        elapsed_dur = state.get_elapsed_duration()
-        if elapsed_dur is not None:
-            return elapsed_dur.value
+
+        # Use max_epochs if defined
+        if trainer.max_epochs and trainer.max_epochs != -1:
+            if trainer.current_epoch >= 1:
+                if trainer.num_training_batches is not None:
+                    batches_per_epoch = trainer.num_training_batches
+                    total_batches = trainer.max_epochs * batches_per_epoch
+                    return trainer.global_step / total_batches
+            elif trainer.num_training_batches is not None:
+                total_batches = trainer.max_epochs * trainer.num_training_batches
+                return trainer.global_step / total_batches
+
+        # Fallback: estimate from steps if available
+        if trainer.estimated_stepping_batches:
+            return trainer.global_step / trainer.estimated_stepping_batches
+
         return None
 
-    def on_train_batch_start(self) -> None:
+    def on_train_batch_start(
+        self,
+        trainer: pl.Trainer,
+        pl_module: pl.LightningModule,
+        outputs: pl.utilities.types.STEP_OUTPUT,
+        batch: Any,
+    ) -> None:
         if self._enabled and self.start_time is None and self.batches_left_to_skip == 0:
             self.start_time = time.time()
-            self.start_dur = self._get_elapsed_duration(state)
+            self.start_dur = self._get_elapsed_duration(trainer)
             if self.start_dur is None:
                 warnings.warn('`max_duration` is not set. Cannot estimate remaining time.')
                 self._enabled = False
             # Cache train dataloader len if specified for `_get_elapsed_duration`
-            if state.dataloader_len is not None:
-                self.train_dataloader_len = state.dataloader_len.value
+            if len(trainer.train_dataloader) is not None:
+                self.train_dataloader_len = len(trainer.train_dataloader)
 
-    def on_train_batch_end(self) -> None:
+    def on_train_batch_end(
+        self,
+        trainer: pl.Trainer,
+        pl_module: pl.LightningModule,
+        outputs: pl.utilities.types.STEP_OUTPUT,
+        batch: Any,
+        batch_idx: int,
+    ) -> None:
         if not self._enabled:
             return
         if self.batches_left_to_skip > 0:
             self.batches_left_to_skip -= 1
             return
 
-        elapsed_dur = self._get_elapsed_duration(state)
+        elapsed_dur = self._get_elapsed_duration(trainer)
         assert elapsed_dur is not None, 'max_duration checked as non-None on batch_start if enabled'
 
         assert self.start_dur is not None
         assert self.start_time is not None
+
+        time_metrics = {}
         if elapsed_dur > self.start_dur:
             elapsed_time = time.time() - self.start_time
             elapsed_time -= self.total_eval_wct  # Subtract time spent evaluating
@@ -146,23 +170,25 @@ class RuntimeEstimator(pl.Callback):
                 remaining_calls = num_total_evals - num_evals_finished
                 remaining_time += eval_wct_avg * remaining_calls
 
-            wandb.log({'time/remaining_estimate': remaining_time / self.divider})
+            time_metrics['time/remaining_estimate'] = remaining_time / self.divider
+            time_metrics['time/remaining_estimate_unit'] = self.time_unit
+            wandb.log(time_metrics)
             #logger.log_metrics({'time/remaining_estimate': remaining_time / self.divider})
 
-    def eval_end(self) -> None:
-        # If eval is called before training starts, ignore it
-        if not self._enabled or self.start_time is None:
-            return
-        self.total_eval_wct += state.eval_timestamp.total_wct.total_seconds()
-        # state.dataloader_label should always be non-None unless user explicitly sets evaluator
-        # label to None, ignoring type hints
-        assert state.dataloader_label is not None, 'evaluator label must not be None'
-        if state.dataloader_label not in self.eval_wct_per_label:
-            self.eval_wct_per_label[state.dataloader_label] = []
-        self.eval_wct_per_label[state.dataloader_label].append(state.eval_timestamp.total_wct.total_seconds())
-        elapsed_dur = self._get_elapsed_duration(state)
-        assert elapsed_dur is not None, 'max_duration checked as non-None on batch_start if enabled'
-        assert self.start_dur is not None, 'start_dur is set on batch_start if enabled'
-        elapsed_fraction = elapsed_dur - self.start_dur
-        num_evals_finished = len(self.eval_wct_per_label[state.dataloader_label])
-        self.eval_frequency_per_label[state.dataloader_label] = elapsed_fraction / num_evals_finished
+    # def eval_end(self) -> None:
+    #     # If eval is called before training starts, ignore it
+    #     if not self._enabled or self.start_time is None:
+    #         return
+    #     self.total_eval_wct += state.eval_timestamp.total_wct.total_seconds()
+    #     # state.dataloader_label should always be non-None unless user explicitly sets evaluator
+    #     # label to None, ignoring type hints
+    #     assert state.dataloader_label is not None, 'evaluator label must not be None'
+    #     if state.dataloader_label not in self.eval_wct_per_label:
+    #         self.eval_wct_per_label[state.dataloader_label] = []
+    #     self.eval_wct_per_label[state.dataloader_label].append(state.eval_timestamp.total_wct.total_seconds())
+    #     elapsed_dur = self._get_elapsed_duration(state)
+    #     assert elapsed_dur is not None, 'max_duration checked as non-None on batch_start if enabled'
+    #     assert self.start_dur is not None, 'start_dur is set on batch_start if enabled'
+    #     elapsed_fraction = elapsed_dur - self.start_dur
+    #     num_evals_finished = len(self.eval_wct_per_label[state.dataloader_label])
+    #     self.eval_frequency_per_label[state.dataloader_label] = elapsed_fraction / num_evals_finished

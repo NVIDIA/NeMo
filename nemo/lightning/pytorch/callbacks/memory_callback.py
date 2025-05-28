@@ -1,24 +1,35 @@
-import logging
-import math
-import warnings
-import wandb
-from typing import Optional, Union
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
+import math
+import wandb
 import torch
 import torch.cuda
+
+from typing import Optional, Union
 from torch import distributed
 from typing import Any
 
 import lightning.pytorch as pl
-
-__all__ = ['MemoryMonitor']
 
 
 def reduce_value(
     value: Union[int, float],
     reduce_op: str = 'mean',
 ):
-    """Reduce a value across distributed processes.
+    """
+    Reduce a value across distributed processes.
 
     Args:
         value (Union[int, float]): The value to reduce.
@@ -26,6 +37,7 @@ def reduce_value(
         reduce_op (str, optional): The reduction operation to perform. One of 'mean', 'avg', 'sum', 'min', 'max'.
             Defaults to 'mean'.
     """
+
     tensor_value = torch.tensor(value)
 
     if reduce_op in ['mean', 'avg', 'sum']:
@@ -45,25 +57,19 @@ def reduce_value(
 
 
 class MemoryMonitor(pl.Callback):
-    """Logs the memory usage of the model.
+    """
+    Logs the memory usage of the model.
 
     This callback calls the torch memory stats API for CUDA (see :func:`torch.cuda.memory_stats`)
     on the :attr:`.Event.AFTER_TRAIN_BATCH` and reports different memory statistics.
 
     Example:
-        .. doctest::
+        import nemo_run as run
+        from nemo.lightning.pytorch.callbacks import MemoryMonitor
 
-            >>> from composer import Trainer
-            >>> from composer.callbacks import MemoryMonitor
-            >>> # constructing trainer object with this callback
-            >>> trainer = Trainer(
-            ...     model=model,
-            ...     train_dataloader=train_dataloader,
-            ...     eval_dataloader=eval_dataloader,
-            ...     optimizers=optimizer,
-            ...     max_duration="1ep",
-            ...     callbacks=[MemoryMonitor()],
-            ... )
+        recipe.trainer.callbacks.append(
+            run.Config(MemoryMonitor)
+        )
 
     The memory statistics are logged by the :class:`.Logger` to the following keys as
     described below.
@@ -158,6 +164,16 @@ _MEMORY_KEYS = {
 
 
 def _get_memory_report(memory_keys: Optional[dict[str, str]] = None) -> dict[str, Union[int, float]]:
+    """
+    Returns a dictionary with memory metrics.
+
+    Args:
+        memory_keys (Optional[dict[str, str]]): a dict specifying memory statistics to log.
+
+    Retuns:
+        dict: memory statistics.
+    """
+
     memory_stats = torch.cuda.memory_stats()
     memory_keys = memory_keys or _MEMORY_KEYS
 

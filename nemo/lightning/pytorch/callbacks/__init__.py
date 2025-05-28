@@ -28,6 +28,8 @@ from nemo.lightning.pytorch.callbacks.progress_printer import ProgressPrinter
 from nemo.lightning.pytorch.callbacks.pytorch_profiler import PytorchProfilerCallback
 from nemo.lightning.pytorch.callbacks.memory_callback import MemoryMonitor
 from nemo.lightning.pytorch.callbacks.optimizer_monitor import OptimizerMonitor
+from nemo.lightning.pytorch.callbacks.runtime_estimator import RuntimeEstimator
+from nemo.lightning.pytorch.callbacks.speed_monitor import SpeedMonitor
 
 __all__ = [
     "MemoryProfileCallback",
