@@ -445,9 +445,7 @@ def export_hf_checkpoint(
 
     with torch.inference_mode():
         if isinstance(model, llm.HFAutoModelForCausalLM):
-            mte.export_hf_checkpoint(
-                unwrapped_model, export_dir=export_dir, **kwargs
-            )
+            mte.export_hf_checkpoint(unwrapped_model, export_dir=export_dir, **kwargs)
         else:
             with tempfile.TemporaryDirectory() as tmp_dir:
                 exporter.config.save_pretrained(tmp_dir)
