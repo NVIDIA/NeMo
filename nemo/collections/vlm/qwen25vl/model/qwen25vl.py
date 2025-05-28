@@ -17,7 +17,11 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Union
 
 import torch
+import transformers
 from megatron.core.transformer.transformer_config import TransformerConfig
+from packaging.version import Version
+from transformers import Qwen2_5_VLConfig as HFQwen25VLConfig
+from transformers import Qwen2_5_VLForConditionalGeneration
 
 from nemo.collections.llm import Qwen2Config, Qwen25Config3B, Qwen25Config7B, Qwen25Config72B
 from nemo.collections.vlm.qwen25vl.model.base import Qwen25VLConfig, Qwen25VLModel, Qwen25VLVisionConfig
@@ -91,11 +95,14 @@ class HFQwen25VLImporter(io.ModelConnector["Qwen2_5_VLForConditionalGeneration",
 
     def apply(self, output_path: Path) -> Path:
         # pylint: disable=C0115,C0116
-        from transformers import Qwen2_5_VLForConditionalGeneration
-
+        print(str(self))
         source = Qwen2_5_VLForConditionalGeneration.from_pretrained(str(self))
         target = self.init()
         trainer = self.nemo_setup(target)
+        for name, params in source.named_parameters():
+            print("hf: ", name, params.shape)
+        for name, params in target.named_parameters():
+            print("nemo: ", name, params.shape)
         self.convert_state(source, target)
         print(f"Converted Qwen2VL model to Nemo, saving to {output_path}")
 
@@ -175,9 +182,9 @@ class HFQwen25VLImporter(io.ModelConnector["Qwen2_5_VLForConditionalGeneration",
     @property
     def config(self) -> Qwen25VLConfig:
         # pylint: disable=C0115,C0116
-        from transformers import Qwen2_5_VLConfig as HFQwen25VLConfig
 
         hf_config = HFQwen25VLConfig.from_pretrained(str(self))
+        print("hf_config", hf_config)
 
         def make_vocab_size_divisible_by(vocab_size):
             # pylint: disable=C0115,C0116
@@ -219,6 +226,235 @@ class HFQwen25VLImporter(io.ModelConnector["Qwen2_5_VLForConditionalGeneration",
         )
 
         return output
+
+
+@io.model_exporter(Qwen25VLModel, "hf")
+class HFQwen25VLExporter(io.ModelConnector[Qwen25VLModel, "Qwen2_5_VLForConditionalGeneration"]):
+    """
+    Exporter class for converting NeMo Qwen2.5-VL model to HuggingFace format.
+
+    Inherits:
+        io.ModelConnector: Connector interface to handle setup, save, and load using the Lightning framework.
+
+    Methods:
+        init: Initializes a new HuggingFace LLaVA Next model instance.
+        apply: Converts the NeMo model to HuggingFace format and saves it.
+        convert_state: Maps and transforms the state dictionary from NeMo to HuggingFace format.
+        config: Generates and returns the HuggingFace LLaVA config for the model.
+    """
+
+    print("HFQwen25VLExporter")
+
+    def init(self) -> "Qwen2_5_VLForConditionalGeneration":
+        """
+        Initializes a HuggingFace Qwen2_5_VLForConditionalGeneration model.
+
+        Args:
+            dtype: The data type to use for the model (default: torch.bfloat16)
+
+        Returns:
+            Qwen2_5_VLForConditionalGeneration: A HuggingFace LLaVA Next model initialized with the configuration.
+        """
+        from transformers.modeling_utils import no_init_weights
+
+        with no_init_weights():
+            return Qwen2_5_VLForConditionalGeneration(self.config)
+
+    def apply(self, output_path: Path) -> Path:
+        """
+        Converts the NeMo LLaVA Next model to HuggingFace format and saves it to the specified path.
+
+        Args:
+            output_path (Path): The path where the converted HuggingFace model will be saved.
+
+        Returns:
+            Path: The output path where the HuggingFace model was saved.
+        """
+        print("HFQwen25VLExporter apply")
+        source, _ = self.nemo_load(str(self))
+        target = self.init()
+        for name, params in source.named_parameters():
+            print("nemo: ", name, params.shape)
+        for name, params in target.named_parameters():
+            print("hf: ", name, params.shape)
+        target = self.convert_state(source, target)
+
+        target = target.cpu()
+        target.save_pretrained(output_path)
+        try:
+            self.tokenizer.tokenizer.save_pretrained(output_path)
+        except Exception:
+            logging.warning("Failed to save tokenizer")
+
+        return output_path
+
+    def convert_state(self, source, target):
+        # pylint: disable=C0115,C0116,line-too-long
+        """
+        Maps and transforms the state dictionary from NeMo to HuggingFace format.
+
+        Args:
+            source: The source NeMo model.
+            target: The target HuggingFace model.
+
+        Returns:
+            The target HuggingFace model with the converted state.
+        """
+        # Define the state mapping from NeMo to HuggingFace
+        mapping = {
+            "vision_model.conv1.weight": "visual.patch_embed.proj.weight",
+            "vision_model.decoder.layers.*.self_attention.linear_qkv.layer_norm_weight": "visual.blocks.*.norm1.weight",
+            "vision_model.decoder.layers.*.self_attention.linear_qkv.layer_norm_bias": "visual.blocks.*.norm1.bias",
+            "vision_model.decoder.layers.*.mlp.linear_fc1.layer_norm_weight": "visual.blocks.*.norm2.weight",
+            "vision_model.decoder.layers.*.mlp.linear_fc1.layer_norm_bias": "visual.blocks.*.norm2.bias",
+            "vision_model.decoder.layers.*.self_attention.linear_proj.weight": "visual.blocks.*.attn.proj.weight",
+            "vision_model.decoder.layers.*.self_attention.linear_proj.bias": "visual.blocks.*.attn.proj.bias",
+            "vision_model.decoder.layers.*.mlp.linear_fc2.weight": "visual.blocks.*.mlp.down_proj.weight",
+            "vision_model.decoder.layers.*.mlp.linear_fc2.bias": "visual.blocks.*.mlp.down_proj.bias",
+            "vision_model.decoder.final_layernorm.weight": "visual.merger.ln_q.weight",
+            "language_model.embedding.word_embeddings.weight": "model.embed_tokens.weight",
+            "language_model.decoder.layers.*.self_attention.linear_proj.weight": "model.layers.*.self_attn.o_proj.weight",
+            "language_model.decoder.layers.*.mlp.linear_fc2.weight": "model.layers.*.mlp.down_proj.weight",
+            "language_model.decoder.layers.*.self_attention.linear_qkv.layer_norm_weight": "model.layers.*.input_layernorm.weight",
+            "language_model.decoder.layers.*.mlp.linear_fc1.layer_norm_weight": "model.layers.*.post_attention_layernorm.weight",
+            "language_model.decoder.final_layernorm.weight": "model.norm.weight",
+            "language_model.output_layer.weight": "lm_head.weight",
+        }
+
+        if "vision_projection.encoder.linear_fc1.weight" in source.module.state_dict().keys():
+            mapping.update(
+                {
+                    "vision_projection.encoder.linear_fc1.weight": "visual.merger.mlp.0.weight",
+                    "vision_projection.encoder.linear_fc1.bias": "visual.merger.mlp.0.bias",
+                    "vision_projection.encoder.linear_fc2.weight": "visual.merger.mlp.2.weight",
+                    "vision_projection.encoder.linear_fc2.bias": "visual.merger.mlp.2.bias",
+                }
+            )
+        elif "vision_projection.0.weight" in source.module.state_dict().keys():
+            mapping.update(
+                {
+                    "vision_projection.0.weight": "visual.merger.mlp.0.weight",
+                    "vision_projection.0.bias": "visual.merger.mlp.0.bias",
+                    "vision_projection.2.weight": "visual.merger.mlp.2.weight",
+                    "vision_projection.2.bias": "visual.merger.mlp.2.bias",
+                }
+            )
+        else:
+            raise KeyError("Unable to map vision projection keys.")
+
+        return io.apply_transforms(
+            source,
+            target,
+            mapping=mapping,
+            transforms=[
+                _export_language_qkv,
+                _export_language_qkv_bias,
+                _export_vision_qkv,
+                _export_vision_qkv_bias,
+                _export_linear_fc1,
+                _export_vision_linear_fc1_weight,
+                _export_vision_linear_fc1_bias,
+            ],
+        )
+
+    @property
+    def tokenizer(self) -> "TokenizerSpec":
+        """
+        Gets the tokenizer from the loaded model context.
+
+        Returns:
+            The tokenizer specification.
+        """
+        return io.load_context(str(self), subpath="model").tokenizer
+
+    @property
+    def config(self) -> "HFQwen25VLConfig":
+        """
+        Generates the configuration for the HuggingFace Qwen2.5-VL model based on the NeMo model.
+
+        Returns:
+            HFQwen25VLConfig: A configuration object for the HuggingFace Qwen2.5-VL model.
+        """
+        from transformers.models.qwen2_5_vl.configuration_qwen2_5_vl import (
+            Qwen2_5_VLVisionConfig as HFQwen25VLVisionConfig,
+        )
+
+        source = io.load_context(str(self), subpath="model.config")
+        source_language = source.language_transformer_config
+        source_vision = source.vision_transformer_config
+
+        if Version(transformers.__version__) > Version('4.51.3'):
+            from transformers.models.qwen2_5_vl.configuration_qwen2_5_vl import (
+                Qwen2_5_VLTextConfig as HFQwen25VLTextConfig,
+            )
+
+        vision_config = {
+            "hidden_size": source_vision.hidden_size,
+            "intermediate_size": source_vision.ffn_hidden_size,
+            "out_hidden_size": source_language.hidden_size,
+            "num_heads": source_vision.num_attention_heads,
+            "spatial_patch_size": source_vision.spatial_patch_size,
+            "in_chans": 3,
+            "tokens_per_second": 2,
+        }
+
+        # Create text config for HuggingFace model
+        # text_config = HFQwen25VLTextConfig(
+        #     num_hidden_layers=language_config.num_layers,
+        #     hidden_size=language_config.hidden_size,
+        #     intermediate_size=language_config.ffn_hidden_size,
+        #     num_attention_heads=language_config.num_attention_heads,
+        #     max_position_embeddings=language_config.seq_length,
+        #     initializer_range=language_config.init_method_std,
+        #     rms_norm_eps=language_config.layernorm_epsilon,
+        #     num_key_value_heads=language_config.num_query_groups,
+        #     rope_theta=language_config.rotary_base,
+        #     vocab_size=self.tokenizer.vocab_size,
+        #     tie_word_embeddings=language_config.share_embeddings_and_output_weights,
+        # )
+        # # Create vision config for HuggingFace model
+        # vision_config = HFQwen25VLVisionConfig(
+        #     num_hidden_layers=language_config.num_layers,
+        #     hidden_size=language_config.hidden_size,
+        #     intermediate_size=language_config.ffn_hidden_size,
+        #     num_attention_heads=language_config.num_attention_heads,
+        #     max_position_embeddings=language_config.seq_length,
+        #     initializer_range=language_config.init_method_std,
+        #     rms_norm_eps=language_config.layernorm_epsilon,
+        #     num_key_value_heads=language_config.num_query_groups,
+        #     rope_theta=language_config.rotary_base,
+        #     vocab_size=self.tokenizer.vocab_size,
+        #     tie_word_embeddings=language_config.share_embeddings_and_output_weights,
+        # )
+        # Create the LlavaConfig for HuggingFace
+        hf_config = HFQwen25VLConfig(
+            # text_config=text_config,
+            vision_config=vision_config,
+            num_hidden_layers=source_language.num_layers,
+            hidden_size=source_language.hidden_size,
+            intermediate_size=source_language.ffn_hidden_size,
+            num_attention_heads=source_language.num_attention_heads,
+            max_window_layers=70,
+            max_position_embeddings=source_language.seq_length,
+            initializer_range=source_language.init_method_std,
+            rms_norm_eps=source_language.layernorm_epsilon,
+            num_key_value_heads=source_language.num_query_groups,
+            rope_theta=source_language.rotary_base,
+            vocab_size=source_language.vocab_size,
+            rope_scaling={"type": "mrope", "mrope_section": [16, 24, 24]},
+            tie_word_embeddings=source_language.share_embeddings_and_output_weights,
+            torch_dtype="bfloat16",
+            # vocab_size=self.tokenizer.vocab_size,
+            bos_token_id=151643,
+            eos_token_id=151645,
+            vision_start_token_id=151652,
+            vision_end_token_id=151653,
+            vision_token_id=151654,
+            image_token_id=151655,
+            video_token_id=51656,
+        )
+        print("export hf_config", hf_config)
+        return hf_config
 
 
 def import_qkv(q, k, v, head_num, num_query_groups, heads_per_group, hidden_size, head_size):
@@ -383,3 +619,178 @@ def _import_vision_linear_fc1_weight(down, gate):
 def _import_vision_linear_fc1_bias(down, gate):
     # pylint: disable=C0115,C0116
     return torch.cat((down, gate), axis=0)
+
+
+def export_qkv(linear_qkv, head_num, num_query_groups, heads_per_group, hidden_size, head_size):
+    # pylint: disable=C0115,C0116
+    qkv_total_dim = head_num + 2 * num_query_groups
+
+    linear_qkv = linear_qkv.reshape([qkv_total_dim, head_size, -1])
+    hidden_size = linear_qkv.size(-1)
+    q_slice = torch.cat(
+        [
+            torch.arange((heads_per_group + 2) * i, (heads_per_group + 2) * i + heads_per_group)
+            for i in range(num_query_groups)
+        ]
+    )
+    k_slice = torch.arange(heads_per_group, qkv_total_dim, (heads_per_group + 2))
+    v_slice = torch.arange(heads_per_group + 1, qkv_total_dim, (heads_per_group + 2))
+
+    q_proj = linear_qkv[q_slice].reshape(-1, hidden_size).cpu()
+    k_proj = linear_qkv[k_slice].reshape(-1, hidden_size).cpu()
+    v_proj = linear_qkv[v_slice].reshape(-1, hidden_size).cpu()
+
+    return q_proj, k_proj, v_proj
+
+
+def export_qkv_bias(qkv_bias: torch.Tensor, head_num, num_query_groups, heads_per_group, head_size):
+    """
+    Split interleave-concatenated qkv bias to separate q, k, v bias
+
+    Example: export layer linear_qkv bias to HF {q|k|v}_proj bias
+    """
+    qkv_total_dim = head_num + 2 * num_query_groups
+
+    qkv_bias = qkv_bias.reshape([qkv_total_dim, head_size])
+    q_slice = torch.cat(
+        [
+            torch.arange((heads_per_group + 2) * i, (heads_per_group + 2) * i + heads_per_group)
+            for i in range(num_query_groups)
+        ]
+    )
+    k_slice = torch.arange(heads_per_group, qkv_total_dim, (heads_per_group + 2))
+    v_slice = torch.arange(heads_per_group + 1, qkv_total_dim, (heads_per_group + 2))
+
+    q_bias = qkv_bias[q_slice].reshape(-1).cpu()
+    k_bias = qkv_bias[k_slice].reshape(-1).cpu()
+    v_bias = qkv_bias[v_slice].reshape(-1).cpu()
+
+    return q_bias, k_bias, v_bias
+
+
+@io.state_transform(
+    source_key="language_model.decoder.layers.*.self_attention.linear_qkv.weight",
+    target_key=(
+        "model.layers.*.self_attn.q_proj.weight",
+        "model.layers.*.self_attn.k_proj.weight",
+        "model.layers.*.self_attn.v_proj.weight",
+    ),
+)
+def _export_language_qkv(ctx: io.TransformCTX, qkv):
+    # pylint: disable=C0115,C0116
+    if Version(transformers.__version__) > Version('4.51.3'):
+        hf_config = ctx.target.config.text_config
+    else:
+        hf_config = ctx.target.config
+    print("_export_language_qkv")
+    return export_qkv(
+        qkv,
+        head_num=hf_config.num_attention_heads,
+        num_query_groups=hf_config.num_key_value_heads,
+        heads_per_group=hf_config.num_attention_heads // hf_config.num_key_value_heads,
+        hidden_size=hf_config.hidden_size,
+        head_size=hf_config.hidden_size // hf_config.num_attention_heads,
+    )
+
+
+@io.state_transform(
+    source_key="language_model.decoder.layers.*.self_attention.linear_qkv.bias",
+    target_key=(
+        "model.layers.*.self_attn.q_proj.bias",
+        "model.layers.*.self_attn.k_proj.bias",
+        "model.layers.*.self_attn.v_proj.bias",
+    ),
+)
+def _export_language_qkv_bias(ctx: io.TransformCTX, qkv_bias):
+    # pylint: disable=C0115,C0116
+    if Version(transformers.__version__) > Version('4.51.3'):
+        hf_config = ctx.target.config.text_config
+    else:
+        hf_config = ctx.target.config
+    print("_export_language_qkv_bias")
+    return export_qkv_bias(
+        qkv_bias,
+        head_num=hf_config.num_attention_heads,
+        num_query_groups=hf_config.num_key_value_heads,
+        heads_per_group=hf_config.num_attention_heads // hf_config.num_key_value_heads,
+        head_size=hf_config.hidden_size // hf_config.num_attention_heads,
+    )
+
+
+@io.state_transform(
+    source_key="vision_model.decoder.layers.*.self_attention.linear_qkv.weight",
+    target_key="visual.blocks.*.attn.qkv.weight",
+)
+def _export_vision_qkv(ctx: io.TransformCTX, qkv):
+    # pylint: disable=C0115,C0116
+    hf_config = ctx.target.config.vision_config
+    q, k, v = export_qkv(
+        qkv,
+        head_num=hf_config.num_heads,
+        num_query_groups=hf_config.num_heads,
+        heads_per_group=1,
+        hidden_size=hf_config.hidden_size,
+        head_size=hf_config.hidden_size // hf_config.num_heads,
+    )
+    print("_export_vision_qkv", q.shape)
+    return torch.cat([q, k, v])
+
+
+@io.state_transform(
+    source_key="vision_model.decoder.layers.*.self_attention.linear_qkv.bias",
+    target_key="visual.blocks.*.attn.qkv.bias",
+)
+def _export_vision_qkv_bias(ctx: io.TransformCTX, qkv_bias):
+    # pylint: disable=C0115,C0116
+    hf_config = ctx.target.config.vision_config
+    q_bias, k_bias, v_bias = export_qkv_bias(
+        qkv_bias,
+        head_num=hf_config.num_heads,
+        num_query_groups=hf_config.num_heads,
+        heads_per_group=1,
+        head_size=hf_config.hidden_size // hf_config.num_heads,
+    )
+    print("_export_vision_qkv_bias", q_bias.shape)
+    return torch.cat([q_bias, k_bias, v_bias])
+
+
+@io.state_transform(
+    source_key="language_model.decoder.layers.*.mlp.linear_fc1.weight",
+    target_key=(
+        "model.layers.*.mlp.gate_proj.weight",
+        "model.layers.*.mlp.up_proj.weight",
+    ),
+)
+def _export_linear_fc1(ctx: io.TransformCTX, fc1_weight):
+    # pylint: disable=C0115,C0116
+    gate_proj, up_proj = torch.chunk(fc1_weight, 2, dim=0)
+    print("_export_linear_fc1")
+    return gate_proj, up_proj
+
+
+@io.state_transform(
+    source_key="vision_model.decoder.layers.*.mlp.linear_fc1.weight",
+    target_key=(
+        "visual.blocks.*.mlp.gate_proj.weight",
+        "visual.blocks.*.mlp.up_proj.weight",
+    ),
+)
+def _export_vision_linear_fc1_weight(ctx: io.TransformCTX, vision_fc1_weight):
+    # pylint: disable=C0115,C0116
+    gate_proj, up_proj = torch.chunk(vision_fc1_weight, 2, dim=0)
+    print("_export_vision_linear_fc1_weight")
+    return gate_proj, up_proj
+
+
+@io.state_transform(
+    source_key="vision_model.decoder.layers.*.mlp.linear_fc1.bias",
+    target_key=(
+        "visual.blocks.*.mlp.gate_proj.bias",
+        "visual.blocks.*.mlp.up_proj.bias",
+    ),
+)
+def _export_vision_linear_fc1_bias(ctx: io.TransformCTX, vision_fc1_bias):
+    # pylint: disable=C0115,C0116
+    gate_proj, up_proj = torch.chunk(vision_fc1_bias, 2, dim=0)
+    print("_export_vision_linear_fc1_bias")
+    return gate_proj, up_proj
