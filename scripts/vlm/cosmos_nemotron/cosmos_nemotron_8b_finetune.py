@@ -79,8 +79,8 @@ def main(args):
         normalization='LayerNorm', projector_type="mcore_mlp",
     )
 
-    # NEVA model configuration
-    neva_config = vlm.CosmosNemotronConfig(
+    # CosmosNemotron model configuration
+    cosmos_nemotron_config = vlm.CosmosNemotronConfig(
         language_transformer_config=language_transformer_config,
         vision_transformer_config=vision_transformer_config,
         vision_projection_config=vision_projection_config,
@@ -91,7 +91,7 @@ def main(args):
     )
     num_image_embeddings_per_tile = (
             vision_transformer_config.num_image_embeddings_per_tile
-            - vision_transformer_config.class_token_len * neva_config.drop_vision_class_token
+            - vision_transformer_config.class_token_len * cosmos_nemotron_config.drop_vision_class_token
     )
 
     from nemo.collections.common.tokenizers import AutoTokenizer
@@ -215,7 +215,7 @@ def main(args):
         ckpt_load_strictness="log_all",
     )
 
-    model = vlm.NevaModel(neva_config, tokenizer=data.tokenizer)
+    model = vlm.CosmosNemotronModel(cosmos_nemotron_config, tokenizer=data.tokenizer)
 
     # Checkpoint callback setup
     checkpoint_callback = nl.ModelCheckpoint(
