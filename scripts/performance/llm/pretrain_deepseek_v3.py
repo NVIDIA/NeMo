@@ -90,7 +90,6 @@ def override_recipe_configs(
     )
     callbacks.extend([garbage_collection_callback, comm_overlap_callback])
     recipe.trainer.callbacks.extend(callbacks)
-    print(etp_size)
     recipe = set_primary_perf_configs(
         recipe,
         "pre_train",
@@ -142,7 +141,6 @@ if __name__ == "__main__":
     args_sanity_check(args)
 
     kwargs = get_user_configs(args.gpu.lower(), "pre_train", "deepseek", "v3", args)
-    print(kwargs)
     (
         num_nodes,
         mbs,
@@ -184,6 +182,30 @@ if __name__ == "__main__":
     exp_config = f"{num_nodes}nodes_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_ep{ep_size}_{mbs}mbs_{gbs}gbs"
     exp_name = f"{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
 
+    plugins = [
+        PerfEnvPlugin(
+            enable_vboost=True,
+            nccl_pp_comm_chunksize=2097152 if pp_size > 1 else None,
+            gpu_sm100_or_newer=(args.gpu.lower() in ['b200', 'gb200']),
+        )
+    ]
+    custom_env_vars={}
+    if args.enable_nsys:
+        plugins.append(
+            NsysPlugin(
+                start_step=args.profiling_start_step,
+                end_step=args.profiling_stop_step,
+                ranks=list(range(num_nodes * args.gpus_per_node)),
+            )
+        )
+        # nsys takes precedent over ncclttrace
+    elif args.enable_nccltrace:
+        exp_name = exp_name + "_nccltrace"
+        custom_env_vars |= {
+            "NCCL_DEBUG_SUBSYS": "COLL,P2P,NET",
+            "NCCL_DEBUG": "INFO",
+        }
+
     executor = slurm_executor(
         args.account,
         args.partition,
@@ -193,27 +215,11 @@ if __name__ == "__main__":
         args.time_limit,
         args.container_image,
         custom_mounts=args.custom_mounts,
-        custom_env_vars={},
+        custom_env_vars=custom_env_vars,
         hf_token=args.hf_token,
         nemo_home=args.nemo_home,
         wandb_key=args.wandb_key,
     )
-
-    plugins = [
-        PerfEnvPlugin(
-            enable_vboost=True,
-            nccl_pp_comm_chunksize=2097152 if pp_size > 1 else None,
-            gpu_sm100_or_newer=(args.gpu.lower() in ['b200', 'gb200']),
-        )
-    ]
-    if args.enable_nsys:
-        plugins.append(
-            NsysPlugin(
-                start_step=args.profiling_start_step,
-                end_step=args.profiling_stop_step,
-                ranks=list(range(num_nodes * args.gpus_per_node)),
-            )
-        )
 
     with run.Experiment(exp_name) as exp:
         exp.add(
