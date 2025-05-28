@@ -82,18 +82,40 @@ def override_recipe_configs(
         None  # run.Config(AutoEncoderConfig, ckpt='/ckpts/ae.safetensors', ch_mult=[1,2,4,4], attn_resolutions=[])
     )
 
-    from nemo.collections.diffusion.models.flux.model import FluxConfig
 
-    recipe.model.flux_params.flux_config = run.Config(
-        FluxConfig,
-        gradient_accumulation_fusion=False,
-    )
+    """
+    if args.gpu.lower() == "h100":
+        from nemo.collections.diffusion.models.flux.model import FluxConfig
 
-    recipe.trainer.strategy.fsdp = "megatron"
-    recipe.trainer.strategy.ddp.use_custom_fsdp = True
-    recipe.trainer.strategy.ddp.data_parallel_sharding_strategy = "optim_grads_params"
-    recipe.trainer.strategy.ddp.overlap_grad_reduce = True
-    recipe.trainer.strategy.ddp.overlap_param_gather = True
+        recipe.model.flux_params.flux_config = run.Config(
+            FluxConfig,
+            gradient_accumulation_fusion=False,
+        )
+
+        recipe.trainer.strategy.fsdp = "megatron"
+        recipe.trainer.strategy.ddp.use_custom_fsdp = True
+        recipe.trainer.strategy.ddp.data_parallel_sharding_strategy = "optim_grads_params"
+        recipe.trainer.strategy.ddp.overlap_grad_reduce = True
+        recipe.trainer.strategy.ddp.overlap_param_gather = True
+    """
+    if args.gpu.lower() in ["h100", "b200", "gb200"]:
+        from nemo.collections.diffusion.models.flux.model import FluxConfig
+
+        recipe.model.flux_params.flux_config = run.Config(
+            FluxConfig,
+            enable_cuda_graph=True,
+            use_te_rng_tracker=True,
+        )
+        recipe.trainer.strategy.use_te_rng_tracker=True
+        
+        from megatron.core.distributed import DistributedDataParallelConfig
+        recipe.trainer.strategy.ddp = run.Config(
+            DistributedDataParallelConfig,
+            use_custom_fsdp=False,
+            check_for_nan_in_grad=True,
+            grad_reduce_in_fp32=True,
+            overlap_grad_reduce=True,
+        )
 
     recipe.data.global_batch_size = 8
 
