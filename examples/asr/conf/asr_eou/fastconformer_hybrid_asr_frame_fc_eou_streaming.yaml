@@ -70,7 +70,7 @@ model:
   
     augmentor:
       white_noise:
-        prob: 0.5
+        prob: 0.9
         min_level: -90
         max_level: -46
       gain:
