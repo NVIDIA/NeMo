@@ -343,6 +343,7 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
                     # then the optimizer step will be applied to the main high-precision model weights. Update the model
                     # weights after the optimizer step.
                     lightning_module.model.param_and_grad_buffer.copy_main_weights_to_model_weights()
+                    lightning_module.model.zero_grad_buffer()
 
             # Replace the hook with a modified version that updates the model weights after taking an optimizer step.
             self.lightning_module.optimizer_step = types.MethodType(
@@ -477,10 +478,6 @@ class FSDP2Strategy(PLModelParallelStrategy, io.IOMixin):
 
         assert self.lightning_module is not None
         assert self.model is not None
-
-        if self.cfsdp2:
-            # If custom FSDP2 is enabled, zero out the gradient buffer before the next forward-backward step.
-            self.lightning_module.model.zero_grad_buffer()
 
         if self.context_parallel_size > 1:
             # Only pass context_parallel=True if AutoModel supports and has non-trivial CP.
