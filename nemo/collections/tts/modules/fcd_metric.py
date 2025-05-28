@@ -57,13 +57,13 @@ class CodecEmbedder(nn.Module):
         Encodes an audio file into audio codec codes.
         """
         audio_segment = AudioSegment.from_file(
-            audio_path, target_sr=self.codec.sample_rate, offset=0, duration=0
-        )
+            audio_path, target_sr=self.codec.sample_rate)
         assert np.issubdtype(audio_segment.samples.dtype, np.floating)
         audio_min = audio_segment.samples.min()
         audio_max = audio_segment.samples.max()
-        if audio_min <= -1.0 or audio_max >= 1.0:
-            logging.warning(f"Audio samples are not normalized to [-1, 1]: min={audio_min}, max={audio_max}")
+        eps = 0.01 # certain ways of normalizing audio can result in samples that are slightly outside of [-1, 1]
+        if audio_min < (-1.0 - eps) or audio_max > (1.0 + eps):
+            logging.warning(f"Audio samples are not normalized: min={audio_min}, max={audio_max}")
         samples = torch.tensor(audio_segment.samples, device=self.codec.device).unsqueeze(0)
         audio_len = torch.tensor(samples.shape[1], device=self.codec.device).unsqueeze(0)
         codes, codes_len = self.codec.encode(audio=samples, audio_len=audio_len)
@@ -161,11 +161,12 @@ class FrechetCodecDistance(Metric):
 
     def update(self, codes: Tensor, codes_len: Tensor, is_real: bool):
         """
-        Update the states with a batch of real and fake codes.
+        Update the states with a batch of real or fake codes.
         Takes pre-computed codec codes, embeds them, and updates the FCD metric.
 
         Args:
             codes (Tensor): A batch of codec frames of shape (B, C, T).
+            codes_len (Tensor): A batch of lengths of the codec frames of shape (B,).
             is_real (Boolean): Denotes if samples are real or not.
         """
         assert codes.ndim == 3

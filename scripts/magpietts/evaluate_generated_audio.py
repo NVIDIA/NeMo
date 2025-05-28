@@ -28,10 +28,7 @@ import librosa
 import scripts.magpietts.evalset_config as evalset_config
 from transformers import Wav2Vec2FeatureExtractor, WavLMForXVector
 
-def find_generated_files(audio_dir, file_type):
-    assert file_type in ["audio", "codes"], f"Invalid file type: {file_type}"
-    extension = ".wav" if file_type == "audio" else ".pt"
-    prefix = "predicted_audio" if file_type == "audio" else "predicted_codes"
+def find_generated_files(audio_dir, prefix, extension):
     file_list = []
     for f in os.listdir(audio_dir):
         if prefix in f and f.endswith(extension):
@@ -40,6 +37,12 @@ def find_generated_files(audio_dir, file_type):
     file_list.sort()
     file_list = [t[1] for t in file_list]
     return file_list
+
+def find_generated_audio_files(audio_dir):
+    return find_generated_files(audio_dir=audio_dir, prefix="predicted_audio", extension=".wav")
+
+def find_generated_codec_files(audio_dir):
+    return find_generated_files(audio_dir=audio_dir, prefix="predicted_codes", extension=".pt")
 
 def read_manifest(manifest_path):
     records = []
@@ -97,11 +100,11 @@ def extract_embedding(model, extractor, audio_path, device, sv_model_type):
 
 def evaluate(manifest_path, audio_dir, generated_audio_dir, language="en", sv_model_type="titanet", asr_model_name="stt_en_conformer_transducer_large",
              codecmodel_path=None):
-    audio_file_lists = find_generated_files(generated_audio_dir, "audio")
+    audio_file_lists = find_generated_audio_files(generated_audio_dir)
     records = read_manifest(manifest_path)
     assert len(audio_file_lists) == len(records)
     if codecmodel_path is not None:
-        codes_file_lists = find_generated_files(generated_audio_dir, "codes")
+        codes_file_lists = find_generated_codec_files(generated_audio_dir)
         assert len(codes_file_lists) == len(records)
 
     device = "cuda"
@@ -202,8 +205,8 @@ def evaluate(manifest_path, audio_dir, generated_audio_dir, language="en", sv_mo
 
         # update FCD metric
         if fcd_metric is not None:
-            predicted_codes = torch.load(pred_codes_filepath).unsqueeze(0)
-            predicted_codes_lens = torch.tensor([predicted_codes.size(1)], dtype=torch.int, device=device)
+            predicted_codes = torch.load(pred_codes_filepath).unsqueeze(0) # B, C, T
+            predicted_codes_lens = torch.tensor([predicted_codes.size(-1)], dtype=torch.int, device=device)
             fcd_metric.update(predicted_codes, predicted_codes_lens, False)
 
         pred_context_ssim = 0.0
