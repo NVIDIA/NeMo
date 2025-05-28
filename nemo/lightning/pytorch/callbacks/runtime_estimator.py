@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import time
-from typing import Optional
+from typing import Optional, Any
 
 import lightning.pytorch as pl
 import wandb
