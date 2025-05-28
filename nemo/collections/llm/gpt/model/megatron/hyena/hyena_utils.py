@@ -608,7 +608,9 @@ class ExplicitSingleDecayFilter(nn.Module):
         self.model_parallel_rank = get_tensor_model_parallel_rank()
         self.model_parallel_size = get_tensor_model_parallel_world_size()
         global_d_model = d_model * self.model_parallel_size // self.num_decay_repeats
-        decay_domain = torch.logspace(log_r_min, log_r_max, global_d_model, device=torch.cuda.current_device())[:, None].repeat(self.num_decay_repeats, 1)
+        decay_domain = torch.logspace(log_r_min, log_r_max, global_d_model, device=torch.cuda.current_device())[
+            :, None
+        ].repeat(self.num_decay_repeats, 1)
         decay_domain = decay_domain[self.model_parallel_rank * d_model : (self.model_parallel_rank + 1) * d_model, :]
         decay = torch.exp(-decay_domain * t)
         self.register_buffer("decay", decay)
@@ -1148,7 +1150,9 @@ class B2BCausalConv1dModule(nn.Module):
     Combines the projection and mixer convolutions into a single optimized operation.
     """
 
-    def __init__(self, proj_conv_module, mixer_module, operator_type="hyena_short_conv", b2b_causal_conv1d=b2b_causal_conv1d):
+    def __init__(
+        self, proj_conv_module, mixer_module, operator_type="hyena_short_conv", b2b_causal_conv1d=b2b_causal_conv1d
+    ):
         """Initialize the B2BCausalConv1dModule.
 
         Args:
@@ -1178,7 +1182,6 @@ class B2BCausalConv1dModule(nn.Module):
             raise ValueError(f"Operator type {operator_type} not supported")
 
         self.effective_pad_size = (self._mixer_kernel_size - 1) + (self._proj_conv_kernel_size - 1)
-
 
     def forward(self, x, _use_cp=True):
         """Forward pass for the B2BCausalConv1dModule.

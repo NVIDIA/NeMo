@@ -151,7 +151,9 @@ def mixer(test_config: HyenaTestConfig, hyena_config: HyenaConfig, operator_type
     """Create a HyenaMixer instance for testing with PyTorch implementation"""
     with init_distributed_parallel_state(world_size=1):
         # Create the mixer
-        mixer = B2BConv1d(hyena_config, test_config, seq_len=512, use_b2b_causal_conv1d=False, operator_type=operator_type)
+        mixer = B2BConv1d(
+            hyena_config, test_config, seq_len=512, use_b2b_causal_conv1d=False, operator_type=operator_type
+        )
         yield mixer
 
 
@@ -160,7 +162,9 @@ def mixer_kernel(test_config: HyenaTestConfig, hyena_config: HyenaConfig, operat
     """Create a HyenaMixer instance for testing with CUDA kernel implementation"""
     with init_distributed_parallel_state(world_size=1):
         # Create the mixer
-        mixer_kernel = B2BConv1d(hyena_config, test_config, seq_len=512, use_b2b_causal_conv1d=True, operator_type=operator_type)
+        mixer_kernel = B2BConv1d(
+            hyena_config, test_config, seq_len=512, use_b2b_causal_conv1d=True, operator_type=operator_type
+        )
         yield mixer_kernel
 
 
@@ -186,9 +190,11 @@ def test_b2b_causal_conv1d(mixer: B2BConv1d, mixer_kernel: B2BConv1d, config_typ
 
         # PyTorch Mixer
         output_features = mixer(input_features)
-        assert output_features.shape == (batch_size, mixer.mixer.hidden_size, seq_len), (
-            f"output_features.shape: {output_features.shape}, batch_size: {batch_size}, mixer.mixer.hidden_size: {mixer.mixer.hidden_size}, seq_len: {seq_len}"
-        )
+        assert output_features.shape == (
+            batch_size,
+            mixer.mixer.hidden_size,
+            seq_len,
+        ), f"output_features.shape: {output_features.shape}, batch_size: {batch_size}, mixer.mixer.hidden_size: {mixer.mixer.hidden_size}, seq_len: {seq_len}"
 
         loss = output_features.float().mean()
         loss.backward()
@@ -207,9 +213,7 @@ def test_b2b_causal_conv1d(mixer: B2BConv1d, mixer_kernel: B2BConv1d, config_typ
             batch_size,
             mixer_kernel.mixer.hidden_size,
             seq_len,
-        ), (
-            f"output_features_kernel.shape: {output_features_kernel.shape}, batch_size: {batch_size}, mixer_kernel.mixer.hidden_size: {mixer_kernel.mixer.hidden_size}, seq_len: {seq_len}"
-        )
+        ), f"output_features_kernel.shape: {output_features_kernel.shape}, batch_size: {batch_size}, mixer_kernel.mixer.hidden_size: {mixer_kernel.mixer.hidden_size}, seq_len: {seq_len}"
 
         loss_kernel = output_features_kernel.float().mean()
         loss_kernel.backward()

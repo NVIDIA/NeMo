@@ -166,7 +166,7 @@ class HyenaMixer(MegatronModule):
             self.hyena_config,
             kernel_size=self.hyena_config.short_conv_L,
             init_method=transformer_config.init_method,
-            bias=False, # bias not currently supported (self.hyena_config.conv_proj_bias),
+            bias=False,  # bias not currently supported (self.hyena_config.conv_proj_bias),
             use_fast_causal_conv=self.fast_conv_proj,
         )
 
