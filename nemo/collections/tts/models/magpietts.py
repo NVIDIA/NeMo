@@ -285,8 +285,8 @@ class MagpieTTSModel(ModelPT):
             codes, codes_len = self._codec_model.encode(audio=audio, audio_len=audio_len)
             # Add a timestep to begining and end of codes tensor
             bos_tensor = torch.full(
-                (codes.size(0), codes.size(1), 1), audio_bos_id, dtype=codes.dtype, device=codes.device
-            )
+                (codes.size(0), codes.size(1), self.downsampling_factor), audio_bos_id, dtype=codes.dtype, device=codes.device
+            ) # TODO @rfejgin: not tested with downsampling factor > 1
             pad_tensor = torch.full(
                 (codes.size(0), codes.size(1), 1), 0, dtype=codes.dtype, device=codes.device
             )  # 0 is the padding token in the audio codebook
@@ -294,9 +294,8 @@ class MagpieTTSModel(ModelPT):
             # codes: (B, C, T')
             # codes_len: (B,)
             for idx in range(codes.size(0)):
-                codes[idx, :, codes_len[idx] + 1] = audio_eos_id
-            codes_len = codes_len + 2
-
+                codes[idx, :, codes_len[idx] + self.downsampling_factor] = audio_eos_id
+            codes_len = codes_len + self.downsampling_factor + 1 # +downsampling_factor for (repeated) bos and +1 for eos
             return codes.long(), codes_len.long()
 
     def codes_to_audio(self, codes, codes_len):
@@ -1110,7 +1109,12 @@ class MagpieTTSModel(ModelPT):
         else:
             audio_codes = batch['audio_codes']
             audio_codes_lens = batch['audio_codes_lens']
-        # TODO: @rfejgin: repeat audio BOS token up to downsampling_factor so that at inference time we can start from a full chunk of BOS tokens
+        # TODO: @rfejgin: this assert might be slow due to GPU/CPU sync
+        assert (audio_codes[:,:,0] == self.audio_bos_id).all(), "Audio codes do not start with BOS token"
+        if self.downsampling_factor > 1:
+            # repeat the BOS token to downsampling_factor times
+            audio_codes = torch.cat([torch.full((audio_codes.size(0), audio_codes.size(1), self.downsampling_factor - 1), self.audio_bos_id, device=audio_codes.device, dtype=audio_codes.dtype), audio_codes], dim=2)
+            audio_codes_lens += self.downsampling_factor - 1
         audio_codes = self.pad_audio_codes(audio_codes, self.downsampling_factor, pad_token=0)
         audio_codes_input = audio_codes[:, :, :-self.downsampling_factor]  # B, C, T'
         audio_codes_target = audio_codes[:, :, self.downsampling_factor:]
