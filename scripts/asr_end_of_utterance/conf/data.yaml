@@ -21,7 +21,7 @@ data:
   shuffle_buffer_size: 10000
 
   random_padding:
-    prob: 0.5
+    prob: 1.0
     min_pad_duration: 1.0  # minimum duration of pre/post padding in seconds
     max_pad_duration: 10.0  # maximum duration of pre/post padding in seconds
     max_total_duration: 30.0  # maximum total duration of the padded audio in seconds
@@ -31,9 +31,9 @@ data:
 
   augmentor:
     white_noise:
-      prob: 0.5
-      min_level: -90
-      max_level: -46
+      prob: 1.0
+      min_level: -80
+      max_level: -40
     gain:
       prob: 0.5
       min_gain_dbfs: -10.0
