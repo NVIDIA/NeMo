@@ -104,8 +104,16 @@ def hyena_config() -> HyenaConfig:
     return config
 
 
+@pytest.fixture(params=[pytest.param("hyena_short_conv", id="short"), pytest.param("hyena_medium_conv", id="medium")])
+def operator_type(request):
+    """Parametrized operator type fixture"""
+    return request.param
+
+
 class B2BConv1d(torch.nn.Module):
-    def __init__(self, hyena_config, hyena_test_config, seq_len, use_b2b_causal_conv1d=False):
+    def __init__(
+        self, hyena_config, hyena_test_config, seq_len, use_b2b_causal_conv1d=False, operator_type="hyena_medium_conv"
+    ):
         super().__init__()
 
         # Create necessary submodules - use the mixer submodules like in the regular mixer fixture
@@ -113,6 +121,8 @@ class B2BConv1d(torch.nn.Module):
 
         # Set the b2b parameter in the config
         hyena_test_config.use_b2b_causal_conv1d = use_b2b_causal_conv1d
+        self.use_b2b_causal_conv1d = use_b2b_causal_conv1d
+        self.operator_type = operator_type
 
         print("Creating HyenaMixer...")
         self.mixer = HyenaMixer(
@@ -121,42 +131,49 @@ class B2BConv1d(torch.nn.Module):
             max_sequence_length=seq_len,
             submodules=submodules,
             layer_number=1,
-            operator_type="hyena_short_conv",
+            operator_type=self.operator_type,
         )
 
-    def forward(self, x, _use_cp=True):
-        features = self.mixer.hyena_proj_conv(x, _use_cp=_use_cp)
-        x1, x2, v = rearrange(
-            features, "b (g dg p) l -> b (g dg) p l", p=3, g=self.mixer.num_groups_per_tp_rank
-        ).unbind(dim=2)
-        z = self.mixer.mixer(x1, x2, v, _hyena_use_cp=_use_cp)
+    def forward(self, x, _use_cp=False):
+        if self.use_b2b_causal_conv1d:
+            z = self.mixer.b2b_kernel(x, _use_cp=_use_cp)
+        else:
+            features = self.mixer.hyena_proj_conv(x, _use_cp=_use_cp)
+            x1, x2, v = rearrange(
+                features, "b (g dg p) l -> b (g dg) p l", p=3, g=self.mixer.num_groups_per_tp_rank
+            ).unbind(dim=2)
+            z = self.mixer.mixer(x1, x2, v, _hyena_use_cp=_use_cp)
         return z
 
 
 @pytest.fixture
-def mixer(test_config: HyenaTestConfig, hyena_config: HyenaConfig):
+def mixer(test_config: HyenaTestConfig, hyena_config: HyenaConfig, operator_type: str):
     """Create a HyenaMixer instance for testing with PyTorch implementation"""
     with init_distributed_parallel_state(world_size=1):
         # Create the mixer
-        mixer = B2BConv1d(hyena_config, test_config, seq_len=512, use_b2b_causal_conv1d=False)
+        mixer = B2BConv1d(hyena_config, test_config, seq_len=512, use_b2b_causal_conv1d=False, operator_type=operator_type)
         yield mixer
 
 
 @pytest.fixture
-def mixer_kernel(test_config: HyenaTestConfig, hyena_config: HyenaConfig):
+def mixer_kernel(test_config: HyenaTestConfig, hyena_config: HyenaConfig, operator_type: str):
     """Create a HyenaMixer instance for testing with CUDA kernel implementation"""
     with init_distributed_parallel_state(world_size=1):
         # Create the mixer
-        mixer_kernel = B2BConv1d(hyena_config, test_config, seq_len=512, use_b2b_causal_conv1d=True)
+        mixer_kernel = B2BConv1d(hyena_config, test_config, seq_len=512, use_b2b_causal_conv1d=True, operator_type=operator_type)
         yield mixer_kernel
 
 
-def test_b2b_causal_conv1d(mixer: B2BConv1d, mixer_kernel: B2BConv1d, config_type):
-    # Skip NV config with CUDA kernel as it's not supported yet
-    if config_type == "nv":
-        # NV config may have conv bias which is not supported by CUDA kernel
-        if isinstance(mixer_kernel.mixer.transformer_config, HyenaNVTestConfig):
-            pytest.skip("NV config is not fully supported by b2b CUDA kernel yet")
+def test_b2b_causal_conv1d(mixer: B2BConv1d, mixer_kernel: B2BConv1d, config_type, operator_type):
+    # Skip if b2b_causal_conv1d is not installed
+    import importlib.util
+
+    if importlib.util.find_spec("cuhyena.b2b_causal_conv1d") is None:
+        pytest.skip("b2b_causal_conv1d CUDA kernel is not installed")
+
+    # Skip bf16 with short convolution due to numerical instability
+    if mixer.mixer.transformer_config.params_dtype == torch.bfloat16 and operator_type == "hyena_short_conv":
+        pytest.skip("bf16 with short convolution is skipped due to numerical instability")
 
     with init_distributed_parallel_state(world_size=1):
         batch_size = 2
@@ -168,12 +185,10 @@ def test_b2b_causal_conv1d(mixer: B2BConv1d, mixer_kernel: B2BConv1d, config_typ
         )
 
         # PyTorch Mixer
-        output_features = mixer(input_features, _use_cp=False)
-        assert output_features.shape == (
-            batch_size,
-            mixer.mixer.hidden_size,
-            seq_len,
-        ), f"output_features.shape: {output_features.shape}, batch_size: {batch_size}, mixer.mixer.hidden_size: {mixer.mixer.hidden_size}, seq_len: {seq_len}"
+        output_features = mixer(input_features)
+        assert output_features.shape == (batch_size, mixer.mixer.hidden_size, seq_len), (
+            f"output_features.shape: {output_features.shape}, batch_size: {batch_size}, mixer.mixer.hidden_size: {mixer.mixer.hidden_size}, seq_len: {seq_len}"
+        )
 
         loss = output_features.float().mean()
         loss.backward()
@@ -187,12 +202,14 @@ def test_b2b_causal_conv1d(mixer: B2BConv1d, mixer_kernel: B2BConv1d, config_typ
         mixer.zero_grad()
 
         # CUDA kernel in Mixer
-        output_features_kernel = mixer_kernel(input_features, _use_cp=True)
+        output_features_kernel = mixer_kernel(input_features)
         assert output_features_kernel.shape == (
             batch_size,
             mixer_kernel.mixer.hidden_size,
             seq_len,
-        ), f"output_features_kernel.shape: {output_features_kernel.shape}, batch_size: {batch_size}, mixer_kernel.mixer.hidden_size: {mixer_kernel.mixer.hidden_size}, seq_len: {seq_len}"
+        ), (
+            f"output_features_kernel.shape: {output_features_kernel.shape}, batch_size: {batch_size}, mixer_kernel.mixer.hidden_size: {mixer_kernel.mixer.hidden_size}, seq_len: {seq_len}"
+        )
 
         loss_kernel = output_features_kernel.float().mean()
         loss_kernel.backward()
@@ -206,21 +223,21 @@ def test_b2b_causal_conv1d(mixer: B2BConv1d, mixer_kernel: B2BConv1d, config_typ
         mixer_kernel.zero_grad()
 
         # Compare results between PyTorch and CUDA kernel implementations
-        torch.testing.assert_close(loss, loss_kernel)
-        torch.testing.assert_close(output_features, output_features_kernel)
+        torch.testing.assert_close(output_features, output_features_kernel, msg=f"Output mismatch for {operator_type}")
+        torch.testing.assert_close(loss, loss_kernel, msg=f"Loss mismatch for {operator_type}")
 
         # Compare gradients
-        assert len(grads) == len(grads_kernel)
+        assert len(grads) == len(grads_kernel), f"Gradient count mismatch for {operator_type}"
 
         gradient_mismatch = False
         for (n, g), (n_kernel, g_kernel) in zip(grads, grads_kernel):
             try:
-                torch.testing.assert_close(g, g_kernel)
+                torch.testing.assert_close(g, g_kernel, msg=f"Gradient mismatch for {operator_type} - {n}")
             except AssertionError as e:
                 gradient_mismatch = True
-                print(f"Gradient mismatch for {n}: {e}")
+                print(f"Gradient mismatch for {operator_type} - {n}: {e}")
 
         if gradient_mismatch:
-            print("There were gradient mismatches!")
+            print(f"There were gradient mismatches for {operator_type}!")
         else:
-            print("All gradients matched successfully!")
+            print(f"All gradients matched successfully for {operator_type}!")
