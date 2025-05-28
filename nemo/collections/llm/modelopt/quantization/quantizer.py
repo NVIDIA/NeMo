@@ -425,6 +425,26 @@ class Quantizer:
                 assert (Path(ckpt_to_weights_subdir(export_dir, False)) / "modelopt_state").exists()
         elif self.export_config.export_format == "hf":
             export_hf_checkpoint(model_dir, export_dir, model)
+        # TRT-LLM
+        else:
+            inference_tp = self.export_config.inference_tp
+            inference_pp = self.export_config.inference_pp
+            use_nfs_workspace = (not is_automodel) and (model.config.pipeline_model_parallel_size > 1)
+
+            with torch.inference_mode():
+                remove_hook_from_module(model, recurse=True)
+                mte.export_tensorrt_llm_checkpoint(
+                    model=unwrap_for_modelopt_operations(model),
+                    decoder_type=self._get_decoder_type(model),
+                    dtype=self.torch_dtype,
+                    export_dir=export_dir,
+                    inference_tensor_parallel=inference_tp,
+                    inference_pipeline_parallel=inference_pp,
+                    use_nfs_workspace=use_nfs_workspace,
+                )
+            barrier()
+            if is_global_rank_zero():
+                assert self._validate_quantized_checkpoint(export_dir, inference_tp)
 
         if is_global_rank_zero():
             self._save_tokenizer(model, model_dir, export_dir, export_fmt)

@@ -45,10 +45,28 @@ def get_args():
         default=None,
         help="Number of layers in the last pipeline stage. If None, pipeline parallelism will default to evenly split layers.",
     )
+    parser.add_argument(
+        "-itp",
+        "--inference_tp",
+        "--tensor_parallelism_size",
+        type=int,
+        default=1,
+        help="TRT-LLM engine TP size. (Only used when `--export_format` is 'trtllm')",
+    )
+    parser.add_argument(
+        "-ipp",
+        "--inference_pp",
+        "--pipeline_parallelism_size",
+        type=int,
+        default=1,
+        help="TRT-LLM engine PP size. (Only used when `--export_format` is 'trtllm')",
+    )
     parser.add_argument("--devices", type=int, help="Number of GPUs to use per node")
     parser.add_argument("-nodes", "--num_nodes", type=int, help="Number of nodes used")
     parser.add_argument("-out", "--export_path", "--output_path", type=str, help="Path for the exported engine")
-    parser.add_argument("--export_format", default="nemo", choices=["nemo", "hf"], help="Model format to export as")
+    parser.add_argument(
+        "--export_format", default="trtllm", choices=["nemo", "hf", "trtllm"], help="Model format to export as"
+    )
     parser.add_argument(
         "-algo",
         "--algorithm",
@@ -96,7 +114,10 @@ def get_args():
     args = parser.parse_args()
 
     if args.export_path is None:
-        args.export_path = f"./{args.export_format}_{args.algorithm}"
+        if args.export_format == "trtllm":
+            args.export_path = f"./qnemo_{args.algorithm}_tp{args.inference_tp}_pp{args.inference_pp}"
+        else:
+            args.export_path = f"./{args.export_format}_{args.algorithm}"
 
     if args.devices is None:
         args.devices = args.calibration_tp
