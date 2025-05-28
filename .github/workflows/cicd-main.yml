@@ -318,7 +318,6 @@ jobs:
 
   cicd-main-nemo2:
     needs: [pre-flight, cicd-test-container-build, cicd-main-unit-tests]
-    needs: [pre-flight, cicd-test-container-build]
     uses: ./.github/workflows/cicd-main-nemo2.yml
     if: |
       (
