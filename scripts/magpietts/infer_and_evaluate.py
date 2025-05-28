@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 import argparse
 import copy
 import glob
@@ -434,7 +433,7 @@ def main():
             start_prior_after_n_audio_steps=args.start_prior_after_n_audio_steps,
             confidence_level=args.confidence_level,
             use_local_transformer=args.use_local_transformer,
-            maskgit_n_steps=args.maskgit_n_steps,            
+            maskgit_n_steps=args.maskgit_n_steps,
             legacy_codebooks=args.legacy_codebooks
         )
     else:
