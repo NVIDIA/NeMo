@@ -77,6 +77,12 @@ class QuantizationConfig:
     calibration_batch_size: int = 64
     calibration_seq_len: int = 128
 
+    def is_weight_only(self):
+        quant_cfg = QUANT_CFG_CHOICES[self.algorithm]
+        input_cfg = quant_cfg.get("*input_quantizer", None)
+        # no input quantizer or input quantizer is disabled
+        return input_cfg is None or not input_cfg.get("enable", True)
+
 
 @dataclass
 class ExportConfig:
@@ -286,9 +292,6 @@ class Quantizer:
 
         If forward_loop is not provided, a forward loop will be created using the calibration dataset.
         """
-        if forward_loop is None:
-            forward_loop = self._get_forward_loop(model)
-
         algorithm = self.quantization_config.algorithm
         if algorithm is None:
             logging.info("Quantization algorithm set to None, returning the non-quantized model")
@@ -417,46 +420,31 @@ class Quantizer:
                 TrainerContext.from_trainer(trainer).io_dump(ckpt_to_context_subdir(export_dir), yaml_attrs=["model"])
                 assert (Path(ckpt_to_weights_subdir(export_dir, False)) / "modelopt_state").exists()
         elif self.export_config.export_format == "hf":
-            unwrapped_model = unwrap_for_modelopt_operations(model)
-            with torch.inference_mode():
-                if is_automodel:
-                    mte.export_hf_checkpoint(
-                        unwrapped_model,
-                        export_dir=export_dir,
-                    )
-                else:
-                    context = io.load_context(model_dir, subpath="model")
-                    exporter = context.exporter("hf", model_dir)
-                    config = exporter.config
-                    with tempfile.TemporaryDirectory() as tmp_dir:
-                        config.save_pretrained(tmp_dir)
-                        mte.export_mcore_gpt_to_hf(
-                            unwrapped_model, pretrained_model_name_or_path=tmp_dir, export_dir=str(export_dir)
-                        )
-        # TRT-LLM
-        else:
-            inference_tp = self.export_config.inference_tp
-            inference_pp = self.export_config.inference_pp
-            use_nfs_workspace = (not is_automodel) and (model.config.pipeline_model_parallel_size > 1)
-
-            with torch.inference_mode():
-                remove_hook_from_module(model, recurse=True)
-                mte.export_tensorrt_llm_checkpoint(
-                    model=unwrap_for_modelopt_operations(model),
-                    decoder_type=self._get_decoder_type(model),
-                    dtype=self.torch_dtype,
-                    export_dir=export_dir,
-                    inference_tensor_parallel=inference_tp,
-                    inference_pipeline_parallel=inference_pp,
-                    use_nfs_workspace=use_nfs_workspace,
-                )
-            barrier()
-            if is_global_rank_zero():
-                assert self._validate_quantized_checkpoint(export_dir, inference_tp)
+            export_hf_checkpoint(model, model_dir, export_dir)
 
         if is_global_rank_zero():
             self._save_tokenizer(model, model_dir, export_dir, export_fmt)
             logging.info(f"Export succeeded, model has been exported to {export_dir}.")
+
+
+def export_hf_checkpoint(model, model_dir, export_dir):
+    unwrapped_model = unwrap_for_modelopt_operations(model)
+    is_automodel = isinstance(model, llm.HFAutoModelForCausalLM)
+    with torch.inference_mode():
+        if is_automodel:
+            mte.export_hf_checkpoint(
+                unwrapped_model,
+                export_dir=export_dir,
+            )
+        else:
+            context = io.load_context(model_dir, subpath="model")
+            exporter = context.exporter("hf", model_dir)
+            config = exporter.config
+            with tempfile.TemporaryDirectory() as tmp_dir:
+                config.save_pretrained(tmp_dir)
+                mte.export_mcore_gpt_to_hf(
+                    unwrapped_model, pretrained_model_name_or_path=tmp_dir, export_dir=str(export_dir)
+                )
 
 
 def get_calib_data_iter(

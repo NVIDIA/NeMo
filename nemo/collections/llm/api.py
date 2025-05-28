@@ -40,6 +40,7 @@ from nemo.collections.llm.modelopt import (
     set_modelopt_spec_if_exists_in_ckpt,
     setup_trainer_and_restore_model_with_modelopt_spec,
 )
+from nemo.collections.llm.modelopt.quantization.quantizer import export_hf_checkpoint
 from nemo.lightning import (
     AutoResume,
     NeMoLogger,
@@ -556,6 +557,8 @@ def ptq(
             trainer_kwargs={},
             model_config_overrides={"sequence_parallel": False},
         )
+    if forward_loop is None and not quantization_config._is_weight_only():
+        forward_loop = quantizer._get_forward_loop(model)
 
     model = quantizer.quantize(model, forward_loop)
     quantizer.export(model, model_path, trainer)
@@ -995,7 +998,12 @@ def export_ckpt(
         if output_path.exists() and not overwrite:
             raise FileExistsError(f"Output path {output_path} exists. Use overwrite=True to force overwrite.")
 
-    output = io.export_ckpt(path, target, output_path, overwrite, load_connector, **kwargs)
+    if target == "hf":
+        model = nl.io.load_context(path=ckpt_to_context_subdir(path), subpath="model")
+        export_hf_checkpoint(model, path, output_path)
+        output = output_path
+    else:
+        output = io.export_ckpt(path, target, output_path, overwrite, load_connector, **kwargs)
 
     console = Console()
     console.print(f"[green]✓ Checkpoint exported to {output}[/green]")
