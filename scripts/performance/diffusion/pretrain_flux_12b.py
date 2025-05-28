@@ -82,7 +82,6 @@ def override_recipe_configs(
         None  # run.Config(AutoEncoderConfig, ckpt='/ckpts/ae.safetensors', ch_mult=[1,2,4,4], attn_resolutions=[])
     )
 
-
     """
     if args.gpu.lower() == "h100":
         from nemo.collections.diffusion.models.flux.model import FluxConfig
@@ -106,9 +105,10 @@ def override_recipe_configs(
             enable_cuda_graph=True,
             use_te_rng_tracker=True,
         )
-        recipe.trainer.strategy.use_te_rng_tracker=True
-        
+        recipe.trainer.strategy.use_te_rng_tracker = True
+
         from megatron.core.distributed import DistributedDataParallelConfig
+
         recipe.trainer.strategy.ddp = run.Config(
             DistributedDataParallelConfig,
             use_custom_fsdp=False,
