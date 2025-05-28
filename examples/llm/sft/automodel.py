@@ -297,7 +297,21 @@ def main():
         'are currently supported only with position_ids and not attention_mask. Hence packed sequences needs to be'
         'run with --attn-implementation=flash_attention_2',
     )
-
+    parser.add_argument(
+        '--enable-nsys-profile', action='store_true', help='Enables nsys profiling for the training run.'
+    )
+    parser.add_argument(
+        '--nsys-profile-start-step', type=int, default=10, help='Step to start nsys profiling from.'
+    )
+    parser.add_argument(
+        '--nsys-profile-end-step',
+        type=int,
+        default=20,
+        help='Step to end nsys profiling at. Default is 100.',
+    )
+    parser.add_argument(
+        '--nsys-profile-ranks', nargs='+', type=int, default=[0], help='Ranks to profile with nsys.'
+    )
     args = parser.parse_args()
 
     # CPUOffload WA for known issue
@@ -333,6 +347,17 @@ def main():
     if args.use_torch_jit:
         jit_config = JitConfig(use_torch=True, torch_kwargs={'dynamic': False}, use_thunder=False)
         callbacks = [JitTransform(jit_config)]
+
+    if args.enable_nsys_profile:
+        from nemo.lightning.pytorch.callbacks import NsysCallback
+
+        nsys_profile = NsysCallback(
+            start_step=args.nsys_profile_start_step,
+            end_step=args.nsys_profile_end_step,
+            ranks=args.nsys_profile_ranks,
+            gen_shape=True,  # Generate model and kernel details including input shapes
+        )
+        callbacks.append(nsys_profile)
 
     if args.use_te_optimizer:
         # Use TE optimizer
