@@ -229,12 +229,15 @@ class ModelConnector(Connector, Generic[SourceT, TargetT]):
         -------
             Tuple[pl.LightningModule, pl.Trainer]: The loaded model and the trainer configured with the model.
         """
+        from nemo.collections.llm.modelopt import set_modelopt_spec_if_exists_in_ckpt
         from nemo.lightning import MegatronStrategy, Trainer, _strategy_lib
         from nemo.lightning.io.api import load_context
 
         model = load_context(path, subpath="model")
         # skip initialization since a checkpoint is loaded in this function
         model.config.perform_initialization = False
+        # set modelopt spec if required
+        set_modelopt_spec_if_exists_in_ckpt(model, path)
 
         is_peft_ckpt = model.model_transform is not None
         callbacks = []

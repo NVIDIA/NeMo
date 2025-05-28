@@ -40,7 +40,6 @@ from nemo.collections.llm.modelopt import (
     set_modelopt_spec_if_exists_in_ckpt,
     setup_trainer_and_restore_model_with_modelopt_spec,
 )
-from nemo.collections.llm.modelopt.quantization.quantizer import export_hf_checkpoint
 from nemo.lightning import (
     AutoResume,
     NeMoLogger,
@@ -940,6 +939,7 @@ def export_ckpt(
     output_path: Optional[AnyPath] = None,
     overwrite: bool = False,
     load_connector: Callable[[Path, str], io.ModelConnector] = load_connector_from_trainer_ckpt,
+    modelopt_export_kwargs: dict[str, Any] = {},
     **kwargs,
 ) -> Path:
     """
@@ -981,6 +981,7 @@ def export_ckpt(
             This is useful for model updates where retaining old checkpoint files is not required.
         load_connector (Callable[[Path, str], ModelConnector]): A function to load the appropriate
             exporter based on the model and target format. Defaults to `load_connector_from_trainer_ckpt`.
+        modelopt_export_kwargs (Dict[str, Any]): Additional keyword arguments to trigger a ModelOpt export.
 
     Returns:
         Path: The path where the checkpoint has been saved after export.
@@ -991,6 +992,8 @@ def export_ckpt(
         FileExistsError: If the output path is provided (that is, when not using models cache)
             and it exists and overwrite is not set to True.
     """
+    from nemo.collections.llm.modelopt.quantization.quantizer import export_hf_checkpoint
+
     if not isinstance(path, Path):
         path = Path(path)
     if output_path and not isinstance(output_path, Path):
@@ -999,9 +1002,7 @@ def export_ckpt(
             raise FileExistsError(f"Output path {output_path} exists. Use overwrite=True to force overwrite.")
 
     if target == "hf":
-        model, _ = setup_trainer_and_restore_model_with_modelopt_spec(path)
-        export_hf_checkpoint(model, path, output_path)
-        output = output_path
+        output = export_hf_checkpoint(path, output_path, **modelopt_export_kwargs)
     else:
         output = io.export_ckpt(path, target, output_path, overwrite, load_connector, **kwargs)
 
