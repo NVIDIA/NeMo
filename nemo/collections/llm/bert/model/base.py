@@ -223,12 +223,16 @@ class MCoreBertModelWrapperWithPostLNSupport(MCoreBert):
             bert_type=self.bert_type,
         )
 
+        # Megatron Core always initializes position embeddings and tokentype_embeddings in fp32
+        # We cast the embedding dtype based on the target dtype in config
+        self.embedding.to(self.config.params_dtype)
+
         # In Megatron-LM, pooler is added only if add_binary_head=True.
         # We make it independent to support HF variances.
         if self.add_pooler:
             self.pooler = Pooler(
                 self.config.hidden_size, self.config.init_method, self.config, self.config.sequence_parallel
-            )
+            ).to(self.config.params_dtype)
 
         # Output
         if self.post_process:
@@ -505,7 +509,7 @@ class TransformerBlockWithPostLNSupport(TransformerBlock):
             # megatron's embedding module does not need the additional LN.
             self.initial_layernorm = FusedLayerNorm(
                 config=self.config, hidden_size=self.config.hidden_size, eps=self.config.layernorm_epsilon
-            )
+            ).to(self.config.params_dtype)
 
     def forward(
         self,
