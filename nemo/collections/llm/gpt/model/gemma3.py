@@ -559,7 +559,7 @@ class HFGemma3Exporter(io.ModelConnector[Gemma3Model, "Gemma3ForCausalLM"]):
         from transformers.modeling_utils import no_init_weights
 
         with no_init_weights():
-            return Gemma3ForCausalLM.from_config(self.config)
+            return Gemma3ForCausalLM._from_config(self.config)
 
     def apply(self, output_path: Path) -> Path:
         # pylint: disable=C0115,C0116
@@ -638,7 +638,7 @@ class HFGemma3Exporter(io.ModelConnector[Gemma3Model, "Gemma3ForCausalLM"]):
             initializer_range=source.init_method_std,
             rms_norm_eps=source.layernorm_epsilon,
             num_key_value_heads=source.num_query_groups,
-            vocab_size=self.tokenizer.vocab_size,
+            vocab_size=source.vocab_size,
             rope_theta=source.rotary_base[1],
             rope_local_base_freq=source.rotary_base[0],
         )
