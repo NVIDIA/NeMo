@@ -76,6 +76,7 @@ def slurm_executor(
         "NVTE_FUSED_ATTN": "1",  # Enable cuDNN fused attention
         "NEMO_LOG_MEMORY_USAGE": "1",  # Print memory allocation
         "NEMORUN_HOME": log_dir,
+        "PYTORCH_CUDA_ALLOC_CONF": "expandable_segments:True",
     }
     if wandb_key is not None:
         env_vars["WANDB_API_KEY"] = wandb_key
@@ -322,21 +323,21 @@ def set_primary_perf_configs(
             dp_size > 1 and pp_size > 1 and vp_size and vp_size > 1
         )
 
-    # enable cross entropy fusion with TE kernel
-    recipe.model.config.cross_entropy_fusion_impl = "te"
+    # # enable cross entropy fusion with TE kernel
+    # recipe.model.config.cross_entropy_fusion_impl = "te"
 
-    # Cuda graph configs
-    if use_mcore_fsdp and enable_cuda_graphs:
-        logging.warning("Currently, cuda graphs are not supported with FSDP. Disabling cuda graphs.")
-        enable_cuda_graphs = False
-    recipe.model.config.enable_cuda_graph = enable_cuda_graphs
-    recipe.trainer.strategy.use_te_rng_tracker = enable_cuda_graphs
-    if (
-        task in ["none", "lora"]
-        and hasattr(recipe.data, "packed_sequence_specs")
-        and recipe.data.packed_sequence_specs is not None
-    ):
-        recipe.data.packed_sequence_specs.pad_cu_seqlens = enable_cuda_graphs
+    # # Cuda graph configs
+    # if use_mcore_fsdp and enable_cuda_graphs:
+    #     logging.warning("Currently, cuda graphs are not supported with FSDP. Disabling cuda graphs.")
+    #     enable_cuda_graphs = False
+    # recipe.model.config.enable_cuda_graph = enable_cuda_graphs
+    # recipe.trainer.strategy.use_te_rng_tracker = enable_cuda_graphs
+    # if (
+    #     task in ["none", "lora"]
+    #     and hasattr(recipe.data, "packed_sequence_specs")
+    #     and recipe.data.packed_sequence_specs is not None
+    # ):
+    #     recipe.data.packed_sequence_specs.pad_cu_seqlens = enable_cuda_graphs
 
     # FSDP configs
     if use_mcore_fsdp:
@@ -379,8 +380,8 @@ def set_primary_perf_configs(
         recipe.model.config.cpu_offloading_weights = False
         recipe.model.config.cpu_offloading_num_layers = activation_offload_layers
 
-    if compute_dtype.lower() == "bf16":
-        recipe.optim.config.use_precision_aware_optimizer = True
+    # if compute_dtype.lower() == "bf16":
+    #     recipe.optim.config.use_precision_aware_optimizer = True
 
     # low precision training configs
     if compute_dtype is not None and compute_dtype.lower() == "fp8":
