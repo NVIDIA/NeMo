@@ -33,9 +33,9 @@ from transformers.models.qwen2_vl.image_processing_qwen2_vl import Qwen2VLImageP
 
 from nemo import lightning as nl
 from nemo.collections import llm, vlm
+from nemo.collections.vlm import Qwen2VLDataConfig
 from nemo.collections.vlm.qwen2vl.data import Qwen2VLMockDataModule
 from nemo.collections.vlm.qwen2vl.model import Qwen25VLVisionConfig
-from nemo.collections.vlm import Qwen2VLDataConfig
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 from nemo.utils.exp_manager import TimingCallback

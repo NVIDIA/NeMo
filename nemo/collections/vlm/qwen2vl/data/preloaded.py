@@ -67,7 +67,11 @@ def process_vision(processor, images, videos, fps, model_version):
                 raise ValueError(
                     f"The length of fps ({len(fps) if hasattr(fps, '__len__') else fps}) must be equal to the length of video_grid_thw ({len(video_grid_thw)}) or fps should be a single number."
                 )
-            second_per_grid_ts = torch.tensor(second_per_grid_ts, dtype=videos_inputs['pixel_values_videos'].dtype, device=videos_inputs['pixel_values_videos'].device)
+            second_per_grid_ts = torch.tensor(
+                second_per_grid_ts,
+                dtype=videos_inputs['pixel_values_videos'].dtype,
+                device=videos_inputs['pixel_values_videos'].device,
+            )
             videos_inputs.update({"second_per_grid_ts": second_per_grid_ts})
     else:
         videos_inputs = {}
@@ -446,7 +450,9 @@ class PreloadedSupervisedDataset(Dataset):
         # leave the I/O and smart_resize to qwen_vl_utils, which is maintained on github by Qwen Team.
         image_inputs, video_inputs, video_sample_fps_list = self._fetch_vision_content(images, videos)
         # call Huggingface processor to get patches and size info, which is maintained by Qwen Team as well.
-        vision_tensors = process_vision(self.image_processor, image_inputs, video_inputs, video_sample_fps_list, model_version)
+        vision_tensors = process_vision(
+            self.image_processor, image_inputs, video_inputs, video_sample_fps_list, model_version
+        )
         return vision_tensors
 
     def _apply_prompt_templates(self, conv, source, use_plain=False):
@@ -656,7 +662,9 @@ class Qwen2VLDataset(PreloadedSupervisedDataset):
         if 'video_grid_thw' in instances[0]:
             batch['video_grid_thw'] = torch.cat([instance['video_grid_thw'] for instance in instances], dim=0)
             if self.model_version == "qwen25-vl":
-                batch['second_per_grid_ts'] = torch.cat([instance['second_per_grid_ts'] for instance in instances], dim=0)
+                batch['second_per_grid_ts'] = torch.cat(
+                    [instance['second_per_grid_ts'] for instance in instances], dim=0
+                )
                 print("preloaded second_per_grid_ts", batch['second_per_grid_ts'])
             else:
                 batch['second_per_grid_ts'] = None
@@ -770,10 +778,20 @@ class Qwen2VLPreloadedDataModule(pl.LightningDataModule):
             # TODO:
             # rng = torch.Generator().manual_seed(self.seed)
             self._train_ds = Qwen2VLDataset(
-                self.paths[0], self.data_config, self.tokenizer, self.image_processor, self.model_version, sequence_length=self.seq_length
+                self.paths[0],
+                self.data_config,
+                self.tokenizer,
+                self.image_processor,
+                self.model_version,
+                sequence_length=self.seq_length,
             )
             self._validation_ds = Qwen2VLDataset(
-                self.paths[0], self.data_config, self.tokenizer, self.image_processor, self.model_version, sequence_length=self.seq_length
+                self.paths[0],
+                self.data_config,
+                self.tokenizer,
+                self.image_processor,
+                self.model_version,
+                sequence_length=self.seq_length,
             )
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:

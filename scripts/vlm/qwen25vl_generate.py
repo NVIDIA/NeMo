@@ -17,13 +17,13 @@ python qwen25vl_generate.py --load_from_hf --osl 50
 """
 
 import argparse
-import torch
 
+import torch
 from qwen_vl_utils import process_vision_info
 from transformers import AutoProcessor
 
 import nemo.lightning as nl
-from nemo.collections.vlm import Qwen25VLConfig3B, Qwen2VLModel
+from nemo.collections.vlm import Qwen2VLModel, Qwen25VLConfig3B
 from nemo.utils import logging
 
 

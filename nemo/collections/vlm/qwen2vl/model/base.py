@@ -64,7 +64,16 @@ def qwen2vl_data_step(dataloader_iter, model_version) -> Dict[str, torch.Tensor]
     if model_version == "qwen2-vl":
         required_keys.update(("input_ids", "pixel_values", "image_grid_thw", "pixel_values_videos", "video_grid_thw"))
     elif model_version == "qwen25-vl":
-        required_keys.update(("input_ids", "pixel_values", "image_grid_thw", "pixel_values_videos", "video_grid_thw", "second_per_grid_ts"))
+        required_keys.update(
+            (
+                "input_ids",
+                "pixel_values",
+                "image_grid_thw",
+                "pixel_values_videos",
+                "video_grid_thw",
+                "second_per_grid_ts",
+            )
+        )
     if parallel_state.is_pipeline_first_stage(ignore_virtual=False):
         required_keys.update(("position_ids",))
     if parallel_state.is_pipeline_last_stage(ignore_virtual=False):
@@ -186,7 +195,7 @@ class Qwen25VLVisionConfig(TransformerConfig, io.IOMixin):
     attention_dropout: float = 0.0
     ffn_hidden_size: int = 3420
     gated_linear_unit: bool = True
-    activation_func: Callable = torch.nn.functional.silu # Qwen 2.5-VL uses swiGLU as activation function
+    activation_func: Callable = torch.nn.functional.silu  # Qwen 2.5-VL uses swiGLU as activation function
     kv_channels: int = 80
     num_query_groups: int = 16
     layernorm_zero_centered_gamma: bool = False
@@ -194,7 +203,7 @@ class Qwen25VLVisionConfig(TransformerConfig, io.IOMixin):
     bias_activation_fusion: bool = False
     bias_dropout_fusion: bool = False
     attention_softmax_in_fp32: bool = True
-    normalization: str = 'RMSNorm'  # set the normalization to RMSNorm for Qwen2.5-VL    
+    normalization: str = 'RMSNorm'  # set the normalization to RMSNorm for Qwen2.5-VL
     apply_rope_fusion: bool = False
     layernorm_epsilon: float = 1e-6
     transformer_layer_spec: ModuleSpec = None
@@ -634,7 +643,7 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
                 class_token_len = getattr(self.vision_model, "class_token_len", 1)
                 image_embeddings = image_embeddings[:, class_token_len:, :]
                 if self.model_version == "qwen25-vl":
-                    window_index = [idx - class_token_len for idx in window_index if idx>=class_token_len]
+                    window_index = [idx - class_token_len for idx in window_index if idx >= class_token_len]
                 else:
                     window_index = None
 
@@ -685,7 +694,9 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
                 position_ids = torch.nn.functional.pad(position_ids, (0, padded_seq_len))
 
         if position_ids is None and input_ids is not None:
-            position_ids, _ = self.get_rope_index(input_ids, image_grid_thw, video_grid_thw, second_per_grid_ts, attention_mask)
+            position_ids, _ = self.get_rope_index(
+                input_ids, image_grid_thw, video_grid_thw, second_per_grid_ts, attention_mask
+            )
 
         # Create the language_embeddings (if this is the first language model stage).
         if self.pre_process:
@@ -945,7 +956,7 @@ class Qwen2VLModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin)
         pixel_values_videos: Optional[torch.FloatTensor] = None,
         image_grid_thw: Optional[torch.LongTensor] = None,
         video_grid_thw: Optional[torch.LongTensor] = None,
-		second_per_grid_ts: Optional[torch.FloatTensor] = None,
+        second_per_grid_ts: Optional[torch.FloatTensor] = None,
     ) -> torch.Tensor:
         # pylint: disable=C0115,C0116
         output_tensor = self.module(

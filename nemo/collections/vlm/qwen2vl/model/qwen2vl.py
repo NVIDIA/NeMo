@@ -19,18 +19,23 @@ from typing import TYPE_CHECKING, Dict, Tuple, Union
 import torch
 import transformers
 from megatron.core.transformer.transformer_config import TransformerConfig
-from transformers import Qwen2VLConfig as HFQwen2VLConfig
-from transformers import Qwen2_5_VLConfig as HFQwen25VLConfig
-from transformers import Qwen2VLForConditionalGeneration
-from transformers import AutoModelForImageTextToText
 from transformers import AutoConfig as HFAutoConfig
-from transformers.models.qwen2_vl.configuration_qwen2_vl import Qwen2VLVisionConfig as HFQwen2VLVisionConfig
+from transformers import AutoModelForImageTextToText
+from transformers import Qwen2_5_VLConfig as HFQwen25VLConfig
+from transformers import Qwen2VLConfig as HFQwen2VLConfig
+from transformers import Qwen2VLForConditionalGeneration
 from transformers.models.qwen2_5_vl.configuration_qwen2_5_vl import Qwen2_5_VLVisionConfig as HFQwen25VLVisionConfig
+from transformers.models.qwen2_vl.configuration_qwen2_vl import Qwen2VLVisionConfig as HFQwen2VLVisionConfig
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.llm import Qwen2Config, Qwen2Config1P5B, Qwen2Config7B, Qwen2Config72B
 from nemo.collections.vlm.neva.model.llava import export_qkv, export_qkv_bias
-from nemo.collections.vlm.qwen2vl.model.base import Qwen2VLConfig, Qwen2VLModel, Qwen2VLVisionConfig, Qwen25VLVisionConfig
+from nemo.collections.vlm.qwen2vl.model.base import (
+    Qwen2VLConfig,
+    Qwen2VLModel,
+    Qwen2VLVisionConfig,
+    Qwen25VLVisionConfig,
+)
 from nemo.collections.vlm.vision import MultimodalProjectorConfig
 from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import load_distributed_model_weights
 from nemo.lightning import io, teardown
@@ -565,7 +570,9 @@ class HFQwen2VLExporter(io.ModelConnector[Qwen2VLModel, "Qwen2VLForConditionalGe
         vision_model_config = source.vision_transformer_config
         vision_projection_config = source.vision_projection_config
 
-        self.is_v2_5 = hasattr(vision_model_config, "fullatt_block_indexes") and (vision_model_config.fullatt_block_indexes != None)
+        self.is_v2_5 = hasattr(vision_model_config, "fullatt_block_indexes") and (
+            vision_model_config.fullatt_block_indexes != None
+        )
 
         if self.is_v2_5:
             vision_config = HFQwen25VLVisionConfig(
@@ -602,10 +609,10 @@ class HFQwen2VLExporter(io.ModelConnector[Qwen2VLModel, "Qwen2VLForConditionalGe
                 num_key_value_heads=language_config.num_query_groups,
                 rope_theta=language_config.rotary_base,
                 vocab_size=language_config.vocab_size,
-                rope_scaling={"type": "mrope","mrope_section": [16, 24, 24]},
+                rope_scaling={"type": "mrope", "mrope_section": [16, 24, 24]},
                 tie_word_embeddings=language_config.share_embeddings_and_output_weights,
                 torch_dtype="bfloat16",
-                #vocab_size=self.tokenizer.vocab_size,
+                # vocab_size=self.tokenizer.vocab_size,
                 bos_token_id=151643,
                 eos_token_id=151645,
                 vision_start_token_id=151652,
@@ -965,6 +972,7 @@ def _export_linear_fc1(linear_fc1):
     # pylint: disable=C0115,C0116
     gate_proj, up_proj = torch.chunk(linear_fc1, 2, dim=0)
     return gate_proj, up_proj
+
 
 @io.state_transform(
     source_key="vision_model.decoder.layers.*.mlp.linear_fc1.weight",

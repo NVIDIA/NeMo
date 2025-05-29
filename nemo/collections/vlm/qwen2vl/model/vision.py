@@ -223,7 +223,7 @@ class Qwen25VisionModel(VisionModule):
         spatial_patch_size: int = 14,
         img_h: int = 336,
         img_w: int = 336,
-        window_size: int = 112, 
+        window_size: int = 112,
     ) -> None:
 
         super().__init__(config=transformer_config)
@@ -358,7 +358,7 @@ class Qwen25VisionModel(VisionModule):
         vit_merger_window_size = self.window_size // self.spatial_merge_size // self.patch_dim
 
         for grid_t, grid_h, grid_w in grid_thw:
-            llm_grid_h, llm_grid_w =(
+            llm_grid_h, llm_grid_w = (
                 grid_h // self.spatial_merge_size,
                 grid_w // self.spatial_merge_size,
             )
@@ -424,7 +424,7 @@ class Qwen25VisionModel(VisionModule):
         # transformers/models/qwen2_5_vl/modeling_qwen2_5_vl.py#L527C9-L530C59
         x = x.reshape(seq_len // self.spatial_merge_unit, self.spatial_merge_unit, -1)
         x = x[window_index, :, :]
-        x = x.reshape(seq_len, -1)  
+        x = x.reshape(seq_len, -1)
         x = x.unsqueeze(1)
 
         rotary_pos_emb = self.rot_pos_emb(grid_thw)
@@ -440,12 +440,13 @@ class Qwen25VisionModel(VisionModule):
         packed_seq_params = self.get_packed_seq_params(grid_thw)
         packed_seq_params_full = self.get_packed_seq_params(None, cu_window_seqlens)
 
-        x = self.decoder(x, 
-                        attention_mask, 
-                        rotary_pos_emb=rotary_pos_emb, 
-                        packed_seq_params=packed_seq_params, 
-                        packed_seq_params_full=packed_seq_params_full,
-                        )
+        x = self.decoder(
+            x,
+            attention_mask,
+            rotary_pos_emb=rotary_pos_emb,
+            packed_seq_params=packed_seq_params,
+            packed_seq_params_full=packed_seq_params_full,
+        )
         x = x.squeeze(1).view(-1, self.merge_hidden_size)
         self.window_index = window_index
         return x
