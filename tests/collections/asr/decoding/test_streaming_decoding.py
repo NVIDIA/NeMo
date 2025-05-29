@@ -14,6 +14,7 @@
 
 import copy
 from typing import Optional
+from contextlib import contextmanager
 
 import librosa
 import pytest
@@ -40,6 +41,22 @@ if torch.mps.is_available():
 def load_audio(file_path, target_sr=16000):
     audio, sr = librosa.load(file_path, sr=target_sr)
     return torch.tensor(audio, dtype=torch.float32), sr
+
+
+@contextmanager
+def preserve_decoding_cfg_and_cpu_device(model: ASRModel):
+    """
+    Context manager to preserve the decoding strategy and device of the model.
+    This is useful for tests that modify the model's decoding strategy or device
+    to avoid side effects or costly model reloading.
+    """
+    backup_decoding_cfg = copy.deepcopy(model.cfg.decoding)
+
+    try:
+        yield
+    finally:
+        model.to(device="cpu")
+        model.change_decoding_strategy(backup_decoding_cfg)
 
 
 def get_model_encoder_output(
@@ -101,60 +118,57 @@ def test_label_looping_decoding_streaming_gpu_state(
     batch_size: int,
     max_symbols: int,
 ):
-    """Test streaming decoding with the state on GPU"""
+    """Test streaming decoding with batched state"""
     model = stt_en_fastconformer_tdt_large if is_tdt else stt_en_fastconformer_transducer_large
-    model.eval()
-    model.to(device=device)
+    with preserve_decoding_cfg_and_cpu_device(model):
+        model.eval()
+        model.to(device=device)
 
-    backup_decoding_cfg = copy.deepcopy(model.cfg.decoding)
-    decoding_cfg = copy.deepcopy(model.cfg.decoding)
-    decoding_cfg.strategy = "greedy_batch"
-    with open_dict(decoding_cfg):
-        decoding_cfg.greedy.use_cuda_graph_decoder = use_cuda_graph_decoder
-        decoding_cfg.greedy.max_symbols = max_symbols
-    model.change_decoding_strategy(decoding_cfg)
+        decoding_cfg = copy.deepcopy(model.cfg.decoding)
+        decoding_cfg.strategy = "greedy_batch"
+        with open_dict(decoding_cfg):
+            decoding_cfg.greedy.use_cuda_graph_decoder = use_cuda_graph_decoder
+            decoding_cfg.greedy.max_symbols = max_symbols
+        model.change_decoding_strategy(decoding_cfg)
 
-    manifest = read_manifest(an4_val_manifest_corrected)
-    transcriptions = model.transcribe(audio=str(an4_val_manifest_corrected.absolute()), batch_size=batch_size)
-    ref_transcripts = [hyp.text for hyp in transcriptions]
+        manifest = read_manifest(an4_val_manifest_corrected)
+        transcriptions = model.transcribe(audio=str(an4_val_manifest_corrected.absolute()), batch_size=batch_size)
+        ref_transcripts = [hyp.text for hyp in transcriptions]
 
-    all_hyps = []
-    decoding_computer: GreedyBatchedLabelLoopingComputerBase = model.decoding.decoding.decoding_computer
-    with torch.no_grad(), torch.inference_mode():
-        for i in range(0, len(manifest), batch_size):
-            encoder_output, encoder_output_len = get_batch_encoder_outputs_from_records(
-                manifest[i : i + batch_size], model=model, device=device
-            )
-            local_batch_size = encoder_output_len.shape[0]
-            # decode encoder output by chunks, passing state between decoder invocations
-            state: Optional[BatchedGreedyDecodingState] = None
-            hyps = None
-            encoder_output = encoder_output.transpose(1, 2)
-            for t in range(0, encoder_output.shape[1], chunk_size):
-                rest_len = encoder_output_len - t
-                current_len = torch.full_like(encoder_output_len, fill_value=chunk_size)
-                current_len = torch.minimum(current_len, rest_len)
-                current_len = torch.maximum(current_len, torch.zeros_like(current_len))
-                batched_hyps, _, state = decoding_computer(
-                    x=encoder_output[:, t : t + chunk_size],
-                    out_len=current_len,
-                    prev_batched_state=state,
+        all_hyps = []
+        decoding_computer: GreedyBatchedLabelLoopingComputerBase = model.decoding.decoding.decoding_computer
+        with torch.no_grad(), torch.inference_mode():
+            for i in range(0, len(manifest), batch_size):
+                encoder_output, encoder_output_len = get_batch_encoder_outputs_from_records(
+                    manifest[i : i + batch_size], model=model, device=device
                 )
-                new_hyps = batched_hyps_to_hypotheses(batched_hyps, None, batch_size=local_batch_size)
-                if hyps is not None:
-                    for hyp, new_hyp in zip(hyps, new_hyps):
-                        hyp.merge(new_hyp)
-                else:
-                    hyps = new_hyps
-            all_hyps.extend(hyps)
+                local_batch_size = encoder_output_len.shape[0]
+                # decode encoder output by chunks, passing state between decoder invocations
+                state: Optional[BatchedGreedyDecodingState] = None
+                hyps = None
+                encoder_output = encoder_output.transpose(1, 2)
+                for t in range(0, encoder_output.shape[1], chunk_size):
+                    rest_len = encoder_output_len - t
+                    current_len = torch.full_like(encoder_output_len, fill_value=chunk_size)
+                    current_len = torch.minimum(current_len, rest_len)
+                    current_len = torch.maximum(current_len, torch.zeros_like(current_len))
+                    batched_hyps, _, state = decoding_computer(
+                        x=encoder_output[:, t : t + chunk_size],
+                        out_len=current_len,
+                        prev_batched_state=state,
+                    )
+                    new_hyps = batched_hyps_to_hypotheses(batched_hyps, None, batch_size=local_batch_size)
+                    if hyps is not None:
+                        for hyp, new_hyp in zip(hyps, new_hyps):
+                            hyp.merge(new_hyp)
+                    else:
+                        hyps = new_hyps
+                all_hyps.extend(hyps)
 
-    streaming_transcripts = []
-    for hyp in all_hyps:
-        streaming_transcripts.append(model.tokenizer.ids_to_text(hyp.y_sequence.tolist()))
-    assert ref_transcripts == streaming_transcripts
-
-    model.to(device="cpu")
-    model.change_decoding_strategy(backup_decoding_cfg)
+        streaming_transcripts = []
+        for hyp in all_hyps:
+            streaming_transcripts.append(model.tokenizer.ids_to_text(hyp.y_sequence.tolist()))
+        assert ref_transcripts == streaming_transcripts
 
 
 @pytest.mark.with_downloads
@@ -180,45 +194,42 @@ def test_label_looping_decoding_streaming_partial_hypotheses(
 ):
     """Test streaming decoding with partial hypotheses"""
     model = stt_en_fastconformer_tdt_large if is_tdt else stt_en_fastconformer_transducer_large
-    model.eval()
-    model.to(device=device)
+    with preserve_decoding_cfg_and_cpu_device(model):
+        model.eval()
+        model.to(device=device)
 
-    backup_decoding_cfg = copy.deepcopy(model.cfg.decoding)
-    decoding_cfg = copy.deepcopy(model.cfg.decoding)
-    decoding_cfg.strategy = "greedy_batch"
-    with open_dict(decoding_cfg):
-        decoding_cfg.greedy.use_cuda_graph_decoder = use_cuda_graph_decoder
-        decoding_cfg.greedy.max_symbols = max_symbols
-    model.change_decoding_strategy(decoding_cfg)
+        decoding_cfg = copy.deepcopy(model.cfg.decoding)
+        decoding_cfg.strategy = "greedy_batch"
+        with open_dict(decoding_cfg):
+            decoding_cfg.greedy.use_cuda_graph_decoder = use_cuda_graph_decoder
+            decoding_cfg.greedy.max_symbols = max_symbols
+        model.change_decoding_strategy(decoding_cfg)
 
-    manifest = read_manifest(an4_val_manifest_corrected)
-    transcriptions = model.transcribe(audio=str(an4_val_manifest_corrected.absolute()), batch_size=batch_size)
-    ref_transcripts = [hyp.text for hyp in transcriptions]
+        manifest = read_manifest(an4_val_manifest_corrected)
+        transcriptions = model.transcribe(audio=str(an4_val_manifest_corrected.absolute()), batch_size=batch_size)
+        ref_transcripts = [hyp.text for hyp in transcriptions]
 
-    all_hyps = []
-    rnnt_infer = model.decoding.decoding
-    with torch.no_grad(), torch.inference_mode():
-        for i in range(0, len(manifest), batch_size):
-            encoder_output, encoder_output_len = get_batch_encoder_outputs_from_records(
-                manifest[i : i + batch_size], model=model, device=device
-            )
-            # decode encoder output by chunks, passing state between decoder invocations
-            hyps = None
-            for t in range(0, encoder_output.shape[2], chunk_size):
-                rest_len = encoder_output_len - t
-                current_len = torch.full_like(encoder_output_len, fill_value=chunk_size)
-                current_len = torch.minimum(current_len, rest_len)
-                current_len = torch.maximum(current_len, torch.zeros_like(current_len))
-                (hyps,) = rnnt_infer(
-                    encoder_output=encoder_output[:, :, t : t + chunk_size],
-                    encoded_lengths=current_len,
-                    partial_hypotheses=hyps,
+        all_hyps = []
+        rnnt_infer = model.decoding.decoding
+        with torch.no_grad(), torch.inference_mode():
+            for i in range(0, len(manifest), batch_size):
+                encoder_output, encoder_output_len = get_batch_encoder_outputs_from_records(
+                    manifest[i : i + batch_size], model=model, device=device
                 )
-            all_hyps.extend(hyps)
-    streaming_transcripts = []
-    for hyp in all_hyps:
-        streaming_transcripts.append(model.tokenizer.ids_to_text(hyp.y_sequence.tolist()))
-    assert ref_transcripts == streaming_transcripts
-
-    model.to(device="cpu")
-    model.change_decoding_strategy(backup_decoding_cfg)
+                # decode encoder output by chunks, passing state between decoder invocations
+                hyps = None
+                for t in range(0, encoder_output.shape[2], chunk_size):
+                    rest_len = encoder_output_len - t
+                    current_len = torch.full_like(encoder_output_len, fill_value=chunk_size)
+                    current_len = torch.minimum(current_len, rest_len)
+                    current_len = torch.maximum(current_len, torch.zeros_like(current_len))
+                    (hyps,) = rnnt_infer(
+                        encoder_output=encoder_output[:, :, t : t + chunk_size],
+                        encoded_lengths=current_len,
+                        partial_hypotheses=hyps,
+                    )
+                all_hyps.extend(hyps)
+        streaming_transcripts = []
+        for hyp in all_hyps:
+            streaming_transcripts.append(model.tokenizer.ids_to_text(hyp.y_sequence.tolist()))
+        assert ref_transcripts == streaming_transcripts

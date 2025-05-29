@@ -761,22 +761,27 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
         self,
         hyps: Optional[list[rnnt_utils.Hypothesis | None]],
         device: torch.device | str,
-        dtype: torch.dtype,
+        float_dtype: torch.dtype,
     ) -> Optional[BatchedGreedyDecodingState]:
         """Stack the state from a list of hypotheses into a BatchedGreedyDecodingState."""
-        if hyps is None or all(hyp is None for hyp in hyps):
+        if hyps is None:
             # No partial hypotheses, return empty state
             return None
 
         num_empty_hyps = sum(1 for hyp in hyps if hyp is None)
+        if num_empty_hyps == len(hyps):
+            # No partial hypotheses, return empty state
+            return None
+
         if num_empty_hyps > 0:
-            raise NotImplementedError("Expected either full batch of partial hypotheses, or no partial hypotheses")
+            # TODO(vbataev): add support for mixed batch of partial hypotheses and `None`
+            raise NotImplementedError("Mixed batch of partial hypotheses and `None` is not supported yet.")
 
         prev_labels = torch.tensor(
             [hyp.y_sequence[-1] if len(hyp.y_sequence) else self._blank_index for hyp in hyps]
         ).to(device=device)
 
-        prev_state = self.decoder.batch_unsplit_states([hyp.dec_state for hyp in hyps], device=device, dtype=dtype)
+        prev_state = self.decoder.batch_unsplit_states([hyp.dec_state for hyp in hyps], device=device, dtype=float_dtype)
         prev_predictor_output = torch.stack([hyp.dec_out for hyp in hyps], dim=0)
         batched_state = BatchedGreedyDecodingState(
             predictor_state=prev_state,
@@ -808,14 +813,14 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
         x: torch.Tensor,
         out_len: torch.Tensor,
         device: torch.device,
-        partial_hypotheses: Optional[list[rnnt_utils.Hypothesis]] = None,
+        partial_hypotheses: Optional[list[rnnt_utils.Hypothesis | None]] = None,
     ) -> list[rnnt_utils.Hypothesis]:
         """
         Optimized batched greedy decoding.
         The main idea: search for next labels for the whole batch (evaluating Joint)
         and thus always evaluate prediction network with maximum possible batch size
         """
-        batched_state = self._stack_batched_state_from_hyps(partial_hypotheses, device=x.device, dtype=x.dtype)
+        batched_state = self._stack_batched_state_from_hyps(partial_hypotheses, device=x.device, float_dtype=x.dtype)
         batched_hyps, alignments, batched_state = self.decoding_computer(
             x=x,
             out_len=out_len,
@@ -825,8 +830,11 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
         self._assign_batched_state_to_hyps(batched_state, hyps)
 
         if partial_hypotheses:
-            for hyp, hyp_continuation in zip(partial_hypotheses, hyps):
-                hyp.merge(hyp_continuation)
+            for i, (hyp, hyp_continuation) in enumerate(zip(partial_hypotheses, hyps)):
+                if hyp is not None:
+                    hyp.merge(hyp_continuation)
+                else:
+                    partial_hypotheses[i] = hyp_continuation
             return partial_hypotheses
         return hyps
 
@@ -2928,22 +2936,29 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
         self,
         hyps: Optional[list[rnnt_utils.Hypothesis | None]],
         device: torch.device | str,
-        dtype: torch.dtype,
+        float_dtype: torch.dtype,
     ) -> Optional[BatchedGreedyDecodingState]:
         """Stack the state from a list of hypotheses into a BatchedGreedyDecodingState."""
-        if hyps is None or all(hyp is None for hyp in hyps):
+        if hyps is None:
             # No partial hypotheses, return empty state
             return None
 
         num_empty_hyps = sum(1 for hyp in hyps if hyp is None)
+        if num_empty_hyps == len(hyps):
+            # No partial hypotheses, return empty state
+            return None
+
         if num_empty_hyps > 0:
-            raise NotImplementedError("Expected either full batch of partial hypotheses, or no partial hypotheses")
+            # TODO(vbataev): add support for mixed batch of partial hypotheses and `None`
+            raise NotImplementedError("Mixed batch of partial hypotheses and `None` is not supported yet.")
 
         prev_labels = torch.tensor(
             [hyp.y_sequence[-1] if len(hyp.y_sequence) else self._blank_index for hyp in hyps]
         ).to(device=device)
 
-        prev_state = self.decoder.batch_unsplit_states([hyp.dec_state for hyp in hyps], device=device, dtype=dtype)
+        prev_state = self.decoder.batch_unsplit_states(
+            [hyp.dec_state for hyp in hyps], device=device, dtype=float_dtype
+        )
         prev_predictor_output = torch.stack([hyp.dec_out for hyp in hyps], dim=0)
         batched_state = BatchedGreedyDecodingState(
             predictor_state=prev_state,
@@ -2976,14 +2991,14 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
         x: torch.Tensor,
         out_len: torch.Tensor,
         device: torch.device,
-        partial_hypotheses: Optional[list[rnnt_utils.Hypothesis]] = None,
+        partial_hypotheses: Optional[list[rnnt_utils.Hypothesis | None]] = None,
     ) -> list[rnnt_utils.Hypothesis]:
         """
         Optimized batched greedy decoding.
         The main idea: search for next labels for the whole batch (evaluating Joint)
         and thus always evaluate prediction network with maximum possible batch size
         """
-        batched_state = self._stack_batched_state_from_hyps(partial_hypotheses, device=x.device, dtype=x.dtype)
+        batched_state = self._stack_batched_state_from_hyps(partial_hypotheses, device=x.device, float_dtype=x.dtype)
         batched_hyps, alignments, batched_state = self.decoding_computer(
             x=x,
             out_len=out_len,
@@ -2993,8 +3008,11 @@ class GreedyBatchedTDTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
         self._assign_batched_state_to_hyps(batched_state=batched_state, hyps=hyps)
 
         if partial_hypotheses:
-            for hyp, hyp_continuation in zip(partial_hypotheses, hyps):
-                hyp.merge(hyp_continuation)
+            for i, (hyp, hyp_continuation) in enumerate(zip(partial_hypotheses, hyps)):
+                if hyp is not None:
+                    hyp.merge(hyp_continuation)
+                else:
+                    partial_hypotheses[i] = hyp_continuation
             return partial_hypotheses
         return hyps
 

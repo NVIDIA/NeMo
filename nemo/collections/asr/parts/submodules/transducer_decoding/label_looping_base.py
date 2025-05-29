@@ -149,6 +149,13 @@ class GreedyBatchedLabelLoopingComputerBase(ABC):
         """Reset state to release memory (for CUDA graphs implementations)"""
         raise NotImplementedError
 
+    @abstractmethod
+    def get_decoding_state_after_sos(
+        self, batch_size: int, device: torch.device | str, float_dtype: torch.dtype
+    ) -> BatchedGreedyDecodingState:
+        """Get decoding state after <SOS> symbol, used for initialization from empty hypotheses."""
+        raise NotImplementedError
+
     def __call__(
         self,
         x: torch.Tensor,
