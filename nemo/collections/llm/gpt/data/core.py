@@ -904,7 +904,7 @@ class GPTSFTChatDataset(GPTSFTDataset):
     def __init__(
         self,
         file_path: str,
-        tokenizer: TokenizerSpec,
+        tokenizer: MegatronTokenizerBase,
         max_seq_length: int = 1024,
         min_seq_length: int = 1,
         pad_seq_length_to_mult: int = 16,

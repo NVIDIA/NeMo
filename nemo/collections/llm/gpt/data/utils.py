@@ -825,7 +825,7 @@ def _transform_to_chat_message(source: dict[str, list]):
 
 def _preprocess_hf_chat_template(
     hf_chat_dict: dict,
-    tokenizer: TokenizerSpec,
+    tokenizer: MegatronTokenizerBase,
 ):
     """
     Given a conversation list (source) this function applies the following transformations:
