@@ -316,12 +316,13 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
             log_probs = decoder_outputs[:, frame_idx, :].unsqueeze(1).repeat(1, self.beam_size, 1)
             log_probs += batched_beam_hyps.scores.unsqueeze(-1)
 
-            if self.ngram_lm_batch is not None:
-                lm_scores, batch_lm_states_candidates = self.ngram_lm_batch.advance(states=batch_lm_states.view(-1))
-                log_probs[..., :-1] += self.ngram_lm_alpha * lm_scores.view(curr_batch_size, self.beam_size, -1)
-
             # step 2.2: updating non-blank and non-repeating token scores with `beam_beta`
             log_probs = torch.where(repeated_or_blank_mask, log_probs, log_probs + self.beam_beta)
+            
+            if self.ngram_lm_batch is not None:
+                lm_scores, batch_lm_states_candidates = self.ngram_lm_batch.advance(states=batch_lm_states.view(-1))
+                lm_scores = torch.where(repeated_mask[..., :-1], 0, lm_scores.view(curr_batch_size, self.beam_size, -1))
+                log_probs[..., :-1] += self.ngram_lm_alpha * lm_scores.view(curr_batch_size, self.beam_size, -1)
 
             # step 2.3: getting `beam_size` best candidates
             next_scores, next_candidates_indices = torch.topk(
