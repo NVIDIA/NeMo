@@ -67,6 +67,7 @@ class Qwen2Config500M(Qwen2Config):
     num_attention_heads: int = 14
     num_query_groups: int = 2
     ffn_hidden_size: int = 4864
+    share_embeddings_and_output_weights: bool = True
 
 
 @dataclass
@@ -89,6 +90,7 @@ class Qwen2Config1P5B(Qwen2Config):
     num_attention_heads: int = 12
     num_query_groups: int = 2
     ffn_hidden_size: int = 8960
+    share_embeddings_and_output_weights: bool = True
 
 
 @dataclass
@@ -226,6 +228,9 @@ class HFQwen2Importer(io.ModelConnector["AutoModelForCausalLM", Qwen2Model]):
             "model.norm.weight": "decoder.final_layernorm.weight",
             "lm_head.weight": "output_layer.weight",
         }
+        if getattr(source.config, "tie_word_embeddings", False):
+            # small Qwen 2 models have shared input output embeddings
+            del mapping["lm_head.weight"]
 
         transforms = [
             io.state_transform(
@@ -279,7 +284,7 @@ class HFQwen2Importer(io.ModelConnector["AutoModelForCausalLM", Qwen2Model]):
             gated_linear_unit=True,
             make_vocab_size_divisible_by=128,
             rotary_base=source.rope_theta,
-            share_embeddings_and_output_weights=False,
+            share_embeddings_and_output_weights=getattr(source, "tie_word_embeddings", False),
             vocab_size=source.vocab_size,
             seq_length=source.max_position_embeddings,
             fp16=(dtype_from_hf(source) == torch.float16),
