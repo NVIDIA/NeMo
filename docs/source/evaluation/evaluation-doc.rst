@@ -126,7 +126,7 @@ processes are launched as two separate jobs with NeMo-Run. The evaluate method w
 accessible and the model is deployed before starting the evaluations.
 
 .. note::
-    Please make sure to update HF_TOKEN in the nemo-run script `evaluation.py <https://github.com/NVIDIA/NeMo/blob/main/scripts/llm/evaluation.py>`__ with your HF_TOKEN.
+    Please make sure to update HF_TOKEN in the NeMo-Run script `evaluation.py <https://github.com/NVIDIA/NeMo/blob/main/scripts/llm/evaluation.py>`__ with your HF_TOKEN.
 
 Run Locally with NeMo-Run
 #########################
