@@ -70,6 +70,16 @@ def get_model_encoder_output(
     return encoded_outputs, encoded_length
 
 
+def get_batch_encoder_outputs_from_records(records, model, device):
+    """Helper function to get encoder outputs for a batch of manifest records"""
+    filenames = [record["audio_filepath"] for record in records]
+    local_batch_size = len(filenames)
+    encoder_output, encoder_output_len = get_model_encoder_output(
+        test_audio_filenames=filenames, model=model, num_samples=local_batch_size, device=device
+    )
+    return encoder_output, encoder_output_len
+
+
 @pytest.mark.with_downloads
 @pytest.mark.parametrize(
     "device,use_cuda_graph_decoder",
@@ -79,7 +89,7 @@ def get_model_encoder_output(
 @pytest.mark.parametrize("chunk_size", [1, 3])
 @pytest.mark.parametrize("batch_size", [4])
 @pytest.mark.parametrize("max_symbols", [10])
-def test_loop_labels_decoding_streaming_gpu_state(
+def test_label_looping_decoding_streaming_gpu_state(
     tmp_path_factory,
     an4_val_manifest_corrected,
     stt_en_fastconformer_transducer_large,
@@ -112,12 +122,10 @@ def test_loop_labels_decoding_streaming_gpu_state(
     decoding_computer: GreedyBatchedLabelLoopingComputerBase = model.decoding.decoding.decoding_computer
     with torch.no_grad(), torch.inference_mode():
         for i in range(0, len(manifest), batch_size):
-            records = manifest[i : i + batch_size]
-            filenames = [record["audio_filepath"] for record in records]
-            local_batch_size = len(filenames)
-            encoder_output, encoder_output_len = get_model_encoder_output(
-                test_audio_filenames=filenames, model=model, num_samples=local_batch_size, device=device
+            encoder_output, encoder_output_len = get_batch_encoder_outputs_from_records(
+                manifest[i : i + batch_size], model=model, device=device
             )
+            local_batch_size = encoder_output_len.shape[0]
             # decode encoder output by chunks, passing state between decoder invocations
             state: Optional[BatchedGreedyDecodingState] = None
             hyps = None
@@ -158,7 +166,7 @@ def test_loop_labels_decoding_streaming_gpu_state(
 @pytest.mark.parametrize("chunk_size", [1, 3])
 @pytest.mark.parametrize("batch_size", [4])
 @pytest.mark.parametrize("max_symbols", [10])
-def test_loop_labels_decoding_streaming_partial_hypotheses(
+def test_label_looping_decoding_streaming_partial_hypotheses(
     tmp_path_factory,
     an4_val_manifest_corrected,
     stt_en_fastconformer_transducer_large,
@@ -191,11 +199,8 @@ def test_loop_labels_decoding_streaming_partial_hypotheses(
     rnnt_infer = model.decoding.decoding
     with torch.no_grad(), torch.inference_mode():
         for i in range(0, len(manifest), batch_size):
-            records = manifest[i : i + batch_size]
-            filenames = [record["audio_filepath"] for record in records]
-            local_batch_size = len(filenames)
-            encoder_output, encoder_output_len = get_model_encoder_output(
-                test_audio_filenames=filenames, model=model, num_samples=local_batch_size, device=device
+            encoder_output, encoder_output_len = get_batch_encoder_outputs_from_records(
+                manifest[i : i + batch_size], model=model, device=device
             )
             # decode encoder output by chunks, passing state between decoder invocations
             hyps = None
