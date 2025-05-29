@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -218,15 +218,19 @@ class HFChatGLMExporter(io.ModelConnector[ChatGLMModel, "AutoModelForCausalLM"])
     ChatGLMForCausalLM format, including weight mapping and configuration translation.
     """
 
-    def init(self, dtype=torch.bfloat16, model_name="THUDM/chatglm3-6b") -> "AutoModelForCausalLM":
-        from transformers import AutoModelForCausalLM
+    def init(self, dtype=torch.bfloat16, model_name=None) -> "AutoModelForCausalLM":
+        from transformers import AutoConfig, AutoModelForCausalLM
         from transformers.modeling_utils import no_init_weights
 
-        with no_init_weights(True):
+        if model_name is None:
+            model_name = "THUDM/chatglm3-6b"
+        with no_init_weights():
             # Since ChatGLM is not importable from transformers, we can only initialize the HF model
-            # from a known checkpoint. The model_name will need to be passed in.
-            hf_model = AutoModelForCausalLM.from_pretrained(
-                model_name,
+            # from a known checkpoint folder containing the config file and modeling files.
+            # The model_name will need to be passed in.
+            config = AutoConfig.from_pretrained(model_name, trust_remote_code=True)
+            hf_model = AutoModelForCausalLM.from_config(
+                config,
                 trust_remote_code=True,
                 torch_dtype=dtype,
             )

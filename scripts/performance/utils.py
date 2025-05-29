@@ -54,6 +54,7 @@ def slurm_executor(
     hf_token: str = None,
     nemo_home: str = DEFAULT_NEMO_HOME,
     wandb_key: str = None,
+    network: str = None,
 ) -> run.SlurmExecutor:
     """
     Slurm cluster definition with appropriate cluster params and NeMo container params needed for pre-training
@@ -79,10 +80,13 @@ def slurm_executor(
     if wandb_key is not None:
         env_vars["WANDB_API_KEY"] = wandb_key
     mounts = []
-    srun_args = [
-        "--mpi=pmix",
-        "numactl --cpunodebind=$((SLURM_LOCALID/4)) --membind=$((SLURM_LOCALID/4))",
-    ]
+    srun_args = custom_srun_args.copy()
+    srun_args.extend(
+        [
+            "--mpi=pmix",
+            "numactl --cpunodebind=$((SLURM_LOCALID/4)) --membind=$((SLURM_LOCALID/4))",  # numactl command should be always at the end of srun_args
+        ]
+    )
 
     if nemo_home != DEFAULT_NEMO_CACHE_HOME:  # DO NOT change this to 'DEFAULT_NEMO_HOME'/'NEMO_HOME'
         env_vars.update({"NEMO_HOME": nemo_home})
@@ -92,7 +96,6 @@ def slurm_executor(
 
     env_vars |= custom_env_vars
     mounts.extend(custom_mounts)
-    srun_args.extend(custom_srun_args)
 
     # add --segment flag to sbatch if job uses GB200 and goes beyond one rack.
     segment = None
@@ -119,6 +122,7 @@ def slurm_executor(
         exclusive=True,
         packager=run.GitArchivePackager(),
         segment=segment,
+        network=network,
     )
 
     return executor
@@ -183,6 +187,9 @@ def get_user_configs(gpu: str, task: str, model_name: str, model_size: str, args
 
     config = config_df.to_dict(orient='records')[0] if len(config_df) > 0 else {}
 
+    if gpu.lower() == "gb200" and args.gpus_per_node > 4:
+        args.gpus_per_node = 4
+        logging.warning("GB200 has 4 GPUs per node. Setting gpus_per_node to 4.")
     num_gpus = config.get("num_gpus") if args.num_gpus is None else args.num_gpus
     num_nodes = -(num_gpus // -args.gpus_per_node)  # ceil division
     mbs = config.get("mbs") if args.micro_batch_size is None else args.micro_batch_size
@@ -211,12 +218,21 @@ def get_user_configs(gpu: str, task: str, model_name: str, model_size: str, args
     )
     activation_offload_layers = 0 if activation_offload_layers is None else int(activation_offload_layers)
 
+    if args.recompute_modules is not None:
+        recompute_modules = args.recompute_modules
+        assert isinstance(recompute_modules, list), "recompute_modules must be a list"
+    elif config.get("recompute_modules") is not None:
+        recompute_modules = config.get("recompute_modules").split('/')
+    else:
+        recompute_modules = None
+
     kwargs = num_nodes, mbs, gbs, tp_size, pp_size, cp_size, vp_size, ep_size, etp_size
     kwargs = [int(arg) if arg is not None else arg for arg in kwargs] + [
         enable_cuda_graphs,
         use_mcore_fsdp,
         recompute_layers,
         activation_offload_layers,
+        recompute_modules,
     ]
 
     return kwargs
@@ -238,12 +254,39 @@ def set_primary_perf_configs(
     etp_size: Optional[int] = None,
     enable_cuda_graphs: bool = False,
     use_mcore_fsdp: bool = False,
+    use_user_buffer_registration: bool = False,
+    use_sharp: bool = False,
     recompute_layers: int = 0,
     activation_offload_layers: int = 0,
     compute_dtype: str = None,
     fp8_recipe: str = None,
+    recompute_modules: Optional[List[str]] = None,
+    nccl_communicator_config_path: str = None,
 ):
     """Set experiment configs we usually tune for performance of all models."""
+
+    # print the received arguments for users to debug
+    logging.info("Received model parallel configs: ")
+    logging.info(f"num_nodes: {num_nodes}")
+    logging.info(f"num_gpus_per_node: {num_gpus_per_node}")
+    logging.info(f"mbs: {mbs}")
+    logging.info(f"gbs: {gbs}")
+    logging.info(f"tp_size: {tp_size}")
+    logging.info(f"pp_size: {pp_size}")
+    logging.info(f"cp_size: {cp_size}")
+    logging.info(f"vp_size: {vp_size}")
+    logging.info(f"ep_size: {ep_size}")
+    logging.info(f"etp_size: {etp_size}")
+    logging.info(f"enable_cuda_graphs: {enable_cuda_graphs}")
+    logging.info(f"use_mcore_fsdp: {use_mcore_fsdp}")
+    logging.info(f"use_user_buffer_registration: {use_user_buffer_registration}")
+    logging.info(f"use_sharp: {use_sharp}")
+    logging.info(f"recompute_layers: {recompute_layers}")
+    logging.info(f"activation_offload_layers: {activation_offload_layers}")
+    logging.info(f"compute_dtype: {compute_dtype}")
+    logging.info(f"fp8_recipe: {fp8_recipe}")
+    logging.info(f"recompute_modules: {recompute_modules}")
+
     # nemo.lightning.Trainer configs
     recipe.trainer.num_nodes = num_nodes
     recipe.trainer.devices = num_gpus_per_node
@@ -267,6 +310,8 @@ def set_primary_perf_configs(
     recipe.trainer.strategy.expert_tensor_parallel_size = etp_size
 
     recipe.trainer.strategy.sequence_parallel = bool(tp_size > 1)
+    if nccl_communicator_config_path is not None:
+        recipe.trainer.strategy.nccl_communicator_config_path = nccl_communicator_config_path
 
     # callback configs
     comm_overlap_callback_idx = get_comm_overlap_callback_idx(recipe.trainer.callbacks)
@@ -314,6 +359,14 @@ def set_primary_perf_configs(
                 )
                 recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap = False
 
+    # User buffers configs
+    if use_user_buffer_registration:
+        recipe.trainer.strategy.ddp.nccl_ub = True
+
+    # Sharp configs
+    if use_sharp:
+        recipe.trainer.strategy.use_sharp = True
+
     # Recompute configs
     if recompute_layers > 0:
         recipe.model.config.recompute_granularity = "full"
@@ -325,6 +378,9 @@ def set_primary_perf_configs(
         recipe.model.config.cpu_offloading = True
         recipe.model.config.cpu_offloading_weights = False
         recipe.model.config.cpu_offloading_num_layers = activation_offload_layers
+
+    if compute_dtype.lower() == "bf16":
+        recipe.optim.config.use_precision_aware_optimizer = True
 
     # low precision training configs
     if compute_dtype is not None and compute_dtype.lower() == "fp8":
@@ -339,9 +395,16 @@ def set_primary_perf_configs(
         elif fp8_recipe.lower() == "mxfp8":
             recipe.trainer.plugins = bf16_with_mxfp8_mixed()
         recipe.trainer.plugins.grad_reduce_in_fp32 = False
-        if use_mcore_fsdp:
-            logging.warning("Currently FSDP does not support FP8 param gather. Disabling fp8 param gather.")
-            recipe.trainer.plugins.fp8_param_gather = False
+
+    # Activation recompute configs
+    if recompute_modules is not None:
+        recipe.model.config.recompute_modules = recompute_modules
+        assert (
+            recipe.model.config.recompute_granularity == "selective"
+        ), "recompute_granularity must be selective when recompute_modules is provided"
+        assert (
+            recipe.model.config.recompute_num_layers is None
+        ), "recompute_num_layers must be None when recompute_modules is provided"
 
     return recipe
 

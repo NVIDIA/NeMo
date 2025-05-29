@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -355,12 +355,14 @@ class SelfAttentionNoBias(SelfAttention):
         submodules: SelfAttentionSubmodules,
         layer_number: int,
         attn_mask_type=AttnMaskType.padding,
+        **kwargs,
     ):
         super().__init__(
             config=config,
             submodules=submodules,
             layer_number=layer_number,
             attn_mask_type=attn_mask_type,
+            **kwargs,
         )
 
         # Override to remove bias since we don't have a good config for this.
@@ -408,12 +410,14 @@ class ImageTransformerLayer(TransformerLayer):
         submodules: TransformerLayerSubmodules,
         layer_number: int = 1,
         hidden_dropout: float = None,
+        **kwargs,
     ):
         super().__init__(
             config=config,
             submodules=submodules,
             layer_number=layer_number,
             hidden_dropout=hidden_dropout,
+            **kwargs,
         )
         self.gated = self.config.gated
         if self.gated:

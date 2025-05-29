@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,7 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 import os
+import pprint
 import shutil
 import tempfile
 from dataclasses import dataclass
@@ -28,6 +30,7 @@ from transformers import PreTrainedTokenizerBase
 from nemo.collections import llm
 from nemo.collections.llm.inference import MCoreTokenizerWrappper, generate
 from nemo.collections.llm.modelopt.quantization.quant_cfg_choices import get_quant_cfg_choices
+from nemo.collections.llm.modelopt.quantization.utils import load_quant_cfg
 from nemo.collections.llm.utils import barrier, torch_dtype_from_precision
 from nemo.lightning import io
 from nemo.lightning.ckpt_utils import ckpt_to_context_subdir
@@ -48,6 +51,10 @@ HAVE_MODELOPT = HAVE_MODELOPT_MTQ and HAVE_MODELOPT_MTE
 QUANT_CFG_CHOICES = get_quant_cfg_choices()
 SUPPORTED_DTYPE = [16, "16", "bf16"]  # Default precision for non-quantized layers
 SUPPORTED_EXPORT_FMT = ["trtllm", "nemo", "hf"]
+KV_QUANT_CFG_CHOICES = {
+    "fp8": "FP8_KV_CFG",
+    "nvfp4": "NVFP4_KV_CFG",
+}
 
 
 @dataclass
@@ -65,6 +72,7 @@ class QuantizationConfig:
     awq_block_size: int = 128
     sq_alpha: float = 0.5
     enable_kv_cache: Optional[bool] = None
+    kv_cache_qformat: str = "fp8"
 
     calibration_dataset: str = "cnn_dailymail"
     calibration_dataset_size: int = 512
@@ -115,11 +123,12 @@ class Quantizer:
 
         self.quantization_config = quantization_config
         self.export_config = export_config
-
-        algorithm = quantization_config.algorithm
         dtype = export_config.dtype
         # Export and Quantization config sanity checks
-        assert algorithm is None or algorithm in QUANT_CFG_CHOICES, f"Unsupported quantization algorithm: {algorithm}"
+        if quantization_config.enable_kv_cache:
+            assert (
+                quantization_config.kv_cache_qformat in KV_QUANT_CFG_CHOICES
+            ), f"Unsupported kv cache quantization format: {quantization_config.kv_cache_qformat}"
         if export_config is not None:
             assert dtype in SUPPORTED_DTYPE, f"Unsupported export dtype: {dtype}"
         self.torch_dtype = torch_dtype_from_precision(dtype)
@@ -223,6 +232,57 @@ class Quantizer:
             micro_batch_size=self.quantization_config.calibration_batch_size,
         )
 
+    def _get_quant_cfg(self, model):
+        decoder_type = self._get_decoder_type(model, optional=True)
+        algorithm = self.quantization_config.algorithm
+
+        if os.path.isfile(algorithm):
+            return load_quant_cfg(algorithm)
+
+        assert algorithm in QUANT_CFG_CHOICES, f"Unsupported quantization format: {algorithm}"
+
+        quant_cfg = QUANT_CFG_CHOICES[algorithm]
+        if "awq" in algorithm:
+            quant_cfg = copy.deepcopy(quant_cfg)
+            weight_quantizer = quant_cfg["quant_cfg"]["*weight_quantizer"]
+            if isinstance(weight_quantizer, list):
+                weight_quantizer = weight_quantizer[0]
+            # If awq_block_size argument is provided, update weight_quantizer
+            if self.quantization_config.awq_block_size:
+                weight_quantizer["block_sizes"][-1] = self.quantization_config.awq_block_size
+
+            # Coarser optimal scale search seems to resolve the overflow in TRT-LLM for some models
+            if "w4a8_awq" == algorithm and decoder_type in ["gemma", "mpt"]:
+                quant_cfg["algorithm"] = {"method": "awq_lite", "alpha_step": 1}
+
+        if self.quantization_config.enable_kv_cache is None:
+            enable_quant_kv_cache = "int8" not in algorithm and decoder_type != "gpt"
+        else:
+            enable_quant_kv_cache = self.quantization_config.enable_kv_cache
+        if self.quantization_config.enable_kv_cache is None and enable_quant_kv_cache:
+            logging.warning("Enabled KV cache quantization but enable_kv_cache is None in quantization_config")
+        else:
+            logging.info(f"{'Enabled' if enable_quant_kv_cache else 'Disabled'} KV cache quantization")
+
+        # Check if any bmm_quantizer is in the quant_cfg. If so, we need to enable the bmm_quantizer.
+        if enable_quant_kv_cache:
+            # Update KV cache related bmm quantizers
+            # If quant_cfg["quant_cfg"] is None, it corresponds to only kv cache quantization case
+            quant_cfg["quant_cfg"] = quant_cfg.get("quant_cfg", {"default": {"enable": False}})
+            quant_cfg["quant_cfg"].update(
+                getattr(mtq, KV_QUANT_CFG_CHOICES[self.quantization_config.kv_cache_qformat])["quant_cfg"]
+            )
+
+            # Set default algorithm for kv cache quantization if not provided.
+            if not quant_cfg.get("algorithm", None):
+                quant_cfg["algorithm"] = "max"
+
+        # Gemma 7B has accuracy regression using alpha 1. We set 0.5 instead.
+        if decoder_type == "gemma" and "int8_sq" in algorithm:
+            quant_cfg["algorithm"] = {"method": "smoothquant", "alpha": 0.5}
+
+        return quant_cfg
+
     def quantize(self, model: "MegatronParallel", forward_loop=None):
         """Quantize the model and calibrate using given forward loop.
 
@@ -240,30 +300,8 @@ class Quantizer:
 
         self._setup(model)
         decoder_type = self._get_decoder_type(model, optional=True)
-        quant_cfg = QUANT_CFG_CHOICES[algorithm]
-        if "awq" in algorithm:
-            weight_quantizer = quant_cfg["quant_cfg"]["*weight_quantizer"]
-            if isinstance(weight_quantizer, list):
-                weight_quantizer = weight_quantizer[0]
-            weight_quantizer["block_sizes"][-1] = self.quantization_config.awq_block_size
-
-        # Always turn on FP8 kv cache to save memory footprint.
-        # For int8_sq, we use int8 kv cache.
-        # TODO: Investigate why enabling FP8 kv cache will cause accuracy regressions for Nemotron.
-        enable_quant_kv_cache = self.quantization_config.enable_kv_cache
-        if enable_quant_kv_cache is None:
-            enable_quant_kv_cache = "int8" not in algorithm and decoder_type != "gpt"
-        logging.info(f"{'Enabled' if enable_quant_kv_cache else 'Disabled'} KV cache quantization")
-        quant_cfg["quant_cfg"]["*output_quantizer"] = {
-            "num_bits": 8 if algorithm == "int8_sq" else (4, 3),
-            "axis": None,
-            "enable": enable_quant_kv_cache,
-        }
-        if algorithm == "int8_sq":
-            sq_alpha = self.quantization_config.sq_alpha
-            logging.info(f"Using int8_sq alpha = {sq_alpha}")
-            quant_cfg["algorithm"] = {"method": "smoothquant", "alpha": sq_alpha}
-
+        quant_cfg = self._get_quant_cfg(model)
+        logging.info(f"Using quant_cfg:\n{pprint.pformat(quant_cfg)}")
         unwrapped_model = mtq.quantize(unwrap_for_modelopt_operations(model), quant_cfg, forward_loop)
         if decoder_type == "gpt":
             # We found squared_relu may have an under-calibration problem.
@@ -470,45 +508,11 @@ def create_data_iterator_getter(model, dataset, seq_len, batch_size, calibration
     return _get_iterator
 
 
-huggingface_model_type_pattern_match = {
-    "GPT2": "gpt",
-    "Mllama": "mllama",
-    "Llama": "llama",
-    "Mistral": "llama",
-    "GPTJ": "gptj",
-    "FalconForCausalLM": "falcon",
-    "RWForCausalLM": "falcon",
-    "baichuan": "baichuan",
-    "MPT": "mpt",
-    "Bloom": "bloom",
-    "ChatGLM": "chatglm",
-    "QWen": "qwen",
-    "RecurrentGemma": "recurrentgemma",
-    "Gemma2": "gemma2",
-    "Gemma": "gemma",
-    "phi3small": "phi3small",
-    "phi3": "phi3",
-    "PhiMoEForCausalLM": "phi3",
-    "phi": "phi",
-    "TLGv4ForCausalLM": "phi",
-    "MixtralForCausalLM": "llama",
-    "ArcticForCausalLM": "llama",
-    "StarCoder": "gpt",
-    "Dbrx": "dbrx",
-    "T5": "t5",
-    "Bart": "bart",
-    "GLM": "glm",
-    "InternLM2ForCausalLM": "internlm",
-    "ExaoneForCausalLM": "exaone",
-    "Nemotron": "gpt",
-    "Deepseek": "deepseek",
-    "Whisper": "whisper",
-}
-
 gpt_model_type = [
     (llm.Baichuan2Model, "baichuan"),
     (llm.ChatGLMModel, "chatglm"),
     (llm.Gemma2Model, "gemma2"),
+    (llm.Gemma3Model, "gemma3"),
     (llm.GemmaModel, "gemma"),
     (llm.LlamaModel, "llama"),
     (llm.MistralModel, "llama"),
@@ -539,9 +543,7 @@ def get_modelopt_decoder_type(model: Union[llm.GPTModel, llm.HFAutoModelForCausa
         Optional[str]: The inferred decoder type or None if no match is found.
     """
     if isinstance(model, llm.HFAutoModelForCausalLM):
-        for k, v in huggingface_model_type_pattern_match.items():
-            if k.lower() in type(model.model).__name__.lower():
-                return v
+        return mte.model_utils.get_model_type(model.model)
     else:
         for config_class, decoder_type in gpt_model_type:
             if isinstance(model, config_class):

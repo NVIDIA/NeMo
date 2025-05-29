@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -44,8 +44,9 @@ class _ModelState:
     Helper class for used for to modify state dict of a source model during model conversion.
     """
 
-    def __init__(self, state_dict):
+    def __init__(self, state_dict, config=None):
         self._state_dict = state_dict
+        self.config = config
 
     def state_dict(self):
         # pylint: disable=C0115,C0116
@@ -301,6 +302,7 @@ class StateDictTransform(Generic[F]):
                     target_dict[layer_names[-1]] = self.call_transform(
                         ctx, **dict(zip(param_names, [source_dict[x] for x in layer_names[:-1]]))
                     )
+                logging.debug(f"Matched (transform)! {layer_names_group=}")
         else:
             source_keys = list(source_dict.keys())
             target_keys = list(target_dict.keys())

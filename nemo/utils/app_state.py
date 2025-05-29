@@ -74,6 +74,8 @@ class AppState(metaclass=Singleton):
         self._use_fp8 = False
         self._context_parallel_size = None
         self._init_mpi_proc_gruop = False
+        self._nccl_communicator_config_path = None
+        self._use_sharp = False
 
         self._random_seed = None
 
@@ -572,6 +574,22 @@ class AppState(metaclass=Singleton):
         self._use_fp8 = use_fp8
 
     @property
+    def use_sharp(self):
+        """Property returns whether to use SHARP for all-reduce operations.
+        Returns:
+            Whether to use SHARP.
+        """
+        return self._use_sharp
+
+    @use_sharp.setter
+    def use_sharp(self, use_sharp):
+        """Property sets whether to use SHARP for all-reduce operations.
+        Args:
+            use_sharp (bool): Whether to use SHARP.
+        """
+        self._use_sharp = use_sharp
+
+    @property
     def context_parallel_size(self):
         """Property returns the number of GPUs in each context parallel group.
         Returns:
@@ -602,6 +620,22 @@ class AppState(metaclass=Singleton):
             init_mpi_proc_group:  Initialize mpi process group.
         """
         self._init_mpi_proc_group = init_mpi_proc_group
+
+    @property
+    def nccl_communicator_config_path(self):
+        """Property returns the path to the nccl communicator config.
+        Returns:
+            Path to the nccl communicator config.
+        """
+        return self._nccl_communicator_config_path
+
+    @nccl_communicator_config_path.setter
+    def nccl_communicator_config_path(self, path):
+        """Property sets the path to the nccl communicator config.
+        Args:
+            path (str):  Path to the nccl communicator config.
+        """
+        self._nccl_communicator_config_path = path
 
     @property
     def random_seed(self):

@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -381,17 +381,3 @@ def _measure_tokens(cut: Cut) -> int:
 def _measure_tps(cut: Cut) -> float:
     num_tokens = _measure_tokens(cut)
     return num_tokens / cut.duration
-
-
-class PlaceholderFilter:
-    """
-    Callable, returns ``True`` if a cut's "_skipme" is set and ``False`` otherwise.
-    Acts as a pass-through for objects of other type than Cut.
-    """
-
-    def __call__(self, example) -> bool:
-        if not isinstance(example, Cut):
-            return True
-
-        custom = getattr(example, "custom", None)
-        return custom is None or not custom.pop("_skipme", False)

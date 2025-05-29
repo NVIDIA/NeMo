@@ -18,9 +18,11 @@ CUDA_VISIBLE_DEVICES="" NEMO_NUMBA_MINVER=0.53 coverage run -a --data-file=/work
     --ignore=tests/collections/llm \
     --ignore=tests/collections/multimodal \
     --ignore=tests/collections/nlp \
+    --ignore=tests/collections/speechlm2 \
     --ignore=tests/collections/tts \
     --ignore=tests/core \
     --ignore=tests/core_ptl \
     --ignore=tests/hydra \
     --ignore=tests/lightning \
-    --ignore=tests/utils
+    --ignore=tests/export \
+    --ignore=tests/deploy

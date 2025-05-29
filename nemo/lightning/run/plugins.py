@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -176,6 +176,9 @@ class NsysPlugin(run.Plugin):
         launcher = executor.get_launcher()
         launcher.nsys_profile = True
         launcher.nsys_trace = self.nsys_trace or ["nvtx", "cuda"]
+        if isinstance(executor, run.SlurmExecutor):
+            # NOTE: DO NOT change to f-string, `%q{}` is Slurm placeholder
+            launcher.nsys_filename = "profile_%p_%q{SLURM_JOB_ID}_node%q{SLURM_NODEID}_rank%q{SLURM_PROCID}"
 
 
 @dataclass(kw_only=True)
@@ -402,6 +405,10 @@ class PerfEnvPlugin(run.Plugin):
                 assert isinstance(self.nccl_pp_comm_chunksize, int) and self.nccl_pp_comm_chunksize > 1
                 executor.env_vars["NCCL_P2P_NET_CHUNKSIZE"] = str(self.nccl_pp_comm_chunksize)
 
+            # Make cuda memory dynamically expandable that mitigates GPU memory waste from
+            # fragementation
+            executor.env_vars["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
+
         # Improve perf by steering power to tensor cores, may not work on all systems
         if self.enable_vboost and isinstance(executor, run.SlurmExecutor):
             vboost_cmd = self.get_vboost_srun_cmd(executor.nodes, executor.tunnel.job_dir)
@@ -419,13 +426,16 @@ class TritonCacheSetup(run.Plugin):
     This should not be neccessay for Triton 3.2.0 and above.
     """
 
-    from triton import __version__ as triton_version
+    from nemo.core.utils.optional_libs import TRITON_AVAILABLE
 
-    if triton_version <= "3.1.0":
+    if TRITON_AVAILABLE:
+        from triton import __version__ as triton_version
 
-        def setup(self, task: run.Partial | run.Script, executor: run.Executor):
-            """Set up the Triton cache environment variables."""
-            executor.env_vars["TRITON_CACHE_DIR"] = executor.job_dir + "triton_cahce"
-            executor.env_vars["TRITON_CACHE_MANAGER"] = (
-                "megatron.core.ssm.triton_cache_manager:ParallelFileCacheManager"
-            )
+        if triton_version <= "3.1.0":
+
+            def setup(self, task: run.Partial | run.Script, executor: run.Executor):
+                """Set up the Triton cache environment variables."""
+                executor.env_vars["TRITON_CACHE_DIR"] = executor.job_dir + "triton_cahce"
+                executor.env_vars["TRITON_CACHE_MANAGER"] = (
+                    "megatron.core.ssm.triton_cache_manager:ParallelFileCacheManager"
+                )

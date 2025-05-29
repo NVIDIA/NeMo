@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -47,9 +47,9 @@ class LoRALinear(AdapterWrapper):
     class to provide a specific implementation of the forward method.
     """
 
-    def forward(self, x):
+    def forward(self, x, *args, **kwargs):
         # pylint: disable=C0115,C0116
-        linear_output, bias, layernorm_output = self.base_linear_forward(x)
+        linear_output, bias, layernorm_output = self.base_linear_forward(x, *args, **kwargs)
         adapter_output = self.adapter(layernorm_output.contiguous())
         return linear_output + adapter_output, bias
 
@@ -277,6 +277,7 @@ class LinearAdapter(nn.Linear):
         # forward in the case where it uses quantized weights. We store a reference to nn.Linear's
         # forward in `super_fwd` attribute. If the attribute does not exist we do the usual linear.
         if (fwd := getattr(self, 'super_fwd', None)) is not None:
+            assert fwd != self.forward
             res = fwd(x)
         else:
             res = F.linear(x, self.weight, self.bias)
@@ -327,17 +328,21 @@ def patch_linear_module(
     """
 
     assert isinstance(orig_linear, nn.Linear) or orig_linear.__class__ == te.Linear
+    assert not hasattr(orig_linear, 'super_fwd'), orig_linear.super_fwd
 
     if isinstance(orig_linear, nn.Linear):
         LinearAdapter._init_adapter(orig_linear, dim, alpha, dropout, dropout_position, lora_A_init_method, lora_dtype)
         cls = orig_linear.__class__
         new_cls = type('PatchedLinearAdapter', (LinearAdapter, cls), {})
-    else:
+    elif orig_linear.__class__ == te.Linear:
         TELinearAdapter._init_adapter(
             orig_linear, dim, alpha, dropout, dropout_position, lora_A_init_method, lora_dtype
         )
         cls = orig_linear.__class__
         new_cls = type('PatchedTELinearAdapter', (TELinearAdapter, cls), {})
+    else:
+        raise NotImplementedError("Expected isinstance(orig_linear, (nn.Linear, te.Linear))")
+
     # If the model uses quantized weights, we want to use orig_linear's forward
     if (
         getattr(orig_linear, 'quant_state', None) is not None
@@ -377,6 +382,9 @@ class LoRA(PEFT, ModuleMatcher):
         dropout_position (Literal['pre', 'post'], optional): Position for applying dropout.
             Can be 'pre' (before the low-rank projection) or 'post' (after). Defaults to 'pre'.
         a2a_experimental (bool): Enables the experimental All-to-All (A2A) communication strategy. Defaults to False.
+        dropout_recompute (bool): Enables dropout recompute using Thunder JIT compilation. When True,
+            applies thunder.jit() to the dropout layer for memory-efficient training by recomputing
+            dropout activations during backward pass instead of storing them.
         lora_dtype (torch.dtype): Parameter data type for LoRA weights. Default None (will use model's dtype).
 
     Example:
@@ -407,6 +415,7 @@ class LoRA(PEFT, ModuleMatcher):
     lora_B_init_method: str = "zero"
     a2a_experimental: bool = False
     lora_dtype: torch.dtype = None
+    dropout_recompute: bool = False
 
     def transform(self, m: nn.Module, name=None, prefix=None):
         """
@@ -472,6 +481,7 @@ class LoRA(PEFT, ModuleMatcher):
                 is_expert=is_expert_linear(full_name),
                 a2a_experimental=self.a2a_experimental,
                 disable_sequence_parallel_comm=disable_sp_comm,
+                dropout_recompute=self.dropout_recompute,
             )
             return LoRALinear(m, adapter)
         return m

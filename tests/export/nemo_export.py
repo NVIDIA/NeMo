@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,7 +16,6 @@ import argparse
 import json
 import logging
 import shutil
-import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -467,6 +466,8 @@ def run_in_framework_inference(
     run_accuracy=False,
     debug=True,
     test_data_path=None,
+    enable_flash_decode=True,
+    legacy_ckpt=False,
 ) -> Tuple[Optional[FunctionalResult], Optional[AccuracyResult]]:
     if Path(checkpoint_path).exists():
         if debug:
@@ -479,7 +480,9 @@ def run_in_framework_inference(
 
             print("Path: {0} and model: {1} will be tested".format(checkpoint_path, model_name))
 
-        deployed_model = MegatronLLMDeploy.get_deployable(checkpoint_path, num_gpus)
+        deployed_model = MegatronLLMDeploy.get_deployable(
+            checkpoint_path, num_gpus, enable_flash_decode=enable_flash_decode, legacy_ckpt=legacy_ckpt
+        )
 
         nm = DeployPyTriton(
             model=deployed_model,
@@ -661,9 +664,20 @@ def get_args():
         default="False",
     )
     parser.add_argument(
+        "--enable_flash_decode",
+        type=str,
+        default="False",
+    )
+    parser.add_argument(
         "--in_framework",
         type=str,
         default="False",
+    )
+    parser.add_argument(
+        "--legacy_ckpt",
+        type=str,
+        default="False",
+        help="Load checkpoint saved with TE < 1.14 (only for in-framework inference)",
     )
     parser.add_argument(
         "-gmu",
@@ -723,12 +737,14 @@ def get_args():
     args.run_accuracy = str_to_bool("run_accuracy", args.run_accuracy)
     args.use_vllm = str_to_bool("use_vllm", args.use_vllm)
     args.use_huggingface = str_to_bool("use_huggingface", args.use_huggingface)
+    args.enable_flash_decode = str_to_bool("enable_flash_decode", args.enable_flash_decode)
     args.lora = str_to_bool("lora", args.lora)
     args.ptuning = str_to_bool("ptuning", args.ptuning)
     args.use_parallel_embedding = str_to_bool("use_parallel_embedding", args.use_parallel_embedding)
     args.in_framework = str_to_bool("in_framework", args.in_framework)
     args.export_fp8_quantized = str_to_bool("export_fp8_quantized", args.export_fp8_quantized, optional=True)
     args.use_fp8_kv_cache = str_to_bool("use_fp8_kv_cache", args.use_fp8_kv_cache, optional=True)
+    args.legacy_ckpt = str_to_bool("legacy_ckpt", args.legacy_ckpt)
 
     return args
 
@@ -787,6 +803,8 @@ def run_inference_tests(args):
                 run_accuracy=args.run_accuracy,
                 debug=args.debug,
                 test_data_path=args.test_data_path,
+                enable_flash_decode=args.enable_flash_decode,
+                legacy_ckpt=args.legacy_ckpt,
             )
         else:
             result_dic[tps] = run_inference(
