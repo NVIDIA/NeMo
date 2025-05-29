@@ -406,6 +406,10 @@ def set_primary_perf_configs(
             recipe.model.config.recompute_num_layers is None
         ), "recompute_num_layers must be None when recompute_modules is provided"
 
+    # Disable local gradient checker at non-debugging mode
+    recipe.trainer.strategy.ddp.check_for_nan_in_grad = False
+    recipe.trainer.strategy.ddp.check_for_large_grads = False
+
     return recipe
 
 
