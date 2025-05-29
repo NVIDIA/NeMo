@@ -119,9 +119,9 @@ if __name__ == "__main__":
         hidden_size,
         etp_size,
         enable_cuda_graphs,
-        use_mcore_fsdp,
-        recompute_layers,
-        activation_offload_layers,
+        _,
+        _,
+        _,
     ) = kwargs[0:15]
 
     recipe = override_recipe_configs(
@@ -138,11 +138,11 @@ if __name__ == "__main__":
         hidden_size,
         etp_size,
         enable_cuda_graphs,
-        use_mcore_fsdp,
-        recompute_layers,
-        activation_offload_layers,
+        _,
+        _,
+        _,
         args.compute_dtype,
-        args.fp8_recipe,
+        _,
     )
 
     exp_config = (
