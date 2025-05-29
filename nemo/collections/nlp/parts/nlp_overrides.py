@@ -73,6 +73,10 @@ from nemo.core.optim.optimizers import init_optimizer_states
 from nemo.utils import AppState, logging
 from nemo.utils.model_utils import ckpt_to_dir, inject_model_parallel_rank, uninject_model_parallel_rank
 
+from concurrent.futures import ThreadPoolExecutor
+from multistorageclient.types import MSC_PROTOCOL
+import multistorageclient as msc
+
 try:
 
     from nemo.core.optim.distributed_adam import MegatronDistributedFusedAdam
@@ -203,6 +207,7 @@ class NLPDDPStrategy(DDPStrategy):
         with FP32 gradient accumulation.
         nccl_communicator_config_path: Path to the yaml file with NCCL communicator options
         sharp: Apply SHARP to NCCL data-parallel communication.
+        multistorageclient_enabled: Whether to use multistorageclient for checkpointing
     """
 
     def __init__(
@@ -1031,6 +1036,32 @@ class NLPFSDPStrategy(FSDPStrategy):
         return True
 
 
+def msc_download_dir(url: str, local_path: str):
+    logging.warning(f"Running msc_download_dir url {url} rank {torch.distributed.get_rank()}")
+
+    if not msc.os.path.exists(url):
+        raise Exception(f"Download Path doesn't exist: {url}")
+
+    base_name = os.path.basename(url) #url = "msc://my-profile/path/to/data", base_name = "data"
+    files = msc.list(url)
+
+    def download_file(item):
+        """Helper function to download a single file."""
+        file_name = item.key  #item.key = "msc://profile/path/to/data/file1.txt" 
+        base_name_idx = file_name.find(base_name) # base_name_idx = 23 
+        local_file_path = f"{local_path}/{file_name[base_name_idx:]}" #local_file_path = f"{local_path}/data/file1.txt"
+        os.makedirs(os.path.dirname(local_file_path), exist_ok=True)
+        msc.download_file(item, local_file_path)
+        #msc.download_file(f"{MSC_PROTOCOL}{get_profile()}/{file_name}", local_file_path)
+
+    # Use ThreadPoolExecutor for par    allel downloads
+    with ThreadPoolExecutor(max_workers=32) as executor:  # Adjust max_workers as needed
+        executor.map(download_file, files)
+
+    logging.warning(f"msc_download_dir completed rank {torch.distributed.get_rank()}")
+        
+        
+
 class NLPSaveRestoreConnector(SaveRestoreConnector):
     """Custom connector to support saving and restoring states."""
 
@@ -1052,6 +1083,7 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
             )
         super().__init__()
 
+    
     def save_to(self, model, save_path: str):
         """Save model to save path."""
         app_state = AppState()
@@ -1067,11 +1099,20 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
         if (app_state.model_parallel_size is not None and app_state.model_parallel_size > 1) or dist_ckpt:
 
             dir_name = os.path.dirname(save_path)
-
+            is_msc_enabled = False
+            if MSC_PROTOCOL in dir_name:
+                is_msc_enabled = True
+                
             # dist ckpt calls save on every rank
             if dist_ckpt:
                 # model weights is a directory
                 dist_ckpt_dir = ckpt_to_dir(os.path.join(dir_name, self.model_weights_ckpt))
+
+                if is_msc_enabled:
+                    filename = os.path.join(dir_name, self.model_weights_ckpt) 
+                    dist_ckpt_dir = os.path.splitext(filename)[0]
+                            
+                
                 # dist checkpoint needs torch.distributed to save the checkpoint
                 if not parallel_state.is_initialized():
 
@@ -1127,8 +1168,13 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
 
             if should_move_data:
                 with tempfile.TemporaryDirectory() as tmpdir:
+
                     if dist_ckpt:
-                        shutil.move(str(dist_ckpt_dir), tmpdir)
+                        if is_msc_enabled:
+                            msc_download_dir(dist_ckpt_dir, tmpdir)
+                        else:
+                            shutil.move(str(dist_ckpt_dir), tmpdir)
+
                     elif app_state.pipeline_model_parallel_size == 1:
                         # move weights to the tmpdir
                         for tp_rank in range(app_state.tensor_model_parallel_size):
@@ -1136,10 +1182,17 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
                             mp_model_weights = os.path.join(
                                 dir_name, f'mp_rank_{tp_rank:02d}_' + self.model_weights_ckpt
                             )
-                            shutil.move(
-                                mp_model_weights,
-                                os.path.join(tmpdir, f'mp_rank_{tp_rank:02d}', self.model_weights_ckpt),
-                            )
+
+                            if is_msc_enabled:
+                                print(f"Downloading {mp_model_weights} to {tmpdir}")
+                                msc_dest=os.path.join(tmpdir, f'mp_rank_{tp_rank:02d}', self.model_weights_ckpt) 
+                                logging.warning(f"msc_download_dir mp_model_weights from {mp_model_weights} {msc_dest} rank {torch.distributed.get_rank()}")
+                                msc_download_dir(mp_model_weights, msc_dest)
+                            else:
+                                shutil.move(
+                                    mp_model_weights,
+                                    os.path.join(tmpdir, f'mp_rank_{tp_rank:02d}', self.model_weights_ckpt),
+                                )
                     else:
                         # move weights to the tmpdir
                         for tp_rank, pp_rank in itertools.product(
@@ -1150,12 +1203,19 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
                             mp_model_weights = os.path.join(
                                 dir_name, f'tp_rank_{tp_rank:02d}_pp_rank_{pp_rank:03d}_' + self.model_weights_ckpt
                             )
-                            shutil.move(
-                                mp_model_weights,
-                                os.path.join(
-                                    tmpdir, f'tp_rank_{tp_rank:02d}_pp_rank_{pp_rank:03d}', self.model_weights_ckpt
-                                ),
-                            )
+
+                            if is_msc_enabled:
+                                print(f"Downloading {mp_model_weights} to {tmpdir}")
+                                msc_dest = os.path.join(tmpdir, f'tp_rank_{tp_rank:02d}_pp_rank_{pp_rank:03d}', self.model_weights_ckpt)
+                                logging.warning(f"msc_download_dir mp_model_weights from {mp_model_weights} {msc_dest} rank {torch.distributed.get_rank()}")
+                                msc_download_dir(mp_model_weights, msc_dest)
+                            else:
+                                shutil.move(
+                                    mp_model_weights,
+                                    os.path.join(
+                                        tmpdir, f'tp_rank_{tp_rank:02d}_pp_rank_{pp_rank:03d}', self.model_weights_ckpt
+                                    ),
+                                )
 
                     # create config and artifacts in tmpdir
                     config_yaml = os.path.join(tmpdir, self.model_config_yaml)
@@ -1300,14 +1360,35 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
         uninject_model_weights = uninject_model_parallel_rank(model_weights)
 
         # legacy model_weights will have mp rank injected
-        if os.path.isfile(model_weights):
+        if msc.os.path.isfile(model_weights):
             return super()._load_state_dict_from_disk(model_weights, map_location)
-
         # dist checkpoint will be a dir
-        elif os.path.isdir(os.path.splitext(uninject_model_weights)[0]):
+        elif msc.os.path.isdir(os.path.splitext(uninject_model_weights)[0]):
             return None
         else:
             raise ValueError(f'Expected {model_weights} to be a file or directory.')
+
+
+    def _download_nemo_file(self, 
+                            restore_path: str, 
+                            tmpdir: str) -> str:
+        # .nemo filename 
+        fname = os.path.basename(restore_path)
+        
+        #check if msc path exists 
+        if not msc.os.path.exists(restore_path):
+            raise FileNotFoundError(f".nemo file doesn't exist at {restore_path}")
+        
+        #download .nemo file to tempdir
+        os.makedirs(tmpdir, exist_ok=True)
+        logging.warning(f"Starting .nemo download {restore_path}")
+        msc.download_file(restore_path, f"{tmpdir}/{fname}")
+        
+        #update restore_path to point to downloaded .nemo
+        updated_restore_path = os.path.join(tmpdir, fname)
+        logging.warning(f".nemo download complete; updated_restore_path to {updated_restore_path}")
+        return updated_restore_path
+
 
     def restore_from(
         self,
@@ -1343,37 +1424,42 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
         Returns:
             An instance of type cls or its underlying config (if return_config is set).
         """
+        # tempdir creation is moved here so that updated restore_path can be passed to super().load_config_and_state_dict
+        # since .nemo file is in the object store, the .nemo file first needs to be downloaded
+        with tempfile.TemporaryDirectory() as tmpdir:
+            if MSC_PROTOCOL in restore_path:
+                restore_path = self._download_nemo_file(restore_path=restore_path, tmpdir=tmpdir)
 
-        # Get path where the command is executed - the artifacts will be "retrieved" there
-        # (original .nemo behavior)
-        loaded_params = super().load_config_and_state_dict(
-            calling_cls,
-            restore_path,
-            override_config_path,
-            map_location,
-            strict,
-            return_config,
-            trainer,
-            validate_access_integrity,
-        )
-        if not isinstance(loaded_params, tuple) or return_config is True:
-            return loaded_params
-        conf, instance, state_dict = loaded_params
+            # Get path where the command is executed - the artifacts will be "retrieved" there
+            # (original .nemo behavior)
+            loaded_params = super().load_config_and_state_dict(
+                calling_cls,
+                restore_path,
+                override_config_path,
+                map_location,
+                strict,
+                return_config,
+                trainer,
+                validate_access_integrity,
+            )
+            if not isinstance(loaded_params, tuple) or return_config is True:
+                return loaded_params
+            conf, instance, state_dict = loaded_params
 
-        # if we're using dist checkpointing then state_dict will be None
-        if state_dict is None:
-            # dist checkpointing needs torch.distributed to load the checkpoint
-            if not parallel_state.is_initialized():
+            # if we're using dist checkpointing then state_dict will be None
+            if state_dict is None:
+                # dist checkpointing needs torch.distributed to load the checkpoint
+                if not parallel_state.is_initialized():
 
-                def dummy():
-                    return
+                    def dummy():
+                        return
 
-                if trainer.strategy.launcher is not None:
-                    trainer.strategy.launcher.launch(dummy, trainer=trainer)
-                trainer.strategy.setup_environment()
+                    if trainer.strategy.launcher is not None:
+                        trainer.strategy.launcher.launch(dummy, trainer=trainer)
+                    trainer.strategy.setup_environment()
 
-            with tempfile.TemporaryDirectory() as tmpdir:
-                # Check if self.model_extracted_dir is set, and is a valid path
+                # with tempfile.TemporaryDirectory() as tmpdir:
+                    # Check if self.model_extracted_dir is set, and is a valid path
                 if self.model_extracted_dir is not None and os.path.isdir(self.model_extracted_dir):
                     # Log that NeMo will use the provided `model_extracted_dir`
                     logging.info(
@@ -1423,11 +1509,12 @@ class NLPSaveRestoreConnector(SaveRestoreConnector):
                 if hasattr(instance, 'setup_transformer_engine_tp_groups'):
                     instance.setup_transformer_engine_tp_groups()
 
-        else:
-            state_dict = self.modify_state_dict(conf, state_dict)
-            super().load_instance_with_state_dict(instance, state_dict, strict)
-        logging.info(f'Model {instance.__class__.__name__} was successfully restored from {restore_path}.')
-        return instance
+            else:
+                state_dict = self.modify_state_dict(conf, state_dict)
+                super().load_instance_with_state_dict(instance, state_dict, strict)
+           
+            logging.info(f'Model {instance.__class__.__name__} was successfully restored from {restore_path}.')
+            return instance
 
 
 class PipelineMixedPrecisionPlugin(MixedPrecisionPlugin):

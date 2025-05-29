@@ -1333,6 +1333,8 @@ class MegatronBaseModel(NLPModel):
         """
         Configure the sharded model.
         """
+        # Call parent's configure_sharded_model first
+        super().configure_sharded_model()
 
         def find_frozen_submodules(model):
             frozen_submodules = []

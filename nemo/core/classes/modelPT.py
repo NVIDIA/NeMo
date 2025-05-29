@@ -67,6 +67,7 @@ __all__ = ['ModelPT']
 # multiple interpolated values in the config
 OmegaConf.register_new_resolver("multiply", lambda x, y: x * y, replace=True)
 
+MSC_PROTOCOL_NAME = "msc"
 
 class ModelPT(LightningModule, Model):
     """
@@ -477,9 +478,14 @@ class ModelPT(LightningModule, Model):
         Returns:
             An instance of type cls or its underlying config (if return_config is set).
         """
+        if MSC_PROTOCOL_NAME not in restore_path:
+            if save_restore_connector is None:
+                save_restore_connector = SaveRestoreConnector()
 
-        if save_restore_connector is None:
-            save_restore_connector = SaveRestoreConnector()
+            if save_restore_connector.model_extracted_dir is None:
+                restore_path = os.path.abspath(os.path.expanduser(restore_path))
+            else:
+                restore_path = os.path.abspath(os.path.expanduser(save_restore_connector.model_extracted_dir))
 
         is_multistorageclient_url = MULTISTORAGECLIENT_AVAILABLE and str(restore_path).startswith(
             MULTISTORAGECLIENT_PROTOCOL
@@ -2121,3 +2127,9 @@ class ModelPT(LightningModule, Model):
             return copy.deepcopy(optim_config)
         else:
             return OmegaConf.create(optim_config)
+
+    def configure_sharded_model(self):
+        """
+        Configure the sharded model.
+        """
+        pass
