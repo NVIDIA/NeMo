@@ -119,10 +119,7 @@ if __name__ == "__main__":
         hidden_size,
         etp_size,
         enable_cuda_graphs,
-        _,
-        _,
-        _,
-    ) = kwargs[0:15]
+    ) = kwargs[0:12]
 
     recipe = override_recipe_configs(
         args,
@@ -138,11 +135,7 @@ if __name__ == "__main__":
         hidden_size,
         etp_size,
         enable_cuda_graphs,
-        _,
-        _,
-        _,
-        args.compute_dtype,
-        _,
+        compute_dtype=args.compute_dtype,
     )
 
     exp_config = (
