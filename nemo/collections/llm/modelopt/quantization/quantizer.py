@@ -44,9 +44,10 @@ if TYPE_CHECKING:
     from nemo.lightning import Trainer
     from nemo.lightning.megatron_parallel import MegatronParallel
 
-mtq, HAVE_MODELOPT_MTQ = safe_import("modelopt.torch.quantization")
 mte, HAVE_MODELOPT_MTE = safe_import("modelopt.torch.export")
-HAVE_MODELOPT = HAVE_MODELOPT_MTQ and HAVE_MODELOPT_MTE
+mtq, HAVE_MODELOPT_MTQ = safe_import("modelopt.torch.quantization")
+mto, HAVE_MODELOPT_MTO = safe_import("modelopt.torch.opt")
+HAVE_MODELOPT = HAVE_MODELOPT_MTQ and HAVE_MODELOPT_MTE and HAVE_MODELOPT_MTO
 
 QUANT_CFG_CHOICES = get_quant_cfg_choices()
 SUPPORTED_DTYPE = [16, "16", "bf16"]  # Default precision for non-quantized layers
@@ -425,7 +426,7 @@ class Quantizer:
                 TrainerContext.from_trainer(trainer).io_dump(ckpt_to_context_subdir(export_dir), yaml_attrs=["model"])
                 assert (Path(ckpt_to_weights_subdir(export_dir, False)) / "modelopt_state").exists()
         elif self.export_config.export_format == "hf":
-            export_hf_checkpoint(model_dir, export_dir, model)
+            export_hf_checkpoint(model_dir, export_dir, model=model)
         # TRT-LLM
         else:
             inference_tp = self.export_config.inference_tp
@@ -454,15 +455,16 @@ class Quantizer:
 
 def export_hf_checkpoint(
     model_dir: AnyPath, export_dir: AnyPath, model: Optional["pl.LightningModule"] = None, **kwargs
-) -> Path:
+) -> Optional[Path]:
     """Export a GPTModel or HFAutoModelForCausalLM to a HuggingFace checkpoint."""
-    if not export_dir:
-        export_dir = Path(model_dir) / "hf"
-
     exporter = load_connector_from_trainer_ckpt(model_dir, "hf")
     if model is None:
         model, _ = exporter.nemo_load(model_dir)
     unwrapped_model = unwrap_for_modelopt_operations(model)
+
+    if not mto.ModeloptStateManager(unwrapped_model).is_converted():
+        # Model was not converted by ModelOpt.
+        return None
 
     with torch.inference_mode():
         if isinstance(model, llm.HFAutoModelForCausalLM):

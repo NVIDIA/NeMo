@@ -13,9 +13,9 @@
 # limitations under the License.
 
 from pathlib import Path
-from typing import Callable, Optional, Type, overload
-import fiddle as fdl
+from typing import Any, Callable, Optional, Type, overload
 
+import fiddle as fdl
 import lightning.pytorch as pl
 
 from nemo.lightning.io.mixin import ConnectorMixin, ConnT, ModelConnector, load
@@ -206,6 +206,7 @@ def export_ckpt(
     output_path: Optional[Path] = None,
     overwrite: bool = False,
     load_connector: Callable[[Path, str], ModelConnector] = load_connector_from_trainer_ckpt,
+    modelopt_export_kwargs: dict[str, Any] = {},
     **kwargs,
 ) -> Path:
     """
@@ -232,6 +233,7 @@ def export_ckpt(
             This is useful for model updates where retaining old checkpoint files is not required.
         load_connector (Callable[[Path, str], ModelConnector]): A function to load the appropriate
             exporter based on the model and target format. Defaults to `load_connector_from_trainer_ckpt`.
+        modelopt_export_kwargs (Dict[str, Any]): Additional keyword arguments for ModelOpt export to HuggingFace.
 
     Returns
     -------
@@ -247,7 +249,16 @@ def export_ckpt(
         nemo_ckpt_path = Path("/path/to/model.ckpt")
         export_path = export_ckpt(nemo_ckpt_path, "hf")
     """
-    exporter: ModelConnector = load_connector(path, target)
+    from nemo.collections.llm.modelopt.quantization.quantizer import export_hf_checkpoint
+
     _output_path = output_path or Path(path) / target
+
+    if target == "hf":
+        # First try to export via ModelOpt route. If rejected, return to the default route
+        output = export_hf_checkpoint(path, _output_path, **modelopt_export_kwargs)
+        if output is not None:
+            return output
+
+    exporter: ModelConnector = load_connector(path, target)
 
     return exporter(overwrite=overwrite, output_path=_output_path, **kwargs)

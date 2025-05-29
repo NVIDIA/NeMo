@@ -992,8 +992,6 @@ def export_ckpt(
         FileExistsError: If the output path is provided (that is, when not using models cache)
             and it exists and overwrite is not set to True.
     """
-    from nemo.collections.llm.modelopt.quantization.quantizer import export_hf_checkpoint
-
     if not isinstance(path, Path):
         path = Path(path)
     if output_path and not isinstance(output_path, Path):
@@ -1001,10 +999,7 @@ def export_ckpt(
         if output_path.exists() and not overwrite:
             raise FileExistsError(f"Output path {output_path} exists. Use overwrite=True to force overwrite.")
 
-    if target == "hf":
-        output = export_hf_checkpoint(path, output_path, **modelopt_export_kwargs)
-    else:
-        output = io.export_ckpt(path, target, output_path, overwrite, load_connector, **kwargs)
+    output = io.export_ckpt(path, target, output_path, overwrite, load_connector, modelopt_export_kwargs, **kwargs)
 
     console = Console()
     console.print(f"[green]✓ Checkpoint exported to {output}[/green]")
