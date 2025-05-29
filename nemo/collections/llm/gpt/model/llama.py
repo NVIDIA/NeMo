@@ -21,11 +21,8 @@ from typing import TYPE_CHECKING, Annotated, Any, Callable, Dict, List, Optional
 
 import torch
 import torch.nn.functional as F
-
-from megatron.core.tokenizers import MegatronTokenizerBase
-
 import yaml
-
+from megatron.core.tokenizers import MegatronTokenizerBase
 from torch import nn
 
 from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel, torch_dtype_from_mcore_config
