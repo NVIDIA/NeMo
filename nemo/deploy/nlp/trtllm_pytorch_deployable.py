@@ -17,7 +17,6 @@ from pathlib import Path
 from typing import List, Optional, Union
 
 import numpy as np
-import torch
 from pytriton.decorators import batch, first_value
 from pytriton.model_config import Tensor
 from tensorrt_llm import SamplingParams
@@ -26,7 +25,7 @@ from tensorrt_llm._torch.pyexecutor.config import PyTorchConfig
 from transformers import PreTrainedTokenizerBase
 
 from nemo.deploy import ITritonDeployable
-from nemo.deploy.utils import broadcast_list, cast_output, str_ndarray2list
+from nemo.deploy.utils import cast_output, str_ndarray2list
 
 LOGGER = logging.getLogger("NeMo")
 
