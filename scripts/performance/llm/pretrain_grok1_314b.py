@@ -421,7 +421,10 @@ if __name__ == "__main__":
         ]
         exp_tuning = "_pinned"
 
-    env_vars = args.custom_env_vars
+    env_vars = {
+        "TRANSFORMERS_OFFLINE": "0",
+    }
+    env_vars |= args.custom_env_vars
 
     executor = slurm_executor(
         args.account,
