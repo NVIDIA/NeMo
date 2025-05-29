@@ -27,8 +27,7 @@ Some of the benchmarks (e.g. GPQA) use a gated dataset. To use them, you must au
 before launching the evaluation.
 
 The NVIDIA Evals Factory provides several evaluation harnesses with different sets of evaluation benchmarks.
-`NeMo Framework container <https://catalog.ngc.nvidia.com/orgs/nvidia/containers/nemo>`__ comes with nvidia-lm-eval pre-installed
-and the following predefined configurations for evaluating the completions endpoint:
+The `NeMo Framework container <https://catalog.ngc.nvidia.com/orgs/nvidia/containers/nemo>`__ includes nvidia-lm-eval pre-installed, along with predefined configurations for evaluating the completions endpoint.
     * `gsm8k`
     * `mgsm`
     * `mmlu`
@@ -46,7 +45,7 @@ It also provides the following configurations for evaluating the chat endpoint:
     * `wikilingua`
 
 
-When specifying the task, you can either use the task name from the list above or prepend it with the harness name, for example:
+When specifying the task, you can either use the task name from the list above or prepend it with the harness name. For example:
 
 .. code-block:: python
 
@@ -54,13 +53,13 @@ When specifying the task, you can either use the task name from the list above o
     task = "lm-evaluation-harness.mmlu"
     task = "lm_evaluation_harness.mmlu"
 
-In order to enable other evaluation harness, you need to install it, for example:
+To enable other evaluation harnesses, you need to install them. For example:
 
 .. code-block:: bash
 
     pip install nvidia-simple-evals
 
-If more than one harness defines task with a given name, you must use the `<harness>.<task>` format to resolve ambiguities, for example:
+If multiple harnesses define a task with the same name, you must use the ``<harness>.<task>`` format to avoid ambiguity. For example:
 
 .. code-block:: python
 
