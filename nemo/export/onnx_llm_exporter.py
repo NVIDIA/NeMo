@@ -15,10 +15,9 @@
 
 import warnings
 from pathlib import Path
-from typing import Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Dict, List, Optional, Union
 
 import numpy as np
-import tensorrt as trt
 import torch
 import wrapt
 from transformers import AutoModel, AutoTokenizer
@@ -26,6 +25,9 @@ from transformers import AutoModel, AutoTokenizer
 from nemo.deploy import ITritonDeployable
 from nemo.export.utils import get_example_inputs, get_model_device_type, is_nemo2_checkpoint, validate_fp8_network
 from nemo.utils import logging
+
+if TYPE_CHECKING:
+    import tensorrt as trt
 
 
 @wrapt.decorator
@@ -53,6 +55,14 @@ try:
 except Exception:
     logging.warning("onnxruntime is not available.")
     use_onnxruntime = False
+
+
+use_trt = True
+try:
+    import tensorrt as trt
+except ImportError:
+    logging.warning("tensorrt is not available")
+    use_trt = False
 
 
 # pylint: disable=line-too-long
@@ -226,7 +236,7 @@ class OnnxLLMExporter(ITritonDeployable):
         override_layers_to_fp32: List = None,
         trt_dtype: str = "fp16",
         profiling_verbosity: str = "layer_names_only",
-        trt_builder_flags: List[trt.BuilderFlag] = None,
+        trt_builder_flags: List["trt.BuilderFlag"] = None,
     ) -> None:
         """Performs TensorRT conversion from an ONNX model.
 
@@ -313,11 +323,11 @@ class OnnxLLMExporter(ITritonDeployable):
         trt_model_path.write_bytes(engine_string)
         logging.info(f"Successfully exported ONNX model ({self.onnx_model_path}) " f"to TRT engine ({trt_model_path})")
 
-    def _override_layer_precision_to_fp32(self, layer: trt.ILayer) -> None:
+    def _override_layer_precision_to_fp32(self, layer: "trt.ILayer") -> None:
         layer.precision = trt.float32
         layer.set_output_type(0, trt.float32)
 
-    def _override_layers_to_fp32(self, network: trt.INetworkDefinition, fp32_layer_patterns: list[str]) -> None:
+    def _override_layers_to_fp32(self, network: "trt.INetworkDefinition", fp32_layer_patterns: list[str]) -> None:
         for i in range(network.num_layers):
             layer = network.get_layer(i)
             layer_name = layer.name
@@ -341,7 +351,7 @@ class OnnxLLMExporter(ITritonDeployable):
                         layer.set_output_type(j, trt.float32)
                         logging.info(f"Setting layer {i} {layer_name} (type: {layer.type}) output type {j} to FP32")
 
-    def _override_layernorm_precision_to_fp32(self, network: trt.INetworkDefinition) -> None:
+    def _override_layernorm_precision_to_fp32(self, network: "trt.INetworkDefinition") -> None:
         """Set the precision of LayerNorm subgraphs to FP32 to preserve accuracy.
 
         - https://nvbugs/4478448 (Mistral)

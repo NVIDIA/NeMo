@@ -41,6 +41,14 @@ def parse_cli_args():
         required=True,
     )
     parser.add_argument(
+        "-g",
+        "--gpu",
+        type=str,
+        choices=["h100", "b200", "gb200"],
+        help="Target gpu type.",
+        required=True,
+    )
+    parser.add_argument(
         "-l",
         "--log_dir",
         type=str,
@@ -244,14 +252,6 @@ def parse_cli_args():
         default=None,
     )
     parser.add_argument(
-        "-g",
-        "--gpu",
-        type=str,
-        help="Target gpu type. Defaults to 'h100'.",
-        required=False,
-        default="h100",
-    )
-    parser.add_argument(
         "-ng",
         "--num_gpus",
         type=int,
@@ -296,6 +296,22 @@ def parse_cli_args():
         "-fsdp",
         "--use_mcore_fsdp",
         help="Enable Megatron Core (Mcore) FSDP. Disabled by default",
+        type=bool_arg,
+        required=False,
+        default=None,
+    )
+    parser.add_argument(
+        "-ubr",
+        "--use_user_buffer_registration",
+        help="Enable user buffer registration. Disabled by default",
+        type=bool_arg,
+        required=False,
+        default=None,
+    )
+    parser.add_argument(
+        "-sharp",
+        "--use_sharp",
+        help="Enable sharp. Disabled by default",
         type=bool_arg,
         required=False,
         default=None,
