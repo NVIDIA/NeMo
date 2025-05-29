@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from copy import deepcopy
 from dataclasses import dataclass
 from typing import Callable, Dict, List, Optional
 
@@ -26,11 +27,11 @@ from megatron.core.models.multimodal.llava_model import LLaVAModel as MCoreLLaVA
 from megatron.core.optimizer import OptimizerConfig
 from megatron.core.packed_seq_params import PackedSeqParams
 from megatron.core.transformer.transformer_config import TransformerConfig
+from megatron.core.utils import chunkify, chunkify_cu_seqlens, pad_zeros_for_chunked_attention
 from torch import nn
 
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.llm import fn
-
 from nemo.collections.vlm.neva.data.multimodal_tokens import IGNORE_INDEX, IMAGE_TOKEN_INDEX
 from nemo.lightning import io
 from nemo.lightning.io.pl import ckpt_to_weights_subdir
@@ -70,6 +71,8 @@ MODEL_CONFIG_ATTR = [
     'share_embeddings_and_output_weights',
     'moe_token_dispatcher_type',
     'moe_router_load_balancing_type',
+    'attention_chunk_size',
+    'attention_temperature_tuning',
 ]
 
 
@@ -442,21 +445,16 @@ class MCoreNevaModel(MCoreLLaVAModel):
             packed_seq_params,
         )  # [combined_seq_len, b, h_language], [b, combined_seq_len], [b, combined_seq_len]
 
-        if self.context_parallel_lm > 1 or self.sequence_parallel_lm:
-            if (
-                self.context_parallel_lm > 1
-                and packed_seq_params is not None
-                and packed_seq_params.qkv_format == "thd"
-            ):
-                # _process_embedding_token_parallel expects input in shape bshd for cp + thd
-                combined_embeddings = combined_embeddings.transpose(1, 0).contiguous()
+        if self.context_parallel_lm > 1 and packed_seq_params is not None and packed_seq_params.qkv_format == "thd":
+            # _process_embedding_token_parallel expects input in shape bshd for cp + thd
+            combined_embeddings = combined_embeddings.transpose(1, 0).contiguous()
 
-            combined_embeddings, final_labels, final_loss_mask, packed_seq_params = (
-                self._process_embedding_token_parallel(
-                    combined_embeddings, final_labels, final_loss_mask, packed_seq_params
-                )
-            )
+        combined_embeddings, final_labels, final_loss_mask, packed_seq_params = self._process_embedding_token_parallel(
+            combined_embeddings, final_labels, final_loss_mask, packed_seq_params
+        )
 
+        # We already scattered embedding above, no need to do it again in llm
+        self.language_model.scatter_embedding_sequence_parallel = True
         output = self.language_model(
             input_ids=None,
             position_ids=None,
@@ -775,6 +773,16 @@ class MCoreNevaModel(MCoreLLaVAModel):
                 ), "TP Comm overlap either requires Vision+Text token length \
                 == language_max_sequence_length"
 
+        # padding for chunked attention needs to happen before CP sharding
+        if self.pre_process and self.config.attention_chunk_size is not None:
+            combined_embeddings = pad_zeros_for_chunked_attention(
+                combined_embeddings.transpose(0, 1), self.config.attention_chunk_size
+            )  # [B, S, H]
+            combined_embeddings = combined_embeddings.transpose(0, 1)
+        if self.post_process and self.config.attention_chunk_size is not None:
+            new_labels = pad_zeros_for_chunked_attention(new_labels, self.config.attention_chunk_size)
+            new_loss_mask = pad_zeros_for_chunked_attention(new_loss_mask, self.config.attention_chunk_size)
+
         if self.context_parallel_lm > 1:
             batch = dict()
             if self.pre_process:
@@ -821,12 +829,82 @@ class MCoreNevaModel(MCoreLLaVAModel):
                 new_labels = batch["new_labels"]
                 new_loss_mask = batch["new_loss_mask"]
 
+        if self.config.attention_chunk_size is not None:
+            combined_embeddings, new_labels, new_loss_mask, packed_seq_params = self._process_for_chunked_attention(
+                combined_embeddings, new_labels, new_loss_mask, packed_seq_params
+            )
         if self.sequence_parallel_lm and self.pre_process:
-            if packed_seq_params is not None and packed_seq_params.qkv_format == "thd":
-                combined_embeddings = combined_embeddings.transpose(1, 0).contiguous()  # [B,S/CP,H] -> [S/CP,B,H]
+            if (
+                packed_seq_params is not None
+                and packed_seq_params.qkv_format == "thd"
+                and self.context_parallel_lm == 1
+            ):  # not transposed during CP
+                combined_embeddings = combined_embeddings.transpose(1, 0).contiguous()  # [B,S,H] -> [S,B,H]
             combined_embeddings = tensor_parallel.scatter_to_sequence_parallel_region(
                 combined_embeddings
             )  # [S/(CP*TP),B,H]
+
+        return combined_embeddings, new_labels, new_loss_mask, packed_seq_params
+
+    def _process_for_chunked_attention(self, combined_embeddings, new_labels, new_loss_mask, packed_seq_params):
+        attention_chunk_size = self.config.attention_chunk_size
+        # No pre or post processing needed with PP middle chunks.
+        if not self.pre_process and not self.post_process or attention_chunk_size is None:
+            return combined_embeddings, new_labels, new_loss_mask, packed_seq_params
+
+        # TODO(yuya): original_seq_len for SBHD wont be correct if not self.pre_process
+        if packed_seq_params is not None and packed_seq_params.qkv_format == 'thd':
+            original_seq_len = max(packed_seq_params.max_seqlen_q, packed_seq_params.max_seqlen_kv)
+        else:
+            if self.pre_process:
+                original_seq_len = combined_embeddings.shape[0]
+            else:
+                original_seq_len = new_labels.shape[1]
+
+        # no need to chunk
+        if original_seq_len <= attention_chunk_size:
+            return combined_embeddings, new_labels, new_loss_mask, packed_seq_params
+
+        if self.pre_process:
+            if packed_seq_params is not None and packed_seq_params.qkv_format == 'thd':
+                assert self.context_parallel_lm == 1, "Packed sequence + CP + Chunked Attention support is still WIP."
+                original_packed_seq_params = deepcopy(packed_seq_params)
+                setattr(packed_seq_params, "original_packed_seq_params", original_packed_seq_params)
+                packed_seq_params.max_seqlen_q = packed_seq_params.max_seqlen_kv = self.config.attention_chunk_size
+                # limit the each sub seq length to be capped at self.attention_chunk_size
+                # assume attention_chunk_size = 10
+                # original cu_seqlens_q = [0, 15, 20, 45]
+                # new cu_seqlens_q = [0, 10, 15, 20, 30, 40, 45]
+                packed_seq_params.cu_seqlens_q, packed_seq_params.cu_seqlens_q_padded = chunkify_cu_seqlens(
+                    packed_seq_params.cu_seqlens_q,
+                    packed_seq_params.cu_seqlens_q_padded,
+                    self.config.attention_chunk_size,
+                )
+                packed_seq_params.cu_seqlens_kv, packed_seq_params.cu_seqlens_kv_padded = chunkify_cu_seqlens(
+                    packed_seq_params.cu_seqlens_kv,
+                    packed_seq_params.cu_seqlens_kv_padded,
+                    self.config.attention_chunk_size,
+                )
+            else:
+                # [seq_len, batch_size, hidden_size]
+                combined_embeddings = chunkify(combined_embeddings, attention_chunk_size)
+
+        # will need correct original seq len for post process
+        if self.post_process:
+            # chunkify requires SB* format
+            if packed_seq_params is None:
+                if new_labels is not None:
+                    new_labels = (
+                        chunkify(new_labels.transpose(0, 1).unsqueeze(-1), attention_chunk_size)
+                        .transpose(0, 1)
+                        .squeeze(-1)
+                    )
+                if new_loss_mask is not None:
+                    new_loss_mask = (
+                        chunkify(new_loss_mask.transpose(0, 1).unsqueeze(-1), attention_chunk_size)
+                        .transpose(0, 1)
+                        .squeeze(-1)
+                    )
 
         return combined_embeddings, new_labels, new_loss_mask, packed_seq_params
 
