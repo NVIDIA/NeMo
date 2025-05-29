@@ -69,9 +69,11 @@ class PruningMode(PrettyStrEnum):
 
 class ASRModelTypeEnum(PrettyStrEnum):
     """Specifies model type."""
+
     RNNT = "rnnt"
     TDT = "tdt"
     CTC = "ctc"
+
 
 class BatchedBeamHyps:
     """Class to store batch of beam hypotheses (labels, time_indices, scores) for efficient batched beam decoding"""
