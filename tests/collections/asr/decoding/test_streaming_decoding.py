@@ -108,7 +108,7 @@ def test_loop_labels_decoding_streaming_gpu_state(
     transcriptions = model.transcribe(audio=str(an4_val_manifest_corrected.absolute()), batch_size=batch_size)
     ref_transcripts = [hyp.text for hyp in transcriptions]
 
-    streaming_transcripts = []
+    all_hyps = []
     decoding_computer: GreedyBatchedLabelLoopingComputerBase = model.decoding.decoding.decoding_computer
     with torch.no_grad(), torch.inference_mode():
         for i in range(0, len(manifest), batch_size):
@@ -138,9 +138,11 @@ def test_loop_labels_decoding_streaming_gpu_state(
                         hyp.merge(new_hyp)
                 else:
                     hyps = new_hyps
+            all_hyps.extend(hyps)
 
-            for hyp in hyps:
-                streaming_transcripts.append(model.tokenizer.ids_to_text(hyp.y_sequence.tolist()))
+    streaming_transcripts = []
+    for hyp in all_hyps:
+        streaming_transcripts.append(model.tokenizer.ids_to_text(hyp.y_sequence.tolist()))
     assert ref_transcripts == streaming_transcripts
 
     model.to(device="cpu")
@@ -185,7 +187,7 @@ def test_loop_labels_decoding_streaming_partial_hypotheses(
     transcriptions = model.transcribe(audio=str(an4_val_manifest_corrected.absolute()), batch_size=batch_size)
     ref_transcripts = [hyp.text for hyp in transcriptions]
 
-    streaming_transcripts = []
+    all_hyps = []
     rnnt_infer = model.decoding.decoding
     with torch.no_grad(), torch.inference_mode():
         for i in range(0, len(manifest), batch_size):
@@ -207,8 +209,10 @@ def test_loop_labels_decoding_streaming_partial_hypotheses(
                     encoded_lengths=current_len,
                     partial_hypotheses=hyps,
                 )
-            for hyp in hyps:
-                streaming_transcripts.append(model.tokenizer.ids_to_text(hyp.y_sequence.tolist()))
+            all_hyps.extend(hyps)
+    streaming_transcripts = []
+    for hyp in all_hyps:
+        streaming_transcripts.append(model.tokenizer.ids_to_text(hyp.y_sequence.tolist()))
     assert ref_transcripts == streaming_transcripts
 
     model.to(device="cpu")
