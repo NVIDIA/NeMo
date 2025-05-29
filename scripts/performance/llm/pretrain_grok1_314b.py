@@ -23,10 +23,7 @@ os.environ["OPENBLAS_NUM_THREADS"] = "1"
 
 import os
 
-# add NeMo root directory to python path to import performance script utilities
-import sys
-
-from typing import Callable, List, Optional
+from typing import Callable, Optional
 
 import fiddle as fdl
 import fiddle._src.experimental.dataclasses as fdl_dc
