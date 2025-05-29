@@ -18,6 +18,7 @@ from nemo.deploy import DeployPyTriton
 from nemo.deploy.nlp import NemoQueryTRTLLMPytorch
 from nemo.deploy.nlp.trtllm_pytorch_deployable import TensorRTLLMPyotrchDeployable
 
+
 @pytest.mark.run_only_on('GPU')
 @pytest.mark.unit
 def test_trtllm_pytorch_deploy_query():
