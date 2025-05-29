@@ -18,14 +18,14 @@ import os
 import sys
 import tempfile
 
-from nemo.deploy import DeployPyTriton
+from nemo_deploy import DeployPyTriton
 
 # Configure the NeMo logger to look the same as vLLM
 logging.basicConfig(format="%(levelname)s %(asctime)s %(filename)s:%(lineno)d] %(message)s", datefmt="%m-%d %H:%M:%S")
 LOGGER = logging.getLogger("NeMo")
 
 try:
-    from nemo.export.vllm_exporter import vLLMExporter
+    from nemo_export.vllm_exporter import vLLMExporter
 except Exception as e:
     LOGGER.error(f"Cannot import the vLLM exporter. {type(e).__name__}: {e}")
     sys.exit(1)

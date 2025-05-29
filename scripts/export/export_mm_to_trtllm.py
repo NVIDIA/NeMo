@@ -26,7 +26,7 @@ For multimodal model, it supports the following models:
 import argparse
 import os
 
-from nemo.export.tensorrt_mm_exporter import TensorRTMMExporter
+from nemo_export.tensorrt_mm_exporter import TensorRTMMExporter
 
 
 def parse_args():

@@ -17,7 +17,7 @@ import logging
 import pprint
 from typing import Optional
 
-from nemo.export.tensorrt_llm import TensorRTLLM
+from nemo_export.tensorrt_llm import TensorRTLLM
 
 LOGGER = logging.getLogger("NeMo")
 

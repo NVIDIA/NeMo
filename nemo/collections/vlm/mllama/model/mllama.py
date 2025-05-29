@@ -20,6 +20,7 @@ from typing import Dict, Optional, Tuple
 import torch
 import torch.distributed
 from megatron.core.transformer import TransformerConfig
+from nemo_export.trt_llm.nemo_ckpt_loader.nemo_file import load_distributed_model_weights
 from torch import Tensor
 from transformers import MllamaConfig as HFMllamaConfig
 from transformers import MllamaForConditionalGeneration
@@ -33,7 +34,6 @@ from nemo.collections.vlm.mllama.model.base import (
     MLlamaModel,
     MLlamaModelConfig,
 )
-from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import load_distributed_model_weights
 from nemo.lightning import io, teardown
 from nemo.lightning.io.state import _ModelState
 from nemo.lightning.pytorch.utils import dtype_from_hf

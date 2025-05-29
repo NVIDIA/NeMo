@@ -22,12 +22,12 @@ from typing import TYPE_CHECKING, Annotated, Any, Callable, Dict, List, Optional
 import torch
 import torch.nn.functional as F
 import yaml
+from nemo_export.trt_llm.nemo_ckpt_loader.nemo_file import load_distributed_model_weights
 from torch import nn
 
 from nemo.collections.llm.gpt.model.base import GPTConfig, GPTModel, torch_dtype_from_mcore_config
 from nemo.collections.llm.gpt.model.llama4_utils import get_llama4_layer_spec
 from nemo.collections.llm.utils import Config
-from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import load_distributed_model_weights
 from nemo.lightning import OptimizerModule, io, teardown
 from nemo.lightning.ckpt_utils import ADAPTER_META_FILENAME
 from nemo.lightning.io.pl import ckpt_to_weights_subdir

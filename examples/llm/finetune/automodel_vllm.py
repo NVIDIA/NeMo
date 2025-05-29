@@ -15,12 +15,12 @@
 import argparse
 
 try:
-    from nemo.export.vllm_hf_exporter import vLLMHFExporter
+    from nemo_export.vllm_hf_exporter import vLLMHFExporter
 except ImportError:
     raise Exception("vLLM must be installed or activated in your environment:\n" "  source /opt/venv/bin/activate")
 
-from nemo.deploy import DeployPyTriton
-from nemo.deploy.nlp import NemoQueryLLM
+from nemo_deploy import DeployPyTriton
+from nemo_deploy.nlp import NemoQueryLLM
 
 
 def main():

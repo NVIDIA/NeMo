@@ -473,7 +473,7 @@ def ptq(
     """
     Applies Post-Training Quantization (PTQ) for a model using the specified quantization and export configs. It runs
     calibration for a small dataset to collect scaling factors low-precision GEMMs used by desired quantization method.
-    By default, this function produces TensorRT-LLM checkpoint ready for deployment using nemo.export and nemo.deploy
+    By default, this function produces TensorRT-LLM checkpoint ready for deployment using nemo_export and nemo_deploy
     modules or direcly using TensorRT-LLM library.
 
     The function can be used through the NeMo CLI in the following way:
@@ -646,8 +646,7 @@ def deploy(
     import os
 
     import uvicorn
-
-    from nemo.deploy import DeployPyTriton
+    from nemo_deploy import DeployPyTriton
 
     if backend == "in-framework":
         assert (
@@ -662,7 +661,7 @@ def deploy(
         os.environ["TRITON_PORT"] = str(triton_http_port)
 
         try:
-            from nemo.deploy.nlp.megatronllm_deployable import MegatronLLMDeployableNemo2
+            from nemo_deploy.nlp.megatronllm_deployable import MegatronLLMDeployableNemo2
         except Exception as e:
             raise ValueError(
                 f"Unable to import MegatronLLMDeployable, due to: {type(e).__name__}: {e} cannot run "
@@ -709,7 +708,7 @@ def deploy(
                         try:
                             logging.info("REST service will be started.")
                             uvicorn.run(
-                                'nemo.deploy.service.fastapi_interface_to_pytriton:app',
+                                'nemo_deploy.service.fastapi_interface_to_pytriton:app',
                                 host=fastapi_http_address,
                                 port=fastapi_port,
                                 reload=True,

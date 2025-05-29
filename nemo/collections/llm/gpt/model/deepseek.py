@@ -24,6 +24,7 @@ import yaml
 from megatron.core.models.gpt.gpt_layer_specs import get_gpt_decoder_block_spec
 from megatron.core.transformer.identity_op import IdentityOp
 from megatron.core.transformer.transformer_config import MLATransformerConfig
+from nemo_export.trt_llm.nemo_ckpt_loader.nemo_file import load_distributed_model_weights
 from safetensors.torch import load_file
 from torch import nn
 from transformers import AutoConfig
@@ -35,7 +36,6 @@ from nemo.collections.llm.gpt.model.base import (
     gpt_data_step,
     torch_dtype_from_dict_config,
 )
-from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import load_distributed_model_weights
 from nemo.lightning import io, teardown
 from nemo.lightning.io.state import TransformFns, _ModelState
 from nemo.lightning.pytorch.optim import OptimizerModule

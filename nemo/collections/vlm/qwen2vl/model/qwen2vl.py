@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING, Dict, Tuple, Union
 import torch
 import transformers
 from megatron.core.transformer.transformer_config import TransformerConfig
+from nemo_export.trt_llm.nemo_ckpt_loader.nemo_file import load_distributed_model_weights
 from transformers import Qwen2VLConfig as HFQwen2VLConfig
 from transformers import Qwen2VLForConditionalGeneration
 from transformers.models.qwen2_vl.configuration_qwen2_vl import Qwen2VLVisionConfig as HFQwen2VLVisionConfig
@@ -28,7 +29,6 @@ from nemo.collections.llm import Qwen2Config, Qwen2Config1P5B, Qwen2Config7B, Qw
 from nemo.collections.vlm.neva.model.llava import export_qkv, export_qkv_bias
 from nemo.collections.vlm.qwen2vl.model.base import Qwen2VLConfig, Qwen2VLModel, Qwen2VLVisionConfig
 from nemo.collections.vlm.vision import MultimodalProjectorConfig
-from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import load_distributed_model_weights
 from nemo.lightning import io, teardown
 from nemo.lightning.io.state import _ModelState
 from nemo.lightning.pytorch.utils import dtype_from_hf
