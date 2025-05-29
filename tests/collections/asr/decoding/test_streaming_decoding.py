@@ -13,8 +13,8 @@
 # limitations under the License.
 
 import copy
-from typing import Optional
 from contextlib import contextmanager
+from typing import Optional
 
 import librosa
 import pytest

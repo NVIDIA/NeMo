@@ -781,7 +781,9 @@ class GreedyBatchedRNNTInfer(_GreedyRNNTInfer, WithOptionalCudaGraphs):
             [hyp.y_sequence[-1] if len(hyp.y_sequence) else self._blank_index for hyp in hyps]
         ).to(device=device)
 
-        prev_state = self.decoder.batch_unsplit_states([hyp.dec_state for hyp in hyps], device=device, dtype=float_dtype)
+        prev_state = self.decoder.batch_unsplit_states(
+            [hyp.dec_state for hyp in hyps], device=device, dtype=float_dtype
+        )
         prev_predictor_output = torch.stack([hyp.dec_out for hyp in hyps], dim=0)
         batched_state = BatchedGreedyDecodingState(
             predictor_state=prev_state,
