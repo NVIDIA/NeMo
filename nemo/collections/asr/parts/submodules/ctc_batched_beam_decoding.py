@@ -309,6 +309,8 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
 
         for frame_idx in range(curr_max_time):
             active_mask = frame_idx < decoder_output_lengths.unsqueeze(1)
+            repeated_mask = batched_beam_hyps.last_label[:, :, None] == vocab[None, None, :]
+            repeated_or_blank_mask = repeated_mask | vocab_blank_mask[None, None, :]
 
             # step 2.1: getting the log probs and updating with LM scores
             log_probs = decoder_outputs[:, frame_idx, :].unsqueeze(1).repeat(1, self.beam_size, 1)
@@ -319,8 +321,6 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
                 log_probs[..., :-1] += self.ngram_lm_alpha * lm_scores.view(curr_batch_size, self.beam_size, -1)
 
             # step 2.2: updating non-blank and non-repeating token scores with `beam_beta`
-            repeated_mask = batched_beam_hyps.last_label[:, :, None] == vocab[None, None, :]
-            repeated_or_blank_mask = repeated_mask | vocab_blank_mask[None, None, :]
             log_probs = torch.where(repeated_or_blank_mask, log_probs, log_probs + self.beam_beta)
 
             # step 2.3: getting `beam_size` best candidates
