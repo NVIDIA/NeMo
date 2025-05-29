@@ -24,6 +24,7 @@ from megatron.core.inference.model_inference_wrappers.gpt.gpt_inference_wrapper 
 from megatron.core.inference.model_inference_wrappers.inference_wrapper_config import InferenceWrapperConfig
 from megatron.core.models.gpt.gpt_model import GPTModel as MCoreGPTModel
 from megatron.core.optimizer import OptimizerConfig
+from megatron.core.tokenizers import MegatronTokenizerBase
 from megatron.core.transformer.spec_utils import ModuleSpec
 from megatron.core.transformer.transformer_config import TransformerConfig
 from megatron.core.utils import get_batch_on_this_cp_rank
@@ -49,8 +50,6 @@ except ImportError:
 
 if TYPE_CHECKING:
     from transformers import GenerationConfig
-
-    from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
 
 def gpt_data_step(dataloader_iter, use_mtp=False) -> dict[str, torch.Tensor]:
@@ -535,7 +534,7 @@ class GPTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin, fn.FNMixin):
         config: GPTConfig,
         # TODO: Add transformer_layer_spec when we update mcore
         optim: Optional[OptimizerModule] = None,
-        tokenizer: Optional["TokenizerSpec"] = None,
+        tokenizer: Optional["MegatronTokenizerBase"] = None,
         model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
         model_context_managers: Optional[list] = [],
     ):

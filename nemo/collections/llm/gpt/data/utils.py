@@ -25,8 +25,8 @@ from typing import Any, Callable, List, Optional, Type, Union
 
 import numpy as np
 import torch
+from megatron.core.tokenizers import MegatronTokenizerBase
 
-from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.core.classes import Dataset
 from nemo.utils import AppState
 
@@ -89,7 +89,7 @@ class _TextMemMapDataset(Dataset):
         newline_int: Optional[int] = 10,
         header_lines: Optional[int] = 0,
         workers: Optional[int] = None,
-        tokenizer: Optional[Type["TokenizerSpec"]] = None,
+        tokenizer: Optional[Type["MegatronTokenizerBase"]] = None,
         build_index_fn: Optional[Callable[[str, Optional[int]], bool]] = build_index_from_memdata,
         sort_dataset_paths: Optional[bool] = True,
         index_mapping_dir: Optional[str] = None,
@@ -250,7 +250,7 @@ class _TextMemMapDataset(Dataset):
         """Allows child-classes to modify the parsing of raw text, prior to tokenization"""
         # tokenize text if tokenizer is given
         if self.tokenizer is not None:
-            data = self.tokenizer.text_to_ids(text)
+            data = self.tokenizer.tokenize(text)
         else:
             data = text
 
@@ -313,7 +313,7 @@ class _JSONLMemMapDataset(_TextMemMapDataset):
         newline_int: Optional[int] = 10,
         header_lines: Optional[int] = 0,
         workers: Optional[int] = None,
-        tokenizer: Optional[Type["TokenizerSpec"]] = None,
+        tokenizer: Optional[Type["MegatronTokenizerBase"]] = None,
         sort_dataset_paths: Optional[bool] = True,
         index_mapping_dir: Optional[str] = None,
     ):
@@ -734,7 +734,7 @@ def _make_indexed_dataset_compatibility(dataset):
 
 def _preprocess(
     source: dict,
-    tokenizer: TokenizerSpec,
+    tokenizer: MegatronTokenizerBase,
     name_end_token_ids: int,
     label_start_ids: list,
     special_tokens: dict,
@@ -749,9 +749,9 @@ def _preprocess(
     """
     header, conversation, data_type, mask_role = _get_header_conversation_type_mask_role(source, special_tokens)
     # tokenize conversations
-    input_ids = tokenizer.text_to_ids(conversation)
+    input_ids = tokenizer.tokenize(conversation)
     target = copy.deepcopy(input_ids)
-    header_tokens = tokenizer.text_to_ids(header)
+    header_tokens = tokenizer.tokenize(header)
     header_len = len(header_tokens)
 
     ids = []
@@ -763,8 +763,8 @@ def _preprocess(
         )
     for s in source['conversations']:
         # hack to remove the extra empty token in front
-        id1 = tokenizer.text_to_ids(PREFIX_STR + s["value"])
-        id2 = tokenizer.text_to_ids(PREFIX_STR)
+        id1 = tokenizer.tokenize(PREFIX_STR + s["value"])
+        id2 = tokenizer.tokenize(PREFIX_STR)
         tokenized_sentence = id1[len(id2) :]
         ids.append(torch.tensor(tokenized_sentence))
         tokenized_lens.append(len(tokenized_sentence))
@@ -825,7 +825,7 @@ def _transform_to_chat_message(source: dict[str, list]):
 
 def _preprocess_hf_chat_template(
     hf_chat_dict: dict,
-    tokenizer: TokenizerSpec,
+    tokenizer: MegatronTokenizerBase,
 ):
     """
     Given a conversation list (source) this function applies the following transformations:
@@ -878,7 +878,7 @@ def _mask_targets(
         speakers (List[str]): array of speakers of each turns
         header_len (int): the system prompt length
         s_ids (List[Tensor]): array of tokenized ids of each turns
-        tokenizer (TokenizerSpec): tokenizer object
+        tokenizer (MegatronTokenizerBase): tokenizer object
         mask_role (str): the speaker id to be masked from loss computation.
         gtype (str): either 'TEXT_TO_VALUE' or 'VALUE_TO_TEXT'
         name_end_token_ids (int): end of name token ids
@@ -895,8 +895,8 @@ def _mask_targets(
     tgt_len = target.shape[0]
     for i, (tokenized_len, speaker, s_id) in enumerate(zip(tokenized_lens, speakers, s_ids)):
         # note, sentence piece will add extra empty token in front. has to compute the diff
-        id1 = tokenizer.text_to_ids(PREFIX_STR)
-        id2 = tokenizer.text_to_ids(PREFIX_STR + TURN_TOKEN + speaker + END_NAME_SIGNAL)
+        id1 = tokenizer.tokenize(PREFIX_STR)
+        id2 = tokenizer.tokenize(PREFIX_STR + TURN_TOKEN + speaker + END_NAME_SIGNAL)
         skip_name_len = len(id2) - len(
             id1
         )  # s_ids[:skip_name_len] is the name part of the prompt 'TURN_TOKEN + speaker + END_NAME_SIGNAL'

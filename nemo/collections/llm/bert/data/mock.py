@@ -18,20 +18,18 @@ import lightning.pytorch as pl
 import numpy as np
 import torch
 from lightning.pytorch.utilities.types import EVAL_DATALOADERS, TRAIN_DATALOADERS
+from megatron.core.tokenizers import MegatronTokenizer, MegatronTokenizerBase
 from torch.utils import data
 from torch.utils.data import DataLoader, Dataset
 
 from nemo.lightning.pytorch.plugins import MegatronDataSampler
-
-if TYPE_CHECKING:
-    from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 
 
 class BERTMockDataModule(pl.LightningDataModule):
     """Mock DataModule for BERT model.
     Args:
         seq_length (int): Sequence length.
-        tokenizer (Optional["TokenizerSpec"]): An instance of a TokenizerSpec object.
+        tokenizer (Optional["MegatronTokenizerBase"]): An instance of a MegatronTokenizerBase object.
         micro_batch_size (int): Batch size per GPU.
         global_batch_size (int): Global batch size.
         rampup_batch_size (Optional[List[int]]): Rampup batch size, should be in format of
@@ -47,7 +45,7 @@ class BERTMockDataModule(pl.LightningDataModule):
     def __init__(
         self,
         seq_length: int = 2048,
-        tokenizer: Optional["TokenizerSpec"] = None,
+        tokenizer: Optional["MegatronTokenizerBase"] = None,
         micro_batch_size: int = 4,
         global_batch_size: int = 8,
         rampup_batch_size: Optional[List[int]] = None,
@@ -69,9 +67,10 @@ class BERTMockDataModule(pl.LightningDataModule):
         self.global_batch_size = global_batch_size
         self.micro_batch_size = micro_batch_size
         if tokenizer is None:
-            from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
-
-            self.tokenizer = get_nmt_tokenizer("megatron", "BertWordPieceLowerCase")
+            self.tokenizer = MegatronTokenizer.from_pretrained(
+                tokenizer_path="BertWordPieceLowerCase",
+                metadata_path={"library": "megatron", "model_type": "llama"},
+            )
         else:
             self.tokenizer = tokenizer
 
@@ -158,7 +157,7 @@ class BERTMockDataModule(pl.LightningDataModule):
 class _MockBERTDataset(Dataset):
     def __init__(
         self,
-        tokenizer: "TokenizerSpec",
+        tokenizer: "MegatronTokenizerBase",
         name: str,
         num_samples: int,
         seq_length: int,

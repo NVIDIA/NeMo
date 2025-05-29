@@ -19,8 +19,8 @@ from typing import Literal, Mapping, Optional
 import datasets
 import numpy as np
 import torch
+from megatron.core.tokenizers import MegatronTokenizerBase
 
-from nemo.collections.common.tokenizers import TokenizerSpec
 from nemo.collections.llm.gpt.data.utils import _get_samples_mapping, _JSONLMemMapDataset
 from nemo.core.classes import Dataset
 from nemo.lightning.base import NEMO_DATASETS_CACHE
@@ -40,7 +40,7 @@ def get_dataset_root(name: str) -> Path:
 
 def create_sft_dataset(
     path: Path,
-    tokenizer: "TokenizerSpec",
+    tokenizer: "MegatronTokenizerBase",
     seq_length: int = 2048,
     add_bos: bool = False,
     add_eos: bool = True,
@@ -76,7 +76,7 @@ class BertEmbeddingDataset(Dataset):
     def __init__(
         self,
         file_path: str,
-        tokenizer: TokenizerSpec,
+        tokenizer: MegatronTokenizerBase,
         max_seq_length: int = 1024,
         min_seq_length: int = 1,
         add_bos: bool = True,
@@ -94,7 +94,7 @@ class BertEmbeddingDataset(Dataset):
     ):
         """
         file_path: Path to a JSONL dataset with (query,pos_doc,neg_doc) triplets in jsonl format.
-        tokenizer: Tokenizer for the dataset. Instance of a class that inherits TokenizerSpec.
+        tokenizer: Tokenizer for the dataset. Instance of a class that inherits MegatronTokenizerBase.
         max_seq_length (int): maximum sequence length for each dataset examples.
             Examples will either be truncated to fit this length or dropped if they cannot be truncated.
         min_seq_length (int): min length of each data example in the dataset.
@@ -129,7 +129,7 @@ class BertEmbeddingDataset(Dataset):
         self.index_mapping_dir = index_mapping_dir
         self.virtual_tokens = virtual_tokens
         self.truncation_method = truncation_method
-        self.pad_token_id = self.tokenizer.pad_id if self.tokenizer.pad_id else self.tokenizer.eos_id
+        self.pad_token_id = self.tokenizer.pad if self.tokenizer.pad else self.tokenizer.eos_id
         self.negative_sample_strategy = negative_sample_strategy
         assert (
             truncation_method == 'left' or truncation_method == 'right'
@@ -230,8 +230,8 @@ class BertEmbeddingDataset(Dataset):
 
         metadata = {k: v for k, v in example.items()}
         if self.data_type == 'train':
-            q = self.tokenizer.text_to_ids("query: " + example['query'].strip())
-            d = self.tokenizer.text_to_ids("passage: " + example['pos_doc'].strip())
+            q = self.tokenizer.tokenize("query: " + example['query'].strip())
+            d = self.tokenizer.tokenize("passage: " + example['pos_doc'].strip())
             # handle cases where the required number of hard negatives are not present
             if len(example['neg_doc']) < self.num_hard_negatives:
                 nd = example['neg_doc']
@@ -246,15 +246,15 @@ class BertEmbeddingDataset(Dataset):
                     # Choose the first self.num_hard_negatives samples
                     nd = example['neg_doc'][: self.num_hard_negatives]
             assert len(nd) == self.num_hard_negatives, "Error in sampling required number of hard negatives"
-            nd = [self.tokenizer.text_to_ids("passage: " + ex.strip()) for ex in nd]
+            nd = [self.tokenizer.tokenize("passage: " + ex.strip()) for ex in nd]
 
         elif self.data_type == 'query':
-            q = self.tokenizer.text_to_ids("query: " + example['query'].strip())
+            q = self.tokenizer.tokenize("query: " + example['query'].strip())
             d, nd = None, None
             assert "query_id" in example, "query_id is required for query dataset"
             assert "doc_id" in example, "doc_id is required for query dataset"
         elif self.data_type == 'doc':
-            d = self.tokenizer.text_to_ids("passage: " + example['pos_doc'].strip())
+            d = self.tokenizer.tokenize("passage: " + example['pos_doc'].strip())
             assert "doc_id" in example, "doc_id is required for doc dataset"
             q, nd = None, None
         else:
@@ -272,9 +272,9 @@ class BertEmbeddingDataset(Dataset):
             nd = [[self.tokenizer.eos_id] * self.virtual_tokens + n for n in nd]  # type: ignore
 
         if self.add_bos:
-            q = [self.tokenizer.bos_id] + q  # type: ignore
-            d = [self.tokenizer.bos_id] + d  # type: ignore
-            nd = [[self.tokenizer.bos_id] + n for n in nd]  # type: ignore
+            q = [self.tokenizer.bos] + q  # type: ignore
+            d = [self.tokenizer.bos] + d  # type: ignore
+            nd = [[self.tokenizer.bos] + n for n in nd]  # type: ignore
 
         # TODO: (@adithyare) should probably add a warning before truncation
         q = q[: self.max_seq_length - 1]
