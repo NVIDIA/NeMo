@@ -410,10 +410,7 @@ if __name__ == "__main__":
         ]
     )
 
-    env_vars = {
-        "TRANSFORMERS_OFFLINE": "0",
-    }
-    env_vars |= args.custom_env_vars
+    env_vars = args.custom_env_vars
 
     plugins = [
         PerfEnvPlugin(
