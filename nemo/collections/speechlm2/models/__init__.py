@@ -11,21 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from .duplex_s2s_model import DuplexS2SModel
+from .duplex_s2s_speech_decoder_model import DuplexS2SSpeechDecoderModel
+from .salm import SALM
 
-import lightning.pytorch as pl
-
-from nemo.collections.vlm.qwen2vl.data.mock import Qwen2VLMockDataModule
-from nemo.collections.vlm.qwen2vl.data.preloaded import Qwen2VLPreloadedDataModule
-
-
-def mock() -> pl.LightningDataModule:
-    """Mock Qwen2-VL Data Module"""
-    return Qwen2VLMockDataModule(seq_length=4096, global_batch_size=16, micro_batch_size=2)
-
-
-def preloaded() -> pl.LightningDataModule:
-    """Preloaded Qwen2-VL-like Data Module"""
-    return Qwen2VLPreloadedDataModule(seq_length=4096, global_batch_size=16, micro_batch_size=2)
-
-
-__all__ = ["mock", "preloaded"]
+__all__ = [
+    'DuplexS2SModel',
+    'DuplexS2SSpeechDecoderModel',
+    'SALM',
+]
