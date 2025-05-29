@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -54,7 +54,6 @@ def qwen2vl_data_step(dataloader_iter, model_version) -> Dict[str, torch.Tensor]
     # Based on: https://github.com/NVIDIA/Megatron-LM/blob/main/pretrain_gpt.py#L87
     # https://github.com/NVIDIA/NeMo/blob/main/nemo/collections/nlp/models/language_modeling/megatron_gpt_model.py#L828-L842
     batch = next(dataloader_iter)
-    print("batch", batch)
     _batch: dict
     if isinstance(batch, tuple) and len(batch) == 3:
         _batch = batch[0]
@@ -62,7 +61,6 @@ def qwen2vl_data_step(dataloader_iter, model_version) -> Dict[str, torch.Tensor]
         _batch = batch
 
     required_keys = set()
-    print("model_version", model_version)
     if model_version == "qwen2-vl":
         required_keys.update(("input_ids", "pixel_values", "image_grid_thw", "pixel_values_videos", "video_grid_thw"))
     elif model_version == "qwen25-vl":
@@ -83,7 +81,6 @@ def qwen2vl_data_step(dataloader_iter, model_version) -> Dict[str, torch.Tensor]
     }
     # slice batch along sequence dimension for context parallelism
     output = get_batch_on_this_cp_rank(_batch)
-    print("_batch[second_per_grid_ts]", _batch["second_per_grid_ts"])
     return output
 
 
@@ -101,7 +98,6 @@ def qwen2vl_forward_step(model, batch) -> torch.Tensor:
     }
     if 'cu_seqlens' in batch:
         forward_args['packed_seq_params'] = get_packed_seq_params(batch)
-    print("forward_args second_per_grid_ts", forward_args.get("second_per_grid_ts", None))
     return model(**forward_args)
 
 
@@ -267,7 +263,8 @@ class Qwen2VLConfig(TransformerConfig, io.IOMixin):
             # https://huggingface.co/Qwen/Qwen2-VL-7B-Instruct/blob/main/config.json
             # https://huggingface.co/Qwen/Qwen2-VL-2B-Instruct/blob/main/config.json
             self.language_transformer_config.mrope_section = [16, 24, 24]
-            self.vision_transformer_config.fullatt_block_indexes = [7, 15, 23, 31]
+            if self.vision_transformer_config.model_version == "qwen25-vl":
+                self.vision_transformer_config.fullatt_block_indexes = [7, 15, 23, 31]
 
     def configure_model(self, tokenizer) -> "MCoreQwen2VLModel":
         # pylint: disable=C0115,C0116
@@ -530,10 +527,8 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
                     llm_pos_ids_list.append(torch.arange(text_len).view(1, -1).expand(3, -1) + st_idx)
 
                     if self.model_version == "qwen2-vl":
-                        print("get_rope_index qwen2-vl")
                         t_index = torch.arange(llm_grid_t).view(-1, 1).expand(-1, llm_grid_h * llm_grid_w).flatten()
                     elif self.model_version == "qwen25-vl":
-                        print("get_rope_index qwen25-vl")
                         range_tensor = torch.arange(llm_grid_t).view(-1, 1)
                         expanded_range = range_tensor.expand(-1, llm_grid_h * llm_grid_w)
                         time_tensor = expanded_range * second_per_grid_t * tokens_per_second
@@ -621,9 +616,6 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
 
         has_images = pixel_values is not None
         has_videos = pixel_values_videos is not None
-        print("image_grid_thw", image_grid_thw)
-        print("video_grid_thw", video_grid_thw)
-        print("second_per_grid_ts", second_per_grid_ts)
 
         image_embeddings = None
         if use_inference_kv_cache:
@@ -645,7 +637,6 @@ class MCoreQwen2VLModel(MCoreLLaVAModel):
                     window_index = [idx - class_token_len for idx in window_index if idx>=class_token_len]
                 else:
                     window_index = None
-            print("window_index", window_index)
 
             image_embeddings = self.vision_projection(image_embeddings)
             if self.model_version == "qwen25-vl":
