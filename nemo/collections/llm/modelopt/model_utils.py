@@ -14,7 +14,8 @@
 """Utility functions for loading models with modelopt layer spec."""
 
 from functools import partial
-from typing import Union
+from pathlib import Path
+from typing import Optional, Union
 
 import lightning.pytorch as L
 import torch
@@ -28,6 +29,10 @@ from nemo.lightning.io.pl import ckpt_to_weights_subdir
 from nemo.utils import logging
 from nemo.utils.import_utils import safe_import
 
+AnyPath = Union[Path, str]
+
+mte, HAVE_MODELOPT_MTE = safe_import("modelopt.torch.export")
+mto, HAVE_MODELOPT_MTO = safe_import("modelopt.torch.opt")
 _, HAVE_TE = safe_import("transformer_engine")
 if HAVE_TE:
     # These custom modelopt specs are a mix of local MCORE and TE specs.

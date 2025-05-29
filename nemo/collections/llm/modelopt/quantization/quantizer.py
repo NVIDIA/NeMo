@@ -462,7 +462,7 @@ def export_hf_checkpoint(
         model, _ = exporter.nemo_load(model_dir)
     unwrapped_model = unwrap_for_modelopt_operations(model)
 
-    if not mto.ModeloptStateManager(unwrapped_model).is_converted():
+    if not mto.ModeloptStateManager.is_converted(model):
         # Model was not converted by ModelOpt.
         return None
 
@@ -477,6 +477,15 @@ def export_hf_checkpoint(
                 )
 
     return Path(export_dir)
+
+
+def unwrap_for_modelopt_operations(model):
+    """Unwraps the model to expose the underlying architecture that Model Optimizer can work with.
+    For HuggingFace models, returns the base model. For MCore models, returns the unwrapped version."""
+
+    if isinstance(model, llm.HFAutoModelForCausalLM):
+        return model.model
+    return unwrap_model(model)
 
 
 def get_calib_data_iter(
@@ -576,15 +585,6 @@ gpt_model_type = [
     (llm.Starcoder2Model, "gpt"),
     (llm.Phi3Model, "phi3"),
 ]
-
-
-def unwrap_for_modelopt_operations(model):
-    """Unwraps the model to expose the underlying architecture that Model Optimizer can work with.
-    For HuggingFace models, returns the base model. For MCore models, returns the unwrapped version."""
-
-    if isinstance(model, llm.HFAutoModelForCausalLM):
-        return model.model
-    return unwrap_model(model)
 
 
 def get_modelopt_decoder_type(model: Union[llm.GPTModel, llm.HFAutoModelForCausalLM]) -> Optional[str]:
