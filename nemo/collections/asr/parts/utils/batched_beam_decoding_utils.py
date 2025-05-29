@@ -30,6 +30,10 @@ INIT_HASH_VALUE = 0  # Initial hash value for transcript hashes.
 INIT_PREFIX_HASH_VALUE = 0  # Initial hash value for prefix hashes.
 NON_EXISTENT_LABEL_VALUE = -1  # Placeholder value for non-existent labels in hypotheses. Needs to be negative.
 
+class ASRModelTypeEnum(PrettyStrEnum):
+    RNNT = "rnnt"
+    TDT = "tdt"
+    CTC = "ctc"
 
 def hash_text(prev_hash: torch.Tensor, add_labels: torch.Tensor) -> torch.Tensor:
     """
@@ -79,7 +83,7 @@ class BatchedBeamHyps:
         device: torch.device = None,
         float_dtype: torch.dtype = None,
         store_prefix_hashes: Optional[bool] = False,
-        model_type: str = "rnnt",
+        model_type: Optional[ASRModelTypeEnum | str] = ASRModelTypeEnum.RNNT,
     ):
         """
         Initializes the batched beam hypotheses utility for Transducer decoding (RNN-T and TDT models).
@@ -91,7 +95,7 @@ class BatchedBeamHyps:
             device (torch.device): The device on which tensors will be allocated. Defaults to None.
             float_dtype (torch.dtype): The floating-point data type. Defaults to None.
             store_prefix_hashes (bool, optional): Whether to store prefix hashes for hypotheses. Defaults to False.
-            model_type: (str, optional): Model type, either 'rnnt', 'tdt' or 'ctc'. Defaults to 'rnnt'.
+            model_type: (str or ModelTypeEnum, optional): Model type, either 'rnnt', 'tdt' or 'ctc'. Defaults to 'rnnt'.
         """
 
         if beam_size <= 0:
@@ -100,14 +104,12 @@ class BatchedBeamHyps:
             raise ValueError("Batch size must be greater than 0.")
         if init_length <= 0:
             raise ValueError("Initial hypothesis lengths must be greater than 0.")
-        if model_type not in ['rnnt', 'tdt', 'ctc']:
-            raise ValueError("Model type must be either 'rnnt', 'tdt' or 'ctc'.")
 
         self.device = device
         self.INACTIVE_SCORE_TENSOR = torch.tensor(INACTIVE_SCORE, device=device, dtype=float_dtype)
         self.ZERO_TENSOR = torch.tensor(0, device=device, dtype=torch.long)
 
-        self.model_type = model_type
+        self.model_type = ASRModelTypeEnum(model_type)
         self.store_prefix_hashes = store_prefix_hashes
         self._max_length = init_length
         self.beam_size = beam_size
@@ -152,7 +154,7 @@ class BatchedBeamHyps:
                 [batch_size, self.beam_size], device=device, dtype=torch.long, fill_value=INIT_PREFIX_HASH_VALUE
             )
 
-        if model_type == 'ctc':
+        if self.model_type == ASRModelTypeEnum.CTC:
             # CTC frames and tokens are aligned, so we can precompute timestamps
             self.timestamps = self._create_timestamps_tensor(self._max_length)  # timestamps
         else:
@@ -186,7 +188,7 @@ class BatchedBeamHyps:
             self.transcript_prefix_hash.fill_(INIT_PREFIX_HASH_VALUE)
 
         # model specific parameters
-        if self.model_type == 'ctc':
+        if self.model_type == ASRModelTypeEnum.CTC:
             self.timestamps.copy_(self._create_timestamps_tensor(self._max_length))
         else:
             self.timestamps.fill_(0)
@@ -205,7 +207,7 @@ class BatchedBeamHyps:
             (self.transcript_wb_prev_ptr, torch.full_like(self.transcript_wb_prev_ptr, fill_value=INIT_POINTER_VALUE)),
             dim=-1,
         )
-        if self.model_type == 'ctc':
+        if self.model_type == ASRModelTypeEnum.CTC:
             self.timestamps = self._create_timestamps_tensor(2 * self._max_length)
         else:
             self.timestamps = torch.cat((self.timestamps, torch.zeros_like(self.timestamps)), dim=-1)
@@ -229,7 +231,7 @@ class BatchedBeamHyps:
             next_label_durations (torch.Tensor, optional): Durations associated with the next labels. Required when `model_type='tdt'`.
         """
 
-        if self.model_type == 'tdt' and next_label_durations is None:
+        if self.model_type == ASRModelTypeEnum.TDT and next_label_durations is None:
             raise ValueError("`next_label_durations` is required when model type is TDT.")
 
         if (self.current_lengths_wb + 1).max() >= self._max_length:
@@ -257,7 +259,7 @@ class BatchedBeamHyps:
             next_hyps_prob (torch.Tensor): Probabilities of the next hypotheses.
             next_label_durations (torch.Tensor, optional): Durations associated with the next labels. Required when `model_type='tdt'`.
         """
-        if self.model_type == 'tdt' and next_label_durations is None:
+        if self.model_type == ASRModelTypeEnum.TDT and next_label_durations is None:
             raise ValueError("`next_label_durations` is required when model type is TDT.")
 
         last_labels = torch.gather(self.last_label, dim=-1, index=next_indices)
@@ -269,11 +271,11 @@ class BatchedBeamHyps:
         is_extended = next_labels >= 0
         extended_with_blank = next_labels == self.blank_index
         extended_with_label = (is_extended) & (~extended_with_blank)
-        if self.model_type == 'ctc':
+        if self.model_type == ASRModelTypeEnum.CTC:
             # for CTC last non-blank and non-repeated label
             extended_with_label = (extended_with_label) & (next_labels != last_labels)  # non-repeated non-blank label
 
-        if self.model_type == 'rnnt':
+        if self.model_type == ASRModelTypeEnum.RNNT:
             timesteps = torch.gather(self.next_timestamp, dim=-1, index=next_indices)
             self.timestamps.scatter_(
                 dim=-1,
@@ -287,7 +289,7 @@ class BatchedBeamHyps:
                 torch.gather(self.last_timestamp_lasts, dim=-1, index=next_indices) + extended_with_label,
                 out=self.last_timestamp_lasts,
             )
-        elif self.model_type == 'tdt':
+        elif self.model_type == ASRModelTypeEnum.TDT:
             timesteps = torch.gather(self.next_timestamp, dim=-1, index=next_indices)
             next_label_durations = torch.where(is_extended, next_label_durations, 0)
             self.timestamps.scatter_(
@@ -318,7 +320,7 @@ class BatchedBeamHyps:
             out=self.transcript_hash,
         )
 
-        if self.model_type == 'ctc':
+        if self.model_type == ASRModelTypeEnum.CTC:
             # track last label
             torch.where(is_extended, next_labels, last_labels, out=self.last_label)
         else:
@@ -351,7 +353,7 @@ class BatchedBeamHyps:
             & (self.current_lengths_nb[:, :, None] == self.current_lengths_nb[:, None, :])
         )
 
-        if self.model_type == 'tdt':
+        if self.model_type == ASRModelTypeEnum.TDT:
             hyps_equal &= self.next_timestamp[:, :, None] == self.next_timestamp[:, None, :]
 
         scores_matrix = torch.where(
@@ -363,7 +365,7 @@ class BatchedBeamHyps:
         scores_to_keep = (
             torch.arange(self.beam_size, device=scores_argmax.device, dtype=torch.long)[None, :] == scores_argmax
         )
-        if self.model_type == 'ctc':
+        if self.model_type == ASRModelTypeEnum.CTC:
             new_scores = torch.max(scores_matrix, dim=-1, keepdim=False).values
         else:
             new_scores = torch.logsumexp(scores_matrix, dim=-1, keepdim=False)
@@ -548,7 +550,7 @@ class BatchedBeamHyps:
 
         for idx in range(max_idx, -1, -1):
             self.transcript_wb[..., idx].copy_(self.transcript_wb[self.batch_indices.unsqueeze(-1), ptrs, idx])
-            if self.model_type == 'tdt' or self.model_type == 'rnnt':
+            if self.model_type == ASRModelTypeEnum.TDT or self.model_type == ASRModelTypeEnum.RNNT:
                 self.timestamps[..., idx].copy_(self.timestamps[self.batch_indices.unsqueeze(-1), ptrs, idx])
             ptrs = self.transcript_wb_prev_ptr[self.batch_indices.unsqueeze(-1), ptrs, idx]
         self.transcript_wb_prev_ptr[..., : max_idx + 1].copy_(self.beam_indices.unsqueeze(0).unsqueeze(-1))
@@ -559,7 +561,7 @@ class BatchedBeamHyps:
 
         self.last_label.copy_(torch.gather(self.last_label, dim=-1, index=indices))
 
-        if self.model_type == 'rnnt' or self.model_type == 'tdt':
+        if self.model_type == ASRModelTypeEnum.TDT or self.model_type == ASRModelTypeEnum.RNNT:
             self.next_timestamp.copy_(torch.gather(self.next_timestamp, dim=-1, index=indices))
             self.last_timestamp_lasts.copy_(torch.gather(self.last_timestamp_lasts, dim=-1, index=indices))
 
@@ -611,7 +613,7 @@ class BatchedBeamHyps:
         Returns:
             torch.Tensor: Binary mask indicating valid tokens.
         """
-        if self.model_type == 'ctc':
+        if self.model_type == ASRModelTypeEnum.CTC:
             return self._create_fold_consecutive_mask(transcripts)
         else:
             return (transcripts >= 0) & (transcripts != self.blank_index)
