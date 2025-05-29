@@ -30,10 +30,6 @@ INIT_HASH_VALUE = 0  # Initial hash value for transcript hashes.
 INIT_PREFIX_HASH_VALUE = 0  # Initial hash value for prefix hashes.
 NON_EXISTENT_LABEL_VALUE = -1  # Placeholder value for non-existent labels in hypotheses. Needs to be negative.
 
-class ASRModelTypeEnum(PrettyStrEnum):
-    RNNT = "rnnt"
-    TDT = "tdt"
-    CTC = "ctc"
 
 def hash_text(prev_hash: torch.Tensor, add_labels: torch.Tensor) -> torch.Tensor:
     """
@@ -70,6 +66,12 @@ class PruningMode(PrettyStrEnum):
     # Hyps are scored based on combined ASR and LM probs., then pruned
     LATE = "late"
 
+
+class ASRModelTypeEnum(PrettyStrEnum):
+    """Specifies model type."""
+    RNNT = "rnnt"
+    TDT = "tdt"
+    CTC = "ctc"
 
 class BatchedBeamHyps:
     """Class to store batch of beam hypotheses (labels, time_indices, scores) for efficient batched beam decoding"""
