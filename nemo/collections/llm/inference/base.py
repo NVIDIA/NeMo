@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ from megatron.core.inference.model_inference_wrappers.abstract_model_inference_w
     AbstractModelInferenceWrapper,
 )
 from megatron.core.inference.text_generation_controllers.text_generation_controller import TextGenerationController
+from megatron.core.transformer.enums import AttnBackend
 from megatron.core.transformer.module import MegatronModule
 
 import nemo.lightning as nl
@@ -47,10 +48,10 @@ class MCoreTokenizerWrappper:
     tokenizer.detokenize, tokenizer.tokenize, tokenizer.bos, tokenizer.pad, etc. to encode and decode prompts
     """
 
-    def __init__(self, tokenizer):
+    def __init__(self, tokenizer, vocab_size=None):
         self.tokenizer = tokenizer
         self.eod = tokenizer.eod
-        self.vocab_size = tokenizer.vocab_size
+        self.vocab_size = vocab_size or tokenizer.vocab_size
 
     def detokenize(self, tokens, remove_special_tokens=False):
         """
@@ -193,6 +194,7 @@ def setup_model_and_tokenizer(
     params_dtype: torch.dtype = torch.bfloat16,
     inference_batch_times_seqlen_threshold: int = 1000,
     inference_max_seq_length: int = 2560,
+    enable_flash_decode: bool = False,
 ) -> tuple[AbstractModelInferenceWrapper, MCoreTokenizerWrappper]:
     """
     Sets up the model and tokenizer for inference.
@@ -209,18 +211,33 @@ def setup_model_and_tokenizer(
            than this threshold then we will not use pipelining, otherwise we will.
         inference_max_seq_length (int, optional): max_seq_length for inference. Required by MCoreEngine(>=0.12).
         Necessary for CUDA graphs. Defaults to 2560.
-
+        enable_flash_decode (bool, optional): Whether to enable flash decode. Defaults to True.
     Returns:
         tuple[AbstractModelInferenceWrapper, MCoreTokenizerWrappper]:
             A tuple containing the inference-wrapped model and Mcore wrapped tokenizer.
     """
     model: GPTModel | T5Model = io.load_context(path=ckpt_to_context_subdir(path), subpath="model")
+
+    if enable_flash_decode:
+        if params_dtype == torch.bfloat16 or params_dtype == torch.float16:
+            logging.info("Enabling Flash Decode for in-framework inference")
+            model.config.flash_decode = True
+            model.config.attention_backend = AttnBackend.flash
+        else:
+            logging.warning(
+                "Flash Decode is not supported for params_dtype %s, defaulting to MCore's attention backend",
+                params_dtype,
+            )
+
     _setup_trainer_and_restore_model(path=path, trainer=trainer, model=model)
 
     inference_wrapped_model = model.get_inference_wrapper(
         params_dtype, inference_batch_times_seqlen_threshold, inference_max_seq_length
     )
-    return inference_wrapped_model, MCoreTokenizerWrappper(model.tokenizer)
+    return (
+        inference_wrapped_model,
+        MCoreTokenizerWrappper(model.tokenizer, getattr(model.config, "vocab_size", None)),
+    )
 
 
 def generate(
@@ -277,3 +294,48 @@ def generate(
     )
 
     return results
+
+
+def setup_mcore_engine(
+    path: Path,
+    trainer: nl.Trainer,
+    params_dtype: torch.dtype = torch.bfloat16,
+    inference_batch_times_seqlen_threshold: int = 1000,
+    inference_max_seq_length: int = 4096,
+    enable_flash_decode: bool = True,
+    max_batch_size: int = 32,
+    random_seed: Optional[int] = None,
+) -> tuple[MCoreEngine, AbstractModelInferenceWrapper, MCoreTokenizerWrappper]:
+    """
+    Sets up and returns a Megatron Core Engine for text generation inference.
+
+    Args:
+        path (Path): Path to the model checkpoint
+        trainer (nl.Trainer): NeMo Lightning trainer instance
+        params_dtype (torch.dtype): Data type for model parameters. Defaults to torch.bfloat16
+        inference_batch_times_seqlen_threshold (int): Batch size * sequence length threshold. Defaults to 1000
+        inference_max_seq_length (int): Maximum sequence length for inference. Defaults to 4096
+        enable_flash_decode (bool): Whether to enable flash attention decoding. Defaults to False
+        max_batch_size (int): Maximum batch size for inference. Defaults to 32
+        random_seed (Optional[int]): Random seed for reproducibility. Defaults to None
+
+    Returns:
+        Tuple[MCoreEngine, AbstractModelInferenceWrapper, MCoreTokenizerWrapper]:
+            - Configured Megatron Core Engine instance
+            - Inference-wrapped model
+            - Tokenizer wrapper
+    """
+
+    model, tokenizer = setup_model_and_tokenizer(
+        path=path,
+        trainer=trainer,
+        params_dtype=params_dtype,
+        inference_batch_times_seqlen_threshold=inference_batch_times_seqlen_threshold,
+        inference_max_seq_length=inference_max_seq_length,
+        enable_flash_decode=enable_flash_decode,
+    )
+    text_generation_controller = TextGenerationController(inference_wrapped_model=model, tokenizer=tokenizer)
+    mcore_engine = MCoreEngine(
+        text_generation_controller=text_generation_controller, max_batch_size=max_batch_size, random_seed=random_seed
+    )
+    return mcore_engine, model, tokenizer

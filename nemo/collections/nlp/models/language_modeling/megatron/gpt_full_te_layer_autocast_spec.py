@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -192,7 +192,7 @@ class TETransformerLayerAutocast(MegatronModule, BaseTransformerLayer):  # type:
     A MegatronModule that wraps the AutocastTransformerLayer.
     """
 
-    def __init__(self, config, layer_number=1, hidden_dropout=None):
+    def __init__(self, config, layer_number=1, hidden_dropout=None, **kwargs):
         assert (
             HAVE_MEGATRON_CORE and HAVE_TE
         ), "TETransformerLayerAutocast requires Megatron Core and Transformer Engine to be installed."
@@ -350,7 +350,7 @@ class TETransformerLayerAutocast(MegatronModule, BaseTransformerLayer):  # type:
     def __call__(self, *args, **kwargs):
         if hasattr(self, 'cudagraph_manager'):
             return self.cudagraph_manager(self, args, kwargs)
-        return self.transformer_layer(*args, **kwargs)
+        return super().__call__(*args, **kwargs)
 
 
 # Use this spec to use the full Transformer layer from Transformer Engine

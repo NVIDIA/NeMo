@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -445,7 +445,7 @@ def concat_pad(tensor_list, max_seq_length):
 pos_id_3d = PosID3D()
 
 
-def cook_raw_iamges(sample: dict) -> dict:
+def cook_raw_images(sample: dict) -> dict:
     """
     Processes a raw sample dictionary from energon dataset and returns a new dictionary with specific keys.
 
@@ -474,5 +474,5 @@ class RawImageDiffusionTaskEncoder(DefaultTaskEncoder, IOMixin):
 
     cookers = [
         # Cooker(cook),
-        Cooker(cook_raw_iamges),
+        Cooker(cook_raw_images),
     ]
