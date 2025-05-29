@@ -65,7 +65,7 @@ def get_args():
     parser.add_argument("-nodes", "--num_nodes", type=int, help="Number of nodes used")
     parser.add_argument("-out", "--export_path", "--output_path", type=str, help="Path for the exported engine")
     parser.add_argument(
-        "--export_format", default="trtllm", choices=["nemo", "hf", "trtllm"], help="Model format to export as"
+        "--export_format", default="trtllm", choices=["trtllm", "nemo", "hf"], help="Model format to export as"
     )
     parser.add_argument(
         "-algo",
