@@ -580,6 +580,30 @@ class GreedyBatchedTDTLabelLoopingComputer(
             return batched_hyps, alignments, decoding_state
         return batched_hyps, None, decoding_state
 
+    def get_decoding_state_after_sos(
+        self, batch_size: int, device: torch.device | str, float_dtype: torch.dtype
+    ) -> BatchedGreedyDecodingState:
+        """Get decoding state after <SOS> symbol, used for initialization from empty hypotheses."""
+        labels = torch.full([batch_size], fill_value=self._SOS, dtype=torch.long, device=device)
+        state = self.decoder.initialize_state(labels).to(float_dtype)
+        decoder_output, state, *_ = self.decoder.predict(
+            labels.unsqueeze(1), state, add_sos=False, batch_size=batch_size
+        )
+        decoder_output = self.joint.project_prednet(decoder_output)  # do not recalculate joint projection
+        decoding_state = BatchedGreedyDecodingState(
+            predictor_state=state,
+            predictor_output=decoder_output,
+            labels=labels,
+            decoded_length=torch.zeros([batch_size], dtype=torch.long, device=device),
+            lm_state=(
+                self.ngram_lm_batch.get_init_states(batch_size=batch_size, bos=True).to(device)
+                if self.ngram_lm_batch
+                else None
+            ),
+            time_jumps=torch.zeros([batch_size], dtype=torch.long, device=device),
+        )
+        return decoding_state
+
     def cuda_graphs_impl(
         self,
         encoder_output: torch.Tensor,
