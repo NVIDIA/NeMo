@@ -1191,13 +1191,15 @@ The multi-task AED models support only Lhotse-based data loading. Datasets can b
       use_bucketing: True
       num_buckets: 30
       bucket_duration_bins: [3.79, 4.82, 5.688, ..., 35.827]
+      # use `<NeMo_repo>/scripts/speech_recognition/estimate_duration_bins.py` to estimate 1d bucket_duration_bins
+      # use `<NeMo_repo>/scripts/speech_recognition/estimate_duration_bins_2d.py` to estimate 2d bucket_duration_bins
       text_field: "answer"
       lang_field: "target_lang"
 
 For more details about Lhotse-based dataset specification, refer to `Lhotse Dataloading <./datasets.html#_hotse_dataloading>`__
 
 Special Tokens Configuration
-~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The model uses special tokens for task control and language specification. These can be configured during tokenizer creation or loaded from an existing tokenizer:
 
@@ -1207,6 +1209,8 @@ The model uses special tokens for task control and language specification. These
       model_dir: "<path to tokenizer dir>"
       tokens: ["translate", "transcribe", "en", "es", "de", "fr"]
       force_rebuild: False
+
+For additional details about building tokenizer with special tokens, refer to "Build tokenizer" section in `<NeMo_repo>/tutorials/asr/Canary_Multitask_Speech_Model.ipynb`.
 
 .. _canary_tokenizer_config:
 
@@ -1258,7 +1262,7 @@ These parameters are referenced throughout the config using OmegaConf interpolat
 
 
 Transformer Decoder
-~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~
 
 The transformer decoder uses a pre-LN architecture with configurable size and attention parameters:
 
@@ -1289,3 +1293,5 @@ The model uses smoothed cross entropy loss with optional label smoothing:
       _target_: nemo.collections.common.losses.smoothed_cross_entropy.SmoothedCrossEntropyLoss
       label_smoothing: ${model.label_smoothing}
       pad_id: null
+
+For more details about AED model architecture, prompt format, trascribing/translating using pre-trained models, training from scratch using custom data, fine-tuning pre-trained models, and other advanced topics, refer to `Canary_Multitask_Speech_Model https://github.com/NVIDIA/NeMo/blob/main/tutorials/asr/Canary_Multitask_Speech_Model.ipynb`_ tutorial.
