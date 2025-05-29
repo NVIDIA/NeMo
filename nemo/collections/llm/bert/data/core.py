@@ -129,7 +129,7 @@ class BertEmbeddingDataset(Dataset):
         self.index_mapping_dir = index_mapping_dir
         self.virtual_tokens = virtual_tokens
         self.truncation_method = truncation_method
-        self.pad_token_id = self.tokenizer.pad_id if self.tokenizer.pad_id else self.tokenizer.eos_id
+        self.pad_token_id = self.tokenizer.pad if self.tokenizer.pad else self.tokenizer.eos_id
         self.negative_sample_strategy = negative_sample_strategy
         assert (
             truncation_method == 'left' or truncation_method == 'right'
@@ -272,9 +272,9 @@ class BertEmbeddingDataset(Dataset):
             nd = [[self.tokenizer.eos_id] * self.virtual_tokens + n for n in nd]  # type: ignore
 
         if self.add_bos:
-            q = [self.tokenizer.bos_id] + q  # type: ignore
-            d = [self.tokenizer.bos_id] + d  # type: ignore
-            nd = [[self.tokenizer.bos_id] + n for n in nd]  # type: ignore
+            q = [self.tokenizer.bos] + q  # type: ignore
+            d = [self.tokenizer.bos] + d  # type: ignore
+            nd = [[self.tokenizer.bos] + n for n in nd]  # type: ignore
 
         # TODO: (@adithyare) should probably add a warning before truncation
         q = q[: self.max_seq_length - 1]

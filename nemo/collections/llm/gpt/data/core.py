@@ -525,7 +525,7 @@ class GPTSFTDataset(Dataset):
 
         # Adds bos token in the start
         if self.add_bos:
-            context_ids = [self.tokenizer.bos_id] + context_ids
+            context_ids = [self.tokenizer.bos] + context_ids
 
         # Adds sep token between text/prompt and answer
         if self.add_sep:

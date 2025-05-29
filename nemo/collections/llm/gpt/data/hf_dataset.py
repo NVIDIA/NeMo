@@ -578,8 +578,8 @@ class SquadHFDataModule(HFDatasetDataModule):
             f" {example['answers']['text'][0].strip()}",
         ]
         context_ids, answer_ids = list(map(self.tokenizer.text_to_ids, formatted_text))
-        if len(context_ids) > 0 and context_ids[0] != self.tokenizer.bos_id:
-            context_ids.insert(0, self.tokenizer.bos_id)
+        if len(context_ids) > 0 and context_ids[0] != self.tokenizer.bos:
+            context_ids.insert(0, self.tokenizer.bos)
         if len(answer_ids) > 0 and answer_ids[-1] != self.tokenizer.eos_id:
             answer_ids.append(self.tokenizer.eos_id)
 
