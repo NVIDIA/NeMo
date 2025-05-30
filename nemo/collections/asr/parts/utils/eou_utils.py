@@ -77,9 +77,11 @@ def evaluate_eou(
     num_predictions = len(prediction)
     missing = 0
 
+    predicted_eou = prediction
     if threshold is not None and threshold > 0:
         predicted_eou = [p for p in prediction if p["eou_prob"] > threshold]
-    else:
+    elif all([hasattr(p, "eou_pred") for p in prediction]):
+        # If eou_pred is available, use it
         predicted_eou = [p for p in prediction if p["eou_pred"]]
 
     if do_sorting:
