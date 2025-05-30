@@ -172,7 +172,7 @@ class RuntimeEstimator(pl.Callback):
                 remaining_time += eval_wct_avg * remaining_calls
 
             time_metrics['time/remaining_estimate'] = remaining_time / self.divider
-            
+
         batch_size = trainer.train_dataloader.batch_sampler.global_batch_size
         self.num_tokens += batch['tokens'].size()[1] * (batch_size)
         time_metrics['time/tokens'] = self.num_tokens
