@@ -23,14 +23,7 @@ os.environ["OPENBLAS_NUM_THREADS"] = "1"
 
 import os
 
-# add NeMo root directory to python path to import performance script utilities
-import sys
-
-if os.getenv("NEMO_ROOT_DIRECTORY") is not None:
-    sys.path.append(os.getenv("NEMO_ROOT_DIRECTORY"))
-else:
-    raise ValueError("Please set NEMO_ROOT_DIRECTORY environment variable to your path to the NeMo repository")
-from typing import Callable, List, Optional
+from typing import Callable, Optional
 
 import fiddle as fdl
 import fiddle._src.experimental.dataclasses as fdl_dc
@@ -417,34 +410,8 @@ if __name__ == "__main__":
         ]
     )
 
-    pinning_args = []
-    exp_tuning = ""
-    if args.cpu_pinning > 0:
-        pinning_args = [
-            "--cpu-bind=verbose",
-            f"--cpus-per-task={args.cpu_pinning}",
-            "--hint=multithread",
-            "--distribution=*:block",
-        ]
-        exp_tuning = "_pinned"
-
     env_vars = args.custom_env_vars
 
-    executor = slurm_executor(
-        args.account,
-        args.partition,
-        args.log_dir,
-        num_nodes,
-        args.gpus_per_node,
-        args.time_limit,
-        args.container_image,
-        custom_mounts=args.custom_mounts,
-        custom_env_vars=env_vars,
-        custom_srun_args=pinning_args,
-        hf_token=args.hf_token,
-        nemo_home=args.nemo_home,
-        wandb_key=args.wandb_key,
-    )
     plugins = [
         PerfEnvPlugin(
             enable_vboost=True,
@@ -468,6 +435,22 @@ if __name__ == "__main__":
             "NCCL_DEBUG_SUBSYS": "COLL,P2P,NET",
             "NCCL_DEBUG": "INFO",
         }
+
+    executor = slurm_executor(
+        args.account,
+        args.partition,
+        args.log_dir,
+        num_nodes,
+        args.gpus_per_node,
+        args.time_limit,
+        args.container_image,
+        custom_mounts=args.custom_mounts,
+        custom_env_vars=env_vars,
+        custom_srun_args=[],
+        hf_token=args.hf_token,
+        nemo_home=args.nemo_home,
+        wandb_key=args.wandb_key,
+    )
 
     with run.Experiment(exp_name) as exp:
         exp.add(
