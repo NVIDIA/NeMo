@@ -82,7 +82,6 @@ def override_recipe_configs(
     recipe.data.tokenizer = run.Config(
         get_nmt_tokenizer, library="null", model_name="NullTokenizer", vocab_size=131072
     )
-    recipe.trainer.enable_checkpointing = True
 
     return recipe
 
