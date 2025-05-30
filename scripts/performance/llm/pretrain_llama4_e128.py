@@ -38,8 +38,13 @@ def override_recipe_configs(
     ep_size: int,
     num_layers: int,
     hidden_size: int,
-    etp_size: int,
-    enable_cuda_graphs: bool,
+    etp_size: int = None,
+    enable_cuda_graphs: bool = False,
+    use_mcore_fsdp: bool = False,
+    recompute_layers: int = 0,
+    activation_offload_layers: int = 0,
+    compute_dtype: str = None,
+    fp8_recipe: str = None,
 ):
     """
     llama4 e128 pre-train recipe aimed at achieving best possible performance and faster
@@ -65,6 +70,9 @@ def override_recipe_configs(
         hidden_size,
         etp_size,
         enable_cuda_graphs=enable_cuda_graphs,
+        use_mcore_fsdp=use_mcore_fsdp,
+        recompute_layers=recompute_layers,
+        activation_offload_layers=activation_offload_layers,
         use_user_buffer_registration=args.use_user_buffer_registration,
         use_sharp=args.use_sharp,
         compute_dtype=args.compute_dtype,
@@ -109,9 +117,9 @@ if __name__ == "__main__":
         hidden_size,
         etp_size,
         enable_cuda_graphs,
-        _,
-        _,
-        _,
+        use_mcore_fsdp,
+        recompute_layers,
+        activation_offload_layers,
     ) = kwargs[0:15]
 
     recipe = override_recipe_configs(
@@ -128,6 +136,7 @@ if __name__ == "__main__":
         hidden_size,
         etp_size,
         enable_cuda_graphs,
+        compute_dtype=args.compute_dtype,
     )
 
     exp_config = (
