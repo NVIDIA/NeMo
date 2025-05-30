@@ -556,7 +556,7 @@ def ptq(
             trainer_kwargs={},
             model_config_overrides={"sequence_parallel": False},
         )
-    if forward_loop is None and not quantization_config._is_weight_only():
+    if forward_loop is None and not quantization_config.is_weight_only():
         forward_loop = quantizer._get_forward_loop(model)
 
     model = quantizer.quantize(model, forward_loop)
