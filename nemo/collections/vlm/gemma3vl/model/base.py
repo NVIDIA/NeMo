@@ -157,7 +157,9 @@ class Gemma3VLConfig(TransformerConfig, io.IOMixin):
                 self.vision_transformer_config.tensor_model_parallel_size = self.encoder_tensor_model_parallel_size
                 self.vision_projection_config.tensor_model_parallel_size = self.encoder_tensor_model_parallel_size
 
-        assert getattr(self, "virtual_pipeline_model_parallel_size", None) is None and vp_stage is None, "Virtual pipeline model parallel size is not yet supported for Gemma3VL."
+        assert getattr(self, "virtual_pipeline_model_parallel_size", None) is None \
+            and vp_stage is None, \
+            "Virtual pipeline model parallel size is not yet supported for Gemma3VL."
 
         model = MCoreGemma3VLModel(
             config=self,
