@@ -119,7 +119,10 @@ if __name__ == "__main__":
         hidden_size,
         etp_size,
         enable_cuda_graphs,
-    ) = kwargs[0:12]
+        use_mcore_fsdp,
+        recompute_layers,
+        activation_offload_layers,
+    ) = kwargs[0:15]
 
     recipe = override_recipe_configs(
         args,
