@@ -204,10 +204,16 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
         """
 
         inference_params = inference_params or CommonInferenceParams()
-        max_seq_length = inference_params.num_tokens_to_generate + max(len(self.mcore_tokenizer.tokenize(p)) for p in prompts)
+        max_seq_length = inference_params.num_tokens_to_generate + max(
+            len(self.mcore_tokenizer.tokenize(p)) for p in prompts
+        )
         # set kv cache allocation to only num tokens in prompt + max tokens to generate
-        self.mcore_engine.text_generation_controller.inference_wrapped_model.inference_wrapper_config.inference_max_seq_length = max_seq_length
-        self.mcore_engine.text_generation_controller.inference_wrapped_model.inference_context.max_sequence_length = max_seq_length
+        self.mcore_engine.text_generation_controller.inference_wrapped_model.inference_wrapper_config.inference_max_seq_length = (
+            max_seq_length
+        )
+        self.mcore_engine.text_generation_controller.inference_wrapped_model.inference_context.max_sequence_length = (
+            max_seq_length
+        )
 
         results = self.mcore_engine.generate(
             prompts=prompts,
