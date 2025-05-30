@@ -144,6 +144,34 @@ if __name__ == "__main__":
     )
     exp_name = f"{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
 
+    plugins = [
+        PerfEnvPlugin(
+            enable_vboost=True,
+            nccl_pp_comm_chunksize=2097152 if pp_size > 1 else None,
+            gpu_sm100_or_newer=(args.gpu.lower() in ['b200', 'gb200']),
+        ),
+    ]
+    custom_env_vars = {}
+    if args.enable_nsys:
+        plugins.append(
+            NsysPlugin(
+                start_step=args.profiling_start_step,
+                end_step=args.profiling_stop_step,
+                ranks=list(range(num_nodes * args.gpus_per_node)),
+            )
+        )
+        # nsys takes precedent over ncclttrace
+    elif args.enable_nccltrace:
+        exp_name = exp_name + "_nccltrace"
+        custom_env_vars |= {
+            "NCCL_DEBUG_SUBSYS": "COLL,P2P,NET",
+            "NCCL_DEBUG": "INFO",
+        }
+
+    if args.enable_memory_profile:
+        assert args.memory_profile_out_path is not None
+        plugins.append(MemoryProfilePlugin(dir=args.memory_profile_out_path))
+
     executor = slurm_executor(
         args.gpu.lower(),
         args.account,
@@ -154,25 +182,12 @@ if __name__ == "__main__":
         args.time_limit,
         args.container_image,
         custom_mounts=args.custom_mounts,
-        custom_env_vars={},
+        custom_env_vars=custom_env_vars,
         hf_token=args.hf_token,
         nemo_home=args.nemo_home,
         wandb_key=args.wandb_key,
         network='sharp' if args.use_sharp else None,
     )
-
-    plugins = [
-        PerfEnvPlugin(
-            enable_vboost=True,
-            nccl_pp_comm_chunksize=2097152 if pp_size > 1 else None,
-            gpu_sm100_or_newer=(args.gpu.lower() in ['b200', 'gb200']),
-        ),
-    ]
-    if args.enable_nsys:
-        plugins.append(NsysPlugin(start_step=45, end_step=50, ranks=list(range(num_nodes * args.gpus_per_node))))
-    if args.enable_memory_profile:
-        assert args.memory_profile_out_path is not None
-        plugins.append(MemoryProfilePlugin(dir=args.memory_profile_out_path))
 
     with run.Experiment(exp_name) as exp:
         exp.add(
