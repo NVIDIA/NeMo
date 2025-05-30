@@ -166,8 +166,9 @@ class Gemma3Config(GPTConfig):
         if self.context_parallel_size > 1:
             raise ValueError("Context Parallel is not supported for Gemma3 model.")
 
-        assert getattr(self, "virtual_pipeline_model_parallel_size", None) is None and vp_stage is None, \
-            "Virtual pipeline model parallel size is not yet supported for Gemma3 model."
+        assert (
+            getattr(self, "virtual_pipeline_model_parallel_size", None) is None and vp_stage is None
+        ), "Virtual pipeline model parallel size is not yet supported for Gemma3 model."
 
         rotary_base_local, rotary_base_global = self.rotary_base
         # Trick megatron's RotaryEmbedding to initialize the model successfully
