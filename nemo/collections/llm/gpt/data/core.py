@@ -883,7 +883,7 @@ class GPTSFTPackedDataset(GPTSFTDataset):
                 dataset_max_seqlen = max(p['dataset_max_seqlen'] for p in self.pack_metadata)
                 min_pack_seq_len = min(p['min_packed_seqlen'] for p in self.pack_metadata)
                 padding_gap = max_length - min_pack_seq_len
-                
+
                 # Use the larger of the two values to avoid NAN issues with attention kernel
                 safe_max_seqlen = max(dataset_max_seqlen, padding_gap)
                 max_seqlen = torch.IntTensor([safe_max_seqlen] * len(cu_seqlens))

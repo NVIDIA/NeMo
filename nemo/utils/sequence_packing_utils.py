@@ -180,7 +180,7 @@ def create_packing_strategy(
         "packing_factor": round(packing_factor, 2),
         "packing_efficiency": round(sum(packed_seq_lens) / len(packed_seq_lens) / pack_size * 100, 2),
         "pack_size": pack_size,
-        'min_packed_seqlen': min_packed_seqlen
+        'min_packed_seqlen': min_packed_seqlen,
     }
     logging.debug("Packed sequence lengths:")
     logging.debug(packed_seq_lens)
