@@ -12,29 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import copy
-import json
 import os
-import tempfile
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, Optional
 
 import torch
 from omegaconf import DictConfig, ListConfig, OmegaConf, open_dict
-from tqdm import tqdm
 
-from nemo.collections.asr.data import audio_to_text_dataset
-from nemo.collections.asr.data.audio_to_text_dali import AudioToBPEDALIDataset, DALIOutputs
-from nemo.collections.asr.data.audio_to_text_lhotse import LhotseSpeechToTextBpeDataset
+from nemo.collections.asr.data.audio_to_text_dali import DALIOutputs
 from nemo.collections.asr.data.audio_to_text_lhotse_target_language import LhotseSpeechToTextBpeDatasetTgtLangID
-from nemo.collections.asr.losses.ctc import CTCLoss
-from nemo.collections.asr.losses.rnnt import RNNTLoss
 from nemo.collections.asr.metrics.bleu import BLEU
 from nemo.collections.asr.metrics.wer import WER
 from nemo.collections.asr.models.hybrid_rnnt_ctc_models import EncDecHybridRNNTCTCModel
-from nemo.collections.asr.parts.mixins import ASRBPEMixin
-from nemo.collections.asr.parts.preprocessing.segment import ChannelSelectorType
+from nemo.collections.asr.parts.mixins import ASRBPEMixin, ASRTranscriptionMixin, TranscribeConfig
 from nemo.collections.asr.parts.submodules.ctc_decoding import CTCBPEDecoding, CTCBPEDecodingConfig
-from nemo.collections.asr.parts.submodules.rnnt_decoding import RNNTBPEDecoding, RNNTBPEDecodingConfig
+from nemo.collections.asr.parts.submodules.rnnt_decoding import RNNTBPEDecoding
 from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
 from nemo.core.classes.common import typecheck
 from nemo.core.classes.mixins import AccessMixin
@@ -50,97 +41,13 @@ from nemo.utils import logging, model_utils
 from pytorch_lightning import Trainer
 
 
-class EncDecHybridRNNTCTCBPEModelTgtLangID(EncDecHybridRNNTCTCModel, ASRBPEMixin):
+class EncDecHybridRNNTCTCBPEModelTgtLangID(EncDecHybridRNNTCTCModel, ASRBPEMixin, ASRTranscriptionMixin):
     """Base class for encoder decoder RNNT-based models with auxiliary CTC decoder/loss and subword tokenization."""
 
     def __init__(self, cfg: DictConfig, trainer: Trainer = None):
         # Convert to Hydra 1.0 compatible DictConfig
         cfg = model_utils.convert_model_config_to_dict_config(cfg)
         cfg = model_utils.maybe_update_config_version(cfg)
-        self._GLOBAL_LANG_MAP = {
-            # Group 1:
-            'en-US': 0,
-            'en-GB': 1,
-            'es-ES': 2,
-            'es-US': 3,  # Spanish variants
-            'zh-CN': 4,
-            'zh-TW': 5,  # Chinese variants
-            'hi-IN': 6,
-            'ar-AR': 7,  # Hindi & Arabic
-            'fr-FR': 8,
-            'de-DE': 9,  # French & German
-            'ja-JP': 10,
-            'ru-RU': 11,  # Japanese & Russian
-            'pt-BR': 12,
-            'pt-PT': 13,  # Portuguese variants
-            'ko-KR': 14,
-            'it-IT': 15,  # Korean & Italian
-            # Group 2:
-            'nl-NL': 16,
-            'pl-PL': 17,
-            'tr-TR': 18,
-            'uk-UA': 19,
-            'ro-RO': 20,
-            'el-GR': 21,
-            'cs-CZ': 22,
-            'hu-HU': 23,
-            'sv-SE': 24,
-            'da-DK': 25,
-            'fi-FI': 26,
-            'no-NO': 27,
-            'sk-SK': 28,
-            'hr-HR': 29,
-            'bg-BG': 30,
-            'lt-LT': 31,
-            # Group 3:
-            'th-TH': 32,
-            'vi-VN': 33,
-            'id-ID': 34,
-            'ms-MY': 35,
-            'bn-IN': 36,
-            'ur-PK': 37,
-            'fa-IR': 38,
-            'ta-IN': 39,
-            'te-IN': 40,
-            'mr-IN': 41,
-            'gu-IN': 42,
-            'kn-IN': 43,
-            'ml-IN': 44,
-            'si-LK': 45,
-            'ne-NP': 46,
-            'km-KH': 47,
-            # Group 4:
-            'sw-KE': 48,
-            'am-ET': 49,
-            'ha-NG': 50,
-            'zu-ZA': 51,
-            'yo-NG': 52,
-            'ig-NG': 53,
-            'af-ZA': 54,
-            'rw-RW': 55,
-            'so-SO': 56,
-            'ny-MW': 57,
-            'ln-CD': 58,
-            'or-KE': 59,
-            # Group 5:
-            'he-IL': 64,
-            'ku-TR': 65,
-            'az-AZ': 66,
-            'ka-GE': 67,
-            'hy-AM': 68,
-            'uz-UZ': 69,
-            'tg-TJ': 70,
-            'ky-KG': 71,
-            'qu-PE': 80,
-            'ay-BO': 81,
-            'gn-PY': 82,
-            'nah-MX': 83,
-            # Group 7:
-            'mi-NZ': 96,
-            'haw-US': 97,
-            'sm-WS': 98,
-            'to-TO': 99,
-        }
 
         # Tokenizer is necessary for this model
         if 'tokenizer' not in cfg:
@@ -188,6 +95,14 @@ class EncDecHybridRNNTCTCBPEModelTgtLangID(EncDecHybridRNNTCTCModel, ASRBPEMixin
             )
             cfg.aux_ctc.decoder["num_classes"] = len(vocabulary)
 
+        # Setup language settings
+        with open_dict(cfg):
+            if not hasattr(cfg, 'language_settings'):
+                cfg.language_settings = OmegaConf.create({})
+            # Number of supported languages
+            if not hasattr(cfg.language_settings, 'num_languages'):
+                cfg.language_settings.num_languages = cfg.model_defaults.get('num_langs', 128)
+
         super().__init__(cfg=cfg, trainer=trainer)
 
         if cfg.get("initialize_target_lang_id_concatination", False):
@@ -195,7 +110,7 @@ class EncDecHybridRNNTCTCBPEModelTgtLangID(EncDecHybridRNNTCTCModel, ASRBPEMixin
 
     def initialize_target_lang_id_concatination(self):
         """Initialize model components for target language ID concatenation."""
-        print("target language model has been initalized")
+        logging.info("Parakeet model with target language support has been initalized")
 
         # Setup decoding object
         self.decoding = RNNTBPEDecoding(
@@ -243,76 +158,41 @@ class EncDecHybridRNNTCTCBPEModelTgtLangID(EncDecHybridRNNTCTCModel, ASRBPEMixin
 
         if hasattr(self.cfg, 'initialize_target_lang_id_concatination'):
             self.concat = True
-            self.num_langs = self._cfg.model_defaults.get('num_langs', 128)
-
-            # Setup normalization
-            self.norm = self._cfg.get('norm', None)
-            if self._cfg.get('norm') == 'ln':
-                self.asr_norm = torch.nn.LayerNorm(self._cfg.model_defaults.enc_hidden)
-                self.lang_norm = torch.nn.LayerNorm(self.num_langs)
-
+            self.num_langs = self.cfg.language_settings.num_languages
             # Setup projection layers
             proj_in_size = self.num_langs + self._cfg.model_defaults.enc_hidden
             proj_out_size = self._cfg.model_defaults.enc_hidden
 
-            self.lang_kernal = torch.nn.Sequential(
+            self.lang_kernel = torch.nn.Sequential(
                 torch.nn.Linear(proj_in_size, proj_out_size * 2),
                 torch.nn.ReLU(),
                 torch.nn.Linear(proj_out_size * 2, proj_out_size),
             )
 
     def _setup_dataloader_from_config(self, config: Optional[Dict]):
+        dataset = None
+        dataloader = None
 
-        if config.get("use_lhotse"):
-            if 'initialize_target_lang_id_concatination' in self.cfg:
-                dataset = LhotseSpeechToTextBpeDatasetTgtLangID(tokenizer=self.tokenizer, cfg=config)
-            else:
-                dataset = LhotseSpeechToTextBpeDataset(tokenizer=self.tokenizer)
-            return get_lhotse_dataloader_from_config(
+        # Only Lhotse dataset with language ID is supported
+        if config.get("use_lhotse") and "initialize_target_lang_id_concatination" in self.cfg:
+            # Create Lhotse dataset with language ID support
+            dataset = LhotseSpeechToTextBpeDatasetTgtLangID(tokenizer=self.tokenizer, cfg=config)
+
+            # Create dataloader from Lhotse dataset
+            dataloader = get_lhotse_dataloader_from_config(
                 config,
                 global_rank=self.global_rank,
                 world_size=self.world_size,
                 dataset=dataset,
             )
-
-        dataset = audio_to_text_dataset.get_audio_to_text_bpe_dataset_from_config(
-            config=config,
-            local_rank=self.local_rank,
-            global_rank=self.global_rank,
-            world_size=self.world_size,
-            tokenizer=self.tokenizer,
-            preprocessor_cfg=self.cfg.get("preprocessor", None),
-        )
-
-        if dataset is None:
-            return None
-
-        if isinstance(dataset, AudioToBPEDALIDataset):
-            # DALI Dataset implements dataloader interface
-            return dataset
-
-        shuffle = config['shuffle']
-        if isinstance(dataset, torch.utils.data.IterableDataset):
-            shuffle = False
-
-        if hasattr(dataset, 'collate_fn'):
-            collate_fn = dataset.collate_fn
-        elif hasattr(dataset.datasets[0], 'collate_fn'):
-            # support datasets that are lists of entries
-            collate_fn = dataset.datasets[0].collate_fn
         else:
-            # support datasets that are lists of lists
-            collate_fn = dataset.datasets[0].datasets[0].collate_fn
+            # Log warning for unsupported configuration
+            logging.warning(
+                "Language ID feature is required for this model. Only Lhotse dataset with LhotseSpeechToTextBpeDatasetTgtLangID is supported."
+            )
 
-        return torch.utils.data.DataLoader(
-            dataset=dataset,
-            batch_size=config['batch_size'],
-            collate_fn=collate_fn,
-            drop_last=config.get('drop_last', False),
-            shuffle=shuffle,
-            num_workers=config.get('num_workers', 0),
-            pin_memory=config.get('pin_memory', False),
-        )
+        # Return the dataloader (will be None if configuration not supported)
+        return dataloader
 
     def _setup_transcribe_dataloader(self, config: Dict) -> 'torch.utils.data.DataLoader':
         """
@@ -349,6 +229,7 @@ class EncDecHybridRNNTCTCBPEModelTgtLangID(EncDecHybridRNNTCTCModel, ASRBPEMixin
             'use_lhotse': True,
             'use_bucketing': False,
             'drop_last': False,
+            'lang_field': config.get('lang_field', 'target_lang'),
             'initialize_target_lang_id_concatination': True,
         }
 
@@ -358,377 +239,22 @@ class EncDecHybridRNNTCTCBPEModelTgtLangID(EncDecHybridRNNTCTCModel, ASRBPEMixin
         temporary_datalayer = self._setup_dataloader_from_config(config=DictConfig(dl_config))
         return temporary_datalayer
 
-    @torch.no_grad()
-    def transcribe(
-        self,
-        manifest_filepath: str,
-        paths2audio_files: List[str],
-        batch_size: int = 4,
-        return_hypotheses: bool = False,
-        partial_hypothesis: Optional[List['Hypothesis']] = None,
-        num_workers: int = 0,
-        # channel_selector: Optional[ChannelSelectorType] = None,
-        augmentor: DictConfig = None,
-        verbose: bool = True,
-    ) -> Tuple[List[str], Optional[List['Hypothesis']]]:
-        """
-        Uses greedy decoding to transcribe audio files. Use this method for debugging and prototyping.
-
-        Args:
-
-            paths2audio_files: (a list) of paths to audio files. \
-        Recommended length per file is between 5 and 25 seconds. \
-        But it is possible to pass a few hours long file if enough GPU memory is available.
-            batch_size: (int) batch size to use during inference. \
-        Bigger will result in better throughput performance but would use more memory.
-            return_hypotheses: (bool) Either return hypotheses or text
-        With hypotheses can do some postprocessing like getting timestamp or rescoring
-            num_workers: (int) number of workers for DataLoader
-            channel_selector (int | Iterable[int] | str): select a single channel or a subset of channels from multi-channel audio. If set to `'average'`, it performs averaging across channels. Disabled if set to `None`. Defaults to `None`. Uses zero-based indexing.
-            augmentor: (DictConfig): Augment audio samples during transcription if augmentor is applied.
-            verbose: (bool) whether to display tqdm progress bar
-        Returns:
-            Returns a tuple of 2 items -
-            * A list of greedy transcript texts / Hypothesis
-            * An optional list of beam search transcript texts / Hypothesis / NBestHypothesis.
-        """
-        if paths2audio_files is None or len(paths2audio_files) == 0:
-            return {}
-
-        # We will store transcriptions here
-        hypotheses = []
-        all_hypotheses = []
-        # Model's mode and device
-        mode = self.training
-        device = next(self.parameters()).device
-        dither_value = self.preprocessor.featurizer.dither
-        pad_to_value = self.preprocessor.featurizer.pad_to
-
-        if num_workers is None:
-            num_workers = min(batch_size, os.cpu_count() - 1)
-
-        try:
-            self.preprocessor.featurizer.dither = 0.0
-            self.preprocessor.featurizer.pad_to = 0
-
-            # Switch model to evaluation mode
-            self.eval()
-            # Freeze the encoder and decoder modules
-            self.encoder.freeze()
-            self.decoder.freeze()
-            self.joint.freeze()
-            logging_level = logging.get_verbosity()
-            logging.set_verbosity(logging.WARNING)
-            # Work in tmp directory - will store manifest file there
-            with tempfile.TemporaryDirectory() as tmpdir:
-                with open(os.path.join(tmpdir, 'manifest.json'), 'w', encoding='utf-8') as fp:
-                    for audio_file in paths2audio_files:
-                        entry = {'audio_filepath': audio_file, 'duration': 100000, 'text': ''}
-                        fp.write(json.dumps(entry) + '\n')
-
-                config = {
-                    'manifest_filepath': manifest_filepath,
-                    'paths2audio_files': paths2audio_files,
-                    'batch_size': batch_size,
-                    'temp_dir': tmpdir,
-                    'num_workers': num_workers,
-                    # 'channel_selector': channel_selector,
-                }
-
-                if augmentor:
-                    config['augmentor'] = augmentor
-
-                temporary_datalayer = self._setup_transcribe_dataloader(config)
-
-                for test_batch in tqdm(temporary_datalayer, desc="Transcribing", disable=(not verbose)):
-                    encoded, encoded_len = self.forward(
-                        input_signal=test_batch[0].to(device),
-                        input_signal_length=test_batch[1].to(device),
-                        target_lang_id=test_batch[4].to(device),
-                    )
-                    best_hyp, all_hyp = self.decoding.rnnt_decoder_predictions_tensor(
-                        encoded,
-                        encoded_len,
-                        return_hypotheses=return_hypotheses,
-                        partial_hypotheses=partial_hypothesis,
-                    )
-
-                    hypotheses += best_hyp
-                    if all_hyp is not None:
-                        all_hypotheses += all_hyp
-                    else:
-                        all_hypotheses += best_hyp
-
-                    del encoded
-                    del test_batch
-        finally:
-            # set mode back to its original value
-            self.train(mode=mode)
-            self.preprocessor.featurizer.dither = dither_value
-            self.preprocessor.featurizer.pad_to = pad_to_value
-
-            logging.set_verbosity(logging_level)
-            if mode is True:
-                self.encoder.unfreeze()
-                self.decoder.unfreeze()
-                self.joint.unfreeze()
-        return hypotheses, all_hypotheses
-
-    def change_vocabulary(
-        self,
-        new_tokenizer_dir: Union[str, DictConfig],
-        new_tokenizer_type: str,
-        decoding_cfg: Optional[DictConfig] = None,
-        ctc_decoding_cfg: Optional[DictConfig] = None,
-    ):
-        """
-        Changes vocabulary used during RNNT decoding process. Use this method when fine-tuning on from pre-trained model.
-        This method changes only decoder and leaves encoder and pre-processing modules unchanged. For example, you would
-        use it if you want to use pretrained encoder when fine-tuning on data in another language, or when you'd need
-        model to learn capitalization, punctuation and/or special characters.
-
-        Args:
-            new_tokenizer_dir: Directory path to tokenizer or a config for a new tokenizer (if the tokenizer type is `agg`)
-            new_tokenizer_type: Type of tokenizer. Can be either `agg`, `bpe` or `wpe`.
-            decoding_cfg: A config for the decoder, which is optional. If the decoding type
-                needs to be changed (from say Greedy to Beam decoding etc), the config can be passed here.
-            ctc_decoding_cfg: A config for auxiliary CTC decoding, which is optional and can be used to change the decoding type.
-
-        Returns: None
-
-        """
-        if isinstance(new_tokenizer_dir, DictConfig):
-            if new_tokenizer_type == 'agg':
-                new_tokenizer_cfg = new_tokenizer_dir
-            else:
-                raise ValueError(
-                    f'New tokenizer dir should be a string unless the tokenizer is `agg`, but this tokenizer type is: {new_tokenizer_type}'
-                )
-        else:
-            new_tokenizer_cfg = None
-
-        if new_tokenizer_cfg is not None:
-            tokenizer_cfg = new_tokenizer_cfg
-        else:
-            if not os.path.isdir(new_tokenizer_dir):
-                raise NotADirectoryError(
-                    f'New tokenizer dir must be non-empty path to a directory. But I got: {new_tokenizer_dir}'
-                )
-
-            if new_tokenizer_type.lower() not in ('bpe', 'wpe'):
-                raise ValueError('New tokenizer type must be either `bpe` or `wpe`')
-
-            tokenizer_cfg = OmegaConf.create({'dir': new_tokenizer_dir, 'type': new_tokenizer_type})
-
-        # Setup the tokenizer
-        self._setup_tokenizer(tokenizer_cfg)
-
-        # Initialize a dummy vocabulary
-        vocabulary = self.tokenizer.tokenizer.get_vocab()
-
-        joint_config = self.joint.to_config_dict()
-        new_joint_config = copy.deepcopy(joint_config)
-        if self.tokenizer_type == "agg":
-            new_joint_config["vocabulary"] = ListConfig(vocabulary)
-        else:
-            new_joint_config["vocabulary"] = ListConfig(list(vocabulary.keys()))
-
-        new_joint_config['num_classes'] = len(vocabulary)
-        del self.joint
-        self.joint = EncDecHybridRNNTCTCBPEModelTgtLangID.from_config_dict(new_joint_config)
-
-        decoder_config = self.decoder.to_config_dict()
-        new_decoder_config = copy.deepcopy(decoder_config)
-        new_decoder_config.vocab_size = len(vocabulary)
-        del self.decoder
-        self.decoder = EncDecHybridRNNTCTCBPEModelTgtLangID.from_config_dict(new_decoder_config)
-
-        del self.loss
-        self.loss = RNNTLoss(num_classes=self.joint.num_classes_with_blank - 1)
-
-        if decoding_cfg is None:
-            # Assume same decoding config as before
-            decoding_cfg = self.cfg.decoding
-
-        # Assert the decoding config with all hyper parameters
-        decoding_cls = OmegaConf.structured(RNNTBPEDecodingConfig)
-        decoding_cls = OmegaConf.create(OmegaConf.to_container(decoding_cls))
-        decoding_cfg = OmegaConf.merge(decoding_cls, decoding_cfg)
-
-        self.decoding = RNNTBPEDecoding(
-            decoding_cfg=decoding_cfg,
-            decoder=self.decoder,
-            joint=self.joint,
-            tokenizer=self.tokenizer,
+    def _transcribe_forward(self, batch: Any, trcfg: TranscribeConfig):
+        encoded, encoded_len = self.forward(
+            input_signal=batch[0], input_signal_length=batch[1], target_lang_id=batch[4]
         )
 
-        self.wer = WER(
-            decoding=self.decoding,
-            batch_dim_index=self.wer.batch_dim_index,
-            use_cer=self.wer.use_cer,
-            log_prediction=self.wer.log_prediction,
-            dist_sync_on_step=True,
-        )
-
-        # Setup fused Joint step
-        if self.joint.fuse_loss_wer or (
-            self.decoding.joint_fused_batch_size is not None and self.decoding.joint_fused_batch_size > 0
-        ):
-            self.joint.set_loss(self.loss)
-            self.joint.set_wer(self.wer)
-
-        # Update config
-        with open_dict(self.cfg.joint):
-            self.cfg.joint = new_joint_config
-
-        with open_dict(self.cfg.decoder):
-            self.cfg.decoder = new_decoder_config
-
-        with open_dict(self.cfg.decoding):
-            self.cfg.decoding = decoding_cfg
-
-        logging.info(f"Changed tokenizer of the RNNT decoder to {self.joint.vocabulary} vocabulary.")
-
-        # set up the new tokenizer for the CTC decoder
-        if hasattr(self, 'ctc_decoder'):
-            ctc_decoder_config = copy.deepcopy(self.ctc_decoder.to_config_dict())
-            # sidestepping the potential overlapping tokens issue in aggregate tokenizers
-            if self.tokenizer_type == "agg":
-                ctc_decoder_config.vocabulary = ListConfig(vocabulary)
-            else:
-                ctc_decoder_config.vocabulary = ListConfig(list(vocabulary.keys()))
-
-            decoder_num_classes = ctc_decoder_config['num_classes']
-            # Override number of classes if placeholder provided
-            logging.info(
-                "\nReplacing old number of classes ({}) with new number of classes - {}".format(
-                    decoder_num_classes, len(vocabulary)
-                )
-            )
-            ctc_decoder_config['num_classes'] = len(vocabulary)
-
-            del self.ctc_decoder
-            self.ctc_decoder = EncDecHybridRNNTCTCBPEModelTgtLangID.from_config_dict(ctc_decoder_config)
-            del self.ctc_loss
-            self.ctc_loss = CTCLoss(
-                num_classes=self.ctc_decoder.num_classes_with_blank - 1,
-                zero_infinity=True,
-                reduction=self.cfg.aux_ctc.get("ctc_reduction", "mean_batch"),
-            )
-
-            if ctc_decoding_cfg is None:
-                # Assume same decoding config as before
-                ctc_decoding_cfg = self.cfg.aux_ctc.decoding
-
-            # Assert the decoding config with all hyper parameters
-            ctc_decoding_cls = OmegaConf.structured(CTCBPEDecodingConfig)
-            ctc_decoding_cls = OmegaConf.create(OmegaConf.to_container(ctc_decoding_cls))
-            ctc_decoding_cfg = OmegaConf.merge(ctc_decoding_cls, ctc_decoding_cfg)
-
-            self.ctc_decoding = CTCBPEDecoding(decoding_cfg=ctc_decoding_cfg, tokenizer=self.tokenizer)
-
-            self.ctc_wer = WER(
-                decoding=self.ctc_decoding,
-                use_cer=self.cfg.aux_ctc.get('use_cer', False),
-                log_prediction=self.cfg.get("log_prediction", False),
-                dist_sync_on_step=True,
-            )
-
-            # Update config
-            with open_dict(self.cfg.aux_ctc):
-                self.cfg.aux_ctc.decoder = ctc_decoder_config
-
-            with open_dict(self.cfg.aux_ctc):
-                self.cfg.aux_ctc.decoding = ctc_decoding_cfg
-
-            logging.info(f"Changed tokenizer of the CTC decoder to {self.ctc_decoder.vocabulary} vocabulary.")
-
-    def change_decoding_strategy(self, decoding_cfg: DictConfig = None, decoder_type: str = None):
-        """
-        Changes decoding strategy used during RNNT decoding process.
-        Args:
-            decoding_cfg: A config for the decoder, which is optional. If the decoding type
-                needs to be changed (from say Greedy to Beam decoding etc), the config can be passed here.
-            decoder_type: (str) Can be set to 'rnnt' or 'ctc' to switch between appropriate decoder in a
-                model having both RNN-T and CTC decoders. Defaults to None, in which case RNN-T decoder is
-                used. If set to 'ctc', it raises error if 'ctc_decoder' is not an attribute of the model.
-        """
-        if decoder_type is None or decoder_type == 'rnnt':
-            if decoding_cfg is None:
-                # Assume same decoding config as before
-                logging.info("No `decoding_cfg` passed when changing decoding strategy, using internal config")
-                decoding_cfg = self.cfg.decoding
-
-            # Assert the decoding config with all hyper parameters
-            decoding_cls = OmegaConf.structured(RNNTBPEDecodingConfig)
-            decoding_cls = OmegaConf.create(OmegaConf.to_container(decoding_cls))
-            decoding_cfg = OmegaConf.merge(decoding_cls, decoding_cfg)
-
-            self.decoding = RNNTBPEDecoding(
-                decoding_cfg=decoding_cfg,
-                decoder=self.decoder,
-                joint=self.joint,
-                tokenizer=self.tokenizer,
-            )
-
-            self.wer = WER(
-                decoding=self.decoding,
-                batch_dim_index=self.wer.batch_dim_index,
-                use_cer=self.wer.use_cer,
-                log_prediction=self.wer.log_prediction,
-                dist_sync_on_step=True,
-            )
-
-            # Setup fused Joint step
-            if self.joint.fuse_loss_wer or (
-                self.decoding.joint_fused_batch_size is not None and self.decoding.joint_fused_batch_size > 0
-            ):
-                self.joint.set_loss(self.loss)
-                self.joint.set_wer(self.wer)
-
-            self.joint.temperature = decoding_cfg.get('temperature', 1.0)
-
-            # Update config
-            with open_dict(self.cfg.decoding):
-                self.cfg.decoding = decoding_cfg
-
-            self.cur_decoder = "rnnt"
-            logging.info(f"Changed decoding strategy of the RNNT decoder to \n{OmegaConf.to_yaml(self.cfg.decoding)}")
-
-        elif decoder_type == 'ctc':
-            if not hasattr(self, 'ctc_decoding'):
-                raise ValueError("The model does not have the ctc_decoding module and does not support ctc decoding.")
-            if decoding_cfg is None:
-                # Assume same decoding config as before
-                logging.info("No `decoding_cfg` passed when changing decoding strategy, using internal config")
-                decoding_cfg = self.cfg.aux_ctc.decoding
-
-            # Assert the decoding config with all hyper parameters
-            decoding_cls = OmegaConf.structured(CTCBPEDecodingConfig)
-            decoding_cls = OmegaConf.create(OmegaConf.to_container(decoding_cls))
-            decoding_cfg = OmegaConf.merge(decoding_cls, decoding_cfg)
-
-            self.ctc_decoding = CTCBPEDecoding(decoding_cfg=decoding_cfg, tokenizer=self.tokenizer)
-
-            self.ctc_wer = WER(
-                decoding=self.ctc_decoding,
-                use_cer=self.ctc_wer.use_cer,
-                log_prediction=self.ctc_wer.log_prediction,
-                dist_sync_on_step=True,
-            )
-
-            self.ctc_decoder.temperature = decoding_cfg.get('temperature', 1.0)
-
-            # Update config
-            with open_dict(self.cfg.aux_ctc.decoding):
-                self.cfg.aux_ctc.decoding = decoding_cfg
-
-            self.cur_decoder = "ctc"
-            logging.info(
-                f"Changed decoding strategy of the CTC decoder to \n{OmegaConf.to_yaml(self.cfg.aux_ctc.decoding)}"
-            )
+        # Prepare output dictionary based on decoder type
+        if self.cur_decoder == "rnnt":
+            # RNNT Path - just use encoded outputs directly
+            output = dict(encoded=encoded, encoded_len=encoded_len)
         else:
-            raise ValueError(f"decoder_type={decoder_type} is not supported. Supported values: [ctc,rnnt]")
+            # CTC Path - compute logits from encoder output
+            logits = self.ctc_decoder(encoder_output=encoded)
+            output = dict(logits=logits, encoded_len=encoded_len)
+            del encoded
+
+        return output
 
     @property
     def input_types(self) -> Optional[Dict[str, NeuralType]]:
@@ -742,8 +268,8 @@ class EncDecHybridRNNTCTCBPEModelTgtLangID(EncDecHybridRNNTCTCModel, ASRBPEMixin
             "input_signal_length": NeuralType(tuple('B'), LengthsType(), optional=True),
             "processed_signal": NeuralType(('B', 'D', 'T'), SpectrogramType(), optional=True),
             "processed_signal_length": NeuralType(tuple('B'), LengthsType(), optional=True),
-            'sample_id': NeuralType(tuple('B'), LengthsType(), optional=True),
-            'target_lang_id': NeuralType(('B', 'T', 'D'), LabelsType()),
+            "sample_id": NeuralType(tuple('B'), LengthsType(), optional=True),
+            "target_lang_id": NeuralType(('B', 'T', 'D'), LabelsType()),
         }
 
     @property
@@ -784,6 +310,9 @@ class EncDecHybridRNNTCTCBPEModelTgtLangID(EncDecHybridRNNTCTCModel, ASRBPEMixin
                 of shape (B, D, T) that has undergone processing via some DALI preprocessor.
             processed_signal_length: Vector of length B, that contains the individual lengths of the
                 processed audio sequences.
+            target_lang_id: Tensor that represents the target language ID embeddings,
+                of shape (B, T, D) where D is the number of supported languages.
+                Used for language-specific encoding via concatenation with acoustic features.
 
         Returns:
             A tuple of 2 elements -
@@ -819,7 +348,7 @@ class EncDecHybridRNNTCTCBPEModelTgtLangID(EncDecHybridRNNTCTCModel, ASRBPEMixin
             concat_enc_states = torch.cat([encoded, target_lang_id], dim=-1)
 
             # Apply joint projection
-            encoded = self.lang_kernal(concat_enc_states)
+            encoded = self.lang_kernel(concat_enc_states)
 
         encoded = torch.transpose(encoded, 1, 2)  # B * T * D -> B * D * T
         return encoded, encoded_len
@@ -952,10 +481,6 @@ class EncDecHybridRNNTCTCBPEModelTgtLangID(EncDecHybridRNNTCTCModel, ASRBPEMixin
 
         # Log items
         self.log_dict(tensorboard_logs)
-
-        # Preserve batch acoustic model T and language model U parameters if normalizing
-        if self._optim_normalize_joint_txu:
-            self._optim_normalize_txu = [encoded_len.max(), transcript_len.max()]
 
         return {'loss': loss_value}
 
@@ -1169,3 +694,84 @@ class EncDecHybridRNNTCTCBPEModelTgtLangID(EncDecHybridRNNTCTCModel, ASRBPEMixin
     @bleu.setter
     def bleu(self, bleu):
         self._bleu = bleu
+
+
+# Language to Index mapping
+GLOBAL_LANG_MAP = {
+    'en-US': 0,
+    'en-GB': 1,
+    'es-ES': 2,
+    'es-US': 3,
+    'zh-CN': 4,
+    'zh-TW': 5,
+    'hi-IN': 6,
+    'ar-AR': 7,
+    'fr-FR': 8,
+    'de-DE': 9,
+    'ja-JP': 10,
+    'ru-RU': 11,
+    'pt-BR': 12,
+    'pt-PT': 13,
+    'ko-KR': 14,
+    'it-IT': 15,
+    'nl-NL': 16,
+    'pl-PL': 17,
+    'tr-TR': 18,
+    'uk-UA': 19,
+    'ro-RO': 20,
+    'el-GR': 21,
+    'cs-CZ': 22,
+    'hu-HU': 23,
+    'sv-SE': 24,
+    'da-DK': 25,
+    'fi-FI': 26,
+    'no-NO': 27,
+    'sk-SK': 28,
+    'hr-HR': 29,
+    'bg-BG': 30,
+    'lt-LT': 31,
+    'th-TH': 32,
+    'vi-VN': 33,
+    'id-ID': 34,
+    'ms-MY': 35,
+    'bn-IN': 36,
+    'ur-PK': 37,
+    'fa-IR': 38,
+    'ta-IN': 39,
+    'te-IN': 40,
+    'mr-IN': 41,
+    'gu-IN': 42,
+    'kn-IN': 43,
+    'ml-IN': 44,
+    'si-LK': 45,
+    'ne-NP': 46,
+    'km-KH': 47,
+    'sw-KE': 48,
+    'am-ET': 49,
+    'ha-NG': 50,
+    'zu-ZA': 51,
+    'yo-NG': 52,
+    'ig-NG': 53,
+    'af-ZA': 54,
+    'rw-RW': 55,
+    'so-SO': 56,
+    'ny-MW': 57,
+    'ln-CD': 58,
+    'or-KE': 59,
+    'he-IL': 64,
+    'ku-TR': 65,
+    'az-AZ': 66,
+    'ka-GE': 67,
+    'hy-AM': 68,
+    'uz-UZ': 69,
+    'tg-TJ': 70,
+    'ky-KG': 71,
+    'qu-PE': 80,
+    'ay-BO': 81,
+    'gn-PY': 82,
+    'nah-MX': 83,
+    'mi-NZ': 96,
+    'haw-US': 97,
+    'sm-WS': 98,
+    'to-TO': 99,
+}
