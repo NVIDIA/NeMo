@@ -20,6 +20,7 @@ import ast
 import math
 from functools import partial
 from itertools import islice
+from pathlib import Path
 from typing import Callable, Iterable
 
 import numpy as np
@@ -37,7 +38,7 @@ from nemo.collections.common.data.lhotse.sampling import (
     TokenPerTokenFilter,
 )
 from nemo.collections.common.prompts.formatter import PromptFormatter
-from nemo.collections.common.tokenizers import AggregateTokenizer, SentencePieceTokenizer
+from nemo.collections.common.tokenizers import AggregateTokenizer, AutoTokenizer, SentencePieceTokenizer
 
 
 def parse_args():
@@ -234,7 +235,12 @@ def estimate_token_buckets(
 
 def load_tokenizer(paths: list[str], langs: list[str] = None) -> TokenizerWrapper:
     if len(paths) == 1:
-        tok = SentencePieceTokenizer(paths[0])
+        (p,) = paths
+        if Path(p).exists():
+            tok = SentencePieceTokenizer(p)
+        else:
+            # Assume it's HF name
+            tok = AutoTokenizer(p, use_fast=True)
     else:
         assert langs is not None and len(paths) == len(
             langs
