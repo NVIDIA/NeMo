@@ -142,7 +142,7 @@ if __name__ == "__main__":
                 ranks=list(range(num_nodes * args.gpus_per_node)),
             )
         )
-    elif args.enable_nccltrace: # nsys takes precedent over nccltrace
+    elif args.enable_nccltrace:  # nsys takes precedent over nccltrace
         exp_name = exp_name + "_nccltrace"
         custom_env_vars |= {
             "NCCL_DEBUG_SUBSYS": "COLL,P2P,NET",
