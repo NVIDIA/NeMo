@@ -174,7 +174,6 @@ if __name__ == "__main__":
         wandb_key=args.wandb_key,
     )
 
-
     with run.Experiment(exp_name) as exp:
         exp.add(
             recipe,
