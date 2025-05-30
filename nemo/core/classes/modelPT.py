@@ -26,15 +26,8 @@ from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple, Union
 import hydra
 import torch
 
-try:
-    import multistorageclient
-    from multistorageclient.types import MSC_PROTOCOL as MULTISTORAGECLIENT_PROTOCOL
-
-    MULTISTORAGECLIENT_AVAILABLE = True
-except (ImportError, ModuleNotFoundError):
-    MULTISTORAGECLIENT_AVAILABLE = False
-
 from nemo.core.classes.module import NeuralModule
+from nemo.utils.msc_utils import import_multistorageclient, is_multistorageclient_url
 
 try:
     from megatron.core.optimizer import OptimizerConfig, get_megatron_optimizer
@@ -234,6 +227,9 @@ class ModelPT(LightningModule, Model):
         cls._save_restore_connector = SaveRestoreConnector()
 
     def on_fit_start(self) -> None:
+        """
+        Register debug hooks.
+        """
         if self.cfg.get("dump_debug_info", False):
             register_debug_hooks(self.model, self.trainer, self.log, self.cfg.get("dump_debug_info_to_file", False))
         return super().on_fit_start()
@@ -411,15 +407,11 @@ class ModelPT(LightningModule, Model):
         """
 
         def maybe_make_save_dir(path: Union[str, 'pathlib.Path']):
-            if MULTISTORAGECLIENT_AVAILABLE and str(path).startswith(MULTISTORAGECLIENT_PROTOCOL):
-                return
-            else:
+            if not is_multistorageclient_url(path):
                 if not path.parent.exists():
                     path.parent.mkdir(parents=True)
 
-        if MULTISTORAGECLIENT_AVAILABLE and str(save_path).startswith(MULTISTORAGECLIENT_PROTOCOL):
-            save_path = str(save_path)
-        else:
+        if not is_multistorageclient_url(save_path):
             save_path = Path(save_path).expanduser().resolve()
         app_state = AppState()
         if app_state.model_parallel_size is not None:
@@ -481,11 +473,10 @@ class ModelPT(LightningModule, Model):
         if save_restore_connector is None:
             save_restore_connector = SaveRestoreConnector()
 
-        is_multistorageclient_url = MULTISTORAGECLIENT_AVAILABLE and str(restore_path).startswith(
-            MULTISTORAGECLIENT_PROTOCOL
-        )
-        if is_multistorageclient_url:
-            restore_path = ModelPT.derive_restore_path_with_multistorageclient_url(str(restore_path))
+        if is_multistorageclient_url(restore_path):
+            msc = import_multistorageclient()
+            if not msc.os.path.exists(restore_path):
+                raise FileNotFoundError(f"Can't find {restore_path}")
         else:
             if save_restore_connector.model_extracted_dir is None:
                 restore_path = os.path.abspath(os.path.expanduser(restore_path))
@@ -512,13 +503,6 @@ class ModelPT(LightningModule, Model):
         if isinstance(instance, ModelPT):
             instance._save_restore_connector = save_restore_connector
         return instance
-
-    @staticmethod
-    def derive_restore_path_with_multistorageclient_url(multistorageclient_url: str) -> str:
-        file_exists = multistorageclient.os.path.exists(multistorageclient_url)
-        if not file_exists:
-            raise FileNotFoundError(f"Can't find {multistorageclient_url}")
-        return multistorageclient_url
 
     @classmethod
     def load_from_checkpoint(
@@ -903,6 +887,9 @@ class ModelPT(LightningModule, Model):
         self._optimizer_param_groups = param_groups
 
     def configure_optimizers(self):
+        """
+        Configure the optimizer and scheduler.
+        """
         self.setup_optimization()
 
         if self._scheduler is None:
@@ -969,10 +956,16 @@ class ModelPT(LightningModule, Model):
                 self.setup_multiple_test_data(test_data_config=self._cfg.test_ds)
 
     def train_dataloader(self):
+        """
+        Get the training dataloader.
+        """
         if self._train_dl is not None:
             return self._train_dl
 
     def val_dataloader(self):
+        """
+        Get the validation dataloader.
+        """
         if self._validation_dl is None:
             # None dataloader no longer supported in PTL2.0
             self._validation_dl = []
@@ -980,6 +973,9 @@ class ModelPT(LightningModule, Model):
         return self._validation_dl
 
     def test_dataloader(self):
+        """
+        Get the test dataloader.
+        """
         if self._test_dl is None:
             # None dataloader no longer supported in PTL2.0
             self._test_dl = []
@@ -1248,7 +1244,9 @@ class ModelPT(LightningModule, Model):
         return self._test_names[dataloader_idx]
 
     def load_part_of_state_dict(self, state_dict, include, exclude, load_from_string=None):
-
+        """
+        Load a part of the state dict into the model.
+        """
         excluded_param_names = []
         # create dict
         dict_to_load = {}
@@ -1677,6 +1675,9 @@ class ModelPT(LightningModule, Model):
 
     @LightningModule.trainer.getter
     def trainer(self):
+        """
+        Get the trainer object.
+        """
         return self._trainer
 
     @cfg.setter
@@ -1796,6 +1797,9 @@ class ModelPT(LightningModule, Model):
 
     @classmethod
     def update_save_restore_connector(cls, save_restore_connector):
+        """
+        Update the save_restore_connector for the model.
+        """
         if hasattr(cls, '_save_restore_connector'):
             cls._save_restore_connector = save_restore_connector
         else:
