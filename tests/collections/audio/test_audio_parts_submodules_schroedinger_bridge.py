@@ -16,7 +16,7 @@ from dataclasses import dataclass
 import pytest
 import torch
 
-from nemo.collections.audio.parts.submodules.schroedinger_bridge import SBSampler, SBNoiseScheduleVE, SBNoiseScheduleVP
+from nemo.collections.audio.parts.submodules.schroedinger_bridge import SBNoiseScheduleVE, SBNoiseScheduleVP, SBSampler
 
 NUM_STEPS = [1, 5, 10, 20, 100]
 
@@ -50,7 +50,13 @@ def test_sb_sampler_nfe(num_steps, process, noise_schedule_type):
     counter_hook = ForwardCounterHook()
     estimator.register_forward_hook(counter_hook)
 
-    sampler = SBSampler(noise_schedule=noise_schedule, estimator=estimator, estimator_output='data_prediction', process=process, num_steps=num_steps)
+    sampler = SBSampler(
+        noise_schedule=noise_schedule,
+        estimator=estimator,
+        estimator_output='data_prediction',
+        process=process,
+        num_steps=num_steps,
+    )
 
     b, c, d, l = 2, 3, 4, 5
     lengths = [5, 3]
