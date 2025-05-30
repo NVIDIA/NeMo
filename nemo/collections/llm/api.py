@@ -678,7 +678,6 @@ def deploy(
             context_parallel_size=context_parallel_size,
             expert_model_parallel_size=expert_model_parallel_size,
             expert_tensor_parallel_size=expert_tensor_parallel_size,
-            inference_max_seq_length=max_input_len,
             enable_flash_decode=enable_flash_decode,
             max_batch_size=max_batch_size,
             legacy_ckpt=legacy_ckpt,

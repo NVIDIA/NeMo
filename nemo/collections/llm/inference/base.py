@@ -193,7 +193,6 @@ def setup_model_and_tokenizer(
     trainer: nl.Trainer,
     params_dtype: torch.dtype = torch.bfloat16,
     inference_batch_times_seqlen_threshold: int = 1000,
-    inference_max_seq_length: int = 2560,
     enable_flash_decode: bool = False,
 ) -> tuple[AbstractModelInferenceWrapper, MCoreTokenizerWrappper]:
     """
@@ -209,8 +208,6 @@ def setup_model_and_tokenizer(
             Defaults to torch.bfloat16.
         inference_batch_times_seqlen_threshold (int, optional): If batch-size times sequence-length is smaller
            than this threshold then we will not use pipelining, otherwise we will.
-        inference_max_seq_length (int, optional): max_seq_length for inference. Required by MCoreEngine(>=0.12).
-        Necessary for CUDA graphs. Defaults to 2560.
         enable_flash_decode (bool, optional): Whether to enable flash decode. Defaults to True.
     Returns:
         tuple[AbstractModelInferenceWrapper, MCoreTokenizerWrappper]:
@@ -232,7 +229,7 @@ def setup_model_and_tokenizer(
     _setup_trainer_and_restore_model(path=path, trainer=trainer, model=model)
 
     inference_wrapped_model = model.get_inference_wrapper(
-        params_dtype, inference_batch_times_seqlen_threshold, inference_max_seq_length
+        params_dtype, inference_batch_times_seqlen_threshold
     )
     return (
         inference_wrapped_model,
@@ -301,7 +298,6 @@ def setup_mcore_engine(
     trainer: nl.Trainer,
     params_dtype: torch.dtype = torch.bfloat16,
     inference_batch_times_seqlen_threshold: int = 1000,
-    inference_max_seq_length: int = 4096,
     enable_flash_decode: bool = True,
     max_batch_size: int = 32,
     random_seed: Optional[int] = None,
@@ -314,7 +310,6 @@ def setup_mcore_engine(
         trainer (nl.Trainer): NeMo Lightning trainer instance
         params_dtype (torch.dtype): Data type for model parameters. Defaults to torch.bfloat16
         inference_batch_times_seqlen_threshold (int): Batch size * sequence length threshold. Defaults to 1000
-        inference_max_seq_length (int): Maximum sequence length for inference. Defaults to 4096
         enable_flash_decode (bool): Whether to enable flash attention decoding. Defaults to False
         max_batch_size (int): Maximum batch size for inference. Defaults to 32
         random_seed (Optional[int]): Random seed for reproducibility. Defaults to None
@@ -331,7 +326,6 @@ def setup_mcore_engine(
         trainer=trainer,
         params_dtype=params_dtype,
         inference_batch_times_seqlen_threshold=inference_batch_times_seqlen_threshold,
-        inference_max_seq_length=inference_max_seq_length,
         enable_flash_decode=enable_flash_decode,
     )
     text_generation_controller = TextGenerationController(inference_wrapped_model=model, tokenizer=tokenizer)

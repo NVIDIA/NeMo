@@ -130,8 +130,6 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
         context_parallel_size (int): context parallelism.
         params_dtype (torch.dtype): max input length.
         inference_batch_times_seqlen_threshold (int): squence threshold.
-        inference_max_seq_length (int): max_seq_length for inference. Required by MCoreEngine (>=0.12). Defaults to
-        4096.
         max_batch_size (int): max batch size for inference. Defaults to 32.
         random_seed (Optional[int]): random seed for inference. Defaults to None.
         enable_flash_decode (bool): enable flash decode for inference. Defaults to False.
@@ -149,7 +147,6 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
         expert_tensor_parallel_size: int = 1,
         params_dtype: torch.dtype = torch.bfloat16,
         inference_batch_times_seqlen_threshold: int = 1000,
-        inference_max_seq_length: int = 4096,
         max_batch_size: int = 32,
         random_seed: Optional[int] = None,
         enable_flash_decode: bool = True,
@@ -188,7 +185,6 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
             trainer=trainer,
             params_dtype=params_dtype,
             inference_batch_times_seqlen_threshold=inference_batch_times_seqlen_threshold,
-            inference_max_seq_length=inference_max_seq_length,
             max_batch_size=max_batch_size,
             random_seed=random_seed,
             enable_flash_decode=enable_flash_decode,
@@ -208,6 +204,11 @@ class MegatronLLMDeployableNemo2(ITritonDeployable):
         """
 
         inference_params = inference_params or CommonInferenceParams()
+        max_seq_length = inference_params.num_tokens_to_generate + max(len(self.mcore_tokenizer.tokenize(p)) for p in prompts)
+        # set kv cache allocation to only num tokens in prompt + max tokens to generate
+        self.mcore_engine.text_generation_controller.inference_wrapped_model.inference_wrapper_config.inference_max_seq_length = max_seq_length
+        self.mcore_engine.text_generation_controller.inference_wrapped_model.inference_context.max_sequence_length = max_seq_length
+
         results = self.mcore_engine.generate(
             prompts=prompts,
             add_BOS=False,
