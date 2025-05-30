@@ -38,30 +38,29 @@ class RuntimeEstimator(pl.Callback):
             run.Config(RuntimeEstimator)
         )
 
-    The runtime estimate is logged by the :class:`.Logger` to the following key as described below.
-
-    +-----------------------------------+----------------------------------------------------------------+
-    | Key                               | Logged data                                                    |
-    +===================================+================================================================+
-    | `time/remaining_estimate`         | Estimated time to completion                                   |
-    +-----------------------------------+----------------------------------------------------------------+
-    | `time/remaining_estimate_unit`    | Unit of time specified by user (seconds, minutes, hours, days) |
-    +-----------------------------------+----------------------------------------------------------------+
+    +-----------------------------+-------------------------------+
+    | Key                         | Logged data                   |
+    +=============================+===============================+
+    | `time/remaining_estimate`   | Estimated time to completion  |
+    +-----------------------------+-------------------------------+
+    | `time/tokens`               | Number of consumed tokens     |
+    +-----------------------------+-------------------------------+
+    | `time/samples`              | Number of consumed samples    |
+    +-----------------------------+-------------------------------+
+    | `time/batches`              | Number of consumed batches    |
+    +-----------------------------+-------------------------------+
+    | `time/total`                | Total training time           |
+    +-----------------------------+-------------------------------+
 
     Args:
-        skip_batches (int, optional): Number of batches to skip before starting clock to estimate
-            remaining time. Typically, the first few batches are slower due to dataloader, cache
-            warming, and other reasons. Defaults to 1.
         time_unit (str, optional): Time unit to use for `time` logging. Can be one of
             'seconds', 'minutes', 'hours', or 'days'. Defaults to 'hours'.
     """
 
-    def __init__(self, skip_batches: int = 1, time_unit: str = 'hours') -> None:
+    def __init__(self, time_unit: str = 'hours') -> None:
         self._enabled = True
-        self.batches_left_to_skip = skip_batches
         self.start_time = None
         self.start_dur = None
-        self.train_dataloader_len = None
 
         self.time_unit = time_unit
         self.divider = 1
@@ -83,7 +82,9 @@ class RuntimeEstimator(pl.Callback):
         self.eval_wct_per_label: dict[str, list[float]] = {}
         # How often eval is called as fraction of total training time
         self.eval_frequency_per_label: dict[str, float] = {}
-        self.last_elapsed_fraction: float = 0.0
+        self.num_tokens: int = 0
+        self.num_samples: int = 0
+        self.num_batches: int = 0
 
     def _get_elapsed_duration(self, trainer) -> Optional[float]:
         """Get the elapsed duration.
@@ -114,6 +115,9 @@ class RuntimeEstimator(pl.Callback):
 
         return None
 
+    def on_train_start(self, trainer, pl_module):
+        self.start_train_time = time.time()
+
     def on_train_batch_start(
         self,
         trainer: pl.Trainer,
@@ -121,15 +125,12 @@ class RuntimeEstimator(pl.Callback):
         outputs: pl.utilities.types.STEP_OUTPUT,
         batch: Any,
     ) -> None:
-        if self._enabled and self.start_time is None and self.batches_left_to_skip == 0:
+        if self._enabled and self.start_time is None:
             self.start_time = time.time()
             self.start_dur = self._get_elapsed_duration(trainer)
             if self.start_dur is None:
                 logging.warning('`max_duration` is not set. Cannot estimate remaining time.')
                 self._enabled = False
-            # Cache train dataloader len if specified for `_get_elapsed_duration`
-            if len(trainer.train_dataloader) is not None:
-                self.train_dataloader_len = len(trainer.train_dataloader)
 
     def on_train_batch_end(
         self,
@@ -139,61 +140,47 @@ class RuntimeEstimator(pl.Callback):
         batch: Any,
         batch_idx: int,
     ) -> None:
-        if trainer.global_step % trainer.log_every_n_steps == 0:
-            if not self._enabled:
-                return
-            if self.batches_left_to_skip > 0:
-                self.batches_left_to_skip -= 1
-                return
+        if not self._enabled:
+            return
 
-            elapsed_dur = self._get_elapsed_duration(trainer)
-            assert elapsed_dur is not None, 'max_duration checked as non-None on batch_start if enabled'
+        elapsed_dur = self._get_elapsed_duration(trainer)
+        assert elapsed_dur is not None, 'max_duration checked as non-None on batch_start if enabled'
 
-            assert self.start_dur is not None
-            assert self.start_time is not None
+        assert self.start_dur is not None
+        assert self.start_time is not None
 
-            time_metrics = {}
-            if elapsed_dur > self.start_dur:
-                elapsed_time = time.time() - self.start_time
-                elapsed_time -= self.total_eval_wct  # Subtract time spent evaluating
-                rate = elapsed_time / (elapsed_dur - self.start_dur)
-                remaining_time = rate * (1 - elapsed_dur)
+        time_metrics = {}
+        if elapsed_dur > self.start_dur:
+            elapsed_time = time.time() - self.start_time
+            elapsed_time -= self.total_eval_wct  # Subtract time spent evaluating
+            rate = elapsed_time / (elapsed_dur - self.start_dur)
+            remaining_time = rate * (1 - elapsed_dur)
 
-                # Add remaining time from each evaluator using known frequencies. We explicitly compute
-                # frequency instead of using time interpolation to avoid saw tooth pattern in estimates
-                for dataloader_label, eval_wcts in self.eval_wct_per_label.items():
-                    # Discard first eval_wct if possible as it is often slower due to dataset downloading
-                    eval_wct_avg = None
-                    num_evals_finished = len(eval_wcts)
-                    if num_evals_finished > 1:
-                        eval_wct_avg = sum(eval_wcts[1:]) / (num_evals_finished - 1)
-                    else:
-                        eval_wct_avg = sum(eval_wcts) / num_evals_finished
-                    eval_rate = self.eval_frequency_per_label[dataloader_label]
-                    num_total_evals = 1 / eval_rate * (1 - self.start_dur)
-                    remaining_calls = num_total_evals - num_evals_finished
-                    remaining_time += eval_wct_avg * remaining_calls
+            # Add remaining time from each evaluator using known frequencies. We explicitly compute
+            # frequency instead of using time interpolation to avoid saw tooth pattern in estimates
+            for dataloader_label, eval_wcts in self.eval_wct_per_label.items():
+                # Discard first eval_wct if possible as it is often slower due to dataset downloading
+                eval_wct_avg = None
+                num_evals_finished = len(eval_wcts)
+                if num_evals_finished > 1:
+                    eval_wct_avg = sum(eval_wcts[1:]) / (num_evals_finished - 1)
+                else:
+                    eval_wct_avg = sum(eval_wcts) / num_evals_finished
+                eval_rate = self.eval_frequency_per_label[dataloader_label]
+                num_total_evals = 1 / eval_rate * (1 - self.start_dur)
+                remaining_calls = num_total_evals - num_evals_finished
+                remaining_time += eval_wct_avg * remaining_calls
 
-                time_metrics['time/remaining_estimate'] = remaining_time / self.divider
+            time_metrics['time/remaining_estimate'] = remaining_time / self.divider
+            
+        batch_size = trainer.train_dataloader.batch_sampler.global_batch_size
+        self.num_tokens += batch['tokens'].size()[1] * (batch_size)
+        time_metrics['time/tokens'] = self.num_tokens
+        self.num_samples += batch_size
+        time_metrics['time/samples'] = self.num_samples
+        self.num_batches += 1
+        time_metrics['time/batches'] = self.num_batches
+        time_metrics['time/total'] = (time.time() - self.start_train_time) / self.divider
 
-                for metric, value in time_metrics.items():
-                    self.log(metric, value)
-                # logger.log_metrics({'time/remaining_estimate': remaining_time / self.divider})
-
-    # def eval_end(self) -> None:
-    #     # If eval is called before training starts, ignore it
-    #     if not self._enabled or self.start_time is None:
-    #         return
-    #     self.total_eval_wct += state.eval_timestamp.total_wct.total_seconds()
-    #     # state.dataloader_label should always be non-None unless user explicitly sets evaluator
-    #     # label to None, ignoring type hints
-    #     assert state.dataloader_label is not None, 'evaluator label must not be None'
-    #     if state.dataloader_label not in self.eval_wct_per_label:
-    #         self.eval_wct_per_label[state.dataloader_label] = []
-    #     self.eval_wct_per_label[state.dataloader_label].append(state.eval_timestamp.total_wct.total_seconds())
-    #     elapsed_dur = self._get_elapsed_duration(state)
-    #     assert elapsed_dur is not None, 'max_duration checked as non-None on batch_start if enabled'
-    #     assert self.start_dur is not None, 'start_dur is set on batch_start if enabled'
-    #     elapsed_fraction = elapsed_dur - self.start_dur
-    #     num_evals_finished = len(self.eval_wct_per_label[state.dataloader_label])
-    #     self.eval_frequency_per_label[state.dataloader_label] = elapsed_fraction / num_evals_finished
+        for metric, value in time_metrics.items():
+            self.log(metric, value)
