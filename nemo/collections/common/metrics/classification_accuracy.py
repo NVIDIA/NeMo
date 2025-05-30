@@ -184,7 +184,7 @@ class ExactStringPerCategoryMatchMetric(Metric):
                 val = getattr(self, f"{category}_correct")
                 setattr(self, f"{category}_correct", val + 1)
         else:
-            logging.warn(f'{category} is not in the pre-defined list')
+            logging.warning(f'{category} is not in the pre-defined list')
 
     def compute(self):
         results = {}
