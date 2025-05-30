@@ -77,7 +77,10 @@ def evaluate_eou(
     num_predictions = len(prediction)
     missing = 0
 
-    predicted_eou = [p for p in prediction if p["eou_prob"] > threshold]
+    if threshold is not None and threshold > 0:
+        predicted_eou = [p for p in prediction if p["eou_prob"] > threshold]
+    else:
+        predicted_eou = [p for p in prediction if p["eou_pred"]]
 
     if do_sorting:
         predicted_eou = sorted(predicted_eou, key=lambda x: x["start_time"])
