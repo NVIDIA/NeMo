@@ -610,13 +610,13 @@ class ASRTarredDatasetBuilder:
             return
 
         # Standard processing: read, trim, and transcode the audio file
-        with sf.SoundFile(audio_filepath) as f:
+        with soundfile.SoundFile(audio_filepath) as f:
             sampling_rate = f.samplerate
 
         # Trim audio based on offset and duration.
         start_sample = int(offset * sampling_rate)
         num_frames = int(duration * sampling_rate) if duration else -1
-        audio, sampling_rate = sf.read(file_path, start=start_sample, frames=num_frames)
+        audio, sampling_rate = soundfile.read(file_path, start=start_sample, frames=num_frames)
 
         # Determine codec parameters.
         if codec is not None:

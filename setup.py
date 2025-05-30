@@ -75,12 +75,12 @@ extras_require = {
     'automodel': req_file(["requirements_automodel.txt"]),
     'common-only': req_file('requirements_common.txt'),
     # domain packages
-    'asr': req_file("requirements_asr.txt"),
+    'asr-only': req_file("requirements_asr.txt"),
     'ctc_segmentation': req_file("requirements.txt", folder="tools/ctc_segmentation"),
     'nlp-only': req_file("requirements_nlp.txt"),
     'tts': req_file("requirements_tts.txt"),
     'slu': req_file("requirements_slu.txt"),
-    'multimodal': req_file("requirements_multimodal.txt"),
+    'multimodal-only': req_file("requirements_multimodal.txt"),
     'audio': req_file("requirements_audio.txt"),
     'deploy': req_file("requirements_deploy.txt"),
     'eval': req_file("requirements_eval.txt"),
@@ -100,10 +100,12 @@ extras_require['common'] = list(
 )
 extras_require['test'] = list(
     chain(
+        extras_require['test'],
         extras_require['tts'],
         extras_require['common'],
     )
 )
+extras_require['asr'] = extras_require['asr-only']
 extras_require['asr'] = list(
     chain(
         extras_require['asr'],
@@ -127,6 +129,7 @@ extras_require['tts'] = list(
         extras_require['common'],
     )
 )
+extras_require['multimodal'] = extras_require['multimodal-only']
 extras_require['multimodal'] = list(
     chain(
         extras_require['multimodal'],
