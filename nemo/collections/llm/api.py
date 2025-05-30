@@ -556,6 +556,8 @@ def ptq(
             trainer_kwargs={},
             model_config_overrides={"sequence_parallel": False},
         )
+    if forward_loop is None and not quantization_config.is_weight_only():
+        forward_loop = quantizer._get_forward_loop(model)
 
     model = quantizer.quantize(model, forward_loop)
     quantizer.export(model, model_path, trainer)
@@ -937,6 +939,7 @@ def export_ckpt(
     output_path: Optional[AnyPath] = None,
     overwrite: bool = False,
     load_connector: Callable[[Path, str], io.ModelConnector] = load_connector_from_trainer_ckpt,
+    modelopt_export_kwargs: dict[str, Any] = {},
     **kwargs,
 ) -> Path:
     """
@@ -978,6 +981,7 @@ def export_ckpt(
             This is useful for model updates where retaining old checkpoint files is not required.
         load_connector (Callable[[Path, str], ModelConnector]): A function to load the appropriate
             exporter based on the model and target format. Defaults to `load_connector_from_trainer_ckpt`.
+        modelopt_export_kwargs (Dict[str, Any]): Additional keyword arguments for ModelOpt export to HuggingFace.
 
     Returns:
         Path: The path where the checkpoint has been saved after export.
@@ -995,7 +999,7 @@ def export_ckpt(
         if output_path.exists() and not overwrite:
             raise FileExistsError(f"Output path {output_path} exists. Use overwrite=True to force overwrite.")
 
-    output = io.export_ckpt(path, target, output_path, overwrite, load_connector, **kwargs)
+    output = io.export_ckpt(path, target, output_path, overwrite, load_connector, modelopt_export_kwargs, **kwargs)
 
     console = Console()
     console.print(f"[green]✓ Checkpoint exported to {output}[/green]")
