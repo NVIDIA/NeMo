@@ -89,8 +89,6 @@ class SpeedMonitor(pl.Callback):
         self.history_wct: deque[float] = deque(maxlen=window_size + 1)
         self.history_flops: deque[float] = deque(maxlen=window_size + 1)
 
-        self.gpu_flops_available = gpu_flops_available
-
         self.divider = 1
         if time_unit == 'seconds':
             self.divider = 1
