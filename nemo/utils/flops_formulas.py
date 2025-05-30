@@ -418,15 +418,15 @@ def _non_mla_attn_layer_flops(config: FLOPSConfig):
 
 
 def _mamba_layer_flops(config: FLOPSConfig):
-    """Model FLOPs for Mamba layer"""
+    """Model FLOPs for Mamba layer. We ignore part of the flops of scan because the chunk size is not known from model config."""
     assert config.mamba_state_dim is not None
     assert config.mamba_head_dim is not None
 
-    d_in = 2 * config.hs
     if config.mamba_num_heads:
         nheads = config.mamba_num_heads
     else:
-        nheads = d_in // config.mamba_head_dim
+        nheads = 2 * config.hs // config.mamba_head_dim  # default expand is 2
+    d_in = nheads * config.mamba_head_dim
     return (
         (
             6
@@ -435,8 +435,8 @@ def _mamba_layer_flops(config: FLOPSConfig):
             * config.hs
             * (2 * d_in + 2 * config.mamba_num_groups * config.mamba_state_dim + nheads)
         )
-        + (3 * 7 * config.gbs * config.enc_seq_len * d_in * config.mamba_state_dim)
-        + (3 * 2 * config.gbs * config.enc_seq_len * d_in * config.hs)
+        + (3 * 2 * config.gbs * config.enc_seq_len * d_in * config.mamba_state_dim)
+        + (6 * config.gbs * config.enc_seq_len * d_in * config.hs)
     )
 
 
