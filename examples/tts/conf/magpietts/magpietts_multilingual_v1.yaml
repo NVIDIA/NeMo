@@ -17,7 +17,7 @@ sample_rate: 22050
 
 model:
   model_type: "multi_encoder_context_tts" # single_encoder_sv_tts, multi_encoder_context_tts, decoder_context_tts or decoder_pretrain_synthesizer
-  use_text_conditioning_encoder: false # If true, distilbert will be used to encode context_text if provided.
+  use_text_conditioning_encoder: true # If true, distilbert will be used to encode context_text if provided.
   transcript_decoder_layers: [3,4,5,6,7] # ONLY used in multi_encoder_context_tts, Transcript goes to these layer ids, context goes to the rest. In single_encoder_sv_tts, all layers are used for transcript.
   context_decoder_layers: [8,9] # ONLY used in multi_encoder_context_tts
   context_duration_min: 3.0
@@ -28,13 +28,14 @@ model:
   prior_end_step: 12000
   prior_scaledown_start_step: 8000
   indefinite_prior_prob: 0.0 # If > 0, then prior will be applied after prior_end_step with this probability.
-  alignment_loss_scale: 0.0
+  alignment_loss_scale: 0.002
   embedding_dim: 768
   codecmodel_path: ???
   max_epochs: ${max_epochs}
   steps_per_epoch: ${weighted_sampling_steps_per_epoch}
 
   sample_rate: ${sample_rate}
+  cfg_unconditional_prob: 0.1
 
   # Alignment encoder parameters, to binarize the prior
   # This is used for attention-constrained training and inference
@@ -130,13 +131,14 @@ model:
       weighted_sampling_steps_per_epoch: ${weighted_sampling_steps_per_epoch}
       sample_rate: ${sample_rate}
       # speaker_path: ${speaker_path}
-      min_duration: 0.5
+      min_duration: 0.2
       max_duration: 20.0
 
     dataloader_params:
       batch_size: ${batch_size}
       num_workers: 4
       drop_last: true
+      pin_memory: true
 
   validation_ds:
     dataset:
@@ -144,12 +146,13 @@ model:
       dataset_meta: ${val_ds_meta}
       sample_rate: ${sample_rate}
       # speaker_path: ${speaker_path}
-      min_duration: 0.5
+      min_duration: 0.2
       max_duration: 20.0
 
     dataloader_params:
       batch_size: ${batch_size}
-      num_workers: 0
+      num_workers: 4
+      pin_memory: true
 
   encoder:
     n_layers: 6
@@ -160,7 +163,7 @@ model:
     p_dropout: 0.1
     p_dropout_out: 0.0
     has_xattn: false
-    is_causal: False
+    is_causal: true
     apply_norm_out: true
     max_length_causal_mask: 2048
     use_learnable_pos_emb: true
@@ -184,12 +187,12 @@ model:
     d_model: 768
     d_ffn: 3072
     sa_n_heads: 12
-    kernel_size: 3
+    kernel_size: 1
     p_dropout: 0.1
     p_dropout_out: 0.0
     has_xattn: true
     xa_d_memory: 768
-    xa_n_heads: 12
+    xa_n_heads: 1
     is_causal: true
     apply_norm_to_cond: true
     apply_norm_out: true
@@ -197,9 +200,8 @@ model:
     use_learnable_pos_emb: true
 
   optim:
-    _target_: torch.optim.Adam
-    lr: 2e-4
-    betas: [0.8, 0.99]
+    _target_: torch.optim.AdamW
+    lr: 1e-4
 
     sched:
       name: ExponentialLR
@@ -210,14 +212,14 @@ trainer:
   devices: -1
   accelerator: gpu
   strategy: ddp_find_unused_parameters_true
-  precision: 32
+  precision: bf16-mixed
   max_epochs: ${max_epochs}
   accumulate_grad_batches: 1
   enable_checkpointing: False # Provided by exp_manager
   logger: false # Provided by exp_manager
   log_every_n_steps: 100
-  val_check_interval: 500
-  # check_val_every_n_epoch: 10
+  check_val_every_n_epoch: 1
+  num_sanity_val_steps: 0
   benchmark: false
   gradient_clip_val: 2.5
 
@@ -229,6 +231,7 @@ exp_manager:
   wandb_logger_kwargs:
     name: null
     project: null
+    resume: true
   create_checkpoint_callback: true
   checkpoint_callback_params:
     monitor: val_loss
