@@ -15,7 +15,7 @@
 
 import warnings
 from pathlib import Path
-from typing import Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Union
 
 import modelopt.torch.quantization as mtq
 import numpy as np
@@ -467,67 +467,20 @@ class OnnxLLMExporter(ITritonDeployable):
 
         raise NotImplementedError("This function will be implemented later.")
 
-    def ptq(
+    def quantize(
         self,
-        quantization_type: str ="fp8",
-        max_batch_size: int = 32,
+        quant_cfg: Dict[str, Any],
+        forward_loop: Optional[Callable] = None,
     ) -> None:
         """
         Runs a calibration loop on the model using a calibration dataset.
+
         Args:
-            calibration_data (str): path for the calibration data for PTQ.
-            quantization_type (str): Choices are int8, int8_sq, fp8, int4_awq, w4a8_awq.
-            max_batch_size (int): max batch size.
+            quant_cfg (dict): ....
+            forward_loop (callable): ....
         """
-
-        self.quant_max_batch_size = max_batch_size
-
-        quant_cfg_choices = {
-            "int8": mtq.INT8_DEFAULT_CFG,
-            "int8_sq": mtq.INT8_SMOOTHQUANT_CFG,
-            "fp8": mtq.FP8_DEFAULT_CFG,
-            "int4_awq": mtq.INT4_AWQ_CFG,
-            "w4a8_awq": mtq.W4A8_AWQ_BETA_CFG,
-        }
-        quant_cfg = quant_cfg_choices[quantization_type]
-
-        # Enable FP8 kv cache to save memory footprint
-        quant_cfg["quant_cfg"]["*output_quantizer"] = {
-            "num_bits": (8 if quantization_type == "int8_sq" or quantization_type == "int8" else (4, 3)),
-            "axis": None,
-            "enable": True,
-        }
-
-        self.calibration_data = [
-            ("test query test query", "test passage test passage"),
-            ("test query test query", "test passage test passage"),
-            ("test query test query", "test passage test passage"),
-            ("test query test query", "test passage test passage"),
-        ]
         self.model.to(self.device, dtype=torch.float16)
         logging.info("Starting quantization...")
-
-        mtq.quantize(self.model, quant_cfg, forward_loop=self._calibrate_loop)
-
+        mtq.quantize(self.model, quant_cfg, forward_loop=forward_loop)
         logging.info("Quantization is completed.")
-
         return self.model
-
-    def _calibrate_loop(self, model) -> None:
-
-        def chunk(iterable: List, n: int):
-            for i in range(0, len(iterable), n):
-                yield iterable[i : i + n]  # noqa: E203
-
-        pbar = tqdm(total=len(self.calibration_data), desc="Running calibration loop")
-
-        for batch in chunk(self.calibration_data, self.quant_max_batch_size):
-            inputs = [f"question:{query} \n \n passage:{passage}" for query, passage in batch]
-            batch = self.tokenizer(inputs, padding=True, truncation=True, return_tensors="pt")
-            batch = {k: v.to(self.device) for k, v in batch.items()}
-            with torch.no_grad():
-                model(**batch)
-            torch.cuda.empty_cache()
-            del batch
-            pbar.update(self.quant_max_batch_size)
-            pbar.refresh()
