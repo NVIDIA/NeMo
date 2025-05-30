@@ -16,6 +16,11 @@
 # Preparing the Tokenizer for the dataset
 Use the `process_asr_text_tokenizer.py` script under <NEMO_ROOT>/scripts/tokenizers/ in order to prepare the tokenizer.
 
+#Manifest file example:
+{"audio_filepath":"/data/fleurs/any2any/14403911078888113072.wav","duration":12.12,"id":1510,"text":"The U . N . Also hopes to finalize a fund to help countries affected by global warming to cope with the impacts .","lang":"en-US","source_lang":"ar-AR","target_lang":"en-US","pnc":"true","taskname":"translate"}
+{"audio_filepath":"/data/fleurs/any2any/7340766134437057689.wav","duration":9.12,"id":1511,"text":"Soon , officers equipped with riot gear entered the yard and cornered the inmates with tear gas .","lang":"en-US","source_lang":"ar-AR","target_lang":"en-US","pnc":"true","taskname":"translate"}
+
+
 ```sh
 python <NEMO_ROOT>/scripts/tokenizers/process_asr_text_tokenizer.py \
         --manifest=<path to train manifest files, seperated by commas>
@@ -32,13 +37,13 @@ python <NEMO_ROOT>/scripts/tokenizers/process_asr_text_tokenizer.py \
 
 # Training the model
 ```sh
-python speech_to_text_hybrid_rnnt_ctc_bpe.py \
+python speech_to_text_hybrid_rnnt_ctc_bpe_prompt.py \
     # (Optional: --config-path=<path to dir of configs> --config-name=<name of config without .yaml>) \
     model.train_ds.manifest_filepath=<path to train manifest> \
     model.validation_ds.manifest_filepath=<path to val/test manifest> \
     model.tokenizer.dir=<path to directory of tokenizer (not full path to the vocab file!)> \
     model.tokenizer.type=<either bpe or wpe> \
-    model.aux_ctc.ctc_loss_weight=0.3 \
+    model.aux_ctc.ctc_loss_weight=0.1 \
     trainer.devices=-1 \
     trainer.max_epochs=100 \
     model.optim.name="adamw" \
@@ -58,9 +63,9 @@ https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/configs.ht
 
 """
 
-import lightning.pytorch as pl
 from omegaconf import OmegaConf
 
+import lightning.pytorch as pl
 from nemo.collections.asr.models import EncDecHybridRNNTCTCBPEModelTgtLangID
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
