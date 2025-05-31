@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -172,10 +172,10 @@ class Gemma2Model(GPTModel):
         from nemo.collections.common.parts.utils import extend_instance
 
         super().configure_model()
-        if parallel_state.is_pipeline_first_stage():
+        if parallel_state.is_pipeline_first_stage(ignore_virtual=False):
             # Apply Embedding Scaling: sqrt(hidden_size)
             extend_instance(self.module.embedding, EmbeddingScalingMixin)
-        if parallel_state.is_pipeline_last_stage():
+        if parallel_state.is_pipeline_last_stage(ignore_virtual=False):
             # Prevents final logits from growing excessively by scaling them to a fixed range
             extend_instance(self.module.output_layer, Gemma2OutputLayer)
 
@@ -295,7 +295,7 @@ class HFGemmaExporter(io.ModelConnector[Gemma2Model, "GemmaForCausalLM"]):
         from transformers import AutoModelForCausalLM
         from transformers.modeling_utils import no_init_weights
 
-        with no_init_weights(True):
+        with no_init_weights():
             return AutoModelForCausalLM.from_config(self.config)
 
     def apply(self, output_path: Path) -> Path:
@@ -357,15 +357,21 @@ class HFGemmaExporter(io.ModelConnector[Gemma2Model, "GemmaForCausalLM"]):
     def config(self) -> "Gemma2Config":
         """ """
 
-        source: Gemma2Config = io.load_context(str(self)).model.config
+        source: Gemma2Config = io.load_context(str(self), subpath="model.config")
 
         from transformers import Gemma2Config as HFGemmaConfig
 
         return HFGemmaConfig(
+            architectures=["Gemma2ForCausalLM"],
             num_hidden_layers=source.num_layers,
             hidden_size=source.hidden_size,
             intermediate_size=source.ffn_hidden_size,
             num_attention_heads=source.num_attention_heads,
+            head_dim=(
+                source.kv_channels
+                if source.kv_channels is not None
+                else source.hidden_size // source.num_attention_heads
+            ),
             max_position_embeddings=source.seq_length,
             initializer_range=source.init_method_std,
             rms_norm_eps=source.layernorm_epsilon,
@@ -591,23 +597,13 @@ class TERowParallelLinearLayerNorm(TERowParallelLinear):
         output_size: int,
         *,
         config: TransformerConfig,
-        init_method: Callable,
-        bias: bool,
-        input_is_parallel: bool,
-        skip_bias_add: bool,
-        is_expert: bool,
-        tp_comm_buffer_name: str = None,
+        **kwargs,
     ):
         super().__init__(
             input_size,
             output_size,
             config=config,
-            init_method=init_method,
-            bias=bias,
-            input_is_parallel=input_is_parallel,
-            skip_bias_add=skip_bias_add,
-            is_expert=is_expert,
-            tp_comm_buffer_name=tp_comm_buffer_name,
+            **kwargs,
         )
         self.post_layernorm = TENorm(config, output_size)
 

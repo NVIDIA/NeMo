@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -44,8 +44,9 @@ class _ModelState:
     Helper class for used for to modify state dict of a source model during model conversion.
     """
 
-    def __init__(self, state_dict):
+    def __init__(self, state_dict, config=None):
         self._state_dict = state_dict
+        self.config = config
 
     def state_dict(self):
         # pylint: disable=C0115,C0116
@@ -301,6 +302,7 @@ class StateDictTransform(Generic[F]):
                     target_dict[layer_names[-1]] = self.call_transform(
                         ctx, **dict(zip(param_names, [source_dict[x] for x in layer_names[:-1]]))
                     )
+                logging.debug(f"Matched (transform)! {layer_names_group=}")
         else:
             source_keys = list(source_dict.keys())
             target_keys = list(target_dict.keys())
@@ -591,9 +593,9 @@ class TransformFns:
 
         qkv_weights_l = []
         for i in range(num_query_groups):
-            qkv_weights_l.append(q[i * heads_per_group: (i + 1) * heads_per_group, :, :])
-            qkv_weights_l.append(k[i: i + 1, :, :])
-            qkv_weights_l.append(v[i: i + 1, :, :])
+            qkv_weights_l.append(q[i * heads_per_group : (i + 1) * heads_per_group, :, :])
+            qkv_weights_l.append(k[i : i + 1, :, :])
+            qkv_weights_l.append(v[i : i + 1, :, :])
         qkv_weights = torch.cat(qkv_weights_l)
         assert qkv_weights.ndim == 3, qkv_weights.shape
         assert qkv_weights.shape[0] == (heads_per_group + 2) * num_query_groups, qkv_weights.shape
@@ -627,9 +629,9 @@ class TransformFns:
 
         qkv_bias = torch.empty((0, head_size)).type_as(qb)
         for i in range(num_query_groups):
-            qkv_bias = torch.cat((qkv_bias, qb[i * heads_per_group: (i + 1) * heads_per_group, :]))
-            qkv_bias = torch.cat((qkv_bias, kb[i: i + 1, :]))
-            qkv_bias = torch.cat((qkv_bias, vb[i: i + 1, :]))
+            qkv_bias = torch.cat((qkv_bias, qb[i * heads_per_group : (i + 1) * heads_per_group, :]))
+            qkv_bias = torch.cat((qkv_bias, kb[i : i + 1, :]))
+            qkv_bias = torch.cat((qkv_bias, vb[i : i + 1, :]))
         qkv_bias = qkv_bias.reshape(
             [
                 head_size * (head_num + 2 * num_query_groups),
@@ -682,5 +684,4 @@ class TransformFns:
         Example: export embedding/output layer to HF with non-padded vocab size
         """
         megatron_config = ctx.target.config
-        return embedding[:megatron_config.vocab_size, :]
-
+        return embedding[: megatron_config.vocab_size, :]

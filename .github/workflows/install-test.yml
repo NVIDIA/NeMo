@@ -41,13 +41,14 @@ jobs:
             export NEMO_REPO
             export INSTALL_DIR=$(pwd)
             
-            bash reinstall.sh --library all --mode install
+            bash docker/common/install_dep.sh --library all --mode install
+            pip install --no-cache-dir ".[all]"
           fi
 
       - name: Run import checks
         run: |
           # Run import checks
-          for collection in "asr" "tts"; do
+          for collection in "asr" "tts" "nlp"; do
             python tests/core_ptl/check_imports.py --domain "$collection"
           done
 
@@ -77,13 +78,14 @@ jobs:
             pip install ".[all]"
           else
             export INSTALL_DIR=$(pwd)
-            bash reinstall.sh --library all --mode install
+            bash docker/common/install_dep.sh --library all --mode install
+            pip install --no-cache-dir ".[all]"
           fi
 
       - name: Run import checks
         run: |
           # Run import checks
-          for collection in "asr" "tts"; do
+          for collection in "asr" "tts" "nlp"; do
             python tests/core_ptl/check_imports.py --domain "$collection"
           done
 
@@ -113,12 +115,13 @@ jobs:
             pip install -vvv ".[all]"
           else
             export INSTALL_DIR=$(pwd)
-            bash reinstall.sh --library all --mode install
+            bash docker/common/install_dep.sh --library all --mode install
+            pip install --no-cache-dir ".[all]"
           fi
 
       - name: Run import checks
         run: |
           # Run import checks
-          for collection in "asr" "tts"; do
+          for collection in "asr" "tts" "nlp"; do
             python tests/core_ptl/check_imports.py --domain "$collection"
           done

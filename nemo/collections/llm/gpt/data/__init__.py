@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@ from nemo.collections.llm.gpt.data.alpaca import AlpacaDataModule
 from nemo.collections.llm.gpt.data.chat import ChatDataModule
 from nemo.collections.llm.gpt.data.dolly import DollyDataModule
 from nemo.collections.llm.gpt.data.fine_tuning import FineTuningDataModule
-from nemo.collections.llm.gpt.data.hf_dataset import HFDatasetDataModule
+from nemo.collections.llm.gpt.data.hf_dataset import HFDatasetDataModule, HFDatasetDataModulePacked, HFMockDataModule
 from nemo.collections.llm.gpt.data.mlperf_govreport import MLPerfGovReportDataModule
 from nemo.collections.llm.gpt.data.mock import MockDataModule
 from nemo.collections.llm.gpt.data.pre_training import PreTrainingDataModule, build_pretraining_datamodule
@@ -29,6 +29,8 @@ __all__ = [
     "DollyDataModule",
     "FineTuningDataModule",
     "HFDatasetDataModule",
+    "HFDatasetDataModulePacked",
+    "HFMockDataModule",
     "MLPerfGovReportDataModule",
     "MockDataModule",
     "PreTrainingDataModule",

@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -229,7 +229,7 @@ class HFMistralExporter(io.ModelConnector[MistralModel, "MistralForCausalLM"]):
         from transformers import AutoModelForCausalLM
         from transformers.modeling_utils import no_init_weights
 
-        with no_init_weights(True):
+        with no_init_weights():
             return AutoModelForCausalLM.from_config(self.config, torch_dtype=dtype)
 
     def apply(self, output_path: Path) -> Path:
@@ -298,11 +298,12 @@ class HFMistralExporter(io.ModelConnector[MistralModel, "MistralForCausalLM"]):
     @property
     def config(self) -> "MistralConfig":
         """ """
-        source: MistralConfig7B = io.load_context(str(self)).model.config
+        source: MistralConfig7B = io.load_context(str(self), subpath="model.config")
 
         from transformers import MistralConfig as HfMistralConfig
 
         return HfMistralConfig(
+            architectures=["MistralForCausalLM"],
             sliding_window=source.window_size[0] if source.window_size is not None else None,
             num_hidden_layers=source.num_layers,
             hidden_size=source.hidden_size,

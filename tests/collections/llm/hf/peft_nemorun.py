@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -53,7 +53,9 @@ if __name__ == '__main__':
         peft_scheme='lora',
         max_steps=args.max_steps,
     )
-    recipe.trainer.val_check_interval = 50
+    recipe.trainer.val_check_interval = 0.0
+    recipe.trainer.max_epochs = 1
+
     tokenizer = llm.HFAutoModelForCausalLM.configure_tokenizer(args.model)
     recipe.data = run.Config(
         SquadHFDataModule,
@@ -65,4 +67,4 @@ if __name__ == '__main__':
     recipe.log = None
     recipe.trainer.enable_checkpointing = args.disable_ckpt
     executor = local_executor_torchrun(nodes=recipe.trainer.num_nodes, devices=recipe.trainer.devices)
-    run.run(recipe, executor=executor)
+    run.run(recipe, executor=executor, direct=True)

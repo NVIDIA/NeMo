@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -52,6 +52,7 @@ def mock_data_module():
         num_train_samples=20,
         num_val_samples=5,
         num_test_samples=5,
+        vocab_size=1024,
         create_attention_mask=True,
     )
     dm.setup()
@@ -61,7 +62,7 @@ def mock_data_module():
 def test_mock_gpt_dataset_length(mock_tokenizer):
     """Ensure the dataset's length matches the configured number of samples."""
     ds = _MockGPTDataset(
-        tokenizer=mock_tokenizer,
+        vocab_size=1024,
         name="train",
         num_samples=100,
         seq_length=16,
@@ -74,19 +75,19 @@ def test_mock_gpt_dataset_item_shapes(mock_tokenizer):
     """Check that a sample has the expected keys and shapes."""
     seq_length = 16
     ds = _MockGPTDataset(
-        tokenizer=mock_tokenizer,
+        vocab_size=1024,
         name="train",
         num_samples=1,
         seq_length=seq_length,
         create_attention_mask=True,
     )
     sample = ds[0]
-    assert "tokens" in sample
+    assert "input_ids" in sample
     assert "labels" in sample
     assert "loss_mask" in sample
     assert "position_ids" in sample
     assert "attention_mask" in sample
-    assert len(sample["tokens"]) == seq_length
+    assert len(sample["input_ids"]) == seq_length
     assert len(sample["labels"]) == seq_length
     assert len(sample["loss_mask"]) == seq_length
     assert len(sample["position_ids"]) == seq_length
@@ -101,8 +102,8 @@ def test_data_module_train_dataloader(mock_data_module):
     train_dl = mock_data_module.train_dataloader()
     batch = next(iter(train_dl))
     assert isinstance(batch, dict)
-    assert set(["tokens", "labels", "loss_mask", "position_ids"]).issubset(batch.keys())
-    assert batch["tokens"].shape == torch.Size([2, 16])
+    assert set(["input_ids", "labels", "loss_mask", "position_ids"]).issubset(batch.keys())
+    assert batch["input_ids"].shape == torch.Size([2, 16])
     assert batch["labels"].shape == torch.Size([2, 16])
     # Attention mask may be optional, check if included
     if "attention_mask" in batch:
@@ -114,11 +115,11 @@ def test_data_module_val_dataloader(mock_data_module):
     """Check the val dataloader returns a non-empty dataset."""
     val_dl = mock_data_module.val_dataloader()
     val_batch = next(iter(val_dl))
-    assert val_batch["tokens"].shape == torch.Size([2, 16])
+    assert val_batch["input_ids"].shape == torch.Size([2, 16])
 
 
 def test_data_module_test_dataloader(mock_data_module):
     """Check the test dataloader returns a non-empty dataset."""
     test_dl = mock_data_module.test_dataloader()
     test_batch = next(iter(test_dl))
-    assert test_batch["tokens"].shape == torch.Size([2, 16])
+    assert test_batch["input_ids"].shape == torch.Size([2, 16])

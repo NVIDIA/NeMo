@@ -57,6 +57,14 @@ def get_args(argv):
     )
     parser.add_argument("-mbs", "--max_batch_size", default=8, type=int, help="Max batch size of the model")
     parser.add_argument("-dm", "--debug_mode", default=False, action='store_true', help="Enable debug mode")
+    parser.add_argument(
+        "-fd",
+        '--enable_flash_decode',
+        default=False,
+        action='store_true',
+        help='Enable flash decoding',
+    )
+    parser.add_argument("-lc", "--legacy_ckpt", action="store_true", help="Load checkpoint saved with TE < 1.14")
     args = parser.parse_args(argv)
     return args
 
@@ -87,6 +95,9 @@ def nemo_deploy(argv):
         pipeline_model_parallel_size=args.pipeline_parallelism_size,
         context_parallel_size=args.context_parallel_size,
         expert_model_parallel_size=args.expert_model_parallel_size,
+        max_batch_size=args.max_batch_size,
+        enable_flash_decode=args.enable_flash_decode,
+        legacy_ckpt=args.legacy_ckpt,
     )
 
     if torch.distributed.is_initialized():
@@ -108,7 +119,7 @@ def nemo_deploy(argv):
                 return
 
             try:
-                LOGGER.info("Model serving on Triton is will be started.")
+                LOGGER.info("Model serving on Triton will be started.")
                 nm.serve()
             except Exception as error:
                 LOGGER.error("Error message has occurred during deploy function. Error message: " + str(error))

@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -38,7 +38,7 @@ def mock_tokenizer():
 
     # Replace __call__ with a MagicMock and set the side_effect
     tokenizer.__call__ = MagicMock(side_effect=tokenizer_call)
-
+    tokenizer.text_to_ids = MagicMock(side_effect=tokenizer_call)
     return tokenizer
 
 

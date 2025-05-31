@@ -133,7 +133,7 @@ Often times, we want to transcribe a large number of files at once (maybe from a
         # process a batch of 32 results (or less if last batch does not contain 32 elements)
         ....
 
-For more information, see `nemo.collections.asr.modules <./api.html#modules>`__. For more information on the general ``Transcription API``, please take a look at :class:`~nemo.collections.asr.parts.mixins.transcription.TranscriptionMixin`. The audio files should be 16KHz mono-channel wav files.
+For more information, see :ref:`nemo.collections.asr.modules <asr-api-modules>`. For more information on the general ``Transcription API``, please take a look at :class:`~nemo.collections.asr.parts.mixins.transcription.TranscriptionMixin`. The audio files should be 16KHz mono-channel wav files.
 
 -----
 
@@ -254,7 +254,7 @@ If ``allow_mps=true`` flag is passed to ``speech_to_text_eval.py``, the ``mps`` 
 Fine-tuning on Different Datasets
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-There are multiple ASR tutorials provided in the :ref:`Tutorials <tutorials>` section. Most of these tutorials explain how to instantiate a pre-trained model, prepare the model for fine-tuning on some dataset (in the same language) as a demonstration.
+There are multiple ASR tutorials provided in the Tutorials section. Most of these tutorials explain how to instantiate a pre-trained model, prepare the model for fine-tuning on some dataset (in the same language) as a demonstration.
 
 Inference Execution Flow Diagram
 --------------------------------
@@ -264,6 +264,8 @@ When preparing your own inference scripts, please follow the execution flow diag
 
 Automatic Speech Recognition Models
 -----------------------------------
+
+.. _asr-checkpoint-list-by-language:
 
 Speech Recognition
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

@@ -40,7 +40,6 @@ try:
         set_pipeline_model_parallel_world_size,
         set_tensor_model_parallel_rank,
         set_tensor_model_parallel_world_size,
-        set_virtual_pipeline_model_parallel_rank,
     )
 
     HAVE_MEGATRON_CORE = True
@@ -75,16 +74,6 @@ except (ImportError, ModuleNotFoundError):
     MCORE_MB_CALCULATOR = False
 
 
-try:
-    from megatron.core.parallel_state import set_virtual_pipeline_model_parallel_world_size
-
-    HAVE_INTERLEAVED = True
-
-except:
-
-    HAVE_INTERLEAVED = False
-
-
 def initialize_model_parallel_for_nemo(
     world_size,
     global_rank,
@@ -94,6 +83,7 @@ def initialize_model_parallel_for_nemo(
     pipeline_model_parallel_size=1,
     virtual_pipeline_model_parallel_size=None,
     pipeline_model_parallel_split_rank=None,
+    pipeline_model_parallel_comm_backend=None,
     context_parallel_size=1,
     encoder_tensor_model_parallel_size=0,
     encoder_pipeline_model_parallel_size=0,
@@ -108,9 +98,9 @@ def initialize_model_parallel_for_nemo(
     use_te_rng_tracker=False,
     num_distributed_optimizer_instances=1,
 ):
-
-    if virtual_pipeline_model_parallel_size is not None and not HAVE_INTERLEAVED:
-        raise ValueError("set_virtual_pipeline_model_parallel_world_size is needed in megatron-core for interleaved.")
+    """
+    Initialize the model parallel groups for NeMo.
+    """
 
     # updating NeMo globals
     app_state = AppState()
@@ -126,6 +116,7 @@ def initialize_model_parallel_for_nemo(
     app_state.context_parallel_size = context_parallel_size
     app_state.encoder_tensor_model_parallel_size = encoder_tensor_model_parallel_size
     app_state.encoder_pipeline_model_parallel_size = encoder_pipeline_model_parallel_size
+    app_state.pipeline_model_parallel_comm_backend = pipeline_model_parallel_comm_backend
     app_state.use_fp8 = use_fp8
     app_state.init_mpi_proc_group = init_mpi_proc_group
     (
@@ -162,9 +153,6 @@ def initialize_model_parallel_for_nemo(
     )
     set_pipeline_model_parallel_split_rank(app_state.pipeline_model_parallel_split_rank)
     set_pipeline_model_parallel_rank(app_state.pipeline_model_parallel_rank)
-    if HAVE_INTERLEAVED:
-        set_virtual_pipeline_model_parallel_world_size(app_state.virtual_pipeline_model_parallel_size)
-    set_virtual_pipeline_model_parallel_rank(app_state.virtual_pipeline_model_parallel_rank)
 
     tensor_parallel.random.initialize_rng_tracker(use_te_rng_tracker=use_te_rng_tracker)
     if seed is not None:

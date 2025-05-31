@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -245,7 +245,7 @@ class HFStarcoderExporter(io.ModelConnector[StarcoderModel, "GPTBigCodeForCausal
         from transformers import GPTBigCodeForCausalLM
         from transformers.modeling_utils import no_init_weights
 
-        with no_init_weights(True):
+        with no_init_weights():
             return GPTBigCodeForCausalLM._from_config(self.config, torch_dtype=dtype)
 
     def apply(self, output_path: Path) -> Path:
@@ -327,9 +327,10 @@ class HFStarcoderExporter(io.ModelConnector[StarcoderModel, "GPTBigCodeForCausal
         """
         from transformers import GPTBigCodeConfig as HFStarcoderConfig
 
-        source: StarcoderConfig = io.load_context(str(self)).model.config
+        source: StarcoderConfig = io.load_context(str(self), subpath="model.config")
 
         return HFStarcoderConfig(
+            architectures=["GPTBigCodeForCausalLM"],
             num_hidden_layers=source.num_layers,
             hidden_size=source.hidden_size,
             intermediate_size=source.ffn_hidden_size,
@@ -346,6 +347,7 @@ class HFStarcoderExporter(io.ModelConnector[StarcoderModel, "GPTBigCodeForCausal
             num_key_value_heads=source.num_query_groups,
             vocab_size=self.tokenizer.vocab_size,
         )
+
 
 __all__ = [
     "StarcoderConfig",

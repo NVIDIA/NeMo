@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -329,7 +329,7 @@ class HFNemotronExporter(io.ModelConnector[NemotronModel, "NemotronForCausalLM"]
         from transformers import AutoModelForCausalLM
         from transformers.modeling_utils import no_init_weights
 
-        with no_init_weights(True):
+        with no_init_weights():
             return AutoModelForCausalLM.from_config(self.config, torch_dtype=dtype)
 
     def apply(self, output_path: Path) -> Path:
@@ -390,9 +390,7 @@ class HFNemotronExporter(io.ModelConnector[NemotronModel, "NemotronForCausalLM"]
                 fn=TransformFns.prune_padding,
             ),
         ]
-        return io.apply_transforms(
-            source, target, mapping=mapping, transforms=transforms
-        )
+        return io.apply_transforms(source, target, mapping=mapping, transforms=transforms)
 
     @property
     def tokenizer(self):
@@ -416,7 +414,7 @@ class HFNemotronExporter(io.ModelConnector[NemotronModel, "NemotronForCausalLM"]
         """
         from transformers import NemotronConfig as HFNemotronConfig
 
-        source: NemotronConfig = io.load_context(str(self)).model.config
+        source: NemotronConfig = io.load_context(str(self), subpath="model.config")
 
         return HFNemotronConfig(
             num_hidden_layers=source.num_layers,

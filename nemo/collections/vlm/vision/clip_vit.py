@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,7 +15,7 @@
 
 from dataclasses import dataclass
 from pathlib import Path
-
+from typing import Optional
 import lightning.pytorch as L
 import torch
 
@@ -56,7 +56,7 @@ class CLIPViTL_14_336_Config(CLIPViTConfig):
 class CLIPViTModel(L.LightningModule, io.IOMixin, io.ConnectorMixin):
     """CLIP ViT Model Wrapper"""
 
-    def __init__(self, config):
+    def __init__(self, config: Optional[CLIPViTConfig] = None):
         # pylint: disable=C0115,C0116
         super().__init__()
         self.config = config

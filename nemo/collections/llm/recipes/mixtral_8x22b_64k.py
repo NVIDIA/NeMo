@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -234,4 +234,7 @@ def pretrain_performance_optimizations(recipe: run.Partial) -> run.Partial:
     recipe.trainer.strategy.expert_model_parallel_size = 1
     recipe.trainer.strategy.tensor_model_parallel_size = 8
     recipe.trainer.strategy.sequence_parallel = True
+
+    recipe.optim.config.use_precision_aware_optimizer = False
+
     return recipe

@@ -1,5 +1,26 @@
+[run]
+concurrency = thread,multiprocessing
+omit =
+    /tmp/*
+    /home/TestData/*
+    /workspace/Megatron-LM/*
+    nemo/collections/multimodal/*
+    nemo/collections/multimodal_autoregressive/*
+    nemo/collections/vision/*
+    nemo/collections/diffusion/*
+    nemo/collections/nlp/*
+
+    nemo/collections/asr/*
+    nemo/collections/audio/*
+    nemo/collections/speechlm/*
+    nemo/collections/tts/*
+
+    nemo/core/*
+    nemo/collections/common/*      
+
 [paths]
 source =
     nemo/
     /home/runner/work/NeMo/NeMo/nemo
     /workspace/nemo
+
