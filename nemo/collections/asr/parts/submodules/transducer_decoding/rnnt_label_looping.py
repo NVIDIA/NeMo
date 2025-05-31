@@ -930,7 +930,9 @@ class GreedyBatchedRNNTLabelLoopingComputer(
             )
             # initial state - lm
             if self.ngram_lm_batch is not None:
-                self.state.batch_lm_states[:current_batch_size].copy_(prev_batched_state.lm_states[:current_batch_size])
+                self.state.batch_lm_states[:current_batch_size].copy_(
+                    prev_batched_state.lm_states[:current_batch_size]
+                )
 
     def _before_outer_loop(self):
         """Clear state and compute initial active mask"""

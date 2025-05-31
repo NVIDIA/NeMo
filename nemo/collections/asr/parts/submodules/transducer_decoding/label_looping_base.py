@@ -45,7 +45,8 @@ class BatchedLabelLoopingState:
     decoded_lengths: torch.Tensor
     lm_states: Optional[torch.Tensor] = None
     time_jumps: Optional[torch.Tensor] = None
-    
+
+
 @dataclass
 class LabelLoopingStateItem:
     """Decoding state to pass between invocations"""
