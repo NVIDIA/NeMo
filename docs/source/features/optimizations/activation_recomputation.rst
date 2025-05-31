@@ -51,7 +51,7 @@ Also, you can use the self-attention recomputation without FlashAttention by set
        # Load train recipe
        recipe = partial(llm.llama3_8b.pretrain_recipe)()
 
-       recipe.model.config.recompute_method = "selective"  # Enable selective recomputation
+       recipe.model.config.recompute_granularity = "selective"  # Enable selective recomputation
 
 Scheme of full and selective checkpointing granularity:
 
