@@ -134,7 +134,6 @@ def test_compile_module_torch():
 #    assert compiled
 
 
-
 def test_compile_module_none():
     mock_module = MagicMock()
     config = JitConfig()
