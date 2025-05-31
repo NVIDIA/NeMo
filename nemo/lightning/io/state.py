@@ -515,11 +515,10 @@ class TransformFns:
         head_num = megatron_config.num_attention_heads
         num_query_groups = megatron_config.num_query_groups
         heads_per_group = head_num // num_query_groups
-        # hidden_size = megatron_config.hidden_size
-        head_size = megatron_config.kv_channels
+        hidden_size = megatron_config.hidden_size
         qkv_total_dim = head_num + 2 * num_query_groups
 
-        linear_qkv = linear_qkv.reshape([qkv_total_dim, head_size, -1])
+        linear_qkv = linear_qkv.reshape([qkv_total_dim, -1, hidden_size])
         # when converting base model (linear_qkv), hidden size = megatron_config.hidden_size
         # when converting lora (linear_qkv.adapter.linear_out), hidden size = lora_r
         hidden_size = linear_qkv.size(-1)
@@ -550,10 +549,9 @@ class TransformFns:
         head_num = megatron_config.num_attention_heads
         num_query_groups = megatron_config.num_query_groups
         heads_per_group = head_num // num_query_groups
-        head_size = megatron_config.kv_channels
         qkv_total_dim = head_num + 2 * num_query_groups
 
-        qkv_bias = qkv_bias.reshape([qkv_total_dim, head_size])
+        qkv_bias = qkv_bias.reshape([qkv_total_dim, -1])
         q_slice = torch.cat(
             [
                 torch.arange((heads_per_group + 2) * i, (heads_per_group + 2) * i + heads_per_group)
