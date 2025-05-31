@@ -29,8 +29,7 @@ __all__ = ['SentencePieceTokenizer', 'SentencePieceSpeechLLMTTSTokenizer', 'crea
 
 
 class SentencePieceTokenizer(TokenizerSpec, ChatTemplateMixin):
-    """
-    Sentencepiecetokenizer https://github.com/google/sentencepiece.
+    """Sentencepiecetokenizer https://github.com/google/sentencepiece.
 
     Args:
         model_path: path to sentence piece tokenizer model. To create the model use create_spt_model()
@@ -39,9 +38,10 @@ class SentencePieceTokenizer(TokenizerSpec, ChatTemplateMixin):
             including the possibility to add special tokens inside wrapper.
         ignore_extra_whitespaces: whether to ignore extra whitespaces in the input text while encoding.
             Note:
-            This is done for the current models tokenizers that don't handle extra whitespaces as by default tokenizer learned to ignore it.
-            To check if the tokenizer by default ignores extra whitespaces refer to `self.removed_extra_spaces` attribute of the tokenizer.
-            We added a parameter to process_asr_tokenizer.py for upcoming models to handle it inbuilt.
+            This is done for the current models tokenizers that don't handle extra whitespaces as by default tokenizer
+            learned to ignore it. To check if the tokenizer by default ignores extra whitespaces refer to
+            `self.removed_extra_spaces` attribute of the tokenizer. We added a parameter to process_asr_tokenizer.py
+            for upcoming models to handle it inbuilt.
     """
 
     def __init__(
@@ -69,8 +69,8 @@ class SentencePieceTokenizer(TokenizerSpec, ChatTemplateMixin):
         self.special_token_to_id = {}
         self.id_to_special_token = {}
         self.trim_spm_separator_after_special_token = trim_spm_separator_after_special_token
-        self.spm_separator_id = self.tokenizer.piece_to_id(spm_separator)
         self.spm_separator = spm_separator
+        self.spm_separator_id = self.tokenizer.piece_to_id(spm_separator)
 
         if special_tokens:
             if not self.legacy:
@@ -83,29 +83,38 @@ class SentencePieceTokenizer(TokenizerSpec, ChatTemplateMixin):
         self.space_sensitive = self.text_to_tokens('x y') != self.text_to_tokens('x') + self.text_to_tokens('y')
 
     def text_to_tokens(self, text):
+        """Converts input text to a list of tokens.
+
+        If legacy mode is enabled, handles special tokens separately.
+
+        Args:
+            text: The input string to tokenize.
+
+        Returns:
+            A list of string tokens.
+        """
         if self.removed_extra_spaces and not self.ignore_extra_whitespaces:
             text = re.sub(r'(?<= )(?= )|^ | $', f' {self.extra_space_token} ', text)
         if self.legacy:
             tokens = []
-            idx = 0
-            last_idx = 0
+            cur_idx = 0
 
             while 1:
-                indices = {}
+                st_indices = {}
 
                 for token in self.special_token_to_id:
                     try:
-                        indices[token] = text[idx:].index(token)
+                        st_indices[token] = text[cur_idx:].index(token)
                     except ValueError:
                         continue
 
-                if len(indices) == 0:
+                if len(st_indices) == 0:
                     break
 
-                next_token = min(indices, key=indices.get)
-                next_idx = idx + indices[next_token]
-
-                tok = self.tokenizer.encode_as_pieces(text[idx:next_idx])
+                next_special_token = min(st_indices, key=st_indices.get)
+                next_start_idx = cur_idx + st_indices[next_special_token]
+                # tokens between the last special token and the next special token
+                text_tokens = self.tokenizer.encode_as_pieces(text[cur_idx:next_start_idx])
                 # Chat-templates insert a space between a special token and first word (e.g.
                 # "[INST] who") which is tokenized as <inst-id> <space-id> <who-id> instead of
                 # <inst-id> <who-id>.
@@ -113,15 +122,18 @@ class SentencePieceTokenizer(TokenizerSpec, ChatTemplateMixin):
                     self.trim_spm_separator_after_special_token
                     and len(tokens) > 0
                     and tokens[-1] in self.special_token_to_id
-                    and len(tok) > 0
-                    and tok[0] == self.spm_separator
+                    and len(text_tokens) > 0
+                    and text_tokens[0] == self.spm_separator
                 ):
-                    tok.pop(0)
-                tokens.extend(tok)
-                tokens.append(next_token)
-                idx = next_idx + len(next_token)
+                    text_tokens.pop(0)
+                # Add the text tokens between the last special token and this one
+                tokens.extend(text_tokens)
+                # add the next special token
+                tokens.append(next_special_token)
+                # increment
+                cur_idx = next_start_idx + len(next_special_token)
 
-            tokens.extend(self.tokenizer.encode_as_pieces(text[idx:]))
+            tokens.extend(self.tokenizer.encode_as_pieces(text[cur_idx:]))
 
         else:
             tokens = self.tokenizer.encode_as_pieces(text)
@@ -131,6 +143,17 @@ class SentencePieceTokenizer(TokenizerSpec, ChatTemplateMixin):
         return tokens
 
     def text_to_ids(self, text, sample_alpha=None):
+        """Converts input text to a list of token IDs.
+
+        Handles chat formatting or raw string tokenization depending on input type.
+
+        Args:
+            text: A string or list representing chat template inputs.
+            sample_alpha: Optional float to enable subword sampling for data augmentation.
+
+        Returns:
+            A list of token IDs.
+        """
         if isinstance(text, str):
             return self._text_to_ids(text, sample_alpha)
         elif isinstance(text, list):
@@ -139,29 +162,38 @@ class SentencePieceTokenizer(TokenizerSpec, ChatTemplateMixin):
             raise ValueError(f"Expected either str or list input, but got {type(text)}")
 
     def _text_to_ids(self, text, sample_alpha=None):
+        """Internal method to convert text to token IDs, handling optional sampling and special token logic.
+
+        Args:
+            text: Input string.
+            sample_alpha: Optional alpha value for stochastic subword sampling.
+
+        Returns:
+            A list of token IDs.
+        """
         if self.removed_extra_spaces and not self.ignore_extra_whitespaces:
             text = re.sub(r'(?<= )(?= )|^ | $', f' {self.extra_space_token} ', text).rstrip()
         if self.legacy:
             ids = []
-            idx = 0
-            last_idx = 0
+            cur_idx = 0
 
+            # Account for special tokens
             while 1:
-                indices = {}
+                st_indices = {}
 
                 for token in self.special_token_to_id:
                     try:
-                        indices[token] = text[idx:].index(token)
+                        st_indices[token] = text[cur_idx:].index(token)
                     except ValueError:
                         continue
 
-                if len(indices) == 0:
+                if len(st_indices) == 0:
                     break
 
-                next_token = min(indices, key=indices.get)
-                next_idx = idx + indices[next_token]
-
-                text_tokens = self.tokenizer.encode(text[idx:next_idx])
+                next_special_token = min(st_indices, key=st_indices.get)
+                next_start_idx = cur_idx + st_indices[next_special_token]
+                # tokens between the last special token and the next special token
+                text_tokens = self.tokenizer.encode(text[cur_idx:next_start_idx])
                 # Chat-templates insert a space between a special token and first word (e.g.
                 # "[INST] who") which is tokenized as <inst-id> <space-id> <who-id> instead of
                 # <inst-id> <who-id>.
@@ -173,14 +205,17 @@ class SentencePieceTokenizer(TokenizerSpec, ChatTemplateMixin):
                     and text_tokens[0] == self.spm_separator_id
                 ):
                     text_tokens.pop(0)
+                # Add the text tokens between the last special token and this one
                 ids.extend(text_tokens)
-                ids.append(self.special_token_to_id[next_token])
-                idx = next_idx + len(next_token)
+                # add the next special token
+                ids.append(self.special_token_to_id[next_special_token])
+                # increment
+                cur_idx = next_start_idx + len(next_special_token)
 
             if self.removed_extra_spaces and not self.ignore_extra_whitespaces:
-                ids.extend(self._text_to_ids_extra_space(text[idx:]))
+                ids.extend(self._text_to_ids_extra_space(text[cur_idx:]))
             else:
-                ids.extend(self.tokenizer.encode_as_ids(text[idx:]))
+                ids.extend(self.tokenizer.encode_as_ids(text[cur_idx:]))
             return ids
 
         if self.removed_extra_spaces and not self.ignore_extra_whitespaces:
@@ -192,6 +227,15 @@ class SentencePieceTokenizer(TokenizerSpec, ChatTemplateMixin):
             return self.tokenizer.encode_as_ids(text)
 
     def _text_to_ids_extra_space(self, text, sample_alpha=None):
+        """Tokenizes text while preserving extra space tokens for legacy mode.
+
+        Args:
+            text: Input string.
+            sample_alpha: Optional alpha value for subword sampling.
+
+        Returns:
+            A list of token IDs with preserved extra space markers.
+        """
         ids = []
         encoding_kwargs = {}
         if sample_alpha is not None:
@@ -206,12 +250,28 @@ class SentencePieceTokenizer(TokenizerSpec, ChatTemplateMixin):
         return ids
 
     def tokens_to_text(self, tokens):
-        if isinstance(tokens, np.ndarray):
+        """Converts a list of tokens back to the corresponding string.
+
+        Args:
+            tokens: A list of string tokens or a tensor/array of token IDs.
+
+        Returns:
+            The decoded string.
+        """
+        if isinstance(tokens, (np.ndarray, torch.Tensor)):
             tokens = tokens.tolist()
 
         return self.tokenizer.decode_pieces(tokens)
 
     def ids_to_text(self, ids):
+        """Decodes a list of token IDs into a string, handling special tokens if in legacy mode.
+
+        Args:
+            ids: A list or tensor/array of token IDs.
+
+        Returns:
+            The decoded string.
+        """
         if isinstance(ids, (np.ndarray, torch.Tensor)):
             ids = ids.tolist()
 
@@ -231,12 +291,30 @@ class SentencePieceTokenizer(TokenizerSpec, ChatTemplateMixin):
         return self.tokenizer.decode_ids(ids)
 
     def token_to_id(self, token):
+        """Gets the ID corresponding to a token.
+
+        Args:
+            token: Token string.
+
+        Returns:
+            Token ID as an integer.
+        """
         if self.legacy and token in self.special_token_to_id:
             return self.special_token_to_id[token]
 
         return self.tokenizer.piece_to_id(token)
 
     def ids_to_tokens(self, ids):
+        """Converts a list of token IDs into corresponding token strings.
+
+        Args:
+            ids: A list or array/tensor of token IDs.
+
+        Returns:
+            List of string tokens.
+        """
+        if isinstance(ids, (np.ndarray, torch.Tensor)):
+            ids = ids.tolist()
         tokens = []
         for id in ids:
             if id >= self.original_vocab_size:
@@ -246,6 +324,15 @@ class SentencePieceTokenizer(TokenizerSpec, ChatTemplateMixin):
         return tokens
 
     def tokens_to_ids(self, tokens: Union[str, List[str]], tokens_to_skip: List[str] = []) -> Union[int, List[int]]:
+        """Converts one or more tokens into their respective IDs, skipping any specified tokens.
+
+        Args:
+            tokens: A string or list of token strings.
+            tokens_to_skip: List of tokens to ignore during conversion.
+
+        Returns:
+            A single ID or list of IDs.
+        """
         if isinstance(tokens, str):
             tokens = [tokens]
         ids = []
@@ -255,6 +342,15 @@ class SentencePieceTokenizer(TokenizerSpec, ChatTemplateMixin):
         return ids
 
     def add_special_tokens(self, special_tokens):
+        """Adds new special tokens to the tokenizer's vocabulary (only if legacy=True).
+
+        Args:
+            special_tokens: List or dict of special tokens to add.
+
+        Raises:
+            AttributeError: If not in legacy mode.
+            ValueError: If the input is not a list or dictionary.
+        """
         if not self.legacy:
             raise AttributeError("Special Token addition does not work when legacy is set to False.")
 
@@ -285,10 +381,11 @@ class SentencePieceTokenizer(TokenizerSpec, ChatTemplateMixin):
                     self.special_token_to_id[token] = self.tokenizer.piece_to_id(token)
                     self.id_to_special_token[self.special_token_to_id[token]] = token
         else:
-            raise ValueError("Expected special_tokens to be a list or a dict " + str(type(special_tokens)))
+            raise ValueError(f"Expected special_tokens to be a list or a dict {str(type(special_tokens))}")
 
     @property
     def pad_id(self):
+        """Returns the ID for the padding token."""
         if self.legacy:
             pad_id = self.tokens_to_ids([self.pad_token])[0]
         else:
@@ -297,6 +394,7 @@ class SentencePieceTokenizer(TokenizerSpec, ChatTemplateMixin):
 
     @property
     def bos_id(self):
+        """Returns the ID for the beginning-of-sequence token."""
         if self.legacy:
             bos_id = self.tokens_to_ids([self.bos_token])[0]
         else:
@@ -305,6 +403,7 @@ class SentencePieceTokenizer(TokenizerSpec, ChatTemplateMixin):
 
     @property
     def eos_id(self):
+        """Returns the ID for the end-of-sequence token."""
         if self.legacy:
             eos_id = self.tokens_to_ids([self.eos_token])[0]
         else:
@@ -313,6 +412,7 @@ class SentencePieceTokenizer(TokenizerSpec, ChatTemplateMixin):
 
     @property
     def sep_id(self):
+        """Returns the ID for the separator token (only in legacy mode)."""
         if self.legacy:
             return self.tokens_to_ids([self.sep_token])[0]
         else:
@@ -320,6 +420,7 @@ class SentencePieceTokenizer(TokenizerSpec, ChatTemplateMixin):
 
     @property
     def cls_id(self):
+        """Returns the ID for the classification token (only in legacy mode)."""
         if self.legacy:
             return self.tokens_to_ids([self.cls_token])[0]
         else:
@@ -327,6 +428,7 @@ class SentencePieceTokenizer(TokenizerSpec, ChatTemplateMixin):
 
     @property
     def mask_id(self):
+        """Returns the ID for the mask token (only in legacy mode)."""
         if self.legacy:
             return self.tokens_to_ids([self.mask_token])[0]
         else:
@@ -334,11 +436,15 @@ class SentencePieceTokenizer(TokenizerSpec, ChatTemplateMixin):
 
     @property
     def unk_id(self):
+        """Returns the ID for the unknown token."""
         return self.tokenizer.unk_id()
 
     @property
     def additional_special_tokens_ids(self):
-        """Returns a list of the additional special tokens (excluding bos, eos, pad, unk). Used to return sentinel tokens for e.g. T5."""
+        """Returns a list of the additional special tokens (excluding bos, eos, pad, unk).
+
+        Used to return sentinel tokens for e.g. T5.
+        """
         special_tokens = set(
             [self.bos_token, self.eos_token, self.pad_token, self.mask_token, self.cls_token, self.sep_token]
         )
@@ -346,6 +452,7 @@ class SentencePieceTokenizer(TokenizerSpec, ChatTemplateMixin):
 
     @property
     def vocab(self):
+        """Returns the combined vocabulary list, including base and special tokens."""
         main_vocab = [self.tokenizer.id_to_piece(id) for id in range(self.tokenizer.get_piece_size())]
         special_tokens = [
             self.id_to_special_token[self.original_vocab_size + i]
@@ -355,7 +462,11 @@ class SentencePieceTokenizer(TokenizerSpec, ChatTemplateMixin):
 
 
 class SentencePieceSpeechLLMTTSTokenizer(SentencePieceTokenizer):
+    """Extends SentencePieceTokenizer with support for phoneme-based special tokens."""
+
     def add_phone_tokens_to_special_tokens(self):
+        """Marks tokens starting with 'p{' as special tokens for phoneme-aware models."""
+
         for i, word in enumerate(self.vocab):
             if word.startswith("p{"):
                 self.special_token_to_id[word] = i
@@ -383,8 +494,7 @@ def create_spt_model(
     split_by_unicode_script: bool = True,
     remove_extra_whitespaces: bool = False,
 ):
-    """
-    Creates sentence piece tokenizer model from data file.
+    """Creates sentence piece tokenizer model from data file.
 
     Args:
         data_file: data file
@@ -393,7 +503,7 @@ def create_spt_model(
         do_lower_case: if text should be lower cased before tokenizer model is created
         character_coverage: float value between 0 and 1 (as a percentage). For languages with a vast charset,
             can be < 1.0, but for all other languages, it should be set as 1.0
-        output_dir: folder to save created tokenizer model. If not specified will store model at data_file/../spt folder
+        output_dir: folder to save created tokenizer model. If not specified will store at data_file/../spt folder
         train_extremely_large_corpus: If training on huge datasets, pass this flag to allow SentencePiece
             to build the tokenizer.
         max_sentencepiece_length: Limits the maximum length of the SentencePiece subword that can be constructed.
@@ -402,14 +512,18 @@ def create_spt_model(
         eos: when True, eos token "</s>" is added to the vocabulary.
         pad: when True, pad token "<pad>" is added to the vocabulary.
         control_symbols: control symbols to add to tokenizer, as defined by sentencepiece.
-            These tokens get removed at decode time and are not encoded from the text - can only be added to the input programatically.
+            These tokens get removed at decode time and are not encoded from the text - can only be added to the input
+            programatically.
         user_defined_symbols: user symbols to add to tokenizer, as defined by sentencepiece.
             These tokens remain in the decoded text and are encoded automatically when present in the input text.
         byte_fallback: If <unk>, fallback to a byte sequence of the character.
         split_digits: If true, digits are split into individual tokens.
-        split_by_whitespace: Whether to respect white space while creating subwords. If False, will learn merges across whitespace.
-        split_by_unicode_script: Whether to include multiple Unicode scripts. Ex. is Arabic diacritics which are considered part of the letter (عِدَّةُ).
-        remove_extra_whitespaces: Whether to remove leading, trailing, and duplicate internal whitespace. If true, will skip double spaces during encoding.
+        split_by_whitespace: Whether to respect white space while creating subwords.
+            If False, will learn merges across whitespace.
+        split_by_unicode_script: Whether to include multiple Unicode scripts.
+            Ex. is Arabic diacritics which are considered part of the letter (عِدَّةُ).
+        remove_extra_whitespaces: Whether to remove leading, trailing, and duplicate internal whitespace.
+            If true, will skip double spaces during encoding.
     """
 
     if not data_file or not os.path.exists(data_file):

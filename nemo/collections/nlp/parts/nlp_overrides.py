@@ -595,7 +595,16 @@ class NLPDDPStrategy(DDPStrategy):
         else:
             # Try to read the checkpoint at `path`. If not exist, do not restore checkpoint.
             checkpoint_path = inject_model_parallel_rank(checkpoint_path)
-            if not fs.exists(checkpoint_path):
+            max_error_count = 10
+            for error_count in range(1, max_error_count + 1):
+                if fs.exists(checkpoint_path):
+                    break
+                logging.warning(
+                    f"Checkpoint at {checkpoint_path} not found. Fail count {error_count} out of {max_error_count}."
+                )
+                # not adding jitter/anything complex since not concerned with stampede...
+                time.sleep(error_count * 5)
+            else:
                 raise FileNotFoundError(f"Checkpoint at {checkpoint_path} not found. Aborting training.")
             torch.cuda.empty_cache()
             start_time = time.monotonic()

@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -50,6 +50,14 @@ from nemo.collections.llm.gpt.model.gemma2 import (
     Gemma2Config9B,
     Gemma2Config27B,
     Gemma2Model,
+)
+from nemo.collections.llm.gpt.model.gemma3 import (
+    Gemma3Config,
+    Gemma3Config1B,
+    Gemma3Config4B,
+    Gemma3Config12B,
+    Gemma3Config27B,
+    Gemma3Model,
 )
 from nemo.collections.llm.gpt.model.hf_auto_model_for_causal_lm import HFAutoModelForCausalLM
 from nemo.collections.llm.gpt.model.hf_llama_embedding import get_llama_bidirectional_hf_model
@@ -132,6 +140,18 @@ from nemo.collections.llm.gpt.model.qwen2 import (
     Qwen25Config32B,
     Qwen25Config72B,
     Qwen25Config500M,
+)
+from nemo.collections.llm.gpt.model.qwen3 import (
+    Qwen3Config,
+    Qwen3Config1P7B,
+    Qwen3Config4B,
+    Qwen3Config8B,
+    Qwen3Config14B,
+    Qwen3Config30B_A3B,
+    Qwen3Config32B,
+    Qwen3Config235B_A22B,
+    Qwen3Config600M,
+    Qwen3Model,
 )
 from nemo.collections.llm.gpt.model.ssm import (
     BaseMambaConfig1_3B,
@@ -228,6 +248,12 @@ __all__ = [
     "Gemma2Config2B",
     "Gemma2Config9B",
     "Gemma2Model",
+    "Gemma3Config",
+    "Gemma3Config1B",
+    "Gemma3Config4B",
+    "Gemma3Config12B",
+    "Gemma3Config27B",
+    "Gemma3Model",
     "LlamaModel",
     "MLPerfLoRALlamaModel",
     "Baichuan2Config",
@@ -249,6 +275,16 @@ __all__ = [
     "Qwen25Config500M",
     "Qwen25Config1P5B",
     "Qwen2Model",
+    "Qwen3Config",
+    "Qwen3Config600M",
+    "Qwen3Config1P7B",
+    "Qwen3Config4B",
+    "Qwen3Config8B",
+    "Qwen3Config14B",
+    "Qwen3Config32B",
+    "Qwen3Config30B_A3B",
+    "Qwen3Config235B_A22B",
+    "Qwen3Model",
     "SSMConfig",
     "BaseMambaConfig130M",
     "BaseMambaConfig370M",

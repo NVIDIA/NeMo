@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -137,6 +137,7 @@ def make_model_optim(tokenizer, mbs=1, gbs=2, seq_length=2048):
         layernorm_epsilon=1e-5,
         make_vocab_size_divisible_by=128,
         masked_softmax_fusion=False,
+        virtual_pipeline_model_parallel_size=None,
     )
     model = llm.GPTModel(gpt_config, tokenizer=tokenizer)
 
