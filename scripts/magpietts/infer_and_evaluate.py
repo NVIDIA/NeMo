@@ -62,6 +62,11 @@ def update_config(model_cfg, codecmodel_path, legacy_codebooks=False):
     if hasattr(model_cfg, 'decoder') and hasattr(model_cfg.decoder, 'prior_eps'):
         # Added to prevent crash after removing arg from transformer_2501.py in https://github.com/blisc/NeMo/pull/56
         del model_cfg.decoder.prior_eps
+    if hasattr(model_cfg, 'use_local_transformer') and model_cfg.use_local_transformer:
+        print("Updating config to use autoregressive local transformer")
+        model_cfg.local_transformer_type = "autoregressive"
+        del model_cfg.use_local_transformer
+
     if legacy_codebooks:
         # Added to address backward compatibility arising from
         #  https://github.com/blisc/NeMo/pull/64
