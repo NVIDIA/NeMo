@@ -144,6 +144,7 @@ class Hypothesis:
         return [] if self.text is None else self.text.split()
 
     def merge(self, other: "Hypothesis"):
+        """Merge current hypothesis with another one."""
         self.score += other.score
         if isinstance(self.y_sequence, torch.Tensor):
             self.y_sequence = torch.cat((self.y_sequence, other.y_sequence), dim=0)
@@ -164,6 +165,10 @@ class Hypothesis:
             self.frame_confidence.extend(other.frame_confidence)
         # Invalidated. Need to rerun decode_hypothesis here.
         self.text = None
+
+    def clean_decoding_state_(self):
+        """Clean the decoding state to save memory."""
+        self.dec_state = None
 
 
 @dataclass

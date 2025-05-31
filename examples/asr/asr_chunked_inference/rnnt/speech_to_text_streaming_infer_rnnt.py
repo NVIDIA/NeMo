@@ -438,7 +438,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
 
             # free up GPU memory
             for hyp in current_hyps:
-                hyp.dec_state = None
+                hyp.clean_decoding_state_()
             all_hyps.extend(current_hyps)
 
     # convert text

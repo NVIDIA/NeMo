@@ -165,7 +165,7 @@ def test_label_looping_decoding_streaming_gpu_state(
                         hyps = new_hyps
                 # free up memory by resetting decoding state
                 for hyp in hyps:
-                    hyp.dec_state = None
+                    hyp.clean_decoding_state_()
                 all_hyps.extend(hyps)
 
         streaming_transcripts = []
@@ -233,7 +233,7 @@ def test_label_looping_decoding_streaming_partial_hypotheses(
                     )
                 # free up memory by resetting decoding state
                 for hyp in hyps:
-                    hyp.dec_state = None
+                    hyp.clean_decoding_state_()
                 all_hyps.extend(hyps)
         streaming_transcripts = []
         for hyp in all_hyps:
