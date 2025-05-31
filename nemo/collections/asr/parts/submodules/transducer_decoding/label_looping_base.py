@@ -36,15 +36,26 @@ class SeparateGraphsLabelLooping:
 
 
 @dataclass
-class BatchedGreedyDecodingState:
+class BatchedLabelLoopingState:
+    """Decoding state to pass between invocations"""
+
+    predictor_states: Any
+    predictor_outputs: torch.Tensor
+    labels: torch.Tensor
+    decoded_lengths: torch.Tensor
+    lm_states: Optional[torch.Tensor] = None
+    time_jumps: Optional[torch.Tensor] = None
+    
+@dataclass
+class LabelLoopingStateItem:
     """Decoding state to pass between invocations"""
 
     predictor_state: Any
     predictor_output: torch.Tensor
-    labels: torch.Tensor
+    label: torch.Tensor
     decoded_length: torch.Tensor
     lm_state: Optional[torch.Tensor] = None
-    time_jumps: Optional[torch.Tensor] = None
+    time_jump: Optional[torch.Tensor] = None
 
 
 class GreedyBatchedLabelLoopingComputerBase(ABC):
@@ -115,8 +126,8 @@ class GreedyBatchedLabelLoopingComputerBase(ABC):
         self,
         encoder_output: torch.Tensor,
         encoder_output_length: torch.Tensor,
-        prev_batched_state: Optional[BatchedGreedyDecodingState] = None,
-    ) -> tuple[rnnt_utils.BatchedHyps, Optional[rnnt_utils.BatchedAlignments], BatchedGreedyDecodingState]:
+        prev_batched_state: Optional[BatchedLabelLoopingState] = None,
+    ) -> tuple[rnnt_utils.BatchedHyps, Optional[rnnt_utils.BatchedAlignments], BatchedLabelLoopingState]:
         """
         Pure PyTorch implementation
 
@@ -132,8 +143,8 @@ class GreedyBatchedLabelLoopingComputerBase(ABC):
         self,
         encoder_output: torch.Tensor,
         encoder_output_length: torch.Tensor,
-        prev_batched_state: Optional[BatchedGreedyDecodingState] = None,
-    ) -> tuple[rnnt_utils.BatchedHyps, Optional[rnnt_utils.BatchedAlignments], BatchedGreedyDecodingState]:
+        prev_batched_state: Optional[BatchedLabelLoopingState] = None,
+    ) -> tuple[rnnt_utils.BatchedHyps, Optional[rnnt_utils.BatchedAlignments], BatchedLabelLoopingState]:
         """
         Implementation with CUDA graphs.
 
@@ -150,18 +161,33 @@ class GreedyBatchedLabelLoopingComputerBase(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def get_decoding_state_after_sos(
-        self, batch_size: int, device: torch.device | str, float_dtype: torch.dtype
-    ) -> BatchedGreedyDecodingState:
-        """Get decoding state after <SOS> symbol, used for initialization from empty hypotheses."""
+    def split_batched_state(self, state: BatchedLabelLoopingState) -> list[LabelLoopingStateItem]:
+        """
+        Split batched state into list of items, each item contains state for one hypothesis.
+        This is used to pass state between invocations of the algorithm.
+
+        Args:
+            state: batched decoding state
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    def merge_to_batched_state(self, state_items: list[LabelLoopingStateItem | None]) -> BatchedLabelLoopingState:
+        """
+        Merge list of items into batched state, each item contains state for one hypothesis.
+        This is used to pass state between invocations of the algorithm.
+
+        Args:
+            state_items: list of items to merge
+        """
         raise NotImplementedError
 
     def __call__(
         self,
         x: torch.Tensor,
         out_len: torch.Tensor,
-        prev_batched_state: Optional[BatchedGreedyDecodingState] = None,
-    ) -> tuple[rnnt_utils.BatchedHyps, Optional[rnnt_utils.BatchedAlignments], BatchedGreedyDecodingState]:
+        prev_batched_state: Optional[BatchedLabelLoopingState] = None,
+    ) -> tuple[rnnt_utils.BatchedHyps, Optional[rnnt_utils.BatchedAlignments], BatchedLabelLoopingState]:
         """
         Entry point for the decoding algorithm
 

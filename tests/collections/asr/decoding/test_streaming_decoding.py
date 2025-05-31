@@ -24,7 +24,7 @@ from tqdm.auto import tqdm
 
 from nemo.collections.asr.models import ASRModel
 from nemo.collections.asr.parts.submodules.transducer_decoding.label_looping_base import (
-    BatchedGreedyDecodingState,
+    BatchedLabelLoopingState,
     GreedyBatchedLabelLoopingComputerBase,
 )
 from nemo.collections.asr.parts.utils.manifest_utils import read_manifest
@@ -144,8 +144,8 @@ def test_label_looping_decoding_streaming_gpu_state(
                 )
                 local_batch_size = encoder_output_len.shape[0]
                 # decode encoder output by chunks, passing state between decoder invocations
-                state: Optional[BatchedGreedyDecodingState] = None
-                hyps = None
+                state: Optional[BatchedLabelLoopingState] = None
+                hyps: list | None = None
                 encoder_output = encoder_output.transpose(1, 2)
                 for t in range(0, encoder_output.shape[1], chunk_size):
                     rest_len = encoder_output_len - t
@@ -163,6 +163,9 @@ def test_label_looping_decoding_streaming_gpu_state(
                             hyp.merge(new_hyp)
                     else:
                         hyps = new_hyps
+                # free up memory by resetting decoding state
+                for hyp in hyps:
+                    hyp.dec_state = None
                 all_hyps.extend(hyps)
 
         streaming_transcripts = []
@@ -217,7 +220,7 @@ def test_label_looping_decoding_streaming_partial_hypotheses(
                     manifest[i : i + batch_size], model=model, device=device
                 )
                 # decode encoder output by chunks, passing state between decoder invocations
-                hyps = None
+                hyps: list | None = None
                 for t in range(0, encoder_output.shape[2], chunk_size):
                     rest_len = encoder_output_len - t
                     current_len = torch.full_like(encoder_output_len, fill_value=chunk_size)
@@ -228,6 +231,9 @@ def test_label_looping_decoding_streaming_partial_hypotheses(
                         encoded_lengths=current_len,
                         partial_hypotheses=hyps,
                     )
+                # free up memory by resetting decoding state
+                for hyp in hyps:
+                    hyp.dec_state = None
                 all_hyps.extend(hyps)
         streaming_transcripts = []
         for hyp in all_hyps:

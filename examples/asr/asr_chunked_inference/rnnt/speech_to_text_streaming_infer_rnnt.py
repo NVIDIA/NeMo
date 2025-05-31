@@ -62,7 +62,6 @@ from tqdm.auto import tqdm
 from nemo.collections.asr.models import EncDecHybridRNNTCTCModel, EncDecRNNTModel
 from nemo.collections.asr.parts.submodules.rnnt_decoding import RNNTDecodingConfig
 from nemo.collections.asr.parts.submodules.transducer_decoding.label_looping_base import (
-    BatchedGreedyDecodingState,
     GreedyBatchedLabelLoopingComputerBase,
 )
 from nemo.collections.asr.parts.utils.eval_utils import cal_write_wer
@@ -345,7 +344,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
             # decode audio by chunks
 
             current_hyps = None
-            state: Optional[BatchedGreedyDecodingState] = None
+            state = None
             left_sample = 0
             # right_sample = initial latency in audio samples
             right_sample = min(context_samples.chunk + context_samples.right, audio_batch.shape[1])
@@ -437,6 +436,9 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
                 left_sample = right_sample
                 right_sample = min(right_sample + context_samples.chunk, audio_batch.shape[1])  # add next chunk
 
+            # free up GPU memory
+            for hyp in current_hyps:
+                hyp.dec_state = None
             all_hyps.extend(current_hyps)
 
     # convert text

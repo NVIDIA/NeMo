@@ -23,8 +23,9 @@ from omegaconf import DictConfig
 
 from nemo.collections.asr.parts.submodules.ngram_lm import NGramGPULanguageModel
 from nemo.collections.asr.parts.submodules.transducer_decoding.label_looping_base import (
-    BatchedGreedyDecodingState,
+    BatchedLabelLoopingState,
     GreedyBatchedLabelLoopingComputerBase,
+    LabelLoopingStateItem,
     SeparateGraphsLabelLooping,
 )
 from nemo.collections.asr.parts.utils import rnnt_utils
@@ -259,8 +260,8 @@ class GreedyBatchedRNNTLabelLoopingComputer(
         self,
         encoder_output: torch.Tensor,
         encoder_output_length: torch.Tensor,
-        prev_batched_state: Optional[BatchedGreedyDecodingState] = None,
-    ) -> tuple[rnnt_utils.BatchedHyps, Optional[rnnt_utils.BatchedAlignments], BatchedGreedyDecodingState]:
+        prev_batched_state: Optional[BatchedLabelLoopingState] = None,
+    ) -> tuple[rnnt_utils.BatchedHyps, Optional[rnnt_utils.BatchedAlignments], BatchedLabelLoopingState]:
         """
         Pure PyTorch implementation
 
@@ -327,9 +328,9 @@ class GreedyBatchedRNNTLabelLoopingComputer(
             else:
                 batch_lm_states = None
         else:
-            decoder_output = prev_batched_state.predictor_output
-            state = prev_batched_state.predictor_state
-            batch_lm_states = prev_batched_state.lm_state
+            decoder_output = prev_batched_state.predictor_outputs
+            state = prev_batched_state.predictor_states
+            batch_lm_states = prev_batched_state.lm_states
 
         # loop while there are active utterances
         while active_mask.any():
@@ -489,62 +490,114 @@ class GreedyBatchedRNNTLabelLoopingComputer(
 
         # fix timestamps for iterative decoding
         if prev_batched_state is not None:
-            batched_hyps.timestamps += prev_batched_state.decoded_length.unsqueeze(1)
+            batched_hyps.timestamps += prev_batched_state.decoded_lengths.unsqueeze(1)
             if use_alignments:
-                alignments.timestamps += prev_batched_state.decoded_length.unsqueeze(1)
+                alignments.timestamps += prev_batched_state.decoded_lengths.unsqueeze(1)
         # NB: last labels can not exist (nothing decoded on this step).
         # return the last labels from the previous state in this case
         last_labels = batched_hyps.get_last_labels(pad_id=self._SOS)
-        decoding_state = BatchedGreedyDecodingState(
-            predictor_state=state,
-            predictor_output=decoder_output,
+        decoding_state = BatchedLabelLoopingState(
+            predictor_states=state,
+            predictor_outputs=decoder_output,
             labels=(
                 torch.where(last_labels == self._SOS, prev_batched_state.labels, last_labels)
                 if prev_batched_state is not None
                 else last_labels
             ),
-            decoded_length=(
+            decoded_lengths=(
                 encoder_output_length.clone()
                 if prev_batched_state is None
-                else encoder_output_length + prev_batched_state.decoded_length
+                else encoder_output_length + prev_batched_state.decoded_lengths
             ),
-            lm_state=batch_lm_states,
+            lm_states=batch_lm_states,
             time_jumps=None,
         )
         if use_alignments:
             return batched_hyps, alignments, decoding_state
         return batched_hyps, None, decoding_state
 
-    def get_decoding_state_after_sos(
-        self, batch_size: int, device: torch.device | str, float_dtype: torch.dtype
-    ) -> BatchedGreedyDecodingState:
+    def _get_decoding_state_item_sos(
+        self, device: torch.device | str, float_dtype: torch.dtype
+    ) -> LabelLoopingStateItem:
         """Get decoding state after <SOS> symbol, used for initialization from empty hypotheses."""
-        labels = torch.full([batch_size], fill_value=self._SOS, dtype=torch.long, device=device)
+        labels = torch.full([1], fill_value=self._SOS, dtype=torch.long, device=device)
         state = self.decoder.initialize_state(labels).to(float_dtype)
-        decoder_output, state, *_ = self.decoder.predict(
-            labels.unsqueeze(1), state, add_sos=False, batch_size=batch_size
-        )
+        decoder_output, state, *_ = self.decoder.predict(labels.unsqueeze(1), state, add_sos=False, batch_size=1)
         decoder_output = self.joint.project_prednet(decoder_output)  # do not recalculate joint projection
-        decoding_state = BatchedGreedyDecodingState(
-            predictor_state=state,
-            predictor_output=decoder_output,
-            labels=labels,
-            decoded_length=torch.zeros([batch_size], dtype=torch.long, device=device),
+        state_item = LabelLoopingStateItem(
+            predictor_state=self.decoder.batch_split_states(state),
+            predictor_output=decoder_output[0],
+            label=labels[0],
+            decoded_length=torch.tensor(0, dtype=torch.long, device=device),
             lm_state=(
-                self.ngram_lm_batch.get_init_states(batch_size=batch_size, bos=True).to(device)
+                self.ngram_lm_batch.get_init_states(batch_size=1, bos=True).to(device)[0]
                 if self.ngram_lm_batch
+                else None
+            ),
+            time_jump=None,
+        )
+        return state_item
+
+    def split_batched_state(self, state: BatchedLabelLoopingState) -> list[LabelLoopingStateItem]:
+        """
+        Split batched state into list of items, each item contains state for one hypothesis.
+        This is used to pass state between invocations of the algorithm.
+
+        Args:
+            state: batched decoding state
+        """
+        state_items: list[LabelLoopingStateItem] = []
+        for i, predictor_state in enumerate(self.decoder.batch_split_states(state.predictor_states)):
+            state_items.append(
+                LabelLoopingStateItem(
+                    predictor_state=predictor_state,
+                    predictor_output=state.predictor_outputs[i],
+                    label=state.labels[i],
+                    decoded_length=state.decoded_lengths[i],
+                    lm_state=state.lm_states[i] if state.lm_states is not None else None,
+                    time_jump=None,
+                )
+            )
+        return state_items
+
+    def merge_to_batched_state(self, state_items: list[LabelLoopingStateItem | None]) -> BatchedLabelLoopingState:
+        """
+        Merge list of items into batched state, each item contains state for one hypothesis.
+        This is used to pass state between invocations of the algorithm.
+
+        Args:
+            state_items: list of items to merge
+        """
+        if any(item is None for item in state_items):
+            not_none_item = next(item for item in state_items if item is not None)
+            assert not_none_item is not None
+            device = not_none_item.predictor_output.device
+            float_dtype = not_none_item.predictor_output.dtype
+            start_item = self._get_decoding_state_item_sos(device=device, float_dtype=float_dtype)
+            for i, item in enumerate(state_items):
+                if item is None:
+                    state_items[i] = start_item
+
+        batched_state = BatchedLabelLoopingState(
+            predictor_states=self.decoder.batch_unsplit_states([item.predictor_state for item in state_items]),
+            predictor_outputs=torch.stack([item.predictor_output for item in state_items]),
+            labels=torch.stack([item.label for item in state_items]),
+            decoded_lengths=torch.stack([item.decoded_length for item in state_items]),
+            lm_states=(
+                torch.stack([item.lm_state for item in state_items])
+                if any(item.lm_state is not None for item in state_items)
                 else None
             ),
             time_jumps=None,
         )
-        return decoding_state
+        return batched_state
 
     def cuda_graphs_impl(
         self,
         encoder_output: torch.Tensor,
         encoder_output_length: torch.Tensor,
-        prev_batched_state: Optional[BatchedGreedyDecodingState] = None,
-    ) -> tuple[rnnt_utils.BatchedHyps, Optional[rnnt_utils.BatchedAlignments], BatchedGreedyDecodingState]:
+        prev_batched_state: Optional[BatchedLabelLoopingState] = None,
+    ) -> tuple[rnnt_utils.BatchedHyps, Optional[rnnt_utils.BatchedAlignments], BatchedLabelLoopingState]:
         """
         Implementation with CUDA graphs.
 
@@ -606,9 +659,9 @@ class GreedyBatchedRNNTLabelLoopingComputer(
         pad_batch_size = (
             self.state.batch_size - prev_batched_state.labels.shape[-1] if prev_batched_state is not None else 0
         )
-        decoding_state = BatchedGreedyDecodingState(
-            predictor_state=self.decoder.clone_state(self.state.decoder_state),
-            predictor_output=self.state.decoder_output.clone(),
+        decoding_state = BatchedLabelLoopingState(
+            predictor_states=self.decoder.clone_state(self.state.decoder_state),
+            predictor_outputs=self.state.decoder_output.clone(),
             labels=(
                 torch.where(
                     last_labels == self._SOS,
@@ -618,13 +671,13 @@ class GreedyBatchedRNNTLabelLoopingComputer(
                 if prev_batched_state is not None
                 else last_labels
             ),
-            decoded_length=(
+            decoded_lengths=(
                 self.state.encoder_output_length.clone()
                 if prev_batched_state is None
                 else self.state.encoder_output_length
                 + F.pad(prev_batched_state.decoded_length, (0, pad_batch_size), value=0)
             ),
-            lm_state=self.state.batch_lm_states.clone() if self.state.batch_lm_states is not None else None,
+            lm_states=self.state.batch_lm_states.clone() if self.state.batch_lm_states is not None else None,
             time_jumps=None,
         )
 
@@ -848,7 +901,7 @@ class GreedyBatchedRNNTLabelLoopingComputer(
                 self._after_inner_loop_step()
 
     def _init_decoding_state(
-        self, current_batch_size: int, prev_batched_state: Optional[BatchedGreedyDecodingState] = None
+        self, current_batch_size: int, prev_batched_state: Optional[BatchedLabelLoopingState] = None
     ):
         # NB: we can speedup the case when prev_batched_state is None by using CUDA graphs
         if prev_batched_state is None:
@@ -868,16 +921,16 @@ class GreedyBatchedRNNTLabelLoopingComputer(
             self.state.labels[:current_batch_size].copy_(prev_batched_state.labels[:current_batch_size])
             # initial state
             self.decoder.batch_replace_states_all(
-                src_states=prev_batched_state.predictor_state,
+                src_states=prev_batched_state.predictor_states,
                 dst_states=self.state.decoder_state,
                 batch_size=current_batch_size,
             )
             self.state.decoder_output[:current_batch_size].copy_(
-                prev_batched_state.predictor_output[:current_batch_size]
+                prev_batched_state.predictor_outputs[:current_batch_size]
             )
             # initial state - lm
             if self.ngram_lm_batch is not None:
-                self.state.batch_lm_states[:current_batch_size].copy_(prev_batched_state.lm_state[:current_batch_size])
+                self.state.batch_lm_states[:current_batch_size].copy_(prev_batched_state.lm_states[:current_batch_size])
 
     def _before_outer_loop(self):
         """Clear state and compute initial active mask"""
@@ -1076,16 +1129,16 @@ class GreedyBatchedRNNTLabelLoopingComputer(
         torch.any(self.state.active_mask, out=self.state.active_mask_any)
 
     def _fix_timestamps_for_iterative_decoding(
-        self, current_batch_size: int, prev_batched_state: BatchedGreedyDecodingState
+        self, current_batch_size: int, prev_batched_state: BatchedLabelLoopingState
     ):
         """
         Fix timestamps: if we are in iterative decoding mode,
         we need to add the length of the previous batch to current timestamps
         """
-        self.state.batched_hyps.timestamps[:current_batch_size] += prev_batched_state.decoded_length[
+        self.state.batched_hyps.timestamps[:current_batch_size] += prev_batched_state.decoded_lengths[
             :current_batch_size
         ].unsqueeze(1)
         if self.state.alignments is not None:
-            self.state.alignments.timestamps[:current_batch_size] -= prev_batched_state.decoded_length[
+            self.state.alignments.timestamps[:current_batch_size] -= prev_batched_state.decoded_lengths[
                 :current_batch_size
             ].unsqueeze(1)

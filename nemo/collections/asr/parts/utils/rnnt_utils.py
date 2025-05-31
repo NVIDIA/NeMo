@@ -94,7 +94,6 @@ class Hypothesis:
     text: Optional[str] = None
     dec_out: Optional[List[torch.Tensor]] = None
     dec_state: Optional[Union[List[List[torch.Tensor]], List[torch.Tensor]]] = None
-    time_jump: Optional[torch.Tensor | int] = None
     timestamp: Union[List[int], torch.Tensor] = field(default_factory=list)
     alignments: Optional[Union[List[int], List[List[int]]]] = None
     frame_confidence: Optional[Union[List[float], List[List[float]]]] = None
@@ -151,8 +150,6 @@ class Hypothesis:
         else:
             self.y_sequence.extend(other.y_sequence)
         self.dec_state = other.dec_state
-        self.dec_out = other.dec_out
-        self.time_jump = other.time_jump
         if self.timestamp is not None:
             if isinstance(self.timestamp, torch.Tensor):
                 self.timestamp = torch.cat((self.timestamp, other.timestamp), dim=0)
@@ -160,7 +157,6 @@ class Hypothesis:
                 self.timestamp.extend(other.timestamp)
         self.length += other.length
         self.last_token = other.last_token
-        # TODO: Concatenate for alignments and frame_confidence.
         if self.alignments is not None:
             self.alignments[0] = torch.cat(self.alignments[0], other.alignments[0])
             self.alignments[1] = torch.cat(self.alignments[1], other.alignments[1])
