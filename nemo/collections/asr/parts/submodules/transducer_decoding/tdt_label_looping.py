@@ -740,7 +740,7 @@ class GreedyBatchedTDTLabelLoopingComputer(
                 self.state.encoder_output_length.clone()
                 if prev_batched_state is None
                 else self.state.encoder_output_length
-                + F.pad(prev_batched_state.decoded_length, (0, pad_batch_size), value=0)
+                + F.pad(prev_batched_state.decoded_lengths, (0, pad_batch_size), value=0)
             ),
             lm_states=self.state.batch_lm_states.clone() if self.state.batch_lm_states is not None else None,
             time_jumps=self.state.time_indices - self.state.encoder_output_length,
