@@ -125,6 +125,16 @@ if __name__ == "__main__":
     exp_config = f"gpus{args.num_gpus}_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_mbs{mbs}_gbs{gbs}"
     exp_name = f"{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
 
+    env_vars = {
+        "NVTE_FUSED_ATTN": "0",
+        "TRANSFORMERS_OFFLINE": "0",
+    }
+
+    if args.gpu.lower() == 'gb200':
+        env_vars |= {
+            "NCCL_NET_GDR_LEVEL": "PHB"
+        }
+
     executor = slurm_executor(
         args.account,
         args.partition,
@@ -134,7 +144,7 @@ if __name__ == "__main__":
         args.time_limit,
         args.container_image,
         custom_mounts=args.custom_mounts,
-        custom_env_vars={"NVTE_FUSED_ATTN": "0", "TRANSFORMERS_OFFLINE": "0"},
+        custom_env_vars=env_vars,
         hf_token=args.hf_token,
         nemo_home=args.nemo_home,
         wandb_key=args.wandb_key,
