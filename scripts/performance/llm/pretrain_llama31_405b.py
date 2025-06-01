@@ -171,12 +171,9 @@ if __name__ == "__main__":
         "NVTE_NORM_BWD_USE_CUDNN": "1",
         "TRANSFORMERS_OFFLINE": "0",
     }
-    
-    if args.gpu.lower() == 'gb200':
-        env_vars |= {
-            "NCCL_NET_GDR_LEVEL": "PHB"
-        }
 
+    if args.gpu.lower() == 'gb200':
+        env_vars |= {"NCCL_NET_GDR_LEVEL": "PHB"}
 
     plugins = [
         PerfEnvPlugin(

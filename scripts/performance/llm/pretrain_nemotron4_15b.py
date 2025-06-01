@@ -142,9 +142,7 @@ if __name__ == "__main__":
 
     env_vars = {}
     if args.gpu.lower() == 'gb200':
-        env_vars |= {
-            "NCCL_NET_GDR_LEVEL": "PHB"
-        }
+        env_vars |= {"NCCL_NET_GDR_LEVEL": "PHB"}
 
     if args.cluster_type == "runai":
         pvcs = []
