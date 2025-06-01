@@ -88,5 +88,5 @@ class TestDataUtils:
 
         # Negative example: AIS binary cannot be found
         with mock.patch('shutil.which', lambda x: None), mock.patch('os.path.isfile', lambda x: None):
-            with pytest.raises(RuntimeError):
-                ais_binary()
+            ais_binary.cache_clear()
+            assert ais_binary() is None
