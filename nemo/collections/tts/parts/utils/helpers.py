@@ -137,6 +137,7 @@ def binarize_attention_parallel(attn, in_lens, out_lens):
 def get_mask_from_lengths(
     lengths: Optional[torch.Tensor] = None,
     x: Optional[torch.Tensor] = None,
+    pad_to_factor: Optional[int] = None
 ) -> torch.Tensor:
     """Constructs binary mask from a 1D torch tensor of input lengths
 
@@ -154,6 +155,8 @@ def get_mask_from_lengths(
             max_len = torch.max(lengths)
         else:
             max_len = x.shape[-1]
+    if pad_to_factor is not None:
+        max_len = torch.ceil(max_len / pad_to_factor) * pad_to_factor
     ids = torch.arange(0, max_len, device=lengths.device, dtype=lengths.dtype)
     mask = ids < lengths.unsqueeze(1)
     return mask
