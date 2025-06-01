@@ -150,8 +150,12 @@ def setup_adapters(cfg: DictConfig, model: ASRModel):
     model.set_enabled_adapters(enabled=False)  # disable all adapters prior to training
     model.set_enabled_adapters(adapter_name, enabled=True)  # enable just one adapter by name
 
-    # First, Freeze all the weights of the model (not just encoder, everything)
-    model.freeze()
+    model.freeze()  # freeze whole model by default
+    if not cfg.model.get("freeze_decoder", True):
+        model.decoder.unfreeze()
+    if hasattr(model, 'joint') and not cfg.model.get(f"freeze_joint", True):
+        model.joint.unfreeze()
+
     # Activate dropout() and other modules that depend on train mode.
     model = model.train()
     # Then, Unfreeze just the adapter weights that were enabled above (no part of encoder/decoder/joint/etc)

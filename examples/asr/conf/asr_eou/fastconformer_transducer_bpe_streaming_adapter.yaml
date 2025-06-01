@@ -74,6 +74,9 @@ model:
       check_decoder_adapter: True  # ASR adapter key, determines whether to check if decoder adapter modules is supported
       check_joint_adapter: True  # ASR adapter key, determines whether to check if joint adapter modules is supported
 
+  freeze_decoder: ${model.adapter.global_cfg.check_decoder_adapter}
+  freeze_joint: ${model.adapter.global_cfg.check_joint_adapter}
+
   train_ds:
     manifest_filepath: ???
     tarred_audio_filepaths: null
