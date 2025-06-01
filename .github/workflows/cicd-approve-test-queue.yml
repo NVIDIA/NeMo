@@ -69,17 +69,40 @@ jobs:
                   else:
                       response = requests.post(url, headers=headers, json=data)
                   response.raise_for_status()
-                  return response.json()
+                  response_json = response.json()
+                  if hasattr(response, "links"):
+                      response_json["next"] = response.links.get("next", {}).get("url")
+
+                  return response_json
               except requests.exceptions.RequestException as e:
                   print(f"Error making request to {endpoint}: {str(e)}")
                   if hasattr(e.response, 'text'):
                       print(f"Response: {e.response.text}")
                   return None
 
+
+          def get_workflow_runs(status):
+              """Get all workflow runs for a given status."""
+              all_results = []
+              endpoint = f"actions/runs?status={status}"
+              while endpoint:
+                  response = make_request(endpoint)
+                  if not response:
+                      break
+
+                  all_results.extend(response.get("workflow_runs", []))
+                  endpoint = None
+                  next_url = response.get("next")
+                  if next_url:
+                      endpoint = f"actions/runs?{next_url.split('?')[1]}"
+
+              return all_results
+
+
           # Get current running and queued workflows
           print("Fetching workflow runs...")
-          queued_workflow_runs = make_request("actions/runs?status=queued").get("workflow_runs", [])
-          in_progress_workflow_runs = make_request("actions/runs?status=in_progress").get("workflow_runs", [])
+          queued_workflow_runs = get_workflow_runs("queued")
+          in_progress_workflow_runs = get_workflow_runs("in_progress")
 
           # Count running and queued workflows
           queued_workflows = sum(1 for run in queued_workflow_runs if run["name"] == "CICD NeMo")
@@ -97,7 +120,7 @@ jobs:
 
           # Get waiting CI workflows for test environment
           print("Fetching deployments...")
-          pending_workflows = make_request("actions/runs?status=waiting").get("workflow_runs", [])
+          pending_workflows = get_workflow_runs("waiting")
           pending_workflows = [run for run in pending_workflows if run["name"] == "CICD NeMo"]
 
           # Sort deployments by creation date (oldest first)
