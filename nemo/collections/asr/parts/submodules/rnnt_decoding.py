@@ -1735,7 +1735,13 @@ class RNNTBPEDecoding(AbstractRNNTDecoding):
 
     def __init__(self, decoding_cfg, decoder, joint, tokenizer: TokenizerSpec):
         blank_id = tokenizer.tokenizer.vocab_size  # RNNT or TDT models.
-        supported_punctuation = tokenizer.supported_punctuation
+
+        if hasattr(tokenizer, 'supported_punctuation'):
+            supported_punctuation = tokenizer.supported_punctuation
+        else:
+            supported_punctuation = {
+                char for token in tokenizer.vocab for char in token if unicodedata.category(char).startswith('P')
+            }
 
         # multi-blank RNNTs
         if hasattr(decoding_cfg, 'model_type') and decoding_cfg.model_type == 'multiblank':
