@@ -142,9 +142,6 @@ def test_label_looping_decoding_streaming_batched_state(
                             hyp.merge(hyp_continuation)
                     else:
                         hyps = hyps_continuations
-                # free up memory by resetting decoding state
-                for hyp in hyps:
-                    hyp.clean_decoding_state_()
                 all_hyps.extend(hyps)
 
         streaming_transcripts = []
@@ -309,7 +306,6 @@ def test_label_looping_decoding_continuous_streaming_batched_state(
                 finished_decoding_indices = torch.nonzero(rest_len == 0, as_tuple=True)[0].cpu().tolist()
                 for idx in finished_decoding_indices:
                     hyp = hyps[idx]
-                    hyp.clean_decoding_state_()
                     if all_hyps[hyps_global_indices[idx]] is None:
                         all_hyps[hyps_global_indices[idx]] = hyp
                     hyps[idx] = None  # reset to None
@@ -338,9 +334,6 @@ def test_label_looping_decoding_continuous_streaming_batched_state(
                                 next_query_utterance_i += batch_size
                             else:
                                 has_next = False
-        for hyp in hyps:
-            if hyp is not None:
-                hyp.clean_decoding_state_()
 
         streaming_transcripts = []
         for hyp in all_hyps:

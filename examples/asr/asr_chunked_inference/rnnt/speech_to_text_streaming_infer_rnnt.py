@@ -436,9 +436,6 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
                 left_sample = right_sample
                 right_sample = min(right_sample + context_samples.chunk, audio_batch.shape[1])  # add next chunk
 
-            # free up GPU memory
-            for hyp in current_hyps:
-                hyp.clean_decoding_state_()
             all_hyps.extend(current_hyps)
 
     # convert text
