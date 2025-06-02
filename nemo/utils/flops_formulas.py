@@ -418,7 +418,8 @@ def _non_mla_attn_layer_flops(config: FLOPSConfig):
 
 
 def _mamba_layer_flops(config: FLOPSConfig):
-    """Model FLOPs for Mamba layer. We ignore part of the flops of scan because the chunk size is not known from model config."""
+    """Model FLOPs for Mamba layer. We ignore part of the flops of scan because the 
+    chunk size is not known from model config."""
     assert config.mamba_state_dim is not None
     assert config.mamba_head_dim is not None
 
