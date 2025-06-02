@@ -581,16 +581,13 @@ class GreedyBatchedTDTLabelLoopingComputer(
             return batched_hyps, alignments, decoding_state
         return batched_hyps, None, decoding_state
 
-    def _get_decoding_state_item_sos(
-        self, device: torch.device | str, float_dtype: torch.dtype
-    ) -> LabelLoopingStateItem:
+    def _get_decoding_state_item_sos(self, device: torch.device | str) -> LabelLoopingStateItem:
         """Get decoding state after <SOS> symbol, used for initialization from empty hypotheses."""
         labels = torch.full([1], fill_value=self._SOS, dtype=torch.long, device=device)
-        state = self.decoder.initialize_state(labels).to(float_dtype)
-        decoder_output, state, *_ = self.decoder.predict(labels.unsqueeze(1), state, add_sos=False, batch_size=1)
+        decoder_output, state, *_ = self.decoder.predict(labels.unsqueeze(1), None, add_sos=False, batch_size=1)
         decoder_output = self.joint.project_prednet(decoder_output)  # do not recalculate joint projection
         state_item = LabelLoopingStateItem(
-            predictor_state=self.decoder.batch_split_states(state),
+            predictor_state=self.decoder.batch_split_states(state)[0],
             predictor_output=decoder_output[0],
             label=labels[0],
             decoded_length=torch.tensor(0, dtype=torch.long, device=device),
@@ -637,8 +634,7 @@ class GreedyBatchedTDTLabelLoopingComputer(
             not_none_item = next(item for item in state_items if item is not None)
             assert not_none_item is not None
             device = not_none_item.predictor_output.device
-            float_dtype = not_none_item.predictor_output.dtype
-            start_item = self._get_decoding_state_item_sos(device=device, float_dtype=float_dtype)
+            start_item = self._get_decoding_state_item_sos(device=device)
             for i, item in enumerate(state_items):
                 if item is None:
                     state_items[i] = start_item
