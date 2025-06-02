@@ -31,33 +31,14 @@ from nemo.collections.asr.parts.submodules.transducer_decoding.label_looping_bas
 from nemo.collections.asr.parts.utils.manifest_utils import read_manifest
 from nemo.collections.asr.parts.utils.rnnt_utils import batched_hyps_to_hypotheses
 
+from tests.collections.asr.decoding.utils import preserve_decoding_cfg_and_cpu_device
+
 DEVICES = [torch.device("cpu")]
 if torch.cuda.is_available():
     DEVICES.append(torch.device("cuda:0"))
 
 if torch.mps.is_available():
     DEVICES.append(torch.device("mps"))
-
-
-def load_audio(file_path, target_sr=16000):
-    audio, sr = librosa.load(file_path, sr=target_sr)
-    return torch.tensor(audio, dtype=torch.float32), sr
-
-
-@contextmanager
-def preserve_decoding_cfg_and_cpu_device(model: ASRModel):
-    """
-    Context manager to preserve the decoding strategy and device of the model.
-    This is useful for tests that modify the model's decoding strategy or device
-    to avoid side effects or costly model reloading.
-    """
-    backup_decoding_cfg = copy.deepcopy(model.cfg.decoding)
-
-    try:
-        yield
-    finally:
-        model.to(device="cpu")
-        model.change_decoding_strategy(backup_decoding_cfg)
 
 
 def get_model_encoder_output(
