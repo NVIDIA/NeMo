@@ -106,7 +106,7 @@ class AutoResume:
         """
         if isinstance(path, str):
             return os.path.join(path, self.WEIGHTS_PATH)
-        
+
         return path / self.WEIGHTS_PATH
 
     def setup(self, trainer: Union[pl.Trainer, fl.Fabric], model=None):
