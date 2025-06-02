@@ -20,6 +20,7 @@ from lhotse.cut import Cut, MixedCut
 from lhotse.utils import ifnone
 
 from nemo.collections.common.data.prompt_fn import registered_prompt_format_fn
+from nemo.collections.common.prompts.canary import BOOL_FALSE, BOOL_TRUE, PNC_FALSE, PNC_TRUE
 from nemo.collections.common.prompts.formatter import Modality, PromptFormatter
 from nemo.collections.common.tokenizers.canary_tokenizer import (
     CANARY2_BOCTX,
@@ -29,6 +30,13 @@ from nemo.collections.common.tokenizers.canary_tokenizer import (
     CanaryTokenizer,
 )
 
+# Use global variables to import slot values in other modules.
+ITN_TRUE = {"itn", "<|itn|>",}
+ITN_FALSE = {"noitn", "<|noitn|>"}
+TIMESTAMP_TRUE={"timestamp","<|timestamp|>"}
+TIMESTAMP_FALSE={"notimestamp","<|notimestamp|>"}
+DIARIZE_TRUE={"diarize","<|diarize|>"}
+DIARIZE_FALSE={"nodiarize","<|nodiarize|>"}
 
 class Canary2PromptFormatter(PromptFormatter):
     NAME = "canary2"
@@ -37,56 +45,34 @@ class Canary2PromptFormatter(PromptFormatter):
         # User prompt.
         # This is the main role used for training and ASR/AST inference.
         "user": {
-            "template": f"{CANARY2_BOCTX}|decodercontext|{CANARY_BOS}|emotion||source_lang||target_lang||pnc||itn||timestamp||diarize|",
+            "template": f"|decodercontext|{CANARY_BOS}|pnc||source_lang||target_lang||pnc||pnc||pnc||pnc|",
             "slots": {
                 # Empty string or previous transcript / other context to bias predictions.
                 "decodercontext": Modality.Text,
                 # Emotion of the speaker - may be predicted by the model with a partial prompt.
-                "emotion": Modality.TextLiteral(
-                    "<|emo:undefined|>", "<|emo:neutral|>", "<|emo:angry|>", "<|emo:happy|>", "<|emo:sad|>"
-                ),
+                # "emotion": Modality.TextLiteral(
+                #     "<|emo:undefined|>", "<|emo:neutral|>", "<|emo:angry|>", "<|emo:happy|>", "<|emo:sad|>"
+                # ),
                 # Audio input language - may be predicted by the model with a partial prompt.
                 "source_lang": Modality.Text,
                 # Transcription language - specified by the user.
                 "target_lang": Modality.Text,
                 # Should we predict punctuation and capitalization?
                 "pnc": Modality.TextLiteral(
-                    "yes", "no", "true", "True", "false", "False", "1", "0", "pnc", "nopnc", "<|pnc|>", "<|nopnc|>"
+                   *[p for p in (BOOL_TRUE | BOOL_FALSE | PNC_TRUE | PNC_FALSE)]
                 ),
                 # Should we predict with inverse text normalization (numerals as digits, abbreviations, etc.)
-                "itn": Modality.TextLiteral(
-                    "yes", "no", "true", "True", "false", "False", "1", "0", "itn", "noitn", "<|itn|>", "<|noitn|>"
-                ),
+                # "itn": Modality.TextLiteral(
+                #     *[n for n in (BOOL_TRUE | BOOL_FALSE | ITN_TRUE | ITN_FALSE)]
+                # ),
                 # Should we predict timestamps?
-                "timestamp": Modality.TextLiteral(
-                    "yes",
-                    "no",
-                    "true",
-                    "True",
-                    "false",
-                    "False",
-                    "1",
-                    "0",
-                    "timestamp",
-                    "notimestamp",
-                    "<|timestamp|>",
-                    "<|notimestamp|>",
-                ),
-                # Should we diarize speech?
-                "diarize": Modality.TextLiteral(
-                    "yes",
-                    "no",
-                    "true",
-                    "True",
-                    "false",
-                    "False",
-                    "1",
-                    "0",
-                    "diarize",
-                    "nodiarize",
-                    "<|diarize|>",
-                    "<|nodiarize|>",
-                ),
+                # "timestamp": Modality.TextLiteral(
+                #     *[m for m in (BOOL_TRUE | BOOL_FALSE | TIMESTAMP_TRUE | TIMESTAMP_FALSE)]
+                # ),
+                # # Should we diarize speech?
+                # "diarize": Modality.TextLiteral(
+                #     *[d for d in (BOOL_TRUE | BOOL_FALSE | DIARIZE_TRUE | DIARIZE_FALSE)]
+                # ),
             },
         },
         # User prompt.
