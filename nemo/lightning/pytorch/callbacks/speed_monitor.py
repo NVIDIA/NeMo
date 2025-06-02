@@ -24,8 +24,7 @@ class SpeedMonitor(pl.Callback):
     """
     Logs the training throughput and utilization.
 
-    The training throughput is logged on the :attr:`.Event.BATCH_END` event once we have reached
-    the `window_size` threshold.
+    The training throughput is logged on the event once we have reached the `window_size` threshold.
 
     Example:
         import nemo_run as run
@@ -35,30 +34,29 @@ class SpeedMonitor(pl.Callback):
             run.Config(SpeedMonitor, window_size=100)
         )
 
-    The training throughput is logged by the :class:`.Logger` to the following keys as
-    described below.
+    The training throughput is logged by the PTL's logger to the following keys as described below.
 
     +-------------------------------------+-----------------------------------------------------------+
     | Key                                 | Logged data                                               |
     +=====================================+===========================================================+
     |                                     | Rolling average (over `window_size` most recent           |
-    | `throughput/batches_per_sec`        | batches) of the number of batches processed per second    |
+    | `throughput/batches_per_sec`        | batches) of the number of batches processed per second.   |
     |                                     |                                                           |
     +-------------------------------------+-----------------------------------------------------------+
     |                                     | Rolling average (over `window_size` most recent           |
-    | `throughput/samples_per_sec`        | batches) of the number of samples processed per second    |
+    | `throughput/samples_per_sec`        | batches) of the number of samples processed per second.   |
     |                                     |                                                           |
     +-------------------------------------+-----------------------------------------------------------+
     |                                     | Rolling average (over `window_size` most recent           |
     | `throughput/tokens_per_sec`         | batches) of the number of tokens processed per second.    |
-    |                                     | Only logged if dataspec returns tokens per batch          |
+    |                                     | Only logged if dataspec returns tokens per batch.         |
     +-------------------------------------+-----------------------------------------------------------+
-    | `throughput/device/batches_per_sec` | `throughput/batches_per_sec` divided by world size        |
+    | `throughput/device/batches_per_sec` | `throughput/batches_per_sec` divided by world size.       |
     +-------------------------------------+-----------------------------------------------------------+
-    | `throughput/device/samples_per_sec` | `throughput/samples_per_sec` divided by world size        |
+    | `throughput/device/samples_per_sec` | `throughput/samples_per_sec` divided by world size.       |
     +-------------------------------------+-----------------------------------------------------------+
     |                                     | `throughput/tokens_per_sec` divided by world size. Only   |
-    | `throughput/device/tokens_per_sec`  | logged if dataspec returns tokens per batch               |
+    | `throughput/device/tokens_per_sec`  | logged if dataspec returns tokens per batch.              |
     |                                     |                                                           |
     +-------------------------------------+-----------------------------------------------------------+
 

@@ -40,8 +40,7 @@ class OptimizerMonitor(pl.Callback):
     | Key                                           | Logged data                                         |
     +===============================================+=====================================================+
     |                                               | L2 norm of the gradients of all parameters in       |
-    | ``l2_norm/grad/global``                       | the model on the :attr:`.Event.AFTER_TRAIN_BATCH`   |
-    |                                               | event.                                              |
+    | ``l2_norm/grad/global``                       | the model.                                          |
     +-----------------------------------------------+-----------------------------------------------------+
     |                                               | Layer-wise L2 norms                                 |
     | ``l2_norm/grad/LAYER_NAME``                   |                                                     |

@@ -57,8 +57,7 @@ class MemoryMonitor(pl.Callback):
     """
     Logs the memory usage of the model.
 
-    This callback calls the torch memory stats API for CUDA (see :func:`torch.cuda.memory_stats`)
-    on the :attr:`.Event.AFTER_TRAIN_BATCH` and reports different memory statistics.
+    This callback calls the torch memory stats API for CUDA and reports different memory statistics.
 
     Example:
         import nemo_run as run
