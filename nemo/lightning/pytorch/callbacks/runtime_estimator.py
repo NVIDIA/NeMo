@@ -116,6 +116,7 @@ class RuntimeEstimator(pl.Callback):
         return None
 
     def on_train_start(self, trainer, pl_module):
+        """ """
         self.start_train_time = time.time()
 
     def on_train_batch_start(
