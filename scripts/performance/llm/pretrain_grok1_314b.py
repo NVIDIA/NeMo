@@ -23,6 +23,7 @@ os.environ["OPENBLAS_NUM_THREADS"] = "1"
 
 import os
 
+from os.path import basename, splitext
 from typing import Callable, Optional
 
 import fiddle as fdl
@@ -400,15 +401,8 @@ if __name__ == "__main__":
         args.fp8_recipe,
     )
 
-    exp_name = "_".join(
-        [
-            "pretrain",
-            "grok1",
-            f"314b",
-            f"{args.compute_dtype}",
-            f"{args.num_gpus}",
-        ]
-    )
+    exp_config = f"gpus{args.num_gpus}_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_ep{ep_size}_etp{etp_size}_mbs{mbs}_gbs{gbs}"
+    exp_name = f"{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
 
     env_vars = args.custom_env_vars
 
