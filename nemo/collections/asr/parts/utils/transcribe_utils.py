@@ -43,6 +43,7 @@ def get_buffered_pred_feat_rnnt(
     manifest: str = None,
     filepaths: List[list] = None,
     accelerator: Optional[str] = 'cpu',
+    target_lang_id: str = None,
 ) -> List[rnnt_utils.Hypothesis]:
     """
     Moved from examples/asr/asr_chunked_inference/rnnt/speech_to_text_buffered_infer_rnnt.py
@@ -50,7 +51,7 @@ def get_buffered_pred_feat_rnnt(
     """
     hyps = []
     refs = []
-
+    lang_ids = []
     if filepaths and manifest:
         raise ValueError("Please select either filepaths or manifest")
     if filepaths is None and manifest is None:
@@ -59,7 +60,6 @@ def get_buffered_pred_feat_rnnt(
     if manifest:
         filepaths = []
         with open(manifest, "r", encoding='utf_8') as mfst_f:
-            print("Parsing manifest files...")
             for L in mfst_f:
                 L = L.strip()
                 if not L:
@@ -69,18 +69,37 @@ def get_buffered_pred_feat_rnnt(
                 filepaths.append(audio_file)
                 if 'text' in row:
                     refs.append(row['text'])
+                # Extract language from manifest
+                if 'target_lang' in row:
+                    lang_ids.append(row['target_lang'])
+                elif 'lang' in row:
+                    lang_ids.append(row['lang'])
+                else:
+                    # Use target_lang_id as fallback
+                    lang_ids.append(target_lang_id)
+    else:
+        # If filepaths are provided directly, use lang_id from config for all
+        lang_ids = [target_lang_id] * len(filepaths)
+        lang_ids.append(target_lang_id)
 
     with torch.inference_mode():
         with torch.amp.autocast('cpu' if accelerator == 'cpu' else 'cuda'):
             batch = []
+            batch_lang_ids = []
             asr.sample_offset = 0
             for idx in tqdm(range(len(filepaths)), desc='Sample:', total=len(filepaths)):
                 batch.append((filepaths[idx]))
-
+                batch_lang_ids.append(lang_ids[idx])
                 if len(batch) == batch_size:
                     audio_files = [sample for sample in batch]
 
                     asr.reset()
+                    # Set the language ID if any valid language ID exists
+                    if any(lid is not None for lid in batch_lang_ids):
+                        # Find the first non-None language ID to use
+                        lang_id = next((lid for lid in batch_lang_ids if lid is not None), None)
+                        if lang_id is not None:
+                            asr.target_lang_id = lang_id
                     asr.read_audio_file(audio_files, delay, model_stride_in_secs)
                     hyp_list = asr.transcribe(tokens_per_chunk, delay)
                     hyps.extend(hyp_list)
@@ -648,3 +667,4 @@ class TextProcessingConfig:
 
     # Whether to separate punctuation with the previouse word by space.
     separate_punctuation: bool = True
+       
