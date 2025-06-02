@@ -28,8 +28,7 @@ from nemo.collections.asr.parts.submodules.transducer_decoding.label_looping_bas
 )
 from nemo.collections.asr.parts.utils.manifest_utils import read_manifest
 from nemo.collections.asr.parts.utils.rnnt_utils import batched_hyps_to_hypotheses
-
-from tests.collections.asr.decoding.utils import preserve_decoding_cfg_and_cpu_device
+from tests.collections.asr.decoding.utils import load_audio, preserve_decoding_cfg_and_cpu_device
 
 DEVICES = [torch.device("cpu")]
 if torch.cuda.is_available():
