@@ -98,6 +98,11 @@ def slurm_executor(
         env_vars.update({"HF_TOKEN": hf_token, "TRANSFORMERS_OFFLINE": "0"})
 
     env_vars |= custom_env_vars
+
+    # add all environment variables to container environment
+    container_env_args = ["--container-env=" + ",".join(list(env_vars.keys()))]
+    srun_args.extend(container_env_args)
+
     mounts.extend(custom_mounts)
     srun_args.extend(custom_srun_args)
 
