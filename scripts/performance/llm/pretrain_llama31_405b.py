@@ -172,6 +172,9 @@ if __name__ == "__main__":
         "TRANSFORMERS_OFFLINE": "0",
     }
 
+    if args.gpu.lower() == 'gb200':
+        env_vars |= {"NCCL_NET_GDR_LEVEL": "PHB"}
+
     plugins = [
         PerfEnvPlugin(
             enable_vboost=True,

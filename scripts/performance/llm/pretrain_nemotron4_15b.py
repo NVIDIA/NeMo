@@ -140,6 +140,10 @@ if __name__ == "__main__":
     exp_config = f"gpus{args.num_gpus}_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_mbs{mbs}_gbs{gbs}"
     exp_name = f"{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
 
+    env_vars = {}
+    if args.gpu.lower() == 'gb200':
+        env_vars |= {"NCCL_NET_GDR_LEVEL": "PHB"}
+
     if args.cluster_type == "runai":
         pvcs = []
         for item in args.custom_mounts:
@@ -164,7 +168,7 @@ if __name__ == "__main__":
             container_image=args.container_image,
             pvc_nemo_run_dir=args.pvc_nemo_run_dir,
             custom_mounts=pvcs,
-            custom_env_vars={},
+            custom_env_vars=env_vars,
             hf_token=args.hf_token,
             wandb_key=args.wandb_key,
         )
@@ -178,7 +182,7 @@ if __name__ == "__main__":
             args.time_limit,
             args.container_image,
             custom_mounts=args.custom_mounts,
-            custom_env_vars={},
+            custom_env_vars=env_vars,
             hf_token=args.hf_token,
             nemo_home=args.nemo_home,
             wandb_key=args.wandb_key,
