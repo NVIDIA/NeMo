@@ -38,9 +38,10 @@ mtd, HAVE_MODELOPT = safe_import("modelopt.torch.distill")
 class _DistillationLossReduction(MaskedTokenLossReduction):
     """Custom masking and reduction callable used only in training mode."""
 
-    def __init__(self, distillation_loss_fn, *args, **kwargs):
+    def __init__(self, distillation_loss_fn, ptl_logger_fn, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._distillation_loss_fn = distillation_loss_fn
+        self._ptl_logger_fn = ptl_logger_fn
         self._cp_size = parallel_state.get_context_parallel_world_size()
         self._tp_size = parallel_state.get_tensor_model_parallel_world_size()
 
@@ -59,15 +60,16 @@ class _DistillationLossReduction(MaskedTokenLossReduction):
             loss_reduction_fn=lambda x: self._masked_token_loss(x, batch["loss_mask"]),
         )
         losses_averaged = average_losses_across_data_parallel_group(
-            [losses["kd_loss"], losses["logits_loss"], losses["intermediate_loss"]]
+            [losses["kd_loss"], losses["logits_loss"], losses["intermediate_loss"], lm_loss]
         )
-        report = {
-            "avg": losses_averaged[0:1],  # preserves shape for downstream ops like concatenation
-            "kd_logits_train_loss": losses_averaged[1:2],
-            "kd_intermediate_train_loss": losses_averaged[2:3],
-        }
 
-        return losses["kd_loss"], report
+        mode = "val" if self.validation_step else "train"
+        self._ptl_logger_fn(f"kd_logits_{mode}_loss", losses_averaged[1], batch_size=1, sync_dist=False)
+        self._ptl_logger_fn(f"kd_intermediate_{mode}_loss", losses_averaged[2], batch_size=1, sync_dist=False)
+
+        if self.validation_step:
+            return lm_loss, {"avg": losses_averaged[3:4]}  # preserves shape
+        return losses["kd_loss"], {"avg": losses_averaged[0:1]}  # preserves shape
 
     def _masked_token_loss(self, loss_output: Tensor, mask: Tensor):
         """The function takes as input per-token loss and masks non-required values."""
@@ -189,13 +191,22 @@ class DistillationGPTModel(llm.GPTModel):
             "Please restore a checkpoint of this model to its original class to call `get_inference_wrapper`"
         )
 
-    @property
     def training_loss_reduction(self) -> _DistillationLossReduction:
         if not self._training_loss_reduction:
             self._training_loss_reduction = _DistillationLossReduction(
-                distillation_loss_fn=self.core_module.compute_kd_loss
+                distillation_loss_fn=self.core_module.compute_kd_loss,
+                ptl_logger_fn=self.log,
             )
         return self._training_loss_reduction
+
+    def validation_loss_reduction(self) -> _DistillationLossReduction:
+        if not self._validation_loss_reduction:
+            self._validation_loss_reduction = _DistillationLossReduction(
+            distillation_loss_fn=self.core_module.compute_kd_loss,
+            ptl_logger_fn=self.log,
+            validation_step=True,
+            )
+        return self._validation_loss_reduction
 
     def load_state_dict(self, state_dict, *args, **kwargs):
         # pylint: disable=C0116

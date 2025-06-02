@@ -1390,10 +1390,9 @@ class MegatronStep(Generic[ModelT, DataT]):
 
         return get_tensor_shapes_adjust_fn_for_distillation(
             self.model,
-            self.seq_length,
-            self.micro_batch_size,
-            self.decoder_seq_length,
-            self.forward_only,
+            seq_length=self.seq_length,
+            micro_batch_size=self.micro_batch_size,
+            decoder_seq_length=self.decoder_seq_length,
         )
 
     def get_data_iterator_and_seq_length(self) -> Tuple[List[Iterator[DataT]], Optional[int]]:

@@ -211,10 +211,6 @@ def adjust_distillation_model_for_mcore(model: DistillationModel, distill_cfg: D
 
     # HACK: Concatenate output tensors when PP>1 so they can be passed between ranks.
     def _forward(self, *args, **kwargs):
-        if not self.training:
-            with self.only_student_forward():
-                return type(self).forward(self, *args, **kwargs)
-
         with torch.no_grad():
             self._teacher_model.eval()
             teacher_output = self._teacher_model(*args, **kwargs)
@@ -230,11 +226,7 @@ def adjust_distillation_model_for_mcore(model: DistillationModel, distill_cfg: D
 
 
 def get_tensor_shapes_adjust_fn_for_distillation(
-    model: Union[torch.nn.Module, List[torch.nn.Module]],
-    seq_length: int,
-    micro_batch_size: int,
-    decoder_seq_length: Optional[int] = None,
-    forward_only: bool = False,
+    model: Union[torch.nn.Module, List[torch.nn.Module]], **kwargs
 ) -> Union[Callable, None]:
     """
     Return the function to adjust tensor shapes for Distillation in Megatron-Core's forward pass.
@@ -242,10 +234,8 @@ def get_tensor_shapes_adjust_fn_for_distillation(
     Currently only used during non-interleaved pipelining for Distillation.
     Concatenates sizes of student and teacher output tensors for inter-process communication.
     """
-    if not HAVE_MODELOPT:
-        return None
     if (
-        forward_only
+        not HAVE_MODELOPT
         or parallel_state.get_pipeline_model_parallel_world_size() == 1
         or parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None
     ):
@@ -267,20 +257,16 @@ def get_tensor_shapes_adjust_fn_for_distillation(
         teacher_recv_tensor_shapes = get_tensor_shapes(
             rank=rank - 1,
             model_type=teacher_model_type,
-            seq_length=seq_length,
-            micro_batch_size=micro_batch_size,
-            decoder_seq_length=decoder_seq_length,
             config=teacher_config,
             encoder_decoder_xattn=teacher_encoder_decoder_xattn,
+            **kwargs,
         )
         teacher_send_tensor_shapes = get_tensor_shapes(
             rank=rank,
             model_type=teacher_model_type,
-            seq_length=seq_length,
-            micro_batch_size=micro_batch_size,
-            decoder_seq_length=decoder_seq_length,
             config=teacher_config,
             encoder_decoder_xattn=teacher_encoder_decoder_xattn,
+            **kwargs,
         )
         model.set_student_input_tensor_shape(recv_tensor_shapes)
 
