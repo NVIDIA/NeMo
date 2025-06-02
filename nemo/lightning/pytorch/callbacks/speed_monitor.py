@@ -14,13 +14,10 @@
 
 import time
 from collections import deque
-from typing import Any, Optional, Union
+from typing import Any
 
 import lightning.pytorch as pl
-import torch
 import torch.distributed as dist
-
-from nemo.utils import logging
 
 
 class SpeedMonitor(pl.Callback):
