@@ -19,7 +19,7 @@ from lhotse import CutSet
 from lhotse.dataset.collation import collate_audio, collate_vectors
 
 from nemo.collections.common.data.lhotse import NeMoMultimodalConversation
-from nemo.collections.common.data.lhotse.text_adapters import TextTurn
+from nemo.collections.common.data.lhotse.text_adapters import TextTurn, collate_conversation_audio_fault_tolerant
 from nemo.collections.common.data.prompt_fn import registered_prompt_format_fn
 from nemo.collections.common.prompts import Llama2PromptFormatter, Llama3PromptFormatter
 from nemo.collections.common.tokenizers import AutoTokenizer
@@ -62,18 +62,13 @@ class SALMDataset(torch.utils.data.Dataset):
         self.tokenizer = tokenizer
         self.pad_id = get_pad_id(tokenizer)
 
-    def __getitem__(self, conversations: CutSet) -> dict:
-        all_cuts = []
-        example_idx_to_audio_idxs = []
-        cntr = 0
-        for conversation in conversations:
-            assert isinstance(conversation, NeMoMultimodalConversation)
-            example_idx_to_audio_idxs.append([])
-            for cut in conversation.list_cuts():
-                all_cuts.append(cut)
-                example_idx_to_audio_idxs[-1].append(cntr)
-                cntr += 1
-        audios, audio_lens = collate_audio(CutSet(all_cuts))
+    def __getitem__(self, conversations: CutSet) -> dict | None:
+        # Note: the function call below may filter out some or all conversations due to audio loading issues.
+        # If all conversations are filtered out, we'll return None, and expect users to wrap this dataset
+        # in ``nemo.collections.common.data.fallback.FallbackDataset`` to use the previous mini-batch instead.
+        audios, audio_lens, conversations = collate_conversation_audio_fault_tolerant(conversations)
+        if not conversations:
+            return None
         return {
             "audios": audios,
             "audio_lens": audio_lens,

@@ -40,6 +40,7 @@ from nemo.collections.speechlm2.parts.hf_hub import HFHubMixin
 from nemo.collections.speechlm2.parts.lora import maybe_install_lora
 from nemo.collections.speechlm2.parts.optim_setup import configure_optimizers, is_frozen
 from nemo.collections.speechlm2.parts.pretrained import load_pretrained_hf, move_embedding, setup_speech_encoder
+from nemo.core.neural_types import AudioSignal, LabelsType, LengthsType, MaskType, NeuralType
 from nemo.utils import logging
 
 
@@ -252,7 +253,7 @@ class SALM(LightningModule, HFHubMixin):
                 )
 
             preds = forward_outputs["logits"].argmax(dim=-1).view(-1)
-            refs = inputs["target_ids"].view(-1)
+            refs = inputs["target_ids"].reshape(-1)
             preds = preds[refs != -100]
             refs = refs[refs != -100]
             accuracy = preds.eq(refs).float().mean()
@@ -437,6 +438,27 @@ class SALM(LightningModule, HFHubMixin):
             llm.lm_head = fully_shard(llm.lm_head, **fsdp_config)
             self.llm = fully_shard(self.llm, **fsdp_config)
             self.perception = fully_shard(self.perception, **fsdp_config)
+
+    @property
+    def oomptimizer_schema(self) -> dict:
+        """
+        Return a typing schema for optimal batch size calibration for various
+        sequence lengths using OOMptimizer.
+        """
+        return {
+            "cls": dict,
+            "inputs": [
+                {"name": "audios", "type": NeuralType(("B", "T"), AudioSignal()), "seq_length": "input"},
+                {"name": "audio_lens", "type": NeuralType(("B",), LengthsType()), "seq_length": "input"},
+                {
+                    "name": "input_ids",
+                    "type": NeuralType(("B", "T"), LabelsType()),
+                    "seq_length": "output",
+                    "vocab_size": self.tokenizer.vocab_size,
+                },
+                {"name": "loss_mask", "type": NeuralType(("B", "T"), MaskType()), "seq_length": "output"},
+            ],
+        }
 
 
 def replace_placeholders_and_build_targets(

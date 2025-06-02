@@ -295,7 +295,7 @@ def main():
     assert args.input.endswith(".yaml")
     config = OmegaConf.merge(
         OmegaConf.structured(LhotseDataLoadingConfig),
-        OmegaConf.from_dotlist([f"input_cfg={args.input}"]),
+        OmegaConf.from_dotlist([f"input_cfg={args.input}", "force_finite=True", "metadata_only=True"]),
     )
     cuts, _ = read_cutset_from_config(config)
     cuts = cuts.map(partial(apply_tokenizer, tokenizer=tokenizer, prompt=prompt), apply_fn=None)
