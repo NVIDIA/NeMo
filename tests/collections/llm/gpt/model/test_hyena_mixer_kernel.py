@@ -171,7 +171,7 @@ def mixer_kernel(test_config: HyenaTestConfig, hyena_config: HyenaConfig, operat
 
 @pytest.mark.skipif(
     importlib.util.find_spec("cuhyena.b2b_causal_conv1d") is None,
-    reason="b2b_causal_conv1d CUDA kernel is not installed"
+    reason="b2b_causal_conv1d CUDA kernel is not installed",
 )
 def test_b2b_causal_conv1d(mixer: B2BConv1d, mixer_kernel: B2BConv1d, config_type, operator_type):
     # Skip bf16 with short convolution due to numerical instability
