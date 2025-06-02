@@ -106,6 +106,7 @@ class SpeedMonitor(pl.Callback):
         self.consumed_tokens = 0
 
     def on_train_start(self, trainer, pl_module):
+        """ """
         self.start_time = time.time()
 
     def on_train_batch_end(
@@ -116,6 +117,7 @@ class SpeedMonitor(pl.Callback):
         batch: Any,
         batch_idx: int,
     ) -> None:
+        """ """
         # Add the new element
         batch_size = trainer.train_dataloader.batch_sampler.global_batch_size
         self.consumed_samples += batch_size

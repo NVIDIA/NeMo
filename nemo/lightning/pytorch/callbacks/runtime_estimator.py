@@ -125,6 +125,7 @@ class RuntimeEstimator(pl.Callback):
         outputs: pl.utilities.types.STEP_OUTPUT,
         batch: Any,
     ) -> None:
+        """ """
         if self._enabled and self.start_time is None:
             self.start_time = time.time()
             self.start_dur = self._get_elapsed_duration(trainer)
@@ -140,6 +141,7 @@ class RuntimeEstimator(pl.Callback):
         batch: Any,
         batch_idx: int,
     ) -> None:
+        """ """
         if not self._enabled:
             return
 

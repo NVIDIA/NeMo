@@ -134,6 +134,7 @@ class MemoryMonitor(pl.Callback):
         batch: Any,
         batch_idx: int,
     ) -> None:
+        """ """
         memory_report = {}
         memory_report = _get_memory_report(self.memory_keys)
         if self.dist_aggregate_batch_interval:
