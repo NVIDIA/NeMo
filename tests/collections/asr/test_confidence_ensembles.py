@@ -15,9 +15,9 @@
 import joblib
 import pytest
 from omegaconf import DictConfig, ListConfig
+from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
-from sklearn.linear_model import LogisticRegression
 
 from nemo.collections.asr.models import EncDecCTCModel, EncDecHybridRNNTCTCModel, EncDecRNNTModel
 from nemo.collections.asr.models.confidence_ensemble import ConfidenceEnsembleModel
@@ -101,10 +101,12 @@ class TestConfidenceEnsembles:
 
     @pytest.mark.unit
     @pytest.mark.parametrize(
-        "model_class0", [EncDecCTCModel, EncDecRNNTModel, EncDecHybridRNNTCTCModel],
+        "model_class0",
+        [EncDecCTCModel, EncDecRNNTModel, EncDecHybridRNNTCTCModel],
     )
     @pytest.mark.parametrize(
-        "model_class1", [EncDecCTCModel, EncDecRNNTModel, EncDecHybridRNNTCTCModel],
+        "model_class1",
+        [EncDecCTCModel, EncDecRNNTModel, EncDecHybridRNNTCTCModel],
     )
     def test_model_creation_2models(self, tmp_path, model_class0, model_class1):
         """Basic test to check that ensemble of 2 models can be created."""
@@ -121,7 +123,12 @@ class TestConfidenceEnsembles:
             preserve_frame_confidence=True,
             exclude_blank=True,
             aggregation="mean",
-            method_cfg=ConfidenceMethodConfig(name="entropy", entropy_type="renyi", alpha=0.25, entropy_norm="lin",),
+            method_cfg=ConfidenceMethodConfig(
+                name="entropy",
+                entropy_type="renyi",
+                alpha=0.25,
+                entropy_norm="lin",
+            ),
         )
 
         # just checking that no errors are raised when creating the model
@@ -153,7 +160,12 @@ class TestConfidenceEnsembles:
             preserve_frame_confidence=True,
             exclude_blank=True,
             aggregation="mean",
-            method_cfg=ConfidenceMethodConfig(name="entropy", entropy_type="renyi", alpha=0.25, entropy_norm="lin",),
+            method_cfg=ConfidenceMethodConfig(
+                name="entropy",
+                entropy_type="renyi",
+                alpha=0.25,
+                entropy_norm="lin",
+            ),
         )
 
         # just checking that no errors are raised when creating the model
