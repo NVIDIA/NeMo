@@ -115,7 +115,8 @@ class DeepSeekConfig(MLATransformerConfig, GPTConfig):
     bias_activation_fusion: bool = True
     bias_dropout_fusion: bool = True
     masked_softmax_fusion: bool = True
-    gradient_accumulation_fusion: bool = True
+    # gradient_accumulation_fusion: bool = True
+    gradient_accumulation_fusion: bool = False
 
     def __post_init__(self):
         super().__post_init__()
@@ -396,15 +397,27 @@ class HFDeepSeekImporter(io.ModelConnector["AutoModelForCausalLM", DeepSeekModel
 
         n_moe_layers = source.num_hidden_layers - source.first_k_dense_replace
         is_v3 = source.scoring_func == "sigmoid"
-        if is_v3:
+        # Set specific config class since that is what is used in the recipes
+        # and likely to be better tested. Ideally, we should just correctly map
+        # configs from HF config to mcore configs (e.g. the rope configs).
+        if source.model_type == "deepseek_v3":
             v3_kwargs = {
                 "moe_router_score_function": "sigmoid",
                 "moe_router_enable_expert_bias": True,
                 "mtp_num_layers": source.num_nextn_predict_layers if self.convert_mtp else None,
+                #TODO(yifu): check if there is corresponding HF param for this or if it's hardcoded in HF
+                "moe_router_bias_update_rate": 1e-3,
             }
-        else:
+            config_cls = DeepSeekV3Config
+        elif source.model_type == "deepseek_v2":
             v3_kwargs = {}
-        return DeepSeekConfig(
+            if source.q_lora_rank is not None:
+                config_cls = DeepSeekV2Config
+            else:
+                config_cls = DeepSeekV2LiteConfig
+        else:
+            raise ValueError(f"Unknown model type: {source.model_type}")
+        return config_cls(
             num_layers=source.num_hidden_layers,
             hidden_size=source.hidden_size,
             ffn_hidden_size=source.intermediate_size,
