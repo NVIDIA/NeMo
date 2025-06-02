@@ -25,7 +25,7 @@ class OptimizerMonitor(pl.Callback):
 
     L2 norms are calculated after the reduction of gradients across GPUs. This function iterates over the parameters
     of the model and may cause a reduction in throughput while training large models. In order to ensure the
-    correctness of the norm, this function should be called after gradient unscaling in cases where gradients 
+    correctness of the norm, this function should be called after gradient unscaling in cases where gradients
     are scaled.
 
     Example:
