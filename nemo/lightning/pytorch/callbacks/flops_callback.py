@@ -137,15 +137,23 @@ class FLOPsMeasurementCallback(Callback):
             # skip calculation if we haven't accumulated any timing data
             if self.avg_train_step_time == 0:
                 return
-            tflops_per_gpu = self.eval_tflops_per_sec_per_gpu(self.avg_train_step_time / trainer.log_every_n_steps)
+            train_step_time = self.avg_train_step_time / trainer.log_every_n_steps
+            tflops_per_gpu = self.eval_tflops_per_sec_per_gpu(train_step_time)
             self.avg_train_step_time = 0
             pl_module.log(
-                "TFLOPS_per_GPU",
+                "throughput/device/tflops_per_sec",
                 tflops_per_gpu,
                 on_step=True,
                 on_epoch=False,
                 batch_size=1,
                 prog_bar=True,
+            )
+
+            flops, _ = self.eval_model_flops()
+            tflops = flops / (1e12 * train_step_time)
+            pl_module.log(
+                "throughput/tflops_per_sec",
+                tflops,
             )
 
     def eval_tflops_per_sec_per_gpu(self, train_step_time: List | float | int) -> float:
