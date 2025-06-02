@@ -659,9 +659,6 @@ def build_cosmos_visual_engine(
             self.image_tag_type = model.config.image_tag_type
 
             self.vision_model = model.vision_model
-            vit_hidden_size = model.config.vision_projection_config.vit_hidden_size
-            vision_projection_hidden_size = model.config.vision_projection_config.hidden_size
-            llm_hidden_size = model.config.vision_projection_config.llm_hidden_size
 
             self.mlp1 = model.mlp1
 
