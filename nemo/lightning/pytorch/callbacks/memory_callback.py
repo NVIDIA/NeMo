@@ -81,27 +81,27 @@ class MemoryMonitor(pl.Callback):
 
     The following statistics are recorded:
 
-    +------------------------+-------------------------------------------------------------------------------------------+
-    | Statistic              | Description                                                                               |
-    +========================+===========================================================================================+
-    | current_allocated_mem  | Current amount of allocated memory in gigabytes.                                          |
-    +------------------------+-------------------------------------------------------------------------------------------+
-    | current_active_mem     | Current amount of active memory in gigabytes at the time of recording.                    |
-    +------------------------+-------------------------------------------------------------------------------------------+
-    | current_inactive_mem   | Current amount of inactive, non-releaseable memory in gigabytes at the time of recording. |
-    +------------------------+-------------------------------------------------------------------------------------------+
-    | current_reserved_mem   | Current amount of reserved memory in gigabytes at the time of recording.                  |
-    +------------------------+-------------------------------------------------------------------------------------------+
-    | peak_allocated_mem     | Peak amount of allocated memory in gigabytes.                                             |
-    +------------------------+-------------------------------------------------------------------------------------------+
-    | peak_active_mem        | Peak amount of active memory in gigabytes at the time of recording.                       |
-    +------------------------+-------------------------------------------------------------------------------------------+
-    | peak_inactive_mem      | Peak amount of inactive, non-releaseable memory in gigabytes at the time of recording.    |
-    +------------------------+-------------------------------------------------------------------------------------------+
-    | peak_reserved_mem      | Peak amount of reserved memory in gigabytes at the time of recording.                     |
-    +------------------------+-------------------------------------------------------------------------------------------+
-    | alloc_retries          | Number of failed cudaMalloc calls that result in a cache flush and retry.                 |
-    +------------------------+-------------------------------------------------------------------------------------------+
+    +------------------------+----------------------------------------------------------------------------------------+
+    | Statistic              | Description                                                                            |
+    +========================+========================================================================================+
+    | current_allocated_mem  | Current amount of allocated memory in gigabytes.                                       |
+    +------------------------+----------------------------------------------------------------------------------------+
+    | current_active_mem     | Current amount of active memory in gigabytes at the time of recording.                 |
+    +------------------------+----------------------------------------------------------------------------------------+
+    | current_inactive_mem   | Current amount of inactive, non-releaseable memory in gigabytes.                       |
+    +------------------------+----------------------------------------------------------------------------------------+
+    | current_reserved_mem   | Current amount of reserved memory in gigabytes at the time of recording.               |
+    +------------------------+----------------------------------------------------------------------------------------+
+    | peak_allocated_mem     | Peak amount of allocated memory in gigabytes.                                          |
+    +------------------------+----------------------------------------------------------------------------------------+
+    | peak_active_mem        | Peak amount of active memory in gigabytes at the time of recording.                    |
+    +------------------------+----------------------------------------------------------------------------------------+
+    | peak_inactive_mem      | Peak amount of inactive, non-releaseable memory in gigabytes at the time of recording. |
+    +------------------------+----------------------------------------------------------------------------------------+
+    | peak_reserved_mem      | Peak amount of reserved memory in gigabytes at the time of recording.                  |
+    +------------------------+----------------------------------------------------------------------------------------+
+    | alloc_retries          | Number of failed cudaMalloc calls that result in a cache flush and retry.              |
+    +------------------------+----------------------------------------------------------------------------------------+
 
     Additionally, if `dist_aggregate_batch_interval` is enabled, the `avg`, `min`, and `max` of the
     aformentioned statistics are also logged.

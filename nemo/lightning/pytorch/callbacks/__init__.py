@@ -49,4 +49,6 @@ __all__ = [
     "JitConfig",
     "MemoryMonitor",
     "OptimizerMonitor",
+    "RuntimeEstimator",
+    "SpeedMonitor",
 ]
