@@ -56,7 +56,7 @@ def merge_lora(
     _setup_trainer_and_restore_model_and_adapter(Path(lora_checkpoint_path), trainer, model, lora, load_keys)
 
     lora_merge = LoRAMerge()
-    merged_model = lora_merge(trainer.strategy.megatron_parallel)
+    merged_model = lora_merge(trainer.strategy.megatron_parallel).to(model.config.params_dtype)
     merged_weights = {k: v for k, v in merged_model.sharded_state_dict().items() if ".adapter." not in k}
     _save_merged_weight(output_path, merged_weights, model, trainer)
 

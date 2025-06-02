@@ -331,7 +331,7 @@ class HFCosmosNemotronExporter(io.ModelConnector[CosmosNemotronModel, "PreTraine
         """
         source, _ = self.nemo_load(str(self))
         target = self.init()
-        target = target.to(source.dtype)
+        target = target.to(source.config.params_dtype)
         target = self.convert_state(source, target)
 
         target = target.cpu()
