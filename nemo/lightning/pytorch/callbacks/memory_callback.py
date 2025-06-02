@@ -106,9 +106,6 @@ class MemoryMonitor(pl.Callback):
     Additionally, if `dist_aggregate_batch_interval` is enabled, the `avg`, `min`, and `max` of the
     aformentioned statistics are also logged.
 
-    .. note::
-        Memory usage monitoring is only supported for GPU devices.
-
     Args:
         memory_keys (dict[str, str], optional): A dict specifying memory statistics to log. Keys
             are the names of memory statistics to log from `torch.cuda.memory_stats()`, and values
