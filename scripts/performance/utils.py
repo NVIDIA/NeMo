@@ -84,7 +84,6 @@ def slurm_executor(
     numa_bind_factor = int(num_gpus_per_node / 2)
     srun_args = [
         "--mpi=pmix",
-        f"numactl --cpunodebind=$((SLURM_LOCALID/{numa_bind_factor})) --membind=$((SLURM_LOCALID/{numa_bind_factor}))",
     ]
 
     if nemo_home != DEFAULT_NEMO_CACHE_HOME:  # DO NOT change this to 'DEFAULT_NEMO_HOME'/'NEMO_HOME'
@@ -105,6 +104,12 @@ def slurm_executor(
 
     mounts.extend(custom_mounts)
     srun_args.extend(custom_srun_args)
+
+    # apply numactl args at very end of srun args
+    numactl_args = [
+        f"numactl --cpunodebind=$((SLURM_LOCALID/{numa_bind_factor})) --membind=$((SLURM_LOCALID/{numa_bind_factor}))",
+    ]
+    srun_args.extend(numactl_args)
 
     # add --segment flag to sbatch if job uses GB200 and goes beyond one rack.
     segment = None
