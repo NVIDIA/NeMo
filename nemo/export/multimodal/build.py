@@ -836,7 +836,6 @@ def build_cosmos_engine(
         )
         # Workaround: copy hf model file
         shutil.copy("/opt/llama_3p1_8b_cradio_h_v2_hf/modeling_nvlm_d2.py", hf_model_path)
-        shutil.copy("/opt/llama_3p1_8b_cradio_h_v2_hf/conversation.py", hf_model_path)
 
         build_cosmos_visual_engine(
             os.path.join(model_dir, "visual_engine"),
