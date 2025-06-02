@@ -454,7 +454,7 @@ class SALM(LightningModule, HFHubMixin):
                     "name": "input_ids",
                     "type": NeuralType(("B", "T"), LabelsType()),
                     "seq_length": "output",
-                    "vocab_size": self.tokenizer.vocab_size,
+                    "vocab_size": self.text_vocab_size,
                 },
                 {"name": "loss_mask", "type": NeuralType(("B", "T"), MaskType()), "seq_length": "output"},
             ],

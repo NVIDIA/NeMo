@@ -372,6 +372,10 @@ class NeMoMultimodalConversation(Formattable, CustomFieldMixin):
     def has_text_turns(self) -> bool:
         return any(isinstance(t, TextTurn) for t in self.turns)
 
+    @property
+    def is_text_only(self) -> bool:
+        return all(isinstance(t, TextTurn) for t in self.turns)
+
     def to_dict(self):
         return {"id": self.id, "conversations": [t.to_dict() for t in self.turns]}
 
