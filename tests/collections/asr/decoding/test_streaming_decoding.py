@@ -13,10 +13,8 @@
 # limitations under the License.
 
 import copy
-from contextlib import contextmanager
 from typing import Optional
 
-import librosa
 import pytest
 import torch
 import torch.nn.functional as F
