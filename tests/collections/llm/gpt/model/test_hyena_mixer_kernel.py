@@ -15,6 +15,7 @@
 
 
 import contextlib
+import importlib.util
 import os
 
 import pytest
@@ -168,13 +169,11 @@ def mixer_kernel(test_config: HyenaTestConfig, hyena_config: HyenaConfig, operat
         yield mixer_kernel
 
 
+@pytest.mark.skipif(
+    importlib.util.find_spec("cuhyena.b2b_causal_conv1d") is None,
+    reason="b2b_causal_conv1d CUDA kernel is not installed"
+)
 def test_b2b_causal_conv1d(mixer: B2BConv1d, mixer_kernel: B2BConv1d, config_type, operator_type):
-    # Skip if b2b_causal_conv1d is not installed
-    import importlib.util
-
-    if importlib.util.find_spec("cuhyena.b2b_causal_conv1d") is None:
-        pytest.skip("b2b_causal_conv1d CUDA kernel is not installed")
-
     # Skip bf16 with short convolution due to numerical instability
     if mixer.mixer.transformer_config.params_dtype == torch.bfloat16 and operator_type == "hyena_short_conv":
         pytest.skip("bf16 with short convolution is skipped due to numerical instability")
