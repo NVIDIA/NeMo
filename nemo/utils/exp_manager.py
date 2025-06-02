@@ -40,6 +40,7 @@ from lightning.pytorch.trainer.connectors.checkpoint_connector import _Checkpoin
 from omegaconf import DictConfig, OmegaConf, open_dict
 
 from nemo.collections.common.callbacks import EMA
+from nemo.collections.common.callbacks.ipl_epoch_stopper import IPLEpochStopper
 from nemo.constants import NEMO_ENV_VARNAME_TESTING, NEMO_ENV_VARNAME_VERSION
 from nemo.utils import logging, timers
 from nemo.utils.app_state import AppState
@@ -52,7 +53,6 @@ from nemo.utils.lightning_logger_patch import add_filehandlers_to_pl_logger
 from nemo.utils.loggers import ClearMLLogger, ClearMLParams, DLLogger, DLLoggerParams, MLFlowParams
 from nemo.utils.mcore_logger import add_handlers_to_mcore_logger
 from nemo.utils.model_utils import uninject_model_parallel_rank
-from nemo.collections.common.callbacks.ipl_epoch_stopper import IPLEpochStopper
 
 get_current_global_batch_size, HAVE_MCORE_MBATCH_CALCULATOR = safe_import_from(
     "megatron.core.num_microbatches_calculator", "get_current_global_batch_size"
@@ -121,6 +121,7 @@ class EarlyStoppingParams:
     check_on_train_epoch_end: Optional[bool] = None
     log_rank_zero_only: bool = False
 
+
 @dataclass
 class IPLEpochStopperParams:
     """IPLEpochStopperParams POD"""
@@ -128,6 +129,7 @@ class IPLEpochStopperParams:
     # Flag that allows stopping
     enable_stop: bool = True
     stop_every_n_epochs: int = 1
+
 
 @dataclass
 class CallbackParams:

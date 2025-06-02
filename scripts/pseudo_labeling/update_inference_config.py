@@ -17,7 +17,7 @@ import math
 import os
 from typing import List, Union
 
-import torch.distributed as dist
+
 from filelock import FileLock
 from omegaconf import ListConfig, OmegaConf
 
