@@ -220,7 +220,7 @@ class TransformerAEDGreedyInfer(AEDGreedyInfer, Typing):
                 # Pack results into Hypotheses
                 packed_result = pack_hypotheses(hypotheses, best_hypo, beam_scores, step_confidence)
                 self.format_hypotheses(packed_result, decoder_input_ids)
-                
+
         self.transformer_decoder.train()
         self.log_softmax_module.train()
         return (packed_result,)
