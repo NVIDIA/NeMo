@@ -72,6 +72,7 @@ def lens_to_mask(lens, max_length):
     mask = arange.expand(batch_size, max_length) < lens.unsqueeze(1)
     return mask
 
+
 def _config_check(cfg):
     if 'tokenizer' not in cfg:
         raise ValueError("`cfg` must have `tokenizer` config to create a tokenizer !")
@@ -222,10 +223,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
 
         # Setup metric logger
         self.metric_cfg = cfg.multitask_metrics_cfg
-        self.metric = MultiTaskMetric(
-            model=self,
-            cfg=self.metric_cfg
-        )
+        self.metric = MultiTaskMetric(model=self, cfg=self.metric_cfg)
 
         # Setup encoder adapters (from ASRAdapterModelMixin)
         self.setup_adapters()
@@ -256,10 +254,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         )
 
         # Update metric logger
-        self.metric = MultiTaskMetric(
-            model=self,
-            cfg=self.metric_cfg
-        )
+        self.metric = MultiTaskMetric(model=self, cfg=self.metric_cfg)
 
         # Update config
         with open_dict(self.cfg.decoding):
@@ -387,10 +382,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         )
 
         # Update metric logger
-        self.metric = MultiTaskMetric(
-            model=self,
-            cfg=self.metric_cfg
-        )
+        self.metric = MultiTaskMetric(model=self, cfg=self.metric_cfg)
 
         with open_dict(self.cfg.decoding):
             self.cfg.decoding = decoding_cfg
@@ -455,10 +447,7 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
         )
 
         # Update metric logger
-        self.metric = MultiTaskMetric(
-            model=self,
-            cfg=self.metric_cfg
-        )
+        self.metric = MultiTaskMetric(model=self, cfg=self.metric_cfg)
 
         # Update config
         with open_dict(self.cfg):
@@ -749,14 +738,18 @@ class EncDecMultiTaskModel(ASRModel, ExportableEncDecModel, ASRBPEMixin, ASRModu
             log_every_n_steps = self._trainer.log_every_n_steps
         else:
             log_every_n_steps = 1
-        metric_dict = self.metric.eval(
-            batch=batch,
-            predictions=enc_states,
-            predictions_lengths=encoded_len,
-            predictions_mask=enc_mask,
-            prefix="training_batch",
-        ) if (batch_nb + 1) % log_every_n_steps == 0 else {}
-        
+        metric_dict = (
+            self.metric.eval(
+                batch=batch,
+                predictions=enc_states,
+                predictions_lengths=encoded_len,
+                predictions_mask=enc_mask,
+                prefix="training_batch",
+            )
+            if (batch_nb + 1) % log_every_n_steps == 0
+            else {}
+        )
+
         metric_dict.update(
             {
                 'train_loss': transf_loss,

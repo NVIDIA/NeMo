@@ -28,13 +28,15 @@ from nemo.utils import logging
 __all__ = ['BLEU', 'BLEU_TOKENIZER']
 
 # Keyword to avoid mispelling issues.
-BLEU_TOKENIZER="bleu_tokenizer"
+BLEU_TOKENIZER = "bleu_tokenizer"
+
 
 def _get_bleu_tokenizers_from_cuts(cuts):
     """
     Helper function for multi tokenizer BLEU evaluation.
     Looks for `bleu_tokenizer` property to pass to BLEU metric.
     """
+
     def _get_lang(c):
         return c.custom.get(BLEU_TOKENIZER, None)
 
@@ -42,9 +44,11 @@ def _get_bleu_tokenizers_from_cuts(cuts):
     # TODO: resolve in lhotse backend.
     return [_get_lang(c.first_non_padding_cut) if isinstance(c, MixedCut) else _get_lang(c) for c in cuts]
 
+
 def _move_dimension_to_the_front(tensor, dim_index):
     all_dims = list(range(tensor.ndim))
     return tensor.permute(*([dim_index] + all_dims[:dim_index] + all_dims[dim_index + 1 :]))
+
 
 class BLEU(SacreBLEUScore):
     """
@@ -124,7 +128,7 @@ class BLEU(SacreBLEUScore):
             weights=weights,
             smooth=smooth,
             dist_sync_on_step=dist_sync_on_step,
-            sync_on_compute=sync_on_compute
+            sync_on_compute=sync_on_compute,
         )
 
     def update(
@@ -136,7 +140,7 @@ class BLEU(SacreBLEUScore):
         predictions_mask: Optional[torch.Tensor] = None,
         input_ids: Optional[torch.Tensor] = None,
         cuts: Optional[CutSet] = None,
-        **kwargs,   # To allow easy swapping of metrics without worrying about var alignment.
+        **kwargs,  # To allow easy swapping of metrics without worrying about var alignment.
     ):
         """
         Updates metric state.
@@ -166,7 +170,7 @@ class BLEU(SacreBLEUScore):
         with torch.no_grad():
             # get predictions
             hypotheses = self.decode(predictions, predictions_lengths, predictions_mask, input_ids)
-            
+
             # Get references
             if self.batch_dim_index != 0:
                 targets = _move_dimension_to_the_front(targets, self.batch_dim_index)
@@ -193,7 +197,6 @@ class BLEU(SacreBLEUScore):
                     logging.info("\n")
                     logging.info(f"BLEU reference:{reference}")
                     logging.info(f"BLEU predicted:{hypotheses[idx].text}")
-
 
     def compute(self, return_all_metrics=True, prefix="", suffix=""):
         """

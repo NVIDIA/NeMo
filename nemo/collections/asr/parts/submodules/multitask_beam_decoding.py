@@ -237,7 +237,7 @@ class TransformerAEDBeamInfer(AEDBeamInfer, Typing):
 
         self.transformer_decoder.train()
         self.log_softmax_module.train()
-        
+
         return (packed_result,)
 
     def format_hypotheses(

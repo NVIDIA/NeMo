@@ -352,4 +352,4 @@ class WER(Metric):
     def compute(self):
         scores = self.scores.detach().float()
         words = self.words.detach().float()
-        return scores/words, scores, words
+        return scores / words, scores, words

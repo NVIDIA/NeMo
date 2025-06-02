@@ -12,7 +12,8 @@ from nemo.core.classes import Serialization
 
 __all__ = ['MultiTaskMetric']
 
-#TODO: add decoding metric updater
+# TODO: add decoding metric updater
+
 
 class MultiTaskMetric(Serialization):
     """
@@ -38,23 +39,23 @@ class MultiTaskMetric(Serialization):
             metrics:
             -   name: wer
                 _target_: nemo.collections.asr.metrics.WER
-                slots: 
+                slots:
                     task: "transcribe"
             -   name: bleu
                 tokenize: ???
                 check_cuts_for_tokenizers: ???
-                _target_: nemo.collections.asr.metrics.BLEU  
-                slots: 
+                _target_: nemo.collections.asr.metrics.BLEU
+                slots:
                     task: "translate"
             ...
     ```
 
     Where only the `metrics` schema is required. Each element of `metrics` requires a `name` for the metric, `_target_` class for serialization, and series of `slot`
     values that determines the conditions for the metric to apply. (Currently only the keyword `task` with vals `transcribe` and `translate` is supported.) All defined
-    metrics in `asr.collections.metrics` are supported. 
-    
-    Similar to `input_cfg` for dataloading, extra defined properties assume soft inheritance. All properties defined outside 
-    the `metrics` dict will be autopopulated into all metrics. Meanwhile, properties defined within a metrics entry will only populate that metric. 
+    metrics in `asr.collections.metrics` are supported.
+
+    Similar to `input_cfg` for dataloading, extra defined properties assume soft inheritance. All properties defined outside
+    the `metrics` dict will be autopopulated into all metrics. Meanwhile, properties defined within a metrics entry will only populate that metric.
 
     """
 
@@ -63,13 +64,15 @@ class MultiTaskMetric(Serialization):
         "canary": "_canary_index_fn",
         "canary2": "_canary2_index_fn",
     }
-    
-    def __init__(self, model: nn.Module, cfg: DictConfig):      
-        super().__init__()  
+
+    def __init__(self, model: nn.Module, cfg: DictConfig):
+        super().__init__()
 
         # Select function for proper task splitting
         self.prompt = model.prompt
-        assert self.prompt.NAME in self._INDEX_FN, f"MultiTaskMetric logging is only supported for {[k for k in self._INDEX_FN.keys()]}"
+        assert (
+            self.prompt.NAME in self._INDEX_FN
+        ), f"MultiTaskMetric logging is only supported for {[k for k in self._INDEX_FN.keys()]}"
         self.split_task_indices = getattr(self, f"{self._INDEX_FN[self.prompt.NAME]}")
 
         # Setup tracking hashes
@@ -77,11 +80,13 @@ class MultiTaskMetric(Serialization):
         cfg = OmegaConf.to_container(cfg)
         for metric in cfg.pop("metrics"):
             name = metric["name"]
-            
+
             # TODO: Expand slot coverage as metrics demands. Right now just manages two tasks.
             slots = metric["slots"]
-            assert "task" in slots and len(slots) == 1, "MultiTask metric currently only supports task constraints. Check 'MultiTaskMetric' cfg."
-            
+            assert (
+                "task" in slots and len(slots) == 1
+            ), "MultiTask metric currently only supports task constraints. Check 'MultiTaskMetric' cfg."
+
             # Assume other vals are global attributes across metrics.
             for k, v in cfg.items():
                 if k not in metric:  # do not override explicit metric values
@@ -94,8 +99,7 @@ class MultiTaskMetric(Serialization):
             setattr(model, name, metric)
 
             # Tracking dicts for quick lookup
-            self._metric_dict[name], self._slot_dict[name], self._skip_dict[name]  = metric, {**slots}, False
-
+            self._metric_dict[name], self._slot_dict[name], self._skip_dict[name] = metric, {**slots}, False
 
     # Performs full PyMetrics validation loop for all metrics
     def eval(
@@ -122,9 +126,9 @@ class MultiTaskMetric(Serialization):
             self.compute(
                 prefix=f"{prefix}_" if prefix else "",
                 suffix=f"{suffix}_" if suffix else "",
-                return_all_metrics=return_all_metrics
-                )
+                return_all_metrics=return_all_metrics,
             )
+        )
         self.reset()
         return metric_dict
 
@@ -147,7 +151,7 @@ class MultiTaskMetric(Serialization):
             if indices.numel() == 0:  # No instances of metric in this tensor, skip
                 self._skip_dict[name] = True
                 continue
-            
+
             # bleu metric allos you to pass cuts
             cuts_idx = None
             if cuts is not None:
@@ -163,7 +167,7 @@ class MultiTaskMetric(Serialization):
                 input_ids=input_ids[indices],
                 cuts=cuts_idx,
             )
-                
+
     def compute(self, return_all_metrics=False, prefix="", suffix=""):
         output_dict = {}
         for name, metric in self._metric_dict.items():
@@ -189,7 +193,7 @@ class MultiTaskMetric(Serialization):
                     output_dict.update(
                         {
                             f"{prefix}wer{suffix}": wer,
-                            }
+                        }
                     )
             else:
                 output_dict.update(
@@ -208,13 +212,13 @@ class MultiTaskMetric(Serialization):
     def _canary_index_fn(self, prompt_ids: torch.Tensor, slots: Dict[str, (str | bool)]) -> torch.Tensor:
         if slots["task"] in TASK_TRANSLATE:
             # 1 -> `source_lang` in canary, 3 -> 'target_lang. Use these instead of task ID to avoid lookup.
-            condition_met = prompt_ids[:,1] != prompt_ids[:,3]
+            condition_met = prompt_ids[:, 1] != prompt_ids[:, 3]
         else:  # default to transcribe
-            condition_met = prompt_ids[:,1] == prompt_ids[:,3]
-        indices =  torch.nonzero(condition_met, as_tuple=False)
+            condition_met = prompt_ids[:, 1] == prompt_ids[:, 3]
+        indices = torch.nonzero(condition_met, as_tuple=False)
         # reshape in case 0 dim
         return indices.reshape(indices.numel())
-    
+
     # TODO: Add properties to `Canary2` to simply return `task` idx.
     def _canary2_index_fn(self, prompt_ids: torch.Tensor, slots: Dict[str, str | bool]) -> torch.Tensor:
         # Canary2 has variable prompt length, use bos as offset.
@@ -228,6 +232,6 @@ class MultiTaskMetric(Serialization):
             condition_met = src_lang != tgt_lang
         else:  # default to transcribe
             condition_met = src_lang == tgt_lang
-        indices =  torch.nonzero(condition_met, as_tuple=False)
+        indices = torch.nonzero(condition_met, as_tuple=False)
         # reshape in case 0 dimen
         return indices.reshape(indices.numel())
