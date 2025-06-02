@@ -155,6 +155,7 @@ class Attention(torch.nn.Module):
             d_model (int): Dimension of the model.
             p_dropout (float): Dropout probability.
             is_causal (bool): Whether to use causal attention. Only supported when used in SelfAttention.
+            d_head (int): Head dimension. Defaults to d_model // n_heads.
         """
         super().__init__()
         assert d_model % n_heads == 0, "d_model % n_head != 0"
