@@ -85,7 +85,7 @@ def get_batch_encoder_outputs_from_records(records, model, device):
 @pytest.mark.parametrize("chunk_size", [1, 3])
 @pytest.mark.parametrize("batch_size", [4])
 @pytest.mark.parametrize("max_symbols", [10])
-def test_label_looping_decoding_streaming_gpu_state(
+def test_label_looping_decoding_streaming_batched_state(
     tmp_path_factory,
     an4_val_manifest_corrected,
     stt_en_fastconformer_transducer_large,
@@ -136,12 +136,12 @@ def test_label_looping_decoding_streaming_gpu_state(
                         out_len=current_len,
                         prev_batched_state=state,
                     )
-                    new_hyps = batched_hyps_to_hypotheses(batched_hyps, None, batch_size=local_batch_size)
+                    hyps_continuations = batched_hyps_to_hypotheses(batched_hyps, None, batch_size=local_batch_size)
                     if hyps is not None:
-                        for hyp, new_hyp in zip(hyps, new_hyps):
-                            hyp.merge(new_hyp)
+                        for hyp, hyp_continuation in zip(hyps, hyps_continuations):
+                            hyp.merge(hyp_continuation)
                     else:
-                        hyps = new_hyps
+                        hyps = hyps_continuations
                 # free up memory by resetting decoding state
                 for hyp in hyps:
                     hyp.clean_decoding_state_()
@@ -229,6 +229,134 @@ def test_label_looping_decoding_streaming_partial_hypotheses(
 @pytest.mark.parametrize("chunk_size", [1, 3])
 @pytest.mark.parametrize("batch_size", [4])
 @pytest.mark.parametrize("max_symbols", [10])
+def test_label_looping_decoding_continuous_streaming_batched_state(
+    tmp_path_factory,
+    an4_val_manifest_corrected,
+    stt_en_fastconformer_transducer_large,
+    stt_en_fastconformer_tdt_large,
+    device: torch.device,
+    use_cuda_graph_decoder: bool,
+    is_tdt: bool,
+    chunk_size: int,
+    batch_size: int,
+    max_symbols: int,
+):
+    """Test streaming continuos decoding with partial hypotheses"""
+    model = stt_en_fastconformer_tdt_large if is_tdt else stt_en_fastconformer_transducer_large
+    with preserve_decoding_cfg_and_cpu_device(model):
+        model.eval()
+        model.to(device=device)
+
+        decoding_cfg = copy.deepcopy(model.cfg.decoding)
+        decoding_cfg.strategy = "greedy_batch"
+        with open_dict(decoding_cfg):
+            decoding_cfg.greedy.use_cuda_graph_decoder = use_cuda_graph_decoder
+            decoding_cfg.greedy.max_symbols = max_symbols
+        model.change_decoding_strategy(decoding_cfg)
+
+        manifest = read_manifest(an4_val_manifest_corrected)
+        transcriptions = model.transcribe(audio=str(an4_val_manifest_corrected.absolute()), batch_size=batch_size)
+        ref_transcripts = [hyp.text for hyp in transcriptions]
+
+        all_hyps = [None for _ in range(len(manifest))]
+        decoding_computer: GreedyBatchedLabelLoopingComputerBase = model.decoding.decoding.decoding_computer
+        assert batch_size < len(
+            manifest
+        ), "Batch size should be less than the number of records in the manifest for continuous streaming test."
+        with torch.no_grad(), torch.inference_mode():
+            # get first 2 batches
+            encoder_output, encoder_output_len = get_batch_encoder_outputs_from_records(
+                manifest[:batch_size], model=model, device=device
+            )
+            encoder_output_next, encoder_output_len_next = get_batch_encoder_outputs_from_records(
+                manifest[batch_size : batch_size + batch_size], model=model, device=device
+            )
+            # we always work with encoder_output, getting next utterances from encoder_output_next
+            # so we need to pad encoder_output if it is shorter than encoder_output_next
+            if encoder_output.shape[2] < encoder_output_next.shape[2]:
+                encoder_output = F.pad(encoder_output, (0, encoder_output_next.shape[2] - encoder_output.shape[2]))
+            expanded_batch_indices = torch.arange(batch_size, device=device).unsqueeze(1).expand(-1, chunk_size)
+            next_batch_i = 0
+            next_batch_global_i = batch_size
+            next_query_utterance_i = batch_size + batch_size
+            has_next = True  # if we have anything in next batch to decode
+            hyps = [None for _ in range(batch_size)]
+            hyps_global_indices = list(range(batch_size))
+            encoder_output_t = torch.zeros_like(encoder_output_len)
+            state = None  # decoding state
+            # while there is something to decode
+            while ((rest_len := encoder_output_len - encoder_output_t) > 0).any():
+                frame_indices = encoder_output_t[:, None] + torch.arange(chunk_size, device=device)[None, :]
+                frame_indices = torch.minimum(frame_indices, encoder_output_len[:, None] - 1)
+                current_len = torch.full_like(encoder_output_len, fill_value=chunk_size)
+                current_len = torch.minimum(current_len, rest_len)
+                encoder_frames = encoder_output[expanded_batch_indices, :, frame_indices]
+                batched_hyps, _, state = decoding_computer(
+                    x=encoder_frames,
+                    out_len=current_len,
+                    prev_batched_state=state,
+                )
+                hyps_continuations = batched_hyps_to_hypotheses(batched_hyps, None, batch_size=batch_size)
+                for i, (hyp, hyp_continuation) in enumerate(zip(hyps, hyps_continuations)):
+                    if hyp is None:
+                        hyps[i] = hyp_continuation
+                    else:
+                        hyp.merge(hyp_continuation)
+                encoder_output_t += current_len
+                rest_len -= current_len
+
+                decoding_computer.reset_state_by_mask(state, rest_len == 0)
+                finished_decoding_indices = torch.nonzero(rest_len == 0, as_tuple=True)[0].cpu().tolist()
+                for idx in finished_decoding_indices:
+                    hyp = hyps[idx]
+                    hyp.clean_decoding_state_()
+                    if all_hyps[hyps_global_indices[idx]] is None:
+                        all_hyps[hyps_global_indices[idx]] = hyp
+                    hyps[idx] = None  # reset to None
+                    if has_next:
+                        # get next utterance to decode for finished hypothesis
+                        encoder_output[idx] = encoder_output_next[next_batch_i]
+                        encoder_output_len[idx] = encoder_output_len_next[next_batch_i]
+                        hyps_global_indices[idx] = next_batch_global_i
+                        encoder_output_t[idx] = 0
+                        next_batch_i += 1
+                        next_batch_global_i += 1
+                        # if next_batch_i is out of bounds, get next batch of encoder outputs
+                        if next_batch_i >= encoder_output_len_next.shape[0]:
+                            if next_query_utterance_i < len(manifest):
+                                encoder_output_next, encoder_output_len_next = get_batch_encoder_outputs_from_records(
+                                    manifest[next_query_utterance_i : next_query_utterance_i + batch_size],
+                                    model=model,
+                                    device=device,
+                                )
+                                # pad if needed to allow futher assignment of encoder_output_next to encoder_output
+                                if encoder_output.shape[2] < encoder_output_next.shape[2]:
+                                    encoder_output = F.pad(
+                                        encoder_output, (0, encoder_output_next.shape[2] - encoder_output.shape[2])
+                                    )
+                                next_batch_i = 0
+                                next_query_utterance_i += batch_size
+                            else:
+                                has_next = False
+        for hyp in hyps:
+            if hyp is not None:
+                hyp.clean_decoding_state_()
+
+        streaming_transcripts = []
+        for hyp in all_hyps:
+            streaming_transcripts.append(model.tokenizer.ids_to_text(hyp.y_sequence.tolist()))
+        assert ref_transcripts == streaming_transcripts
+
+
+@pytest.mark.with_downloads
+@pytest.mark.parametrize(
+    "device,use_cuda_graph_decoder",
+    [(device, False) for device in DEVICES] + [(device, True) for device in DEVICES if device.type == "cuda"],
+)
+@pytest.mark.parametrize("is_tdt", [False, True])
+@pytest.mark.parametrize("chunk_size", [1, 3])
+@pytest.mark.parametrize("batch_size", [4])
+@pytest.mark.parametrize("max_symbols", [10])
 def test_label_looping_decoding_continuous_streaming_partial_hypotheses(
     tmp_path_factory,
     an4_val_manifest_corrected,
@@ -277,7 +405,7 @@ def test_label_looping_decoding_continuous_streaming_partial_hypotheses(
                 encoder_output = F.pad(encoder_output, (0, encoder_output_next.shape[2] - encoder_output.shape[2]))
             expanded_batch_indices = torch.arange(batch_size, device=device).unsqueeze(1).expand(-1, chunk_size)
             # NB: we assume that encoder_output_len and encoder_output_len_next
-            # does not contain zero elements (no empty utterances), and do not check this condition further
+            # have no zero elements (no empty utterances), and we do not check this condition further
             next_batch_i = 0
             next_batch_global_i = batch_size
             next_query_utterance_i = batch_size + batch_size
