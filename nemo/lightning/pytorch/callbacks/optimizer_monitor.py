@@ -36,10 +36,6 @@ class OptimizerMonitor(pl.Callback):
             run.Config(OptimizerMonitor)
         )
 
-    The metrics are logged by the :class:`.Logger` to the following keys as described below. `grad_l2_norm` and
-    `layer_grad_l2_norm` are logged in addition to metrics logged by the optimizer's `report_per_parameter_metrics`
-    method. For convenience we have listed the metrics logged by DecoupledAdamW below.
-
     +-----------------------------------------------+-----------------------------------------------------+
     | Key                                           | Logged data                                         |
     +===============================================+=====================================================+
@@ -49,18 +45,6 @@ class OptimizerMonitor(pl.Callback):
     +-----------------------------------------------+-----------------------------------------------------+
     |                                               | Layer-wise L2 norms                                 |
     | ``l2_norm/grad/LAYER_NAME``                   |                                                     |
-    |                                               |                                                     |
-    +-----------------------------------------------+-----------------------------------------------------+
-    |                                               | Layer-wise L2 norms of Adam first moment after      |
-    | ``l2_norm/moment/LAYER_NAME``                 |  calling optimizer step.                            |
-    |                                               |                                                     |
-    +-----------------------------------------------+-----------------------------------------------------+
-    |                                               | Layer-wise L2 norms of parameter weights            |
-    | ``l2_norm/param/LAYER_NAME``                  |                                                     |
-    |                                               |                                                     |
-    +-----------------------------------------------+-----------------------------------------------------+
-    |                                               | Layer-wise L2 norms of the step                     |
-    | ``l2_norm/update/LAYER_NAME``                 |                                                     |
     |                                               |                                                     |
     +-----------------------------------------------+-----------------------------------------------------+
     """

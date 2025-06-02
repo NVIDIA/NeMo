@@ -32,7 +32,7 @@ class RuntimeEstimator(pl.Callback):
 
     Example:
         import nemo_run as run
-        from nemo.lightning.pytorch.callbacks import MemoryMonitor
+        from nemo.lightning.pytorch.callbacks import RuntimeEstimator
 
         recipe.trainer.callbacks.append(
             run.Config(RuntimeEstimator)

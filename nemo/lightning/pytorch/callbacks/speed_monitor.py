@@ -25,9 +25,7 @@ class SpeedMonitor(pl.Callback):
     Logs the training throughput and utilization.
 
     The training throughput is logged on the :attr:`.Event.BATCH_END` event once we have reached
-    the `window_size` threshold. If a model has `flops_per_batch` attribute, then flops per second
-    is also logged. If running on a known GPU type or if `gpu_flops_available` is set, then MFU is
-    also logged. All metrics are also logged as per device by dividing by world size.
+    the `window_size` threshold.
 
     Example:
         import nemo_run as run
@@ -54,10 +52,6 @@ class SpeedMonitor(pl.Callback):
     |                                     | Rolling average (over `window_size` most recent           |
     | `throughput/tokens_per_sec`         | batches) of the number of tokens processed per second.    |
     |                                     | Only logged if dataspec returns tokens per batch          |
-    +-------------------------------------+-----------------------------------------------------------+
-    |                                     | Estimates flops by `flops_per_batch * batches_per_sec`    |
-    | `throughput/flops_per_sec`          | if model has attribute `flops_per_batch`                  |
-    |                                     |                                                           |
     +-------------------------------------+-----------------------------------------------------------+
     | `throughput/device/batches_per_sec` | `throughput/batches_per_sec` divided by world size        |
     +-------------------------------------+-----------------------------------------------------------+
