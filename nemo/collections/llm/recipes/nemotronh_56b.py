@@ -30,7 +30,6 @@ from nemo.collections.llm.recipes.log.default import default_log, default_resume
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
 from nemo.collections.llm.recipes.precision.mixed_precision import nemotron_h_bf16_with_fp8_current_scaling_mixed
 from nemo.collections.nlp.modules.common.tokenizer_utils import get_nmt_tokenizer
-from nemo.lightning.pytorch.callbacks import ModelCheckpoint
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.utils.exp_manager import TimingCallback
 
@@ -150,15 +149,6 @@ def trainer(
 
     callbacks = [
         run.Config(TimingCallback),
-        run.Config(
-            ModelCheckpoint,
-            every_n_train_steps=val_check_interval,
-            dirpath=dir,
-            save_top_k=save_top_k,
-            always_save_context=True,
-            save_optim_on_train_end=True,
-            save_context_on_train_end=True,
-        ),
     ]
     trainer = run.Config(
         nl.Trainer,
@@ -175,7 +165,7 @@ def trainer(
         use_distributed_sampler=False,
         plugins=[nemotron_h_bf16_with_fp8_current_scaling_mixed()],
         val_check_interval=val_check_interval,
-        enable_checkpointing=True,
+        enable_checkpointing=False,  # Fix this: disable checkpointing for now
     )
     return trainer
 

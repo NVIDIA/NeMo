@@ -138,6 +138,10 @@ if __name__ == "__main__":
     exp_config = f"gpus{args.num_gpus}_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_mbs{mbs}_gbs{gbs}"
     exp_name = f"{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
 
+
+    if args.gpu.lower() == 'gb200':
+        custom_env_vars |= {"NCCL_NET_GDR_LEVEL": "PHB"}
+
     plugins = [
         PerfEnvPlugin(
             enable_vboost=True,
@@ -146,10 +150,7 @@ if __name__ == "__main__":
         )
     ]
 
-    custom_env_vars = {"TRANSFORMERS_OFFLINE": "0"}
-
-    if args.gpu.lower() == 'gb200':
-        custom_env_vars |= {"NCCL_NET_GDR_LEVEL": "PHB"}
+    custom_env_vars = {"NVTE_FUSED_ATTN": "0", "TRANSFORMERS_OFFLINE": "0"}
 
     if args.enable_nsys:
         plugins.append(
@@ -182,23 +183,6 @@ if __name__ == "__main__":
         nemo_home=args.nemo_home,
         wandb_key=args.wandb_key,
     )
-
-    plugins = [
-        PerfEnvPlugin(
-            enable_vboost=True,
-            nccl_pp_comm_chunksize=2097152 if pp_size > 1 else None,
-            gpu_sm100_or_newer=(args.gpu.lower() in ['b200', 'gb200']),
-        )
-    ]
-
-    if args.enable_nsys:
-        plugins.append(
-            NsysPlugin(
-                start_step=args.profiling_start_step,
-                end_step=args.profiling_stop_step,
-                ranks=list(range(num_nodes * args.gpus_per_node)),
-            )
-        )
 
     with run.Experiment(exp_name) as exp:
         exp.add(
