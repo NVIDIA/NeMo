@@ -15,6 +15,9 @@
 import joblib
 import pytest
 from omegaconf import DictConfig, ListConfig
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import LogisticRegression
 
 from nemo.collections.asr.models import EncDecCTCModel, EncDecHybridRNNTCTCModel, EncDecRNNTModel
 from nemo.collections.asr.models.confidence_ensemble import ConfidenceEnsembleModel
@@ -109,7 +112,8 @@ class TestConfidenceEnsembles:
         model_config1 = get_model_config(model_class1)
 
         # dummy pickle file for the model selection block
-        joblib.dump({}, tmp_path / 'dummy.pkl')
+        pipe = Pipeline([("scaler", StandardScaler()), ("clf", LogisticRegression())])
+        joblib.dump(pipe, tmp_path / 'dummy.pkl')
 
         # default confidence
         confidence_config = ConfidenceConfig(
@@ -140,7 +144,8 @@ class TestConfidenceEnsembles:
         model_configs = [get_model_config(EncDecCTCModel) for _ in range(5)]
 
         # dummy pickle file for the model selection block
-        joblib.dump({}, tmp_path / 'dummy.pkl')
+        pipe = Pipeline([("scaler", StandardScaler()), ("clf", LogisticRegression())])
+        joblib.dump(pipe, tmp_path / 'dummy.pkl')
 
         # default confidence
         confidence_config = ConfidenceConfig(
