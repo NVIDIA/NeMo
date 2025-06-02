@@ -516,24 +516,60 @@ class GreedyBatchedRNNTLabelLoopingComputer(
             return batched_hyps, alignments, decoding_state
         return batched_hyps, None, decoding_state
 
-    def _get_decoding_state_item_sos(self, device: torch.device | str) -> LabelLoopingStateItem:
-        """Get decoding state after <SOS> symbol, used for initialization from empty hypotheses."""
-        labels = torch.full([1], fill_value=self._SOS, dtype=torch.long, device=device)
-        decoder_output, state, *_ = self.decoder.predict(labels.unsqueeze(1), None, add_sos=False, batch_size=1)
+    def _get_decoding_state_item_after_sos(self, device: torch.device | str) -> LabelLoopingStateItem:
+        """Get decoding state item after <SOS> symbol, used for initialization from empty hypotheses."""
+        batched_state = self._get_batched_decoding_state_after_sos(device=device, batch_size=1)
+        return self.split_batched_state(batched_state)[0]
+
+    def _get_batched_decoding_state_after_sos(
+        self, device: torch.device | str, batch_size: int
+    ) -> BatchedLabelLoopingState:
+        """Get batched decoding state after <SOS> symbol, used for initialization from empty hypotheses."""
+        labels = torch.full([batch_size], fill_value=self._SOS, dtype=torch.long, device=device)
+        decoder_output, state, *_ = self.decoder.predict(
+            labels.unsqueeze(1), None, add_sos=False, batch_size=batch_size
+        )
         decoder_output = self.joint.project_prednet(decoder_output)  # do not recalculate joint projection
-        state_item = LabelLoopingStateItem(
-            predictor_state=self.decoder.batch_split_states(state)[0],
-            predictor_output=decoder_output[0],
-            label=labels[0],
-            decoded_length=torch.tensor(0, dtype=torch.long, device=device),
-            lm_state=(
-                self.ngram_lm_batch.get_init_states(batch_size=1, bos=True).to(device)[0]
+        state = BatchedLabelLoopingState(
+            predictor_states=state,
+            predictor_outputs=decoder_output,
+            labels=labels,
+            decoded_lengths=torch.zeros([batch_size], dtype=torch.long, device=device),
+            lm_states=(
+                self.ngram_lm_batch.get_init_states(batch_size=batch_size, bos=True).to(device)
                 if self.ngram_lm_batch
                 else None
             ),
-            time_jump=None,
+            time_jumps=None,
         )
-        return state_item
+        return state
+
+    def reset_state_by_mask(self, state: BatchedLabelLoopingState, mask: torch.Tensor) -> BatchedLabelLoopingState:
+        """
+        Reset state for masked elements in the batched state.
+        This is used to reset state for elements that are not active anymore to start a new decoding session.
+
+        Args:
+            state: batched decoding state
+            mask: mask for elements to reset
+        """
+        state_after_sos = self._get_batched_decoding_state_after_sos(
+            device=state.predictor_outputs.device, batch_size=state.labels.shape[0]
+        )
+        self.decoder.batch_replace_states_mask(
+            src_states=state_after_sos.predictor_states, dst_states=state.predictor_states, mask=mask
+        )
+        torch.where(
+            mask[:, None, None],
+            state_after_sos.predictor_outputs,
+            state.predictor_outputs,
+            out=state.predictor_outputs,
+        )
+        torch.where(mask, state_after_sos.labels, state.labels, out=state.labels)
+        torch.where(mask, state_after_sos.decoded_lengths, state.decoded_lengths, out=state.decoded_lengths)
+        if self.ngram_lm_batch is not None:
+            torch.where(mask, state_after_sos.lm_states, state.lm_states, out=state.lm_states)
+        return state
 
     def split_batched_state(self, state: BatchedLabelLoopingState) -> list[LabelLoopingStateItem]:
         """
@@ -569,7 +605,7 @@ class GreedyBatchedRNNTLabelLoopingComputer(
             not_none_item = next(item for item in state_items if item is not None)
             assert not_none_item is not None
             device = not_none_item.predictor_output.device
-            start_item = self._get_decoding_state_item_sos(device=device)
+            start_item = self._get_decoding_state_item_after_sos(device=device)
             for i, item in enumerate(state_items):
                 if item is None:
                     state_items[i] = start_item

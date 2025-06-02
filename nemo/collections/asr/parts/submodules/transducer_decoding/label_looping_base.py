@@ -183,6 +183,17 @@ class GreedyBatchedLabelLoopingComputerBase(ABC):
         """
         raise NotImplementedError
 
+    def reset_state_by_mask(self, state: BatchedLabelLoopingState, mask: torch.Tensor) -> BatchedLabelLoopingState:
+        """
+        Reset state for masked elements in the batched state.
+        This is used to reset state for elements that are not active anymore to start a new decoding session.
+
+        Args:
+            state: batched decoding state
+            mask: mask for elements to reset
+        """
+        raise NotImplementedError
+
     def __call__(
         self,
         x: torch.Tensor,

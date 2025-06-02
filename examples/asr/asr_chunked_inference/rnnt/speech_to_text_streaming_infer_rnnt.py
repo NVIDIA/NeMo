@@ -423,13 +423,13 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
                     out_len=encoder_context_batch.chunk,
                     prev_batched_state=state,
                 )
-                new_hyps = batched_hyps_to_hypotheses(batched_hyps, None, batch_size=encoder_output.shape[0])
+                hyps_continuations = batched_hyps_to_hypotheses(batched_hyps, None, batch_size=encoder_output.shape[0])
                 # merge hyps with previous hyps
                 if current_hyps is not None:
-                    for hyp, new_hyp in zip(current_hyps, new_hyps):
-                        hyp.merge(new_hyp)
+                    for hyp, hyp_continuation in zip(current_hyps, hyps_continuations):
+                        hyp.merge(hyp_continuation)
                 else:
-                    current_hyps = new_hyps
+                    current_hyps = hyps_continuations
 
                 # move to next sample
                 rest_audio_lengths -= added_samples_batch
