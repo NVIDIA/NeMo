@@ -152,6 +152,9 @@ if __name__ == "__main__":
 
     custom_env_vars = {"NVTE_FUSED_ATTN": "0", "TRANSFORMERS_OFFLINE": "0"}
 
+    if args.gpu.lower() == 'gb200':
+        custom_env_vars |= {"NCCL_NET_GDR_LEVEL": "PHB"}
+
     if args.enable_nsys:
         plugins.append(
             NsysPlugin(
