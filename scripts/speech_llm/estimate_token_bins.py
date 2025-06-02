@@ -228,7 +228,10 @@ def estimate_token_buckets(
 
     # Estimate an extra 2D bin set for global max duration.
     if num_subbuckets is not None:
-        _estimate_output_token_buckets(max_bucket_duration=max_input_tokens)
+        if is_2d:
+            _estimate_output_token_buckets(max_bucket_duration=max_input_tokens)
+        else:
+            bins.append(max_input_tokens)
 
     return bins
 

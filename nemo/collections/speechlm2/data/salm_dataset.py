@@ -92,6 +92,7 @@ def default_multimodal_conversation_prompt_format_fn(
         ],
         key=lambda turn: turn["role"],
     )
+    turns = list(turns)
     turns = [
         {"role": role, "slots": {"message": " ".join(t["slots"]["message"] for t in turn_grp)}}
         for role, turn_grp in turns
