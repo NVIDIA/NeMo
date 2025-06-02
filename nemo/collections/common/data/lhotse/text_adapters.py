@@ -419,6 +419,7 @@ def collate_conversation_audio_fault_tolerant(
     if not ok:
         ids = [c.id for c in conversations]
         logging.warning(f"An entire batch of conversations failed to load audios. Conversations ids: {ids}")
+        return torch.tensor([]), torch.tensor([]), CutSet()
 
     audio_lens = torch.tensor([c.num_samples for c in all_cuts], dtype=torch.int64)
     if len(audios[0].shape) == 1:
