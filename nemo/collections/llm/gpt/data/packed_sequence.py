@@ -26,7 +26,7 @@ from nemo.utils.sequence_packing_utils import create_hist, create_packing_strate
 
 def tokenize_dataset(
     path: Path,
-    tokenizer: TokenizerSpec,
+    tokenizer: MegatronTokenizerBase,
     max_seq_length: int,
     seed: int,
     dataset_kwargs: Optional[dict],

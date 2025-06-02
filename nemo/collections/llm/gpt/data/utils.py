@@ -26,10 +26,11 @@ from typing import Any, Callable, List, Optional, Type, Union
 
 import numpy as np
 import torch
-from megatron.core.tokenizers import MegatronTokenizerBase
 
 from nemo.core.classes import Dataset
 from nemo.utils import AppState
+
+from megatron.core.tokenizers import MegatronTokenizerBase
 
 logger = logging.getLogger(__name__)
 
@@ -253,7 +254,7 @@ class _TextMemMapDataset(Dataset):
         """Allows child-classes to modify the parsing of raw text, prior to tokenization"""
         # tokenize text if tokenizer is given
         if self.tokenizer is not None:
-            data = self.tokenizer.tokenize(text)
+            data = self.tokenizer.text_to_ids(text)
         else:
             data = text
 
@@ -752,9 +753,9 @@ def _preprocess(
     """
     header, conversation, data_type, mask_role = _get_header_conversation_type_mask_role(source, special_tokens)
     # tokenize conversations
-    input_ids = tokenizer.tokenize(conversation)
+    input_ids = tokenizer.text_to_ids(conversation)
     target = copy.deepcopy(input_ids)
-    header_tokens = tokenizer.tokenize(header)
+    header_tokens = tokenizer.text_to_ids(header)
     header_len = len(header_tokens)
 
     ids = []
@@ -766,8 +767,8 @@ def _preprocess(
         )
     for s in source['conversations']:
         # hack to remove the extra empty token in front
-        id1 = tokenizer.tokenize(PREFIX_STR + s["value"])
-        id2 = tokenizer.tokenize(PREFIX_STR)
+        id1 = tokenizer.text_to_ids(PREFIX_STR + s["value"])
+        id2 = tokenizer.text_to_ids(PREFIX_STR)
         tokenized_sentence = id1[len(id2) :]
         ids.append(torch.tensor(tokenized_sentence))
         tokenized_lens.append(len(tokenized_sentence))
@@ -846,7 +847,7 @@ def _convert_to_openai_messages(source: dict) -> List[dict]:
     return chat
 
 
-def _chat_preprocess(source: dict, tokenizer: TokenizerSpec, tool_schemas: Optional[List[Any]] = None) -> dict:
+def _chat_preprocess(source: dict, tokenizer: MegatronTokenizerBase, tool_schemas: Optional[List[Any]] = None) -> dict:
     """
     Preprocess messages to apply chat template and tokenize. Returns a dictionary of tokens
     Input:
@@ -890,17 +891,6 @@ def _chat_preprocess(source: dict, tokenizer: TokenizerSpec, tool_schemas: Optio
         tools = source.get("tools") or tool_schemas
     else:
         tools = tool_schemas
-
-
-def _preprocess_hf_chat_template(
-    hf_chat_dict: dict,
-    tokenizer: MegatronTokenizerBase,
-):
-    """
-    Given a conversation list (source) this function applies the following transformations:
-    1. Convert JSONL conversation format to chat message format.
-    2. Tokenize the chat message by applying the chat template.
-    3. Calculate the mask for the assistant tokens.
 
     # assistant mask only works if chat template has generation keyword
     template_has_generation_kwd = GENERATION_REGEX.search(tokenizer.tokenizer.chat_template) is not None
@@ -982,8 +972,8 @@ def _mask_targets(
     tgt_len = target.shape[0]
     for i, (tokenized_len, speaker, s_id) in enumerate(zip(tokenized_lens, speakers, s_ids)):
         # note, sentence piece will add extra empty token in front. has to compute the diff
-        id1 = tokenizer.tokenize(PREFIX_STR)
-        id2 = tokenizer.tokenize(PREFIX_STR + TURN_TOKEN + speaker + END_NAME_SIGNAL)
+        id1 = tokenizer.text_to_ids(PREFIX_STR)
+        id2 = tokenizer.text_to_ids(PREFIX_STR + TURN_TOKEN + speaker + END_NAME_SIGNAL)
         skip_name_len = len(id2) - len(
             id1
         )  # s_ids[:skip_name_len] is the name part of the prompt 'TURN_TOKEN + speaker + END_NAME_SIGNAL'
