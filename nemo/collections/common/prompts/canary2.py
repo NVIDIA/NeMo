@@ -64,17 +64,11 @@ class Canary2PromptFormatter(PromptFormatter):
                 # Should we predict punctuation and capitalization?
                 "pnc": Modality.TextLiteral(*(BOOL_TRUE | BOOL_FALSE | PNC_TRUE | PNC_FALSE)),
                 # Should we predict with inverse text normalization (numerals as digits, abbreviations, etc.)
-                "itn": Modality.TextLiteral(
-                    *(BOOL_TRUE | BOOL_FALSE | ITN_TRUE | ITN_FALSE)
-                ),
+                "itn": Modality.TextLiteral(*(BOOL_TRUE | BOOL_FALSE | ITN_TRUE | ITN_FALSE)),
                 # Should we predict timestamps?
-                "timestamp": Modality.TextLiteral(
-                    *(BOOL_TRUE | BOOL_FALSE | TIMESTAMP_TRUE | TIMESTAMP_FALSE)
-                ),
+                "timestamp": Modality.TextLiteral(*(BOOL_TRUE | BOOL_FALSE | TIMESTAMP_TRUE | TIMESTAMP_FALSE)),
                 # # Should we diarize speech?
-                "diarize": Modality.TextLiteral(
-                    *(BOOL_TRUE | BOOL_FALSE | DIARIZE_TRUE | DIARIZE_FALSE)
-                ),
+                "diarize": Modality.TextLiteral(*(BOOL_TRUE | BOOL_FALSE | DIARIZE_TRUE | DIARIZE_FALSE)),
             },
         },
         # User prompt.
