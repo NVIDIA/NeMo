@@ -43,7 +43,7 @@ model:
   prompt_defaults: null
 
   # Sub-config for specifying multiple metrics for multitask modeling.
-  # See `asr.collections.metrics.multitask` for detsils.
+  # See `asr.collections.metrics.multitask` for details.
   multitask_metrics_cfg:
     log_predictions: true
     metrics:
