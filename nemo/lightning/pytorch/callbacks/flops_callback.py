@@ -138,7 +138,7 @@ class FLOPsMeasurementCallback(Callback):
             if self.avg_train_step_time == 0:
                 return
             train_step_time = self.avg_train_step_time / trainer.log_every_n_steps
-            tflops_per_gpu = self.eval_tflops_per_sec_per_gpu(train_step_time)
+            tflops_per_gpu, flops = self.eval_tflops_per_sec_per_gpu(train_step_time)
             self.avg_train_step_time = 0
             pl_module.log(
                 "throughput/device/tflops_per_sec",
@@ -149,7 +149,6 @@ class FLOPsMeasurementCallback(Callback):
                 prog_bar=True,
             )
 
-            flops, _ = self.eval_model_flops()
             tflops = flops / (1e12 * train_step_time)
             pl_module.log(
                 "throughput/tflops_per_sec",
@@ -174,7 +173,9 @@ class FLOPsMeasurementCallback(Callback):
         step_time_arr = np.array(train_step_time)
         train_step_time = np.mean(step_time_arr[len(step_time_arr) // 2 :])
 
-        return flops_per_gpu / (1e12 * train_step_time)
+        flops_per_sec_per_gpu = flops_per_gpu / (1e12 * train_step_time)
+
+        return flops_per_sec_per_gpu, total_flops
 
     def eval_model_flops(self) -> Tuple[float, float]:
         """

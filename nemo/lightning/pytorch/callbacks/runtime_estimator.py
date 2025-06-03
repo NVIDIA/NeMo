@@ -89,7 +89,7 @@ class RuntimeEstimator(pl.Callback):
     def _get_elapsed_duration(self, trainer) -> Optional[float]:
         """Get the elapsed duration.
 
-        Unlike `state.get_elapsed_duration`, this method computes fractional progress in an epoch
+        This method computes fractional progress in an epoch
         provided at least 1 epoch has passed by recording how many batches were in each epoch.
         """
         # Use max_steps if defined
