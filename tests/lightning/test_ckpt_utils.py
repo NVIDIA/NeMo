@@ -16,12 +16,7 @@ from pathlib import Path
 
 import pytest
 
-from nemo.lightning.ckpt_utils import (
-    ckpt_to_context_subdir,
-    ckpt_to_dir,
-    idempotent_path_append,
-)
-
+from nemo.lightning.ckpt_utils import ckpt_to_context_subdir, ckpt_to_dir, idempotent_path_append
 from nemo.lightning.io.pl import ckpt_to_weights_subdir
 
 
@@ -32,19 +27,25 @@ def test_idempotent_path_append_path_no_suffix(base_dir):
     assert str(result).endswith("test/path/new_suffix")
 
 
-@pytest.mark.parametrize("filepath", [Path("test/checkpoints"), "test/checkpoints", "msc://default/tmp/test/checkpoints"])
+@pytest.mark.parametrize(
+    "filepath", [Path("test/checkpoints"), "test/checkpoints", "msc://default/tmp/test/checkpoints"]
+)
 def test_ckpt_to_context_subdir(filepath):
     result = ckpt_to_context_subdir(filepath)
     assert str(result).endswith("test/checkpoints/context")
 
 
-@pytest.mark.parametrize("filepath", [Path("test/checkpoints"), "test/checkpoints", "msc://default/tmp/test/checkpoints"])
+@pytest.mark.parametrize(
+    "filepath", [Path("test/checkpoints"), "test/checkpoints", "msc://default/tmp/test/checkpoints"]
+)
 def test_ckpt_to_dir(filepath):
     result = ckpt_to_dir(filepath)
     assert str(result).endswith("test/checkpoints")
 
 
-@pytest.mark.parametrize("filepath", [Path("test/checkpoints"), "test/checkpoints", "msc://default/tmp/test/checkpoints"])
+@pytest.mark.parametrize(
+    "filepath", [Path("test/checkpoints"), "test/checkpoints", "msc://default/tmp/test/checkpoints"]
+)
 def test_ckpt_to_weights_subdir(filepath):
     result = ckpt_to_weights_subdir(filepath, is_saving=True)
     assert str(result).endswith("test/checkpoints/weights")

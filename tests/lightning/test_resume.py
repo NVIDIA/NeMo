@@ -24,7 +24,9 @@ from nemo.lightning.resume import AutoResume
 def test_auto_resume_get_weights_path():
     auto_resume = AutoResume()
     assert auto_resume.get_weights_path(Path("test/checkpoints")) == Path("test/checkpoints/weights")
-    assert auto_resume.get_weights_path(msc.Path("msc://default/tmp/test/checkpoints")) == msc.Path("msc://default/tmp/test/checkpoints/weights")
+    assert auto_resume.get_weights_path(msc.Path("msc://default/tmp/test/checkpoints")) == msc.Path(
+        "msc://default/tmp/test/checkpoints/weights"
+    )
 
 
 def test_auto_resume_get_context_path():
@@ -41,7 +43,9 @@ def test_auto_resume_get_context_path():
         os.makedirs(os.path.join(tmpdir, "checkpoints", "step=10-epoch=0-last", "weights"))
         os.makedirs(os.path.join(tmpdir, "checkpoints", "step=10-epoch=0-last", "context"))
         auto_resume.resume_from_directory = os.path.join(tmpdir, "checkpoints")
-        assert str(auto_resume.get_context_path()) == os.path.join(tmpdir, "checkpoints", "step=10-epoch=0-last", "context")
+        assert str(auto_resume.get_context_path()) == os.path.join(
+            tmpdir, "checkpoints", "step=10-epoch=0-last", "context"
+        )
 
     # test with MSC URL
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -61,14 +65,16 @@ def test_auto_resume_get_trainer_ckpt_path():
 
     auto_resume.resume_if_exists = True
     assert auto_resume.get_trainer_ckpt_path() is None
-    
+
     # test with filesystem path
     with tempfile.TemporaryDirectory() as tmpdir:
         os.makedirs(os.path.join(tmpdir, "checkpoints", "step=10-epoch=0-last", "weights"))
         os.makedirs(os.path.join(tmpdir, "checkpoints", "step=10-epoch=0-last", "context"))
         auto_resume.resume_from_path = os.path.join(tmpdir, "checkpoints", "step=10-epoch=0-last")
-        assert str(auto_resume.get_trainer_ckpt_path()) == os.path.join(tmpdir, "checkpoints", "step=10-epoch=0-last", "weights")
-    
+        assert str(auto_resume.get_trainer_ckpt_path()) == os.path.join(
+            tmpdir, "checkpoints", "step=10-epoch=0-last", "weights"
+        )
+
     # test with MSC URL
     with tempfile.TemporaryDirectory() as tmpdir:
         os.makedirs(os.path.join(tmpdir, "checkpoints", "step=10-epoch=0-last", "weights"))
@@ -77,4 +83,3 @@ def test_auto_resume_get_trainer_ckpt_path():
         path = auto_resume.get_trainer_ckpt_path()
         assert isinstance(path, msc.Path)
         assert str(path) == os.path.join(tmpdir, "checkpoints", "step=10-epoch=0-last", "weights")
-    
