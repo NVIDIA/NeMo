@@ -29,6 +29,7 @@ from megatron.core.optimizer import OptimizerConfig
 from nemo import lightning as nl
 from nemo.collections import llm, vlm
 from nemo.collections.common.tokenizers import AutoTokenizer
+from nemo.collections.llm.gpt.data.packed_sequence import PackedSequenceSpecs
 from nemo.collections.vlm.data.data_module import EnergonDataModule
 from nemo.collections.vlm.llama4.data.task_encoder import TaskEncoder as Llama4TaskEncoder
 from nemo.collections.vlm.llama4.data.task_encoder import TaskEncoderConfig as Llama4TaskEncoderConfig
@@ -64,8 +65,8 @@ def main(args):
 
         num_workers = 0
 
+    llama_tokenizer = AutoTokenizer('meta-llama/Llama-4-Scout-17B-16E-Instruct')
     if args.data_type == "mock":
-        llama_tokenizer = AutoTokenizer('meta-llama/Llama-4-Scout-17B-16E-Instruct')
         data = llm.MockDataModule(
             seq_length=decoder_seq_length,
             global_batch_size=gbs,
@@ -74,6 +75,18 @@ def main(args):
             num_workers=num_workers,
             attention_layout=args.mock_data_qkv_layout,
             possible_thd_lengths=list(range(8000, 20000)),
+        )
+    elif args.data_type == "squad":
+        packed_sequence_specs = (
+            PackedSequenceSpecs(packed_sequence_size=65536,
+                                tokenizer_model_name="llama4_tokenizer") if args.use_packed_sequence else None
+        )
+        data = llm.SquadDataModule(
+            seq_length=decoder_seq_length,
+            global_batch_size=gbs,
+            micro_batch_size=mbs,
+            tokenizer=llama_tokenizer,
+            packed_sequence_specs=packed_sequence_specs,
         )
     else:
         raise ValueError(f"Data type {args.data_type} not supported")
@@ -193,13 +206,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Llama4 Model Training Script")
 
     # Argument parsing
-    parser.add_argument("--data_type", type=str, required=False, default="mock", help="mock | energon")
+    parser.add_argument("--data_type", type=str, required=False, default="mock", help="mock | squad")
     parser.add_argument("--data_path", type=str, required=False, default=None, help="Path to the dataset JSON file")
     parser.add_argument(
         "--log_dir", type=str, required=False, default="/results", help="Directory for logging and checkpoints"
-    )
-    parser.add_argument(
-        "--language_model_path", type=str, required=False, default=None, help="Path to the pretrained language model"
     )
     parser.add_argument(
         "--restore_path", type=str, required=False, default=None, help="Path to restore model from checkpoint"
@@ -212,8 +222,6 @@ if __name__ == "__main__":
     parser.add_argument("--pp_size", type=int, required=False, default=1)
     parser.add_argument("--cp_size", type=int, required=False, default=1)
     parser.add_argument("--ep_size", type=int, required=False, default=1)
-    parser.add_argument("--encoder_pp_size", type=int, required=False, default=0)
-    parser.add_argument("--projector_type", type=str, required=False, default="mcore_mlp")
     parser.add_argument("--name", type=str, required=False, default="llama4_pretrain")
     parser.add_argument("--peft", type=str, default='none', help="none | lora")
     parser.add_argument("--wandb_project", type=str, required=False, default=None)
