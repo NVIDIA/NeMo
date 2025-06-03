@@ -85,7 +85,7 @@ def gemma3vl_forward_step(model, batch) -> torch.Tensor:
     """Gemma3 VL model forward step"""
     forward_args = {
         "input_ids": batch["input_ids"],
-        "position_ids": batch["position_ids"],
+        "position_ids": batch.get("position_ids"),
         "pixel_values": batch.get("pixel_values", None),
         "loss_mask": batch.get("loss_mask", None),
         "labels": batch.get("labels", None),
