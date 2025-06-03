@@ -102,8 +102,9 @@ def override_recipe_configs(
 
         recipe.model.flux_params.flux_config = run.Config(
             FluxConfig,
-            enable_cuda_graph=True,
-            use_te_rng_tracker=True,
+            # enable_cuda_graph=True,
+            # use_te_rng_tracker=True,
+            gradient_accumulation_fusion=False,
         )
         recipe.trainer.strategy.use_te_rng_tracker = True
 
@@ -117,7 +118,7 @@ def override_recipe_configs(
             overlap_grad_reduce=True,
         )
 
-    recipe.data.global_batch_size = 8
+    # recipe.data.global_batch_size = 8
 
     from nemo.lightning.pytorch.callbacks.flops_callback import MM_FLOPsMeasurementCallback
 
