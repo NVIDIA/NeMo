@@ -32,8 +32,8 @@ from nemo.collections.common.tokenizers.canary_tokenizer import (
 # Use global variables to import slot values in other modules.
 BOOL_TRUE = {"yes", "Yes", "true", "True", "1"}
 BOOL_FALSE = {"no", "No", "false", "False", "0"}
-PNC_TRUE = {"yes", "true", "True", "1", "pnc", "<|pnc|>"}
-PNC_FALSE = {"no", "false", "False", "0", "nopnc", "<|nopnc|>"}
+PNC_TRUE = {"pnc", "<|pnc|>"}
+PNC_FALSE = {"nopnc", "<|nopnc|>"}
 TASK_TRANSCRIBE = {
     "asr",
     "transcribe",
@@ -50,9 +50,9 @@ class CanaryPromptFormatter(PromptFormatter):
             "template": f"{CANARY_BOS}|source_lang||task||target_lang||pnc|",
             "slots": {
                 "source_lang": Modality.Text,
-                "task": Modality.TextLiteral(*[t for t in (TASK_TRANSLATE | TASK_TRANSCRIBE)]),
+                "task": Modality.TextLiteral(*(TASK_TRANSLATE | TASK_TRANSCRIBE)),
                 "target_lang": Modality.Text,
-                "pnc": Modality.TextLiteral(*[p for p in (BOOL_TRUE | BOOL_FALSE | PNC_TRUE | PNC_FALSE)]),
+                "pnc": Modality.TextLiteral(*(BOOL_TRUE | BOOL_FALSE | PNC_TRUE | PNC_FALSE)),
             },
         },
         OUTPUT_ROLE: {

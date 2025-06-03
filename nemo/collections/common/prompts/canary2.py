@@ -62,18 +62,18 @@ class Canary2PromptFormatter(PromptFormatter):
                 # Transcription language - specified by the user.
                 "target_lang": Modality.Text,
                 # Should we predict punctuation and capitalization?
-                "pnc": Modality.TextLiteral(*[p for p in (BOOL_TRUE | BOOL_FALSE | PNC_TRUE | PNC_FALSE)]),
+                "pnc": Modality.TextLiteral(*(BOOL_TRUE | BOOL_FALSE | PNC_TRUE | PNC_FALSE)),
                 # Should we predict with inverse text normalization (numerals as digits, abbreviations, etc.)
                 "itn": Modality.TextLiteral(
-                    *[n for n in (BOOL_TRUE | BOOL_FALSE | ITN_TRUE | ITN_FALSE)]
+                    *(BOOL_TRUE | BOOL_FALSE | ITN_TRUE | ITN_FALSE)
                 ),
                 # Should we predict timestamps?
                 "timestamp": Modality.TextLiteral(
-                    *[m for m in (BOOL_TRUE | BOOL_FALSE | TIMESTAMP_TRUE | TIMESTAMP_FALSE)]
+                    *(BOOL_TRUE | BOOL_FALSE | TIMESTAMP_TRUE | TIMESTAMP_FALSE)
                 ),
                 # # Should we diarize speech?
                 "diarize": Modality.TextLiteral(
-                    *[d for d in (BOOL_TRUE | BOOL_FALSE | DIARIZE_TRUE | DIARIZE_FALSE)]
+                    *(BOOL_TRUE | BOOL_FALSE | DIARIZE_TRUE | DIARIZE_FALSE)
                 ),
             },
         },

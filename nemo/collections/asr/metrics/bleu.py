@@ -155,7 +155,7 @@ class BLEU(SacreBLEUScore):
                 ``[Time, Batch]`` (if ``batch_dim_index == 1``). Required for MultiTaskDecoding.
             input_ids: an int torch.Tensor of shape ``[Batch, Time]`` (if ``batch_dim_index == 0``) or
                 ``[Time, Batch]`` (if ``batch_dim_index == 1``). Required for MultiTaskDecoding.
-            CutSet: an optional sequence of strings of ``length == batch size``. If `self.check_cuts`, inspects each element
+            cuts: a CutSet of ``length == batch size``. If `self.check_cuts`, inspects each element
                 for SacreBLEU tokenizer type for corresponding element in batch. If a sequence element is ``None``,
                 the initial tokenizer type from ``BLEU.__init__`` is used. If ``cuts == None`` then all elements
                 in batch are tokenized with initial tokenizer type.
@@ -271,4 +271,4 @@ class BLEU(SacreBLEUScore):
                 return_hypotheses=False,
             )
         else:
-            raise TypeError(f"WER metric does not support decoding of type {type(self.decoding)}")
+            raise TypeError(f"BLEU metric does not support decoding of type {type(self.decoding)}")
