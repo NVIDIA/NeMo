@@ -173,6 +173,12 @@ class MagpieTTSModel(ModelPT):
             self.encoder = transformer_2501.Transformer(**dict(cfg.encoder))
 
         self.decoder = transformer_2501.Transformer(**dict(cfg.decoder))
+        
+        if cfg.decoder.xa_d_memory != cfg.encoder.d_model:
+            self.text_cond_adapter = nn.Linear(cfg.encoder.d_model, cfg.decoder.xa_d_memory)
+        else:
+            self.text_cond_adapter = nn.Identity()
+
         self.final_proj = nn.Linear(cfg.decoder.d_model, self.num_audio_codebooks * self.num_all_tokens_per_codebook)
 
         self.local_transformer_type = LocalTransformerType(cfg.get('local_transformer_type', 'none').lower())
@@ -212,7 +218,7 @@ class MagpieTTSModel(ModelPT):
                 model_name='titanet_large'
             )
             self._speaker_verification_model.freeze()  #Lightning does requires_grad = False and self.eval()
-            self.speaker_projection_layer = nn.Linear(cfg.speaker_emb_dim, cfg.embedding_dim)
+            self.speaker_projection_layer = nn.Linear(cfg.speaker_emb_dim, cfg.decoder.xa_d_memory)
             self.transcript_decoder_layers = [
                 idx for idx in range(self.decoder.n_layers)
             ]  # All layers are used for text
@@ -903,6 +909,7 @@ class MagpieTTSModel(ModelPT):
             text_mask = get_mask_from_lengths(text_lens)  # (B, T)
             text_embedded = self.embed_text(text, text_mask)  # (B, T, E)
             text_encoder_out = self.encoder(text_embedded, text_mask, cond=None, cond_mask=None)['output']  # (B, T, E)
+            text_encoder_out = self.text_cond_adapter(text_encoder_out)  # (B, T, E)
             _attn_prior = batch.get('align_prior_matrix', None)
             _attn_prior = self.scale_prior(_attn_prior, self.global_step)
 
