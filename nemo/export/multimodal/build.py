@@ -823,37 +823,37 @@ def build_llama_nemotron_engine(
     lora_ckpt_list: List[str] = None,
 ):
     """Build Llama Nemotron engine"""
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        hf_model_path = os.path.join(tmp_dir, "hf_llama_nemotron")
+    hf_model_path = os.path.join(model_dir, "hf_llama_nemotron")
 
-        llm.export_ckpt(
-            path=checkpoint_path,
-            target='hf',
-            output_path=hf_model_path,
-        )
-        # Workaround: copy hf model file
-        shutil.copy("/opt/llama_3p1_8b_cradio_h_v2_hf/modeling_nvlm_d2.py", hf_model_path)
+    llm.export_ckpt(
+        path=checkpoint_path,
+        target='hf',
+        output_path=hf_model_path,
+    )
+    # Workaround: copy hf model file
+    shutil.copy("/opt/llama_3p1_8b_cradio_h_v2_hf/modeling_nvlm_d2.py", hf_model_path)
 
-        build_llama_nemotron_visual_engine(
-            os.path.join(model_dir, "visual_engine"),
-            hf_model_path,
-            vision_max_batch_size=vision_max_batch_size,
-        )
-        build_trtllm_engine_from_hf(
-            os.path.join(model_dir, "llm_engine"),
-            hf_model_path,
-            "llama_nemotron",
-            tensor_parallelism_size,
-            max_input_len,
-            max_output_len,
-            max_batch_size,
-            max_multimodal_len,
-            dtype,
-        )
-        tokenizer_path = os.path.join(model_dir, "llm_engine")
-        shutil.copy(os.path.join(hf_model_path, "tokenizer.json"),
-                    os.path.join(tokenizer_path, "tokenizer.json"))
-        shutil.copy(os.path.join(hf_model_path, "tokenizer_config.json"),
-                    os.path.join(tokenizer_path, "tokenizer_config.json"))
-        shutil.copy(os.path.join(hf_model_path, "special_tokens_map.json"),
-                    os.path.join(tokenizer_path, "special_tokens_map.json"))
+    build_llama_nemotron_visual_engine(
+        os.path.join(model_dir, "visual_engine"),
+        hf_model_path,
+        vision_max_batch_size=vision_max_batch_size,
+    )
+    build_trtllm_engine_from_hf(
+        os.path.join(model_dir, "llm_engine"),
+        hf_model_path,
+        "llama_nemotron",
+        tensor_parallelism_size,
+        max_input_len,
+        max_output_len,
+        max_batch_size,
+        max_multimodal_len,
+        dtype,
+    )
+    tokenizer_path = os.path.join(model_dir, "llm_engine")
+    shutil.copy(os.path.join(hf_model_path, "tokenizer.json"),
+                os.path.join(tokenizer_path, "tokenizer.json"))
+    shutil.copy(os.path.join(hf_model_path, "tokenizer_config.json"),
+                os.path.join(tokenizer_path, "tokenizer_config.json"))
+    shutil.copy(os.path.join(hf_model_path, "special_tokens_map.json"),
+                os.path.join(tokenizer_path, "special_tokens_map.json"))
+    shutil.rmtree(hf_model_path)
