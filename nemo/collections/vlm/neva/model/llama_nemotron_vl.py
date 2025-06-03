@@ -41,8 +41,8 @@ if TYPE_CHECKING:
 
 
 @dataclass
-class CosmosNemotronConfig(LlavaConfig):
-    """Cosmos Nemotron Base Config"""
+class LlamaNemotronVLConfig(LlavaConfig):
+    """Llama Nemotron VL Base Config"""
 
     pixel_shuffle: bool = True
 
@@ -63,14 +63,14 @@ class CosmosNemotronConfig(LlavaConfig):
 
 
 @dataclass
-class CosmosNemotronRadioLlama8BConfig(CosmosNemotronConfig):
-    """Cosmos Nemotron 8B Config"""
+class LlamaNemotronNanoVLConfig8B(LlamaNemotronVLConfig):
+    """Llama Nemotron Nano VL 8B Config"""
     pass
 
 
 @dataclass
-class CosmosNemotronRadioLlama2BConfig(CosmosNemotronConfig):
-    """Cosmos Nemotron 2B Config"""
+class LlamaNemotronNanoVLConfig2B(LlamaNemotronVLConfig):
+    """Llama Nemotron VL 2B Config"""
     language_transformer_config: TransformerConfig = field(
         # PRUNED VERSION OF LLAMA32_3B
         default_factory=lambda: Llama32Config3B(
@@ -94,29 +94,28 @@ class CosmosNemotronRadioLlama2BConfig(CosmosNemotronConfig):
         )
     )
 
-
-class CosmosNemotronModel(NevaModel):
-    """Cosmos Nemotron Model NeMo Wrapper"""
+class LlamaNemotronVLModel(NevaModel):
+    """Llama Nemotron VL Model NeMo Wrapper"""
 
     def __init__(
             self,
-            config: Annotated[Optional[CosmosNemotronConfig], Config[CosmosNemotronConfig]] = None,
+            config: Annotated[Optional[LlamaNemotronVLConfig], Config[LlamaNemotronVLConfig]] = None,
             optim: Optional[OptimizerModule] = None,
             tokenizer: Optional["TokenizerSpec"] = None,
             model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
-        super().__init__(config or CosmosNemotronConfig(), optim=optim, tokenizer=tokenizer,
+        super().__init__(config or LlamaNemotronVLConfig(), optim=optim, tokenizer=tokenizer,
                          model_transform=model_transform)
 
 
 
-@io.model_importer(CosmosNemotronModel, "hf")
-class HFCosmosNemotronImporter(io.ModelConnector["AutoModelForCausalLM", CosmosNemotronModel]):
-    """Cosmos Nemotron Model HF Importer"""
+@io.model_importer(LlamaNemotronVLModel, "hf")
+class HFLlamaNemotronVLImporter(io.ModelConnector["AutoModelForCausalLM", LlamaNemotronVLModel]):
+    """Llama Nemotron VL Model HF Importer"""
 
-    def init(self) -> CosmosNemotronModel:
+    def init(self) -> LlamaNemotronVLModel:
         # pylint: disable=C0115,C0116
-        return CosmosNemotronModel(self.config, tokenizer=self.tokenizer)
+        return LlamaNemotronVLModel(self.config, tokenizer=self.tokenizer)
 
     def apply(self, output_path: Path) -> Path:
         # pylint: disable=C0115,C0116
@@ -126,11 +125,11 @@ class HFCosmosNemotronImporter(io.ModelConnector["AutoModelForCausalLM", CosmosN
         target = self.init()
         trainer = self.nemo_setup(target)
         self.convert_state(source, target)
-        print(f"Converted Cosmos Nemotron model to Nemo, saving to {output_path}")
+        print(f"Converted Llama Nemotron VL model to Nemo, saving to {output_path}")
 
         self.nemo_save(output_path, trainer)
 
-        print(f"Converted Cosmos Nemotron model saved to {output_path}")
+        print(f"Converted Llama Nemotron VL model saved to {output_path}")
 
         teardown(trainer, target)
         del trainer, target
@@ -234,7 +233,7 @@ class HFCosmosNemotronImporter(io.ModelConnector["AutoModelForCausalLM", CosmosN
         return AutoTokenizer(str(self), trust_remote_code=True)
 
     @cached_property
-    def config(self) -> CosmosNemotronConfig:
+    def config(self) -> LlamaNemotronVLConfig:
         # pylint: disable=C0115,C0116
         from transformers import AutoConfig
 
@@ -276,7 +275,7 @@ class HFCosmosNemotronImporter(io.ModelConnector["AutoModelForCausalLM", CosmosN
             params_dtype=param_dtype,
         )
 
-        output = CosmosNemotronConfig(
+        output = LlamaNemotronVLConfig(
             language_transformer_config=language_transformer_config,
             vision_transformer_config=vision_transformer_config,
             vision_projection_config=vision_projection_config,
@@ -287,10 +286,10 @@ class HFCosmosNemotronImporter(io.ModelConnector["AutoModelForCausalLM", CosmosN
 
         return output
 
-@io.model_exporter(CosmosNemotronModel, "hf")
-class HFCosmosNemotronExporter(io.ModelConnector[CosmosNemotronModel, "PreTrainedModel"]):
+@io.model_exporter(LlamaNemotronVLModel, "hf")
+class HFLlamaNemotronVLExporter(io.ModelConnector[LlamaNemotronVLModel, "PreTrainedModel"]):
     """
-    Exporter class for converting NeMo Cosmos Nemotron model to HuggingFace format.
+    Exporter class for converting NeMo Llama Nemotron VL model to HuggingFace format.
 
     Inherits:
         io.ModelConnector: Connector interface to handle setup, save, and load using the Lightning framework.
@@ -321,7 +320,7 @@ class HFCosmosNemotronExporter(io.ModelConnector[CosmosNemotronModel, "PreTraine
 
     def apply(self, output_path: Path) -> Path:
         """
-        Converts the NeMo Cosmos Nemotron to HuggingFace format and saves it to the specified path.
+        Converts the NeMo Llama Nemotron VL to HuggingFace format and saves it to the specified path.
 
         Args:
             output_path (Path): The path where the converted HuggingFace model will be saved.

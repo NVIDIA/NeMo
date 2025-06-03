@@ -14,26 +14,26 @@
 
 """
 Mock Data Example:
-  torchrun --nproc_per_node=8 scripts/vlm/cosmos_nemotron/cosmos_nemotron_8b_finetune.py \
+  torchrun --nproc_per_node=8 scripts/vlm/llama_nemotron_nano_vl/llama_nemotron_nano_vl_8b_finetune.py \
   --devices=8 --tp=4 --data_type=mock
 
-  torchrun --nproc_per_node=8 scripts/vlm/cosmos_nemotron/cosmos_nemotron_8b_finetune.py \
+  torchrun --nproc_per_node=8 scripts/vlm/llama_nemotron_nano_vl/llama_nemotron_nano_vl_8b_finetune.py \
   --devices=8 --tp=4 --data_type=mock --peft lora
 
 Llava Data Example:
-   torchrun --nproc_per_node=8 scripts/vlm/cosmos_nemotron/cosmos_nemotron_8b_finetune.py  \
+   torchrun --nproc_per_node=8 scripts/vlm/llama_nemotron_nano_vl/llama_nemotron_nano_vl_8b_finetune.py  \
      --data_path "/path/to/dataset/llava_v1_5_mix665k.json" \
      --image_folder "/path/to/dataset/images" \
      --data_type llava \
      --num_nodes 1 \
-     --log_dir "/path/to/experiments/cosmos_nemotron_finetune" \
+     --log_dir "/path/to/experiments/llama_nemotron_nano_vl_finetune" \
      --devices=8 \
      --projector_type=mcore_mlp \
      --tp_size 2 --pp_size 1 \
      --gbs 128 --mbs 4 \
-     --wandb_project=cosmos_nemotron_demo \
-     --name=cosmos_nemotron_finetune \
-     --restore_path "/path/to/experiments/cosmos_nemotron_pretrain_checkpoint"
+     --wandb_project=llama_nemotron_nano_vl_demo \
+     --name=llama_nemotron_nano_vl_finetune \
+     --restore_path "/path/to/experiments/llama_nemotron_nano_vl_pretrain_checkpoint"
 """
 
 import argparse
@@ -79,8 +79,8 @@ def main(args):
         normalization='LayerNorm', projector_type="mcore_mlp",
     )
 
-    # CosmosNemotron model configuration
-    cosmos_nemotron_config = vlm.CosmosNemotronConfig(
+    # LlamaNemotronVL model configuration
+    llama_nemotron_nano_vl_config = vlm.LlamaNemotronVLConfig(
         language_transformer_config=language_transformer_config,
         vision_transformer_config=vision_transformer_config,
         vision_projection_config=vision_projection_config,
@@ -91,7 +91,7 @@ def main(args):
     )
     num_image_embeddings_per_tile = (
             vision_transformer_config.num_image_embeddings_per_tile
-            - vision_transformer_config.class_token_len * cosmos_nemotron_config.drop_vision_class_token
+            - vision_transformer_config.class_token_len * llama_nemotron_nano_vl_config.drop_vision_class_token
     )
 
     from nemo.collections.common.tokenizers import AutoTokenizer
@@ -120,7 +120,7 @@ def main(args):
         # Data configuration
         data_config = ImageDataConfig(
             image_folder=args.image_folder,
-            conv_template="cosmos_nemotron",
+            conv_template="llama_nemotron_vl",
         )
 
         # Data module setup
@@ -215,7 +215,7 @@ def main(args):
         ckpt_load_strictness="log_all",
     )
 
-    model = vlm.CosmosNemotronModel(cosmos_nemotron_config, tokenizer=data.tokenizer)
+    model = vlm.LlamaNemotronVLModel(llama_nemotron_nano_vl_config, tokenizer=data.tokenizer)
 
     # Checkpoint callback setup
     checkpoint_callback = nl.ModelCheckpoint(

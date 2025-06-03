@@ -14,8 +14,8 @@
 
 from nemo.collections.vlm.neva.model.base import NevaConfig, NevaModel
 from nemo.collections.vlm.neva.model.llava import Llava15Config7B, Llava15Config13B, LlavaConfig, LlavaModel
-from nemo.collections.vlm.neva.model.cosmos_nemotron import (
-    CosmosNemotronConfig, CosmosNemotronRadioLlama8BConfig, CosmosNemotronRadioLlama2BConfig, CosmosNemotronModel
+from nemo.collections.vlm.neva.model.llama_nemotron_vl import (
+    LlamaNemotronVLConfig, LlamaNemotronNanoVLConfig8B, LlamaNemotronNanoVLConfig2B, LlamaNemotronVLModel
 )
 
 __all__ = [
@@ -25,8 +25,8 @@ __all__ = [
     "Llava15Config7B",
     "Llava15Config13B",
     "LlavaModel",
-    "CosmosNemotronConfig",
-    "CosmosNemotronRadioLlama8BConfig",
-    "CosmosNemotronRadioLlama2BConfig",
-    "CosmosNemotronModel",
+    "LlamaNemotronVLConfig",
+    "LlamaNemotronNanoVLConfig8B",
+    "LlamaNemotronNanoVLConfig2B",
+    "LlamaNemotronVLModel",
 ]

@@ -27,23 +27,23 @@ from nemo.collections import vlm, llm
 from nemo.collections.llm.recipes.log.default import tensorboard_logger
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
-from nemo.collections.vlm import CosmosNemotronRadioLlama8BConfig
+from nemo.collections.vlm import LlamaNemotronNanoVLConfig8B
 from nemo.collections.vlm.vision.vision_transform import VisualProcessor
 from nemo.lightning.pytorch.callbacks.megatron_comm_overlap import MegatronCommOverlapCallback
 from nemo.utils.exp_manager import TimingCallback
 
-NAME = "cosmos_nemotron_8b"
+NAME = "llama_nemotron_nano_vl_8b"
 
 
 @run.cli.factory(name=NAME)
 def model() -> run.Config[pl.LightningModule]:
     """
-    Factory function to create a Cosmos Nemotron 8B (Radio v2.5 h + Llama3.1 8B) model configuration.
+    Factory function to create a Llama Nemotron Nano VL 8B (Radio v2.5 h + Llama3.1 8B) model configuration.
 
     Returns:
-        run.Config[pl.LightningModule]: Cosmos Nemotron 8B model.
+        run.Config[pl.LightningModule]: Llama Nemotron Nano VL 8B model.
     """
-    model = run.Config(vlm.CosmosNemotronModel, config=run.Config(CosmosNemotronRadioLlama8BConfig))
+    model = run.Config(vlm.LlamaNemotronVLModel, config=run.Config(LlamaNemotronNanoVLConfig8B))
     return model
 
 @run.cli.factory(target=llm.finetune, name=NAME)
@@ -56,7 +56,7 @@ def finetune_recipe(
     peft_scheme: Optional[str] = 'none',
 ) -> run.Partial:
     """
-    Create a fine-tuning recipe for Cosmos Nemotron 8B (Radio v2.5 h + Llama3.1 8B) model.
+    Create a fine-tuning recipe for Llama Nemotron Nano VL 8B (Radio v2.5 h + Llama3.1 8B) model.
 
     This function sets up a complete configuration for fine-tuning, including
     model, trainer, data, logging, optimization, and resumption settings.
@@ -75,10 +75,10 @@ def finetune_recipe(
 
     Examples:
         CLI usage:
-            $ nemo llm finetune --factory cosmos_nemotron_8b
+            $ nemo llm finetune --factory llama_nemotron_nano_vl_8b
 
         Python API usage:
-            >>> recipe = finetune_recipe(name="cosmos_nemotron_8b", num_nodes=1)
+            >>> recipe = finetune_recipe(name="llama_nemotron_nano_vl_8b", num_nodes=1)
             >>> print(recipe)
 
     Note:

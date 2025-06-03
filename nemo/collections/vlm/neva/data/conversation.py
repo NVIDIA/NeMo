@@ -465,7 +465,7 @@ conv_llava_llama_3 = Conversation(
     stop_str="<|eot_id|>",
 )
 
-conv_cosmos_nemotron = Conversation(
+conv_llama_nemotron_vl = Conversation(
     system=None,
     roles=("user", "assistant"),
     version="llama_v3",
@@ -704,7 +704,7 @@ conv_templates = {
     "nvgpt": conv_nvgpt,
     "nv_steerlm": conv_nvgpt,
     "nv_dpo": conv_nv_dpo,
-    "cosmos_nemotron": conv_cosmos_nemotron,
+    "llama_nemotron_vl": conv_llama_nemotron_vl,
 }
 
 if __name__ == "__main__":
