@@ -121,25 +121,34 @@ def main(args) -> None:
     # ]
 
     messages = [
-        {
-            "role": "system",
-            "content": [{"type": "text", "text": "You are a helpful assistant."}]
-        },
+        {"role": "system", "content": [{"type": "text", "text": "You are a helpful assistant."}]},
         {
             "role": "user",
             "content": [
                 {"type": "text", "text": "Given the following board:"},
                 {
-                    "type": "image", 
-                    "url": "/lustre/fsw/coreai_dlalgo_llm/dchichkov/chess/chessentials_15k/steinitz_best_games_2_38.jpg"
+                    "type": "image",
+                    "url": "/lustre/fsw/coreai_dlalgo_llm/dchichkov/chess/chessentials_15k/steinitz_best_games_2_38.jpg",
                 },
-                {"type": "text", "text": "Output the board position in ASCII format."}
-            ]
-        }
+                {"type": "text", "text": "Output the board position in ASCII format."},
+            ],
+        },
     ]
 
-    inputs_text = processor.apply_chat_template(messages,add_generation_prompt=True,tokenize=False,return_dict=True,return_tensors="pt",)
-    inputs = processor.apply_chat_template(messages,add_generation_prompt=True,tokenize=True,return_dict=True,return_tensors="pt",)
+    inputs_text = processor.apply_chat_template(
+        messages,
+        add_generation_prompt=True,
+        tokenize=False,
+        return_dict=True,
+        return_tensors="pt",
+    )
+    inputs = processor.apply_chat_template(
+        messages,
+        add_generation_prompt=True,
+        tokenize=True,
+        return_dict=True,
+        return_tensors="pt",
+    )
 
     input_ids = inputs["input_ids"].cuda()
     # add additional dim to (B, N, C, H, W)

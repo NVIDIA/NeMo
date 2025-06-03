@@ -13,7 +13,6 @@
 # limitations under the License.
 
 
-from nemo.collections.vlm.gemma3vl.data.task_encoder import TaskEncoder, TaskEncoderConfig
 import torch
 from lightning.pytorch.loggers import TensorBoardLogger
 from megatron.core.distributed import DistributedDataParallelConfig
@@ -21,13 +20,12 @@ from megatron.core.optimizer import OptimizerConfig
 
 from nemo import lightning as nl
 from nemo.collections import llm, vlm
-
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.collections.vlm.gemma3vl.data.mock import Gemma3VLMockDataModule
+from nemo.collections.vlm.gemma3vl.data.task_encoder import TaskEncoder, TaskEncoderConfig
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 from nemo.utils.exp_manager import TimingCallback
-
 
 NAME = "gemma3vl_4b"
 
@@ -129,6 +127,7 @@ def finetune_recipe(
     #     num_workers=4,
     # )
     from nemo.collections.multimodal.data.energon.base import EnergonMultiModalDataModule
+
     task_encoder = TaskEncoder(
         config=TaskEncoderConfig(
             hf_path=HF_MODEL_NAME,
@@ -145,7 +144,6 @@ def finetune_recipe(
         task_encoder=task_encoder,
     )
 
-
     ckpt = nl.ModelCheckpoint(
         save_top_k=-1,
         save_last=True,
@@ -158,10 +156,11 @@ def finetune_recipe(
     #     name="",  # No need further subfolder
     # )
     from pytorch_lightning.loggers import WandbLogger
+
     wandb = WandbLogger(
-            project=f"nemo2-gemma3-vl",
-            name='4b-test-run-gbs64',
-        )
+        project=f"nemo2-gemma3-vl",
+        name='4b-test-run-gbs64',
+    )
     logger = nl.NeMoLogger(
         explicit_log_dir=log_dir,
         log_global_rank_0_only=True,
@@ -173,9 +172,7 @@ def finetune_recipe(
     resume = nl.AutoResume(
         resume_if_exists=True,
         resume_ignore_no_checkpoint=True,
-        restore_config=nl.RestoreConfig(
-            path=f"nemo://{HF_MODEL_NAME}"
-        )
+        restore_config=nl.RestoreConfig(path=f"nemo://{HF_MODEL_NAME}"),
     )
 
     llm.finetune(
