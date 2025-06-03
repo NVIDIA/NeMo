@@ -26,7 +26,7 @@ from tensorrt_llm.runtime import MultimodalModelRunner as TRTLLMRunner
 from nemo.deploy import ITritonDeployable
 from nemo.export.multimodal.build import (
     build_mllama_engine,
-    build_cosmos_engine,
+    build_llama_nemotron_engine,
     build_perception_engine,
     build_trtllm_engine,
     build_visual_engine,
@@ -147,8 +147,8 @@ class TensorRTMMExporter(ITritonDeployable):
                 max_multimodal_len=max_multimodal_len,
                 dtype=dtype,
             )
-        elif model_type == "cosmos":
-            build_cosmos_engine(
+        elif model_type == "llama_nemotron":
+            build_llama_nemotron_engine(
                 model_dir=self.model_dir,
                 checkpoint_path=visual_checkpoint_path,
                 tensor_parallelism_size=tensor_parallel_size,
@@ -305,7 +305,7 @@ class TensorRTMMExporter(ITritonDeployable):
 
             infer_input = {"input_text": str_ndarray2list(inputs.pop("input_text")[0])}
             video_model_list = ["video-neva", "lita", "vita"]
-            if self.runner.model_type in ["neva", "vila", "mllama", "cosmos"]:
+            if self.runner.model_type in ["neva", "vila", "mllama", "llama_nemotron"]:
                 infer_input["input_image"] = ndarray2img(inputs.pop("input_media")[0])[0]
             elif self.runner.model_type in video_model_list:
                 infer_input["input_image"] = inputs.pop("input_media")[0]

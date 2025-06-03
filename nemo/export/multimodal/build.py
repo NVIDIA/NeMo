@@ -135,7 +135,7 @@ def build_trtllm_engine_from_hf(
     if model_type == "mllama":
         model_cls = tensorrt_llm.models.MLLaMAForCausalLM
         build_dict['max_encoder_input_len'] = max_multimodal_len
-    elif model_type == "cosmos":
+    elif model_type == "llama_nemotron":
         model_cls = tensorrt_llm.models.LLaMAForCausalLM
         build_dict['max_prompt_embedding_table_size'] = max_multimodal_len
 
@@ -637,12 +637,12 @@ def build_mllama_visual_engine(
     build_trt_engine("mllama", shapes, model_dir, vision_max_batch_size, model_dtype)
 
 
-def build_cosmos_visual_engine(
+def build_llama_nemotron_visual_engine(
     model_dir: str,
     hf_model_path: str,
     vision_max_batch_size: int = 1,
 ):
-    """Build Cosmos visual engine"""
+    """Build Llama Nemotron visual engine"""
     hf_model = AutoModel.from_pretrained(hf_model_path, trust_remote_code=True, torch_dtype=torch.bfloat16)
     model_dtype = hf_model.dtype
 
@@ -703,7 +703,7 @@ def build_cosmos_visual_engine(
     inputs = torch.randn((1, 3, image_size, image_size), dtype=model_dtype).cuda()
     export_visual_wrapper_onnx(wrapper, inputs, model_dir)
     build_trt_engine(
-        "cosmos",
+        "llama_nemotron",
         [3, image_size, image_size],
         model_dir,
         vision_max_batch_size,
@@ -807,7 +807,7 @@ def build_mllama_engine(
         )
 
 
-def build_cosmos_engine(
+def build_llama_nemotron_engine(
     model_dir: str,
     checkpoint_path: str,
     vision_max_batch_size: int = 1,
@@ -822,9 +822,9 @@ def build_cosmos_engine(
     max_lora_rank: int = 64,
     lora_ckpt_list: List[str] = None,
 ):
-    """Build Cosmos engine"""
+    """Build Llama Nemotron engine"""
     with tempfile.TemporaryDirectory() as tmp_dir:
-        hf_model_path = os.path.join(tmp_dir, "hf_cosmos")
+        hf_model_path = os.path.join(tmp_dir, "hf_llama_nemotron")
 
         llm.export_ckpt(
             path=checkpoint_path,
@@ -834,7 +834,7 @@ def build_cosmos_engine(
         # Workaround: copy hf model file
         shutil.copy("/opt/llama_3p1_8b_cradio_h_v2_hf/modeling_nvlm_d2.py", hf_model_path)
 
-        build_cosmos_visual_engine(
+        build_llama_nemotron_visual_engine(
             os.path.join(model_dir, "visual_engine"),
             hf_model_path,
             vision_max_batch_size=vision_max_batch_size,
@@ -842,7 +842,7 @@ def build_cosmos_engine(
         build_trtllm_engine_from_hf(
             os.path.join(model_dir, "llm_engine"),
             hf_model_path,
-            "cosmos",
+            "llama_nemotron",
             tensor_parallelism_size,
             max_input_len,
             max_output_len,

@@ -322,7 +322,7 @@ class MultimodalModelRunner:
                 batch_size, visual_input, first_batch_split_prompts, input_lengths
             )
             return input_ids, input_lengths, ptuning_args, visual_features
-        elif self.model_type == 'cosmos':
+        elif self.model_type == 'llama_nemotron':
             visual_features, visual_atts = self.get_visual_features(image, attention_mask)
             prompt = [pre + post for pre, post in zip(pre_prompt, post_prompt)]
             input_ids = self.tokenizer(prompt, return_tensors="pt", padding=True).input_ids
@@ -529,7 +529,7 @@ class MultimodalModelRunner:
             visual_features = reshape_img_tokens + [visual_features[1]]
 
         fake_prompt_counter = self.model_config.vocab_size
-        if batch_size == 1 and self.model_type != 'cosmos':
+        if batch_size == 1 and self.model_type != 'llama_nemotron':
             # only check for multi-image inference (mode 1)
             assert len(visual_features) <= len(
                 split_input_ids
@@ -561,7 +561,7 @@ class MultimodalModelRunner:
                     # in case no post prompt
                     if len(split_input_ids) > idx + 1:
                         input_ids.append(split_input_ids[idx + 1])
-            elif self.model_type == 'cosmos':
+            elif self.model_type == 'llama_nemotron':
                 fake_prompt_id = torch.arange(
                     fake_prompt_counter,
                     fake_prompt_counter + visual_features.shape[0] * visual_features.shape[1]
@@ -750,7 +750,7 @@ class MultimodalModelRunner:
             new_images = torch.stack(new_images, dim=0)
         return new_images
 
-    def process_cosmos_img(self, images, input_size=512, max_num=12):
+    def process_llama_nemotron_img(self, images, input_size=512, max_num=12):
         def find_closest_aspect_ratio(aspect_ratio, target_ratios, width, height, image_size):
             best_factor = float('-inf')
             best_ratio = (1, 1)
@@ -880,7 +880,7 @@ class MultimodalModelRunner:
                 if input_text is None:
                     input_text = "<image>\n Please elaborate what you see in the images?"
                 post_prompt = input_text + "<|start_header_id|>assistant<|end_header_id|>\n\n"
-        elif self.model_type == "cosmos":
+        elif self.model_type == "llama_nemotron":
             pre_prompt = "<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\nAnswer the questions.<|eot_id|><|start_header_id|>user<|end_header_id|>\n\n"
             post_prompt = "<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n"
             if input_text is None:
@@ -889,7 +889,7 @@ class MultimodalModelRunner:
                 post_prompt = [input + post_prompt for input in input_text]
             else:
                 post_prompt = input_text + post_prompt
-            image = self.process_cosmos_img(raw_image)
+            image = self.process_llama_nemotron_img(raw_image)
 
         else:
             raise RuntimeError(f"Invalid model type {self.model_type}")
@@ -904,7 +904,7 @@ class MultimodalModelRunner:
         # Repeat inputs to match batch size
         pre_prompt = [pre_prompt] * batch_size
         post_prompt = [post_prompt] * batch_size
-        if self.model_type not in ['vila', 'lita', 'vita', 'cosmos']:
+        if self.model_type not in ['vila', 'lita', 'vita', 'llama_nemotron']:
             if image.dim() == 5:
                 image = image.expand(batch_size, -1, -1, -1, -1).contiguous()
             else:
@@ -1005,7 +1005,7 @@ class MultimodalModelRunner:
         media_model = ["video-neva", "lita", "vita"]
         if self.model_type in media_model:
             media = input_media
-        elif self.model_type in ["neva", "vila", "llava", "cosmos"]:
+        elif self.model_type in ["neva", "vila", "llava", "llama_nemotron"]:
             if input_media.startswith("http") or input_media.startswith("https"):
                 response = requests.get(input_media, timeout=5)
                 media = Image.open(BytesIO(response.content)).convert("RGB")

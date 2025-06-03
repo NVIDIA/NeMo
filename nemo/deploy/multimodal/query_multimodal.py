@@ -73,7 +73,7 @@ class NemoQueryMultimodal:
             subsample_len = self.frame_len(frames)
             sub_frames = self.get_subsampled_frames(frames, subsample_len)
             return np.array(sub_frames)
-        elif self.model_type in ["neva", "vila", "mllama", "cosmos"]:
+        elif self.model_type in ["neva", "vila", "mllama", "llama_nemotron"]:
             if input_media.startswith("http") or input_media.startswith("https"):
                 response = requests.get(input_media, timeout=5)
                 media = Image.open(BytesIO(response.content)).convert("RGB")

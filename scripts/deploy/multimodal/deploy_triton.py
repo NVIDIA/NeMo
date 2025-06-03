@@ -58,7 +58,7 @@ def get_args(argv):
         "--model_type",
         type=str,
         required=True,
-        choices=["neva", "video-neva", "lita", "vila", "vita", "salm", "mllama", "cosmos"],
+        choices=["neva", "video-neva", "lita", "vila", "vita", "salm", "mllama", "llama_nemotron"],
         help="Type of the model that is supported.",
     )
     parser.add_argument(
