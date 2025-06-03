@@ -159,8 +159,7 @@ class Hypothesis:
         self.length += other.length
         self.last_token = other.last_token
         if self.alignments is not None:
-            self.alignments[0] = torch.cat(self.alignments[0], other.alignments[0])
-            self.alignments[1] = torch.cat(self.alignments[1], other.alignments[1])
+            self.alignments.extend(other.alignments)
         if self.frame_confidence is not None:
             self.frame_confidence.extend(other.frame_confidence)
         # Invalidated. Need to rerun decode_hypothesis here.
