@@ -32,7 +32,7 @@ from tensorrt_llm.builder import BuildConfig, Builder
 from tensorrt_llm.commands.build import build as build_trtllm
 from tensorrt_llm.mapping import Mapping
 from tensorrt_llm.plugin import PluginConfig
-from transformers import AutoModel, AutoProcessor, MllamaForConditionalGeneration
+from transformers import AutoModel, AutoProcessor, AutoTokenizer, MllamaForConditionalGeneration
 
 from nemo.collections.multimodal.speech_llm.modules.perception_modules import AudioPerceptionModule
 from nemo.core.classes.common import typecheck
@@ -830,8 +830,6 @@ def build_llama_nemotron_engine(
         target='hf',
         output_path=hf_model_path,
     )
-    # Workaround: copy hf model file
-    shutil.copy("/opt/llama_3p1_8b_cradio_h_v2_hf/modeling_nvlm_d2.py", hf_model_path)
 
     build_llama_nemotron_visual_engine(
         os.path.join(model_dir, "visual_engine"),
@@ -849,11 +847,9 @@ def build_llama_nemotron_engine(
         max_multimodal_len,
         dtype,
     )
+
+    tokenizer = AutoTokenizer.from_pretrained(hf_model_path)
     tokenizer_path = os.path.join(model_dir, "llm_engine")
-    shutil.copy(os.path.join(hf_model_path, "tokenizer.json"),
-                os.path.join(tokenizer_path, "tokenizer.json"))
-    shutil.copy(os.path.join(hf_model_path, "tokenizer_config.json"),
-                os.path.join(tokenizer_path, "tokenizer_config.json"))
-    shutil.copy(os.path.join(hf_model_path, "special_tokens_map.json"),
-                os.path.join(tokenizer_path, "special_tokens_map.json"))
+    tokenizer.save_pretrained(tokenizer_path)
+
     shutil.rmtree(hf_model_path)
