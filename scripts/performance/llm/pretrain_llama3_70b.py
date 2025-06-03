@@ -123,7 +123,6 @@ def override_recipe_configs(
     recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_backend = "cublasmp"
     recipe.trainer.strategy.ddp.check_for_nan_in_grad = False
 
-
     return recipe
 
 
