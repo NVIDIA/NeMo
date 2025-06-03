@@ -1,0 +1,244 @@
+[NeMo I 2025-06-03 06:08:20 nemo_logging:393] 
+    Config Params:
+    name: Magpie-TTS-EN
+    max_epochs: 1000
+    batch_size: 2
+    weighted_sampling_steps_per_epoch: 50
+    train_ds_meta:
+      hifittstrain:
+        manifest_path: /home/pneekhara/2023/SimpleT5NeMo/manifests/hifitts__phoneme__nemo_audio_21fps_8codebooks_2kcodes_v2bWithWavLM_simplet5_withContextAudioPaths.json
+        audio_dir: /datap/misc/Datasets/hi_fi_tts_v0
+        feature_dir: /datap/misc/Datasets/hi_fi_tts_v0
+      rivatrain:
+        manifest_path: /home/pneekhara/2023/SimpleT5NeMo/manifests/rivaLindyRodney__phoneme__nemo_audio_21fps_8codebooks_2kcodes_v2bWithWavLM_simplet5_withContextAudioPaths.json
+        audio_dir: /datap/misc/Datasets/riva
+        feature_dir: /datap/misc/Datasets/riva
+      rivatraintc:
+        manifest_path: /home/pneekhara/2023/SimpleT5NeMo/manifests/rivaLindyRodney__phoneme__nemo_audio_21fps_8codebooks_2kcodes_v2bWithWavLM_textContextsimplet5_withContextAudioPaths.json
+        audio_dir: /datap/misc/Datasets/riva
+        feature_dir: /datap/misc/Datasets/riva
+      libri360:
+        manifest_path: /home/pneekhara/2023/SimpleT5NeMo/manifests/libri360__phoneme__nemo_audio_21fps_8codebooks_2kcodes_v2bWithWavLM_simplet5_withContextAudioPaths.json
+        audio_dir: /datap/misc/LibriTTSfromNemo/LibriTTS
+        feature_dir: /datap/misc/LibriTTSfromNemo/LibriTTS
+      libri100:
+        manifest_path: /home/pneekhara/2023/SimpleT5NeMo/manifests/libri100__phoneme__nemo_audio_21fps_8codebooks_2kcodes_v2bWithWavLM_simplet5_withContextAudioPaths.json
+        audio_dir: /datap/misc/LibriTTSfromNemo/LibriTTS
+        feature_dir: /datap/misc/LibriTTSfromNemo/LibriTTS
+    val_ds_meta:
+      librival:
+        manifest_path: /home/pneekhara/2023/SimpleT5NeMo/manifests/dev_clean_withcontext.json
+        audio_dir: /datap/misc/LibriTTSfromNemo/LibriTTS
+        feature_dir: /datap/misc/LibriTTSfromNemo/LibriTTS
+    sample_rate: 22050
+    model:
+      transformer_hf_backend: Qwen/Qwen2.5-1.5B-Instruct
+      use_text_conditioning_encoder: true
+      transcript_decoder_layers:
+      - 3
+      - 4
+      - 5
+      - 6
+      - 7
+      context_decoder_layers:
+      - 8
+      - 9
+      context_duration_min: 5.0
+      context_duration_max: 5.0
+      load_cached_codes_if_available: false
+      prior_scaling_factor: 0.1
+      prior_end_step: 0
+      prior_scaledown_start_step: 0
+      indefinite_prior_prob: 0.5
+      alignment_loss_scale: 0.0
+      embedding_dim: 1536
+      hidden_dim: 1536
+      codecmodel_path: /datap/misc/checkpoints/edressonnewcheckpoints/ml-model-NanoCodec-12.5FPS-26_codebooks_2016_codes_3.56kbps.nemo
+      max_epochs: 1000
+      steps_per_epoch: 50
+      sample_rate: 22050
+      cfg_unconditional_prob: 0.0
+      use_alignment_encoder: false
+      use_prior_for_aligner: true
+      alignment_encoder_loss_scale: 1.0
+      binarize_prior_after_step: 10000
+      binarize_attn_method: nemo_binarize
+      prior_future_context: 2
+      prior_past_context: 2
+      prior_future_decay: 0.8
+      prior_past_decay: 0.5
+      binarize_repeat_audio_factor: 2
+      binarized_prior_epsilon: 0.0
+      aligner_encoder_train_steps: 50000
+      local_transformer_type: none
+      local_transformer_loss_scale: 1.0
+      local_transformer_n_layers: 3
+      local_transformer_n_heads: 1
+      local_transformer_hidden_dim: 256
+      text_tokenizers:
+        english_phoneme:
+          _target_: AutoTokenizer
+          pretrained_model: Qwen/Qwen2.5-1.5B-Instruct
+      train_ds:
+        dataset:
+          _target_: nemo.collections.tts.data.text_to_speech_dataset.MagpieTTSDataset
+          dataset_meta:
+            hifittstrain:
+              manifest_path: /home/pneekhara/2023/SimpleT5NeMo/manifests/hifitts__phoneme__nemo_audio_21fps_8codebooks_2kcodes_v2bWithWavLM_simplet5_withContextAudioPaths.json
+              audio_dir: /datap/misc/Datasets/hi_fi_tts_v0
+              feature_dir: /datap/misc/Datasets/hi_fi_tts_v0
+            rivatrain:
+              manifest_path: /home/pneekhara/2023/SimpleT5NeMo/manifests/rivaLindyRodney__phoneme__nemo_audio_21fps_8codebooks_2kcodes_v2bWithWavLM_simplet5_withContextAudioPaths.json
+              audio_dir: /datap/misc/Datasets/riva
+              feature_dir: /datap/misc/Datasets/riva
+            rivatraintc:
+              manifest_path: /home/pneekhara/2023/SimpleT5NeMo/manifests/rivaLindyRodney__phoneme__nemo_audio_21fps_8codebooks_2kcodes_v2bWithWavLM_textContextsimplet5_withContextAudioPaths.json
+              audio_dir: /datap/misc/Datasets/riva
+              feature_dir: /datap/misc/Datasets/riva
+            libri360:
+              manifest_path: /home/pneekhara/2023/SimpleT5NeMo/manifests/libri360__phoneme__nemo_audio_21fps_8codebooks_2kcodes_v2bWithWavLM_simplet5_withContextAudioPaths.json
+              audio_dir: /datap/misc/LibriTTSfromNemo/LibriTTS
+              feature_dir: /datap/misc/LibriTTSfromNemo/LibriTTS
+            libri100:
+              manifest_path: /home/pneekhara/2023/SimpleT5NeMo/manifests/libri100__phoneme__nemo_audio_21fps_8codebooks_2kcodes_v2bWithWavLM_simplet5_withContextAudioPaths.json
+              audio_dir: /datap/misc/LibriTTSfromNemo/LibriTTS
+              feature_dir: /datap/misc/LibriTTSfromNemo/LibriTTS
+          weighted_sampling_steps_per_epoch: 50
+          sample_rate: 22050
+          min_duration: 0.2
+          max_duration: 20.0
+        dataloader_params:
+          batch_size: 2
+          num_workers: 2
+          drop_last: true
+          pin_memory: true
+      validation_ds:
+        dataset:
+          _target_: nemo.collections.tts.data.text_to_speech_dataset.MagpieTTSDataset
+          dataset_meta:
+            librival:
+              manifest_path: /home/pneekhara/2023/SimpleT5NeMo/manifests/dev_clean_withcontext.json
+              audio_dir: /datap/misc/LibriTTSfromNemo/LibriTTS
+              feature_dir: /datap/misc/LibriTTSfromNemo/LibriTTS
+          sample_rate: 22050
+          min_duration: 0.2
+          max_duration: 20.0
+        dataloader_params:
+          batch_size: 2
+          num_workers: 2
+          pin_memory: true
+      optim:
+        _target_: torch.optim.AdamW
+        lr: 0.0001
+        sched:
+          name: ExponentialLR
+          gamma: 0.998
+    trainer:
+      num_nodes: 1
+      devices: 1
+      accelerator: gpu
+      strategy: ddp_find_unused_parameters_true
+      precision: bf16
+      max_epochs: 1000
+      accumulate_grad_batches: 1
+      enable_checkpointing: false
+      logger: false
+      log_every_n_steps: 100
+      check_val_every_n_epoch: 1
+      num_sanity_val_steps: 0
+      benchmark: false
+      gradient_clip_val: 2.5
+    exp_manager:
+      exp_dir: /datap/misc/Experiments/SimpleT5Explore/LocalTraining_LRH2/Binarize
+      name: Magpie-TTS-EN
+      create_tensorboard_logger: true
+      create_wandb_logger: false
+      wandb_logger_kwargs:
+        name: null
+        project: null
+        resume: true
+      create_checkpoint_callback: true
+      checkpoint_callback_params:
+        monitor: val_loss
+        mode: min
+        save_top_k: 5
+        save_best_model: true
+        always_save_nemo: true
+      resume_if_exists: true
+      resume_ignore_no_checkpoint: true
+      version: 0
+    
+Using bfloat16 Automatic Mixed Precision (AMP)
+GPU available: True (cuda), used: True
+TPU available: False, using: 0 TPU cores
+HPU available: False, using: 0 HPUs
+[NeMo I 2025-06-03 06:08:21 nemo_logging:393] ExpManager schema
+[NeMo I 2025-06-03 06:08:21 nemo_logging:393] {'explicit_log_dir': None, 'exp_dir': None, 'name': None, 'version': None, 'use_datetime_version': True, 'resume_if_exists': False, 'resume_past_end': False, 'resume_ignore_no_checkpoint': False, 'resume_from_checkpoint': None, 'create_tensorboard_logger': True, 'summary_writer_kwargs': None, 'create_wandb_logger': False, 'wandb_logger_kwargs': None, 'create_mlflow_logger': False, 'mlflow_logger_kwargs': {'experiment_name': None, 'tracking_uri': None, 'tags': None, 'save_dir': './mlruns', 'prefix': '', 'artifact_location': None, 'run_id': None, 'log_model': False}, 'create_dllogger_logger': False, 'dllogger_logger_kwargs': {'verbose': False, 'stdout': False, 'json_file': './dllogger.json'}, 'create_clearml_logger': False, 'clearml_logger_kwargs': {'project': None, 'task': None, 'connect_pytorch': False, 'model_name': None, 'tags': None, 'log_model': False, 'log_cfg': False, 'log_metrics': False}, 'create_neptune_logger': False, 'neptune_logger_kwargs': None, 'create_checkpoint_callback': True, 'checkpoint_callback_params': {'filepath': None, 'dirpath': None, 'filename': None, 'monitor': 'val_loss', 'verbose': True, 'save_last': True, 'save_top_k': 3, 'save_weights_only': False, 'mode': 'min', 'auto_insert_metric_name': True, 'every_n_epochs': 1, 'every_n_train_steps': None, 'train_time_interval': None, 'prefix': None, 'postfix': '.nemo', 'save_best_model': False, 'always_save_nemo': False, 'save_nemo_on_train_end': True, 'model_parallel_size': None, 'save_on_train_epoch_end': False, 'async_save': False, 'save_last_n_optim_states': -1}, 'create_early_stopping_callback': False, 'early_stopping_callback_params': {'monitor': 'val_loss', 'mode': 'min', 'min_delta': 0.001, 'patience': 10, 'verbose': True, 'strict': True, 'check_finite': True, 'stopping_threshold': None, 'divergence_threshold': None, 'check_on_train_epoch_end': None, 'log_rank_zero_only': False}, 'create_preemption_callback': True, 'files_to_copy': None, 'log_step_timing': True, 'log_delta_step_timing': False, 'step_timing_kwargs': {'reduction': 'mean', 'sync_cuda': False, 'buffer_size': 1}, 'log_local_rank_0_only': False, 'log_global_rank_0_only': False, 'disable_validation_on_resume': True, 'ema': {'enable': False, 'decay': 0.999, 'cpu_offload': False, 'validate_original_weights': False, 'every_n_steps': 1}, 'max_time_per_run': None, 'seconds_to_sleep': 5.0, 'create_straggler_detection_callback': False, 'straggler_detection_params': {'report_time_interval': 300.0, 'calc_relative_gpu_perf': True, 'calc_individual_gpu_perf': True, 'num_gpu_perf_scores_to_log': 5, 'gpu_relative_perf_threshold': 0.7, 'gpu_individual_perf_threshold': 0.7, 'stop_if_detected': False}, 'create_fault_tolerance_callback': False, 'fault_tolerance': {'workload_check_interval': 5.0, 'initial_rank_heartbeat_timeout': 3600.0, 'rank_heartbeat_timeout': 2700.0, 'calculate_timeouts': True, 'safety_factor': 5.0, 'rank_termination_signal': <Signals.SIGKILL: 9>, 'log_level': 'INFO', 'max_rank_restarts': 0, 'max_subsequent_job_failures': 0, 'additional_ft_launcher_args': '', 'simulated_fault': None}, 'log_tflops_per_sec_per_gpu': True}
+[NeMo I 2025-06-03 06:08:21 nemo_logging:393] Experiments will be logged at /datap/misc/Experiments/SimpleT5Explore/LocalTraining_LRH2/Binarize/Magpie-TTS-EN/0
+[NeMo I 2025-06-03 06:08:21 nemo_logging:393] TensorboardLogger has been set up
+[NeMo I 2025-06-03 06:08:21 nemo_logging:393] TFLOPs per sec per GPU will be calculated, conditioned on supported models. Defaults to -1 upon failure.
+[NeMo I 2025-06-03 06:08:21 nemo_logging:393] Vector quantizer does not support commit loss.
+[NeMo I 2025-06-03 06:08:22 nemo_logging:393] PADDING: 1
+[NeMo I 2025-06-03 06:08:23 nemo_logging:393] PADDING: 1
+[NeMo I 2025-06-03 06:08:23 nemo_logging:393] PADDING: 1
+[NeMo I 2025-06-03 06:08:23 nemo_logging:393] PADDING: 1
+[NeMo I 2025-06-03 06:08:23 nemo_logging:393] PADDING: 1
+[NeMo I 2025-06-03 06:08:23 nemo_logging:393] PADDING: 1
+[NeMo I 2025-06-03 06:08:23 nemo_logging:393] Model AudioCodecModel was successfully restored from /datap/misc/checkpoints/edressonnewcheckpoints/ml-model-NanoCodec-12.5FPS-26_codebooks_2016_codes_3.56kbps.nemo.
+[NeMo I 2025-06-03 06:08:25 nemo_logging:393] hifittstrain
+[NeMo I 2025-06-03 06:08:25 nemo_logging:393] Original # of files: 302489
+[NeMo I 2025-06-03 06:08:25 nemo_logging:393] Filtered # of files: 302489
+[NeMo I 2025-06-03 06:08:25 nemo_logging:393] Original duration: 282.53 hours
+[NeMo I 2025-06-03 06:08:25 nemo_logging:393] Filtered duration: 282.53 hours
+[NeMo I 2025-06-03 06:08:29 nemo_logging:393] rivatrain
+[NeMo I 2025-06-03 06:08:29 nemo_logging:393] Original # of files: 42000
+[NeMo I 2025-06-03 06:08:29 nemo_logging:393] Filtered # of files: 41986
+[NeMo I 2025-06-03 06:08:29 nemo_logging:393] Original duration: 62.00 hours
+[NeMo I 2025-06-03 06:08:29 nemo_logging:393] Filtered duration: 61.92 hours
+[NeMo I 2025-06-03 06:08:29 nemo_logging:393] rivatraintc
+[NeMo I 2025-06-03 06:08:29 nemo_logging:393] Original # of files: 42000
+[NeMo I 2025-06-03 06:08:29 nemo_logging:393] Filtered # of files: 41986
+[NeMo I 2025-06-03 06:08:29 nemo_logging:393] Original duration: 62.00 hours
+[NeMo I 2025-06-03 06:08:29 nemo_logging:393] Filtered duration: 61.92 hours
+[NeMo I 2025-06-03 06:08:30 nemo_logging:393] libri360
+[NeMo I 2025-06-03 06:08:30 nemo_logging:393] Original # of files: 107124
+[NeMo I 2025-06-03 06:08:30 nemo_logging:393] Filtered # of files: 106361
+[NeMo I 2025-06-03 06:08:30 nemo_logging:393] Original duration: 179.60 hours
+[NeMo I 2025-06-03 06:08:30 nemo_logging:393] Filtered duration: 175.17 hours
+[NeMo I 2025-06-03 06:08:31 nemo_logging:393] libri100
+[NeMo I 2025-06-03 06:08:31 nemo_logging:393] Original # of files: 30991
+[NeMo I 2025-06-03 06:08:31 nemo_logging:393] Filtered # of files: 30765
+[NeMo I 2025-06-03 06:08:31 nemo_logging:393] Original duration: 50.67 hours
+[NeMo I 2025-06-03 06:08:31 nemo_logging:393] Filtered duration: 49.36 hours
+[NeMo I 2025-06-03 06:08:31 nemo_logging:393] librival
+[NeMo I 2025-06-03 06:08:31 nemo_logging:393] Original # of files: 998
+[NeMo I 2025-06-03 06:08:31 nemo_logging:393] Filtered # of files: 996
+[NeMo I 2025-06-03 06:08:31 nemo_logging:393] Original duration: 1.33 hours
+[NeMo I 2025-06-03 06:08:31 nemo_logging:393] Filtered duration: 1.32 hours
+[NeMo I 2025-06-03 06:08:47 nemo_logging:393] Local transformer type: none
+----------------------------------------------------------------------------------------------------
+distributed_backend=nccl
+All distributed processes registered. Starting with 1 processes
+----------------------------------------------------------------------------------------------------
+
+[NeMo I 2025-06-03 06:08:49 nemo_logging:393] Optimizer config = AdamW (
+    Parameter Group 0
+        amsgrad: False
+        betas: (0.9, 0.999)
+        capturable: False
+        differentiable: False
+        eps: 1e-08
+        foreach: None
+        fused: None
+        lr: 0.0001
+        maximize: False
+        weight_decay: 0.01
+    )
+[NeMo I 2025-06-03 06:08:49 nemo_logging:393] Scheduler "<torch.optim.lr_scheduler.ExponentialLR object at 0x7f0d986e0080>" 
+    will be used during training (effective maximum steps = 261793000) - 
+    Parameters : 
+    (gamma: 0.998
+    )
+[NeMo I 2025-06-03 06:09:18 nemo_logging:393] Worker 0 initializing...
+Training: |          | 0/? [00:00<?, ?it/s]Training:   0%|          | 0/50 [00:00<?, ?it/s]Epoch 0:   0%|          | 0/50 [00:00<?, ?it/s] [NeMo I 2025-06-03 06:09:43 nemo_logging:393] Worker 1 initializing...
+Epoch 0:   2%|▏         | 1/50 [00:02<01:50,  0.44it/s]Epoch 0:   2%|▏         | 1/50 [00:02<01:53,  0.43it/s, v_num=0, train/codebook_loss=7.770, train/loss=7.770, train_step_timing in s=1.710]Epoch 0:   2%|▏         | 1/50 [00:14<11:48,  0.07it/s, v_num=0, train/codebook_loss=7.770, train/loss=7.770, train_step_timing in s=1.710]

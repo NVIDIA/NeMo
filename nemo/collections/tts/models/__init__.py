@@ -18,6 +18,7 @@ from nemo.collections.tts.models.fastpitch import FastPitchModel
 from nemo.collections.tts.models.fastpitch_ssl import FastPitchModel_SSL
 from nemo.collections.tts.models.hifigan import HifiGanModel
 from nemo.collections.tts.models.magpietts import MagpieTTSModel
+from nemo.collections.tts.models.magpie_decoderonly import MagpieTTSDecoderModel
 from nemo.collections.tts.models.magpietts_preference_optimization import (
     MagpieTTSModelOfflinePO,
     MagpieTTSModelOnlinePO,
@@ -45,6 +46,7 @@ __all__ = [
     "MixerTTSModel",
     "RadTTSModel",
     "MagpieTTSModel",
+    "MagpieTTSDecoderModel",
     "MagpieTTSModelOfflinePODataGen",
     "MagpieTTSModelOfflinePO",
     "MagpieTTSModelOnlinePO",
