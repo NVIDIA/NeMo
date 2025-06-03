@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -327,7 +327,7 @@ class HFStarcoderExporter(io.ModelConnector[StarcoderModel, "GPTBigCodeForCausal
         """
         from transformers import GPTBigCodeConfig as HFStarcoderConfig
 
-        source: StarcoderConfig = io.load_context(str(self)).model.config
+        source: StarcoderConfig = io.load_context(str(self), subpath="model.config")
 
         return HFStarcoderConfig(
             architectures=["GPTBigCodeForCausalLM"],

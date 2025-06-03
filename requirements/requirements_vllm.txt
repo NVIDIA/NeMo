@@ -11,6 +11,7 @@ ijson
 jieba
 lightning>2.2.1
 matplotlib>=3.3.2
+nvtx
 omegaconf<=2.3
 onnx>=1.7.0
 OpenCC
@@ -19,7 +20,8 @@ pangu
 rouge_score
 sacrebleu
 scikit-learn
-vllm==0.8.5
+transformers==4.51.3
+vllm==0.8.5.post1
 webdataset>=0.2.86
 wget
 zarr>=2.18.2,<3.0.0

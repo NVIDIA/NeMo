@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,9 +20,9 @@ from typing import List, Optional, Union
 
 import numpy as np
 import torch
-import webdataset as wd
 from omegaconf import OmegaConf
 
+import nemo.utils.webdataset as wd
 from nemo.collections.asr.data.audio_to_text import (
     _speech_collate_fn,
     cache_datastore_manifests,

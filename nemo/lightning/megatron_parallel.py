@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -227,7 +227,6 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         convert_module_fn: Optional[Callable[[ModelT], nn.Module]] = None,
     ) -> None:
         from megatron.core import parallel_state
-        from nemo.utils.model_utils import unwrap_model
 
         _pipeline: List[nn.Module]
         if isinstance(pipeline, nn.ModuleList):
@@ -241,12 +240,10 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
             if len(_pipeline) == 1 and parallel_state.get_pipeline_model_parallel_world_size() > 1:
                 from nemo.lightning import io
 
-                parallel_state.set_virtual_pipeline_model_parallel_world_size(vp_size)
                 for i in range(1, vp_size):
-                    parallel_state.set_virtual_pipeline_model_parallel_rank(i)
                     _model = io.reinit(_pipeline[0])
                     if hasattr(_model, "configure_model"):
-                        _model.configure_model()
+                        _model.configure_model(vp_stage=i)
                     _pipeline.append(_model)
 
         super().__init__(_pipeline)
@@ -259,20 +256,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         self.ddp_config = ddp_config
         self.fsdp = fsdp
         self.convert_module_fn = convert_module_fn
-
-        # [ModelOpt]: Detect Pipeline-parallel Distillation mode.
-        self._unwrapped_model = [unwrap_model(self)]
-        # Avoid re-registering module which breaks the inherited `ModuleList` somehow.
-        if (
-            hasattr(self.unwrapped_model, "teacher_model")
-            and parallel_state.get_pipeline_model_parallel_world_size() > 1
-        ):
-            self._kd_teacher_in_pp = True
-            assert (
-                not self.ddp_config.overlap_grad_reduce
-            ), "Pipeline-parallel Distillation currently incomatible with `overlap_grad_reduce` DDP option."
-        else:
-            self._kd_teacher_in_pp = False
+        self.vp_size = vp_size
 
     def forward(
         self,
@@ -327,37 +311,6 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         else:
             forward_step_func = _forward_step
 
-        if self._kd_teacher_in_pp:
-            assert wrap_forward_step
-            _teacher_forward_context = {}
-            if isinstance(_data_step, _ModuleStepFunction):
-                _data_step = _data_step(self.module)
-
-            def _dummy_reduction(output_tensor, *args, **kwargs):
-                return output_tensor.new_tensor(-1), {}
-
-            teacher_forward_step_func = self.wrapped_forward_step(
-                forward_step=_forward_step,
-                data_step=_data_step,
-                loss_reduction=_dummy_reduction,
-                context=_teacher_forward_context,
-            )
-            teacher_step = MegatronStep.infer(
-                self,
-                None,  # updated later below once we actually know `num_microbatches`
-                teacher_forward_step_func,
-                forward_only=True,
-                micro_batch_size=micro_batch_size,
-                num_microbatches=num_microbatches,
-                seq_length=seq_length,
-                step_i=step_i,
-            )
-            _teacher_forward_context["step"] = teacher_step
-            teacher_step = self.callbacks.transform_event("on_megatron_step_start", teacher_step)
-
-            data = _data_step(data, cache_num_batches=teacher_step.num_microbatches)
-            teacher_step.data = data
-
         step = MegatronStep.infer(
             self,
             data,
@@ -372,14 +325,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         step = self.callbacks.transform_event("on_megatron_step_start", step)
 
         self.callbacks.event("on_megatron_microbatches_start", step=step)
-        if self._kd_teacher_in_pp:
-            with self.unwrapped_model.only_teacher_forward():
-                with self.unwrapped_model.swap_teacher_config(self.module):
-                    teacher_step()
-            with self.unwrapped_model.only_student_forward():
-                microbatch_outputs = step()
-        else:
-            microbatch_outputs = step()
+        microbatch_outputs = step()
         self.callbacks.event("on_megatron_microbatches_end", step=step, microbatch_outputs=microbatch_outputs)
 
         if microbatch_outputs:
@@ -706,7 +652,9 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
                 forward_callback=forward_callback,
             )
 
-            if self.precision_plugin and parallel_state.is_pipeline_first_stage(ignore_virtual=False):
+            if self.precision_plugin and parallel_state.is_pipeline_first_stage(
+                ignore_virtual=False, vp_stage=model.module.vp_stage
+            ):
                 batch = self.precision_plugin.convert_input(batch)
 
             output_tensor = _forward_step(model, batch)
@@ -720,7 +668,9 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
                 tensor=output_tensor,
             )
 
-            if self.precision_plugin and parallel_state.is_pipeline_last_stage(ignore_virtual=False):
+            if self.precision_plugin and parallel_state.is_pipeline_last_stage(
+                ignore_virtual=False, vp_stage=model.module.vp_stage
+            ):
                 output_tensor = self.precision_plugin.convert_output(output_tensor)
 
             self.callbacks.event(
@@ -800,7 +750,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
                 self.init_ddp()
         except RuntimeError as e:
             # Don't fail if trainer is not attached, re-raise any other RuntimeError
-            if not "is not attached to a `Trainer`" in str(e):
+            if "is not attached to a `Trainer`" not in str(e):
                 raise e
 
     def apply_convert_module_fn(self):
@@ -984,18 +934,12 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
 
         sharded_state_dict = {}
         for index, module in enumerate(self):
-            if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
-                # virtual pipline rank must be set so that GPTModel returns the correct sharded state dict
-                parallel_state.set_virtual_pipeline_model_parallel_rank(index)
+            if self.vp_size is not None:
                 module_sharded_state_dict = self._module_sharded_state_dict(module)
                 sharded_state_dict[f"model_{index}"] = module_sharded_state_dict
             else:
                 module_sharded_state_dict = self._module_sharded_state_dict(module)
                 sharded_state_dict.update(module_sharded_state_dict)
-
-        # reset vp rank
-        if parallel_state.get_virtual_pipeline_model_parallel_world_size() is not None:
-            parallel_state.set_virtual_pipeline_model_parallel_rank(0)
 
         return sharded_state_dict
 
@@ -1087,19 +1031,6 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         """
         return self._pipeline[0]
 
-    @property
-    def unwrapped_model(self):
-        """
-        Gets the unwrapped model, removing any wrapper modules.
-
-        This extracts the model from any pytorch wrappers like DDP (Distributed Data Parallel)
-        so the underlying model can be accessed directly.
-
-        Returns:
-            The unwrapped model without any wrappers
-        """
-        return unwrap_model(self.module)
-
     @override
     def __getattr__(self, item: Any) -> Any:
         """
@@ -1160,7 +1091,7 @@ class _ModuleStepFunction:
     def from_forward_step(cls, module: "pl.LightningModule", step_type: str) -> Optional["_ModuleStepFunction"]:
         from megatron.core import parallel_state
 
-        if parallel_state.is_pipeline_last_stage(ignore_virtual=False):
+        if parallel_state.is_pipeline_last_stage(ignore_virtual=False, vp_stage=getattr(module, 'vp_stage', None)):
             if not hasattr(module, f"{step_type}_step"):
                 raise ValueError(f"LightningModule does not have {step_type}_step method")
 
@@ -1610,6 +1541,7 @@ class MegatronStep(Generic[ModelT, DataT]):
             micro_batch_size=self.micro_batch_size,
             forward_only=self.forward_only,
             decoder_seq_length=self.decoder_seq_length,
+            adjust_tensor_shapes_fn=self.adjust_tensor_shapes_fn,
         )
 
     def to_data_iterator_list(
@@ -1752,6 +1684,27 @@ class MegatronStep(Generic[ModelT, DataT]):
         from megatron.core.pipeline_parallel.schedules import get_forward_backward_func
 
         return get_forward_backward_func()
+
+    @property
+    def adjust_tensor_shapes_fn(self) -> Union[Callable, None]:
+        """
+        Retrieves the function to adjust send and receive tensor shapes in Megatron-Core's forward pass.
+
+        Currently only used during non-interleaved pipelining for Distillation.
+
+        Returns:
+            Union[Callable, None]: The function which takes in tensor shapes and returns updated shapes,
+                                   or None if not applicable.
+        """
+        from nemo.collections.llm.modelopt.distill.utils import get_tensor_shapes_adjust_fn_for_distillation
+
+        return get_tensor_shapes_adjust_fn_for_distillation(
+            self.model,
+            self.seq_length,
+            self.micro_batch_size,
+            self.decoder_seq_length,
+            self.forward_only,
+        )
 
     def get_data_iterator_and_seq_length(self) -> Tuple[List[Iterator[DataT]], Optional[int]]:
         """
