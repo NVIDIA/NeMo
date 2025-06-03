@@ -128,7 +128,7 @@ class MagpieTTSModel(ModelPT):
 
         self.model_type = cfg.get('model_type', None)
 
-        self.pad_context_text_to_max_duration = self.model_type == 'decoder_context_tts'
+        self.pad_context_text_to_max_duration = self.model_type in ['decoder_context_tts', 'decoder_ce']
         self.use_kv_cache_for_inference = cfg.get('use_kv_cache_for_inference', False)
 
         super().__init__(cfg=cfg, trainer=trainer)
@@ -173,6 +173,12 @@ class MagpieTTSModel(ModelPT):
             self.encoder = transformer_2501.Transformer(**dict(cfg.encoder))
 
         self.decoder = transformer_2501.Transformer(**dict(cfg.decoder))
+        
+        if cfg.decoder.xa_d_memory != cfg.encoder.d_model:
+            self.text_cond_adapter = nn.Linear(cfg.encoder.d_model, cfg.decoder.xa_d_memory)
+        else:
+            self.text_cond_adapter = nn.Identity()
+
         self.final_proj = nn.Linear(cfg.decoder.d_model, self.num_audio_codebooks * self.num_all_tokens_per_codebook)
 
         self.local_transformer_type = LocalTransformerType(cfg.get('local_transformer_type', 'none').lower())
@@ -202,7 +208,7 @@ class MagpieTTSModel(ModelPT):
         if cfg.get('use_alignment_encoder', False):
             self.alignment_encoder = AlignmentEncoder(
                 n_mel_channels=cfg.embedding_dim,
-                n_text_channels=cfg.embedding_dim,
+                n_text_channels=cfg.decoder.xa_d_memory,
                 dist_type="cosine",
                 temperature=15.0,
             )
@@ -212,7 +218,7 @@ class MagpieTTSModel(ModelPT):
                 model_name='titanet_large'
             )
             self._speaker_verification_model.freeze()  #Lightning does requires_grad = False and self.eval()
-            self.speaker_projection_layer = nn.Linear(cfg.speaker_emb_dim, cfg.embedding_dim)
+            self.speaker_projection_layer = nn.Linear(cfg.speaker_emb_dim, cfg.decoder.xa_d_memory)
             self.transcript_decoder_layers = [
                 idx for idx in range(self.decoder.n_layers)
             ]  # All layers are used for text
@@ -232,6 +238,14 @@ class MagpieTTSModel(ModelPT):
             self.transcript_decoder_layers = [
                 idx for idx in range(self.decoder.n_layers)
             ]  # All layers are used for text
+        elif self.model_type == 'decoder_ce':
+            # Similar to decoder_context_tts, but we don't use context encoder
+            # Decoder gets output from context encoder instead of raw context tokens
+            self.context_encoder = transformer_2501.Transformer(**dict(cfg.context_encoder))
+            self.transcript_decoder_layers = [
+                idx for idx in range(cfg.decoder.n_layers)
+            ]  # All layers are used for text
+
         elif self.model_type == 'decoder_pretrain_synthesizer':
             assert cfg.alignment_loss_scale == 0.0, "Alignment loss is not supported for decoder pretrain synthesizer"
         else:
@@ -875,6 +889,7 @@ class MagpieTTSModel(ModelPT):
             text_mask = get_mask_from_lengths(text_lens)  # (B, T)
             text_embedded = self.embed_text(text, text_mask)  # (B, T, E)
             text_encoder_out = self.encoder(text_embedded, text_mask, cond=None, cond_mask=None)['output']  # (B, T, E)
+            text_encoder_out = self.text_cond_adapter(text_encoder_out)  # (B, T, E)
             _attn_prior = batch.get('align_prior_matrix', None)
             _attn_prior = self.scale_prior(_attn_prior, self.global_step)
 
@@ -887,7 +902,7 @@ class MagpieTTSModel(ModelPT):
             cond_mask = text_mask
             multi_encoder_mapping = None
             attn_prior = _attn_prior
-        elif self.model_type in ['multi_encoder_context_tts', 'decoder_context_tts']:
+        elif self.model_type in ['multi_encoder_context_tts', 'decoder_context_tts', 'decoder_ce']:
             if 'context_audio_codes' in batch:
                 context_audio_codes = batch['context_audio_codes']
                 context_audio_codes_lens = batch['context_audio_codes_lens']
@@ -941,9 +956,14 @@ class MagpieTTSModel(ModelPT):
                 multi_encoder_mapping = self.multi_encoder_mapping
                 attn_prior = [_attn_prior, None]
 
-            elif self.model_type == 'decoder_context_tts':
+            elif self.model_type in ['decoder_context_tts', 'decoder_ce']:
                 dec_context_size = context_mask.size(1)
-                context_embeddings = context_input_embedded
+                if self.model_type == 'decoder_context_tts':
+                    context_embeddings = context_input_embedded
+                elif self.model_type == 'decoder_ce':
+                    context_embeddings = self.context_encoder(
+                        context_input_embedded, context_mask, cond=None, cond_mask=None
+                    )['output']
                 attn_prior = _attn_prior
                 if attn_prior is not None:
                     # B, audio_timesteps, text_timesteps
