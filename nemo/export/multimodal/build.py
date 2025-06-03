@@ -22,11 +22,11 @@ from time import time
 from typing import List
 
 import tensorrt as trt
+import tensorrt_llm
 import torch
 import yaml
 from omegaconf import OmegaConf
 from PIL import Image
-import tensorrt_llm
 from tensorrt_llm._common import check_max_num_tokens
 from tensorrt_llm.builder import BuildConfig, Builder
 from tensorrt_llm.commands.build import build as build_trtllm
@@ -34,12 +34,12 @@ from tensorrt_llm.mapping import Mapping
 from tensorrt_llm.plugin import PluginConfig
 from transformers import AutoModel, AutoProcessor, AutoTokenizer, MllamaForConditionalGeneration
 
+from nemo.collections import llm
 from nemo.collections.multimodal.speech_llm.modules.perception_modules import AudioPerceptionModule
 from nemo.core.classes.common import typecheck
 from nemo.export.tensorrt_llm import TensorRTLLM
 from nemo.export.trt_llm.nemo_ckpt_loader.nemo_file import load_nemo_model
 from nemo.export.utils.constants import TRTLLM_ENGINE_DIR
-from nemo.collections import llm
 
 from .converter import convert_mllama_nemo_to_hf
 
@@ -653,7 +653,7 @@ def build_llama_nemotron_visual_engine(
             patch_size = model.config.patch_size
             self.patch_size = patch_size
             self.template = model.config.template
-            self.num_image_token = int((image_size // patch_size) ** 2 * (model.config.downsample_ratio ** 2))
+            self.num_image_token = int((image_size // patch_size) ** 2 * (model.config.downsample_ratio**2))
             self.downsample_ratio = model.config.downsample_ratio
             self.ps_version = model.config.ps_version
             self.image_tag_type = model.config.image_tag_type
@@ -671,11 +671,12 @@ def build_llama_nemotron_visual_engine(
             # N, W, H * scale, C // scale --> N, H * scale, W, C // scale
             x = x.permute(0, 2, 1, 3).contiguous()
             # N, H * scale, W, C // scale --> N, H * scale, W * scale, C // (scale ** 2)
-            x = x.view(n, int(h * scale_factor), int(w * scale_factor),
-                    int(c / (scale_factor * scale_factor)))
+            x = x.view(n, int(h * scale_factor), int(w * scale_factor), int(c / (scale_factor * scale_factor)))
             if self.ps_version == 'v1':
-                logger.log("In ps_version 'v1', the height and width have not been swapped back, "
-                            'which results in a transposed image.')
+                logger.log(
+                    "In ps_version 'v1', the height and width have not been swapped back, "
+                    'which results in a transposed image.'
+                )
             else:
                 x = x.permute(0, 2, 1, 3).contiguous()
             return x

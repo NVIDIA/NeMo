@@ -29,9 +29,9 @@ from nemo.collections.multimodal.modules.imagen.diffusionmodules.layers import n
 try:
     from megatron.core.transformer.custom_layers.transformer_engine import (
         TEColumnParallelLinear,
+        TELayerNormColumnParallelLinear,
         TENorm,
         TERowParallelLinear,
-        TELayerNormColumnParallelLinear,
     )
 except ImportError:
     from nemo.utils import logging
@@ -94,8 +94,7 @@ class MultimodalProjectorConfig(TransformerConfig, io.IOMixin):
                     self.layer_spec = ModuleSpec(
                         module=MLP,
                         submodules=MLPSubmodules(
-                            linear_fc1=TELayerNormColumnParallelLinear,
-                            linear_fc2=TERowParallelLinear
+                            linear_fc1=TELayerNormColumnParallelLinear, linear_fc2=TERowParallelLinear
                         ),
                     )
                 else:

@@ -23,16 +23,17 @@ except Exception:
 
     logging.warning("The package `decord` was not installed in this environment.")
 
+from io import BytesIO
+
 import einops
 import numpy as np
+import requests
 import soundfile as sf
 import tensorrt as trt
 import tensorrt_llm
 import tensorrt_llm.profiler as profiler
 import torch
 import yaml
-import requests
-from io import BytesIO
 from PIL import Image
 from tensorrt_llm import logger
 from tensorrt_llm._utils import str_dtype_to_trt, torch_dtype_to_trt
@@ -101,18 +102,8 @@ class MultimodalModelRunner:
                 self.tokenizer.vid_end_id = self.tokenizer.convert_tokens_to_ids("<extra_id_9>")
             if self.model_type == 'cosmos':
                 self.tokenizer.add_tokens(
-                    [
-                        "<image>",
-                        "<img>",
-                        "</img>",
-                        "<quad>",
-                        "</quad>",
-                        "<ref>",
-                        "</ref>",
-                        "<box>",
-                        "</box>"
-                    ],
-                    special_tokens=True
+                    ["<image>", "<img>", "</img>", "<quad>", "</quad>", "<ref>", "</ref>", "<box>", "</box>"],
+                    special_tokens=True,
                 )
         else:
             from sentencepiece import SentencePieceProcessor
@@ -563,8 +554,7 @@ class MultimodalModelRunner:
                         input_ids.append(split_input_ids[idx + 1])
             elif self.model_type == 'llama_nemotron':
                 fake_prompt_id = torch.arange(
-                    fake_prompt_counter,
-                    fake_prompt_counter + visual_features.shape[0] * visual_features.shape[1]
+                    fake_prompt_counter, fake_prompt_counter + visual_features.shape[0] * visual_features.shape[1]
                 )
                 fake_prompt_id = fake_prompt_id.unsqueeze(0)
                 input_ids.append(fake_prompt_id)
@@ -758,16 +748,14 @@ class MultimodalModelRunner:
             for ratio in target_ratios:
                 target_aspect_ratio = ratio[0] / ratio[1]
                 ratio_diff = abs(aspect_ratio - target_aspect_ratio)
-                area_ratio = (ratio[0]*ratio[1]*image_size*image_size)/ area
-                factor_based_on_area_n_ratio = min(
-                    (ratio[0]*ratio[1]*image_size*image_size)/ area, 0.6
-                    )* min(
-                        target_aspect_ratio/aspect_ratio, aspect_ratio/target_aspect_ratio)
+                area_ratio = (ratio[0] * ratio[1] * image_size * image_size) / area
+                factor_based_on_area_n_ratio = min((ratio[0] * ratio[1] * image_size * image_size) / area, 0.6) * min(
+                    target_aspect_ratio / aspect_ratio, aspect_ratio / target_aspect_ratio
+                )
                 if factor_based_on_area_n_ratio > best_factor:
                     best_factor = factor_based_on_area_n_ratio
                     best_ratio = ratio
             return best_ratio
-
 
         def dynamic_preprocess(image, min_num=1, max_num=12, image_size=448, use_thumbnail=False):
             orig_width, orig_height = image.size
@@ -775,13 +763,18 @@ class MultimodalModelRunner:
 
             # calculate the existing image aspect ratio
             target_ratios = set(
-                (i, j) for n in range(min_num, max_num + 1) for i in range(1, n + 1) for j in range(1, n + 1) if
-                i * j <= max_num and i * j >= min_num)
+                (i, j)
+                for n in range(min_num, max_num + 1)
+                for i in range(1, n + 1)
+                for j in range(1, n + 1)
+                if i * j <= max_num and i * j >= min_num
+            )
             target_ratios = sorted(target_ratios, key=lambda x: x[0] * x[1])
 
             # find the closest aspect ratio to the target
             target_aspect_ratio = find_closest_aspect_ratio(
-                aspect_ratio, target_ratios, orig_width, orig_height, image_size)
+                aspect_ratio, target_ratios, orig_width, orig_height, image_size
+            )
 
             # calculate the target width and height
             target_width = image_size * target_aspect_ratio[0]
@@ -796,7 +789,7 @@ class MultimodalModelRunner:
                     (i % (target_width // image_size)) * image_size,
                     (i // (target_width // image_size)) * image_size,
                     ((i % (target_width // image_size)) + 1) * image_size,
-                    ((i // (target_width // image_size)) + 1) * image_size
+                    ((i // (target_width // image_size)) + 1) * image_size,
                 )
                 # split the image
                 split_img = resized_img.crop(box)
@@ -810,11 +803,14 @@ class MultimodalModelRunner:
         images = dynamic_preprocess(images, image_size=input_size, use_thumbnail=True, max_num=max_num)
 
         from torchvision.transforms.functional import InterpolationMode
-        transform = transforms.Compose([
-            transforms.Lambda(lambda img: img.convert('RGB') if img.mode != 'RGB' else img),
-            transforms.Resize((input_size, input_size), interpolation=InterpolationMode.BICUBIC),
-            transforms.ToTensor(),
-        ])
+
+        transform = transforms.Compose(
+            [
+                transforms.Lambda(lambda img: img.convert('RGB') if img.mode != 'RGB' else img),
+                transforms.Resize((input_size, input_size), interpolation=InterpolationMode.BICUBIC),
+                transforms.ToTensor(),
+            ]
+        )
 
         pixel_values = [transform(image) for image in images]
         pixel_values = torch.stack(pixel_values)

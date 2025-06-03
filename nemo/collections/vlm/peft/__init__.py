@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.vlm.peft.lora import LoRA
 from nemo.collections.vlm.peft.api import merge_lora
+from nemo.collections.vlm.peft.lora import LoRA
 
 __all__ = ["LoRA", "merge_lora"]

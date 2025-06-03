@@ -15,11 +15,10 @@
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
-from megatron.core.models.vision.radio import RADIOViTModel as MCoreRADIOViTModel
-
 
 import lightning.pytorch as L
 import torch
+from megatron.core.models.vision.radio import RADIOViTModel as MCoreRADIOViTModel
 
 from nemo.collections.vlm.vision.layer_scaling import LayerScalingTransformerLayer, get_bias_dropout_add_layer_scaling
 
@@ -27,9 +26,9 @@ try:
     from megatron.core.extensions.transformer_engine import (
         TEColumnParallelLinear,
         TEDotProductAttention,
+        TELayerNormColumnParallelLinear,
         TENorm,
         TERowParallelLinear,
-        TELayerNormColumnParallelLinear,
     )
 except ImportError:
     from nemo.utils import logging
@@ -48,23 +47,21 @@ except ImportError:
     )
 
 from megatron.core.transformer.attention import SelfAttention, SelfAttentionSubmodules
+from megatron.core.transformer.enums import AttnMaskType
 from megatron.core.transformer.identity_op import IdentityOp
 from megatron.core.transformer.mlp import MLP, MLPSubmodules
 from megatron.core.transformer.spec_utils import ModuleSpec
 from megatron.core.transformer.transformer_layer import TransformerLayer, TransformerLayerSubmodules
-from megatron.core.transformer.enums import AttnMaskType
 
-from nemo.collections.vlm.vision.base import CLIPViTConfig
 from nemo.collections.llm.fn.activation import openai_gelu
+from nemo.collections.vlm.vision.base import CLIPViTConfig
 from nemo.lightning import io, teardown
 
 
 def get_norm_mlp_module_spec_te() -> ModuleSpec:
     return ModuleSpec(
         module=MLP,
-        submodules=MLPSubmodules(
-            linear_fc1=TELayerNormColumnParallelLinear, linear_fc2=TERowParallelLinear
-        ),
+        submodules=MLPSubmodules(linear_fc1=TELayerNormColumnParallelLinear, linear_fc2=TERowParallelLinear),
     )
 
 
@@ -135,6 +132,7 @@ class RADIOViTConfig(CLIPViTConfig):
         transformer_layer_spec = self.transformer_layer_spec
         if not isinstance(transformer_layer_spec, ModuleSpec):
             from nemo.collections.vlm.layer_specs import get_layer_spec_te
+
             if "raido_g" in self.vision_model_type:
                 transformer_layer_spec = get_layer_spec_te()
             else:
@@ -239,7 +237,6 @@ class HFRADIOViTImporter(io.ModelConnector["RADIOViTModel", RADIOViTModel]):
             "blocks.*.mlp.fc1.bias": "decoder.layers.*.mlp.linear_fc1.bias",
             "blocks.*.mlp.fc2.weight": "decoder.layers.*.mlp.linear_fc2.weight",
             "blocks.*.mlp.fc2.bias": "decoder.layers.*.mlp.linear_fc2.bias",
-
         }
 
         return io.apply_transforms(
@@ -269,9 +266,9 @@ def import_qkv(q, k, v, head_num, num_query_groups, heads_per_group, hidden_size
 
     qkv_weights_l = []
     for i in range(num_query_groups):
-        qkv_weights_l.append(q[i * heads_per_group: (i + 1) * heads_per_group, :, :])
-        qkv_weights_l.append(k[i: i + 1, :, :])
-        qkv_weights_l.append(v[i: i + 1, :, :])
+        qkv_weights_l.append(q[i * heads_per_group : (i + 1) * heads_per_group, :, :])
+        qkv_weights_l.append(k[i : i + 1, :, :])
+        qkv_weights_l.append(v[i : i + 1, :, :])
     qkv_weights = torch.cat(qkv_weights_l)
     assert qkv_weights.ndim == 3, qkv_weights.shape
     assert qkv_weights.shape[0] == (heads_per_group + 2) * num_query_groups, qkv_weights.shape

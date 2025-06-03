@@ -2,12 +2,13 @@ from pathlib import Path
 
 from rich.console import Console
 
+from nemo.collections.llm.peft.api import (
+    _load_base_model_and_lora,
+    _save_merged_weight,
+    _setup_trainer_and_restore_model_and_adapter,
+)
 from nemo.collections.llm.peft.lora import LoRAMerge
-
-from nemo.collections.llm.peft.api import _load_base_model_and_lora, _setup_trainer_and_restore_model_and_adapter, \
-    _save_merged_weight
-
-from nemo.lightning import Trainer, MegatronStrategy
+from nemo.lightning import MegatronStrategy, Trainer
 
 
 def merge_lora(

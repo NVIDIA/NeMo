@@ -19,11 +19,10 @@ import nemo_run as run
 import torch
 from megatron.core.distributed import DistributedDataParallelConfig
 
+from nemo import lightning as nl
+from nemo.collections import llm, vlm
 from nemo.collections.common.tokenizers import AutoTokenizer
 from nemo.collections.llm.recipes.finetune_default import nemo_resume
-
-from nemo import lightning as nl
-from nemo.collections import vlm, llm
 from nemo.collections.llm.recipes.log.default import tensorboard_logger
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
@@ -45,6 +44,7 @@ def model() -> run.Config[pl.LightningModule]:
     """
     model = run.Config(vlm.LlamaNemotronVLModel, config=run.Config(LlamaNemotronNanoVLConfig8B))
     return model
+
 
 @run.cli.factory(target=llm.finetune, name=NAME)
 def finetune_recipe(
@@ -118,11 +118,12 @@ def finetune_recipe(
         val_check_interval=1000,
         callbacks=[
             run.Config(TimingCallback),
-            run.Config(MegatronCommOverlapCallback,
+            run.Config(
+                MegatronCommOverlapCallback,
                 tp_comm_overlap=False,
                 overlap_grad_reduce=False,
                 overlap_param_gather=False,
-           ),
+            ),
         ],
     )
     tokenizer = run.Config(AutoTokenizer, "meta-llama/Llama-3.1-8B-Instruct")

@@ -77,18 +77,24 @@ def main(args):
     vision_transformer_config = neva_config.vision_transformer_config
 
     num_image_embeddings_per_tile = (
-            vision_transformer_config.num_image_embeddings_per_tile
-            - vision_transformer_config.class_token_len * neva_config.drop_vision_class_token
+        vision_transformer_config.num_image_embeddings_per_tile
+        - vision_transformer_config.class_token_len * neva_config.drop_vision_class_token
     )
 
     from nemo.collections.common.tokenizers import AutoTokenizer
+
     tokenizer = AutoTokenizer("meta-llama/Llama-3.1-8B-Instruct")
     new_special_tokens = {
         "additional_special_tokens": [
-            "<image>", "<img>", "</img>",
-            "<quad>", "</quad>",
-            "<ref>", "</ref>",
-            "<box>", "</box>"
+            "<image>",
+            "<img>",
+            "</img>",
+            "<quad>",
+            "</quad>",
+            "<ref>",
+            "</ref>",
+            "<box>",
+            "</box>",
         ]
     }
     tokenizer.tokenizer.add_special_tokens(new_special_tokens)
@@ -123,7 +129,7 @@ def main(args):
             num_workers=4,
             packed_sequence=args.use_packed_sequence,
             num_image_embeddings_per_tile=num_image_embeddings_per_tile,
-            image_tag_type="internvl"
+            image_tag_type="internvl",
         )
     elif args.data_type == "energon":
 
@@ -159,7 +165,7 @@ def main(args):
                 # it will go beyond max seq len, then it will need a truncation.
                 packed_sequence_size=int(decoder_seq_length * 0.9),
                 num_image_embeddings_per_tile=num_image_embeddings_per_tile,
-                image_tag_type="internvl"
+                image_tag_type="internvl",
             ),
             packing_buffer_size=200 if args.use_packed_sequence else None,
             image_decode="pil",

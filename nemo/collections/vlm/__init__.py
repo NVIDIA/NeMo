@@ -58,13 +58,13 @@ from nemo.collections.vlm.neva.data import (
     VideoToken,
 )
 from nemo.collections.vlm.neva.model.base import NevaConfig, NevaModel
-from nemo.collections.vlm.neva.model.llava import Llava15Config7B, Llava15Config13B, LlavaConfig, LlavaModel
 from nemo.collections.vlm.neva.model.llama_nemotron_vl import (
-    LlamaNemotronVLConfig,
-    LlamaNemotronNanoVLConfig8B,
     LlamaNemotronNanoVLConfig2B,
+    LlamaNemotronNanoVLConfig8B,
+    LlamaNemotronVLConfig,
     LlamaNemotronVLModel,
 )
+from nemo.collections.vlm.neva.model.llava import Llava15Config7B, Llava15Config13B, LlavaConfig, LlavaModel
 
 # PEFT
 from nemo.collections.vlm.peft import LoRA
@@ -77,20 +77,20 @@ from nemo.collections.vlm.recipes import *
 
 # VISION
 from nemo.collections.vlm.vision import (
-    CLIPViTModelWrapper,
     CLIPViTConfig,
     CLIPViTL_14_336_Config,
     CLIPViTModel,
+    CLIPViTModelWrapper,
     HFCLIPVisionConfig,
     InternViT_6B_448px_Config,
     InternViT_300M_448px_Config,
     InternViTModel,
     MultimodalProjectorConfig,
+    RADIO_25_g_Config,
+    RADIO_25_h_Config,
+    RADIOViTModel,
     SigLIPViT400M_14_384_Config,
     SigLIPViTModel,
-    RADIO_25_h_Config,
-    RADIO_25_g_Config,
-    RADIOViTModel,
 )
 
 __all__ = [

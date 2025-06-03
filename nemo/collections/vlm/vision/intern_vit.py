@@ -19,7 +19,7 @@ from typing import Callable, Optional
 import lightning.pytorch as L
 import torch
 
-from nemo.collections.vlm.vision.layer_scaling import get_bias_dropout_add_layer_scaling, LayerScalingTransformerLayer
+from nemo.collections.vlm.vision.layer_scaling import LayerScalingTransformerLayer, get_bias_dropout_add_layer_scaling
 
 try:
     from megatron.core.extensions.transformer_engine import (
@@ -66,12 +66,12 @@ class InternViTRMSNorm(torch.nn.Module):
     """Customized Version of RMSNorm"""
 
     def __init__(
-            self,
-            config,
-            hidden_size: int,
-            eps: float = 1e-6,
-            sequence_parallel: bool = False,
-            compute_var: bool = False,
+        self,
+        config,
+        hidden_size: int,
+        eps: float = 1e-6,
+        sequence_parallel: bool = False,
+        compute_var: bool = False,
     ):
         """Custom RMSNorm for InternViT.
 
@@ -193,7 +193,7 @@ class InternViTSelfAttention(SelfAttention):
         )
 
         qk_layernorm_hidden_size = (
-                self.hidden_size_per_attention_head * self.num_attention_heads_per_partition
+            self.hidden_size_per_attention_head * self.num_attention_heads_per_partition
         )  # 512 for internvit
         self.q_layernorm = build_module(
             submodules.q_layernorm,
@@ -457,9 +457,9 @@ def import_qkv(q, k, v, head_num, num_query_groups, heads_per_group, hidden_size
 
     qkv_weights_l = []
     for i in range(num_query_groups):
-        qkv_weights_l.append(q[i * heads_per_group: (i + 1) * heads_per_group, :, :])
-        qkv_weights_l.append(k[i: i + 1, :, :])
-        qkv_weights_l.append(v[i: i + 1, :, :])
+        qkv_weights_l.append(q[i * heads_per_group : (i + 1) * heads_per_group, :, :])
+        qkv_weights_l.append(k[i : i + 1, :, :])
+        qkv_weights_l.append(v[i : i + 1, :, :])
     qkv_weights = torch.cat(qkv_weights_l)
     assert qkv_weights.ndim == 3, qkv_weights.shape
     assert qkv_weights.shape[0] == (heads_per_group + 2) * num_query_groups, qkv_weights.shape

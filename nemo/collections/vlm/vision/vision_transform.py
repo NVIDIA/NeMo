@@ -18,16 +18,19 @@ import torch
 from PIL import Image
 from nemo.collections.vlm.utils import ImageTransform
 
+
 class VisualProcessor:
-    def __init__(self,
-                 crop_height=512,
-                 crop_width=512,
-                 use_tiling=True,
-                 max_num_tiles=12,
-                 use_thumbnail=True,
-                 augment=False,
-                 vision_model_type="radio",
-                 target_aspect_ratio=None):
+    def __init__(
+        self,
+        crop_height=512,
+        crop_width=512,
+        use_tiling=True,
+        max_num_tiles=12,
+        use_thumbnail=True,
+        augment=False,
+        vision_model_type="radio",
+        target_aspect_ratio=None,
+    ):
         # Store the default crop size in a dict for compatibility
         self.crop_size = {'height': crop_height, 'width': crop_width}
         self.use_tiling = use_tiling
@@ -108,5 +111,3 @@ class VisualProcessor:
         if tensor.ndim == 3 and tensor.shape[2] in (1, 3):
             tensor = tensor.permute(2, 0, 1)
         return tensor
-
-

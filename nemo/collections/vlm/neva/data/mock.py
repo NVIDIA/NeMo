@@ -189,10 +189,7 @@ class _MockNevaDataset(Dataset):
         self.num_tiles_per_image = num_tiles_per_image
         self.pixel_shuffle_ratio = pixel_shuffle_ratio
         self._img_seq_len = int(
-            num_image_embeddings_per_tile
-            * num_tiles_per_image
-            * pixel_shuffle_ratio
-            * pixel_shuffle_ratio
+            num_image_embeddings_per_tile * num_tiles_per_image * pixel_shuffle_ratio * pixel_shuffle_ratio
         )
 
         self.loss_mask = torch.ones(self.seq_length + 1 - self._img_seq_len, dtype=torch.float)
@@ -209,18 +206,13 @@ class _MockNevaDataset(Dataset):
         # Generate data of the expected size and datatype (based on GPTDataset).
         np_gen = np.random.default_rng(seed=(self.seed + idx))
         tokens = torch.from_numpy(
-            np_gen.integers(
-                self.vocab_size, size=[self.seq_length + 2 - self._img_seq_len], dtype=np.int64
-            )
+            np_gen.integers(self.vocab_size, size=[self.seq_length + 2 - self._img_seq_len], dtype=np.int64)
         )
         tokens[2] = IMAGE_TOKEN_INDEX  # ImageToken token index
         labels = tokens.clone()
 
         images = torch.from_numpy(
-            np_gen.random(
-                size=[self.num_tiles_per_image, 3, self.image_height, self.image_width],
-                dtype=np.float32
-            )
+            np_gen.random(size=[self.num_tiles_per_image, 3, self.image_height, self.image_width], dtype=np.float32)
         )
 
         tokens = tokens[:-1]

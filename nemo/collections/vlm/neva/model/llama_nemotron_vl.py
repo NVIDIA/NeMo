@@ -20,9 +20,8 @@ from typing import TYPE_CHECKING, Annotated, Callable, Optional
 
 import torch
 from megatron.core.transformer.transformer_config import TransformerConfig
-from nemo.lightning.io.state import TransformFns
-from torch import nn, Tensor
-from transformers import AutoModel, AutoConfig, AutoImageProcessor
+from torch import Tensor, nn
+from transformers import AutoConfig, AutoImageProcessor, AutoModel
 from transformers.configuration_utils import PretrainedConfig
 from transformers.modeling_utils import PreTrainedModel
 
@@ -33,6 +32,7 @@ from nemo.collections.vlm.neva.model.llava import LlavaConfig
 from nemo.collections.vlm.vision.base import MultimodalProjectorConfig
 from nemo.collections.vlm.vision.radio import RADIO_25_h_Config
 from nemo.lightning import OptimizerModule, io, teardown
+from nemo.lightning.io.state import TransformFns
 from nemo.utils import logging
 
 if TYPE_CHECKING:
@@ -51,13 +51,18 @@ class LlamaNemotronVLConfig(LlavaConfig):
     )
     vision_transformer_config: TransformerConfig = field(
         default_factory=lambda: RADIO_25_h_Config(
-            img_w=512, img_h=512, patch_dim=16,
+            img_w=512,
+            img_h=512,
+            patch_dim=16,
         )
     )
     vision_projection_config: TransformerConfig = field(
         default_factory=lambda: MultimodalProjectorConfig(
-            input_size=5120, hidden_size=4096, ffn_hidden_size=4096,
-            normalization='LayerNorm', projector_type="mcore_mlp",
+            input_size=5120,
+            hidden_size=4096,
+            ffn_hidden_size=4096,
+            normalization='LayerNorm',
+            projector_type="mcore_mlp",
         )
     )
 
@@ -65,12 +70,14 @@ class LlamaNemotronVLConfig(LlavaConfig):
 @dataclass
 class LlamaNemotronNanoVLConfig8B(LlamaNemotronVLConfig):
     """Llama Nemotron Nano VL 8B Config"""
+
     pass
 
 
 @dataclass
 class LlamaNemotronNanoVLConfig2B(LlamaNemotronVLConfig):
     """Llama Nemotron VL 2B Config"""
+
     language_transformer_config: TransformerConfig = field(
         # PRUNED VERSION OF LLAMA32_3B
         default_factory=lambda: Llama32Config3B(
@@ -84,29 +91,35 @@ class LlamaNemotronNanoVLConfig2B(LlamaNemotronVLConfig):
     )
     vision_transformer_config: TransformerConfig = field(
         default_factory=lambda: RADIO_25_h_Config(
-            img_w=512, img_h=512, patch_dim=16,
+            img_w=512,
+            img_h=512,
+            patch_dim=16,
         )
     )
     vision_projection_config: TransformerConfig = field(
         default_factory=lambda: MultimodalProjectorConfig(
-            input_size=5120, hidden_size=2304, ffn_hidden_size=3072,
-            normalization='LayerNorm', projector_type="mcore_mlp",
+            input_size=5120,
+            hidden_size=2304,
+            ffn_hidden_size=3072,
+            normalization='LayerNorm',
+            projector_type="mcore_mlp",
         )
     )
+
 
 class LlamaNemotronVLModel(NevaModel):
     """Llama Nemotron VL Model NeMo Wrapper"""
 
     def __init__(
-            self,
-            config: Annotated[Optional[LlamaNemotronVLConfig], Config[LlamaNemotronVLConfig]] = None,
-            optim: Optional[OptimizerModule] = None,
-            tokenizer: Optional["TokenizerSpec"] = None,
-            model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
+        self,
+        config: Annotated[Optional[LlamaNemotronVLConfig], Config[LlamaNemotronVLConfig]] = None,
+        optim: Optional[OptimizerModule] = None,
+        tokenizer: Optional["TokenizerSpec"] = None,
+        model_transform: Optional[Callable[[nn.Module], nn.Module]] = None,
     ):
-        super().__init__(config or LlamaNemotronVLConfig(), optim=optim, tokenizer=tokenizer,
-                         model_transform=model_transform)
-
+        super().__init__(
+            config or LlamaNemotronVLConfig(), optim=optim, tokenizer=tokenizer, model_transform=model_transform
+        )
 
 
 @io.model_importer(LlamaNemotronVLModel, "hf")
@@ -162,31 +175,35 @@ class HFLlamaNemotronVLImporter(io.ModelConnector["AutoModelForCausalLM", LlamaN
             mapping["language_model.lm_head.weight"] = "language_model.output_layer.weight"
 
         # Map vision projection components
-        mapping.update({
-            "mlp1.1.weight": "vision_projection.encoder.linear_fc1.weight",
-            "mlp1.1.bias": "vision_projection.encoder.linear_fc1.bias",
-            "mlp1.3.weight": "vision_projection.encoder.linear_fc2.weight",
-            "mlp1.3.bias": "vision_projection.encoder.linear_fc2.bias",
-            "mlp1.0.weight": "vision_projection.encoder.linear_fc1.layer_norm_weight",
-            "mlp1.0.bias": "vision_projection.encoder.linear_fc1.layer_norm_bias",
-        })
+        mapping.update(
+            {
+                "mlp1.1.weight": "vision_projection.encoder.linear_fc1.weight",
+                "mlp1.1.bias": "vision_projection.encoder.linear_fc1.bias",
+                "mlp1.3.weight": "vision_projection.encoder.linear_fc2.weight",
+                "mlp1.3.bias": "vision_projection.encoder.linear_fc2.bias",
+                "mlp1.0.weight": "vision_projection.encoder.linear_fc1.layer_norm_weight",
+                "mlp1.0.bias": "vision_projection.encoder.linear_fc1.layer_norm_bias",
+            }
+        )
 
         # Map vision model components
-        mapping.update({
-            "vision_model.radio_model.model.patch_generator.cls_token.token": "vision_model.class_token",
-            "vision_model.radio_model.model.patch_generator.pos_embed": "vision_model.position_embeddings",
-            "vision_model.radio_model.model.patch_generator.embedder.weight": "vision_model.embedder.weight",
-            "vision_model.radio_model.model.blocks.*.norm1.weight": "vision_model.decoder.layers.*.self_attention.linear_qkv.layer_norm_weight",
-            "vision_model.radio_model.model.blocks.*.norm1.bias": "vision_model.decoder.layers.*.self_attention.linear_qkv.layer_norm_bias",
-            "vision_model.radio_model.model.blocks.*.norm2.weight": "vision_model.decoder.layers.*.mlp.linear_fc1.layer_norm_weight",
-            "vision_model.radio_model.model.blocks.*.norm2.bias": "vision_model.decoder.layers.*.mlp.linear_fc1.layer_norm_bias",
-            "vision_model.radio_model.model.blocks.*.attn.proj.weight": "vision_model.decoder.layers.*.self_attention.linear_proj.weight",
-            "vision_model.radio_model.model.blocks.*.attn.proj.bias": "vision_model.decoder.layers.*.self_attention.linear_proj.bias",
-            "vision_model.radio_model.model.blocks.*.mlp.fc1.weight": "vision_model.decoder.layers.*.mlp.linear_fc1.weight",
-            "vision_model.radio_model.model.blocks.*.mlp.fc1.bias": "vision_model.decoder.layers.*.mlp.linear_fc1.bias",
-            "vision_model.radio_model.model.blocks.*.mlp.fc2.weight": "vision_model.decoder.layers.*.mlp.linear_fc2.weight",
-            "vision_model.radio_model.model.blocks.*.mlp.fc2.bias": "vision_model.decoder.layers.*.mlp.linear_fc2.bias",
-        })
+        mapping.update(
+            {
+                "vision_model.radio_model.model.patch_generator.cls_token.token": "vision_model.class_token",
+                "vision_model.radio_model.model.patch_generator.pos_embed": "vision_model.position_embeddings",
+                "vision_model.radio_model.model.patch_generator.embedder.weight": "vision_model.embedder.weight",
+                "vision_model.radio_model.model.blocks.*.norm1.weight": "vision_model.decoder.layers.*.self_attention.linear_qkv.layer_norm_weight",
+                "vision_model.radio_model.model.blocks.*.norm1.bias": "vision_model.decoder.layers.*.self_attention.linear_qkv.layer_norm_bias",
+                "vision_model.radio_model.model.blocks.*.norm2.weight": "vision_model.decoder.layers.*.mlp.linear_fc1.layer_norm_weight",
+                "vision_model.radio_model.model.blocks.*.norm2.bias": "vision_model.decoder.layers.*.mlp.linear_fc1.layer_norm_bias",
+                "vision_model.radio_model.model.blocks.*.attn.proj.weight": "vision_model.decoder.layers.*.self_attention.linear_proj.weight",
+                "vision_model.radio_model.model.blocks.*.attn.proj.bias": "vision_model.decoder.layers.*.self_attention.linear_proj.bias",
+                "vision_model.radio_model.model.blocks.*.mlp.fc1.weight": "vision_model.decoder.layers.*.mlp.linear_fc1.weight",
+                "vision_model.radio_model.model.blocks.*.mlp.fc1.bias": "vision_model.decoder.layers.*.mlp.linear_fc1.bias",
+                "vision_model.radio_model.model.blocks.*.mlp.fc2.weight": "vision_model.decoder.layers.*.mlp.linear_fc2.weight",
+                "vision_model.radio_model.model.blocks.*.mlp.fc2.bias": "vision_model.decoder.layers.*.mlp.linear_fc2.bias",
+            }
+        )
 
         # Add transformations for specialized tensor manipulations
         transforms = [
@@ -239,7 +256,7 @@ class HFLlamaNemotronVLImporter(io.ModelConnector["AutoModelForCausalLM", LlamaN
 
         source = AutoConfig.from_pretrained(str(self), trust_remote_code=True)
         llm_config = source.llm_config
-        param_dtype = torch.bfloat16 # dtype_from_hf(source)
+        param_dtype = torch.bfloat16  # dtype_from_hf(source)
         language_transformer_config = Llama31Config8B(
             num_layers=llm_config.num_hidden_layers,
             hidden_size=llm_config.hidden_size,
@@ -285,6 +302,7 @@ class HFLlamaNemotronVLImporter(io.ModelConnector["AutoModelForCausalLM", LlamaN
         )
 
         return output
+
 
 @io.model_exporter(LlamaNemotronVLModel, "hf")
 class HFLlamaNemotronVLExporter(io.ModelConnector[LlamaNemotronVLModel, "PreTrainedModel"]):
@@ -335,7 +353,9 @@ class HFLlamaNemotronVLExporter(io.ModelConnector[LlamaNemotronVLModel, "PreTrai
 
         target = target.cpu()
         target.save_pretrained(output_path)
-        processor = AutoImageProcessor.from_pretrained("nvidia/Llama-3.1-Nemotron-Nano-VL-8B-V1", trust_remote_code=True)
+        processor = AutoImageProcessor.from_pretrained(
+            "nvidia/Llama-3.1-Nemotron-Nano-VL-8B-V1", trust_remote_code=True
+        )
         try:
             processor.save_pretrained(output_path)
         except Exception:
@@ -474,6 +494,7 @@ def _import_vision_qkv(ctx: io.TransformCTX, qkv):
 
     return qkv[order_inverse]
 
+
 def _import_text_qkv(ctx: io.TransformCTX, q, k, v):
     text_config = ctx.target.config.language_transformer_config
 
@@ -482,6 +503,7 @@ def _import_text_qkv(ctx: io.TransformCTX, q, k, v):
     head_size = text_config.kv_channels
     hidden_size = text_config.hidden_size
     return _merge_qkv(q, k, v, head_num, num_query_groups, head_size, hidden_size)
+
 
 def _merge_qkv(
     q: Tensor, k: Tensor, v: Tensor, head_num: int, num_query_groups: int, head_size: int, hidden_size: int
@@ -512,13 +534,14 @@ def _merge_qkv(
         qkv = qkv.reshape([head_size * (head_num + 2 * num_query_groups)])
     return qkv
 
+
 # Define transformation functions needed for the exporter
 @io.state_transform(
     source_key="language_model.decoder.layers.*.self_attention.linear_qkv.weight",
     target_key=(
-            "language_model.model.layers.*.self_attn.q_proj.weight",
-            "language_model.model.layers.*.self_attn.k_proj.weight",
-            "language_model.model.layers.*.self_attn.v_proj.weight",
+        "language_model.model.layers.*.self_attn.q_proj.weight",
+        "language_model.model.layers.*.self_attn.k_proj.weight",
+        "language_model.model.layers.*.self_attn.v_proj.weight",
     ),
 )
 def _export_language_qkv(ctx: io.TransformCTX, linear_qkv):
@@ -552,8 +575,8 @@ def _export_language_qkv(ctx: io.TransformCTX, linear_qkv):
 @io.state_transform(
     source_key="language_model.decoder.layers.*.mlp.linear_fc1.weight",
     target_key=(
-            "language_model.model.layers.*.mlp.gate_proj.weight",
-            "language_model.model.layers.*.mlp.up_proj.weight",
+        "language_model.model.layers.*.mlp.gate_proj.weight",
+        "language_model.model.layers.*.mlp.up_proj.weight",
     ),
 )
 def _export_language_linear_fc1(ctx: io.TransformCTX, linear_fc1):
@@ -611,10 +634,10 @@ def _export_vision_qkv_bias(ctx: io.TransformCTX, linear_qkv):
 @io.state_transform(
     source_key="vision_model.class_token",
     target_key=(
-            "vision_model.radio_model.model.patch_generator.cls_token.token",
-            "radio_model.input_conditioner.norm_mean",
-            "radio_model.input_conditioner.norm_std",
-            "radio_model.summary_idxs",
+        "vision_model.radio_model.model.patch_generator.cls_token.token",
+        "radio_model.input_conditioner.norm_mean",
+        "radio_model.input_conditioner.norm_std",
+        "radio_model.summary_idxs",
     ),
 )
 def _export_class_token(ctx: io.TransformCTX, class_token):

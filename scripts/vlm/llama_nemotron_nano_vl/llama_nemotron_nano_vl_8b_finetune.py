@@ -72,11 +72,16 @@ def main(args):
     )
 
     vision_transformer_config = vlm.RADIO_25_h_Config(
-        img_w=512, img_h=512, patch_dim=16,
+        img_w=512,
+        img_h=512,
+        patch_dim=16,
     )
     vision_projection_config = vlm.MultimodalProjectorConfig(
-        input_size=5120, hidden_size=4096, ffn_hidden_size=4096,
-        normalization='LayerNorm', projector_type="mcore_mlp",
+        input_size=5120,
+        hidden_size=4096,
+        ffn_hidden_size=4096,
+        normalization='LayerNorm',
+        projector_type="mcore_mlp",
     )
 
     # LlamaNemotronVL model configuration
@@ -90,18 +95,24 @@ def main(args):
         freeze_vision_projection=False,
     )
     num_image_embeddings_per_tile = (
-            vision_transformer_config.num_image_embeddings_per_tile
-            - vision_transformer_config.class_token_len * llama_nemotron_nano_vl_config.drop_vision_class_token
+        vision_transformer_config.num_image_embeddings_per_tile
+        - vision_transformer_config.class_token_len * llama_nemotron_nano_vl_config.drop_vision_class_token
     )
 
     from nemo.collections.common.tokenizers import AutoTokenizer
+
     tokenizer = AutoTokenizer("meta-llama/Llama-3.1-8B-Instruct")
     new_special_tokens = {
         "additional_special_tokens": [
-            "<image>", "<img>", "</img>",
-            "<quad>", "</quad>",
-            "<ref>", "</ref>",
-            "<box>", "</box>"
+            "<image>",
+            "<img>",
+            "</img>",
+            "<quad>",
+            "</quad>",
+            "<ref>",
+            "</ref>",
+            "<box>",
+            "</box>",
         ]
     }
     tokenizer.tokenizer.add_special_tokens(new_special_tokens)
@@ -137,7 +148,7 @@ def main(args):
             packed_sequence=args.use_packed_sequence,
             pixel_shuffle_ratio=0.5,
             num_image_embeddings_per_tile=num_image_embeddings_per_tile,
-            image_tag_type="internvl"
+            image_tag_type="internvl",
         )
     elif args.data_type == "energon":
 
@@ -174,7 +185,7 @@ def main(args):
                 packed_sequence_size=int(decoder_seq_length * 0.9),
                 pixel_shuffle_ratio=0.5,
                 num_image_embeddings_per_tile=num_image_embeddings_per_tile,
-                image_tag_type="internvl"
+                image_tag_type="internvl",
             ),
             packing_buffer_size=200 if args.use_packed_sequence else None,
             image_decode="pil",

@@ -50,13 +50,28 @@ class ImageTransform:
         self._transform = _build_transform(input_size, vision_model_type)
         self._vision_model_type = vision_model_type
 
-    def __call__(self, img, img_h, img_w, use_tiling=False, max_num_tiles=1, use_thumbnail=False, augment=False, find_closest_aspect_ratio_fn=find_closest_aspect_ratio):
+    def __call__(
+        self,
+        img,
+        img_h,
+        img_w,
+        use_tiling=False,
+        max_num_tiles=1,
+        use_thumbnail=False,
+        augment=False,
+        find_closest_aspect_ratio_fn=find_closest_aspect_ratio,
+    ):
         assert not augment, "Image augmentation not implemented."
         if use_tiling:
             assert img_h == img_w, "dynamic tiling expects equal tile height and width"
             imgs = dynamic_preprocess(
-                img, min_num=1, max_num=max_num_tiles, image_size=img_h, use_thumbnail=use_thumbnail,
-                find_closest_aspect_ratio_fn=find_closest_aspect_ratio_fn)
+                img,
+                min_num=1,
+                max_num=max_num_tiles,
+                image_size=img_h,
+                use_thumbnail=use_thumbnail,
+                find_closest_aspect_ratio_fn=find_closest_aspect_ratio_fn,
+            )
             imgs = [self._transform(img) for img in imgs]
         else:
             imgs = [self._transform(img)]
@@ -67,20 +82,30 @@ class ImageTransform:
 # From https://github.com/OpenGVLab/InternVL/blob/c62fa4f7c850165d7386bdc48ac6bc5a6fab0864/internvl_chat/internvl/train/dataset.py#L702
 # Copyright (c) 2023 OpenGVLab.
 def dynamic_preprocess(
-    image, min_num=1, max_num=6, image_size=448, use_thumbnail=False,
-    find_closest_aspect_ratio_fn=find_closest_aspect_ratio):
+    image,
+    min_num=1,
+    max_num=6,
+    image_size=448,
+    use_thumbnail=False,
+    find_closest_aspect_ratio_fn=find_closest_aspect_ratio,
+):
     orig_width, orig_height = image.size
     aspect_ratio = orig_width / orig_height
 
     # calculate the existing image aspect ratio
     target_ratios = set(
-        (i, j) for n in range(min_num, max_num + 1) for i in range(1, n + 1) for j in range(1, n + 1) if
-        i * j <= max_num and i * j >= min_num)
+        (i, j)
+        for n in range(min_num, max_num + 1)
+        for i in range(1, n + 1)
+        for j in range(1, n + 1)
+        if i * j <= max_num and i * j >= min_num
+    )
     target_ratios = sorted(target_ratios, key=lambda x: x[0] * x[1])
 
     # find the closest aspect ratio to the target
     target_aspect_ratio = find_closest_aspect_ratio_fn(
-        aspect_ratio, target_ratios, orig_width, orig_height, image_size)
+        aspect_ratio, target_ratios, orig_width, orig_height, image_size
+    )
 
     # calculate the target width and height
     target_width = image_size * target_aspect_ratio[0]
@@ -95,7 +120,7 @@ def dynamic_preprocess(
             (i % (target_width // image_size)) * image_size,
             (i // (target_width // image_size)) * image_size,
             ((i % (target_width // image_size)) + 1) * image_size,
-            ((i // (target_width // image_size)) + 1) * image_size
+            ((i // (target_width // image_size)) + 1) * image_size,
         )
         # split the image
         split_img = resized_img.crop(box)
@@ -113,21 +138,25 @@ def _build_transform(input_size, vision_model_type):
     if vision_model_type in ("siglip", "internvit", "internvit300M", "radio", "radio-g"):
         pixel_mean, pixel_std = pixel_statistics[vision_model_type]
 
-        transform = T.Compose([
-            T.Lambda(lambda img: img.convert('RGB') if img.mode != 'RGB' else img),
-            T.Resize((input_size, input_size), interpolation=InterpolationMode.BICUBIC),
-            T.ToTensor(),
-            T.Normalize(mean=pixel_mean, std=pixel_std)
-        ])
+        transform = T.Compose(
+            [
+                T.Lambda(lambda img: img.convert('RGB') if img.mode != 'RGB' else img),
+                T.Resize((input_size, input_size), interpolation=InterpolationMode.BICUBIC),
+                T.ToTensor(),
+                T.Normalize(mean=pixel_mean, std=pixel_std),
+            ]
+        )
     elif vision_model_type == "clip":
         pixel_mean, pixel_std = pixel_statistics[vision_model_type]
 
-        transform = Compose([
-            T.Resize((input_size, input_size), interpolation=InterpolationMode.BICUBIC),
-            T.Lambda(lambda img: img.convert('RGB') if img.mode != 'RGB' else img),
-            T.ToTensor(),
-            T.Normalize(mean=pixel_mean, std=pixel_std),
-        ])
+        transform = Compose(
+            [
+                T.Resize((input_size, input_size), interpolation=InterpolationMode.BICUBIC),
+                T.Lambda(lambda img: img.convert('RGB') if img.mode != 'RGB' else img),
+                T.ToTensor(),
+                T.Normalize(mean=pixel_mean, std=pixel_std),
+            ]
+        )
     elif vision_model_type.startswith("hf://"):
         from megatron.core.models.huggingface.module import get_hf_model_type
 
@@ -141,6 +170,7 @@ def _build_transform(input_size, vision_model_type):
                 x = x.convert("RGB") if x.mode != "RGB" else x
                 x = processor(x, return_tensors="pt")
                 return x["pixel_values"][0]
+
         else:
             raise NotImplementedError(f"image processing not defined for huggingface model {vision_model_type}")
     else:

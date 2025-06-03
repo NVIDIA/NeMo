@@ -165,7 +165,8 @@ def _setup_trainer_and_restore_model_and_adapter(
 
     lora(model)
     adapter_sharded_state_dict = {
-        k: v for k, v in trainer.strategy.megatron_parallel.sharded_state_dict().items()
+        k: v
+        for k, v in trainer.strategy.megatron_parallel.sharded_state_dict().items()
         if any(load_key in k for load_key in load_keys)
     }
     adapter_state = trainer.strategy.checkpoint_io.load_checkpoint(
