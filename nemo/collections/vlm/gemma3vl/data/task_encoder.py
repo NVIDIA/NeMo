@@ -38,12 +38,12 @@ class TaskEncoderConfig(BaseTaskEncoderConfig):
     stop_string: Optional[str] = ""
     system_prompt: Optional[str] = None
 
+
 @dataclass
 class Gemma3DataSample(DataSample):
     input_ids: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.long))
     position_ids: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.long))
     pixel_values: torch.Tensor = field(default_factory=lambda: torch.empty(0))
-
 
 
 class TaskEncoder(BaseTaskEncoder):
@@ -126,9 +126,9 @@ class TaskEncoder(BaseTaskEncoder):
         # Apply chat template and process with HF processor
         converted_messages = self.hf_processor.apply_chat_template(messages, tokenize=False)
         outputs = self.hf_processor(
-            images=input_sample.image, 
-            text=converted_messages, 
-            return_tensors="pt", 
+            images=input_sample.image,
+            text=converted_messages,
+            return_tensors="pt",
             images_kwargs={"do_rescale": False},
         )
 
@@ -199,7 +199,6 @@ class TaskEncoder(BaseTaskEncoder):
         else:
             # Create an empty tensor with appropriate dimensions and dtype if no images
             processed_image = None
-
 
         return Gemma3DataSample(
             __key__=input_sample.__key__,
