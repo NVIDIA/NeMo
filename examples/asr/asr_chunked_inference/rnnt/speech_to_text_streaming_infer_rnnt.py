@@ -34,8 +34,8 @@ Example usage:
 
 ```shell
 python speech_to_text_streaming_infer_rnnt.py \
-    model_path=nvidia/parakeet-rnnt-1.1b \
-    pretrained_name=null \
+    pretrained_name=nvidia/parakeet-rnnt-1.1b \
+    model_path=null \
     audio_dir="<remove or path to folder of audio files>" \
     dataset_manifest="<remove or path to manifest>" \
     output_filename="<remove or specify output filename>" \
