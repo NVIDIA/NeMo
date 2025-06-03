@@ -797,7 +797,8 @@ def evaluate(
         target_cfg (EvaluationTarget): target of the evaluation. Providing model_id and
             url in EvaluationTarget.api_endpoint is required to run evaluations.
         eval_cfg (EvaluationConfig): configuration for evaluations. Default type (task): gsm8k.
-        adapter_cfg (AdapterConfig): configuration for adapters, the object between becnhmark and endpoint. Default: None.
+        adapter_cfg (AdapterConfig): configuration for adapters, the object between becnhmark and endpoint.
+            Default: None.
     """
     from nemo.collections.llm.evaluation.base import _legacy_evaluate, find_framework, wait_for_fastapi_server
 
