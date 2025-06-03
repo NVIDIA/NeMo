@@ -58,7 +58,7 @@ import contextlib
 import json
 import os
 import time
-from dataclasses import dataclass, is_dataclass, field
+from dataclasses import dataclass, field, is_dataclass
 from pathlib import Path
 from typing import Callable, Optional
 
