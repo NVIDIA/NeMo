@@ -59,6 +59,9 @@ def override_recipe_configs(
 
     NOTE: Use fp8 precision training with caution. It might not give desirable results.
     """
+
+    enable_cuda_graphs = False
+
     recipe = pretrain_recipe(performance_mode=True)
     recipe = set_primary_perf_configs(
         recipe,
@@ -118,6 +121,8 @@ def override_recipe_configs(
         recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap = False
 
     recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_backend = "cublasmp"
+    recipe.trainer.strategy.ddp.check_for_nan_in_grad = False
+
 
     return recipe
 

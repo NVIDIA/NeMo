@@ -75,6 +75,10 @@ def slurm_executor(
         "NVTE_FUSED_ATTN": "1",  # Enable cuDNN fused attention
         "NEMO_LOG_MEMORY_USAGE": "1",  # Print memory allocation
         "NEMORUN_HOME": log_dir,
+        "CUBLASMP_LOG_LEVEL": "5",
+        "CUBLASMP_LOG_FILE": "/nemo_run/cublasmp_log_%d.txt",
+        "CUBLASLT_LOG_LEVEL": "5",
+        "CUBLASLT_LOG_FILE": "/nemo_run/log_cublaslt_%d.txt",
     }
     if wandb_key is not None:
         env_vars["WANDB_API_KEY"] = wandb_key
