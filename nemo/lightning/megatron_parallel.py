@@ -930,7 +930,6 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         Returns:
             Dict[str, Any]: The sharded state dictionary for distributed checkpointing
         """
-        from megatron.core import parallel_state
 
         sharded_state_dict = {}
         for index, module in enumerate(self):
