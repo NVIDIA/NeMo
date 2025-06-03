@@ -39,7 +39,7 @@ import copy
 import glob
 import math
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional
 
 import lightning.pytorch as pl
@@ -47,6 +47,12 @@ import torch
 from omegaconf import OmegaConf
 
 from nemo.collections.asr.models import EncDecCTCModel, EncDecHybridRNNTCTCModel
+from nemo.collections.asr.modules.audio_preprocessing import (
+    AudioToMelSpectrogramPreprocessor as NeMoAudioToMelSpectrogramPreprocessor,
+)
+from nemo.collections.asr.parts.preprocessing.features import (
+    FilterbankFeaturesTA as NeMoFilterbankFeaturesTA,
+)
 from nemo.collections.asr.parts.submodules.ctc_decoding import CTCDecodingConfig
 from nemo.collections.asr.parts.utils.eval_utils import cal_write_wer
 from nemo.collections.asr.parts.utils.streaming_utils import FrameBatchASR
@@ -96,7 +102,7 @@ class TranscriptionConfig:
     )
 
     # Decoding strategy for CTC models
-    decoding: CTCDecodingConfig = CTCDecodingConfig()
+    decoding: CTCDecodingConfig = field(default_factory=CTCDecodingConfig)
 
     # Set `cuda` to int to define CUDA device. If 'None', will look for CUDA
     # device anyway, and do inference on CPU only if CUDA device is not found.
