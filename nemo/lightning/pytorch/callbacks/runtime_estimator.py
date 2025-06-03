@@ -147,7 +147,7 @@ class RuntimeEstimator(pl.Callback):
             return
 
         elapsed_dur = self._get_elapsed_duration(trainer)
-        assert elapsed_dur is not None, 'max_duration checked as non-None on batch_start if enabled'
+        assert elapsed_dur is not None, 'elapsed_dur should be not None. Please, make sure that training has started.'
 
         assert self.start_dur is not None
         assert self.start_time is not None
