@@ -357,6 +357,14 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             raise ValueError(f"Invalid DDP type: {ddp}")
 
         self._fsdp = None
+
+        if fsdp is None and self.ddp_config and self.ddp_config.use_custom_fsdp:
+            logging.warning(
+                "FSDP option is not set but ddp_config.use_custom_fsdp is set to true. "
+                "Setting FSDP option to megatron"
+            )
+            fsdp = 'megatron'
+
         if fsdp == "pytorch":
             raise NotImplementedError("PyTorch FSDP2 is not supported with MegatronParallel.")
         elif fsdp == "megatron":
@@ -1055,9 +1063,6 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
     def load_model_state_dict(self, checkpoint: Mapping[str, Any], strict: bool = True) -> None:
         """loads model state dict"""
-        if self._fsdp is not None:
-            return
-
         assert self.megatron_parallel is not None
 
         strict = strict if self.ckpt_load_strictness is None else self.ckpt_load_strictness
