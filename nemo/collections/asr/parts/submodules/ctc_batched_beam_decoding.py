@@ -604,11 +604,11 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
         """
         repeated_mask = self.state.batched_hyps.last_label[:, :, None] == self.state.vocab[None, None, :]
         repeated_or_blank_mask = repeated_mask | self.state.vocab_blank_mask[None, None, :]
-        
+
         # step 2.1: getting the log probs and updating with LM scores
         log_probs = self.state.decoder_outputs.index_select(dim=1, index=self.state.curr_frame_idx)
         log_probs += self.state.batched_hyps.scores[:, :, None]
-        
+
         # step 2.2: updating non-blank and non-repeating token scores with `beam_beta`
         log_probs = torch.where(repeated_or_blank_mask, log_probs, log_probs + self.beam_beta)
 
@@ -617,7 +617,7 @@ class BatchedBeamCTCComputer(WithOptionalCudaGraphs, ConfidenceMethodMixin):
                 states=self.state.batch_lm_states.view(-1)
             )
             lm_scores = torch.where(repeated_mask[..., :-1], 0, lm_scores.view(log_probs.shape[0], self.beam_size, -1))
-            
+
             self.state.batch_lm_states_candidates.copy_(
                 batch_lm_states_candidates.view(self.state.batch_lm_states_candidates.shape)
             )
