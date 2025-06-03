@@ -42,6 +42,7 @@ class TaskEncoderConfig(BaseTaskEncoderConfig):
 @dataclass
 class Gemma3DataSample(DataSample):
     """Data Sample for Gemma3"""
+
     input_ids: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.long))
     position_ids: torch.Tensor = field(default_factory=lambda: torch.empty(0, dtype=torch.long))
     pixel_values: torch.Tensor = field(default_factory=lambda: torch.empty(0))
