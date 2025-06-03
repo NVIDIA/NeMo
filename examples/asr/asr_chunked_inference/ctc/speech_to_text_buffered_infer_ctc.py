@@ -47,10 +47,6 @@ import torch
 from omegaconf import OmegaConf
 
 from nemo.collections.asr.models import EncDecCTCModel, EncDecHybridRNNTCTCModel
-from nemo.collections.asr.modules.audio_preprocessing import (
-    AudioToMelSpectrogramPreprocessor as NeMoAudioToMelSpectrogramPreprocessor,
-)
-from nemo.collections.asr.parts.preprocessing.features import FilterbankFeaturesTA as NeMoFilterbankFeaturesTA
 from nemo.collections.asr.parts.submodules.ctc_decoding import CTCDecodingConfig
 from nemo.collections.asr.parts.utils.eval_utils import cal_write_wer
 from nemo.collections.asr.parts.utils.streaming_utils import FrameBatchASR
