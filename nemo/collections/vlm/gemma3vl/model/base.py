@@ -19,7 +19,7 @@ import torch
 import torch.distributed
 import torch.nn.functional as F
 from megatron.core import dist_checkpointing
-from megatron.core import parallel_state as p
+from megatron.core import parallel_state as ps
 from megatron.core.config_logger import has_config_logger_enabled, log_config_to_disk
 from megatron.core.enums import ModelType
 from megatron.core.inference.contexts import BaseInferenceContext

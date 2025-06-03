@@ -20,12 +20,13 @@ from megatron.core.optimizer import OptimizerConfig
 
 from nemo import lightning as nl
 from nemo.collections import llm, vlm
+
 from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.collections.vlm.gemma3vl.data.mock import Gemma3VLMockDataModule
-from nemo.collections.vlm.gemma3vl.data.task_encoder import TaskEncoder, TaskEncoderConfig
 from nemo.lightning.pytorch.optim import CosineAnnealingScheduler
 from nemo.lightning.pytorch.optim.megatron import MegatronOptimizerModule
 from nemo.utils.exp_manager import TimingCallback
+
 
 NAME = "gemma3vl_4b"
 
@@ -39,7 +40,7 @@ def finetune_recipe(
 ):
     """Gemma3 VL finetune"""
 
-    max_sequence_length = 4096
+    max_sequence_length = 512
 
     tokenizer = AutoTokenizer(HF_MODEL_NAME)
     language_transformer_config = llm.Gemma3Config4B(seq_length=max_sequence_length)
@@ -60,7 +61,7 @@ def finetune_recipe(
     llm.import_ckpt(model=model, source=f"hf://{HF_MODEL_NAME}")
 
     strategy = nl.MegatronStrategy(
-        tensor_model_parallel_size=1,
+        tensor_model_parallel_size=2,
         pipeline_model_parallel_size=1,
         pipeline_dtype=torch.bfloat16,
         virtual_pipeline_model_parallel_size=None,
@@ -87,7 +88,7 @@ def finetune_recipe(
         accelerator="gpu",
         devices=num_gpus_per_node,
         num_nodes=num_nodes,
-        max_steps=800,
+        max_steps=5,
         limit_val_batches=0,
         val_check_interval=10,
         num_sanity_val_steps=0,
@@ -102,7 +103,7 @@ def finetune_recipe(
 
     opt_config = OptimizerConfig(
         optimizer="adam",
-        lr=2e-6,
+        lr=3e-4,
         weight_decay=0.1,
         bf16=True,
         fp16=False,
@@ -113,66 +114,41 @@ def finetune_recipe(
         clip_grad=1.0,
     )
     lr_scheduler = CosineAnnealingScheduler(
-        warmup_steps=50,
+        warmup_steps=2000,
         constant_steps=0,
-        min_lr=2e-7,
+        min_lr=3e-5,
     )
     opt = MegatronOptimizerModule(config=opt_config, lr_scheduler=lr_scheduler)
 
-    # data = Gemma3VLMockDataModule(
-    #     seq_length=max_sequence_length,
-    #     global_batch_size=4,
-    #     micro_batch_size=1,
-    #     tokenizer=tokenizer,
-    #     num_workers=4,
-    # )
-    from nemo.collections.multimodal.data.energon.base import EnergonMultiModalDataModule
-
-    task_encoder = TaskEncoder(
-        config=TaskEncoderConfig(
-            hf_path=HF_MODEL_NAME,
-        )
-    )
-    data = EnergonMultiModalDataModule(
-        path='/opt/NeMo/run/energon/wds',
-        tokenizer=tokenizer,
-        image_processor=None,
+    data = Gemma3VLMockDataModule(
         seq_length=max_sequence_length,
+        global_batch_size=4,
         micro_batch_size=1,
-        global_batch_size=64,
+        tokenizer=tokenizer,
         num_workers=4,
-        task_encoder=task_encoder,
     )
 
     ckpt = nl.ModelCheckpoint(
-        save_top_k=-1,
+        save_top_k=1,
         save_last=True,
         save_optim_on_train_end=False,
-        every_n_train_steps=100,
         filename="{val_loss:.2f}-{step}-{consumed_samples}",
     )
-    # tb = TensorBoardLogger(
-    #     save_dir="tensorboard",  # The name of tfevents folder
-    #     name="",  # No need further subfolder
-    # )
-    from pytorch_lightning.loggers import WandbLogger
-
-    wandb = WandbLogger(
-        project=f"nemo2-gemma3-vl",
-        name='4b-test-run-gbs64',
+    tb = TensorBoardLogger(
+        save_dir="tensorboard",  # The name of tfevents folder
+        name="",  # No need further subfolder
     )
     logger = nl.NeMoLogger(
         explicit_log_dir=log_dir,
         log_global_rank_0_only=True,
         update_logger_directory=True,
         ckpt=ckpt,
-        wandb=wandb,
+        tensorboard=tb,
     )
 
     resume = nl.AutoResume(
         resume_if_exists=True,
         resume_ignore_no_checkpoint=True,
-        restore_config=nl.RestoreConfig(path=f"nemo://{HF_MODEL_NAME}"),
     )
 
     llm.finetune(
@@ -186,4 +162,4 @@ def finetune_recipe(
 
 
 if __name__ == "__main__":
-    finetune_recipe(f"/tmp/{NAME}", num_gpus_per_node=8)
+    finetune_recipe(f"/tmp/{NAME}", num_gpus_per_node=2)
