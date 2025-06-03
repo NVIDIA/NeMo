@@ -366,7 +366,7 @@ class LazySupervisedDataset(Dataset):
                 stop_str is not None
             ), "If `stop_str` is not provided, issues might occur in labeling the answer tokens."
             answer_tokens = self.tokenizer.encode(
-                self.conv.messages[i][1] + ("" if stop_str is None else stop_str),
+                self.conv.messages[i][1].strip() + ("" if stop_str is None else stop_str),
                 add_special_tokens=False,
                 return_tensors="pt",
             )[0]

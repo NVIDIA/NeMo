@@ -335,7 +335,7 @@ class HFLlamaNemotronVLExporter(io.ModelConnector[LlamaNemotronVLModel, "PreTrai
 
         target = target.cpu()
         target.save_pretrained(output_path)
-        processor = AutoImageProcessor.from_pretrained("nvidia/Llama-Nemotron-Nano-VL-8B-V1", trust_remote_code=True)
+        processor = AutoImageProcessor.from_pretrained("nvidia/Llama-3.1-Nemotron-Nano-VL-8B-V1", trust_remote_code=True)
         try:
             processor.save_pretrained(output_path)
         except Exception:
@@ -451,7 +451,7 @@ class HFLlamaNemotronVLExporter(io.ModelConnector[LlamaNemotronVLModel, "PreTrai
             vocab_size=128512,
         )
 
-        config = AutoConfig.from_pretrained("nvidia/Llama-Nemotron-Nano-VL-8B-V1", trust_remote_code=True)
+        config = AutoConfig.from_pretrained("nvidia/Llama-3.1-Nemotron-Nano-VL-8B-V1", trust_remote_code=True)
         config.llm_config.update(text_config_dict)
         return config
 
