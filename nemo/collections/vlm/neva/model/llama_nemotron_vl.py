@@ -22,7 +22,7 @@ import torch
 from megatron.core.transformer.transformer_config import TransformerConfig
 from nemo.lightning.io.state import TransformFns
 from torch import nn, Tensor
-from transformers import AutoModel, AutoConfig
+from transformers import AutoModel, AutoConfig, AutoImageProcessor
 from transformers.configuration_utils import PretrainedConfig
 from transformers.modeling_utils import PreTrainedModel
 
@@ -335,6 +335,11 @@ class HFLlamaNemotronVLExporter(io.ModelConnector[LlamaNemotronVLModel, "PreTrai
 
         target = target.cpu()
         target.save_pretrained(output_path)
+        processor = AutoImageProcessor.from_pretrained("nvidia/Llama-Nemotron-Nano-VL-8B-V1", trust_remote_code=True)
+        try:
+            processor.save_pretrained(output_path)
+        except Exception:
+            logging.warning("Failed to save processor")
         try:
             self.tokenizer.tokenizer.save_pretrained(output_path)
         except Exception:
@@ -420,7 +425,7 @@ class HFLlamaNemotronVLExporter(io.ModelConnector[LlamaNemotronVLModel, "PreTrai
         Returns:
             The tokenizer specification.
         """
-        return io.load_context(str(self), subpath="model").tokenizer
+        return io.load_context(str(self), subpath="model.tokenizer")
 
     @cached_property
     def config(self) -> "PretrainedConfig":
@@ -446,7 +451,7 @@ class HFLlamaNemotronVLExporter(io.ModelConnector[LlamaNemotronVLModel, "PreTrai
             vocab_size=128512,
         )
 
-        config = AutoConfig.from_pretrained("/opt/llama_3p1_8b_cradio_h_v2_hf", trust_remote_code=True)
+        config = AutoConfig.from_pretrained("nvidia/Llama-Nemotron-Nano-VL-8B-V1", trust_remote_code=True)
         config.llm_config.update(text_config_dict)
         return config
 

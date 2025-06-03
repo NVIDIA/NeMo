@@ -49,7 +49,7 @@ def model() -> run.Config[pl.LightningModule]:
 @run.cli.factory(target=llm.finetune, name=NAME)
 def finetune_recipe(
     dir: Optional[str] = None,
-    resume_path: str = "TODO",
+    resume_path: str = "nvidia/Llama-Nemotron-Nano-VL-8B-V1",
     name: str = "default",
     num_nodes: int = 1,
     num_gpus_per_node: int = 8,
