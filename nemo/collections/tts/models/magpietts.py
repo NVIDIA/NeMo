@@ -208,7 +208,7 @@ class MagpieTTSModel(ModelPT):
         if cfg.get('use_alignment_encoder', False):
             self.alignment_encoder = AlignmentEncoder(
                 n_mel_channels=cfg.embedding_dim,
-                n_text_channels=cfg.embedding_dim,
+                n_text_channels=cfg.decoder.xa_d_memory,
                 dist_type="cosine",
                 temperature=15.0,
             )
