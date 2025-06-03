@@ -146,21 +146,28 @@ class Hypothesis:
     def merge(self, other: "Hypothesis"):
         """Merge current hypothesis with another one."""
         self.score += other.score
-        if isinstance(self.y_sequence, torch.Tensor):
+        if self.y_sequence is None:
+            self.y_sequence = other.y_sequence
+        elif isinstance(self.y_sequence, torch.Tensor):
             self.y_sequence = torch.cat((self.y_sequence, other.y_sequence), dim=0)
         else:
             self.y_sequence.extend(other.y_sequence)
         self.dec_state = other.dec_state
-        if self.timestamp is not None:
-            if isinstance(self.timestamp, torch.Tensor):
-                self.timestamp = torch.cat((self.timestamp, other.timestamp), dim=0)
-            else:
-                self.timestamp.extend(other.timestamp)
+        if self.timestamp is None:
+            self.timestamp = other.timestamp
+        elif isinstance(self.timestamp, torch.Tensor):
+            self.timestamp = torch.cat((self.timestamp, other.timestamp), dim=0)
+        else:
+            self.timestamp.extend(other.timestamp)
         self.length += other.length
         self.last_token = other.last_token
-        if self.alignments is not None:
+        if self.alignments is None:
+            self.alignments = other.alignments
+        else:
             self.alignments.extend(other.alignments)
-        if self.frame_confidence is not None:
+        if self.frame_confidence is None:
+            self.frame_confidence = other.frame_confidence
+        else:
             self.frame_confidence.extend(other.frame_confidence)
         # Invalidated. Need to rerun decode_hypothesis here.
         self.text = None
