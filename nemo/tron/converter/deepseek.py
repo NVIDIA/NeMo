@@ -27,11 +27,6 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class ModuleWrapper:
-    """Simple wrapper class that provides access to an object via .module attribute."""
-    def __init__(self, target):
-        self.module = target
-
 
 class HFDeepSeekImporter(BaseImporter):
     """Importer for converting Hugging Face DeepSeek models to NeMo Tron format."""
@@ -46,8 +41,19 @@ class HFDeepSeekImporter(BaseImporter):
         )
 
     def convert_state(self, source, target):
+        from megatron.core.transformer.module import MegatronModule
+
+        class ModuleWrapper:
+            """Simple wrapper class that provides access to an object via .module attribute."""
+            def __init__(self, target):
+                self.module = target
+
         # `convert_state` expects target to be wrapped in a .module
         wrapped_target = ModuleWrapper(target)
+
+        # Needs to be a MegatronModule to be able to use `apply_transforms`
+        wrapped_target.__bases__ = (MegatronModule,)
+
         return self._importer.convert_state(source, wrapped_target)
 
     @property
