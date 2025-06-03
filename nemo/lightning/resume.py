@@ -95,7 +95,7 @@ class AutoResume:
 
     WEIGHTS_PATH = "weights"
 
-    def get_weights_path(self, path: Union[Path, str]) -> Path:
+    def get_weights_path(self, path) -> Path:
         """Returns the path to the weights directory within the specified path.
 
         Args:
@@ -104,9 +104,6 @@ class AutoResume:
         Returns:
             Path: A Path object pointing to the weights directory
         """
-        if isinstance(path, str):
-            return os.path.join(path, self.WEIGHTS_PATH)
-
         return path / self.WEIGHTS_PATH
 
     def setup(self, trainer: Union[pl.Trainer, fl.Fabric], model=None):
@@ -320,7 +317,13 @@ class AutoResume:
                            or None if no checkpoint is found or needed
         """
         if self.resume_from_path:
-            maybe_weights_path = self.get_weights_path(self.resume_from_path)
+            if is_multistorageclient_url(self.resume_from_path):
+                msc = import_multistorageclient()
+                resume_from_path = msc.Path(self.resume_from_path)
+            else:
+                resume_from_path = Path(self.resume_from_path)
+
+            maybe_weights_path = self.get_weights_path(resume_from_path)
             if maybe_weights_path.is_dir():
                 adapter_meta_path = maybe_weights_path / ADAPTER_META_FILENAME
                 if adapter_meta_path.exists():

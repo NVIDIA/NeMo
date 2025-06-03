@@ -43,8 +43,14 @@ def idempotent_path_append(base_dir: Union[str, Path], suffix) -> Path:
         Path: The updated path object with the suffix appended if it was not already present.
     """
     from nemo.lightning.resume import AdapterPath
+    from nemo.utils.msc_utils import import_multistorageclient, is_multistorageclient_url
 
-    assert isinstance(base_dir, Path)
+    if is_multistorageclient_url(base_dir):
+        msc = import_multistorageclient()
+        base_dir = msc.Path(base_dir)
+    else:
+        base_dir = Path(base_dir)
+
     if base_dir.parts[-1] != suffix:
         base_dir = base_dir / suffix
     if isinstance(base_dir, AdapterPath) and base_dir.base_model_path.parts[-1] != suffix:
