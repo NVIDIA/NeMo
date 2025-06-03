@@ -653,7 +653,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
             )
 
             if self.precision_plugin and parallel_state.is_pipeline_first_stage(
-                ignore_virtual=False, vp_stage=model.module.vp_stage
+                ignore_virtual=False, vp_stage=getattr(model.module, 'vp_stage', None)
             ):
                 batch = self.precision_plugin.convert_input(batch)
 
@@ -669,7 +669,7 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
             )
 
             if self.precision_plugin and parallel_state.is_pipeline_last_stage(
-                ignore_virtual=False, vp_stage=model.module.vp_stage
+                ignore_virtual=False, vp_stage=getattr(model.module, 'vp_stage', None)
             ):
                 output_tensor = self.precision_plugin.convert_output(output_tensor)
 
@@ -930,7 +930,6 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         Returns:
             Dict[str, Any]: The sharded state dictionary for distributed checkpointing
         """
-        from megatron.core import parallel_state
 
         sharded_state_dict = {}
         for index, module in enumerate(self):
