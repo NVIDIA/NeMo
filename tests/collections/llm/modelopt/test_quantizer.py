@@ -34,7 +34,7 @@ class TestQuantizationConfig:
 
     def test_is_weight_only_int4_awq(self):
         quant_cfg = QuantizationConfig(algorithm="int4_awq")
-        assert quant_cfg.is_weight_only()
+        assert not quant_cfg.is_weight_only()
 
     def test_is_weight_only_w4a8_awq(self):
         quant_cfg = QuantizationConfig(algorithm="w4a8_awq")

@@ -87,7 +87,8 @@ class QuantizationConfig:
         quant_cfg = QUANT_CFG_CHOICES[self.algorithm]['quant_cfg']
         input_cfg = quant_cfg.get("*input_quantizer", None)
         # no input quantizer or input quantizer is disabled
-        return input_cfg is None or not input_cfg.get("enable", True)
+        cfg_weight_only = input_cfg is None or not input_cfg.get("enable", True)
+        return "awq" not in self.algorithm and cfg_weight_only
 
 
 @dataclass
