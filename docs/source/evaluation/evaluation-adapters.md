@@ -102,8 +102,8 @@ The adapter system is configured using the `AdapterConfig` class with the follow
 
 ## Usage Example
 
-To enable the adapter server, pass `AdapterConfig` class to the `evaluate`  method of the `nemo/collections/llm/api.py`.
-Taking an example from `tutorials/llm/evaluation/mmlu.ipynb`, we can modify it
+To enable the adapter server, pass the  `AdapterConfig` class to the `evaluate`  method of the `nemo/collections/llm/api.py`.
+Taking an example from `tutorials/llm/evaluation/mmlu.ipynb`, you can modify it as follows:
 
 ```python
 target_config = EvaluationTarget(api_endpoint={"url": completions_url, "type": "completions"})
