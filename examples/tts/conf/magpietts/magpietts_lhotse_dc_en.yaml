@@ -1,13 +1,12 @@
 name: MagpieTTS-EN-Lhotse
 
 quadratic_duration: 20  # both training and validation datasets can apply same quadratic_duration.
-sample_rate: 22_050
 
 model:
   use_lhotse: true
   model_type: "decoder_context_tts" # single_encoder_sv_tts, multi_encoder_context_tts, decoder_context_tts or decoder_pretrain_synthesizer
   use_text_conditioning_encoder: false # If true, distilbert will be used to encode context_text if provided.
-  context_duration_min: 3.0
+  context_duration_min: 5.0
   context_duration_max: 5.0
   codec_model_name: "21fpsCausalDecoder"
   load_cached_codes_if_available: true
@@ -18,7 +17,6 @@ model:
   alignment_loss_scale: 0.002
   embedding_dim: 768
   codecmodel_path: ???
-  sample_rate: ${sample_rate}
   cfg_unconditional_prob: 0.1  # enable classifier-free guidance during traing by dropping out conditionals with this probability
 
   # Alignment encoder parameters, to binarize the prior
@@ -66,7 +64,6 @@ model:
 
     dataset:
       min_duration: 0.2
-      sample_rate: ${sample_rate}  # need to override the default sample rate of 16000
       batch_duration : ???  # in seconds. Adjust based on your GPU memory.
       quadratic_duration: ${quadratic_duration}
       use_bucketing: true
@@ -93,7 +90,6 @@ model:
 
     dataset:
       min_duration: 0.2
-      sample_rate: ${sample_rate}
       batch_duration: ???   # recommend to use smaller batch_duration for validation dataset than training dataset.
       quadratic_duration: ${quadratic_duration}
       use_bucketing: false
@@ -177,7 +173,7 @@ exp_manager:
     entity: null
     project: null
     group: null
-    name: null
+    name: ${name}
     resume: true  # enable resume to ensure continuous training log metrics merged on the previous run id.
   create_checkpoint_callback: true
   checkpoint_callback_params:
