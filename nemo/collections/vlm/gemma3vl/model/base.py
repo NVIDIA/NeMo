@@ -83,9 +83,11 @@ def gemma3vl_data_step(dataloader_iter) -> Dict[str, torch.Tensor]:
 
 def gemma3vl_forward_step(model, batch) -> torch.Tensor:
     """Gemma3 VL model forward step"""
+    if batch.get("input_ids") is None and batch.get("tokens") is None:
+        raise ValueError("Neither input_ids nor tokens is presented in the batch")
     forward_args = {
-        "input_ids": batch.get("input_ids", batch["tokens"]),
-        "position_ids": batch["position_ids"],
+        "input_ids": batch.get("input_ids", batch.get("tokens")),
+        "position_ids": batch.get("position_ids"),
         "pixel_values": batch.get("pixel_values", None),
         "loss_mask": batch.get("loss_mask", None),
         "labels": batch.get("labels", None),
