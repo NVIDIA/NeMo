@@ -28,6 +28,7 @@ import pandas as pd
 from lhotse.cut import Cut
 from omegaconf import OmegaConf
 
+import nemo.collections.speechlm2.data.salm_dataset  # noqa
 from nemo.collections.asr.data.audio_to_text_lhotse import TokenizerWrapper
 from nemo.collections.common.data.lhotse.cutset import read_cutset_from_config
 from nemo.collections.common.data.lhotse.dataloader import LhotseDataLoadingConfig, tokenize, tokenize_with_prompt
