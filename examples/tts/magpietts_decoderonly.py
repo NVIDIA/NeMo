@@ -14,14 +14,9 @@
 
 import lightning.pytorch as pl
 import torch.multiprocessing as mp
-from omegaconf import OmegaConf, open_dict
+from omegaconf import OmegaConf
 
-from nemo.collections.tts.models import (
-    MagpieTTSDecoderModel,
-    MagpieTTSModelOfflinePODataGen,
-    MagpieTTSModelOfflinePO,
-    MagpieTTSModelOnlinePO,
-)
+from nemo.collections.tts.models import MagpieTTSDecoderModel
 from nemo.core.config import hydra_runner
 from nemo.utils import logging
 from nemo.utils.exp_manager import exp_manager
@@ -47,26 +42,10 @@ def main(cfg):
     trainer.callbacks.append(pl.callbacks.LearningRateMonitor(logging_interval='step', log_weight_decay=True))
     exp_manager(trainer, cfg.get("exp_manager", None))
 
-    if cfg.get('mode', 'train') == 'train':
-        model = MagpieTTSDecoderModel(cfg=cfg.model, trainer=trainer)
-    elif cfg.get('mode', 'train') == 'dpo_train':
-        model_cfg = cfg.model
-        with open_dict(model_cfg):
-            model_cfg.reference_model_ckpt_path = cfg.init_from_ptl_ckpt
-        model = MagpieTTSModelOfflinePO(cfg=model_cfg, trainer=trainer)
-    elif cfg.get('mode', 'train') == 'onlinepo_train':
-        model_cfg = cfg.model
-        with open_dict(model_cfg):
-            model_cfg.reference_model_ckpt_path = cfg.init_from_ptl_ckpt
-        model = MagpieTTSModelOnlinePO(cfg=model_cfg, trainer=trainer)
-    elif cfg.get('mode', 'train') == 'test':
-        model = MagpieTTSModelOfflinePODataGen(cfg=cfg.model, trainer=trainer)
-    else:
-        raise NotImplementedError(f"Only train, dpo_train and test modes are supported. Got {cfg.mode}")
-
+    model = MagpieTTSDecoderModel(cfg=cfg.model, trainer=trainer)
     model.maybe_init_from_pretrained_checkpoint(cfg=cfg)
 
-    if cfg.get('mode', 'train') in ['train', 'dpo_train', 'onlinepo_train']:
+    if cfg.get('mode', 'train') == 'train':
         trainer.fit(model)
     elif cfg.get('mode', 'train') == 'test':
         trainer.test(model)
