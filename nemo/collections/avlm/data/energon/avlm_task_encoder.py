@@ -33,7 +33,6 @@ from nemo.collections.avlm.data.energon.avlm_sample_config import (
     VideoSize,
     ImageSize,
     MediaDict,
-    AVLMEnergonInterleavedSample,
     AVLMEnergonQASample,
     AVLMSample,
     PackedAVLMSample,
@@ -97,99 +96,6 @@ class AVLMSampleEncoder(BaseSampleEncoder):
             self.build_audio_processor()
         if self.image_processor is None:
             self.build_image_processor()
-
-        self.concate_audio_video_tokens = None
-        if self.multimodal_sample_config.audio_video_tokens_concatenate_pattern == "sequential":
-            self.concate_audio_video_tokens = self.concate_audio_video_tokens_sequential
-        elif self.multimodal_sample_config.audio_video_tokens_concatenate_pattern == "audio_video":
-            self.concate_audio_video_tokens = self.concate_audio_video_tokens_audio_video
-        elif self.multimodal_sample_config.audio_video_tokens_concatenate_pattern == "video_audio":
-            self.concate_audio_video_tokens = self.concate_audio_video_tokens_video_audio
-        elif self.multimodal_sample_config.audio_video_tokens_concatenate_pattern == "interleaved_optimal":
-            self.concate_audio_video_tokens = self.concate_audio_video_tokens_interleaved_optimal
-        else:
-            raise ValueError(
-                "Unsupported method in audio_video_tokens_concatenate_pattern: "
-                f"{self.multimodal_sample_config.audio_video_tokens_concatenate_pattern}"
-            )
-
-    @staticmethod
-    def concate_audio_video_tokens_audio_video(tokenized_chunks_audio, tokenized_chunks_video):
-        """
-        Parameters:
-            tokenized_chunks_video: {stream_index: List[self.image_token.token_id]}
-            tokenized_chunks_audio: {stream_index: List[self.audio_token.token_id]}
-        Returns:
-            List of concatenated tokens with all audio tokens followed by all video tokens
-        """
-        return [t for i in sorted(tokenized_chunks_audio.keys()) for t in tokenized_chunks_audio[i]] + [
-            t for i in sorted(tokenized_chunks_video.keys()) for t in tokenized_chunks_video[i]
-        ]
-
-    @staticmethod
-    def concate_audio_video_tokens_video_audio(tokenized_chunks_audio, tokenized_chunks_video):
-        """
-        Parameters:
-            tokenized_chunks_video: {stream_index: List[self.image_token.token_id]}
-            tokenized_chunks_audio: {stream_index: List[self.audio_token.token_id]}
-        Returns:
-            List of concatenated tokens with all video tokens followed by all audio tokens
-        """
-        return [t for i in sorted(tokenized_chunks_video.keys()) for t in tokenized_chunks_video[i]] + [
-            t for i in sorted(tokenized_chunks_audio.keys()) for t in tokenized_chunks_audio[i]
-        ]
-
-    @staticmethod
-    def concate_audio_video_tokens_sequential(tokenized_chunks_audio, tokenized_chunks_video):
-        """
-        Parameters:
-            tokenized_chunks_video: {stream_index: List[self.image_token.token_id]}
-            tokenized_chunks_audio: {stream_index: List[self.audio_token.token_id]}
-        Returns:
-            List of concatenated tokens according to the stream index in the original video file
-        """
-        indexes = set(list(tokenized_chunks_audio.keys()) + list(tokenized_chunks_video.keys()))
-        tokens = []
-        for index in sorted(indexes):
-            if index in tokenized_chunks_video:
-                tokens.extend(tokenized_chunks_video[index])
-            # ideally, video and audio stream index should be unique.
-            # if they share identical index, add the video tokens first
-            if index in tokenized_chunks_audio:
-                tokens.extend(tokenized_chunks_audio[index])
-        return tokens
-
-    @staticmethod
-    def concate_audio_video_tokens_interleaved_optimal(tokenized_chunks_audio, tokenized_chunks_video):
-        """
-        Parameters:
-            tokenized_chunks_video: {stream_index: List[self.image_token.token_id]}
-            tokenized_chunks_audio: {stream_index: List[self.audio_token.token_id]}
-        Returns:
-            List of concatenated tokens with evenly spaced video and audio tokens
-        """
-        audio_tokens = [t for i in sorted(tokenized_chunks_audio.keys()) for t in tokenized_chunks_audio[i]]
-        # do not flatten the inner list so as to preserve the {stream: {frame: }} structure
-        video_tokens = [tokenized_chunks_video[i] for i in sorted(tokenized_chunks_video.keys())]
-
-        total_length = len(video_tokens) + len(audio_tokens)
-        shorter, longer = sorted((video_tokens, audio_tokens), key=len)
-        groups = itertools.groupby(
-            (
-                (longer[len(longer) * i // total_length], shorter[len(shorter) * i // total_length])
-                for i in range(total_length)
-            ),
-            key=lambda x: x[0],
-        )
-        interleaved_optimal = [j[i] for _, g in groups for i, j in enumerate(g)]
-        tokenized_chunks = []
-        for item in interleaved_optimal:
-            if isinstance(item, list):
-                tokenized_chunks.extend(item)
-            else:
-                tokenized_chunks.append(item)
-
-        return tokenized_chunks
 
     def build_tokenizer(self):
         '''Build the tokenizer'''
@@ -270,60 +176,36 @@ class AVLMSampleEncoder(BaseSampleEncoder):
             audio tensor in "data" is of shape: [audio_length]
             video tensor in "data" is of shape: [frames x num_of_tiles x channel x height x width]
         """
-        ret_dict = dict()
-
-        # get all stream information from the file
         video_bytes = video["media_value"]
-        offset = video.get("offset", 0)
-        duration = video.get("duration", 0)
-        # copy audio processing configs
-        audio_sample = {k: video[k] for k in video if k != "media_type" and k != "media_value"}
-
-        start_seconds = offset
-        end_seconds = start_seconds + duration if duration != 0 else 0
-        container = av.open(io.BytesIO(video_bytes))
-        media_stream_count = {"audio": 0, "video": 0}
-        for stream in container.streams:
-            if stream.type not in ["audio", "video"]:
-                continue
-
+        video_io = io.BytesIO(video_bytes)
+        def extract_uniform_frames(video_io, num_frames=4):
+            container = av.open(video_io)
+            stream = container.streams.video[0]
+            duration = container.duration / av.time_base
+            pts_list = np.linspace(0, duration, num_frames + 2)[1:-1]  # skip first/last frames
             frames = []
-            stream_start_seconds = stream.time_base * stream.start_time
-            stream_end_seconds = stream_start_seconds + stream.time_base * stream.duration
-            if end_seconds == 0:
-                end_seconds = stream_end_seconds
-            if stream_start_seconds >= start_seconds and stream_start_seconds < end_seconds:
-                # only retrieve the streams whose time spans within the required start and end
-                reader = torchvision.io.VideoReader(video_bytes, f"{stream.type}:{media_stream_count[stream.type]}")
-                for frame in itertools.takewhile(
-                    lambda x: x['pts'] <= min(stream_end_seconds, end_seconds), reader.seek(start_seconds)
-                ):
-                    if stream.type == "video" and self.image_processor is not None:
-                        frame, _ = self.process_image(frame["data"])
-                    else:
-                        frame = frame["data"]
-                    frames.append(frame)
+            for ts in pts_list:
+                container.seek(int(ts * av.time_base), stream=stream)
+                for frame in container.decode(stream):
+                    frames.append(frame.to_image())
+                    break  # take first decoded frame after seek
+            return frames
+        selected_video_frames = extract_uniform_frames(video_io, num_frames=8)
 
-                if frames:
-                    if stream.type == "video":
-                        frames = torch.stack(frames)
-                        if frames.dim() == 4:
-                            frames.unsqueeze(1)
-                        original_size = VideoSize(frames=stream.frames, height=stream.height, width=stream.width)
-                    elif stream.type == "audio":
-                        frames = torch.cat(frames)
-                        audio_sample["media_value"] = frames
-                        audio_sample["sample_rate"] = stream.codec_context.sample_rate
-                        frames, _ = self.process_audio(audio_sample, "from_decoded")
-                        # TODO: verify duration is the same as total frame size
-                        original_size = AudioSize(length=stream.duration, channel=stream.codec_context.channels)
-                    ret_dict[stream.index] = self._processed_video_dict(
-                        media_type=stream.type, data=frames, original_size=original_size
-                    )
+        # if image_processor is LlavaNextImageProcessor, the output of preprocess is a tensor of shape 
+        # [1 - batch_size, 5 - patches, C, H, W], hence we only take the first element
+        # the output of this processing step is:
+        # - [num_frames, 5, C, H, W] for LlavaNextImageProcessor
+        # - [num_frames, C, H, W] for other image processors
+        if isinstance(self.image_processor, LlavaNextImageProcessor):
+            processed_video = [self.image_processor.preprocess(frame, return_tensors='pt', do_rescale=False)['pixel_values'][0] for frame in selected_video_frames]
+        else:
+            processed_video = [self.image_processor.preprocess(frame, return_tensors='pt', do_rescale=False)['pixel_values'] for frame in selected_video_frames]
 
-            media_stream_count[stream.type] = media_stream_count[stream.type] + 1
-
-        return ret_dict
+        return (
+            processed_video,
+            ImageSize(height=processed_video[0].shape[1], width=processed_video[0].shape[2]),
+        )
 
     def process_image(self, image: Union[bytes, MediaDict, torch.Tensor]):
         """
@@ -363,201 +245,6 @@ class AVLMSampleEncoder(BaseSampleEncoder):
             )
         else:
             return None, None
-
-
-class AVLMSampleEncoderInterleaved(AVLMSampleEncoder):
-    """AVLMSampleEncoderInterleaved"""
-
-    def __init__(
-        self, tokenizer=None, audio_processor=None, image_processor=None, multimodal_sample_config=AVLMSampleConfig()
-    ):
-        """
-        Initialize the AVLMSampleEncoderInterleaved
-
-        Parameters:
-        tokenizer (Tokenizer): The HF tokenizer used for processing text.
-        image_processor (ImageProcessor): The HF image processor used for preprocessing images.
-        multimodal_sample_config (AVLMSampleConfig, optional): Configuration object for multimodal samples.
-            Defaults to AVLMSampleConfig().
-        """
-        super().__init__(tokenizer, audio_processor, image_processor, multimodal_sample_config)
-
-    def tokenize(self, sample: AVLMEnergonInterleavedSample):
-        """
-        Tokenize the input sequence and process images in an interleaved sample.
-
-        This method processes a sequence that consists of text strings, audio bytes, video bytes and PIL images.
-        The text is tokenized, and the audio, video and images are processed. The method returns a tensor
-        of tokenized text and a concatenated tensor of processed images.
-
-        Parameters:
-        sample (InterleavedSample): The interleaved sample containing a sequence of text strings and image tensors.
-
-        Returns:
-        dict["token": torch.Tensor,
-            "audios": torch.Tensor,
-            "audio_lengths": torch.Tensor,
-            "images": torch.Tensor,
-            "num_image_tiles": torch.Tensor]
-
-        """
-        # sample.sequence is a list consisting of text string or image tensor (only image modality supported for now)
-        tokenized_chunks = []
-        audios = []
-        audio_lengths = []
-        images = []
-        num_image_tiles = []
-        image_sizes = []
-
-        audio_tensor = None
-        audio_lengths_tensor = None
-        image_tensor = None
-        num_image_tiles_tensor = None
-        image_sizes_tensor = None
-
-        for chunk in sample.sequence:
-            if isinstance(chunk, dict):
-                media_type = chunk["media_type"]
-
-                if media_type == "audio":
-                    # process audio
-                    processed_audio, _ = self.process_audio(chunk, "from_file")
-                    if processed_audio is not None:
-                        audios.append(processed_audio)
-                        audio_lengths.append(processed_audio.shape[0])
-
-                        # calculate the encoded audio sequence length from processed audio length
-                        # and add the corresponding special audio tokens to the tokenized_chunks
-                        encoded_audio_seq_length = calculate_encoded_audio_seq_length(
-                            audio_length=processed_audio.shape[0],
-                            model_type=self.multimodal_sample_config.audio_encoder_config['model_type'],
-                            sample_rate=self.multimodal_sample_config.audio_encoder_config['sample_rate'],
-                            window_stride=self.multimodal_sample_config.audio_encoder_config['window_stride'],
-                            fixed_max_audio_length=self.multimodal_sample_config.audio_encoder_config[
-                                'fixed_max_audio_length'
-                            ],
-                            encoder_down_sampling=self.multimodal_sample_config.audio_encoder_config[
-                                'encoder_down_sampling'
-                            ],
-                            num_mel_bins=self.multimodal_sample_config.audio_encoder_config['num_mel_bins'],
-                            patch_size=self.multimodal_sample_config.audio_encoder_config['patch_size'],
-                            time_stride=self.multimodal_sample_config.audio_encoder_config['time_stride'],
-                            frequency_stride=self.multimodal_sample_config.audio_encoder_config['frequency_stride'],
-                            max_spectrogram_length=self.multimodal_sample_config.audio_encoder_config[
-                                'max_spectrogram_length'
-                            ],
-                        )
-                        tokenized_chunks.extend([self.audio_token.token_id] * encoded_audio_seq_length)
-
-                elif media_type == "video":
-                    audio_stream_index_tokens_dict = {}
-                    video_stream_index_tokens_dict = {}
-                    # process video and audio (if any) streams in a video file
-                    video_audio_dict = self.process_video(chunk)
-                    for stream_index in video_audio_dict:
-                        media_data = video_audio_dict[stream_index]
-
-                        if media_data["media_type"] == "video":
-                            # process each video stream
-                            processed_video = media_data["data"]
-                            original_video_size = video_audio_dict[stream_index]["original_size"]
-                            # flatten the frames into tiles
-                            images.append(processed_video.flatten(end_dim=1))
-                            num_image_tiles.extend([processed_video.shape[1]] * processed_video.shape[0])
-                            image_sizes.extend(
-                                [[original_video_size.height, original_video_size.width]] * processed_video.shape[0]
-                            )
-                            video_stream_index_tokens_dict[stream_index] = [
-                                self.image_token.token_id
-                            ] * processed_video.shape[0]
-                        else:
-                            # process each audio stream
-                            processed_audio = media_data["data"]
-                            audios.append(processed_audio)
-                            audio_lengths.append(processed_audio.shape[0])
-                            audio_stream_index_tokens_dict[stream_index] = [self.audio_token.token_id]
-
-                    # concatenate the video and audio tokens according to the required pattern
-                    tokenized_chunks.extend(
-                        self.concate_audio_video_tokens(audio_stream_index_tokens_dict, video_stream_index_tokens_dict)
-                    )
-                elif media_type == "image":
-                    # process image
-                    processed_image, original_image_size = self.process_image(chunk)
-                    if processed_image is not None:
-                        images.append(processed_image)
-                        num_image_tiles.append(processed_image.shape[0])
-                        image_sizes.append([original_image_size.height, original_image_size.width])
-
-                    # calculate the encoded image sequence length from processed image length
-                    # and add the corresponding special image tokens to the tokenized_chunks
-                    encoded_image_seq_length = calculate_encoded_image_seq_length(
-                        num_one_image_tiles=processed_image.shape[0],
-                        model_type=self.multimodal_sample_config.image_encoder_config['model_type'],
-                        img_width=self.multimodal_sample_config.image_encoder_config['img_width'],
-                        img_height=self.multimodal_sample_config.image_encoder_config['img_height'],
-                        patch_size=self.multimodal_sample_config.image_encoder_config['patch_size'],
-                        projection_downsample_factor=self.multimodal_sample_config.image_encoder_config['projection_downsample_factor'],
-                    )
-                    tokenized_chunks.extend([self.image_token.token_id] * encoded_image_seq_length)
-
-                else:
-                    raise ValueError(f"Unsupported type in MediaDict: {type(chunk)}")
-            elif len(chunk) > 0:
-                logging.debug(f"Multimodal datalaoder encoder interleaved sample text chunk {chunk}")
-                tokenized_chunks.extend(self.tokenizer(chunk, add_special_tokens=False).input_ids)
-            else:
-                raise ValueError(f"Unsupported type in interleaved sequence: {type(chunk)}")
-        tokens = torch.tensor(tokenized_chunks, dtype=torch.long)
-        logging.debug(f"Multimodal dataloader encode interleaved sample tokenized chunks {tokenized_chunks}")
-
-        if audios:
-            audio_tensor = audios
-            audio_lengths_tensor = torch.tensor(audio_lengths)
-        if images:
-            image_tensor = torch.concatenate(images)  # T c h w
-            num_image_tiles_tensor = torch.tensor(num_image_tiles)
-            image_sizes_tensor = torch.tensor(image_sizes)
-        return {
-            "tokens": tokens,
-            "audios": audio_tensor,
-            "audio_lengths": audio_lengths_tensor,
-            "images": image_tensor,
-            "num_image_tiles": num_image_tiles_tensor,
-            "image_sizes": image_sizes_tensor,
-        }
-
-    def encode(self, input_sample: AVLMEnergonInterleavedSample, output_sample: AVLMSample):
-        """
-        Encode a single sample into a format suitable for model input.
-
-        Parameters:
-
-        Returns:
-        AVLMSample:
-        """
-        # tokenize prompt
-        media_dict = self.tokenize(input_sample)
-        tokens = media_dict["tokens"]
-        output_sample.audios = media_dict["audios"]
-        output_sample.audio_lengths = media_dict["audio_lengths"]
-        output_sample.images = media_dict["images"]
-        output_sample.num_image_tiles = media_dict["num_image_tiles"]
-        output_sample.image_sizes = media_dict["image_sizes"]
-        output_sample.attention_mask = torch.ones(len(tokens), dtype=torch.long)
-
-        labels = self.compute_labels(tokens, input_sample)
-        tokens = tokens[:-1].contiguous()
-        labels = labels[1:].contiguous()
-        logging.debug(f"[Energon] task encoder encode_sample after tokenize prompt tokens {tokens}")
-        logging.debug(f"[Energon] task encoder encode_sample lables {labels}")
-        loss_mask = self.compute_loss_mask(labels)
-
-        output_sample.__key__ = input_sample.__key__
-        output_sample.tokens = tokens
-        output_sample.labels = labels
-        output_sample.loss_mask = loss_mask
-        return output_sample
 
 
 class AVLMSampleEncoderQA(AVLMSampleEncoder, VQASampleEncoder):
@@ -664,37 +351,31 @@ class AVLMSampleEncoderQA(AVLMSampleEncoder, VQASampleEncoder):
                 audio_stream_index_tokens_dict = {}
                 video_stream_index_tokens_dict = {}
                 # process video and audio (if any) streams in a video file
-                video_audio_dict = self.process_video(input_sample.videos[input_video_index])
-                for stream_index in video_audio_dict:
-                    media_data = video_audio_dict[stream_index]
-
-                    if media_data["media_type"] == "video":
-                        # process each video stream
-                        processed_video = media_data["data"]
-                        original_video_size = video_audio_dict[stream_index]["original_size"]
-                        # flatten the frames into tiles
-                        processed_images.append(processed_video.flatten(end_dim=1))
-                        total_frames_in_each_processed_video.append(processed_video.shape[0])
-                        processed_num_image_tiles.extend([processed_video.shape[1]] * processed_video.shape[0])
-                        processed_image_sizes.extend(
-                            [[original_video_size.height, original_video_size.width]] * processed_video.shape[0]
-                        )
-                        video_stream_index_tokens_dict[stream_index] = [
-                            self.image_token.token_id
-                        ] * processed_video.shape[0]
-                    else:
-                        # process each audio stream
-                        processed_audio = media_data["data"]
-                        processed_audios.append(processed_audio)
-                        processed_audio_lengths.append(processed_audio.shape[0])
-                        audio_stream_index_tokens_dict[stream_index] = [self.audio_token.token_id]
-
-                # concatenate the video and audio tokens according to the required pattern
-                tokenized_chunks.extend(
-                    self.concate_audio_video_tokens(audio_stream_index_tokens_dict, video_stream_index_tokens_dict)
-                )
-
+                processed_video, original_video_size = self.process_video(input_sample.videos[input_video_index])                
+                
+                # TODO (huvu) double check with LlavaNextImageProcessor
+                # because LlavaNextImageProcessor output is different from other image processors
+                if processed_video is not None:
+                    processed_images.extend(processed_video)
+                    processed_num_image_tiles.extend([processed_video[0].shape[0]] * len(processed_video))
+                    processed_image_sizes.extend(
+                        [[original_video_size.height, original_video_size.width]] * len(processed_video)
+                    )
                 input_video_index = input_video_index + 1
+
+                # calculate the encoded image sequence length from processed image length
+                # and add the corresponding special image tokens to the tokenized_chunks
+                encoded_image_seq_length = calculate_encoded_image_seq_length(
+                    num_one_image_tiles=processed_video[0].shape[0],
+                    model_type=self.multimodal_sample_config.image_encoder_config['model_type'],
+                    img_width=self.multimodal_sample_config.image_encoder_config['img_width'],
+                    img_height=self.multimodal_sample_config.image_encoder_config['img_height'],
+                    patch_size=self.multimodal_sample_config.image_encoder_config['patch_size'],
+                    projection_downsample_factor=self.multimodal_sample_config.image_encoder_config['projection_downsample_factor'],
+                )
+                encoded_video_seq_length = len(processed_video) * encoded_image_seq_length
+                tokenized_chunks.extend([self.image_token.token_id] * encoded_video_seq_length)
+
             elif chunk == self.image_token.token_str:
                 # process the corresponding image
                 processed_image, original_image_size = self.process_image(input_sample.images[input_image_index])
@@ -806,12 +487,6 @@ class AVLMTaskEncoder(MultiModalTaskEncoder):
             packed_sequence_size,
         )
         self.encoders: Dict[str, SampleEncoder] = {
-            AVLMEnergonInterleavedSample.__name__: AVLMSampleEncoderInterleaved(
-                tokenizer=tokenizer,
-                audio_processor=audio_processor,
-                image_processor=image_processor,
-                multimodal_sample_config=multimodal_sample_config,
-            ),
             AVLMEnergonQASample.__name__: AVLMSampleEncoderQA(
                 tokenizer=tokenizer,
                 audio_processor=audio_processor,

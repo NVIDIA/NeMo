@@ -226,8 +226,8 @@ class ASRModuleConfig(ModelParallelConfig, io.IOMixin):
         else:
             model, preprocessor = self.configure_nemo_asr_model()
 
-        # add attribute "non_parallel_aware" to the model for TP grad all-reduce
-        model.non_parallel_aware = True
+        # add attribute "tensor_parallel_grad_reduce" to the model for TP grad all-reduce
+        model.tensor_parallel_grad_reduce = True
 
         if self.spec_augment_config is not None:
             spec_augment = Serialization.from_config_dict(to_dict_config(self.spec_augment_config))

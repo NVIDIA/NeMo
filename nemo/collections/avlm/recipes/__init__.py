@@ -12,14 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from nemo.collections.avlm.data import AVLMMockDataModule
-from nemo.collections.avlm.model.base import AVLMConfig, AVLMModel
-from nemo.collections.avlm.model.avlm import AVLMConfig8B
-from nemo.collections.avlm.recipes import *
+
+from nemo.collections.avlm.recipes import avlm_8b
 
 __all__ = [
-    "AVLMConfig8B",
-    "AVLMMockDataModule",
-    "AVLMConfig",
-    "AVLMModel",
+    "avlm_8b",
 ]

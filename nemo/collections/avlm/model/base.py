@@ -215,6 +215,8 @@ class AVLMConfig(TransformerConfig, io.IOMixin):
             for attr in MODEL_CONFIG_ATTR:
                 setattr(self, attr, getattr(self.language_transformer_config, attr))
 
+        assert self.calculate_per_token_loss is False, "AVLM does not return normalized loss"
+
     def configure_model(self, tokenizer) -> "MCoreAVLMModel":
         # pylint: disable=C0115,C0116
         self.language_transformer_config.scatter_embedding_sequence_parallel = False

@@ -70,18 +70,6 @@ def main(args):
         data_path = args.data_path
 
         avlm_sample_config = AVLMSampleConfig(
-            # audio_encoder_config={ # canary audio encoder
-            #     "model_type": "whisper",
-            #     "window_stride": 0.01,
-            #     "sample_rate": 16000,
-            #     "fixed_max_audio_length": None,
-            #     "encoder_down_sampling": 8,
-            #     "num_mel_bins": None,
-            #     "patch_size": None,
-            #     "time_stride": None,
-            #     "frequency_stride": None,
-            #     "max_spectrogram_length": None,
-            # },
             audio_encoder_config={  # whisper audio encoder
                 "model_type": "whisper",
                 "window_stride": 0.01,
@@ -154,20 +142,6 @@ def main(args):
         ffn_hidden_size=language_transformer_config.hidden_size,
     )
 
-    # # canary audio encoder
-    # audio_transformer_config=ASRModuleConfig(
-    #     _target_="nemo.collections.asr.models.EncDecMultiTaskModel",
-    #     pretrained_model="nvidia/canary-1b",
-    #     hidden_size=1024,
-    #     target_module="encoder",
-    #     spec_augment_config={
-    #         "_target_": "nemo.collections.asr.modules.SpectrogramAugmentation",
-    #         "freq_masks": 2, # set to zero to disable it
-    #         "time_masks": 10, # set to zero to disable it
-    #         "freq_width": 27,
-    #         "time_width": 0.05,
-    #     }
-    # )
     # whisper audio encoder  # need update NeMo from Steve's branch
     audio_transformer_config = ASRModuleConfig(
         _target_="nemo.collections.speechlm.modules.asr_module.ASRModuleConfig",
@@ -177,13 +151,6 @@ def main(args):
         pretrained_model="openai/whisper-large-v3",
         hidden_size=1280,
         target_module="model.encoder",
-        # spec_augment_config={
-        #     "_target_": "nemo.collections.asr.modules.SpectrogramAugmentation",
-        #     "freq_masks": 0, # set to zero to disable it
-        #     "time_masks": 0, # set to zero to disable it
-        #     "freq_width": 27,
-        #     "time_width": 0.05,
-        # }
     )
     audio_projection_config = vlm.MultimodalProjectorConfig(
         projector_type=args.projector_type,
@@ -218,8 +185,6 @@ def main(args):
         context_parallel_size=args.cp_size,
         pipeline_dtype=torch.bfloat16,
         sequence_parallel=args.sequence_parallel,
-        # DEBUGGING
-        # -> when set to True, sometimes that saved weights are turned into oddly large or small values, or NaNs
         ckpt_async_save=True,
     )
 
@@ -248,28 +213,6 @@ def main(args):
         log_every_n_steps=1,
         num_sanity_val_steps=0,
     )
-    # # Debugging PP
-    # trainer = nl.Trainer(
-    #     num_nodes=args.num_nodes,
-    #     devices=args.devices,
-    #     max_steps=max_steps,
-    #     accelerator="gpu",
-    #     strategy=strategy,
-    #     plugins=nl.MegatronMixedPrecision(precision="bf16-mixed"),
-    #     callbacks=[checkpoint_callback, TimingCallback()],
-    #     val_check_interval=1.0,
-    #     limit_val_batches=gbs,
-    #     log_every_n_steps=1,
-    #     num_sanity_val_steps=0,
-    #     # accelerator="cpu",  # Force CPU to avoid GPU communication issues
-    #     # strategy="ddp_spawn",  # Try different strategies if this doesn't work
-    #     sync_batchnorm=False,
-    #     benchmark=False,
-    #     deterministic=True,
-    #     max_time={"seconds": 1},  # Set maximum time for operations
-    #     enable_progress_bar=False,
-    #     enable_model_summary=False
-    # )
 
     # Logger setup
     nemo_logger = nl.NeMoLogger(
@@ -298,13 +241,12 @@ def main(args):
         bf16=True,
         clip_grad=1.0,
     )
-    # sched = CosineAnnealingScheduler(
-    #     max_steps=trainer.max_steps,
-    #     warmup_steps=150,
-    #     constant_steps=0,
-    #     min_lr=2.0e-05,
-    # )
-    sched = None
+    sched = CosineAnnealingScheduler(
+        max_steps=trainer.max_steps,
+        warmup_steps=150,
+        constant_steps=0,
+        min_lr=2.0e-05,
+    )
     opt = MegatronOptimizerModule(opt_config, sched)
 
     llm.pretrain(
