@@ -71,7 +71,6 @@ def process_text(input_text):
     return single_space_text
 
 def transcribe_with_whisper(whisper_model, whisper_processor, audio_path, language, device):
-    print("Transcribing with Whisper...")
     speech_array, sampling_rate = librosa.load(audio_path, sr=16000)
     # Set the language task (optional, improves performance for specific languages)
     forced_decoder_ids = whisper_processor.get_decoder_prompt_ids(language=language, task="transcribe") if language else None
