@@ -1048,7 +1048,7 @@ class MagpieTTSDecoderModel(ModelPT):
     def setup_test_data(self, cfg):
         self._test_dl = self._setup_test_dataloader(cfg)
 
-    def infer_batch(self, batch, max_decoder_steps=500, temperature=0.7, topk=80, autoregressive_after=0):
+    def infer_batch(self, batch, max_decoder_steps=500, temperature=0.7, topk=80, use_local_transformer_for_inference=False):
         with torch.inference_mode():
             context_tensors = self.prepare_context_tensors(batch)
             context_embedding = context_tensors['full_context_embedding']  # (B, T_total, E)
@@ -1066,15 +1066,8 @@ class MagpieTTSDecoderModel(ModelPT):
                 lengths=[context_lens, audio_codes_lens],
             )
 
-            # For Debugging - teacher forced prediction when autoregressive_after is > 0
-            if 'audio_codes' not in batch:
-                audio_codes_gt, audio_codes_lens_gt = self.audio_to_codes(batch['audio'], batch['audio_lens'])
-            else:
-                audio_codes_gt = batch['audio_codes']
             
-            audio_codes_input_gt = audio_codes_gt[:, :, :-1]  # (B, C, T') Input to the decoder
-            audio_codes_input_embedded_gt = self.embed_audio_tokens(audio_codes_input_gt) # (B, T, E) # Computing this to be use in the alignment encoder
-
+            # First forward pass to get the initial hidden state and past key values
             transformer_out = self.forward(
                 inputs_embeds=context_plus_audio_embedded,
                 attention_mask=get_mask_from_lengths(context_plus_audio_lens),
@@ -1088,10 +1081,32 @@ class MagpieTTSDecoderModel(ModelPT):
             all_predictions = []
             end_indices = {}
             for idx in range(max_decoder_steps):
-                print("Timestep: {}".format(idx))
+                if idx % 20 == 0:
+                    print(f"Decoding timestep {idx}")
+
                 all_code_logits_t = self.final_proj(last_hidden[:, -1, :])  # (B, num_codebooks * num_tokens_per_codebook)
-                audio_codes_next = self.sample_codes_from_logits(all_code_logits_t, temperature=temperature, topk=topk) # (B, num_codebooks)
-                all_codes_next_argmax = self.sample_codes_from_logits(all_code_logits_t, temperature=0.01) # (B, num_codebooks)
+                if use_local_transformer_for_inference:
+                    if self.local_transformer_type == LocalTransformerType.AR :
+                        # Autoregressive sampling with local transformer
+                        audio_codes_next = self.local_transformer_sample_autoregressive(
+                            dec_output=last_hidden[:, -1, :],
+                            temperature=temperature,
+                            topk=topk,
+                        )
+                    elif self.local_transformer_type == LocalTransformerType.MASKGIT:
+                        audio_codes_next = self.local_transformer_sample_maskgit(
+                            dec_output=last_hidden[:, -1, :],
+                            temperature=temperature,
+                            topk=topk,
+                        )
+                    else:
+                        raise ValueError(f"Local transformer inference requested by but local transformer type is {self.local_transformer_type}")
+                    # TODO @rfejgin: should we add argmax sampling for EOS here too?
+                    all_codes_next_argmax = audio_codes_next
+                else:
+                    # Parallel sampling from logits
+                    audio_codes_next = self.sample_codes_from_logits(all_code_logits_t, temperature=temperature, topk=topk) # (B, num_codebooks)
+                    all_codes_next_argmax = self.sample_codes_from_logits(all_code_logits_t, temperature=0.01) # (B, num_codebooks)
 
                 for item_idx in range(all_codes_next_argmax.size(0)):
                     if item_idx not in end_indices:
@@ -1102,17 +1117,10 @@ class MagpieTTSDecoderModel(ModelPT):
                             end_indices[item_idx] = idx
                 
                 all_predictions.append(audio_codes_next)
-                print("audio_codes_next.unsqueeze(2).shape", audio_codes_next.unsqueeze(2).shape)
+                
                 new_emb = self.embed_audio_tokens(audio_codes_next.unsqueeze(2))  # (B, 1, E)
-
-                if idx < autoregressive_after:
-                    # Use the gt input embeddings for the next step
-                    next_input = audio_codes_input_embedded_gt[:,idx+1:idx+2, :]
-                else:
-                    next_input = new_emb
-
                 transformer_out = self.forward(
-                    inputs_embeds=next_input,
+                    inputs_embeds=new_emb,
                     attention_mask=None,
                     use_cache=True,
                     past_key_values=past_kv,
@@ -1121,7 +1129,7 @@ class MagpieTTSDecoderModel(ModelPT):
                 past_kv = transformer_out.past_key_values
                 if len(end_indices) == audio_codes_next.size(0):
                     print("All items finished at timestep {}".format(idx))
-                    # break
+                    break
             
             predicted_codes = torch.stack(all_predictions, dim=-1)  # (B, num_codebooks, T')
             predicted_lens = [end_indices.get(idx, max_decoder_steps) for idx in range(context_embedding.size(0))] #  Ensure that the codec is atleast of length 4
