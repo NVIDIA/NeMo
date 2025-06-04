@@ -100,21 +100,35 @@ if __name__ == "__main__":
     exp_config = f"{num_nodes}nodes_tp{tp_size}_pp{pp_size}_cp{cp_size}_vp{vp_size}_{mbs}mbs_{gbs}gbs"
     exp_name = f"{splitext(basename(__file__))[0]}_{args.compute_dtype}_{exp_config}"
 
-    executor = slurm_executor(
-        args.account,
-        args.partition,
-        args.log_dir,
-        num_nodes,
-        args.gpus_per_node,
-        args.time_limit,
-        args.container_image,
-        custom_mounts=args.custom_mounts,
-        custom_env_vars={},
-        hf_token=args.hf_token,
-        nemo_home=args.nemo_home,
-        wandb_key=args.wandb_key,
-        network='sharp' if args.use_sharp else None,
-    )
+    if args.use_local_executor:
+        assert (
+            args.num_gpus == args.gpus_per_node
+        ), "Local executor only supports running on a single node, make sure num_gpus is equal to gpus_per_node"
+        executor = run.LocalExecutor(
+            ntasks_per_node=args.gpus_per_node,
+            launcher="torchrun",
+            env_vars={
+                "TORCH_NCCL_AVOID_RECORD_STREAMS": "1",
+                "TORCH_NCCL_HIGH_PRIORITY": "1",
+                "NEMO_LOG_MEMORY_USAGE": "1",
+            },
+        )
+    else:
+        executor = slurm_executor(
+            args.account,
+            args.partition,
+            args.log_dir,
+            num_nodes,
+            args.gpus_per_node,
+            args.time_limit,
+            args.container_image,
+            custom_mounts=args.custom_mounts,
+            custom_env_vars={},
+            hf_token=args.hf_token,
+            nemo_home=args.nemo_home,
+            wandb_key=args.wandb_key,
+            network='sharp' if args.use_sharp else None,
+        )
 
     plugins = [
         PerfEnvPlugin(
@@ -129,15 +143,18 @@ if __name__ == "__main__":
         assert args.memory_profile_out_path is not None
         plugins.append(MemoryProfilePlugin(dir=args.memory_profile_out_path))
 
-    with run.Experiment(exp_name) as exp:
-        exp.add(
-            recipe,
-            executor=executor,
-            name=exp_name,
-            plugins=plugins,
-        )
+    if args.use_local_executor:
+        run.run(recipe, executor=executor, plugins=plugins)
+    else:
+        with run.Experiment(exp_name) as exp:
+            exp.add(
+                recipe,
+                executor=executor,
+                name=exp_name,
+                plugins=plugins,
+            )
 
-        if not args.dryrun:
-            exp.run(sequential=True, detach=True)
-        else:
-            exp.dryrun()
+            if not args.dryrun:
+                exp.run(sequential=True, detach=True)
+            else:
+                exp.dryrun()
