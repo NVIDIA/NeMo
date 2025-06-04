@@ -100,7 +100,7 @@ def initialize_model_parallel_for_nemo(
     num_distributed_optimizer_instances=1,
     nccl_communicator_config_path=None,
     use_sharp=False,
-    high_priority_stream_groups=[],
+    high_priority_stream_groups=None,
 ):
     """Initialize model parallel groups in NeMo."""
 

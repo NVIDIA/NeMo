@@ -76,7 +76,7 @@ class AppState(metaclass=Singleton):
         self._init_mpi_proc_gruop = False
         self._nccl_communicator_config_path = None
         self._use_sharp = False
-        self._high_priority_stream_groups = []
+        self._high_priority_stream_groups = None
         self._random_seed = None
 
         # Logging info

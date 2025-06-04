@@ -135,7 +135,7 @@ class ParallelismConfig:
     num_distributed_optimizer_instances: int = 1
     nccl_communicator_config_path: str = None
     use_sharp: bool = False
-    high_priority_stream_groups: Optional[List[str]] = []
+    high_priority_stream_groups: Optional[List[str]] = None
 
 
 class MegatronStrategy(DDPStrategy, io.IOMixin):
@@ -288,7 +288,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         use_tp_pp_dp_mapping: bool = False,
         num_distributed_optimizer_instances: int = 1,
         nccl_communicator_config_path: Optional[str] = None,
-        high_priority_stream_groups: Optional[List[str]] = [],
+        high_priority_stream_groups: Optional[List[str]] = None,
         **kwargs,
     ) -> None:
         super().__init__(
