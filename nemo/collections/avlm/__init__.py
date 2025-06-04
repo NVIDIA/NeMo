@@ -15,7 +15,6 @@
 from nemo.collections.avlm.data import AVLMMockDataModule
 from nemo.collections.avlm.model.avlm import AVLMConfig8B
 from nemo.collections.avlm.model.base import AVLMConfig, AVLMModel
-from nemo.collections.avlm.recipes import *
 
 __all__ = [
     "AVLMConfig8B",

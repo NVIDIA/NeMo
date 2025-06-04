@@ -22,6 +22,7 @@ import torch
 from nemo import lightning as nl
 from nemo.collections import avlm, llm
 from nemo.collections.avlm import AVLMMockDataModule
+from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 from nemo.collections.llm.peft import LoRA
 from nemo.collections.llm.recipes.log.default import tensorboard_logger
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
@@ -32,6 +33,10 @@ NAME = "avlm_8b"
 
 
 def create_image_processor():
+    """
+    Create an image processor for the AVLM 8B model.
+    This helps by pass fiddle.config
+    """
     from transformers import AutoProcessor
 
     return AutoProcessor.from_pretrained("openai/clip-vit-large-patch14")
@@ -113,9 +118,6 @@ def finetune_recipe(
         val_check_interval=1000,
         callbacks=[run.Config(TimingCallback)],
     )
-    from transformers import AutoProcessor
-
-    from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
     recipe = run.Partial(
         llm.finetune,
@@ -224,9 +226,6 @@ def pretrain_recipe(
         val_check_interval=1000,
         callbacks=[run.Config(TimingCallback)],
     )
-    from transformers import AutoProcessor
-
-    from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
     recipe = run.Partial(
         llm.pretrain,

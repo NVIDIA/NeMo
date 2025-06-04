@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import io
-import itertools
 import re
 from typing import Callable, Dict, List, Literal, Optional, TypedDict, Union
 
