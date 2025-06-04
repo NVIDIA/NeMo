@@ -15,7 +15,6 @@
 import nemo_run as run
 import pytest
 
-from nemo.collections.avlm.data.mock import MockDataModule
 from nemo.collections.avlm.recipes import avlm_8b
 from nemo.collections.llm.api import finetune
 from nemo.collections.avlm import AVLMConfig8B, AVLMModel
