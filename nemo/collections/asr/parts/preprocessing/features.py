@@ -389,6 +389,7 @@ class FilterbankFeatures(nn.Module):
             center=False if self.exact_pad else True,
             window=self.window.to(dtype=torch.float, device=x.device),
             return_complex=True,
+            pad_mode="constant",
         )
 
     def log_zero_guard_value_fn(self, x):
@@ -417,11 +418,12 @@ class FilterbankFeatures(nn.Module):
         return self.fb
 
     def forward(self, x, seq_len, linear_spec=False):
+        timemask = torch.arange(x.shape[1], device=x.device).unsqueeze(0) < seq_len.unsqueeze(1)
         seq_len = self.get_seq_len(seq_len)
 
         if self.stft_pad_amount is not None:
             x = torch.nn.functional.pad(
-                x.unsqueeze(1), (self.stft_pad_amount, self.stft_pad_amount), "reflect"
+                x.unsqueeze(1), (self.stft_pad_amount, self.stft_pad_amount), "constant"
             ).squeeze(1)
 
         # dither (only in training mode for eval determinism)
@@ -431,6 +433,7 @@ class FilterbankFeatures(nn.Module):
         # do preemphasis
         if self.preemph is not None:
             x = torch.cat((x[:, 0].unsqueeze(1), x[:, 1:] - self.preemph * x[:, :-1]), dim=1)
+            x = x.masked_fill(~timemask, 0.0)
 
         # disable autocast to get full range of stft values
         with torch.amp.autocast(x.device.type, enabled=False):
