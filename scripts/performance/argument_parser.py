@@ -313,7 +313,7 @@ def parse_cli_args():
         nargs="*",
         const=None,
         type=str,
-        help="List of modules to perform selective activation recompute. Users can provide 0 or any number of arguments. Defaults to None",
+        help="List of modules to perform selective activation recompute. Users can provide 0 or any number of arguments. Defaults to None", # pylint: disable=line-too-long
         required=False,
         default=None,
     )
@@ -325,6 +325,18 @@ def parse_cli_args():
         help="Comma separated string of mounts",
         required=False,
         default=[],
+    )
+    parser.add_argument(
+        "--use_hf_tokenizer",
+        help="Use HuggingFace tokenizer. Disabled by default. Null tokenizer will be used if not provided.",
+        action="store_true",
+        required=False,
+    )
+    parser.add_argument(
+        "--use_local_executor",
+        help="Use local executor. Disabled by default.",
+        action="store_true",
+        required=False,
     )
 
     return parser
