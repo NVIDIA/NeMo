@@ -14,9 +14,9 @@
 
 name: Copyright check
 
-on: 
+on:
   pull_request:
 
 jobs:
   copyright-check:
-    uses: NVIDIA/NeMo-FW-CI-templates/.github/workflows/_copyright_check.yml@v0.2.0
+    uses: NVIDIA-NeMo/FW-CI-templates/.github/workflows/_copyright_check.yml@v0.2.0
