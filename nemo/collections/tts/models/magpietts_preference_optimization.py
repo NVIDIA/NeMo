@@ -545,6 +545,8 @@ class MagpieTTSModelOnlinePO(MagpieTTSModel):
             gt_transcript = process_text_for_cer(batch_repeated['raw_texts'][idx])
             cer_gt = word_error_rate([pred_transcript], [gt_transcript], use_cer=True)
             wer_gt = word_error_rate([pred_transcript], [gt_transcript], use_cer=False)
+            cer_gt = min(max(cer_gt, 0.0), 1.0)  # Ensure CER is in [0, 1]
+            wer_gt = min(max(wer_gt, 0.0), 1.0)  # Ensure WER is in [0, 1]
             spk_embedding_pred = pred_speaker_embeddings[idx].cpu().float().numpy()
             spk_embedding_gt = gt_speaker_embeddings[idx].cpu().float().numpy()
             spk_similarity = np.dot(spk_embedding_pred, spk_embedding_gt) / (
