@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2021, NVIDIA CORPORATION.
+# Copyright (c) 2020-2025, NVIDIA CORPORATION.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,12 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-name: Copyright check
-
-on:
-  pull_request:
-
-jobs:
-  copyright-check:
-    uses: NVIDIA-NeMo/FW-CI-templates/.github/workflows/_copyright_check.yml@v0.2.0
+export CUDA_VISIBLE_DEVICES=0
+export HF_DATASETS_OFFLINE=1
+export HF_HOME=/home/TestData/HF_HOME
+export HF_DATASETS_CACHE=${HF_HOME}/datasets
+coverage run -a --data-file=/workspace/.coverage --source=/workspace/nemo tests/evaluation/test_evaluation.py \
+    --nemo2_ckpt_path=/home/TestData/nemo2_ckpt/llama3-1b-lingua \
+    --tokenizer_path=/home/TestData/nemo2_ckpt/llama3-1b-lingua/context/lingua \
+    --max_batch_size=4 \
+    --eval_type='arc_challenge' \
+    --limit=1 \
+    --legacy_ckpt
