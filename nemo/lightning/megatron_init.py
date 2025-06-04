@@ -100,6 +100,7 @@ def initialize_model_parallel_for_nemo(
     num_distributed_optimizer_instances=1,
     nccl_communicator_config_path=None,
     use_sharp=False,
+    high_priority_stream_groups=[],
 ):
     """Initialize model parallel groups in NeMo."""
 
@@ -123,6 +124,7 @@ def initialize_model_parallel_for_nemo(
     app_state.expert_tensor_parallel_size = expert_tensor_parallel_size
     app_state.num_distributed_optimizer_instances = num_distributed_optimizer_instances
     app_state.nccl_communicator_config_path = nccl_communicator_config_path
+    app_state.high_priority_stream_groups = high_priority_stream_groups
     (
         app_state.tensor_model_parallel_rank,
         app_state.pipeline_model_parallel_rank,

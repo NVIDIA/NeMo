@@ -76,7 +76,7 @@ class AppState(metaclass=Singleton):
         self._init_mpi_proc_gruop = False
         self._nccl_communicator_config_path = None
         self._use_sharp = False
-
+        self._high_priority_stream_groups = []
         self._random_seed = None
 
         # Logging info
@@ -636,6 +636,22 @@ class AppState(metaclass=Singleton):
             path (str):  Path to the nccl communicator config.
         """
         self._nccl_communicator_config_path = path
+
+    @property
+    def high_priority_stream_groups(self):
+        """Property returns the high priority stream groups.
+        Returns:
+            High priority stream groups.
+        """
+        return self._high_priority_stream_groups
+
+    @high_priority_stream_groups.setter
+    def high_priority_stream_groups(self, groups):
+        """Property sets the high priority stream groups.
+        Args:
+            groups (list[str]): High priority stream groups.
+        """
+        self._high_priority_stream_groups = groups
 
     @property
     def random_seed(self):

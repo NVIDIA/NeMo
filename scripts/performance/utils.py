@@ -262,6 +262,7 @@ def set_primary_perf_configs(
     fp8_recipe: str = None,
     recompute_modules: Optional[List[str]] = None,
     nccl_communicator_config_path: str = None,
+    high_priority_stream_groups: Optional[List[str]] = [],
 ):
     """Set experiment configs we usually tune for performance of all models."""
 
@@ -286,6 +287,8 @@ def set_primary_perf_configs(
     logging.info(f"compute_dtype: {compute_dtype}")
     logging.info(f"fp8_recipe: {fp8_recipe}")
     logging.info(f"recompute_modules: {recompute_modules}")
+    logging.info(f"nccl_communicator_config_path: {nccl_communicator_config_path}")
+    logging.info(f"high_priority_stream_groups: {high_priority_stream_groups}")
 
     # nemo.lightning.Trainer configs
     recipe.trainer.num_nodes = num_nodes
@@ -409,6 +412,10 @@ def set_primary_perf_configs(
     # Disable local gradient checker at non-debugging mode
     recipe.trainer.strategy.ddp.check_for_nan_in_grad = False
     recipe.trainer.strategy.ddp.check_for_large_grads = False
+
+    # High priority stream groups
+    if high_priority_stream_groups is not None:
+        recipe.trainer.strategy.high_priority_stream_groups = high_priority_stream_groups
 
     return recipe
 
