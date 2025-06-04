@@ -12,6 +12,56 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 dataset_meta_info = {
+    'local_test_100': {
+        'manifest_path' : '/workspace/NeMo/filtered_test_100.json',
+        'audio_dir' : '/data/TTS/LibriTTS',
+        'feature_dir' : '/data/TTS/LibriTTS',
+    },
+    'local_test_20': {
+        'manifest_path' : '/workspace/NeMo/filtered_test_20.json',
+        'audio_dir' : '/data/TTS/LibriTTS',
+        'feature_dir' : '/data/TTS/LibriTTS',
+    },
+    'local_long_20': {
+        'manifest_path' : '/workspace/NeMo/filtered_test_long_20.json',
+        'audio_dir' : '/data/TTS/LibriTTS',
+        'feature_dir' : '/data/TTS/LibriTTS',
+    },
+    'local_longer_20': {
+        'manifest_path' : '/workspace/NeMo/filtered_test_longer_20.json',
+        'audio_dir' : '/data/TTS/LibriTTS',
+        'feature_dir' : '/data/TTS/LibriTTS',
+    },
+    'local_longer_10': {
+        'manifest_path' : '/workspace/NeMo/filtered_test_longer_10.json',
+        'audio_dir' : '/lustre/fsw/portfolios/llmservice/users/pneekhara/gitrepos/TTS/LibriTTS/',
+        'feature_dir' : '/lustre/fsw/portfolios/llmservice/users/pneekhara/gitrepos/TTS/LibriTTS/',
+    },
+    'local_longer_4': {
+        'manifest_path' : '/workspace/NeMo/filtered_test_longer_4.json',
+        'audio_dir' : '/lustre/fsw/portfolios/llmservice/users/pneekhara/gitrepos/TTS/LibriTTS/',
+        'feature_dir' : '/lustre/fsw/portfolios/llmservice/users/pneekhara/gitrepos/TTS/LibriTTS/',
+    },
+    'local_longer_1': {
+        'manifest_path' : '/workspace/NeMo/filtered_test_longer_1_magpie_gemma2.json',
+        'audio_dir' : '/lustre/fsw/portfolios/llmservice/users/pneekhara/gitrepos/TTS/LibriTTS/',
+        'feature_dir' : '/lustre/fsw/portfolios/llmservice/users/pneekhara/gitrepos/TTS/LibriTTS/',
+    },
+    'local_magpie_longer_10': {
+        'manifest_path' : '/workspace/NeMo/magpie_gemma2_test_long_10_normalize_noasterisk.json',
+        'audio_dir' : '/lustre/fsw/portfolios/llmservice/users/pneekhara/gitrepos/TTS/LibriTTS/',
+        'feature_dir' : '/lustre/fsw/portfolios/llmservice/users/pneekhara/gitrepos/TTS/LibriTTS/',
+    },
+    'local_gemini_longer_3': {
+        'manifest_path' : '/workspace/NeMo/filtered_test_longer_3_gemini_normalized_shortened.json',
+        'audio_dir' : '/lustre/fsw/portfolios/llmservice/users/pneekhara/gitrepos/TTS/LibriTTS/',
+        'feature_dir' : '/lustre/fsw/portfolios/llmservice/users/pneekhara/gitrepos/TTS/LibriTTS/',
+    },
+    'local_gemini_longer_1': {
+        'manifest_path' : '/workspace/NeMo/filtered_test_longer_3_gemini_normalized_shortened_1.json',
+        'audio_dir' : '/lustre/fsw/portfolios/llmservice/users/pneekhara/gitrepos/TTS/LibriTTS/',
+        'feature_dir' : '/lustre/fsw/portfolios/llmservice/users/pneekhara/gitrepos/TTS/LibriTTS/',
+    },
     'vctk': {
         'manifest_path' : '/home/pneekhara/2023/SimpleT5NeMo/manifests/smallvctk__phoneme__nemo_audio_21fps_8codebooks_2kcodes_v2bWithWavLM_simplet5_withcontextaudiopaths.json',
         'audio_dir' : '/datap/misc/Datasets/VCTK-Corpus',
