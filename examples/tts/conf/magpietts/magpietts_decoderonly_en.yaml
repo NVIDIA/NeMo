@@ -1,4 +1,4 @@
-name: Magpie-TTS-EN
+name: Magpie-TTS-DecoderOnly-EN
 
 max_epochs: ???
 # Adjust batch size based on GPU memory
@@ -12,14 +12,9 @@ weighted_sampling_steps_per_epoch: null
 train_ds_meta: ???
 val_ds_meta: ???
 
-# Modify these values based on your sample rate
-sample_rate: 22050
-
 model:
-  transformer_hf_backend: "Qwen/Qwen2.5-1.5B-Instruct"
+  transformer_hf_backend: "Qwen/Qwen2.5-1.5B"
   use_text_conditioning_encoder: true # If true, distilbert will be used to encode context_text if provided.
-  transcript_decoder_layers: [3,4,5,6,7] # ONLY used in multi_encoder_context_tts, Transcript goes to these layer ids, context goes to the rest. In single_encoder_sv_tts, all layers are used for transcript.
-  context_decoder_layers: [8,9] # ONLY used in multi_encoder_context_tts
   context_duration_min: 3.0
   context_duration_max: 5.0
   load_cached_codes_if_available: true
@@ -29,11 +24,10 @@ model:
   codecmodel_path: ???
   max_epochs: ${max_epochs}
   steps_per_epoch: ${weighted_sampling_steps_per_epoch}
-  sample_rate: ${sample_rate}
   
   # Local transformer parameters for autoregressive codebook prediction within a frame
   local_transformer_type: "none" # "none", "autoregressive", "maskgit"
-  # Below args are only relevant if use_local_transformer is true
+  # Below args are only relevant if use_local_transformer is autoregressive, maskgit
   local_transformer_loss_scale: 1.0
   local_transformer_n_layers: 3
   local_transformer_n_heads: 1
@@ -59,8 +53,6 @@ model:
       _target_: nemo.collections.tts.data.text_to_speech_dataset.MagpieTTSDataset
       dataset_meta: ${train_ds_meta}
       weighted_sampling_steps_per_epoch: ${weighted_sampling_steps_per_epoch}
-      sample_rate: ${sample_rate}
-      # speaker_path: ${speaker_path}
       min_duration: 0.2
       max_duration: 20.0
 
@@ -74,8 +66,6 @@ model:
     dataset:
       _target_: nemo.collections.tts.data.text_to_speech_dataset.MagpieTTSDataset
       dataset_meta: ${val_ds_meta}
-      sample_rate: ${sample_rate}
-      # speaker_path: ${speaker_path}
       min_duration: 0.2
       max_duration: 20.0
 

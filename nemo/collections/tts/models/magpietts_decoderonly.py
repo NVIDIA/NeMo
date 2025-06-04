@@ -63,6 +63,7 @@ class MagpieTTSDecoderModel(ModelPT):
 
         # load codec
         codec_model = AudioCodecModel.restore_from(cfg.get('codecmodel_path'), strict=False)
+        self.sample_rate = codec_model.sample_rate
         # del codec discriminator to free memory
         del codec_model.discriminator
 
@@ -617,9 +618,9 @@ class MagpieTTSDecoderModel(ModelPT):
                 if is_wandb:
                     wandb_audio_log[f"Audio/Example_{idx}"] = list()
                     if context_audio_np is not None:
-                        wandb_audio_log[f"Audio/Example_{idx}"].append(wandb.Audio(context_audio_np, sample_rate=self.cfg.sample_rate, caption="context"))
-                    wandb_audio_log[f"Audio/Example_{idx}"].append(wandb.Audio(pred_audio_np, sample_rate=self.cfg.sample_rate, caption="prediction"))
-                    wandb_audio_log[f"Audio/Example_{idx}"].append(wandb.Audio(target_audio_np, sample_rate=self.cfg.sample_rate, caption="target"))
+                        wandb_audio_log[f"Audio/Example_{idx}"].append(wandb.Audio(context_audio_np, sample_rate=self.sample_rate, caption="context"))
+                    wandb_audio_log[f"Audio/Example_{idx}"].append(wandb.Audio(pred_audio_np, sample_rate=self.sample_rate, caption="prediction"))
+                    wandb_audio_log[f"Audio/Example_{idx}"].append(wandb.Audio(target_audio_np, sample_rate=self.sample_rate, caption="target"))
 
                 if is_tb:
                     if context_audio_np is not None:
@@ -627,19 +628,19 @@ class MagpieTTSDecoderModel(ModelPT):
                             f'Example_{idx}/context',
                             context_audio_np,
                             global_step=self.global_step,
-                            sample_rate=self.cfg.sample_rate,
+                            sample_rate=self.sample_rate,
                         )
                     logger.experiment.add_audio(
                         f'Example_{idx}/prediction',
                         pred_audio_np,
                         global_step=self.global_step,
-                        sample_rate=self.cfg.sample_rate,
+                        sample_rate=self.sample_rate,
                     )
                     logger.experiment.add_audio(
                         f'Example_{idx}/target',
                         target_audio_np,
                         global_step=self.global_step,
-                        sample_rate=self.cfg.sample_rate,
+                        sample_rate=self.sample_rate,
                     )
 
         return wandb_audio_log
@@ -934,6 +935,7 @@ class MagpieTTSDecoderModel(ModelPT):
     def get_dataset(self, dataset_cfg, dataset_type):
         dataset = instantiate(
             dataset_cfg.dataset,
+            sample_rate=self.sample_rate,
             bos_id=None,
             eos_id=self.eos_id,
             audio_bos_id=self.audio_bos_id,
@@ -960,7 +962,7 @@ class MagpieTTSDecoderModel(ModelPT):
         # TODO @xueyang: better to distinguish cfg. self.cfg is the model cfg, while cfg here is train_ds cfg. Also
         #   cfg is a classifier-free guidance.
         dataset = MagpieTTSLhotseDataset(
-            sample_rate=self.cfg.sample_rate,
+            sample_rate=self.sample_rate,
             volume_norm=dataset_cfg.volume_norm,
             codec_model_samples_per_frame=self.codec_model_samples_per_frame,
             codec_model_name=self.cfg.codec_model_name,
