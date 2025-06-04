@@ -152,6 +152,7 @@ class MultimodalProjectorConfig(TransformerConfig, io.IOMixin):
                 torch.nn.Linear(self.hidden_size, self.hidden_size, bias=True, dtype=self.params_dtype),
             )
             from types import MethodType
+
             model.set_input_tensor = MethodType(set_input_tensor, model)
             return model
 
@@ -162,7 +163,9 @@ class MultimodalProjectorConfig(TransformerConfig, io.IOMixin):
             modules = [torch.nn.Linear(self.input_size, self.ffn_hidden_size, bias=True, dtype=self.params_dtype)]
             for _ in range(1, mlp_depth):
                 modules.append(torch.nn.GELU())
-                modules.append(torch.nn.Linear(self.ffn_hidden_size, self.hidden_size, bias=True, dtype=self.params_dtype))
+                modules.append(
+                    torch.nn.Linear(self.ffn_hidden_size, self.hidden_size, bias=True, dtype=self.params_dtype)
+                )
             model = torch.nn.Sequential(*modules)
             from types import MethodType
 

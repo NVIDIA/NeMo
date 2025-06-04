@@ -26,8 +26,10 @@ from transformers import CLIPVisionConfig
 from transformers import LlavaConfig as HFLlavaConfig
 from transformers import LlavaNextForConditionalGeneration
 
+from nemo.collections.avlm.model.base import AVLMConfig
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
 from nemo.collections.llm import Llama3Config8B, LlamaConfig
+from nemo.collections.speechlm.modules.asr_module import ASRModuleConfig
 from nemo.collections.vlm.llava_next.model.base import LlavaNextConfig, MCoreLlavaNextModel
 from nemo.collections.vlm.neva.model.base import NevaModel
 from nemo.collections.vlm.neva.model.llava import HFLlavaImporter
@@ -35,10 +37,6 @@ from nemo.collections.vlm.vision.base import HFCLIPVisionConfig, MultimodalProje
 from nemo.lightning import io, teardown
 from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
 from nemo.utils import logging
-
-from nemo.collections.avlm.model.base import AVLMConfig
-
-from nemo.collections.speechlm.modules.asr_module import ASRModuleConfig
 
 
 @dataclass
@@ -58,10 +56,8 @@ class AVLMConfig8B(AVLMConfig):
     )
     vision_projection_config: TransformerConfig = field(
         default_factory=lambda: MultimodalProjectorConfig(
-            projector_type="mlp2x_gelu", 
-            input_size=1024, 
-            hidden_size=4096, 
-            ffn_hidden_size=4096)
+            projector_type="mlp2x_gelu", input_size=1024, hidden_size=4096, ffn_hidden_size=4096
+        )
     )
     audio_transformer_config: TransformerConfig = field(
         default_factory=lambda: ASRModuleConfig(
@@ -71,15 +67,13 @@ class AVLMConfig8B(AVLMConfig):
             hf_load_pretrained_weights=True,
             pretrained_model="openai/whisper-large-v3",
             hidden_size=1280,
-        target_module="model.encoder",
+            target_module="model.encoder",
         )
-    ) 
+    )
     audio_projection_config: TransformerConfig = field(
         default_factory=lambda: MultimodalProjectorConfig(
-            projector_type="mlp2x_gelu", 
-            input_size=1280, 
-            hidden_size=4096, 
-            ffn_hidden_size=4096)
+            projector_type="mlp2x_gelu", input_size=1280, hidden_size=4096, ffn_hidden_size=4096
+        )
     )
 
 

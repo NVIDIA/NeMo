@@ -20,20 +20,23 @@ import nemo_run as run
 import torch
 
 from nemo import lightning as nl
-from nemo.collections import llm, avlm
+from nemo.collections import avlm, llm
+from nemo.collections.avlm import AVLMMockDataModule
 from nemo.collections.llm.peft import LoRA
 from nemo.collections.llm.recipes.finetune_default import nemo_resume
 from nemo.collections.llm.recipes.log.default import tensorboard_logger
 from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_cosine_annealing
 from nemo.collections.llm.recipes.precision.mixed_precision import bf16_mixed
-from nemo.collections.avlm import AVLMMockDataModule
 from nemo.utils.exp_manager import TimingCallback
 
 NAME = "avlm_8b"
 
+
 def create_image_processor():
     from transformers import AutoProcessor
+
     return AutoProcessor.from_pretrained("openai/clip-vit-large-patch14")
+
 
 @run.cli.factory(name=NAME)
 def model(config=run.Config(avlm.AVLMConfig8B)) -> run.Config[pl.LightningModule]:
@@ -112,6 +115,7 @@ def finetune_recipe(
         callbacks=[run.Config(TimingCallback)],
     )
     from transformers import AutoProcessor
+
     from nemo.collections.common.tokenizers.huggingface.auto_tokenizer import AutoTokenizer
 
     recipe = run.Partial(
@@ -141,8 +145,7 @@ def finetune_recipe(
         resume=run.Config(
             nl.AutoResume,
             restore_config=run.Config(nl.RestoreConfig, path=checkpoint_path),
-        )
-
+        ),
     )
 
     if peft_scheme is None or peft_scheme.lower() == 'none':

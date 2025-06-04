@@ -15,10 +15,11 @@
 import nemo_run as run
 import pytest
 
+from nemo.collections.avlm.recipes import avlm_8b
 from nemo.collections.llm.api import finetune
 from nemo.collections.vlm import AVLMConfig8B, AVLMModel, LoRA
-from nemo.collections.avlm.recipes import avlm_8b
 from nemo.lightning import Trainer
+
 
 class TestAVLM8B:
     @pytest.fixture(scope="class")
