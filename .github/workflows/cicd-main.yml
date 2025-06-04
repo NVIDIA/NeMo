@@ -105,22 +105,12 @@ jobs:
     uses: ./.github/workflows/code-linting.yml
 
   cicd-test-container-build:
+    if: ${{ needs.pre-flight.outputs.test_to_run != '[]' }}
     uses: ./.github/workflows/_build_container.yml
-    needs: [pre-flight, code-linting, cicd-wait-in-queue]
-    if: |
-      needs.pre-flight.outputs.test_to_run != '[]'
-      && needs.pre-flight.outputs.components_to_run != '[]'
-      && (
-        success()
-        || (
-          needs.cicd-wait-in-queue.result == 'skipped'
-          && needs.pre-flight.outputs.is_ci_workload == 'true'
-        )
-      )
-      && !cancelled()
+    needs: [pre-flight, code-linting]
     with:
       image-name: nemo_container
-      dockerfile: docker/Dockerfile.ci
+      dockerfile: Dockerfile.ci
 
   cicd-import-tests:
     if: ${{ needs.pre-flight.outputs.test_to_run != '[]' }}
