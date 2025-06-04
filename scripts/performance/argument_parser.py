@@ -340,6 +340,9 @@ def parse_cli_args():
         required=False,
         default=None,
     )
+    def list_of_strings(arg):
+        return arg.split(',')
+    
     parser.add_argument(
         "--high_priority_stream_groups",
         type=list_of_strings,
@@ -347,10 +350,6 @@ def parse_cli_args():
         required=False,
         default=None,
     )
-
-    def list_of_strings(arg):
-        return arg.split(',')
-
     parser.add_argument(
         "-rm",
         "--recompute_modules",
