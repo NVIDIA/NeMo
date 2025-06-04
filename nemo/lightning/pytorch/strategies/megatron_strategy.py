@@ -224,9 +224,9 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             the data-parallel domain.
         nccl_communicator_config_path (Optional[str]): Path to the yaml file of NCCL communicator configurations.
             `min_ctas`, `max_ctas`, and `cga_cluster_size` can be set for each communicator.
-        high_priority_stream_groups (Optional[List[str]]): Specify which communicator groups should use 
-            high priority streams during creation. Assigning high priority to communication streams ensures 
-            that communication kernels are scheduled with higher priority, minimizing the exposed communication 
+        high_priority_stream_groups (Optional[List[str]]): Specify which communicator groups should use
+            high priority streams during creation. Assigning high priority to communication streams ensures
+            that communication kernels are scheduled with higher priority, minimizing the exposed communication
             when it is overlapped with other computation kernels.
         use_sharp (bool): Whether to use SHARP. Defaults to False.
         **kwargs: Additional keyword arguments.
