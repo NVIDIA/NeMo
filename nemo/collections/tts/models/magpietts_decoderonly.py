@@ -11,41 +11,31 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import os
-import random
-import time
 from typing import List, Sequence, Tuple
-import soundfile as sf
 import torch
 import wandb
 from hydra.utils import instantiate
 from lightning.pytorch import Trainer
 from lightning.pytorch.loggers import TensorBoardLogger, WandbLogger
-from omegaconf import DictConfig, open_dict
+from omegaconf import DictConfig
 from torch import nn
 from torch.utils.data import get_worker_info
 
-import nemo.collections.asr as nemo_asr
 from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
 from nemo.collections.tts.data.text_to_speech_dataset_lhotse import MagpieTTSLhotseDataset, setup_tokenizers
-from nemo.collections.tts.losses.aligner_loss import ForwardSumLoss
+
 from nemo.collections.tts.models import AudioCodecModel
 from nemo.collections.tts.modules import transformer_2501
-from nemo.collections.tts.modules.aligner import AlignmentEncoder
+
 from nemo.collections.tts.modules.magpietts_modules import CharAwareSubwordEncoder, SpecialAudioToken, LocalTransformerType, cosine_schedule
-from nemo.collections.tts.parts.utils.helpers import (
-    binarize_attention_parallel,
-    get_mask_from_lengths,
-    plot_alignment_to_numpy,
-)
+from nemo.collections.tts.parts.utils.helpers import get_mask_from_lengths
+
 from nemo.core.classes import ModelPT
 from nemo.core.classes.common import PretrainedModelInfo
 from nemo.utils import logging
 from transformers import (
     AutoConfig,
     AutoModel,
-    PreTrainedModel,
-    PretrainedConfig,
 )
 
 def worker_init_fn(worker_id):
@@ -655,17 +645,23 @@ class MagpieTTSDecoderModel(ModelPT):
         return wandb_audio_log
 
     
-    def join_embeddings(
+    def join_embeddings_temporally(
         self,
         embeddings: Sequence[torch.Tensor],     # [ (B, Ti, E), … ]
-        lengths:  Sequence[torch.Tensor],     # [ (B,), … ]  same order/size as `contexts`
+        lengths:  Sequence[torch.Tensor],     # [ (B,), … ]  same order/size as `embeddings`
         pad_embed: torch.Tensor | None = None # (E,)  defaults to zeros
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """
-        Returns
-        -------
-        joined      : (B,  max_sum_len + N-1,  E)  — merged & padded
-        out_lengths : (B,)                          — true lengths per row
+        Merges Multiple Embedding sequences into a single Embedding Sequence.
+
+        Args:
+            embeddings  : Sequence of tensors, each of shape (B, Ti, E) — batch, time, embedding
+            lengths     : Sequence of tensors, each of shape (B,)
+            pad_embed   : (E,)  — embedding to use for padding, defaults to zeros
+        
+        Returns:
+            joined      : (B, max_sum_len, E)  — merged & padded
+            out_lengths : (B,)  — total lengths of each batch element after merging
         """
         if len(embeddings) == 0:
             raise ValueError("contexts must be non-empty")
@@ -674,7 +670,6 @@ class MagpieTTSDecoderModel(ModelPT):
         device = embeddings[0].device
         dtype = embeddings[0].dtype
 
-        # --------------------------------------------------------------------- #
         # 1. compute output sizes
         len_stack   = torch.stack(tuple(lengths), dim=0)          # (N, B)
         out_lengths = len_stack.sum(0)
@@ -685,25 +680,23 @@ class MagpieTTSDecoderModel(ModelPT):
 
         joined = pad_embed.expand(B, max_len, E).clone()          # (B,max_len,E)
 
-        # convenient batch row indices once for all
+        # batch row indices
         batch_rows = torch.arange(B, device=device).unsqueeze(1)  # (B,1)
 
         # running offset keeps “write cursor” for each row
         offset = torch.zeros(B, dtype=torch.long, device=device)  # (B,)
 
-        # --------------------------------------------------------------------- #
-        # 2. loop *over segments* (still one fused kernel per segment, no loops over B/T)
-        for i, (ctx, len_i) in enumerate(zip(embeddings, lengths)):
-            Ti = ctx.shape[1]
-            t_idx  = torch.arange(Ti, device=device)                       # (Ti,)
-            mask   = t_idx.unsqueeze(0) < len_i.unsqueeze(1)               # (B,Ti)
+        for i, (embedding_i, len_i) in enumerate(zip(embeddings, lengths)):
+            Ti = embedding_i.shape[1]
+            t_idx  = torch.arange(Ti, device=device) # (Ti,)
+            mask   = t_idx.unsqueeze(0) < len_i.unsqueeze(1) # (B,Ti)
 
             # destination columns: offset + t
-            dest_cols = offset.unsqueeze(1) + t_idx                        # (B,Ti)
+            dest_cols = offset.unsqueeze(1) + t_idx # (B,Ti)
 
-            # advanced assignment — writes all valid frames in one shot
+            # Assign embedding_i to the correct positions in joined
             joined[batch_rows.expand_as(mask)[mask],
-                dest_cols[mask]] = ctx[mask]
+                dest_cols[mask]] = embedding_i[mask]
 
             # move cursor past this segment
             offset += len_i
@@ -735,7 +728,7 @@ class MagpieTTSDecoderModel(ModelPT):
         context_text_lens = batch['context_text_tokens_lens']
         context_text_embedded = self.decoder.get_input_embeddings()(context_text_tokens)  # (B, L, E)
     
-        full_context_embedding, full_context_lens = self.join_embeddings(
+        full_context_embedding, full_context_lens = self.join_embeddings_temporally(
             embeddings=[context_audio_embedded, context_text_embedded, text_embedded],
             lengths=[context_audio_codes_lens, context_text_lens, text_lens],
         )
@@ -749,9 +742,12 @@ class MagpieTTSDecoderModel(ModelPT):
 
     def slice_pred_embeddings(self, transformer_out, context_lens, target_lens):
         """
-        transformer_out: (B, T, E)
-        context_lens: (B,) - start index of target per batch
-        target_lens: (B,) - length of target per batch
+        Slices the transformer output to get the predicted embeddings for the target sequence.
+        Args:
+            transformer_out: (B, T, E)
+            context_lens: (B,) - start index of target per batch
+            target_lens: (B,) - length of target per batch
+        
         Returns: (B, T_max, E) tensor where T_max = max(target_lens)
         """
         B, T, E = transformer_out.shape
@@ -764,17 +760,11 @@ class MagpieTTSDecoderModel(ModelPT):
         # Shape: (B, max_len)
         range_indices = torch.arange(max_len, device=device).unsqueeze(0).expand(B, -1)
         gather_indices = context_lens.unsqueeze(1) + range_indices  # (B, max_len)
-
-        # Clamp to avoid indexing beyond T (shouldn’t happen if lens are valid)
         gather_indices = torch.clamp(gather_indices, max=transformer_out.size(1) - 1)
-        assert torch.all(gather_indices < T), "Index out of bounds in slice_pred_embeddings"
-
+        
         # Expand to shape (B, max_len, E) for gather
         gather_indices_exp = gather_indices.unsqueeze(2).expand(-1, -1, E)
-
-        # Gather
         sliced = torch.gather(transformer_out, dim=1, index=gather_indices_exp)
-
         return sliced
 
 
@@ -794,22 +784,17 @@ class MagpieTTSDecoderModel(ModelPT):
         audio_codes_input = audio_codes[:, :, :-1]  # (B, C, T') Input to the decoder
         audio_codes_input_embedded = self.embed_audio_tokens(audio_codes_input) # (B, T, E) # Computing this to be use in the alignment encoder
 
-        context_plus_audio_embedded, context_plus_audio_lens = self.join_embeddings(
+        context_plus_audio_embedded, context_plus_audio_lens = self.join_embeddings_temporally(
             embeddings=[context_embedding, audio_codes_input_embedded],
             lengths=[context_lens, audio_codes_lens_input],
         )
-
-        # position_ids = torch.arange(
-        #     context_plus_audio_embedded.size(1), device=context_plus_audio_embedded.device
-        # ).unsqueeze(0).expand(context_plus_audio_embedded.size(0), -1)  # (B, T_total)
-        # # (B, T_total, E)  where T_total = T_context + T_audio
 
         transformer_out = self.forward(
             inputs_embeds=context_plus_audio_embedded,
             attention_mask=get_mask_from_lengths(context_plus_audio_lens),
         )
         transformer_hidden_states = transformer_out.last_hidden_state  # (B, T_total, E)
-        # import ipdb; ipdb.set_trace()
+        
         pred_embeddings = self.slice_pred_embeddings(
             transformer_hidden_states,
             context_lens=context_lens,
@@ -1074,24 +1059,17 @@ class MagpieTTSDecoderModel(ModelPT):
             audio_codes_input = audio_codes_bos
 
             audio_codes_input_embedded = self.embed_audio_tokens(audio_codes_input)  # (B, T, E)
-            context_plus_audio_embedded, context_plus_audio_lens = self.join_embeddings(
+            context_plus_audio_embedded, context_plus_audio_lens = self.join_embeddings_temporally(
                 embeddings=[context_embedding, audio_codes_input_embedded],
                 lengths=[context_lens, audio_codes_lens],
             )
-            # position_ids = torch.arange(
-            #     context_plus_audio_embedded.size(1), device=context_plus_audio_embedded.device
-            # ).unsqueeze(0).expand(context_plus_audio_embedded.size(0), -1)
-            # audio_codes_gt
-            # Do one forward pass to get the initial transformer output
 
+            # For Debugging - teacher forced prediction when autoregressive_after is > 0
             if 'audio_codes' not in batch:
                 audio_codes_gt, audio_codes_lens_gt = self.audio_to_codes(batch['audio'], batch['audio_lens'])
             else:
                 audio_codes_gt = batch['audio_codes']
-                audio_codes_lens_gt = batch['audio_codes_lens']
             
-            audio_codes_lens_input_gt = audio_codes_lens_target_gt = audio_codes_lens_gt - 1
-            audio_codes_target_gt = audio_codes_gt[:, :, 1:]  # (B, C, T') Target for the decoder
             audio_codes_input_gt = audio_codes_gt[:, :, :-1]  # (B, C, T') Input to the decoder
             audio_codes_input_embedded_gt = self.embed_audio_tokens(audio_codes_input_gt) # (B, T, E) # Computing this to be use in the alignment encoder
 
@@ -1125,7 +1103,6 @@ class MagpieTTSDecoderModel(ModelPT):
                 print("audio_codes_next.unsqueeze(2).shape", audio_codes_next.unsqueeze(2).shape)
                 new_emb = self.embed_audio_tokens(audio_codes_next.unsqueeze(2))  # (B, 1, E)
 
-                # def forward(self, inputs_embeds, position_ids, attention_mask, use_cache=False, past_key_values=None):
                 if idx < autoregressive_after:
                     # Use the gt input embeddings for the next step
                     next_input = audio_codes_input_embedded_gt[:,idx+1:idx+2, :]
@@ -1134,7 +1111,6 @@ class MagpieTTSDecoderModel(ModelPT):
 
                 transformer_out = self.forward(
                     inputs_embeds=next_input,
-                    # inputs_embeds=audio_codes_input_embedded_gt[:,idx+1:idx+2, :],  # (B, 1, E) - use the gt input embeddings for the next step
                     attention_mask=None,
                     use_cache=True,
                     past_key_values=past_kv,
