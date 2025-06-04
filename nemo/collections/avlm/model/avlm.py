@@ -13,30 +13,21 @@
 # limitations under the License.
 
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Callable, List, Optional, Union
 
 import torch
-import torch.distributed
+
 from megatron.core.inference_params import InferenceParams
 from megatron.core.optimizer import OptimizerConfig
 from megatron.core.packed_seq_params import PackedSeqParams
 from megatron.core.transformer.transformer_config import TransformerConfig
-from transformers import CLIPVisionConfig
-from transformers import LlavaConfig as HFLlavaConfig
-from transformers import LlavaNextForConditionalGeneration
 
 from nemo.collections.avlm.model.base import AVLMConfig
 from nemo.collections.common.tokenizers.tokenizer_spec import TokenizerSpec
-from nemo.collections.llm import Llama3Config8B, LlamaConfig
+from nemo.collections.llm import Llama3Config8B
 from nemo.collections.speechlm.modules.asr_module import ASRModuleConfig
-from nemo.collections.vlm.llava_next.model.base import LlavaNextConfig, MCoreLlavaNextModel
-from nemo.collections.vlm.neva.model.base import NevaModel
-from nemo.collections.vlm.neva.model.llava import HFLlavaImporter
 from nemo.collections.vlm.vision.base import HFCLIPVisionConfig, MultimodalProjectorConfig
-from nemo.lightning import io, teardown
 from nemo.lightning.pytorch.optim import MegatronOptimizerModule, OptimizerModule
-from nemo.utils import logging
 
 
 @dataclass
