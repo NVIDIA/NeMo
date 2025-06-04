@@ -288,7 +288,7 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         use_tp_pp_dp_mapping: bool = False,
         num_distributed_optimizer_instances: int = 1,
         nccl_communicator_config_path: Optional[str] = None,
-        high_priority_stream_groups: Optional[List[str]] = None,
+        high_priority_stream_groups: Optional[List[str]] = [],
         **kwargs,
     ) -> None:
         super().__init__(
