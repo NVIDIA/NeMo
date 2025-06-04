@@ -16,7 +16,7 @@ from itertools import groupby
 import torch
 import torch.utils.data
 from lhotse import CutSet
-from lhotse.dataset.collation import collate_audio, collate_vectors
+from lhotse.dataset.collation import collate_vectors
 
 from nemo.collections.common.data.lhotse import NeMoMultimodalConversation
 from nemo.collections.common.data.lhotse.text_adapters import TextTurn, collate_conversation_audio_fault_tolerant
