@@ -72,6 +72,7 @@ ALLOWED_TARGET_PREFIXES = [
     "lightning.pytorch.strategies.",
     "lightning.pytorch.accelerators.",
     "omegaconf.",
+    "megatron.",
 ]
 
 
