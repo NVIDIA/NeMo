@@ -54,11 +54,11 @@ def worker_init_fn(worker_id):
     logging.info(f"Worker {worker_id} initializing...")
     worker_info = get_worker_info()
     dataset = worker_info.dataset  # Get the dataset instance in this worker
-    tokenizer, text_conditioning_tokenizer = setup_tokenizers(
-        dataset.tokenizer_config, dataset.use_text_conditioning_tokenizer, mode=dataset.dataset_type
+    tokenizer, _ = setup_tokenizers(
+        dataset.tokenizer_config, False, mode=dataset.dataset_type
     )
     dataset.text_tokenizer = tokenizer
-    dataset.text_conditioning_tokenizer = text_conditioning_tokenizer
+    dataset.text_conditioning_tokenizer = tokenizer.first_tokenizer
     
 class MagpieTTSDecoderModel(ModelPT):
     """
@@ -89,28 +89,13 @@ class MagpieTTSDecoderModel(ModelPT):
         self.num_all_tokens_per_codebook = cfg.get('forced_num_all_tokens_per_codebook',num_audio_tokens + len(SpecialAudioToken))
         self.mask_token_id = cfg.get('forced_mask_token_id', num_audio_tokens + SpecialAudioToken.MASK_TOKEN.value)
         self.use_bpe_char_tokenizer = cfg.get('use_bpe_char_tokenizer', False)
-
-        # Setup tokenizer
-        if hasattr(cfg, 'text_tokenizer'):
-            # For backward compatibility for English-only models
-            with open_dict(cfg):
-                cfg.text_tokenizers = {"english_phoneme": cfg.text_tokenizer}
-                del cfg['text_tokenizer']
-
-        self.use_text_conditioning_encoder = cfg.get('use_text_conditioning_encoder', False)
-        # TODO @xueyang: both tokenizers are only used to get some token ids. We
-        # should kill them to save a small mount of mem resources since dataloader will initialize them
-        # again after the worker processes are spawned.
-        self.tokenizer, self.text_conditioning_tokenizer = setup_tokenizers(
+        
+        self.tokenizer, _ = setup_tokenizers(
             all_tokenizers_config=cfg.text_tokenizers,
-            use_text_conditioning_tokenizer=self.use_text_conditioning_encoder,
+            use_text_conditioning_tokenizer=False,
             mode='train',
         )
-
-        num_tokens_tokenizer = len(self.tokenizer.tokens)
-        num_tokens = num_tokens_tokenizer
-        self.bos_id = num_tokens - 2
-        self.eos_id = num_tokens - 1
+        self.eos_id = self.tokenizer.first_tokenizer.eos_token_id
 
         self.pad_context_text_to_max_duration = False
 
@@ -131,7 +116,6 @@ class MagpieTTSDecoderModel(ModelPT):
         )
 
         self.decoder = AutoModel.from_config(self.transformer_backend_config)
-        self.decoder_embedding_layer = self.decoder.get_input_embeddings()
 
         if self.use_bpe_char_tokenizer:
             # BPE char tokenizer
@@ -141,19 +125,13 @@ class MagpieTTSDecoderModel(ModelPT):
             subword_vocab = tokenizer.get_vocab()
             # special tokens will be stored as it is in the char_vocab
             # Each special token will only be mapped to one char id
-            special_vocab = {
-                '<BOS>': self.bos_id,
-                '<EOS>': self.eos_id,
-            }
+            special_vocab = {}
             self.cas_encoder = CharAwareSubwordEncoder(
                 d_embed=cfg.embedding_dim,
                 llm_tokenizer_vocab=subword_vocab,
                 subword_padding_idx=self.tokenizer.pad,
                 special_vocab=special_vocab
             )
-        else:
-            # Regular text embedding
-            self.text_embedding = nn.Embedding(num_tokens, cfg.embedding_dim)
 
         self.final_proj = nn.Linear(cfg.hidden_dim, self.num_audio_codebooks * self.num_all_tokens_per_codebook)
         self.cross_entropy_loss = nn.CrossEntropyLoss(reduction='none')
@@ -421,14 +399,15 @@ class MagpieTTSDecoderModel(ModelPT):
         total_codebook_loss = total_codebook_loss / audio_codes.size(1)
         return total_codebook_loss, loss_mask
 
-    def forward(self, inputs_embeds, position_ids, attention_mask):
+    def forward(self, inputs_embeds, attention_mask, use_cache=False, past_key_values=None):
         backend_out = self.decoder(
             inputs_embeds=inputs_embeds,
             attention_mask=attention_mask,
-            position_ids=position_ids,
+            use_cache=use_cache,
+            past_key_values=past_key_values,
         )
-        hidden_states = backend_out.last_hidden_state  # (B, T_total, H)
-        return hidden_states
+        # hidden_states = backend_out.last_hidden_state  # (B, T_total, H)
+        return backend_out
     
 
     def logits_to_audio_codes(self, all_code_logits, audio_codes_lens):
@@ -676,14 +655,6 @@ class MagpieTTSDecoderModel(ModelPT):
         return wandb_audio_log
 
     
-    def embed_text(self, text, text_mask):
-        if self.use_bpe_char_tokenizer:
-            text_embedded = self.cas_encoder(text, subword_mask=text_mask)
-        else:
-            text_embedded = self.text_embedding(text)
-        
-        return text_embedded
-
     def join_embeddings(
         self,
         embeddings: Sequence[torch.Tensor],     # [ (B, Ti, E), … ]
@@ -743,7 +714,11 @@ class MagpieTTSDecoderModel(ModelPT):
         # Transcript
         text = batch['text']
         text_lens = batch['text_lens']
-        text_embedded = self.decoder_embedding_layer(text)
+        text_embedded = self.decoder.get_input_embeddings()(text)
+        if self.use_bpe_char_tokenizer:
+            text_mask = get_mask_from_lengths(text_lens)
+            cas_embedding = self.cas_encoder(text, subword_mask=text_mask)  # (B, L, E)
+            text_embedded = text_embedded + cas_embedding
 
         # Context Audio
         if 'context_audio_codes' in batch:
@@ -756,20 +731,14 @@ class MagpieTTSDecoderModel(ModelPT):
         context_audio_embedded = self.embed_audio_tokens(context_audio_codes)  # (B, T', E)
 
         # Context Text
-        if self.use_text_conditioning_encoder:
-            context_text_tokens = batch['context_text_tokens']
-            context_text_lens = batch['context_text_tokens_lens']
-            context_text_embedded = self.decoder_embedding_layer(context_text_tokens)  # (B, L, E)
-        
-            full_context_embedding, full_context_lens = self.join_embeddings(
-                embeddings=[context_audio_embedded, context_text_embedded, text_embedded],
-                lengths=[context_audio_codes_lens, context_text_lens, text_lens],
-            )
-        else:
-            full_context_embedding, full_context_lens = self.join_embeddings(
-                embeddings=[context_audio_embedded, text_embedded],
-                lengths=[context_audio_codes_lens, text_lens],
-            )
+        context_text_tokens = batch['context_text_tokens']
+        context_text_lens = batch['context_text_tokens_lens']
+        context_text_embedded = self.decoder.get_input_embeddings()(context_text_tokens)  # (B, L, E)
+    
+        full_context_embedding, full_context_lens = self.join_embeddings(
+            embeddings=[context_audio_embedded, context_text_embedded, text_embedded],
+            lengths=[context_audio_codes_lens, context_text_lens, text_lens],
+        )
 
         return {
             'full_context_embedding': full_context_embedding,  # (B, T_total, E)
@@ -824,26 +793,25 @@ class MagpieTTSDecoderModel(ModelPT):
         audio_codes_target = audio_codes[:, :, 1:]  # (B, C, T') Target for the decoder
         audio_codes_input = audio_codes[:, :, :-1]  # (B, C, T') Input to the decoder
         audio_codes_input_embedded = self.embed_audio_tokens(audio_codes_input) # (B, T, E) # Computing this to be use in the alignment encoder
-        
 
         context_plus_audio_embedded, context_plus_audio_lens = self.join_embeddings(
             embeddings=[context_embedding, audio_codes_input_embedded],
             lengths=[context_lens, audio_codes_lens_input],
         )
 
-        position_ids = torch.arange(
-            context_plus_audio_embedded.size(1), device=context_plus_audio_embedded.device
-        ).unsqueeze(0).expand(context_plus_audio_embedded.size(0), -1)  # (B, T_total)
-        # (B, T_total, E)  where T_total = T_context + T_audio
+        # position_ids = torch.arange(
+        #     context_plus_audio_embedded.size(1), device=context_plus_audio_embedded.device
+        # ).unsqueeze(0).expand(context_plus_audio_embedded.size(0), -1)  # (B, T_total)
+        # # (B, T_total, E)  where T_total = T_context + T_audio
 
         transformer_out = self.forward(
             inputs_embeds=context_plus_audio_embedded,
-            position_ids=position_ids,  # Position IDs are not used in the current implementation
             attention_mask=get_mask_from_lengths(context_plus_audio_lens),
         )
+        transformer_hidden_states = transformer_out.last_hidden_state  # (B, T_total, E)
         # import ipdb; ipdb.set_trace()
         pred_embeddings = self.slice_pred_embeddings(
-            transformer_out,
+            transformer_hidden_states,
             context_lens=context_lens,
             target_lens=audio_codes_lens_target,
         )
@@ -851,16 +819,35 @@ class MagpieTTSDecoderModel(ModelPT):
         logits = self.final_proj(pred_embeddings)  # (B, T', num_codebooks * num_tokens_per_codebook)
         # import ipdb; ipdb.set_trace()
         codebook_loss, loss_mask = self.compute_loss(logits, audio_codes_target, audio_codes_lens_target)
+        loss = codebook_loss
+
+        local_transformer_loss = None
+        local_transformer_logits = None
+        if self.local_transformer_type != LocalTransformerType.NO_LT:
+            if self.local_transformer_type == LocalTransformerType.MASKGIT:
+                # randomly replace some positions with MASK_TOKEN
+                audio_codes_masked, mask_tokens_mask = self.maskgit_apply_random_mask(audio_codes_target)
+                local_transformer_logits = self.compute_local_transformer_logits(pred_embeddings, audio_codes_masked, targets_offset_by_one=True)
+                #audio_codes_masked = audio_codes_masked[:, 1:, :]
+                local_transformer_loss, _ = self.compute_loss(local_transformer_logits, audio_codes_target, audio_codes_lens_target, mask_tokens_mask)
+            else:
+                # autoregressive
+                assert self.local_transformer_type == LocalTransformerType.AR, "Unexpected local transformer type"
+                local_transformer_logits = self.compute_local_transformer_logits(pred_embeddings, audio_codes_target, targets_offset_by_one=False)
+                local_transformer_loss, _ = self.compute_loss(local_transformer_logits, audio_codes_target, audio_codes_lens_target, None)
+            local_transformer_loss_scale = self.cfg.get('local_transformer_loss_scale', 1.0)
+            loss = loss + local_transformer_loss_scale * local_transformer_loss
 
         return {
-            'loss': codebook_loss,
+            'loss': loss,
             'codebook_loss': codebook_loss,
+            'local_transformer_loss': local_transformer_loss,
+            'local_transformer_logits': local_transformer_logits,  # (B, T', num_codebooks * num_tokens_per_codebook)
             'logits': logits,
             'audio_codes_target': audio_codes_target,  # (B, C, T')
             'audio_codes_lens_target': audio_codes_lens_target,  # (B,)
             'context_audio_codes': context_tensors['context_audio_codes'],  # (B, C, T')
             'context_audio_codes_lens': context_tensors['context_audio_codes_lens'],  # (B,)
-            'local_transformer_loss': None,  # Placeholder for local transformer loss
         }
 
         
@@ -962,7 +949,7 @@ class MagpieTTSDecoderModel(ModelPT):
     def get_dataset(self, dataset_cfg, dataset_type):
         dataset = instantiate(
             dataset_cfg.dataset,
-            bos_id=self.bos_id,
+            bos_id=None,
             eos_id=self.eos_id,
             audio_bos_id=self.audio_bos_id,
             audio_eos_id=self.audio_eos_id,
@@ -970,10 +957,10 @@ class MagpieTTSDecoderModel(ModelPT):
             context_audio_eos_id=self.context_audio_eos_id,
             num_audio_codebooks=self.num_audio_codebooks,
             codec_model_samples_per_frame=self.codec_model_samples_per_frame,
-            prior_scaling_factor=self.cfg.prior_scaling_factor,
+            prior_scaling_factor=0.0,
             load_cached_codes_if_available=self.cfg.load_cached_codes_if_available,
             dataset_type=dataset_type,  # train or test used for setting phone prob to 1.0 in test dataset (worker_init_fn)
-            use_text_conditioning_tokenizer=self.cfg.use_text_conditioning_encoder,
+            use_text_conditioning_tokenizer=True,
             pad_context_text_to_max_duration=self.pad_context_text_to_max_duration,
             context_duration_min=self.cfg.context_duration_min,
             context_duration_max=self.cfg.context_duration_max,
@@ -997,14 +984,14 @@ class MagpieTTSDecoderModel(ModelPT):
             context_audio_bos_id=self.context_audio_bos_id,
             context_audio_eos_id=self.context_audio_eos_id,
             num_audio_codebooks=self.num_audio_codebooks,
-            prior_scaling_factor=self.cfg.prior_scaling_factor,
+            prior_scaling_factor=0.0,
             load_cached_codes_if_available=self.cfg.load_cached_codes_if_available,
             dataset_type=mode,  # train or test used for setting phone prob to 1.0 in test dataset (worker_init_fn)
             load_16khz_audio=False,
             pad_context_text_to_max_duration=self.pad_context_text_to_max_duration,
             context_duration_min=self.cfg.context_duration_min,
             context_duration_max=self.cfg.context_duration_max,
-            use_text_conditioning_tokenizer=self.cfg.use_text_conditioning_encoder,
+            use_text_conditioning_tokenizer=True,
             tokenizer_config=self.cfg.text_tokenizers,
         )
         data_loader = get_lhotse_dataloader_from_config(
@@ -1027,11 +1014,13 @@ class MagpieTTSDecoderModel(ModelPT):
             if dataset_cfg.dataloader_params.num_workers == 0:
                 persistent_workers = False
                 # For num workers > 0 tokenizer will be assigned in worker_init_fn (since it is not picklable)
-                dataset.text_tokenizer, dataset.text_conditioning_tokenizer = setup_tokenizers(
+                dataset.text_tokenizer, _ = setup_tokenizers(
                     all_tokenizers_config=self.cfg.text_tokenizers,
-                    use_text_conditioning_tokenizer=self.use_text_conditioning_encoder,
+                    use_text_conditioning_tokenizer=False,
                     mode='train',
                 )
+                dataset.text_conditioning_tokenizer = dataset.text_tokenizer.first_tokenizer
+
             self._train_dl = torch.utils.data.DataLoader(
                 dataset,
                 collate_fn=dataset.collate_fn,
@@ -1050,11 +1039,12 @@ class MagpieTTSDecoderModel(ModelPT):
             if dataset_cfg.dataloader_params.num_workers == 0:
                 persistent_workers = False
                 # For num workers > 0 tokenizer will be assigned in worker_init_fn (since it is not picklable)
-                dataset.text_tokenizer, dataset.text_conditioning_tokenizer = setup_tokenizers(
+                dataset.text_tokenizer, _ = setup_tokenizers(
                     all_tokenizers_config=self.cfg.text_tokenizers,
-                    use_text_conditioning_tokenizer=self.use_text_conditioning_encoder,
+                    use_text_conditioning_tokenizer=False,
                     mode='test'
                 )
+                dataset.text_conditioning_tokenizer = dataset.text_tokenizer.first_tokenizer
 
             data_loader = torch.utils.data.DataLoader(
                 dataset,
@@ -1071,6 +1061,100 @@ class MagpieTTSDecoderModel(ModelPT):
     def setup_test_data(self, cfg):
         self._test_dl = self._setup_test_dataloader(cfg)
 
+    def infer_batch(self, batch, max_decoder_steps=500, temperature=0.7, topk=80, autoregressive_after=0):
+        with torch.inference_mode():
+            context_tensors = self.prepare_context_tensors(batch)
+            context_embedding = context_tensors['full_context_embedding']  # (B, T_total, E)
+            context_lens = context_tensors['full_context_lens']  # (B,)
+
+            audio_codes_bos = torch.full(
+                    (context_embedding.size(0), self.num_audio_codebooks, 1), self.audio_bos_id, device=context_embedding.device
+                ).long()
+            audio_codes_lens = torch.full((context_embedding.size(0),), 1, device=context_embedding.device).long()
+            audio_codes_input = audio_codes_bos
+
+            audio_codes_input_embedded = self.embed_audio_tokens(audio_codes_input)  # (B, T, E)
+            context_plus_audio_embedded, context_plus_audio_lens = self.join_embeddings(
+                embeddings=[context_embedding, audio_codes_input_embedded],
+                lengths=[context_lens, audio_codes_lens],
+            )
+            # position_ids = torch.arange(
+            #     context_plus_audio_embedded.size(1), device=context_plus_audio_embedded.device
+            # ).unsqueeze(0).expand(context_plus_audio_embedded.size(0), -1)
+            # audio_codes_gt
+            # Do one forward pass to get the initial transformer output
+
+            if 'audio_codes' not in batch:
+                audio_codes_gt, audio_codes_lens_gt = self.audio_to_codes(batch['audio'], batch['audio_lens'])
+            else:
+                audio_codes_gt = batch['audio_codes']
+                audio_codes_lens_gt = batch['audio_codes_lens']
+            
+            audio_codes_lens_input_gt = audio_codes_lens_target_gt = audio_codes_lens_gt - 1
+            audio_codes_target_gt = audio_codes_gt[:, :, 1:]  # (B, C, T') Target for the decoder
+            audio_codes_input_gt = audio_codes_gt[:, :, :-1]  # (B, C, T') Input to the decoder
+            audio_codes_input_embedded_gt = self.embed_audio_tokens(audio_codes_input_gt) # (B, T, E) # Computing this to be use in the alignment encoder
+
+            transformer_out = self.forward(
+                inputs_embeds=context_plus_audio_embedded,
+                attention_mask=get_mask_from_lengths(context_plus_audio_lens),
+                use_cache=True,
+                past_key_values=None,  # No past key values for the first step
+            )
+
+            last_hidden = transformer_out.last_hidden_state  # (B, T_total, E)
+            past_kv = transformer_out.past_key_values
+
+            all_predictions = []
+            end_indices = {}
+            for idx in range(max_decoder_steps):
+                print("Timestep: {}".format(idx))
+                all_code_logits_t = self.final_proj(last_hidden[:, -1, :])  # (B, num_codebooks * num_tokens_per_codebook)
+                audio_codes_next = self.sample_codes_from_logits(all_code_logits_t, temperature=temperature, topk=topk) # (B, num_codebooks)
+                all_codes_next_argmax = self.sample_codes_from_logits(all_code_logits_t, temperature=0.01) # (B, num_codebooks)
+
+                for item_idx in range(all_codes_next_argmax.size(0)):
+                    if item_idx not in end_indices:
+                        pred_token = all_codes_next_argmax[item_idx][0].item()
+                        pred_token_multinomial = audio_codes_next[item_idx][0].item()
+                        if (pred_token == self.audio_eos_id) or (pred_token_multinomial == self.audio_eos_id):
+                            print("End detected for item {} at timestep {}".format(item_idx, idx))
+                            end_indices[item_idx] = idx
+                
+                all_predictions.append(audio_codes_next)
+                print("audio_codes_next.unsqueeze(2).shape", audio_codes_next.unsqueeze(2).shape)
+                new_emb = self.embed_audio_tokens(audio_codes_next.unsqueeze(2))  # (B, 1, E)
+
+                # def forward(self, inputs_embeds, position_ids, attention_mask, use_cache=False, past_key_values=None):
+                if idx < autoregressive_after:
+                    # Use the gt input embeddings for the next step
+                    next_input = audio_codes_input_embedded_gt[:,idx+1:idx+2, :]
+                else:
+                    next_input = new_emb
+
+                transformer_out = self.forward(
+                    inputs_embeds=next_input,
+                    # inputs_embeds=audio_codes_input_embedded_gt[:,idx+1:idx+2, :],  # (B, 1, E) - use the gt input embeddings for the next step
+                    attention_mask=None,
+                    use_cache=True,
+                    past_key_values=past_kv,
+                )
+                last_hidden = transformer_out.last_hidden_state
+                past_kv = transformer_out.past_key_values
+                if len(end_indices) == audio_codes_next.size(0):
+                    print("All items finished at timestep {}".format(idx))
+                    # break
+            
+            predicted_codes = torch.stack(all_predictions, dim=-1)  # (B, num_codebooks, T')
+            predicted_lens = [end_indices.get(idx, max_decoder_steps) for idx in range(context_embedding.size(0))] #  Ensure that the codec is atleast of length 4
+            predicted_codes_lens = torch.tensor(predicted_lens, device=context_embedding.device).long()
+
+            predicted_audio, predicted_audio_lens = self.codes_to_audio(predicted_codes, predicted_codes_lens)
+
+            return predicted_audio, predicted_audio_lens, predicted_codes, predicted_codes_lens
+
+
+        
     @classmethod
     def list_available_models(cls) -> List[PretrainedModelInfo]:
         return []

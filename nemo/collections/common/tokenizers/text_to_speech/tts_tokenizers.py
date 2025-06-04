@@ -1120,6 +1120,7 @@ class AggregatedTTSTokenizer:
         self.toknizer_offsets = toknizer_offsets
         # Define aggregated token's pad value from the first tokenizer's pad value
         first_tokenizer = self.tokenizers[tokenizer_names[0]]
+        self.first_tokenizer = first_tokenizer
         if hasattr(first_tokenizer, "pad_token_id"):  # Defined in PreTrainedTokenizerBase subclasses
             self.pad = first_tokenizer.pad_token_id
         elif hasattr(first_tokenizer, "pad"):  # Defined in BaseTokenizer subclasses

@@ -23,35 +23,14 @@ model:
   context_duration_min: 3.0
   context_duration_max: 5.0
   load_cached_codes_if_available: true
-  prior_scaling_factor: 0.5
-  prior_end_step: 12000
-  prior_scaledown_start_step: 8000 # Prior will always be on before this step.
-  indefinite_prior_prob: 0.0 # If > 0, then prior will be applied after prior_end_step with this probability.
-  alignment_loss_scale: 0.0
+  
   embedding_dim: 1536
   hidden_dim: 1536
   codecmodel_path: ???
   max_epochs: ${max_epochs}
   steps_per_epoch: ${weighted_sampling_steps_per_epoch}
   sample_rate: ${sample_rate}
-  cfg_unconditional_prob: 0.1
-
-  # Alignment encoder parameters, to binarize the prior
-  # This is used for attention-constrained training and inference
-  use_alignment_encoder: false
-  # Below args are only relevant if use_alignment_encoder is true
-  use_prior_for_aligner: true # Whether to use the beta-binomial prior to train the alignment encoder
-  alignment_encoder_loss_scale: 1.0
-  binarize_prior_after_step: 10000 # Switch from beta-binomial prior to binarized prior after this step.
-  binarize_attn_method: "nemo_binarize" # nemo_binarize or argmax.
-  prior_future_context: 2 # Future window of the binarized prior.
-  prior_past_context: 2 # Past window of the binarized prior.
-  prior_future_decay: 0.8 # Decay factor for future context
-  prior_past_decay: 0.5 # Decay factor for past context
-  binarize_repeat_audio_factor: 2 # Temporally increase audio timesteps, for nemo_binarize to work better. Increase this for low frame rate codecs
-  binarized_prior_epsilon: 0.0
-  aligner_encoder_train_steps: 50000
-
+  
   # Local transformer parameters for autoregressive codebook prediction within a frame
   local_transformer_type: "none" # "none", "autoregressive", "maskgit"
   # Below args are only relevant if use_local_transformer is true
