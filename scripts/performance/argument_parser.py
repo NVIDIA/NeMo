@@ -313,7 +313,7 @@ def parse_cli_args():
         nargs="*",
         const=None,
         type=str,
-        help="List of modules to perform selective activation recompute. Users can provide 0 or any number of arguments. Defaults to None", # pylint: disable=line-too-long
+        help="List of modules to perform selective activation recompute. Users can provide 0 or any number of arguments. Defaults to None",  # pylint: disable=line-too-long
         required=False,
         default=None,
     )
