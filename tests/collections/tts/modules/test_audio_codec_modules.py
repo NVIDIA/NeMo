@@ -240,7 +240,6 @@ class TestResidualVectorQuantizer:
             torch.testing.assert_close(indices_enc, indices_fw, msg=f'example {i}: indices mismatch')
             torch.testing.assert_close(dequantized_dec, dequantized_fw, msg=f'example {i}: dequantized mismatch')
 
-    @pytest.mark.pleasefixme
     @pytest.mark.unit
     @pytest.mark.parametrize('num_groups', [1, 2, 4])
     @pytest.mark.parametrize('num_codebooks', [1, 4])
