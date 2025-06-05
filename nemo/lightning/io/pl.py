@@ -165,8 +165,13 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
         self.validated_consistency = False
 
     @override
-    def save_checkpoint(self, checkpoint: Dict[str, Any], path: _PATH, storage_options: Optional[Any] = None,
-                        content_metadata: Optional[dict] = None) -> None:
+    def save_checkpoint(
+        self,
+        checkpoint: Dict[str, Any],
+        path: _PATH,
+        storage_options: Optional[Any] = None,
+        content_metadata: Optional[dict] = None,
+    ) -> None:
         """Save model/training states as a checkpoint file through state-dump and file-write.
 
         Args:
@@ -364,14 +369,13 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
 
     @staticmethod
     def _preprocess_checkpoint_load_path(path):
-        """ TODO """
+        """TODO"""
         # Try to read the checkpoint at `path`. If not exist, do not restore checkpoint.
         fs = get_filesystem(path)
         if not fs.exists(path):
             raise FileNotFoundError(f"Checkpoint file not found: {path}")
         if not fs.isdir(path):
-            raise ValueError(
-                f"Distributed checkpoints should be a directory. Found: {path}.")
+            raise ValueError(f"Distributed checkpoints should be a directory. Found: {path}.")
 
         # Load from ckpt_path/weights (new format) if it exists
         path = ckpt_to_weights_subdir(path, is_saving=False)
@@ -381,7 +385,7 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
 
     @staticmethod
     def load_content_metadata(path: Optional[_PATH] = None, state_dict: Optional[dict] = None) -> dict:
-        """ TODO describe state_dict optimization. """
+        """TODO describe state_dict optimization."""
         from megatron.core import dist_checkpointing
 
         if path is not None:

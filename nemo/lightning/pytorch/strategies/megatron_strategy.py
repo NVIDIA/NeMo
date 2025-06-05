@@ -18,13 +18,12 @@ import inspect
 import logging as _logging
 import os
 import shutil
-from types import MappingProxyType
-
 from collections import OrderedDict
 from contextlib import ExitStack, contextmanager, nullcontext
 from dataclasses import dataclass
 from datetime import timedelta
 from pathlib import Path
+from types import MappingProxyType
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -881,13 +880,18 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
         optimizer = self.lightning_module.optimizers(use_pl_optimizer=False)
         if metadata is None:
             metadata = self.sharded_state_dict_metadata
-            logging.debug(f'No sharded_state_dict metadata passed for the optimizer,'
-                          f' using metadata for checkpoint save: {metadata}')
+            logging.debug(
+                f'No sharded_state_dict metadata passed for the optimizer,'
+                f' using metadata for checkpoint save: {metadata}'
+            )
         else:
             logging.debug(f'Using passed sharded_state_dict metadata in the optimizer: {metadata}')
 
         return _strategy_lib.optimizer_sharded_state_dict(
-            self.megatron_parallel, optimizer, is_loading=is_loading, metadata=metadata,
+            self.megatron_parallel,
+            optimizer,
+            is_loading=is_loading,
+            metadata=metadata,
         )
 
     @override
@@ -920,8 +924,9 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
             if self.ckpt_save_optimizer:
                 checkpoint["optimizer"] = [self.optimizer_sharded_state_dict()]
 
-        self.checkpoint_io.save_checkpoint(checkpoint, filepath, storage_options=storage_options,
-                                           content_metadata=self.sharded_state_dict_metadata)
+        self.checkpoint_io.save_checkpoint(
+            checkpoint, filepath, storage_options=storage_options, content_metadata=self.sharded_state_dict_metadata
+        )
 
         # Save ModelOpt state too, if it exists.
         save_modelopt_state(self.megatron_parallel, filepath, self.checkpoint_io)
@@ -959,7 +964,9 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
 
         if restore_optimizers and self.trainer.state.fn == TrainerFn.FITTING:
             if self.lightning_module.optimizers(use_pl_optimizer=False):
-                sharded_state_dict["optimizer"] = [self.optimizer_sharded_state_dict(is_loading=True, metadata=sharded_sd_metadata)]
+                sharded_state_dict["optimizer"] = [
+                    self.optimizer_sharded_state_dict(is_loading=True, metadata=sharded_sd_metadata)
+                ]
 
         strict = (
             self.lightning_module.strict_loading if self.ckpt_load_strictness is None else self.ckpt_load_strictness
@@ -985,10 +992,12 @@ class MegatronStrategy(DDPStrategy, io.IOMixin):
     @property
     def sharded_state_dict_metadata(self):
         optim_sharding_type = "fully_sharded_model_space" if self.parallel_save_optim else "dp_zero_gather_scatter"
-        return MappingProxyType({
-            'optim_sharding_type': optim_sharding_type,
-            # TODO
-        })
+        return MappingProxyType(
+            {
+                'optim_sharding_type': optim_sharding_type,
+                # TODO
+            }
+        )
 
     def selective_restore(self) -> None:
         """Implements selective restoration of checkpoint"""

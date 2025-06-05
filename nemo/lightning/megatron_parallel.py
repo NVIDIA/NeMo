@@ -713,8 +713,10 @@ class MegatronParallel(nn.ModuleList, Generic[ModelT]):
         if metadata is None:
             # TODO: can we assume MegatronStrategy as trainer?
             metadata = self.trainer.sharded_state_dict_metadata
-            logging.debug(f'No sharded_state_dict metadata passed for the model,'
-                          f' using metadata for checkpoint save: {metadata}')
+            logging.debug(
+                f'No sharded_state_dict metadata passed for the model,'
+                f' using metadata for checkpoint save: {metadata}'
+            )
         else:
             logging.debug(f'Using passed sharded_state_dict metadata in the model: {metadata}')
         sharded_state_dict = {}

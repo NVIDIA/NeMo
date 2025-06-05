@@ -373,14 +373,19 @@ class FabricMegatronStrategy(DDPStrategy):
             sharded_state_dict["state_dict"] = state["state_dict"].sharded_state_dict(metadata=sharded_sd_metadata)
             if "optimizer" in state:
                 sharded_state_dict["optimizer"] = _strategy_lib.optimizer_sharded_state_dict(
-                    state["state_dict"], state["optimizer"], is_loading=True, metadata=sharded_sd_metadata,
+                    state["state_dict"],
+                    state["optimizer"],
+                    is_loading=True,
+                    metadata=sharded_sd_metadata,
                 )
         else:
             for obj in state.items():
                 if isinstance(obj, Module):
                     sharded_state_dict["state_dict"] = obj.sharded_state_dict(metadata=sharded_sd_metadata)
                 elif isinstance(obj, Optimizer):
-                    sharded_state_dict["optimizer"] = _strategy_lib.optimizer_sharded_state_dict(obj, is_loading=True, metadata=sharded_sd_metadata)
+                    sharded_state_dict["optimizer"] = _strategy_lib.optimizer_sharded_state_dict(
+                        obj, is_loading=True, metadata=sharded_sd_metadata
+                    )
 
         checkpoint = self.checkpoint_io.load_checkpoint(path, sharded_state_dict=sharded_state_dict)
 
