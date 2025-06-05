@@ -2034,6 +2034,38 @@ class ContextSize:
             right=self.right // factor,
         )
 
+    def add_frames_get_removed_(self, num_frames: int, is_last_chunk: bool, expected_context: "ContextSize") -> int:
+        """
+        Add frames to context size
+        Args:
+            num_frames: number of frames to add
+            is_last_chunk: if last chunk
+
+        Returns:
+            number of frames removed from the left side
+        """
+        if num_frames > expected_context.chunk + expected_context.right:
+            raise ValueError(
+                f"Added chunk length {num_frames} is larger "
+                f"than expected chunk with right context {expected_context}"
+            )
+        # consider first everything is moved to right/left context, then move to chunk
+        self.left += self.chunk
+        self.chunk = 0
+        self.right += num_frames
+        if is_last_chunk:
+            # move all samples to chunk, empty right part
+            self.chunk = self.right
+            self.right = 0
+        else:
+            self.chunk = expected_context.chunk
+            self.right -= expected_context.chunk
+        extra_samples = max(self.total() - expected_context.total(), 0)
+        self.left -= extra_samples
+        if not is_last_chunk:
+            assert self.right == expected_context.right
+        return extra_samples
+
     def __str__(self):
         return f"Left {self.left} - Chunk {self.chunk} - Right {self.right}"
 
@@ -2062,6 +2094,32 @@ class ContextSizeBatch:
             chunk=torch.div(self.chunk, factor, rounding_mode="floor"),
             right=torch.div(self.right, factor, rounding_mode="floor"),
         )
+
+    def add_frames_(
+        self, num_frames_batch: torch.Tensor, is_last_chunk_batch: torch.Tensor, expected_context: "ContextSize"
+    ):
+        """
+        Add frames to context size
+        Args:
+            num_frames_batch: number of frames to add
+            is_last_chunk_batch: if last chunk
+
+        Returns:
+            number of frames removed from the left side
+        """
+        self.left += self.chunk
+        self.chunk.fill_(0)
+        self.right += num_frames_batch
+
+        self.chunk = torch.where(is_last_chunk_batch, self.right, expected_context.chunk)
+        self.right = torch.where(is_last_chunk_batch, 0, self.right - expected_context.chunk)
+
+        # fix left context
+        self.left = torch.where(self.chunk > 0, self.left, 0)
+
+        extra_samples = torch.maximum(self.total() - expected_context.total(), torch.zeros_like(self.left))
+        self.left -= extra_samples
+        self.left = torch.where(self.left < 0, torch.zeros_like(self.left), self.left)
 
 
 class StreamingBatchedAudioBuffer:
@@ -2103,46 +2161,17 @@ class StreamingBatchedAudioBuffer:
             is_last_chunk_batch: if last chunk for each audio utterance
         """
         added_chunk_length = audio_batch.shape[1]
-        if added_chunk_length > self.expected_context.chunk + self.expected_context.right:
-            raise ValueError(
-                f"Added chunk length {added_chunk_length} is larger "
-                f"than expected chunk with right context {self.expected_context}"
-            )
+
         self.samples = torch.cat((self.samples, audio_batch), dim=1)
         # consider first everything is moved to right/left context, then move to chunk
-        self.context_size.left += self.context_size.chunk
-        self.context_size_batch.left += self.context_size_batch.chunk
-        self.context_size.chunk = 0
-        self.context_size_batch.chunk.fill_(0)
-        self.context_size.right += added_chunk_length
-        self.context_size_batch.right += audio_lengths
-
-        if is_last_chunk:
-            # move all samples to chunk, empty right part
-            self.context_size.chunk = self.context_size.right
-            self.context_size.right = 0
-        else:
-            self.context_size.chunk = self.expected_context.chunk
-            self.context_size.right -= self.expected_context.chunk
-            assert self.context_size.right == self.expected_context.right
-
-        self.context_size_batch.chunk = torch.where(
-            is_last_chunk_batch, self.context_size_batch.right, self.expected_context.chunk
+        extra_samples_in_buffer = self.context_size.add_frames_get_removed_(
+            added_chunk_length, is_last_chunk=is_last_chunk, expected_context=self.expected_context
         )
-        self.context_size_batch.right = torch.where(
-            is_last_chunk_batch, 0, self.context_size_batch.right - self.expected_context.chunk
+        self.context_size_batch.add_frames_(
+            num_frames_batch=audio_lengths,
+            is_last_chunk_batch=is_last_chunk_batch,
+            expected_context=self.expected_context,
         )
-
-        # fix left context
-        self.context_size_batch.left = torch.where(self.context_size_batch.chunk > 0, self.context_size_batch.left, 0)
-
         # leave only full_ctx_audio_samples in buffer
-        extra_samples_in_buffer = max(0, self.samples.shape[1] - self.expected_context.total())
         if extra_samples_in_buffer > 0:
             self.samples = self.samples[:, extra_samples_in_buffer:].clone()
-            self.context_size.left -= extra_samples_in_buffer
-            self.context_size_batch.left = torch.where(
-                self.context_size_batch.left > extra_samples_in_buffer,
-                self.context_size_batch.left - extra_samples_in_buffer,
-                0,
-            )
