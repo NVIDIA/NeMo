@@ -165,7 +165,8 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
         self.validated_consistency = False
 
     @override
-    def save_checkpoint(self, checkpoint: Dict[str, Any], path: _PATH, storage_options: Optional[Any] = None) -> None:
+    def save_checkpoint(self, checkpoint: Dict[str, Any], path: _PATH, storage_options: Optional[Any] = None,
+                        content_metadata: Optional[dict] = None) -> None:
         """Save model/training states as a checkpoint file through state-dump and file-write.
 
         Args:
@@ -204,6 +205,8 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
             sharded_strategy=self.save_sharded_strategy,
             validate_access_integrity=validate_sharding_integrity,
             async_sharded_save=self.async_save,
+            # TODO: can we assume MCore v0.13?
+            content_metadata=content_metadata,
         )
         end_time = time.time()
         log_parts = (
@@ -253,17 +256,7 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
         if map_location is not None:
             raise ValueError("`map_location` argument is not supported for `MegatronCheckpointIO.load_checkpoint`.")
 
-        # Try to read the checkpoint at `path`. If not exist, do not restore checkpoint.
-        fs = get_filesystem(path)
-        if not fs.exists(path):
-            raise FileNotFoundError(f"Checkpoint file not found: {path}")
-        if not fs.isdir(path):
-            raise ValueError(f"Distributed checkpoints should be a directory. Found: {path}.")
-
-        # Load from ckpt_path/weights (new format) if it exists
-        path = ckpt_to_weights_subdir(path, is_saving=False)
-        if hasattr(path, "base_model_path") and not path.base_model_path.exists():
-            path.base_model_path = path.base_model_path.parent
+        path = self._preprocess_checkpoint_load_path(path)
 
         if self.save_ckpt_format == 'zarr' and self.load_directly_on_device:
             from megatron.core.dist_checkpointing.strategies.tensorstore import TensorStoreLoadShardedStrategy
@@ -368,6 +361,35 @@ class MegatronCheckpointIO(AsyncCompatibleCheckpointIO, IOMixin):
         if self._save_sharded_strategy is None:
             self._save_sharded_strategy = self._determine_dist_ckpt_save_strategy()
         return self._save_sharded_strategy
+
+    @staticmethod
+    def _preprocess_checkpoint_load_path(path):
+        """ TODO """
+        # Try to read the checkpoint at `path`. If not exist, do not restore checkpoint.
+        fs = get_filesystem(path)
+        if not fs.exists(path):
+            raise FileNotFoundError(f"Checkpoint file not found: {path}")
+        if not fs.isdir(path):
+            raise ValueError(
+                f"Distributed checkpoints should be a directory. Found: {path}.")
+
+        # Load from ckpt_path/weights (new format) if it exists
+        path = ckpt_to_weights_subdir(path, is_saving=False)
+        if hasattr(path, "base_model_path") and not path.base_model_path.exists():
+            path.base_model_path = path.base_model_path.parent
+        return path
+
+    @staticmethod
+    def load_content_metadata(path: Optional[_PATH] = None, state_dict: Optional[dict] = None) -> dict:
+        """ TODO describe state_dict optimization. """
+        from megatron.core import dist_checkpointing
+
+        if path is not None:
+            path = MegatronCheckpointIO._preprocess_checkpoint_load_path(path)
+        # TODO: can we assume MCore v0.13 here
+        sharded_state_dict_metadata = dist_checkpointing.load_content_metadata(path, state_dict)
+        logging.info(f'Loaded sharded_state_dict_metadata from checkpoint: {sharded_state_dict_metadata}')
+        return sharded_state_dict_metadata
 
     def adjust_non_strict_load(self, path: _PATH, sharded_state_dict: Dict[str, Any]):
         """

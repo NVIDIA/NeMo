@@ -82,6 +82,7 @@ def restore_model_weights(model, checkpoint_path, strict=False):
         checkpoint_path: Path to the checkpoint.
         strict: Whether to restore weights even if they are not the same.
     """
+    # TODO: confirm this is NeMo 1
     if checkpoint_path is not None:
         sharded_state_dict = dict(state_dict=model.sharded_state_dict(prefix="module."))
         loaded_state_dict = dist_checkpointing.load(

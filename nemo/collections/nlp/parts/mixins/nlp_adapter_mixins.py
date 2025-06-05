@@ -460,6 +460,7 @@ class NLPAdapterModelMixin:
 
     def sharded_state_dict(self, prefix: str = ''):
         use_mcore = (getattr(self, 'mcore_gpt', False)) or (getattr(self, 'mcore_t5', False))
+        # TODO: confirm this is NeMo 1
         if not use_mcore or (self.use_peft and self.setup_complete):
             return None
         else:
