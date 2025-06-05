@@ -99,8 +99,8 @@ def override_recipe_configs(
         tp_comm_overlap_cfg = fdl.cast(run.Config, fdl_dc.convert_dataclasses_to_configs(tp_comm_overlap_cfg))
         recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap_cfg = tp_comm_overlap_cfg
 
-    if args.compute_dtype.lower() == "bf16" and args.load_checkpoint_path is not None:
-        recipe.optim.config.use_precision_aware_optimizer = False
+    if args.compute_dtype.lower() == "bf16" and args.checkpoint_load_path is not None:
+        recipe.optim.config.use_precision_aware_optimizer = False  
 
     return recipe
 
