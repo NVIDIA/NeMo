@@ -106,21 +106,18 @@ def train_config(args):
         # Run pre-training
         pretrain_cfg = partials[args.run_number - 1]
         if args.extra_metrics:
-            from nemo.lightning.pytorch.callbacks import MemoryMonitor, OptimizerMonitor, RuntimeEstimator, SpeedMonitor
+            from nemo.lightning.pytorch.callbacks import (
+                MemoryMonitor,
+                OptimizerMonitor,
+                RuntimeEstimator,
+                SpeedMonitor,
+            )
 
             # add callbacks
-            pretrain_cfg.trainer.callbacks.append(
-                run.Config(SpeedMonitor, window_size=5)
-            )
-            pretrain_cfg.trainer.callbacks.append(
-                run.Config(RuntimeEstimator)
-            )
-            pretrain_cfg.trainer.callbacks.append(
-                run.Config(OptimizerMonitor)
-            )
-            pretrain_cfg.trainer.callbacks.append(
-                run.Config(MemoryMonitor)
-            )
+            pretrain_cfg.trainer.callbacks.append(run.Config(SpeedMonitor, window_size=5))
+            pretrain_cfg.trainer.callbacks.append(run.Config(RuntimeEstimator))
+            pretrain_cfg.trainer.callbacks.append(run.Config(OptimizerMonitor))
+            pretrain_cfg.trainer.callbacks.append(run.Config(MemoryMonitor))
 
         pretrain = fdl.build(pretrain_cfg)
         pretrain()
