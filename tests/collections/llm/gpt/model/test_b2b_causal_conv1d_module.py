@@ -68,7 +68,9 @@ def test_b2b_causal_conv1d_module_initialization(operator_type):
 def test_b2b_causal_conv1d_module_weight_extraction(operator_type):
     proj_conv = MockProjConv(kernel_size=3)
     mixer = MockMixer(kernel_size=5)
-    b2b_module = B2BCausalConv1dModule(proj_conv, mixer, operator_type=operator_type, b2b_causal_conv1d=mock_b2b_causal_conv1d)
+    b2b_module = B2BCausalConv1dModule(
+        proj_conv, mixer, operator_type=operator_type, b2b_causal_conv1d=mock_b2b_causal_conv1d
+    )
     x = torch.randn(2, 96, 10)  # [B, D, L]
     result = b2b_module(x)
 
@@ -80,7 +82,9 @@ def test_b2b_causal_conv1d_module_weight_extraction(operator_type):
 def test_b2b_causal_conv1d_module_bias_handling(use_conv_bias, operator_type):
     proj_conv = MockProjConv(kernel_size=3)
     mixer = MockMixer(kernel_size=5, use_conv_bias=use_conv_bias)
-    b2b_module = B2BCausalConv1dModule(proj_conv, mixer, operator_type=operator_type, b2b_causal_conv1d=mock_b2b_causal_conv1d)
+    b2b_module = B2BCausalConv1dModule(
+        proj_conv, mixer, operator_type=operator_type, b2b_causal_conv1d=mock_b2b_causal_conv1d
+    )
     x = torch.randn(2, 96, 10)  # [B, D, L]
     result = b2b_module(x)
 
@@ -100,20 +104,26 @@ def test_b2b_causal_conv1d_module_invalid_operator():
 def test_b2b_causal_conv1d_module_different_shapes(batch_size, seq_len):
     proj_conv = MockProjConv(kernel_size=3)
     mixer = MockMixer(kernel_size=5)
-    b2b_module = B2BCausalConv1dModule(proj_conv, mixer, operator_type="hyena_short_conv", b2b_causal_conv1d=mock_b2b_causal_conv1d)
+    b2b_module = B2BCausalConv1dModule(
+        proj_conv, mixer, operator_type="hyena_short_conv", b2b_causal_conv1d=mock_b2b_causal_conv1d
+    )
 
     # Test with different hidden dimensions
     for hidden_dim in [32, 64, 128]:
         x = torch.randn(batch_size, hidden_dim, seq_len)
         result = b2b_module(x)
-        assert result.shape == x.shape, f"Shape mismatch for batch_size={batch_size}, hidden_dim={hidden_dim}, seq_len={seq_len}"
+        assert (
+            result.shape == x.shape
+        ), f"Shape mismatch for batch_size={batch_size}, hidden_dim={hidden_dim}, seq_len={seq_len}"
 
 
 @pytest.mark.parametrize("kernel_size", [3, 5, 7])
 def test_b2b_causal_conv1d_module_different_kernel_sizes(kernel_size):
     proj_conv = MockProjConv(kernel_size=kernel_size)
     mixer = MockMixer(kernel_size=kernel_size)
-    b2b_module = B2BCausalConv1dModule(proj_conv, mixer, operator_type="hyena_short_conv", b2b_causal_conv1d=mock_b2b_causal_conv1d)
+    b2b_module = B2BCausalConv1dModule(
+        proj_conv, mixer, operator_type="hyena_short_conv", b2b_causal_conv1d=mock_b2b_causal_conv1d
+    )
     x = torch.randn(2, 96, 32)
     result = b2b_module(x)
 
@@ -123,7 +133,9 @@ def test_b2b_causal_conv1d_module_different_kernel_sizes(kernel_size):
 def test_b2b_causal_conv1d_module_invalid_input():
     proj_conv = MockProjConv(kernel_size=3)
     mixer = MockMixer(kernel_size=5)
-    b2b_module = B2BCausalConv1dModule(proj_conv, mixer, operator_type="hyena_short_conv", b2b_causal_conv1d=mock_b2b_causal_conv1d)
+    b2b_module = B2BCausalConv1dModule(
+        proj_conv, mixer, operator_type="hyena_short_conv", b2b_causal_conv1d=mock_b2b_causal_conv1d
+    )
 
     # Test with invalid input dimensions
     with pytest.raises(ValueError, match="Input tensor must be 3D"):
@@ -133,7 +145,9 @@ def test_b2b_causal_conv1d_module_invalid_input():
 def test_b2b_causal_conv1d_module_dtype_handling():
     proj_conv = MockProjConv(kernel_size=3)
     mixer = MockMixer(kernel_size=5)
-    b2b_module = B2BCausalConv1dModule(proj_conv, mixer, operator_type="hyena_short_conv", b2b_causal_conv1d=mock_b2b_causal_conv1d)
+    b2b_module = B2BCausalConv1dModule(
+        proj_conv, mixer, operator_type="hyena_short_conv", b2b_causal_conv1d=mock_b2b_causal_conv1d
+    )
 
     # Test with different dtypes
     dtypes = [torch.float32, torch.float16, torch.bfloat16]
@@ -147,7 +161,9 @@ def test_b2b_causal_conv1d_module_dtype_handling():
 def test_b2b_causal_conv1d_module_device_handling():
     proj_conv = MockProjConv(kernel_size=3)
     mixer = MockMixer(kernel_size=5)
-    b2b_module = B2BCausalConv1dModule(proj_conv, mixer, operator_type="hyena_short_conv", b2b_causal_conv1d=mock_b2b_causal_conv1d)
+    b2b_module = B2BCausalConv1dModule(
+        proj_conv, mixer, operator_type="hyena_short_conv", b2b_causal_conv1d=mock_b2b_causal_conv1d
+    )
 
     # Test on CPU
     x_cpu = torch.randn(2, 96, 32)
@@ -164,7 +180,9 @@ def test_b2b_causal_conv1d_module_device_handling():
 def test_b2b_causal_conv1d_module_gradient_flow():
     proj_conv = MockProjConv(kernel_size=3)
     mixer = MockMixer(kernel_size=5)
-    b2b_module = B2BCausalConv1dModule(proj_conv, mixer, operator_type="hyena_short_conv", b2b_causal_conv1d=mock_b2b_causal_conv1d)
+    b2b_module = B2BCausalConv1dModule(
+        proj_conv, mixer, operator_type="hyena_short_conv", b2b_causal_conv1d=mock_b2b_causal_conv1d
+    )
 
     x = torch.randn(2, 96, 32, requires_grad=True)
     result = b2b_module(x)
@@ -181,7 +199,9 @@ def test_b2b_causal_conv1d_module_gradient_flow():
 def test_b2b_causal_conv1d_module_requires_grad():
     proj_conv = MockProjConv(kernel_size=3)
     mixer = MockMixer(kernel_size=5)
-    b2b_module = B2BCausalConv1dModule(proj_conv, mixer, operator_type="hyena_short_conv", b2b_causal_conv1d=mock_b2b_causal_conv1d)
+    b2b_module = B2BCausalConv1dModule(
+        proj_conv, mixer, operator_type="hyena_short_conv", b2b_causal_conv1d=mock_b2b_causal_conv1d
+    )
 
     # Test with requires_grad=True
     x = torch.randn(2, 96, 32, requires_grad=True)
