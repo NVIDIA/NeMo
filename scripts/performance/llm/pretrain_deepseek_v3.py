@@ -100,6 +100,8 @@ def override_recipe_configs(
         compute_dtype=args.compute_dtype,
         fp8_recipe=args.fp8_recipe,
         recompute_modules=recompute_modules,
+        nccl_communicator_config_path=args.nccl_communicator_config_path,
+        high_priority_stream_groups=args.high_priority_stream_groups,
     )
     recipe = set_exp_logging_configs(
         recipe,
