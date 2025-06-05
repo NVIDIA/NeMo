@@ -37,6 +37,7 @@ from transformers import (
     AutoConfig,
     AutoModel,
 )
+import time
 
 def worker_init_fn(worker_id):
     # For mp.set_start_method("spawn", force=True)
@@ -1048,8 +1049,9 @@ class MagpieTTSDecoderModel(ModelPT):
     def setup_test_data(self, cfg):
         self._test_dl = self._setup_test_dataloader(cfg)
 
-    def infer_batch(self, batch, max_decoder_steps=500, temperature=0.7, topk=80, use_local_transformer_for_inference=False):
+    def infer_batch(self, batch, max_decoder_steps=500, temperature=0.7, topk=80, use_local_transformer_for_inference=False, maskgit_n_steps=3):
         with torch.inference_mode():
+            start_time = time.time()
             context_tensors = self.prepare_context_tensors(batch)
             context_embedding = context_tensors['full_context_embedding']  # (B, T_total, E)
             context_lens = context_tensors['full_context_lens']  # (B,)
@@ -1066,20 +1068,23 @@ class MagpieTTSDecoderModel(ModelPT):
                 lengths=[context_lens, audio_codes_lens],
             )
 
-            
+            min_context_len = context_plus_audio_lens.min().item()
+            first_inference_input = context_plus_audio_embedded[:, :min_context_len, :]  # (B, T_min, E)
             # First forward pass to get the initial hidden state and past key values
             transformer_out = self.forward(
-                inputs_embeds=context_plus_audio_embedded,
-                attention_mask=get_mask_from_lengths(context_plus_audio_lens),
+                inputs_embeds=first_inference_input,
+                attention_mask=None,
                 use_cache=True,
                 past_key_values=None,  # No past key values for the first step
             )
 
+            time_to_first_prediction = time.time() - start_time
             last_hidden = transformer_out.last_hidden_state  # (B, T_total, E)
             past_kv = transformer_out.past_key_values
 
             all_predictions = []
             end_indices = {}
+            
             for idx in range(max_decoder_steps):
                 if idx % 20 == 0:
                     print(f"Decoding timestep {idx}")
@@ -1098,6 +1103,7 @@ class MagpieTTSDecoderModel(ModelPT):
                             dec_output=last_hidden[:, -1, :],
                             temperature=temperature,
                             topk=topk,
+                            n_steps=maskgit_n_steps,
                         )
                     else:
                         raise ValueError(f"Local transformer inference requested by but local transformer type is {self.local_transformer_type}")
@@ -1119,8 +1125,21 @@ class MagpieTTSDecoderModel(ModelPT):
                 all_predictions.append(audio_codes_next)
                 
                 new_emb = self.embed_audio_tokens(audio_codes_next.unsqueeze(2))  # (B, 1, E)
+                
+                context_incomplete_mask = context_plus_audio_lens > idx + min_context_len # (B,)
+                # True if we have not yet reached the end of the context for this item
+                # import ipdb; ipdb.set_trace()
+                if context_incomplete_mask.any():
+                    context_incomplete_mask = context_incomplete_mask.unsqueeze(1).unsqueeze(2).float()  # (B, 1, 1)
+                    context_embedding = context_plus_audio_embedded[:,min_context_len+idx:min_context_len+idx+1,:] # (B, 1, E)
+                    next_input = context_incomplete_mask * context_embedding + (1 - context_incomplete_mask) * new_emb
+                else:
+                    next_input = new_emb
+
+                # import ipdb; ipdb.set_trace()
+
                 transformer_out = self.forward(
-                    inputs_embeds=new_emb,
+                    inputs_embeds=next_input,
                     attention_mask=None,
                     use_cache=True,
                     past_key_values=past_kv,
@@ -1131,13 +1150,36 @@ class MagpieTTSDecoderModel(ModelPT):
                     print("All items finished at timestep {}".format(idx))
                     break
             
-            predicted_codes = torch.stack(all_predictions, dim=-1)  # (B, num_codebooks, T')
+            tts_generation_time = time.time() - start_time
+            tts_generation_time_per_frame = tts_generation_time / len(all_predictions)
+            pred_codes_start_indices = context_plus_audio_lens - min_context_len # (B,)
             predicted_lens = [end_indices.get(idx, max_decoder_steps) for idx in range(context_embedding.size(0))] #  Ensure that the codec is atleast of length 4
             predicted_codes_lens = torch.tensor(predicted_lens, device=context_embedding.device).long()
+            predicted_codes_lens = predicted_codes_lens - pred_codes_start_indices # (B,)
 
+            predicted_codes = torch.stack(all_predictions, dim=-1)  # (B, num_codebooks, T)
+            predicted_codes = self.slice_pred_embeddings(
+                predicted_codes.permute(0, 2, 1),
+                context_lens=pred_codes_start_indices,
+                target_lens=predicted_codes_lens,
+            )
+            predicted_codes = predicted_codes.permute(0, 2, 1)  # (B, num_codebooks, T)
             predicted_audio, predicted_audio_lens = self.codes_to_audio(predicted_codes, predicted_codes_lens)
+            
+            end_time = time.time()
+            total_audio_duration_generated = (predicted_audio_lens.max().item() * predicted_audio_lens.shape[0])/self.sample_rate
+            rtf = total_audio_duration_generated / (end_time - start_time)
 
-            return predicted_audio, predicted_audio_lens, predicted_codes, predicted_codes_lens
+            rtf_metrics = {
+                'rtf': rtf,
+                'time_to_first_prediction': time_to_first_prediction,
+                'tts_generation_time': tts_generation_time,
+                'max_frames_generated': len(all_predictions),
+                'tts_generation_time_per_frame': tts_generation_time_per_frame,
+                'batch_size': context_embedding.size(0),
+            }
+
+            return predicted_audio, predicted_audio_lens, predicted_codes, predicted_codes_lens, rtf_metrics
 
 
         

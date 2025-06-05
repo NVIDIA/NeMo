@@ -29,7 +29,7 @@ from PIL import Image
 
 from nemo.collections.asr.parts.utils.manifest_utils import read_manifest
 from nemo.collections.tts.data.text_to_speech_dataset import MagpieTTSDataset
-from nemo.collections.tts.models import MagpieTTSModel
+from nemo.collections.tts.models import MagpieTTSModel, MagpieTTSDecoderModel
 
 def compute_mean_and_confidence_interval(metrics_list, metric_keys, confidence=0.90):
     metrics = {}
@@ -117,9 +117,12 @@ def run_inference(
         confidence_level=0.95,
         use_local_transformer=False,
         maskgit_n_steps=3,
-        legacy_codebooks=False
+        legacy_codebooks=False,
+        is_decoder_only_model=False
     ):
     # Load model
+    model_cls = MagpieTTSDecoderModel if is_decoder_only_model else MagpieTTSModel
+    
     if hparams_file is not None:
         model_cfg = OmegaConf.load(hparams_file)
         if "cfg" in model_cfg:
@@ -128,7 +131,7 @@ def run_inference(
         with open_dict(model_cfg):
             model_cfg = update_config(model_cfg, codecmodel_path, legacy_codebooks)
 
-        model = MagpieTTSModel(cfg=model_cfg)
+        model = model_cls(cfg=model_cfg)
         model.use_kv_cache_for_inference = True
 
         # Load weights from checkpoint file
@@ -138,10 +141,10 @@ def run_inference(
         model.load_state_dict(state_dict)
         checkpoint_name = checkpoint_file.split("/")[-1].split(".ckpt")[0]
     elif nemo_file is not None:
-        model_cfg = MagpieTTSModel.restore_from(nemo_file, return_config=True)
+        model_cfg = model_cls.restore_from(nemo_file, return_config=True)
         with open_dict(model_cfg):
             model_cfg = update_config(model_cfg, codecmodel_path, legacy_codebooks)
-        model = MagpieTTSModel.restore_from(nemo_file, override_config_path=model_cfg)
+        model = model_cls.restore_from(nemo_file, override_config_path=model_cfg)
         model.use_kv_cache_for_inference = True
         checkpoint_name = nemo_file.split("/")[-1].split(".nemo")[0]
     else:
@@ -189,13 +192,23 @@ def run_inference(
             if context_durration_min < 5.0 and context_durration_max > 5.0:
                 context_durration_min = 5.0
                 context_durration_max = 5.0 # @pneekhara - For multiencoder models, I want fixed size contexts for fair eval. Not too important though.
+            
+            if is_decoder_only_model:
+                _load_16khz_audio = False
+                _use_text_conditioning_encoder = True
+                _pad_context_text_to_max_duration = False
+            else:
+                _load_16khz_audio = model.model_type == 'single_encoder_sv_tts'
+                _use_text_conditioning_encoder = model.use_text_conditioning_encoder
+                _pad_context_text_to_max_duration = model.pad_context_text_to_max_duration
+
             test_dataset = MagpieTTSDataset(
                 dataset_meta=dataset_meta,
-                sample_rate=model_cfg.sample_rate,
+                sample_rate=model.sample_rate,
                 min_duration=0.5,
                 max_duration=20,
                 codec_model_samples_per_frame=model.codec_model_samples_per_frame,
-                bos_id=model.bos_id,
+                bos_id=None, # Unused in MagpieTTSDataset
                 eos_id=model.eos_id,
                 context_audio_bos_id=model.context_audio_bos_id,
                 context_audio_eos_id=model.context_audio_eos_id,
@@ -206,16 +219,19 @@ def run_inference(
                 load_cached_codes_if_available=False,
                 dataset_type='test',
                 tokenizer_config=None,
-                load_16khz_audio=model.model_type == 'single_encoder_sv_tts',
-                use_text_conditioning_tokenizer=model.use_text_conditioning_encoder,
-                pad_context_text_to_max_duration=model.pad_context_text_to_max_duration,
+                load_16khz_audio=_load_16khz_audio,
+                use_text_conditioning_tokenizer=_use_text_conditioning_encoder,
+                pad_context_text_to_max_duration=_pad_context_text_to_max_duration,
                 context_duration_min=context_durration_min,
                 context_duration_max=context_durration_max,
             )
             assert len(test_dataset) == len(manifest_records), "Dataset length and manifest length should be the same. Dataset length: {}, Manifest length: {}".format(len(test_dataset), len(manifest_records))
 
             test_dataset.text_tokenizer = model.tokenizer
-            test_dataset.text_conditioning_tokenizer = model.text_conditioning_tokenizer
+            if is_decoder_only_model:
+                test_dataset.text_conditioning_tokenizer = model.tokenizer.first_tokenizer
+            else:
+                test_dataset.text_conditioning_tokenizer = model.text_conditioning_tokenizer
 
             test_data_loader = torch.utils.data.DataLoader(
                 test_dataset,
@@ -239,30 +255,42 @@ def run_inference(
 
                 import time
                 st = time.time()
-                predicted_audio, predicted_audio_lens, predicted_codes, predicted_codes_lens, rtf_metrics, cross_attention_maps, _  = model.infer_batch(
-                    batch_cuda,
-                    max_decoder_steps=440,
-                    temperature=temperature,
-                    topk=topk,
-                    use_cfg=use_cfg,
-                    cfg_scale=cfg_scale,
-                    return_cross_attn_probs=True,
-                    apply_attention_prior=apply_attention_prior,
-                    prior_epsilon=attention_prior_epsilon,
-                    lookahead_window_size=attention_prior_lookahead_window,
-                    estimate_alignment_from_layers=estimate_alignment_from_layers,
-                    apply_prior_to_layers=apply_prior_to_layers,
-                    start_prior_after_n_audio_steps=start_prior_after_n_audio_steps,
-                    use_local_transformer_for_inference=use_local_transformer,
-                    maskgit_n_steps=maskgit_n_steps
-                )
+                if is_decoder_only_model:
+                    predicted_audio, predicted_audio_lens, predicted_codes, predicted_codes_lens, rtf_metrics = model.infer_batch(
+                        batch_cuda,
+                        max_decoder_steps=440,
+                        temperature=temperature,
+                        topk=topk,
+                        use_local_transformer_for_inference=use_local_transformer,
+                        maskgit_n_steps=maskgit_n_steps
+                    )
+                    cross_attention_maps = None
+                else:
+                    predicted_audio, predicted_audio_lens, predicted_codes, predicted_codes_lens, rtf_metrics, cross_attention_maps, _  = model.infer_batch(
+                        batch_cuda,
+                        max_decoder_steps=440,
+                        temperature=temperature,
+                        topk=topk,
+                        use_cfg=use_cfg,
+                        cfg_scale=cfg_scale,
+                        return_cross_attn_probs=True,
+                        apply_attention_prior=apply_attention_prior,
+                        prior_epsilon=attention_prior_epsilon,
+                        lookahead_window_size=attention_prior_lookahead_window,
+                        estimate_alignment_from_layers=estimate_alignment_from_layers,
+                        apply_prior_to_layers=apply_prior_to_layers,
+                        start_prior_after_n_audio_steps=start_prior_after_n_audio_steps,
+                        use_local_transformer_for_inference=use_local_transformer,
+                        maskgit_n_steps=maskgit_n_steps
+                    )
                 
                 all_rtf_metrics.append(rtf_metrics)
                 et = time.time()
                 print(f"Time taken for inference: {et-st}", predicted_audio.size())
                 for idx in range(predicted_audio.size(0)):
-                    cross_attn_map_image = Image.fromarray(cross_attention_maps[idx])
-                    cross_attn_map_image.save(os.path.join(audio_dir, f"cross_attn_map_{item_idx}.png"))
+                    if cross_attention_maps is not None:
+                        cross_attn_map_image = Image.fromarray(cross_attention_maps[idx])
+                        cross_attn_map_image.save(os.path.join(audio_dir, f"cross_attn_map_{item_idx}.png"))
 
                     predicted_audio_np = predicted_audio[idx].float().detach().cpu().numpy()
                     predicted_audio_np = predicted_audio_np[:predicted_audio_lens[idx]]
@@ -364,6 +392,7 @@ def main():
     parser.add_argument('--num_repeats', type=int, default=1)
     parser.add_argument('--confidence_level', type=float, default=0.95)
     parser.add_argument('--legacy_codebooks', action='store_true')
+    parser.add_argument('--decoder_only_model', action='store_true')
     args = parser.parse_args()
 
     estimate_alignment_from_layers = None
@@ -404,7 +433,8 @@ def main():
                 confidence_level=args.confidence_level,
                 use_local_transformer=args.use_local_transformer,
                 maskgit_n_steps=args.maskgit_n_steps,
-                legacy_codebooks=args.legacy_codebooks
+                legacy_codebooks=args.legacy_codebooks,
+                is_decoder_only_model=args.decoder_only_model
             )
         return
     elif (args.nemo_file is not None):
@@ -434,7 +464,8 @@ def main():
             confidence_level=args.confidence_level,
             use_local_transformer=args.use_local_transformer,
             maskgit_n_steps=args.maskgit_n_steps,
-            legacy_codebooks=args.legacy_codebooks
+            legacy_codebooks=args.legacy_codebooks,
+            is_decoder_only_model=args.decoder_only_model
         )
     else:
         BASE_EXP_DIR = args.base_exp_dir
@@ -497,7 +528,8 @@ def main():
                 confidence_level=args.confidence_level,
                 use_local_transformer=args.use_local_transformer,
                 maskgit_n_steps=args.maskgit_n_steps,
-                legacy_codebooks=args.legacy_codebooks
+                legacy_codebooks=args.legacy_codebooks,
+                is_decoder_only_model=args.decoder_only_model
             )
 
 
