@@ -42,6 +42,22 @@ model:
   prompt_format: ???   # Options supported: ["canary", "canary2"]
   prompt_defaults: null
 
+  # Sub-config for specifying multiple metrics for multitask modeling.
+  # See `asr.collections.metrics.multitask` for details.
+  multitask_metrics_cfg:
+    log_predictions: true
+    metrics:
+      -   name: wer
+          _target_: nemo.collections.asr.metrics.WER
+          slots: 
+              task: "transcribe"
+      -   name: bleu
+          tokenize: flores101
+          multi_tokenize: true
+          _target_: nemo.collections.asr.metrics.BLEU  
+          slots: 
+              task: "translate"
+
   model_defaults:
     asr_enc_hidden: 1024
     lm_enc_hidden: 512
