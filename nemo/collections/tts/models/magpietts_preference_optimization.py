@@ -714,7 +714,7 @@ class MagpieTTSModelOnlinePO(MagpieTTSModel):
             elif self.loss_type == "dr_grpo":
                 # https://github.com/huggingface/trl/blob/main/trl/trainer/grpo_trainer.py
                 total_tokens = per_token_loss.shape[0] * self.max_decoder_steps
-                codebook_loss = ((per_token_loss * policy_codebook_loss_mask).sum() / total_tokens).mean()
+                codebook_loss = (per_token_loss * policy_codebook_loss_mask).sum() / total_tokens
             else:
                 raise ValueError(f"Unknown loss function: {self.loss_type}")
 
