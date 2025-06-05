@@ -179,8 +179,7 @@ class NsysPlugin(run.Plugin):
         if isinstance(executor, run.SlurmExecutor):
             # NOTE: DO NOT change to f-string, `%q{}` is Slurm placeholder
             launcher.nsys_filename = (
-                "profile_%q{SLURM_LOCALID}_%p_%q{SLURM_JOB_ID}_node%q{SLURM_NODEID}_rank%q{SLURM_PROCID}"
-            )
+                "profile_%p_%q{SLURM_JOB_ID}_node%q{SLURM_NODEID}_rank%q{SLURM_PROCID}")
 
 
 @dataclass(kw_only=True)
