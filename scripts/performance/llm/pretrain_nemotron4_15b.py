@@ -101,7 +101,7 @@ def override_recipe_configs(
 
     if args.compute_dtype.lower() == "bf16" and args.load_checkpoint_path is not None:
         recipe.optim.config.use_precision_aware_optimizer = False
-        
+
     return recipe
 
 
