@@ -1192,8 +1192,11 @@ class B2BCausalConv1dModule(nn.Module):
         Returns:
             Tensor: Output of the back-to-back causal convolution operation
         """
+        # Validate input dimensions
+        if x.dim() != 3:
+            raise ValueError("Input tensor must be 3D [batch_size, hidden_dim, seq_len]")
+
         # Extract weights at runtime to avoid parameter registration
-        # and reshape them to the expected dimensions
         proj_weight = self._proj_conv_module.short_conv_weight
         mixer_weight = None  # Initialize mixer_weight
 
