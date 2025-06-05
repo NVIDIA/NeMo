@@ -152,7 +152,7 @@ class _HuggingFaceTokenizer(MegatronTokenizer):
 
         # TODO(bnorick): download tokenizer once to lustre and use force offline to make sure all tasks read it from there
         self._tokenizer = transformers.AutoTokenizer.from_pretrained(
-            pretrained_model_name_or_path=pretrained_model_name_or_path, **kwargs
+            pretrained_model_name_or_path=pretrained_model_name_or_path, trust_remote_code=True, **kwargs
         )
         self._vocab = self._tokenizer.get_vocab()
         self._inv_vocab = {token_id: token for token, token_id in self._vocab.items()}
