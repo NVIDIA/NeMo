@@ -120,6 +120,9 @@ if __name__ == "__main__":
         network='sharp' if args.use_sharp else None,
     )
 
+    if args.gpu.lower() in ['b200'] and "PYTORCH_CUDA_ALLOC_CONF" in executor.env_vars:
+        del executor.env_vars["PYTORCH_CUDA_ALLOC_CONF"]
+
     plugins = [
         PerfEnvPlugin(
             enable_vboost=True,
