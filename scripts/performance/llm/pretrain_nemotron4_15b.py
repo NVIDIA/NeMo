@@ -100,7 +100,7 @@ def override_recipe_configs(
         recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap_cfg = tp_comm_overlap_cfg
 
     if args.compute_dtype.lower() == "bf16" and args.checkpoint_load_path is not None:
-        recipe.optim.config.use_precision_aware_optimizer = False  
+        recipe.optim.config.use_precision_aware_optimizer = False
 
     return recipe
 
