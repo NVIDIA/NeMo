@@ -365,21 +365,22 @@ class FabricMegatronStrategy(DDPStrategy):
         torch.cuda.empty_cache()
 
         # After dist_checkpointing.load, sharded tensors will be replaced with tensors
+        sharded_sd_metadata = self.checkpoint_io.load_content_metadata(path)
         sharded_state_dict = {}
         if isinstance(state, Module):
-            sharded_state_dict["state_dict"] = state.sharded_state_dict()
+            sharded_state_dict["state_dict"] = state.sharded_state_dict(metadata=sharded_sd_metadata)
         elif strict:
-            sharded_state_dict["state_dict"] = state["state_dict"].sharded_state_dict()
+            sharded_state_dict["state_dict"] = state["state_dict"].sharded_state_dict(metadata=sharded_sd_metadata)
             if "optimizer" in state:
                 sharded_state_dict["optimizer"] = _strategy_lib.optimizer_sharded_state_dict(
-                    state["state_dict"], state["optimizer"], is_loading=True
+                    state["state_dict"], state["optimizer"], is_loading=True, metadata=sharded_sd_metadata,
                 )
         else:
             for obj in state.items():
                 if isinstance(obj, Module):
-                    sharded_state_dict["state_dict"] = obj.sharded_state_dict()
+                    sharded_state_dict["state_dict"] = obj.sharded_state_dict(metadata=sharded_sd_metadata)
                 elif isinstance(obj, Optimizer):
-                    sharded_state_dict["optimizer"] = _strategy_lib.optimizer_sharded_state_dict(obj, is_loading=True)
+                    sharded_state_dict["optimizer"] = _strategy_lib.optimizer_sharded_state_dict(obj, is_loading=True, metadata=sharded_sd_metadata)
 
         checkpoint = self.checkpoint_io.load_checkpoint(path, sharded_state_dict=sharded_state_dict)
 

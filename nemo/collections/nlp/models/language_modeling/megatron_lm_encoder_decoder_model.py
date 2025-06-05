@@ -1801,6 +1801,7 @@ class MegatronLMEncoderDecoderModel(MegatronBaseModel):
         self.state_dict().
         The sharded tensor mapping is defined in the GPTModel class from mcore.
         """
+        # TODO: confirm this is NeMo 1
         if self.mcore_t5:
             module_prefix = f'{prefix}model.'
             sharded_state_dict = {}
