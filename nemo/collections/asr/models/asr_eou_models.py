@@ -39,7 +39,7 @@ from nemo.collections.asr.parts.utils.eou_utils import (
     cal_eou_metrics_from_frame_labels,
     flatten_nested_list,
 )
-from nemo.collections.asr.parts.utils.manifest_utils import read_manifest, write_manifest
+from nemo.collections.asr.parts.utils.manifest_utils import write_manifest
 from nemo.collections.asr.parts.utils.rnnt_utils import Hypothesis
 from nemo.collections.common.data.lhotse import get_lhotse_dataloader_from_config
 from nemo.collections.common.data.utils import move_data_to_device

@@ -38,7 +38,7 @@ punctuations = punctuation.replace("'", "")
 
 text_normalizer = EnglishTextNormalizer()
 
-parser = argparse.ArgumentParser(description="Clean manifest file by text normalization")
+parser = argparse.ArgumentParser(description="Clean manifest file by droping PnC")
 parser.add_argument(
     "input_manifest",
     type=str,
@@ -84,6 +84,18 @@ parser.add_argument(
     type=str,
     default="**/*.json",
     help="Pattern to match files in the input directory.",
+)
+parser.add_argument(
+    "-t",
+    "--text_field",
+    type=str,
+    default="text",
+    help="Field in the manifest to clean. Default is 'text'.",
+)
+parser.add_argument(
+    "--auto_pc",
+    action="store_true",
+    help="If set, will add auto capitalization and punctuation at the end of the text.",
 )
 
 
@@ -244,8 +256,70 @@ def clean_label(_str: str) -> str:
     return ret
 
 
-def main(args):
+def ends_with_punctuation(s: str) -> bool:
+    # Strip trailing whitespace
+    s = s.rstrip()
 
+    # consider this set to be punctuation that's acceptable to end a sentence with
+    puncturation_chars = [",", ".", ":", ";", "?", "!", "-", "—", "–", "…"]
+
+    # If string is empty after stripping, return False
+    if not s:
+        return False
+
+    # Get the last character
+    last_char = s[-1]
+
+    # Return True if the last character is punctuation, otherwise False
+    return last_char in puncturation_chars
+
+
+def add_period_if_needed(text: str) -> str:
+    """
+    Add a period at the end of the text if it does not already end with one.
+    """
+    if not ends_with_punctuation(text):
+        text += "."
+    return text.strip()
+
+
+def capitalize_self_i(text):
+    # Replace standalone lowercase "i" with "I"
+    # Handles "i", "i.", "i?", "i'll", "i'm", etc.
+    return re.sub(r'\b(i)(?=[\s.,!?;:\'\"-]|$)', r'I', text)
+
+
+def add_space_after_punctuation(text):
+    # Add a space after punctuation if it's not already followed by one or by the end of the string
+    return re.sub(r'([,\.?;:])(?=\S)', r'\1 ', text)
+
+
+def add_auto_capitalization(text):
+    if text.lower() != text:
+        # If the text is not all lowercase, we assume it has some capitalization
+        return text
+
+    # Remove space before punctuation (.,!?;:)
+    text = re.sub(r'\s+([.,!?;:])', r'\1', text)
+
+    # Capitalize the first letter of each sentence
+    def capitalize_sentences(match):
+        return match.group(1) + match.group(2).upper()
+
+    # Ensure first character is capitalized
+    text = text.strip()
+    if text:
+        text = text[0].upper() + text[1:]
+
+    text = capitalize_self_i(text)
+    text = add_space_after_punctuation(text)
+    # Capitalize after sentence-ending punctuation followed by space(s)
+    text = re.sub(r'([.!?]\s+)([a-z])', capitalize_sentences, text)
+    return text
+
+
+def main(args):
+    text_field = args.text_field
     manifest_files = Path(args.input_manifest)
     if manifest_files.is_dir():
         manifest_files = list(manifest_files.glob(args.pattern))
@@ -264,6 +338,7 @@ def main(args):
         else:
             postfix += "_lc" if args.lowercase else ""
             postfix += "_np" if args.remove_punc else ""
+        postfix += "_aPC" if args.auto_pc else ""
 
         output_manifest = manifest_file.with_name(f"{manifest_file.stem}{postfix}{manifest_file.suffix}")
 
@@ -280,8 +355,8 @@ def main(args):
         manifest = read_manifest(str(manifest_file))
 
         for i, item in enumerate(manifest):
-            text = str(item["text"])
-            manifest[i]["origin_text"] = text
+            text = str(item[text_field])
+            manifest[i]["original_text"] = text
             if args.normalize:
                 text = text_normalizer(text)
             if args.replace_numbers:
@@ -292,6 +367,8 @@ def main(args):
             if args.remove_punc:
                 text = text.translate(str.maketrans("", "", punctuations))
                 text = drop_punctuations(text)
+            if args.auto_pc:
+                text = add_auto_capitalization(text)
             manifest[i]["text"] = clean_label(text)
 
         write_manifest(str(output_manifest), manifest)
