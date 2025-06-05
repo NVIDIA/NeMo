@@ -13,7 +13,7 @@
 # limitations under the License.
 
 from dataclasses import dataclass
-from typing import List
+from typing import Dict, List
 
 import numpy as np
 
@@ -189,3 +189,50 @@ def cal_eou_metrics_from_frame_labels(
         prediction=pred_seg_lst, reference=ref_seg_lst, threshold=threshold, collar=collar, do_sorting=False
     )
     return eou_metrics
+
+
+def get_percentiles(values: List[float], percentiles: List[float], tag: str = "") -> Dict[str, float]:
+    """
+    Get the percentiles of a list of values.
+    Args:
+        values: list of values
+        percentiles: list of percentiles
+    Returns:
+        metrics: Dict of percentiles
+    """
+    if len(values) == 0:
+        return [0.0] * len(percentiles)
+    results = np.percentile(values, percentiles).tolist()
+    metrics = {}
+    if tag:
+        tag += "_"
+    for i, p in enumerate(percentiles):
+        metrics[f'{tag}p{int(p)}'] = float(results[i])
+    return metrics
+
+
+def aggregate_eou_metrics(eou_metrics: List[EOUResult], target_percentiles: List = [50, 90, 95]) -> Dict[str, float]:
+    # Aggregate EOU metrics
+    num_eou_utterances = sum([x.num_utterances for x in eou_metrics])
+    eou_latency = flatten_nested_list([x.latency for x in eou_metrics])
+    eou_early_cutoff = flatten_nested_list([x.early_cutoff for x in eou_metrics])
+
+    eou_avg_num_early_cutoff = len(eou_early_cutoff) / num_eou_utterances if num_eou_utterances > 0 else 0.0
+    if len(eou_latency) == 0:
+        eou_latency = [0.0]
+    if len(eou_early_cutoff) == 0:
+        eou_early_cutoff = [0.0]
+
+    eou_missing = [x.missing for x in eou_metrics]
+
+    metrics = {}
+    eou_latency_metrics = get_percentiles(eou_latency, target_percentiles, tag='latency')
+    eou_early_cutoff_metrics = get_percentiles(eou_early_cutoff, target_percentiles, tag='early_cutoff')
+
+    metrics.update(eou_latency_metrics)
+    metrics.update(eou_early_cutoff_metrics)
+
+    metrics['early_cutoff_rate'] = eou_avg_num_early_cutoff
+    metrics['miss_rate'] = sum(eou_missing) / num_eou_utterances if num_eou_utterances > 0 else 0.0
+
+    return metrics

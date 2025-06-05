@@ -12,6 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""
+This script is deprecated !!!!
+"""
+
+
 import argparse
 import json
 from typing import List
