@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Callable, Optional
+
 import torch
 from megatron.core import parallel_state, tensor_parallel
 from megatron.core.distributed import (
@@ -34,6 +36,7 @@ def get_model_from_config(
     use_torch_fsdp2: bool = False,
     wrap_with_ddp: bool = True,
     data_parallel_random_init: bool = True,
+    model_post_init_fns: Optional[list[Callable]] = None,
 ):
     # This method should only be called after `init_distributed()`.
     # model_provider_func is equivalent to llm.gpt.GPTConfig.configure_model()
@@ -84,6 +87,11 @@ def get_model_from_config(
 
     if not isinstance(model, list):
         model = [model]
+
+    if model_post_init_fns:
+        for model_module in model:
+            for post_init_fn in model_post_init_fns:
+                post_init_fn(model_module)
 
     # Set tensor model parallel attributes if not set.
     # Only parameters that are already tensor model parallel have these
