@@ -14,6 +14,7 @@
 
 import copy
 import os
+from dataclasses import dataclass
 from typing import Optional
 
 import numpy as np
@@ -2008,3 +2009,107 @@ class FrameBatchChunkedCTC(FrameBatchASR):
 
         print("keep_logits=True is not supported for FrameBatchChunkedCTC. Returning empty logits.")
         return hypothesis, []
+
+
+@dataclass
+class ContextSize:
+    left: int
+    chunk: int
+    right: int
+
+    def total(self) -> int:
+        return self.left + self.chunk + self.right
+
+    def subsample(self, factor: int) -> "ContextSize":
+        return ContextSize(
+            left=self.left // factor,
+            chunk=self.chunk // factor,
+            right=self.right // factor,
+        )
+
+    def __str__(self):
+        return f"Left {self.left} - Chunk {self.chunk} - Right {self.right}"
+
+
+@dataclass
+class ContextSizeBatch:
+    left: torch.Tensor
+    chunk: torch.Tensor
+    right: torch.Tensor
+
+    def total(self) -> torch.Tensor:
+        return self.left + self.chunk + self.right
+
+    def subsample(self, factor: int) -> "ContextSizeBatch":
+        return ContextSizeBatch(
+            left=torch.div(self.left, factor, rounding_mode="floor"),
+            chunk=torch.div(self.chunk, factor, rounding_mode="floor"),
+            right=torch.div(self.right, factor, rounding_mode="floor"),
+        )
+
+
+class StreamingBatchedAudioBuffer:
+    """Batched audio buffer with strict context management for streaming inference without left padding."""
+
+    def __init__(self, batch_size: int, context_samples: ContextSize, dtype: torch.dtype, device: torch.device | str):
+        self.batch_size = batch_size
+        self.expected_context = context_samples
+        self.samples = torch.zeros([batch_size, 0], dtype=dtype, device=device)
+        self.context_size = ContextSize(left=0, chunk=0, right=0)
+        self.context_size_batch = ContextSizeBatch(
+            left=torch.zeros([batch_size], dtype=torch.long, device=device),
+            chunk=torch.zeros([batch_size], dtype=torch.long, device=device),
+            right=torch.zeros([batch_size], dtype=torch.long, device=device),
+        )
+
+    def add_audio_batch(
+        self,
+        audio_batch: torch.Tensor,
+        audio_lengths: torch.Tensor,
+        is_last_chunk: bool,
+        is_last_chunk_batch: torch.Tensor,
+    ):
+        added_chunk_length = audio_batch.shape[1]
+        if added_chunk_length > self.expected_context.chunk + self.expected_context.right:
+            raise ValueError(
+                f"Added chunk length {added_chunk_length} is larger "
+                f"than expected chunk with right context {self.expected_context}"
+            )
+        self.samples = torch.cat((self.samples, audio_batch), dim=1)
+        # consider first everything is moved to right/left context, then move to chunk
+        self.context_size.left += self.context_size.chunk
+        self.context_size_batch.left += self.context_size_batch.chunk
+        self.context_size.chunk = 0
+        self.context_size_batch.chunk.fill_(0)
+        self.context_size.right += added_chunk_length
+        self.context_size_batch.right += audio_lengths
+
+        if is_last_chunk:
+            # move all samples to chunk, empty right part
+            self.context_size.chunk = self.context_size.right
+            self.context_size.right = 0
+        else:
+            self.context_size.chunk = self.expected_context.chunk
+            self.context_size.right -= self.expected_context.chunk
+            assert self.context_size.right == self.expected_context.right
+
+        self.context_size_batch.chunk = torch.where(
+            is_last_chunk_batch, self.context_size_batch.right, self.expected_context.chunk
+        )
+        self.context_size_batch.right = torch.where(
+            is_last_chunk_batch, 0, self.context_size_batch.right - self.expected_context.chunk
+        )
+
+        # fix left context
+        self.context_size_batch.left = torch.where(self.context_size_batch.chunk > 0, self.context_size_batch.left, 0)
+
+        # leave only full_ctx_audio_samples in buffer
+        extra_samples_in_buffer = max(0, self.samples.shape[1] - self.expected_context.total())
+        if extra_samples_in_buffer > 0:
+            self.samples = self.samples[:, extra_samples_in_buffer:].clone()
+            self.context_size.left -= extra_samples_in_buffer
+            self.context_size_batch.left = torch.where(
+                self.context_size_batch.left > extra_samples_in_buffer,
+                self.context_size_batch.left - extra_samples_in_buffer,
+                0,
+            )
