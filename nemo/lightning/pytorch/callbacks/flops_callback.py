@@ -141,7 +141,7 @@ class FLOPsMeasurementCallback(Callback):
             tflops_per_gpu, flops = self.eval_tflops_per_sec_per_gpu(train_step_time)
             self.avg_train_step_time = 0
             pl_module.log(
-                "throughput/device/tflops_per_sec",
+                "TFLOPS_per_GPU",
                 tflops_per_gpu,
                 on_step=True,
                 on_epoch=False,
@@ -151,7 +151,7 @@ class FLOPsMeasurementCallback(Callback):
 
             tflops = flops / (1e12 * train_step_time)
             pl_module.log(
-                "throughput/tflops_per_sec",
+                "TFLOPS",
                 tflops,
             )
 
