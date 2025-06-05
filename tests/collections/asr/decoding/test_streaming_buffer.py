@@ -106,7 +106,7 @@ def test_streaming_batched_audio_buffer(device: torch.device):
         dtype=torch.long,
         device=device,
     )
-    buffer.add_audio_batch(
+    buffer.add_audio_batch_(
         audio_batch=audio_batch,
         audio_lengths=audio_lens,
         is_last_chunk=False,
@@ -125,7 +125,7 @@ def test_streaming_batched_audio_buffer(device: torch.device):
     chunk_len = expected_ctx.chunk  # 2
     audio_batch = _create_audio_batch(batch_size, chunk_len, device)
     audio_lens.fill_(chunk_len)
-    buffer.add_audio_batch(
+    buffer.add_audio_batch_(
         audio_batch=audio_batch,
         audio_lengths=audio_lens,
         is_last_chunk=False,
@@ -141,7 +141,7 @@ def test_streaming_batched_audio_buffer(device: torch.device):
     # ------------------------------------------------------------------
     # Third add : another chunk, buffer should now reach full capacity (7)
     # ------------------------------------------------------------------
-    buffer.add_audio_batch(
+    buffer.add_audio_batch_(
         audio_batch=audio_batch,
         audio_lengths=audio_lens,
         is_last_chunk=False,
@@ -155,7 +155,7 @@ def test_streaming_batched_audio_buffer(device: torch.device):
     # Fourth add : buffer overflows by 2 samples; implementation should
     # drop the excess from the left context.
     # ------------------------------------------------------------------
-    buffer.add_audio_batch(
+    buffer.add_audio_batch_(
         audio_batch=audio_batch,
         audio_lengths=audio_lens,
         is_last_chunk=False,
@@ -176,7 +176,7 @@ def test_streaming_batched_audio_buffer(device: torch.device):
     last_len = 1
     audio_batch = _create_audio_batch(batch_size, last_len, device)
     audio_lens.fill_(last_len)
-    buffer.add_audio_batch(
+    buffer.add_audio_batch_(
         audio_batch=audio_batch,
         audio_lengths=audio_lens,
         is_last_chunk=True,
@@ -192,7 +192,7 @@ def test_streaming_batched_audio_buffer(device: torch.device):
 @pytest.mark.unit
 @pytest.mark.parametrize("device", DEVICES)
 def test_streaming_batched_audio_buffer_raises_on_too_long_chunk(device: torch.device):
-    """`add_audio_batch` should raise if provided chunk is larger than chunk + right."""
+    """`add_audio_batch_` should raise if provided chunk is larger than chunk + right."""
 
     expected_ctx = ContextSize(left=0, chunk=2, right=1)
     buffer = StreamingBatchedAudioBuffer(
@@ -208,7 +208,7 @@ def test_streaming_batched_audio_buffer_raises_on_too_long_chunk(device: torch.d
     audio_lens = torch.tensor([too_long_chunk_size], dtype=torch.long, device=device)
 
     with pytest.raises(ValueError):
-        buffer.add_audio_batch(
+        buffer.add_audio_batch_(
             audio_batch=audio,
             audio_lengths=audio_lens,
             is_last_chunk=False,

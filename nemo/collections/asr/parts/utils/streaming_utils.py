@@ -2018,9 +2018,16 @@ class ContextSize:
     right: int
 
     def total(self) -> int:
+        """Total context size"""
         return self.left + self.chunk + self.right
 
     def subsample(self, factor: int) -> "ContextSize":
+        """
+        Subsample context size by factor
+
+        Args:
+            factor: subsampling factor
+        """
         return ContextSize(
             left=self.left // factor,
             chunk=self.chunk // factor,
@@ -2033,14 +2040,23 @@ class ContextSize:
 
 @dataclass
 class ContextSizeBatch:
+    """Batched context size"""
+
     left: torch.Tensor
     chunk: torch.Tensor
     right: torch.Tensor
 
     def total(self) -> torch.Tensor:
+        """Total context size"""
         return self.left + self.chunk + self.right
 
     def subsample(self, factor: int) -> "ContextSizeBatch":
+        """
+        Subsample context size by factor
+
+        Args:
+            factor: subsampling factor
+        """
         return ContextSizeBatch(
             left=torch.div(self.left, factor, rounding_mode="floor"),
             chunk=torch.div(self.chunk, factor, rounding_mode="floor"),
@@ -2052,6 +2068,14 @@ class StreamingBatchedAudioBuffer:
     """Batched audio buffer with strict context management for streaming inference without left padding."""
 
     def __init__(self, batch_size: int, context_samples: ContextSize, dtype: torch.dtype, device: torch.device | str):
+        """
+        Init batched audio buffer for streaming inference
+        Args:
+            batch_size: batch size
+            context_samples: context size
+            dtype: buffer dtype
+            device: device for buffer
+        """
         self.batch_size = batch_size
         self.expected_context = context_samples
         self.samples = torch.zeros([batch_size, 0], dtype=dtype, device=device)
@@ -2062,13 +2086,22 @@ class StreamingBatchedAudioBuffer:
             right=torch.zeros([batch_size], dtype=torch.long, device=device),
         )
 
-    def add_audio_batch(
+    def add_audio_batch_(
         self,
         audio_batch: torch.Tensor,
         audio_lengths: torch.Tensor,
         is_last_chunk: bool,
         is_last_chunk_batch: torch.Tensor,
     ):
+        """
+        Add audio batch to buffer
+
+        Args:
+            audio_batch: chunk with audio
+            audio_lengths: length of audio
+            is_last_chunk: if last chunk
+            is_last_chunk_batch: if last chunk for each audio utterance
+        """
         added_chunk_length = audio_batch.shape[1]
         if added_chunk_length > self.expected_context.chunk + self.expected_context.right:
             raise ValueError(

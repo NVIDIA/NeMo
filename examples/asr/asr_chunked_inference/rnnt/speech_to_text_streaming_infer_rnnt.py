@@ -330,7 +330,7 @@ def main(cfg: TranscriptionConfig) -> TranscriptionConfig:
                     rest_audio_lengths,
                     torch.full_like(rest_audio_lengths, fill_value=chunk_length),
                 )
-                buffer.add_audio_batch(
+                buffer.add_audio_batch_(
                     audio_batch[:, left_sample:right_sample],
                     audio_lengths=chunk_lengths_batch,
                     is_last_chunk=(right_sample >= audio_batch.shape[1]),
