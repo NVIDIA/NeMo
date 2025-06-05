@@ -239,7 +239,8 @@ class PEFT(IOMixin, ABC, ModelTransform):
             sharded_sd_metadata = self.wrapped_io.load_content_metadata(self.wrapped_io.adapter_ckpt_path)
             # create sharded state dict for adapter weights only to enable PEFT resume
             adapter_sharded_state_dict['state_dict'] = {
-                k: v for k, v in trainer.model.sharded_state_dict(metadata=sharded_sd_metadata).items()
+                k: v
+                for k, v in trainer.model.sharded_state_dict(metadata=sharded_sd_metadata).items()
                 if self.adapter_key_filter(k)
             }
 

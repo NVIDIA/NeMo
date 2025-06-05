@@ -498,7 +498,9 @@ def optimizer_sharded_state_dict(
     if hasattr(optimizer, "sharded_state_dict"):
         # TODO: can we assume MCore >= v0.13 here
         return optimizer.sharded_state_dict(
-            model_sharded_state_dict, is_loading=is_loading, metadata=metadata,
+            model_sharded_state_dict,
+            is_loading=is_loading,
+            metadata=metadata,
         )
 
     if not isinstance(optimizer, MainParamsOptimizerWrapper):
