@@ -24,11 +24,7 @@ import math
 import pytest
 import torch
 
-from nemo.collections.asr.parts.utils.streaming_utils import (
-    ContextSize,
-    ContextSizeBatch,
-    StreamingBatchedAudioBuffer,
-)
+from nemo.collections.asr.parts.utils.streaming_utils import ContextSize, ContextSizeBatch, StreamingBatchedAudioBuffer
 
 # -----------------------------------------------------------------------------
 # Helper constants / fixtures
@@ -42,6 +38,7 @@ if torch.cuda.is_available():
 # Tests for ContextSize and ContextSizeBatch
 # -----------------------------------------------------------------------------
 
+
 @pytest.mark.unit
 def test_context_size_total_and_subsample():
     ctx = ContextSize(left=4, chunk=2, right=1)
@@ -51,6 +48,7 @@ def test_context_size_total_and_subsample():
     assert isinstance(half_ctx, ContextSize)
     assert half_ctx.left == 2 and half_ctx.chunk == 1 and half_ctx.right == 0
     assert half_ctx.total() == math.floor(7 / 2)
+
 
 @pytest.mark.unit
 @pytest.mark.parametrize("device", DEVICES)
@@ -69,6 +67,7 @@ def test_context_size_batch_total_and_subsample(device: torch.device):
     assert torch.equal(half_ctx.left, left // 2)
     assert torch.equal(half_ctx.chunk, chunk // 2)
     assert torch.equal(half_ctx.right, right // 2)
+
 
 # -----------------------------------------------------------------------------
 # Tests for StreamingBatchedAudioBuffer
@@ -99,7 +98,14 @@ def test_streaming_batched_audio_buffer(device: torch.device):
     # ------------------------------------------------------------------
     first_len = expected_ctx.chunk + expected_ctx.right  # 3
     audio_batch = _create_audio_batch(batch_size, first_len, device)
-    audio_lens = torch.full([batch_size,], first_len, dtype=torch.long, device=device)
+    audio_lens = torch.full(
+        [
+            batch_size,
+        ],
+        first_len,
+        dtype=torch.long,
+        device=device,
+    )
     buffer.add_audio_batch(
         audio_batch=audio_batch,
         audio_lengths=audio_lens,
@@ -181,6 +187,7 @@ def test_streaming_batched_audio_buffer(device: torch.device):
     assert buffer.context_size.right == 0
     assert buffer.context_size.total() == expected_ctx.total()
     assert buffer.samples.shape[1] == expected_ctx.total()
+
 
 @pytest.mark.unit
 @pytest.mark.parametrize("device", DEVICES)
