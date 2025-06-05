@@ -437,7 +437,8 @@ class MagpieTTSModelOnlinePO(MagpieTTSModel):
             self.squim_objective_model = SQUIM_OBJECTIVE.get_model()
         
         self.loss_type = self.cfg.get('loss_type', 'grpo')
-        assert self.loss_type in ['grpo', 'dr_grpo'], f"Unknown loss type: {self.loss_type}"
+        if self.loss_type not in ['grpo', 'dr_grpo']:
+            raise ValueError(f"Received loss_type of {self.loss_type}, but the model only accepts one of ['grpo', 'dr_grpo']")
         self.scale_rewards = self.cfg.get('scale_rewards', True)
         self.max_decoder_steps = self.cfg.get('max_decoder_steps', 430)
 
