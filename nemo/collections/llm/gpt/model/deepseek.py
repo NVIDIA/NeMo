@@ -115,8 +115,7 @@ class DeepSeekConfig(MLATransformerConfig, GPTConfig):
     bias_activation_fusion: bool = True
     bias_dropout_fusion: bool = True
     masked_softmax_fusion: bool = True
-    # gradient_accumulation_fusion: bool = True
-    gradient_accumulation_fusion: bool = False
+    gradient_accumulation_fusion: bool = True
 
     def __post_init__(self):
         super().__post_init__()
@@ -195,6 +194,44 @@ class DeepSeekV3Config(DeepSeekConfig):
     moe_router_bias_update_rate: float = 1e-3
     mscale: float = 1.0
     mscale_all_dim: float = 1.0
+
+@dataclass
+class MoonlightConfig(DeepSeekConfig):
+    """
+    Moonlight-16B-A3B Model: https://github.com/moonshotai/Moonlight-16B-A3B
+    """
+    max_position_embeddings: int = 4096
+    # seq_length: int = 8192
+    num_layers: int = 27
+    hidden_size: int = 2048
+    ffn_hidden_size: int = 11264
+    num_moe_experts: int = 64
+    moe_ffn_hidden_size: int = 1408
+    moe_shared_expert_intermediate_size: int = 2816  # 1408 * 2 shared expert
+    moe_layer_freq: Union[int, List[int]] = field(
+        default_factory=lambda: [0] * 1 + [1] * 26
+    )  # first layer is dense
+    moe_router_topk: int = 6
+    moe_router_num_groups: int = 1
+    moe_router_group_topk: int = 1
+    moe_router_topk_scaling_factor: float = 2.446
+    moe_aux_loss_coeff: float = 0.001
+    make_vocab_size_divisible_by: int = 1280
+    moe_router_score_function: str = "sigmoid"
+    moe_router_enable_expert_bias: bool = True
+    moe_router_bias_update_rate: float = 1e-3
+
+    rotary_scaling_factor: float = 1.0
+    mscale: float = 1.0
+    mscale_all_dim: float = 1.0
+    rope_type: str = "rope"
+    rotary_base: float = 50000
+    layernorm_epsilon: float = 1e-5
+    q_lora_rank: int = None
+    init_method_std: float = 0.02
+    moe_router_bias_update_rate: float = 1e-3
+
+    rotary_percent: float = 1.0
 
 
 class DeepSeekModel(GPTModel):
@@ -408,7 +445,10 @@ class HFDeepSeekImporter(io.ModelConnector["AutoModelForCausalLM", DeepSeekModel
                 #TODO(yifu): check if there is corresponding HF param for this or if it's hardcoded in HF
                 "moe_router_bias_update_rate": 1e-3,
             }
-            config_cls = DeepSeekV3Config
+            if "Moonlight-16B-A3B" in str(self):
+                config_cls = MoonlightConfig
+            else:
+                config_cls = DeepSeekV3Config
         elif source.model_type == "deepseek_v2":
             v3_kwargs = {}
             if source.q_lora_rank is not None:
@@ -442,6 +482,7 @@ class HFDeepSeekImporter(io.ModelConnector["AutoModelForCausalLM", DeepSeekModel
             bf16=(dtype_from_hf(source) == torch.bfloat16),
             params_dtype=dtype_from_hf(source),
             generation_config=generation_config,
+            vocab_size=source.vocab_size,
             **v3_kwargs,
         )
 
