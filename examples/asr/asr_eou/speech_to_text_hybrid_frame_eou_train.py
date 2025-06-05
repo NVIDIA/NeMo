@@ -45,7 +45,7 @@ MAX_STEPS=1000000
 
 EXP_NAME=fastconformer_transducer_bpe_streaming_eou_debug
 
-SCRIPT=${NEMO_PATH}/examples/asr/asr_eou/speech_to_text_rnnt_eou.py
+SCRIPT=${NEMO_PATH}/examples/asr/asr_eou/speech_to_text_hybrid_frame_eou_train.py
 CONFIG_PATH=${NEMO_PATH}/examples/asr/conf/fastconformer/cache_aware_streaming
 CONFIG_NAME=fastconformer_transducer_bpe_streaming
 
@@ -71,17 +71,12 @@ CUDA_VISIBLE_DEVICES=0 python $SCRIPT \
 
 """
 
-
-from typing import Optional
-
 import lightning.pytorch as pl
 import torch
 from omegaconf import DictConfig, OmegaConf
 
-from nemo.collections.asr.models import ASRModel, EncDecHybridRNNTCTCBPEModel, EncDecRNNTBPEModel
+from nemo.collections.asr.models import ASRModel
 from nemo.collections.asr.models.asr_eou_models import EncDecHybridASRFrameEOUModel
-from nemo.collections.asr.modules.conv_asr import ConvASRDecoder
-from nemo.collections.asr.modules.rnnt import RNNTDecoder, RNNTJoint
 from nemo.core.classes import typecheck
 from nemo.core.config import hydra_runner
 from nemo.utils import logging

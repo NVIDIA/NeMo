@@ -1331,7 +1331,6 @@ class EncDecHybridASRFrameEOUModel(EncDecHybridRNNTCTCBPEModel, ASREOUModelMixin
 
         # Calculate EOU metrics
         eou_pred, eou_pred_len = self.get_eou_prediction(encoded_all, encoded_len_all, log_probs)
-
         eou_loss = self.get_eou_loss(eou_pred, eou_pred_len, eou_labels, eou_labels_len)
         tensorboard_logs['val_eou_loss'] = eou_loss
 

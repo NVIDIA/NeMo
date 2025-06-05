@@ -45,7 +45,7 @@ MAX_STEPS=1000000
 
 EXP_NAME=fastconformer_transducer_bpe_streaming_eou_debug
 
-SCRIPT=${NEMO_PATH}/examples/asr/asr_eou/speech_to_text_rnnt_eou.py
+SCRIPT=${NEMO_PATH}/examples/asr/asr_eou/speech_to_text_hybrid_eou_train.py
 CONFIG_PATH=${NEMO_PATH}/examples/asr/conf/fastconformer/cache_aware_streaming
 CONFIG_NAME=fastconformer_transducer_bpe_streaming
 

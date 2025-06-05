@@ -12,6 +12,46 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""
+Example usage:
+
+```bash
+NEMO_PATH=/home/heh/codes/nemo-eou
+export PYTHONPATH=$NEMO_PATH:$PYTHONPATH
+
+TEST_MANIFEST="[/path/to/your/test_manifest.json,/path/to/your/test_manifest2.json,...]"
+TEST_NAME="[test_name1,test_name2,...]"
+TEST_BATCH=32
+NUM_WORKERS=8
+
+PRETRAINED_NEMO=/path/to/EOU/model.nemo
+SCRIPT=${NEMO_PATH}/examples/asr/asr_eou/speech_to_text_eou_eval.py
+CONFIG_PATH=${NEMO_PATH}/examples/asr/conf/asr_eou
+CONFIG_NAME=fastconformer_transducer_bpe_streaming
+
+export CUDA_VISIBLE_DEVICES=0 && \
+python $SCRIPT \
+    --config-path $CONFIG_PATH \
+    --config-name $CONFIG_NAME \
+    ++init_from_nemo_model=$PRETRAINED_NEMO \
+    ~model.train_ds \
+    ~model.validation_ds \
+    ++model.test_ds.defer_setup=true \
+    ++model.test_ds.sample_rate=16000 \
+    ++model.test_ds.manifest_filepath=$TEST_MANIFEST \
+    ++model.test_ds.name=$TEST_NAME \
+    ++model.test_ds.batch_size=$TEST_BATCH \
+    ++model.test_ds.num_workers=$NUM_WORKERS \
+    ++model.test_ds.drop_last=false \
+    ++model.test_ds.force_finite=true \
+    ++model.test_ds.shuffle=false \
+    ++model.test_ds.pin_memory=true \
+    exp_manager.name=$EXP_NAME-eval \
+    exp_manager.create_wandb_logger=false \
+```
+
+"""
+
 
 import lightning.pytorch as pl
 import torch
