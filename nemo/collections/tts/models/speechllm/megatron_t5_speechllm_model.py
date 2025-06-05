@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,6 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
+# flake8: noqa
 
 import itertools
 import json
@@ -1387,6 +1389,9 @@ class MegatronT5SpeechLMModel(MegatronBaseSpeechLM):
     def on_validation_epoch_end(self):
         outputs = self.validation_step_outputs
         if self.cfg.get('pipeline_model_parallel_size', 1) > 1:
+            assert (
+                self.cfg.get("virtual_pipeline_model_parallel_size", None) is None
+            ), "Virtual pipeline model parallel size is no longer supported for nemo 1.0"
             if parallel_state.is_pipeline_last_stage():
                 # only the last pipeline parallel stages return loss
                 averaged_loss = torch.stack([item['loss'] for item in outputs]).mean()

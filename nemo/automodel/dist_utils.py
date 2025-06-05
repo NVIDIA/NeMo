@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -66,7 +66,7 @@ class FirstRankPerNode(ContextDecorator):
                 # Re‑sync the whole world so that non‑rank‑0s can proceed
                 dist.barrier()
                 if exc_type is not None:
-                    dist.abort()  # propagate failure to the entire job
+                    dist.destroy_process_group()
         finally:
             if self._created_pg:
                 dist.destroy_process_group()

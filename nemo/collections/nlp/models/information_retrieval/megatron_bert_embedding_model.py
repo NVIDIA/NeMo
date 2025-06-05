@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,6 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
+# flake8: noqa
+# pylint: skip-file
 
 import logging
 import os
@@ -262,14 +265,12 @@ class MegatronBertEmbeddingModel(MegatronBertModel):
         if parallel_state.get_pipeline_model_parallel_world_size() > 1:
             if isinstance(self.model, list):
                 for i, module in enumerate(self.model):
-                    parallel_state.set_virtual_pipeline_model_parallel_rank(i)
                     sync_embeddings = (
                         module.setup_embeddings_and_output_layer
                         if self.mcore_bert
                         else module.sync_initial_word_embeddings
                     )
                     sync_embeddings()
-                parallel_state.set_virtual_pipeline_model_parallel_rank(0)
             else:
                 sync_embeddings = (
                     self.model.setup_embeddings_and_output_layer

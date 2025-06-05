@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION.  All rights reserved.
+# Copyright (c) 2025, NVIDIA CORPORATION.  All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -1050,6 +1050,10 @@ class SpeechToTextLLM(SpeechLanguageModel):
                 continue
             # Expand on_validation_epoch_end from parent class MegatronGPTModel as on_validation_epoch_end doesnt take outputs arg
             loss_vals = [x['loss'].view(-1, 1) for x in output]  # each loss is [1, B]
+
+            assert (
+                getattr(self.config, "virtual_pipeline_model_parallel_size", None) is None
+            ), "vpp is not supported yet in SpeechToTextLLMModel"
             if parallel_state.is_pipeline_last_stage():
                 # only the last pipeline parallel stages return loss with their batch size
                 loss = torch.vstack(loss_vals).mean().type(torch.float32).cuda()
