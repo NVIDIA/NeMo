@@ -233,6 +233,13 @@ class ModelConnector(Connector, Generic[SourceT, TargetT]):
         from nemo.lightning.io.api import load_context
 
         model = load_context(path, subpath="model")
+
+        # disable FP8 model loading for LoRA export
+        # (base model loaded in FP8 during training but can be loaded in BF16 during export)
+        # FP8 SFT model export is not supported
+        model.config.fp8 = None
+        model.config.fp8_param = False
+
         # skip initialization since a checkpoint is loaded in this function
         model.config.perform_initialization = False
 
