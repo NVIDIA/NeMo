@@ -120,6 +120,11 @@ if __name__ == "__main__":
         network='sharp' if args.use_sharp else None,
     )
 
+    # TODO: we currently disable PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True"
+    # for mixtral_8x7b on B200 as it causes an unexpected error. Add back when issue is debugged and fixed.
+    if args.gpu.lower() in ['b200'] and "PYTORCH_CUDA_ALLOC_CONF" in executor.env_vars:
+        del executor.env_vars["PYTORCH_CUDA_ALLOC_CONF"]
+
     plugins = [
         PerfEnvPlugin(
             enable_vboost=True,
