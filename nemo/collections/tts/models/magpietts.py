@@ -585,7 +585,7 @@ class MagpieTTSModel(ModelPT):
             print(c, end="")
         print()
 
-    def local_transformer_sample_maskgit(self, dec_output, temperature=0.7, topk=80, unfinished_items={}, finished_items={}, use_cfg=False, cfg_scale=1.0, n_steps=3, noise_scale=0.0):
+    def local_transformer_sample_maskgit(self, dec_output, temperature=0.7, topk=80, unfinished_items={}, finished_items={}, use_cfg=False, cfg_scale=1.0, n_steps=3, noise_scale=0.0, fixed_schedule_n_unmasked=None, dynamic_cfg_scale=False):
         """
         Sample codes for one timestep from the local transformer using MaskGit.
         """
@@ -607,22 +607,21 @@ class MagpieTTSModel(ModelPT):
         # initialize to all masked
         codes = self.mask_token_id * torch.ones((B, codebook_seq_len), device=device, dtype=torch.long)
         sampled_codes = codes.clone()
-        forced_schedule = False
-        if forced_schedule:
-            scheduled_n_unmasked = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15]
-            n_steps = len(scheduled_n_unmasked)
-            print(".", end="")
-            #print(f"Using forced schedule: {scheduled_n_unmasked}")
+        if fixed_schedule_n_unmasked is not None:
+            n_steps = len(fixed_schedule_n_unmasked)
+            print(f"Using fixed schedule: {fixed_schedule_n_unmasked}")        
+        if dynamic_cfg_scale:
+            print(f"Using dynamic CFG scale")
         for step in range(n_steps):
             # how far along we are in the unmasking process
             progress = step / n_steps
             # get mask fraction
             frac_masked = cosine_schedule(torch.tensor(progress))
             # how many codebooks to mask
-            if not forced_schedule:
+            if fixed_schedule_n_unmasked is None:
                 n_masked = torch.ceil(codebook_seq_len * frac_masked).long()
             else:
-                n_masked = codebook_seq_len - scheduled_n_unmasked[step]
+                n_masked = codebook_seq_len - fixed_schedule_n_unmasked[step]
             n_unmasked = codebook_seq_len - n_masked
             # pick top-confidence codebooks up to n_unmasked
             _, topk_indices = torch.topk(confidences, k=n_unmasked, dim=1)
@@ -662,7 +661,16 @@ class MagpieTTSModel(ModelPT):
                 actual_batch_size = logits.size(0) // 2
                 conditional_logits = logits[:actual_batch_size]
                 unconditional_logits = logits[actual_batch_size:]
-                cfg_logits = cfg_scale * conditional_logits +  (1.0 - cfg_scale) * unconditional_logits
+                if not dynamic_cfg_scale:
+                    current_cfg_scale = cfg_scale
+                else:
+                    # gradually increase the scale until mid point through sampling, then reduce it again
+                    progress = step / (n_steps-1)
+                    interp = -abs(progress-0.5)+0.5 # increase from 0..1 in the interval from start to midpoint and then go back to zero
+                    #interp = 1.0 - progress
+                    current_cfg_scale = (cfg_scale - 1) * interp + 1.0  # 1.0 --> cfg_scale --> 1.0
+                    #print(f"step={step}, current_cfg_scale={current_cfg_scale:.2f}")
+                cfg_logits = current_cfg_scale * conditional_logits +  (1.0 - current_cfg_scale) * unconditional_logits                                    
                 logits[:actual_batch_size] = cfg_logits
 
             # handle unfinished and finished items
@@ -1311,9 +1319,15 @@ class MagpieTTSModel(ModelPT):
         dec_context_size = context_tensors['dec_context_size']
         logits = logits[:, dec_context_size:, :]  # Remove the context audio embeddings from the logits
 
-        codebook_loss, loss_mask = self.compute_loss(
-            logits, audio_codes_target, audio_codes_lens_target_full_rate_orig, downsampling_factor=self.downsampling_factor
-        )
+        with_parallel_loss = self.cfg.get('with_parallel_loss', True)
+        if with_parallel_loss:
+            codebook_loss, loss_mask = self.compute_loss(
+                logits, audio_codes_target, audio_codes_lens_target_full_rate_orig, downsampling_factor=self.downsampling_factor
+            )
+        else:
+            codebook_loss = torch.tensor(0.0, device=logits.device)
+            loss_mask = None
+
         codebook_loss_scale = self.cfg.get('codebook_loss_scale', 1.0)
         alignment_loss = None
         if self.cfg.alignment_loss_scale > 0.0 and not disable_alignment_loss:
@@ -1642,8 +1656,9 @@ class MagpieTTSModel(ModelPT):
             compute_all_heads_attn_maps=False,
             use_local_transformer_for_inference=False,
             maskgit_n_steps=3,
-            maskgit_noise_scale=0.0
-        ):
+            maskgit_noise_scale=0.0,
+            fixed_schedule_n_unmasked=None,
+            dynamic_cfg_scale=False):
         with torch.no_grad():
             start_time = time.time()
             self.decoder.reset_cache(use_cache=self.use_kv_cache_for_inference)
@@ -1814,7 +1829,9 @@ class MagpieTTSModel(ModelPT):
                             use_cfg=use_cfg,
                             cfg_scale=cfg_scale,
                             n_steps=maskgit_n_steps,
-                            noise_scale=maskgit_noise_scale
+                            noise_scale=maskgit_noise_scale,
+                            fixed_schedule_n_unmasked=fixed_schedule_n_unmasked,
+                            dynamic_cfg_scale=dynamic_cfg_scale
                         )
                     else:
                         raise ValueError(f"Local transformer inference requested by but local transformer type is {self.local_transformer_type}")
@@ -1870,6 +1887,17 @@ class MagpieTTSModel(ModelPT):
                 'batch_size': text.size(0),
             }
             torch.cuda.empty_cache()
+            if predicted_audio.numel() == 0 or predicted_codes.numel() == 0:
+                # attach debugger if not attached
+                import debugpy
+                # only attach if not already attached
+                if not debugpy.is_client_connected():
+                    debugpy.listen(('0.0.0.0', 5678))  # You can change the port if needed
+                    print('Waiting for debugger to attach...')
+                    debugpy.wait_for_client()  # This will block execution until the debugger attaches
+                    print('Debugger is attached!')
+                print("Zero length output")
+
             if return_cross_attn_probs:
                 cross_attention_maps, headwise_cross_attention_maps = self.get_inference_attention_plots(
                     cross_attention_scores_all_timesteps, all_heads_cross_attn_scores_all_timesteps,
