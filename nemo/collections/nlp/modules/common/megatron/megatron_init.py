@@ -336,7 +336,7 @@ def fake_initialize_model_parallel(
             dp=data_parallel_size,
             pp=encoder_pipeline_model_parallel_size,
             cp=context_parallel_size,
-            order='tp-cp-ep-pp-dp' if use_tp_pp_dp_mapping else 'tp-cp-ep-dp-pp',
+            order='tp-ep-pp-cp-dp' if use_tp_pp_dp_mapping else 'tp-cp-ep-dp-pp',
             rank_offset=0,
         )
     else:
@@ -348,7 +348,7 @@ def fake_initialize_model_parallel(
         dp=data_parallel_size,
         pp=pipeline_model_parallel_size,
         cp=context_parallel_size,
-        order='tp-cp-ep-pp-dp' if use_tp_pp_dp_mapping else 'tp-cp-ep-dp-pp',
+        order='tp-ep-pp-cp-dp' if use_tp_pp_dp_mapping else 'tp-cp-ep-dp-pp',
         rank_offset=encoder_world_size,
     )
     # Build expert rank generator
@@ -371,7 +371,7 @@ def fake_initialize_model_parallel(
         dp=expert_data_parallel_size,
         pp=pipeline_model_parallel_size,
         cp=1,
-        order='tp-cp-ep-pp-dp' if use_tp_pp_dp_mapping else 'tp-cp-ep-dp-pp',
+        order='tp-ep-pp-cp-dp' if use_tp_pp_dp_mapping else 'tp-cp-ep-dp-pp',
         rank_offset=encoder_world_size,
     )
 
