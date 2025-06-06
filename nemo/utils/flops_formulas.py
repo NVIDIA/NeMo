@@ -150,7 +150,7 @@ def qwen3(config: FLOPSConfig):
     seq_len = config.enc_seq_len
     hidden_size = config.hs
     # ffn_hidden_size = config.ffn_hs
-    gated_linear_multiplier = 1
+    gated_linear_multiplier = 2
 
 
     # attention flops for GQA
