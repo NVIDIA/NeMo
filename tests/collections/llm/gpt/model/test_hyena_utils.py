@@ -16,15 +16,16 @@
 import types
 from unittest.mock import MagicMock
 
-import nemo.collections.llm.gpt.model.megatron.hyena.hyena_utils as hyena_utils
 import pytest
 import torch
+import torch.distributed as dist
 from megatron.core.tensor_parallel.random import get_cuda_rng_tracker
 from nemo.collections.llm.gpt.model.megatron.hyena.hyena_utils import (
     B2BCausalConv1dModule,
     ExchangeOverlappingRegionsCausal,
     _get_inverse_zigzag_indices,
     _get_zigzag_indices,
+    dist,
     divide,
     ensure_divisibility,
     fftconv_func,
@@ -254,9 +255,9 @@ def test_exchange_overlapping_regions_causal_forward(monkeypatch):
             return DummyReq()
 
     dummy_dist = DummyDist()
-    monkeypatch.setattr(hyena_utils.dist, "irecv", dummy_dist.irecv)
-    monkeypatch.setattr(hyena_utils.dist, "isend", dummy_dist.isend)
-    monkeypatch.setattr(hyena_utils.dist, "get_process_group_ranks", dummy_dist.get_process_group_ranks)
+    monkeypatch.setattr(dist, "irecv", dummy_dist.irecv)
+    monkeypatch.setattr(dist, "isend", dummy_dist.isend)
+    monkeypatch.setattr(dist, "get_process_group_ranks", dummy_dist.get_process_group_ranks)
     chunk_a = torch.zeros(1, 2)
     chunk_b = torch.zeros(1, 2)
     group = object()
