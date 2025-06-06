@@ -108,6 +108,13 @@ def override_recipe_configs(
         # needed as tp_overlap_configs.userbuffers are dataclass objects which are unserializable
         tp_comm_overlap_cfg = fdl.cast(run.Config, fdl_dc.convert_dataclasses_to_configs(tp_comm_overlap_cfg))
         recipe.trainer.callbacks[comm_overlap_callback_idx].tp_comm_overlap_cfg = tp_comm_overlap_cfg
+<<<<<<< HEAD
+=======
+
+    if args.compute_dtype.lower() == "bf16" and args.checkpoint_load_path is not None:
+        recipe.optim.config.use_precision_aware_optimizer = False
+
+>>>>>>> b4148d2169 (fixing QA checkpoint bug for nemotron4 (#13843))
     return recipe
 
 
