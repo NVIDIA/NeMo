@@ -183,8 +183,10 @@ __all__ = [
 ]
 
 try:
-    from nemo.collections.vlm.api import ptq # noqa: F401
+    from nemo.collections.vlm.api import ptq  # noqa: F401
+
     __all__.append("ptq")
 except ImportError as error:
     from nemo.utils import logging
+
     logging.warning(f"Failed to import nemo.collections.vlm.api: {error}")

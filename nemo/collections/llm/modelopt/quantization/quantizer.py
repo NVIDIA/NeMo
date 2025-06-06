@@ -289,6 +289,9 @@ class Quantizer:
         if decoder_type == "gemma" and "int8_sq" in algorithm:
             quant_cfg["algorithm"] = {"method": "smoothquant", "alpha": 0.5}
 
+        quant_cfg["quant_cfg"]["vision_projection.*"] = {
+            "enable": False
+        }  # disable vision projection quantization for Llama4
         return quant_cfg
 
     def quantize(self, model: "MegatronParallel", forward_loop=None):
