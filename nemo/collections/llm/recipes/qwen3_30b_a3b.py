@@ -28,6 +28,7 @@ from nemo.collections.llm.recipes.optim.adam import distributed_fused_adam_with_
 from nemo.collections.llm.recipes.qwen3 import qwen3_model, qwen3_trainer
 from nemo.utils.exp_manager import TimingCallback
 
+
 NAME = "qwen3_30b_a3b"
 
 
@@ -163,7 +164,7 @@ def pretrain_recipe(
             seq_length=seq_length,
             global_batch_size=global_batch_size,
             micro_batch_size=micro_batch_size,
-            tokenizer=run.Config(AutoTokenizer, "Qwen/Qwen3-30B_A3B"),
+            tokenizer=run.Config(AutoTokenizer, "Qwen/Qwen3-30B-A3B"),
         ),
         log=default_log(dir=dir, name=name, tensorboard_logger=tensorboard_logger(name=name)),
         optim=distributed_fused_adam_with_cosine_annealing(
