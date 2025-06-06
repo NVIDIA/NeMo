@@ -751,11 +751,11 @@ def batched_hyps_to_hypotheses(
     """
     assert batch_size is None or batch_size <= batched_hyps.scores.shape[0]
     num_hyps = batched_hyps.scores.shape[0] if batch_size is None else batch_size
-    # NB: clone is necessary for online decoding to avoid reusing the same container
-    scores = batched_hyps.scores.clone().cpu()
-    current_lengths = batched_hyps.current_lengths.clone().cpu()
-    transcript = batched_hyps.transcript.clone().cpu()
-    timestamps = batched_hyps.timestamps.clone().cpu()
+    # NB: clone is not necessary anymore, since CUDA graph decoder always returns an independent copy
+    scores = batched_hyps.scores.cpu()
+    current_lengths = batched_hyps.current_lengths.cpu()
+    transcript = batched_hyps.transcript.cpu()
+    timestamps = batched_hyps.timestamps.cpu()
     hypotheses = [
         Hypothesis(
             score=scores[i].item(),
@@ -777,10 +777,10 @@ def batched_hyps_to_hypotheses(
         # move all data to cpu to avoid overhead with moving data by chunks
         alignment_lengths = alignments.current_lengths.cpu().tolist()
         if alignments.with_alignments:
-            alignment_logits = alignments.logits.clone().cpu()
-            alignment_labels = alignments.labels.clone().cpu()
+            alignment_logits = alignments.logits.cpu()
+            alignment_labels = alignments.labels.cpu()
         if alignments.with_frame_confidence:
-            frame_confidence = alignments.frame_confidence.clone().cpu()
+            frame_confidence = alignments.frame_confidence.cpu()
 
         # for each hypothesis - aggregate alignment using unique_consecutive for time indices (~itertools.groupby)
         for i in range(len(hypotheses)):
